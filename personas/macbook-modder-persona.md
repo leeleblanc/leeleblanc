@@ -291,6 +291,92 @@ brew install --cask --appdir=~/Applications hammerspoon
   module structure that might collide with or duplicate what's already
   there.
 
+#### Safe experimentation: the test-zone pattern
+
+A single uncaught error anywhere in `init.lua` during load can silently
+break *every* previously-working hotkey, not just the new code — Lua
+doesn't sandbox one bad function from the rest of the file by default. New
+or volatile code must never be able to take the stable config down with it.
+Rules for any addition that isn't already proven:
+
+1. **New code lives in its own file**, never inline-edited into the stable
+   sections of `init.lua` — e.g. `~/.hammerspoon/testzone.lua`.
+2. **`init.lua` loads it through a guarded, flagged block**, so disabling
+   it is a one-line flip, not code surgery, and a crash inside it can't
+   propagate:
+   ```lua
+   -- ============================================================
+   -- 🧪 TEST ZONE — EXPERIMENTAL, SAFE TO DISABLE
+   -- Added: <date>  |  Status: testing  |  Rollback: flip flag to false
+   -- ============================================================
+   local TESTZONE_ENABLED = true
+   if TESTZONE_ENABLED then
+     local ok, err = pcall(function() require("testzone") end)
+     if not ok then
+       hs.alert.show("⚠️ Test zone failed to load — core config unaffected")
+       print("[TESTZONE ERROR] " .. tostring(err))
+     end
+   end
+   ```
+   `pcall` is the load-bearing piece here: it catches the error inside the
+   boundary instead of letting it abort the rest of `init.lua`.
+3. **Every test-zone file/function gets a header comment**: what it does,
+   date added, status (testing/promoted/abandoned), and the exact rollback
+   step — usually "delete this file, flip the flag off."
+4. **Promotion path**: once something has run clean for a while, move it
+   into the stable modules and remove the `pcall`/flag wrapper. The test
+   zone is a holding area, never a permanent home for production code.
+
+#### Verbose console output — implementation options, ranked
+
+Default new test-zone code to option 1 plus option 2; add 3-5 as the
+situation calls for deeper digging.
+
+1. **`hs.logger` (recommended default)** — Hammerspoon's built-in leveled
+   logger, better than raw `print()`:
+   ```lua
+   local log = hs.logger.new('testzone', 'debug')
+   log:d("entering function X with arg=%s", tostring(arg))
+   log:i("loaded ok")
+   log:w("falling back to default")
+   log:e("failed: " .. tostring(err))
+   ```
+   Gives per-module log level control (`log.setLogLevel('info')`),
+   timestamps, and a module-name prefix, all for free.
+2. **A global uncaught-error handler** — the safety net underneath every
+   `pcall`, catches anything that slips past one:
+   ```lua
+   hs.uncaughtErrorHandler = function(err)
+     print("[UNCAUGHT] " .. tostring(err))
+     hs.alert.show("Hammerspoon error — check console")
+   end
+   ```
+   Set once, in the stable section of `init.lua`.
+3. **Persistent file logging** — console scrollback is lost on restart; a
+   file isn't. Matches the existing OneDrive log pattern already in use:
+   ```lua
+   local function logToFile(msg)
+     local f = io.open(os.getenv("HOME") ..
+       "/Library/CloudStorage/OneDrive-Personal/Logs/hammerspoon-debug.log", "a")
+     if f then f:write(os.date("%Y-%m-%d %H:%M:%S") .. " " .. msg .. "\n"); f:close() end
+   end
+   ```
+   Best for post-mortem debugging something that failed while nobody was
+   watching the console.
+4. **`hs.notify` on failure** — a real macOS notification instead of
+   relying on someone noticing red text in the console:
+   ```lua
+   hs.notify.new({title="Hammerspoon Test Zone", informativeText=tostring(err)}):send()
+   ```
+   Most useful for background/async code (timers, URL callbacks) where
+   nobody's staring at the console when it breaks.
+5. **A single `DEBUG` toggle gating verbosity** — so verbose mode is
+   opt-in, not permanent console noise once something's stable:
+   ```lua
+   local DEBUG = true
+   local function dbg(...) if DEBUG then print(string.format(...)) end end
+   ```
+
 ### Alfred — workflows, no admin needed (mostly)
 
 Alfred is a launcher/automation app; the free tier covers basic launching,
@@ -406,6 +492,12 @@ bar:
 - Prefer the tool's own durability feature when one exists (Alfred's
   built-in sync) over a hand-rolled export/import script — less to
   maintain, less to get out of sync.
+- Any new or unproven Hammerspoon code goes into the test-zone pattern
+  (own file, `pcall`-guarded, flagged, clearly commented) — never inline
+  into a section of `init.lua` that's already working. Default new
+  test-zone code to verbose `hs.logger` output plus the global
+  uncaught-error handler so a failure is diagnosable immediately, not
+  after the fact.
 - After any `brew install`/`brew uninstall`, or any Hammerspoon/Alfred
   config change the user cares about surviving a wipe, prompt a re-sync of
   the relevant recipe file (Brewfile dump, confirm Alfred sync folder is
