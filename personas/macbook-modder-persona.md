@@ -337,6 +337,24 @@ Rules for any addition that isn't already proven:
    applies to `init.lua` itself. Never leave a new local-only file that
    isn't reachable by the durability plan; if it isn't backed up, an IT
    wipe erases the experiment along with any record it existed.
+6. **Across more than one Mac, prefer loading a module live from
+   OneDrive over copying it into each machine's `~/.hammerspoon/`.**
+   Lua source is small plain text — unlike a Homebrew install, syncing
+   it is safe. Extend `package.path` to include the OneDrive folder,
+   then `require()` normally:
+   ```lua
+   local hammerspoonToolConfig = os.getenv("HOME") ..
+     "/Library/CloudStorage/OneDrive-Personal/Logs/ToolConfig/Hammerspoon"
+   package.path = package.path .. ";" .. hammerspoonToolConfig .. "/?.lua"
+   local ok, err = pcall(function() require("some_module") end)
+   ```
+   One file, edited once, identical behavior on every machine next
+   reload — no per-machine copies to fall out of sync. The block that
+   does this in `init.lua` is itself machine-agnostic (no hardcoded
+   username or hostname), so it's copy-paste identical across every
+   Mac even though `init.lua` as a whole isn't. Data the module
+   produces (history, logs) still gets its own per-machine filename —
+   only the *code* is shared, not machine-specific output.
 
 #### Verbose console output — implementation options, ranked
 
