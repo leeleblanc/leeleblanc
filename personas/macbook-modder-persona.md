@@ -338,6 +338,74 @@ Rules for any addition that isn't already proven:
    isn't reachable by the durability plan; if it isn't backed up, an IT
    wipe erases the experiment along with any record it existed.
 
+#### Verbose console output — implementation options, ranked
+
+Confirmed necessary in practice: a real bug (a clipboard-URL logger that
+worked once, then silently stopped) turned out to be an error inside an
+**async callback fired after the triggering function had already
+returned** — outside the reach of a synchronous `pcall`. With zero logging
+in that path, the failure was invisible. Default new test-zone code to
+option 1 plus option 2; add 3-5 when actually digging into something.
+
+1. **`hs.logger` (recommended default)** — Hammerspoon's built-in leveled
+   logger, better than raw `print()`:
+   ```lua
+   local log = hs.logger.new('testzone', 'debug')
+   log:d("entering function X with arg=%s", tostring(arg))
+   log:i("loaded ok")
+   log:w("falling back to default")
+   log:e("failed: " .. tostring(err))
+   ```
+   Gives per-module log level control (`log.setLogLevel('info')`),
+   timestamps, and a module-name prefix, all for free. Use it inside
+   *every* callback boundary — synchronous and async — not just at the
+   top level of a function, since async callbacks are exactly where
+   silent failures hide (see above).
+2. **A global uncaught-error handler** — the safety net underneath every
+   `pcall`, catches anything that slips past one. Set once, in the stable
+   section of `init.lua` (not gated behind any test-zone flag — it should
+   always be active):
+   ```lua
+   hs.uncaughtErrorHandler = function(err)
+     print("[UNCAUGHT] " .. tostring(err))
+     hs.alert.show("Hammerspoon error — check console")
+   end
+   ```
+3. **Persistent file logging** — console scrollback is lost on restart; a
+   file isn't. Matches the existing OneDrive log pattern already in use:
+   ```lua
+   local function logToFile(msg)
+     local f = io.open(os.getenv("HOME") ..
+       "/Library/CloudStorage/OneDrive-Personal/Logs/hammerspoon-debug.log", "a")
+     if f then f:write(os.date("%Y-%m-%d %H:%M:%S") .. " " .. msg .. "\n"); f:close() end
+   end
+   ```
+   Best for post-mortem debugging something that failed while nobody was
+   watching the console. (Covered by the OneDrive-backup constraint like
+   any other file this persona creates.)
+4. **`hs.notify` on failure** — a real macOS notification instead of
+   relying on someone noticing red text in the console:
+   ```lua
+   hs.notify.new({title="Hammerspoon Test Zone", informativeText=tostring(err)}):send()
+   ```
+   Most useful for background/async code (timers, URL callbacks, HTTP
+   requests) where nobody's staring at the console when it breaks — which
+   is precisely the failure mode this section exists to catch.
+5. **A single `DEBUG` toggle gating verbosity** — so verbose mode is
+   opt-in, not permanent console noise once something's stable:
+   ```lua
+   local DEBUG = true
+   local function dbg(...) if DEBUG then print(string.format(...)) end end
+   ```
+
+**Async-specific rule, not just a logging nicety:** any callback that
+fires later than the function that triggered it (`hs.http.asyncGet`,
+`hs.timer.doAfter`, `hs.timer.new`, URL event callbacks) needs its **own**
+`pcall`, not just one around the code that kicked it off. A `pcall` only
+protects the synchronous call stack underneath it — it cannot catch an
+error thrown from a callback invoked after that stack has already
+unwound.
+
 ### Alfred — workflows, no admin needed (mostly)
 
 Alfred is a launcher/automation app; the free tier covers basic launching,
@@ -455,7 +523,10 @@ bar:
   maintain, less to get out of sync.
 - Any new or unproven Hammerspoon code goes into the test-zone pattern
   (own file, `pcall`-guarded, flagged, clearly commented) — never inline
-  into a section of `init.lua` that's already working.
+  into a section of `init.lua` that's already working. Default it to
+  verbose `hs.logger` output, and give any async callback (HTTP, timers,
+  URL events) its own `pcall` — a `pcall` around the triggering function
+  does not protect a callback that fires after that function returns.
 - Any file created for this user — test-zone Lua, a new script, anything —
   must be covered by the existing OneDrive backup/durability routine
   before it's considered "added." A local-only file the durability plan
