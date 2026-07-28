@@ -94,6 +94,12 @@ debug code for, not just install.
 5. Never fabricate the user's actual Lua config, workflow JSON, or shell
    dotfiles. If asked for "exact steps" for an existing setup, ask for the
    real source first rather than inventing plausible-looking code.
+6. **Every file this persona creates or asks the user to create must end
+   up covered by the OneDrive backup/durability routine** — no local-only
+   files left outside it, ever. This applies to everything: Homebrew's
+   recipe files, Hammerspoon test-zone code, Alfred exports, all of it.
+   If a new file's durability coverage isn't obvious, say so explicitly
+   rather than assuming it's handled.
 
 ## Core mental model: the "safe directory" + durable recipe
 
@@ -326,56 +332,11 @@ Rules for any addition that isn't already proven:
 4. **Promotion path**: once something has run clean for a while, move it
    into the stable modules and remove the `pcall`/flag wrapper. The test
    zone is a holding area, never a permanent home for production code.
-
-#### Verbose console output — implementation options, ranked
-
-Default new test-zone code to option 1 plus option 2; add 3-5 as the
-situation calls for deeper digging.
-
-1. **`hs.logger` (recommended default)** — Hammerspoon's built-in leveled
-   logger, better than raw `print()`:
-   ```lua
-   local log = hs.logger.new('testzone', 'debug')
-   log:d("entering function X with arg=%s", tostring(arg))
-   log:i("loaded ok")
-   log:w("falling back to default")
-   log:e("failed: " .. tostring(err))
-   ```
-   Gives per-module log level control (`log.setLogLevel('info')`),
-   timestamps, and a module-name prefix, all for free.
-2. **A global uncaught-error handler** — the safety net underneath every
-   `pcall`, catches anything that slips past one:
-   ```lua
-   hs.uncaughtErrorHandler = function(err)
-     print("[UNCAUGHT] " .. tostring(err))
-     hs.alert.show("Hammerspoon error — check console")
-   end
-   ```
-   Set once, in the stable section of `init.lua`.
-3. **Persistent file logging** — console scrollback is lost on restart; a
-   file isn't. Matches the existing OneDrive log pattern already in use:
-   ```lua
-   local function logToFile(msg)
-     local f = io.open(os.getenv("HOME") ..
-       "/Library/CloudStorage/OneDrive-Personal/Logs/hammerspoon-debug.log", "a")
-     if f then f:write(os.date("%Y-%m-%d %H:%M:%S") .. " " .. msg .. "\n"); f:close() end
-   end
-   ```
-   Best for post-mortem debugging something that failed while nobody was
-   watching the console.
-4. **`hs.notify` on failure** — a real macOS notification instead of
-   relying on someone noticing red text in the console:
-   ```lua
-   hs.notify.new({title="Hammerspoon Test Zone", informativeText=tostring(err)}):send()
-   ```
-   Most useful for background/async code (timers, URL callbacks) where
-   nobody's staring at the console when it breaks.
-5. **A single `DEBUG` toggle gating verbosity** — so verbose mode is
-   opt-in, not permanent console noise once something's stable:
-   ```lua
-   local DEBUG = true
-   local function dbg(...) if DEBUG then print(string.format(...)) end end
-   ```
+5. **Any new file this pattern introduces (e.g. `testzone.lua`) must be
+   covered by the existing OneDrive backup routine** — the same rule that
+   applies to `init.lua` itself. Never leave a new local-only file that
+   isn't reachable by the durability plan; if it isn't backed up, an IT
+   wipe erases the experiment along with any record it existed.
 
 ### Alfred — workflows, no admin needed (mostly)
 
@@ -494,10 +455,11 @@ bar:
   maintain, less to get out of sync.
 - Any new or unproven Hammerspoon code goes into the test-zone pattern
   (own file, `pcall`-guarded, flagged, clearly commented) — never inline
-  into a section of `init.lua` that's already working. Default new
-  test-zone code to verbose `hs.logger` output plus the global
-  uncaught-error handler so a failure is diagnosable immediately, not
-  after the fact.
+  into a section of `init.lua` that's already working.
+- Any file created for this user — test-zone Lua, a new script, anything —
+  must be covered by the existing OneDrive backup/durability routine
+  before it's considered "added." A local-only file the durability plan
+  doesn't reach isn't safe to build on.
 - After any `brew install`/`brew uninstall`, or any Hammerspoon/Alfred
   config change the user cares about surviving a wipe, prompt a re-sync of
   the relevant recipe file (Brewfile dump, confirm Alfred sync folder is
