@@ -4,7 +4,7 @@
 -- =====================================================================
 -- 08-03-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.31.0-QUICK-NOTES
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.31.1-CHEAT-SHEET-SEARCH
 -- =====================================================================
 -- Lee additions
 -- Be sure to have this added in.
@@ -28,6 +28,40 @@
 -- "Sublime",
 -- "Transmission",
 --
+--
+-- NEW IN 6.31.1 — CHEAT SHEET: ONE COLUMN, SEARCHABLE, SCROLLS:
+--   🔎 There is a search box at the top now. Type to filter by key,
+--      description or group; multiple words all have to match, in any
+--      order, so "asana task" finds the task creator. Enter copies the
+--      highlighted key combo.
+--   📜 ONE COLUMN, FIXED HEIGHT, SCROLLS. The canvas version grew to fit
+--      its content — columns filled downward then spilled sideways, so
+--      every shortcut added made the sheet wider until it owned the
+--      screen. Adding entries now costs scrolling, never screen.
+--   🔤 SPELLED-OUT MODIFIERS FIND THE GLYPHS. This sheet is written in
+--      ⇪ ⇧ ⌘ ⌥ ⌃ ← ↑ → ↓ and none of those are on the keyboard you would
+--      search with. Typing "shift" and getting nothing back makes the
+--      box look broken when it is only being literal, so every glyph a
+--      row contains also contributes the words people actually type.
+--      Tested in the direction that matters: searching the WORD never
+--      misses a row carrying the GLYPH.
+--   🧨 THE SEARCH IS PLAIN-TEXT, NOT PATTERN. A cheat sheet is full of
+--      ⇪[ ⇪\ ⇪- ⇪/ and typing one of those into a box that fed Lua's
+--      pattern engine would hand it a malformed pattern. Every one of
+--      those characters is now a test case.
+--   ⚠️ TWO THINGS GIVEN UP, both real. Literal 20pt text (hs.chooser
+--      picks its own row font) and panelAlpha translucency (native
+--      macOS panels expose no opacity API — the same limit §1.5 has
+--      always noted for the picker LISTS).
+--   ⚠️ IT TAKES KEYBOARD FOCUS NOW, because a search box you cannot type
+--      into is not a search box. Upside: the old sheet floated without
+--      focus and therefore had to capture Esc GLOBALLY, with a warning
+--      to close it before pressing Esc in another app. That hazard is
+--      gone. Downside: you can no longer type into another window while
+--      it is open. Glance and dismiss, rather than leave it up.
+--   ↩️ This reverses the 6.10 decision on purpose. The old comment said
+--      canvas was chosen BECAUSE hs.chooser is single-column only —
+--      still true, and now that is the requirement.
 --
 -- NEW IN 6.31.0 — QUICK NOTES → ASANA (EXPERIMENTAL SECTION):
 --   🗒 ⇪N is a capture box: type a thought, press Enter, forget it. At
@@ -845,7 +879,9 @@
 --   🫥 TRANSLUCENT PANELS: the cheat sheet, the dashboard's color
 --      legend strip, and the Task Creator's draft mirror are now 80%
 --      opaque (were 92–97%), so what's behind them stays visible.
---      One setting controls all three: panelAlpha in §1.5 — raise it
+--      (6.31.1: the cheat sheet left this group — it is an hs.chooser
+--      now, and native panels have no opacity API.)
+--      One setting controls the rest: panelAlpha in §1.5 — raise it
 --      toward 1.0 for more solid, lower for more see-through (text
 --      readability suffers below ~0.65 over bright backgrounds).
 --      HONEST LIMIT: the PICKER LISTS (clipboard, Task Creator,
@@ -1698,11 +1734,14 @@ local popupNudgeStep = 50  -- pixels moved per arrow-key tap; edit freely.
                             -- Hold the key down to walk it further.
 
 -- ✏️ PANEL TRANSLUCENCY (6.10.3) — one number for every canvas panel:
--- the cheat sheet (§1.6), the dashboard legend strip (§6), and the
--- Task Creator draft mirror (§4). 1.0 = solid, lower = more
--- see-through; below ~0.65 the white text gets hard to read over
--- bright windows. (The picker LISTS are native macOS panels with no
--- opacity API — this can't affect them; see the 6.10.3 note above.)
+-- the dashboard legend strip (§6) and the Task Creator draft mirror
+-- (§4). 1.0 = solid, lower = more see-through; below ~0.65 the white
+-- text gets hard to read over bright windows. (The picker LISTS are
+-- native macOS panels with no opacity API — this can't affect them; see
+-- the 6.10.3 note above.)
+-- 6.31.1: the cheat sheet used to be the third one. It is an hs.chooser
+-- now (§1.6), so it is a native panel and this number no longer reaches
+-- it — that is the same opacity limit, not a regression in this setting.
 local panelAlpha = 0.80
 
 _G.popupOffset = { x = 0, y = 0 }  -- pixel offset from nudging, stacks on
@@ -1834,9 +1873,9 @@ hs.hotkey.bind(popupScreenKeys.mods, popupScreenKeys.reset, function()
 end)
 
 -- =====================================================================
--- 1.6 SHORTCUT CHEAT SHEET — ⇪/ to toggle · ⇪= to add entries
+-- 1.6 SHORTCUT CHEAT SHEET — ⇪/ toggle · type to search · ⇪= to add
 -- =====================================================================
--- A multi-column 20pt reference panel of every shortcut in this config,
+-- A single searchable, scrolling column of every shortcut in this config,
 -- plus any entries YOU add on the fly (⇪=), which persist in
 -- custom_shortcuts.json and survive reloads. 6.10.0: that file now
 -- lives in the OneDrive Logs folder and is SHARED between both Macs —
@@ -1844,21 +1883,42 @@ end)
 -- machines won't fight over it, and a ⭐ entry added on one Mac shows
 -- up on the other after its next Hammerspoon reload.
 --
--- Layout GROWS to fit its content: entries fill a column until it would
--- exceed ~85% of the screen height, then a new column starts to the
--- right — vertical first, then horizontal — always sized to the monitor
--- holding the frontmost app (resolveBaseScreen), never spilling off it.
+-- 6.31.1 — BACK ON hs.chooser: ONE COLUMN, SEARCHABLE, SCROLLS.
+-- The canvas version grew to fit its content: columns filled downward and
+-- then spilled sideways, so every shortcut added made the sheet wider
+-- until it owned the screen. That is the wrong shape for a reference you
+-- open, glance at, and dismiss. It is now a single scrolling column with
+-- a search box at the top:
+--   • Type to filter — matches the key, the description or the group.
+--     Multiple words all have to match, in any order, so "asana task"
+--     finds the task creator.
+--   • The list is a FIXED height and scrolls. Adding entries makes it
+--     longer to scroll, never bigger on screen.
+--   • Enter copies the highlighted key combo (same idiom as every other
+--     picker in this file).
 --
--- Built on hs.canvas (Hammerspoon's drawing layer), which is what
--- allows real multi-column layout and literal 20pt text — hs.chooser
--- (the previous version) is single-column only. Lessons applied from
--- the webview incident — THREE independent ways to close it:
+-- ⚠️ THIS REVERSES THE 6.10 DECISION, deliberately. The comment that used
+--    to live here said canvas was chosen BECAUSE "hs.chooser is
+--    single-column only". That was true and is still true — single
+--    column is now the requirement, so the reason to avoid hs.chooser
+--    became the reason to use it. Two things are genuinely given up:
+--    literal 20pt text (hs.chooser sets its own row font) and the
+--    panelAlpha translucency (native macOS panels expose no opacity
+--    API — the same 6.10.3 limit noted at §1.5).
+--
+-- ⚠️ AND IT NOW TAKES KEYBOARD FOCUS. It has to: a search box you cannot
+--    type into is not a search box. The old canvas sheet floated without
+--    focus, which is why it had to capture Esc globally and warned you
+--    to close it before pressing Esc in another app. That whole hazard
+--    is gone — Esc now belongs to the sheet because the sheet is what is
+--    focused — but you can no longer type into another window while it
+--    is open. Glance and dismiss, rather than leave it up.
+--
+-- Still THREE independent ways to close it, the lesson from the webview
+-- incident, and all three are now native rather than hand-rolled:
 --   1. ⇪/ again (our own hotkey — always works)
---   2. Click anywhere on the sheet
---   3. Esc (captured only while the sheet is visible)
--- Note: the sheet does NOT take keyboard focus, so it never interrupts
--- typing — but that also means Esc is globally captured while it's up,
--- so close the sheet before using Esc in another app.
+--   2. Esc
+--   3. Click anywhere outside it
 --
 -- ⚠️ The BUILT-IN list is a hand-written snapshot, not auto-generated —
 -- if we add/change a hotkey later, ask and I'll keep it in sync.
@@ -1970,10 +2030,13 @@ local function cheatSheetGroups()
         }},
         { title = "❓ HELP", entries = {
             { "⇪/", "Toggle this cheat sheet" },
+            { "type here", "Filter by key, description or group — all words must match" },
+            { "shift / cmd / hyper", "Spelled-out modifier names find the glyph rows too" },
+            { "Enter", "Copy the highlighted key combo" },
             { "⇪=", "Add your own entry to this sheet" },
             { "⇪E", "Edit a custom entry (picker)" },
             { "⇪-", "Remove a custom entry (picker)" },
-            { "Esc / click", "Also closes this sheet" },
+            { "Esc / click away", "Also closes this sheet" },
         }},
         { title = "🔒 APP LOCK (privacy screen, NOT security)", entries = {
             { "⇪⇧H", "Manage — Enter locks or unlocks the selected app" },
@@ -2021,156 +2084,181 @@ local function cheatSheetGroups()
     return groups
 end
 
--- Esc-to-close, active ONLY while the sheet is visible (created lazily
--- below, enabled on show, disabled on hide).
-_G.cheatSheetCanvas    = nil
-_G.cheatSheetEscHotkey = nil
+-- ⚠️ EVERYTHING NEW BELOW LIVES IN _G., NOT IN A LOCAL. The main chunk is
+--    at Lua's hard ceiling of 200 locals (see §0.4's hyperBindStub note)
+--    and there is exactly zero headroom left — adding a single `local`
+--    here fails the whole file with "too many local variables (limit is
+--    200)". Verified, not assumed.
 
-local function cheatSheetHide()
-    if _G.cheatSheetEscHotkey then
-        pcall(function() _G.cheatSheetEscHotkey:disable() end)
+-- The sheet, flattened once per open: group titles become non-selectable
+-- header rows, entries become selectable ones that carry their group.
+_G.cheatSheetRows = {}
+
+-- This sheet is written in glyphs — ⇪ ⇧ ⌘ ⌥ ⌃ ← ↑ → ↓ — and none of them
+-- are on the keyboard you would search with. Typing "shift" and getting
+-- nothing back makes the search box look broken when it is only being
+-- literal, so every glyph a row contains also contributes the words
+-- people actually type for it.
+_G.cheatSheetAliases = {
+    ["⇪"] = " hyper caps capslock ",
+    ["⇧"] = " shift ",
+    ["⌘"] = " cmd command ",
+    ["⌥"] = " alt option ",
+    ["⌃"] = " ctrl control ",
+    ["←"] = " left arrow ",
+    ["→"] = " right arrow ",
+    ["↑"] = " up arrow ",
+    ["↓"] = " down arrow ",
+    ["⏎"] = " enter return ",
+}
+
+-- Built once per open rather than per keystroke: you type into this box
+-- and it re-renders on every character.
+_G.cheatSheetHaystack = function(keys, desc, group)
+    local hay = (keys .. " " .. desc .. " " .. group):lower()
+    for glyph, words in pairs(_G.cheatSheetAliases) do
+        if keys:find(glyph, 1, true) then hay = hay .. words end
     end
-    if _G.cheatSheetCanvas then
-        pcall(function() _G.cheatSheetCanvas:delete() end)
-        _G.cheatSheetCanvas = nil
-    end
+    return hay
 end
 
-local function cheatSheetShow()
-    cheatSheetHide()  -- never stack two
-
-    -- ---- layout metrics (20pt text as originally requested) ----
-    local entrySize, headerSize, titleSize = 20, 20, 24
-    local lineH, headerTopGap = 32, 18
-    local pad, colGap, titleH, footerH = 28, 44, 52, 30
-    local colW = 470
-
-    local screen = resolveBaseScreen()
-    local sf = screen:frame()
-    local maxColH = sf.h * 0.85 - titleH - footerH - pad * 2
-
-    -- Flatten groups to lines, then flow into columns: fill DOWN until
-    -- a column is full, then start a new one to the right. A header is
-    -- never left orphaned at the very bottom of a column.
-    local lines = {}
+_G.cheatSheetBuildRows = function()
+    local rows = {}
     for _, g in ipairs(cheatSheetGroups()) do
-        table.insert(lines, { kind = "header", text = g.title })
+        table.insert(rows, { header = true, keys = "", desc = "", group = g.title, hay = "" })
         for _, e in ipairs(g.entries) do
-            table.insert(lines, { kind = "entry", text = e[1] .. "  —  " .. e[2] })
+            local keys, desc = tostring(e[1] or ""), tostring(e[2] or "")
+            table.insert(rows, {
+                header = false,
+                keys   = keys,
+                desc   = desc,
+                group  = g.title,
+                hay    = _G.cheatSheetHaystack(keys, desc, g.title),
+            })
         end
     end
+    _G.cheatSheetRows = rows
+    return rows
+end
 
-    local cols, colH = { {} }, 0
-    for i, line in ipairs(lines) do
-        local h = lineH + ((line.kind == "header" and #cols[#cols] > 0) and headerTopGap or 0)
-        local wouldOrphanHeader = (line.kind == "header") and (colH + h + lineH > maxColH)
-        if (#cols[#cols] > 0) and (colH + h > maxColH or wouldOrphanHeader) then
-            table.insert(cols, {})
-            colH = 0
-            h = lineH
-        end
-        table.insert(cols[#cols], line)
-        colH = colH + h
+-- Every term has to appear somewhere in the row, in any order, so
+-- "asana task" and "task asana" both find the task creator. Plain
+-- substring matching (find with plain=true): a cheat sheet full of
+-- ⇪[ and ⇪\ and ⇪- would otherwise hand Lua's pattern engine a live
+-- grenade the moment you typed one of them into the search box.
+_G.cheatSheetMatches = function(row, terms)
+    local hay = row.hay or _G.cheatSheetHaystack(row.keys or "", row.desc or "", row.group or "")
+    for _, t in ipairs(terms) do
+        if not hay:find(t, 1, true) then return false end
     end
+    return true
+end
 
-    -- Canvas size: grow horizontally per column, but never wider than
-    -- the screen — shrink column width to fit if we must.
-    local nCols = #cols
-    local canvasW = pad * 2 + nCols * colW + (nCols - 1) * colGap
-    if canvasW > sf.w * 0.95 then
-        canvasW = sf.w * 0.95
-        colW = (canvasW - pad * 2 - (nCols - 1) * colGap) / nCols
-    end
-    local tallest = 0
-    for _, col in ipairs(cols) do
-        local h = 0
-        for j, line in ipairs(col) do
-            h = h + lineH + ((line.kind == "header" and j > 1) and headerTopGap or 0)
-        end
-        if h > tallest then tallest = h end
-    end
-    local canvasH = math.min(pad * 2 + titleH + tallest + footerH, sf.h * 0.95)
+_G.cheatSheetRender = function(query)
+    local terms = {}
+    for t in tostring(query or ""):lower():gmatch("%S+") do table.insert(terms, t) end
 
-    local rect = {
-        x = sf.x + (sf.w - canvasW) / 2,
-        y = sf.y + (sf.h - canvasH) / 2,
-        w = canvasW,
-        h = canvasH,
-    }
+    local choices, shown = {}, 0
 
-    local canvas = hs.canvas.new(rect)
-    if not canvas then
-        hs.alert.show("❌ Couldn't create cheat sheet — check Hammerspoon Console")
-        return
-    end
-
-    local els = {}
-    table.insert(els, {
-        type = "rectangle", action = "fill",
-        fillColor = { red = 0.11, green = 0.11, blue = 0.13, alpha = panelAlpha },
-        roundedRectRadii = { xRadius = 16, yRadius = 16 },
-    })
-    table.insert(els, {
-        type = "text", text = "⌨️  Hammerspoon Shortcuts",
-        textSize = titleSize, textColor = { white = 1 }, textAlignment = "center",
-        frame = { x = 0, y = pad * 0.7, w = canvasW, h = titleH },
-    })
-
-    local x = pad
-    for _, col in ipairs(cols) do
-        local y = pad + titleH
-        for j, line in ipairs(col) do
-            if line.kind == "header" then
-                if j > 1 then y = y + headerTopGap end
-                table.insert(els, {
-                    type = "text", text = line.text,
-                    textSize = headerSize,
-                    textColor = { red = 0.5, green = 0.78, blue = 1.0 },
-                    frame = { x = x, y = y, w = colW, h = lineH },
-                })
+    if #terms == 0 then
+        -- Nothing typed: the whole sheet in source order, headers and all.
+        for _, row in ipairs(_G.cheatSheetRows) do
+            if row.header then
+                table.insert(choices, { text = row.group, subText = "", cheatHeader = true })
             else
-                table.insert(els, {
-                    type = "text", text = line.text,
-                    textSize = entrySize, textColor = { white = 0.94 },
-                    frame = { x = x, y = y, w = colW, h = lineH },
+                table.insert(choices, {
+                    text = row.keys .. "  —  " .. row.desc,
+                    subText = row.group,
+                    cheatKeys = row.keys,
                 })
+                shown = shown + 1
             end
-            y = y + lineH
         end
-        x = x + colW + colGap
+    else
+        -- Searching: matching entries only. The headers are dropped —
+        -- a header with everything under it filtered away is just noise —
+        -- and each row shows its group in the subtitle instead, so a
+        -- filtered list still says where every shortcut lives.
+        for _, row in ipairs(_G.cheatSheetRows) do
+            if not row.header and _G.cheatSheetMatches(row, terms) then
+                table.insert(choices, {
+                    text = row.keys .. "  —  " .. row.desc,
+                    subText = row.group,
+                    cheatKeys = row.keys,
+                })
+                shown = shown + 1
+            end
+        end
+        table.insert(choices, 1, {
+            text = "🔎 " .. shown .. " shortcut" .. ((shown == 1) and "" or "s")
+                   .. " match \"" .. tostring(query) .. "\"",
+            subText = (shown > 0) and "Enter copies the highlighted key"
+                      or "Try part of a key (n, shift) or a word from the description",
+            cheatHeader = true,
+        })
     end
 
-    table.insert(els, {
-        type = "text",
-        text = "⌃⌥⌘/ · Esc · click  —  close        ⌃⌥⌘=  —  add an entry",
-        textSize = 13, textColor = { white = 0.55 }, textAlignment = "center",
-        frame = { x = 0, y = canvasH - footerH - 6, w = canvasW, h = footerH },
-    })
+    _G.choosers.cheatSheet:choices(choices)
+    return choices
+end
 
-    canvas:appendElements(els)
-    pcall(function() canvas:level(hs.canvas.windowLevels.overlay) end)
-    -- Same Spaces/full-screen visibility fix as the dashboard legend:
-    -- without these, the sheet can't appear over full-screen apps
-    pcall(function() canvas:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" }) end)
-    pcall(function()
-        canvas:canvasMouseEvents(true, false, false, false)
-        canvas:mouseCallback(function() cheatSheetHide() end)
-    end)
-    canvas:show()
-    _G.cheatSheetCanvas = canvas
-
-    if not _G.cheatSheetEscHotkey then
-        _G.cheatSheetEscHotkey = hs.hotkey.new({}, "escape", cheatSheetHide)
+_G.choosers.cheatSheet = hs.chooser.new(function(c)
+    -- Header rows and a dismissal both land here with nothing to copy.
+    if not (c and c.cheatKeys and c.cheatKeys ~= "") then return end
+    hs.pasteboard.setContents(c.cheatKeys)
+    hs.alert.show("📋 Copied " .. c.cheatKeys)
+end)
+_G.choosers.cheatSheet:placeholderText("Search shortcuts — key, description or group  ·  Esc closes")
+-- Wider than the 40% default because the descriptions are full sentences,
+-- and a FIXED row count so the list scrolls instead of growing. This is
+-- the whole point of the 6.31.1 change: more entries now cost scrolling,
+-- not screen.
+pcall(function() _G.choosers.cheatSheet:width(60) end)
+pcall(function() _G.choosers.cheatSheet:rows(14) end)
+pcall(function() _G.choosers.cheatSheet:bgDark(true) end)
+-- Armored like every other render callback in this file: an error inside
+-- queryChangedCallback otherwise produces a silently blank window.
+_G.choosers.cheatSheet:queryChangedCallback(function(query)
+    local ok, err = pcall(_G.cheatSheetRender, query)
+    if not ok then
+        print("🚨 Cheat sheet render error: " .. tostring(err))
+        _G.choosers.cheatSheet:choices({
+            { text = "⚠️ Display error — see Hammerspoon Console", subText = tostring(err) },
+        })
     end
-    pcall(function() _G.cheatSheetEscHotkey:enable() end)
+end)
+
+-- Re-render in place if the sheet happens to be open when an entry is
+-- added, edited or deleted. Rows are rebuilt on every open anyway, so
+-- this only matters while it is actually on screen.
+_G.cheatSheetRefreshIfOpen = function()
+    local visible = false
+    pcall(function() visible = _G.choosers.cheatSheet:isVisible() end)
+    if not visible then return end
+    _G.cheatSheetBuildRows()
+    local q = ""
+    pcall(function() q = _G.choosers.cheatSheet:query() or "" end)
+    pcall(_G.cheatSheetRender, q)
+end
+
+local function cheatSheetHide()
+    pcall(function() _G.choosers.cheatSheet:hide() end)
+end
+
+-- Always opens on a cleared search box showing the full sheet: a picker
+-- that reopens still filtered by whatever you typed last time looks empty
+-- and broken.
+local function cheatSheetShow()
+    _G.cheatSheetBuildRows()
+    _G.cheatSheetRender("")
+    pcall(function() _G.choosers.cheatSheet:query("") end)
+    showPopup(_G.choosers.cheatSheet)
 end
 
 local function toggleCheatSheet()
-    if _G.cheatSheetCanvas then
-        cheatSheetHide()
-    else
-        cheatSheetShow()
-    end
+    local visible = false
+    pcall(function() visible = _G.choosers.cheatSheet:isVisible() end)
+    if visible then cheatSheetHide() else cheatSheetShow() end
 end
 
 hs.hotkey.bind(popupScreenKeys.mods, cheatSheetKey, toggleCheatSheet)
@@ -2201,7 +2289,7 @@ hs.hotkey.bind(popupScreenKeys.mods, addShortcutKey, function()
     hs.alert.show("⭐ Added to cheat sheet")
 
     -- If the sheet is open right now, redraw it with the new entry
-    if _G.cheatSheetCanvas then cheatSheetShow() end
+    _G.cheatSheetRefreshIfOpen()
 end)
 
 -- ⌃⌥⌘- — remove a custom entry: opens a picker of everything you've
@@ -2214,7 +2302,7 @@ _G.choosers.removeShortcut = hs.chooser.new(function(choice)
     local removed = table.remove(_G.customShortcuts, choice.idx)
     saveCustomShortcuts(_G.customShortcuts)
     hs.alert.show("🗑 Removed: " .. (removed and removed.keys or "entry"))
-    if _G.cheatSheetCanvas then cheatSheetShow() end
+    _G.cheatSheetRefreshIfOpen()
 end)
 _G.choosers.removeShortcut:placeholderText("Select a custom entry to DELETE — Esc cancels")
 
@@ -2271,7 +2359,7 @@ _G.choosers.editShortcut = hs.chooser.new(function(choice)
     _G.customShortcuts[choice.idx] = { keys = keys, desc = desc, group = group }
     saveCustomShortcuts(_G.customShortcuts)
     hs.alert.show("✏️ Updated: " .. keys)
-    if _G.cheatSheetCanvas then cheatSheetShow() end
+    _G.cheatSheetRefreshIfOpen()
 end)
 _G.choosers.editShortcut:placeholderText("Select a custom entry to EDIT — Esc cancels")
 
@@ -10029,7 +10117,7 @@ end)() -- X.2 Quick Notes → Asana
 -- enumeration, nothing that could stall the main thread at boot.
 if _G.hyperFinalize then _G.hyperFinalize() end
 
-print("📌 init.lua ARCHITECTURE VERSION: 6.31.0")
+print("📌 init.lua ARCHITECTURE VERSION: 6.31.1")
 print("🧭 PORTABILITY REPORT — " .. hostTag)
 print("   Storage:  " .. (cloudDir and ("OneDrive found → " .. cloudDir) or ("no OneDrive → local " .. logsDir)))
 print("   Data:     ALL log/note/history files in " .. logsDir)

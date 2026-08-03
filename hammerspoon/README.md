@@ -1,3 +1,36 @@
+# Hammerspoon config — 6.31.1
+
+## What's new in 6.31.1 — the cheat sheet is one searchable column
+
+`⇪/` now opens a **single scrolling column with a search box at the top**,
+instead of a canvas that grew a new column every time it ran out of height.
+
+- **Type to filter** — matches the key, the description or the group. Multiple
+  words all have to match, in any order, so `asana task` finds the task creator.
+- **Fixed height, scrolls.** Adding entries costs scrolling, never screen.
+- **Enter copies** the highlighted key combo.
+- **Spelled-out modifiers find the glyphs.** The sheet is written in
+  `⇪ ⇧ ⌘ ⌥ ⌃ ← ↑ → ↓`, none of which are on the keyboard you'd search with.
+  Typing `shift` now finds the `⇧` rows, `cmd` finds `⌘`, `hyper` finds `⇪`.
+
+Two things are genuinely given up, both inherent to using a native picker:
+literal 20pt text (`hs.chooser` picks its own row font) and `panelAlpha`
+translucency (native macOS panels expose no opacity API — the same limit §1.5
+has always noted for the picker lists).
+
+**It takes keyboard focus now**, because a search box you can't type into isn't
+a search box. The upside is real: the old sheet floated without focus and so
+had to capture `Esc` *globally*, with a warning to close it before pressing Esc
+in another app — that hazard is gone. The downside is that you can no longer
+type into another window while it's open. Glance and dismiss, rather than leave
+it up.
+
+This reverses the 6.10 decision on purpose. That comment said canvas was chosen
+*because* `hs.chooser` is single-column only. Still true — and now that's the
+requirement.
+
+---
+
 # Hammerspoon config — 6.31.0
 
 `init.lua` is the portable config: one file, runs unchanged on either Mac.
@@ -68,12 +101,21 @@ All at the top of the `X.2` block:
 
 ```sh
 cd hammerspoon
-lua5.4 tests/quick_notes_test.lua
+lua5.4 tests/quick_notes_test.lua    # 135 checks
+lua5.4 tests/cheat_sheet_test.lua    #  82 checks
 ```
 
-135 checks, no Hammerspoon and no network required — the suite reads the `X.2`
-block straight out of `init.lua`, so it always tests the shipped code rather
-than a copy that has drifted. Exit status is 0 only if everything passes.
+No Hammerspoon and no network required — each suite reads its section straight
+out of `init.lua`, so they always test the shipped code rather than a copy that
+has drifted. Exit status is 0 only if everything passes.
+
+The cheat sheet suite covers single-column rendering, the search box
+(including multi-word AND matching and glyph aliases), the fixed row count,
+Enter-to-copy, toggle and reopen behaviour, custom entries, and — its most
+useful case — that typing `[`, `\`, `-`, `%`, `(`, `^` and friends into the
+search box can't crash it. A cheat sheet is *full* of those characters, and
+a search that fed them to Lua's pattern engine would hand it a malformed
+pattern.
 
 It covers verb detection, QWERTY folding, CSV round-tripping, malformed-row
 rejection, the 4 PM due logic, all five custom-field types end to end
