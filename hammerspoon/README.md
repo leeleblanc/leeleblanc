@@ -1,3 +1,34 @@
+# Hammerspoon config — 6.31.2
+
+## What's new in 6.31.2 — housekeeping only
+
+No behaviour changes. Three pieces of drift against standing rules, found by
+re-reading the 6.9.2 → 6.31.0 transcript:
+
+- **The "Lee additions" app list is out of the header.** You asked for it gone
+  back at 6.30.1, but that delivery never reached this file's lineage — the
+  copy we've been building on is descended from 6.30.0. It was a stale
+  duplicate of the live list in §3.7 (`appMonitorApps`, `init.lua:3874`),
+  which is the one the code actually reads. Edit §3.7.
+- **Header date is 08-04-26**, per the rule that it moves on every delivery.
+  6.31.0 and 6.31.1 both went out still saying 08-03-26.
+- **A stale version string.** The §1 tool index still read `6.30.0` while the
+  header and the boot print said `6.31.1`. All three now agree.
+
+### Still outstanding from that transcript
+
+**The changelog CSV never landed here.** 6.30.1 added boot-time infrastructure
+that writes `changelog.csv` (Date | Version | Change notes) into the OneDrive
+Logs folder, seeded 6.10.0 → 6.30.1, append-only and de-duplicated. It is not
+in this file — same lineage gap as the header block. Rebuilding it is a real
+change rather than housekeeping, so it is left alone pending a decision.
+
+The related rule it was built for still stands: at the 6.x → 7.0.0 crossing,
+the verbose in-file changelog compresses to one-liners and the long-form notes
+live only in the CSV.
+
+---
+
 # Hammerspoon config — 6.31.1
 
 ## What's new in 6.31.1 — the cheat sheet is one searchable column

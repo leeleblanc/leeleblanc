@@ -2,32 +2,21 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 08-03-26 using Claude
+-- 08-04-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.31.1-CHEAT-SHEET-SEARCH
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.31.2-HOUSEKEEPING
 -- =====================================================================
--- Lee additions
--- Be sure to have this added in.
--- "1Password",
--- "Alfred",
--- "Bartender",
--- "CotEditor",
--- "Ghostty",
--- "Google Chrome",
--- "OneDrive",
--- "Microsoft Defender",
--- "Microsoft Excel",
--- "Microsoft PowerPoint",
--- "Microsoft Word",
--- "Microsoft Outlook",
--- "Microsoft Teams",
--- "Microsoft Excel",
--- "NordVPN",
--- "Rectangle",
--- "Shottr",
--- "Sublime",
--- "Transmission",
 --
+-- NEW IN 6.31.2 — HOUSEKEEPING (no behaviour changes):
+--   🧹 The "Lee additions" app list is gone from this header. It was a
+--      duplicate of the live watched-apps list in §3.7 (search for
+--      appMonitorApps), which has always been the one the code reads.
+--      Two copies of a list is one copy too many — edit §3.7.
+--   📅 Header date now reads 08-04-26, per the standing rule that it is
+--      updated on every delivery.
+--   🔢 Fixed a stale version string in the §1 tool index: it still said
+--      6.30.0 while the header and the boot print said 6.31.1. All three
+--      now agree.
 --
 -- NEW IN 6.31.1 — CHEAT SHEET: ONE COLUMN, SEARCHABLE, SCROLLS:
 --   🔎 There is a search box at the top now. Type to filter by key,
@@ -1148,7 +1137,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.30.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.31.2
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -10117,7 +10106,7 @@ end)() -- X.2 Quick Notes → Asana
 -- enumeration, nothing that could stall the main thread at boot.
 if _G.hyperFinalize then _G.hyperFinalize() end
 
-print("📌 init.lua ARCHITECTURE VERSION: 6.31.1")
+print("📌 init.lua ARCHITECTURE VERSION: 6.31.2")
 print("🧭 PORTABILITY REPORT — " .. hostTag)
 print("   Storage:  " .. (cloudDir and ("OneDrive found → " .. cloudDir) or ("no OneDrive → local " .. logsDir)))
 print("   Data:     ALL log/note/history files in " .. logsDir)
