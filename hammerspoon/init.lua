@@ -4,9 +4,43 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.33.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.34.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.34.0 — ⌥TAB SWITCHER REBUILT (6.33.0 FROZE THE MAC):
+--   🧊 WHAT WENT WRONG. 6.33.0's switcher beachballed Hammerspoon for
+--      44 seconds on the FIRST ⌥Tab. The Console dated it exactly:
+--        10:01:25  -- Loading extensions: window.filter
+--        10:02:09  ✏️ Autocorrect tap was disabled by macOS — revived
+--      macOS switches an event tap off when the owning app stops
+--      answering, so that second line is the main thread returning.
+--      CAUSE: hs.window.switcher is built on hs.window.filter, which
+--      enumerates and then SUBSCRIBES TO every running application over
+--      the Accessibility API — and clearing the default filter to get
+--      minimised windows pulled hidden and background apps in too. Each
+--      unresponsive app costs a full AX timeout, on the one thread
+--      Hammerspoon has. That is not tunable; the module was the wrong
+--      tool for a Mac with a lot of apps open.
+--   🔨 REBUILT WITHOUT hs.window.filter. §1.10 now lists windows with
+--      hs.window.orderedWindows() — one snapshot, already front-to-back,
+--      no watchers, GUI apps only — draws its own tile grid on hs.canvas
+--      and watches for the ⌥ release by POLLING
+--      hs.eventtap.checkKeyboardModifiers on a timer instead of adding
+--      another event tap macOS can switch off.
+--   📏 IT MEASURES ITSELF. Every enumeration is timed; anything past
+--      0.35s prints how long it actually took and which knob to turn.
+--      A slow machine now reports a number instead of a beachball.
+--      The list is capped (altTab.maxWindows = 24) — a bounded cost
+--      instead of a promise that can't be kept.
+--   🗑 A SECOND BUG, FOUND WHILE FIXING THE FIRST: 6.33.0's warm-up
+--      timer was created and its object thrown away on the same line.
+--      An unreferenced hs.timer is garbage-collected, so it never
+--      fired. Every timer here is stored.
+--   🛟 Esc cancels without switching · a watchdog closes a stuck HUD
+--      after 30s · altTab.enabled = false is a panic switch that makes
+--      ⌥Tab inert without touching anything else in this file.
+--   ⚠️ MINIMISED WINDOWS ARE OFF BY DEFAULT now (they need the slower
+--      hs.window.allWindows call): altTab.includeMinimized = true.
 -- NEW IN 6.33.0 — ⌥TAB WINDOW SWITCHER (§1.10):
 --   🔄 WINDOWS-STYLE ALT+TAB, WHICH macOS DOES NOT HAVE. Hold ⌥ and tap
 --      Tab to walk every open WINDOW with a thumbnail tile each (title
@@ -1148,7 +1182,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.33.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.34.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -1992,7 +2026,8 @@ local function cheatSheetGroups()
             { "⌥Tab", "Hold ⌥, tap Tab to walk every open window, release to switch" },
             { "⌥⇧Tab", "Walk backwards through the same list" },
             { "tiles", "One thumbnail per WINDOW, with its title underneath" },
-            { "includes", "Minimised windows and hidden apps, across all Spaces" },
+            { "Esc", "Cancels — no switch" },
+            { "minimised", "Off by default — altTab.includeMinimized = true (§1.10)" },
             { "⌘Tab", "Untouched — macOS reserves it, and it switches apps not windows" },
         }},
         { title = "📦 APP UPDATES", entries = {
@@ -2983,115 +3018,355 @@ hs.hotkey.bind(windowKeys.monitorMods, windowKeys.monitorLeft,  function() moveF
 -- =====================================================================
 -- 1.10 WINDOW SWITCHER — ⌥Tab, Windows-style, one tile per window
 -- =====================================================================
--- Hold ⌥ and tap Tab to walk EVERY open window — one thumbnail tile
+-- Hold ⌥ and tap Tab to walk every open WINDOW — one thumbnail tile
 -- each — ⌥⇧Tab to walk back, release ⌥ to switch to the highlighted
--- one. That is the Windows Alt+Tab behaviour, which macOS does not
--- have: ⌘Tab switches APPS, not windows, and hides a five-window app
--- behind a single icon.
+-- one, Esc to cancel. That is the Windows Alt+Tab behaviour, which
+-- macOS does not have: ⌘Tab switches APPS, so a five-window app hides
+-- behind a single icon. ⌘Tab itself is left alone — macOS reserves it,
+-- as §0.3's knownSystemCombos table already records.
 --
--- ⌘Tab IS DELIBERATELY LEFT ALONE. macOS reserves it (§0.3's
--- knownSystemCombos says so in as many words), so binding it would be a
--- fight we'd lose. ⌥Tab is free on stock macOS and is what this uses.
+-- ⚠️ 6.34.0 — WHY THIS IS HAND-BUILT AND NOT hs.window.switcher.
+-- 6.33.0 used hs.window.switcher, which is built on hs.window.filter.
+-- That combination BEACHBALLED Hammerspoon for 44 seconds on the first
+-- press. The Console recorded it precisely:
+--     10:01:25  -- Loading extensions: window.filter
+--     10:02:09  ✏️ Autocorrect tap was disabled by macOS — revived
+-- macOS disables an event tap when the owning app stops answering, so
+-- that second line is the main thread coming back after 44 seconds.
+-- The cause: hs.window.filter enumerates and then SUBSCRIBES TO every
+-- running application over the Accessibility API — and because
+-- setDefaultFilter({}) removed the exclusions, that included hidden and
+-- background apps. Every unresponsive app costs a full AX timeout, and
+-- they add up on the main thread, which is the only thread Hammerspoon
+-- has. Nothing about that is tunable; the module is simply the wrong
+-- tool on a machine with a lot of apps open.
 --
--- Built on hs.window.switcher, which draws the HUD and handles the
--- hold-the-modifier / release-to-pick dance itself. Three decisions
--- here are worth knowing about:
+-- So this section never touches hs.window.filter. Instead:
+--   • hs.window.orderedWindows() — one snapshot of visible windows,
+--     already in front-to-back order, no watchers, no subscriptions.
+--     Only GUI apps are asked, which is what keeps hidden/background
+--     apps (the expensive ones) out of the call entirely.
+--   • The enumeration IS TIMED, every single press. If it ever crosses
+--     altTab.slowWarnSeconds the Console prints how long it actually
+--     took, so a slow machine reports a number instead of a beachball.
+--   • The window list is CAPPED (altTab.maxWindows). A capped list is a
+--     bounded cost; an uncapped one is a promise you can't keep.
+--   • ⌥-release is detected by POLLING hs.eventtap.checkKeyboardModifiers
+--     on a timer, not by another event tap. macOS switches taps off when
+--     it feels like it (see the autocorrect line above); a timer it
+--     leaves alone.
+--   • THE TIMER OBJECT IS STORED. hs.timer objects are garbage-collected
+--     if nothing holds a reference — 6.33.0's warm-up timer was thrown
+--     away on the line that created it and therefore never fired.
 --
--- 1. IT IS BUILT LAZILY. hs.window.filter subscribes to every running
---    app and enumerates its windows — doing that during boot would add
---    real time to a startup the rest of this file works hard to keep
---    fast. It is built on the FIRST ⌥Tab instead and then cached, and
---    warmed quietly a few seconds after boot so that first press is
---    instant anyway.
--- 2. EVERY STEP IS pcall'd, WITH A FALLBACK. If this Hammerspoon
---    version rejects a UI preference it retries with the stock look; if
---    the custom filter fails it retries with the default filter. A
---    switcher that looks plain still switches windows — one that threw
---    during setup would take ⌥Tab down with it and leave you with a
---    dead key and no explanation.
--- 3. NO repeatFn, ON PURPOSE. Holding Tab down would auto-repeat at the
---    system key rate and fly straight past the window you wanted. Tap
---    Tab once per window, exactly like Windows.
---
--- ⚠️ HONEST LIMITS: it can only show what macOS will hand over —
--- windows on other Spaces are listed but macOS switches Space to reach
--- them, and some apps (certain Electron/Java windows) report no
--- thumbnail, so their tile is blank with the title still readable.
+-- 🚨 IF THIS EVER MISBEHAVES: set altTab.enabled = false below and
+-- reload. The hotkeys stay bound and do nothing, so ⌥Tab goes back to
+-- the app underneath and nothing else in this file is affected.
 local altTab = {}
 
--- ✏️ EDIT HERE — what it lists and how it looks.
-altTab.includeHidden = true   -- true: minimised windows and windows of
-                              -- hidden apps are listed too (Windows
-                              -- behaviour). false: visible windows only.
-altTab.warmupDelay   = 5      -- seconds after boot to pre-build it
+-- ✏️ EDIT HERE ---------------------------------------------------------
+altTab.enabled          = true   -- false = ⌥Tab does nothing (panic switch)
+altTab.includeMinimized = false  -- true also lists minimised windows. This
+                                 -- costs an hs.window.allWindows() call,
+                                 -- which is slower than the ordered list —
+                                 -- turn it on only if you want it.
+altTab.maxWindows       = 24     -- hard cap on tiles, keeps cost bounded
+altTab.slowWarnSeconds  = 0.35   -- warn in the Console past this
+altTab.maxSessionSecs   = 30     -- watchdog: tear a stuck HUD down
+altTab.tileW, altTab.tileH = 200, 128
+altTab.gap, altTab.pad     = 14, 22
+altTab.maxCols          = 6
+altTab.pollInterval     = 0.05   -- how often we check whether ⌥ is still down
 
-altTab.ui = {
-    textColor             = { white = 1 },
-    textSize              = 12,
-    backgroundColor       = { red = 0.06, green = 0.06, blue = 0.08, alpha = 0.92 },
-    highlightColor        = { red = 0.28, green = 0.52, blue = 0.92, alpha = 0.85 },
-    onlyActiveApplication = false,  -- every app, not just the front one
-    showTitles            = true,   -- window title under each tile
-    showThumbnails        = true,   -- the tiles themselves
-    thumbnailSize         = 160,
-    showSelectedThumbnail = true,   -- larger preview of the highlighted one
-    selectedThumbnailSize = 320,
-    showSelectedTitle     = true,
-}
+altTab.session = nil   -- nil when idle; a table while the HUD is up
+altTab.poll    = nil   -- MUST be held: an unreferenced timer is collected
+altTab.escKey  = nil
 
--- Build once, cache, and never let a failure escape as an error.
-function altTab.build()
-    if altTab.switcher then return altTab.switcher end
+-- ---- window list ----------------------------------------------------
+-- One snapshot, timed, capped. No filters, no watchers, no subscriptions.
+function altTab.listWindows()
+    local t0 = hs.timer.secondsSinceEpoch()
 
-    local filter
-    local okFilter = pcall(function()
-        filter = hs.window.filter.new()
-        -- An EMPTY default filter means "no exclusions" — that is what
-        -- pulls in minimised windows and hidden apps. Without it the
-        -- filter only reports windows that are currently visible.
-        if altTab.includeHidden then filter:setDefaultFilter({}) end
+    local ok, wins = pcall(function()
+        local ordered = hs.window.orderedWindows() or {}
+        if not altTab.includeMinimized then return ordered end
+        -- Minimised windows are not in the ordered list, so they are
+        -- appended after it — visible windows stay in front-to-back
+        -- order, which is the order you actually think in.
+        local seen, out = {}, {}
+        for _, w in ipairs(ordered) do
+            local id = w:id()
+            if id then seen[id] = true end
+            table.insert(out, w)
+        end
+        for _, w in ipairs(hs.window.allWindows() or {}) do
+            local id = w:id()
+            if id and not seen[id] and w:isMinimized() then table.insert(out, w) end
+        end
+        return out
     end)
-    if not okFilter then
-        filter = nil
-        print("🔄 Window switcher: custom filter failed — using the default one")
+
+    local elapsed = hs.timer.secondsSinceEpoch() - t0
+    if not ok then
+        print("🔄 Window switcher: could not list windows — " .. tostring(wins))
+        return {}
+    end
+    if elapsed > altTab.slowWarnSeconds then
+        print(string.format(
+            "🔄 Window switcher: listing windows took %.2fs — if that is painful, "
+            .. "lower altTab.maxWindows or set altTab.includeMinimized = false (§1.10)",
+            elapsed))
     end
 
-    local ok, sw = pcall(hs.window.switcher.new, filter, altTab.ui)
-    if not (ok and sw) then
-        print("🔄 Window switcher: UI prefs rejected — falling back to the stock look")
-        ok, sw = pcall(hs.window.switcher.new, filter)
+    -- Keep only real, titled windows, and never more than the cap.
+    local out = {}
+    for _, w in ipairs(wins) do
+        local okStd, standard = pcall(function() return w:isStandard() end)
+        if okStd and standard then
+            table.insert(out, w)
+            if #out >= altTab.maxWindows then break end
+        end
     end
-    if not (ok and sw) then
-        print("🔄 Window switcher: could not be created — ⌥Tab will do nothing")
-        return nil
+    return out
+end
+
+-- ---- drawing --------------------------------------------------------
+local function fit(text, maxChars)
+    text = tostring(text or "")
+    local len = (utf8 and utf8.len(text)) or #text
+    if not len or len <= maxChars then return text end
+    local out, n = {}, 0
+    for _, c in utf8.codes(text) do
+        n = n + 1
+        if n > maxChars - 1 then break end
+        table.insert(out, utf8.char(c))
+    end
+    return table.concat(out) .. "…"
+end
+
+function altTab.render()
+    local s = altTab.session
+    if not (s and s.canvas) then return end
+
+    local els = {}
+    table.insert(els, {
+        type = "rectangle", action = "strokeAndFill",
+        fillColor   = { red = 0.06, green = 0.06, blue = 0.08, alpha = 0.94 },
+        strokeColor = { white = 1, alpha = 0.22 }, strokeWidth = 1,
+        roundedRectRadii = { xRadius = 18, yRadius = 18 },
+        frame = { x = 0.5, y = 0.5, w = s.w - 1, h = s.h - 1 },
+    })
+
+    local titleChars = math.max(8, math.floor(altTab.tileW / 7))
+    for i, item in ipairs(s.items) do
+        local col = (i - 1) % s.cols
+        local row = math.floor((i - 1) / s.cols)
+        local x = altTab.pad + col * (altTab.tileW + altTab.gap)
+        local y = altTab.pad + row * (altTab.tileH + 24 + altTab.gap)
+        local selected = (i == s.index)
+
+        table.insert(els, {
+            type = "rectangle", action = "strokeAndFill",
+            fillColor   = selected and { red = 0.28, green = 0.52, blue = 0.92, alpha = 0.35 }
+                                    or { white = 1, alpha = 0.06 },
+            strokeColor = selected and { red = 0.45, green = 0.68, blue = 1.0, alpha = 0.95 }
+                                    or { white = 1, alpha = 0.10 },
+            strokeWidth = selected and 2 or 1,
+            roundedRectRadii = { xRadius = 10, yRadius = 10 },
+            frame = { x = x, y = y, w = altTab.tileW, h = altTab.tileH + 24 },
+        })
+
+        -- The tile picture. A nil image is NOT passed to the canvas —
+        -- some windows (and every window of an app that refuses a
+        -- capture) have no snapshot, and an image element with no image
+        -- is an error. Those tiles just show their title.
+        if item.image then
+            table.insert(els, {
+                type = "image", image = item.image,
+                imageScaling = "scaleProportionally", imageAlignment = "center",
+                frame = { x = x + 8, y = y + 6, w = altTab.tileW - 16, h = altTab.tileH - 14 },
+            })
+        end
+
+        table.insert(els, {
+            type = "text", text = fit(item.label, titleChars),
+            textSize = 11, textAlignment = "center",
+            textColor = selected and { white = 1 } or { white = 0.75 },
+            frame = { x = x + 6, y = y + altTab.tileH - 4, w = altTab.tileW - 12, h = 22 },
+        })
     end
 
-    altTab.switcher = sw
-    return sw
+    local current = s.items[s.index]
+    local caption = current and current.full or ""
+    if (s.hidden or 0) > 0 then
+        caption = caption .. string.format("      (showing %d of %d — the screen holds no more)",
+                                           #s.items, #s.items + s.hidden)
+    end
+    table.insert(els, {
+        type = "text",
+        text = fit(caption, math.floor(s.w / 8)),
+        textSize = 14, textAlignment = "center", textColor = { white = 0.92 },
+        frame = { x = altTab.pad, y = s.h - 30, w = s.w - altTab.pad * 2, h = 24 },
+    })
+
+    local ok, err = pcall(function() s.canvas:replaceElements(els) end)
+    if not ok then print("🔄 Window switcher: render failed — " .. tostring(err)) end
+end
+
+-- ---- session lifecycle ----------------------------------------------
+function altTab.finish(commit)
+    local s = altTab.session
+    altTab.session = nil            -- cleared FIRST: teardown must be
+                                    -- idempotent, and a second release
+                                    -- event must not focus twice
+    if altTab.poll then
+        pcall(function() altTab.poll:stop() end)
+        altTab.poll = nil
+    end
+    if altTab.escKey then pcall(function() altTab.escKey:disable() end) end
+    if not s then return end
+    if s.canvas then pcall(function() s.canvas:delete() end) end
+
+    if commit then
+        local win = s.items[s.index] and s.items[s.index].win
+        if win then
+            pcall(function()
+                if win:isMinimized() then win:unminimize() end
+                win:focus()
+            end)
+        end
+    end
+end
+
+function altTab.advance(delta)
+    local s = altTab.session
+    if not s then return end
+    local n = #s.items
+    s.index = ((s.index - 1 + delta) % n) + 1   -- wraps, like Windows
+    altTab.render()
+end
+
+function altTab.begin(reverse)
+    local wins = altTab.listWindows()
+    if #wins < 2 then
+        hs.alert.show(#wins == 0 and "🔄 No windows to switch to"
+                                  or "🔄 Only one window open")
+        return false
+    end
+
+    local items = {}
+    for _, w in ipairs(wins) do
+        local app  = w:application()
+        local name = app and app:name() or "?"
+        local title = w:title()
+        if title == nil or title == "" then title = name end
+        -- Snapshots are per-window and cheap (CoreGraphics, not AX), but
+        -- still pcall'd: one uncooperative window must not take the
+        -- whole switcher down.
+        local okSnap, img = pcall(function() return w:snapshot() end)
+        if not (okSnap and img) and app then
+            local okIcon, icon = pcall(function()
+                return hs.image.imageFromAppBundle(app:bundleID())
+            end)
+            img = okIcon and icon or nil
+        end
+        table.insert(items, {
+            win = w, image = img, label = name, full = name .. " — " .. title,
+        })
+    end
+
+    local screen = resolveBaseScreen()
+    local sf = screen:frame()
+
+    -- THE GRID IS FITTED TO THE SCREEN, not to a fixed column count. Six
+    -- 200pt tiles plus padding is 1314pt — wider than a 1280pt laptop
+    -- display, and a HUD wider than its screen centres itself with tiles
+    -- cut off at BOTH edges. So columns come from the width that
+    -- actually exists and rows from the height; if there are more
+    -- windows than the grid can hold, the extras are dropped from the
+    -- BACK (least recent) and the footer says exactly how many are
+    -- showing, because a silently shortened list is the same class of
+    -- bug as text clipped mid-sentence.
+    local cellH = altTab.tileH + 24 + altTab.gap
+    local cols  = math.floor((sf.w * 0.92 - altTab.pad * 2 + altTab.gap)
+                             / (altTab.tileW + altTab.gap))
+    cols = math.max(1, math.min(altTab.maxCols, cols, #items))
+    local rowsMax = math.max(1, math.floor((sf.h * 0.9 - altTab.pad * 2 - 14) / cellH))
+
+    local total = #items
+    for i = total, cols * rowsMax + 1, -1 do table.remove(items, i) end
+    local n     = #items
+    local cols2 = math.min(cols, n)
+    cols = math.max(1, cols2)
+    local rows  = math.ceil(n / cols)
+    local w     = altTab.pad * 2 + cols * altTab.tileW + (cols - 1) * altTab.gap
+    local h     = altTab.pad * 2 + rows * cellH + 14
+    local rect = { x = sf.x + (sf.w - w) / 2, y = sf.y + (sf.h - h) / 2, w = w, h = h }
+
+    local canvas = hs.canvas.new(rect)
+    if not canvas then
+        hs.alert.show("🔄 Window switcher: couldn't draw — check the Console")
+        return false
+    end
+
+    altTab.session = {
+        items = items, cols = cols, w = w, h = h, hidden = total - n,
+        -- Windows selects the NEXT window on the first press, not the
+        -- one you are already in; ⌥⇧Tab selects the last one.
+        index = reverse and n or 2,
+        startedAt = hs.timer.secondsSinceEpoch(),
+        canvas = canvas,
+    }
+    altTab.render()
+    pcall(function() canvas:level(hs.canvas.windowLevels.overlay) end)
+    pcall(function() canvas:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" }) end)
+    canvas:show()
+
+    if not altTab.escKey then
+        local ok, hk = pcall(hs.hotkey.new, {}, "escape", function() altTab.finish(false) end)
+        if ok then altTab.escKey = hk end
+    end
+    if altTab.escKey then pcall(function() altTab.escKey:enable() end) end
+
+    -- Poll for the ⌥ release. Held in altTab.poll on purpose — an
+    -- unreferenced hs.timer gets collected and silently never fires,
+    -- which is exactly how 6.33.0's warm-up went missing.
+    altTab.poll = hs.timer.doEvery(altTab.pollInterval, function()
+        local s = altTab.session
+        if not s then return end
+        local okMods, mods = pcall(hs.eventtap.checkKeyboardModifiers)
+        if not okMods then altTab.finish(true) return end
+        if not mods.alt then altTab.finish(true) return end
+        -- Watchdog: a HUD that outlives its keypress (a missed release,
+        -- a Space change mid-hold) tears itself down instead of sitting
+        -- there over your screen forever.
+        if hs.timer.secondsSinceEpoch() - s.startedAt > altTab.maxSessionSecs then
+            print("🔄 Window switcher: session watchdog fired — closing")
+            altTab.finish(false)
+        end
+    end)
+    return true
 end
 
 function altTab.step(reverse)
-    local sw = altTab.build()
-    if not sw then return end
+    if not altTab.enabled then return end
     local ok, err = pcall(function()
-        if reverse then sw:previous() else sw:next() end
+        if altTab.session then
+            altTab.advance(reverse and -1 or 1)
+        else
+            altTab.begin(reverse)
+        end
     end)
-    if not ok then print("🔄 Window switcher: " .. tostring(err)) end
+    if not ok then
+        print("🔄 Window switcher: " .. tostring(err))
+        altTab.finish(false)   -- never leave a half-built HUD on screen
+    end
 end
 
 -- Through the §0.3 sentry like every other binding, so a clash with
--- something added later is announced at boot instead of silently
--- killing one of them.
+-- anything added later is announced at boot.
 hs.hotkey.bind({ "alt" },          "tab", function() altTab.step(false) end)
 hs.hotkey.bind({ "alt", "shift" }, "tab", function() altTab.step(true)  end)
-
--- Warm it off the critical path so the first ⌥Tab doesn't pay for the
--- window enumeration. Failure here is silent by design: build() has
--- already said its piece, and the next ⌥Tab retries anyway.
-if hs.timer and hs.timer.doAfter and (altTab.warmupDelay or 0) > 0 then
-    hs.timer.doAfter(altTab.warmupDelay, function() pcall(altTab.build) end)
-end
-
 
 -- =====================================================================
 -- 2. UTILITY & OCR ENGINE
@@ -9137,7 +9412,7 @@ end)()
 -- enumeration, nothing that could stall the main thread at boot.
 if _G.hyperFinalize then _G.hyperFinalize() end
 
-print("📌 init.lua ARCHITECTURE VERSION: 6.33.0")
+print("📌 init.lua ARCHITECTURE VERSION: 6.34.0")
 
 -- ---- CHANGELOG CSV (6.30.1) -----------------------------------------
 -- Verbose version notes go here instead of bloating the header forever.
@@ -9145,9 +9420,9 @@ print("📌 init.lua ARCHITECTURE VERSION: 6.33.0")
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.33.0"
+    local currentVersion = "6.34.0"
     local currentDate    = "08-05-26"
-    local currentNotes   = "New: Windows-style window switcher on option+Tab (section 1.10) — one thumbnail tile per WINDOW rather than per app, option+shift+Tab reverses, release option to switch; lists minimised windows and hidden apps across Spaces; built lazily on first use and warmed 5s after boot so it costs nothing at startup; command+Tab left alone because macOS reserves it. Cheat sheet groups reordered: App Monitor first, App Peek under Window Arranger, App Lock under App Updates, then File Tracker and Document Watcher, Autocorrect under Command History, Help last."
+    local currentNotes   = "FIX: the 6.33.0 option+Tab switcher froze Hammerspoon for 44 seconds on first press. Cause: hs.window.switcher is built on hs.window.filter, which enumerates AND subscribes to every running application over the Accessibility API — including hidden and background apps once the default filter is cleared — all on the main thread, where each unresponsive app costs a full AX timeout. The Console proved it: window.filter loaded at 10:01:25 and macOS disabled the autocorrect event tap at 10:02:09 because the app had stopped answering. Section 1.10 no longer uses hs.window.filter at all: it lists windows with hs.window.orderedWindows() (no watchers, GUI apps only), times every enumeration and reports any that exceeds 0.35s, caps the list at 24 windows, draws its own tile grid on hs.canvas, and detects the option-key release by polling checkKeyboardModifiers on a stored timer rather than another event tap. Also fixed: 6.33.0 discarded its warm-up timer object, so it was garbage-collected and never fired. New: Esc cancels, a watchdog closes a stuck HUD after 30s, and altTab.enabled = false is a panic switch."
 
     -- Only append if this version isn't already in the file
     local found = false
