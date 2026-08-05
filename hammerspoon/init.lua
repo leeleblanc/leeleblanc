@@ -2,11 +2,15 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 08-04-26 using Claude
+-- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.32.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.32.1-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.32.1:
+--   📖 HELP MOVED TO THE BOTTOM. The ❓ HELP group sat in the middle of
+--      the feature groups; it now comes last of the built-ins, directly
+--      after ☁️ BACKUP. Your own ⭐ entries still follow it.
 -- NEW IN 6.32.0 — CHEAT SHEET IS ONE SCROLLING COLUMN:
 --   📜 IT GROWS DOWN, NOT SIDEWAYS. The sheet used to fill a column and
 --      then start another one to the right, so a long list spread into a
@@ -1123,7 +1127,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.32.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.32.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -1980,16 +1984,6 @@ local function cheatSheetGroups()
             { "auto", "Samples every 5s · stops when you are idle" },
             { "file", "Logs/doc_wather.csv — Date · Time · File · Working time" },
         }},
-        { title = "❓ HELP", entries = {
-            { "⇪/", "Toggle this cheat sheet" },
-            { "↑ ↓", "Scroll it a row at a time — hold to keep going" },
-            { "PgUp / PgDn", "Scroll a screenful  ·  Home / End jump to the ends" },
-            { "scroll wheel", "Scrolls it too, while the pointer is over the sheet" },
-            { "⇪=", "Add your own entry to this sheet" },
-            { "⇪E", "Edit a custom entry (picker)" },
-            { "⇪-", "Remove a custom entry (picker)" },
-            { "Esc", "Closes this sheet — a click does not" },
-        }},
         { title = "🔒 APP LOCK (privacy screen, NOT security)", entries = {
             { "⇪⇧H", "Manage — Enter locks or unlocks the selected app" },
             { "PIN prompt", "Opens on your ACTIVE screen, already focused" },
@@ -2018,6 +2012,16 @@ local function cheatSheetGroups()
         }},
         { title = "☁️ BACKUP (automatic)", entries = {
             { "daily 5:00 PM", "~/.hammerspoon → OneDrive/Backups (token excluded)" },
+        }},
+        { title = "❓ HELP", entries = {
+            { "⇪/", "Toggle this cheat sheet" },
+            { "↑ ↓", "Scroll it a row at a time — hold to keep going" },
+            { "PgUp / PgDn", "Scroll a screenful  ·  Home / End jump to the ends" },
+            { "scroll wheel", "Scrolls it too, while the pointer is over the sheet" },
+            { "⇪=", "Add your own entry to this sheet" },
+            { "⇪E", "Edit a custom entry (picker)" },
+            { "⇪-", "Remove a custom entry (picker)" },
+            { "Esc", "Closes this sheet — a click does not" },
         }},
     }
 
@@ -8985,7 +8989,7 @@ end)()
 -- enumeration, nothing that could stall the main thread at boot.
 if _G.hyperFinalize then _G.hyperFinalize() end
 
-print("📌 init.lua ARCHITECTURE VERSION: 6.32.0")
+print("📌 init.lua ARCHITECTURE VERSION: 6.32.1")
 
 -- ---- CHANGELOG CSV (6.30.1) -----------------------------------------
 -- Verbose version notes go here instead of bloating the header forever.
@@ -8993,9 +8997,9 @@ print("📌 init.lua ARCHITECTURE VERSION: 6.32.0")
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.32.0"
-    local currentDate    = "08-04-26"
-    local currentNotes   = "Cheat sheet is now ONE vertical scrolling column instead of growing sideways into extra columns: scroll with up/down arrows, PgUp/PgDn, Home/End or the wheel (wheel is only claimed while the pointer is over the sheet), with a scrollbar and an N-of-N counter showing where you are. Only the rows in view become canvas elements, so a long list costs the same as a short one. The sheet has its own translucency (cheatSheet.alpha 0.75) over a near-black panel, so you can see the window behind it without losing the text; panelAlpha 0.90 still covers the other panels. Redraws after add/edit/delete keep your scroll position. Structural: the section is one namespaced table because the file was at Lua's 200-local-per-chunk ceiling."
+    local currentVersion = "6.32.1"
+    local currentDate    = "08-05-26"
+    local currentNotes   = "HELP group moved to the bottom of the cheat sheet, directly after BACKUP, instead of sitting in the middle of the feature groups; your own starred entries still come last. Also in 6.32.x: the cheat sheet is ONE vertical scrolling column instead of growing sideways into extra columns: scroll with up/down arrows, PgUp/PgDn, Home/End or the wheel (wheel is only claimed while the pointer is over the sheet), with a scrollbar and an N-of-N counter showing where you are. Only the rows in view become canvas elements, so a long list costs the same as a short one. The sheet has its own translucency (cheatSheet.alpha 0.75) over a near-black panel, so you can see the window behind it without losing the text; panelAlpha 0.90 still covers the other panels. Redraws after add/edit/delete keep your scroll position. Structural: the section is one namespaced table because the file was at Lua's 200-local-per-chunk ceiling."
 
     -- Only append if this version isn't already in the file
     local found = false
