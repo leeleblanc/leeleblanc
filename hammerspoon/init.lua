@@ -4,9 +4,30 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.32.1-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.33.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.33.0 — ⌥TAB WINDOW SWITCHER (§1.10):
+--   🔄 WINDOWS-STYLE ALT+TAB, WHICH macOS DOES NOT HAVE. Hold ⌥ and tap
+--      Tab to walk every open WINDOW with a thumbnail tile each (title
+--      underneath), ⌥⇧Tab to walk back, release ⌥ to switch. ⌘Tab
+--      switches APPS and buries a five-window app behind one icon;
+--      this is per-window. ⌘Tab itself is untouched — macOS reserves
+--      it, as §0.3's own knownSystemCombos table says.
+--      Lists minimised windows and hidden apps too (altTab.includeHidden
+--      = false for visible-only), across all Spaces.
+--   ⚡ COSTS NOTHING AT BOOT. hs.window.filter has to subscribe to every
+--      running app and enumerate its windows, so it is built on the
+--      FIRST ⌥Tab and cached — then warmed quietly 5s after boot so
+--      that first press is instant anyway.
+--   🛟 DEGRADES INSTEAD OF DYING. Every setup step is pcall'd with a
+--      fallback: UI prefs rejected → stock look; custom filter fails →
+--      default filter. A plain-looking switcher still switches windows;
+--      an error during setup would have left ⌥Tab dead and silent.
+--   📖 CHEAT SHEET REORDERED to how you actually reach for things:
+--      App Monitor first, App Peek under Window Arranger, the new
+--      switcher after it, then App Updates → App Lock → File Tracker →
+--      Document Watcher, Autocorrect under Command History, Help last.
 -- NEW IN 6.32.1:
 --   📖 HELP MOVED TO THE BOTTOM. The ❓ HELP group sat in the middle of
 --      the feature groups; it now comes last of the built-ins, directly
@@ -1127,7 +1148,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.32.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.33.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -1154,6 +1175,13 @@
 --    earlier feature), the Console names it at boot. Also flags
 --    combos that match known macOS defaults like Spotlight or
 --    Spaces so a dead key is never a mystery.
+--
+-- ⌥Tab  WINDOW SWITCHER (§1.10)
+--    The Windows-style Alt+Tab macOS doesn't have: hold ⌥ and tap
+--    Tab to walk every open WINDOW — one thumbnail tile each, title
+--    underneath — ⌥⇧Tab to walk back, release ⌥ to switch. Lists
+--    minimised windows and hidden apps across all Spaces. ⌘Tab is
+--    left alone: macOS reserves it, and it switches apps not windows.
 --
 -- ⇪/  SHORTCUT CHEAT SHEET (§1.6)
 --    One tall translucent column listing every hotkey in this
@@ -1916,6 +1944,10 @@ _G.customShortcuts = loadCustomShortcuts()
 -- Built-ins + custom entries, as ordered groups of {keys, description}.
 local function cheatSheetGroups()
     local groups = {
+        { title = "👁 APP MONITOR (automatic)", entries = {
+            { "Enter", "Spawn (relaunch) or End" },
+            { "Esc", "Dismiss (stays open otherwise, no timeout) → posts notification" },
+        }},
         { title = "✅ ASANA — TASKS & DASHBOARD", entries = {
             { "⇪A", "Format Asana URL from clipboard" },
             { "⇪B", "Browse Asana Teams — Enter copies a name for Assignee" },
@@ -1941,10 +1973,6 @@ local function cheatSheetGroups()
             { "auto 4:00 PM", "Daily report pops up" },
             { "auto Mon 7:30 AM", "Weekly recap pops up" },
         }},
-        { title = "👁 APP MONITOR (automatic)", entries = {
-            { "Enter", "Spawn (relaunch) or End" },
-            { "Esc", "Dismiss (stays open otherwise, no timeout) → posts notification" },
-        }},
         { title = "🕹 POPUP POSITION", entries = {
             { "⇪⇧ ↑↓←→", "Nudge popup (hold to repeat)" },
             { "⇪⇧R", "Reset nudge offset" },
@@ -1957,9 +1985,15 @@ local function cheatSheetGroups()
             { "⇪↓", "Return window to prior spot (toggles)" },
             { "⇪[ / ⇪]", "Move window left / right a monitor" },
         }},
-        { title = "📁 FILE TRACKER", entries = {
-            { "⇪F", "Rename / move / copy history (searchable)" },
-            { "Enter", "Copy row  ·  90-day history" },
+        { title = "👀 APP PEEK", entries = {
+            { "⇪P", "Hide frontmost app — press again to bring back" },
+        }},
+        { title = "🔄 WINDOW SWITCHER (⌥Tab — Windows-style)", entries = {
+            { "⌥Tab", "Hold ⌥, tap Tab to walk every open window, release to switch" },
+            { "⌥⇧Tab", "Walk backwards through the same list" },
+            { "tiles", "One thumbnail per WINDOW, with its title underneath" },
+            { "includes", "Minimised windows and hidden apps, across all Spaces" },
+            { "⌘Tab", "Untouched — macOS reserves it, and it switches apps not windows" },
         }},
         { title = "📦 APP UPDATES", entries = {
             { "⇪U", "Which apps are behind right now (searchable)" },
@@ -1967,22 +2001,6 @@ local function cheatSheetGroups()
             { "Enter (brew-managed)", "Installs the update via Homebrew" },
             { "Enter (not brew-managed)", "Opens the vendor's download page" },
             { "⬆️ Upgrade ALL row", "Installs every brew-managed update at once" },
-        }},
-        { title = "✏️ AUTOCORRECT", entries = {
-            { "⇪S", "Toggle on/off" },
-            { "⇪Z", "Undo last fix & learn the exception" },
-            { "auto", "Fixes typos & TWo-caps as you type (autocorrect.csv)" },
-        }},
-        { title = "👀 APP PEEK", entries = {
-            { "⇪P", "Hide frontmost app — press again to bring back" },
-        }},
-        { title = "📄 DOCUMENT WATCHER (experimental)", entries = {
-            { "⇪⇧W", "Documents worked on today — search name / ext / date" },
-            { "Enter", "Copy the highlighted row" },
-            { "☑️ row", "Copy several: pick rows with Enter, then copy together" },
-            { "⇪⇧E", "Edit or delete an entry (clear the name = delete)" },
-            { "auto", "Samples every 5s · stops when you are idle" },
-            { "file", "Logs/doc_wather.csv — Date · Time · File · Working time" },
         }},
         { title = "🔒 APP LOCK (privacy screen, NOT security)", entries = {
             { "⇪⇧H", "Manage — Enter locks or unlocks the selected app" },
@@ -1997,10 +2015,27 @@ local function cheatSheetGroups()
             { "forgot PIN?", "Delete ~/.hammerspoon/applock.json" },
             { "⌘⇧⌃⌥K / ⇪K", "Panic key — clears a stuck lock cover" },
         }},
+        { title = "📁 FILE TRACKER", entries = {
+            { "⇪F", "Rename / move / copy history (searchable)" },
+            { "Enter", "Copy row  ·  90-day history" },
+        }},
+        { title = "📄 DOCUMENT WATCHER (experimental)", entries = {
+            { "⇪⇧W", "Documents worked on today — search name / ext / date" },
+            { "Enter", "Copy the highlighted row" },
+            { "☑️ row", "Copy several: pick rows with Enter, then copy together" },
+            { "⇪⇧E", "Edit or delete an entry (clear the name = delete)" },
+            { "auto", "Samples every 5s · stops when you are idle" },
+            { "file", "Logs/doc_wather.csv — Date · Time · File · Working time" },
+        }},
         { title = "⌨️ COMMAND HISTORY", entries = {
             { "⇪H", "Search your shell history — Enter copies the command" },
             { "type: anything", "Matches anywhere in the command" },
             { "note", "Read from command_history.log, written by your shell" },
+        }},
+        { title = "✏️ AUTOCORRECT", entries = {
+            { "⇪S", "Toggle on/off" },
+            { "⇪Z", "Undo last fix & learn the exception" },
+            { "auto", "Fixes typos & TWo-caps as you type (autocorrect.csv)" },
         }},
         { title = "⌨️ ⇪ = CAPS LOCK (hold it, tap a key)", entries = {
             { "⇪ + key", "Every shortcut on this sheet — hold Caps Lock" },
@@ -2944,6 +2979,119 @@ hs.hotkey.bind(windowKeys.halfMods, windowKeys.split,     splitTopTwo)
 hs.hotkey.bind(windowKeys.halfMods, windowKeys.restore,   restorePriorFrame)
 hs.hotkey.bind(windowKeys.monitorMods, windowKeys.monitorRight, function() moveFocusedToMonitor("east") end)
 hs.hotkey.bind(windowKeys.monitorMods, windowKeys.monitorLeft,  function() moveFocusedToMonitor("west") end)
+
+-- =====================================================================
+-- 1.10 WINDOW SWITCHER — ⌥Tab, Windows-style, one tile per window
+-- =====================================================================
+-- Hold ⌥ and tap Tab to walk EVERY open window — one thumbnail tile
+-- each — ⌥⇧Tab to walk back, release ⌥ to switch to the highlighted
+-- one. That is the Windows Alt+Tab behaviour, which macOS does not
+-- have: ⌘Tab switches APPS, not windows, and hides a five-window app
+-- behind a single icon.
+--
+-- ⌘Tab IS DELIBERATELY LEFT ALONE. macOS reserves it (§0.3's
+-- knownSystemCombos says so in as many words), so binding it would be a
+-- fight we'd lose. ⌥Tab is free on stock macOS and is what this uses.
+--
+-- Built on hs.window.switcher, which draws the HUD and handles the
+-- hold-the-modifier / release-to-pick dance itself. Three decisions
+-- here are worth knowing about:
+--
+-- 1. IT IS BUILT LAZILY. hs.window.filter subscribes to every running
+--    app and enumerates its windows — doing that during boot would add
+--    real time to a startup the rest of this file works hard to keep
+--    fast. It is built on the FIRST ⌥Tab instead and then cached, and
+--    warmed quietly a few seconds after boot so that first press is
+--    instant anyway.
+-- 2. EVERY STEP IS pcall'd, WITH A FALLBACK. If this Hammerspoon
+--    version rejects a UI preference it retries with the stock look; if
+--    the custom filter fails it retries with the default filter. A
+--    switcher that looks plain still switches windows — one that threw
+--    during setup would take ⌥Tab down with it and leave you with a
+--    dead key and no explanation.
+-- 3. NO repeatFn, ON PURPOSE. Holding Tab down would auto-repeat at the
+--    system key rate and fly straight past the window you wanted. Tap
+--    Tab once per window, exactly like Windows.
+--
+-- ⚠️ HONEST LIMITS: it can only show what macOS will hand over —
+-- windows on other Spaces are listed but macOS switches Space to reach
+-- them, and some apps (certain Electron/Java windows) report no
+-- thumbnail, so their tile is blank with the title still readable.
+local altTab = {}
+
+-- ✏️ EDIT HERE — what it lists and how it looks.
+altTab.includeHidden = true   -- true: minimised windows and windows of
+                              -- hidden apps are listed too (Windows
+                              -- behaviour). false: visible windows only.
+altTab.warmupDelay   = 5      -- seconds after boot to pre-build it
+
+altTab.ui = {
+    textColor             = { white = 1 },
+    textSize              = 12,
+    backgroundColor       = { red = 0.06, green = 0.06, blue = 0.08, alpha = 0.92 },
+    highlightColor        = { red = 0.28, green = 0.52, blue = 0.92, alpha = 0.85 },
+    onlyActiveApplication = false,  -- every app, not just the front one
+    showTitles            = true,   -- window title under each tile
+    showThumbnails        = true,   -- the tiles themselves
+    thumbnailSize         = 160,
+    showSelectedThumbnail = true,   -- larger preview of the highlighted one
+    selectedThumbnailSize = 320,
+    showSelectedTitle     = true,
+}
+
+-- Build once, cache, and never let a failure escape as an error.
+function altTab.build()
+    if altTab.switcher then return altTab.switcher end
+
+    local filter
+    local okFilter = pcall(function()
+        filter = hs.window.filter.new()
+        -- An EMPTY default filter means "no exclusions" — that is what
+        -- pulls in minimised windows and hidden apps. Without it the
+        -- filter only reports windows that are currently visible.
+        if altTab.includeHidden then filter:setDefaultFilter({}) end
+    end)
+    if not okFilter then
+        filter = nil
+        print("🔄 Window switcher: custom filter failed — using the default one")
+    end
+
+    local ok, sw = pcall(hs.window.switcher.new, filter, altTab.ui)
+    if not (ok and sw) then
+        print("🔄 Window switcher: UI prefs rejected — falling back to the stock look")
+        ok, sw = pcall(hs.window.switcher.new, filter)
+    end
+    if not (ok and sw) then
+        print("🔄 Window switcher: could not be created — ⌥Tab will do nothing")
+        return nil
+    end
+
+    altTab.switcher = sw
+    return sw
+end
+
+function altTab.step(reverse)
+    local sw = altTab.build()
+    if not sw then return end
+    local ok, err = pcall(function()
+        if reverse then sw:previous() else sw:next() end
+    end)
+    if not ok then print("🔄 Window switcher: " .. tostring(err)) end
+end
+
+-- Through the §0.3 sentry like every other binding, so a clash with
+-- something added later is announced at boot instead of silently
+-- killing one of them.
+hs.hotkey.bind({ "alt" },          "tab", function() altTab.step(false) end)
+hs.hotkey.bind({ "alt", "shift" }, "tab", function() altTab.step(true)  end)
+
+-- Warm it off the critical path so the first ⌥Tab doesn't pay for the
+-- window enumeration. Failure here is silent by design: build() has
+-- already said its piece, and the next ⌥Tab retries anyway.
+if hs.timer and hs.timer.doAfter and (altTab.warmupDelay or 0) > 0 then
+    hs.timer.doAfter(altTab.warmupDelay, function() pcall(altTab.build) end)
+end
+
 
 -- =====================================================================
 -- 2. UTILITY & OCR ENGINE
@@ -8989,7 +9137,7 @@ end)()
 -- enumeration, nothing that could stall the main thread at boot.
 if _G.hyperFinalize then _G.hyperFinalize() end
 
-print("📌 init.lua ARCHITECTURE VERSION: 6.32.1")
+print("📌 init.lua ARCHITECTURE VERSION: 6.33.0")
 
 -- ---- CHANGELOG CSV (6.30.1) -----------------------------------------
 -- Verbose version notes go here instead of bloating the header forever.
@@ -8997,9 +9145,9 @@ print("📌 init.lua ARCHITECTURE VERSION: 6.32.1")
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.32.1"
+    local currentVersion = "6.33.0"
     local currentDate    = "08-05-26"
-    local currentNotes   = "HELP group moved to the bottom of the cheat sheet, directly after BACKUP, instead of sitting in the middle of the feature groups; your own starred entries still come last. Also in 6.32.x: the cheat sheet is ONE vertical scrolling column instead of growing sideways into extra columns: scroll with up/down arrows, PgUp/PgDn, Home/End or the wheel (wheel is only claimed while the pointer is over the sheet), with a scrollbar and an N-of-N counter showing where you are. Only the rows in view become canvas elements, so a long list costs the same as a short one. The sheet has its own translucency (cheatSheet.alpha 0.75) over a near-black panel, so you can see the window behind it without losing the text; panelAlpha 0.90 still covers the other panels. Redraws after add/edit/delete keep your scroll position. Structural: the section is one namespaced table because the file was at Lua's 200-local-per-chunk ceiling."
+    local currentNotes   = "New: Windows-style window switcher on option+Tab (section 1.10) — one thumbnail tile per WINDOW rather than per app, option+shift+Tab reverses, release option to switch; lists minimised windows and hidden apps across Spaces; built lazily on first use and warmed 5s after boot so it costs nothing at startup; command+Tab left alone because macOS reserves it. Cheat sheet groups reordered: App Monitor first, App Peek under Window Arranger, App Lock under App Updates, then File Tracker and Document Watcher, Autocorrect under Command History, Help last."
 
     -- Only append if this version isn't already in the file
     local found = false

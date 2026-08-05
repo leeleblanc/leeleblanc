@@ -245,5 +245,35 @@ print("\n=== 12. Toggle ===")
 CS.toggle(); check("toggle opens", _G.cheatSheetCanvas ~= nil)
 CS.toggle(); check("toggle closes", _G.cheatSheetCanvas == nil)
 
+print("\n=== 13. Group order (locked to what you asked for) ===")
+local want = {
+  "APP MONITOR", "ASANA", "CLIPBOARD", "ACTIVITY TRACKER", "POPUP POSITION",
+  "WINDOW ARRANGER", "APP PEEK", "WINDOW SWITCHER", "APP UPDATES", "APP LOCK",
+  "FILE TRACKER", "DOCUMENT WATCHER", "COMMAND HISTORY", "AUTOCORRECT",
+  "CAPS LOCK", "BACKUP", "HELP",
+}
+local got = {}
+for _, g in ipairs(cheatSheetGroups()) do table.insert(got, g.title) end
+check("group count", #got == #want, #got .. " vs " .. #want)
+for i, w in ipairs(want) do
+  check(("%2d. %s"):format(i, w), got[i] and got[i]:find(w, 1, true) ~= nil,
+        "found: " .. tostring(got[i]))
+end
+check("App Peek sits directly below Window Arranger",
+  got[6]:find("WINDOW ARRANGER", 1, true) and got[7]:find("APP PEEK", 1, true))
+check("App Lock sits directly below App Updates",
+  got[9]:find("APP UPDATES", 1, true) and got[10]:find("APP LOCK", 1, true))
+check("Autocorrect sits directly below Command History",
+  got[13]:find("COMMAND HISTORY", 1, true) and got[14]:find("AUTOCORRECT", 1, true))
+check("App Updates -> File Tracker -> Document Watcher keep that order", (function()
+  local iu, ift, idw
+  for i, t in ipairs(got) do
+    if t:find("APP UPDATES",1,true) then iu = i end
+    if t:find("FILE TRACKER",1,true) then ift = i end
+    if t:find("DOCUMENT WATCHER",1,true) then idw = i end
+  end
+  return iu < ift and ift < idw
+end)())
+
 print(("\n%d passed, %d failed\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)
