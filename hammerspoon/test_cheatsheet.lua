@@ -72,6 +72,12 @@ _G.moduleCheatsheets = {
     entries = { { "⇪← / ⇪→", "Left / right half of screen" } } },
   { title = "⌨️ COMMAND HISTORY", order = 12,
     entries = { { "⇪H", "Search your shell history" } } },
+  { title = "👁 APP MONITOR (automatic)", order = 1,
+    entries = { { "Enter", "Spawn (relaunch) or End" } } },
+  { title = "📁 FILE TRACKER", order = 10,
+    entries = { { "⇪F", "Rename / move / copy history" } } },
+  { title = "✏️ AUTOCORRECT", order = 13,
+    entries = { { "⇪S", "Toggle on/off" } } },
 }
 
 local function wheelEvent(props)

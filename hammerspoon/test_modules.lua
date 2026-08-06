@@ -12,10 +12,11 @@ local NOW, bound, tasks, timers = 100, {}, {}, {}
 hs = {
   configdir = MODDIR:gsub("/modules$", ""),
   timer = { secondsSinceEpoch = function() NOW = NOW + 0.001; return NOW end,
-            doAt = function(t, r, fn) local o = { at = t }; table.insert(timers, o); return o end },
-  fs = { attributes = function(path)
-      local f = io.open(path, "r"); if not f then return nil end; f:close()
-      return { mode = "file", size = 1 } end },
+            doAt = function(t, r, fn) local o = { at = t }; table.insert(timers, o); return o end,
+            doAfter = function(_, fn) return { stop = function() end } end,
+            doEvery = function(_, fn) return { stop = function() end, start = function(s) return s end } end,
+            new = function() return { start = function(s) return s end, stop = function() end } end,
+            usleep = function() end },
   hotkey = { bind = function(mods, key, fn)
       table.insert(bound, table.concat(mods, "+") .. "+" .. tostring(key)); return {} end },
   alert = { show = function() end },
@@ -29,7 +30,26 @@ hs = {
                   observer = { new = function() return nil end } },
   uielement   = { watcher = { new = function() return nil end } },
   canvas = { windowLevels = { overlay = 1 }, new = function() return nil end },
-  eventtap = { checkKeyboardModifiers = function() return {} end },
+  eventtap = { checkKeyboardModifiers = function() return {} end,
+               new = function() return { start = function(s) return s end,
+                                         stop = function(s) return s end,
+                                         isEnabled = function() return true end } end,
+               keyStroke = function() end, keyStrokes = function() end,
+               event = { types = { keyDown = 10, flagsChanged = 12 },
+                         properties = { keyboardEventKeycode = "kc" },
+                         newKeyEvent = function() return { post = function() end } end } },
+  pathwatcher = { new = function() return { start = function(s) return s end,
+                                            stop = function(s) return s end } end },
+  fs = { attributes = function(path)
+      local f = io.open(path, "r"); if not f then return nil end; f:close()
+      return { mode = "file", size = 1 } end,
+      dir = function() return function() return nil end end,
+      mkdir = function() return true end },
+  notify = { new = function() return { send = function() end } end },
+  settings = { get = function() return nil end, set = function() end },
+  keycodes = { map = setmetatable({}, { __index = function() return 0 end }) },
+  distributednotifications = { new = function() return { start=function(s) return s end,
+                                                        stop=function(s) return s end } end },
   window = { orderedWindows = function() return {} end,
              filter = nil },
   pasteboard = { getContents = function() return "" end, setContents = function() end },
@@ -59,6 +79,7 @@ popupScreenKeys = { mods = { "ctrl", "alt", "cmd" } }
 showPopup, resolveBaseScreen = function() end,
   function() return { frame = function() return { x=0,y=0,w=3840,h=2160 } end } end
 panelAlpha, asanaEnabled, asanaToken, asanaWorkspaceId = 0.9, true, "tok", "ws"
+splitCSVLine = function(l) local o={} for f in tostring(l):gmatch('[^,]+') do o[#o+1]=f end return o end
 _G.configVersion, _G.safeJson = "6.36.0", function() end
 
 dofile("LOADER_PATH")   -- defines _G.loadModules and loads the real list
@@ -74,10 +95,11 @@ local function statusOf(n)
 end
 
 out("\n=== 1. The three real modules load ===\n")
-check("all six loaded", _G.moduleLoaded == 6 and _G.moduleFailed == 0,
+check("all nine loaded", _G.moduleLoaded == 9 and _G.moduleFailed == 0,
       tostring(_G.moduleLoaded) .. "/" .. tostring(_G.moduleFailed))
 for _, n in ipairs({ "daily_backup", "app_peek", "window_switcher",
-                     "window_arranger", "copy_on_select", "command_history" }) do
+                     "window_arranger", "copy_on_select", "command_history",
+                     "app_watcher", "file_tracker", "autocorrect" }) do
   local r = statusOf(n)
   check(n .. " ok", r and r.ok, r and r.err)
 end
@@ -103,8 +125,8 @@ check("Daily Backup scheduled its 17:00 timer", timers[1] and timers[1].at == "1
 check("the switcher published altTab for ⇪⇧D", type(_G.altTab) == "table")
 
 out("\n=== 3. Cheat sheet groups travel WITH the module ===\n")
-check("five groups registered (Copy-on-Select declares none, by design)",
-      #_G.moduleCheatsheets == 5, #_G.moduleCheatsheets)
+check("eight groups registered (Copy-on-Select declares none, by design)",
+      #_G.moduleCheatsheets == 8, #_G.moduleCheatsheets)
 local byOrder = {}
 for _, g in ipairs(_G.moduleCheatsheets) do byOrder[g.order] = g.title end
 check("App Peek claims slot 7", (byOrder[7] or ""):find("APP PEEK", 1, true))
@@ -112,6 +134,9 @@ check("Window Switcher claims slot 8", (byOrder[8] or ""):find("WINDOW SWITCHER"
 check("Daily Backup claims slot 15", (byOrder[15] or ""):find("BACKUP", 1, true))
 check("Window Arranger claims slot 6", (byOrder[6] or ""):find("WINDOW ARRANGER", 1, true))
 check("Command History claims slot 12", (byOrder[12] or ""):find("COMMAND HISTORY", 1, true))
+check("App Watcher claims slot 1", (byOrder[1] or ""):find("APP MONITOR", 1, true))
+check("File Tracker claims slot 10", (byOrder[10] or ""):find("FILE TRACKER", 1, true))
+check("Autocorrect claims slot 13", (byOrder[13] or ""):find("AUTOCORRECT", 1, true))
 check("every registered group carries entries", (function()
   for _, g in ipairs(_G.moduleCheatsheets) do
     if type(g.entries) ~= "table" or #g.entries == 0 then return false end
@@ -124,7 +149,7 @@ for _, key in ipairs({ "logsDir", "backupDir", "hostTag", "homeDir", "cloudDir",
                        "popupMods", "showPopup", "resolveBaseScreen", "panelAlpha",
                        "warnWriteFailed", "adoptLegacyFile", "csvQuote",
                        "asanaEnabled", "diag", "safeJson", "configDir", "version",
-                       "hyperAddShortcut" }) do
+                       "hyperAddShortcut", "splitCSVLine" }) do
   check("core." .. key .. " is published", _G.core[key] ~= nil)
 end
 

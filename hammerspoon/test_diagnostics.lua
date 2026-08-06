@@ -149,7 +149,8 @@ local f = realopen(INIT, "r"); local text = f:read("*a"); f:close()
 -- The audit covers the MODULE FILES too, so a bug class cannot escape
 -- it simply by having been moved out of init.lua.
 local MODS = { "daily_backup", "app_peek", "window_switcher",
-               "window_arranger", "copy_on_select", "command_history" }
+               "window_arranger", "copy_on_select", "command_history",
+               "app_watcher", "file_tracker", "autocorrect" }
 local moduleText = {}
 for _, m in ipairs(MODS) do
   local mf = realopen("MODULES_DIR/" .. m .. ".lua", "r")
@@ -168,7 +169,8 @@ check("the migrated sections are GONE from init.lua", (function()
   local f2 = realopen(INIT, "r"); local only = f2:read("*a"); f2:close()
   for _, gone in ipairs({ "1.7 DAILY BACKUP", "1.8 APP PEEK", "1.10 WINDOW SWITCHER",
                           "1.9 WINDOW ARRANGER", "3.11 GLOBAL COPY-ON-SELECT",
-                          "6.5 COMMAND HISTORY" }) do
+                          "6.5 COMMAND HISTORY", "3.7 APP WATCHER",
+                          "3.8 FILE TRACKER", "3.9 AUTOCORRECT" }) do
     if only:find(gone, 1, true) then return false end
   end
   return true
