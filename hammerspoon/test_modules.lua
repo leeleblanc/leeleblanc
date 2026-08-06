@@ -75,9 +75,10 @@ hs = {
   end },
   image = { imageFromAppBundle = function() return nil end },
   accessibilityState = function() return true end,
-  execute = function(cmd, loginShell) return SHELL_BREW or "", true, "exit", 0 end,
+  execute = function(cmd, loginShell) SHELL_CALLED = true; return SHELL_BREW or "", true, "exit", 0 end,
 }
 SHELL_BREW = nil
+SHELL_CALLED = false
 _G.choosers = {}          -- created in §1 of the real init.lua
 _G.service = { registry = {},
   provide = function(n, f) _G.service.registry[n] = f end,
@@ -110,6 +111,16 @@ local pass, fail = 0, 0
 local function check(name, cond, detail)
   if cond then pass = pass + 1; out("  ✅ ", name, "\n")
   else fail = fail + 1; out("  ❌ ", name, " — ", tostring(detail or ""), "\n") end
+end
+-- Pretend specific absolute paths exist, so the HOME-Mac layout
+-- (/opt/homebrew) can be tested in a sandbox that has no such directory.
+FAKE_FILES = {}
+local realIoOpen = io.open
+io.open = function(path, mode)
+  if FAKE_FILES[path] and (mode == nil or mode == "r") then
+    return { close = function() end, read = function() return "" end }
+  end
+  return realIoOpen(path, mode)
 end
 local function logged(pat)      -- was only in the switcher harness
   for _, l in ipairs(printed) do if l:find(pat, 1, true) then return true end end
@@ -318,6 +329,7 @@ do
 
   os.remove(SHELL_BREW)
   SHELL_BREW = nil
+SHELL_CALLED = false
   printed = {}
   _G.moduleStatus, _G.moduleWarmTimers = {}, {}
   warmTimerFns = {}
@@ -339,6 +351,44 @@ check("no stale §3.10 references remain in the module", (function()
   local body = f:read("*a"); f:close()
   return body:find("§3.10") == nil
 end)())
+
+out("\n=== 4f. The HOME Mac must not regress ===\n")
+do
+  local realGetenv = os.getenv
+  local emptyHome = MODDIR .. "/nohome"
+  os.execute("mkdir -p '" .. emptyHome .. "'")
+  os.getenv = function(k) if k == "HOME" then return emptyHome end return realGetenv(k) end
+
+  -- exactly the home MacBook: an ADMIN install, nothing in ~
+  FAKE_FILES = { ["/opt/homebrew/bin/brew"] = true }
+  SHELL_CALLED, SHELL_BREW = false, nil
+  printed = {}
+  _G.moduleStatus, _G.moduleWarmTimers, _G.updateTrackerTimer = {}, {}, nil
+  warmTimerFns = {}
+  _G.loadModules({ "update_tracker" })
+  check("system install at /opt/homebrew is still found",
+        not logged("asking your login shell"), printed[1])
+  check("...and the daily check is scheduled as before", _G.updateTrackerTimer ~= nil)
+  warmTimerFns[#warmTimerFns]()
+  check("warm() does NOT start a login shell when brew was already found",
+        SHELL_CALLED == false)
+
+  -- the one ambiguous case: BOTH a home-dir and a system install
+  FAKE_FILES = { ["/opt/homebrew/bin/brew"] = true,
+                 [emptyHome .. "/homebrew/bin/brew"] = true }
+  SHELL_CALLED, SHELL_BREW = false, "/opt/homebrew/bin/brew"
+  printed = {}
+  _G.moduleStatus, _G.moduleWarmTimers = {}, {}
+  warmTimerFns = {}
+  _G.loadModules({ "update_tracker" })
+  warmTimerFns[#warmTimerFns]()
+  check("when BOTH exist, the shell decides which one is really on PATH",
+        logged("two Homebrew installs") or logged("confirmed"), printed[#printed])
+
+  FAKE_FILES = {}
+  os.getenv = realGetenv
+  os.execute("rm -rf '" .. emptyHome .. "'")
+end
 
 out("\n=== 5. Failure is ISOLATED — the whole point ===\n")
 local function writeMod(name, body)

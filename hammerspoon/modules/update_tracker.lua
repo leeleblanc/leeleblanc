@@ -115,7 +115,7 @@ function M.setup(core)
     -- profile: settings = { update_tracker = { brewPath = "/path/to/brew" } }
     M.config.brewPath = M.config.brewPath or nil
 
-    local brewPath, brewTried = nil, {}
+    local brewPath, brewTried, brewFound = nil, {}, {}
     local function findBrewOnDisk()
         local home = os.getenv("HOME") or core.homeDir or ""
         -- ⚠️ BUILT WITH table.insert, NOT AS A LITERAL WITH A nil IN IT.
@@ -137,10 +137,13 @@ function M.setup(core)
             if candidate and candidate ~= "" then
                 table.insert(brewTried, candidate)
                 local f = io.open(candidate, "r")
-                if f then f:close(); return candidate end
+                if f then
+                    f:close()
+                    table.insert(brewFound, candidate)
+                end
             end
         end
-        return nil
+        return brewFound[1]
     end
     brewPath = findBrewOnDisk()
 
@@ -148,6 +151,30 @@ function M.setup(core)
     function M.warm(core)
         if brewPath then
             _G.diag.say("updates", "brew at " .. brewPath)
+            -- TWO INSTALLS IS THE ONLY AMBIGUOUS CASE, and it is real:
+            -- a Mac can carry a leftover ~/homebrew alongside a working
+            -- /opt/homebrew. Picking by list order would be a guess, so
+            -- when more than one exists the shell is asked which one is
+            -- actually on PATH — that is the one `brew` means when YOU
+            -- type it. Only in this case, so the usual Mac pays nothing.
+            if #brewFound > 1 then
+                local ok, out = pcall(function()
+                    local o = hs.execute("command -v brew 2>/dev/null", true)
+                    return tostring(o or ""):gsub("%s+$", "")
+                end)
+                local onPath = ok and out ~= "" and out or nil
+                if onPath and onPath ~= brewPath then
+                    print("📦 App Update Tracker: two Homebrew installs found — using the one "
+                          .. "on your PATH (" .. onPath .. "), not " .. brewPath)
+                    brewPath = onPath
+                elseif onPath then
+                    _G.diag.say("updates", "two installs found; PATH confirmed " .. brewPath)
+                else
+                    print("📦 App Update Tracker: two Homebrew installs found and your shell "
+                          .. "names neither — using " .. brewPath
+                          .. ". Pin the right one with M.config.brewPath if that is wrong.")
+                end
+            end
             return
         end
         local ok, out = pcall(function()

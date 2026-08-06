@@ -1,6 +1,6 @@
 # Hammerspoon config — how the new design works
 
-Version 6.43.0. Keep this next to the config; it is the manual for the
+Version 6.43.1. Keep this next to the config; it is the manual for the
 structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ---
@@ -39,7 +39,7 @@ Everything else is a module.
 ```bash
 mkdir -p ~/.hammerspoon/modules
 cp ~/Downloads/*.lua ~/.hammerspoon/modules/     # module files
-cp ~/Downloads/init-6.43.0.lua ~/.hammerspoon/init.lua
+cp ~/Downloads/init-6.43.1.lua ~/.hammerspoon/init.lua
 ```
 
 Modules first, then `init.lua`. Reload Hammerspoon and check two lines in
@@ -199,7 +199,7 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Four suites, 330 checks, run with `lua5.4` — no Mac required, they stub
+Four suites, 334 checks, run with `lua5.4` — no Mac required, they stub
 the `hs` API:
 
 ```

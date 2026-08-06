@@ -4,9 +4,21 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.43.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.43.1-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.43.1 — PROVING 6.43.0 IS SAFE ON THE OTHER MAC:
+--   ✅ THE PERSONAL MAC DOES NOT REGRESS, and this is tested, not
+--      asserted: a system install at /opt/homebrew is still found, the
+--      daily check is still scheduled, and warm() starts NO login shell
+--      when brew was already located. The shell is consulted only when
+--      the well-known paths miss — which on that Mac they do not.
+--   🔀 ONE REAL GAP THE TEST FOUND: a Mac can carry BOTH a leftover
+--      ~/homebrew AND a working /opt/homebrew. List order was picking
+--      between them blindly. Now — and ONLY in that case — the shell is
+--      asked which brew is actually on PATH, because that is the one
+--      `brew` means when you type it. The Console says which was chosen
+--      and which was ignored, instead of silently preferring one.
 -- NEW IN 6.43.0 — HOMEBREW ON A MAC WITHOUT ADMIN RIGHTS:
 --   🍺 WHAT BROKE: the work MacBook said "Homebrew not found" while
 --      Homebrew was running perfectly in the next window. The tracker
@@ -1453,7 +1465,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.43.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.43.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -1682,7 +1694,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.43.0"
+_G.configVersion = "6.43.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -5484,9 +5496,9 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.43.0"
+    local currentVersion = "6.43.1"
     local currentDate    = "08-05-26"
-    local currentNotes   = "FIX: the work MacBook reported Homebrew not found while Homebrew was demonstrably running in the next window. The App Update Tracker only checked /opt/homebrew and /usr/local — the two places an ADMIN install goes — and on a managed Mac with no admin rights Homebrew installs to a custom prefix under the users own home. It now checks the home-directory prefixes first, and if none match, warm() asks the LOGIN shell with command -v brew, which is authoritative because the shell profile is what puts a custom prefix on PATH; the shell question runs in warm rather than setup because starting a login shell costs 100-300ms and does not belong on the boot path. When brew is genuinely absent the message now LISTS every path tried instead of just saying not found, and M.config.brewPath (settable per machine from a profile) pins it explicitly. Bug caught by the new tests while fixing this: the candidate list was written as ipairs({ M.config.brewPath, ... }) and that field is nil unless set — ipairs STOPS AT THE FIRST nil, so the loop body never ran once and no path was ever checked on any Mac. Nothing errored; the search silently did nothing. Also cleaned: six stale section-3.10 references in a file that has been a module since 6.40.0."
+    local currentNotes   = "Follow-up to 6.43.0, prompted by the right question: does the new Homebrew discovery risk the personal Mac? Tested rather than asserted. A system install at /opt/homebrew is still found, the daily check is still scheduled, and warm() starts no login shell at all when brew was already located — the shell is only consulted when the well-known paths miss. One real gap the test found: if a Mac carries BOTH a leftover home-directory install and a working system one, list order was picking blindly. Now, and only in that case, the shell is asked which brew is actually on PATH and that one wins, with the Console saying which was chosen and which was ignored."
 
     -- Only append if this version isn't already in the file
     local found = false
