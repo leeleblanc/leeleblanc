@@ -75,7 +75,9 @@ hs = {
   end },
   image = { imageFromAppBundle = function() return nil end },
   accessibilityState = function() return true end,
+  execute = function(cmd, loginShell) return SHELL_BREW or "", true, "exit", 0 end,
 }
+SHELL_BREW = nil
 _G.choosers = {}          -- created in §1 of the real init.lua
 _G.service = { registry = {},
   provide = function(n, f) _G.service.registry[n] = f end,
@@ -108,6 +110,10 @@ local pass, fail = 0, 0
 local function check(name, cond, detail)
   if cond then pass = pass + 1; out("  ✅ ", name, "\n")
   else fail = fail + 1; out("  ❌ ", name, " — ", tostring(detail or ""), "\n") end
+end
+local function logged(pat)      -- was only in the switcher harness
+  for _, l in ipairs(printed) do if l:find(pat, 1, true) then return true end end
+  return false
 end
 local function statusOf(n)
   for _, r in ipairs(_G.moduleStatus) do if r.name == n then return r end end
@@ -276,6 +282,62 @@ check("asana_comments publishes its comment poster",
 check("calling a MISSING service returns nil instead of throwing", (function()
   local ok, res = pcall(_G.service.call, "nothing.here")
   return ok and res == nil
+end)())
+
+out("\n=== 4e. Homebrew discovery: the no-admin work Mac ===\n")
+do
+  local realGetenv = os.getenv
+  local fakeHome = MODDIR .. "/fakehome"
+  os.execute("mkdir -p '" .. fakeHome .. "/homebrew/bin'")
+  local bf = io.open(fakeHome .. "/homebrew/bin/brew", "w"); bf:write("#!/bin/sh\n"); bf:close()
+  os.getenv = function(k) if k == "HOME" then return fakeHome end return realGetenv(k) end
+
+  printed = {}      -- earlier sections filled this; start clean
+  _G.moduleStatus, _G.moduleCheatsheets, _G.updateTrackerTimer = {}, {}, nil
+  _G.loadModules({ "update_tracker" })
+  local m = statusOf("update_tracker")
+  check("the module loads on a Mac with no system Homebrew", m and m.ok, m and m.err)
+  check("brew is FOUND in the user's home directory (~/homebrew/bin/brew)",
+    not logged("asking your login shell"), "fell back to the shell despite ~/homebrew existing")
+
+  -- now remove it: the well-known paths miss, so warm() must ask the shell
+  os.remove(fakeHome .. "/homebrew/bin/brew")
+  printed = {}
+  _G.moduleStatus, _G.moduleWarmTimers = {}, {}
+  warmTimerFns = {}
+  _G.loadModules({ "update_tracker" })
+  check("with brew nowhere obvious, it does NOT declare defeat at boot",
+        logged("asking your login shell"), printed[1])
+  SHELL_BREW = fakeHome .. "/homebrew/bin/brew"
+  local bf2 = io.open(SHELL_BREW, "w"); bf2:write("#!/bin/sh\n"); bf2:close()
+  warmTimerFns[#warmTimerFns]()
+  check("warm() asks the LOGIN shell and finds a custom-prefix install",
+        logged("found Homebrew via your login shell"), printed[#printed])
+  check("...and schedules the daily check it had skipped",
+        _G.updateTrackerTimer ~= nil)
+
+  os.remove(SHELL_BREW)
+  SHELL_BREW = nil
+  printed = {}
+  _G.moduleStatus, _G.moduleWarmTimers = {}, {}
+  warmTimerFns = {}
+  _G.loadModules({ "update_tracker" })
+  warmTimerFns[#warmTimerFns]()
+  check("only when the shell ALSO finds nothing is it genuinely unavailable",
+        not logged("found Homebrew via"))
+  os.getenv = realGetenv
+  os.execute("rm -rf '" .. fakeHome .. "'")
+end
+check("an explicit brewPath override is honoured", (function()
+  local m = dofile(MODDIR .. "/update_tracker.lua")
+  m.config = { brewPath = MODDIR .. "/update_tracker.lua" }  -- any real file
+  m.setup(_G.core)
+  return true
+end)())
+check("no stale §3.10 references remain in the module", (function()
+  local f = io.open(MODDIR .. "/update_tracker.lua", "r")
+  local body = f:read("*a"); f:close()
+  return body:find("§3.10") == nil
 end)())
 
 out("\n=== 5. Failure is ISOLATED — the whole point ===\n")

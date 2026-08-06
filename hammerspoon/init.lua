@@ -4,9 +4,34 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.42.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.43.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.43.0 — HOMEBREW ON A MAC WITHOUT ADMIN RIGHTS:
+--   🍺 WHAT BROKE: the work MacBook said "Homebrew not found" while
+--      Homebrew was running perfectly in the next window. The tracker
+--      checked /opt/homebrew and /usr/local — the two places an ADMIN
+--      install goes. Without admin rights Homebrew installs to a custom
+--      prefix under your OWN HOME (~/homebrew), which neither path sees.
+--      That was my assumption baked in, not a broken Mac.
+--   🔍 DISCOVERY, IN TWO STEPS. The home-directory prefixes are checked
+--      first (cheap, no process). If none match, warm() asks your LOGIN
+--      shell with `command -v brew` — authoritative, because your shell
+--      profile is exactly what puts a custom prefix on PATH. It runs in
+--      warm() rather than setup() because starting a login shell costs
+--      100-300ms and that does not belong on the boot path. Finding it
+--      there also schedules the daily check that had been skipped.
+--   🗒 WHEN IT REALLY IS ABSENT, the message now LISTS EVERY PATH TRIED
+--      and tells you how to pin it, instead of "not found" with no
+--      detail on a Mac where brew is one directory away. Pin it with
+--      M.config.brewPath, or per machine from a profile.
+--   🐛 CAUGHT BY THE NEW TESTS MID-FIX — A CLASSIC LUA TRAP: the
+--      candidate list was written as
+--          ipairs({ M.config.brewPath, "~/homebrew/bin/brew", ... })
+--      and that first field is nil unless you set it. ipairs STOPS AT
+--      THE FIRST nil, so the loop body never executed once and NO path
+--      was ever checked on ANY Mac. Nothing errored — the search just
+--      silently did nothing. The list is built with table.insert now.
 -- NEW IN 6.42.0 — DANGLING CALLS FIXED + A GUARD SO THEY CANNOT RETURN:
 --   💥 WHAT BROKE: ⇪0 crashed with "attempt to call a nil value (global
 --      'renderActivityChoices')". When §3.6 became a module its
@@ -1428,7 +1453,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.42.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.43.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -1657,7 +1682,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.42.0"
+_G.configVersion = "6.43.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -5459,9 +5484,9 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.42.0"
+    local currentVersion = "6.43.0"
     local currentDate    = "08-05-26"
-    local currentNotes   = "FIX (major): hyper+0 crashed with attempt to call a nil value (renderActivityChoices). When section 3.6 became a module its functions went with it, but hotkey handlers left behind in init.lua kept calling them by bare name — and Lua turns a vanished local into a nil GLOBAL, so nothing failed until the key was pressed. A static scan found two: renderActivityChoices (Activity Tracker) and addCommentToTask (Asana Comments, called from the task creator and the dashboard). Both fixed properly rather than patched: modules now PUBLISH what the rest of the config may call via core.provide, callers use _G.service.call, and a missing provider prints which module is absent instead of crashing. The registry is stubbed on line one so it can never itself be nil, and it is listed in the hyper+shift+D report. A permanent regression guard was added to the audit suite: it walks init.lua for calls to any function that now lives in a module, which is the check that would have caught this before delivery and did not exist. FIX (medium): a broken Homebrew (corrupt API cache) printed check the token in updateTrackerApps fifteen times, sending you to fix something that was never wrong; the two causes are now told apart and the brew-side one is reported ONCE per check with the actual repair command. Not caused by this config: the Homebrew API cache corruption itself — rm -rf $(brew --cache)/api and brew update --force."
+    local currentNotes   = "FIX: the work MacBook reported Homebrew not found while Homebrew was demonstrably running in the next window. The App Update Tracker only checked /opt/homebrew and /usr/local — the two places an ADMIN install goes — and on a managed Mac with no admin rights Homebrew installs to a custom prefix under the users own home. It now checks the home-directory prefixes first, and if none match, warm() asks the LOGIN shell with command -v brew, which is authoritative because the shell profile is what puts a custom prefix on PATH; the shell question runs in warm rather than setup because starting a login shell costs 100-300ms and does not belong on the boot path. When brew is genuinely absent the message now LISTS every path tried instead of just saying not found, and M.config.brewPath (settable per machine from a profile) pins it explicitly. Bug caught by the new tests while fixing this: the candidate list was written as ipairs({ M.config.brewPath, ... }) and that field is nil unless set — ipairs STOPS AT THE FIRST nil, so the loop body never ran once and no path was ever checked on any Mac. Nothing errored; the search silently did nothing. Also cleaned: six stale section-3.10 references in a file that has been a module since 6.40.0."
 
     -- Only append if this version isn't already in the file
     local found = false

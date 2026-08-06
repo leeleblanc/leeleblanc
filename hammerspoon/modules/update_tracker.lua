@@ -1,5 +1,5 @@
 -- =====================================================================
--- MODULE: APP UPDATE TRACKER (was §3.10) — ⌃⌥⇧U · batch-check before an IT ticket
+-- MODULE: APP UPDATE TRACKER (was modules/update_tracker.lua) — ⌃⌥⇧U · batch-check before an IT ticket
 -- =====================================================================
 -- Answers "which of my apps are behind RIGHT NOW?" so updates can be
 -- batched into one IT ticket instead of installing them piecemeal.
@@ -30,11 +30,11 @@
 -- Wrapped in do...end: this file's main chunk is already near Lua's
 -- 200-local-variable ceiling (a single-file config this large adds up
 -- fast), and everything in this section is self-contained — nothing
--- outside §3.10 references these locals by name. Scoping them frees
+-- outside modules/update_tracker.lua references these locals by name. Scoping them frees
 -- their slots for the rest of the file, the same reason §0.2 wraps its
 -- secret.lua loading in its own do...end block.
 
--- (The original §3.10 wrapped its locals in a do...end block to stay under
+-- (The original modules/update_tracker.lua wrapped its locals in a do...end block to stay under
 -- init.lua's 200-local budget. That wrapper is gone: the body now lives
 -- inside M.setup(), which is a function and scopes them already.)
 
@@ -60,7 +60,7 @@ function M.setup(core)
 
     -- ✏️ `url` is the vendor's official download/update page — offered as
     -- the fallback action (Enter opens it in your browser) whenever a
-    -- Homebrew install isn't possible or isn't safe (see §3.10.1 below).
+    -- Homebrew install isn't possible or isn't safe (see modules/update_tracker.lua.1 below).
     -- These are written from general knowledge, not verified live from
     -- this machine — spot-check each one once; unlike a cask token, a
     -- stale URL can't self-diagnose (a dead link just opens a 404, it
@@ -77,7 +77,7 @@ function M.setup(core)
         -- via Microsoft's own installer / MDM (Intune, Jamf), not Homebrew
         -- — confirmed by brew itself: "No Cask with this name exists."
         -- The download link is the ONLY automatic action available for
-        -- this row (see §3.10.1) since there's no brew path at all.
+        -- this row (see the notes above) since there's no brew path at all.
         { app = "Microsoft Defender",   cask = nil,                     url = "https://www.microsoft.com/en-us/microsoft-365/microsoft-defender-for-individuals" },
         { app = "Microsoft Excel",      cask = "microsoft-excel",      url = "https://www.microsoft.com/en-us/microsoft-365/excel" },
         { app = "Microsoft PowerPoint", cask = "microsoft-powerpoint", url = "https://www.microsoft.com/en-us/microsoft-365/powerpoint" },
@@ -96,12 +96,82 @@ function M.setup(core)
     local updateTrackerFile       = core.logsDir .. "/app_updates-" .. core.hostTag .. ".csv"
     local updateTrackerCheckTime  = "09:00"   -- daily automatic check, 24h format
 
-    -- Homebrew's install location differs between Apple Silicon and Intel
-    -- Macs; check both rather than assuming one.
-    local brewPath = nil
-    for _, candidate in ipairs({ "/opt/homebrew/bin/brew", "/usr/local/bin/brew" }) do
-        local f = io.open(candidate, "r")
-        if f then f:close(); brewPath = candidate; break end
+    -- ⚠️ 6.43.0 — HOMEBREW IS NOT ALWAYS IN A SYSTEM DIRECTORY.
+    -- This used to check /opt/homebrew and /usr/local only — the two
+    -- places an ADMIN install goes. On a managed work Mac with no admin
+    -- rights, Homebrew is installed to a custom prefix under the user's
+    -- own home (~/homebrew), where those two checks find nothing, and
+    -- the tracker reported "Homebrew not found" on a machine that was
+    -- running brew perfectly well in the next window.
+    --
+    -- Now: the likely paths are checked first (cheap, no process), and
+    -- if none match, warm() ASKS YOUR LOGIN SHELL where brew is — which
+    -- is authoritative, because your shell profile is what puts a
+    -- custom prefix on PATH in the first place. The shell question runs
+    -- in warm() rather than setup() because starting a login shell
+    -- costs 100-300ms and that does not belong on the boot path.
+    M.config = M.config or {}
+    -- ✏️ Set this if brew lives somewhere unusual, or per machine via a
+    -- profile: settings = { update_tracker = { brewPath = "/path/to/brew" } }
+    M.config.brewPath = M.config.brewPath or nil
+
+    local brewPath, brewTried = nil, {}
+    local function findBrewOnDisk()
+        local home = os.getenv("HOME") or core.homeDir or ""
+        -- ⚠️ BUILT WITH table.insert, NOT AS A LITERAL WITH A nil IN IT.
+        -- The first draft was ipairs({ M.config.brewPath, "…", "…" }) and
+        -- M.config.brewPath is nil unless you set it — and ipairs STOPS
+        -- AT THE FIRST nil. The loop body never ran once, so no path was
+        -- ever checked and every Mac looked like it had no Homebrew.
+        -- Nothing errored; the search just silently did nothing.
+        local candidates = {}
+        if M.config.brewPath and M.config.brewPath ~= "" then
+            table.insert(candidates, M.config.brewPath)   -- explicit override wins
+        end
+        table.insert(candidates, home .. "/homebrew/bin/brew")   -- no-admin (work Mac)
+        table.insert(candidates, home .. "/.homebrew/bin/brew")
+        table.insert(candidates, home .. "/.local/homebrew/bin/brew")
+        table.insert(candidates, "/opt/homebrew/bin/brew")       -- Apple silicon, admin
+        table.insert(candidates, "/usr/local/bin/brew")          -- Intel, admin
+        for _, candidate in ipairs(candidates) do
+            if candidate and candidate ~= "" then
+                table.insert(brewTried, candidate)
+                local f = io.open(candidate, "r")
+                if f then f:close(); return candidate end
+            end
+        end
+        return nil
+    end
+    brewPath = findBrewOnDisk()
+
+    -- Phase two: if the well-known paths missed, ask the shell.
+    function M.warm(core)
+        if brewPath then
+            _G.diag.say("updates", "brew at " .. brewPath)
+            return
+        end
+        local ok, out = pcall(function()
+            -- `true` = run through a LOGIN shell, so ~/.zprofile (which is
+            -- what puts a custom prefix on PATH) is sourced first.
+            local o = hs.execute("command -v brew 2>/dev/null", true)
+            return tostring(o or ""):gsub("%s+$", "")
+        end)
+        if ok and out and out ~= "" then
+            local f = io.open(out, "r")
+            if f then
+                f:close()
+                brewPath = out
+                print("📦 App Update Tracker: found Homebrew via your login shell at "
+                      .. brewPath .. " — update checks are available.")
+                _G.diag.say("updates", "brew discovered via shell: " .. brewPath)
+                if not _G.updateTrackerTimer then
+                    _G.updateTrackerTimer = hs.timer.doAt(updateTrackerCheckTime, "1d",
+                        function() runUpdateCheck() end)
+                end
+                return
+            end
+        end
+        _G.diag.warn("updates", "no Homebrew found; tried " .. table.concat(brewTried, ", "))
     end
 
     local updateStatusLabel = {
@@ -199,7 +269,14 @@ function M.setup(core)
             return
         end
         if not brewPath then
-            hs.alert.show("⚠️ Homebrew not found — App Update Tracker needs it (see §3.10)")
+            -- Say WHERE we looked. "Not found" with no list is unhelpful
+            -- when brew is demonstrably installed a directory away.
+            hs.alert.show("⚠️ Homebrew not found — see the Console for the paths tried", 4)
+            print("⚠️ App Update Tracker: no brew executable at any of:\n   "
+                .. table.concat(brewTried, "\n   ")
+                .. "\n   …and `command -v brew` in a login shell found nothing either."
+                .. "\n   If brew IS installed, set its path in modules/update_tracker.lua:"
+                .. "\n       M.config.brewPath = \"/path/to/brew\"   (run `which brew` to get it)")
             return
         end
 
@@ -326,7 +403,7 @@ function M.setup(core)
                     maybeFinish()
                 end, { "info", "--cask", entry.cask, "--json=v2" }):start()
 
-                -- §3.10.1: is this cask actually tracked by brew as
+                -- modules/update_tracker.lua.1: is this cask actually tracked by brew as
                 -- INSTALLED (in its Caskroom)? `brew info` above only tells
                 -- us the latest upstream version exists — it says nothing
                 -- about how THIS app got onto THIS Mac. Most of these were
@@ -347,7 +424,7 @@ function M.setup(core)
         end
     end
 
-    -- §3.10.1 HOMEBREW INSTALL — only ever offered for a row that is BOTH
+    -- modules/update_tracker.lua.1 HOMEBREW INSTALL — only ever offered for a row that is BOTH
     -- "update-available" AND brewManaged (see the check above): those are
     -- the only casks safe to hand straight to `brew upgrade` unattended.
     -- Runs one or many tokens in a single brew invocation (the "Upgrade
@@ -507,11 +584,13 @@ function M.setup(core)
 
     -- Automatic daily check so results are already warm before you ever
     -- press ⌃⌥⇧U — same on-a-clock pattern as the Activity Tracker's
-    -- reports (§3.6).
+    -- reports (the Activity Tracker module).
     if brewPath then
         _G.updateTrackerTimer = hs.timer.doAt(updateTrackerCheckTime, "1d", function() runUpdateCheck() end)
     else
-        print("ℹ️ App Update Tracker: Homebrew not found on this Mac — feature disabled (see §3.10)")
+        -- Not disabled yet — warm() still gets to ask the shell. Only a
+        -- failure THERE means the feature is genuinely unavailable.
+        print("ℹ️ App Update Tracker: no brew in the usual paths; asking your login shell shortly…")
     end
 
     -- =====================================================================
