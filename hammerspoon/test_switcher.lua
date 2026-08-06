@@ -145,6 +145,8 @@ local function reset(n)
   FAIL.list, FAIL.canvas, FAIL.snapshot = false, false, false
   focused, unminimized, drawn, timer, log = nil, nil, nil, nil, {}
   MODS = { alt = true }; NOW = 1000
+  AT.cache = nil          -- each scenario starts with a cold list
+  AT.listBudget = 999     -- no deadline unless a test sets one
   AT.enabled, AT.includeMinimized = true, true
   AT.includeOtherSpaces, AT.includeApps = true, true
 end
@@ -273,6 +275,66 @@ MODS = {}; timer.fn()
 check("selecting it ACTIVATES the app instead of focusing a window",
       ACTIVATED == "Notes" and focused == nil, tostring(ACTIVATED))
 
+out("\n=== 7c. The 15.9-second lesson: a deadline and a cache ===\n")
+reset(4)
+AT.listBudget = 999
+combos["alt+tab"]()
+local firstCount = COUNT.apps
+AT.finish(false)
+combos["alt+tab"]()
+check("a second press within the cache window does NOT re-scan the apps",
+      COUNT.apps == firstCount, COUNT.apps .. " vs " .. firstCount)
+check("...and still shows the same windows", #AT.session.items > 0)
+AT.finish(false)
+NOW = NOW + AT.cacheFor + 1
+combos["alt+tab"]()
+check("once the cache expires it scans again", COUNT.apps > firstCount, COUNT.apps)
+
+reset(4)
+-- make every app cost 0.5s of AX time; with a 0.8s budget the sweep must
+-- stop early rather than paying it 15 times over
+local slowApps = {}
+for i = 1, 15 do
+  local w = mkwin(200 + i, "Slow" .. i, "W"); w.space = "other"
+  local a = mkapp("Slow" .. i, { w })
+  local realAll = a.allWindows
+  a.allWindows = function(self) NOW = NOW + 0.5; return realAll(self) end
+  table.insert(slowApps, a)
+end
+APPS = slowApps
+AT.listBudget = 0.8
+AT.cache = nil
+combos["alt+tab"]()
+check("the sweep STOPS when the budget is spent", COUNT.apps <= 15, COUNT.apps)
+check("...and the Console says so, with what to do about it",
+      logged("stopped after") and logged("altTab.skipApps"))
+check("...naming the slowest application", logged("Slow"))
+check("...and it still opens with what it collected", AT.session ~= nil)
+check("the HUD admits the list was cut short", (function()
+  for _, e in ipairs(drawn) do
+    if e.type == "text" and e.text:find("cut short", 1, true) then return true end
+  end
+end)())
+check("the timing is published for ⇪⇧D", _G.altTabLastListing
+      and _G.altTabLastListing.truncated == true, _G.altTabLastListing)
+AT.finish(false)
+
+reset(3)
+local sw = mkwin(300, "Chatty", "W"); sw.space = "other"
+local chatty = mkapp("Chatty", { sw })
+chatty.allWindows = function(self) NOW = NOW + 5; return { sw } end
+APPS = appsFromWindows(WINS); table.insert(APPS, chatty)
+AT.skipApps = { "Chatty" }
+AT.cache, AT.listBudget = nil, 999
+combos["alt+tab"]()
+check("an app on skipApps is never asked (the escape hatch)", (function()
+  for _, i in ipairs(AT.session.items) do
+    if i.win and i.win:id() == 300 then return false end
+  end
+  return true
+end)())
+AT.skipApps = {}
+
 out("\n=== 8. Bounded cost ===\n")
 reset(0)
 for i = 1, 100 do table.insert(WINS, mkwin(i, "App" .. i, "W" .. i)) end
@@ -289,7 +351,8 @@ local step = 0
 hs.timer.secondsSinceEpoch = function() step = step + 1; return 1000 + (step > 1 and 2.5 or 0) end
 combos["alt+tab"]()
 check("a slow enumeration is timed and reported", logged("took"), log[1])
-check("...and says which knobs to turn", logged("includeOtherSpaces"))
+check("...and names the slowest application, which is the actionable part",
+      logged("slowest:"), log[#log])
 hs.timer.secondsSinceEpoch = realNow
 
 out("\n=== 10. Failures degrade, they don't hang or crash ===\n")

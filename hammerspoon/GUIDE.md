@@ -1,6 +1,6 @@
 # Hammerspoon config — how the new design works
 
-Version 6.40.0. Keep this next to the config; it is the manual for the
+Version 6.41.0. Keep this next to the config; it is the manual for the
 structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ---
@@ -39,7 +39,7 @@ Everything else is a module.
 ```bash
 mkdir -p ~/.hammerspoon/modules
 cp ~/Downloads/*.lua ~/.hammerspoon/modules/     # module files
-cp ~/Downloads/init-6.40.0.lua ~/.hammerspoon/init.lua
+cp ~/Downloads/init-6.41.0.lua ~/.hammerspoon/init.lua
 ```
 
 Modules first, then `init.lua`. Reload Hammerspoon and check two lines in
@@ -55,6 +55,20 @@ Anything other than `0 failed` names the file and the reason.
 ---
 
 ## 3. Two Macs, one config
+
+**You may not need to do anything here.** §0.1 has always detected each
+Mac automatically — hostname, OneDrive, paths — which is why one file has
+always run on both. The `default` profile loads every module, so if both
+Macs should behave the same, that is already what happens and the
+machine-name entries are decoration.
+
+**Profiles earn their keep only when the two Macs must DIFFER** — a
+module you want on one and not the other, or a setting like a lower
+⌥Tab cap on a busier work Mac. Then, and only then, name the machine:
+
+```bash
+scutil --get ComputerName      # run on the Mac you want to treat differently
+```
 
 The same `init.lua` and the same `modules/` folder go on every Mac. The
 only thing that differs is the **machine profile** in §1.12:
@@ -74,15 +88,6 @@ _G.moduleProfiles = {
 - **`settings`** — per-module overrides applied after that module's
   `setup()`, so a Mac can differ without editing the module.
 - An unknown machine uses `default` and says so in the boot report.
-
-**Set your work Mac's name once.** On that Mac run:
-
-```bash
-scutil --get ComputerName
-```
-
-Put that exact string in place of `Lees-Work-MacBook`. Until you do, the
-work Mac runs `default` — everything loads, nothing breaks.
 
 **Publishing to the other Mac:**
 
@@ -162,7 +167,8 @@ and `<logsDir>/diagnostics-<machine>.txt`.
 | `MODULE FAILED — syntax error` | the file is there and broken; the line number is in the message |
 | `does not return a table with a setup()` | missing `return M`, or a `do…end` split across the function |
 | Slow boot | `BOOT` section of ⇪⇧D — per-stage timings |
-| ⌥Tab feels heavy | Console prints the enumeration time when it exceeds 0.35s |
+| ⌥Tab feels heavy | Console names the SLOWEST APP and its time; put it in `altTab.skipApps` |
+| ⌥Tab says "list cut short" | the 0.8s budget tripped; raise `altTab.listBudget` or skip the slow app |
 | Something silently wrong | `_G.diag.verbose = true` in the Console, no reload needed |
 
 **A broken module costs you that module only.** Everything else still
@@ -175,7 +181,7 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Four suites, 301 checks, run with `lua5.4` — no Mac required, they stub
+Four suites, 311 checks, run with `lua5.4` — no Mac required, they stub
 the `hs` API:
 
 ```

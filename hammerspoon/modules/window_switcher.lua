@@ -81,6 +81,19 @@ function M.setup(core)
                                      -- open window, so "every open program"
                                      -- really means every one
     altTab.maxWindows        = 36    -- hard cap on tiles, keeps cost bounded
+
+    -- ⏱ 6.41.0 — A HARD DEADLINE ON THE WINDOW SWEEP. On a real Mac this
+    -- took 15.9 SECONDS across 15 apps: the Accessibility API can block
+    -- for a second or more per application (an app that is swapped out
+    -- after an idle period is the usual reason), and 15 of those in a row
+    -- is a freeze, not a switcher. The sweep now stops when the budget is
+    -- spent and shows what it managed to collect. A partial list you can
+    -- see beats a complete one that arrives 16 seconds late.
+    altTab.listBudget  = 0.8   -- seconds; the sweep stops when spent
+    altTab.cacheFor    = 4.0   -- reuse the last list for this long
+    -- ✏️ Apps that are always slow to answer go here, by exact name, and
+    -- are never asked. ⇪⇧D names the worst offender after every press.
+    altTab.skipApps    = {}
     altTab.slowWarnSeconds  = 0.35   -- warn in the Console past this
     altTab.maxSessionSecs   = 30     -- watchdog: tear a stuck HUD down
     altTab.tileW, altTab.tileH = 200, 128
@@ -144,17 +157,37 @@ function M.setup(core)
 
         -- 2. Every other window, app by app — the cross-Space part.
         local appsSeen, withWindows = {}, {}
+        local truncated, slowestApp, slowestTime = false, nil, 0
         if altTab.includeOtherSpaces or altTab.includeApps then
             local okApps, appErr = pcall(function()
+                local skip = {}
+                for _, n in ipairs(altTab.skipApps or {}) do skip[n] = true end
+
                 for _, app in ipairs(hs.application.runningApplications() or {}) do
+                    -- THE DEADLINE. Checked beforeeach app rather than after,
+                    -- so the budget is a ceiling on what we ask for, not a
+                    -- report on what we already spent.
+                    if hs.timer.secondsSinceEpoch() - t0 > altTab.listBudget then
+                        truncated = true
+                        break
+                    end
                     local okKind, kind = pcall(function() return app:kind() end)
-                    if okKind and kind == 1 then
+                    local okName, aname = pcall(function() return app:name() end)
+                    aname = okName and aname or "?"
+                    if okKind and kind == 1 and not skip[aname] then
                         table.insert(appsSeen, app)
                         if altTab.includeOtherSpaces then
+                            -- Timed PER APP: when one application is the
+                            -- reason a press felt slow, the report has to
+                            -- be able to name it. A single culprit goes in
+                            -- altTab.skipApps and the problem is over.
+                            local a0 = hs.timer.secondsSinceEpoch()
                             local okW, appWins = pcall(function() return app:allWindows() end)
                             if okW then
                                 for _, w in ipairs(appWins or {}) do add(w) end
                             end
+                            local took = hs.timer.secondsSinceEpoch() - a0
+                            if took > slowestTime then slowestTime, slowestApp = took, aname end
                         end
                     end
                 end
@@ -197,17 +230,44 @@ function M.setup(core)
 
         local elapsed = hs.timer.secondsSinceEpoch() - t0
         _G.diag.say("altTab", string.format(
-            "listed %d entries in %.3fs (this Space %.3fs, %d apps scanned)",
-            #entries, elapsed, tOrdered, #appsSeen))
-        if elapsed > altTab.slowWarnSeconds then
+            "listed %d entries in %.3fs (this Space %.3fs, %d apps%s%s)",
+            #entries, elapsed, tOrdered, #appsSeen,
+            truncated and ", BUDGET SPENT" or "",
+            slowestApp and string.format(", slowest: %s %.2fs", slowestApp, slowestTime) or ""))
+        if truncated then
             print(string.format(
-                "🔄 Window switcher: listing took %.2fs across %d apps — set "
-                .. "altTab.includeOtherSpaces = false or lower altTab.maxWindows "
-                .. "if that lag is noticeable", elapsed, #appsSeen))
+                "🔄 Window switcher: stopped after %.1fs / %d apps — showing what it had. "
+                .. "Slowest app: %s (%.2fs). Add it to altTab.skipApps in "
+                .. "modules/window_switcher.lua, or raise altTab.listBudget.",
+                elapsed, #appsSeen, tostring(slowestApp), slowestTime))
+        elseif elapsed > altTab.slowWarnSeconds then
+            print(string.format(
+                "🔄 Window switcher: listing took %.2fs across %d apps (slowest: %s %.2fs)",
+                elapsed, #appsSeen, tostring(slowestApp), slowestTime))
         end
+        _G.altTabLastListing = {
+            seconds = elapsed, apps = #appsSeen, entries = #entries,
+            truncated = truncated, slowestApp = slowestApp, slowestTime = slowestTime,
+        }
 
         while #entries > altTab.maxWindows do table.remove(entries) end
+        altTab.cache = { at = hs.timer.secondsSinceEpoch(), entries = entries }
         return entries
+    end
+
+    -- Repeated presses inside a few seconds reuse the last list instead of
+    -- paying the Accessibility cost again. Deliberately SHORT: a stale
+    -- switcher that misses a window you just opened would be worse than a
+    -- slow one. There is no background refresh on purpose — a timer doing
+    -- this sweep every N seconds would move the freeze somewhere you
+    -- cannot see it coming, which is strictly worse than a slow keypress.
+    function altTab.listWindowsCached()
+        local c = altTab.cache
+        if c and (hs.timer.secondsSinceEpoch() - c.at) < (altTab.cacheFor or 0) then
+            _G.diag.say("altTab", "reused cached window list (" .. #c.entries .. " entries)")
+            return c.entries
+        end
+        return altTab.listWindows()
     end
 
     -- ---- drawing --------------------------------------------------------
@@ -278,7 +338,12 @@ function M.setup(core)
 
         local current = s.items[s.index]
         local caption = current and current.full or ""
-        if (s.hidden or 0) > 0 then
+        if s.truncated then
+        caption = caption .. "      ⚠️ list cut short at " ..
+                  string.format("%.1fs", (_G.altTabLastListing or {}).seconds or 0) ..
+                  " — see the Console"
+    end
+    if (s.hidden or 0) > 0 then
             caption = caption .. string.format("      (showing %d of %d — the screen holds no more)",
                                                #s.items, #s.items + s.hidden)
         end
@@ -334,7 +399,7 @@ function M.setup(core)
     end
 
     function altTab.begin(reverse)
-        local wins = altTab.listWindows()
+        local wins = altTab.listWindowsCached()
         if #wins < 2 then
             hs.alert.show(#wins == 0 and "🔄 No windows to switch to"
                                       or "🔄 Only one window open")
@@ -422,6 +487,7 @@ function M.setup(core)
 
         altTab.session = {
             items = items, cols = cols, w = w, h = h, hidden = total - n,
+        truncated = (_G.altTabLastListing or {}).truncated or false,
             -- Windows selects the NEXT window on the first press, not the
             -- one you are already in; ⌥⇧Tab selects the last one.
             index = reverse and n or 2,

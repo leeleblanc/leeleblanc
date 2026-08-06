@@ -4,9 +4,35 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.40.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.41.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.41.0 — ⌥TAB: A DEADLINE, A CACHE, AND A NAMED CULPRIT:
+--   🧊 WHAT HAPPENED: on a real Mac, ⌥Tab took 15.90 SECONDS across 15
+--      apps. The per-application Accessibility sweep that 6.39.0 added
+--      to reach other desktops can block for a second or more PER APP
+--      (an app swapped out after an idle period is the usual reason),
+--      and fifteen of those in a row is a freeze, not a switcher. The
+--      6.39.0 instrumentation is what turned it into a number instead
+--      of a mystery — but a number is not a fix.
+--   ⏱ A HARD DEADLINE. altTab.listBudget (0.8s) is checked BEFORE each
+--      application, so it caps what gets asked for rather than
+--      reporting what was already spent. When it trips, the switcher
+--      opens with what it collected and the HUD says "list cut short",
+--      because a partial list you can see beats a complete one that
+--      arrives 16 seconds late — and a silently short list is the bug
+--      class this config keeps refusing to ship.
+--   🎯 THE CULPRIT GETS NAMED. Every application is timed individually;
+--      the Console and ⇪⇧D report the slowest one by name. If a single
+--      app is responsible, put it in altTab.skipApps and it is never
+--      asked again. That turns an unfixable "sometimes slow" into a
+--      one-line fix.
+--   💾 A SHORT CACHE (altTab.cacheFor, 4s) so repeated presses do not
+--      re-pay the cost. Short on purpose: a stale switcher missing the
+--      window you just opened would be worse than a slow one.
+--   🚫 NO BACKGROUND REFRESH, DELIBERATELY. A timer running this sweep
+--      every few seconds would move the freeze somewhere you cannot see
+--      it coming — strictly worse than a slow keypress.
 -- NEW IN 6.40.0 — FEATURES ALL MODULAR · MACHINE PROFILES · WARM-UP:
 --   🧩 FOUR MORE SECTIONS OUT: Activity Tracker, App Update Tracker,
 --      Asana Comments, Document Watcher. THIRTEEN modules now, and this
@@ -1370,7 +1396,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.40.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.41.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -1599,7 +1625,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.40.0"
+_G.configVersion = "6.41.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -5356,9 +5382,9 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.40.0"
+    local currentVersion = "6.41.0"
     local currentDate    = "08-05-26"
-    local currentNotes   = "FEATURE MODULARISATION COMPLETE plus machine profiles and a deferred warm-up phase. Four more sections moved out (Activity Tracker, App Update Tracker, Asana Comments, Document Watcher): 13 modules, init.lua down from 9529 lines at 6.35.0 to 5377 — 44 percent smaller. MACHINE PROFILES: section 1.12 now keys module lists and per-module setting overrides by machine name, so the same init.lua and modules folder run on the personal and work Macs with only that table differing; an unknown Mac falls back to default and says so in the boot report. PERFORMANCE: modules may define warm(), run about 2 seconds AFTER boot on a held timer, for work that does not belong on the startup path. Autocorrect uses it: the event tap starts immediately, the 11000-row dictionary loads afterwards, so the single most expensive boot operation left the boot path. Setup and warm timings are reported separately in hyper+shift+D. Two extraction bugs caught by tests: removing section 3.6 silently deleted the only definitions of csvQuote and splitCSVLine, which Lua turns into global lookups so the file still COMPILED and would have crashed at boot in the changelog writer — both are now promoted into a new section 1.4; and a do-block anchor matched the letters do inside a comment word, mangling a module. Also added: HAMMERSPOON-GUIDE.md documenting the whole design."
+    local currentNotes   = "FIX: option+Tab froze for 15.9 seconds across 15 apps on a real Mac. The per-application Accessibility sweep added in 6.39.0 to reach other desktops can block for a second or more PER APP — an app swapped out after idle is the usual reason — and fifteen of those in a row is a freeze, not a switcher. Three changes, all about bounding it rather than hoping: a hard deadline (altTab.listBudget, 0.8s) stops the sweep and shows what it collected, with the HUD saying the list was cut short; every application is timed individually so the Console and the hyper+shift+D report NAME the slowest one; and altTab.skipApps lets that named app be excluded permanently. A short cache (altTab.cacheFor, 4s) means repeated presses do not re-pay the cost. Deliberately NO background refresh: a timer doing this sweep every few seconds would move the freeze somewhere you cannot see it coming, which is strictly worse than a slow keypress. Also clarified in the guide: machine profiles are optional — the portability layer has always auto-detected each Mac, and the default profile runs everything, so a machine name only has to be written down when the two Macs must differ."
 
     -- Only append if this version isn't already in the file
     local found = false
