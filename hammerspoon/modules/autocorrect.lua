@@ -342,13 +342,35 @@ function M.setup(core)
     pcall(function() acAxOK = hs.accessibilityState() end)
     _G.autocorrectStatus = "off"
     if acAxOK then
-        autocorrectSeedIfMissing()
-        autocorrectLoad()
         local started = false
         pcall(function() _G.autocorrectTap:start(); started = true end)
         if started then
-            _G.autocorrectStatus = string.format("ON (%d fixes, %d exceptions, ⌃⌥⌘S toggles)",
-                autocorrectDictCount, autocorrectAllowCount)
+            _G.autocorrectStatus = "ON (dictionary loading…)"
+
+            -- ⏱ 6.40.0 — PHASE TWO: THE DICTIONARY LOADS AFTER BOOT.
+            -- Parsing an 11,000-row CSV was the single most expensive
+            -- thing this config did during startup, and it bought
+            -- nothing: a typo-corrector cannot help you in the second
+            -- before your desktop has even drawn. The event tap starts
+            -- immediately (so nothing is missed structurally), and the
+            -- dictionary arrives a couple of seconds later via the
+            -- loader's warm() phase. Between the two, typing is simply
+            -- not corrected — which is the same as autocorrect being
+            -- off, not a broken state.
+            function M.warm(core)
+                if not started then return end
+                local t0 = hs.timer.secondsSinceEpoch()
+                autocorrectSeedIfMissing()
+                autocorrectLoad()
+                _G.autocorrectStatus = string.format(
+                    "ON (%d fixes, %d exceptions, ⌃⌥⌘S toggles)",
+                    autocorrectDictCount, autocorrectAllowCount)
+                _G.diag.say("autocorrect", string.format(
+                    "dictionary loaded: %d fixes, %d exceptions, %.0fms",
+                    autocorrectDictCount, autocorrectAllowCount,
+                    (hs.timer.secondsSinceEpoch() - t0) * 1000))
+            end
+
             -- Lesson from the brightness saga: macOS silently disables event
             -- taps it thinks are slow. A watchdog quietly revives ours.
             _G.autocorrectWatchdog = hs.timer.doEvery(30, function()

@@ -9,11 +9,14 @@ print = function(...)
   table.insert(printed, table.concat(p, " "))
 end
 local NOW, bound, tasks, timers = 100, {}, {}, {}
+local warmTimerFns = {}
+WARMED = nil
 hs = {
   configdir = MODDIR:gsub("/modules$", ""),
   timer = { secondsSinceEpoch = function() NOW = NOW + 0.001; return NOW end,
             doAt = function(t, r, fn) local o = { at = t }; table.insert(timers, o); return o end,
-            doAfter = function(_, fn) return { stop = function() end } end,
+            doAfter = function(_, fn) table.insert(warmTimerFns, fn)
+                             return { stop = function() end } end,
             doEvery = function(_, fn) return { stop = function() end, start = function(s) return s end } end,
             new = function() return { start = function(s) return s end, stop = function() end } end,
             usleep = function() end },
@@ -46,6 +49,14 @@ hs = {
       dir = function() return function() return nil end end,
       mkdir = function() return true end },
   notify = { new = function() return { send = function() end } end },
+  caffeinate = { watcher = { new = function() return { start = function(s) return s end,
+                                                       stop = function(s) return s end } end,
+                             screensDidLock = 1, screensDidUnlock = 2,
+                             systemDidWake = 3, systemWillSleep = 4 } },
+  http = { asyncGet = function() end, asyncPost = function() end,
+           doRequest = function() return 200, "{}", {} end },
+  urlevent = { bind = function() end },
+  spaces = nil,
   settings = { get = function() return nil end, set = function() end },
   keycodes = { map = setmetatable({}, { __index = function() return 0 end }) },
   distributednotifications = { new = function() return { start=function(s) return s end,
@@ -63,6 +74,7 @@ hs = {
       return c
   end },
   image = { imageFromAppBundle = function() return nil end },
+  accessibilityState = function() return true end,
 }
 _G.choosers = {}          -- created in §1 of the real init.lua
 _G.hyperPending = {}
@@ -73,12 +85,13 @@ _G.diag = { verbose = false, trail = {}, errors = {}, marks = {},
             say = function() end, warn = function() end,
             err = function() end, mark = function() end }
 homeDir, cloudDir, logsDir = "/tmp/h", "/tmp/c", "/tmp/l"
-backupDir, hostTag = "/tmp/b", "TestMac"
+backupDir, hostTag = "/tmp/b", "Lees-MacBook-Air"
 warnWriteFailed, adoptLegacyFile, csvQuote = function() end, function() end, function(s) return s end
 popupScreenKeys = { mods = { "ctrl", "alt", "cmd" } }
 showPopup, resolveBaseScreen = function() end,
   function() return { frame = function() return { x=0,y=0,w=3840,h=2160 } end } end
 panelAlpha, asanaEnabled, asanaToken, asanaWorkspaceId = 0.9, true, "tok", "ws"
+formatDuration = function(s) return tostring(s).."s" end
 splitCSVLine = function(l) local o={} for f in tostring(l):gmatch('[^,]+') do o[#o+1]=f end return o end
 _G.configVersion, _G.safeJson = "6.36.0", function() end
 
@@ -95,11 +108,12 @@ local function statusOf(n)
 end
 
 out("\n=== 1. The three real modules load ===\n")
-check("all nine loaded", _G.moduleLoaded == 9 and _G.moduleFailed == 0,
+check("all thirteen loaded", _G.moduleLoaded == 13 and _G.moduleFailed == 0,
       tostring(_G.moduleLoaded) .. "/" .. tostring(_G.moduleFailed))
-for _, n in ipairs({ "daily_backup", "app_peek", "window_switcher",
-                     "window_arranger", "copy_on_select", "command_history",
-                     "app_watcher", "file_tracker", "autocorrect" }) do
+for _, n in ipairs({ "daily_backup", "app_peek", "window_switcher", "window_arranger",
+                     "copy_on_select", "command_history", "app_watcher", "file_tracker",
+                     "autocorrect", "activity_tracker", "update_tracker",
+                     "asana_comments", "document_watcher" }) do
   local r = statusOf(n)
   check(n .. " ok", r and r.ok, r and r.err)
 end
@@ -118,15 +132,21 @@ check("Window Switcher bound ⌥Tab", combos["alt+tab"])
 check("Window Arranger bound its half-screen keys", (function()
   for c in pairs(combos) do if c:find("Left") or c:find("left") then return true end end
 end)(), table.concat(bound, " "))
-check("Command History queued its hyper shortcut instead of binding raw",
-      #_G.hyperPending == 1 and _G.hyperPending[1].key == "h", #_G.hyperPending)
+check("Command History queued its hyper key through core, not a raw bind", (function()
+  for _, q in ipairs(_G.hyperPending) do if q.key == "h" then return true end end
+end)(), #_G.hyperPending .. " queued")
+check("several modules now claim hyper keys the supported way",
+      #_G.hyperPending >= 1, #_G.hyperPending)
 check("Window Switcher bound ⌥⇧Tab", combos["alt+shift+tab"])
 check("Daily Backup scheduled its 17:00 timer", timers[1] and timers[1].at == "17:00")
 check("the switcher published altTab for ⇪⇧D", type(_G.altTab) == "table")
 
 out("\n=== 3. Cheat sheet groups travel WITH the module ===\n")
-check("eight groups registered (Copy-on-Select declares none, by design)",
-      #_G.moduleCheatsheets == 8, #_G.moduleCheatsheets)
+-- 11, not 13: Copy-on-Select and Asana Comments each declare no group,
+-- because their entries belong to groups (CLIPBOARD & OCR, ASANA) that
+-- are still owned by sections inside init.lua.
+check("eleven groups registered; two modules deliberately declare none",
+      #_G.moduleCheatsheets == 11, #_G.moduleCheatsheets)
 local byOrder = {}
 for _, g in ipairs(_G.moduleCheatsheets) do byOrder[g.order] = g.title end
 check("App Peek claims slot 7", (byOrder[7] or ""):find("APP PEEK", 1, true))
@@ -137,6 +157,9 @@ check("Command History claims slot 12", (byOrder[12] or ""):find("COMMAND HISTOR
 check("App Watcher claims slot 1", (byOrder[1] or ""):find("APP MONITOR", 1, true))
 check("File Tracker claims slot 10", (byOrder[10] or ""):find("FILE TRACKER", 1, true))
 check("Autocorrect claims slot 13", (byOrder[13] or ""):find("AUTOCORRECT", 1, true))
+check("Activity Tracker claims slot 4", (byOrder[4] or ""):find("ACTIVITY", 1, true))
+check("Update Tracker claims slot 9", (byOrder[9] or ""):find("APP UPDATES", 1, true))
+check("Document Watcher claims slot 11", (byOrder[11] or ""):find("DOCUMENT WATCHER", 1, true))
 check("every registered group carries entries", (function()
   for _, g in ipairs(_G.moduleCheatsheets) do
     if type(g.entries) ~= "table" or #g.entries == 0 then return false end
@@ -149,9 +172,94 @@ for _, key in ipairs({ "logsDir", "backupDir", "hostTag", "homeDir", "cloudDir",
                        "popupMods", "showPopup", "resolveBaseScreen", "panelAlpha",
                        "warnWriteFailed", "adoptLegacyFile", "csvQuote",
                        "asanaEnabled", "diag", "safeJson", "configDir", "version",
-                       "hyperAddShortcut", "splitCSVLine" }) do
+                       "hyperAddShortcut", "splitCSVLine", "formatDuration" }) do
   check("core." .. key .. " is published", _G.core[key] ~= nil)
 end
+
+out("\n=== 4b. Machine profiles: one file, two Macs ===\n")
+check("this machine matched its own profile", _G.moduleProfileName == "Lees-MacBook-Air",
+      _G.moduleProfileName)
+check("an unknown Mac falls back to `default` rather than loading nothing", (function()
+  local saved = _G.moduleProfiles["Lees-MacBook-Air"]
+  local pick = _G.moduleProfiles["A-Brand-New-Mac"] and "A-Brand-New-Mac" or "default"
+  return pick == "default" and _G.moduleProfiles.default ~= nil and saved ~= nil
+end)())
+check("every profile lists only modules that exist on disk", (function()
+  for pname, prof in pairs(_G.moduleProfiles) do
+    for _, m in ipairs(prof.modules or {}) do
+      local f = io.open(MODDIR .. "/" .. m .. ".lua", "r")
+      if not f then return false, pname .. " → " .. m end
+      f:close()
+    end
+  end
+  return true
+end)())
+check("profile settings override a module's config after setup", (function()
+  _G.moduleStatus, _G.moduleCheatsheets = {}, {}
+  _G.loadModules({ "window_switcher" }, { window_switcher = { maxWindows = 7 } })
+  return _G.altTab.maxWindows == 7
+end)(), _G.altTab and _G.altTab.maxWindows)
+check("...and the override is recorded for the report",
+      (statusOf("window_switcher") or {}).overrides == "maxWindows",
+      (statusOf("window_switcher") or {}).overrides)
+check("a module with no config table ignores overrides harmlessly", (function()
+  _G.moduleStatus = {}
+  local ok = pcall(_G.loadModules, { "daily_backup" }, { daily_backup = { nonsense = 1 } })
+  return ok and statusOf("daily_backup").ok
+end)())
+
+out("\n=== 4c. warm(): the expensive half runs AFTER boot ===\n")
+_G.moduleStatus, _G.moduleCheatsheets, _G.moduleWarmTimers = {}, {}, {}
+-- reset the harness's own capture list too: the real modules loaded at
+-- dofile time already queued warm callbacks, and firing one of THOSE
+-- here would test the wrong thing (it did, once).
+warmTimerFns = {}
+WARMED = nil
+local warmRec
+do
+  local f = io.open(MODDIR .. "/t_warm.lua", "w")
+  f:write([[local M = {}
+    M.name, M.order = "Warm", 99
+    M.setup = function(core)
+      _G.__setupRan = true
+      M.warm = function(core) WARMED = true end
+    end
+    return M]])
+  f:close()
+  _G.loadModules({ "t_warm" })
+  warmRec = statusOf("t_warm")
+end
+check("setup() ran during boot", _G.__setupRan == true)
+check("warm() did NOT run during boot", WARMED == nil)
+check("a warm timer was scheduled and HELD", #_G.moduleWarmTimers == 1)
+check("...and the record says warm is pending", warmRec.warmPending == true)
+warmTimerFns[#warmTimerFns]()
+check("warm() runs when the timer fires", WARMED == true)
+check("...and its duration is recorded separately from setup",
+      type(warmRec.warmMs) == "number" and warmRec.warmed == true, warmRec.warmMs)
+do
+  local f2 = io.open(MODDIR .. "/t_warmfail.lua", "w")
+  f2:write([[local M = {}
+    M.name = "WarmFail"
+    M.setup = function(core)
+      M.warm = function() error("warm exploded") end
+    end
+    return M]])
+  f2:close()
+  _G.moduleStatus, _G.moduleWarmTimers = {}, {}
+  _G.loadModules({ "t_warmfail" })
+  warmTimerFns[#warmTimerFns]()
+  local r = statusOf("t_warmfail")
+  check("a warm() that throws is caught and named", r.warmed == false
+        and (r.warmErr or ""):find("warm exploded", 1, true) ~= nil, r.warmErr)
+  check("...and the module still counts as loaded", r.ok == true)
+end
+os.remove(MODDIR .. "/t_warm.lua"); os.remove(MODDIR .. "/t_warmfail.lua")
+check("autocorrect defers its 11k-row CSV to warm()", (function()
+  local m = dofile(MODDIR .. "/autocorrect.lua")
+  m.setup(_G.core)
+  return type(m.warm) == "function"
+end)())
 
 out("\n=== 5. Failure is ISOLATED — the whole point ===\n")
 local function writeMod(name, body)

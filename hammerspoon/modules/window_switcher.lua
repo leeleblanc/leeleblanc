@@ -487,6 +487,10 @@ function M.setup(core)
     -- simplest honest way to say "not loaded".
     _G.altTab = altTab
     M.altTab  = altTab
+    -- Exposed as `config` so a MACHINE PROFILE in init.lua can override
+    -- these per Mac (a work Mac with more corporate agents running may
+    -- want a lower cap) without editing this file.
+    M.config  = altTab
 end
 
 return M

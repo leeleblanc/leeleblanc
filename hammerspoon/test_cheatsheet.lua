@@ -78,6 +78,10 @@ _G.moduleCheatsheets = {
     entries = { { "⇪F", "Rename / move / copy history" } } },
   { title = "✏️ AUTOCORRECT", order = 13,
     entries = { { "⇪S", "Toggle on/off" } } },
+  { title = "📊 ACTIVITY TRACKER", order = 4, entries = { { "⇪0", "Today's totals" } } },
+  { title = "📦 APP UPDATES", order = 9, entries = { { "⇪U", "Which apps are behind" } } },
+  { title = "📄 DOCUMENT WATCHER (experimental)", order = 11,
+    entries = { { "⇪⇧W", "Documents worked on today" } } },
 }
 
 local function wheelEvent(props)
@@ -228,9 +232,13 @@ _G.customShortcuts = {}
 
 print("\n=== 9. Redraw keeps your place; a fresh open does not ===")
 CS.show()
-CS.scrollTo(20)
+-- Pick a position that exists in THIS sheet rather than a hard-coded row:
+-- groups keep moving into modules, so the sheet's length is not fixed.
+local target = math.min(20, st().maxFirst)
+CS.scrollTo(target)
 CS.show(true)
-check("add/edit/delete redraw preserves the scroll position", st().first == 20, st().first)
+check("add/edit/delete redraw preserves the scroll position", st().first == target,
+      st().first .. " vs " .. target)
 CS.show()
 check("⇪/ opens at the top", st().first == 1, st().first)
 CS.scrollTo(st().maxFirst)

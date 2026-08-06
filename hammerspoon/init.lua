@@ -4,9 +4,41 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.39.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.40.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.40.0 — FEATURES ALL MODULAR · MACHINE PROFILES · WARM-UP:
+--   🧩 FOUR MORE SECTIONS OUT: Activity Tracker, App Update Tracker,
+--      Asana Comments, Document Watcher. THIRTEEN modules now, and this
+--      file is 5,377 lines — down from 9,529 at 6.35.0, a 44% cut.
+--      What remains here is core plus two pieces of infrastructure
+--      (the cheat sheet and the hyper key) that everything depends on.
+--   💻 MACHINE PROFILES (§1.12). The same init.lua and the same
+--      modules/ folder go on BOTH Macs; a table keyed by machine name
+--      is the only thing that differs. It lists which modules load and
+--      can override any module's `config` per machine, so a work Mac
+--      can run a lower ⌥Tab cap without editing the module. An unknown
+--      machine falls back to `default` and SAYS SO in the boot report
+--      rather than quietly loading nothing. Set your work Mac's name
+--      from `scutil --get ComputerName`.
+--   ⏱ PERFORMANCE — A WARM-UP PHASE. A module may define warm(), which
+--      the loader runs ~2s AFTER boot on a HELD timer. Autocorrect is
+--      why: parsing an 11,000-row CSV was the most expensive thing this
+--      config did at startup, and it bought nothing — a typo-corrector
+--      cannot help you before the desktop has drawn. The event tap now
+--      starts instantly and the dictionary arrives a moment later.
+--      setup() and warm() are timed separately in ⇪⇧D.
+--   🐛 TWO EXTRACTION BUGS, BOTH CAUGHT BY TESTS, BOTH WORTH KNOWING:
+--      1. Removing §3.6 deleted the ONLY definitions of csvQuote and
+--         splitCSVLine. Lua turns a vanished local into a GLOBAL lookup,
+--         so the file still COMPILED and would have crashed at boot the
+--         moment the changelog writer ran. Both are promoted into a new
+--         §1.4 — a compile that succeeds is not proof of anything.
+--      2. A `do` anchor matched the letters "do" inside a word in a
+--         comment and cut a module in half. Anchors are line-exact now.
+--   📖 HAMMERSPOON-GUIDE.md ships alongside: layout, install, the
+--      two-Mac workflow, how to write a module, and a troubleshooting
+--      table keyed by symptom.
 -- NEW IN 6.39.0 — ⌥TAB NOW SEES EVERY DESKTOP, NOT JUST THIS ONE:
 --   🖥 THE BUG: ⌥Tab listed only the windows on the desktop you were
 --      looking at. hs.window.orderedWindows() and hs.window.allWindows()
@@ -1338,7 +1370,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.39.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.40.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -1567,7 +1599,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.39.0"
+_G.configVersion = "6.40.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -2181,33 +2213,9 @@ function cheatSheet.groups()
             { "⌘C files", "OCR image files → Finder comment tag" },
             { "⇪⇧C", "Toggle copy-on-select (off by default)" },
         }},
-        { title = "📊 ACTIVITY TRACKER", order = 4, entries = {
-            { "⇪0", "Open — today's totals" },
-            { "type: week", "This week's totals" },
-            { "type: month", "Top apps & documents this month" },
-            { "type: anything", "Search all saved history" },
-            { "Enter", "Copy row to clipboard" },
-            { "auto 4:00 PM", "Daily report pops up" },
-            { "auto Mon 7:30 AM", "Weekly recap pops up" },
-        }},
         { title = "🕹 POPUP POSITION", order = 5, entries = {
             { "⇪⇧ ↑↓←→", "Nudge popup (hold to repeat)" },
             { "⇪⇧R", "Reset nudge offset" },
-        }},
-        { title = "📦 APP UPDATES", order = 9, entries = {
-            { "⇪U", "Which apps are behind right now (searchable)" },
-            { "auto 9:00 AM  ·  auto on open", "Always checks fresh" },
-            { "Enter (brew-managed)", "Installs the update via Homebrew" },
-            { "Enter (not brew-managed)", "Opens the vendor's download page" },
-            { "⬆️ Upgrade ALL row", "Installs every brew-managed update at once" },
-        }},
-        { title = "📄 DOCUMENT WATCHER (experimental)", order = 11, entries = {
-            { "⇪⇧W", "Documents worked on today — search name / ext / date" },
-            { "Enter", "Copy the highlighted row" },
-            { "☑️ row", "Copy several: pick rows with Enter, then copy together" },
-            { "⇪⇧E", "Edit or delete an entry (clear the name = delete)" },
-            { "auto", "Samples every 5s · stops when you are idle" },
-            { "file", "Logs/doc_wather.csv — Date · Time · File · Working time" },
         }},
         { title = "⌨️ ⇪ = CAPS LOCK (hold it, tap a key)", order = 14, entries = {
             { "⇪ + key", "Every shortcut on this sheet — hold Caps Lock" },
@@ -3514,1206 +3522,6 @@ _G.clipboardTimer = hs.timer.doEvery(0.5, function()
         end  -- closes the copied-image-files branch (6.11.0)
     end
 end)
-
--- =====================================================================
--- 3.5 ASANA COMMENTS ENGINE
--- =====================================================================
--- Posts a comment on any task via the Asana "stories" endpoint —
--- identical to typing in the "Add a comment" box in the Asana UI.
-local function addCommentToTask(taskGid, commentText, onDone)
-    if not asanaEnabled then
-        if onDone then onDone(false) end
-        return
-    end
-    if not taskGid or not commentText or #commentText == 0 then
-        if onDone then onDone(false) end
-        return
-    end
-
-    local body = hs.json.encode({ data = { text = commentText } })
-
-    hs.http.asyncPost("https://app.asana.com/api/1.0/tasks/" .. taskGid .. "/stories", body, {
-        ["Authorization"] = "Bearer " .. asanaToken,
-        ["Content-Type"]  = "application/json"
-    }, function(status, responseBody)
-        if status == 200 or status == 201 then
-            hs.alert.show("💬 Comment added")
-            if onDone then onDone(true) end
-        else
-            hs.alert.show("❌ Comment failed (HTTP " .. tostring(status) .. ")")
-            print("Asana comment error: ", responseBody)
-            if onDone then onDone(false) end
-        end
-    end)
-end
-
--- TEAM MEMBERS — Asana's API rejects a display name outright ("Not a
--- valid actor ID: Lee"); assignee must be "me", a numeric GID, or an
--- email. This caches {gid=, name=, email=} so a typed name can be
--- resolved to a real GID before it ever reaches the API (see the Task
--- Creator's resolveAssignee below).
--- _G. instead of local: called from two separate top-level closures
--- (boot, and the ⌃⌥⌘B picker) without spending another slot on this
--- already-near-the-200-local-ceiling file.
--- 6.15.1 FIX: /projects/{gid}/users is not a real Asana endpoint (the
--- 404 was that, not a private-project permission issue — a real
--- permission problem would be a 403, and this token already reads/
--- writes this exact project fine elsewhere).
--- 6.16.9: whole-WORKSPACE listing (the 6.15.1 fix above) turned out to
--- mean "everyone in the entire organization" on a big org (a college —
--- thousands of student accounts), making the picker useless. ✏️ EDIT
--- THESE — the exact team names as they appear in Asana; resolved to
--- their real GIDs once at boot (GET /workspaces/{gid}/teams, a real,
--- documented endpoint) and cached, then each team's own roster is
--- fetched via GET /teams/{gid}/users and merged, deduped by gid. Leave
--- the list empty ({}) to fall back to the old whole-workspace roster.
--- (wrapped in do...end — these names never need to be seen outside this
--- block — so they don't spend more of this file's already-tight 200
--- main-chunk local-variable budget than the single _G.fetchAsanaTeamMembers
--- entry point actually requires)
-do
-local asanaTeamNames = {
-    "| 1. SAC Library Core Projects |",
-    "| 2. SAC Library Team Member Projects & Tasks |",
-}
-
-_G.asanaTeamMembers = {}
-local asanaTeamGidsResolved = false
-local asanaTeamGids = {}
-local asanaTeamGidNames = {}   -- gid -> clean display name (strips "| N. ... |")
-
--- Team names in this org are literally formatted "| N. Name |" — strip
--- that decoration for display (subText/search), not just the raw match.
-local function asanaCleanTeamName(name)
-    return name:match("^|%s*%d+%.%s*(.-)%s*|$") or name
-end
-
-local function resolveAsanaTeamGids(onDone)
-    if asanaTeamGidsResolved or #asanaTeamNames == 0 then onDone() return end
-    hs.http.asyncGet(
-        "https://app.asana.com/api/1.0/workspaces/" .. asanaWorkspaceId .. "/teams?opt_fields=name",
-        { ["Authorization"] = "Bearer " .. asanaToken },
-        function(status, body)
-            if status == 200 then
-                local data = _G.safeJson(body, "asana/teams")
-                if data and data.data then
-                    for _, wantName in ipairs(asanaTeamNames) do
-                        local wantLower = wantName:lower():match("^%s*(.-)%s*$")
-                        local found = false
-                        for _, t in ipairs(data.data) do
-                            if t.name and t.name:lower():match("^%s*(.-)%s*$") == wantLower then
-                                table.insert(asanaTeamGids, t.gid)
-                                asanaTeamGidNames[t.gid] = asanaCleanTeamName(t.name)
-                                found = true
-                                break
-                            end
-                        end
-                        if not found then
-                            print("⚠️ Asana team not found by name: \"" .. wantName .. "\" — check spelling/spacing against Asana")
-                        end
-                    end
-                end
-            else
-                print("⚠️ Asana team list fetch failed (HTTP " .. tostring(status) .. ")")
-            end
-            asanaTeamGidsResolved = true
-            onDone()
-        end)
-end
-
-_G.fetchAsanaTeamMembers = function(onDone)
-    if not asanaEnabled then if onDone then onDone() end return end
-
-    local function fetchByGids()
-        if #asanaTeamGids == 0 then
-            -- fallback: whole workspace (no team names configured, or
-            -- none of them matched a real team)
-            hs.http.asyncGet(
-                "https://app.asana.com/api/1.0/workspaces/" .. asanaWorkspaceId .. "/users?opt_fields=name,email",
-                { ["Authorization"] = "Bearer " .. asanaToken },
-                function(status, body)
-                    local members = {}
-                    if status == 200 then
-                        local data = _G.safeJson(body, "asana/members")
-                        if data and data.data then
-                            for _, u in ipairs(data.data) do
-                                table.insert(members, { gid = u.gid, name = u.name or "?", email = u.email })
-                            end
-                        end
-                    else
-                        print("⚠️ Asana team member fetch failed (HTTP " .. tostring(status) .. ")")
-                    end
-                    _G.asanaTeamMembers = members
-                    if onDone then onDone() end
-                end)
-            return
-        end
-
-        local allMembers, remaining, seen = {}, #asanaTeamGids, {}
-        for _, teamGid in ipairs(asanaTeamGids) do
-            local teamName = asanaTeamGidNames[teamGid] or "Team"
-            hs.http.asyncGet(
-                "https://app.asana.com/api/1.0/teams/" .. teamGid .. "/users?opt_fields=name,email",
-                { ["Authorization"] = "Bearer " .. asanaToken },
-                function(status, body)
-                    if status == 200 then
-                        local data = _G.safeJson(body, "asana/members")
-                        if data and data.data then
-                            for _, u in ipairs(data.data) do
-                                if seen[u.gid] then
-                                    -- on both teams — show both, don't duplicate the row
-                                    table.insert(seen[u.gid].teams, teamName)
-                                else
-                                    local m = { gid = u.gid, name = u.name or "?", email = u.email, teams = { teamName } }
-                                    seen[u.gid] = m
-                                    table.insert(allMembers, m)
-                                end
-                            end
-                        end
-                    else
-                        print("⚠️ Asana team member fetch failed for team " .. teamGid .. " (HTTP " .. tostring(status) .. ")")
-                    end
-                    remaining = remaining - 1
-                    if remaining <= 0 then
-                        _G.asanaTeamMembers = allMembers
-                        if onDone then onDone() end
-                    end
-                end)
-        end
-    end
-
-    resolveAsanaTeamGids(fetchByGids)
-end
-if asanaEnabled then _G.fetchAsanaTeamMembers() end   -- warm the cache at boot
-
-end -- do...end (§0.2 Asana team-scoping locals)
-
--- =====================================================================
--- 3.6 ACTIVITY TRACKER — persistent, searchable, day/week/month views
--- =====================================================================
--- Tracks time per app AND per document/window (approximated by window
--- title, since macOS has no universal "which file is open" API that
--- works the same across every app — window title is the closest thing
--- that generalizes: a browser tab's title, a text editor's filename, a
--- PDF viewer's document name, etc). This also means switching tabs or
--- documents WITHIN the same still-frontmost app gets tracked, not just
--- switches between different apps, which the old version couldn't do.
---
--- Persists to disk as CSV in your OneDrive Logs folder so it survives
--- Hammerspoon restarts/reloads AND syncs to OneDrive — the original
--- version was purely in-memory and reset every reload. CSV also means
--- you can open it directly in Numbers/Excel.
--- ⚠️ CloudStorage paths depend on OneDrive running; if OneDrive is
--- quit or the Logs folder is set to online-only, writes can fail.
--- Keep that folder "Always keep on this device" — since 6.10.0 a
--- failed write warns on screen instead of losing data silently.
---
--- ⌘⌥⇧0 opens it:
---   • empty box     → today's per-app totals
---   • type "week"   → this calendar week's per-app totals
---   • type "month"  → this month's top apps AND top documents/windows
---   • type anything else → searches app names & window titles across
---     ALL saved history (not just today)
---   • selecting any row copies its name + time to the clipboard
---
--- AUTOMATIC REPORTS (times/day editable below):
---   • Daily at 4:00 PM — today's apps ranked most→least, in minutes
---   • Monday at 7:30 AM — recap of the last 7 days, same ranking
---
--- Sessions are detected by POLLING every activityPollInterval seconds,
--- so a switch can take up to that long to be noticed, and only
--- recorded if they last at least activityMinSessionSeconds (filters
--- out quick accidental switches — same idea as the old 10s threshold).
-local activityHistoryFile      = logsDir .. "/activity_history-" .. hostTag .. ".csv"
-adoptLegacyFile(activityHistoryFile, logsDir .. "/activity_history.csv")
-local activityOldCSVFile       = hs.configdir .. "/activity_history.csv"   -- pre-OneDrive location, migrated once below
-local activityOldJSONFile      = hs.configdir .. "/activity_history.json"  -- pre-CSV format, migrated once below
-local activityMinSessionSeconds = 10   -- ignore anything shorter than this
-local activityPollInterval      = 5    -- seconds between checks
-local activityRetentionDays     = 120  -- ~4 months of raw sessions kept on disk
-local activityWeekStartsSunday  = true -- false = weeks start Monday instead
--- 6.16.5: frontmost-app time isn't ACTUAL use — leaving VLC or Sublime
--- frontmost while away from the keyboard (movie playing, stepped out)
--- kept the clock running for hours. The poller below now stops the
--- clock after 300s (5 min) of no mouse/keyboard input (hs.host.idleTime),
--- crediting time only up to when idling actually began, not up to now.
--- (Inlined, not a local, to stay under Lua's 200-local ceiling — search
--- "activityIdleThreshold" below to change the 5-min value.)
--- HONEST LIMIT: reading without touching input for this long also stops
--- the clock — raise the value if that's too aggressive for you.
-
--- 6.11.3: only REAL applications are tracked — currentAppAndTitle below
--- checks hs.application:kind() == 1 (the same "regular Dock app" test
--- windowKeys.appJump already uses), so background/system processes like
--- loginwindow (the lock screen) and ScreenSaverEngine are never recorded
--- as "the app you were using". This is self-updating: install a new
--- real app tomorrow and it's tracked automatically, no list to maintain.
--- ✏️ To exclude a REAL app by name anyway, add it here (exact name, as
--- it appears in this tracker's own rows):
-local activityIgnoredApps = {
-    -- "Hammerspoon",
-}
-
--- Wraps a text field for CSV: quotes it, doubles any internal quotes,
--- and collapses stray newlines to a space (window titles are normally
--- single-line, this is just defensive).
-local function csvQuote(value)
-    local s = tostring(value or "")
-    s = s:gsub('[\r\n]+', ' ')
-    s = s:gsub('"', '""')
-    return '"' .. s .. '"'
-end
-
--- Splits one CSV line into fields, honoring double-quoted fields with
--- "" as an escaped quote inside them — needed because app/window
--- titles routinely contain commas (e.g. a browser tab title).
-local function splitCSVLine(line)
-    local fields, i, n = {}, 1, #line
-    while i <= n do
-        if line:sub(i, i) == '"' then
-            local j, buf = i + 1, {}
-            while j <= n do
-                local c = line:sub(j, j)
-                if c == '"' then
-                    if line:sub(j + 1, j + 1) == '"' then
-                        table.insert(buf, '"')
-                        j = j + 2
-                    else
-                        j = j + 1
-                        break
-                    end
-                else
-                    table.insert(buf, c)
-                    j = j + 1
-                end
-            end
-            table.insert(fields, table.concat(buf))
-            if line:sub(j, j) == ',' then j = j + 1 end
-            i = j
-        else
-            local commaPos = line:find(',', i, true)
-            if commaPos then
-                table.insert(fields, line:sub(i, commaPos - 1))
-                i = commaPos + 1
-            else
-                table.insert(fields, line:sub(i))
-                i = n + 1
-            end
-        end
-    end
-    return fields
-end
-
-local function activityFileExists()
-    local f = io.open(activityHistoryFile, "r")
-    if f then f:close(); return true end
-    return false
-end
-
-local function loadActivityCSV(path)
-    local f = io.open(path, "r")
-    if not f then return {} end
-    local content = f:read("*a"); f:close()
-    local log, isFirstLine = {}, true
-    for line in content:gmatch("([^\r\n]+)") do
-        if isFirstLine and line:match("^date,app,title,seconds") then
-            -- skip header row
-        else
-            local fields = splitCSVLine(line)
-            local seconds = tonumber(fields[4])
-            if fields[1] and fields[2] and fields[3] and seconds then
-                table.insert(log, { date = fields[1], app = fields[2], title = fields[3], seconds = seconds })
-            end
-        end
-        isFirstLine = false
-    end
-    return log
-end
-
--- One-time upgrade path, tried only when the OneDrive CSV doesn't
--- exist yet: first the CSV from when this lived in ~/.hammerspoon,
--- then the even older JSON format — so nothing already recorded is
--- lost, whichever version you were on.
-local function migrateOldDataIfAny()
-    local fromCSV = loadActivityCSV(activityOldCSVFile)
-    if #fromCSV > 0 then return fromCSV end
-
-    local f = io.open(activityOldJSONFile, "r")
-    if not f then return {} end
-    local content = f:read("*a"); f:close()
-    local ok, data = pcall(hs.json.decode, content)
-    if ok and type(data) == "table" then return data end
-    return {}
-end
-
--- Writes the WHOLE file from scratch, including the header — used at
--- boot (after pruning) and for the one-time migration/first-run case.
--- Ongoing writes during normal use append instead (see below).
--- Returns false if the file couldn't be opened (e.g. OneDrive folder
--- unavailable) so boot can warn you instead of failing silently.
-local function rewriteActivityLog(log)
-    local f = io.open(activityHistoryFile, "w")
-    if not f then return false end
-    f:write("date,app,title,seconds\n")
-    for _, e in ipairs(log) do
-        f:write(e.date .. "," .. csvQuote(e.app) .. "," .. csvQuote(e.title) .. "," .. e.seconds .. "\n")
-    end
-    f:close()
-    return true
-end
-
--- Fast path for normal operation: append one row rather than rewriting
--- the whole growing file on every session close.
-local function appendActivityRow(entry)
-    local f = io.open(activityHistoryFile, "a")
-    if f then
-        f:write(entry.date .. "," .. csvQuote(entry.app) .. "," .. csvQuote(entry.title) .. "," .. entry.seconds .. "\n")
-        f:close()
-    else
-        warnWriteFailed("activity history")
-    end
-end
-
-local function pruneActivityLog(log)
-    local cutoff = os.date("%Y-%m-%d", os.time() - (activityRetentionDays * 86400))
-    local pruned = {}
-    for _, entry in ipairs(log) do
-        if type(entry.date) == "string" and entry.date >= cutoff then
-            table.insert(pruned, entry)
-        end
-    end
-    return pruned
-end
-
--- 6.11.3: one-time cleanup for rows recorded BEFORE kind-1 filtering
--- existed — loginwindow (the lock screen process) and ScreenSaverEngine
--- aren't real apps and never should have been logged. Runs once at
--- boot, alongside the retention prune below; harmless (a no-op) once
--- your CSV is already clean.
-local activityJunkApps = { loginwindow = true, ScreenSaverEngine = true }
-local function purgeJunkApps(log)
-    local kept = {}
-    for _, entry in ipairs(log) do
-        if not activityJunkApps[entry.app] then
-            table.insert(kept, entry)
-        end
-    end
-    return kept
-end
-
--- Boot: load existing OneDrive CSV data (or migrate from the old
--- ~/.hammerspoon files if this is the first run since upgrading),
--- purge known junk rows and prune anything past the retention window,
--- and rewrite the file (with header) if it's brand new or cleanup
--- removed something.
-local _existedBefore = activityFileExists()
-local _loaded = _existedBefore and loadActivityCSV(activityHistoryFile) or migrateOldDataIfAny()
-local _purged = purgeJunkApps(_loaded)
-local _pruned = pruneActivityLog(_purged)
-_G.activityLog = _pruned
-if not _existedBefore or #_pruned ~= #_loaded then
-    if not rewriteActivityLog(_pruned) then
-        hs.alert.show("⚠️ Can't write activity_history.csv — is the OneDrive Logs folder available?", 6)
-    end
-end
-
--- The session currently being tracked (app + window title + when it
--- started). Closed out and recorded whenever the poller notices either
--- one has changed.
-_G.activitySession = { app = nil, title = nil, startTime = nil }
-
--- Best-effort read of "what's frontmost right now, and what does its
--- focused window's title bar say". Wrapped defensively since a window
--- can vanish between calls, or an app can have no accessible window.
--- 6.11.3: only regular Dock apps (kind 1) are tracked — the frontmost
--- "app" during a locked screen is loginwindow, a background system
--- process, not something you were using; ScreenSaverEngine is the
--- same story. Filtering by kind is self-updating (a real app installed
--- tomorrow is tracked automatically) instead of a hardcoded app list.
-local function currentAppAndTitle()
-    local ok, app = pcall(hs.application.frontmostApplication)
-    if not ok or not app then return nil, nil end
-
-    local okK, kind = pcall(function() return app:kind() end)
-    if not okK or kind ~= 1 then return nil, nil end
-
-    local ok2, name = pcall(function() return app:name() end)
-    if not ok2 or not name then return nil, nil end
-
-    for _, ignored in ipairs(activityIgnoredApps) do
-        if name == ignored then return nil, nil end
-    end
-
-    local title = nil
-    local ok3, win = pcall(function() return app:focusedWindow() end)
-    if ok3 and win then
-        local ok4, t = pcall(function() return win:title() end)
-        if ok4 and type(t) == "string" and #t > 0 then title = t end
-    end
-
-    return name, title
-end
-
-local function closeActivitySession(endTime)
-    local s = _G.activitySession
-    if not (s.app and s.startTime) then return end
-
-    endTime = endTime or os.time()
-    local duration = endTime - s.startTime
-    if duration >= activityMinSessionSeconds then
-        local entry = {
-            date    = os.date("%Y-%m-%d", s.startTime),
-            app     = s.app,
-            title   = s.title or "",
-            seconds = duration,
-        }
-        table.insert(_G.activityLog, entry)
-        appendActivityRow(entry)
-    end
-end
-
-_G.activityPoller = hs.timer.doEvery(activityPollInterval, function()
-    local okIdle, idle = pcall(hs.host.idleTime)
-    if okIdle and idle and idle >= 300 then   -- activityIdleThreshold: 5 min away = stop the clock
-        if _G.activitySession.app then
-            -- credit only up to when idling actually began, not up to now
-            closeActivitySession(os.time() - idle)
-            _G.activitySession = { app = nil, title = nil, startTime = nil }
-        end
-        return
-    end
-
-    local appName, title = currentAppAndTitle()
-    if not appName then return end  -- couldn't tell, or frontmost isn't a real app; leave current session running
-
-    local s = _G.activitySession
-    if s.app ~= appName or s.title ~= title then
-        closeActivitySession()
-        _G.activitySession = { app = appName, title = title, startTime = os.time() }
-    end
-end)
-
--- 6.11.3: THE 30-HOUR BUG — a session left open when the Mac sleeps or
--- the screen locks keeps its original startTime; Hammerspoon's own
--- timers pause during sleep, but wall-clock time doesn't, so on wake
--- closeActivitySession() computed end-minus-start across the ENTIRE
--- locked/asleep span (lock Friday 5 PM, return Monday 8 AM → the app
--- that was frontmost at lock time "used" for ~63 hours). Fixed at the
--- source: closing the session the INSTANT the screen locks or the
--- system sleeps, so its duration stops at the real moment of lock, not
--- at the next poll after you're back. The poller opens a fresh session
--- for whatever's actually frontmost as soon as polling resumes.
-local activityLockWatcher = hs.caffeinate.watcher.new(function(event)
-    if event == hs.caffeinate.watcher.screensDidLock
-       or event == hs.caffeinate.watcher.systemWillSleep then
-        closeActivitySession()
-        _G.activitySession = { app = nil, title = nil, startTime = nil }
-    end
-end)
-activityLockWatcher:start()
-
--- ---- date-range helpers ---------------------------------------------
-
-local function todayStr()
-    return os.date("%Y-%m-%d")
-end
-
-local function weekStartStr()
-    local t = os.date("*t")  -- t.wday: 1=Sunday ... 7=Saturday
-    local offsetDays
-    if activityWeekStartsSunday then
-        offsetDays = t.wday - 1
-    else
-        offsetDays = (t.wday == 1) and 6 or (t.wday - 2)
-    end
-    return os.date("%Y-%m-%d", os.time() - offsetDays * 86400)
-end
-
-local function monthStartStr()
-    local t = os.date("*t")
-    return string.format("%04d-%02d-01", t.year, t.month)
-end
-
--- ---- aggregation ------------------------------------------------------
-
-local function sortedDescending(totalsTable)
-    local list = {}
-    for name, seconds in pairs(totalsTable) do
-        table.insert(list, { name = name, seconds = seconds })
-    end
-    table.sort(list, function(a, b) return a.seconds > b.seconds end)
-    return list
-end
-
--- Per-app totals for [startStr, endStr] inclusive. Date strings compare
--- correctly with plain >= / <= since they're zero-padded YYYY-MM-DD.
-local function appTotalsInRange(startStr, endStr)
-    local totals = {}
-    for _, e in ipairs(_G.activityLog) do
-        if e.date >= startStr and e.date <= endStr then
-            totals[e.app] = (totals[e.app] or 0) + e.seconds
-        end
-    end
-    return sortedDescending(totals)
-end
-
--- Per-app AND per-(app + window title) totals for a range — the
--- "documents" view is really "distinct window titles", the closest
--- proxy for a document that generalizes across arbitrary apps.
-local function appAndTitleTotalsInRange(startStr, endStr)
-    local appTotals, titleTotals = {}, {}
-    for _, e in ipairs(_G.activityLog) do
-        if e.date >= startStr and e.date <= endStr then
-            appTotals[e.app] = (appTotals[e.app] or 0) + e.seconds
-            if e.title and e.title ~= "" then
-                local key = e.app .. " — " .. e.title
-                titleTotals[key] = (titleTotals[key] or 0) + e.seconds
-            end
-        end
-    end
-    return sortedDescending(appTotals), sortedDescending(titleTotals)
-end
-
-local function grandTotal(list)
-    local total = 0
-    for _, e in ipairs(list) do total = total + e.seconds end
-    return total
-end
-
--- ---- chooser ------------------------------------------------------------
-
--- Selecting any row copies "name — time" to the clipboard
-_G.choosers.appTracker = hs.chooser.new(function(choice)
-    if choice and choice.text then
-        local copied = choice.text
-        if choice.subText and choice.subText ~= "" then
-            copied = copied .. " — " .. choice.subText
-        end
-        hs.pasteboard.setContents(copied)
-        hs.alert.show("📋 Copied")
-    end
-end)
-_G.choosers.appTracker:placeholderText("Today's activity — or type 'week' / 'month' / search…")
-
-local function renderActivityChoices(query)
-    local q = (query or ""):match("^%s*(.-)%s*$")
-    local qLower = q:lower()
-    local choices = {}
-
-    if qLower == "week" then
-        local list = appTotalsInRange(weekStartStr(), todayStr())
-        table.insert(choices, {
-            text    = "📆 THIS WEEK — " .. formatDuration(grandTotal(list)) .. " total",
-            subText = "Clear the box for today, or type 'month' for other views",
-        })
-        for _, e in ipairs(list) do
-            table.insert(choices, { text = e.name, subText = formatDuration(e.seconds) })
-        end
-
-    elseif qLower == "month" then
-        local appList, titleList = appAndTitleTotalsInRange(monthStartStr(), todayStr())
-        table.insert(choices, { text = "🗓 THIS MONTH — TOP APPS", subText = "" })
-        for i = 1, math.min(8, #appList) do
-            table.insert(choices, { text = appList[i].name, subText = formatDuration(appList[i].seconds) })
-        end
-        table.insert(choices, { text = "📄 THIS MONTH — TOP DOCUMENTS / WINDOWS", subText = "" })
-        if #titleList == 0 then
-            table.insert(choices, { text = "(no window titles recorded yet)", subText = "" })
-        end
-        for i = 1, math.min(8, #titleList) do
-            table.insert(choices, { text = titleList[i].name, subText = formatDuration(titleList[i].seconds) })
-        end
-
-    elseif qLower == "" then
-        local list = appTotalsInRange(todayStr(), todayStr())
-        table.insert(choices, {
-            text    = "📅 TODAY — " .. formatDuration(grandTotal(list)) .. " total",
-            subText = "Type 'week' or 'month' for other views, or search an app/doc name",
-        })
-        if #list == 0 then
-            table.insert(choices, { text = "No activity recorded yet today", subText = "" })
-        end
-        for _, e in ipairs(list) do
-            table.insert(choices, { text = e.name, subText = formatDuration(e.seconds) })
-        end
-
-    else
-        -- Search: app name or window title, across ALL saved history
-        local matchTotals = {}
-        for _, e in ipairs(_G.activityLog) do
-            local haystack = (e.app .. " " .. (e.title or "")):lower()
-            if haystack:find(qLower, 1, true) then
-                local key = e.app .. ((e.title and e.title ~= "") and (" — " .. e.title) or "")
-                matchTotals[key] = (matchTotals[key] or 0) + e.seconds
-            end
-        end
-        local list = sortedDescending(matchTotals)
-        if #list == 0 then
-            table.insert(choices, { text = "No matches for \"" .. q .. "\"", subText = "Searches app names & window titles, all-time" })
-        else
-            table.insert(choices, { text = "🔎 Matches for \"" .. q .. "\" — all time", subText = "" })
-            for _, e in ipairs(list) do
-                table.insert(choices, { text = e.name, subText = formatDuration(e.seconds) })
-            end
-        end
-    end
-
-    _G.choosers.appTracker:choices(choices)
-end
-
-_G.choosers.appTracker:queryChangedCallback(function(query)
-    local ok, err = pcall(renderActivityChoices, query)
-    if not ok then
-        print("🚨 Activity chooser render error: " .. tostring(err))
-        _G.choosers.appTracker:choices({
-            { text = "⚠️ Display error — details in Hammerspoon Console", subText = tostring(err) },
-        })
-    end
-end)
-
--- ---- scheduled reports ------------------------------------------------
--- Daily at activityDailyReportTime: today's apps ranked most→least used,
--- shown in minutes. Weekly on activityWeeklyReportWeekday at
--- activityWeeklyReportTime: the same ranking for the LAST 7 full days
--- (i.e. the 7 days ending yesterday — so Monday's report covers Mon–Sun
--- of last week and doesn't mix in the fresh morning's activity).
--- Reports appear as a popup you can search & copy rows from, exactly
--- like the ⌘⌥⇧0 tracker. Note: like any popup here, it takes keyboard
--- focus when it appears — it will interrupt typing at report time.
-local activityDailyReportTime     = "16:00"  -- 4:00 PM, 24h format
-local activityWeeklyReportTime    = "07:30"  -- 7:30 AM, 24h format
-local activityWeeklyReportWeekday = 1        -- 0=Sun 1=Mon 2=Tue … 6=Sat
-                                              -- (also fires Fri=5, see timer below)
-
-local function minutesLabel(seconds)
-    local mins = math.floor(seconds / 60 + 0.5)
-    if mins < 1 then return "under 1 min" end
-    return mins .. " min"
-end
-
--- Report chooser: registered in _G.choosers so it follows the frontmost
--- app's screen and participates in nudging; selecting a row copies it.
-_G.choosers.activityReport = hs.chooser.new(function(choice)
-    if choice and choice.text then
-        local copied = choice.text
-        if choice.subText and choice.subText ~= "" then
-            copied = copied .. " — " .. choice.subText
-        end
-        hs.pasteboard.setContents(copied)
-        hs.alert.show("📋 Copied")
-    end
-end)
-_G.choosers.activityReport:placeholderText("Activity report — Esc to close, Enter copies a row")
--- 6.16.6 REVERT: hideOnLostFocus is not a real hs.chooser method — it
--- doesn't exist in the actual API, only in a bad assumption of mine, and
--- calling it crashed the ENTIRE config on load ("attempt to call a nil
--- value"). hs.chooser has no supported way to suppress click-away
--- dismissal. Escape already closes it via the normal completion
--- callback (choice == nil), which was the one part of the ask this
--- popup could actually guarantee.
-
-local function showActivityReport(titleText, startStr, endStr)
-    local list = appTotalsInRange(startStr, endStr)
-    local choices = {}
-    table.insert(choices, {
-        text    = titleText .. " — " .. formatDuration(grandTotal(list)) .. " total",
-        subText = (startStr == endStr) and startStr or (startStr .. " → " .. endStr),
-    })
-    if #list == 0 then
-        table.insert(choices, { text = "No activity recorded in this period", subText = "" })
-    end
-    for i, e in ipairs(list) do
-        table.insert(choices, { text = i .. ". " .. e.name, subText = minutesLabel(e.seconds) })
-    end
-    _G.choosers.activityReport:choices(choices)
-    _G.choosers.activityReport:rows(math.min(#choices, 12))
-    showPopup(_G.choosers.activityReport)
-end
-
-local function showDailyActivityReport()
-    showActivityReport("📊 DAILY REPORT", todayStr(), todayStr())
-end
-
-local function showWeeklyActivityReport()
-    local endStr   = os.date("%Y-%m-%d", os.time() - 86400)       -- yesterday
-    local startStr = os.date("%Y-%m-%d", os.time() - 7 * 86400)   -- 7 days back
-    showActivityReport("🗓 WEEKLY RECAP", startStr, endStr)
-end
-
--- hs.timer.doAt(time, "1d", fn) fires at that clock time every day.
--- Held in _G so Lua garbage collection can't silently kill them.
-_G.activityDailyReportTimer = hs.timer.doAt(activityDailyReportTime, "1d", showDailyActivityReport)
-_G.activityWeeklyReportTimer = hs.timer.doAt(activityWeeklyReportTime, "1d", function()
-    local wd = tonumber(os.date("%w"))
-    if wd == activityWeeklyReportWeekday or wd == 5 then   -- 5 = Friday
-        showWeeklyActivityReport()
-    end
-end)
-
--- =====================================================================
--- 3.10 APP UPDATE TRACKER — ⌃⌥⇧U · batch-check before an IT ticket
--- =====================================================================
--- Answers "which of my apps are behind RIGHT NOW?" so updates can be
--- batched into one IT ticket instead of installing them piecemeal.
--- HONEST LIMIT up front: no vendor here publishes a public release
--- schedule (Chrome is the closest exception — a new stable roughly
--- every 4 weeks — everything else ships whenever the vendor ships).
--- This tracker does not predict the future; it checks the PRESENT:
--- the version actually installed (read straight from each app's own
--- Info.plist) against the latest version Homebrew's Cask database
--- knows about — which tracks upstream release info for these apps
--- whether or not you actually installed them via Homebrew.
---
--- REQUIRES Homebrew (`brew`) on this Mac, used purely as a read-only
--- version oracle — nothing is installed or modified by this tracker;
--- it only reports. No Homebrew found → the feature politely reports
--- itself off in the boot log, same as Asana without secret.lua.
---
--- ✏️ EDIT THIS TABLE — one row per tracked app, mapping its process
--- name to its Homebrew Cask token (the part after /cask/ at
--- formulae.brew.sh). If the app's actual /Applications bundle name
--- differs from its process name (only Sublime Text does, here),
--- set appBundle. A renamed or wrong cask token is never silent: brew's
--- own error is caught and printed in the Console naming exactly which
--- row needs fixing.
--- ⚠️ These tokens are written from general knowledge, not verified
--- live against Homebrew from this machine — check the Console after
--- the first run and fix any row it flags.
--- Wrapped in do...end: this file's main chunk is already near Lua's
--- 200-local-variable ceiling (a single-file config this large adds up
--- fast), and everything in this section is self-contained — nothing
--- outside §3.10 references these locals by name. Scoping them frees
--- their slots for the rest of the file, the same reason §0.2 wraps its
--- secret.lua loading in its own do...end block.
-do
-
--- ✏️ `url` is the vendor's official download/update page — offered as
--- the fallback action (Enter opens it in your browser) whenever a
--- Homebrew install isn't possible or isn't safe (see §3.10.1 below).
--- These are written from general knowledge, not verified live from
--- this machine — spot-check each one once; unlike a cask token, a
--- stale URL can't self-diagnose (a dead link just opens a 404, it
--- doesn't error back into the Console the way brew does).
-local updateTrackerApps = {
-    { app = "1Password",           cask = "1password",           url = "https://1password.com/downloads/mac/" },
-    { app = "Alfred",               cask = "alfred",               url = "https://www.alfredapp.com/" },
-    { app = "Bartender",            cask = "bartender",            url = "https://www.macbartender.com/" },
-    { app = "CotEditor",            cask = "coteditor",            url = "https://coteditor.com/" },
-    { app = "Ghostty",               cask = "ghostty",               url = "https://ghostty.org/download" },
-    { app = "Google Chrome",        cask = "google-chrome",        url = "https://www.google.com/chrome/" },
-    { app = "OneDrive",              cask = "onedrive",              url = "https://www.microsoft.com/en-us/microsoft-365/onedrive/download" },
-    -- No cask: Defender for Mac is an enterprise product distributed
-    -- via Microsoft's own installer / MDM (Intune, Jamf), not Homebrew
-    -- — confirmed by brew itself: "No Cask with this name exists."
-    -- The download link is the ONLY automatic action available for
-    -- this row (see §3.10.1) since there's no brew path at all.
-    { app = "Microsoft Defender",   cask = nil,                     url = "https://www.microsoft.com/en-us/microsoft-365/microsoft-defender-for-individuals" },
-    { app = "Microsoft Excel",      cask = "microsoft-excel",      url = "https://www.microsoft.com/en-us/microsoft-365/excel" },
-    { app = "Microsoft PowerPoint", cask = "microsoft-powerpoint", url = "https://www.microsoft.com/en-us/microsoft-365/powerpoint" },
-    { app = "Microsoft Word",       cask = "microsoft-word",       url = "https://www.microsoft.com/en-us/microsoft-365/word" },
-    { app = "Microsoft Outlook",    cask = "microsoft-outlook",    url = "https://www.microsoft.com/en-us/microsoft-365/outlook/email-and-calendar-software-microsoft-outlook" },
-    { app = "Microsoft Teams",      cask = "microsoft-teams",      url = "https://www.microsoft.com/en-us/microsoft-teams/download-app" },
-    { app = "NordVPN",               cask = "nordvpn",               url = "https://nordvpn.com/download/mac/" },
-    { app = "Rectangle",             cask = "rectangle",             url = "https://rectangleapp.com/" },
-    { app = "Shottr",                cask = "shottr",                url = "https://shottr.cc/" },
-    { app = "Sublime", appBundle = "Sublime Text", cask = "sublime-text", url = "https://www.sublimetext.com/download" },
-    { app = "Transmission",          cask = "transmission",          url = "https://transmissionbt.com/download" },
-}
-
-local updateTrackerMods       = {"ctrl", "alt", "shift"}
-local updateTrackerKey        = "U"
-local updateTrackerFile       = logsDir .. "/app_updates-" .. hostTag .. ".csv"
-local updateTrackerCheckTime  = "09:00"   -- daily automatic check, 24h format
-
--- Homebrew's install location differs between Apple Silicon and Intel
--- Macs; check both rather than assuming one.
-local brewPath = nil
-for _, candidate in ipairs({ "/opt/homebrew/bin/brew", "/usr/local/bin/brew" }) do
-    local f = io.open(candidate, "r")
-    if f then f:close(); brewPath = candidate; break end
-end
-
-local updateStatusLabel = {
-    ["update-available"] = "🔔 Update available",
-    ["check-failed"]      = "⚠️ Check failed",
-    ["unknown-cask"]      = "❓ Unknown cask token",
-    ["no-cask"]           = "🔍 No Homebrew cask — check manually",
-    ["not-installed"]     = "— Not installed here",
-    ["up-to-date"]        = "✅ Up to date",
-    ["not-checked"]       = "… Not checked yet",
-}
-local updateStatusOrder = {
-    ["update-available"] = 1, ["check-failed"] = 2, ["unknown-cask"] = 3,
-    ["not-installed"] = 4, ["no-cask"] = 5, ["not-checked"] = 6, ["up-to-date"] = 7,
-}
-
--- Loaded from disk at boot (so results survive a reload) and rewritten
--- after every check. Keyed by app name, same shape either way:
--- { installed=, latest=, status=, checkedAt= }
-_G.updateTrackerResults = {}
-
-local function loadUpdateResults()
-    local f = io.open(updateTrackerFile, "r")
-    if not f then return end
-    local content = f:read("*a"); f:close()
-    local first = true
-    for line in content:gmatch("([^\r\n]+)") do
-        if not (first and line:match("^checked_at,")) then
-            local c = splitCSVLine(line)
-            if c[2] and c[2] ~= "" then
-                _G.updateTrackerResults[c[2]] = {
-                    checkedAt   = c[1] or "", installed = c[3] or "",
-                    latest      = c[4] or "", status    = c[5] or "not-checked",
-                    brewManaged = (c[6] == "true"),
-                }
-            end
-        end
-        first = false
-    end
-end
-loadUpdateResults()
-
-local function saveUpdateResults()
-    local f = io.open(updateTrackerFile, "w")
-    if not f then warnWriteFailed("app update tracker CSV"); return end
-    f:write("checked_at,app,installed_version,latest_version,status,brew_managed\n")
-    for _, entry in ipairs(updateTrackerApps) do
-        local r = _G.updateTrackerResults[entry.app]
-        if r then
-            f:write(csvQuote(r.checkedAt) .. "," .. csvQuote(entry.app) .. ","
-                .. csvQuote(r.installed) .. "," .. csvQuote(r.latest) .. ","
-                .. csvQuote(r.status) .. "," .. csvQuote(tostring(r.brewManaged == true)) .. "\n")
-        end
-    end
-    f:close()
-end
-
--- Some apps version their own /Applications bundle name (Alfred ships
--- as "Alfred 5.app", Bartender as "Bartender 5.app", not a fixed
--- "Alfred.app" / "Bartender.app") — an exact-name guess wrongly reports
--- these as "not installed" even when they are. Falls back to a prefix
--- scan of /Applications (first matching "<name>*.app" wins) before
--- giving up; entry.appBundle still short-circuits this for anything
--- that needs an exact override.
--- _G. so §3.7's App Monitor can reuse this same resolver (see the
--- 6.16.1 fix note there) without a second copy of this logic.
-_G.findAppBundle = function(name)
-    local exact = "/Applications/" .. name .. ".app"
-    if hs.fs.attributes(exact, "mode") == "directory" then return exact end
-
-    local found = nil
-    pcall(function()
-        for entry in hs.fs.dir("/Applications") do
-            if found == nil and entry:sub(1, #name) == name and entry:sub(-4) == ".app" then
-                found = "/Applications/" .. entry
-            end
-        end
-    end)
-    return found
-end
-
-local isUpdateCheckRunning = false
-
--- Runs the whole batch: for every tracked app, two async subprocesses
--- (installed version via `defaults read`, latest version via
--- `brew info --cask --json=v2`) race in parallel; this app's row is
--- only finalized once both land. onComplete (optional) fires once
--- every app has resolved.
-local function runUpdateCheck(onComplete)
-    if isUpdateCheckRunning then
-        hs.alert.show("⚠️ Update check already running…")
-        return
-    end
-    if not brewPath then
-        hs.alert.show("⚠️ Homebrew not found — App Update Tracker needs it (see §3.10)")
-        return
-    end
-
-    isUpdateCheckRunning = true
-    hs.alert.show("🔄 Checking " .. #updateTrackerApps .. " apps for updates…")
-
-    local remaining = #updateTrackerApps
-
-    local function finishOne()
-        remaining = remaining - 1
-        if remaining == 0 then
-            isUpdateCheckRunning = false
-            saveUpdateResults()
-            local staleCount = 0
-            for _, r in pairs(_G.updateTrackerResults) do
-                if r.status == "update-available" then staleCount = staleCount + 1 end
-            end
-            hs.alert.show(staleCount == 0
-                and "✅ All tracked apps are up to date"
-                or ("🔔 " .. staleCount .. " app(s) have updates available — ⌃⌥⇧U to review"), 4)
-            if onComplete then onComplete() end
-        end
-    end
-
-    for _, entry in ipairs(updateTrackerApps) do
-        local bundleName = entry.appBundle or entry.app
-        -- brewCheckDone starts TRUE when there's no cask at all — there's
-        -- nothing to check, so it shouldn't block finishing.
-        local partial = { installedDone = false, latestDone = false, brewCheckDone = not entry.cask }
-
-        local function maybeFinish()
-            if not (partial.installedDone and partial.latestDone and partial.brewCheckDone) then return end
-            local status
-            if not entry.cask then
-                -- No Homebrew cask exists for this app (see the note by
-                -- its entry in updateTrackerApps) — nothing to compare
-                -- against, so this is informational, not a check failure.
-                status = partial.installed and "no-cask" or "not-installed"
-            elseif partial.checkErr then
-                status = "check-failed"
-            elseif not partial.installed then
-                status = "not-installed"
-            elseif not partial.latest then
-                status = "unknown-cask"
-            elseif partial.installed == partial.latest then
-                status = "up-to-date"
-            else
-                status = "update-available"
-            end
-            _G.updateTrackerResults[entry.app] = {
-                installed   = partial.installed or "",
-                latest      = partial.latest or "",
-                status      = status,
-                checkedAt   = os.date("%Y-%m-%d %H:%M:%S"),
-                brewManaged = partial.brewManaged or false,
-            }
-            finishOne()
-        end
-
-        -- Installed version: read straight from the app's own bundle,
-        -- independent of how (or whether) it was installed via brew.
-        -- findAppBundle handles apps whose .app folder is itself
-        -- versioned on disk (Alfred 5.app, Bartender 5.app…).
-        local appPath = _G.findAppBundle(bundleName)
-        if appPath then
-            hs.task.new("/usr/bin/defaults", function(exitCode, stdOut)
-                if exitCode == 0 and stdOut and #stdOut > 0 then
-                    partial.installed = (stdOut:gsub("%s+$", ""))
-                end
-                partial.installedDone = true
-                maybeFinish()
-            end, { "read", appPath .. "/Contents/Info.plist",
-                   "CFBundleShortVersionString" }):start()
-        else
-            partial.installedDone = true
-            maybeFinish()
-        end
-
-        -- Latest known version, per Homebrew's Cask database — skipped
-        -- entirely when this app has no cask token (entry.cask == nil):
-        -- there's no Homebrew lookup to make, so there's nothing to fail.
-        if entry.cask then
-            hs.task.new(brewPath, function(exitCode, stdOut, stdErr)
-                if exitCode == 0 and stdOut then
-                    local ok, data = pcall(hs.json.decode, stdOut)
-                    if ok and data and data.casks and data.casks[1] and data.casks[1].version then
-                        partial.latest = tostring(data.casks[1].version)
-                    end
-                else
-                    partial.checkErr = true
-                    print("⚠️ App Update Tracker: brew couldn't resolve cask '" .. entry.cask
-                        .. "' for " .. entry.app .. " — check the token in updateTrackerApps (§3.10)"
-                        .. ((stdErr and stdErr ~= "") and (": " .. stdErr:gsub("\n", " ")) or ""))
-                end
-                partial.latestDone = true
-                maybeFinish()
-            end, { "info", "--cask", entry.cask, "--json=v2" }):start()
-
-            -- §3.10.1: is this cask actually tracked by brew as
-            -- INSTALLED (in its Caskroom)? `brew info` above only tells
-            -- us the latest upstream version exists — it says nothing
-            -- about how THIS app got onto THIS Mac. Most of these were
-            -- almost certainly installed by direct download, not brew,
-            -- so `brew upgrade --cask` would have nothing to upgrade
-            -- (or worse, try to install fresh over an existing app).
-            -- `brew list --cask --versions` exits 0 only when brew's own
-            -- Caskroom has a record — that's the one-key-install gate.
-            hs.task.new(brewPath, function(exitCode)
-                partial.brewManaged = (exitCode == 0)
-                partial.brewCheckDone = true
-                maybeFinish()
-            end, { "list", "--cask", "--versions", entry.cask }):start()
-        else
-            partial.latestDone = true
-            maybeFinish()
-        end
-    end
-end
-
--- §3.10.1 HOMEBREW INSTALL — only ever offered for a row that is BOTH
--- "update-available" AND brewManaged (see the check above): those are
--- the only casks safe to hand straight to `brew upgrade` unattended.
--- Runs one or many tokens in a single brew invocation (the "Upgrade
--- ALL" row batches every eligible app into one call), then re-runs the
--- full check so the picker reflects what actually happened rather than
--- assuming success.
-local function brewUpgradeCasks(tokens)
-    if not brewPath or #tokens == 0 then return end
-    hs.alert.show("⬆️ Installing " .. #tokens .. " update(s) via Homebrew…", 4)
-    local args = { "upgrade", "--cask" }
-    for _, t in ipairs(tokens) do table.insert(args, t) end
-    hs.task.new(brewPath, function(exitCode, stdOut, stdErr)
-        if exitCode == 0 then
-            hs.alert.show("✅ Homebrew finished — re-checking…", 3)
-        else
-            hs.alert.show("⚠️ Homebrew install had errors — check Console, ⌃⌥⇧U to re-check", 5)
-            print("🚨 brew upgrade error: " .. tostring(stdErr))
-        end
-        runUpdateCheck()
-    end, args):start()
-end
-
--- ---- picker (⌃⌥⇧U) ----------------------------------------------------
--- Enter's action depends on the row (see renderUpdateChoices below):
---   🍺 update-available + brew-managed → installs via `brew upgrade`
---   🌐 update-available (not brew-managed) or no-cask, with a URL
---                                       → opens the vendor's download page
---   otherwise                          → copies "installed → latest"
-_G.choosers.appUpdates = hs.chooser.new(function(choice)
-    if not choice then return end
-
-    if choice.isUpgradeAll then
-        brewUpgradeCasks(choice.tokens)
-        return
-    end
-    if not choice.appName then return end
-
-    if choice.action == "brew" and choice.cask then
-        brewUpgradeCasks({ choice.cask })
-        return
-    end
-    if choice.action == "url" and choice.url then
-        hs.urlevent.openURL(choice.url)
-        hs.alert.show("🌐 Opening " .. choice.appName .. "'s download page…")
-        return
-    end
-
-    local copied = choice.appName .. ": " .. (choice.installed or "") .. " → " .. (choice.latest or "")
-    hs.pasteboard.setContents(copied)
-    hs.alert.show("📋 Copied")
-end)
-_G.choosers.appUpdates:placeholderText("App updates — type to filter, Enter acts on a row")
-
-local function renderUpdateChoices(query)
-    local q = (query or ""):lower():match("^%s*(.-)%s*$")
-    local rows = {}
-    for _, entry in ipairs(updateTrackerApps) do
-        local r = _G.updateTrackerResults[entry.app]
-        table.insert(rows, {
-            appName     = entry.app,
-            installed   = r and r.installed or "",
-            latest      = r and r.latest or "",
-            status      = r and r.status or "not-checked",
-            cask        = entry.cask,
-            url         = entry.url,
-            brewManaged = r and r.brewManaged or false,
-        })
-    end
-    table.sort(rows, function(a, b)
-        local oa, ob = updateStatusOrder[a.status] or 9, updateStatusOrder[b.status] or 9
-        if oa ~= ob then return oa < ob end
-        return a.appName < b.appName
-    end)
-
-    local choices = {}
-
-    -- "Upgrade ALL" synthetic row — only while the box is empty (so it
-    -- doesn't linger while filtering for something specific), and only
-    -- when at least one update-available app is actually brew-managed.
-    if q == "" then
-        local tokens, names = {}, {}
-        for _, row in ipairs(rows) do
-            if row.status == "update-available" and row.brewManaged and row.cask then
-                table.insert(tokens, row.cask)
-                table.insert(names, row.appName)
-            end
-        end
-        if #tokens > 0 then
-            table.insert(choices, {
-                text         = "⬆️ Upgrade ALL " .. #tokens .. " brew-managed app(s) now",
-                subText      = table.concat(names, ", "),
-                isUpgradeAll = true,
-                tokens       = tokens,
-            })
-        end
-    end
-
-    for _, row in ipairs(rows) do
-        local haystack = (row.appName .. " " .. row.status):lower()
-        if q == "" or haystack:find(q, 1, true) then
-            local label    = updateStatusLabel[row.status] or row.status
-            local versions = (row.installed ~= "" or row.latest ~= "")
-                and (row.installed .. "  →  " .. row.latest) or "not checked yet"
-
-            local action, actionText = "copy", ""
-            if row.status == "update-available" and row.brewManaged and row.cask then
-                action, actionText = "brew", "  ·  Enter installs via Homebrew"
-            elseif (row.status == "update-available" or row.status == "no-cask") and row.url then
-                action, actionText = "url", "  ·  Enter opens the download page"
-            end
-
-            table.insert(choices, {
-                text      = row.appName,
-                subText   = label .. "  ·  " .. versions .. actionText,
-                appName   = row.appName,
-                installed = row.installed,
-                latest    = row.latest,
-                cask      = row.cask,
-                url       = row.url,
-                action    = action,
-            })
-        end
-    end
-    if #choices == 0 then
-        table.insert(choices, { text = "No matches for \"" .. q .. "\"", subText = "" })
-    end
-    _G.choosers.appUpdates:choices(choices)
-end
-
-_G.choosers.appUpdates:queryChangedCallback(function(query)
-    local ok, err = pcall(renderUpdateChoices, query)
-    if not ok then
-        print("🚨 App Update Tracker render error: " .. tostring(err))
-        _G.choosers.appUpdates:choices({
-            { text = "⚠️ Display error — details in Hammerspoon Console", subText = tostring(err) },
-        })
-    end
-end)
-
--- ⌃⌥⇧U — open the picker immediately with whatever's cached from the
--- last check, and always kicks off a fresh one in the background — same
--- pattern as the Asana Dashboard (§6), which re-fetches every time you
--- open it rather than showing yesterday's numbers. This also means a
--- config update (a fixed cask token, a corrected bundle path) shows up
--- on the very next press instead of waiting for the 9am timer or an
--- empty cache — 18 lightweight subprocess pairs is cheap for something
--- you trigger deliberately, not a background poll.
-hs.hotkey.bind(updateTrackerMods, updateTrackerKey, function()
-    renderUpdateChoices("")
-    showPopup(_G.choosers.appUpdates)
-    runUpdateCheck(function()
-        local q = ""
-        pcall(function() q = _G.choosers.appUpdates:query() or "" end)
-        renderUpdateChoices(q)
-    end)
-end)
-
--- Automatic daily check so results are already warm before you ever
--- press ⌃⌥⇧U — same on-a-clock pattern as the Activity Tracker's
--- reports (§3.6).
-if brewPath then
-    _G.updateTrackerTimer = hs.timer.doAt(updateTrackerCheckTime, "1d", function() runUpdateCheck() end)
-else
-    print("ℹ️ App Update Tracker: Homebrew not found on this Mac — feature disabled (see §3.10)")
-end
-
-end -- do...end (§3.10 App Update Tracker locals)
--- =====================================================================
 
 -- =====================================================================
 -- 3.12 HYPER KEY — Caps Lock IS ⌘⇧⌃⌥ (replaces Karabiner)
@@ -6163,507 +4971,6 @@ end)
 end -- do...end (⌃⌥⌘B team member picker locals)
 
 -- =====================================================================
--- X.1 DOCUMENT WATCHER — ⇪W list · ⇪⇧E edit · doc_wather.csv
--- =====================================================================
--- Records every document you actually work in, with how long you spent
--- in it, and gives you a searchable list.
---
--- SELF-CONTAINED BY DESIGN. Everything lives inside the immediately
--- invoked function below: its own state, its own file, its own timers,
--- its own pickers. It reads logsDir, showPopup, csvQuote and
--- _G.hyperAddShortcut from the rest of the config and touches nothing
--- else. Deleting this whole block leaves the rest of init.lua working.
---
--- ⚠️ THREE THINGS I COULD NOT BUILD AS ASKED — hs.chooser limits, not
---    preferences. Read these before judging the result:
---
---    1. SHIFT-CLICK MULTI-SELECT does not exist. hs.chooser is a
---       single-selection list; there is no API for a second selected
---       row, and no click handler that reports modifier keys. Instead
---       there is a SELECT MODE: Enter tags a row (✓), and a "Copy N
---       tagged" row copies them all at once. Same outcome, supported
---       API.
---    2. BARE "W" INSIDE THE WINDOW cannot be an edit command. The
---       keyboard belongs to the search field, so pressing W types a "w"
---       into your search. You asked for search AND bare-letter commands
---       in the same window; those are mutually exclusive. Editing is on
---       ⇪⇧E instead, and works while the list is open.
---    3. ⇪W was already the app-summon picker. That moved to ⇪⇧W.
---
--- HOW TIME IS MEASURED: the frontmost window is sampled every 5s. A
--- sample only counts if you are actually present (no keyboard/mouse for
--- 2 minutes stops the clock) and if the gap since the last sample is
--- sane. After sleep or a long stall the gap is discarded rather than
--- billed to whatever document happened to be open — that is the
--- "dump it if it is not accurate" rule.
-;(function()
-
-local docEnabled       = true
-local docFile          = logsDir .. "/doc_wather.csv"   -- spelling as requested
-local docPollSeconds   = 5      -- how often the frontmost window is sampled
-local docIdleCutoff    = 120    -- no input for this long = stop the clock
-local docSaveSeconds   = 60     -- how often the CSV is flushed
-local docMaxRows       = 500    -- rows shown in the picker at once
-
-if not docEnabled then return end
-
--- ---- state -----------------------------------------------------------
--- rows: { date=, time=, file=, secs= } — one per document per day.
-local docRows      = {}
-local docIndex     = {}     -- "date|file" -> row, so a sample is O(1)
-local docDirty     = false
-local docLastKey   = nil    -- which doc the previous sample saw
-local docLastStamp = nil    -- os.time() of the previous sample
-local docTagged    = {}     -- "date|file" -> true, in select mode
-local docSelectMode = false
-
-local function docKey(date, file) return date .. "|" .. file end
-
--- ---- time formatting -------------------------------------------------
-local function docFormatSecs(secs)
-    secs = math.max(0, math.floor(tonumber(secs) or 0))
-    return string.format("%d:%02d:%02d", secs // 3600, (secs % 3600) // 60, secs % 60)
-end
-
--- Strict on purpose: anything that is not exactly H:MM:SS is treated as
--- corrupt and the row is dropped rather than guessed at.
-local function docParseSecs(text)
-    local h, m, sec = tostring(text or ""):match("^(%d+):(%d%d):(%d%d)$")
-    if not h then return nil end
-    return tonumber(h) * 3600 + tonumber(m) * 60 + tonumber(sec)
-end
-
--- ---- CSV -------------------------------------------------------------
--- Minimal RFC-4180 field splitter: handles quoted fields containing
--- commas, which filenames genuinely do.
-local function docSplitCSV(line)
-    local out, field, inQuotes, i = {}, {}, false, 1
-    while i <= #line do
-        local c = line:sub(i, i)
-        if inQuotes then
-            if c == '"' then
-                if line:sub(i + 1, i + 1) == '"' then
-                    table.insert(field, '"'); i = i + 1
-                else
-                    inQuotes = false
-                end
-            else
-                table.insert(field, c)
-            end
-        elseif c == '"' then
-            inQuotes = true
-        elseif c == "," then
-            table.insert(out, table.concat(field)); field = {}
-        else
-            table.insert(field, c)
-        end
-        i = i + 1
-    end
-    table.insert(out, table.concat(field))
-    return out
-end
-
-local DOC_HEADER = "Date,Time of day,File name,Working time"
-
-local function docLoad()
-    docRows, docIndex = {}, {}
-    local f = io.open(docFile, "r")
-    if not f then return end
-    local content = f:read("*a"); f:close()
-    local dropped, first = 0, true
-    for line in content:gmatch("[^\r\n]+") do
-        if first then
-            first = false
-            if line:sub(1, 4):lower() == "date" then goto continue end
-        end
-        do
-            local c = docSplitCSV(line)
-            local date, time, file, worked = c[1], c[2], c[3], c[4]
-            local secs = docParseSecs(worked)
-            -- Every field must be present and well formed, or the row is
-            -- discarded. A half-written row from a crash is worse than a
-            -- missing one, because it would silently skew the totals.
-            if date and date:match("^%d%d%d%d%-%d%d%-%d%d$")
-               and time and time:match("^%d%d:%d%d$")
-               and file and file:match("%S") and secs then
-                local row = { date = date, time = time, file = file, secs = secs }
-                table.insert(docRows, row)
-                docIndex[docKey(date, file)] = row
-            else
-                dropped = dropped + 1
-            end
-        end
-        ::continue::
-    end
-    if dropped > 0 then
-        print("📄 Document Watcher: dropped " .. dropped
-            .. " malformed row(s) from doc_wather.csv rather than trust them")
-    end
-end
-
-local function docSave()
-    if not docDirty then return end
-    local f = io.open(docFile, "w")
-    if not f then
-        print("🚨 Document Watcher: cannot write " .. docFile)
-        return
-    end
-    f:write(DOC_HEADER .. "\n")
-    for _, r in ipairs(docRows) do
-        f:write(r.date .. "," .. r.time .. "," .. csvQuote(r.file)
-            .. "," .. docFormatSecs(r.secs) .. "\n")
-    end
-    f:close()
-    docDirty = false
-end
-
--- ---- what counts as a document --------------------------------------
--- Window titles look like "Report.docx — Word", "notes.md - Sublime",
--- "Untitled.txt — Edited". Take the part before the separator and insist
--- it looks like a real filename. Anything else is dumped: a wrong entry
--- is worse than a missing one in a log you are going to trust.
-local docTitleSeparators = { " — ", " – ", " - ", " — " }
-
-local function docExtractFileName(title, appName)
-    if type(title) ~= "string" then return nil end
-    local head = title
-    for _, sep in ipairs(docTitleSeparators) do
-        local cut = head:find(sep, 1, true)
-        if cut then head = head:sub(1, cut - 1) end
-    end
-    head = head:gsub("^%s+", ""):gsub("%s+$", "")
-    if head == "" then return nil end
-    if appName and head == appName then return nil end
-    -- Must end in a plausible extension.
-    local base, ext = head:match("^(.+)%.([%a%d]+)$")
-    if not base or not ext then return nil end
-    if #ext < 1 or #ext > 6 then return nil end
-    if base:match("^%s*$") then return nil end
-    return head
-end
-
-_G.docExtractFileNameForTest = docExtractFileName
-_G.docParseSecsForTest       = docParseSecs
-_G.docFormatSecsForTest      = docFormatSecs
-_G.docRowsForTest            = function() return docRows end
-_G.docSaveForTest            = function() docDirty = true; docSave() end
-_G.docFileForTest            = docFile
-_G.docLoadForTest            = function() docLoad() end
-_G.docResetSamplerForTest    = function() docLastKey, docLastStamp = nil, nil end
-
--- ---- the sampler -----------------------------------------------------
-local function docSample()
-    local now = os.time()
-
-    -- Away from the keyboard? Stop the clock and forget where we were,
-    -- so the idle gap is never billed to the document.
-    local okIdle, idle = pcall(hs.host.idleTime)
-    if okIdle and type(idle) == "number" and idle > docIdleCutoff then
-        docLastKey, docLastStamp = nil, nil
-        return
-    end
-
-    local okApp, app = pcall(hs.application.frontmostApplication)
-    if not okApp or not app then docLastKey, docLastStamp = nil, nil; return end
-    local okName, appName = pcall(function() return app:name() end)
-    if not okName then appName = nil end
-
-    local okWin, win = pcall(function() return app:focusedWindow() or app:mainWindow() end)
-    if not okWin or not win then docLastKey, docLastStamp = nil, nil; return end
-    local okTitle, title = pcall(function() return win:title() end)
-    if not okTitle then docLastKey, docLastStamp = nil, nil; return end
-
-    local file = docExtractFileName(title, appName)
-    if not file then docLastKey, docLastStamp = nil, nil; return end
-
-    local date = os.date("%Y-%m-%d", now)
-    local key  = docKey(date, file)
-
-    -- Bill the elapsed time only when this is the SAME document as last
-    -- sample and the gap is sane. After sleep, a long stall, or a date
-    -- rollover the gap is discarded — see the "dump it" rule above.
-    if docLastKey == key and docLastStamp then
-        local delta = now - docLastStamp
-        if delta > 0 and delta <= docPollSeconds * 3 then
-            local row = docIndex[key]
-            if not row then
-                row = { date = date, time = os.date("%H:%M", now), file = file, secs = 0 }
-                table.insert(docRows, row)
-                docIndex[key] = row
-            end
-            row.secs = row.secs + delta
-            docDirty = true
-        end
-    else
-        -- First sighting today: create the row with a 0 time so it shows
-        -- up in the list (and the tally) straight away.
-        if not docIndex[key] then
-            local row = { date = date, time = os.date("%H:%M", now), file = file, secs = 0 }
-            table.insert(docRows, row)
-            docIndex[key] = row
-            docDirty = true
-        end
-    end
-
-    docLastKey, docLastStamp = key, now
-end
-
-_G.docSampleForTest = docSample
-
--- ---- the list (⇪W) ---------------------------------------------------
-local function docTodayTally()
-    -- os.date() with no time argument reads the WALL CLOCK, while every
-    -- row is stamped from os.time(). Those are the same thing on a real
-    -- Mac right up until they aren't — across midnight, or under a test
-    -- clock — and then "documents today" silently reports zero. Same
-    -- source for both, always.
-    local today, count, secs = os.date("%Y-%m-%d", os.time()), 0, 0
-    for _, r in ipairs(docRows) do
-        if r.date == today then count = count + 1; secs = secs + r.secs end
-    end
-    return count, secs
-end
-
-local function docCountTagged()
-    local n = 0
-    for _ in pairs(docTagged) do n = n + 1 end
-    return n
-end
-
-local function docRowText(r)
-    return r.file .. "   ·   " .. docFormatSecs(r.secs)
-end
-
-local function docCopyRows(rows)
-    local lines = {}
-    for _, r in ipairs(rows) do
-        table.insert(lines, r.date .. "  " .. r.time .. "  " .. r.file
-            .. "  " .. docFormatSecs(r.secs))
-    end
-    if #lines == 0 then return 0 end
-    hs.pasteboard.setContents(table.concat(lines, "\n"))
-    return #lines
-end
-
-local function docRenderList(query)
-    local q = tostring(query or ""):lower():match("^%s*(.-)%s*$")
-    local choices = {}
-    local count, secs = docTodayTally()
-
-    -- The running tally, always the first row.
-    table.insert(choices, {
-        text    = "📊 " .. count .. " document" .. ((count == 1) and "" or "s")
-                  .. " today   ·   " .. docFormatSecs(secs) .. " worked",
-        subText = "Type to search by name, extension or date",
-        action  = "noop",
-    })
-
-    if docSelectMode then
-        local picked = docCountTagged()
-        table.insert(choices, {
-            text    = (picked == 0) and "📋 Nothing picked yet"
-                      or ("📋 Copy the " .. picked .. " document"
-                          .. ((picked == 1) and "" or "s") .. " I picked"),
-            subText = (picked == 0)
-                      and "Go down the list and press Enter on the ones you want"
-                      or "Press Enter HERE when you have picked them all",
-            action  = "copytagged",
-        })
-        table.insert(choices, {
-            text = "✖️ Never mind — go back",
-            subText = "Forget the picks and return to the normal list",
-            action = "selectoff",
-        })
-    else
-        table.insert(choices, {
-            text    = "☑️ Copy several at once…",
-            subText = "Pick rows one at a time, then copy them together",
-            action  = "selecton",
-        })
-    end
-
-    -- Newest first: same date order as the file, reversed.
-    local shown = 0
-    for i = #docRows, 1, -1 do
-        local r = docRows[i]
-        local hay = (r.file .. " " .. r.date .. " " .. r.time):lower()
-        if q == "" or hay:find(q, 1, true) then
-            local isPicked = docTagged[docKey(r.date, r.file)]
-            local hint
-            if not docSelectMode then
-                hint = "Enter copies this one"
-            elseif isPicked then
-                hint = "PICKED — Enter removes it from the copy list"
-            else
-                hint = "Enter adds this to the copy list"
-            end
-            table.insert(choices, {
-                text    = (isPicked and "✓ " or "") .. docRowText(r),
-                subText = r.date .. "  " .. r.time .. "   ·   " .. hint,
-                action  = "row", key = docKey(r.date, r.file),
-            })
-            shown = shown + 1
-            if shown >= docMaxRows then break end
-        end
-    end
-
-    if shown == 0 then
-        table.insert(choices, {
-            text    = (q == "") and "No documents recorded yet"
-                      or ("No matches for \"" .. q .. "\""),
-            subText = "Documents appear once you have worked in one for a few seconds",
-            action  = "noop",
-        })
-    end
-
-    _G.choosers.docWatcher:choices(choices)
-end
-
-_G.docRenderListForTest = function(q)
-    docRenderList(q)
-    return _G.choosers.docWatcher.lastChoices
-end
-_G.docSelectModeForTest = function(on) docSelectMode = on and true or false end
-_G.docTaggedForTest     = function() return docTagged end
-
-local function docFindRow(key)
-    for _, r in ipairs(docRows) do
-        if docKey(r.date, r.file) == key then return r end
-    end
-    return nil
-end
-
-_G.choosers.docWatcher = hs.chooser.new(function(c)
-    if not c or not c.action or c.action == "noop" then return end
-
-    if c.action == "selecton" then
-        docSelectMode, docTagged = true, {}
-        docRenderList(""); _G.choosers.docWatcher:query("")
-        showPopup(_G.choosers.docWatcher)
-
-    elseif c.action == "selectoff" then
-        docSelectMode, docTagged = false, {}
-        docRenderList(""); _G.choosers.docWatcher:query("")
-        showPopup(_G.choosers.docWatcher)
-
-    elseif c.action == "copytagged" then
-        local rows = {}
-        for _, r in ipairs(docRows) do
-            if docTagged[docKey(r.date, r.file)] then table.insert(rows, r) end
-        end
-        local n = docCopyRows(rows)
-        hs.alert.show((n > 0)
-            and ("📋 Copied " .. n .. " document" .. ((n == 1) and "" or "s"))
-            or "Nothing picked — press Enter on the rows you want first")
-
-    elseif c.action == "row" then
-        local row = docFindRow(c.key)
-        if not row then return end
-        if docSelectMode then
-            -- Tag / untag, then reopen so the ✓ and the count update.
-            if docTagged[c.key] then docTagged[c.key] = nil else docTagged[c.key] = true end
-            docRenderList(""); _G.choosers.docWatcher:query("")
-            showPopup(_G.choosers.docWatcher)
-        else
-            docCopyRows({ row })
-            hs.alert.show("📋 Copied " .. row.file)
-        end
-    end
-end)
-_G.choosers.docWatcher:placeholderText("Documents worked on — search by name, extension or date")
-_G.choosers.docWatcher:queryChangedCallback(function(query)
-    local ok, err = pcall(docRenderList, query)
-    if not ok then
-        print("🚨 Document Watcher render error: " .. tostring(err))
-        _G.choosers.docWatcher:choices({
-            { text = "⚠️ Display error — see Hammerspoon Console", subText = tostring(err) },
-        })
-    end
-end)
-
--- ---- edit / delete (⇪⇧E) --------------------------------------------
-local function docRenderEdit(query)
-    local q = tostring(query or ""):lower():match("^%s*(.-)%s*$")
-    local choices = {}
-    local shown = 0
-    for i = #docRows, 1, -1 do
-        local r = docRows[i]
-        local hay = (r.file .. " " .. r.date):lower()
-        if q == "" or hay:find(q, 1, true) then
-            table.insert(choices, {
-                text    = "✏️ " .. docRowText(r),
-                subText = r.date .. "  " .. r.time .. "  ·  Enter to rename or delete",
-                action  = "edit", key = docKey(r.date, r.file),
-            })
-            shown = shown + 1
-            if shown >= docMaxRows then break end
-        end
-    end
-    if shown == 0 then
-        table.insert(choices, { text = "Nothing to edit", subText = "No matching rows" })
-    end
-    _G.choosers.docWatcherEdit:choices(choices)
-end
-
-_G.choosers.docWatcherEdit = hs.chooser.new(function(c)
-    if not c or c.action ~= "edit" then return end
-    local row = docFindRow(c.key)
-    if not row then return end
-    local button, text = hs.dialog.textPrompt(
-        "Edit document entry",
-        "File name for this entry.\nClear the field and press OK to DELETE the row.\n\n"
-            .. row.date .. "  " .. row.time .. "  ·  " .. docFormatSecs(row.secs),
-        row.file, "OK", "Cancel")
-    if button ~= "OK" then return end
-    text = tostring(text or ""):gsub("^%s+", ""):gsub("%s+$", "")
-    if text == "" then
-        for i, r in ipairs(docRows) do
-            if r == row then table.remove(docRows, i); break end
-        end
-        docIndex[docKey(row.date, row.file)] = nil
-        docDirty = true; docSave()
-        hs.alert.show("🗑 Deleted " .. row.file)
-    elseif text ~= row.file then
-        docIndex[docKey(row.date, row.file)] = nil
-        row.file = text
-        docIndex[docKey(row.date, row.file)] = row
-        docDirty = true; docSave()
-        hs.alert.show("✏️ Renamed to " .. text)
-    end
-end)
-_G.choosers.docWatcherEdit:placeholderText("Edit or delete a document entry")
-_G.choosers.docWatcherEdit:queryChangedCallback(function(query)
-    pcall(docRenderEdit, query)
-end)
-
--- ---- wiring ----------------------------------------------------------
-docLoad()
-
-_G.hyperAddShortcut({"shift"}, "w", function()
-    docSelectMode, docTagged = false, {}
-    docRenderList("")
-    _G.choosers.docWatcher:query("")
-    showPopup(_G.choosers.docWatcher)
-end, "document watcher")
-
-_G.hyperAddShortcut({"shift"}, "e", function()
-    docRenderEdit("")
-    _G.choosers.docWatcherEdit:query("")
-    showPopup(_G.choosers.docWatcherEdit)
-end, "document watcher edit")
-
--- Held in _G. so the garbage collector cannot quietly cancel them —
--- the same trap that silently killed the App Monitor's timers in 6.16.
-_G.docWatcherTimer = hs.timer.doEvery(docPollSeconds, function() pcall(docSample) end)
-_G.docWatcherSaveTimer = hs.timer.doEvery(docSaveSeconds, function() pcall(docSave) end)
-
-end)()
-
--- // EXPERIMENTAL SECTION END                //
--- /////////////////////////////////////////////
--- ////////////////////////////////////////////
-
--- =====================================================================
 -- 7. BOOTSTRAP — portability report + ready alert
 -- =====================================================================
 -- Console report: on a new Mac, this is the first thing to check —
@@ -6676,21 +4983,84 @@ end)()
 -- theirs. Pure table work and hotkey registration: no I/O, no app
 -- enumeration, nothing that could stall the main thread at boot.
 -- =====================================================================
+-- 1.4 SHARED TEXT & CSV HELPERS
+-- =====================================================================
+-- 6.40.0 — these two lived inside §3.6 Activity Tracker, which has now
+-- moved into a module. Four other features (File Tracker, Update
+-- Tracker, Document Watcher) and the changelog writer at the bottom of
+-- this file all borrow them, so leaving them inside a module would have
+-- meant everything depending on that module loading first — the exact
+-- coupling this migration exists to remove. They live here, and reach
+-- modules through `core`.
+--
+-- ⚠️ THIS WAS CAUGHT BY A FAILING EXTRACTION, NOT BY REVIEW: removing
+-- §3.6 silently deleted the only definitions of both, and Lua turns a
+-- vanished local into a GLOBAL lookup — so the file still COMPILED and
+-- would have crashed at boot the moment the changelog writer ran.
+-- Wraps a text field for CSV: quotes it, doubles any internal quotes,
+-- and collapses stray newlines to a space (window titles are normally
+-- single-line, this is just defensive).
+local function csvQuote(value)
+    local s = tostring(value or "")
+    s = s:gsub('[\r\n]+', ' ')
+    s = s:gsub('"', '""')
+    return '"' .. s .. '"'
+end
+
+-- Splits one CSV line into fields, honoring double-quoted fields with
+-- "" as an escaped quote inside them — needed because app/window
+-- titles routinely contain commas (e.g. a browser tab title).
+local function splitCSVLine(line)
+    local fields, i, n = {}, 1, #line
+    while i <= n do
+        if line:sub(i, i) == '"' then
+            local j, buf = i + 1, {}
+            while j <= n do
+                local c = line:sub(j, j)
+                if c == '"' then
+                    if line:sub(j + 1, j + 1) == '"' then
+                        table.insert(buf, '"')
+                        j = j + 2
+                    else
+                        j = j + 1
+                        break
+                    end
+                else
+                    table.insert(buf, c)
+                    j = j + 1
+                end
+            end
+            table.insert(fields, table.concat(buf))
+            if line:sub(j, j) == ',' then j = j + 1 end
+            i = j
+        else
+            local commaPos = line:find(',', i, true)
+            if commaPos then
+                table.insert(fields, line:sub(i, commaPos - 1))
+                i = commaPos + 1
+            else
+                table.insert(fields, line:sub(i))
+                i = n + 1
+            end
+        end
+    end
+    return fields
+end
+
+-- =====================================================================
 -- 1.12 MODULE LOADER — sections live in their own files from here on
 -- =====================================================================
--- 6.36.0 — THE START OF BREAKING THIS FILE UP. A section that has been
--- moved out lives in ~/.hammerspoon/modules/<name>.lua and is listed in
--- moduleList below. Everything not yet moved still lives in this file
--- and works exactly as before; the two styles coexist deliberately, so
--- the move can happen a few sections at a time instead of as one
--- all-or-nothing rewrite.
+-- A section that has been moved out lives in ~/.hammerspoon/modules/
+-- <name>.lua and is named in a MACHINE PROFILE below. Everything not yet
+-- moved still lives in this file and works exactly as before; the two
+-- styles coexist deliberately, so the move happens a few sections at a
+-- time rather than as one all-or-nothing rewrite.
 --
 -- WHY THIS MATTERS MORE THAN TIDINESS: Lua's limit of 200 locals is PER
 -- CHUNK, and a file is a chunk. This file was measured at exactly 200
 -- with ZERO headroom in 6.35.0 — the next top-level `local` added
--- anywhere would have been a compile error taking the WHOLE config
--- down. Every module file gets its own fresh 200. That constraint stops
--- existing the moment a section moves out.
+-- anywhere would have been a compile error taking the WHOLE config down.
+-- Every module file gets its own fresh 200.
 --
 -- ⚠️ MODULES LOAD FROM LOCAL DISK, NOT FROM ONEDRIVE — DELIBERATELY.
 -- Loading them straight from the cloud folder would be one fewer copy
@@ -6702,37 +5072,114 @@ end)()
 -- master copies live in OneDrive for durability and for copying to
 -- another Mac; the loader only ever reads local disk.
 --
--- To put these on another Mac (your work MacBook), copy the folder:
---   rsync -av "$ONEDRIVE/Logs/ToolConfig/hammerspoon/modules/" \
---             ~/.hammerspoon/modules/
--- The existing 5pm backup (§1.7) already rsyncs ~/.hammerspoon, so
--- modules/ is covered by it automatically — no extra step to remember.
+-- ---------------------------------------------------------------------
+-- THE MODULE CONTRACT, in full:
 --
--- WHAT A MODULE LOOKS LIKE — the whole contract:
 --   return {
---     name  = "App Peek",              -- shown in the boot report
---     order = 7,                       -- its slot in the cheat sheet
---     cheatsheet = {                   -- travels WITH the module
+--     name  = "App Peek",            -- shown in the boot report
+--     order = 7,                     -- its slot in the cheat sheet
+--     cheatsheet = {                 -- travels WITH the module
 --       title = "👀 APP PEEK",
 --       entries = { { "⇪P", "Hide the frontmost app" } },
 --     },
---     setup = function(core) ... end,  -- binds keys, starts watchers
+--     config = someTable,            -- OPTIONAL: settings a machine
+--                                    -- profile may override
+--     setup = function(core) ... end,-- REQUIRED: binds keys, cheap work
 --   }
--- setup() receives `core`: the shared services this file publishes
--- (paths, popup positioning, screen resolution, CSV helpers, Asana
--- credentials, diagnostics). A module never reaches into this file's
--- locals, which is exactly what makes it movable.
 --
--- FAILURE IS ISOLATED, WHICH IS THE OTHER HALF OF THE POINT. Every
--- module is loaded, executed and set up inside its own pcall. A syntax
--- error in one module costs you that module — not your hotkeys, not
--- autocorrect, not the whole config. Before this, one bad line anywhere
--- meant NOTHING loaded. Failures are named in the Console, counted in
--- the boot report, listed in ⇪⇧D, and shown as a ⚠️ group at the top of
--- the cheat sheet so a missing feature is never a silent mystery.
+-- setup() may also assign M.warm = function(core) ... end before it
+-- returns. See the two-phase note below.
+-- ---------------------------------------------------------------------
+--
+-- ⏱ TWO PHASES: setup() THEN warm(). 6.40.0.
+-- setup() runs during boot and must stay CHEAP — bind hotkeys, create
+-- objects, nothing that touches a big file. Anything expensive goes in
+-- warm(), which the loader runs a couple of seconds AFTER boot on a
+-- stored timer. Autocorrect is the case that motivated it: parsing an
+-- 11,000-row CSV was happening on the boot path, and a hotkey you cannot
+-- press yet because the Mac is still starting is worth nothing. Now the
+-- keys bind instantly and the dictionary arrives a moment later. The
+-- Console and ⇪⇧D both show warm timings separately from setup timings,
+-- so you can see exactly where the time goes.
+--
+-- FAILURE IS ISOLATED, which is the other half of the point. Every
+-- module is loaded, executed, set up AND warmed inside its own pcall. A
+-- syntax error in one module costs you that module — not your hotkeys,
+-- not autocorrect, not the whole config. Before this, one bad line
+-- anywhere meant NOTHING loaded. Failures are named in the Console,
+-- counted in the boot report, listed in ⇪⇧D, and shown as a ⚠️ group at
+-- the top of the cheat sheet so a missing feature is never a mystery.
 _G.moduleDir         = hs.configdir .. "/modules"
 _G.moduleStatus      = {}    -- one record per module, for the report
 _G.moduleCheatsheets = {}    -- groups contributed by loaded modules
+_G.moduleWarmTimers  = {}    -- HELD: an unreferenced hs.timer is collected
+
+-- =====================================================================
+-- ✏️ MACHINE PROFILES — WHICH MODULES RUN ON WHICH MAC
+-- =====================================================================
+-- The same init.lua and the same modules/ folder go on every Mac you
+-- own; this table is the only thing that differs between them, and it
+-- lives in the file rather than in per-machine edits so the two Macs
+-- can never drift apart silently.
+--
+-- Keyed by the machine's ComputerName, which §0.1 already resolved into
+-- hostTag — the same name that tags your log files. An unknown machine
+-- (a new Mac, or one whose name changed) falls back to `default` and
+-- says so in the boot report rather than loading nothing.
+--
+-- `modules`  = which module files to load, in load order.
+-- `settings` = per-module overrides applied to that module's `config`
+--              table after setup. Anything the module exposes there can
+--              differ per machine without touching the module file.
+_G.moduleProfiles = {
+    -- ---- personal Mac: everything on -------------------------------
+    ["Lees-MacBook-Air"] = {
+        modules = {
+            "daily_backup", "app_peek", "window_switcher", "window_arranger",
+            "copy_on_select", "command_history", "app_watcher", "file_tracker",
+            "autocorrect", "activity_tracker", "update_tracker",
+            "asana_comments", "document_watcher",
+        },
+    },
+
+    -- ---- work Mac -------------------------------------------------
+    -- ✏️ PUT YOUR WORK MACHINE'S NAME HERE. Find it by running
+    --      scutil --get ComputerName
+    -- on that Mac, or just read the 🧭 PORTABILITY REPORT line at the
+    -- top of its Hammerspoon Console — it prints the same name.
+    -- Until you do, the work Mac uses `default` below, which loads
+    -- everything; nothing breaks either way.
+    ["Lees-Work-MacBook"] = {
+        modules = {
+            "daily_backup", "app_peek", "window_switcher", "window_arranger",
+            "copy_on_select", "command_history", "app_watcher", "file_tracker",
+            "autocorrect", "activity_tracker", "update_tracker",
+            "asana_comments", "document_watcher",
+        },
+        settings = {
+            -- Examples — delete or edit freely. These are exactly the
+            -- knobs a work Mac tends to want different:
+            window_switcher = {
+                -- A work Mac with a lot of corporate agents running can
+                -- make the cross-Space sweep slower; lower the cap or
+                -- turn Spaces off here rather than editing the module.
+                maxWindows = 24,
+            },
+        },
+    },
+
+    -- ---- any other Mac --------------------------------------------
+    default = {
+        modules = {
+            "daily_backup", "app_peek", "window_switcher", "window_arranger",
+            "copy_on_select", "command_history", "app_watcher", "file_tracker",
+            "autocorrect", "activity_tracker", "update_tracker",
+            "asana_comments", "document_watcher",
+        },
+    },
+}
+
+_G.moduleWarmDelay = 2.0   -- seconds after boot before warm() runs
 
 -- The shared surface. This is the ONLY thing modules may depend on, and
 -- keeping it explicit is what stops the coupling growing back: anything
@@ -6747,24 +5194,22 @@ local core = {
     warnWriteFailed = warnWriteFailed,
     adoptLegacyFile = adoptLegacyFile,
     csvQuote        = csvQuote,
-    -- 6.38.0: splitCSVLine was declared inside §3.6 but used by three
-    -- other sections. It was always a shared helper in the wrong place;
-    -- moving it here is what let File Tracker and Autocorrect leave.
     splitCSVLine    = splitCSVLine,
+    formatDuration  = formatDuration,
     -- popups & screens (§1.5)
     popupKeys        = popupScreenKeys,
     popupMods        = popupScreenKeys.mods,
     showPopup        = showPopup,
     resolveBaseScreen = resolveBaseScreen,
     panelAlpha       = panelAlpha,
+    -- hyper keyspace (§3.12) — the supported way for a module to claim a
+    -- ⇪ shortcut. Wrapped rather than captured, so it resolves at call
+    -- time and this table stays honest if §3.12 ever moves.
+    hyperAddShortcut = function(...) return _G.hyperAddShortcut(...) end,
     -- credentials (§0.2) — nil when secret.lua is absent, by design
     asanaEnabled     = asanaEnabled,
     asanaToken       = asanaToken,
     asanaWorkspaceId = asanaWorkspaceId,
-    -- hyper keyspace (§3.12) — the supported way for a module to claim
-    -- a ⇪ shortcut. Wrapped rather than captured, so it resolves at call
-    -- time and this table stays honest if §3.12 ever moves.
-    hyperAddShortcut = function(...) return _G.hyperAddShortcut(...) end,
     -- diagnostics (§1.11)
     diag     = _G.diag,
     safeJson = _G.safeJson,
@@ -6773,7 +5218,7 @@ _G.core = core   -- so a module author can inspect it from the Console
 
 -- Load one module. Returns a status record; never throws, whatever the
 -- module does.
-local function loadOneModule(name)
+local function loadOneModule(name, settings)
     local path = _G.moduleDir .. "/" .. name .. ".lua"
     local rec  = { name = name, path = path, ok = false, ms = 0 }
     local t0   = hs.timer.secondsSinceEpoch()
@@ -6798,7 +5243,9 @@ local function loadOneModule(name)
     end
     -- Validate the contract before trusting it: a module that returns
     -- nothing (a forgotten `return M`) would otherwise fail later, in a
-    -- place with no obvious connection to the real mistake.
+    -- place with no obvious connection to the real mistake. This check
+    -- has already earned its keep once — it caught a do...end block
+    -- split across the new function boundary in 6.37.0.
     if type(mod) ~= "table" or type(mod.setup) ~= "function" then
         rec.err = "does not return a table with a setup() function"
         rec.ms  = (hs.timer.secondsSinceEpoch() - t0) * 1000
@@ -6810,6 +5257,20 @@ local function loadOneModule(name)
     if not okSetup then
         rec.err = "setup() failed — " .. tostring(setupErr)
         return rec
+    end
+
+    -- Machine-profile overrides, applied AFTER setup so the module's own
+    -- defaults exist to be overridden.
+    if settings and type(mod.config) == "table" then
+        local applied = {}
+        for k, v in pairs(settings) do
+            mod.config[k] = v
+            table.insert(applied, k)
+        end
+        if #applied > 0 then
+            rec.overrides = table.concat(applied, ", ")
+            _G.diag.say("module", name .. " profile overrides: " .. rec.overrides)
+        end
     end
 
     rec.ok      = true
@@ -6827,18 +5288,45 @@ local function loadOneModule(name)
     return rec
 end
 
+-- Phase two. Scheduled, never inline: the whole point is that this work
+-- is NOT on the boot path.
+local function scheduleWarm(rec)
+    local mod = rec.module
+    if not (mod and type(mod.warm) == "function") then return end
+    local delay = mod.warmAfter or _G.moduleWarmDelay
+    local timer = hs.timer.doAfter(delay, function()
+        local t0 = hs.timer.secondsSinceEpoch()
+        local ok, err = pcall(mod.warm, core)
+        rec.warmMs = (hs.timer.secondsSinceEpoch() - t0) * 1000
+        if ok then
+            rec.warmed = true
+            _G.diag.say("module", string.format("%s warmed in %.0fms", rec.name, rec.warmMs))
+        else
+            rec.warmed = false
+            rec.warmErr = tostring(err)
+            print("🧩 MODULE WARM-UP FAILED — " .. rec.name .. ": " .. rec.warmErr)
+            _G.diag.warn("module", rec.name .. " warm() — " .. rec.warmErr)
+        end
+    end)
+    -- HELD. An unreferenced hs.timer is garbage-collected and silently
+    -- never fires — that is exactly how 6.33.0 lost its warm-up.
+    table.insert(_G.moduleWarmTimers, timer)
+    rec.warmPending = true
+end
+
 -- Load every module in the given order. Order is EXPLICIT rather than a
--- directory scan: boot behaviour should not depend on how the
--- filesystem happens to sort names, and a stray file dropped in the
--- folder must never execute itself.
-function _G.loadModules(list)
+-- directory scan: boot behaviour should not depend on how the filesystem
+-- happens to sort names, and a stray file dropped in the folder must
+-- never execute itself.
+function _G.loadModules(list, settingsByModule)
     local loaded, failed = 0, 0
     for _, name in ipairs(list) do
-        local rec = loadOneModule(name)
+        local rec = loadOneModule(name, settingsByModule and settingsByModule[name])
         table.insert(_G.moduleStatus, rec)
         if rec.ok then
             loaded = loaded + 1
             _G.diag.say("module", string.format("%s loaded in %.0fms", rec.name, rec.ms))
+            scheduleWarm(rec)
         else
             failed = failed + 1
             print("🧩 MODULE FAILED — " .. rec.name .. ": " .. tostring(rec.err))
@@ -6850,21 +5338,12 @@ function _G.loadModules(list)
     return loaded, failed
 end
 
--- ✏️ THE MODULE LIST — add a filename here when you move a section out.
--- Order is load order; the cheat sheet position comes from each
--- module's own `order` field, not from this list.
-_G.loadModules({
-    "daily_backup",      -- was §1.7
-    "app_peek",          -- was §1.8
-    "window_switcher",   -- was §1.10
-    "window_arranger",   -- was §1.9
-    "copy_on_select",    -- was §3.11
-    "command_history",   -- was §6.5
-    "app_watcher",       -- was §3.7
-    "file_tracker",      -- was §3.8
-    "autocorrect",       -- was §3.9
-})
-
+-- Pick this machine's profile and run it.
+_G.moduleProfileName = _G.moduleProfiles[hostTag] and hostTag or "default"
+do
+    local profile = _G.moduleProfiles[_G.moduleProfileName]
+    _G.loadModules(profile.modules, profile.settings)
+end
 
 if _G.hyperFinalize then _G.hyperFinalize() end
 if _G.diag then _G.diag.mark("§3.12 hyper wired") end
@@ -6877,9 +5356,9 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.39.0"
+    local currentVersion = "6.40.0"
     local currentDate    = "08-05-26"
-    local currentNotes   = "FIX: option+Tab only listed windows on the CURRENT desktop. hs.window.orderedWindows and hs.window.allWindows report only the current Mission Control Space — a documented macOS limit, not a Hammerspoon bug — and Hammerspoon own documented answer is hs.window.filter, the module that froze this Mac for 44 seconds in 6.33.0. Third route taken instead: ask each APPLICATION for its windows, because the Accessibility API has no concept of a Space and hands over an apps windows wherever they live. Only GUI apps are asked (kind 1), which skips the background and menu-bar agents whose AX timeouts made window.filter unusable. Current Space is listed first in front-to-back order, then everything else is appended, deduplicated by window id. Minimised windows are now included by default, and running apps with NO open window get a tile that activates the app so every open program is reachable. Cap raised to 36. Bug caught by the tests during the change: an app whose windows were all already listed by the current-Space pass looked like it owned none and got a second bogus no-open-window tile; ownership is now derived from the assembled entries. Also restored: a failed enumeration phase prints again instead of failing silently, and a failure on the current Space now degrades to the per-app list rather than to nothing."
+    local currentNotes   = "FEATURE MODULARISATION COMPLETE plus machine profiles and a deferred warm-up phase. Four more sections moved out (Activity Tracker, App Update Tracker, Asana Comments, Document Watcher): 13 modules, init.lua down from 9529 lines at 6.35.0 to 5377 — 44 percent smaller. MACHINE PROFILES: section 1.12 now keys module lists and per-module setting overrides by machine name, so the same init.lua and modules folder run on the personal and work Macs with only that table differing; an unknown Mac falls back to default and says so in the boot report. PERFORMANCE: modules may define warm(), run about 2 seconds AFTER boot on a held timer, for work that does not belong on the startup path. Autocorrect uses it: the event tap starts immediately, the 11000-row dictionary loads afterwards, so the single most expensive boot operation left the boot path. Setup and warm timings are reported separately in hyper+shift+D. Two extraction bugs caught by tests: removing section 3.6 silently deleted the only definitions of csvQuote and splitCSVLine, which Lua turns into global lookups so the file still COMPILED and would have crashed at boot in the changelog writer — both are now promoted into a new section 1.4; and a do-block anchor matched the letters do inside a comment word, mangling a module. Also added: HAMMERSPOON-GUIDE.md documenting the whole design."
 
     -- Only append if this version isn't already in the file
     local found = false
@@ -6957,7 +5436,8 @@ print("   Hotkeys:  " .. _G.hotkeyBoundCount .. " global bound, "
 print(string.format("   Boot:     %.2fs to here  ·  ⇪⇧D writes a diagnostic report",
     hs.timer.secondsSinceEpoch() - (_G.diagBootStart or hs.timer.secondsSinceEpoch())))
 print("   Modules:  " .. tostring(_G.moduleLoaded or 0) .. " loaded, "
-    .. tostring(_G.moduleFailed or 0) .. " failed → " .. tostring(_G.moduleDir))
+    .. tostring(_G.moduleFailed or 0) .. " failed  ·  profile: " .. tostring(_G.moduleProfileName)
+    .. "  ·  " .. tostring(_G.moduleDir))
 print("   Hyper:    " .. tostring(_G.hyperShortcutCount or 0)
     .. " shortcuts on ⇪ (Caps Lock) + "
     .. tostring(_G.hyperForwardCount or 0) .. " keys forwarding ⌘⇧⌃⌥, "
