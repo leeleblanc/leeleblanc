@@ -232,8 +232,14 @@ check("NO DANGLING CALLS: init.lua never calls a function that moved into a modu
       for n in body:gmatch("local%s+function%s+([%w_]+)") do inModule[n] = m end
     end
     for line in only:gmatch("[^\n]+") do
-      if not line:match("^%s*%-%-") then
-        for n in line:gmatch("[%s,(=]([%l][%w_]+)%s*%(") do
+      -- Strip string literals before scanning. The changelog notes in
+      -- this file NAME the functions that moved, and prose inside a
+      -- string is not a call — an earlier version of this guard flagged
+      -- its own changelog entry, which is the same false-positive shape
+      -- as matching a module name inside a comment.
+      local code = line:gsub('"[^"]*"', '""')
+      if not code:match("^%s*%-%-") then
+        for n in code:gmatch("[%s,(=]([%l][%w_]+)%s*%(") do
           if inModule[n] and not defined[n] then
             return false
           end
