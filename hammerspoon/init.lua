@@ -4,9 +4,32 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.36.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.37.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.37.0 — THREE MORE SECTIONS MOVED OUT:
+--   🧩 Window Arranger (§1.9), Copy-on-Select (§3.11) and Command
+--      History (§6.5) are now modules. Six in total; this file is down
+--      from 9,529 lines at 6.35.0 to 7,947.
+--   🔑 core.hyperAddShortcut — the supported way for a module to claim a
+--      ⇪ key. Wrapped rather than captured so it resolves at CALL time,
+--      which keeps the core table honest if §3.12 ever moves. Command
+--      History uses it, and carries a note that this only works because
+--      §1.12 loads modules BEFORE hyperFinalize drains the queue: move
+--      the loader earlier and that shortcut would silently never bind.
+--   ⚠️ Copy-on-Select declares NO cheat sheet group on purpose — its one
+--      entry (⇪⇧C) belongs to the 📋 CLIPBOARD & OCR group, which is
+--      still in this file. Splitting it out would drop a one-line group
+--      into the middle of the sheet for no benefit. Stated in the
+--      module rather than left as a silent inconsistency.
+--   🐛 AN EXTRACTION BUG THE TESTS CAUGHT: the old §3.11 wrapped its
+--      locals in a do...end block to stay under the 200-local budget.
+--      Moving the body into M.setup() split that `do` from its `end`
+--      across the function boundary — which still COMPILED, and made
+--      the module return nil instead of its contract table. The
+--      loader's "does not return a table with a setup() function"
+--      check is what caught it, which is precisely why it exists.
+--      The wrapper is gone now: a function scopes its locals already.
 -- NEW IN 6.36.0 — MODULES: SECTIONS NOW LIVE IN THEIR OWN FILES:
 --   🧩 NEW §1.12 MODULE LOADER. Sections can now live in
 --      ~/.hammerspoon/modules/<name>.lua and are listed in moduleList.
@@ -1273,7 +1296,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.36.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.37.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -1502,7 +1525,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.36.0"
+_G.configVersion = "6.37.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -2133,14 +2156,6 @@ function cheatSheet.groups()
             { "⇪⇧ ↑↓←→", "Nudge popup (hold to repeat)" },
             { "⇪⇧R", "Reset nudge offset" },
         }},
-        { title = "🪟 WINDOW ARRANGER", order = 6, entries = {
-            { "⇪← / ⇪→", "Left / right half of screen" },
-            { "⇪↑", "Fill screen (not full-screen mode)" },
-            { "⇪\\", "Split two most recent windows side-by-side" },
-            { "⇪W", "Summon an app to this monitor (picker)" },
-            { "⇪↓", "Return window to prior spot (toggles)" },
-            { "⇪[ / ⇪]", "Move window left / right a monitor" },
-        }},
         { title = "📦 APP UPDATES", order = 9, entries = {
             { "⇪U", "Which apps are behind right now (searchable)" },
             { "auto 9:00 AM  ·  auto on open", "Always checks fresh" },
@@ -2159,11 +2174,6 @@ function cheatSheet.groups()
             { "⇪⇧E", "Edit or delete an entry (clear the name = delete)" },
             { "auto", "Samples every 5s · stops when you are idle" },
             { "file", "Logs/doc_wather.csv — Date · Time · File · Working time" },
-        }},
-        { title = "⌨️ COMMAND HISTORY", order = 12, entries = {
-            { "⇪H", "Search your shell history — Enter copies the command" },
-            { "type: anything", "Matches anywhere in the command" },
-            { "note", "Read from command_history.log, written by your shell" },
         }},
         { title = "✏️ AUTOCORRECT", order = 13, entries = {
             { "⇪S", "Toggle on/off" },
@@ -2802,254 +2812,6 @@ hs.hotkey.bind(popupScreenKeys.mods, cheatSheet.editKey, function()
     _G.choosers.editShortcut:choices(choices)
     showPopup(_G.choosers.editShortcut)
 end)
-
--- =====================================================================
--- 1.9 WINDOW ARRANGER — halves, fill, split, monitor jumps, app summon
--- =====================================================================
--- ✏️ EDIT YOUR KEYS HERE — every binding below reads from this table.
--- Note the spec assigned ⌃⌥F to BOTH "50% halves" and "fill screen";
--- resolved as F = fill, arrow keys = halves. Swap any of these freely.
-local windowKeys = {
-    halfMods     = {"ctrl", "alt"},        -- modifiers for the five keys below
-    halfLeft     = "Left",                 -- ⌃⌥←  left half of screen
-    halfRight    = "Right",                -- ⌃⌥→  right half of screen
-    maximize     = "F",                    -- ⌃⌥F  fill screen (NOT native full screen)
-    split        = "V",                    -- ⌃⌥V  two most recent windows side-by-side
-    appJump      = "W",                    -- ⌃⌥W  summon-an-app picker
-    restore      = "M",                    -- ⌃⌥M  return window to prior position/monitor (toggles)
-    monitorMods  = {"ctrl", "alt", "cmd"}, -- modifiers for the two keys below
-    monitorLeft  = "[",                    -- ⌃⌥⌘[  move window one monitor LEFT (wraps) — [ sits left of ] on the keyboard
-    monitorRight = "]",                    -- ⌃⌥⌘]  move window one monitor RIGHT (wraps)
-}
-
-hs.window.animationDuration = 0  -- window moves snap instantly, no slide
-
-local function focusedStandardWindow()
-    local ok, win = pcall(hs.window.focusedWindow)
-    if not ok or not win then return nil end
-    return win
-end
-
--- Native macOS full-screen windows live on their own Space and can't
--- be resized/moved by frame-setting — every action below guards for
--- that and tells you instead of silently doing nothing.
-local function guardNotFullScreen(win)
-    local fs = false
-    pcall(function() fs = win:isFullScreen() end)
-    if fs then
-        hs.alert.show("🪟 Exit full screen first (green button / ⌃⌘F)")
-        return false
-    end
-    return true
-end
-
--- PRIOR-POSITION MEMORY: every arrangement action below saves the
--- window's frame (position + size + monitor, since frames are absolute
--- screen coordinates) BEFORE moving it. ⌃⌥M restores it — and saves
--- where the window is now, so pressing ⌃⌥M again toggles back. One
--- memory slot per window, in-memory only (cleared on config reload).
-_G.windowPriorFrames = {}
-
-local function rememberFrame(win)
-    local id, f = nil, nil
-    pcall(function() id = win:id() end)
-    pcall(function() f = win:frame() end)
-    if id and f then _G.windowPriorFrames[id] = f end
-end
-
--- ⌃⌥M — return the focused window to its remembered prior position
-local function restorePriorFrame()
-    local win = focusedStandardWindow()
-    if not win then hs.alert.show("🪟 No window in focus") return end
-    if not guardNotFullScreen(win) then return end
-
-    local id = nil
-    pcall(function() id = win:id() end)
-    local prior = id and _G.windowPriorFrames[id]
-    if not prior then
-        hs.alert.show("🪟 No prior position remembered for this window")
-        return
-    end
-
-    -- If the prior position was on a monitor that's since been
-    -- unplugged, restoring would strand the window off-screen — check
-    -- the frame still overlaps some connected screen first.
-    local visible = false
-    for _, s in ipairs(hs.screen.allScreens()) do
-        local ok, inter = pcall(function() return prior:intersect(s:frame()) end)
-        if ok and inter and inter.w > 0 and inter.h > 0 then
-            visible = true
-            break
-        end
-    end
-    if not visible then
-        hs.alert.show("🪟 Prior position was on a monitor that's no longer connected")
-        return
-    end
-
-    -- Swap: remember where it is NOW, so ⌃⌥M toggles back and forth
-    local current = nil
-    pcall(function() current = win:frame() end)
-    win:setFrame(prior)
-    if current then _G.windowPriorFrames[id] = current end
-    win:focus()
-    hs.alert.show("🪟 Returned to prior position — ⌃⌥M again toggles back")
-end
-
--- ⌃⌥← / ⌃⌥→ — snap the focused window to the left/right half
-local function setHalf(side)
-    local win = focusedStandardWindow()
-    if not win then hs.alert.show("🪟 No window in focus") return end
-    if not guardNotFullScreen(win) then return end
-    rememberFrame(win)
-    local f = win:screen():frame()
-    if side == "left" then
-        win:setFrame({ x = f.x, y = f.y, w = f.w / 2, h = f.h })
-    else
-        win:setFrame({ x = f.x + f.w / 2, y = f.y, w = f.w / 2, h = f.h })
-    end
-end
-
--- ⌃⌥F — fill the screen's usable area (menu bar & Dock stay visible;
--- this is NOT the green-button full-screen mode)
-local function maximizeFocused()
-    local win = focusedStandardWindow()
-    if not win then hs.alert.show("🪟 No window in focus") return end
-    if not guardNotFullScreen(win) then return end
-    rememberFrame(win)
-    win:maximize()
-end
-
--- ⌃⌥V — split the two most recently used windows side-by-side on the
--- focused window's screen: current window LEFT half, previous RIGHT.
-local function splitTopTwo()
-    local wins = {}
-    for _, w in ipairs(hs.window.orderedWindows()) do
-        local ok, std = pcall(function() return w:isStandard() end)
-        if ok and std then table.insert(wins, w) end
-        if #wins == 2 then break end
-    end
-    if #wins < 2 then
-        hs.alert.show("🪟 Need two visible windows to split")
-        return
-    end
-    if not guardNotFullScreen(wins[1]) or not guardNotFullScreen(wins[2]) then return end
-    rememberFrame(wins[1])
-    rememberFrame(wins[2])
-
-    local scr = wins[1]:screen()
-    local f = scr:frame()
-    if wins[2]:screen() ~= scr then
-        pcall(function() wins[2]:moveToScreen(scr, false, true) end)
-    end
-    wins[1]:setFrame({ x = f.x,           y = f.y, w = f.w / 2, h = f.h })
-    wins[2]:setFrame({ x = f.x + f.w / 2, y = f.y, w = f.w / 2, h = f.h })
-    wins[1]:focus()
-
-    local n1, n2 = "window", "window"
-    pcall(function() n1 = wins[1]:application():name() or n1 end)
-    pcall(function() n2 = wins[2]:application():name() or n2 end)
-    hs.alert.show("🪟 " .. n1 .. "  ⇤⇥  " .. n2)
-end
-
--- ⌃⌥⌘[ / ⌃⌥⌘] — throw the focused window to the next monitor right/
--- left. Wraps around: past the rightmost monitor lands on the leftmost,
--- and vice versa, so it cycles among ALL monitors.
-local function moveFocusedToMonitor(direction)
-    local win = focusedStandardWindow()
-    if not win then hs.alert.show("🪟 No window in focus") return end
-    if #hs.screen.allScreens() < 2 then
-        hs.alert.show("🪟 Only one monitor connected")
-        return
-    end
-    if not guardNotFullScreen(win) then return end
-    rememberFrame(win)
-
-    local scr = win:screen()
-    local target = (direction == "east") and scr:toEast() or scr:toWest()
-    if not target then
-        -- wrap around the edge
-        local screens = hs.screen.allScreens()
-        table.sort(screens, function(a, b) return a:frame().x < b:frame().x end)
-        target = (direction == "east") and screens[1] or screens[#screens]
-    end
-    if target == scr then return end
-
-    pcall(function() win:moveToScreen(target, false, true) end)
-    win:focus()
-    local name = "monitor"
-    pcall(function() name = target:name() or name end)
-    hs.alert.show("🪟 → " .. name, target)
-end
-
--- ⌃⌥W — summon picker: type an app's name, select it, and its window
--- jumps to the ACTIVE monitor (captured at the moment you press the
--- hotkey) in front of other apps. If the app is in native full screen
--- it can't be moved across monitors, so it's focused where it lives.
-_G.appJumpTargetScreen = nil
-
-_G.choosers.appJump = hs.chooser.new(function(choice)
-    if not (choice and choice.pid) then return end
-    local app = hs.application.applicationForPID(choice.pid)
-    if not app then
-        hs.alert.show("❌ " .. (choice.text or "App") .. " is no longer running")
-        return
-    end
-
-    local target = _G.appJumpTargetScreen or resolveBaseScreen()
-    local win = nil
-    pcall(function() win = app:mainWindow() or app:focusedWindow() end)
-
-    if win then
-        local fs = false
-        pcall(function() fs = win:isFullScreen() end)
-        if fs then
-            app:activate(true)
-            hs.alert.show("🪟 " .. choice.text .. " is full screen — switched to it")
-            return
-        end
-        pcall(function()
-            rememberFrame(win)
-            win:moveToScreen(target, false, true)
-            win:raise()
-        end)
-    end
-    app:activate(true)
-    hs.alert.show("🪟 Summoned " .. choice.text)
-end)
-_G.choosers.appJump:placeholderText("Summon an app to this monitor…")
-
-hs.hotkey.bind(windowKeys.halfMods, windowKeys.appJump, function()
-    -- Capture the target BEFORE the picker opens, so "active monitor"
-    -- means the one you were working on, not wherever the picker lands
-    _G.appJumpTargetScreen = resolveBaseScreen()
-
-    local choices = {}
-    for _, app in ipairs(hs.application.runningApplications()) do
-        local okK, kind = pcall(function() return app:kind() end)
-        if okK and kind == 1 then  -- regular Dock apps only
-            local okN, name = pcall(function() return app:name() end)
-            if okN and name and name ~= "" and name ~= "Hammerspoon" then
-                table.insert(choices, {
-                    text    = name,
-                    subText = "Jump to this monitor, in front of other apps",
-                    pid     = app:pid(),
-                })
-            end
-        end
-    end
-    table.sort(choices, function(a, b) return a.text:lower() < b.text:lower() end)
-    _G.choosers.appJump:choices(choices)
-    showPopup(_G.choosers.appJump)
-end)
-
-hs.hotkey.bind(windowKeys.halfMods, windowKeys.halfLeft,  function() setHalf("left")  end)
-hs.hotkey.bind(windowKeys.halfMods, windowKeys.halfRight, function() setHalf("right") end)
-hs.hotkey.bind(windowKeys.halfMods, windowKeys.maximize,  maximizeFocused)
-hs.hotkey.bind(windowKeys.halfMods, windowKeys.split,     splitTopTwo)
-hs.hotkey.bind(windowKeys.halfMods, windowKeys.restore,   restorePriorFrame)
-hs.hotkey.bind(windowKeys.monitorMods, windowKeys.monitorRight, function() moveFocusedToMonitor("east") end)
-hs.hotkey.bind(windowKeys.monitorMods, windowKeys.monitorLeft,  function() moveFocusedToMonitor("west") end)
 
 -- =====================================================================
 -- 1.11 DIAGNOSTICS — ⇪⇧D writes the report I need to debug anything
@@ -5937,127 +5699,6 @@ end -- do...end (§3.10 App Update Tracker locals)
 -- =====================================================================
 
 -- =====================================================================
--- 3.11 GLOBAL COPY-ON-SELECT — ⌘⌃⌥⇧C toggles · OFF by default
--- =====================================================================
--- CORRECTED: AXSelectedTextChanged is posted by the specific FOCUSED
--- TEXT ELEMENT, not the application as a whole — watching the app root
--- for it (the previous version of this block) essentially never
--- fires. Fix: watch the app for AXFocusedUIElementChanged (a real,
--- reliable per-app notification), and each time focus lands on a new
--- element, attach a SEPARATE watcher to THAT element for
--- AXSelectedTextChanged.
--- HONEST LIMITS: reliability depends entirely on how well each app
--- implements Accessibility. Native Cocoa apps (TextEdit, Notes, Mail)
--- and browser page text generally expose this correctly. Electron apps
--- (Chrome, Slack, VS Code, Discord) have historically inconsistent AX
--- support — expect hit-or-miss there, not a guarantee. Test in TextEdit
--- or Notes first — that's the best-case, most reliable case.
-do
-
-local cosExcludedApps = {}
-local cosFocusObserver, cosSelectionObserver = nil, nil
-
-local function cosIsExcluded(name)
-    for _, ex in ipairs(cosExcludedApps) do if name == ex then return true end end
-    return false
-end
-
--- Debounced: a drag-selection fires AXSelectedTextChanged on every
--- intermediate change, not just the final one. Each call restarts a
--- short timer instead of copying immediately; only the LAST call
--- (selection has stopped changing) actually reads AXSelectedText and
--- copies — reading it fresh at fire time, not a stale snapshot.
-local cosDebounce = nil
-local function cosCopyFrom(element)
-    if cosDebounce then cosDebounce:stop() end
-    cosDebounce = hs.timer.doAfter(0.35, function()
-        local ok, text = pcall(function() return element:attributeValue("AXSelectedText") end)
-        if ok and type(text) == "string" and #text > 0 then
-            hs.pasteboard.setContents(text)
-        end
-    end)
-end
-
-local function cosStopSelectionWatch()
-    if cosDebounce then cosDebounce:stop(); cosDebounce = nil end
-    if cosSelectionObserver then
-        pcall(function() cosSelectionObserver:stop() end)
-        cosSelectionObserver = nil
-    end
-end
-
-local function cosWatchFocusedElement(pid, element)
-    cosStopSelectionWatch()
-    if not (_G.copyOnSelectEnabled and element) then return end
-    local ok, obs = pcall(hs.axuielement.observer.new, pid)
-    if not ok or not obs then return end
-    local okWatch = pcall(function()
-        obs:callback(function(_, el) cosCopyFrom(el) end)
-        obs:addWatcher(element, "AXSelectedTextChanged")
-        obs:start()
-    end)
-    if okWatch then cosSelectionObserver = obs end
-end
-
-local function cosStopAll()
-    cosStopSelectionWatch()
-    if cosFocusObserver then
-        pcall(function() cosFocusObserver:stop() end)
-        cosFocusObserver = nil
-    end
-end
-
-local function cosStartForApp(app)
-    cosStopAll()
-    if not (_G.copyOnSelectEnabled and app) then return end
-    local okName, name = pcall(function() return app:name() end)
-    if not okName or not name or name == "Hammerspoon" or cosIsExcluded(name) then return end
-    local okPid, pid = pcall(function() return app:pid() end)
-    if not okPid or not pid then return end
-    local okAx, axApp = pcall(hs.axuielement.applicationElement, app)
-    if not okAx or not axApp then return end
-
-    local okObs, obs = pcall(hs.axuielement.observer.new, pid)
-    if not okObs or not obs then return end
-    local okWatch = pcall(function()
-        obs:callback(function(_, element) cosWatchFocusedElement(pid, element) end)
-        obs:addWatcher(axApp, "AXFocusedUIElementChanged")
-        obs:start()
-    end)
-    if okWatch then
-        cosFocusObserver = obs
-        -- Also catch whatever's ALREADY focused right now, not just
-        -- the next focus change.
-        local okFocused, focused = pcall(function() return axApp:attributeValue("AXFocusedUIElement") end)
-        if okFocused and focused then cosWatchFocusedElement(pid, focused) end
-    else
-        print("⚠️ Copy-on-select: " .. name .. " didn't accept an Accessibility watcher")
-    end
-end
-
-_G.copyOnSelectWatcher = hs.application.watcher.new(function(_, eventType, app)
-    if eventType == hs.application.watcher.activated then
-        cosStartForApp(app)
-    end
-end)
-_G.copyOnSelectWatcher:start()
-
-_G.copyOnSelectEnabled = false
-hs.hotkey.bind({"cmd", "ctrl", "alt", "shift"}, "C", function()
-    _G.copyOnSelectEnabled = not _G.copyOnSelectEnabled
-    if _G.copyOnSelectEnabled then
-        local ok, app = pcall(hs.application.frontmostApplication)
-        if ok then cosStartForApp(app) end
-        hs.alert.show("🖱️ Copy-on-select ON")
-    else
-        cosStopAll()
-        hs.alert.show("🖱️ Copy-on-select OFF")
-    end
-end)
-
-end -- do...end (§3.11 Copy-on-Select locals, corrected)
-
--- =====================================================================
 -- 3.12 HYPER KEY — Caps Lock IS ⌘⇧⌃⌥ (replaces Karabiner)
 -- =====================================================================
 -- WHAT THIS DOES: Caps Lock stops toggling caps and becomes a real
@@ -7505,212 +7146,6 @@ end)
 end -- do...end (⌃⌥⌘B team member picker locals)
 
 -- =====================================================================
--- 6.5 COMMAND HISTORY — ⇪H, searchable shell history, Enter copies
--- =====================================================================
--- Clipboard History for your terminal: search every command you've run
--- and press Enter to copy it back to the clipboard.
---
--- ⚠️ THIS CONFIG DOES NOT WRITE command_history.log — your shell does.
--- That means two things. First, the format is whatever your shell wrote,
--- so the parser below deliberately accepts several shapes rather than
--- assuming one (see commandHistoryParse). Second, the file is re-read
--- every time you open the picker rather than cached at boot — otherwise
--- commands run after Hammerspoon started would be invisible.
---
--- If nothing shows up, the picker tells you exactly which paths it
--- looked in instead of just showing an empty list — set
--- commandHistoryPath below to the real one and reload.
---
--- Wrapped in an immediately-invoked function, NOT a do...end block: the
--- main chunk sits at Lua's hard ceiling of 200 locals, and a do block's
--- locals still count against it. A function body gets its own budget.
--- The leading semicolon is REQUIRED, not style: without it Lua reads
--- `end)()` on the previous section followed by `(function()` here as ONE
--- expression — calling the previous section's return value with this
--- function as its argument. It compiles clean and fails at runtime with
--- "attempt to call a nil value". Every IIFE section below starts with one.
-;(function()
-
--- ✏️ EDIT THIS if auto-detection doesn't find your file. nil = search
--- the candidates below, in order, and use the first that exists.
-local commandHistoryPath = nil
-
-local commandHistoryCandidates = {
-    logsDir .. "/Terminal+Ghostty/command_history.log",
-    logsDir .. "/command_history.log",
-    hs.configdir .. "/logs/Terminal+Ghostty/command_history.log",
-    os.getenv("HOME") .. "/Library/CloudStorage/OneDrive-Personal/Logs/Terminal+Ghostty/command_history.log",
-}
-
-local commandHistoryMaxRows = 400   -- rows shown in the picker at once
-
--- Never read an unbounded file on the main thread — that is precisely
--- how the §3.7 boot beachball happened. The log only ever grows, so read
--- at most the last 512 KB (roughly 10,000 commands). Measured: a 1.8 MB
--- read cost ~0.26s, which is long enough to feel like a stall on a
--- keypress; 512 KB keeps it comfortably imperceptible.
-local COMMAND_HISTORY_MAX_BYTES = 512 * 1024
-
-local function commandHistoryResolvePath()
-    if commandHistoryPath then return commandHistoryPath end
-    for _, p in ipairs(commandHistoryCandidates) do
-        local f = io.open(p, "r")
-        if f then f:close(); return p end
-    end
-    return nil
-end
-
--- Accepts every common shell-history shape, because this config didn't
--- write the file and can't dictate its format:
---   git status                        plain
---   : 1690000000:0;git status         zsh EXTENDED_HISTORY
---   [2026-07-29 03:48:12] git status  bracketed timestamp
---   2026-07-29 03:48:12  git status   plain timestamp (space or tab)
---   2026-07-29T03:48:12Z git status   ISO timestamp
---     42  git status                  numbered (bash history output)
--- Returns command, timestamp-or-nil. Anything unrecognised is treated as
--- a plain command rather than dropped — losing lines silently would be
--- worse than showing one with no date.
-local function commandHistoryParse(line)
-    local when, cmd
-
-    -- zsh EXTENDED_HISTORY: ": <epoch>:<elapsed>;<command>"
-    local epoch, rest = line:match("^:%s*(%d+):%d+;(.*)$")
-    if epoch and rest then
-        return rest, os.date("%Y-%m-%d %H:%M", tonumber(epoch))
-    end
-
-    -- "[2026-07-29 03:48:12] command"
-    when, cmd = line:match("^%[([^%]]+)%]%s+(.*)$")
-    if when and cmd ~= "" then return cmd, when end
-
-    -- "2026-07-29 03:48:12  command" / "2026-07-29T03:48:12Z command"
-    when, cmd = line:match("^(%d%d%d%d%-%d%d%-%d%d[T ]%d%d:%d%d:?%d*Z?)%s+(.*)$")
-    if when and cmd ~= "" then return cmd, (when:gsub("T", " "):gsub("Z$", "")) end
-
-    -- "  42  command" (numbered history)
-    cmd = line:match("^%s*%d+%s+(.*)$")
-    if cmd and cmd ~= "" then return cmd, nil end
-
-    return line, nil
-end
-
--- Newest first, consecutive duplicates collapsed. Shell history is full
--- of the same command repeated; showing 30 identical rows would bury
--- everything else.
-local function commandHistoryLoad()
-    local path = commandHistoryResolvePath()
-    if not path then return nil, nil end
-
-    local f = io.open(path, "rb")
-    if not f then return nil, path end
-    local size = f:seek("end") or 0
-    if size > COMMAND_HISTORY_MAX_BYTES then
-        f:seek("set", size - COMMAND_HISTORY_MAX_BYTES)
-        f:read("*l")   -- drop the partial line we landed in the middle of
-    else
-        f:seek("set", 0)
-    end
-    local content = f:read("*a") or ""
-    f:close()
-
-    local entries, lastCmd = {}, nil
-    for line in content:gmatch("[^\r\n]+") do
-        local trimmed = line:match("^%s*(.-)%s*$")
-        if trimmed ~= "" and not trimmed:match("^#") then
-            local cmd, when = commandHistoryParse(trimmed)
-            cmd = cmd and cmd:match("^%s*(.-)%s*$")
-            if cmd and cmd ~= "" and cmd ~= lastCmd then
-                table.insert(entries, { cmd = cmd, when = when })
-                lastCmd = cmd
-            end
-        end
-    end
-
-    -- Reverse in place: file order is oldest-first, the picker wants the
-    -- newest thing you ran sitting at the top.
-    for i = 1, #entries // 2 do
-        entries[i], entries[#entries - i + 1] = entries[#entries - i + 1], entries[i]
-    end
-    return entries, path
-end
-
-_G.commandHistoryEntries = {}
-
-local function renderCommandHistory(query)
-    local q = (query or ""):lower():match("^%s*(.-)%s*$")
-    local choices = {}
-    for _, e in ipairs(_G.commandHistoryEntries) do
-        if q == "" or e.cmd:lower():find(q, 1, true) then
-            table.insert(choices, {
-                text    = e.cmd:gsub("%s+", " "):sub(1, 160),
-                subText = e.when or "",
-                rawText = e.cmd,
-            })
-            if #choices >= commandHistoryMaxRows then break end
-        end
-    end
-    if #choices == 0 then
-        table.insert(choices, {
-            text    = (q == "") and "No commands found"
-                      or ("No matches for \"" .. q .. "\""),
-            subText = "Searches every command in the log",
-        })
-    end
-    _G.choosers.commandHistory:choices(choices)
-end
-
-_G.choosers.commandHistory = hs.chooser.new(function(c)
-    if c and c.rawText then
-        hs.pasteboard.setContents(c.rawText)
-        hs.alert.show("📋 Copied command")
-    end
-end)
-_G.choosers.commandHistory:placeholderText(
-    "Search your shell history — Enter copies the command")
-_G.choosers.commandHistory:queryChangedCallback(function(query)
-    local ok, err = pcall(renderCommandHistory, query)
-    if not ok then
-        print("🚨 Command History render error: " .. tostring(err))
-        _G.choosers.commandHistory:choices({
-            { text = "⚠️ Display error — details in Hammerspoon Console",
-              subText = tostring(err) },
-        })
-    end
-end)
-
-_G.hyperAddShortcut({}, "h", function()
-    local entries, path = commandHistoryLoad()
-    if not path then
-        -- Say WHERE we looked. An empty picker with no explanation is
-        -- the thing that makes a feature feel broken rather than
-        -- misconfigured.
-        print("⚠️ Command History: no log found. Looked in:")
-        for _, p in ipairs(commandHistoryCandidates) do print("     " .. p) end
-        print("   Set commandHistoryPath in §6.5 to the real path and reload.")
-        hs.alert.show("⌨️ No command_history.log found — see Console")
-        return
-    end
-    _G.commandHistoryEntries = entries or {}
-    if #_G.commandHistoryEntries == 0 then
-        print("⚠️ Command History: " .. path .. " has no parseable commands.")
-    end
-    renderCommandHistory("")
-    _G.choosers.commandHistory:query("")
-    showPopup(_G.choosers.commandHistory)
-end, "command history")
-
-_G.commandHistoryLoadForTest = commandHistoryLoad
-_G.commandHistoryParseForTest = commandHistoryParse
-
-end)() -- §6.5 Command History
-
--- /////////////////////////////////////////////////
--- /////////////////////////////////////////////////
--- ////////////////////////////////////////////////
--- // EXPERIMENTAL SECTION BEGIN                //
-
--- =====================================================================
 -- X.1 DOCUMENT WATCHER — ⇪W list · ⇪⇧E edit · doc_wather.csv
 -- =====================================================================
 -- Records every document you actually work in, with how long you spent
@@ -8305,6 +7740,10 @@ local core = {
     asanaEnabled     = asanaEnabled,
     asanaToken       = asanaToken,
     asanaWorkspaceId = asanaWorkspaceId,
+    -- hyper keyspace (§3.12) — the supported way for a module to claim
+    -- a ⇪ shortcut. Wrapped rather than captured, so it resolves at call
+    -- time and this table stays honest if §3.12 ever moves.
+    hyperAddShortcut = function(...) return _G.hyperAddShortcut(...) end,
     -- diagnostics (§1.11)
     diag     = _G.diag,
     safeJson = _G.safeJson,
@@ -8397,6 +7836,9 @@ _G.loadModules({
     "daily_backup",      -- was §1.7
     "app_peek",          -- was §1.8
     "window_switcher",   -- was §1.10
+    "window_arranger",   -- was §1.9
+    "copy_on_select",    -- was §3.11
+    "command_history",   -- was §6.5
 })
 
 
@@ -8411,9 +7853,9 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.36.0"
+    local currentVersion = "6.37.0"
     local currentDate    = "08-05-26"
-    local currentNotes   = "MODULARISATION STEP 1 AND 2. init.lua now loads sections from ~/.hammerspoon/modules/*.lua through a new section 1.12 module loader. Three sections moved out first: Daily Backup (was 1.7), App Peek (was 1.8) and Window Switcher (was 1.10) — 464 lines out of init.lua. Each module returns name, order, cheatsheet and setup(core); core is an explicit table of shared services (paths, popup positioning, screen resolution, CSV helpers, Asana credentials, diagnostics) so a module never reaches into init.lua locals. The cheat sheet is now ASSEMBLED: each module registers its own group at load time and groups sort by an explicit unique order number, so deleting a module file removes its group instead of leaving the sheet advertising a shortcut nothing binds. Every module is loaded, executed and set up inside its own pcall, so a broken module costs that module only rather than the whole config; failures are named in the Console, counted in the boot report, listed in hyper+shift+D and shown as a warning group at the top of the cheat sheet. Modules load from LOCAL disk deliberately, never straight from OneDrive: Files-On-Demand placeholders download synchronously on read, which would put a main-thread stall in the boot path — the same failure shape as the 6.33.0 freeze. Lua 200-local headroom in init.lua went from 8 to 12, and every module file gets its own fresh 200."
+    local currentNotes   = "MODULARISATION BATCH 2: Window Arranger (was 1.9), Copy-on-Select (was 3.11) and Command History (was 6.5) moved into ~/.hammerspoon/modules/. Six modules now, init.lua down from 9529 lines at 6.35.0 to 7947. core gains hyperAddShortcut, wrapped so it resolves at call time, giving modules a supported way to claim a hyper key; Command History uses it and carries a note that this only works because 1.12 loads modules before hyperFinalize drains the queue. Copy-on-Select deliberately declares no cheat sheet group because its single entry lives in the CLIPBOARD and OCR group still in init.lua. Extraction bug found and fixed by the tests: the old 3.11 wrapped its locals in a do...end block to stay under the 200-local budget, and splitting that block across the new function boundary still COMPILED while making the module return nil instead of its contract table — the loader contract check caught it, which is exactly why that check exists."
 
     -- Only append if this version isn't already in the file
     local found = false

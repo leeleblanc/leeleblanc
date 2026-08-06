@@ -68,6 +68,10 @@ _G.moduleCheatsheets = {
     entries = { { "⌥Tab", "Walk every open window" } } },
   { title = "☁️ BACKUP (automatic)", order = 15,
     entries = { { "daily 5:00 PM", "~/.hammerspoon → OneDrive/Backups" } } },
+  { title = "🪟 WINDOW ARRANGER", order = 6,
+    entries = { { "⇪← / ⇪→", "Left / right half of screen" } } },
+  { title = "⌨️ COMMAND HISTORY", order = 12,
+    entries = { { "⇪H", "Search your shell history" } } },
 }
 
 local function wheelEvent(props)

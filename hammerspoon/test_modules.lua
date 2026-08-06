@@ -20,12 +20,35 @@ hs = {
       table.insert(bound, table.concat(mods, "+") .. "+" .. tostring(key)); return {} end },
   alert = { show = function() end },
   task  = { new = function(_, _, _) return { start = function() end } end },
-  application = { frontmostApplication = function() return nil end },
+  application = { frontmostApplication = function() return nil end,
+                  watcher = { new = function(fn)
+                      return { start = function(s) return s end,
+                               stop  = function(s) return s end } end,
+                              activated = 1, deactivated = 2, launched = 3, terminated = 4 } },
+  axuielement = { applicationElement = function() return nil end,
+                  observer = { new = function() return nil end } },
+  uielement   = { watcher = { new = function() return nil end } },
   canvas = { windowLevels = { overlay = 1 }, new = function() return nil end },
   eventtap = { checkKeyboardModifiers = function() return {} end },
-  window = { orderedWindows = function() return {} end },
+  window = { orderedWindows = function() return {} end,
+             filter = nil },
+  pasteboard = { getContents = function() return "" end, setContents = function() end },
+  chooser = { new = function()
+      local c = {}
+      for _, m in ipairs({ "choices", "placeholderText", "query", "show", "hide",
+                           "queryChangedCallback", "rows", "width", "searchSubText",
+                           "bgDark", "selectedRow", "refreshChoicesCallback" }) do
+        c[m] = function() return c end
+      end
+      return c
+  end },
   image = { imageFromAppBundle = function() return nil end },
 }
+_G.choosers = {}          -- created in §1 of the real init.lua
+_G.hyperPending = {}
+_G.hyperAddShortcut = function(mods, key, fn, src)
+  table.insert(_G.hyperPending, { mods = mods, key = key, fn = fn, source = src })
+end
 _G.diag = { verbose = false, trail = {}, errors = {}, marks = {},
             say = function() end, warn = function() end,
             err = function() end, mark = function() end }
@@ -51,9 +74,10 @@ local function statusOf(n)
 end
 
 out("\n=== 1. The three real modules load ===\n")
-check("all three loaded", _G.moduleLoaded == 3 and _G.moduleFailed == 0,
+check("all six loaded", _G.moduleLoaded == 6 and _G.moduleFailed == 0,
       tostring(_G.moduleLoaded) .. "/" .. tostring(_G.moduleFailed))
-for _, n in ipairs({ "daily_backup", "app_peek", "window_switcher" }) do
+for _, n in ipairs({ "daily_backup", "app_peek", "window_switcher",
+                     "window_arranger", "copy_on_select", "command_history" }) do
   local r = statusOf(n)
   check(n .. " ok", r and r.ok, r and r.err)
 end
@@ -69,17 +93,25 @@ local combos = {}
 for _, c in ipairs(bound) do combos[c] = true end
 check("App Peek bound its hotkey", combos["ctrl+alt+cmd+P"], table.concat(bound, " "))
 check("Window Switcher bound ⌥Tab", combos["alt+tab"])
+check("Window Arranger bound its half-screen keys", (function()
+  for c in pairs(combos) do if c:find("Left") or c:find("left") then return true end end
+end)(), table.concat(bound, " "))
+check("Command History queued its hyper shortcut instead of binding raw",
+      #_G.hyperPending == 1 and _G.hyperPending[1].key == "h", #_G.hyperPending)
 check("Window Switcher bound ⌥⇧Tab", combos["alt+shift+tab"])
 check("Daily Backup scheduled its 17:00 timer", timers[1] and timers[1].at == "17:00")
 check("the switcher published altTab for ⇪⇧D", type(_G.altTab) == "table")
 
 out("\n=== 3. Cheat sheet groups travel WITH the module ===\n")
-check("three groups registered", #_G.moduleCheatsheets == 3, #_G.moduleCheatsheets)
+check("five groups registered (Copy-on-Select declares none, by design)",
+      #_G.moduleCheatsheets == 5, #_G.moduleCheatsheets)
 local byOrder = {}
 for _, g in ipairs(_G.moduleCheatsheets) do byOrder[g.order] = g.title end
 check("App Peek claims slot 7", (byOrder[7] or ""):find("APP PEEK", 1, true))
 check("Window Switcher claims slot 8", (byOrder[8] or ""):find("WINDOW SWITCHER", 1, true))
 check("Daily Backup claims slot 15", (byOrder[15] or ""):find("BACKUP", 1, true))
+check("Window Arranger claims slot 6", (byOrder[6] or ""):find("WINDOW ARRANGER", 1, true))
+check("Command History claims slot 12", (byOrder[12] or ""):find("COMMAND HISTORY", 1, true))
 check("every registered group carries entries", (function()
   for _, g in ipairs(_G.moduleCheatsheets) do
     if type(g.entries) ~= "table" or #g.entries == 0 then return false end
@@ -91,7 +123,8 @@ out("\n=== 4. The core surface is complete and explicit ===\n")
 for _, key in ipairs({ "logsDir", "backupDir", "hostTag", "homeDir", "cloudDir",
                        "popupMods", "showPopup", "resolveBaseScreen", "panelAlpha",
                        "warnWriteFailed", "adoptLegacyFile", "csvQuote",
-                       "asanaEnabled", "diag", "safeJson", "configDir", "version" }) do
+                       "asanaEnabled", "diag", "safeJson", "configDir", "version",
+                       "hyperAddShortcut" }) do
   check("core." .. key .. " is published", _G.core[key] ~= nil)
 end
 
