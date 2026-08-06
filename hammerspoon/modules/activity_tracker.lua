@@ -532,6 +532,11 @@ function M.setup(core)
             showWeeklyActivityReport()
         end
     end)
+    -- Published for the hotkey handlers still living in init.lua. Before
+    -- this, that code called renderActivityChoices() directly — a name
+    -- that left with this module, turning ⇪0 into a nil-global crash the
+    -- moment it was pressed.
+    core.provide("activity.renderChoices", renderActivityChoices)
 end
 
 return M

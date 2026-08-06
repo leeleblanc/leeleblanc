@@ -180,6 +180,9 @@ function M.setup(core)
     if core.asanaEnabled then _G.fetchAsanaTeamMembers() end   -- warm the cache at boot
 
     end -- do...end (§0.2 Asana team-scoping locals)
+    -- Published for the task creator and dashboard, which are still in
+    -- init.lua and used to call addCommentToTask() as a bare global.
+    core.provide("asana.addComment", addCommentToTask)
 end
 
 return M

@@ -212,6 +212,46 @@ check("no io.open used as a bare existence test", not liveCode("io%.open%b()%s*=
 check("uncaughtErrorHandler is wired in the real file",
   liveCode("hs%.uncaughtErrorHandler") ~= nil)
 check("boot report prints total load time", text:find("Boot:     %%.2fs") ~= nil)
+-- ── THE 6.42.0 REGRESSION GUARD ──────────────────────────────────────
+-- When a section became a module, code left behind in init.lua kept
+-- calling its functions by bare name. Lua does not object: the name just
+-- becomes a nil GLOBAL, and nothing fails until the key is pressed. That
+-- is exactly how ⇪0 crashed. This walks init.lua looking for calls to
+-- any function that now lives inside a module file.
+check("NO DANGLING CALLS: init.lua never calls a function that moved into a module",
+  (function()
+    local fh = realopen(INIT, "r"); local only = fh:read("*a"); fh:close()
+    local defined = {}
+    for line in only:gmatch("[^\n]+") do
+      for n in line:gmatch("local%s+function%s+([%w_]+)") do defined[n] = true end
+      for n in line:gmatch("^%s*function%s+([%w_]+)%s*%(") do defined[n] = true end
+      for n in line:gmatch("local%s+([%w_]+)%s*=") do defined[n] = true end
+    end
+    local inModule = {}
+    for m, body in pairs(moduleText) do
+      for n in body:gmatch("local%s+function%s+([%w_]+)") do inModule[n] = m end
+    end
+    for line in only:gmatch("[^\n]+") do
+      if not line:match("^%s*%-%-") then
+        for n in line:gmatch("[%s,(=]([%l][%w_]+)%s*%(") do
+          if inModule[n] and not defined[n] then
+            return false
+          end
+        end
+      end
+    end
+    return true
+  end)())
+check("cross-boundary calls go through the service registry",
+      text:find("_G.service.call(", 1, true) ~= nil)
+check("...and modules publish through core.provide",
+      text:find("core.provide(", 1, true) ~= nil)
+check("the service registry warns instead of throwing when a provider is missing",
+      text:find("No provider for", 1, true) ~= nil)
+check("a broken Homebrew is reported ONCE, not once per app",
+      (moduleText.update_tracker or ""):find("updateTrackerBrewWarned", 1, true) ~= nil)
+check("...and names the actual repair rather than blaming the cask token",
+      (moduleText.update_tracker or ""):find("brew update --force", 1, true) ~= nil)
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

@@ -191,6 +191,9 @@ function M.setup(core)
     -- only finalized once both land. onComplete (optional) fires once
     -- every app has resolved.
     local function runUpdateCheck(onComplete)
+        -- Reset the once-per-run latch: a broken Homebrew should announce
+        -- itself on every CHECK, but only once per check, not once per app.
+        _G.updateTrackerBrewWarned = false
         if isUpdateCheckRunning then
             hs.alert.show("⚠️ Update check already running…")
             return
@@ -287,9 +290,37 @@ function M.setup(core)
                         end
                     else
                         partial.checkErr = true
-                        print("⚠️ App Update Tracker: brew couldn't resolve cask '" .. entry.cask
-                            .. "' for " .. entry.app .. " — check the token in updateTrackerApps (§3.10)"
-                            .. ((stdErr and stdErr ~= "") and (": " .. stdErr:gsub("\n", " ")) or ""))
+                        -- 6.42.0 — TELL THE TWO FAILURES APART. This used to blame the cask
+                        -- token for every failure, including the ones where Homebrew itself is
+                        -- broken (a corrupt API cache prints "Cannot download non-corrupt
+                        -- .../packages.*.jws.json"). Sending you to check a token that is
+                        -- perfectly correct is worse than saying nothing.
+                        -- ONE BROKEN HOMEBREW SHOULD NOT PRINT 15 WRONG
+                        -- DIAGNOSES. A corrupt API cache fails every cask
+                        -- at once and has nothing to do with your tokens;
+                        -- saying "check the token" 15 times sends you to
+                        -- fix something that was never wrong. The two
+                        -- causes are told apart, and the brew-side one is
+                        -- reported ONCE per check with the actual repair.
+                        local raw = tostring(stdErr or "")
+                        local brewBroken = raw:find("non%-corrupt")
+                            or raw:find("JSON API")
+                            or raw:find("Cannot download")
+                        if brewBroken then
+                            if not _G.updateTrackerBrewWarned then
+                                _G.updateTrackerBrewWarned = true
+                                print("⚠️ App Update Tracker: HOMEBREW ITSELF is failing, not your "
+                                    .. "cask list — its API cache is corrupt, so every lookup fails. "
+                                    .. "Fix it in Terminal with:  rm -rf \"$(brew --cache)/api\" && brew update --force"
+                                    .. "   (first failure was '" .. tostring(entry.cask) .. "')")
+                                _G.diag.warn("updates", "brew API cache corrupt — " .. raw:sub(1, 120))
+                            end
+                        else
+                            print("⚠️ App Update Tracker: brew couldn't resolve cask '" .. entry.cask
+                                .. "' for " .. entry.app .. " — check the token in updateTrackerApps "
+                                .. "(modules/update_tracker.lua)"
+                                .. ((raw ~= "") and (": " .. raw:gsub("\n", " ")) or ""))
+                        end
                     end
                     partial.latestDone = true
                     maybeFinish()

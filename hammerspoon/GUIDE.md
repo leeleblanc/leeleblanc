@@ -1,6 +1,6 @@
 # Hammerspoon config — how the new design works
 
-Version 6.41.0. Keep this next to the config; it is the manual for the
+Version 6.42.0. Keep this next to the config; it is the manual for the
 structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ---
@@ -39,7 +39,7 @@ Everything else is a module.
 ```bash
 mkdir -p ~/.hammerspoon/modules
 cp ~/Downloads/*.lua ~/.hammerspoon/modules/     # module files
-cp ~/Downloads/init-6.41.0.lua ~/.hammerspoon/init.lua
+cp ~/Downloads/init-6.42.0.lua ~/.hammerspoon/init.lua
 ```
 
 Modules first, then `init.lua`. Reload Hammerspoon and check two lines in
@@ -139,11 +139,25 @@ Then add `"my_feature"` to each profile's `modules` list.
 | Files | `warnWriteFailed` `adoptLegacyFile` `csvQuote` `splitCSVLine` `formatDuration` |
 | UI | `showPopup` `resolveBaseScreen` `popupKeys` `popupMods` `panelAlpha` |
 | Keys | `hyperAddShortcut(mods, key, fn, name)` |
+| Services | `provide(name, fn)` — publish something other code may call |
 | Asana | `asanaEnabled` `asanaToken` `asanaWorkspaceId` |
 | Debug | `diag` `safeJson` |
 
 **A module never reaches into `init.lua`'s locals.** That rule is what
 makes it movable, and a test enforces it.
+
+**And nothing reaches into a module either.** If code outside a module
+needs one of its functions, the module publishes it:
+
+```lua
+core.provide("activity.renderChoices", renderActivityChoices)   -- in the module
+_G.service.call("activity.renderChoices", "")                   -- anywhere else
+```
+
+A missing provider prints which module is absent and returns nil. Calling
+the function by bare name instead is what broke ⇪0 in 6.40.0: Lua turns a
+vanished local into a nil global, so it fails only when the key is
+pressed. The audit suite now scans for exactly that.
 
 ### setup() vs warm()
 
@@ -169,6 +183,9 @@ and `<logsDir>/diagnostics-<machine>.txt`.
 | Slow boot | `BOOT` section of ⇪⇧D — per-stage timings |
 | ⌥Tab feels heavy | Console names the SLOWEST APP and its time; put it in `altTab.skipApps` |
 | ⌥Tab says "list cut short" | the 0.8s budget tripped; raise `altTab.listBudget` or skip the slow app |
+| `attempt to call a nil value (global '…')` | something calls a function that moved into a module — publish it with `core.provide` and call it with `_G.service.call` |
+| `No provider for '…'` | that module didn't load; see `Modules:` in the boot report |
+| brew errors on every app at once | Homebrew's cache, not your list: `rm -rf "$(brew --cache)/api" && brew update --force` |
 | Something silently wrong | `_G.diag.verbose = true` in the Console, no reload needed |
 
 **A broken module costs you that module only.** Everything else still
@@ -181,7 +198,7 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Four suites, 311 checks, run with `lua5.4` — no Mac required, they stub
+Four suites, 322 checks, run with `lua5.4` — no Mac required, they stub
 the `hs` API:
 
 ```

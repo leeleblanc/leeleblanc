@@ -4,9 +4,41 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.41.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.42.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.42.0 — DANGLING CALLS FIXED + A GUARD SO THEY CANNOT RETURN:
+--   💥 WHAT BROKE: ⇪0 crashed with "attempt to call a nil value (global
+--      'renderActivityChoices')". When §3.6 became a module its
+--      functions went with it, but hotkey handlers left behind in THIS
+--      file kept calling them by bare name. Lua turns a vanished local
+--      into a nil GLOBAL — no compile error, no boot error, nothing at
+--      all until the key is pressed. A static scan found TWO:
+--        · renderActivityChoices  → activity_tracker.lua   (⇪0)
+--        · addCommentToTask       → asana_comments.lua     (task
+--          creator auto-comment, and the dashboard's comment prompt)
+--   🔌 FIXED PROPERLY, NOT PATCHED — A SERVICE REGISTRY. A module now
+--      PUBLISHES what the rest of the config may call:
+--          core.provide("activity.renderChoices", fn)
+--      and anything else calls it with:
+--          _G.service.call("activity.renderChoices", "")
+--      A missing provider PRINTS which module is absent and returns nil
+--      instead of throwing, so an unloaded module degrades to a dead
+--      key with an explanation rather than a red error. The registry is
+--      stubbed on line one so it can never itself be nil, and ⇪⇧D lists
+--      every published service.
+--   🛡 THE GUARD THAT SHOULD HAVE EXISTED. The audit suite already
+--      checked that no MODULE reaches into init.lua's locals. It never
+--      checked the reverse — that init.lua does not call something that
+--      LEFT. It does now: the audit walks init.lua for calls to any
+--      function defined in any module file. That check is what would
+--      have caught this before delivery.
+--   🍺 HOMEBREW: ONE BREAKAGE, ONE MESSAGE. A corrupt brew API cache
+--      fails every cask at once, and the tracker printed "check the
+--      token in updateTrackerApps" fifteen times — sending you to fix
+--      something that was never wrong. The two causes are told apart
+--      now, and the brew-side one is reported ONCE per check with the
+--      actual repair:  rm -rf "$(brew --cache)/api" && brew update --force
 -- NEW IN 6.41.0 — ⌥TAB: A DEADLINE, A CACHE, AND A NAMED CULPRIT:
 --   🧊 WHAT HAPPENED: on a real Mac, ⌥Tab took 15.90 SECONDS across 15
 --      apps. The per-application Accessibility sweep that 6.39.0 added
@@ -1396,7 +1428,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.41.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.42.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -1625,7 +1657,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.41.0"
+_G.configVersion = "6.42.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -1636,6 +1668,36 @@ _G.diagBootStart = hs.timer.secondsSinceEpoch()
 _G.diag = { verbose = false, trail = {}, errors = {}, marks = {},
             say = function() end, warn = function() end,
             err = function() end, mark = function() end }
+
+-- 6.42.0 — THE SERVICE REGISTRY, stubbed here so it is never nil.
+-- When a section moved into a module, any code left in THIS file that
+-- called one of its functions became a call to a nil GLOBAL — which Lua
+-- does not complain about until the moment you press the key. That is
+-- how ⇪0 broke: `renderActivityChoices` went to a module and the hotkey
+-- handler here kept calling a name that no longer existed.
+-- Modules now PUBLISH what the rest of the config may call, and callers
+-- go through _G.service.call, which reports a missing provider instead
+-- of throwing. §1.12 replaces this stub with the real thing.
+_G.service = {
+    registry = {},
+    provide  = function(name, fn) _G.service.registry[name] = fn end,
+    has      = function(name) return _G.service.registry[name] ~= nil end,
+    call     = function(name, ...)
+        local fn = _G.service.registry[name]
+        if not fn then
+            print("🔌 No provider for '" .. tostring(name)
+                  .. "' — is its module loaded? (⇪⇧D lists module status)")
+            return nil
+        end
+        local ok, a, b, c = pcall(fn, ...)
+        if not ok then
+            print("🔌 Service '" .. tostring(name) .. "' failed — " .. tostring(a))
+            _G.diag.err("service " .. tostring(name) .. ": " .. tostring(a))
+            return nil
+        end
+        return a, b, c
+    end,
+}
 
 -- =====================================================================
 -- 0.1 PORTABILITY LAYER — the same file runs on ANY Mac, zero edits
@@ -3068,6 +3130,15 @@ function _G.diag.report()
         or "module not loaded")
 
     add("")
+    add("── SERVICES (published by modules) ───────────────────")
+    do
+        local names = {}
+        for k in pairs((_G.service or {}).registry or {}) do table.insert(names, k) end
+        table.sort(names)
+        add("   %s", #names > 0 and table.concat(names, ", ") or "(none)")
+    end
+
+    add("")
     add("── MODULES ───────────────────────────────────────────")
     add("   folder         : %s", tostring(_G.moduleDir))
     if not _G.moduleStatus or #_G.moduleStatus == 0 then
@@ -4284,7 +4355,7 @@ _G.choosers.task = hs.chooser.new(function(choice)
                 if taskGid then
                     -- 💬 Auto-comment (configured at top of file; "" disables)
                     if autoCommentText ~= "" then
-                        addCommentToTask(taskGid, autoCommentText)
+                        _G.service.call("asana.addComment", taskGid, autoCommentText)
                     end
 
                     -- 📎 Attachment upload
@@ -4512,7 +4583,7 @@ end)
 
 -- App tracker (today's activity; type 'week'/'month'/search once open)
 hs.hotkey.bind(coreKeys.activityTracker[1], coreKeys.activityTracker[2], function()
-    renderActivityChoices("")
+    _G.service.call("activity.renderChoices", "")
     showPopup(_G.choosers.appTracker)
 end)
 
@@ -4904,7 +4975,7 @@ local function fetchAsanaDashboard(mode)
                             "Your comment will post to Asana exactly like the 'Add a comment' box.",
                             "", "Post", "Cancel")
                         if button == "Post" and text and #text > 0 then
-                            addCommentToTask(choice.gid, text)
+                            _G.service.call("asana.addComment", choice.gid, text)
                         end
                     else
                         hs.alert.show("⚠️ No task ID found for this row")
@@ -5236,6 +5307,12 @@ local core = {
     asanaEnabled     = asanaEnabled,
     asanaToken       = asanaToken,
     asanaWorkspaceId = asanaWorkspaceId,
+    -- service registry (see the stub at the top of this file). A module
+    -- publishes with core.provide("name", fn); anything else calls it
+    -- with _G.service.call("name", ...) and gets a warning rather than a
+    -- crash if the module is missing.
+    provide  = function(name, fn) _G.service.provide(name, fn) end,
+    call     = function(name, ...) return _G.service.call(name, ...) end,
     -- diagnostics (§1.11)
     diag     = _G.diag,
     safeJson = _G.safeJson,
@@ -5382,9 +5459,9 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.41.0"
+    local currentVersion = "6.42.0"
     local currentDate    = "08-05-26"
-    local currentNotes   = "FIX: option+Tab froze for 15.9 seconds across 15 apps on a real Mac. The per-application Accessibility sweep added in 6.39.0 to reach other desktops can block for a second or more PER APP — an app swapped out after idle is the usual reason — and fifteen of those in a row is a freeze, not a switcher. Three changes, all about bounding it rather than hoping: a hard deadline (altTab.listBudget, 0.8s) stops the sweep and shows what it collected, with the HUD saying the list was cut short; every application is timed individually so the Console and the hyper+shift+D report NAME the slowest one; and altTab.skipApps lets that named app be excluded permanently. A short cache (altTab.cacheFor, 4s) means repeated presses do not re-pay the cost. Deliberately NO background refresh: a timer doing this sweep every few seconds would move the freeze somewhere you cannot see it coming, which is strictly worse than a slow keypress. Also clarified in the guide: machine profiles are optional — the portability layer has always auto-detected each Mac, and the default profile runs everything, so a machine name only has to be written down when the two Macs must differ."
+    local currentNotes   = "FIX (major): hyper+0 crashed with attempt to call a nil value (renderActivityChoices). When section 3.6 became a module its functions went with it, but hotkey handlers left behind in init.lua kept calling them by bare name — and Lua turns a vanished local into a nil GLOBAL, so nothing failed until the key was pressed. A static scan found two: renderActivityChoices (Activity Tracker) and addCommentToTask (Asana Comments, called from the task creator and the dashboard). Both fixed properly rather than patched: modules now PUBLISH what the rest of the config may call via core.provide, callers use _G.service.call, and a missing provider prints which module is absent instead of crashing. The registry is stubbed on line one so it can never itself be nil, and it is listed in the hyper+shift+D report. A permanent regression guard was added to the audit suite: it walks init.lua for calls to any function that now lives in a module, which is the check that would have caught this before delivery and did not exist. FIX (medium): a broken Homebrew (corrupt API cache) printed check the token in updateTrackerApps fifteen times, sending you to fix something that was never wrong; the two causes are now told apart and the brew-side one is reported ONCE per check with the actual repair command. Not caused by this config: the Homebrew API cache corruption itself — rm -rf $(brew --cache)/api and brew update --force."
 
     -- Only append if this version isn't already in the file
     local found = false

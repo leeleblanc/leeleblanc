@@ -77,6 +77,12 @@ hs = {
   accessibilityState = function() return true end,
 }
 _G.choosers = {}          -- created in §1 of the real init.lua
+_G.service = { registry = {},
+  provide = function(n, f) _G.service.registry[n] = f end,
+  has = function(n) return _G.service.registry[n] ~= nil end,
+  call = function(n, ...) local f = _G.service.registry[n]
+    if not f then return nil end
+    return (select(2, pcall(f, ...))) end }
 _G.hyperPending = {}
 _G.hyperAddShortcut = function(mods, key, fn, src)
   table.insert(_G.hyperPending, { mods = mods, key = key, fn = fn, source = src })
@@ -172,7 +178,8 @@ for _, key in ipairs({ "logsDir", "backupDir", "hostTag", "homeDir", "cloudDir",
                        "popupMods", "showPopup", "resolveBaseScreen", "panelAlpha",
                        "warnWriteFailed", "adoptLegacyFile", "csvQuote",
                        "asanaEnabled", "diag", "safeJson", "configDir", "version",
-                       "hyperAddShortcut", "splitCSVLine", "formatDuration" }) do
+                       "hyperAddShortcut", "splitCSVLine", "formatDuration",
+                       "provide", "call" }) do
   check("core." .. key .. " is published", _G.core[key] ~= nil)
 end
 
@@ -259,6 +266,16 @@ check("autocorrect defers its 11k-row CSV to warm()", (function()
   local m = dofile(MODDIR .. "/autocorrect.lua")
   m.setup(_G.core)
   return type(m.warm) == "function"
+end)())
+
+out("\n=== 4d. The service registry (the ⇪0 crash of 6.40.0) ===\n")
+check("activity_tracker publishes its renderer",
+      _G.service.has("activity.renderChoices"))
+check("asana_comments publishes its comment poster",
+      _G.service.has("asana.addComment"))
+check("calling a MISSING service returns nil instead of throwing", (function()
+  local ok, res = pcall(_G.service.call, "nothing.here")
+  return ok and res == nil
 end)())
 
 out("\n=== 5. Failure is ISOLATED — the whole point ===\n")
