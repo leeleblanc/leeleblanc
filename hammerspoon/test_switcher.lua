@@ -83,6 +83,8 @@ print = function(...)
   table.insert(log, table.concat(p, " "))
 end
 
+_G.diag = { say = function() end, warn = function() end, mark = function() end,
+            err = function() end, verbose = false, trail = {}, errors = {}, marks = {} }
 dofile("BLOCK_PATH")
 local AT = _G.__altTab
 

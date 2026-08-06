@@ -4,9 +4,63 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.34.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.35.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.35.0 — APP LOCK REMOVED · DIAGNOSTICS ADDED · AUDIT FIXES:
+--   🗑 APP LOCK IS GONE. The whole PIN-gate feature (old §6.6, ~1150
+--      lines) has been deleted: the manager, the covers, the PIN
+--      prompts, the re-lock watcher, the panic key and its cheat sheet
+--      group. applock.json is STILL excluded from the backup, so a
+--      leftover file from an older version can never sync anywhere.
+--   🩺 NEW §1.11 DIAGNOSTICS — ⇪⇧D. Writes one report containing
+--      versions, boot timings, screens, hotkey counts, feature states,
+--      file paths with their write status, a LIVE window-enumeration
+--      timing, recent errors and the last 25 internal events — to the
+--      Console, your clipboard AND Logs/diagnostics-<machine>.txt.
+--      A 200-entry trail is recorded in memory ALWAYS, so the report
+--      shows what happened before a problem even though verbose was
+--      off at the time — which is the normal case, because nobody
+--      turns verbose on until after something breaks. Live verbose:
+--      type  _G.diag.verbose = true  in the Console, no reload.
+--      hs.uncaughtErrorHandler is now set, so an error thrown inside
+--      an async callback (HTTP reply, timer, watcher — everywhere a
+--      pcall in the calling function cannot reach) is captured with a
+--      timestamp instead of scrolling past.
+--   🔴 AUDIT FIX (MAJOR) — JSON OFF THE NETWORK COULD THROW. All six
+--      hs.json.decode calls on Asana replies ran unprotected INSIDE
+--      async HTTP callbacks. hs.json.decode RAISES on malformed input,
+--      and a corporate proxy or captive portal answering HTTP 200 with
+--      an HTML login page is precisely that — likelier on a work
+--      network than a broken API. The throw escaped every enclosing
+--      pcall. All six now go through _G.safeJson, which logs how many
+--      bytes arrived and how they start, then returns nil so the
+--      caller's existing "if not data" branch handles it.
+--   🟠 AUDIT FIX (MEDIUM) — THE FILE WAS ON THE 200-LOCAL CEILING WITH
+--      ZERO HEADROOM. Measured, not guessed: the main chunk of a Lua
+--      file IS a function, the limit is 200 locals per function, and
+--      this file was at exactly 200. The next `local` added ANYWHERE at
+--      top level would have been a compile error taking the WHOLE
+--      config down — a landmine for whoever edited next. §1.6's nine
+--      loose locals were folded into the cheatSheet table it already
+--      had, which buys 8 back. New sections must namespace.
+--   🟠 AUDIT FIX (MEDIUM) — the diagnostics API is now declared as a
+--      no-op stub on the FIRST line of the file and extended by §1.11.
+--      Sections earlier in the file log through it, so a partial load
+--      that never reached §1.11 would have thrown on a logging call:
+--      a diagnostics system causing the outage it exists to explain.
+--   🟠 AUDIT FIX (MEDIUM) — ⌥Tab captured thumbnails for up to 24
+--      windows and THEN trimmed the list to what the screen could hold,
+--      so a laptop captured 24 images to draw 15. Snapshots are cheap
+--      but not free (~5-20ms each) and that waste lands on the keypress
+--      you are waiting on. The grid is now worked out first, the list
+--      trimmed, and only the survivors captured — timed, and reported
+--      in the Console if it ever crosses 0.35s.
+--   🟡 AUDIT FIX (MINOR) — a leaked file handle: the changelog writer
+--      tested for the CSV with io.open(...) == nil and never closed
+--      what it opened, leaving it to the garbage collector.
+--   ⏱ Boot report now prints total load time, so a slow start is a
+--      number you can quote rather than a feeling.
 -- NEW IN 6.34.0 — ⌥TAB SWITCHER REBUILT (6.33.0 FROZE THE MAC):
 --   🧊 WHAT WENT WRONG. 6.33.0's switcher beachballed Hammerspoon for
 --      44 seconds on the FIRST ⌥Tab. The Console dated it exactly:
@@ -1182,7 +1236,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.34.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.35.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -1209,6 +1263,14 @@
 --    earlier feature), the Console names it at boot. Also flags
 --    combos that match known macOS defaults like Spotlight or
 --    Spaces so a dead key is never a mystery.
+--
+-- ⇪⇧D  DIAGNOSTICS (§1.11)
+--    Writes a full report — versions, boot timings, screens,
+--    hotkeys, feature states, a live window-enumeration timing,
+--    recent errors and the last 25 internal events — to the
+--    Console, your clipboard AND <logsDir>/diagnostics-<machine>.txt.
+--    Paste it into chat when something misbehaves. Verbose live
+--    logging: type  _G.diag.verbose = true  in the Console.
 --
 -- ⌥Tab  WINDOW SWITCHER (§1.10)
 --    The Windows-style Alt+Tab macOS doesn't have: hold ⌥ and tap
@@ -1400,6 +1462,19 @@ safeRequire("hs.caffeinate")
 
 -- DYNAMIC HOME DIRECTORY RESOLUTION
 local homeDir = os.getenv("HOME")
+
+-- The boot clock starts here, before any real work, so §1.11's
+-- report can say how long loading actually took.
+_G.diagBootStart = hs.timer.secondsSinceEpoch()
+
+-- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
+-- §1.11. Sections earlier in the file log through _G.diag, and a section
+-- that loaded before §1.11 — or a partial load that never reached it —
+-- would otherwise throw on a logging call. A diagnostics system that can
+-- cause the outage it exists to explain is worse than none.
+_G.diag = { verbose = false, trail = {}, errors = {}, marks = {},
+            say = function() end, warn = function() end,
+            err = function() end, mark = function() end }
 
 -- =====================================================================
 -- 0.1 PORTABILITY LAYER — the same file runs on ANY Mac, zero edits
@@ -1681,6 +1756,8 @@ _G.hyperKeyMap = {
     ["alt+cmd+ctrl+="]       = { {},        "="     },  -- add entry
     ["alt+cmd+ctrl+-"]       = { {},        "-"     },  -- remove entry
     ["alt+cmd+ctrl+e"]       = { {},        "e"     },  -- edit entry
+    -- ---- Diagnostics (⇪⇧ tier 2) ----
+    ["alt+cmd+ctrl+shift+d"] = { {"shift"}, "d"     },  -- diagnostic report
     -- ---- App peek ----
     ["alt+cmd+ctrl+p"]       = { {},        "p"     },  -- hide/show front app
     -- ---- Popup nudging (⇪⇧ tier 2 — rarely used, keeps tier 1 free) ----
@@ -1952,14 +2029,21 @@ end)
 -- if we add/change a hotkey later, ask and I'll keep it in sync.
 -- YOUR custom entries never need that; they live in the JSON file.
 -- To remove a custom entry, use ⇪- (or edit the JSON directly).
-local cheatSheetKey  = "/"   -- toggle key; same mods as everything above
-local addShortcutKey = "="   -- add-a-custom-entry key ("+" without shift)
+-- ⚠️ ONE TABLE, NOT NINE LOCALS. The main chunk of this file sits ON
+-- Lua's hard ceiling of 200 locals — measured, not estimated — and the
+-- main chunk IS a function, so every top-level `local` counts. Going one
+-- over is a COMPILE error and the WHOLE config fails to load, not just
+-- the section that added it. Everything §1.6 needs therefore hangs off
+-- one table. Do the same in any new section.
+local cheatSheet = {}
+cheatSheet.key       = "/"   -- toggle key; same mods as everything above
+cheatSheet.addKey    = "="   -- add-a-custom-entry key ("+" without shift)
 
-local customShortcutsFile = logsDir .. "/custom_shortcuts.json"
-adoptLegacyFile(customShortcutsFile, hs.configdir .. "/custom_shortcuts.json")
+cheatSheet.customFile = logsDir .. "/custom_shortcuts.json"
+adoptLegacyFile(cheatSheet.customFile, hs.configdir .. "/custom_shortcuts.json")
 
-local function loadCustomShortcuts()
-    local f = io.open(customShortcutsFile, "r")
+function cheatSheet.loadCustom()
+    local f = io.open(cheatSheet.customFile, "r")
     if not f then return {} end
     local content = f:read("*a"); f:close()
     local ok, data = pcall(hs.json.decode, content)
@@ -1967,16 +2051,16 @@ local function loadCustomShortcuts()
     return {}
 end
 
-local function saveCustomShortcuts(list)
-    local f = io.open(customShortcutsFile, "w")
+function cheatSheet.saveCustom(list)
+    local f = io.open(cheatSheet.customFile, "w")
     if f then f:write(hs.json.encode(list)); f:close()
     else warnWriteFailed("custom_shortcuts.json") end
 end
 
-_G.customShortcuts = loadCustomShortcuts()
+_G.customShortcuts = cheatSheet.loadCustom()
 
 -- Built-ins + custom entries, as ordered groups of {keys, description}.
-local function cheatSheetGroups()
+function cheatSheet.groups()
     local groups = {
         { title = "👁 APP MONITOR (automatic)", entries = {
             { "Enter", "Spawn (relaunch) or End" },
@@ -2037,19 +2121,6 @@ local function cheatSheetGroups()
             { "Enter (not brew-managed)", "Opens the vendor's download page" },
             { "⬆️ Upgrade ALL row", "Installs every brew-managed update at once" },
         }},
-        { title = "🔒 APP LOCK (privacy screen, NOT security)", entries = {
-            { "⇪⇧H", "Manage — Enter locks or unlocks the selected app" },
-            { "PIN prompt", "Opens on your ACTIVE screen, already focused" },
-            { "locking an app", "Hides it immediately, even if already open" },
-            { "un-protect", "⚙️ row at the bottom — asks for your PIN" },
-            { "after a prompt", "2s cooldown — stops ⌘-Tab strobing" },
-            { "🔁 row in ⇪⇧H", "Re-lock when you switch away (off by default)" },
-            { "unlock lasts", "Until YOU re-lock it — no timer" },
-            { "restart", "Hammerspoon restart re-locks everything" },
-            { "⚠️ limit", "Quitting Hammerspoon removes all locks" },
-            { "forgot PIN?", "Delete ~/.hammerspoon/applock.json" },
-            { "⌘⇧⌃⌥K / ⇪K", "Panic key — clears a stuck lock cover" },
-        }},
         { title = "📁 FILE TRACKER", entries = {
             { "⇪F", "Rename / move / copy history (searchable)" },
             { "Enter", "Copy row  ·  90-day history" },
@@ -2091,6 +2162,7 @@ local function cheatSheetGroups()
             { "⇪=", "Add your own entry to this sheet" },
             { "⇪E", "Edit a custom entry (picker)" },
             { "⇪-", "Remove a custom entry (picker)" },
+            { "⇪⇧D", "Diagnostic report — Console + clipboard + Logs file" },
             { "Esc", "Closes this sheet — a click does not" },
         }},
     }
@@ -2117,7 +2189,6 @@ end
 -- is a COMPILE error ("too many local variables"): the entire config
 -- would have failed to load, not just the cheat sheet. Fields on one
 -- table cost exactly one local no matter how many get added later.
-local cheatSheet = {}
 
 -- ✏️ SEE-THROUGH, this panel only (§1.5's panelAlpha covers the other
 -- canvas panels). 1.0 = solid, lower = more see-through. 0.75 shows the
@@ -2474,7 +2545,7 @@ function cheatSheet.show(preserveScroll)
     -- Flatten every group into one flat list of rows. A blank spacer row
     -- separates groups, which keeps every row the same height.
     local lines = {}
-    for gi, g in ipairs(cheatSheetGroups()) do
+    for gi, g in ipairs(cheatSheet.groups()) do
         if gi > 1 then table.insert(lines, { kind = "spacer", text = "" }) end
         table.insert(lines, { kind = "header", text = g.title })
         for _, e in ipairs(g.entries) do
@@ -2534,6 +2605,8 @@ function cheatSheet.show(preserveScroll)
     }
 
     cheatSheet.render()
+    _G.diag.say("cheatSheet", string.format("opened: %d rows, %d visible, panel %dx%d",
+        #lines, visible, panelW, panelH))
 
     pcall(function() canvas:level(hs.canvas.windowLevels.overlay) end)
     -- Same Spaces/full-screen visibility fix as the dashboard legend:
@@ -2557,13 +2630,13 @@ function cheatSheet.toggle()
     end
 end
 
-hs.hotkey.bind(popupScreenKeys.mods, cheatSheetKey, cheatSheet.toggle)
+hs.hotkey.bind(popupScreenKeys.mods, cheatSheet.key, cheatSheet.toggle)
 
 -- ⌃⌥⌘= — add a custom entry to the sheet, persisted across reloads.
 -- Same pipe format as the task creator: Keys | Description | Group
 -- (group optional, defaults to CUSTOM). Example:
 --   ⌘⇧5 | Screenshot & recording menu | MACOS
-hs.hotkey.bind(popupScreenKeys.mods, addShortcutKey, function()
+hs.hotkey.bind(popupScreenKeys.mods, cheatSheet.addKey, function()
     local button, text = hs.dialog.textPrompt(
         "⭐ Add cheat sheet entry",
         "Format:  Keys | Description | Group     (Group is optional)\nExample:  ⌘⇧5 | Screenshot menu | MACOS",
@@ -2581,7 +2654,7 @@ hs.hotkey.bind(popupScreenKeys.mods, addShortcutKey, function()
     end
 
     table.insert(_G.customShortcuts, { keys = keys, desc = desc, group = group })
-    saveCustomShortcuts(_G.customShortcuts)
+    cheatSheet.saveCustom(_G.customShortcuts)
     hs.alert.show("⭐ Added to cheat sheet")
 
     -- If the sheet is open right now, redraw it with the new entry
@@ -2591,18 +2664,18 @@ end)
 -- ⌃⌥⌘- — remove a custom entry: opens a picker of everything you've
 -- added; selecting one deletes it from custom_shortcuts.json. Built-in
 -- entries never appear here — they can't be deleted this way.
-local removeShortcutKey = "-"
+cheatSheet.removeKey = "-"
 
 _G.choosers.removeShortcut = hs.chooser.new(function(choice)
     if not (choice and choice.idx) then return end
     local removed = table.remove(_G.customShortcuts, choice.idx)
-    saveCustomShortcuts(_G.customShortcuts)
+    cheatSheet.saveCustom(_G.customShortcuts)
     hs.alert.show("🗑 Removed: " .. (removed and removed.keys or "entry"))
     if _G.cheatSheetCanvas then cheatSheet.show(true) end
 end)
 _G.choosers.removeShortcut:placeholderText("Select a custom entry to DELETE — Esc cancels")
 
-hs.hotkey.bind(popupScreenKeys.mods, removeShortcutKey, function()
+hs.hotkey.bind(popupScreenKeys.mods, cheatSheet.removeKey, function()
     if #_G.customShortcuts == 0 then
         hs.alert.show("⭐ No custom entries yet — add one with ⌃⌥⌘=")
         return
@@ -2624,7 +2697,7 @@ end)
 -- current values. Change what you want, keep the pipe format, hit
 -- Save — the entry is updated in place (same position, same file).
 -- Esc at either step cancels without changing anything.
-local editShortcutKey = "E"
+cheatSheet.editKey = "E"
 
 _G.choosers.editShortcut = hs.chooser.new(function(choice)
     if not (choice and choice.idx) then return end
@@ -2653,13 +2726,13 @@ _G.choosers.editShortcut = hs.chooser.new(function(choice)
     end
 
     _G.customShortcuts[choice.idx] = { keys = keys, desc = desc, group = group }
-    saveCustomShortcuts(_G.customShortcuts)
+    cheatSheet.saveCustom(_G.customShortcuts)
     hs.alert.show("✏️ Updated: " .. keys)
     if _G.cheatSheetCanvas then cheatSheet.show(true) end
 end)
 _G.choosers.editShortcut:placeholderText("Select a custom entry to EDIT — Esc cancels")
 
-hs.hotkey.bind(popupScreenKeys.mods, editShortcutKey, function()
+hs.hotkey.bind(popupScreenKeys.mods, cheatSheet.editKey, function()
     if #_G.customShortcuts == 0 then
         hs.alert.show("⭐ No custom entries yet — add one with ⌃⌥⌘=")
         return
@@ -2701,7 +2774,9 @@ local backupTime = "17:00"  -- 5:00 PM daily, 24h format
 if backupDir then
     local function runHammerspoonBackup()
         local src = hs.configdir
-        -- applock.json holds the App Lock PIN hash and is deliberately
+        -- applock.json was the App Lock PIN hash. App Lock was removed
+        -- in 6.35.0; the exclusion stays so a leftover file from an
+        -- older version still never reaches the backup. It is
         -- excluded for the same reason secret.lua is: per-machine only,
         -- never synced to the cloud, never in a backup.
         local cmd = "mkdir -p '" .. backupDir .. "' && /usr/bin/rsync -a "
@@ -3127,6 +3202,8 @@ function altTab.listWindows()
             if #out >= altTab.maxWindows then break end
         end
     end
+    _G.diag.say("altTab", string.format("listed %d windows in %.3fs (cap %d)",
+        #out, elapsed, altTab.maxWindows))
     return out
 end
 
@@ -3227,6 +3304,7 @@ function altTab.finish(commit)
     if not s then return end
     if s.canvas then pcall(function() s.canvas:delete() end) end
 
+    _G.diag.say("altTab", "HUD closed (" .. (commit and "switching" or "cancelled") .. ")")
     if commit then
         local win = s.items[s.index] and s.items[s.index].win
         if win then
@@ -3254,6 +3332,33 @@ function altTab.begin(reverse)
         return false
     end
 
+    -- ⚠️ 6.35.0 — THE GRID IS WORKED OUT BEFORE ANY SNAPSHOT IS TAKEN.
+    -- It used to snapshot every window in the list and THEN trim the
+    -- list to what the screen could hold, so on a laptop it captured up
+    -- to 24 images to draw 15. A window snapshot is cheap but not free
+    -- (~5-20ms each), and that waste lands entirely on the keypress you
+    -- are waiting on. Capacity first, trim, then capture only what will
+    -- actually be drawn.
+    local screen = resolveBaseScreen()
+    local sf = screen:frame()
+
+    -- Fitted to the SCREEN, not to a fixed column count. Six 200pt tiles
+    -- plus padding is 1314pt — wider than a 1280pt laptop display, and a
+    -- HUD wider than its screen centres itself with tiles cut off at
+    -- BOTH edges. Columns come from the width that actually exists, rows
+    -- from the height; anything that will not fit is dropped from the
+    -- BACK (least recent) and the footer says how many are showing,
+    -- because a silently shortened list is the same class of bug as text
+    -- clipped mid-sentence.
+    local cellH   = altTab.tileH + 24 + altTab.gap
+    local cols    = math.floor((sf.w * 0.92 - altTab.pad * 2 + altTab.gap)
+                               / (altTab.tileW + altTab.gap))
+    cols = math.max(1, math.min(altTab.maxCols, cols, #wins))
+    local rowsMax = math.max(1, math.floor((sf.h * 0.9 - altTab.pad * 2 - 14) / cellH))
+    local total   = #wins
+    for i = total, cols * rowsMax + 1, -1 do table.remove(wins, i) end
+
+    local snapStart = hs.timer.secondsSinceEpoch()
     local items = {}
     for _, w in ipairs(wins) do
         local app  = w:application()
@@ -3274,33 +3379,19 @@ function altTab.begin(reverse)
             win = w, image = img, label = name, full = name .. " — " .. title,
         })
     end
+    local snapElapsed = hs.timer.secondsSinceEpoch() - snapStart
+    _G.diag.say("altTab", string.format("captured %d tiles in %.3fs", #items, snapElapsed))
+    if snapElapsed > altTab.slowWarnSeconds then
+        print(string.format(
+            "🔄 Window switcher: capturing %d thumbnails took %.2fs — lower "
+            .. "altTab.maxWindows (§1.10) if that lag is noticeable", #items, snapElapsed))
+    end
 
-    local screen = resolveBaseScreen()
-    local sf = screen:frame()
-
-    -- THE GRID IS FITTED TO THE SCREEN, not to a fixed column count. Six
-    -- 200pt tiles plus padding is 1314pt — wider than a 1280pt laptop
-    -- display, and a HUD wider than its screen centres itself with tiles
-    -- cut off at BOTH edges. So columns come from the width that
-    -- actually exists and rows from the height; if there are more
-    -- windows than the grid can hold, the extras are dropped from the
-    -- BACK (least recent) and the footer says exactly how many are
-    -- showing, because a silently shortened list is the same class of
-    -- bug as text clipped mid-sentence.
-    local cellH = altTab.tileH + 24 + altTab.gap
-    local cols  = math.floor((sf.w * 0.92 - altTab.pad * 2 + altTab.gap)
-                             / (altTab.tileW + altTab.gap))
-    cols = math.max(1, math.min(altTab.maxCols, cols, #items))
-    local rowsMax = math.max(1, math.floor((sf.h * 0.9 - altTab.pad * 2 - 14) / cellH))
-
-    local total = #items
-    for i = total, cols * rowsMax + 1, -1 do table.remove(items, i) end
-    local n     = #items
-    local cols2 = math.min(cols, n)
-    cols = math.max(1, cols2)
-    local rows  = math.ceil(n / cols)
-    local w     = altTab.pad * 2 + cols * altTab.tileW + (cols - 1) * altTab.gap
-    local h     = altTab.pad * 2 + rows * cellH + 14
+    local n    = #items
+    cols       = math.max(1, math.min(cols, n))
+    local rows = math.ceil(n / cols)
+    local w    = altTab.pad * 2 + cols * altTab.tileW + (cols - 1) * altTab.gap
+    local h    = altTab.pad * 2 + rows * cellH + 14
     local rect = { x = sf.x + (sf.w - w) / 2, y = sf.y + (sf.h - h) / 2, w = w, h = h }
 
     local canvas = hs.canvas.new(rect)
@@ -3318,6 +3409,8 @@ function altTab.begin(reverse)
         canvas = canvas,
     }
     altTab.render()
+    _G.diag.say("altTab", string.format("HUD open: %d tiles, %d cols, %dx%d, start index %d",
+        n, cols, w, h, altTab.session.index))
     pcall(function() canvas:level(hs.canvas.windowLevels.overlay) end)
     pcall(function() canvas:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" }) end)
     canvas:show()
@@ -3367,6 +3460,268 @@ end
 -- anything added later is announced at boot.
 hs.hotkey.bind({ "alt" },          "tab", function() altTab.step(false) end)
 hs.hotkey.bind({ "alt", "shift" }, "tab", function() altTab.step(true)  end)
+
+-- =====================================================================
+-- 1.11 DIAGNOSTICS — ⇪⇧D writes the report I need to debug anything
+-- =====================================================================
+-- THE PROBLEM THIS SOLVES. When something misbehaves, the Console shows
+-- what Hammerspoon chose to log, which is rarely what actually matters.
+-- The ⌥Tab freeze was only diagnosable because two unrelated lines
+-- happened to bracket it. This section makes that luck unnecessary.
+--
+-- ⇪⇧D builds a full report — versions, boot timings, screens, hotkey
+-- counts, feature states, file paths with their write status, a LIVE
+-- window-enumeration timing, the last errors, and the last 25 internal
+-- events — then does three things with it: prints it to the Console,
+-- copies it to your clipboard, and writes it to
+--   <logsDir>/diagnostics-<machine>.txt
+-- Paste it into chat and I have the whole picture in one message
+-- instead of asking you six questions.
+--
+-- TWO LEVELS, deliberately:
+--   • THE TRAIL is always recorded (a 200-entry ring buffer in memory,
+--     no I/O, no Console noise). So the report can show what happened
+--     just before a problem even though verbose mode was off at the
+--     time — which is the normal case, because nobody runs verbose
+--     until after something breaks.
+--   • VERBOSE also PRINTS each of those events live. Turn it on without
+--     reloading by typing this in the Hammerspoon Console:
+--         _G.diag.verbose = true
+--     Turn it off the same way with false. Nothing persists it: a
+--     reload always comes back quiet.
+--
+-- ERRORS ARE CAPTURED EVEN WHEN NOBODY IS WATCHING. hs.uncaughtErrorHandler
+-- is set below, so a Lua error thrown inside an async callback — an HTTP
+-- reply, a timer, a watcher, all the places a pcall in the calling
+-- function cannot reach — lands in the report with a timestamp instead
+-- of scrolling past in the Console.
+_G.diagBootStart = _G.diagBootStart or hs.timer.secondsSinceEpoch()
+
+-- Extends the no-op stub declared at the top of the file rather than
+-- replacing it, so anything already recorded survives.
+_G.diag.verbose   = false   -- live-toggle in the Console: _G.diag.verbose = true
+_G.diag.trail     = _G.diag.trail  or {}   -- ring buffer of recent events
+_G.diag.errors    = _G.diag.errors or {}   -- ring buffer of errors, newest last
+_G.diag.marks     = _G.diag.marks  or {}   -- boot timings, in order
+_G.diag.maxTrail  = 200
+_G.diag.maxErrors = 30
+
+function _G.diag.stamp()
+    return os.date("%H:%M:%S")
+end
+
+-- Record an event. Always stored, printed only in verbose mode.
+function _G.diag.say(tag, msg)
+    local line = string.format("%s [%s] %s", _G.diag.stamp(), tostring(tag), tostring(msg))
+    local t = _G.diag.trail
+    t[#t + 1] = line
+    while #t > _G.diag.maxTrail do table.remove(t, 1) end
+    if _G.diag.verbose then print("🔍 " .. line) end
+end
+
+-- Record AND always print: for things worth seeing without verbose on.
+function _G.diag.warn(tag, msg)
+    _G.diag.say(tag, msg)
+    print("⚠️ " .. tostring(tag) .. ": " .. tostring(msg))
+end
+
+function _G.diag.err(err)
+    local line = string.format("%s %s", os.date("%Y-%m-%d %H:%M:%S"), tostring(err))
+    local e = _G.diag.errors
+    e[#e + 1] = line
+    while #e > _G.diag.maxErrors do table.remove(e, 1) end
+    _G.diag.say("error", tostring(err))
+end
+
+-- Boot timings. Called at the end of the heavy sections; the report
+-- prints them in order so a slow start says WHICH part was slow.
+function _G.diag.mark(name)
+    local at = hs.timer.secondsSinceEpoch() - (_G.diagBootStart or 0)
+    table.insert(_G.diag.marks, { name = name, at = at })
+    _G.diag.say("boot", string.format("%s at %.3fs", name, at))
+end
+
+-- A Lua error in an async callback (HTTP reply, timer, watcher) cannot
+-- be caught by a pcall in the function that scheduled it. This is the
+-- only place it can be seen at all.
+hs.uncaughtErrorHandler = function(err)
+    _G.diag.err(err)
+    print("💥 UNCAUGHT: " .. tostring(err))
+    pcall(function() hs.alert.show("💥 Hammerspoon error — ⇪⇧D for the report") end)
+end
+
+-- Decode JSON that came off the network WITHOUT throwing. hs.json.decode
+-- raises on malformed input, and every caller in this file is an async
+-- HTTP callback, so a throw there escapes to the handler above and the
+-- operation dies with an unhelpful message. A corporate proxy or captive
+-- portal answering HTTP 200 with an HTML login page is exactly that
+-- case, and it is far likelier on a work network than a broken API.
+function _G.safeJson(body, tag)
+    if type(body) ~= "string" or body == "" then
+        _G.diag.warn(tag or "json", "empty response body")
+        return nil
+    end
+    local ok, data = pcall(hs.json.decode, body)
+    if not ok then
+        _G.diag.warn(tag or "json",
+            "response was not JSON (" .. #body .. " bytes, starts: "
+            .. body:sub(1, 60):gsub("%s+", " ") .. ")")
+        return nil
+    end
+    return data
+end
+
+-- ---- the report -----------------------------------------------------
+function _G.diag.fileInfo(path)
+    if not path then return "not configured" end
+    local attrs = hs.fs.attributes(path)
+    if not attrs then return path .. "  (MISSING)" end
+    local writable = "read-only?"
+    if attrs.mode == "directory" then
+        local probe = path .. "/.hs-write-probe"
+        local f = io.open(probe, "w")
+        if f then f:close(); os.remove(probe); writable = "writable" end
+        return string.format("%s  (dir, %s)", path, writable)
+    end
+    local f = io.open(path, "a")
+    if f then f:close(); writable = "writable" end
+    return string.format("%s  (%d bytes, %s)", path, attrs.size or 0, writable)
+end
+
+function _G.diag.report()
+    local L = {}
+    local function add(fmt, ...)
+        local ok, s = pcall(string.format, fmt, ...)
+        table.insert(L, ok and s or fmt)
+    end
+
+    add("🩺 HAMMERSPOON DIAGNOSTIC REPORT — %s", os.date("%Y-%m-%d %H:%M:%S"))
+    add("   config version : %s", tostring(_G.configVersion or "?"))
+    pcall(function()
+        add("   Hammerspoon    : %s", tostring(hs.processInfo.version))
+    end)
+    pcall(function()
+        add("   macOS          : %s", hs.host.operatingSystemVersionString())
+    end)
+    add("   machine        : %s", tostring(hostTag))
+    add("   accessibility  : %s", hs.accessibilityState() and "granted" or "NOT GRANTED")
+    add("   lua memory     : %.0f KB", collectgarbage("count"))
+    add("   verbose mode   : %s", _G.diag.verbose and "ON" or "off  (_G.diag.verbose = true)")
+
+    add("")
+    add("── BOOT ──────────────────────────────────────────────")
+    if #_G.diag.marks == 0 then
+        add("   (no marks recorded)")
+    else
+        for _, m in ipairs(_G.diag.marks) do add("   %-28s %6.3fs", m.name, m.at) end
+    end
+
+    add("")
+    add("── SCREENS ───────────────────────────────────────────")
+    pcall(function()
+        for _, s in ipairs(hs.screen.allScreens()) do
+            local f = s:frame()
+            add("   %-24s %dx%d at (%d,%d)", s:name() or "?", f.w, f.h, f.x, f.y)
+        end
+    end)
+
+    add("")
+    add("── HOTKEYS ───────────────────────────────────────────")
+    add("   global bound   : %s   conflicts: %s",
+        tostring(_G.hotkeyBoundCount), tostring(_G.hotkeyConflictCount))
+    add("   hyper          : %s shortcuts + %s forwarded, %s conflicts",
+        tostring(_G.hyperShortcutCount or 0), tostring(_G.hyperForwardCount or 0),
+        tostring(_G.hyperConflictCount or 0))
+
+    add("")
+    add("── FEATURES ──────────────────────────────────────────")
+    add("   Asana          : %s", asanaEnabled and "on" or "off")
+    add("   Autocorrect    : %s", tostring(_G.autocorrectStatus or "?"))
+    add("   Autocorrect tap: %s", (function()
+        if not _G.autocorrectTap then return "not created" end
+        local ok, on = pcall(function() return _G.autocorrectTap:isEnabled() end)
+        return (ok and on) and "running" or "STOPPED (macOS may have disabled it)"
+    end)())
+    add("   Cheat sheet    : %s", _G.cheatSheetState and "open" or "closed")
+    add("   ⌥Tab switcher  : %s · minimised:%s · cap:%s · session:%s",
+        altTab.enabled and "on" or "OFF",
+        tostring(altTab.includeMinimized), tostring(altTab.maxWindows),
+        altTab.session and "OPEN" or "idle")
+
+    add("")
+    add("── LIVE PROBE (measured right now) ───────────────────")
+    -- This is the measurement that mattered for the ⌥Tab freeze: how
+    -- long this Mac actually takes to enumerate its windows.
+    pcall(function()
+        local t0 = hs.timer.secondsSinceEpoch()
+        local wins = hs.window.orderedWindows() or {}
+        local dt = hs.timer.secondsSinceEpoch() - t0
+        add("   orderedWindows : %d windows in %.3fs%s", #wins, dt,
+            dt > 0.35 and "   ⚠️ SLOW" or "")
+    end)
+    pcall(function()
+        local app = hs.application.frontmostApplication()
+        add("   frontmost app  : %s", app and app:name() or "?")
+    end)
+
+    add("")
+    add("── PATHS ─────────────────────────────────────────────")
+    add("   logs dir       : %s", _G.diag.fileInfo(logsDir))
+    add("   backup dir     : %s", _G.diag.fileInfo(backupDir))
+    pcall(function()
+        add("   custom cuts    : %s", _G.diag.fileInfo(logsDir .. "/custom_shortcuts.json"))
+        add("   autocorrect    : %s", _G.diag.fileInfo(logsDir .. "/autocorrect.csv"))
+        add("   changelog      : %s", _G.diag.fileInfo(logsDir .. "/changelog.csv"))
+    end)
+
+    add("")
+    add("── ERRORS (%d) ───────────────────────────────────────", #_G.diag.errors)
+    if #_G.diag.errors == 0 then
+        add("   none recorded since load")
+    else
+        for _, e in ipairs(_G.diag.errors) do add("   %s", e) end
+    end
+
+    add("")
+    add("── LAST 25 EVENTS ────────────────────────────────────")
+    local t, from = _G.diag.trail, math.max(1, #_G.diag.trail - 24)
+    if #t == 0 then
+        add("   (nothing recorded yet)")
+    else
+        for i = from, #t do add("   %s", t[i]) end
+    end
+    add("")
+    add("── END OF REPORT ─────────────────────────────────────")
+    return table.concat(L, "\n")
+end
+
+-- ⇪⇧D — print it, copy it, save it. Three routes because the one you
+-- need is never the one that is working.
+function _G.diag.show()
+    local ok, text = pcall(_G.diag.report)
+    if not ok then
+        print("🩺 Diagnostics failed to build: " .. tostring(text))
+        hs.alert.show("🩺 Diagnostics failed — see Console")
+        return
+    end
+    print("\n" .. text .. "\n")
+    pcall(function() hs.pasteboard.setContents(text) end)
+
+    local saved = false
+    pcall(function()
+        local path = logsDir .. "/diagnostics-" .. tostring(hostTag) .. ".txt"
+        local f = io.open(path, "w")
+        if f then f:write(text); f:close(); saved = true
+            print("🩺 Diagnostic report → " .. path)
+        end
+    end)
+    hs.alert.show(saved and "🩺 Report copied to clipboard + saved to Logs"
+                        or "🩺 Report copied to clipboard (file write failed)")
+end
+
+hs.hotkey.bind({ "ctrl", "alt", "cmd", "shift" }, "D", _G.diag.show)
+
+_G.diag.mark("§1.11 diagnostics ready")
 
 -- =====================================================================
 -- 2. UTILITY & OCR ENGINE
@@ -3842,7 +4197,7 @@ local function resolveAsanaTeamGids(onDone)
         { ["Authorization"] = "Bearer " .. asanaToken },
         function(status, body)
             if status == 200 then
-                local data = hs.json.decode(body)
+                local data = _G.safeJson(body, "asana/teams")
                 if data and data.data then
                     for _, wantName in ipairs(asanaTeamNames) do
                         local wantLower = wantName:lower():match("^%s*(.-)%s*$")
@@ -3881,7 +4236,7 @@ _G.fetchAsanaTeamMembers = function(onDone)
                 function(status, body)
                     local members = {}
                     if status == 200 then
-                        local data = hs.json.decode(body)
+                        local data = _G.safeJson(body, "asana/members")
                         if data and data.data then
                             for _, u in ipairs(data.data) do
                                 table.insert(members, { gid = u.gid, name = u.name or "?", email = u.email })
@@ -3904,7 +4259,7 @@ _G.fetchAsanaTeamMembers = function(onDone)
                 { ["Authorization"] = "Bearer " .. asanaToken },
                 function(status, body)
                     if status == 200 then
-                        local data = hs.json.decode(body)
+                        local data = _G.safeJson(body, "asana/members")
                         if data and data.data then
                             for _, u in ipairs(data.data) do
                                 if seen[u.gid] then
@@ -6824,7 +7179,7 @@ _G.choosers.task = hs.chooser.new(function(choice)
                     (#subParts > 0 and "  ·  " .. table.concat(subParts, "  ·  ") or "")
 
                 -- Parse the new task's GID once — used for comments & attachments
-                local parsed  = hs.json.decode(responseBody)
+                local parsed  = _G.safeJson(responseBody, "asana/newtask")
                 local taskGid = parsed and parsed.data and parsed.data.gid
 
                 if taskGid then
@@ -6918,7 +7273,7 @@ hs.hotkey.bind(coreKeys.formatAsanaURL[1], coreKeys.formatAsanaURL[2], function(
                 { ["Authorization"] = "Bearer " .. asanaToken },
                 function(s, b)
                     if s == 200 then
-                        local taskData = hs.json.decode(b)
+                        local taskData = _G.safeJson(b, "asana/task")
                         if taskData and taskData.data and taskData.data.name then
                             hs.pasteboard.setContents(taskData.data.name .. " | " .. url)
                             hs.alert.show("✅ Formatted")
@@ -7359,7 +7714,7 @@ local function fetchAsanaDashboard(mode)
             return
         end
 
-        local response = hs.json.decode(body)
+        local response = _G.safeJson(body, "asana/list")
         if not response or not response.data then
             hs.alert.show("❌ Error reading data from Asana")
             return
@@ -7742,1155 +8097,6 @@ _G.commandHistoryLoadForTest = commandHistoryLoad
 _G.commandHistoryParseForTest = commandHistoryParse
 
 end)() -- §6.5 Command History
-
--- =====================================================================
--- 6.6 APP LOCK — ⇪⇧H, a PIN gate on chosen apps
--- =====================================================================
--- ⚠️⚠️ READ THIS FIRST — WHAT THIS IS AND IS NOT ⚠️⚠️
---
--- This is a PRIVACY SCREEN, not security. It stops someone who sits
--- down at your already-unlocked Mac from casually opening Outlook. It
--- does NOT stop anyone who is actually trying, because:
---   • Quitting Hammerspoon (⌘Q, Activity Monitor, killall) removes the
---     lock entirely. Hammerspoon is an ordinary userland app.
---   • The PIN hash sits in a file your account can read. A 4-digit PIN
---     has 10,000 possibilities — brute-forceable instantly by anyone who
---     copies that file, no matter what algorithm hashes it.
---   • It cannot stop reading DATA. Locking Finder does not stop `cat`,
---     Terminal, Spotlight previews, or another file manager.
---   • There is a brief moment between an app launching and this hiding
---     it, so a window can flash on screen.
---
--- FOR REAL, OS-ENFORCED APP LOCKING use macOS Screen Time → Content &
--- Privacy Restrictions, which enforces a passcode at the system level.
--- For protecting DATA at rest, use FileVault. This feature is worth
--- having for the casual case; just don't mistake it for those.
---
--- HOW TO GET BACK IN IF SOMETHING GOES WRONG (read before enabling):
---   • Delete ~/.hammerspoon/applock.json — that removes the PIN and
---     every lock. Nothing else is affected.
---   • Or set appLockEnabled = false below and reload.
---   • Hammerspoon itself can NEVER be locked (enforced in code), so the
---     Console is always reachable.
---
--- HOW IT WORKS: an app watcher notices a locked app launching or coming
--- to the front, hides it immediately, and asks for the PIN. Right PIN =
--- unhidden and unlocked for a grace period. The prompt runs as a
--- separate osascript process so it NEVER blocks Hammerspoon's main
--- thread — a modal dialog on the main thread would be a guaranteed
--- beachball if you walked away from it.
-;(function()
-
--- ✏️ EDIT THESE ------------------------------------------------------
-local appLockEnabled = true
-
--- Which apps to lock. Deliberately EMPTY by default: this only seeds
--- the list the very first time, and nothing should start locking itself
--- just because you installed a new init.lua. Add apps from the ⇪⇧H
--- manager instead — it writes them to applock.json.
-local appLockSeedApps = {}
-
--- NO TIME LIMIT (6.22.0). Unlocking with the PIN keeps an app open until
--- YOU lock it again from ⇪⇧H. 6.21 expired the unlock after 15 minutes,
--- which was never asked for and made the whole thing feel random.
--- The one thing that is not under your control: unlocks live in memory
--- only, so restarting Hammerspoon (or the Mac) re-locks everything. That
--- is deliberate — an unlock surviving a reboot would defeat the point.
---
--- Optional: set this to true if you also want everything re-locked when
--- the screen locks or the Mac sleeps. OFF by default — you asked for
--- manual lock/unlock and nothing automatic.
--- 6.29.0 — COVER INSTEAD OF HIDE.
--- Hiding a locked app forces macOS to hand focus to something else,
--- which on a multi-monitor setup drags your view to the other screen and
--- back: the "bounce". No amount of patching fixes that, because hiding
--- IS the bounce. In cover mode the app is left exactly where it is and
--- an opaque panel is painted over its screen instead. Nothing is hidden,
--- so focus never moves, so there is nothing to bounce.
---
--- Set this to false to go back to the old hide-based behaviour.
-local appLockUseCover = true
-
--- After the cover is up, ALSO hide the locked app and bring Finder
--- forward. The cover goes on first, so the hide happens behind it and
--- you never see the window disappear.
---
--- 6.30.0 — NOW OFF BY DEFAULT. The overlay alone is the whole feature:
--- hiding is what moves focus, and moving focus is what caused the
--- monitor-to-monitor bounce. With this false the locked app is left
--- exactly where it sits, an opaque panel is painted over its screen,
--- and NOTHING is hidden and NO focus is moved — so there is nothing to
--- bounce. Set it back to true to restore the old cover-then-hide.
---
--- The one place hiding still happens is a CANCELLED or FAILED PIN (see
--- the challenge flow): the cover has to come down at that point, and
--- concealment has to win over smoothness, so the app is hidden then.
-local appLockCoverThenHide = false
-
--- Canvas level for the cover. MUST stay below hs.canvas.windowLevels
--- .popUpMenu (101), which is where the PIN chooser draws — see the
--- 6.30.0 note in appLockShowCovers. `floating` is above every normal
--- app window and below the prompt, which is exactly the window we want.
-APPLOCK_COVER_LEVEL = hs.canvas.windowLevels.floating
-local appLockFallbackApp   = "Finder"
-
-local appLockRelockOnScreenLock = false
-
-local appLockMaxAttempts    = 5   -- wrong PINs before a cooldown
-local appLockLockoutMinutes = 5   -- how long that cooldown lasts
-
--- Never lockable. Locking Hammerspoon would make the escape hatch
--- itself unreachable, which is how a convenience feature turns into
--- being locked out of your own Mac.
-local appLockNeverLock = { ["Hammerspoon"] = true }
-
--- ---- storage (LOCAL ONLY — never OneDrive, never backed up) --------
-local appLockFile = hs.configdir .. "/applock.json"
-
-local function appLockLoad()
-    local f = io.open(appLockFile, "r")
-    if not f then return { apps = {} } end
-    local content = f:read("*a"); f:close()
-    local ok, data = pcall(hs.json.decode, content)
-    if ok and type(data) == "table" then
-        data.apps = data.apps or {}
-        return data
-    end
-    return { apps = {} }
-end
-
-local function appLockSave(data)
-    local f = io.open(appLockFile, "w")
-    if not f then
-        print("🚨 App Lock: could not write " .. appLockFile)
-        hs.alert.show("⚠️ App Lock: couldn't save settings")
-        return false
-    end
-    f:write(hs.json.encode(data)); f:close()
-    return true
-end
-
-local appLockData = appLockLoad()
-
--- ⚠️ 6.26.0 — THE SETTING THAT DECIDES HOW THIS FEELS.
--- false: a PIN unlocks the app until you re-lock it from ⇪⇧H. That is
---        what "no time limits" asked for literally, but in practice it
---        means the lock fires ONCE and then never again — which reads as
---        the feature degrading or breaking.
--- true:  switching AWAY from the app re-locks it, so coming back always
---        asks for the PIN. Not a timer — nothing expires while you are
---        using it. It just locks when you leave, like a screen lock.
--- Persisted in applock.json and toggleable from ⇪⇧H, so you can try both
--- without editing this file.
-local function appLockRelockOnLeave()
-    return appLockData.relockOnDeactivate == true
-end
-if next(appLockData.apps) == nil and #appLockSeedApps > 0 then
-    for _, n in ipairs(appLockSeedApps) do appLockData.apps[n] = true end
-    appLockSave(appLockData)
-end
-
--- ---- PIN hashing ----------------------------------------------------
--- Salted SHA256. To be clear about what this buys: it stops someone
--- casually reading your PIN out of the file. It does NOT withstand a
--- brute force — 4 digits is 10,000 tries. Verified real API:
--- hs.hash.SHA256(string) -> hex, from extensions/hash/hash.lua.
-local function appLockHash(pin, salt)
-    return hs.hash.SHA256(tostring(salt) .. ":" .. tostring(pin))
-end
-
-local function appLockNewSalt()
-    return tostring(os.time()) .. "-" .. tostring(math.random(100000, 999999))
-end
-
-local function appLockHasPin()
-    return appLockData.hash ~= nil and appLockData.salt ~= nil
-end
-
-local function appLockCheckPin(pin)
-    if not appLockHasPin() then return false end
-    return appLockHash(pin, appLockData.salt) == appLockData.hash
-end
-
--- ---- state ----------------------------------------------------------
-local unlocked      = {}   -- appName -> true while PIN-unlocked (no expiry)
-local appLockHideAllLocked  -- forward declaration (used by the manager below)
-local failedCount   = {}   -- appName -> consecutive wrong PINs
-local lockoutUntil  = {}   -- appName -> epoch seconds
-local promptOpen    = false
-_G.appLockTasks     = {}   -- in-flight osascript tasks, held against GC
-
-local function appLockIsLocked(name)
-    if not appLockEnabled or not name then return false end
-    if appLockNeverLock[name] then return false end
-    return appLockData.apps[name] == true
-end
-
-local function appLockIsUnlocked(name)
-    return unlocked[name] == true
-end
-
--- ⚠️ 6.30.0 — OUR OWN UI MUST NOT COUNT AS "YOU SWITCHED AWAY".
--- Showing the manager or the PIN prompt takes keyboard focus, which
--- makes macOS fire `deactivated` for whatever app you were in. With
--- re-lock-on-leave ON that silently re-locked the very app you had just
--- unlocked — so the list you were looking at went stale the instant it
--- opened, and the app you believed was unlocked asked for a PIN again.
--- That is the "I can still unlock an app that is already unlocked"
--- confusion. A short grace window is enough: it only ever suppresses
--- the relock that OUR OWN popup caused.
-local appLockOwnUIUntil = 0
-local function appLockOwnUIActive() return os.time() < appLockOwnUIUntil end
-local function appLockOwnUIOpening() appLockOwnUIUntil = os.time() + 2 end
-
--- ---- hiding, and the feedback loop it used to cause ------------------
--- ⚠️ 6.24.0 — READ BEFORE CHANGING ANY OF THIS.
--- Hiding an app CHANGES FOCUS, and a focus change fires another
--- `activated` event. Showing the PIN chooser changes focus again, and
--- CLOSING it hands focus straight back to the app we just hid. That is a
--- closed loop: hide -> focus moves -> activated -> hide -> …
---
--- In 6.23 that loop ran flat out. Holding ⌘-Tab fires activation events
--- in a stream, so the screen strobed between the app and Hammerspoon —
--- genuinely unpleasant, and the churn pinned the main thread long enough
--- to beachball for ~5 seconds. Both symptoms, one cause.
---
--- Damping, in order of importance:
---   1. A per-app COOLDOWN. After we act on an app we ignore its events
---      for a couple of seconds, which is what stops ⌘-Tab strobing and
---      stops the chooser reopening the instant it closes.
---   2. While a PIN prompt is open we do nothing at all — not even hide.
---      The app is already hidden; touching it again only moves focus.
---   3. The 0.15s "hide again in case it bounced back" retry from 6.22 is
---      GONE. It was guarding a race I never actually confirmed, and it
---      was the engine driving the strobe. Speculative complexity that
---      causes a real seizure risk is not a trade worth making.
-local appLockCooldown = {}   -- appName -> os.time() until which we ignore it
-local APPLOCK_COOLDOWN_SECS = 2
-
--- ✏️ Set false once you're happy with it. On by default because every
--- App Lock bug so far has been invisible in the Console — the feature
--- would just quietly stop working and there was nothing to read. This
--- only prints for apps that are actually locked, so it is not chatty.
-local appLockDebug = true
-local appLockPromptCount = 0
-
-local function appLockLog(name, msg)
-    if appLockDebug then
-        print("🔒 App Lock [" .. tostring(name) .. "] " .. msg)
-    end
-end
-
-local function appLockCoolingDown(name)
-    local until_ = appLockCooldown[name]
-    return until_ ~= nil and os.time() < until_
-end
-
-local function appLockStartCooldown(name)
-    appLockCooldown[name] = os.time() + APPLOCK_COOLDOWN_SECS
-end
-
--- ⚠️ 6.25.0 — WHY A VERIFY STEP EXISTS AGAIN.
--- Clicking a hidden app's Dock icon makes macOS unhide AND activate it.
--- Our hide() lands in the middle of that, and macOS finishes unhiding
--- afterwards — so the app ends up VISIBLE with the PIN prompt floating
--- over it, document and all. That is the race 6.22's retry was guarding;
--- 6.24.0 deleted it to stop the strobe without replacing what it did.
---
--- The difference from 6.22: that one fired a timer on EVERY activation
--- event, so a ⌘-Tab burst queued dozens of re-hides — the strobe. This
--- fires ONCE per challenge, behind promptOpen, and re-checks before
--- acting. One timer, not a stream.
-_G.appLockVerifyTimers = {}
-
--- 6.25.1: POLL, don't take one look 150ms later.
--- A single check at 0.15s meant a Dock-launched app was on screen for
--- that whole 150ms — the visible flash. This checks every 30ms instead,
--- hides again the moment it sees the window, and only continues once the
--- app has stayed hidden for a few consecutive checks. macOS can finish
--- its unhide AFTER our first check, so "hidden once" is not enough —
--- that is the bug the single check had.
---
--- Still bounded and still ONE poll per challenge (behind promptOpen), so
--- it cannot become 6.22's per-event timer storm.
-local APPLOCK_VERIFY_INTERVAL = 0.03
-local APPLOCK_VERIFY_SETTLED  = 3     -- consecutive hidden checks required
-local APPLOCK_VERIFY_MAX      = 20    -- ~0.6s ceiling, then give up and prompt
-
-local function appLockVerifyHidden(app, name, unlockedRef, whenDone)
-    local attempts, settled, warned = 0, 0, false
-    local function tick()
-        attempts = attempts + 1
-        if unlockedRef() then
-            if whenDone then whenDone() end
-            return
-        end
-        local visible = false
-        pcall(function() visible = (app:isHidden() == false) end)
-        if visible then
-            settled = 0
-            if not warned then
-                warned = true
-                appLockLog(name, "macOS re-showed it after our hide — hiding again")
-            end
-            pcall(function() app:hide() end)
-        else
-            settled = settled + 1
-        end
-        if settled >= APPLOCK_VERIFY_SETTLED or attempts >= APPLOCK_VERIFY_MAX then
-            if attempts >= APPLOCK_VERIFY_MAX and visible then
-                appLockLog(name, "could not keep it hidden after "
-                    .. attempts .. " tries — prompting anyway")
-            end
-            if whenDone then whenDone() end
-            return
-        end
-        local t
-        t = hs.timer.doAfter(APPLOCK_VERIFY_INTERVAL, function()
-            for i, x in ipairs(_G.appLockVerifyTimers) do
-                if x == t then table.remove(_G.appLockVerifyTimers, i); break end
-            end
-            tick()
-        end)
-        table.insert(_G.appLockVerifyTimers, t)
-    end
-    local first
-    first = hs.timer.doAfter(APPLOCK_VERIFY_INTERVAL, function()
-        for i, x in ipairs(_G.appLockVerifyTimers) do
-            if x == first then table.remove(_G.appLockVerifyTimers, i); break end
-        end
-        tick()
-    end)
-    table.insert(_G.appLockVerifyTimers, first)
-end
-
--- Remember which screen the app was on BEFORE it disappears — once it
--- is hidden it has no window and no screen to ask about.
-local function appLockRememberScreen(app)
-    local ok, win = pcall(function() return app:focusedWindow() or app:mainWindow() end)
-    if ok and win then
-        local ok2, scr = pcall(function() return win:screen() end)
-        if ok2 and scr then return scr end
-    end
-    return nil
-end
-
-local function appLockHideObject(app, name)
-    if not app then return false end
-    local ok, err = pcall(function() app:hide() end)
-    if not ok then
-        print("🚨 App Lock: could not hide " .. tostring(name) .. ": " .. tostring(err))
-        return false
-    end
-    return true
-end
-
--- ---- the cover ------------------------------------------------------
--- ⚠️ SAFETY FIRST. An opaque panel that will not clear is worse than any
--- bug in this file so far, so there are FOUR independent ways out:
---   1. Enter the PIN — the normal path.
---   2. ⌘⇧⌃⌥K (or ⇪K) — panic key, clears every cover instantly. It is a
---      GLOBAL hotkey, so it works even if the hyper modal is confused.
---   3. A watchdog every 3s clears any cover with no PIN prompt behind it.
---   4. Quit Hammerspoon. The panel is drawn BY Hammerspoon, so it dies
---      with it. Nothing can survive that, by construction.
-_G.appLockCovers = {}
-
-local function appLockRemoveCovers()
-    if #_G.appLockCovers == 0 then return false end
-    for _, c in ipairs(_G.appLockCovers) do
-        pcall(function() c:delete() end)
-    end
-    _G.appLockCovers = {}
-    return true
-end
-
--- Only the screens this app actually occupies get covered. Blacking out
--- every monitor to conceal one window would be its own kind of hostile.
-local function appLockScreensFor(app)
-    local out, seen = {}, {}
-    local ok, wins = pcall(function() return app:allWindows() end)
-    if ok and wins then
-        for _, w in ipairs(wins) do
-            local ok2, scr = pcall(function() return w:screen() end)
-            if ok2 and scr then
-                local okF, f = pcall(function() return scr:frame() end)
-                if okF and f then
-                    local key = tostring(f.x) .. "," .. tostring(f.y)
-                    if not seen[key] then seen[key] = true; table.insert(out, scr) end
-                end
-            end
-        end
-    end
-    if #out == 0 then
-        local okS, scr = pcall(hs.screen.mainScreen)
-        if okS and scr then table.insert(out, scr) end
-    end
-    return out
-end
-
-local function appLockShowCovers(app, name)
-    appLockRemoveCovers()
-    for _, scr in ipairs(appLockScreensFor(app)) do
-        local okF, f = pcall(function() return scr:frame() end)
-        if okF and f then
-            local ok, c = pcall(function() return hs.canvas.new(f) end)
-            if ok and c then
-                pcall(function()
-                    c:appendElements(
-                        { type = "rectangle", action = "fill",
-                          fillColor = { red = 0.04, green = 0.05, blue = 0.07, alpha = 0.97 } },
-                        { type = "text", text = "🔒 " .. tostring(name) .. " is locked",
-                          textSize = 34, textColor = { white = 1, alpha = 0.92 },
-                          textAlignment = "center",
-                          frame = { x = 0, y = f.h * 0.42, w = f.w, h = 50 } },
-                        { type = "text",
-                          text = "Enter your PIN   ·   ⌘⇧⌃⌥K clears this if anything goes wrong",
-                          textSize = 15, textColor = { white = 1, alpha = 0.55 },
-                          textAlignment = "center",
-                          frame = { x = 0, y = f.h * 0.42 + 56, w = f.w, h = 30 } })
-                end)
-                -- ⚠️ 6.30.0 — THE COVER WAS BURYING THE PIN PROMPT.
-                -- This used to say `overlay`, which is level 102. An
-                -- hs.chooser panel sits at popUpMenu, level 101. So the
-                -- cover was painted ON TOP OF the prompt: the panel was
-                -- there and focused, you simply could not see it. That
-                -- is why the only way through was the panic key, and
-                -- why entering the PIN worked immediately afterwards.
-                -- `floating` (3) is still above every ordinary app
-                -- window, so the locked app stays concealed, but is
-                -- comfortably below the chooser.
-                pcall(function() c:level(APPLOCK_COVER_LEVEL) end)
-                pcall(function() c:show() end)
-                table.insert(_G.appLockCovers, c)
-            end
-        end
-    end
-    if #_G.appLockCovers > 0 then
-        appLockLog(name, "covered " .. #_G.appLockCovers .. " screen(s) — no hide, so no focus bounce")
-        return true
-    end
-    appLockLog(name, "could not paint a cover — falling back to hiding")
-    return false
-end
-
-local function appLockFocusFallback()
-    if not appLockFallbackApp or appLockFallbackApp == "" then return end
-    pcall(function() hs.application.launchOrFocus(appLockFallbackApp) end)
-end
-
--- Find a running app BY NAME and hide it. One bulk enumeration rather
--- than hs.application.get(), which §3.7 proved returns stale results.
-local function appLockHideApp(name)
-    local okList, apps = pcall(hs.application.runningApplications)
-    if not okList or not apps then return false end
-    local hid = false
-    for _, a in ipairs(apps) do
-        local okName, n = pcall(function() return a:name() end)
-        if okName and n == name then
-            if appLockHideObject(a, name) then hid = true end
-        end
-    end
-    return hid
-end
-
--- Used by "Re-lock everything now" and the optional screen-lock hook.
-appLockHideAllLocked = function()
-    local count = 0
-    local okList, apps = pcall(hs.application.runningApplications)
-    if not okList or not apps then return 0 end
-    for _, a in ipairs(apps) do
-        local okName, n = pcall(function() return a:name() end)
-        if okName and n and appLockData.apps[n] and not appLockNeverLock[n] then
-            if appLockHideObject(a, n) then count = count + 1 end
-        end
-    end
-    return count
-end
-
--- ---- the PIN prompt (hs.chooser, on your active screen) -------------
--- 6.23.0 REPLACED an osascript `display dialog` with this. That dialog
--- was the wrong tool three ways at once, all from the same cause:
--- osascript is a command-line process, not an app.
---   • It could not take keyboard focus, so you had to click it.
---   • ⌘-Tab could not reach it — it has no Dock presence.
---   • Window tools (Scoot and friends) could not see or target it.
---   • It appeared wherever macOS felt like, ignoring your active monitor.
--- A chooser fixes all four for free: showPopup() already places it on the
--- screen you are working on, and it takes focus the moment it opens, so
--- you can just start typing the PIN.
---
--- MASKING: a chooser's query field shows plain text, which would defeat
--- the point. So the real digits are kept in a buffer and the field is
--- rewritten to bullets on every keystroke. pinSettingQuery guards the
--- rewrite: if :query() were ever to re-fire queryChangedCallback we would
--- recurse forever and hang Hammerspoon, so this does NOT depend on
--- assuming it doesn't.
--- ⚠️ "•" is THREE BYTES in UTF-8, and Lua's # counts BYTES. Comparing
--- #query against #pinBuffer directly therefore compares bullets-in-bytes
--- against digits-in-characters, and reconstructs the PIN as garbage
--- ("1<junk>2<junk>3"). All the length maths below is in BYTES, via
--- PIN_MASK_LEN. Swap PIN_MASK for "*" and it still works — that is the
--- point of deriving the width instead of hard-coding 1.
-local PIN_MASK      = "•"
-local PIN_MASK_LEN  = #PIN_MASK
-local pinBuffer      = ""
-local pinCallback    = nil
-local pinSettingQuery = false
-
-local function appLockPinRender()
-    local dots = string.rep(PIN_MASK, #pinBuffer)
-    _G.choosers.appLockPin:choices({
-        {
-            text    = (#pinBuffer > 0) and dots or "Type your PIN…",
-            subText = (#pinBuffer > 0) and "Press Enter to submit  ·  Esc cancels"
-                      or "Esc cancels",
-        },
-    })
-end
-
-_G.choosers.appLockPin = hs.chooser.new(function(c)
-    local pin = pinBuffer
-    local cb  = pinCallback
-    pinBuffer, pinCallback = "", nil
-    if cb then
-        -- c == nil means dismissed with Esc / click-away = cancel.
-        cb((c ~= nil and pin ~= "") and pin or nil)
-    end
-end)
-
-_G.choosers.appLockPin:queryChangedCallback(function(q)
-    if pinSettingQuery then return end
-    q = q or ""
-    -- The field currently holds exactly #pinBuffer mask glyphs, so this
-    -- many BYTES of it are mask, and anything beyond that is new input.
-    local maskBytes = #pinBuffer * PIN_MASK_LEN
-    if #q > maskBytes then
-        pinBuffer = pinBuffer .. q:sub(maskBytes + 1)
-    elseif #q < maskBytes then
-        -- Backspace removes whole glyphs, so byte count / glyph width
-        -- gives the number of characters left.
-        pinBuffer = pinBuffer:sub(1, math.floor(#q / PIN_MASK_LEN))
-    end
-    pinSettingQuery = true
-    _G.choosers.appLockPin:query(string.rep(PIN_MASK, #pinBuffer))
-    pinSettingQuery = false
-    appLockPinRender()
-end)
-
--- SAFETY NET. If the chooser ever disappears without its completion
--- callback running, pinCallback and promptOpen stay set forever — and
--- the watcher's `if promptOpen then return end` means App Lock silently
--- stops working until you reload Hammerspoon. That failure is invisible,
--- which is the worst kind. hideCallback fires whenever the chooser goes
--- away for ANY reason, so this checks shortly after and cleans up if the
--- completion never ran. The delay lets the normal path win the race.
-_G.appLockPinHideTimer = nil
-_G.choosers.appLockPin:hideCallback(function()
-    _G.appLockPinHideTimer = hs.timer.doAfter(0.3, function()
-        if pinCallback then
-            local cb = pinCallback
-            pinBuffer, pinCallback = "", nil
-            print("⚠️ App Lock: the PIN prompt closed without reporting — recovering")
-            cb(nil)
-        end
-    end)
-end)
-
-local function appLockAskPin(title, message, callback)
-    if pinCallback then return end   -- one prompt at a time
-    appLockOwnUIOpening()            -- our focus grab is not "switching away"
-    pinBuffer   = ""
-    pinCallback = callback
-    _G.choosers.appLockPin:placeholderText(message)
-    pinSettingQuery = true
-    _G.choosers.appLockPin:query("")
-    pinSettingQuery = false
-    appLockPinRender()
-    showPopup(_G.choosers.appLockPin)
-    -- Cleared immediately: the override exists only to place THIS popup.
-    -- Leaving it set would pin every other picker in the config to
-    -- whatever screen App Lock last used.
-    _G.popupScreenOverride = nil
-end
--- ---- challenge flow -------------------------------------------------
-local function appLockChallenge(name, app, screenHint)
-    if promptOpen then return end
-
-    local lo = lockoutUntil[name]
-    if lo and os.time() < lo then
-        local mins = math.ceil((lo - os.time()) / 60)
-        hs.alert.show("🔒 " .. name .. " locked out — try again in " .. mins .. " min")
-        appLockStartCooldown(name)   -- don't re-alert on every focus event
-        return
-    end
-
-    -- Set BEFORE the verify timer, so events arriving in that window are
-    -- ignored rather than starting a second challenge.
-    promptOpen = true
-    appLockPromptCount = appLockPromptCount + 1
-    local left = appLockMaxAttempts - (failedCount[name] or 0)
-
-    -- ⚠️ 6.28.2 — THIS MUST BE CAPTURED BEFORE THE APP IS HIDDEN.
-    -- 6.27.1 captured it HERE, but the watcher hides the app before
-    -- calling this function, and a hidden app has NO focused window — so
-    -- appLockRememberScreen returned nil, no override was set, and the
-    -- prompt kept following the focus bounce to the wrong monitor. The
-    -- caller now captures it while the app is still on screen and passes
-    -- it in; the call below is only a fallback for paths that don't.
-    local promptScreen = screenHint or appLockRememberScreen(app)
-
-    -- Let the hide settle (and undo any macOS unhide race) BEFORE the
-    -- prompt appears, so the app's window is never sitting visible
-    -- behind it. That leak is the whole thing this feature exists to
-    -- prevent, so it is worth the 0.15s.
-    --
-    -- ⚠️ 6.30.0 — SKIP ALL OF THAT IN COVER-ONLY MODE. appLockVerifyHidden
-    -- does not just observe: when it sees the app un-hidden it CALLS
-    -- app:hide(). In cover-only mode the app is deliberately never
-    -- hidden, so the verifier would have hidden it right back and
-    -- silently undone the whole point of the setting. There is also
-    -- nothing to verify — concealment there is the cover, and the cover
-    -- is already up by the time we get here.
-    local coverOnly = appLockUseCover and not appLockCoverThenHide
-    local function appLockShowPrompt()
-    appLockLog(name, coverOnly and "covered — showing PIN prompt"
-                               or  "hidden — showing PIN prompt")
-    _G.popupScreenOverride = promptScreen
-    appLockAskPin("App Lock",
-        "Enter your PIN to open " .. name ..
-        ((left < appLockMaxAttempts) and ("\n(" .. left .. " attempts left)") or ""),
-        function(pin)
-            promptOpen = false
-            _G.popupScreenOverride = nil   -- belt and braces
-            -- Cooldown starts when the prompt CLOSES: the focus-return
-            -- event lands right now, and that is the thing to absorb.
-            appLockStartCooldown(name)
-            appLockLog(name, pin and "PIN submitted" or "prompt cancelled")
-            if pin and appLockCheckPin(pin) then
-                failedCount[name] = 0
-                unlocked[name] = true
-                -- Restore the app BEFORE lifting the cover, so the
-                -- window is already back when the panel goes away.
-                pcall(function() app:unhide() end)
-                pcall(function() app:activate() end)
-                appLockRemoveCovers()
-                hs.alert.show("🔓 " .. name .. " unlocked — stays open until you lock it")
-            elseif pin then
-                failedCount[name] = (failedCount[name] or 0) + 1
-                if failedCount[name] >= appLockMaxAttempts then
-                    lockoutUntil[name] = os.time() + appLockLockoutMinutes * 60
-                    failedCount[name] = 0
-                    hs.alert.show("🔒 Too many wrong PINs — " .. name ..
-                        " locked out for " .. appLockLockoutMinutes .. " min")
-                    print("🔒 App Lock: " .. name .. " hit the attempt limit")
-                else
-                    hs.alert.show("❌ Wrong PIN")
-                end
-            end
-            -- ANY outcome that is not a successful unlock must leave the
-            -- app off screen. Escape used to just close the prompt — and
-            -- if the unhide race had left the app visible, you walked
-            -- straight into it without a PIN.
-            if not (pin and appLockCheckPin(pin)) then
-                -- Wrong PIN or cancelled: the app must stay concealed,
-                -- but the cover must come DOWN or you are left staring
-                -- at an opaque panel with no prompt behind it.
-                --
-                -- 6.30.0: this is the ONE place cover-only mode still
-                -- hides. Once the prompt is gone the cover cannot stay
-                -- (the watchdog would clear it seconds later anyway),
-                -- and an app left visible with no PIN entered is the
-                -- exact leak this feature exists to prevent. So on a
-                -- cancel or a wrong PIN, concealment wins over
-                -- smoothness and the app is hidden.
-                appLockHideObject(app, name)
-                appLockRemoveCovers()
-                appLockVerifyHidden(app, name, function() return unlocked[name] end, nil)
-            end
-        end)
-    end   -- end appLockShowPrompt
-
-    if coverOnly then
-        -- Nothing was hidden, so there is nothing to wait for.
-        appLockShowPrompt()
-    else
-        appLockVerifyHidden(app, name, function() return unlocked[name] end,
-                            appLockShowPrompt)
-    end
-end
-
--- ---- the watcher ----------------------------------------------------
--- Cheap on purpose: `activated` fires constantly as you move between
--- apps, so the hot path is a handful of table lookups and nothing else.
--- Same discipline that fixed the §3.7 boot beachball.
---
--- ORDER MATTERS HERE. Every early return below happens BEFORE anything
--- that could change focus, because changing focus is what generates the
--- next event. Acting first and checking later is precisely what made
--- 6.23 strobe.
-if appLockEnabled then
-    _G.appLockWatcher = hs.application.watcher.new(function(name, event, app)
-        -- Leaving an unlocked app re-locks it, when you have asked for
-        -- that. Deliberately event-driven, not a timer: nothing expires
-        -- while you are sitting in the app.
-        if event == hs.application.watcher.deactivated then
-            -- A cover must not outlive the app being frontmost — but NOT
-            -- while we are the reason it stopped being frontmost.
-            -- 6.29.0 tore the cover down here unconditionally, and since
-            -- covering is immediately followed by hiding the app and
-            -- focusing Finder, macOS fires `deactivated` for the locked
-            -- app straight away. The cover was being destroyed about a
-            -- frame after it was painted — cover mode was really just
-            -- hide mode with an extra step.
-            -- promptOpen means a challenge is in flight and the cover is
-            -- doing its job; the watchdog still clears it if the prompt
-            -- ever goes away without cleaning up.
-            if not promptOpen then
-                appLockRemoveCovers()
-            end
-            if appLockRelockOnLeave() and appLockIsLocked(name)
-               and appLockIsUnlocked(name) and not appLockOwnUIActive() then
-                unlocked[name] = nil
-                appLockLog(name, "you switched away — re-locked")
-                if app then appLockHideObject(app, name) end
-            end
-            return
-        end
-        if event ~= hs.application.watcher.launched
-           and event ~= hs.application.watcher.activated then
-            return
-        end
-        if not appLockIsLocked(name) then return end
-        if appLockIsUnlocked(name) then return end
-        -- A prompt is already up: the app is hidden and waiting on a PIN.
-        -- Hiding it again here only bounces focus and restarts the loop.
-        if promptOpen then
-            appLockLog(name, "ignored — a PIN prompt is already open")
-            return
-        end
-        if not appLockHasPin() then
-            -- Locked apps but no PIN set would mean an app you can never
-            -- open. Fail OPEN and say so, rather than trapping you.
-            print("⚠️ App Lock: " .. name .. " is marked locked but no PIN is set — allowing it. Set one with ⇪⇧H.")
-            return
-        end
-        if app then
-            -- ⚠️ 6.24.1 — HIDE ALWAYS, PROMPT SOMETIMES.
-            -- 6.24.0 put the cooldown check ABOVE this, so during the
-            -- cooldown the whole handler bailed out — and a locked app
-            -- clicked in the Dock within those 2 seconds came back on
-            -- screen with NO PIN AT ALL. That is the "works one time,
-            -- then it isn't reliable" you hit, and it was a real hole.
-            --
-            -- Hiding was never what looped. Hiding moves focus to some
-            -- OTHER app, and that app isn't locked, so nothing re-fires.
-            -- The loop was the PROMPT: chooser closes -> focus returns
-            -- here -> prompt reopens. So the cooldown now gates only the
-            -- prompt. The app can never be left visible.
-            -- Screen FIRST — once the app is hidden or covered we can no
-            -- longer ask it which monitor it was on.
-            local screenHint = appLockRememberScreen(app)
-
-            if appLockUseCover then
-                -- Cover, THEN hide behind the cover, THEN send focus
-                -- somewhere predictable. Order matters: covering first
-                -- means the window is already concealed when it
-                -- disappears, so there is no flash, and focus lands on
-                -- Finder rather than on whatever macOS picks.
-                local covered = appLockShowCovers(app, name)
-                if appLockCoverThenHide or not covered then
-                    appLockHideObject(app, name)
-                    appLockFocusFallback()
-                end
-            else
-                appLockHideObject(app, name)
-            end
-
-            if appLockCoolingDown(name) then
-                appLockLog(name, "concealed; prompt suppressed (cooldown) — try again")
-                return
-            end
-            appLockChallenge(name, app, screenHint)
-        end
-    end)
-    _G.appLockWatcher:start()
-
-    -- Re-lock everything the moment the screen locks or the Mac sleeps —
-    -- otherwise a 15-minute grace period would outlive you walking away.
-    if appLockRelockOnScreenLock then
-        _G.appLockCaffeinateWatcher = hs.caffeinate.watcher.new(function(ev)
-            if ev == hs.caffeinate.watcher.screensDidLock
-               or ev == hs.caffeinate.watcher.systemWillSleep then
-                unlocked = {}
-                appLockHideAllLocked()
-            end
-        end)
-        _G.appLockCaffeinateWatcher:start()
-    end
-end
-
--- ---- manager UI (⇪⇧H) ----------------------------------------------
--- 6.23.0 rewrote what Enter DOES, because the old behaviour produced a
--- baffling lock/unlock/lock rhythm. Every protected app had one row and
--- Enter always meant "remove from the protected list" — so right after
--- unlocking with your PIN, the natural "lock it again" keypress silently
--- STOPPED protecting the app instead. You then had to add it back (2nd
--- press) and it locked (3rd). Enter now flips the thing you are looking
--- at: locked <-> unlocked. Un-protecting is a separate, deliberate mode.
-local appLockManagerMode = "main"   -- "main" | "remove"
-
--- ✏️ Where your real applications live. An app must sit under one of
--- these to be offered for locking. Add a folder if you keep apps
--- somewhere unusual.
-local appLockAppRoots = {
-    "/Applications/",         -- includes /Applications/Utilities/
-    "/System/Applications/",  -- Apple's own apps (TextEdit, Notes, ...)
-    (os.getenv("HOME") or "") .. "/Applications/",
-}
-
--- 6.27.0: this used to list every running PROCESS, so the picker filled
--- with loginwindow, photolibraryd, universalaccessd, siriactionsd,
--- nbagent, printtool and friends -- none of them lockable, and they
--- buried the handful of real apps.
---
--- Two filters, both needed:
---   * kind() == 1 -- the app has a Dock icon. Verified against
---     Hammerspoon source: 1 = in the Dock, 0 = not, -1 = prohibited from
---     having any GUI. This alone removes every background daemon.
---   * path under an Applications folder -- catches helper apps bundled
---     INSIDE another app (.../Foo.app/Contents/.../Bar.app), which can
---     still report a Dock icon.
-local function appLockIsRealApp(a)
-    local okKind, kind = pcall(function() return a:kind() end)
-    if not okKind or kind ~= 1 then return false end
-    local okPath, path = pcall(function() return a:path() end)
-    if not okPath or not path then return false end
-    -- A real app's path contains exactly one ".app"; a helper buried
-    -- inside another bundle contains two or more.
-    local _, dotApps = path:gsub("%.app", "")
-    if dotApps > 1 then return false end
-    for _, root in ipairs(appLockAppRoots) do
-        if root ~= "/" and path:sub(1, #root) == root then return true end
-    end
-    return false
-end
-
-local function appLockRunningNames()
-    local names, seen = {}, {}
-    local okList, apps = pcall(hs.application.runningApplications)
-    if okList and apps then
-        for _, a in ipairs(apps) do
-            local okName, n = pcall(function() return a:name() end)
-            if okName and n and not seen[n] and not appLockNeverLock[n]
-               and appLockIsRealApp(a) then
-                seen[n] = true
-                table.insert(names, n)
-            end
-        end
-    end
-    table.sort(names)
-    return names
-end
-
-local function appLockRenderManager()
-    local choices = {}
-    local protected = {}
-    for n in pairs(appLockData.apps) do table.insert(protected, n) end
-    table.sort(protected)
-
-    if appLockManagerMode == "remove" then
-        table.insert(choices, {
-            text = "← Back", subText = "Return to the main list", action = "back",
-        })
-        for _, n in ipairs(protected) do
-            table.insert(choices, {
-                text    = "🗑 Stop protecting " .. n,
-                subText = "Asks for your PIN — after this, " .. n .. " opens freely",
-                action  = "unprotect", app = n,
-            })
-        end
-        if #protected == 0 then
-            table.insert(choices, {
-                text = "Nothing is protected yet", subText = "Add an app from the main list",
-            })
-        end
-        _G.choosers.appLock:choices(choices)
-        return
-    end
-
-    -- First, because at the bottom of a long list it was invisible.
-    -- Safe as the default row: it only opens the removal list, and
-    -- removing anything still requires the PIN.
-    if #protected > 0 then
-        table.insert(choices, {
-            text = "⚙️ Stop protecting an app...",
-            subText = "Removes it from App Lock entirely (asks for your PIN)",
-            action = "removemode",
-        })
-    end
-    table.insert(choices, {
-        text    = appLockHasPin() and "🔑 Change PIN" or "🔑 Set a PIN (required before locking works)",
-        subText = appLockHasPin() and "Asks for your current PIN first"
-                  or "Nothing is locked until a PIN exists",
-        action  = "pin",
-    })
-    table.insert(choices, {
-        text = "🔒 Lock everything now", subText = "Hides every protected app immediately",
-        action = "relock",
-    })
-    table.insert(choices, {
-        text    = appLockRelockOnLeave()
-                  and "🔁 Re-lock when I switch away: ON"
-                  or  "🔁 Re-lock when I switch away: OFF",
-        subText = appLockRelockOnLeave()
-                  and "Leaving a protected app locks it again — Enter turns this off"
-                  or  "Right now a PIN unlocks it until you re-lock by hand — Enter turns this on",
-        action  = "toggleRelockOnLeave",
-    })
-
-    -- Protected apps: Enter flips lock state. This is the row you reach
-    -- for 95% of the time, so it gets the plain Enter.
-    for _, n in ipairs(protected) do
-        if appLockIsUnlocked(n) then
-            table.insert(choices, {
-                text = "🔓 " .. n, subText = "UNLOCKED · Enter locks it now",
-                action = "lock", app = n,
-            })
-        else
-            table.insert(choices, {
-                text = "🔒 " .. n, subText = "LOCKED · Enter asks for your PIN and unlocks",
-                action = "unlock", app = n,
-            })
-        end
-    end
-
-    -- Running apps not protected yet.
-    for _, n in ipairs(appLockRunningNames()) do
-        if not appLockData.apps[n] then
-            table.insert(choices, {
-                text = "○ " .. n, subText = "Not protected · Enter protects and locks it",
-                action = "protect", app = n,
-            })
-        end
-    end
-
-    _G.choosers.appLock:choices(choices)
-end
-
-local function appLockReopenManager()
-    appLockOwnUIOpening()   -- opening this must not re-lock what it lists
-    appLockRenderManager()
-    _G.choosers.appLock:query("")
-    showPopup(_G.choosers.appLock)
-end
-
-_G.choosers.appLock = hs.chooser.new(function(c)
-    if not c or not c.action then return end
-    local name = c.app
-
-    if c.action == "back" then
-        appLockManagerMode = "main"
-        appLockReopenManager()
-
-    elseif c.action == "removemode" then
-        appLockManagerMode = "remove"
-        appLockReopenManager()
-
-    elseif c.action == "toggleRelockOnLeave" then
-        appLockData.relockOnDeactivate = not appLockRelockOnLeave()
-        appLockSave(appLockData)
-        hs.alert.show(appLockRelockOnLeave()
-            and "🔁 Protected apps will re-lock when you switch away"
-            or  "🔁 A PIN now unlocks until you re-lock by hand")
-
-    elseif c.action == "relock" then
-        unlocked = {}
-        local n = appLockHideAllLocked()
-        hs.alert.show("🔒 Re-locked and hid " .. n .. " app" .. ((n == 1) and "" or "s"))
-
-    elseif c.action == "protect" then
-        if not appLockHasPin() then
-            hs.alert.show("🔑 Set a PIN first")
-            return
-        end
-        appLockData.apps[name] = true
-        unlocked[name] = nil
-        appLockSave(appLockData)
-        local hid = appLockHideApp(name)
-        -- Deliberately NO cooldown here: locking from the manager opens
-        -- no prompt, so there is no loop to damp, and a cooldown would
-        -- just delay the first real PIN challenge.
-        hs.alert.show("✅ " .. name .. " is protected" .. (hid and " — hidden" or ""))
-
-    elseif c.action == "lock" then
-        -- Re-locking needs no PIN: it only ever increases protection.
-        -- 6.30.0: same live-state check as unlock, for the same reason —
-        -- but note the ACTION still runs. Concealing something already
-        -- locked is harmless and occasionally useful (it may be locked
-        -- but still on screen); only the WORDING changes, so the alert
-        -- never claims to have done something it did not do.
-        local wasUnlocked = appLockIsUnlocked(name)
-        unlocked[name] = nil
-        local hid = appLockHideApp(name)
-        if wasUnlocked then
-            hs.alert.show("🔒 " .. name .. " locked" .. (hid and " — hidden" or ""))
-        else
-            hs.alert.show("🔒 " .. name .. " was already locked"
-                .. (hid and " — hidden" or ""))
-        end
-
-    elseif c.action == "unlock" then
-        -- ⚠️ 6.30.0 — CHECK LIVE STATE, NOT THE ROW.
-        -- The rows are rendered when the manager opens and can go stale
-        -- while it is on screen (an app quitting, re-lock-on-leave
-        -- firing, a second window acting). Asking for a PIN to unlock
-        -- something that is already unlocked is at best confusing and at
-        -- worst teaches you to type your PIN when nothing asked for it.
-        if appLockIsUnlocked(name) then
-            hs.alert.show("🔓 " .. name .. " is already unlocked")
-            return
-        end
-        appLockAskPin("App Lock", "Enter your PIN to unlock " .. name, function(pin)
-            if not pin then return end
-            if not appLockCheckPin(pin) then
-                hs.alert.show("❌ Wrong PIN")
-                return
-            end
-            unlocked[name] = true
-            local okList, apps = pcall(hs.application.runningApplications)
-            if okList and apps then
-                for _, a in ipairs(apps) do
-                    local okName, n = pcall(function() return a:name() end)
-                    if okName and n == name then pcall(function() a:unhide() end) end
-                end
-            end
-            hs.alert.show("🔓 " .. name .. " unlocked — stays open until you lock it")
-        end)
-
-    elseif c.action == "unprotect" then
-        -- PIN-gated on purpose. Without this, anyone could open ⇪⇧H,
-        -- remove the app from the list, and walk straight into it — the
-        -- lock would be decoration.
-        appLockAskPin("App Lock", "Enter your PIN to stop protecting " .. name, function(pin)
-            if not pin then return end
-            if not appLockCheckPin(pin) then
-                hs.alert.show("❌ Wrong PIN")
-                return
-            end
-            appLockData.apps[name] = nil
-            unlocked[name] = nil
-            appLockSave(appLockData)
-            hs.alert.show("○ " .. name .. " is no longer protected")
-        end)
-
-    elseif c.action == "pin" then
-        local function setNew()
-            appLockAskPin("App Lock", "Enter a NEW PIN (4+ characters)", function(pin)
-                if not pin then return end
-                if #pin < 4 then
-                    hs.alert.show("⚠️ PIN must be at least 4 characters")
-                    return
-                end
-                appLockAskPin("App Lock", "Re-enter the new PIN to confirm", function(again)
-                    if again ~= pin then
-                        hs.alert.show("❌ PINs didn't match — nothing changed")
-                        return
-                    end
-                    appLockData.salt = appLockNewSalt()
-                    appLockData.hash = appLockHash(pin, appLockData.salt)
-                    if appLockSave(appLockData) then hs.alert.show("🔑 PIN set") end
-                end)
-            end)
-        end
-        if appLockHasPin() then
-            appLockAskPin("App Lock", "Enter your CURRENT PIN", function(pin)
-                if not pin then return end
-                if not appLockCheckPin(pin) then
-                    hs.alert.show("❌ Wrong PIN")
-                    return
-                end
-                setNew()
-            end)
-        else
-            setNew()
-        end
-    end
-end)
-_G.choosers.appLock:placeholderText("App Lock — Enter locks or unlocks the selected app")
-
-_G.hyperAddShortcut({"shift"}, "h", function()
-    appLockManagerMode = "main"   -- always open on the main list
-    appLockReopenManager()
-end, "app lock manager")
-
--- ---- guarantees that a cover can never strand you -------------------
--- PANIC KEY. Deliberately a GLOBAL hotkey, not a hyper-modal binding:
--- if the modal is ever wedged, this still fires. ⇪K reaches it too,
--- because unclaimed hyper keys forward exactly this chord.
-hs.hotkey.bind({ "cmd", "ctrl", "alt", "shift" }, "K", function()
-    local had = appLockRemoveCovers()
-    unlocked = unlocked or {}
-    hs.alert.show(had and "🔓 App Lock covers cleared" or "No App Lock covers were up")
-    if had then print("🔒 App Lock: covers cleared by the panic key (⌘⇧⌃⌥K)") end
-end)
-
--- WATCHDOG. A cover with no PIN prompt behind it is by definition
--- orphaned — the prompt closed, or something threw before it opened.
--- Three seconds later it goes away on its own. Held in _G. so the
--- garbage collector cannot quietly cancel it (see §3.7).
-_G.appLockCoverWatchdog = hs.timer.doEvery(3, function()
-    if #_G.appLockCovers > 0 and not promptOpen then
-        if appLockRemoveCovers() then
-            print("🔒 App Lock: cleared an orphaned cover (no PIN prompt was open)")
-        end
-    end
-end)
-
-_G.appLockRemoveCoversForTest = appLockRemoveCovers
-_G.appLockShowCoversForTest   = appLockShowCovers
-_G.appLockCoverCountForTest   = function() return #_G.appLockCovers end
-_G.appLockHideAppForTest    = appLockHideApp
-_G.appLockCoolingDownForTest = appLockCoolingDown
-_G.appLockPromptCountForTest = function() return appLockPromptCount end
-_G.appLockRelockOnLeaveForTest = appLockRelockOnLeave
-_G.appLockIsRealAppForTest = appLockIsRealApp
-_G.appLockVerifyTimersForTest = function() return _G.appLockVerifyTimers end
-_G.appLockPromptOpenForTest  = function() return promptOpen end
-_G.appLockClearCooldownForTest = function() appLockCooldown = {} end
-_G.appLockUnlockedForTest   = function() return unlocked end
-_G.appLockRenderManagerForTest = function(mode)
-    appLockManagerMode = mode or "main"
-    appLockRenderManager()
-    return _G.choosers.appLock.lastChoices
-end
-_G.appLockPinChooserForTest = function() return _G.choosers.appLockPin end
-_G.appLockPinBufferForTest  = function() return pinBuffer end
-
-_G.appLockStatusForBoot = function()
-    if not appLockEnabled then return "disabled in config" end
-    local n = 0
-    for _ in pairs(appLockData.apps) do n = n + 1 end
-    if not appLockHasPin() then
-        return (n > 0) and (n .. " apps marked but NO PIN SET — not locking (⇪⇧H to set one)")
-               or "no PIN set, nothing locked (⇪⇧H to set up)"
-    end
-    local mode = appLockRelockOnLeave() and "re-locks when you switch away"
-                 or "stays unlocked until you re-lock by hand"
-    mode = mode .. (appLockUseCover and " · cover mode (⌘⇧⌃⌥K clears)" or " · hide mode")
-    return (n == 0) and "PIN set, no apps locked yet (⇪⇧H to add)"
-           or (n .. " app" .. ((n == 1) and "" or "s") .. " protected · " .. mode)
-end
-
-_G.appLockCountForTest    = function() local n = 0; for _ in pairs(appLockData.apps) do n = n + 1 end; return n end
-_G.appLockHashForTest     = appLockHash
-_G.appLockCheckPinForTest = appLockCheckPin
-_G.appLockIsLockedForTest = appLockIsLocked
-_G.appLockNeverLockForTest = appLockNeverLock
-_G.appLockFileForTest     = appLockFile
-
-end)() -- §6.6 App Lock
-
 
 -- /////////////////////////////////////////////////
 -- /////////////////////////////////////////////////
@@ -9411,8 +8617,10 @@ end)()
 -- theirs. Pure table work and hotkey registration: no I/O, no app
 -- enumeration, nothing that could stall the main thread at boot.
 if _G.hyperFinalize then _G.hyperFinalize() end
+if _G.diag then _G.diag.mark("§3.12 hyper wired") end
 
-print("📌 init.lua ARCHITECTURE VERSION: 6.34.0")
+_G.configVersion = "6.35.0"
+print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 
 -- ---- CHANGELOG CSV (6.30.1) -----------------------------------------
 -- Verbose version notes go here instead of bloating the header forever.
@@ -9420,9 +8628,9 @@ print("📌 init.lua ARCHITECTURE VERSION: 6.34.0")
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.34.0"
+    local currentVersion = "6.35.0"
     local currentDate    = "08-05-26"
-    local currentNotes   = "FIX: the 6.33.0 option+Tab switcher froze Hammerspoon for 44 seconds on first press. Cause: hs.window.switcher is built on hs.window.filter, which enumerates AND subscribes to every running application over the Accessibility API — including hidden and background apps once the default filter is cleared — all on the main thread, where each unresponsive app costs a full AX timeout. The Console proved it: window.filter loaded at 10:01:25 and macOS disabled the autocorrect event tap at 10:02:09 because the app had stopped answering. Section 1.10 no longer uses hs.window.filter at all: it lists windows with hs.window.orderedWindows() (no watchers, GUI apps only), times every enumeration and reports any that exceeds 0.35s, caps the list at 24 windows, draws its own tile grid on hs.canvas, and detects the option-key release by polling checkKeyboardModifiers on a stored timer rather than another event tap. Also fixed: 6.33.0 discarded its warm-up timer object, so it was garbage-collected and never fired. New: Esc cancels, a watchdog closes a stuck HUD after 30s, and altTab.enabled = false is a panic switch."
+    local currentNotes   = "APP LOCK REMOVED — the PIN gate on hidden apps (old section 6.6, about 1150 lines) is gone entirely, along with its cheat sheet group, its boot report line and its panic key; applock.json is still excluded from backups so a leftover file never syncs. NEW section 1.11 DIAGNOSTICS: hyper+shift+D writes a full report (versions, boot timings, screens, hotkeys, feature states, a live window-enumeration timing, recent errors and the last 25 internal events) to the Console, the clipboard and Logs/diagnostics-<machine>.txt; a 200-entry trail is always recorded in memory so the report shows what happened before a problem even with verbose off; verbose live logging toggles with _G.diag.verbose = true in the Console; hs.uncaughtErrorHandler now captures errors thrown inside async callbacks. FIX (major): all six hs.json.decode calls on Asana responses ran unprotected inside async HTTP callbacks — hs.json.decode RAISES on malformed input, and a corporate proxy or captive portal answering 200 with an HTML page is exactly that, so the error escaped every enclosing pcall; they now go through safeJson, which logs what actually arrived and returns nil. FIX (minor): the changelog boot code opened the CSV to test existence and dropped the handle, leaking it until garbage collection. Boot report now prints total load time. AUDIT (medium): the file was sitting on Lua 200-local ceiling with zero headroom — measured — so the next local added anywhere at top level would have failed the whole config to compile; section 1.6 locals folded into one table, 8 back. The diagnostics API is a no-op stub from line one, extended by section 1.11, so a partial load cannot throw on a logging call. Option+Tab now works out the grid, trims the list, and only then captures thumbnails, instead of capturing 24 to draw 15."
 
     -- Only append if this version isn't already in the file
     local found = false
@@ -9432,7 +8640,12 @@ print("📌 init.lua ARCHITECTURE VERSION: 6.34.0")
         found = content:find(currentVersion, 1, true) ~= nil
     end
     if not found then
-        local needsHeader = (io.open(changelogFile, "r") == nil)
+        -- 6.35.0: this used to be io.open(...) == nil, which opens the
+        -- file and drops the handle on the floor — a leak that only
+        -- closes when the garbage collector gets round to it.
+        local probe = io.open(changelogFile, "r")
+        local needsHeader = (probe == nil)
+        if probe then probe:close() end
         local out = io.open(changelogFile, "a")
         if out then
             if needsHeader then out:write("Date,Version,Change notes\n") end
@@ -9492,7 +8705,8 @@ print("   Hotkeys:  " .. _G.hotkeyBoundCount .. " global bound, "
     .. (_G.hotkeyConflictCount == 0 and "no internal conflicts"
         or (_G.hotkeyConflictCount .. " CONFLICTS — see warnings above"))
     .. " (other apps' shortcuts aren't detectable)")
-print("   App Lock: " .. (_G.appLockStatusForBoot and _G.appLockStatusForBoot() or "off"))
+print(string.format("   Boot:     %.2fs to here  ·  ⇪⇧D writes a diagnostic report",
+    hs.timer.secondsSinceEpoch() - (_G.diagBootStart or hs.timer.secondsSinceEpoch())))
 print("   Hyper:    " .. tostring(_G.hyperShortcutCount or 0)
     .. " shortcuts on ⇪ (Caps Lock) + "
     .. tostring(_G.hyperForwardCount or 0) .. " keys forwarding ⌘⇧⌃⌥, "

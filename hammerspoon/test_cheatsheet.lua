@@ -51,7 +51,12 @@ hs = {
   },
   mouse = { absolutePosition = function() return MOUSE end },
   alert = { show = function() end },
+  json = { decode = function() return {} end, encode = function() return "[]" end },
+  configdir = "/tmp/hs-test",
 }
+logsDir = "/tmp/hs-test"
+function adoptLegacyFile() end
+function warnWriteFailed() end
 function resolveBaseScreen()
   return { frame = function() return SCR end }
 end
@@ -61,7 +66,8 @@ local function wheelEvent(props)
   return { getProperty = function(_, k) return props[k] end }
 end
 
-dofile("GROUPS_PATH")   -- cheatSheetGroups()
+_G.diag = { say = function() end, warn = function() end, mark = function() end,
+            err = function() end, verbose = false, trail = {}, errors = {}, marks = {} }
 dofile("BLOCK_PATH")    -- the section under test, returns the namespace
 local CS = _G.__cheatSheet
 
@@ -248,12 +254,12 @@ CS.toggle(); check("toggle closes", _G.cheatSheetCanvas == nil)
 print("\n=== 13. Group order (locked to what you asked for) ===")
 local want = {
   "APP MONITOR", "ASANA", "CLIPBOARD", "ACTIVITY TRACKER", "POPUP POSITION",
-  "WINDOW ARRANGER", "APP PEEK", "WINDOW SWITCHER", "APP UPDATES", "APP LOCK",
+  "WINDOW ARRANGER", "APP PEEK", "WINDOW SWITCHER", "APP UPDATES",
   "FILE TRACKER", "DOCUMENT WATCHER", "COMMAND HISTORY", "AUTOCORRECT",
   "CAPS LOCK", "BACKUP", "HELP",
 }
 local got = {}
-for _, g in ipairs(cheatSheetGroups()) do table.insert(got, g.title) end
+for _, g in ipairs(CS.groups()) do table.insert(got, g.title) end
 check("group count", #got == #want, #got .. " vs " .. #want)
 for i, w in ipairs(want) do
   check(("%2d. %s"):format(i, w), got[i] and got[i]:find(w, 1, true) ~= nil,
@@ -261,10 +267,17 @@ for i, w in ipairs(want) do
 end
 check("App Peek sits directly below Window Arranger",
   got[6]:find("WINDOW ARRANGER", 1, true) and got[7]:find("APP PEEK", 1, true))
-check("App Lock sits directly below App Updates",
-  got[9]:find("APP UPDATES", 1, true) and got[10]:find("APP LOCK", 1, true))
 check("Autocorrect sits directly below Command History",
-  got[13]:find("COMMAND HISTORY", 1, true) and got[14]:find("AUTOCORRECT", 1, true))
+  got[12]:find("COMMAND HISTORY", 1, true) and got[13]:find("AUTOCORRECT", 1, true))
+check("APP LOCK is gone from the sheet", (function()
+  for _, g in ipairs(CS.groups()) do
+    if g.title:find("LOCK", 1, true) and not g.title:find("CAPS", 1, true) then return false end
+    for _, e in ipairs(g.entries) do
+      if tostring(e[2]):find("PIN", 1, true) then return false end
+    end
+  end
+  return true
+end)())
 check("App Updates -> File Tracker -> Document Watcher keep that order", (function()
   local iu, ift, idw
   for i, t in ipairs(got) do
