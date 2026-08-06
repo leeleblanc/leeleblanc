@@ -61,6 +61,14 @@ function resolveBaseScreen()
   return { frame = function() return SCR end }
 end
 _G.customShortcuts = {}
+_G.moduleStatus = {}
+_G.moduleCheatsheets = {
+  { title = "👀 APP PEEK", order = 7, entries = { { "⇪P", "Hide frontmost app" } } },
+  { title = "🔄 WINDOW SWITCHER (⌥Tab — Windows-style)", order = 8,
+    entries = { { "⌥Tab", "Walk every open window" } } },
+  { title = "☁️ BACKUP (automatic)", order = 15,
+    entries = { { "daily 5:00 PM", "~/.hammerspoon → OneDrive/Backups" } } },
+}
 
 local function wheelEvent(props)
   return { getProperty = function(_, k) return props[k] end }

@@ -146,7 +146,43 @@ check("saved to the Logs folder, tagged per machine",
 out("\n=== 7. Whole-file audit of the shipped init.lua ===\n")
 local INIT = "INIT_PATH"
 local f = realopen(INIT, "r"); local text = f:read("*a"); f:close()
-check("the file compiles", (loadfile(INIT)) ~= nil, select(2, loadfile(INIT)))
+-- The audit covers the MODULE FILES too, so a bug class cannot escape
+-- it simply by having been moved out of init.lua.
+local MODS = { "daily_backup", "app_peek", "window_switcher" }
+local moduleText = {}
+for _, m in ipairs(MODS) do
+  local mf = realopen("MODULES_DIR/" .. m .. ".lua", "r")
+  if mf then moduleText[m] = mf:read("*a"); mf:close(); text = text .. "\n" .. moduleText[m] end
+end
+check("init.lua compiles", (loadfile(INIT)) ~= nil, select(2, loadfile(INIT)))
+for _, m in ipairs(MODS) do
+  local path = "MODULES_DIR/" .. m .. ".lua"
+  check("module compiles: " .. m, (loadfile(path)) ~= nil, select(2, loadfile(path)))
+  check("module returns a contract: " .. m, (function()
+    local ok, mod = pcall(dofile, path)
+    return ok and type(mod) == "table" and type(mod.setup) == "function"
+  end)())
+end
+check("the migrated sections are GONE from init.lua", (function()
+  local f2 = realopen(INIT, "r"); local only = f2:read("*a"); f2:close()
+  return not only:find("1.7 DAILY BACKUP", 1, true)
+     and not only:find("1.8 APP PEEK", 1, true)
+     and not only:find("1.10 WINDOW SWITCHER", 1, true)
+end)())
+check("modules never reach into init.lua's locals", (function()
+  for m, body in pairs(moduleText) do
+    for line in body:gmatch("[^\n]+") do
+      if not line:match("^%s*%-%-") then
+        -- these must arrive via core, never as free-floating globals
+        for _, forbidden in ipairs({ "popupScreenKeys", "resolveBaseScreen%(",
+                                     "logsDir", "backupDir" }) do
+          if line:find(forbidden) and not line:find("core%.") then return false, m end
+        end
+      end
+    end
+  end
+  return true
+end)())
 local function liveCode(pattern)      -- matches outside comment lines
   for line in text:gmatch("[^\n]+") do
     if not line:match("^%s*%-%-") and line:find(pattern) then return line end

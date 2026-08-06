@@ -85,8 +85,12 @@ end
 
 _G.diag = { say = function() end, warn = function() end, mark = function() end,
             err = function() end, verbose = false, trail = {}, errors = {}, marks = {} }
-dofile("BLOCK_PATH")
-local AT = _G.__altTab
+local mod = dofile("BLOCK_PATH")
+-- resolveBaseScreen is looked up at CALL time, not captured, so the
+-- small-screen test below can swap the screen out from under it.
+mod.setup({ resolveBaseScreen = function(...) return resolveBaseScreen(...) end,
+            diag = _G.diag })
+local AT = mod.altTab
 
 local out = io.write
 local pass, fail = 0, 0
@@ -119,6 +123,10 @@ check("no window enumeration at load", COUNT.ordered == 0 and COUNT.all == 0)
 check("no canvas at load", COUNT.canvasNew == 0)
 check("no timer at load", timer == nil)
 check("hs.window.filter is never referenced", hs.window.filter == nil)
+check("the module declares its own cheat sheet group",
+  mod.cheatsheet and mod.cheatsheet.title:find("WINDOW SWITCHER", 1, true) ~= nil)
+check("...and its slot in the sheet", mod.order == 8, mod.order)
+check("module exposes a setup() per the contract", type(mod.setup) == "function")
 
 out("\n=== 2. A press opens the HUD ===\n")
 reset(5)

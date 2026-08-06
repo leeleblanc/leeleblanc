@@ -4,9 +4,46 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.35.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.36.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.36.0 — MODULES: SECTIONS NOW LIVE IN THEIR OWN FILES:
+--   🧩 NEW §1.12 MODULE LOADER. Sections can now live in
+--      ~/.hammerspoon/modules/<name>.lua and are listed in moduleList.
+--      Three moved out first — Daily Backup (§1.7), App Peek (§1.8) and
+--      Window Switcher (§1.10), 464 lines out of this file. Everything
+--      not yet moved still works exactly as before: the two styles
+--      coexist on purpose so the move happens a few sections at a time
+--      instead of as one all-or-nothing rewrite.
+--   📏 WHY IT MATTERS MORE THAN TIDINESS: Lua's 200-local limit is PER
+--      CHUNK, and a file is a chunk. This file was measured at exactly
+--      200 with ZERO headroom in 6.35.0 — the next top-level `local`
+--      anywhere would have been a compile error taking the WHOLE config
+--      down. init.lua is at 12 free now, and every module file gets its
+--      own fresh 200.
+--   📖 THE CHEAT SHEET IS ASSEMBLED, NOT HARD-CODED. Each module
+--      registers its own group when it loads, and groups sort by an
+--      explicit UNIQUE order number (unique because table.sort in Lua
+--      is not stable — equal keys could reshuffle between reloads).
+--      Delete a module file and its group goes with it, instead of the
+--      sheet advertising a shortcut nothing binds — the exact drift the
+--      "hand-written snapshot" warning has apologised for since 6.10.
+--   🛟 FAILURE IS ISOLATED, which is the other half of the point. Every
+--      module is loaded, executed AND set up inside its own pcall: a
+--      syntax error in one costs you that module, not your hotkeys, not
+--      autocorrect, not the whole config. Before this, one bad line
+--      anywhere meant NOTHING loaded. Failures are named in the
+--      Console, counted in the boot report, listed in ⇪⇧D and shown as
+--      a ⚠️ group at the TOP of the cheat sheet.
+--   ☁️ MODULES LOAD FROM LOCAL DISK, DELIBERATELY. Loading them from
+--      the OneDrive folder would save a copy step and is the wrong
+--      trade: Files-On-Demand can leave a file as an online-only
+--      placeholder, and reading one triggers a SYNCHRONOUS download —
+--      a main-thread stall at every login on a slow network, the same
+--      failure shape as the 6.33.0 ⌥Tab freeze. Master copies live in
+--      OneDrive for durability and for copying to another Mac; the
+--      loader only ever reads local disk. The 5pm backup already
+--      rsyncs ~/.hammerspoon, so modules/ is covered automatically.
 -- NEW IN 6.35.0 — APP LOCK REMOVED · DIAGNOSTICS ADDED · AUDIT FIXES:
 --   🗑 APP LOCK IS GONE. The whole PIN-gate feature (old §6.6, ~1150
 --      lines) has been deleted: the manager, the covers, the PIN
@@ -1236,7 +1273,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.35.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.36.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -1465,6 +1502,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
+_G.configVersion = "6.36.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -2062,11 +2100,11 @@ _G.customShortcuts = cheatSheet.loadCustom()
 -- Built-ins + custom entries, as ordered groups of {keys, description}.
 function cheatSheet.groups()
     local groups = {
-        { title = "👁 APP MONITOR (automatic)", entries = {
+        { title = "👁 APP MONITOR (automatic)", order = 1, entries = {
             { "Enter", "Spawn (relaunch) or End" },
             { "Esc", "Dismiss (stays open otherwise, no timeout) → posts notification" },
         }},
-        { title = "✅ ASANA — TASKS & DASHBOARD", entries = {
+        { title = "✅ ASANA — TASKS & DASHBOARD", order = 2, entries = {
             { "⇪A", "Format Asana URL from clipboard" },
             { "⇪B", "Browse Asana Teams — Enter copies a name for Assignee" },
             { "⇪C", "Comment on a task" },
@@ -2074,7 +2112,7 @@ function cheatSheet.groups()
             { "⇪L", "List tasks — Today / Week / Overdue" },
             { "auto", "Color legend strip under the list" },
         }},
-        { title = "📋 CLIPBOARD & OCR", entries = {
+        { title = "📋 CLIPBOARD & OCR", order = 3, entries = {
             { "⇪V", "Clipboard history" },
             { "⇪⇧V", "Edit or delete a clipboard entry" },
             { "⇪O", "OCR text search" },
@@ -2082,7 +2120,7 @@ function cheatSheet.groups()
             { "⌘C files", "OCR image files → Finder comment tag" },
             { "⇪⇧C", "Toggle copy-on-select (off by default)" },
         }},
-        { title = "📊 ACTIVITY TRACKER", entries = {
+        { title = "📊 ACTIVITY TRACKER", order = 4, entries = {
             { "⇪0", "Open — today's totals" },
             { "type: week", "This week's totals" },
             { "type: month", "Top apps & documents this month" },
@@ -2091,11 +2129,11 @@ function cheatSheet.groups()
             { "auto 4:00 PM", "Daily report pops up" },
             { "auto Mon 7:30 AM", "Weekly recap pops up" },
         }},
-        { title = "🕹 POPUP POSITION", entries = {
+        { title = "🕹 POPUP POSITION", order = 5, entries = {
             { "⇪⇧ ↑↓←→", "Nudge popup (hold to repeat)" },
             { "⇪⇧R", "Reset nudge offset" },
         }},
-        { title = "🪟 WINDOW ARRANGER", entries = {
+        { title = "🪟 WINDOW ARRANGER", order = 6, entries = {
             { "⇪← / ⇪→", "Left / right half of screen" },
             { "⇪↑", "Fill screen (not full-screen mode)" },
             { "⇪\\", "Split two most recent windows side-by-side" },
@@ -2103,29 +2141,18 @@ function cheatSheet.groups()
             { "⇪↓", "Return window to prior spot (toggles)" },
             { "⇪[ / ⇪]", "Move window left / right a monitor" },
         }},
-        { title = "👀 APP PEEK", entries = {
-            { "⇪P", "Hide frontmost app — press again to bring back" },
-        }},
-        { title = "🔄 WINDOW SWITCHER (⌥Tab — Windows-style)", entries = {
-            { "⌥Tab", "Hold ⌥, tap Tab to walk every open window, release to switch" },
-            { "⌥⇧Tab", "Walk backwards through the same list" },
-            { "tiles", "One thumbnail per WINDOW, with its title underneath" },
-            { "Esc", "Cancels — no switch" },
-            { "minimised", "Off by default — altTab.includeMinimized = true (§1.10)" },
-            { "⌘Tab", "Untouched — macOS reserves it, and it switches apps not windows" },
-        }},
-        { title = "📦 APP UPDATES", entries = {
+        { title = "📦 APP UPDATES", order = 9, entries = {
             { "⇪U", "Which apps are behind right now (searchable)" },
             { "auto 9:00 AM  ·  auto on open", "Always checks fresh" },
             { "Enter (brew-managed)", "Installs the update via Homebrew" },
             { "Enter (not brew-managed)", "Opens the vendor's download page" },
             { "⬆️ Upgrade ALL row", "Installs every brew-managed update at once" },
         }},
-        { title = "📁 FILE TRACKER", entries = {
+        { title = "📁 FILE TRACKER", order = 10, entries = {
             { "⇪F", "Rename / move / copy history (searchable)" },
             { "Enter", "Copy row  ·  90-day history" },
         }},
-        { title = "📄 DOCUMENT WATCHER (experimental)", entries = {
+        { title = "📄 DOCUMENT WATCHER (experimental)", order = 11, entries = {
             { "⇪⇧W", "Documents worked on today — search name / ext / date" },
             { "Enter", "Copy the highlighted row" },
             { "☑️ row", "Copy several: pick rows with Enter, then copy together" },
@@ -2133,17 +2160,17 @@ function cheatSheet.groups()
             { "auto", "Samples every 5s · stops when you are idle" },
             { "file", "Logs/doc_wather.csv — Date · Time · File · Working time" },
         }},
-        { title = "⌨️ COMMAND HISTORY", entries = {
+        { title = "⌨️ COMMAND HISTORY", order = 12, entries = {
             { "⇪H", "Search your shell history — Enter copies the command" },
             { "type: anything", "Matches anywhere in the command" },
             { "note", "Read from command_history.log, written by your shell" },
         }},
-        { title = "✏️ AUTOCORRECT", entries = {
+        { title = "✏️ AUTOCORRECT", order = 13, entries = {
             { "⇪S", "Toggle on/off" },
             { "⇪Z", "Undo last fix & learn the exception" },
             { "auto", "Fixes typos & TWo-caps as you type (autocorrect.csv)" },
         }},
-        { title = "⌨️ ⇪ = CAPS LOCK (hold it, tap a key)", entries = {
+        { title = "⌨️ ⇪ = CAPS LOCK (hold it, tap a key)", order = 14, entries = {
             { "⇪ + key", "Every shortcut on this sheet — hold Caps Lock" },
             { "⇪⇧ + key", "The few second-level ones (edit/delete, nudging)" },
             { "unassigned key", "Sends ⌘⇧⌃⌥+that key to the front app" },
@@ -2151,10 +2178,7 @@ function cheatSheet.groups()
             { "Caps Lock alone", "No longer toggles capitals (§3.12 reverts)" },
             { "F1–F12", "Not forwarded — macOS reserves some (see 6.18.1)" },
         }},
-        { title = "☁️ BACKUP (automatic)", entries = {
-            { "daily 5:00 PM", "~/.hammerspoon → OneDrive/Backups (token excluded)" },
-        }},
-        { title = "❓ HELP", entries = {
+        { title = "❓ HELP", order = 16, entries = {
             { "⇪/", "Toggle this cheat sheet" },
             { "↑ ↓", "Scroll it a row at a time — hold to keep going" },
             { "PgUp / PgDn", "Scroll a screenful  ·  Home / End jump to the ends" },
@@ -2167,18 +2191,48 @@ function cheatSheet.groups()
         }},
     }
 
-    -- Append user-added entries, grouped by their group name (default
-    -- CUSTOM), in the order groups were first used.
-    local order, byGroup = {}, {}
-    for _, c in ipairs(_G.customShortcuts) do
-        local g = (type(c.group) == "string" and c.group ~= "" and c.group or "CUSTOM"):upper()
-        if not byGroup[g] then byGroup[g] = {}; table.insert(order, g) end
-        table.insert(byGroup[g], { tostring(c.keys or "?"), tostring(c.desc or "") })
-    end
-    for _, g in ipairs(order) do
-        table.insert(groups, { title = "⭐ " .. g, entries = byGroup[g] })
+    -- 6.36.0 — GROUPS COME FROM MODULES TOO. A section that has moved
+    -- into its own file registers its cheat sheet group when it loads
+    -- (§1.12), so this sheet is ASSEMBLED rather than hard-coded.
+    -- Delete a module file and its group disappears with it, instead of
+    -- the sheet advertising a shortcut that nothing binds any more —
+    -- exactly the drift the "hand-written snapshot" warning at the top
+    -- of this section has been apologising for since 6.10.
+    for _, g in ipairs(_G.moduleCheatsheets or {}) do
+        table.insert(groups, { title = g.title, entries = g.entries, order = g.order })
     end
 
+    -- A module that FAILED to load is announced AT THE TOP, not quietly
+    -- omitted. A feature that vanishes without explanation is the worst
+    -- of both worlds: you reach for the shortcut, nothing happens, and
+    -- nothing anywhere tells you why.
+    local broken = {}
+    for _, rec in ipairs(_G.moduleStatus or {}) do
+        if not rec.ok then
+            table.insert(broken, { rec.name, tostring(rec.err):sub(1, 64) })
+        end
+    end
+    if #broken > 0 then
+        table.insert(groups, { title = "⚠️ MODULES THAT FAILED TO LOAD (⇪⇧D for detail)",
+                               entries = broken, order = 0 })
+    end
+
+    -- User-added entries, grouped by their group name (default CUSTOM),
+    -- in the order groups were first used. They sort last.
+    local custOrder, byGroup = {}, {}
+    for _, c in ipairs(_G.customShortcuts) do
+        local g = (type(c.group) == "string" and c.group ~= "" and c.group or "CUSTOM"):upper()
+        if not byGroup[g] then byGroup[g] = {}; table.insert(custOrder, g) end
+        table.insert(byGroup[g], { tostring(c.keys or "?"), tostring(c.desc or "") })
+    end
+    for i, g in ipairs(custOrder) do
+        table.insert(groups, { title = "⭐ " .. g, entries = byGroup[g], order = 900 + i })
+    end
+
+    -- Assemble. Every group carries a UNIQUE order number, which matters
+    -- because table.sort in Lua is NOT stable — equal keys could shuffle
+    -- between reloads and the sheet would quietly reorder itself.
+    table.sort(groups, function(a, b) return (a.order or 500) < (b.order or 500) end)
     return groups
 end
 
@@ -2750,99 +2804,6 @@ hs.hotkey.bind(popupScreenKeys.mods, cheatSheet.editKey, function()
 end)
 
 -- =====================================================================
--- 1.7 DAILY BACKUP — ~/.hammerspoon → OneDrive (secret.lua excluded)
--- =====================================================================
--- Once a day (time below), copies your ~/.hammerspoon folder into
--- OneDrive, so a dead Mac or a bad edit never costs you this setup.
--- 6.10.0: your DATA files don't live in ~/.hammerspoon anymore (they're
--- in the OneDrive Logs folder directly), so this backup now mainly
--- protects init.lua itself — and secret.lua is EXCLUDED from the copy:
--- the Asana token stays on this Mac only, never in the cloud, even
--- your own OneDrive. (Losing secret.lua just means minting a fresh
--- token at app.asana.com/0/my-apps — 30 seconds, zero risk.)
--- Uses rsync, so unchanged files aren't recopied; nothing is ever
--- deleted from the backup, only added/updated. OneDrive's own version
--- history gives you point-in-time copies on top of this.
--- Quiet on success (a line in the Hammerspoon Console); an on-screen
--- alert appears only if the backup FAILS (e.g. OneDrive unavailable).
--- Same wake-time caveat as the reports: if the Mac is asleep at backup
--- time, that day's run is skipped, not run late.
--- Runs only when a cloud-synced destination exists (see §0.1): no
--- OneDrive on this Mac → no backup timer, with a console note instead.
-local backupTime = "17:00"  -- 5:00 PM daily, 24h format
-
-if backupDir then
-    local function runHammerspoonBackup()
-        local src = hs.configdir
-        -- applock.json was the App Lock PIN hash. App Lock was removed
-        -- in 6.35.0; the exclusion stays so a leftover file from an
-        -- older version still never reaches the backup. It is
-        -- excluded for the same reason secret.lua is: per-machine only,
-        -- never synced to the cloud, never in a backup.
-        local cmd = "mkdir -p '" .. backupDir .. "' && /usr/bin/rsync -a "
-            .. "--exclude 'secret.lua' --exclude 'applock.json' '"
-            .. src .. "/' '" .. backupDir .. "/'"
-        hs.task.new("/bin/zsh", function(exitCode, stdOut, stdErr)
-            if exitCode == 0 then
-                print("☁️ Hammerspoon backup completed → " .. backupDir .. " (secret.lua + applock.json excluded)")
-            else
-                hs.alert.show("⚠️ Hammerspoon backup FAILED — is OneDrive available?", 5)
-                print("🚨 Backup error: " .. tostring(stdErr))
-            end
-        end, { "-c", cmd }):start()
-    end
-
-    _G.backupTimer = hs.timer.doAt(backupTime, "1d", runHammerspoonBackup)
-else
-    print("ℹ️ No OneDrive on this Mac — daily backup disabled; data stays in " .. hs.configdir .. " and " .. logsDir)
-end
-
--- =====================================================================
--- 1.8 APP PEEK — ⌃⌥⌘P hides the frontmost app / brings it back
--- =====================================================================
--- The closest macOS allows to "make an app translucent so you can see
--- behind it": true window opacity of OTHER apps isn't exposed by the
--- Accessibility API (position/size/hide yes, alpha no), so instead one
--- press HIDES the frontmost app entirely — revealing everything behind
--- it — and the same press brings it back and refocuses it. 0%/100%
--- rather than 50%/100%, but the same toggle rhythm.
--- Notes:
---   • Only one app is "peeked" at a time; pressing on a different app
---     while one is hidden restores the first one instead.
---   • If you manually unhide the app (click its Dock icon), the next
---     press just resets cleanly — nothing gets stuck.
-local peekKey = "P"
-_G.peekedApp = nil
-
-hs.hotkey.bind(popupScreenKeys.mods, peekKey, function()
-    if _G.peekedApp then
-        local app = _G.peekedApp
-        _G.peekedApp = nil
-        local name = "app"
-        pcall(function() name = app:name() or name end)
-        pcall(function()
-            app:unhide()
-            app:activate()
-        end)
-        hs.alert.show("👀 Restored " .. name)
-        return
-    end
-
-    local ok, app = pcall(hs.application.frontmostApplication)
-    if not ok or not app then return end
-    local name = "app"
-    pcall(function() name = app:name() or name end)
-    if name == "Hammerspoon" then
-        hs.alert.show("👀 Won't peek Hammerspoon itself")
-        return
-    end
-
-    _G.peekedApp = app
-    pcall(function() app:hide() end)
-    hs.alert.show("👀 Peeking behind " .. name .. " — ⌃⌥⌘P brings it back")
-end)
-
--- =====================================================================
 -- 1.9 WINDOW ARRANGER — halves, fill, split, monitor jumps, app summon
 -- =====================================================================
 -- ✏️ EDIT YOUR KEYS HERE — every binding below reads from this table.
@@ -3091,377 +3052,6 @@ hs.hotkey.bind(windowKeys.monitorMods, windowKeys.monitorRight, function() moveF
 hs.hotkey.bind(windowKeys.monitorMods, windowKeys.monitorLeft,  function() moveFocusedToMonitor("west") end)
 
 -- =====================================================================
--- 1.10 WINDOW SWITCHER — ⌥Tab, Windows-style, one tile per window
--- =====================================================================
--- Hold ⌥ and tap Tab to walk every open WINDOW — one thumbnail tile
--- each — ⌥⇧Tab to walk back, release ⌥ to switch to the highlighted
--- one, Esc to cancel. That is the Windows Alt+Tab behaviour, which
--- macOS does not have: ⌘Tab switches APPS, so a five-window app hides
--- behind a single icon. ⌘Tab itself is left alone — macOS reserves it,
--- as §0.3's knownSystemCombos table already records.
---
--- ⚠️ 6.34.0 — WHY THIS IS HAND-BUILT AND NOT hs.window.switcher.
--- 6.33.0 used hs.window.switcher, which is built on hs.window.filter.
--- That combination BEACHBALLED Hammerspoon for 44 seconds on the first
--- press. The Console recorded it precisely:
---     10:01:25  -- Loading extensions: window.filter
---     10:02:09  ✏️ Autocorrect tap was disabled by macOS — revived
--- macOS disables an event tap when the owning app stops answering, so
--- that second line is the main thread coming back after 44 seconds.
--- The cause: hs.window.filter enumerates and then SUBSCRIBES TO every
--- running application over the Accessibility API — and because
--- setDefaultFilter({}) removed the exclusions, that included hidden and
--- background apps. Every unresponsive app costs a full AX timeout, and
--- they add up on the main thread, which is the only thread Hammerspoon
--- has. Nothing about that is tunable; the module is simply the wrong
--- tool on a machine with a lot of apps open.
---
--- So this section never touches hs.window.filter. Instead:
---   • hs.window.orderedWindows() — one snapshot of visible windows,
---     already in front-to-back order, no watchers, no subscriptions.
---     Only GUI apps are asked, which is what keeps hidden/background
---     apps (the expensive ones) out of the call entirely.
---   • The enumeration IS TIMED, every single press. If it ever crosses
---     altTab.slowWarnSeconds the Console prints how long it actually
---     took, so a slow machine reports a number instead of a beachball.
---   • The window list is CAPPED (altTab.maxWindows). A capped list is a
---     bounded cost; an uncapped one is a promise you can't keep.
---   • ⌥-release is detected by POLLING hs.eventtap.checkKeyboardModifiers
---     on a timer, not by another event tap. macOS switches taps off when
---     it feels like it (see the autocorrect line above); a timer it
---     leaves alone.
---   • THE TIMER OBJECT IS STORED. hs.timer objects are garbage-collected
---     if nothing holds a reference — 6.33.0's warm-up timer was thrown
---     away on the line that created it and therefore never fired.
---
--- 🚨 IF THIS EVER MISBEHAVES: set altTab.enabled = false below and
--- reload. The hotkeys stay bound and do nothing, so ⌥Tab goes back to
--- the app underneath and nothing else in this file is affected.
-local altTab = {}
-
--- ✏️ EDIT HERE ---------------------------------------------------------
-altTab.enabled          = true   -- false = ⌥Tab does nothing (panic switch)
-altTab.includeMinimized = false  -- true also lists minimised windows. This
-                                 -- costs an hs.window.allWindows() call,
-                                 -- which is slower than the ordered list —
-                                 -- turn it on only if you want it.
-altTab.maxWindows       = 24     -- hard cap on tiles, keeps cost bounded
-altTab.slowWarnSeconds  = 0.35   -- warn in the Console past this
-altTab.maxSessionSecs   = 30     -- watchdog: tear a stuck HUD down
-altTab.tileW, altTab.tileH = 200, 128
-altTab.gap, altTab.pad     = 14, 22
-altTab.maxCols          = 6
-altTab.pollInterval     = 0.05   -- how often we check whether ⌥ is still down
-
-altTab.session = nil   -- nil when idle; a table while the HUD is up
-altTab.poll    = nil   -- MUST be held: an unreferenced timer is collected
-altTab.escKey  = nil
-
--- ---- window list ----------------------------------------------------
--- One snapshot, timed, capped. No filters, no watchers, no subscriptions.
-function altTab.listWindows()
-    local t0 = hs.timer.secondsSinceEpoch()
-
-    local ok, wins = pcall(function()
-        local ordered = hs.window.orderedWindows() or {}
-        if not altTab.includeMinimized then return ordered end
-        -- Minimised windows are not in the ordered list, so they are
-        -- appended after it — visible windows stay in front-to-back
-        -- order, which is the order you actually think in.
-        local seen, out = {}, {}
-        for _, w in ipairs(ordered) do
-            local id = w:id()
-            if id then seen[id] = true end
-            table.insert(out, w)
-        end
-        for _, w in ipairs(hs.window.allWindows() or {}) do
-            local id = w:id()
-            if id and not seen[id] and w:isMinimized() then table.insert(out, w) end
-        end
-        return out
-    end)
-
-    local elapsed = hs.timer.secondsSinceEpoch() - t0
-    if not ok then
-        print("🔄 Window switcher: could not list windows — " .. tostring(wins))
-        return {}
-    end
-    if elapsed > altTab.slowWarnSeconds then
-        print(string.format(
-            "🔄 Window switcher: listing windows took %.2fs — if that is painful, "
-            .. "lower altTab.maxWindows or set altTab.includeMinimized = false (§1.10)",
-            elapsed))
-    end
-
-    -- Keep only real, titled windows, and never more than the cap.
-    local out = {}
-    for _, w in ipairs(wins) do
-        local okStd, standard = pcall(function() return w:isStandard() end)
-        if okStd and standard then
-            table.insert(out, w)
-            if #out >= altTab.maxWindows then break end
-        end
-    end
-    _G.diag.say("altTab", string.format("listed %d windows in %.3fs (cap %d)",
-        #out, elapsed, altTab.maxWindows))
-    return out
-end
-
--- ---- drawing --------------------------------------------------------
-local function fit(text, maxChars)
-    text = tostring(text or "")
-    local len = (utf8 and utf8.len(text)) or #text
-    if not len or len <= maxChars then return text end
-    local out, n = {}, 0
-    for _, c in utf8.codes(text) do
-        n = n + 1
-        if n > maxChars - 1 then break end
-        table.insert(out, utf8.char(c))
-    end
-    return table.concat(out) .. "…"
-end
-
-function altTab.render()
-    local s = altTab.session
-    if not (s and s.canvas) then return end
-
-    local els = {}
-    table.insert(els, {
-        type = "rectangle", action = "strokeAndFill",
-        fillColor   = { red = 0.06, green = 0.06, blue = 0.08, alpha = 0.94 },
-        strokeColor = { white = 1, alpha = 0.22 }, strokeWidth = 1,
-        roundedRectRadii = { xRadius = 18, yRadius = 18 },
-        frame = { x = 0.5, y = 0.5, w = s.w - 1, h = s.h - 1 },
-    })
-
-    local titleChars = math.max(8, math.floor(altTab.tileW / 7))
-    for i, item in ipairs(s.items) do
-        local col = (i - 1) % s.cols
-        local row = math.floor((i - 1) / s.cols)
-        local x = altTab.pad + col * (altTab.tileW + altTab.gap)
-        local y = altTab.pad + row * (altTab.tileH + 24 + altTab.gap)
-        local selected = (i == s.index)
-
-        table.insert(els, {
-            type = "rectangle", action = "strokeAndFill",
-            fillColor   = selected and { red = 0.28, green = 0.52, blue = 0.92, alpha = 0.35 }
-                                    or { white = 1, alpha = 0.06 },
-            strokeColor = selected and { red = 0.45, green = 0.68, blue = 1.0, alpha = 0.95 }
-                                    or { white = 1, alpha = 0.10 },
-            strokeWidth = selected and 2 or 1,
-            roundedRectRadii = { xRadius = 10, yRadius = 10 },
-            frame = { x = x, y = y, w = altTab.tileW, h = altTab.tileH + 24 },
-        })
-
-        -- The tile picture. A nil image is NOT passed to the canvas —
-        -- some windows (and every window of an app that refuses a
-        -- capture) have no snapshot, and an image element with no image
-        -- is an error. Those tiles just show their title.
-        if item.image then
-            table.insert(els, {
-                type = "image", image = item.image,
-                imageScaling = "scaleProportionally", imageAlignment = "center",
-                frame = { x = x + 8, y = y + 6, w = altTab.tileW - 16, h = altTab.tileH - 14 },
-            })
-        end
-
-        table.insert(els, {
-            type = "text", text = fit(item.label, titleChars),
-            textSize = 11, textAlignment = "center",
-            textColor = selected and { white = 1 } or { white = 0.75 },
-            frame = { x = x + 6, y = y + altTab.tileH - 4, w = altTab.tileW - 12, h = 22 },
-        })
-    end
-
-    local current = s.items[s.index]
-    local caption = current and current.full or ""
-    if (s.hidden or 0) > 0 then
-        caption = caption .. string.format("      (showing %d of %d — the screen holds no more)",
-                                           #s.items, #s.items + s.hidden)
-    end
-    table.insert(els, {
-        type = "text",
-        text = fit(caption, math.floor(s.w / 8)),
-        textSize = 14, textAlignment = "center", textColor = { white = 0.92 },
-        frame = { x = altTab.pad, y = s.h - 30, w = s.w - altTab.pad * 2, h = 24 },
-    })
-
-    local ok, err = pcall(function() s.canvas:replaceElements(els) end)
-    if not ok then print("🔄 Window switcher: render failed — " .. tostring(err)) end
-end
-
--- ---- session lifecycle ----------------------------------------------
-function altTab.finish(commit)
-    local s = altTab.session
-    altTab.session = nil            -- cleared FIRST: teardown must be
-                                    -- idempotent, and a second release
-                                    -- event must not focus twice
-    if altTab.poll then
-        pcall(function() altTab.poll:stop() end)
-        altTab.poll = nil
-    end
-    if altTab.escKey then pcall(function() altTab.escKey:disable() end) end
-    if not s then return end
-    if s.canvas then pcall(function() s.canvas:delete() end) end
-
-    _G.diag.say("altTab", "HUD closed (" .. (commit and "switching" or "cancelled") .. ")")
-    if commit then
-        local win = s.items[s.index] and s.items[s.index].win
-        if win then
-            pcall(function()
-                if win:isMinimized() then win:unminimize() end
-                win:focus()
-            end)
-        end
-    end
-end
-
-function altTab.advance(delta)
-    local s = altTab.session
-    if not s then return end
-    local n = #s.items
-    s.index = ((s.index - 1 + delta) % n) + 1   -- wraps, like Windows
-    altTab.render()
-end
-
-function altTab.begin(reverse)
-    local wins = altTab.listWindows()
-    if #wins < 2 then
-        hs.alert.show(#wins == 0 and "🔄 No windows to switch to"
-                                  or "🔄 Only one window open")
-        return false
-    end
-
-    -- ⚠️ 6.35.0 — THE GRID IS WORKED OUT BEFORE ANY SNAPSHOT IS TAKEN.
-    -- It used to snapshot every window in the list and THEN trim the
-    -- list to what the screen could hold, so on a laptop it captured up
-    -- to 24 images to draw 15. A window snapshot is cheap but not free
-    -- (~5-20ms each), and that waste lands entirely on the keypress you
-    -- are waiting on. Capacity first, trim, then capture only what will
-    -- actually be drawn.
-    local screen = resolveBaseScreen()
-    local sf = screen:frame()
-
-    -- Fitted to the SCREEN, not to a fixed column count. Six 200pt tiles
-    -- plus padding is 1314pt — wider than a 1280pt laptop display, and a
-    -- HUD wider than its screen centres itself with tiles cut off at
-    -- BOTH edges. Columns come from the width that actually exists, rows
-    -- from the height; anything that will not fit is dropped from the
-    -- BACK (least recent) and the footer says how many are showing,
-    -- because a silently shortened list is the same class of bug as text
-    -- clipped mid-sentence.
-    local cellH   = altTab.tileH + 24 + altTab.gap
-    local cols    = math.floor((sf.w * 0.92 - altTab.pad * 2 + altTab.gap)
-                               / (altTab.tileW + altTab.gap))
-    cols = math.max(1, math.min(altTab.maxCols, cols, #wins))
-    local rowsMax = math.max(1, math.floor((sf.h * 0.9 - altTab.pad * 2 - 14) / cellH))
-    local total   = #wins
-    for i = total, cols * rowsMax + 1, -1 do table.remove(wins, i) end
-
-    local snapStart = hs.timer.secondsSinceEpoch()
-    local items = {}
-    for _, w in ipairs(wins) do
-        local app  = w:application()
-        local name = app and app:name() or "?"
-        local title = w:title()
-        if title == nil or title == "" then title = name end
-        -- Snapshots are per-window and cheap (CoreGraphics, not AX), but
-        -- still pcall'd: one uncooperative window must not take the
-        -- whole switcher down.
-        local okSnap, img = pcall(function() return w:snapshot() end)
-        if not (okSnap and img) and app then
-            local okIcon, icon = pcall(function()
-                return hs.image.imageFromAppBundle(app:bundleID())
-            end)
-            img = okIcon and icon or nil
-        end
-        table.insert(items, {
-            win = w, image = img, label = name, full = name .. " — " .. title,
-        })
-    end
-    local snapElapsed = hs.timer.secondsSinceEpoch() - snapStart
-    _G.diag.say("altTab", string.format("captured %d tiles in %.3fs", #items, snapElapsed))
-    if snapElapsed > altTab.slowWarnSeconds then
-        print(string.format(
-            "🔄 Window switcher: capturing %d thumbnails took %.2fs — lower "
-            .. "altTab.maxWindows (§1.10) if that lag is noticeable", #items, snapElapsed))
-    end
-
-    local n    = #items
-    cols       = math.max(1, math.min(cols, n))
-    local rows = math.ceil(n / cols)
-    local w    = altTab.pad * 2 + cols * altTab.tileW + (cols - 1) * altTab.gap
-    local h    = altTab.pad * 2 + rows * cellH + 14
-    local rect = { x = sf.x + (sf.w - w) / 2, y = sf.y + (sf.h - h) / 2, w = w, h = h }
-
-    local canvas = hs.canvas.new(rect)
-    if not canvas then
-        hs.alert.show("🔄 Window switcher: couldn't draw — check the Console")
-        return false
-    end
-
-    altTab.session = {
-        items = items, cols = cols, w = w, h = h, hidden = total - n,
-        -- Windows selects the NEXT window on the first press, not the
-        -- one you are already in; ⌥⇧Tab selects the last one.
-        index = reverse and n or 2,
-        startedAt = hs.timer.secondsSinceEpoch(),
-        canvas = canvas,
-    }
-    altTab.render()
-    _G.diag.say("altTab", string.format("HUD open: %d tiles, %d cols, %dx%d, start index %d",
-        n, cols, w, h, altTab.session.index))
-    pcall(function() canvas:level(hs.canvas.windowLevels.overlay) end)
-    pcall(function() canvas:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" }) end)
-    canvas:show()
-
-    if not altTab.escKey then
-        local ok, hk = pcall(hs.hotkey.new, {}, "escape", function() altTab.finish(false) end)
-        if ok then altTab.escKey = hk end
-    end
-    if altTab.escKey then pcall(function() altTab.escKey:enable() end) end
-
-    -- Poll for the ⌥ release. Held in altTab.poll on purpose — an
-    -- unreferenced hs.timer gets collected and silently never fires,
-    -- which is exactly how 6.33.0's warm-up went missing.
-    altTab.poll = hs.timer.doEvery(altTab.pollInterval, function()
-        local s = altTab.session
-        if not s then return end
-        local okMods, mods = pcall(hs.eventtap.checkKeyboardModifiers)
-        if not okMods then altTab.finish(true) return end
-        if not mods.alt then altTab.finish(true) return end
-        -- Watchdog: a HUD that outlives its keypress (a missed release,
-        -- a Space change mid-hold) tears itself down instead of sitting
-        -- there over your screen forever.
-        if hs.timer.secondsSinceEpoch() - s.startedAt > altTab.maxSessionSecs then
-            print("🔄 Window switcher: session watchdog fired — closing")
-            altTab.finish(false)
-        end
-    end)
-    return true
-end
-
-function altTab.step(reverse)
-    if not altTab.enabled then return end
-    local ok, err = pcall(function()
-        if altTab.session then
-            altTab.advance(reverse and -1 or 1)
-        else
-            altTab.begin(reverse)
-        end
-    end)
-    if not ok then
-        print("🔄 Window switcher: " .. tostring(err))
-        altTab.finish(false)   -- never leave a half-built HUD on screen
-    end
-end
-
--- Through the §0.3 sentry like every other binding, so a clash with
--- anything added later is announced at boot.
-hs.hotkey.bind({ "alt" },          "tab", function() altTab.step(false) end)
-hs.hotkey.bind({ "alt", "shift" }, "tab", function() altTab.step(true)  end)
-
--- =====================================================================
 -- 1.11 DIAGNOSTICS — ⇪⇧D writes the report I need to debug anything
 -- =====================================================================
 -- THE PROBLEM THIS SOLVES. When something misbehaves, the Console shows
@@ -3643,10 +3233,27 @@ function _G.diag.report()
         return (ok and on) and "running" or "STOPPED (macOS may have disabled it)"
     end)())
     add("   Cheat sheet    : %s", _G.cheatSheetState and "open" or "closed")
-    add("   ⌥Tab switcher  : %s · minimised:%s · cap:%s · session:%s",
-        altTab.enabled and "on" or "OFF",
-        tostring(altTab.includeMinimized), tostring(altTab.maxWindows),
-        altTab.session and "OPEN" or "idle")
+    -- The switcher is a MODULE now, so "not loaded" is a real state the
+    -- report has to be able to say out loud.
+    local at = _G.altTab
+    add("   ⌥Tab switcher  : %s", at and string.format(
+        "%s · minimised:%s · cap:%s · session:%s",
+        at.enabled and "on" or "OFF", tostring(at.includeMinimized),
+        tostring(at.maxWindows), at.session and "OPEN" or "idle")
+        or "module not loaded")
+
+    add("")
+    add("── MODULES ───────────────────────────────────────────")
+    add("   folder         : %s", tostring(_G.moduleDir))
+    if not _G.moduleStatus or #_G.moduleStatus == 0 then
+        add("   (none listed)")
+    else
+        for _, rec in ipairs(_G.moduleStatus) do
+            add("   %-18s %-7s %5.0fms%s", rec.name,
+                rec.ok and "loaded" or "FAILED", rec.ms,
+                rec.ok and "" or ("   — " .. tostring(rec.err)))
+        end
+    end
 
     add("")
     add("── LIVE PROBE (measured right now) ───────────────────")
@@ -8616,10 +8223,186 @@ end)()
 -- which keys are free to forward once all the real ones have claimed
 -- theirs. Pure table work and hotkey registration: no I/O, no app
 -- enumeration, nothing that could stall the main thread at boot.
+-- =====================================================================
+-- 1.12 MODULE LOADER — sections live in their own files from here on
+-- =====================================================================
+-- 6.36.0 — THE START OF BREAKING THIS FILE UP. A section that has been
+-- moved out lives in ~/.hammerspoon/modules/<name>.lua and is listed in
+-- moduleList below. Everything not yet moved still lives in this file
+-- and works exactly as before; the two styles coexist deliberately, so
+-- the move can happen a few sections at a time instead of as one
+-- all-or-nothing rewrite.
+--
+-- WHY THIS MATTERS MORE THAN TIDINESS: Lua's limit of 200 locals is PER
+-- CHUNK, and a file is a chunk. This file was measured at exactly 200
+-- with ZERO headroom in 6.35.0 — the next top-level `local` added
+-- anywhere would have been a compile error taking the WHOLE config
+-- down. Every module file gets its own fresh 200. That constraint stops
+-- existing the moment a section moves out.
+--
+-- ⚠️ MODULES LOAD FROM LOCAL DISK, NOT FROM ONEDRIVE — DELIBERATELY.
+-- Loading them straight from the cloud folder would be one fewer copy
+-- step, and it is the wrong trade: OneDrive's Files-On-Demand can leave
+-- a file as an online-only placeholder, and READING one triggers a
+-- synchronous download. In the boot path that is a main-thread stall at
+-- every login on a slow network — the same failure shape as the ⌥Tab
+-- freeze in 6.33.0, which is not a mistake worth making twice. The
+-- master copies live in OneDrive for durability and for copying to
+-- another Mac; the loader only ever reads local disk.
+--
+-- To put these on another Mac (your work MacBook), copy the folder:
+--   rsync -av "$ONEDRIVE/Logs/ToolConfig/hammerspoon/modules/" \
+--             ~/.hammerspoon/modules/
+-- The existing 5pm backup (§1.7) already rsyncs ~/.hammerspoon, so
+-- modules/ is covered by it automatically — no extra step to remember.
+--
+-- WHAT A MODULE LOOKS LIKE — the whole contract:
+--   return {
+--     name  = "App Peek",              -- shown in the boot report
+--     order = 7,                       -- its slot in the cheat sheet
+--     cheatsheet = {                   -- travels WITH the module
+--       title = "👀 APP PEEK",
+--       entries = { { "⇪P", "Hide the frontmost app" } },
+--     },
+--     setup = function(core) ... end,  -- binds keys, starts watchers
+--   }
+-- setup() receives `core`: the shared services this file publishes
+-- (paths, popup positioning, screen resolution, CSV helpers, Asana
+-- credentials, diagnostics). A module never reaches into this file's
+-- locals, which is exactly what makes it movable.
+--
+-- FAILURE IS ISOLATED, WHICH IS THE OTHER HALF OF THE POINT. Every
+-- module is loaded, executed and set up inside its own pcall. A syntax
+-- error in one module costs you that module — not your hotkeys, not
+-- autocorrect, not the whole config. Before this, one bad line anywhere
+-- meant NOTHING loaded. Failures are named in the Console, counted in
+-- the boot report, listed in ⇪⇧D, and shown as a ⚠️ group at the top of
+-- the cheat sheet so a missing feature is never a silent mystery.
+_G.moduleDir         = hs.configdir .. "/modules"
+_G.moduleStatus      = {}    -- one record per module, for the report
+_G.moduleCheatsheets = {}    -- groups contributed by loaded modules
+
+-- The shared surface. This is the ONLY thing modules may depend on, and
+-- keeping it explicit is what stops the coupling growing back: anything
+-- not listed here is private to this file.
+local core = {
+    version     = _G.configVersion,
+    -- paths (§0.1 portability layer)
+    homeDir     = homeDir,     cloudDir  = cloudDir,
+    logsDir     = logsDir,     backupDir = backupDir,
+    hostTag     = hostTag,     configDir = hs.configdir,
+    -- file helpers (§0.1 / §3.6)
+    warnWriteFailed = warnWriteFailed,
+    adoptLegacyFile = adoptLegacyFile,
+    csvQuote        = csvQuote,
+    -- popups & screens (§1.5)
+    popupKeys        = popupScreenKeys,
+    popupMods        = popupScreenKeys.mods,
+    showPopup        = showPopup,
+    resolveBaseScreen = resolveBaseScreen,
+    panelAlpha       = panelAlpha,
+    -- credentials (§0.2) — nil when secret.lua is absent, by design
+    asanaEnabled     = asanaEnabled,
+    asanaToken       = asanaToken,
+    asanaWorkspaceId = asanaWorkspaceId,
+    -- diagnostics (§1.11)
+    diag     = _G.diag,
+    safeJson = _G.safeJson,
+}
+_G.core = core   -- so a module author can inspect it from the Console
+
+-- Load one module. Returns a status record; never throws, whatever the
+-- module does.
+local function loadOneModule(name)
+    local path = _G.moduleDir .. "/" .. name .. ".lua"
+    local rec  = { name = name, path = path, ok = false, ms = 0 }
+    local t0   = hs.timer.secondsSinceEpoch()
+
+    -- loadfile REPORTS a syntax error rather than raising it, so this
+    -- distinguishes "file missing" from "file broken" — two very
+    -- different things to see in a boot report.
+    local chunk, loadErr = loadfile(path)
+    if not chunk then
+        rec.err = (hs.fs.attributes(path) == nil)
+                  and "not found at " .. path
+                  or  ("syntax error — " .. tostring(loadErr))
+        rec.ms  = (hs.timer.secondsSinceEpoch() - t0) * 1000
+        return rec
+    end
+
+    local okRun, mod = pcall(chunk)
+    if not okRun then
+        rec.err = "failed while loading — " .. tostring(mod)
+        rec.ms  = (hs.timer.secondsSinceEpoch() - t0) * 1000
+        return rec
+    end
+    -- Validate the contract before trusting it: a module that returns
+    -- nothing (a forgotten `return M`) would otherwise fail later, in a
+    -- place with no obvious connection to the real mistake.
+    if type(mod) ~= "table" or type(mod.setup) ~= "function" then
+        rec.err = "does not return a table with a setup() function"
+        rec.ms  = (hs.timer.secondsSinceEpoch() - t0) * 1000
+        return rec
+    end
+
+    local okSetup, setupErr = pcall(mod.setup, core)
+    rec.ms = (hs.timer.secondsSinceEpoch() - t0) * 1000
+    if not okSetup then
+        rec.err = "setup() failed — " .. tostring(setupErr)
+        return rec
+    end
+
+    rec.ok      = true
+    rec.title   = mod.name or name
+    rec.module  = mod
+    -- The cheat sheet group is registered only after setup SUCCEEDS, so
+    -- the sheet can never advertise a shortcut that was never bound.
+    if type(mod.cheatsheet) == "table" and mod.cheatsheet.title then
+        table.insert(_G.moduleCheatsheets, {
+            title   = mod.cheatsheet.title,
+            entries = mod.cheatsheet.entries or {},
+            order   = mod.order or 500,
+        })
+    end
+    return rec
+end
+
+-- Load every module in the given order. Order is EXPLICIT rather than a
+-- directory scan: boot behaviour should not depend on how the
+-- filesystem happens to sort names, and a stray file dropped in the
+-- folder must never execute itself.
+function _G.loadModules(list)
+    local loaded, failed = 0, 0
+    for _, name in ipairs(list) do
+        local rec = loadOneModule(name)
+        table.insert(_G.moduleStatus, rec)
+        if rec.ok then
+            loaded = loaded + 1
+            _G.diag.say("module", string.format("%s loaded in %.0fms", rec.name, rec.ms))
+        else
+            failed = failed + 1
+            print("🧩 MODULE FAILED — " .. rec.name .. ": " .. tostring(rec.err))
+            _G.diag.warn("module", rec.name .. " — " .. tostring(rec.err))
+        end
+    end
+    _G.diag.mark("§1.12 modules loaded")
+    _G.moduleLoaded, _G.moduleFailed = loaded, failed
+    return loaded, failed
+end
+
+-- ✏️ THE MODULE LIST — add a filename here when you move a section out.
+-- Order is load order; the cheat sheet position comes from each
+-- module's own `order` field, not from this list.
+_G.loadModules({
+    "daily_backup",      -- was §1.7
+    "app_peek",          -- was §1.8
+    "window_switcher",   -- was §1.10
+})
+
+
 if _G.hyperFinalize then _G.hyperFinalize() end
 if _G.diag then _G.diag.mark("§3.12 hyper wired") end
 
-_G.configVersion = "6.35.0"
 print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 
 -- ---- CHANGELOG CSV (6.30.1) -----------------------------------------
@@ -8628,9 +8411,9 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.35.0"
+    local currentVersion = "6.36.0"
     local currentDate    = "08-05-26"
-    local currentNotes   = "APP LOCK REMOVED — the PIN gate on hidden apps (old section 6.6, about 1150 lines) is gone entirely, along with its cheat sheet group, its boot report line and its panic key; applock.json is still excluded from backups so a leftover file never syncs. NEW section 1.11 DIAGNOSTICS: hyper+shift+D writes a full report (versions, boot timings, screens, hotkeys, feature states, a live window-enumeration timing, recent errors and the last 25 internal events) to the Console, the clipboard and Logs/diagnostics-<machine>.txt; a 200-entry trail is always recorded in memory so the report shows what happened before a problem even with verbose off; verbose live logging toggles with _G.diag.verbose = true in the Console; hs.uncaughtErrorHandler now captures errors thrown inside async callbacks. FIX (major): all six hs.json.decode calls on Asana responses ran unprotected inside async HTTP callbacks — hs.json.decode RAISES on malformed input, and a corporate proxy or captive portal answering 200 with an HTML page is exactly that, so the error escaped every enclosing pcall; they now go through safeJson, which logs what actually arrived and returns nil. FIX (minor): the changelog boot code opened the CSV to test existence and dropped the handle, leaking it until garbage collection. Boot report now prints total load time. AUDIT (medium): the file was sitting on Lua 200-local ceiling with zero headroom — measured — so the next local added anywhere at top level would have failed the whole config to compile; section 1.6 locals folded into one table, 8 back. The diagnostics API is a no-op stub from line one, extended by section 1.11, so a partial load cannot throw on a logging call. Option+Tab now works out the grid, trims the list, and only then captures thumbnails, instead of capturing 24 to draw 15."
+    local currentNotes   = "MODULARISATION STEP 1 AND 2. init.lua now loads sections from ~/.hammerspoon/modules/*.lua through a new section 1.12 module loader. Three sections moved out first: Daily Backup (was 1.7), App Peek (was 1.8) and Window Switcher (was 1.10) — 464 lines out of init.lua. Each module returns name, order, cheatsheet and setup(core); core is an explicit table of shared services (paths, popup positioning, screen resolution, CSV helpers, Asana credentials, diagnostics) so a module never reaches into init.lua locals. The cheat sheet is now ASSEMBLED: each module registers its own group at load time and groups sort by an explicit unique order number, so deleting a module file removes its group instead of leaving the sheet advertising a shortcut nothing binds. Every module is loaded, executed and set up inside its own pcall, so a broken module costs that module only rather than the whole config; failures are named in the Console, counted in the boot report, listed in hyper+shift+D and shown as a warning group at the top of the cheat sheet. Modules load from LOCAL disk deliberately, never straight from OneDrive: Files-On-Demand placeholders download synchronously on read, which would put a main-thread stall in the boot path — the same failure shape as the 6.33.0 freeze. Lua 200-local headroom in init.lua went from 8 to 12, and every module file gets its own fresh 200."
 
     -- Only append if this version isn't already in the file
     local found = false
@@ -8707,6 +8490,8 @@ print("   Hotkeys:  " .. _G.hotkeyBoundCount .. " global bound, "
     .. " (other apps' shortcuts aren't detectable)")
 print(string.format("   Boot:     %.2fs to here  ·  ⇪⇧D writes a diagnostic report",
     hs.timer.secondsSinceEpoch() - (_G.diagBootStart or hs.timer.secondsSinceEpoch())))
+print("   Modules:  " .. tostring(_G.moduleLoaded or 0) .. " loaded, "
+    .. tostring(_G.moduleFailed or 0) .. " failed → " .. tostring(_G.moduleDir))
 print("   Hyper:    " .. tostring(_G.hyperShortcutCount or 0)
     .. " shortcuts on ⇪ (Caps Lock) + "
     .. tostring(_G.hyperForwardCount or 0) .. " keys forwarding ⌘⇧⌃⌥, "
