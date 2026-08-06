@@ -4,9 +4,37 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.38.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.39.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.39.0 — ⌥TAB NOW SEES EVERY DESKTOP, NOT JUST THIS ONE:
+--   🖥 THE BUG: ⌥Tab listed only the windows on the desktop you were
+--      looking at. hs.window.orderedWindows() and hs.window.allWindows()
+--      report ONLY the current Mission Control Space — a documented
+--      macOS limit, not a Hammerspoon bug. Hammerspoon's own documented
+--      answer is hs.window.filter, which is the module that froze this
+--      Mac for 44 seconds in 6.33.0, so that door stays shut.
+--   🔑 THE THIRD ROUTE: ask each APPLICATION for its own windows. The
+--      Accessibility API has no concept of a Space, so an app hands over
+--      its windows wherever they are — other desktops, other monitors,
+--      minimised. Only GUI apps are asked (app:kind() == 1), which skips
+--      exactly the background and menu-bar agents whose AX timeouts made
+--      window.filter unusable. The current Space is still listed FIRST,
+--      front-to-back, then everything else is appended and deduplicated
+--      by window id.
+--   📦 EVERY OPEN PROGRAM, not just every open window: minimised windows
+--      are included by default now, and a running app with NO window at
+--      all gets its own tile that ACTIVATES the app when selected.
+--      Cap raised 24 → 36. Knobs: altTab.includeOtherSpaces,
+--      includeApps, includeMinimized, maxWindows.
+--   🐛 CAUGHT BY THE TESTS MID-CHANGE: an app whose windows had all been
+--      picked up by the current-Space pass contributed nothing new in
+--      the per-app pass, so it looked like it owned no windows and got a
+--      second, bogus "no open window" tile — one per app on your current
+--      desktop. Ownership is now derived from the assembled entries.
+--   🔊 A failed enumeration phase PRINTS again (the rewrite had made it
+--      silent), and a failure on the current Space now degrades to the
+--      per-app list rather than to an empty switcher.
 -- NEW IN 6.38.0 — THREE MORE OUT (nine modules, init.lua −27%):
 --   🧩 App Watcher (§3.7), File Tracker (§3.8) and Autocorrect (§3.9)
 --      are now modules. init.lua is 6,952 lines, down from 9,529 at
@@ -1310,7 +1338,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.38.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.39.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -1539,7 +1567,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.38.0"
+_G.configVersion = "6.39.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -6849,9 +6877,9 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.38.0"
+    local currentVersion = "6.39.0"
     local currentDate    = "08-05-26"
-    local currentNotes   = "MODULARISATION BATCH 3: App Watcher (was 3.7), File Tracker (was 3.8) and Autocorrect (was 3.9) moved into modules. Nine modules now; init.lua is 6952 lines, down from 9529 at 6.35.0 — a 27 percent reduction. splitCSVLine moved into core: it was declared inside the Activity Tracker but used by three other sections, so it was always a shared helper in the wrong place, and moving it is what let File Tracker and Autocorrect leave. Autocorrect keeps publishing autocorrectStatus and autocorrectTap as globals, so the boot report and the hyper+shift+D report still read them unchanged. No new failures: 264 tests pass across four suites and the assembled cheat sheet order is still identical to the pre-modularisation layout."
+    local currentNotes   = "FIX: option+Tab only listed windows on the CURRENT desktop. hs.window.orderedWindows and hs.window.allWindows report only the current Mission Control Space — a documented macOS limit, not a Hammerspoon bug — and Hammerspoon own documented answer is hs.window.filter, the module that froze this Mac for 44 seconds in 6.33.0. Third route taken instead: ask each APPLICATION for its windows, because the Accessibility API has no concept of a Space and hands over an apps windows wherever they live. Only GUI apps are asked (kind 1), which skips the background and menu-bar agents whose AX timeouts made window.filter unusable. Current Space is listed first in front-to-back order, then everything else is appended, deduplicated by window id. Minimised windows are now included by default, and running apps with NO open window get a tile that activates the app so every open program is reachable. Cap raised to 36. Bug caught by the tests during the change: an app whose windows were all already listed by the current-Space pass looked like it owned none and got a second bogus no-open-window tile; ownership is now derived from the assembled entries. Also restored: a failed enumeration phase prints again instead of failing silently, and a failure on the current Space now degrades to the per-app list rather than to nothing."
 
     -- Only append if this version isn't already in the file
     local found = false

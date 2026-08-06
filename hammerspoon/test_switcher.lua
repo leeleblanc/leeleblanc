@@ -3,7 +3,8 @@
 local bound, log = {}, {}
 local NOW = 1000
 local FAIL = { list = false, canvas = false, snapshot = false }
-local COUNT = { ordered = 0, all = 0, canvasNew = 0, deleted = 0, alerts = 0 }
+local COUNT = { ordered = 0, all = 0, apps = 0, canvasNew = 0, deleted = 0, alerts = 0 }
+local ACTIVATED = nil
 local MODS = { alt = true }
 local focused, unminimized = nil, nil
 local drawn, timer = nil, nil
@@ -27,18 +28,49 @@ local function mkwin(id, app, title, minimized, standard, snap)
   return w
 end
 
-local WINS = {}
+local WINS, APPS = {}, {}
+local mkapp
+-- An app owns windows that may live on ANY Space; orderedWindows only
+-- ever reports the ones on the current one, which is the bug being fixed.
+-- Build the running-app list FROM the windows, the way macOS actually
+-- reports it: an app owns the windows whose application() is that app.
+-- (An earlier version of this harness named the app differently from its
+-- own windows, which no real Mac does, and it made every app look like it
+-- owned nothing.)
+local function appsFromWindows(wins)
+  local byName, order, out = {}, {}, {}
+  for _, w in ipairs(wins) do
+    local n = w:application():name()
+    if not byName[n] then byName[n] = {}; table.insert(order, n) end
+    table.insert(byName[n], w)
+  end
+  for _, n in ipairs(order) do table.insert(out, mkapp(n, byName[n])) end
+  return out
+end
+function mkapp(name, wins, kind)
+  local a = {}
+  function a:name() return name end
+  function a:kind() return kind or 1 end
+  function a:bundleID() return "com.test." .. name end
+  function a:allWindows() return wins or {} end
+  function a:activate() ACTIVATED = name end
+  return a
+end
 hs = {
   window = {
     orderedWindows = function()
       COUNT.ordered = COUNT.ordered + 1
       if FAIL.list then error("AX timeout") end
       local out = {}
-      for _, w in ipairs(WINS) do if not w:isMinimized() then table.insert(out, w) end end
+      -- only windows flagged as being on the CURRENT space, and not minimised
+      for _, w in ipairs(WINS) do
+        if not w:isMinimized() and w.space ~= "other" then table.insert(out, w) end
+      end
       return out
     end,
     allWindows = function() COUNT.all = COUNT.all + 1; return WINS end,
   },
+  application = { runningApplications = function() COUNT.apps = COUNT.apps + 1; return APPS end },
   timer = {
     secondsSinceEpoch = function() return NOW end,
     doEvery = function(interval, fn)
@@ -107,11 +139,14 @@ local function reset(n)
   WINS = {}
   for i = 1, (n or 5) do table.insert(WINS, mkwin(i, "App" .. i, "Window " .. i)) end
   AT.finish(false)
-  COUNT.ordered, COUNT.all, COUNT.canvasNew, COUNT.deleted, COUNT.alerts = 0,0,0,0,0
+  APPS = appsFromWindows(WINS)
+  COUNT.ordered, COUNT.all, COUNT.apps, COUNT.canvasNew, COUNT.deleted, COUNT.alerts = 0,0,0,0,0,0
+  ACTIVATED = nil
   FAIL.list, FAIL.canvas, FAIL.snapshot = false, false, false
   focused, unminimized, drawn, timer, log = nil, nil, nil, nil, {}
   MODS = { alt = true }; NOW = 1000
-  AT.enabled, AT.includeMinimized = true, false
+  AT.enabled, AT.includeMinimized = true, true
+  AT.includeOtherSpaces, AT.includeApps = true, true
 end
 for _, b in ipairs(bound) do combos[b.combo] = b.fn end
 
@@ -177,21 +212,66 @@ reset(4)
 combos["alt+shift+tab"]()
 check("⌥⇧Tab opens on the last window", AT.session.index == 4, AT.session.index)
 
-out("\n=== 7. Minimised windows ===\n")
+out("\n=== 7. EVERY window: other Spaces, monitors, minimised ===\n")
 reset(3)
-table.insert(WINS, mkwin(9, "Mini", "Minimised one", true))
+local far = mkwin(90, "FarApp", "On another desktop"); far.space = "other"
+local mini = mkwin(91, "MiniApp", "Minimised one", true)
+table.insert(WINS, far); table.insert(WINS, mini)
+APPS = appsFromWindows(WINS)
 combos["alt+tab"]()
-check("excluded by default", #AT.session.items == 3, #AT.session.items)
-check("...and allWindows() is never called", COUNT.all == 0, COUNT.all)
-reset(3)
-table.insert(WINS, mkwin(9, "Mini", "Minimised one", true))
-AT.includeMinimized = true
+check("windows on ANOTHER Space are listed (the 6.39.0 fix)", (function()
+  for _, i in ipairs(AT.session.items) do if i.win and i.win:id() == 90 then return true end end
+end)(), #AT.session.items .. " items")
+check("minimised windows are listed", (function()
+  for _, i in ipairs(AT.session.items) do if i.win and i.win:id() == 91 then return true end end
+end)())
+check("this Space still comes FIRST", AT.session.items[1].win:id() == 1,
+      AT.session.items[1].win and AT.session.items[1].win:id())
+check("no window is listed twice", (function()
+  local seen = {}
+  for _, i in ipairs(AT.session.items) do
+    local id = i.win and i.win:id()
+    if id then if seen[id] then return false end seen[id] = true end
+  end
+  return true
+end)())
+check("only GUI apps are asked (background agents skipped)", (function()
+  APPS = { mkapp("Daemon", { mkwin(70, "Daemon", "hidden helper") }, 0) }
+  reset(2)
+  APPS = appsFromWindows(WINS)
+  table.insert(APPS, mkapp("Daemon", { mkwin(70, "Daemon", "helper") }, 0))
+  combos["alt+tab"]()
+  for _, i in ipairs(AT.session.items) do
+    if i.win and i.win:id() == 70 then return false end
+  end
+  return true
+end)())
+check("includeOtherSpaces = false goes back to this Space only", (function()
+  reset(3)
+  local f2 = mkwin(92, "FarApp", "Other desktop"); f2.space = "other"
+  table.insert(WINS, f2); APPS = appsFromWindows(WINS)
+  AT.includeOtherSpaces, AT.includeApps = false, false
+  combos["alt+tab"]()
+  for _, i in ipairs(AT.session.items) do if i.win and i.win:id() == 92 then return false end end
+  return true
+end)())
+
+out("\n=== 7b. Running apps with no window at all ===\n")
+reset(2)
+APPS = appsFromWindows(WINS)
+table.insert(APPS, mkapp("Notes", {}))
 combos["alt+tab"]()
-check("included when asked for", #AT.session.items == 4, #AT.session.items)
-check("...listed after the visible ones", AT.session.items[4].win:id() == 9)
-AT.session.index = 4
+local appTile
+for _, i in ipairs(AT.session.items) do if i.appOnly then appTile = i end end
+check("an app with no open window still gets a tile", appTile ~= nil)
+check("...labelled as such", appTile and appTile.full:find("no open window", 1, true) ~= nil,
+      appTile and appTile.full)
+check("...and shows its app icon since there is nothing to snapshot",
+      appTile and appTile.image == "icon:com.test.Notes", appTile and appTile.image)
+for k, i in ipairs(AT.session.items) do if i.appOnly then AT.session.index = k end end
 MODS = {}; timer.fn()
-check("committing a minimised window unminimises it first", unminimized == 9 and focused == 9)
+check("selecting it ACTIVATES the app instead of focusing a window",
+      ACTIVATED == "Notes" and focused == nil, tostring(ACTIVATED))
 
 out("\n=== 8. Bounded cost ===\n")
 reset(0)
@@ -209,15 +289,18 @@ local step = 0
 hs.timer.secondsSinceEpoch = function() step = step + 1; return 1000 + (step > 1 and 2.5 or 0) end
 combos["alt+tab"]()
 check("a slow enumeration is timed and reported", logged("took"), log[1])
-check("...and says which knobs to turn", logged("includeMinimized"))
+check("...and says which knobs to turn", logged("includeOtherSpaces"))
 hs.timer.secondsSinceEpoch = realNow
 
 out("\n=== 10. Failures degrade, they don't hang or crash ===\n")
 reset(5); FAIL.list = true
 local ok = pcall(function() combos["alt+tab"]() end)
-check("an AX failure while listing does not throw", ok)
-check("...is explained in the Console", logged("could not list windows"))
-check("...and leaves no session behind", AT.session == nil)
+check("an AX failure on this Space does not throw", ok)
+check("...is explained in the Console", logged("could not list windows on this Space"))
+check("...and the per-app sweep still supplies the list (6.39.0: degrades "
+      .. "to fewer windows rather than none)", AT.session ~= nil and #AT.session.items == 5,
+      AT.session and #AT.session.items or "no session")
+AT.finish(false)
 reset(5); FAIL.canvas = true
 ok = pcall(function() combos["alt+tab"]() end)
 check("a canvas failure does not throw", ok and AT.session == nil)

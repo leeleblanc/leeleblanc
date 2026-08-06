@@ -59,7 +59,9 @@ local M = {
             { "⌥⇧Tab", "Walk backwards through the same list" },
             { "tiles", "One thumbnail per WINDOW, with its title underneath" },
             { "Esc", "Cancels — no switch" },
-            { "minimised", "Off by default — altTab.includeMinimized = true" },
+            { "shows", "EVERY window: all desktops/Spaces, all monitors, minimised too" },
+            { "also", "Running apps with no open window — selecting one activates it" },
+            { "tuning", "altTab.includeOtherSpaces / includeApps / maxWindows (module file)" },
             { "⌘Tab", "Untouched — macOS reserves it, and it switches apps not windows" },
         },
     },
@@ -70,11 +72,15 @@ function M.setup(core)
 
     -- ✏️ EDIT HERE ---------------------------------------------------------
     altTab.enabled          = true   -- false = ⌥Tab does nothing (panic switch)
-    altTab.includeMinimized = false  -- true also lists minimised windows. This
-                                     -- costs an hs.window.allWindows() call,
-                                     -- which is slower than the ordered list —
-                                     -- turn it on only if you want it.
-    altTab.maxWindows       = 24     -- hard cap on tiles, keeps cost bounded
+    altTab.includeMinimized  = true  -- minimised windows are listed too
+    altTab.includeOtherSpaces = true -- windows on OTHER desktops/Spaces and
+                                     -- other monitors (see the note below —
+                                     -- this is the setting that fixes
+                                     -- "⌥Tab only shows this desktop")
+    altTab.includeApps       = true  -- also list running apps that have NO
+                                     -- open window, so "every open program"
+                                     -- really means every one
+    altTab.maxWindows        = 36    -- hard cap on tiles, keeps cost bounded
     altTab.slowWarnSeconds  = 0.35   -- warn in the Console past this
     altTab.maxSessionSecs   = 30     -- watchdog: tear a stuck HUD down
     altTab.tileW, altTab.tileH = 200, 128
@@ -87,53 +93,121 @@ function M.setup(core)
     altTab.escKey  = nil
 
     -- ---- window list ----------------------------------------------------
-    -- One snapshot, timed, capped. No filters, no watchers, no subscriptions.
+    -- ⚠️ 6.39.0 — WHY THIS ASKS EVERY APPLICATION INSTEAD OF ASKING FOR
+    -- "ALL WINDOWS". hs.window.orderedWindows() and hs.window.allWindows()
+    -- report ONLY the current Mission Control Space. That is a documented
+    -- macOS limit, not a Hammerspoon bug, and it is exactly why ⌥Tab
+    -- showed nothing from your other desktops. Hammerspoon's own
+    -- documented answer is hs.window.filter — the module that froze this
+    -- Mac for 44 seconds in 6.33.0, so that door stays shut.
+    --
+    -- The third route: ask each APPLICATION for its own windows. The
+    -- Accessibility API hands over an app's windows wherever they are —
+    -- other Spaces, other monitors, minimised — because AX has no concept
+    -- of a Space at all. That is the whole fix.
+    --
+    -- ONLY GUI APPS ARE ASKED (app:kind() == 1). Background daemons and
+    -- menu-bar agents are precisely the population whose AX timeouts made
+    -- window.filter unusable; they own no windows worth switching to, so
+    -- skipping them costs nothing and avoids all of that.
+    --
+    -- Order: the CURRENT Space first, front-to-back, because that is the
+    -- order you are already thinking in — then everything else, appended.
+    -- Every phase is timed and the whole thing stays capped.
     function altTab.listWindows()
         local t0 = hs.timer.secondsSinceEpoch()
+        local entries, seenWin, seenApp = {}, {}, {}
 
-        local ok, wins = pcall(function()
-            local ordered = hs.window.orderedWindows() or {}
-            if not altTab.includeMinimized then return ordered end
-            -- Minimised windows are not in the ordered list, so they are
-            -- appended after it — visible windows stay in front-to-back
-            -- order, which is the order you actually think in.
-            local seen, out = {}, {}
-            for _, w in ipairs(ordered) do
-                local id = w:id()
-                if id then seen[id] = true end
-                table.insert(out, w)
+        local function add(w)
+            local okId, id = pcall(function() return w:id() end)
+            if not (okId and id) or seenWin[id] then return end
+            local okStd, standard = pcall(function() return w:isStandard() end)
+            if not (okStd and standard) then return end
+            if not altTab.includeMinimized then
+                local okMin, min = pcall(function() return w:isMinimized() end)
+                if okMin and min then return end
             end
-            for _, w in ipairs(hs.window.allWindows() or {}) do
-                local id = w:id()
-                if id and not seen[id] and w:isMinimized() then table.insert(out, w) end
-            end
-            return out
+            seenWin[id] = true
+            table.insert(entries, { win = w })
+        end
+
+        -- 1. This Space, in front-to-back order.
+        local okSpace, spaceErr = pcall(function()
+            for _, w in ipairs(hs.window.orderedWindows() or {}) do add(w) end
         end)
+        if not okSpace then
+            print("🔄 Window switcher: could not list windows on this Space — "
+                  .. tostring(spaceErr))
+            _G.diag.warn("altTab", "current-Space listing failed: " .. tostring(spaceErr))
+        end
+        local tOrdered = hs.timer.secondsSinceEpoch() - t0
+
+        -- 2. Every other window, app by app — the cross-Space part.
+        local appsSeen, withWindows = {}, {}
+        if altTab.includeOtherSpaces or altTab.includeApps then
+            local okApps, appErr = pcall(function()
+                for _, app in ipairs(hs.application.runningApplications() or {}) do
+                    local okKind, kind = pcall(function() return app:kind() end)
+                    if okKind and kind == 1 then
+                        table.insert(appsSeen, app)
+                        if altTab.includeOtherSpaces then
+                            local okW, appWins = pcall(function() return app:allWindows() end)
+                            if okW then
+                                for _, w in ipairs(appWins or {}) do add(w) end
+                            end
+                        end
+                    end
+                end
+            end)
+            if not okApps then
+                print("🔄 Window switcher: could not list windows per application — "
+                      .. tostring(appErr))
+                _G.diag.warn("altTab", "per-application listing failed: " .. tostring(appErr))
+            end
+        end
+
+        -- Which apps already own a listed window? Worked out from the
+        -- ENTRIES, not from how many each app contributed: an app whose
+        -- windows were all picked up by the current-Space pass adds
+        -- nothing new in the per-app pass, and counting that as "has no
+        -- windows" gave every app on this desktop a second, bogus
+        -- "no open window" tile.
+        for _, e in ipairs(entries) do
+            if e.win then
+                local okA, a = pcall(function() return e.win:application() end)
+                if okA and a then
+                    local okN, n = pcall(function() return a:name() end)
+                    if okN and n then withWindows[n] = true end
+                end
+            end
+        end
+
+        -- 3. Apps that are running with NO window at all. Without these,
+        --    "every open program" quietly means "every open window", and
+        --    an app you minimised to nothing would be unreachable.
+        if altTab.includeApps then
+            for _, app in ipairs(appsSeen) do
+                local okName, name = pcall(function() return app:name() end)
+                if okName and name and not withWindows[name] and not seenApp[name] then
+                    seenApp[name] = true
+                    table.insert(entries, { app = app, appOnly = true })
+                end
+            end
+        end
 
         local elapsed = hs.timer.secondsSinceEpoch() - t0
-        if not ok then
-            print("🔄 Window switcher: could not list windows — " .. tostring(wins))
-            return {}
-        end
+        _G.diag.say("altTab", string.format(
+            "listed %d entries in %.3fs (this Space %.3fs, %d apps scanned)",
+            #entries, elapsed, tOrdered, #appsSeen))
         if elapsed > altTab.slowWarnSeconds then
             print(string.format(
-                "🔄 Window switcher: listing windows took %.2fs — if that is painful, "
-                .. "lower altTab.maxWindows or set altTab.includeMinimized = false (§1.10)",
-                elapsed))
+                "🔄 Window switcher: listing took %.2fs across %d apps — set "
+                .. "altTab.includeOtherSpaces = false or lower altTab.maxWindows "
+                .. "if that lag is noticeable", elapsed, #appsSeen))
         end
 
-        -- Keep only real, titled windows, and never more than the cap.
-        local out = {}
-        for _, w in ipairs(wins) do
-            local okStd, standard = pcall(function() return w:isStandard() end)
-            if okStd and standard then
-                table.insert(out, w)
-                if #out >= altTab.maxWindows then break end
-            end
-        end
-        _G.diag.say("altTab", string.format("listed %d windows in %.3fs (cap %d)",
-            #out, elapsed, altTab.maxWindows))
-        return out
+        while #entries > altTab.maxWindows do table.remove(entries) end
+        return entries
     end
 
     -- ---- drawing --------------------------------------------------------
@@ -235,11 +309,17 @@ function M.setup(core)
 
         _G.diag.say("altTab", "HUD closed (" .. (commit and "switching" or "cancelled") .. ")")
         if commit then
-            local win = s.items[s.index] and s.items[s.index].win
-            if win then
+            local item = s.items[s.index]
+            if item and item.appOnly and item.app then
+                -- No window to focus: bring the application forward instead.
+                pcall(function() item.app:activate() end)
+            elseif item and item.win then
                 pcall(function()
-                    if win:isMinimized() then win:unminimize() end
-                    win:focus()
+                    if item.win:isMinimized() then item.win:unminimize() end
+                    -- focus() on a window living on another Space makes
+                    -- macOS switch Spaces to reach it, which is what
+                    -- Windows' Alt+Tab does too.
+                    item.win:focus()
                 end)
             end
         end
@@ -289,15 +369,25 @@ function M.setup(core)
 
         local snapStart = hs.timer.secondsSinceEpoch()
         local items = {}
-        for _, w in ipairs(wins) do
-            local app  = w:application()
+        for _, entry in ipairs(wins) do
+            local w    = entry.win
+            local app  = entry.app or (w and w:application())
             local name = app and app:name() or "?"
-            local title = w:title()
-            if title == nil or title == "" then title = name end
+            local title
+            if entry.appOnly then
+                title = "no open window — switches to the app"
+            else
+                title = w:title()
+                if title == nil or title == "" then title = name end
+            end
             -- Snapshots are per-window and cheap (CoreGraphics, not AX), but
             -- still pcall'd: one uncooperative window must not take the
             -- whole switcher down.
-            local okSnap, img = pcall(function() return w:snapshot() end)
+            -- A window on another Space has nothing on screen to capture,
+            -- so snapshot() returns nil for it and the app icon stands in.
+            -- That is expected here, not a failure.
+            local okSnap, img = false, nil
+            if w then okSnap, img = pcall(function() return w:snapshot() end) end
             if not (okSnap and img) and app then
                 local okIcon, icon = pcall(function()
                     return hs.image.imageFromAppBundle(app:bundleID())
@@ -305,7 +395,8 @@ function M.setup(core)
                 img = okIcon and icon or nil
             end
             table.insert(items, {
-                win = w, image = img, label = name, full = name .. " — " .. title,
+                win = w, app = app, appOnly = entry.appOnly, image = img,
+                label = name, full = name .. " — " .. title,
             })
         end
         local snapElapsed = hs.timer.secondsSinceEpoch() - snapStart
