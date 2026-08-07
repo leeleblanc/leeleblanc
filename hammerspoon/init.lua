@@ -4,9 +4,53 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.1-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.44.1 — CAPTURE PAD: THE IMAGE ATTACHMENT BUG, AND THE FONT:
+--   🐛 EVERY IMAGE ATTACHMENT WAS SILENTLY FAILING. Two bugs in
+--      uploadAttachment, both now covered by a test that reproduces the
+--      exact failure:
+--        1. setInput() was called AFTER t:start(). The Hammerspoon docs
+--           say setInput "can be called before the task has been
+--           started, to prepare some input for it" — for a task with no
+--           streaming callback (this one), stdin is wired up from
+--           whatever was already queued when the task starts. Called
+--           after, the data missed the window: curl hit EOF on stdin
+--           immediately, posted with NO Authorization header, Asana
+--           returned 401 — and curl still exits 0, because it only
+--           fails on a transport error, never an HTTP one. Fixed by
+--           calling setInput() before start(), and closeInput() is no
+--           longer called at all: the docs say it is only for a task
+--           WITH a streaming callback, and this one has none.
+--        2. The failure branch printed `tostring(err or out)`, meant to
+--           prefer stderr and fall back to the response body — except
+--           "" is TRUTHY in Lua, so an empty stderr string always won
+--           that `or`, hiding the actual 401 body behind a blank line
+--           in the Console every single time.
+--      The upload now also verifies the REAL HTTP status via curl's
+--      `-w "%{http_code}"` instead of guessing from whether the body
+--      contains the word "errors", and switched from `-K -` (a config
+--      file with exact quoting rules) to `-H @-` (one plain header line
+--      on stdin) — simpler, and nothing left to get the quoting wrong.
+--      A note whose task sends but whose image does not attach is no
+--      longer reported as a clean "N sent" — the flush summary now says
+--      so, names the task's gid, and the Console gives the real reason.
+--   🖼 EACH PINNED IMAGE NOW HAS A ✕. Pin the wrong one with ⌘⇧V and you
+--      can take it back off before filing, rather than wondering whether
+--      it is really attached to the note you are about to send.
+--   🔤 THE COMPOSE BOX FONT WAS NEVER ACTUALLY 14px. `font:14px inherit`
+--      is invalid CSS — the `font` shorthand only accepts the `inherit`
+--      keyword as its ENTIRE value, never mixed with an explicit size —
+--      and WebKit drops an invalid shorthand rule outright rather than
+--      applying the size and ignoring the rest. The textarea was quietly
+--      running on its browser default the whole time. Now set as plain
+--      longhand at 16px, box height raised 120px → 180px, and general
+--      text bumped 14px → 15px.
+--   🧪 227 checks in test_features.lua now drive the REAL webview path
+--      (a stub was added — the suite previously only exercised the
+--      no-webview fallback), reproducing the exact curl-exit-0/HTTP-401
+--      failure and asserting the Console shows the real response body.
 -- NEW IN 6.44.0 — FIVE NEW FEATURES, AND ARROWS IN THE SWITCHER:
 --   ⌨️ ⌥TAB TAKES ARROW KEYS. Keep ⌥ down: ← → step one tile, ↑ ↓ jump a
 --      WHOLE ROW — six tiles a press on a six-column grid, which is the
@@ -1755,7 +1799,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.44.0"
+_G.configVersion = "6.44.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -5570,9 +5614,9 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.44.0"
+    local currentVersion = "6.44.1"
     local currentDate    = "08-05-26"
-    local currentNotes   = "Five new features plus arrow navigation in the window switcher. OPT+TAB: left/right step a tile, up/down jump a whole row, Home/End reach the ends, Return commits early; up/down require the target row to exist rather than clamping to the first or last tile. Found while building it: Esc had never worked during an OPT+Tab hold, because hs.hotkey matches modifier flags exactly and Esc was registered under the bare mask while the HUD only exists with OPT held — every in-HUD key is now registered under all four live masks. SCREEN VEIL (hyper+G): a chrome-less click-through sheet over every display, 20-90% in five presets, hard-capped below opaque, with a panic key bound outside hyper; it dims and mutes but cannot desaturate, because a canvas composites on top and never sees the pixels below — true grayscale is Accessibility > Display > Color Filters. CAPTURE PAD (hyper+N): notes and clipboard images queued all day and filed into Asana at 16:00, titled 'Verb + rest of task' when the sentence asks for an action and 'Note :: rest' otherwise, 10 words, overflow and images to the description; nothing leaves the queue before Asana returns a gid, and the token is fed to curl on stdin rather than as an argument. MINI CALENDAR (hyper+shift+0): 1024x768 translucent black, three months, 16px numbers, current week banded, plus or minus one year, clickable without stealing focus, with a menu-bar date; every date is built at noon so daylight saving cannot stall a day step. QUICK APPEND (hyper+J): the clipboard into a text file without opening it, every write checked because io.open returns nil rather than raising. NUMPAD LAYER: the number pad is a separate key path from the number row, mapped so each key places a window where the key itself sits on the pad. 593 checks across five suites."
+    local currentNotes   = "Capture Pad: fixed the image-attachment bug where every upload silently failed. Two causes: setInput() was called after start() instead of before, so the Authorization header never reached curl and Asana returned 401 while curl still exited 0 (curl only fails on a transport error, never an HTTP one); and the failure branch printed err-or-out, which always picked err because an empty string is truthy in Lua, hiding the real response body. Upload now verifies the actual HTTP status via curl's -w flag instead of guessing from the body, and switched from a -K config file to a single -H @- header line on stdin. A note whose image failed to attach is no longer reported as a clean send. Each pinned image now has a small remove button. Fixed the compose textarea's font: font:14px inherit is invalid CSS and WebKit was silently dropping the whole rule, so the box ran on its browser default the entire time; now set as valid longhand at 16px with a taller box. 227 checks now drive the real webview path via a new stub, including a reproduction of the exact curl-exit-0/HTTP-401 failure."
 
     -- Only append if this version isn't already in the file
     local found = false

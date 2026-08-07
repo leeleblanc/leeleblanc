@@ -42,8 +42,29 @@
 -- attachment needs curl (Asana wants multipart, hs.http does not speak
 -- it), and `curl -H "Authorization: Bearer …"` puts your token in the
 -- process table where any process on the Mac can read it with ps. The
--- header is fed to curl on STDIN via -K - instead. If that fails the
+-- header is fed to curl on STDIN via `-H @-` instead. If that fails the
 -- upload is abandoned rather than retried the unsafe way.
+--
+-- 🐛 6.44.1 — WHY EVERY ATTACHMENT WAS SILENTLY FAILING. Two bugs, both
+-- in uploadAttachment below, both now fixed and covered by a test:
+--   1. setInput() was called AFTER start(). The Hammerspoon docs say
+--      setInput "can be called before the task has been started, to
+--      prepare some input for it" — that phrasing is deliberate: for a
+--      non-streaming task (this one has no streamCallbackFn) the stdin
+--      pipe is wired up from whatever was already queued at start time.
+--      Called after, the data missed the window: curl read stdin, got
+--      an immediate EOF, and posted with NO Authorization header at
+--      all. Asana correctly returned 401, which curl still reports as
+--      exit code 0 — curl only fails on a TRANSPORT error, never on an
+--      HTTP error status — so the upload "succeeded" and quietly did
+--      nothing.
+--   2. The failure branch printed `tostring(err or out)`, meant to
+--      prefer stderr and fall back to the response body. Lua's `or`
+--      doesn't work that way when err is an empty string: "" is TRUTHY
+--      in Lua (only nil and false are falsy), so `err or out` always
+--      picked err — silently, every time, even when it was "" and out
+--      held the actual 401 body. That is why the Console showed
+--      "attachment failed (curl 0) for …" with nothing after the dash.
 --
 -- 💾 NOTHING IS DELETED BEFORE IT IS DELIVERED. A note leaves the queue
 -- only after Asana returns the new task's gid. A failed send is kept and
@@ -59,6 +80,7 @@ local M = {
             { "⇪N",   "Open / close the pad" },
             { "⌘⏎",   "File the note you are typing" },
             { "⌘⇧V",  "Attach the clipboard image to the note you are typing" },
+            { "✕",     "On a pinned thumbnail — removes just that image before you file" },
             { "⇪⇧N",  "Send the whole queue to Asana right now" },
             { "16:00", "Automatic: every queued note becomes a task in your project" },
             { "title", "\"Verb + rest\" if it asks for an action, else \"Note :: rest\"" },
@@ -79,7 +101,7 @@ function M.setup(core)
     pad.notePrefix = "Note :: "  -- exactly as specified, spaces included
     pad.maxRetries = 3           -- failed sends parked after this many tries
     pad.projectId  = nil         -- nil = use core.asanaProjectId from init.lua
-    pad.width, pad.height = 720, 620
+    pad.width, pad.height = 760, 700
     pad.key        = "n"
     pad.maxImagesPerNote = 8
     pad.maxQueue   = 200         -- a bounded queue; see the note on flush()
@@ -404,9 +426,10 @@ function M.setup(core)
     -- SENDING
     -- =====================================================================
     -- Attachments go through curl because Asana wants multipart/form-data
-    -- and hs.http cannot build it. The Authorization header is written to
-    -- curl's stdin as a -K config so it never becomes a command-line
-    -- argument — see the note at the top of this file.
+    -- and hs.http cannot build it. `-H @-` tells curl to read ONE header
+    -- line off stdin — simpler than the old `-K` config-file syntax, which
+    -- needed exact `key = "value"` quoting and gave no sign at all when a
+    -- mismatch dropped the header silently.
     local function uploadAttachment(taskGid, path, onDone)
         if hs.fs.attributes(path) == nil then
             print("🗒 Capture Pad: image vanished before upload — " .. path)
@@ -414,11 +437,29 @@ function M.setup(core)
             return
         end
         local url = "https://app.asana.com/api/1.0/tasks/" .. taskGid .. "/attachments"
+
         local okNew, t = pcall(hs.task.new, "/usr/bin/curl", function(code, out, err)
-            local ok = (code == 0) and not tostring(out or ""):find('"errors"', 1, true)
+            -- `-w "\n%{http_code}"` appends the REAL HTTP status after
+            -- whatever curl wrote to stdout, so success is verified against
+            -- that status rather than by guessing from the body — curl exits
+            -- 0 on a 401 just as readily as on a 201, since it only fails on
+            -- a transport error, never an HTTP one.
+            local body, status = tostring(out or ""), nil
+            local statusStr = body:match("\n(%d%d%d)%s*$")
+            if statusStr then
+                status = tonumber(statusStr)
+                body = body:sub(1, #body - #statusStr - 1)
+            end
+            local ok = (code == 0) and (status == 200 or status == 201)
             if not ok then
-                print("🗒 Capture Pad: attachment failed (curl " .. tostring(code) .. ") for "
-                      .. path .. " — " .. tostring(err or out))
+                -- out (the response body) is shown FIRST, not `err or out` —
+                -- err is "" on a plain HTTP failure, and "" is truthy in
+                -- Lua, so `err or out` was silently choosing the empty
+                -- string over the body that actually explained the failure.
+                local detail = body ~= "" and body or (err ~= "" and err or "no response")
+                print(string.format(
+                    "🗒 Capture Pad: attachment failed (curl exit %s, HTTP %s) for %s — %s",
+                    tostring(code), tostring(status or "?"), path, detail))
             end
             if onDone then onDone(ok) end
         -- --max-time is not decoration. Every callback in this file is
@@ -427,30 +468,36 @@ function M.setup(core)
         -- flushing for the rest of the day with nothing on screen to say why.
         -- A bounded upload turns that into one reported failure.
         end, { "-s", "--max-time", tostring(pad.uploadTimeout),
-               "-K", "-", "-X", "POST", "-F", "file=@" .. path, url })
+               "-X", "POST", "-H", "@-", "-F", "file=@" .. path,
+               "-w", "\n%{http_code}", url })
         if not (okNew and t) then
             print("🗒 Capture Pad: could not start curl for " .. path)
             if onDone then onDone(false) end
             return
         end
+
+        -- ⚠️ setInput() BEFORE start(), never after — see the 6.44.1 note at
+        -- the top of this file. This is a non-streaming task (no
+        -- streamCallbackFn), so per the Hammerspoon docs stdin is wired up
+        -- from whatever was already queued when the task starts; fed after,
+        -- the data misses the window entirely.
+        local fed = pcall(function()
+            t:setInput("Authorization: Bearer " .. core.asanaToken .. "\n")
+        end)
+        if not fed then
+            print("🗒 Capture Pad: could not pass the token to curl safely — "
+                  .. "attachment skipped, the image is still at " .. path)
+            if onDone then onDone(false) end
+            return
+        end
+
+        -- closeInput() is deliberately NOT called: the docs say it is only
+        -- for a task with a STREAMING callback, and this one has none —
+        -- stdin closes on its own once the data from setInput() is written.
         local started = false
         pcall(function() started = t:start() end)
         if not started then
             print("🗒 Capture Pad: curl would not start for " .. path)
-            if onDone then onDone(false) end
-            return
-        end
-        -- If stdin is unavailable the token has nowhere safe to go, so the
-        -- upload is abandoned rather than retried with the header on the
-        -- command line.
-        local fed = pcall(function()
-            t:setInput('header = "Authorization: Bearer ' .. core.asanaToken .. '"\n')
-            t:closeInput()
-        end)
-        if not fed then
-            pcall(function() t:terminate() end)
-            print("🗒 Capture Pad: could not pass the token to curl safely — "
-                  .. "attachment skipped, the image is still at " .. path)
             if onDone then onDone(false) end
         end
     end
@@ -486,16 +533,25 @@ function M.setup(core)
                     return
                 end
                 local images = note.images or {}
-                if #images == 0 then onDone(true, gid) return end
+                if #images == 0 then onDone(true, gid, 0) return end
                 -- Attachments are best-effort AND SEQUENTIAL: eight parallel
                 -- curls against one endpoint is how you earn a 429. The task
                 -- is already created, so a failed image is reported and the
                 -- file is left on disk rather than costing you the note.
-                local i = 0
+                --
+                -- imagesFailed travels back to the caller: a note whose task
+                -- was created but whose image did NOT attach must never be
+                -- reported as a clean "sent" — that silence is exactly what
+                -- made the 6.44.0 curl bug invisible until you went looking
+                -- in Asana yourself.
+                local i, imagesFailed = 0, 0
                 local function nextImage()
                     i = i + 1
-                    if i > #images then onDone(true, gid) return end
-                    uploadAttachment(gid, images[i], function() nextImage() end)
+                    if i > #images then onDone(true, gid, imagesFailed) return end
+                    uploadAttachment(gid, images[i], function(ok)
+                        if not ok then imagesFailed = imagesFailed + 1 end
+                        nextImage()
+                    end)
                 end
                 nextImage()
             end)
@@ -519,7 +575,7 @@ function M.setup(core)
         end
 
         pad.sending = true
-        local total, sent, failed = #pad.queue, 0, 0
+        local total, sent, failed, imagesFailed = #pad.queue, 0, 0, 0
         _G.diag.say("capturePad", string.format("flush (%s): %d notes", reason or "auto", total))
 
         local done = false
@@ -535,6 +591,10 @@ function M.setup(core)
             pad.render()
             local msg = string.format("🗒 Capture Pad → Asana: %d sent", sent)
             if failed > 0 then msg = msg .. ", " .. failed .. " kept for next time" end
+            if imagesFailed > 0 then
+                msg = msg .. string.format(" (⚠️ %d image%s did not attach — see Console)",
+                    imagesFailed, imagesFailed == 1 and "" or "s")
+            end
             if why then msg = msg .. " (" .. why .. ")" end
             hs.alert.show(msg, 4)
             print(msg)
@@ -557,9 +617,17 @@ function M.setup(core)
         local function step()
             local note = pad.queue[1]
             if not note then finish() return end
-            createTask(note, function(ok)
+            createTask(note, function(ok, gid, imgFailed)
                 if ok then
                     sent = sent + 1
+                    if imgFailed and imgFailed > 0 then
+                        imagesFailed = imagesFailed + imgFailed
+                        print(string.format(
+                            "🗒 Capture Pad: task created but %d of %d image(s) did not "
+                            .. "attach — %s (task still exists in Asana, gid %s)",
+                            imgFailed, #(note.images or {}), pad.titleFor(note.text),
+                            tostring(gid)))
+                    end
                     table.remove(pad.queue, 1)
                 else
                     failed = failed + 1
@@ -630,13 +698,21 @@ function M.setup(core)
                 .. 'they are kept in queue.json, not lost.</p>',
                 #pad.parked, #pad.parked == 1 and "" or "s", pad.maxRetries)
         end
+        -- Each thumbnail carries its own ✕, calling removeImg(i) with a
+        -- 1-based index — so a wrongly pinned image can be taken back off
+        -- the note before you file it, instead of sitting there uncertain
+        -- whether it is really attached.
         local thumbs = {}
-        for _, p in ipairs(pad.draftImages) do
+        for i, p in ipairs(pad.draftImages) do
             local uri = thumbFor(p)
             if uri then
-                table.insert(thumbs, '<img src="' .. uri .. '">')
+                table.insert(thumbs, '<span class="thumb"><img src="' .. uri
+                    .. '"><button type="button" class="x" onclick="removeImg(' .. i
+                    .. ')" title="Remove this image">×</button></span>')
             else
-                table.insert(thumbs, '<span class="badimg">?</span>')
+                table.insert(thumbs, '<span class="thumb badimg">?<button type="button" '
+                    .. 'class="x" onclick="removeImg(' .. i
+                    .. ')" title="Remove this image">×</button></span>')
             end
         end
 
@@ -644,38 +720,56 @@ function M.setup(core)
 <meta charset="utf-8">
 <style>
   :root { color-scheme: dark; }
-  body { margin:0; font:14px -apple-system,BlinkMacSystemFont,sans-serif;
-         background:#141418; color:#e8e8ec; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+         font-size:15px; line-height:1.5; background:#141418; color:#e8e8ec; }
   header { padding:14px 18px 8px; display:flex; justify-content:space-between;
            align-items:baseline; border-bottom:1px solid #2a2a32; }
-  h1 { font-size:15px; margin:0; font-weight:600; }
-  .hint { color:#8a8a96; font-size:12px; }
+  h1 { font-size:16px; margin:0; font-weight:600; }
+  .hint { color:#8a8a96; font-size:13px; }
   #wrap { padding:14px 18px; }
-  textarea { width:100%; box-sizing:border-box; height:120px; resize:vertical;
+  /* 🐛 6.44.1 — the textarea used to set its font with the `font`
+     shorthand, a fixed pixel size mixed on the same line with the global
+     keyword that means "same as my parent" — a combination the CSS spec
+     does not allow, since that keyword is only valid as the shorthand's
+     ENTIRE value. WebKit drops an invalid shorthand rule outright rather
+     than partially applying it, so the textarea fell back to its default
+     (small, monospace) no matter what size was written there. Longhand
+     font-family / font-size below, so there is nothing left to parse as
+     one disallowed combination. */
+  textarea { width:100%; box-sizing:border-box; height:180px; resize:vertical;
              background:#1d1d24; color:#f2f2f6; border:1px solid #33333e;
-             border-radius:8px; padding:10px; font:14px inherit; }
+             border-radius:8px; padding:12px;
+             font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+             font-size:16px; line-height:1.5; }
   textarea:focus { outline:none; border-color:#4a7fe0; }
-  #thumbs { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
-  #thumbs img { height:64px; border-radius:6px; border:1px solid #33333e; }
-  .badimg { display:inline-block; width:64px; height:64px; line-height:64px;
-            text-align:center; background:#2a2a32; border-radius:6px; color:#888; }
-  .bar { margin-top:10px; display:flex; gap:10px; align-items:center; }
+  textarea::placeholder { color:#5c5c68; }
+  #thumbs { display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; padding:4px 6px 0 0; }
+  .thumb { position:relative; display:inline-block; line-height:0; }
+  .thumb img { height:64px; border-radius:6px; border:1px solid #33333e; }
+  .thumb .x { position:absolute; top:-7px; right:-7px; width:20px; height:20px;
+              border-radius:50%; background:#8a2b25; color:#fff; border:1px solid #141418;
+              font-size:13px; line-height:18px; padding:0; cursor:pointer; }
+  .thumb .x:hover { background:#c0392b; }
+  .badimg { width:64px; height:64px; line-height:64px !important;
+            text-align:center; background:#2a2a32; border-radius:6px; color:#888;
+            font-size:15px; }
+  .bar { margin-top:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   button { background:#2a2a34; color:#e8e8ec; border:1px solid #3b3b47;
-           border-radius:7px; padding:6px 12px; font:13px inherit; cursor:pointer; }
+           border-radius:7px; padding:7px 13px; font-size:14px; cursor:pointer; }
   button.go { background:#3566cc; border-color:#4a7fe0; }
   button:hover { filter:brightness(1.18); }
   h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em;
-       color:#7c7c88; margin:20px 0 8px; }
+       color:#7c7c88; margin:22px 0 8px; }
   ul { list-style:none; margin:0; padding:0; }
-  li { display:flex; gap:10px; align-items:baseline; padding:7px 10px;
-       border-radius:7px; background:#1b1b22; margin-bottom:5px; }
+  li { display:flex; gap:10px; align-items:baseline; padding:8px 10px;
+       border-radius:7px; background:#1b1b22; margin-bottom:5px; font-size:15px; }
   .k { font-size:10px; font-weight:700; letter-spacing:.06em; padding:2px 6px;
        border-radius:4px; flex:none; }
   li.action .k { background:#2f5d3a; color:#9de8b0; }
   li.note   .k { background:#3a3550; color:#c3b6ee; }
   .t { flex:1; }
-  .m { color:#75757f; font-size:12px; flex:none; }
-  .parked { color:#e8b06a; font-size:12px; }
+  .m { color:#75757f; font-size:13px; flex:none; }
+  .parked { color:#e8b06a; font-size:13px; }
   .empty { color:#6d6d78; font-style:italic; }
 </style>
 <header>
@@ -701,6 +795,7 @@ function M.setup(core)
   function say(m){ window.webkit.messageHandlers.capturePad.postMessage(m); }
   var t = document.getElementById('t');
   function fileIt(){ say({a:'add', text:t.value}); }
+  function removeImg(i){ say({a:'removeImage', index:i, text:t.value}); }
   window.addEventListener('keydown', function(e){
     if (e.metaKey && e.key === 'Enter') { e.preventDefault(); fileIt(); }
     else if (e.metaKey && e.shiftKey && (e.key === 'v' || e.key === 'V')) {
@@ -737,6 +832,12 @@ function M.setup(core)
             end
         elseif body.a == "image" then
             pad.attachClipboardImage()
+        elseif body.a == "removeImage" then
+            local idx = tonumber(body.index)
+            if idx and pad.draftImages[idx] then
+                table.remove(pad.draftImages, idx)
+                pad.render()
+            end
         elseif body.a == "flush" then
             pad.flush("manual")
         elseif body.a == "close" then

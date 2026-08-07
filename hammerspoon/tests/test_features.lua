@@ -224,10 +224,16 @@ hs = {
         table.insert(HTTP_POSTS, { url = url, body = body, headers = headers, cb = cb })
     end },
     task = { new = function(bin, cb, args)
-        local t = { bin = bin, cb = cb, args = args, input = nil }
-        function t:start() self.started = true; return true end
-        function t:setInput(s) self.input = s; return self end
-        function t:closeInput() self.inputClosed = true; return self end
+        -- callOrder records method names in the sequence they were called,
+        -- so a test can assert setInput happened BEFORE start — the exact
+        -- ordering bug that made every 6.44.0 attachment silently fail.
+        local t = { bin = bin, cb = cb, args = args, input = nil, callOrder = {} }
+        function t:start() self.started = true
+            table.insert(self.callOrder, "start"); return true end
+        function t:setInput(s) self.input = s
+            table.insert(self.callOrder, "setInput"); return self end
+        function t:closeInput() self.inputClosed = true
+            table.insert(self.callOrder, "closeInput"); return self end
         function t:terminate() self.terminated = true; return self end
         table.insert(TASKS, t)
         return t
@@ -577,7 +583,10 @@ pad.flush("manual")
 check("a second flush while one is running is ignored", #HTTP_POSTS == 0)
 pad.sending = false
 
--- attachments: the security-critical part
+-- attachments: the security-critical part, AND the 6.44.0 regression
+-- (every attachment silently failed — see the file header for the two
+-- bugs: setInput() called after start(), and a diagnostic message that
+-- hid the real response body behind Lua's "" truthiness).
 TASKS = {}
 os.execute('mkdir -p "' .. pad.imageDir .. '"')
 local imgPath = pad.imageDir .. "/test.png"
@@ -591,16 +600,55 @@ check("...to the task's attachments endpoint",
       table.concat(TASKS[1].args, " "):find("/tasks/555/attachments", 1, true) ~= nil)
 check("🔐 the token is NOT in curl's argument list",
       table.concat(TASKS[1].args, " "):find("SECRET%-TOKEN") == nil)
-check("🔐 the token IS fed on stdin instead",
-      tostring(TASKS[1].input):find("Bearer SECRET-TOKEN-abc123", 1, true) ~= nil)
-check("...and stdin is closed so curl can start",
-      TASKS[1].inputClosed == true)
+check("the header is fed via -H @- (reads one line off stdin)",
+      (function()
+          local a = TASKS[1].args
+          for i, v in ipairs(a) do if v == "-H" and a[i + 1] == "@-" then return true end end
+      end)())
+check("🔐 the token IS fed on stdin, as a plain header line",
+      tostring(TASKS[1].input) == "Authorization: Bearer SECRET-TOKEN-abc123\n")
+check("🐛 6.44.1 — setInput() happens BEFORE start(), not after", (function()
+      local order = TASKS[1].callOrder
+      local setAt, startAt
+      for i, name in ipairs(order) do
+          if name == "setInput" and not setAt then setAt = i end
+          if name == "start" and not startAt then startAt = i end
+      end
+      return setAt and startAt and setAt < startAt
+end)())
+check("closeInput() is NOT called — this task has no streaming callback, "
+      .. "so per the Hammerspoon docs stdin closes on its own",
+      TASKS[1].inputClosed ~= true)
 check("⏱ the upload is time-boxed so one hung curl cannot wedge the flush",
       table.concat(TASKS[1].args, " "):find("--max-time", 1, true) ~= nil)
+check("the real HTTP status is requested via -w, not guessed from the body",
+      table.concat(TASKS[1].args, " "):find("%%{http_code}", 1, false) ~= nil
+      or table.concat(TASKS[1].args, " "):find("http_code", 1, true) ~= nil)
 check("the note is NOT dropped before the upload finishes", #pad.queue == 1)
-TASKS[1].cb(0, "{}", "")
+TASKS[1].cb(0, '{"data":{"id":"1"}}\n201', "")
 check("...and leaves the queue once everything is delivered", #pad.queue == 0)
 check("...clearing the sending latch", pad.sending == false)
+
+-- 🐛 THE EXACT 6.44.0 BUG, REPRODUCED: curl exits 0 (it only fails on a
+-- TRANSPORT error, never an HTTP one) while Asana's response is a 401.
+-- The old body-sniffing check ("does it contain the word errors") missed
+-- this whenever the failure body didn't happen to say that; the new
+-- status-based check cannot miss it, because 401 is never 200 or 201.
+TASKS, HTTP_POSTS, ALERTS, printed = {}, {}, {}, {}
+pad.queue = { { id = "g", text = "screenshot 2", createdAt = 1, images = { imgPath }, tries = 0 } }
+pad.flush("manual")
+HTTP_POSTS[1].cb(201, '{"data":{"gid":"777"}}')
+TASKS[1].cb(0, '{"errors":[{"message":"Not Authorized"}]}\n401', "")
+check("a curl exit-0/HTTP-401 response is still treated as a FAILED attachment",
+      logged("attachment failed") and logged("HTTP 401"))
+check("...and the actual response body reaches the Console, not a blank line",
+      logged("Not Authorized"))
+check("...but the note itself still counts as sent — the TASK was created",
+      #pad.queue == 0)
+check("...and the flush summary says the image did not attach, not just \"1 sent\"",
+      ALERTS[#ALERTS] and ALERTS[#ALERTS]:find("did not attach", 1, true) ~= nil)
+check("...naming the task's gid so it can be found and fixed by hand",
+      logged("gid 777"))
 
 -- the watchdog: what happens when a callback never fires at all
 HTTP_POSTS, TIMERS, ALERTS = {}, {}, {}
@@ -645,6 +693,77 @@ pad.maxImagesPerNote = 1
 check("...and the per-note image cap is enforced",
       pad.attachClipboardImage() == false)
 pad.maxImagesPerNote = 8
+
+-- the REAL webview path — the one the user actually hits, and the one
+-- neither the font bug nor the "image stays pinned" bug could be caught
+-- on without exercising it. hs.webview is set here and cleared again
+-- right after, so the no-webview fallback test below still runs under
+-- the conditions it expects.
+hs.webview = {
+    usercontent = { new = function(name)
+        local uc = { name = name }
+        function uc:setCallback(fn) self.callback = fn; return self end
+        return uc
+    end },
+    new = function(rect, opts, uc)
+        local w = { rect = rect, opts = opts, uc = uc, htmlText = nil, shown = false }
+        function w:html(h) self.htmlText = h; return self end
+        function w:windowTitle(t) self.title = t; return self end
+        function w:windowStyle(s) self.style = s; return self end
+        function w:allowTextEntry(b) self.textEntry = b; return self end
+        function w:closeOnEscape(b) self.closeOnEsc = b; return self end
+        function w:level(l) self.lvl = l; return self end
+        function w:show() self.shown = true; return self end
+        function w:bringToFront(b) self.front = b; return self end
+        function w:delete() self.deleted = true; return self end
+        return w
+    end,
+}
+pad.queue, pad.draftImages, pad.draft = {}, {}, ""
+pad.show()
+check("pad.show() takes the real webview path when hs.webview exists",
+      pad.webview ~= nil and pad.webview.htmlText ~= nil)
+check("...sized to the 760x700 configured above", pad.webview.rect.w == 760
+      and pad.webview.rect.h == 700)
+check("🐛 6.44.1 — the textarea no longer carries the invalid `font:…px inherit` "
+      .. "shorthand (WebKit silently drops the whole rule on that combination)",
+      pad.webview.htmlText:find("font:14px inherit", 1, true) == nil)
+check("...the textarea's font-size is set as a real, valid longhand, at least 14px",
+      (function()
+          local sz = pad.webview.htmlText:match('textarea[^}]-font%-size:(%d+)px')
+          return sz ~= nil and tonumber(sz) >= 14
+      end)())
+check("...and the compose box itself is taller, not just the font",
+      pad.webview.htmlText:find("height:180px", 1, true) ~= nil)
+
+-- attach an image, then take it back off before filing — the exact
+-- complaint: an image that "stays attached" with no way to detach it.
+CLIPBOARD_IMAGE = { saveToFile = function(self, path)
+    local f = io.open(path, "w"); if f then f:write("PNG"); f:close(); return true end
+    return false
+end }
+pad.attachClipboardImage()
+check("the draft carries the pinned image", #pad.draftImages == 1)
+check("...and the pad redraws with a ✕ the user can click",
+      pad.webview.htmlText:find("removeImg(1)", 1, true) ~= nil)
+pad.uc.callback({ body = { a = "removeImage", index = 1, text = "" } })
+check("clicking the ✕ removes JUST that image from the draft",
+      #pad.draftImages == 0)
+check("...and the redraw no longer shows it",
+      pad.webview.htmlText:find("removeImg(1)", 1, true) == nil)
+
+-- file a note WITH an image, and confirm the draft — and its thumbnail —
+-- clears from the compose box the moment the note is queued, not later.
+pad.attachClipboardImage()
+pad.uc.callback({ body = { a = "add", text = "Email Dana the report" } })
+check("filing a note clears the draft image immediately, at file time",
+      #pad.draftImages == 0)
+check("...not at send time — the compose box shows no leftover thumbnail",
+      pad.webview.htmlText:find("<img", 1, true) == nil)
+check("...and the note itself kept its own copy of the image path",
+      #pad.queue[1].images == 1)
+pad.hide()
+hs.webview = nil
 
 -- the no-webview fallback
 PROMPT_ANSWER = { "Queue it", "Email Dana about the lease" }
