@@ -1,3 +1,9 @@
+-- Run from anywhere:  lua5.4 <this file> [path to ~/.hammerspoon]
+-- HS   = the config being tested (init.lua + modules/)
+-- HERE = this tests folder, which is where the extracted fixtures live
+local HERE = (arg and arg[0] or ""):match("^(.*)[/\\]") or "."
+local HS   = (arg and arg[1]) or os.getenv("HAMMERSPOON_DIR")
+             or ((os.getenv("HOME") or ".") .. "/.hammerspoon")
 -- Harness: runs the REAL §1.6 code against a stubbed hs, then measures
 -- what it actually draws. Nothing here is mocked at the layout level.
 local SCR = { x = 0, y = 0, w = 3840, h = 2160 }
@@ -90,7 +96,7 @@ end
 
 _G.diag = { say = function() end, warn = function() end, mark = function() end,
             err = function() end, verbose = false, trail = {}, errors = {}, marks = {} }
-dofile("BLOCK_PATH")    -- the section under test, returns the namespace
+dofile(HERE .. "/block_test.lua")    -- the section under test, returns the namespace
 local CS = _G.__cheatSheet
 
 -- ---------------------------------------------------------------- utils

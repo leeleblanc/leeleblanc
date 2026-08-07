@@ -57,6 +57,10 @@ local M = {
         entries = {
             { "⌥Tab", "Hold ⌥, tap Tab to walk every open window, release to switch" },
             { "⌥⇧Tab", "Walk backwards through the same list" },
+            { "← →", "Keep ⌥ down: step one tile, wrapping like Tab" },
+            { "↑ ↓", "Keep ⌥ down: jump a whole ROW — the fast way across many rows" },
+            { "Home / End", "First tile / last tile" },
+            { "Return", "Switch to the highlighted tile without waiting for ⌥ release" },
             { "tiles", "One thumbnail per WINDOW, with its title underneath" },
             { "Esc", "Cancels — no switch" },
             { "shows", "EVERY window: all desktops/Spaces, all monitors, minimised too" },
@@ -103,7 +107,8 @@ function M.setup(core)
 
     altTab.session = nil   -- nil when idle; a table while the HUD is up
     altTab.poll    = nil   -- MUST be held: an unreferenced timer is collected
-    altTab.escKey  = nil
+    altTab.escKey  = nil   -- the bare-Esc hotkey; see altTab.navKeys below
+    altTab.navKeys = nil   -- every in-HUD key, built once, armed per session
 
     -- ---- window list ----------------------------------------------------
     -- ⚠️ 6.39.0 — WHY THIS ASKS EVERY APPLICATION INSTEAD OF ASKING FOR
@@ -338,6 +343,12 @@ function M.setup(core)
 
         local current = s.items[s.index]
         local caption = current and current.full or ""
+        -- The arrow hint only appears when there IS a second row, because
+        -- on a single row ↑↓ do nothing and advertising a key that does
+        -- nothing is worse than saying nothing at all.
+        if (s.rows or 1) > 1 then
+            caption = caption .. "      ↑↓ row · ←→ tile"
+        end
         if s.truncated then
         caption = caption .. "      ⚠️ list cut short at " ..
                   string.format("%.1fs", (_G.altTabLastListing or {}).seconds or 0) ..
@@ -368,7 +379,7 @@ function M.setup(core)
             pcall(function() altTab.poll:stop() end)
             altTab.poll = nil
         end
-        if altTab.escKey then pcall(function() altTab.escKey:disable() end) end
+        altTab.armNavKeys(false)
         if not s then return end
         if s.canvas then pcall(function() s.canvas:delete() end) end
 
@@ -394,8 +405,116 @@ function M.setup(core)
         local s = altTab.session
         if not s then return end
         local n = #s.items
+        if n == 0 then return end
         s.index = ((s.index - 1 + delta) % n) + 1   -- wraps, like Windows
         altTab.render()
+    end
+
+    -- ---- arrow navigation (6.44.0) --------------------------------------
+    -- Tab alone is one tile per press, which is fine for four windows and
+    -- tedious for thirty. ← → are Tab and ⇧Tab by another name; ↑ ↓ move a
+    -- WHOLE ROW, which is the actual saving — six tiles per keystroke on a
+    -- six-column grid.
+    --
+    -- ↑ ↓ MOVE BY ROW, DO NOT WRAP, AND DO NOTHING AT THE EDGES. That is
+    -- how every other grid on the Mac behaves — Finder's icon view,
+    -- Launchpad — and matching them means there is nothing to learn.
+    --
+    -- The two rules that make it feel right:
+    --   • The target ROW has to exist. ↑ on the top row and ↓ on the
+    --     bottom row leave the highlight alone rather than teleporting it
+    --     to the first or last tile, which is what an index-only clamp
+    --     would do and what makes a grid feel unpredictable.
+    --   • Inside a row that DOES exist, the index is clamped. The last row
+    --     is usually short — 14 windows over 6 columns leaves 2 in the
+    --     bottom row — so ↓ from column 5 has no cell directly below it and
+    --     lands on the nearest real tile in that row instead of nothing.
+    -- ← → still wrap, because a flat list has no ragged edge to fall off.
+    function altTab.moveRow(delta)
+        local s = altTab.session
+        if not s then return end
+        local n = #s.items
+        if n == 0 then return end
+        local cols = math.max(1, s.cols or 1)
+        local rows = math.ceil(n / cols)
+        local row  = math.floor((s.index - 1) / cols)
+        local col  = (s.index - 1) % cols
+        local targetRow = row + delta
+        if targetRow < 0 or targetRow > rows - 1 then return end
+        local target = targetRow * cols + col + 1
+        if target > n then target = n end
+        if target == s.index then return end
+        s.index = target
+        altTab.render()
+    end
+
+    function altTab.jumpTo(i)
+        local s = altTab.session
+        if not s then return end
+        local n = #s.items
+        if n == 0 then return end
+        if i < 1 then i = 1 end
+        if i > n then i = n end
+        if i == s.index then return end
+        s.index = i
+        altTab.render()
+    end
+
+    -- ⚠️ WHY EVERY KEY IS REGISTERED FOUR TIMES, ONCE PER MODIFIER MASK.
+    -- hs.hotkey matches the modifier flags EXACTLY: a hotkey registered as
+    -- {} "escape" does not fire for ⌥Esc. The HUD only exists while ⌥ is
+    -- held down, so every keystroke you make during it carries ⌥ — meaning
+    -- the old {} "escape" binding could not fire during the very session it
+    -- was meant to cancel. (That was a real bug, not a hypothetical: Esc
+    -- has never worked mid-hold.) ⇧ is in the list too because ⌥⇧Tab walks
+    -- backwards and you may still be holding ⇧ when you reach for an arrow.
+    --
+    -- These are hs.hotkey.new, NOT .bind: they are created disabled and are
+    -- only enabled while the HUD is on screen, so the arrow keys, Esc and
+    -- Return stay completely untouched the rest of the time.
+    altTab.navMasks = { {}, { "alt" }, { "shift" }, { "alt", "shift" } }
+
+    function altTab.ensureNavKeys()
+        if altTab.navKeys then return altTab.navKeys end
+        local actions = {
+            { "left",   function() altTab.advance(-1) end },
+            { "right",  function() altTab.advance(1)  end },
+            { "up",     function() altTab.moveRow(-1) end },
+            { "down",   function() altTab.moveRow(1)  end },
+            { "home",   function() altTab.jumpTo(1) end },
+            { "end",    function() altTab.jumpTo(math.maxinteger) end },
+            { "escape", function() altTab.finish(false) end },
+            { "return", function() altTab.finish(true)  end },
+        }
+        local keys = {}
+        for _, mask in ipairs(altTab.navMasks) do
+            for _, act in ipairs(actions) do
+                local key, fn = act[1], act[2]
+                -- The third and fifth arguments are pressed and REPEATED:
+                -- holding ↓ keeps moving, the way a held arrow does
+                -- everywhere else. Esc and Return get no repeat handler —
+                -- a repeat there would fire finish() a second time.
+                local repeatFn = (key ~= "escape" and key ~= "return") and fn or nil
+                local ok, hk = pcall(hs.hotkey.new, mask, key, fn, nil, repeatFn)
+                if ok and hk then
+                    table.insert(keys, hk)
+                    -- Kept under its old name so ⇪⇧D and the test harness
+                    -- can still ask "is Esc armed?" the way they always did.
+                    if key == "escape" and #mask == 0 then altTab.escKey = hk end
+                else
+                    print("🔄 Window switcher: could not register " ..
+                          table.concat(mask, "+") .. "+" .. key .. " — " .. tostring(hk))
+                end
+            end
+        end
+        altTab.navKeys = keys
+        return keys
+    end
+
+    function altTab.armNavKeys(on)
+        for _, hk in ipairs(altTab.navKeys or {}) do
+            pcall(function() if on then hk:enable() else hk:disable() end end)
+        end
     end
 
     function altTab.begin(reverse)
@@ -486,7 +605,7 @@ function M.setup(core)
         end
 
         altTab.session = {
-            items = items, cols = cols, w = w, h = h, hidden = total - n,
+            items = items, cols = cols, rows = rows, w = w, h = h, hidden = total - n,
         truncated = (_G.altTabLastListing or {}).truncated or false,
             -- Windows selects the NEXT window on the first press, not the
             -- one you are already in; ⌥⇧Tab selects the last one.
@@ -501,11 +620,8 @@ function M.setup(core)
         pcall(function() canvas:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" }) end)
         canvas:show()
 
-        if not altTab.escKey then
-            local ok, hk = pcall(hs.hotkey.new, {}, "escape", function() altTab.finish(false) end)
-            if ok then altTab.escKey = hk end
-        end
-        if altTab.escKey then pcall(function() altTab.escKey:enable() end) end
+        altTab.ensureNavKeys()
+        altTab.armNavKeys(true)
 
         -- Poll for the ⌥ release. Held in altTab.poll on purpose — an
         -- unreferenced hs.timer gets collected and silently never fires,

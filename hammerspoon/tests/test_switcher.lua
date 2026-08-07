@@ -1,3 +1,9 @@
+-- Run from anywhere:  lua5.4 <this file> [path to ~/.hammerspoon]
+-- HS   = the config being tested (init.lua + modules/)
+-- HERE = this tests folder, which is where the extracted fixtures live
+local HERE = (arg and arg[0] or ""):match("^(.*)[/\\]") or "."
+local HS   = (arg and arg[1]) or os.getenv("HAMMERSPOON_DIR")
+             or ((os.getenv("HOME") or ".") .. "/.hammerspoon")
 -- Harness for §1.10. Runs the shipped code against a stubbed hs whose
 -- windows, clock and modifier state are all under the test's control.
 local bound, log = {}, {}
@@ -97,10 +103,13 @@ hs = {
     bind = function(mods, key, fn)
       table.insert(bound, { combo = table.concat(mods, "+") .. "+" .. key, fn = fn })
     end,
-    new = function(mods, key, fn)
-      local hk = { key = key, fire = fn, on = false }
+    new = function(mods, key, fn, releasedFn, repeatFn)
+      local hk = { key = key, fire = fn, on = false,
+                   mods = mods, mask = table.concat(mods or {}, "+"),
+                   releasedFn = releasedFn, repeatFn = repeatFn }
       function hk:enable() self.on = true; return hk end
       function hk:disable() self.on = false; return hk end
+      table.insert(NAVKEYS, hk)
       return hk
     end,
   },
@@ -117,7 +126,7 @@ end
 
 _G.diag = { say = function() end, warn = function() end, mark = function() end,
             err = function() end, verbose = false, trail = {}, errors = {}, marks = {} }
-local mod = dofile("BLOCK_PATH")
+local mod = dofile(HS .. "/modules/window_switcher.lua")
 -- resolveBaseScreen is looked up at CALL time, not captured, so the
 -- small-screen test below can swap the screen out from under it.
 mod.setup({ resolveBaseScreen = function(...) return resolveBaseScreen(...) end,
@@ -125,6 +134,7 @@ mod.setup({ resolveBaseScreen = function(...) return resolveBaseScreen(...) end,
 local AT = mod.altTab
 
 local out = io.write
+NAVKEYS = {}
 local pass, fail = 0, 0
 local function check(name, cond, detail)
   if cond then pass = pass + 1; out("  ✅ ", name, "\n")
@@ -435,6 +445,126 @@ check("a list that fits says nothing about hiding", (function()
   return AT.session.hidden == 0
 end)())
 resolveBaseScreen = function() return { frame = function() return { x=0, y=0, w=3840, h=2160 } end } end
+
+-- =====================================================================
+out("\n=== 11. Arrow navigation across the grid (6.44.0) ===\n")
+-- ⇪ Six columns, 14 windows: rows of 6, 6 and 2.
+resolveBaseScreen = function() return { frame = function() return { x=0, y=0, w=3840, h=2160 } end } end
+reset(0)
+for i = 1, 14 do table.insert(WINS, mkwin(i, "App" .. i, "W" .. i)) end
+APPS = appsFromWindows(WINS)
+combos["alt+tab"]()
+check("a 14-window list lays out 6 columns", AT.session.cols == 6, AT.session.cols)
+check("...and records its row count for the ↑↓ maths", AT.session.rows == 3, AT.session.rows)
+
+local function navKey(mask, key)
+  for _, hk in ipairs(NAVKEYS) do
+    if hk.mask == mask and hk.key == key then return hk end
+  end
+end
+
+check("→ is registered", navKey("alt", "right") ~= nil)
+check("← is registered", navKey("alt", "left") ~= nil)
+check("↑ is registered", navKey("alt", "up") ~= nil)
+check("↓ is registered", navKey("alt", "down") ~= nil)
+check("Home and End are registered",
+  navKey("alt", "home") ~= nil and navKey("alt", "end") ~= nil)
+check("Return commits without waiting for the ⌥ release",
+  navKey("alt", "return") ~= nil)
+
+-- ⚠️ THE MODIFIER-MASK BUG. hs.hotkey matches flags EXACTLY, and the HUD
+-- only exists while ⌥ is held, so a key registered under the bare {} mask
+-- can never fire during a session. Esc was registered that way until
+-- 6.44.0 and therefore never worked mid-hold.
+check("🐛 Esc is registered for the ⌥ mask, not only the bare one",
+  navKey("alt", "escape") ~= nil)
+check("...and for ⌥⇧ too, since ⌥⇧Tab leaves ⇧ down",
+  navKey("alt+shift", "escape") ~= nil)
+check("...and every arrow carries all four masks", (function()
+  for _, mask in ipairs({ "", "alt", "shift", "alt+shift" }) do
+    for _, k in ipairs({ "left", "right", "up", "down" }) do
+      if not navKey(mask, k) then return false end
+    end
+  end
+  return true
+end)())
+
+check("the nav keys are ARMED while the HUD is up", navKey("alt", "right").on == true)
+
+AT.session.index = 1
+navKey("alt", "right").fire()
+check("→ steps one tile", AT.session.index == 2, AT.session.index)
+navKey("alt", "left").fire()
+check("← steps back", AT.session.index == 1, AT.session.index)
+navKey("alt", "left").fire()
+check("← wraps to the end, like Tab", AT.session.index == 14, AT.session.index)
+navKey("alt", "right").fire()
+check("→ wraps to the start", AT.session.index == 1, AT.session.index)
+
+AT.session.index = 1
+navKey("alt", "down").fire()
+check("↓ jumps a WHOLE ROW, not one tile", AT.session.index == 7, AT.session.index)
+navKey("alt", "down").fire()
+check("...and again", AT.session.index == 13, AT.session.index)
+navKey("alt", "up").fire()
+check("↑ comes back a row", AT.session.index == 7, AT.session.index)
+
+AT.session.index = 3
+navKey("alt", "down").fire()
+check("↓ from the middle of row 1 lands in the same column of row 2",
+  AT.session.index == 9, AT.session.index)
+navKey("alt", "down").fire()
+check("↓ into the RAGGED last row lands on the nearest real tile in that "
+   .. "row, not on a cell that does not exist", AT.session.index == 14, AT.session.index)
+navKey("alt", "down").fire()
+check("...and then stops: there is no row below the bottom one",
+  AT.session.index == 14, AT.session.index)
+AT.session.index = 3
+navKey("alt", "up").fire()
+check("↑ on the TOP row does nothing — it does not teleport to tile 1",
+  AT.session.index == 3, AT.session.index)
+AT.session.index = 9
+navKey("alt", "up").fire()
+check("...but ↑ from row 2 keeps the column", AT.session.index == 3, AT.session.index)
+
+navKey("alt", "end").fire()
+check("End goes to the last tile", AT.session.index == 14, AT.session.index)
+navKey("alt", "home").fire()
+check("Home goes to the first", AT.session.index == 1, AT.session.index)
+
+check("holding an arrow repeats (a held ↓ keeps moving)",
+  navKey("alt", "down").repeatFn ~= nil)
+check("...but Return does NOT repeat — a repeat would commit twice",
+  navKey("alt", "return").repeatFn == nil)
+check("...and neither does Esc", navKey("alt", "escape").repeatFn == nil)
+
+AT.session.index = 5
+navKey("alt", "return").fire()
+check("Return switches to the highlighted window", focused == 5, focused)
+check("...and closes the HUD", AT.session == nil)
+check("🔑 every nav key is DISARMED when the HUD closes, so the arrow keys "
+   .. "are untouched the rest of the time", (function()
+  for _, hk in ipairs(NAVKEYS) do if hk.on then return false end end
+  return true
+end)())
+
+reset(0)
+for i = 1, 3 do table.insert(WINS, mkwin(i, "App" .. i, "W" .. i)) end
+APPS = appsFromWindows(WINS)
+combos["alt+tab"]()
+check("a single-row HUD reports one row", AT.session.rows == 1, AT.session.rows)
+AT.session.index = 2
+navKey("alt", "down").fire()
+check("↓ on a single row does nothing rather than jumping randomly",
+  AT.session.index == 2, AT.session.index)
+check("...and the footer does not advertise ↑↓ when there is only one row",
+  (function()
+    for _, e in ipairs(drawn) do
+      if e.type == "text" and e.text:find("↑↓ row", 1, true) then return false end
+    end
+    return true
+  end)())
+AT.finish(false)
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

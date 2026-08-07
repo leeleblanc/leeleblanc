@@ -1,3 +1,9 @@
+-- Run from anywhere:  lua5.4 <this file> [path to ~/.hammerspoon]
+-- HS   = the config being tested (init.lua + modules/)
+-- HERE = this tests folder, which is where the extracted fixtures live
+local HERE = (arg and arg[0] or ""):match("^(.*)[/\\]") or "."
+local HS   = (arg and arg[1]) or os.getenv("HAMMERSPOON_DIR")
+             or ((os.getenv("HOME") or ".") .. "/.hammerspoon")
 -- Harness for §1.11 diagnostics, plus a whole-file audit of init.lua:
 -- the removal of App Lock and the bug classes the audit went looking for
 -- are asserted against the shipped text itself, not against a copy.
@@ -54,7 +60,7 @@ _G.diag = { verbose = false, trail = {}, errors = {}, marks = {},
             say = function() end, warn = function() end,
             err = function() end, mark = function() end }
 _G.diag.trail[1] = "pre-existing entry from before §1.11 loaded"
-dofile("BLOCK_PATH")
+dofile(HERE .. "/diag_test.lua")
 local keptEarly = _G.diag.trail[1] == "pre-existing entry from before §1.11 loaded"
 io.open = realopen
 
@@ -144,22 +150,24 @@ check("saved to the Logs folder, tagged per machine",
   next(written))
 
 out("\n=== 7. Whole-file audit of the shipped init.lua ===\n")
-local INIT = "INIT_PATH"
+local INIT = HS .. "/init.lua"
 local f = realopen(INIT, "r"); local text = f:read("*a"); f:close()
 -- The audit covers the MODULE FILES too, so a bug class cannot escape
 -- it simply by having been moved out of init.lua.
 local MODS = { "daily_backup", "app_peek", "window_switcher",
                "window_arranger", "copy_on_select", "command_history",
                "app_watcher", "file_tracker", "autocorrect", "activity_tracker",
-               "update_tracker", "asana_comments", "document_watcher" }
+               "update_tracker", "asana_comments", "document_watcher",
+               "screen_veil", "mini_calendar", "quick_append",
+               "capture_pad", "numpad_layer" }
 local moduleText = {}
 for _, m in ipairs(MODS) do
-  local mf = realopen("MODULES_DIR/" .. m .. ".lua", "r")
+  local mf = realopen(HS .. "/modules/" .. m .. ".lua", "r")
   if mf then moduleText[m] = mf:read("*a"); mf:close(); text = text .. "\n" .. moduleText[m] end
 end
 check("init.lua compiles", (loadfile(INIT)) ~= nil, select(2, loadfile(INIT)))
 for _, m in ipairs(MODS) do
-  local path = "MODULES_DIR/" .. m .. ".lua"
+  local path = HS .. "/modules/" .. m .. ".lua"
   check("module compiles: " .. m, (loadfile(path)) ~= nil, select(2, loadfile(path)))
   check("module returns a contract: " .. m, (function()
     local ok, mod = pcall(dofile, path)

@@ -1,6 +1,6 @@
 # Hammerspoon config — how the new design works
 
-Version 6.43.1. Keep this next to the config; it is the manual for the
+Version 6.44.0. Keep this next to the config; it is the manual for the
 structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ---
@@ -9,9 +9,9 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator + core services (5,400 lines)
+├── init.lua          the orchestrator + core services (5,500 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
-└── modules/          one file per feature (13 files, ~4,000 lines)
+└── modules/          one file per feature (18 files, ~5,800 lines)
 ```
 
 `init.lua` keeps only what everything else needs:
@@ -30,6 +30,10 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 | 2 | OCR / clipboard utilities | shared |
 | 3.12 | Hyper key | must run last, after every module claims its keys |
 
+Credentials now also carry `asanaProjectId`, so the Capture Pad and the
+Task Creator file into the same project and there is one value to change,
+not two.
+
 Everything else is a module.
 
 ---
@@ -39,14 +43,14 @@ Everything else is a module.
 ```bash
 mkdir -p ~/.hammerspoon/modules
 cp ~/Downloads/*.lua ~/.hammerspoon/modules/     # module files
-cp ~/Downloads/init-6.43.1.lua ~/.hammerspoon/init.lua
+cp ~/Downloads/init-6.44.0.lua ~/.hammerspoon/init.lua
 ```
 
 Modules first, then `init.lua`. Reload Hammerspoon and check two lines in
 the Console:
 
 ```
-Modules:  13 loaded, 0 failed  ·  profile: Lees-MacBook-Air  ·  /Users/…/modules
+Modules:  18 loaded, 0 failed  ·  profile: Lees-MacBook-Air  ·  /Users/…/modules
 Boot:     N.NNs to here  ·  ⇪⇧D writes a diagnostic report
 ```
 
@@ -187,6 +191,11 @@ and `<logsDir>/diagnostics-<machine>.txt`.
 | `No provider for '…'` | that module didn't load; see `Modules:` in the boot report |
 | brew errors on every app at once | Homebrew's cache, not your list: `rm -rf "$(brew --cache)/api" && brew update --force` |
 | `Homebrew not found` but brew works in Terminal | a no-admin install in your home dir; the Console lists every path tried. Pin it: `M.config.brewPath = "…"` in `modules/update_tracker.lua` (`which brew` gives the path) |
+| The screen veil will not go away | `⌃⌥⌘⇧G` — a plain chord, bound outside hyper on purpose |
+| ⇪ + number pad does nothing | Accessibility → Pointer Control → **Mouse Keys** eats the whole pad |
+| The Capture Pad queue is not emptying at 4 PM | `⇪⇧N` sends by hand; the Console names the HTTP status. Nothing is deleted before Asana returns a gid |
+| Capture Pad says a note was "parked" | it failed `maxRetries` sends. It is still in `<logs>/capture-pad/queue.json` |
+| Calendar arrows do nothing | the panel has to be open — its keys are a modal, armed only while it is up |
 | Something silently wrong | `_G.diag.verbose = true` in the Console, no reload needed |
 
 **A broken module costs you that module only.** Everything else still
@@ -199,15 +208,35 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Four suites, 334 checks, run with `lua5.4` — no Mac required, they stub
+Five suites, 593 checks, run with `lua5.4` — no Mac required, they stub
 the `hs` API:
 
 ```
-test_modules.lua      loader, profiles, warm phase, failure isolation
-test_switcher.lua     ⌥Tab: Spaces, minimised, apps, degradation
-test_cheatsheet.lua   layout, scrolling, assembled group order
-test_diagnostics.lua  ⇪⇧D report + a whole-file audit of init.lua and every module
+tests/test_modules.lua       loader, profiles, warm phase, failure isolation, slot uniqueness
+tests/test_switcher.lua      ⌥Tab: Spaces, minimised, apps, degradation, arrow navigation
+tests/test_cheatsheet.lua    layout, scrolling, assembled group order
+tests/test_diagnostics.lua   ⇪⇧D report + a whole-file audit of init.lua and every module
+tests/test_features.lua      Capture Pad · Mini Calendar · Quick Append · Screen Veil · Numpad
 ```
+
+Copy the whole `tests/` folder to `~/.hammerspoon/tests/` and run it from
+anywhere — each suite finds `~/.hammerspoon` on its own, or takes the
+path as its first argument:
+
+```bash
+for t in ~/.hammerspoon/tests/test_*.lua; do lua5.4 "$t"; done
+```
+
+`tests/test_features.lua` takes the **modules** folder rather than the
+config folder, and wants a real timezone:
+
+```bash
+TZ=America/New_York lua5.4 ~/.hammerspoon/tests/test_features.lua
+```
+
+The timezone is not decoration — three of its checks step a date across
+a real daylight-saving change. Under UTC they pass without proving
+anything.
 
 The audit suite is the one to run after any edit: it re-checks that
 `init.lua` compiles, every module returns a valid contract, no module
@@ -229,3 +258,54 @@ discarded timers, and no `hs.window.filter`.
 None of these is urgent. The rule for each: **find the helper the
 section is squatting on, promote it to core, then move the section** —
 that is how `splitCSVLine`, `csvQuote` and `formatDuration` were freed.
+
+Headroom in `init.lua`'s main chunk: **116 of the 200 local slots free**
+(measured, not estimated — a probe that binary-searches how many extra
+`local` declarations still compile). Every one of the five new features
+lives in a module and spends none of them.
+
+---
+
+## 8. The number pad, as a second keyboard
+
+Yes — the pad is a **separate key path**. It sends its own key codes, so
+`⇪7` and `⇪pad7` are two different shortcuts and both are free:
+
+| | number row | number pad |
+|---|---|---|
+| `1` | 18 | 83 |
+| `2` | 19 | 84 |
+| `7` | 26 | 89 |
+| `0` | 29 | 82 |
+
+Check any of them yourself in the Console: `hs.keycodes.map["pad7"]`.
+Hammerspoon knows `pad0`–`pad9`, `pad.`, `pad+`, `pad-`, `pad*`, `pad/`,
+`pad=`, `padenter`, `padclear`.
+
+The hard part is not binding them, it is remembering them. So
+`numpad_layer.lua` is a **map rather than a list**: the pad is a 3×3 grid
+and your screen is a 3×3 grid, so each key does what its own position
+looks like.
+
+```
+   7  8  9        top-left ·  top half  · top-right
+   4  5  6   →    left half ·  centre   · right half
+   1  2  3        bottom-left · bottom half · bottom-right
+   0              maximise        pad.  put it back
+   + -            grow / shrink   / *   previous / next monitor
+```
+
+To use the pad for something else, edit `numpad.actions` at the top of
+`setup()`. A value may be a zone name, a function, or the name of a
+published service:
+
+```lua
+numpad.actions.pad9 = "capturePad.flush"   -- any core.provide() name
+numpad.actions.pad8 = function() hs.reload() end
+```
+
+Two things outside Hammerspoon will stop the whole layer working:
+**Accessibility → Pointer Control → Mouse Keys** takes the pad for the
+cursor, and a keyboard without a pad never sends the codes at all (which
+is harmless — the bindings just sit there, correct again the moment the
+full-size keyboard is plugged back in).

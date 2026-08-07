@@ -1,7 +1,13 @@
+-- Run from anywhere:  lua5.4 <this file> [path to ~/.hammerspoon]
+-- HS   = the config being tested (init.lua + modules/)
+-- HERE = this tests folder, which is where the extracted fixtures live
+local HERE = (arg and arg[0] or ""):match("^(.*)[/\\]") or "."
+local HS   = (arg and arg[1]) or os.getenv("HAMMERSPOON_DIR")
+             or ((os.getenv("HOME") or ".") .. "/.hammerspoon")
 -- Harness for §1.12, the module system. Runs the REAL loader against
 -- the REAL module files, plus deliberately broken ones written on the
 -- fly, because failure isolation is the half of this that matters.
-local MODDIR = "MODULES_DIR"
+local MODDIR = HS .. "/modules"
 local printed = {}
 print = function(...)
   local p = {}
@@ -21,14 +27,22 @@ hs = {
             new = function() return { start = function(s) return s end, stop = function() end } end,
             usleep = function() end },
   hotkey = { bind = function(mods, key, fn)
-      table.insert(bound, table.concat(mods, "+") .. "+" .. tostring(key)); return {} end },
+      table.insert(bound, table.concat(mods, "+") .. "+" .. tostring(key)); return {} end,
+    new = function(mods, key, fn)
+      local hk = { key = key, fire = fn, on = false }
+      function hk:enable() self.on = true; return self end
+      function hk:disable() self.on = false; return self end
+      return hk
+    end,
+    modal = { new = function()
+      local m = {}
+      function m:bind() return self end
+      function m:enter() return self end
+      function m:exit() return self end
+      return m
+    end } },
   alert = { show = function() end },
   task  = { new = function(_, _, _) return { start = function() end } end },
-  application = { frontmostApplication = function() return nil end,
-                  watcher = { new = function(fn)
-                      return { start = function(s) return s end,
-                               stop  = function(s) return s end } end,
-                              activated = 1, deactivated = 2, launched = 3, terminated = 4 } },
   axuielement = { applicationElement = function() return nil end,
                   observer = { new = function() return nil end } },
   uielement   = { watcher = { new = function() return nil end } },
@@ -62,8 +76,32 @@ hs = {
   distributednotifications = { new = function() return { start=function(s) return s end,
                                                         stop=function(s) return s end } end },
   window = { orderedWindows = function() return {} end,
+             focusedWindow = function() return nil end,
              filter = nil },
-  pasteboard = { getContents = function() return "" end, setContents = function() end },
+  -- 6.44.0 modules
+  screen = { allScreens = function() return {} end,
+             mainScreen = function() return nil end,
+             watcher = { new = function() return { start = function(s) return s end,
+                                                   stop  = function(s) return s end } end } },
+  menubar = { new = function()
+      local m = {}
+      for _, k in ipairs({ "setTitle", "setTooltip", "setClickCallback", "delete" }) do
+        m[k] = function(self) return self end
+      end
+      return m
+  end },
+  dialog = { textPrompt = function() return "Cancel", "" end },
+  drawing = { windowLevels = { floating = 5 } },
+  webview = nil,
+  json = { encode = function() return "{}" end },
+  application = { frontmostApplication = function() return nil end,
+                  launchOrFocus = function() end,
+                  watcher = { new = function(fn)
+                      return { start = function(s) return s end,
+                               stop  = function(s) return s end } end,
+                              activated = 1, deactivated = 2, launched = 3, terminated = 4 } },
+  pasteboard = { getContents = function() return "" end, setContents = function() end,
+                 readImage = function() return nil end },
   chooser = { new = function()
       local c = {}
       for _, m in ipairs({ "choices", "placeholderText", "query", "show", "hide",
@@ -73,7 +111,8 @@ hs = {
       end
       return c
   end },
-  image = { imageFromAppBundle = function() return nil end },
+  image = { imageFromAppBundle = function() return nil end,
+            imageFromPath = function() return nil end },
   accessibilityState = function() return true end,
   execute = function(cmd, loginShell) SHELL_CALLED = true; return SHELL_BREW or "", true, "exit", 0 end,
 }
@@ -104,7 +143,7 @@ formatDuration = function(s) return tostring(s).."s" end
 splitCSVLine = function(l) local o={} for f in tostring(l):gmatch('[^,]+') do o[#o+1]=f end return o end
 _G.configVersion, _G.safeJson = "6.36.0", function() end
 
-dofile("LOADER_PATH")   -- defines _G.loadModules and loads the real list
+dofile(HERE .. "/loader_test.lua")   -- defines _G.loadModules and loads the real list
 
 local out = io.write
 local pass, fail = 0, 0
@@ -131,12 +170,14 @@ local function statusOf(n)
 end
 
 out("\n=== 1. The three real modules load ===\n")
-check("all thirteen loaded", _G.moduleLoaded == 13 and _G.moduleFailed == 0,
+check("all eighteen loaded", _G.moduleLoaded == 18 and _G.moduleFailed == 0,
       tostring(_G.moduleLoaded) .. "/" .. tostring(_G.moduleFailed))
 for _, n in ipairs({ "daily_backup", "app_peek", "window_switcher", "window_arranger",
                      "copy_on_select", "command_history", "app_watcher", "file_tracker",
                      "autocorrect", "activity_tracker", "update_tracker",
-                     "asana_comments", "document_watcher" }) do
+                     "asana_comments", "document_watcher",
+                     "screen_veil", "mini_calendar", "quick_append",
+                     "capture_pad", "numpad_layer" }) do
   local r = statusOf(n)
   check(n .. " ok", r and r.ok, r and r.err)
 end
@@ -165,13 +206,34 @@ check("Daily Backup scheduled its 17:00 timer", timers[1] and timers[1].at == "1
 check("the switcher published altTab for ⇪⇧D", type(_G.altTab) == "table")
 
 out("\n=== 3. Cheat sheet groups travel WITH the module ===\n")
--- 11, not 13: Copy-on-Select and Asana Comments each declare no group,
+-- 16, not 18: Copy-on-Select and Asana Comments each declare no group,
 -- because their entries belong to groups (CLIPBOARD & OCR, ASANA) that
 -- are still owned by sections inside init.lua.
-check("eleven groups registered; two modules deliberately declare none",
-      #_G.moduleCheatsheets == 11, #_G.moduleCheatsheets)
+check("sixteen groups registered; two modules deliberately declare none",
+      #_G.moduleCheatsheets == 16, #_G.moduleCheatsheets)
 local byOrder = {}
 for _, g in ipairs(_G.moduleCheatsheets) do byOrder[g.order] = g.title end
+-- ⚠️ A DUPLICATE ORDER NUMBER IS A REAL BUG, NOT A COSMETIC ONE: Lua's
+-- table.sort is not stable, so two groups sharing a slot swap places at
+-- random between reloads and the sheet never looks the same twice.
+check("every registered group has a UNIQUE slot", (function()
+  local seen, n = {}, 0
+  for _, g in ipairs(_G.moduleCheatsheets) do
+    if seen[g.order] then return false end
+    seen[g.order] = true; n = n + 1
+  end
+  return n == #_G.moduleCheatsheets
+end)())
+check("the five new 6.44.0 groups sit between Autocorrect and the ⇪ reference",
+      (function()
+        local wanted = { [13.1] = "CAPTURE PAD", [13.2] = "MINI CALENDAR",
+                         [13.3] = "QUICK APPEND", [13.4] = "SCREEN VEIL",
+                         [13.5] = "NUMPAD LAYER" }
+        for slot, needle in pairs(wanted) do
+          if not (byOrder[slot] or ""):find(needle, 1, true) then return false end
+        end
+        return true
+      end)())
 check("App Peek claims slot 7", (byOrder[7] or ""):find("APP PEEK", 1, true))
 check("Window Switcher claims slot 8", (byOrder[8] or ""):find("WINDOW SWITCHER", 1, true))
 check("Daily Backup claims slot 15", (byOrder[15] or ""):find("BACKUP", 1, true))

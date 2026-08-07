@@ -4,9 +4,70 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.43.1-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.44.0 — FIVE NEW FEATURES, AND ARROWS IN THE SWITCHER:
+--   ⌨️ ⌥TAB TAKES ARROW KEYS. Keep ⌥ down: ← → step one tile, ↑ ↓ jump a
+--      WHOLE ROW — six tiles a press on a six-column grid, which is the
+--      point when the list is thirty windows long. Home/End jump to the
+--      ends and Return switches without waiting for the ⌥ release. ↑ ↓ do
+--      NOT wrap: the target row has to exist, so ↑ on the top row leaves
+--      the highlight alone rather than teleporting it, and ↓ into a
+--      ragged last row lands on the nearest real tile.
+--   🐛 A REAL BUG FOUND WHILE BUILDING THAT: Esc has NEVER worked during
+--      an ⌥Tab hold. hs.hotkey matches modifier flags EXACTLY, the HUD
+--      only exists while ⌥ is held, and Esc was registered under the bare
+--      {} mask — so the cancel key could not fire during the one session
+--      it existed for. Every in-HUD key is now registered under all four
+--      live masks ({}, ⌥, ⇧, ⌥⇧), and a test asserts it.
+--   🌗 SCREEN VEIL (⇪G). A chrome-less, click-through sheet over EVERY
+--      connected display; ⇪⇧G cycles Movie 20% → Reading 40% → Dim 60% →
+--      Deep 75% → Max 90%, ⇪⇧= / ⇪⇧- nudge by 5%. HARD-CAPPED at 90% so
+--      it never reaches opaque, ⌃⌥⌘⇧G is a panic key bound OUTSIDE hyper,
+--      and a reload always comes back clear (the strength is remembered,
+--      the on-switch is not).
+--      ⚠️ HONEST LIMIT: this DIMS AND MUTES, it does not DESATURATE. A
+--      canvas composites on top and never sees the pixels underneath, and
+--      a gamma table is one curve per channel so it cannot average them
+--      either. True black-and-white lives in System Settings →
+--      Accessibility → Display → Color Filters → Grayscale, which runs
+--      inside WindowServer. The two stack.
+--   🗒 CAPTURE PAD (⇪N). Jot notes and pin clipboard images all day; at
+--      16:00 every note becomes an Asana task in your project. Titles
+--      follow the rule you specified: "Verb + rest of task" when the
+--      sentence asks for an action, "Note :: rest" otherwise, 10 words
+--      either way, with the overflow and the images going to the
+--      description. Start a note with ! to force a task or ? to force a
+--      note. ⇪⇧N sends now. NOTHING LEAVES THE QUEUE BEFORE ASANA
+--      RETURNS A GID, failures are retried and then parked, never
+--      dropped. 🔐 The token is fed to curl on stdin, never as an
+--      argument, so it is not in the process table.
+--   🗓 MINI CALENDAR (⇪⇧0). 1024×768, translucent black, 16px numbers,
+--      three months, current week banded, ±1 year and no further. Arrows
+--      walk days, ↑↓ weeks, [ ] months; it is clickable without stealing
+--      focus, and a menu-bar date opens it without Bartender.
+--      ⏰ Every date is built at NOON and stepped by 86400: midnight + 24h
+--      is 01:00 on the spring-forward day and 23:00 the SAME day in
+--      autumn, so a midnight-based "next day" silently stalls twice a
+--      year. Tested under a DST timezone, not just UTC.
+--   📝 QUICK APPEND (⇪J). Puts the clipboard into a text file without
+--      opening it — append mode, closed again before the alert. ⇪⇧J picks
+--      the file or offers a box to type into. Every write is checked:
+--      io.open returns nil rather than raising, so an unavailable OneDrive
+--      folder would otherwise fail in complete silence.
+--   🔢 NUMPAD LAYER (⇪ + number pad). YES, the number pad is a separate
+--      key path — pad7 is key code 89, the number-row 7 is 26, and both
+--      are free at the same time. The layer is a MAP, not a list: the pad
+--      is a 3×3 grid and so is your screen, so ⇪pad7 is the top-left
+--      quarter, ⇪pad4 the left half, ⇪pad5 the centre. Nothing to
+--      memorise. (Accessibility → Pointer Control → Mouse Keys eats the
+--      whole pad when it is on; that is the first thing to check.)
+--   🔀 ORDER NUMBERS ARE NOW GUARDED. The five new cheat-sheet groups sit
+--      at 13.1-13.5, and a test asserts every group's slot is unique —
+--      Lua's table.sort is not stable, so a tie makes the sheet reshuffle
+--      itself on every reload.
+--   🧪 593 checks across five suites, all passing.
 -- NEW IN 6.43.1 — PROVING 6.43.0 IS SAFE ON THE OTHER MAC:
 --   ✅ THE PERSONAL MAC DOES NOT REGRESS, and this is tested, not
 --      asserted: a system install at /opt/homebrew is still found, the
@@ -1694,7 +1755,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.43.1"
+_G.configVersion = "6.44.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -5273,6 +5334,9 @@ _G.moduleProfiles = {
             "copy_on_select", "command_history", "app_watcher", "file_tracker",
             "autocorrect", "activity_tracker", "update_tracker",
             "asana_comments", "document_watcher",
+            -- 6.44.0
+            "screen_veil", "mini_calendar", "quick_append", "capture_pad",
+            "numpad_layer",
         },
     },
 
@@ -5289,6 +5353,9 @@ _G.moduleProfiles = {
             "copy_on_select", "command_history", "app_watcher", "file_tracker",
             "autocorrect", "activity_tracker", "update_tracker",
             "asana_comments", "document_watcher",
+            -- 6.44.0
+            "screen_veil", "mini_calendar", "quick_append", "capture_pad",
+            "numpad_layer",
         },
         settings = {
             -- Examples — delete or edit freely. These are exactly the
@@ -5309,6 +5376,9 @@ _G.moduleProfiles = {
             "copy_on_select", "command_history", "app_watcher", "file_tracker",
             "autocorrect", "activity_tracker", "update_tracker",
             "asana_comments", "document_watcher",
+            -- 6.44.0
+            "screen_veil", "mini_calendar", "quick_append", "capture_pad",
+            "numpad_layer",
         },
     },
 }
@@ -5344,6 +5414,10 @@ local core = {
     asanaEnabled     = asanaEnabled,
     asanaToken       = asanaToken,
     asanaWorkspaceId = asanaWorkspaceId,
+    -- 6.44.0: the Capture Pad files its 4 PM tasks into this project.
+    -- Same value the Task Creator (§4) already uses, so both land in the
+    -- same place and there is one thing to change, not two.
+    asanaProjectId   = asanaProjectId,
     -- service registry (see the stub at the top of this file). A module
     -- publishes with core.provide("name", fn); anything else calls it
     -- with _G.service.call("name", ...) and gets a warning rather than a
@@ -5496,9 +5570,9 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.43.1"
+    local currentVersion = "6.44.0"
     local currentDate    = "08-05-26"
-    local currentNotes   = "Follow-up to 6.43.0, prompted by the right question: does the new Homebrew discovery risk the personal Mac? Tested rather than asserted. A system install at /opt/homebrew is still found, the daily check is still scheduled, and warm() starts no login shell at all when brew was already located — the shell is only consulted when the well-known paths miss. One real gap the test found: if a Mac carries BOTH a leftover home-directory install and a working system one, list order was picking blindly. Now, and only in that case, the shell is asked which brew is actually on PATH and that one wins, with the Console saying which was chosen and which was ignored."
+    local currentNotes   = "Five new features plus arrow navigation in the window switcher. OPT+TAB: left/right step a tile, up/down jump a whole row, Home/End reach the ends, Return commits early; up/down require the target row to exist rather than clamping to the first or last tile. Found while building it: Esc had never worked during an OPT+Tab hold, because hs.hotkey matches modifier flags exactly and Esc was registered under the bare mask while the HUD only exists with OPT held — every in-HUD key is now registered under all four live masks. SCREEN VEIL (hyper+G): a chrome-less click-through sheet over every display, 20-90% in five presets, hard-capped below opaque, with a panic key bound outside hyper; it dims and mutes but cannot desaturate, because a canvas composites on top and never sees the pixels below — true grayscale is Accessibility > Display > Color Filters. CAPTURE PAD (hyper+N): notes and clipboard images queued all day and filed into Asana at 16:00, titled 'Verb + rest of task' when the sentence asks for an action and 'Note :: rest' otherwise, 10 words, overflow and images to the description; nothing leaves the queue before Asana returns a gid, and the token is fed to curl on stdin rather than as an argument. MINI CALENDAR (hyper+shift+0): 1024x768 translucent black, three months, 16px numbers, current week banded, plus or minus one year, clickable without stealing focus, with a menu-bar date; every date is built at noon so daylight saving cannot stall a day step. QUICK APPEND (hyper+J): the clipboard into a text file without opening it, every write checked because io.open returns nil rather than raising. NUMPAD LAYER: the number pad is a separate key path from the number row, mapped so each key places a window where the key itself sits on the pad. 593 checks across five suites."
 
     -- Only append if this version isn't already in the file
     local found = false
