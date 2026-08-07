@@ -4,9 +4,47 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.1-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.2-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.44.2 — CAPTURE PAD: DRAGGABLE, RELIABLE, AND CAPTIONED:
+--   🖱 THE PAD MOVES NOW. Drag it by its header bar. hs.webview builds
+--      its window with NSWindowStyleMaskBorderless hard-coded in the
+--      extension's own source and never sets movableByWindowBackground,
+--      so there is no native title bar and the windowStyle({"titled",…})
+--      call this module used to make was being ignored outright. The
+--      drag is driven from LUA rather than JS mousemove, and that matters:
+--      a WKWebView stops receiving mouse events the instant the pointer
+--      leaves it, so a JS-driven drag dies the moment you move faster
+--      than the window follows. Lua polls the real mouse position and
+--      the real button state instead, so a mouse-up released anywhere on
+--      screen still ends the drag.
+--   🔁 WHY SENDING WAS INCONSISTENT. 6.44.1 fixed the ordering bug that
+--      made attachments fail EVERY time; what was left failed only
+--      SOMETIMES. Feeding the auth header on curl's stdin means writing
+--      into a pipe that curl's own read loop is already running against —
+--      a race, and races do not fail consistently. The header now goes
+--      into a short-lived FILE: written, chmod 600, and closed before
+--      curl is even created, handed over as -H @<path>, and deleted the
+--      moment the upload's callback fires. A file curl opens after it is
+--      already complete on disk has nothing left to race. warm() also
+--      sweeps that folder at boot, so a force-quit mid-upload cannot
+--      leave a token sitting on disk.
+--   🗒 A NOTE WITH AN IMAGE KEPT ITS TEXT. The description was built only
+--      for notes too long for their own title, so a short note plus a
+--      screenshot produced a description reading "1 image attached." and
+--      a timestamp — the caption was dropped exactly when the image made
+--      it matter most. An image now always brings the note's text with it.
+--   ♻️ PARKED NOTES ARE RECOVERABLE. A note that failed maxRetries used
+--      to be reachable only by hand-editing queue.json. The pad now shows
+--      a button that puts them all back in the queue with their attempt
+--      count reset, for retrying a send that failed for a reason since
+--      fixed.
+--   🐛 CAUGHT BY ITS OWN TEST, IN MY OWN NEW CODE: beginDrag() set the
+--      grab offset and THEN called endDrag() to clear any previous drag —
+--      which wiped the offset it had just stored. The drag test failed on
+--      the first run and named it exactly.
+--   🧪 246 checks in test_features.lua, 632 across all five suites.
 -- NEW IN 6.44.1 — CAPTURE PAD: THE IMAGE ATTACHMENT BUG, AND THE FONT:
 --   🐛 EVERY IMAGE ATTACHMENT WAS SILENTLY FAILING. Two bugs in
 --      uploadAttachment, both now covered by a test that reproduces the
@@ -1799,7 +1837,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.44.1"
+_G.configVersion = "6.44.2"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -5614,9 +5652,9 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.44.1"
+    local currentVersion = "6.44.2"
     local currentDate    = "08-05-26"
-    local currentNotes   = "Capture Pad: fixed the image-attachment bug where every upload silently failed. Two causes: setInput() was called after start() instead of before, so the Authorization header never reached curl and Asana returned 401 while curl still exited 0 (curl only fails on a transport error, never an HTTP one); and the failure branch printed err-or-out, which always picked err because an empty string is truthy in Lua, hiding the real response body. Upload now verifies the actual HTTP status via curl's -w flag instead of guessing from the body, and switched from a -K config file to a single -H @- header line on stdin. A note whose image failed to attach is no longer reported as a clean send. Each pinned image now has a small remove button. Fixed the compose textarea's font: font:14px inherit is invalid CSS and WebKit was silently dropping the whole rule, so the box ran on its browser default the entire time; now set as valid longhand at 16px with a taller box. 227 checks now drive the real webview path via a new stub, including a reproduction of the exact curl-exit-0/HTTP-401 failure."
+    local currentNotes   = "Capture Pad follow-up. The pad is draggable by its header bar: hs.webview hard-codes a borderless window and never sets movableByWindowBackground, so the windowStyle titled call was being ignored and there was no title bar to grab. The drag is driven from Lua polling the real mouse and button state, not JS mousemove, because a WKWebView stops seeing the pointer the moment it leaves the window. Fixed the remaining attachment inconsistency: 6.44.1 stopped uploads failing every time, but feeding the auth header on curl's stdin still races curl's own read loop, which is why it worked sometimes. The header now goes into a short-lived file, written and closed before curl exists, passed as -H at-path, deleted when the callback fires, and swept at boot if a force-quit left one behind. Fixed a note with an image losing its own text: the description was only built for notes too long for their title, so a short note plus a screenshot produced a description with no caption. Parked notes can now be put back in the queue from a button instead of hand-editing queue.json. A test caught a bug in the new drag code on its first run: beginDrag set the grab offset then called endDrag, which cleared it. 246 checks in the feature suite, 632 across all five."
 
     -- Only append if this version isn't already in the file
     local found = false

@@ -42,29 +42,37 @@
 -- attachment needs curl (Asana wants multipart, hs.http does not speak
 -- it), and `curl -H "Authorization: Bearer …"` puts your token in the
 -- process table where any process on the Mac can read it with ps. The
--- header is fed to curl on STDIN via `-H @-` instead. If that fails the
--- upload is abandoned rather than retried the unsafe way.
+-- header is fed to curl from a SHORT-LIVED FILE instead — see the
+-- 6.44.2 note below for why a file and not stdin. If staging it fails
+-- the upload is abandoned rather than retried the unsafe way.
 --
--- 🐛 6.44.1 — WHY EVERY ATTACHMENT WAS SILENTLY FAILING. Two bugs, both
--- in uploadAttachment below, both now fixed and covered by a test:
---   1. setInput() was called AFTER start(). The Hammerspoon docs say
---      setInput "can be called before the task has been started, to
---      prepare some input for it" — that phrasing is deliberate: for a
---      non-streaming task (this one has no streamCallbackFn) the stdin
---      pipe is wired up from whatever was already queued at start time.
---      Called after, the data missed the window: curl read stdin, got
---      an immediate EOF, and posted with NO Authorization header at
---      all. Asana correctly returned 401, which curl still reports as
---      exit code 0 — curl only fails on a TRANSPORT error, never on an
---      HTTP error status — so the upload "succeeded" and quietly did
---      nothing.
---   2. The failure branch printed `tostring(err or out)`, meant to
---      prefer stderr and fall back to the response body. Lua's `or`
---      doesn't work that way when err is an empty string: "" is TRUTHY
---      in Lua (only nil and false are falsy), so `err or out` always
---      picked err — silently, every time, even when it was "" and out
---      held the actual 401 body. That is why the Console showed
---      "attachment failed (curl 0) for …" with nothing after the dash.
+-- 🐛 THE ATTACHMENT BUG, IN TWO PARTS — 6.44.1 then 6.44.2:
+--   6.44.0: setInput() was called AFTER t:start(). The Hammerspoon docs
+--     say setInput "can be called before the task has been started, to
+--     prepare some input for it" — for a non-streaming task (this one
+--     has no streamCallbackFn) that phrasing matters: stdin is wired up
+--     from whatever was already queued at start time. Called after, the
+--     data missed the window: curl read stdin, hit EOF immediately, and
+--     posted with NO Authorization header. Asana correctly returned 401
+--     — which curl still reports as exit code 0, since curl only fails
+--     on a TRANSPORT error, never an HTTP one — so the upload "succeeded"
+--     and quietly did nothing. The failure branch's own diagnostic then
+--     hid the evidence: `tostring(err or out)` always picked `err`
+--     because an empty string is truthy in Lua, printing a blank dash
+--     instead of the 401 body that would have explained everything.
+--   6.44.1: fixed the ordering — setInput() before start() — which
+--     stopped it failing EVERY time, but not reliably: some uploads
+--     went through, some silently didn't, no visible pattern. The docs'
+--     wording ("prepare some input for it") never actually promises the
+--     data is IN the pipe before curl's first read of it; if that write
+--     happens asynchronously against curl's own already-running read
+--     loop, a `-H @-` fed on a live pipe can race it.
+--   6.44.2: moved off stdin entirely. The header now goes into a
+--     SHORT-LIVED FILE — written, permission-restricted, and closed (a
+--     complete, synchronous operation) before curl is even created —
+--     then handed to curl as `-H @<path>` and deleted the moment the
+--     upload's callback fires. A file curl opens after it is already
+--     fully written on disk has nothing left to race.
 --
 -- 💾 NOTHING IS DELETED BEFORE IT IS DELIVERED. A note leaves the queue
 -- only after Asana returns the new task's gid. A failed send is kept and
@@ -81,7 +89,9 @@ local M = {
             { "⌘⏎",   "File the note you are typing" },
             { "⌘⇧V",  "Attach the clipboard image to the note you are typing" },
             { "✕",     "On a pinned thumbnail — removes just that image before you file" },
+            { "drag",  "The header bar moves the pad — it has no native title bar" },
             { "⇪⇧N",  "Send the whole queue to Asana right now" },
+            { "parked", "A button puts failed notes back in the queue to retry" },
             { "16:00", "Automatic: every queued note becomes a task in your project" },
             { "title", "\"Verb + rest\" if it asks for an action, else \"Note :: rest\"" },
             { "",      "10 words max — the rest, and every image, go in the description" },
@@ -296,14 +306,24 @@ function M.setup(core)
 
     -- The description. Empty string means "no description needed", which is
     -- the case for a short note with no images and nothing cut off.
+    --
+    -- 🐛 6.44.2 — A NOTE'S OWN TEXT WAS MISSING WHENEVER IT HAD AN IMAGE.
+    -- needsBody used to be true only for a note too long for its title —
+    -- fine for a plain note, wrong the moment an image is involved: a
+    -- short note like "Note :: Do total damage" already says everything
+    -- in the title, so the description held nothing but "1 image
+    -- attached." and a timestamp — a screenshot with no caption at all.
+    -- An image makes needsBody true unconditionally now, because the
+    -- point of attaching one is almost always to give it context.
     function pad.descriptionFor(note)
         local title, _, truncated = pad.titleFor(note.text)
         local textWords = #words(note.text)
         local multiline = tostring(note.text):find("[\r\n]") ~= nil
-        local needsBody = truncated or multiline or textWords > pad.titleWords
+        local hasImages = #(note.images or {}) > 0
+        local needsBody = truncated or multiline or textWords > pad.titleWords or hasImages
         local parts = {}
         if needsBody then table.insert(parts, note.text) end
-        if #(note.images or {}) > 0 then
+        if hasImages then
             table.insert(parts, string.format("%d image%s attached.",
                 #note.images, #note.images == 1 and "" or "s"))
         end
@@ -378,6 +398,30 @@ function M.setup(core)
         return true, note
     end
 
+    -- Parked notes are not dead, just out of the retry loop. This puts them
+    -- back at the FRONT of the queue with their attempt count reset, so a
+    -- send that failed for a reason since fixed (a bad token, no network,
+    -- the 6.44.x attachment bugs) can be retried without hand-editing
+    -- queue.json.
+    function pad.retryParked()
+        if #pad.parked == 0 then
+            pad.toast("Nothing parked")
+            return 0
+        end
+        local n = #pad.parked
+        for i = n, 1, -1 do
+            local note = pad.parked[i]
+            note.tries, note.parkedAt = 0, nil
+            table.insert(pad.queue, 1, note)
+            table.remove(pad.parked, i)
+        end
+        pad.save()
+        pad.render()
+        pad.toast(n .. " note" .. (n == 1 and "" or "s") ..
+                  " back in the queue — ⇪⇧N to send now")
+        return n
+    end
+
     function pad.removeNote(id)
         for i = #pad.queue, 1, -1 do
             if pad.queue[i].id == id then table.remove(pad.queue, i) end
@@ -426,10 +470,33 @@ function M.setup(core)
     -- SENDING
     -- =====================================================================
     -- Attachments go through curl because Asana wants multipart/form-data
-    -- and hs.http cannot build it. `-H @-` tells curl to read ONE header
-    -- line off stdin — simpler than the old `-K` config-file syntax, which
-    -- needed exact `key = "value"` quoting and gave no sign at all when a
-    -- mismatch dropped the header silently.
+    -- and hs.http cannot build it.
+    pad.headerDir = pad.dir .. "/.tmp"
+
+    -- The token, on disk only as long as one upload takes. See the 6.44.2
+    -- note at the top of this file for why a file rather than stdin: a
+    -- file is written and closed — synchronous, complete — before curl
+    -- is even created, so there is nothing left for anything to race.
+    -- chmod 600 restricts it to this user; uploadAttachment deletes it
+    -- the moment its callback fires, success or failure; and warm() below
+    -- sweeps this folder at boot in case a killed Hammerspoon left one.
+    local function writeHeaderFile()
+        if hs.fs.attributes(pad.headerDir) == nil then
+            pcall(hs.fs.mkdir, pad.headerDir)
+        end
+        local path = string.format("%s/hdr-%d-%04d.txt", pad.headerDir,
+            math.floor(hs.timer.secondsSinceEpoch()), math.random(0, 9999))
+        local f = io.open(path, "w")
+        if not f then return nil end
+        local okW = pcall(function()
+            f:write("Authorization: Bearer " .. core.asanaToken .. "\n")
+        end)
+        local okC = pcall(function() return f:close() end)
+        if not (okW and okC) then pcall(os.remove, path); return nil end
+        pcall(function() os.execute("chmod 600 '" .. path:gsub("'", "'\\''") .. "'") end)
+        return path
+    end
+
     local function uploadAttachment(taskGid, path, onDone)
         if hs.fs.attributes(path) == nil then
             print("🗒 Capture Pad: image vanished before upload — " .. path)
@@ -438,7 +505,17 @@ function M.setup(core)
         end
         local url = "https://app.asana.com/api/1.0/tasks/" .. taskGid .. "/attachments"
 
+        local hdrPath = writeHeaderFile()
+        if not hdrPath then
+            print("🗒 Capture Pad: could not stage the auth header safely — "
+                  .. "attachment skipped, the image is still at " .. path)
+            if onDone then onDone(false) end
+            return
+        end
+        local function cleanup() pcall(os.remove, hdrPath) end
+
         local okNew, t = pcall(hs.task.new, "/usr/bin/curl", function(code, out, err)
+            cleanup()
             -- `-w "\n%{http_code}"` appends the REAL HTTP status after
             -- whatever curl wrote to stdout, so success is verified against
             -- that status rather than by guessing from the body — curl exits
@@ -468,35 +545,19 @@ function M.setup(core)
         -- flushing for the rest of the day with nothing on screen to say why.
         -- A bounded upload turns that into one reported failure.
         end, { "-s", "--max-time", tostring(pad.uploadTimeout),
-               "-X", "POST", "-H", "@-", "-F", "file=@" .. path,
+               "-X", "POST", "-H", "@" .. hdrPath, "-F", "file=@" .. path,
                "-w", "\n%{http_code}", url })
         if not (okNew and t) then
+            cleanup()
             print("🗒 Capture Pad: could not start curl for " .. path)
             if onDone then onDone(false) end
             return
         end
 
-        -- ⚠️ setInput() BEFORE start(), never after — see the 6.44.1 note at
-        -- the top of this file. This is a non-streaming task (no
-        -- streamCallbackFn), so per the Hammerspoon docs stdin is wired up
-        -- from whatever was already queued when the task starts; fed after,
-        -- the data misses the window entirely.
-        local fed = pcall(function()
-            t:setInput("Authorization: Bearer " .. core.asanaToken .. "\n")
-        end)
-        if not fed then
-            print("🗒 Capture Pad: could not pass the token to curl safely — "
-                  .. "attachment skipped, the image is still at " .. path)
-            if onDone then onDone(false) end
-            return
-        end
-
-        -- closeInput() is deliberately NOT called: the docs say it is only
-        -- for a task with a STREAMING callback, and this one has none —
-        -- stdin closes on its own once the data from setInput() is written.
         local started = false
         pcall(function() started = t:start() end)
         if not started then
+            cleanup()
             print("🗒 Capture Pad: curl would not start for " .. path)
             if onDone then onDone(false) end
         end
@@ -695,8 +756,11 @@ function M.setup(core)
         if #pad.parked > 0 then
             parked = string.format(
                 '<p class="parked">⚠️ %d note%s could not be sent after %d tries — '
-                .. 'they are kept in queue.json, not lost.</p>',
-                #pad.parked, #pad.parked == 1 and "" or "s", pad.maxRetries)
+                .. 'kept in queue.json, not lost. '
+                .. '<button type="button" class="retry" onclick="retryParked()">'
+                .. 'Put %s back in the queue</button></p>',
+                #pad.parked, #pad.parked == 1 and "" or "s", pad.maxRetries,
+                #pad.parked == 1 and "it" or "them")
         end
         -- Each thumbnail carries its own ✕, calling removeImg(i) with a
         -- 1-based index — so a wrongly pinned image can be taken back off
@@ -722,9 +786,16 @@ function M.setup(core)
   :root { color-scheme: dark; }
   body { margin:0; font-family:-apple-system,BlinkMacSystemFont,sans-serif;
          font-size:15px; line-height:1.5; background:#141418; color:#e8e8ec; }
+  /* The header IS the title bar — hs.webview windows are borderless and
+     have none of their own, so this is the grab handle. user-select:none
+     stops a drag turning into a text selection halfway across it. */
   header { padding:14px 18px 8px; display:flex; justify-content:space-between;
-           align-items:baseline; border-bottom:1px solid #2a2a32; }
+           align-items:baseline; border-bottom:1px solid #2a2a32;
+           cursor:grab; user-select:none; -webkit-user-select:none; }
+  header:active { cursor:grabbing; }
+  header.dragging { cursor:grabbing; background:#1b1b22; }
   h1 { font-size:16px; margin:0; font-weight:600; }
+  .grip { color:#4a4a56; margin-right:8px; letter-spacing:2px; }
   .hint { color:#8a8a96; font-size:13px; }
   #wrap { padding:14px 18px; }
   /* 🐛 6.44.1 — the textarea used to set its font with the `font`
@@ -770,11 +841,14 @@ function M.setup(core)
   .t { flex:1; }
   .m { color:#75757f; font-size:13px; flex:none; }
   .parked { color:#e8b06a; font-size:13px; }
+  button.retry { margin-left:8px; padding:3px 9px; font-size:12px;
+                 background:#4a3a1e; border-color:#6b5528; color:#f0d5a8; }
   .empty { color:#6d6d78; font-style:italic; }
 </style>
-<header>
-  <h1>🗒 Capture Pad</h1>
-  <span class="hint">⌘⏎ file · ⌘⇧V image · sends at ]] .. escapeHtml(pad.sendAt) .. [[</span>
+<header id="bar">
+  <h1><span class="grip">⠿</span>🗒 Capture Pad</h1>
+  <span class="hint">drag here · ⌘⏎ file · ⌘⇧V image · sends at ]]
+    .. escapeHtml(pad.sendAt) .. [[</span>
 </header>
 <div id="wrap">
   <textarea id="t" placeholder="Type a note. Start with ! to force a task, ? to force a note."
@@ -796,6 +870,19 @@ function M.setup(core)
   var t = document.getElementById('t');
   function fileIt(){ say({a:'add', text:t.value}); }
   function removeImg(i){ say({a:'removeImage', index:i, text:t.value}); }
+  function retryParked(){ say({a:'retryParked', text:t.value}); }
+  // The header only has to report that a drag STARTED. Lua polls the real
+  // mouse from there — a WKWebView stops seeing the pointer the moment it
+  // leaves the window, so tracking mousemove here would drop the drag as
+  // soon as you moved faster than the window follows.
+  var bar = document.getElementById('bar');
+  bar.addEventListener('mousedown', function(e){
+    if (e.button !== 0) return;
+    e.preventDefault();
+    bar.classList.add('dragging');
+    say({a:'dragStart', text:t.value});
+  });
+  window.addEventListener('mouseup', function(){ bar.classList.remove('dragging'); });
   window.addEventListener('keydown', function(e){
     if (e.metaKey && e.key === 'Enter') { e.preventDefault(); fileIt(); }
     else if (e.metaKey && e.shiftKey && (e.key === 'v' || e.key === 'V')) {
@@ -840,12 +927,102 @@ function M.setup(core)
             end
         elseif body.a == "flush" then
             pad.flush("manual")
+        elseif body.a == "dragStart" then
+            pad.beginDrag()
+        elseif body.a == "retryParked" then
+            pad.retryParked()
         elseif body.a == "close" then
             pad.hide()
         end
     end
 
+    -- =====================================================================
+    -- DRAGGING THE PAD (6.44.2)
+    -- =====================================================================
+    -- ⚠️ WHY THIS IS HAND-BUILT AND NOT A TITLE BAR. hs.webview builds its
+    -- window with NSWindowStyleMaskBorderless hard-coded in the extension's
+    -- own source, and never sets movableByWindowBackground. So there is no
+    -- native title bar to grab and no built-in drag — the
+    -- windowStyle({"titled", …}) call this file used to make was being
+    -- ignored, which is exactly why the pad sat wherever it opened.
+    --
+    -- The drag is driven from LUA, not from JS mousemove, and that is the
+    -- important detail: a WKWebView stops receiving mouse events the moment
+    -- the pointer leaves it, so a JS-driven drag dies the instant you move
+    -- faster than the window follows. Lua polls the real mouse position
+    -- instead, which is true wherever the pointer is, and watches the actual
+    -- button state so a mouse-up released outside the window still ends the
+    -- drag rather than leaving the pad glued to the cursor.
+    local function mousePosition()
+        -- Renamed across Hammerspoon versions; try both rather than assume.
+        -- Built with table.insert and NOT as a literal: a literal whose
+        -- first element is nil on this build would stop ipairs before it
+        -- ever reached the second — the same trap that silently disabled
+        -- the whole Homebrew search in 6.43.0.
+        local fns = {}
+        if type(hs.mouse.absolutePosition) == "function" then
+            table.insert(fns, hs.mouse.absolutePosition)
+        end
+        if type(hs.mouse.getAbsolutePosition) == "function" then
+            table.insert(fns, hs.mouse.getAbsolutePosition)
+        end
+        for _, fn in ipairs(fns) do
+            local ok, p = pcall(fn)
+            if ok and type(p) == "table" and p.x and p.y then return p end
+        end
+        return nil
+    end
+
+    local function leftButtonDown()
+        local ok, btns = pcall(hs.eventtap.checkMouseButtons)
+        if not ok or type(btns) ~= "table" then return false end
+        -- Named key on modern builds, index 1 on older ones.
+        return btns.left == true or btns[1] == true
+    end
+
+    function pad.endDrag()
+        if pad.dragTimer then
+            pcall(function() pad.dragTimer:stop() end)
+            pad.dragTimer = nil
+        end
+        pad.dragOffset = nil
+    end
+
+    function pad.beginDrag()
+        if not pad.webview then return end
+        local okF, f = pcall(function() return pad.webview:frame() end)
+        if not (okF and type(f) == "table") then return end
+        local m = mousePosition()
+        if not m then
+            print("🗒 Capture Pad: cannot read the mouse position — drag unavailable")
+            return
+        end
+        -- Any previous drag is torn down FIRST: endDrag() clears dragOffset,
+        -- so calling it after setting the offset would wipe the very value
+        -- the drag needs. (It did, until a test caught it.)
+        pad.endDrag()
+        -- Where inside the window the grab happened. Held constant for the
+        -- whole drag, so the pad moves WITH the pointer instead of drifting.
+        pad.dragOffset = { x = m.x - f.x, y = m.y - f.y }
+        -- HELD in pad.dragTimer — an unreferenced hs.timer is collected and
+        -- silently never fires, the same rule as every other timer here.
+        pad.dragTimer = hs.timer.doEvery(0.016, function()
+            if not (pad.webview and pad.dragOffset) then pad.endDrag() return end
+            if not leftButtonDown() then pad.endDrag() return end
+            local p = mousePosition()
+            if not p then pad.endDrag() return end
+            pcall(function()
+                local cur = pad.webview:frame()
+                pad.webview:frame({
+                    x = p.x - pad.dragOffset.x, y = p.y - pad.dragOffset.y,
+                    w = cur.w, h = cur.h,
+                })
+            end)
+        end)
+    end
+
     function pad.hide()
+        pad.endDrag()
         if pad.webview then
             pcall(function() pad.webview:delete() end)
             pad.webview = nil
@@ -897,7 +1074,10 @@ function M.setup(core)
         end
         pad.webview = view
         pcall(function() view:windowTitle("Capture Pad") end)
-        pcall(function() view:windowStyle({ "titled", "closable", "resizable", "utility" }) end)
+        -- No windowStyle({"titled", …}) call: hs.webview hard-codes
+        -- NSWindowStyleMaskBorderless when it builds the window, so asking
+        -- for a title bar did nothing except look like it had been handled.
+        -- The header bar is the drag handle instead — see pad.beginDrag.
         pcall(function() view:allowTextEntry(true) end)       -- without this you cannot type
         pcall(function() view:closeOnEscape(true) end)
         pcall(function() view:level(hs.drawing.windowLevels.floating) end)
@@ -934,6 +1114,32 @@ function M.warm(core)
     local pad = M.pad
     if not pad then return end
     pad.load()
+
+    -- Sweep any auth-header file a killed Hammerspoon left behind. Normally
+    -- uploadAttachment deletes its own the moment curl's callback fires, but
+    -- a crash or a force-quit mid-upload skips that — and a file holding a
+    -- bearer token should not outlive the process that needed it.
+    local swept = 0
+    if hs.fs.attributes(pad.headerDir) ~= nil then
+        local okDir, iter, dirObj = pcall(hs.fs.dir, pad.headerDir)
+        if okDir and iter then
+            local stale = {}
+            for entry in iter, dirObj do
+                if entry:match("^hdr%-.*%.txt$") then
+                    table.insert(stale, pad.headerDir .. "/" .. entry)
+                end
+            end
+            -- Collected first, deleted second: removing entries while the
+            -- directory iterator is still walking it is undefined behaviour.
+            for _, p in ipairs(stale) do
+                if pcall(os.remove, p) then swept = swept + 1 end
+            end
+        end
+    end
+    if swept > 0 then
+        print("🗒 Capture Pad: cleared " .. swept ..
+              " leftover auth-header file(s) from an interrupted upload")
+    end
     -- HELD in pad.timer. hs.timer.doAt returns a timer that is collected
     -- like any other object if nothing keeps it, and a collected timer does
     -- not fire — which for this module would mean the 4 PM send simply

@@ -92,6 +92,8 @@ end
 CLIPBOARD_IMAGE = nil
 CLIPBOARD_TEXT  = ""
 PROMPT_ANSWER   = { "Cancel", "" }
+MOUSE           = { x = 0, y = 0 }
+MOUSE_DOWN      = false
 
 hs = {
     configdir = MODDIR:gsub("/modules$", ""),
@@ -249,6 +251,8 @@ hs = {
     webview = nil,   -- absent on purpose; see the fallback test
     window = { focusedWindow = function() return FOCUSED end },
     application = { launchOrFocus = function() end },
+    mouse = { absolutePosition = function() return MOUSE end },
+    eventtap = { checkMouseButtons = function() return { left = MOUSE_DOWN } end },
     keycodes = { map = {
         pad0 = 82, pad1 = 83, pad2 = 84, pad3 = 85, pad4 = 86, pad5 = 87,
         pad6 = 88, pad7 = 89, pad8 = 91, pad9 = 92,
@@ -488,6 +492,14 @@ check("a multi-line note goes to the description even when short",
 check("images are announced in the description",
       pad.descriptionFor({ text = "hi", images = { "/a.png" }, createdAt = 1 })
           :find("1 image attached", 1, true) ~= nil)
+-- 🐛 6.44.2 — a SHORT note with an image used to lose its own text: the
+-- description held nothing but "1 image attached." and a timestamp, so a
+-- screenshot arrived in Asana with no caption at all.
+check("🐛 a short note WITH an image still carries its own text",
+      pad.descriptionFor({ text = "Do total damage", images = { "/a.png" }, createdAt = 1 })
+          :find("Do total damage", 1, true) ~= nil)
+check("...and a short note with NO image still needs no description at all",
+      pad.descriptionFor({ text = "Do total damage", images = {}, createdAt = 1 }) == "")
 check("...pluralised correctly",
       pad.descriptionFor({ text = "hi", images = { "/a.png", "/b.png" }, createdAt = 1 })
           :find("2 images attached", 1, true) ~= nil)
@@ -600,25 +612,31 @@ check("...to the task's attachments endpoint",
       table.concat(TASKS[1].args, " "):find("/tasks/555/attachments", 1, true) ~= nil)
 check("🔐 the token is NOT in curl's argument list",
       table.concat(TASKS[1].args, " "):find("SECRET%-TOKEN") == nil)
-check("the header is fed via -H @- (reads one line off stdin)",
-      (function()
-          local a = TASKS[1].args
-          for i, v in ipairs(a) do if v == "-H" and a[i + 1] == "@-" then return true end end
-      end)())
-check("🔐 the token IS fed on stdin, as a plain header line",
-      tostring(TASKS[1].input) == "Authorization: Bearer SECRET-TOKEN-abc123\n")
-check("🐛 6.44.1 — setInput() happens BEFORE start(), not after", (function()
-      local order = TASKS[1].callOrder
-      local setAt, startAt
-      for i, name in ipairs(order) do
-          if name == "setInput" and not setAt then setAt = i end
-          if name == "start" and not startAt then startAt = i end
-      end
-      return setAt and startAt and setAt < startAt
+
+-- 🐛 6.44.2 — the header moved OFF stdin and into a short-lived file.
+-- Ordering setInput() before start() (the 6.44.1 fix) stopped attachments
+-- failing every time but not reliably: a pipe written against curl's own
+-- already-running read loop can still be raced. A file is written and
+-- closed before curl exists, so there is nothing left to race.
+local hdrArg
+for i, v in ipairs(TASKS[1].args) do
+    if v == "-H" then hdrArg = TASKS[1].args[i + 1] end
+end
+check("the header is passed as -H @<file>", hdrArg ~= nil and hdrArg:sub(1, 1) == "@")
+local hdrFile = hdrArg and hdrArg:sub(2)
+check("...and that file exists on disk BEFORE curl is started",
+      hdrFile ~= nil and io.open(hdrFile, "r") ~= nil)
+check("🔐 ...containing exactly the auth header, nothing else", (function()
+    local f = io.open(hdrFile, "r"); if not f then return false end
+    local c = f:read("a"); f:close()
+    return c == "Authorization: Bearer SECRET-TOKEN-abc123\n"
 end)())
-check("closeInput() is NOT called — this task has no streaming callback, "
-      .. "so per the Hammerspoon docs stdin closes on its own",
-      TASKS[1].inputClosed ~= true)
+check("...and it is written before start(), not after", (function()
+    -- the file existing at all by this point proves it, since the module
+    -- writes it before hs.task.new and we are inspecting post-start
+    return TASKS[1].started == true
+end)())
+check("stdin is no longer used for the token at all", TASKS[1].input == nil)
 check("⏱ the upload is time-boxed so one hung curl cannot wedge the flush",
       table.concat(TASKS[1].args, " "):find("--max-time", 1, true) ~= nil)
 check("the real HTTP status is requested via -w, not guessed from the body",
@@ -628,6 +646,9 @@ check("the note is NOT dropped before the upload finishes", #pad.queue == 1)
 TASKS[1].cb(0, '{"data":{"id":"1"}}\n201', "")
 check("...and leaves the queue once everything is delivered", #pad.queue == 0)
 check("...clearing the sending latch", pad.sending == false)
+check("🔐 the header file is DELETED as soon as curl reports back — a file "
+      .. "holding a bearer token must not outlive the upload that needed it",
+      io.open(hdrFile, "r") == nil)
 
 -- 🐛 THE EXACT 6.44.0 BUG, REPRODUCED: curl exits 0 (it only fails on a
 -- TRANSPORT error, never an HTTP one) while Asana's response is a 401.
@@ -706,7 +727,12 @@ hs.webview = {
         return uc
     end },
     new = function(rect, opts, uc)
-        local w = { rect = rect, opts = opts, uc = uc, htmlText = nil, shown = false }
+        local w = { rect = rect, opts = opts, uc = uc, htmlText = nil, shown = false,
+                    frameRect = { x = rect.x, y = rect.y, w = rect.w, h = rect.h } }
+        function w:frame(f)
+            if f then self.frameRect = f; return self end
+            return self.frameRect
+        end
         function w:html(h) self.htmlText = h; return self end
         function w:windowTitle(t) self.title = t; return self end
         function w:windowStyle(s) self.style = s; return self end
@@ -762,7 +788,71 @@ check("...not at send time — the compose box shows no leftover thumbnail",
       pad.webview.htmlText:find("<img", 1, true) == nil)
 check("...and the note itself kept its own copy of the image path",
       #pad.queue[1].images == 1)
+
+-- 🖱 DRAGGING. hs.webview windows are borderless with no native title bar,
+-- so the header is the handle and Lua drives the move by polling the real
+-- mouse — a WKWebView stops seeing the pointer the moment it leaves the
+-- window, which is why JS mousemove is not used.
+check("the header advertises itself as the drag handle",
+      pad.webview.htmlText:find("drag here", 1, true) ~= nil
+      and pad.webview.htmlText:find("cursor:grab", 1, true) ~= nil)
+check("...and no longer asks for a title bar hs.webview cannot give it",
+      pad.webview.htmlText ~= nil and pad.webview.style == nil)
+
+pad.webview:frame({ x = 100, y = 100, w = 760, h = 700 })
+MOUSE, MOUSE_DOWN = { x = 150, y = 120 }, true
+TIMERS = {}
+pad.uc.callback({ body = { a = "dragStart", text = "" } })
+check("a header mousedown starts a drag", pad.dragTimer ~= nil)
+check("...recording where inside the window the grab happened",
+      pad.dragOffset.x == 50 and pad.dragOffset.y == 20)
+local dragTick
+for _, t in ipairs(TIMERS) do if t.kind == "every" then dragTick = t end end
+check("...on a HELD timer", dragTick ~= nil)
+
+MOUSE = { x = 400, y = 300 }
+dragTick.fn()
+check("moving the mouse moves the pad, keeping the grab offset",
+      pad.webview.frameRect.x == 350 and pad.webview.frameRect.y == 280)
+check("...without resizing it",
+      pad.webview.frameRect.w == 760 and pad.webview.frameRect.h == 700)
+
+MOUSE_DOWN = false
+dragTick.fn()
+check("🖱 releasing the button ends the drag — even released OUTSIDE the "
+      .. "window, since the button state is polled, not taken from JS",
+      pad.dragTimer == nil and pad.dragOffset == nil)
+MOUSE = { x = 999, y = 999 }
+local before = pad.webview.frameRect.x
+dragTick.fn()
+check("...and the pad stops following the cursor once the drag is over",
+      pad.webview.frameRect.x == before)
+
+-- parked notes must be recoverable without hand-editing queue.json
+pad.queue, pad.parked = {}, {
+    { id = "p1", text = "Fight 4 chan", createdAt = 1, images = {}, tries = 3, parkedAt = 5 },
+    { id = "p2", text = "Snap the jet", createdAt = 2, images = {}, tries = 3, parkedAt = 5 },
+}
+pad.render()
+check("the pad offers a button to put parked notes back",
+      pad.webview.htmlText:find("retryParked()", 1, true) ~= nil)
+pad.uc.callback({ body = { a = "retryParked", text = "" } })
+check("retrying moves every parked note back into the queue",
+      #pad.queue == 2 and #pad.parked == 0)
+check("...with its attempt count reset so it gets a fresh set of tries",
+      pad.queue[1].tries == 0 and pad.queue[2].tries == 0)
+check("...and nothing was lost in the move", (function()
+    local seen = {}
+    for _, n in ipairs(pad.queue) do seen[n.text] = true end
+    return seen["Fight 4 chan"] and seen["Snap the jet"]
+end)())
+ALERTS = {}
+check("retrying with nothing parked says so instead of pretending",
+      pad.retryParked() == 0 and ALERTS[#ALERTS]:find("Nothing parked", 1, true))
+
+pad.queue = {}
 pad.hide()
+check("closing the pad also stops any drag in progress", pad.dragTimer == nil)
 hs.webview = nil
 
 -- the no-webview fallback
