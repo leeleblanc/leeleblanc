@@ -1781,6 +1781,92 @@ do
 end
 
 -- =====================================================================
+-- 12. STALE PARKED NOTES: EXPLAINED, AND CLEARABLE (6.44.8)
+-- =====================================================================
+do
+  hs.webview = {
+    usercontent = { new = function(name)
+        local uc = { name = name }
+        function uc:setCallback(fn) self.callback = fn; return self end
+        return uc end },
+    new = function(rect, opts, uc)
+        local w = { rect = rect, uc = uc, htmlText = nil,
+                    frameRect = { x = rect.x, y = rect.y, w = rect.w, h = rect.h } }
+        function w:frame(f) if f then self.frameRect = f; return self end return self.frameRect end
+        function w:html(h) self.htmlText = h; return self end
+        for _, m in ipairs({ "windowTitle","windowStyle","allowTextEntry","closeOnEscape",
+                             "level","show","bringToFront","delete" }) do
+          w[m] = function(self) return self end end
+        return w end,
+  }
+  pad.queue, pad.draftImages, pad.draft = {}, {}, ""
+  -- A note parked by an OLD version: no lastError, no parkedAt.
+  pad.parked = { { id = "old", text = "Slip the skip jack", createdAt = 1,
+                   images = {}, tries = 3 } }
+  pad.show()
+  check("🕰 a note parked before reasons were tracked says so, rather than "
+        .. "leaving a blank where the reason should be",
+        pad.webview.htmlText:find("parked before this pad tracked reasons", 1, true) ~= nil)
+
+  -- A note parked with a timestamp but still no reason.
+  pad.parked = { { id = "mid", text = "Slip the skip jack", createdAt = 1,
+                   images = {}, tries = 3, parkedAt = os.time() } }
+  pad.render()
+  check("...and one with a time but no reason says THAT instead",
+        pad.webview.htmlText:find("reason not recorded", 1, true) ~= nil)
+  check("...while still showing when it happened",
+        pad.webview.htmlText:find(os.date("%d %b"), 1, true) ~= nil)
+
+  -- A note parked by a current version shows the real reason.
+  pad.parked = { { id = "new", text = "Slip the skip jack", createdAt = 1,
+                   images = {}, tries = 3, parkedAt = os.time(),
+                   lastError = "HTTP 403 — Not Authorized" } }
+  pad.render()
+  check("a recently parked note shows Asana's actual reason",
+        pad.webview.htmlText:find("Not Authorized", 1, true) ~= nil)
+  check("...and does not claim the reason is missing",
+        pad.webview.htmlText:find("not recorded", 1, true) == nil)
+
+  -- Discard: the only destructive action, so it must be deliberate.
+  check("the pad offers a Discard button",
+        pad.webview.htmlText:find("discardParked()", 1, true) ~= nil)
+  check("🛑 ...and the page CONFIRMS before discarding, because this is the "
+        .. "one action that destroys a note",
+        pad.webview.htmlText:find("confirm(", 1, true) ~= nil)
+
+  -- Its images are cleaned up with it.
+  os.execute('mkdir -p "' .. pad.imageDir .. '"')
+  local gone = pad.imageDir .. "/to-discard.png"
+  local fh = io.open(gone, "w"); fh:write("PNG"); fh:close()
+  pad.parked = { { id = "d", text = "junk", createdAt = 1,
+                   images = { gone }, tries = 3 } }
+  ALERTS, printed = {}, {}
+  local n = pad.discardParked()
+  check("discarding removes every parked note", n == 1 and #pad.parked == 0)
+  check("...and deletes their images rather than orphaning them",
+        io.open(gone, "r") == nil)
+  check("...says so in the Console, since it cannot be undone",
+        logged("discarded 1 parked note"))
+  check("...and confirms on screen", ALERTS[#ALERTS]:find("discarded", 1, true) ~= nil)
+
+  ALERTS = {}
+  check("discarding nothing says so instead of pretending",
+        pad.discardParked() == 0
+        and ALERTS[#ALERTS]:find("Nothing parked", 1, true) ~= nil)
+
+  -- 🚩 It must NEVER touch the live queue.
+  pad.queue = { { id = "live", text = "keep me", createdAt = 1, images = {}, tries = 0 } }
+  pad.parked = { { id = "p", text = "drop me", createdAt = 1, images = {}, tries = 3 } }
+  pad.discardParked()
+  check("🚩 discarding parked notes leaves the QUEUE completely alone",
+        #pad.queue == 1 and pad.queue[1].text == "keep me")
+
+  pad.queue, pad.parked = {}, {}
+  pad.hide()
+  hs.webview = nil
+end
+
+-- =====================================================================
 os.execute('rm -rf "' .. TMP .. '"')
 realPrint(string.format("\n%d passed, %d failed", pass, fail))
 if fail > 0 then

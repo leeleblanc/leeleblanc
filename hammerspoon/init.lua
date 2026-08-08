@@ -4,9 +4,33 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.7-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.8-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.44.8 — A STALE PARKED NOTE CAN NOW BE READ AND CLEARED:
+--   🕰 "PARKED · (blank) · earlier" MEANT NOTHING. A note parked BEFORE
+--      6.44.5 has no lastError and no parkedAt, because nothing recorded
+--      them yet — so its row rendered an empty gap where the reason
+--      belongs, which reads like a display fault rather than missing
+--      history. It now says which it is: "parked before this pad tracked
+--      reasons", or "reason not recorded" when the time is known but the
+--      cause is not.
+--   🗑 DISCARD, WITH A CONFIRMATION. Until now the only exit for a parked
+--      note was putting it back in the queue — which re-parks it if it
+--      still fails, so a note that can never send (a project you lost
+--      access to) sat in the banner forever and the only real fix was
+--      hand-editing queue.json. There is a Discard button now. It asks
+--      first, because this is the ONE action in the pad that destroys a
+--      note; it removes the note's images too rather than orphaning them
+--      in the images folder; and it never touches the live queue.
+--   🧬 Three mutations on the new destructive path are caught, including
+--      "discard also wipes the live queue" and "discard stops asking".
+--   🩺 NEW: tools/hs-doctor.sh. One read-only command that reports what
+--      is ACTUALLY installed — versions, per-module fix markers, file
+--      completeness, whether the remap is live — and works even when
+--      Hammerspoon will not start. Too much of 6.44's debugging went on
+--      guessing at the Mac's state from here.
+--   🧪 343 checks in test_features.lua, 735 across all five suites.
 -- NEW IN 6.44.7 — ATTACHING AN IMAGE NO LONGER WIPES WHAT YOU TYPED:
 --   🐛 TWO BUTTONS SENT NO TEXT. The draft lives only in the page's DOM
 --      until a message carries it to Lua, which then writes it back on the
@@ -1972,7 +1996,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.44.7"
+_G.configVersion = "6.44.8"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -5787,9 +5811,9 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.44.7"
+    local currentVersion = "6.44.8"
     local currentDate    = "08-05-26"
-    local currentNotes   = "Capture Pad: attaching a clipboard image no longer wipes the note being typed. The draft exists only in the page's DOM until a message carries it to Lua, which writes it back on the next redraw. Every keyboard path passed it, but the Attach-clipboard-image and Send-now BUTTONS sent no text at all, so Lua kept its stale empty copy and the redraw replaced what had been typed — which is why the keyboard shortcut worked and the button did not. Fixed in one place rather than at seven call sites: say() now attaches the live textarea to every message, so a button added later cannot forget, and a test asserts no call site passes its own text again. The caret position travels with the message too, so attaching an image mid-sentence no longer dumps the cursor at the end; it is clamped in JavaScript because selectionStart counts UTF-16 units while Lua's length operator counts bytes. Honest limit: the bug was in JavaScript, which cannot be executed from Lua, so the new checks are structural plus a real exercise of the Lua half. Three mutations including the original bug are caught. 722 checks across five suites."
+    local currentNotes   = "A stale parked note can now be read and cleared. A note parked before 6.44.5 has no recorded reason or timestamp, so its row rendered an empty gap that reads like a display fault rather than missing history; it now says which it is. Added a Discard button: until now the only exit for a parked note was putting it back in the queue, which re-parks it if it still fails, so a note that can never send sat in the banner forever and the only real fix was hand-editing queue.json. Discard asks for confirmation because it is the one action in the pad that destroys a note, removes the note's images rather than orphaning them, and never touches the live queue. Three mutations on that path are caught. Also added tools/hs-doctor.sh, a read-only command that reports what is actually installed — versions, per-module fix markers, file completeness, whether the Caps Lock remap is live — and works even when Hammerspoon will not start. 735 checks across five suites."
 
     -- Only append if this version isn't already in the file
     local found = false

@@ -91,7 +91,7 @@ local M = {
             { "✕",     "On a pinned thumbnail — removes just that image before you file" },
             { "drag",  "The header bar moves the pad — it has no native title bar" },
             { "⇪⇧N",  "Send the whole queue to Asana right now" },
-            { "parked", "A button puts failed notes back in the queue to retry" },
+            { "parked", "Buttons to retry a failed note, or Discard it (asks first)" },
             { "16:00", "Automatic: every queued note becomes a task in your project" },
             { "title", "\"Verb + rest\" if it asks for an action, else \"Note :: rest\"" },
             { "",      "10 words max — the rest, and every image, go in the description" },
@@ -425,6 +425,27 @@ function M.setup(core)
         pad.render()
         pad.toast(n .. " note" .. (n == 1 and "" or "s") ..
                   " back in the queue — ⇪⇧N to send now")
+        return n
+    end
+
+    -- The only destructive action in this module. A parked note that will
+    -- never send — a note for a project you no longer have access to, say —
+    -- otherwise sits in the warning banner forever, and hand-editing
+    -- queue.json is not a reasonable thing to ask. The page confirms first;
+    -- this half just does what it is told.
+    function pad.discardParked()
+        local n = #pad.parked
+        if n == 0 then pad.toast("Nothing parked"); return 0 end
+        -- The images belong to the note and nothing else refers to them, so
+        -- they go too rather than accumulating in the images folder.
+        for _, note in ipairs(pad.parked) do
+            for _, img in ipairs(note.images or {}) do pcall(os.remove, img) end
+        end
+        pad.parked = {}
+        pad.save()
+        pad.render()
+        print("🗒 Capture Pad: discarded " .. n .. " parked note(s) at your request")
+        pad.toast(n .. " parked note" .. (n == 1 and "" or "s") .. " discarded")
         return n
     end
 
@@ -782,19 +803,30 @@ function M.setup(core)
             local prows = {}
             for _, n in ipairs(pad.parked) do
                 local title = pad.titleFor(n.text)
-                local when  = n.parkedAt and os.date("%d %b %H:%M", n.parkedAt) or "earlier"
+                local when  = n.parkedAt and os.date("%d %b %H:%M", n.parkedAt) or nil
+                -- A note parked BEFORE 6.44.5 has neither a reason nor a
+                -- timestamp, because nothing recorded them yet. Saying that
+                -- outright beats rendering a blank space and leaving you to
+                -- wonder whether the reason failed to load.
+                local why = n.lastError
+                if not why then
+                    why = when and "reason not recorded"
+                                or "parked before this pad tracked reasons"
+                end
                 table.insert(prows, string.format(
                     '<li class="parkedrow"><span class="k pk">PARKED</span>'
                     .. '<span class="t">%s</span><span class="m">%s%s</span></li>',
                     escapeHtml(title),
-                    escapeHtml(n.lastError and (n.lastError .. "  ·  ") or ""),
-                    escapeHtml(when)))
+                    escapeHtml(why .. (when and "  ·  " or "")),
+                    escapeHtml(when or "")))
             end
             parked = string.format(
                 '<p class="parked">⚠️ %d note%s from an earlier send %s still waiting — '
                 .. 'not lost, and NOT included in the next send until you put %s back. '
                 .. '<button type="button" class="retry" onclick="retryParked()">'
-                .. 'Put %s back in the queue</button></p><ul>%s</ul>',
+                .. 'Put %s back in the queue</button>'
+                .. '<button type="button" class="discard" onclick="discardParked()">'
+                .. 'Discard</button></p><ul>%s</ul>',
                 #pad.parked, #pad.parked == 1 and "" or "s",
                 #pad.parked == 1 and "is" or "are",
                 #pad.parked == 1 and "it" or "them",
@@ -884,6 +916,8 @@ function M.setup(core)
   .k.pk { background:#6b4a15; color:#f5d9a3; }
   button.retry { margin-left:8px; padding:3px 9px; font-size:12px;
                  background:#4a3a1e; border-color:#6b5528; color:#f0d5a8; }
+  button.discard { margin-left:6px; padding:3px 9px; font-size:12px;
+                   background:#2a2a34; border-color:#4a3a3a; color:#c9a3a3; }
   .empty { color:#6d6d78; font-style:italic; }
 </style>
 <header id="bar">
@@ -926,6 +960,13 @@ function M.setup(core)
   function fileIt(){ say({a:'add'}); }
   function removeImg(i){ say({a:'removeImage', index:i}); }
   function retryParked(){ say({a:'retryParked'}); }
+  // Two-step on purpose: discarding is the only action in this pad that
+  // destroys a note, so it asks first rather than being one stray click
+  // away from losing something you meant to keep.
+  function discardParked(){
+    if (confirm('Discard the parked note(s) for good? This cannot be undone.'))
+      say({a:'discardParked'});
+  }
   // The header only has to report that a drag STARTED. Lua polls the real
   // mouse from there — a WKWebView stops seeing the pointer the moment it
   // leaves the window, so tracking mousemove here would drop the drag as
@@ -993,6 +1034,8 @@ function M.setup(core)
             pad.beginDrag()
         elseif body.a == "retryParked" then
             pad.retryParked()
+        elseif body.a == "discardParked" then
+            pad.discardParked()
         elseif body.a == "close" then
             pad.hide()
         end
