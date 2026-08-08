@@ -4,9 +4,46 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.3-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.4-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.44.4 — TEN AUDIT PASSES, AND THE ONE REAL BOTTLENECK:
+--   ⚡ THE SEARCH PICKERS WERE O(history) PER KEYSTROKE. ⇪F and ⇪0 both
+--      run from queryChangedCallback, so their filter loop fires on EVERY
+--      character typed — and each pass rebuilt a concatenated, lowercased
+--      haystack for every row of retained history (90 days of file events,
+--      120 days of raw activity sessions, one row per window focus change).
+--      Measured: 18ms per keystroke at 10,000 rows, 78ms at 40,000. That
+--      is typing lag on the main thread, and it grows all year.
+--      The search string is now built ONCE per entry and cached on it —
+--      about 18x faster. Cost is one string per row; both CSV writers name
+--      their columns explicitly, so the cache never reaches disk.
+--   ⚡ THE FILE-TRACKER LOG WAS PRUNED ONLY AT BOOT. Its retention cutoff
+--      ran once, when the module loaded, so on a Mac left logged in for
+--      weeks the in-memory list grew without limit until the next reload —
+--      and every ⇪F keystroke scanned all of it. It now prunes every 200
+--      recorded rows, which keeps recording O(1) amortised.
+--   🔬 WHAT THE OTHER PASSES FOUND: nothing. 19 files compile; no
+--      discarded timer or watcher; no ipairs over a literal that can hold
+--      nil; no unprotected hs.json.decode; no hs.window.filter; no
+--      accumulate-in-a-loop string building; no io.open inside a loop; no
+--      unresolved bare-global call. Two audits were themselves WRONG and
+--      were fixed before trusting them — one regex spanned newlines and
+--      reported a valid forward declaration as a dangling global, another
+--      counted a nested warm() body as boot-path cost.
+--   🚫 ONE OPTIMISATION MEASURED AND REJECTED. The autocorrect event tap
+--      runs on every keystroke system-wide and uses two Lua pattern
+--      matches. Replacing them with lookup tables benchmarks 2.8x and 4.1x
+--      faster — and saves 0.188 MICROSECONDS per keystroke. Not worth the
+--      churn, so it was not made. Speed-up ratios without absolute numbers
+--      are how pointless work gets justified.
+--   🧬 THE TEST SUITE IS NOW MUTATION-TESTED. 14 real invariants were
+--      deliberately reversed to see whether anything failed. Two survived
+--      the first run — both cache tests, because they grepped the source
+--      for a variable name instead of driving the picker, so a mutation
+--      that stopped READING the cache left them green. Rewritten to poison
+--      a cache entry and prove it is read. 14/14 caught now.
+--   🧪 291 checks in test_features.lua, 683 across all five suites.
 -- NEW IN 6.44.3 — PARKED NUMPAD, CLICK-TO-COPY DATES, PERMISSION SWITCH:
 --   🅿️ THE NUMPAD LAYER IS NOW PARKED, NOT LIVE. numpad.enabled = false
 --      ships by default: the 3x3 layout is kept as a worked-out plan in
@@ -1867,7 +1904,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.44.3"
+_G.configVersion = "6.44.4"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -5682,9 +5719,9 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.44.3"
+    local currentVersion = "6.44.4"
     local currentDate    = "08-05-26"
-    local currentNotes   = "The numpad layer ships PARKED: enabled = false, nothing bound, every hyper plus number-pad key still free, with the 3x3 layout kept in the cheat sheet under a PARKED banner so the plan stays findable. Not binding is deliberate — a disabled handler that still claimed the keys would swallow every press and look like a dead keyboard. Note that a machine profile cannot switch it on, because profile settings are applied after setup and binding happens during setup; it is a one-line file edit plus a reload. Clicking any date in the mini calendar now copies it as MM-DD-YY (08-07-26), zero-padded so pasted dates align, with the weekday named in the confirmation; C copies the highlighted date from the keyboard, with no repeat handler so holding it cannot spam the clipboard. Added altTab.useSnapshots: window snapshot is the only call in the whole config macOS treats as a screen capture, so it is the only reason Screen Recording is ever requested — turning it off falls back to app icons and never asks, and a test asserts snapshot is called zero times in that mode. 661 checks across five suites."
+    local currentNotes   = "Ten audit passes over the whole config. The one real bottleneck: the file-tracker and activity pickers filter from queryChangedCallback, so their loop runs on every character typed, and each pass rebuilt a concatenated lowercased search string for every row of retained history — 90 days of file events and 120 days of raw activity sessions. Measured 18ms per keystroke at 10,000 rows and 78ms at 40,000, on the main thread. The search string is now built once per entry and cached on it, about 18x faster, and never reaches the CSV because both writers name their columns. The file-tracker in-memory log was also pruned only at boot, so it grew without limit on a Mac left logged in for weeks; it now prunes every 200 rows. Everything else came back clean: no discarded timers or watchers, no ipairs over a literal holding nil, no unprotected json decode, no window.filter, no string accumulation in a loop, no io.open in a loop, no unresolved bare-global calls. Two of the audits were themselves wrong and were fixed before being trusted. One optimisation was measured and rejected: replacing the autocorrect tap's pattern matches with lookup tables is 3-4x faster in ratio but saves 0.188 microseconds per keystroke, which is not worth the churn. The suite is now mutation-tested — 14 invariants deliberately reversed, two survived the first run because the cache tests grepped source text instead of driving the picker, both rewritten to poison a cache entry and prove it is read. 14 of 14 caught. 683 checks across five suites."
 
     -- Only append if this version isn't already in the file
     local found = false

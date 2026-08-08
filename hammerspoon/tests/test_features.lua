@@ -216,9 +216,13 @@ hs = {
     chooser = { new = function(fn)
         local c = { callback = fn }
         for _, m in ipairs({ "choices", "placeholderText", "query", "show", "hide",
-                             "searchSubText", "rows", "width", "bgDark" }) do
+                             "searchSubText", "rows", "width", "bgDark",
+                             "selectedRow", "refreshChoicesCallback" }) do
             c[m] = function(self, v) if m == "choices" then self._choices = v end return self end
         end
+        -- Captured, not swallowed: the search tests drive the picker
+        -- through this exactly as typing a character would.
+        c.queryChangedCallback = function(self, fn) self._onQuery = fn; return self end
         LAST_CHOOSER = c
         return c
     end },
@@ -253,6 +257,16 @@ hs = {
     window = { focusedWindow = function() return FOCUSED end },
     application = { launchOrFocus = function() end },
     mouse = { absolutePosition = function() return MOUSE end },
+    pathwatcher = { new = function()
+        return { start = function(s) return s end, stop = function(s) return s end }
+    end },
+    axuielement = { applicationElement = function() return nil end,
+                    observer = { new = function() return nil end } },
+    uielement   = { watcher = { new = function() return nil end } },
+    caffeinate  = { watcher = { new = function()
+        return { start = function(s) return s end, stop = function(s) return s end }
+    end, screensDidLock = 1, screensDidUnlock = 2,
+         systemDidWake = 3, systemWillSleep = 4 } },
     eventtap = { checkMouseButtons = function() return { left = MOUSE_DOWN } end },
     keycodes = { map = {
         pad0 = 82, pad1 = 83, pad2 = 84, pad3 = 85, pad4 = 86, pad5 = 87,
@@ -335,6 +349,7 @@ _G.safeJson = function(blob, label)
     end
     return res
 end
+_G.choosers = {}   -- created in §1 of the real init.lua
 _G.service = {
     registry = {},
     provide = function(n, fn) _G.service.registry[n] = fn end,
@@ -1372,6 +1387,158 @@ for _, n in ipairs({ "screen_veil", "mini_calendar", "quick_append",
     check(n .. ": returns its module table", raw:find("\nreturn M", 1, true) ~= nil)
     check(n .. ": exposes config for machine profiles",
           src:find("M%.config") ~= nil)
+end
+
+-- Appended to test_features.lua: the 6.44.4 efficiency work.
+-- =====================================================================
+-- 8. SEARCH-INDEX CACHING AND IN-SESSION PRUNING (6.44.4)
+-- =====================================================================
+realPrint("\n-- 6.44.4 efficiency --")
+do
+  local S = MODDIR
+  local ft = io.open(S .. "/file_tracker.lua"):read("a")
+  local at = io.open(S .. "/activity_tracker.lua"):read("a")
+
+  check("file tracker caches its search string on the entry",
+        ft:find("e%._hay") ~= nil)
+  check("...and only builds it when the cache is empty",
+        ft:find("if not haystack then") ~= nil)
+  check("activity tracker caches its search string too",
+        at:find("e%._hay") ~= nil)
+
+  -- The cache must never reach the CSV. Both writers name their columns.
+  check("🔒 the file-tracker CSV writers name columns explicitly, so _hay "
+        .. "cannot leak to disk", (function()
+    for line in ft:gmatch("[^\n]+") do
+      if line:find("f:write") and line:find("_hay") then return false end
+    end
+    return true
+  end)())
+  check("🔒 same for the activity CSV writer", (function()
+    for line in at:gmatch("[^\n]+") do
+      if line:find("f:write") and line:find("_hay") then return false end
+    end
+    return true
+  end)())
+
+  check("the file-tracker log is pruned DURING the session, not only at boot",
+        ft:find("_ftSincePrune") ~= nil and ft:find("fileTrackerPruneEvery") ~= nil)
+  check("...on a counter, so recording a row stays O(1) amortised",
+        ft:find("_ftSincePrune >= fileTrackerPruneEvery") ~= nil)
+  check("...and both counters are LOCALS, not accidental globals",
+        ft:find("local fileTrackerPruneEvery") ~= nil
+        and ft:find("local _ftSincePrune") ~= nil)
+
+  -- Behavioural proof that caching cannot change what a search returns.
+  local function build(e)
+    return (e.app .. " " .. (e.title or "")):lower()
+  end
+  local log = {}
+  for i = 1, 300 do
+    log[i] = { app = (i % 3 == 0) and "Safari" or "Mail",
+               title = "Message " .. i, seconds = i }
+  end
+  local function search(entries, q, useCache)
+    local hits = {}
+    for _, e in ipairs(entries) do
+      local hay
+      if useCache then
+        hay = e._hay
+        if not hay then hay = build(e); e._hay = hay end
+      else
+        hay = build(e)
+      end
+      if hay:find(q, 1, true) then table.insert(hits, e.seconds) end
+    end
+    return table.concat(hits, ",")
+  end
+  local uncached = search(log, "safari", false)
+  local cachedA  = search(log, "safari", true)
+  local cachedB  = search(log, "safari", true)   -- now served from cache
+  check("a cached search returns exactly what an uncached one does",
+        uncached == cachedA and cachedA == cachedB and #uncached > 0)
+  check("...and the second call really is served from the cache",
+        log[1]._hay ~= nil)
+end
+
+-- Behavioural, not textual: drive the REAL pickers and prove the cache is
+-- populated and reused. The first version of these tests only grepped the
+-- source for "_hay", which a mutation that stopped READING the cache
+-- survived untouched — a test that cannot fail is not a test.
+do
+  local ftMod = load("file_tracker")
+  ftMod.setup(core)
+  local ftChooser = _G.choosers.fileTracker
+  check("the file-tracker picker exists and is query-driven",
+        ftChooser ~= nil and type(ftChooser._onQuery) == "function")
+
+  _G.fileTrackerLog = {}
+  for i = 1, 50 do
+    table.insert(_G.fileTrackerLog, {
+      fileName = "Report " .. i .. ".xlsx", newName = "", presentLoc = "/Finance",
+      movedLoc = "", event = "Renamed", timestamp = "07/08/26 09:0" .. (i % 10),
+      epoch = os.time(),
+    })
+  end
+  check("(no entry carries a search cache before the first query)",
+        _G.fileTrackerLog[1]._hay == nil)
+
+  ftChooser._onQuery("report")
+  local firstHits = #(ftChooser._choices or {})
+  check("⚡ typing populates the per-entry search cache",
+        _G.fileTrackerLog[1]._hay ~= nil)
+  check("...and it is the lowercased haystack, built once",
+        _G.fileTrackerLog[1]._hay:find("report 1.xlsx", 1, true) ~= nil)
+  check("...the query actually matched rows", firstHits > 0)
+
+  -- Poison the cache: if the second query reuses it, the row disappears.
+  -- That is the only way to prove the cache is READ, not merely written.
+  _G.fileTrackerLog[1]._hay = "zzz-cache-was-used-zzz"
+  ftChooser._onQuery("report")
+  check("⚡ a later query READS the cache instead of rebuilding it",
+        #(ftChooser._choices or {}) == firstHits - 1)
+  ftChooser._onQuery("zzz-cache-was-used-zzz")
+  check("...proven: the poisoned entry is findable only via the cache",
+        #(ftChooser._choices or {}) == 1)
+
+  local actMod = load("activity_tracker")
+  actMod.setup(core)
+  _G.activityLog = {}
+  for i = 1, 50 do
+    table.insert(_G.activityLog, {
+      date = "2026-08-07", app = (i % 2 == 0) and "Safari" or "Mail",
+      title = "Message " .. i, seconds = 60,
+    })
+  end
+  check("(the activity log has no cache before searching)",
+        _G.activityLog[1]._hay == nil)
+  _G.service.call("activity.renderChoices", "safari")
+  check("⚡ searching activity history populates its cache too",
+        _G.activityLog[2]._hay ~= nil)
+  -- Poison one entry's cache with a token that appears NOWHERE in its real
+  -- fields. It can only be found if the search reads the cache.
+  -- Poison entry 2's cache with a token that appears NOWHERE in its real
+  -- fields. It can only be found if the search reads the cache. Entry 2 is
+  -- Safari / "Message 2", so a hit produces the header row plus that row.
+  _G.activityLog[2]._hay = "qqq-activity-cache-qqq"
+  local actChooser = _G.choosers.appTracker
+  check("(the activity picker is the one being driven)", actChooser ~= nil)
+  _G.service.call("activity.renderChoices", "qqq-activity-cache-qqq")
+  local hit = false
+  for _, c in ipairs(actChooser._choices or {}) do
+      if tostring(c.text):find("Message 2", 1, true) then hit = true end
+  end
+  check("⚡ ...and later searches READ the cache rather than rebuilding it",
+        hit, "choices=" .. #(actChooser._choices or {}))
+  -- The control: with the cache honest again, the token matches nothing.
+  _G.activityLog[2]._hay = nil
+  _G.service.call("activity.renderChoices", "qqq-activity-cache-qqq")
+  check("...and a rebuilt cache no longer contains the poison", (function()
+      for _, c in ipairs(actChooser._choices or {}) do
+          if tostring(c.text):find("Message 2", 1, true) then return false end
+      end
+      return true
+  end)())
 end
 
 -- =====================================================================
