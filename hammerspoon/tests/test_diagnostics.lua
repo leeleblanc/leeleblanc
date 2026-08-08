@@ -60,7 +60,16 @@ _G.diag = { verbose = false, trail = {}, errors = {}, marks = {},
             say = function() end, warn = function() end,
             err = function() end, mark = function() end }
 _G.diag.trail[1] = "pre-existing entry from before §1.11 loaded"
-dofile(HERE .. "/diag_test.lua")
+-- 6.44.11 — RUNS THE SHIPPED FILE, NOT A COPY. tests/diag_test.lua was a
+-- hand-extracted slice of §1.11 and had drifted out of step with init.lua
+-- — it was no longer even a verbatim substring of it. Every check below
+-- was therefore green against code that was not what ships. §1.11 now
+-- lives in core/diagnostics.lua, so the suite loads that, the same way
+-- init.lua does.
+local DIAG_PATH = HS .. "/core/diagnostics.lua"
+local diagChunk = assert(loadfile(DIAG_PATH),
+                         "cannot load the shipped diagnostics: " .. DIAG_PATH)
+diagChunk()({ logsDir = logsDir, hostTag = hostTag, asanaEnabled = asanaEnabled })
 local keptEarly = _G.diag.trail[1] == "pre-existing entry from before §1.11 loaded"
 io.open = realopen
 
@@ -152,6 +161,27 @@ check("saved to the Logs folder, tagged per machine",
 out("\n=== 7. Whole-file audit of the shipped init.lua ===\n")
 local INIT = HS .. "/init.lua"
 local f = realopen(INIT, "r"); local text = f:read("*a"); f:close()
+-- initText is init.lua ALONE, before the modules and core files are
+-- appended below. It matters: a check like "init.lua loads the boot
+-- report" against the CONCATENATED text passes even when init.lua stops
+-- loading it, because core/boot_report.lua names itself in its own
+-- header. Two mutations slipped through exactly that way before this
+-- split existed. Anything asserting what init.lua itself does must use
+-- initText; anything hunting a bug CLASS should use text, so the class
+-- cannot escape by moving to another file.
+local initText = text
+-- ...and it has to ignore COMMENTS. "init.lua loads core/boot_report.lua"
+-- stayed green under a mutation that pointed the loader at a file that
+-- does not exist — because the comment ABOVE the loader says the name
+-- too. A prose mention is not a call. Everything asserting that init.lua
+-- DOES something goes through here.
+local function initLive(needle, plain)
+  for line in initText:gmatch("[^\n]+") do
+    if not line:match("^%s*%-%-") and line:find(needle, 1, plain ~= false) then
+      return line
+    end
+  end
+end
 -- The audit covers the MODULE FILES too, so a bug class cannot escape
 -- it simply by having been moved out of init.lua.
 local MODS = { "daily_backup", "app_peek", "window_switcher",
@@ -165,6 +195,22 @@ for _, m in ipairs(MODS) do
   local mf = realopen(HS .. "/modules/" .. m .. ".lua", "r")
   if mf then moduleText[m] = mf:read("*a"); mf:close(); text = text .. "\n" .. moduleText[m] end
 end
+-- ...and the CORE files, for exactly the same reason. 6.44.11 lifted §1.11
+-- and §1.6 out of init.lua, and the moment it did, every audit rule below
+-- stopped covering them — the "uncaughtErrorHandler is wired" check failed
+-- not because the wiring had gone but because the auditor had stopped
+-- looking where it lives. An audit that shrinks when code moves is worse
+-- than no audit, because it stays green while its coverage falls away.
+local CORE = { "diagnostics", "cheatsheet", "boot_report" }
+local coreText, coreFound = {}, {}
+for _, c in ipairs(CORE) do
+  local cf = realopen(HS .. "/core/" .. c .. ".lua", "r")
+  if cf then
+    coreText[c] = cf:read("*a"); cf:close()
+    coreFound[c] = true
+    text = text .. "\n" .. coreText[c]
+  end
+end
 check("init.lua compiles", (loadfile(INIT)) ~= nil, select(2, loadfile(INIT)))
 for _, m in ipairs(MODS) do
   local path = HS .. "/modules/" .. m .. ".lua"
@@ -174,6 +220,51 @@ for _, m in ipairs(MODS) do
     return ok and type(mod) == "table" and type(mod.setup) == "function"
   end)())
 end
+-- Core files get the same treatment modules get. They are dofile'd by
+-- init.lua at a fixed point rather than loaded by the §1.12 loader, so a
+-- broken one is NOT isolated the way a broken module is — which is the
+-- reason to check them harder, not less.
+for _, c in ipairs(CORE) do
+  local path = HS .. "/core/" .. c .. ".lua"
+  check("core file present: " .. c, coreFound[c] == true, path)
+  if coreFound[c] then
+    check("core file compiles: " .. c, (loadfile(path)) ~= nil, select(2, loadfile(path)))
+    check("core file returns an initialiser: " .. c, (function()
+      local ok, fn = pcall(dofile, path)
+      return ok and type(fn) == "function"
+    end)())
+  end
+end
+check("INIT.LUA ITSELF loads every core file — checked against init.lua alone, "
+      .. "because a core file names itself in its own header",
+  (function()
+    -- The full loader expression, not the bare filename: each loader also
+    -- prints a failure message naming its own file, so a check for
+    -- "core/boot_report.lua" stayed green under a mutation that pointed
+    -- loadfile at a path that does not exist. Only the real call counts.
+    for _, c in ipairs(CORE) do
+      if not initLive("hs.configdir .. '/core/" .. c .. ".lua'") then return false, c end
+    end
+    return true
+  end)())
+check("...and every one of those loads is inside a pcall, so a missing or "
+      .. "broken core file degrades instead of killing the boot",
+  (function()
+    for _, guard in ipairs({ "diagOK", "csOK", "brOK" }) do
+      if not initLive(guard) then return false, guard end
+    end
+    return true
+  end)())
+check("...and each failure prints, because a silent one looks like success",
+  (function()
+    for _, guard in ipairs({ "diagOK", "csOK", "brOK" }) do
+      if not initLive("if not " .. guard .. " then") then return false, guard end
+    end
+    return true
+  end)())
+check("init.lua ASKS macOS about Accessibility rather than assuming it",
+  initLive("pcall(function() axOK = hs.accessibilityState() end)") ~= nil)
+
 check("the migrated sections are GONE from init.lua", (function()
   local f2 = realopen(INIT, "r"); local only = f2:read("*a"); f2:close()
   for _, gone in ipairs({ "1.7 DAILY BACKUP", "1.8 APP PEEK", "1.10 WINDOW SWITCHER",
@@ -219,7 +310,38 @@ check("no discarded timer objects", not liveCode("^%s*hs%.timer%.do"))
 check("no io.open used as a bare existence test", not liveCode("io%.open%b()%s*==%s*nil"))
 check("uncaughtErrorHandler is wired in the real file",
   liveCode("hs%.uncaughtErrorHandler") ~= nil)
-check("boot report prints total load time", text:find("Boot:     %%.2fs") ~= nil)
+-- 6.44.11 — the boot report became rows + a formatter, so the old check
+-- for the literal "Boot:     %.2fs" was asserting the layout, not the
+-- fact. The fact is what matters: boot time is still reported.
+check("boot report still reports total load time",
+  text:find('{ "Boot",', 1, true) ~= nil and text:find("%%.2fs") ~= nil)
+
+-- ── QUIET BOOT (6.44.11) ─────────────────────────────────────────────
+-- Fourteen lines on every reload is not information, it is what you
+-- scroll past. These assert the new contract: summarise what is right,
+-- always print what is wrong, keep the full detail one call away.
+check("a healthy boot summarises instead of printing every row",
+  text:find("All green.", 1, true) ~= nil)
+check("...and every row still carries a problem flag, so nothing silently "
+      .. "drops out of the report",
+  (function()
+    local rows = text:match("local bootRows = (%b{})")
+    if not rows then return false end
+    local n = select(2, rows:gsub('{ "', ""))
+    return n >= 9        -- Storage Data Backup Asana Autocorrect Hotkeys Boot Modules Hyper Access
+  end)())
+check("...problems print unconditionally, not only when verbose",
+  text:find("if r%[3%] then problems") ~= nil)
+check("...accessibility is a row now, not a straggler print underneath",
+  text:find('{ "Access", axOK', 1, true) ~= nil
+  and not liveCode('print%("   Access:'))
+check("the full report is still reachable on demand",
+  liveCode("function _G%.bootReport") ~= nil)
+check("...and verbose mode PERSISTS, so it survives the reload you set it before",
+  liveCode("hs%.settings%.set%(\"hsBootVerbose\"") ~= nil
+  and liveCode("hs%.settings%.get%(\"hsBootVerbose\"") ~= nil)
+check("hs.hotkey's own enable/disable chatter is turned down",
+  liveCode("hs%.hotkey%.setLogLevel") ~= nil)
 -- ── THE 6.42.0 REGRESSION GUARD ──────────────────────────────────────
 -- When a section became a module, code left behind in init.lua kept
 -- calling its functions by bare name. Lua does not object: the name just
@@ -266,6 +388,92 @@ check("a broken Homebrew is reported ONCE, not once per app",
       (moduleText.update_tracker or ""):find("updateTrackerBrewWarned", 1, true) ~= nil)
 check("...and names the actual repair rather than blaming the cask token",
       (moduleText.update_tracker or ""):find("brew update --force", 1, true) ~= nil)
+
+
+-- =====================================================================
+-- 8. THE BOOT REPORT, EXECUTED (6.44.11)
+-- =====================================================================
+-- Section 7 greps the shipped text. That proves a string exists. It
+-- cannot tell you whether a healthy boot actually stays quiet, or
+-- whether a broken one actually speaks up — which is the whole contract.
+-- So this runs the real file, repeatedly, and reads what it printed.
+out("\n=== 8. Boot report, executed ===\n")
+local BR_PATH = HS .. "/core/boot_report.lua"
+local brChunk = loadfile(BR_PATH)
+check("core/boot_report.lua loads", brChunk ~= nil, select(2, loadfile(BR_PATH)))
+
+if brChunk then
+  local lines = {}
+  local realPrint2 = print
+  print = function(...)
+    local t = {}
+    for i = 1, select("#", ...) do t[#t+1] = tostring((select(i, ...))) end
+    lines[#lines+1] = table.concat(t, " ")
+  end
+  local SETTINGS = {}
+  hs.settings = { get = function(k) return SETTINGS[k] end,
+                  set = function(k, v) SETTINGS[k] = v end }
+  _G.moduleLoaded, _G.moduleFailed = 18, 0
+  _G.hotkeyBoundCount, _G.hotkeyConflictCount = 4, 0
+  _G.hyperShortcutCount, _G.hyperForwardCount, _G.hyperConflictCount = 34, 32, 0
+  _G.autocorrectStatus, _G.moduleProfileName, _G.moduleDir = "ON", "TestMac", "/m"
+
+  local function run(over)
+    lines = {}
+    local cfg = { hostTag = "TestMac", cloudDir = "/cloud", logsDir = "/cloud/Logs",
+                  backupDir = "/cloud/Backups", asanaEnabled = true,
+                  secretsStatus = "loaded", axOK = true }
+    for k, v in pairs(over or {}) do if v == false then cfg[k] = nil else cfg[k] = v end end
+    local api = brChunk()(cfg)
+    return table.concat(lines, "\n"), api
+  end
+
+  local healthy, api = run()
+  check("a healthy boot prints 2 lines, not 14", #lines == 2, #lines .. ": " .. healthy)
+  check("...and says so plainly", healthy:find("All green", 1, true) ~= nil)
+  check("...naming host, modules and shortcuts",
+    healthy:find("TestMac", 1, true) and healthy:find("18", 1, true)
+    and healthy:find("34", 1, true))
+  check("...and pointing at the full report rather than hiding it",
+    healthy:find("bootReport", 1, true) ~= nil)
+  check("...while still building every row underneath",
+    type(api) == "table" and #api.rows >= 10, api and #api.rows)
+
+  local faults = {
+    { "a failed module",       nil, function() _G.moduleFailed = 3 end,        "Modules" },
+    { "a hotkey conflict",     nil, function() _G.hotkeyConflictCount = 2 end, "Hotkeys" },
+    { "a hyper conflict",      nil, function() _G.hyperConflictCount = 1 end,  "Hyper"   },
+    { "missing Accessibility", { axOK = false }, nil,                          "Access"  },
+    { "Asana off",             { asanaEnabled = false }, nil,                  "Asana"   },
+    { "no OneDrive",           { cloudDir = false }, nil,                      "Storage" },
+  }
+  for _, f in ipairs(faults) do
+    local sM, sH, sY = _G.moduleFailed, _G.hotkeyConflictCount, _G.hyperConflictCount
+    if f[3] then f[3]() end
+    local o = run(f[2])
+    check("⚠️ " .. f[1] .. " is reported even on an otherwise clean boot",
+      o:find(f[4], 1, true) ~= nil and o:find("⚠️", 1, true) ~= nil, o)
+    check("...and it suppresses the \"All green\" line", o:find("All green", 1, true) == nil)
+    _G.moduleFailed, _G.hotkeyConflictCount, _G.hyperConflictCount = sM, sH, sY
+  end
+
+  SETTINGS.hsBootVerbose = true
+  local full = run()
+  check("verbose mode prints the whole report", #lines >= 10, #lines)
+  check("...including rows a quiet boot leaves out",
+    full:find("Backup", 1, true) and full:find("Autocorrect", 1, true))
+  SETTINGS.hsBootVerbose = nil
+
+  run()
+  check("bootVerbose() reads the stored preference", _G.bootVerbose() == false)
+  _G.bootVerbose(true)
+  check("...and writing it PERSISTS, surviving the next reload",
+    SETTINGS.hsBootVerbose == true and _G.bootVerbose() == true)
+  _G.bootVerbose(false)
+  check("...and can be turned back off", SETTINGS.hsBootVerbose == false)
+
+  print = realPrint2
+end
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

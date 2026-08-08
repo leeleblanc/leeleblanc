@@ -95,6 +95,32 @@ else
   echo "   count: $(ls -1 "$HS/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 18)"
 fi
 
+# ---- 4b. core ---------------------------------------------------------
+# 6.44.11 moved three big blocks out of init.lua into core/. They are NOT
+# loader-managed: init.lua dofile's them at a fixed point, and a missing
+# one costs you that feature for the session. Worth checking explicitly,
+# because copying init.lua alone now leaves an install half-updated —
+# exactly the mistake this whole script exists to catch.
+echo
+echo "── 4b. CORE (dofile'd by init.lua, NOT loader-managed) ──"
+if [ ! -d "$HS/core" ]; then
+  echo "   ❌ no core/ folder at $HS/core"
+  echo "      With 6.44.11+ this means ⇪/ (cheat sheet), ⇪⇧D (diagnostics)"
+  echo "      and the boot summary are all OFF. Copy the core/ folder across."
+else
+  printf "   %-22s %7s  %-16s %s\n" NAME BYTES MODIFIED NOTE
+  for n in diagnostics cheatsheet boot_report; do
+    f="$HS/core/$n.lua"
+    if [ -f "$f" ]; then
+      printf "   %-22s %7s  %-16s %s\n" "$n" \
+        "$(wc -c < "$f" | tr -d ' ')" "$(mtime "$f" '%m-%d %H:%M')" ""
+    else
+      printf "   %-22s %7s  %-16s %s\n" "$n" "-" "-" "❌ MISSING"
+    fi
+  done
+  echo "   count: $(ls -1 "$HS/core"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 3)"
+fi
+
 # ---- 5. version markers ----------------------------------------------
 # Cheap, exact "is this file the one I sent" check. Each marker only
 # exists at or after the version noted.

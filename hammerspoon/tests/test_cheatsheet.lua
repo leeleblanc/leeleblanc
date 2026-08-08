@@ -13,6 +13,8 @@ local shown, deleted = 0, 0
 local hotkeysEnabled, hotkeysDisabled = 0, 0
 local tapRunning = false
 local MOUSE = { x = 0, y = 0 }
+local BOUND = {}          -- every hs.hotkey.bind the shipped file makes
+local CHOOSERS = {}       -- every hs.chooser the shipped file builds
 
 hs = {
   canvas = {
@@ -31,12 +33,23 @@ hs = {
   },
   hotkey = {
     new = function(mods, key, pressed, released, repeatfn)
+      -- hotkey.new is the SCROLLING panel's own keys, and only those. A
+      -- new key appearing here is a mistake worth failing on.
       local valid = { escape=1, up=1, down=1, pageup=1, pagedown=1, home=1, ["end"]=1 }
       assert(valid[key], "unexpected key bound: " .. tostring(key))
       local hk = { key = key, fire = pressed, repeatfn = repeatfn }
       function hk:enable() hotkeysEnabled = hotkeysEnabled + 1; return hk end
       function hk:disable() hotkeysDisabled = hotkeysDisabled + 1; return hk end
       return hk
+    end,
+    -- 6.44.11 — the shipped §1.6 binds ⇪/ ⇪= ⇪- ⇪⇧= at load time via
+    -- hotkey.bind. tests/block_test.lua, the hand-extracted slice this
+    -- suite used to run, had drifted and no longer contained those calls
+    -- — so the stub never needed a bind and the real binding was untested.
+    -- Recorded rather than ignored, so the assertions below can check it.
+    bind = function(mods, key, pressed, released, repeatfn)
+      BOUND[#BOUND + 1] = { mods = mods, key = key, fire = pressed }
+      return { enable = function(s) return s end, disable = function(s) return s end }
     end,
   },
   eventtap = {
@@ -58,6 +71,33 @@ hs = {
   mouse = { absolutePosition = function() return MOUSE end },
   alert = { show = function() end },
   json = { decode = function() return {} end, encode = function() return "[]" end },
+  -- 6.44.11 — the shipped file builds two hs.chooser pickers at load time
+  -- (⇪- remove a custom entry, ⇪⇧= edit one). The old slice had neither,
+  -- so neither was ever exercised. They are recorded, not swallowed.
+  chooser = {
+    new = function(fn)
+      local c = { onSelect = fn }
+      function c:choices(v) if v then self.rows = v; return self end return self.rows end
+      function c:placeholderText(t) self.placeholder = t; return self end
+      function c:searchSubText(b) self.subText = b; return self end
+      function c:width(w) self.w = w; return self end
+      function c:rows(n) self.nrows = n; return self end
+      function c:bgDark(b) self.dark = b; return self end
+      function c:fgColor() return self end
+      function c:subTextColor() return self end
+      function c:show() shown = shown + 1; return self end
+      function c:hide() return self end
+      function c:query(q) if q ~= nil then self.q = q; return self end return self.q end
+      CHOOSERS[#CHOOSERS + 1] = c
+      return c
+    end,
+  },
+  dialog = { textPrompt = function() return "Cancel", "" end },
+  pasteboard = { getContents = function() return "" end,
+                 setContents = function() return true end },
+  timer = { doAfter = function() return { stop = function() end } end,
+            secondsSinceEpoch = function() return 1 end },
+  fs = { attributes = function() end, mkdir = function() end },
   configdir = "/tmp/hs-test",
 }
 logsDir = "/tmp/hs-test"
@@ -66,6 +106,7 @@ function warnWriteFailed() end
 function resolveBaseScreen()
   return { frame = function() return SCR end }
 end
+_G.choosers = {}          -- init.lua owns this table; the shipped file fills it
 _G.customShortcuts = {}
 _G.moduleStatus = {}
 _G.moduleCheatsheets = {
@@ -96,8 +137,24 @@ end
 
 _G.diag = { say = function() end, warn = function() end, mark = function() end,
             err = function() end, verbose = false, trail = {}, errors = {}, marks = {} }
-dofile(HERE .. "/block_test.lua")    -- the section under test, returns the namespace
-local CS = _G.__cheatSheet
+-- 6.44.11 — THIS NOW RUNS THE SHIPPED FILE, NOT A COPY OF IT. Until §1.6
+-- moved out of init.lua, the only way to test it was tests/block_test.lua,
+-- a hand-extracted slice. Slices drift: that one was no longer even a
+-- verbatim substring of init.lua, so every check here was passing against
+-- code that was not the code being shipped. core/cheatsheet.lua is the
+-- real file, loaded the same way init.lua loads it.
+local CS_PATH = HS .. "/core/cheatsheet.lua"
+local csChunk = assert(loadfile(CS_PATH),
+                       "cannot load the shipped cheat sheet: " .. CS_PATH)
+local CS = csChunk()({
+  logsDir           = logsDir,
+  panelAlpha        = 0.90,
+  popupScreenKeys   = { mods = { "cmd", "alt", "ctrl" } },
+  resolveBaseScreen = resolveBaseScreen,
+  showPopup         = function(c) if c and c.show then c:show() end end,
+  warnWriteFailed   = warnWriteFailed,
+  adoptLegacyFile   = adoptLegacyFile,
+})
 
 -- ---------------------------------------------------------------- utils
 local pass, fail = 0, 0
@@ -318,6 +375,48 @@ check("App Updates -> File Tracker -> Document Watcher keep that order", (functi
     if t:find("DOCUMENT WATCHER",1,true) then idw = i end
   end
   return iu < ift and ift < idw
+end)())
+
+-- =====================================================================
+-- 6.44.11 — THE SURFACE THE OLD SLICE HID
+-- =====================================================================
+-- tests/block_test.lua had drifted far enough that it contained neither
+-- the hs.hotkey.bind calls nor the two hs.chooser pickers. Running the
+-- shipped file made both reachable for the first time, so both are now
+-- asserted rather than merely survived.
+print("\n=== 17. Keys and pickers the shipped file builds at load ===")
+check("the cheat sheet binds its own keys at load time", #BOUND >= 3, #BOUND)
+local boundKeys = {}
+for _, b in ipairs(BOUND) do boundKeys[b.key] = b end
+check("⇪/ toggles the sheet", boundKeys["/"] ~= nil)
+check("⇪= adds a custom entry", boundKeys["="] ~= nil)
+check("⇪- removes one", boundKeys["-"] ~= nil)
+check("every binding carries a callback, not a nil", (function()
+  for _, b in ipairs(BOUND) do if type(b.fire) ~= "function" then return false end end
+  return true
+end)())
+check("...and they all go on the hyper mods, not bare keys", (function()
+  for _, b in ipairs(BOUND) do
+    if type(b.mods) ~= "table" or #b.mods == 0 then return false end
+  end
+  return true
+end)())
+check("both custom-entry pickers are built", #CHOOSERS >= 2, #CHOOSERS)
+check("...and each one explains itself with placeholder text", (function()
+  for _, c in ipairs(CHOOSERS) do
+    if type(c.placeholder) ~= "string" or c.placeholder == "" then return false end
+  end
+  return true
+end)())
+check("...and both are reachable through _G.choosers, which init.lua owns",
+  _G.choosers.removeShortcut ~= nil and _G.choosers.editShortcut ~= nil)
+check("pressing ⇪- with no custom entries does not raise", (function()
+  _G.customShortcuts = {}
+  return pcall(boundKeys["-"].fire)
+end)())
+check("...and neither does ⇪⇧= (edit) with nothing to edit", (function()
+  local edit = boundKeys["="]
+  return edit ~= nil and pcall(edit.fire)
 end)())
 
 print(("\n%d passed, %d failed\n"):format(pass, fail))
