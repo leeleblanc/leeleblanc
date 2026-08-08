@@ -90,7 +90,7 @@ local M = {
             { "⌘⇧V",  "Attach the clipboard image to the note you are typing" },
             { "✕",     "On a pinned thumbnail — removes just that image before you file" },
             { "drag",  "The header bar moves the pad — it has no native title bar" },
-            { "⇪⇧N",  "Send the whole queue to Asana right now" },
+            { "⇪⇧N",  "Send now — files whatever is in the box, then sends the queue" },
             { "parked", "Buttons to retry a failed note, or Discard it (asks first)" },
             { "16:00", "Automatic: every queued note becomes a task in your project" },
             { "title", "\"Verb + rest\" if it asks for an action, else \"Note :: rest\"" },
@@ -120,6 +120,11 @@ function M.setup(core)
     -- taking focus at all and click into it yourself. Either way it no
     -- longer activates the whole Hammerspoon app — see the note in show().
     pad.focusOnOpen = true
+    -- true = ask macOS for a non-activating panel, the only kind of window
+    -- that can take the keyboard WITHOUT pulling its whole application
+    -- forward. See pad.applyNonActivating: the request is verified, not
+    -- assumed, and pad.nonActivatingApplied records what actually happened.
+    pad.nonActivating = true
     pad.uploadTimeout = 60       -- seconds curl may spend on one attachment
     pad.flushTimeout  = 300      -- seconds a whole flush may take before the
                                  -- "already sending" latch is force-cleared
@@ -932,8 +937,14 @@ function M.setup(core)
   <div class="bar">
     <button class="go" onclick="fileIt()">File it &nbsp;⌘⏎</button>
     <button onclick="say({a:'image'})">Attach clipboard image &nbsp;⌘⇧V</button>
-    <button onclick="say({a:'flush'})">Send now</button>
+    <button onclick="say({a:'flush'})" title="Files whatever is in the box, then sends the whole queue to Asana">Send now</button>
     <span class="hint">]] .. #pad.queue .. [[ queued</span>
+  </div>
+  <div class="bar">
+    <span class="hint">File it → the note joins the queue below. Send now →
+      the queue goes to Asana (and files the box first, if you typed
+      something). Otherwise the queue goes on its own at ]]
+      .. escapeHtml(pad.sendAt) .. [[.</span>
   </div>
   <h2>Waiting for ]] .. escapeHtml(pad.sendAt) .. [[</h2>
   ]] .. parked .. [[
@@ -1029,6 +1040,21 @@ function M.setup(core)
                 pad.render()
             end
         elseif body.a == "flush" then
+            -- 🐛 6.44.9 — SEND NOW FILES THE OPEN DRAFT FIRST. "File it"
+            -- moves the compose box into the queue; "Send now" sends the
+            -- QUEUE. Press Send with a note still in front of you and the
+            -- old code reported "nothing queued" — technically true, and a
+            -- dead end: the note you are looking at is obviously what you
+            -- meant to send. It is filed first now, then sent, so the two
+            -- steps collapse into the one you intended.
+            local hasDraft = (tostring(pad.draft):gsub("%s+", "") ~= "")
+                             or #pad.draftImages > 0
+            if hasDraft then
+                local ok, res = pad.addNote(pad.draft, pad.draftImages)
+                if not ok then pad.toast(res) return end
+                pad.draft, pad.draftImages, pad.draftCaret = "", {}, 0
+                pad.render()
+            end
             pad.flush("manual")
         elseif body.a == "dragStart" then
             pad.beginDrag()
@@ -1126,6 +1152,41 @@ function M.setup(core)
         end)
     end
 
+    -- Ask the pad's window to become a non-activating panel, and REPORT
+    -- WHETHER IT WORKED. Returns ok, why. Split out of show() and given a
+    -- view argument on purpose: it is the whole reason ⇪N stops dragging the
+    -- Hammerspoon Console forward, so it is worth being able to test it
+    -- against a stub window instead of trusting it by eye.
+    function pad.applyNonActivating(view)
+        if not view then return false, "there is no window" end
+        local masks = hs.webview and hs.webview.windowMasks
+        local bit   = type(masks) == "table" and masks.nonactivating or nil
+        if type(bit) ~= "number" or bit < 1 then
+            return false, "this Hammerspoon has no nonactivating window mask"
+        end
+        -- Deliberately arithmetic, not the 5.3+ & operator: this file is
+        -- loaded by whatever Lua the installed Hammerspoon was built with.
+        local function isSet(v) return (math.floor(v / bit) % 2) == 1 end
+
+        local okGet, cur = pcall(function() return view:windowStyle() end)
+        if not (okGet and type(cur) == "number") then
+            return false, "the window style could not be read"
+        end
+        if not isSet(cur) then
+            local okSet = pcall(function() view:windowStyle(cur + bit) end)
+            if not okSet then return false, "the window style was rejected" end
+        end
+        -- Read back. AppKit silently drops style bits it will not honour for
+        -- a given window, so the only trustworthy answer comes from asking
+        -- the window what it ended up with.
+        local okRe, now = pcall(function() return view:windowStyle() end)
+        if not (okRe and type(now) == "number") then
+            return false, "the window style could not be read back"
+        end
+        if not isSet(now) then return false, "macOS dropped the mask" end
+        return true, "applied"
+    end
+
     function pad.hide()
         pad.endDrag()
         if pad.webview then
@@ -1189,6 +1250,28 @@ function M.setup(core)
         pcall(function() view:allowTextEntry(true) end)
         pcall(function() view:closeOnEscape(true) end)
         pcall(function() view:level(hs.drawing.windowLevels.floating) end)
+        -- 🐛 6.44.9 — HAMMERSPOON STILL JUMPED FORWARD. 6.44.6 removed this
+        -- module's launchOrFocus, so the pad stopped ASKING for the app to
+        -- activate — but macOS activates an application whenever one of its
+        -- ordinary windows becomes key, and the pad has to become key to
+        -- accept typing. Removing the request was never going to be enough.
+        -- One window kind is exempt: a panel carrying
+        -- NSWindowStyleMaskNonactivatingPanel takes the keyboard without
+        -- bringing its app forward. hs.webview builds its window on NSPanel,
+        -- so the bit is at least applicable here — but "applicable" is not
+        -- "applied", which is the mistake the old windowStyle({"titled", …})
+        -- call made, so this one reads the mask back and reports the truth.
+        pad.nonActivatingApplied, pad.nonActivatingWhy = false, "not requested"
+        if pad.nonActivating then
+            pad.nonActivatingApplied, pad.nonActivatingWhy =
+                pad.applyNonActivating(view)
+            if not pad.nonActivatingApplied then
+                print("🗒 Capture Pad: non-activating panel unavailable — "
+                      .. tostring(pad.nonActivatingWhy)
+                      .. "; opening the pad will bring Hammerspoon forward."
+                      .. " Set capturePad.focusOnOpen = false to stop that.")
+            end
+        end
         pad.render()
         pcall(function() view:show() end)
 

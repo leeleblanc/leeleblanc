@@ -4,9 +4,53 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.8-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.9-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.44.9 — SEND NOW SENDS THE NOTE YOU ARE LOOKING AT, AND THE PAD
+-- STOPS DRAGGING HAMMERSPOON TO THE FRONT:
+--   🐛 "NOTHING HAPPENS OTHER THAN LOCAL ACTIONS." Reported with a
+--      screenshot: text typed, an image attached, "0 queued", and Send now
+--      answering that there was nothing to send. It was telling the truth
+--      and it was useless. "File it" moves the compose box into the queue;
+--      "Send now" sends the QUEUE. So a note still sitting in front of you
+--      was, to the code, not a note yet. That is a distinction the pad
+--      invented and the person using it has no reason to care about. Send
+--      now files the open draft first and then sends. Whitespace is still
+--      not a note, and a draft that cannot be filed (queue full) stops the
+--      send and says so rather than sending a half-state.
+--   🪟 HAMMERSPOON JUMPED FORWARD ANYWAY. 6.44.6 removed this module's
+--      launchOrFocus, which stopped it ASKING for the app to activate — but
+--      macOS activates an application whenever one of its ordinary windows
+--      becomes key, and the pad has to become key to accept typing. Removing
+--      the request was never going to be enough. The one exemption is a
+--      panel carrying NSWindowStyleMaskNonactivatingPanel, and hs.webview
+--      builds its window on NSPanel, so the bit applies here.
+--   ✅ AND IT IS VERIFIED, NOT ASSUMED. This file already carried one
+--      windowStyle() call that looked handled and did nothing. So
+--      pad.applyNonActivating sets the mask and then READS IT BACK, because
+--      AppKit silently drops style bits it will not honour. It reports what
+--      actually happened in pad.nonActivatingApplied, and when the mask does
+--      not take it prints the reason and names the switch that certainly
+--      works (capturePad.focusOnOpen = false — the pad then opens without
+--      taking the keyboard at all, and you click into it).
+--   🧪 THE REAL CHANGE IS HOW THIS IS NOW CHECKED. Every Capture Pad bug in
+--      6.44.x lived in the page's JAVASCRIPT, and the suites could only read
+--      that JavaScript as TEXT. Grepping source for a function name proves
+--      the name is present; it proves nothing about what happens when you
+--      click. tests/dump_pad_html.lua renders the page from the REAL module
+--      and tests/test_pad_js.js EXECUTES it against a DOM stub, driving the
+--      actual onclick strings, the keydown handler and the drag. It catches
+--      the 6.44.7 wiped-draft bug, which no structural test could.
+--   🧬 12 mutations caught across the two layers, 6 Lua and 6 JavaScript,
+--      including "Send now stops filing the draft", "applyNonActivating
+--      claims success without reading the mask back", and "Send now bypasses
+--      say() and posts a bare message".
+--   🩺 NEW: tools/run-tests.sh. One command, one exit code: syntax on
+--      init.lua and all 18 modules, the five Lua suites, then the page
+--      JavaScript. It says plainly what it did NOT check — a skipped stage
+--      is never reported as a pass.
+--   🧪 366 checks in test_features.lua, 793 across all six suites.
 -- NEW IN 6.44.8 — A STALE PARKED NOTE CAN NOW BE READ AND CLEARED:
 --   🕰 "PARKED · (blank) · earlier" MEANT NOTHING. A note parked BEFORE
 --      6.44.5 has no lastError and no parkedAt, because nothing recorded
@@ -1996,7 +2040,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.44.8"
+_G.configVersion = "6.44.9"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -5811,9 +5855,9 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.44.8"
-    local currentDate    = "08-05-26"
-    local currentNotes   = "A stale parked note can now be read and cleared. A note parked before 6.44.5 has no recorded reason or timestamp, so its row rendered an empty gap that reads like a display fault rather than missing history; it now says which it is. Added a Discard button: until now the only exit for a parked note was putting it back in the queue, which re-parks it if it still fails, so a note that can never send sat in the banner forever and the only real fix was hand-editing queue.json. Discard asks for confirmation because it is the one action in the pad that destroys a note, removes the note's images rather than orphaning them, and never touches the live queue. Three mutations on that path are caught. Also added tools/hs-doctor.sh, a read-only command that reports what is actually installed — versions, per-module fix markers, file completeness, whether the Caps Lock remap is live — and works even when Hammerspoon will not start. 735 checks across five suites."
+    local currentVersion = "6.44.9"
+    local currentDate    = "08-08-26"
+    local currentNotes   = "Send now sends the note you are looking at. Filing and sending were two separate steps, so pressing Send with a note still in the compose box answered nothing queued — true, and useless, since the note on screen is self-evidently the one meant to go. Send now files the open draft first, then sends. Whitespace is still not a note, and a draft that cannot be filed stops the send instead of sending a half-state. The pad also stops dragging Hammerspoon to the front: 6.44.6 removed this module's launchOrFocus, but macOS activates an app whenever any ordinary window of it becomes key, and the pad must become key to accept typing. It now asks for a non-activating panel, the one window kind exempt from that, and reads the mask back rather than assuming — reporting the reason and naming capturePad.focusOnOpen = false when AppKit refuses. The bigger change is how this is checked: every Capture Pad bug in 6.44.x lived in the page's JavaScript, which the suites could only read as text. tests/dump_pad_html.lua renders the page from the real module and tests/test_pad_js.js executes it against a DOM stub, driving the actual onclick strings, keydown handler and drag; it catches the 6.44.7 wiped-draft bug that no structural test could. 12 mutations caught across the two layers. Added tools/run-tests.sh: one command and one exit code for syntax, the five Lua suites and the page JavaScript, which reports a skipped stage as a skip and never as a pass. 793 checks across six suites."
 
     -- Only append if this version isn't already in the file
     local found = false

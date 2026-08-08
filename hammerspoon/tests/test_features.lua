@@ -17,9 +17,17 @@
 -- Under UTC those three checks still pass, but they pass trivially —
 -- there is no clock change to survive.
 
+-- Every other suite here takes the HAMMERSPOON DIRECTORY; this one took the
+-- MODULES directory, so passing the same argument to all of them failed only
+-- on this file, with a "cannot open ./capture_pad.lua" that pointed at the
+-- module rather than at the argument. It now accepts either: if what it is
+-- given contains a modules/ subdirectory, that is what was meant.
 local MODDIR = arg and arg[1]
     or os.getenv("HAMMERSPOON_MODULES")
     or ((os.getenv("HOME") or ".") .. "/.hammerspoon/modules")
+if io.open(MODDIR .. "/modules/capture_pad.lua", "r") then
+    MODDIR = MODDIR .. "/modules"
+end
 
 local pass, fail, failures = 0, 0, {}
 local function check(label, cond)
@@ -736,7 +744,18 @@ pad.maxImagesPerNote = 8
 -- on without exercising it. hs.webview is set here and cleared again
 -- right after, so the no-webview fallback test below still runs under
 -- the conditions it expects.
+-- WINDOW_STYLE_REFUSES models the thing AppKit actually does and the thing
+-- that made the old windowStyle({"titled", …}) call a lie: a window silently
+-- keeps the mask it had when it will not honour the one you set. The stub
+-- can do both, so both branches of pad.applyNonActivating get exercised.
+WINDOW_STYLE_REFUSES = false
 hs.webview = {
+    -- the real numeric masks, so the arithmetic in applyNonActivating is
+    -- tested against the values it will meet, not against invented ones
+    windowMasks = { borderless = 0, titled = 1, closable = 2,
+                    miniaturizable = 4, resizable = 8, utility = 16,
+                    nonactivating = 128, texturedBackground = 256,
+                    HUD = 8192, fullSizeContentView = 32768 },
     usercontent = { new = function(name)
         local uc = { name = name }
         function uc:setCallback(fn) self.callback = fn; return self end
@@ -744,14 +763,21 @@ hs.webview = {
     end },
     new = function(rect, opts, uc)
         local w = { rect = rect, opts = opts, uc = uc, htmlText = nil, shown = false,
-                    frameRect = { x = rect.x, y = rect.y, w = rect.w, h = rect.h } }
+                    frameRect = { x = rect.x, y = rect.y, w = rect.w, h = rect.h },
+                    -- hs.webview hard-codes NSWindowStyleMaskBorderless (0)
+                    styleMask = 0, styleAsked = nil }
         function w:frame(f)
             if f then self.frameRect = f; return self end
             return self.frameRect
         end
         function w:html(h) self.htmlText = h; return self end
         function w:windowTitle(t) self.title = t; return self end
-        function w:windowStyle(s) self.style = s; return self end
+        function w:windowStyle(s)
+            if s == nil then return self.styleMask end
+            self.styleAsked = s
+            if not WINDOW_STYLE_REFUSES then self.styleMask = s end
+            return self
+        end
         function w:allowTextEntry(b) self.textEntry = b; return self end
         function w:closeOnEscape(b) self.closeOnEsc = b; return self end
         function w:level(l) self.lvl = l; return self end
@@ -813,7 +839,51 @@ check("the header advertises itself as the drag handle",
       pad.webview.htmlText:find("drag here", 1, true) ~= nil
       and pad.webview.htmlText:find("cursor:grab", 1, true) ~= nil)
 check("...and no longer asks for a title bar hs.webview cannot give it",
-      pad.webview.htmlText ~= nil and pad.webview.style == nil)
+      pad.webview.htmlText ~= nil
+      and (math.floor((pad.webview.styleMask or 0) / 1) % 2) == 0)
+
+-- 🐛 6.44.9 — HAMMERSPOON MUST STOP JUMPING TO THE FOREGROUND. 6.44.6
+-- removed this module's launchOrFocus, which stopped it ASKING for the app
+-- to activate; macOS activates an app anyway when one of its ordinary
+-- windows becomes key. A non-activating panel is the one exemption.
+check("🐛 6.44.9 — the pad's window is made a NON-ACTIVATING panel, so taking "
+      .. "the keyboard no longer drags the whole Hammerspoon app forward",
+      pad.nonActivatingApplied == true
+      and (math.floor(pad.webview.styleMask / 128) % 2) == 1)
+check("...and it still keeps the borderless window it was given, rather than "
+      .. "replacing the mask wholesale",
+      pad.webview.styleMask == 128)
+
+-- the honest-failure branch: if AppKit refuses the mask, the pad must SAY
+-- the app will come forward rather than quietly claim it fixed it. This is
+-- the exact failure mode the old windowStyle({"titled", …}) call had.
+WINDOW_STYLE_REFUSES = true
+pad.hide(); pad.show()
+check("...when macOS refuses the mask, the pad reports the failure instead of "
+      .. "assuming it worked",
+      pad.nonActivatingApplied == false
+      and tostring(pad.nonActivatingWhy):find("dropped", 1, true) ~= nil)
+check("...and says so on the console, naming the switch that certainly works",
+      logged("focusOnOpen"))
+WINDOW_STYLE_REFUSES = false
+
+-- an old Hammerspoon with no nonactivating mask at all must degrade, not crash
+local savedMasks = hs.webview.windowMasks
+hs.webview.windowMasks = { borderless = 0, titled = 1 }
+pad.hide(); pad.show()
+check("...an older Hammerspoon with no nonactivating mask degrades quietly "
+      .. "instead of erroring",
+      pad.webview ~= nil and pad.nonActivatingApplied == false
+      and tostring(pad.nonActivatingWhy):find("no nonactivating", 1, true) ~= nil)
+hs.webview.windowMasks = savedMasks
+
+-- and the switch has to be a switch
+pad.nonActivating = false
+pad.hide(); pad.show()
+check("...setting capturePad.nonActivating = false leaves the window alone",
+      pad.webview.styleAsked == nil and pad.nonActivatingApplied == false)
+pad.nonActivating = true
+pad.hide(); pad.show()
 
 pad.webview:frame({ x = 100, y = 100, w = 760, h = 700 })
 MOUSE, MOUSE_DOWN = { x = 150, y = 120 }, true
@@ -866,7 +936,63 @@ ALERTS = {}
 check("retrying with nothing parked says so instead of pretending",
       pad.retryParked() == 0 and ALERTS[#ALERTS]:find("Nothing parked", 1, true))
 
-pad.queue = {}
+-- 🐛 6.44.9 — "NOTHING HAPPENS OTHER THAN LOCAL ACTIONS." Reported with a
+-- screenshot showing typed text, an attached image, and "0 queued". "File
+-- it" moves the compose box into the queue; "Send now" sends the QUEUE. So
+-- Send-with-a-note-in-front-of-you answered "nothing queued" — true, and
+-- useless: the note on screen is self-evidently the one meant to go. Send
+-- now files the open draft first.
+HTTP_POSTS, ALERTS, TASKS = {}, {}, {}
+pad.queue, pad.parked, pad.draftImages = {}, {}, {}
+pad.draft, pad.draftCaret = "Email Dana the lease numbers", 5
+pad.uc.callback({ body = { a = "flush", text = "Email Dana the lease numbers",
+                           sel = 5 } })
+check("🐛 6.44.9 — Send now files the note still in the compose box instead of "
+      .. "answering \"nothing queued\"",
+      #HTTP_POSTS == 1
+      and HTTP_POSTS[1].body:find("Email Dana the lease numbers", 1, true) ~= nil)
+check("...and the compose box is emptied, so the note cannot be sent twice",
+      pad.draft == "" and #pad.draftImages == 0 and pad.draftCaret == 0)
+HTTP_POSTS[1].cb(201, '{"data":{"gid":"901"}}')   -- clear the sending latch
+check("...and the note leaves the queue on delivery, like any other",
+      #pad.queue == 0 and pad.sending == false)
+
+-- an image-only draft is still a draft: the reported screenshot had one
+HTTP_POSTS, ALERTS, TASKS = {}, {}, {}
+pad.queue, pad.draft, pad.draftCaret, pad.draftImages = {}, "", 0, {}
+CLIPBOARD_IMAGE = { saveToFile = function(self, path)
+    local f = io.open(path, "w"); if f then f:write("PNG"); f:close(); return true end
+    return false
+end }
+pad.attachClipboardImage()
+pad.uc.callback({ body = { a = "flush", text = "", sel = 0 } })
+check("...an image with no text still counts as a draft worth sending",
+      #HTTP_POSTS == 1 and #pad.draftImages == 0)
+HTTP_POSTS[1].cb(201, '{"data":{"gid":"902"}}')
+if TASKS[1] then TASKS[1].cb(0, '{"data":{"id":"1"}}\n201', "") end
+check("...and that send completes, latch and all", pad.sending == false)
+
+-- whitespace is not a note, and Send now must not invent one
+HTTP_POSTS, ALERTS, TASKS = {}, {}, {}
+pad.queue, pad.draft, pad.draftImages, pad.draftCaret = {}, "   \n  ", {}, 0
+pad.uc.callback({ body = { a = "flush", text = "   \n  ", sel = 0 } })
+check("...but whitespace alone is not a note — Send now still says nothing is "
+      .. "queued rather than filing an empty task",
+      #HTTP_POSTS == 0
+      and ALERTS[#ALERTS]:find("nothing queued", 1, true) ~= nil)
+
+-- and a draft that cannot be filed must abort the send, not send a half-state
+HTTP_POSTS, ALERTS, TASKS = {}, {}, {}
+pad.queue, pad.draft, pad.draftImages, pad.draftCaret = {}, "over the cap", {}, 0
+pad.maxQueue = 0
+pad.uc.callback({ body = { a = "flush", text = "over the cap", sel = 0 } })
+check("...and if the draft cannot be filed, Send now reports that and stops "
+      .. "rather than sending anyway",
+      #HTTP_POSTS == 0 and pad.draft == "over the cap"
+      and pad.sending == false)
+pad.maxQueue = 200
+
+pad.queue, pad.draft, pad.draftImages, pad.draftCaret = {}, "", {}, 0
 pad.hide()
 check("closing the pad also stops any drag in progress", pad.dragTimer == nil)
 hs.webview = nil
@@ -1864,6 +1990,92 @@ do
   pad.queue, pad.parked = {}, {}
   pad.hide()
   hs.webview = nil
+end
+
+-- =====================================================================
+-- 13. "SEND NOW" SENDS WHAT YOU ARE LOOKING AT (6.44.9)
+-- =====================================================================
+do
+  hs.webview = {
+    usercontent = { new = function(name)
+        local uc = { name = name }
+        function uc:setCallback(fn) self.callback = fn; return self end
+        return uc end },
+    new = function(rect, opts, uc)
+        local w = { rect = rect, uc = uc, htmlText = nil,
+                    frameRect = { x = rect.x, y = rect.y, w = rect.w, h = rect.h } }
+        function w:frame(f) if f then self.frameRect = f; return self end return self.frameRect end
+        function w:html(h) self.htmlText = h; return self end
+        for _, m in ipairs({ "windowTitle","windowStyle","allowTextEntry","closeOnEscape",
+                             "level","show","bringToFront","delete" }) do
+          w[m] = function(self) return self end end
+        return w end,
+  }
+  pad.queue, pad.parked, pad.draftImages, pad.draft = {}, {}, {}, ""
+  pad.sending, pad.maxRetries = false, 3
+  pad.show()
+
+  -- 🐛 THE EXACT REPORTED CASE: a note typed, an image pinned, nothing
+  -- filed, and Send now pressed. It used to answer "nothing queued".
+  CLIPBOARD_IMAGE = { saveToFile = function(self, path)
+      local f = io.open(path, "w"); if f then f:write("PNG"); f:close(); return true end
+      return false end }
+  pad.attachClipboardImage()
+  HTTP_POSTS, ALERTS = {}, {}
+  pad.uc.callback({ body = { a = "flush", text = "! Slap jack", sel = 11 } })
+  check("🐛 Send now with an UNFILED note actually sends it",
+        #HTTP_POSTS == 1, "posts=" .. #HTTP_POSTS)
+  check("...with the text you typed",
+        #HTTP_POSTS > 0 and HTTP_POSTS[1].body:find("Slap jack", 1, true) ~= nil)
+  check("...honouring the ! override, so it is a TASK not a Note",
+        #HTTP_POSTS > 0 and HTTP_POSTS[1].body:find("Note ::", 1, true) == nil)
+  check("...and it no longer claims the queue is empty", (function()
+      for _, a in ipairs(ALERTS) do
+          if tostring(a):find("nothing queued", 1, true) then return false end
+      end
+      return true
+  end)())
+  check("...the compose box is cleared, as if you had filed it",
+        pad.draft == "" and #pad.draftImages == 0)
+  -- The note carries an image, so the task callback hands off to curl and
+  -- the flush is not finished until THAT returns too. Completing only the
+  -- HTTP half leaves pad.sending latched and every later flush ignored —
+  -- which is what happened the first time this test ran.
+  TASKS = {}
+  if #HTTP_POSTS > 0 then HTTP_POSTS[1].cb(201, '{"data":{"gid":"1"}}') end
+  check("...the image upload is started as part of the same send",
+        #TASKS == 1)
+  if #TASKS > 0 then TASKS[1].cb(0, '{"data":{"id":"1"}}\n201', "") end
+  check("...and the flush is finished, not left latched",
+        pad.sending == false)
+
+  -- With genuinely nothing anywhere, it must still say so.
+  pad.queue, pad.draft, pad.draftImages = {}, "", {}
+  HTTP_POSTS, ALERTS = {}, {}
+  pad.uc.callback({ body = { a = "flush", text = "", sel = 0 } })
+  check("Send now with an empty box AND empty queue still says nothing queued",
+        #HTTP_POSTS == 0
+        and ALERTS[#ALERTS]:find("nothing queued", 1, true) ~= nil)
+
+  -- A draft plus an existing queue: both go.
+  pad.queue = { { id = "q", text = "already filed", createdAt = 1, images = {}, tries = 0 } }
+  pad.draft, pad.draftImages = "typed but not filed", {}
+  HTTP_POSTS = {}
+  pad.uc.callback({ body = { a = "flush", text = "typed but not filed", sel = 0 } })
+  check("a draft is filed BEHIND what is already queued, preserving order",
+        #HTTP_POSTS == 1 and HTTP_POSTS[1].body:find("already filed", 1, true) ~= nil)
+  if #HTTP_POSTS > 0 then HTTP_POSTS[1].cb(201, '{"data":{"gid":"2"}}') end
+
+  -- The pad now explains the two steps instead of assuming you know.
+  pad.queue, pad.draft = {}, ""
+  pad.render()
+  check("the pad spells out what File it and Send now each do",
+        pad.webview.htmlText:find("the note joins the queue below", 1, true) ~= nil
+        and pad.webview.htmlText:find("the queue goes to Asana", 1, true) ~= nil)
+
+  pad.hide()
+  hs.webview = nil
+  CLIPBOARD_IMAGE = nil
 end
 
 -- =====================================================================
