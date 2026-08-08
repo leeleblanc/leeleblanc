@@ -1694,6 +1694,93 @@ do
 end
 
 -- =====================================================================
+-- 11. THE DRAFT SURVIVES EVERY REDRAW (6.44.7)
+-- =====================================================================
+-- ⚠️ HONEST LIMIT: this bug lived in the page's JavaScript, which cannot
+-- be executed from Lua. These assertions are STRUCTURAL — they check the
+-- generated page, not a running browser. What they can prove is that no
+-- say() call site omits the text and that say() itself always attaches
+-- it; what they cannot prove is that WebKit runs it. The Lua half below
+-- is exercised for real.
+do
+  hs.webview = {
+    usercontent = { new = function(name)
+        local uc = { name = name }
+        function uc:setCallback(fn) self.callback = fn; return self end
+        return uc
+    end },
+    new = function(rect, opts, uc)
+        local w = { rect = rect, uc = uc, htmlText = nil,
+                    frameRect = { x = rect.x, y = rect.y, w = rect.w, h = rect.h } }
+        function w:frame(f) if f then self.frameRect = f; return self end return self.frameRect end
+        function w:html(h) self.htmlText = h; return self end
+        for _, m in ipairs({ "windowTitle","windowStyle","allowTextEntry","closeOnEscape",
+                             "level","show","bringToFront","delete" }) do
+          w[m] = function(self) return self end
+        end
+        return w
+    end,
+  }
+  pad.queue, pad.parked, pad.draftImages = {}, {}, {}
+  pad.draft, pad.draftCaret = "", 0
+  pad.show()
+  local html = pad.webview.htmlText
+
+  -- Every say({...}) literal in the page must rely on say() for the text,
+  -- and say() must set it unconditionally.
+  -- Line-based extraction, not a pattern: say()'s body contains `m || {}`,
+  -- and a non-greedy match to the first "}" stops right there and reads
+  -- almost none of the function. (It did, on the first run of this test.)
+  local sayBody, inSay = {}, false
+  for line in html:gmatch("[^\n]+") do
+    if line:find("function say(m){", 1, true) then inSay = true
+    elseif inSay then
+      if line:match("^%s*}%s*$") then inSay = false
+      else table.insert(sayBody, line) end
+    end
+  end
+  sayBody = table.concat(sayBody, "\n")
+  check("say() exists and is the single place the draft is attached",
+        sayBody ~= "")
+  check("🐛 6.44.7 — say() sets m.text on EVERY message, unconditionally",
+        sayBody:find("m.text = t.value", 1, true) ~= nil
+        and sayBody:find("if", 1, true) == nil)
+  check("...and carries the caret position too",
+        sayBody:find("m.sel", 1, true) ~= nil)
+
+  -- The two buttons that caused this: they must go through say().
+  check("the Attach-image BUTTON goes through say()",
+        html:find("onclick=\"say({a:'image'})\"", 1, true) ~= nil)
+  check("the Send-now BUTTON goes through say()",
+        html:find("onclick=\"say({a:'flush'})\"", 1, true) ~= nil)
+  check("🔒 no say() call site passes its own text any more — one place "
+        .. "sets it, so a new button cannot forget",
+        html:find("text:t.value", 1, true) == nil)
+
+  -- The Lua half, exercised for real: a message carrying text updates the
+  -- draft, and the redraw writes that text back into the textarea.
+  pad.uc.callback({ body = { a = "image", text = "notes I already typed", sel = 5 } })
+  check("a message carrying text updates the stored draft",
+        pad.draft == "notes I already typed")
+  check("...and the caret with it", pad.draftCaret == 5)
+  check("🐛 ...and the redraw puts that text BACK in the box, not an empty one",
+        pad.webview.htmlText:find("notes I already typed", 1, true) ~= nil)
+  check("...with the caret restored rather than dumped at the end",
+        pad.webview.htmlText:find("var caret = 5", 1, true) ~= nil)
+
+  -- Filing clears both, so the next note starts clean.
+  pad.uc.callback({ body = { a = "add", text = "Email Dana the report", sel = 3 } })
+  check("filing a note clears the draft", pad.draft == "")
+  check("...and resets the caret", pad.draftCaret == 0)
+  check("...and the box really is empty in the redraw",
+        pad.webview.htmlText:find("Email Dana the report</textarea>", 1, true) == nil)
+
+  pad.queue = {}
+  pad.hide()
+  hs.webview = nil
+end
+
+-- =====================================================================
 os.execute('rm -rf "' .. TMP .. '"')
 realPrint(string.format("\n%d passed, %d failed", pass, fail))
 if fail > 0 then

@@ -131,6 +131,7 @@ function M.setup(core)
     pad.queue    = {}     -- notes waiting for 16:00
     pad.parked   = {}     -- notes that failed maxRetries times
     pad.draft    = ""     -- what is in the textarea, kept across redraws
+    pad.draftCaret = 0    -- and where the caret was, so a redraw is invisible
     pad.draftImages = {}  -- images pinned to the note being typed
     pad.webview  = nil    -- HELD
     pad.uc       = nil    -- HELD: the JS→Lua message port
@@ -906,11 +907,25 @@ function M.setup(core)
                    or '<p class="empty">Nothing queued yet.</p>') .. [[
 </div>
 <script>
-  function say(m){ window.webkit.messageHandlers.capturePad.postMessage(m); }
   var t = document.getElementById('t');
-  function fileIt(){ say({a:'add', text:t.value}); }
-  function removeImg(i){ say({a:'removeImage', index:i, text:t.value}); }
-  function retryParked(){ say({a:'retryParked', text:t.value}); }
+  // 🐛 6.44.7 — say() ATTACHES THE LIVE TEXTAREA TO EVERY MESSAGE, and it
+  // does it HERE rather than at each call site. The draft only exists in
+  // this DOM until a message carries it over; Lua then writes it back on
+  // the next redraw. Two call sites — the "Attach clipboard image" and
+  // "Send now" BUTTONS — were sending {a:'image'} and {a:'flush'} with no
+  // text, so Lua kept its stale copy (empty, on a fresh pad) and the
+  // redraw wiped whatever had been typed. The keyboard paths all passed
+  // it, which is why ⌘⇧V worked and the button did not.
+  // Setting it in one place is the point: a new button cannot forget.
+  function say(m){
+    m = m || {};
+    m.text = t.value;
+    m.sel  = t.selectionStart;   // so the caret survives the redraw too
+    window.webkit.messageHandlers.capturePad.postMessage(m);
+  }
+  function fileIt(){ say({a:'add'}); }
+  function removeImg(i){ say({a:'removeImage', index:i}); }
+  function retryParked(){ say({a:'retryParked'}); }
   // The header only has to report that a drag STARTED. Lua polls the real
   // mouse from there — a WKWebView stops seeing the pointer the moment it
   // leaves the window, so tracking mousemove here would drop the drag as
@@ -920,20 +935,24 @@ function M.setup(core)
     if (e.button !== 0) return;
     e.preventDefault();
     bar.classList.add('dragging');
-    say({a:'dragStart', text:t.value});
+    say({a:'dragStart'});
   });
   window.addEventListener('mouseup', function(){ bar.classList.remove('dragging'); });
   window.addEventListener('keydown', function(e){
     if (e.metaKey && e.key === 'Enter') { e.preventDefault(); fileIt(); }
     else if (e.metaKey && e.shiftKey && (e.key === 'v' || e.key === 'V')) {
-      e.preventDefault(); say({a:'image', text:t.value});
+      e.preventDefault(); say({a:'image'});
     }
-    else if (e.key === 'Escape') { e.preventDefault(); say({a:'close', text:t.value}); }
+    else if (e.key === 'Escape') { e.preventDefault(); say({a:'close'}); }
   });
-  // Put the caret back where a redraw found it: the pad is re-rendered
-  // from Lua after every change, so without this every attached image
-  // would send the cursor to the start of the draft.
-  t.focus(); t.setSelectionRange(t.value.length, t.value.length);
+  // Put the caret back where it was, not at the end. The pad is re-rendered
+  // from Lua after every change, so attaching an image mid-sentence used to
+  // dump the cursor at the end of the draft. Clamped in JS rather than in
+  // Lua because selectionStart counts UTF-16 units while Lua's # counts
+  // BYTES — the two disagree the moment an emoji is involved.
+  var caret = ]] .. tostring(math.floor(pad.draftCaret or 0)) .. [[;
+  if (caret < 0 || caret > t.value.length) caret = t.value.length;
+  t.focus(); t.setSelectionRange(caret, caret);
 </script>
 ]]
     end
@@ -946,13 +965,16 @@ function M.setup(core)
     local function handleMessage(body)
         if type(body) ~= "table" then return end
         -- Whatever was in the textarea travels with every message, so the
-        -- draft survives a redraw no matter which button caused it.
+        -- draft survives a redraw no matter which button caused it. say()
+        -- in the page attaches both of these to EVERY message — see the
+        -- 6.44.7 note there for the two buttons that used to omit them.
         if body.text ~= nil then pad.draft = tostring(body.text) end
+        if body.sel  ~= nil then pad.draftCaret = tonumber(body.sel) or 0 end
 
         if body.a == "add" then
             local ok, res = pad.addNote(body.text or pad.draft, pad.draftImages)
             if ok then
-                pad.draft, pad.draftImages = "", {}
+                pad.draft, pad.draftImages, pad.draftCaret = "", {}, 0
                 pad.render()
             else
                 pad.toast(res)

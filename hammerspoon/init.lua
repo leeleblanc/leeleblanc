@@ -4,9 +4,33 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.6-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.7-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.44.7 — ATTACHING AN IMAGE NO LONGER WIPES WHAT YOU TYPED:
+--   🐛 TWO BUTTONS SENT NO TEXT. The draft lives only in the page's DOM
+--      until a message carries it to Lua, which then writes it back on the
+--      next redraw. Every KEYBOARD path passed it (text: t.value) — but
+--      the "Attach clipboard image" and "Send now" BUTTONS sent bare
+--      {a:'image'} and {a:'flush'}. Lua kept its stale copy (empty, on a
+--      fresh pad) and the redraw replaced everything typed with it. That
+--      is exactly why ⌘⇧V worked and clicking the button did not.
+--   🔒 FIXED IN ONE PLACE, NOT AT SEVEN CALL SITES. say() now attaches the
+--      live textarea to EVERY message it sends, so a button added later
+--      cannot forget. All the individual `text: t.value` arguments are
+--      gone, and a test asserts none come back.
+--   ⌨️ THE CARET SURVIVES THE REDRAW TOO. Attaching an image mid-sentence
+--      used to dump the cursor at the end of the draft; the position now
+--      travels with the message and is restored. It is clamped in
+--      JavaScript rather than Lua on purpose — selectionStart counts
+--      UTF-16 units while Lua's # counts BYTES, and the two disagree the
+--      moment an emoji is in the note.
+--   ⚠️ HONEST LIMIT ON THE TESTS: this bug lived in JavaScript, which
+--      cannot be executed from Lua. The new checks are STRUCTURAL — they
+--      prove no call site omits the text and that say() always attaches
+--      it — plus the Lua half is exercised for real. Three mutations,
+--      including the original bug, are caught.
+--   🧪 330 checks in test_features.lua, 722 across all five suites.
 -- NEW IN 6.44.6 — ⇪N NO LONGER DRAGS THE CONSOLE FORWARD:
 --   🐛 OPENING THE CAPTURE PAD ACTIVATED THE WHOLE APPLICATION. show() had
 --      an hs.application.launchOrFocus("Hammerspoon") in it, which I added
@@ -1948,7 +1972,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.44.6"
+_G.configVersion = "6.44.7"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -5763,9 +5787,9 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.44.6"
+    local currentVersion = "6.44.7"
     local currentDate    = "08-05-26"
-    local currentNotes   = "Opening the Capture Pad no longer drags the Hammerspoon Console forward. show() called hs.application.launchOrFocus on Hammerspoon to get the caret into the text box, which activates the whole application and brings every one of its windows with it. It was also unnecessary: allowTextEntry(true) already sets canBecomeKeyWindow inside hs.webview, which defaults to NO, and bringToFront already calls makeKeyAndOrderFront. Raising one window was the job; activating the app was collateral damage. Added capturePad.focusOnOpen, default true, to control whether the pad takes the keyboard at all when it opens. Checked the rest of the config for the same mistake and found none — the other activate calls target the app being switched to, which is their purpose. A test asserts the application is never activated and a mutation restoring the old call is caught. 709 checks across five suites."
+    local currentNotes   = "Capture Pad: attaching a clipboard image no longer wipes the note being typed. The draft exists only in the page's DOM until a message carries it to Lua, which writes it back on the next redraw. Every keyboard path passed it, but the Attach-clipboard-image and Send-now BUTTONS sent no text at all, so Lua kept its stale empty copy and the redraw replaced what had been typed — which is why the keyboard shortcut worked and the button did not. Fixed in one place rather than at seven call sites: say() now attaches the live textarea to every message, so a button added later cannot forget, and a test asserts no call site passes its own text again. The caret position travels with the message too, so attaching an image mid-sentence no longer dumps the cursor at the end; it is clamped in JavaScript because selectionStart counts UTF-16 units while Lua's length operator counts bytes. Honest limit: the bug was in JavaScript, which cannot be executed from Lua, so the new checks are structural plus a real exercise of the Lua half. Three mutations including the original bug are caught. 722 checks across five suites."
 
     -- Only append if this version isn't already in the file
     local found = false
