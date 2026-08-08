@@ -1542,6 +1542,110 @@ do
 end
 
 -- =====================================================================
+-- 9. PARKED NOTES ARE VISIBLE, EXPLAINED, AND NEVER SILENTLY RESENT
+-- =====================================================================
+do
+  hs.webview = {
+    usercontent = { new = function(name)
+        local uc = { name = name }
+        function uc:setCallback(fn) self.callback = fn; return self end
+        return uc
+    end },
+    new = function(rect, opts, uc)
+        local w = { rect = rect, opts = opts, uc = uc, htmlText = nil,
+                    frameRect = { x = rect.x, y = rect.y, w = rect.w, h = rect.h } }
+        function w:frame(f) if f then self.frameRect = f; return self end return self.frameRect end
+        function w:html(h) self.htmlText = h; return self end
+        for _, m in ipairs({ "windowTitle","windowStyle","allowTextEntry","closeOnEscape",
+                             "level","show","bringToFront","delete" }) do
+          w[m] = function(self) return self end
+        end
+        return w
+    end,
+  }
+  pad.queue, pad.parked, pad.draftImages, pad.draft = {}, {}, {}, ""
+  pad.sending = false
+  pad.maxRetries = 1          -- park on the first failure, to keep this short
+
+  -- Fail a send and let it park, capturing Asana's own reason.
+  HTTP_POSTS, ALERTS, printed = {}, {}, {}
+  pad.queue = { { id = "p", text = "hamonaye jamboneya", createdAt = 1,
+                  images = {}, tries = 0 } }
+  pad.flush("manual")
+  HTTP_POSTS[1].cb(403, '{"errors":[{"message":"Not Authorized to access project"}]}')
+  check("a failed send parks the note", #pad.parked == 1 and #pad.queue == 0)
+  check("🔎 ...recording WHY, from Asana's own error text",
+        tostring(pad.parked[1].lastError):find("Not Authorized", 1, true) ~= nil)
+  check("...and the HTTP status too",
+        tostring(pad.parked[1].lastError):find("403", 1, true) ~= nil)
+  check("...and when it happened", type(pad.parked[1].parkedAt) == "number")
+
+  -- 🚩 THE BEHAVIOUR THAT CAUSED THE CONFUSION: a parked note is not part
+  -- of any later send, so the warning persists through every flush until
+  -- it is explicitly put back.
+  HTTP_POSTS, ALERTS = {}, {}
+  pad.queue = { { id = "ok", text = "a different note", createdAt = 2,
+                  images = {}, tries = 0 } }
+  pad.flush("manual")
+  check("a later send posts ONLY the queued note, never the parked one",
+        #HTTP_POSTS == 1
+        and HTTP_POSTS[1].body:find("a different note", 1, true) ~= nil
+        and HTTP_POSTS[1].body:find("hamonaye", 1, true) == nil)
+  HTTP_POSTS[1].cb(201, '{"data":{"gid":"9"}}')
+  check("...and the parked note is STILL parked afterwards", #pad.parked == 1)
+
+  -- 🚩 AND THE CASE THAT ACTUALLY BITES: the queue is EMPTY, something is
+  -- parked, and you press Send now. Nothing must go out — a parked note is
+  -- parked precisely so it is not retried behind your back. (A mutation
+  -- that made flush fall through to pad.parked survived until this test
+  -- existed, because every earlier case still had a queued note to send.)
+  HTTP_POSTS, ALERTS = {}, {}
+  check("(the queue really is empty with one note parked)",
+        #pad.queue == 0 and #pad.parked == 1)
+  pad.flush("manual")
+  check("🚩 Send now with only parked notes posts NOTHING", #HTTP_POSTS == 0)
+  check("...and says the queue is empty rather than pretending it sent",
+        ALERTS[#ALERTS] and ALERTS[#ALERTS]:find("nothing queued", 1, true) ~= nil)
+  check("...and the parked note is untouched", #pad.parked == 1)
+
+  -- The pad must now say which note, and why, rather than only a count.
+  pad.show()
+  local html = pad.webview.htmlText
+  check("🖥 the parked note is shown as its own row, not just counted",
+        html:find("hamonaye jamboneya", 1, true) ~= nil)
+  check("...labelled PARKED so it cannot be mistaken for a queued note",
+        html:find("PARKED", 1, true) ~= nil)
+  check("...with the reason it failed on the row",
+        html:find("Not Authorized", 1, true) ~= nil)
+  check("...and the banner says it is from an EARLIER send, not a live error",
+        html:find("from an earlier send", 1, true) ~= nil)
+  check("...and states plainly that it will not be sent until you act",
+        html:find("NOT included in the next send", 1, true) ~= nil)
+  check("...and still offers the button that fixes it",
+        html:find("retryParked()", 1, true) ~= nil)
+
+  -- Putting it back clears the warning and makes it sendable again.
+  pad.uc.callback({ body = { a = "retryParked", text = "" } })
+  check("putting it back empties the parked list", #pad.parked == 0)
+  check("...and the note is queued again with a fresh set of tries",
+        #pad.queue == 1 and pad.queue[1].tries == 0)
+  HTTP_POSTS = {}
+  pad.flush("manual")
+  check("...and NOW a send includes it",
+        #HTTP_POSTS == 1 and HTTP_POSTS[1].body:find("hamonaye", 1, true) ~= nil)
+  HTTP_POSTS[1].cb(201, '{"data":{"gid":"10"}}')
+  check("...and it finally leaves the queue", #pad.queue == 0)
+  check("...leaving the pad with no warning at all", (function()
+      pad.render()
+      return pad.webview.htmlText:find("PARKED", 1, true) == nil
+  end)())
+
+  pad.hide()
+  hs.webview = nil
+  pad.maxRetries = 3
+end
+
+-- =====================================================================
 os.execute('rm -rf "' .. TMP .. '"')
 realPrint(string.format("\n%d passed, %d failed", pass, fail))
 if fail > 0 then

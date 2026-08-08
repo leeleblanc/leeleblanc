@@ -581,16 +581,26 @@ function M.setup(core)
               ["Content-Type"]  = "application/json" },
             function(status, body)
                 if status ~= 200 and status ~= 201 then
-                    print("🗒 Capture Pad: task creation failed (HTTP " ..
-                          tostring(status) .. ") — " .. tostring(body))
-                    onDone(false)
+                    -- The reason travels back with the failure, not just to
+                    -- the Console. A note that ends up parked has to be able
+                    -- to say WHY on its own row — "could not be sent" with no
+                    -- cause is a dead end you cannot act on.
+                    local why = "HTTP " .. tostring(status)
+                    local parsedErr = _G.safeJson(body, "capturePad/taskError")
+                    local msg = parsedErr and parsedErr.errors and parsedErr.errors[1]
+                                and parsedErr.errors[1].message
+                    if msg then why = why .. " — " .. tostring(msg)
+                    elseif status == 0 then why = "no network reply" end
+                    print("🗒 Capture Pad: task creation failed (" .. why .. ") — "
+                          .. tostring(body))
+                    onDone(false, nil, 0, why)
                     return
                 end
                 local parsed = _G.safeJson(body, "capturePad/task")
                 local gid = parsed and parsed.data and parsed.data.gid
                 if not gid then
                     print("🗒 Capture Pad: Asana accepted the task but returned no gid")
-                    onDone(false)
+                    onDone(false, nil, 0, "Asana returned no task id")
                     return
                 end
                 local images = note.images or {}
@@ -678,7 +688,7 @@ function M.setup(core)
         local function step()
             local note = pad.queue[1]
             if not note then finish() return end
-            createTask(note, function(ok, gid, imgFailed)
+            createTask(note, function(ok, gid, imgFailed, why)
                 if ok then
                     sent = sent + 1
                     if imgFailed and imgFailed > 0 then
@@ -693,12 +703,14 @@ function M.setup(core)
                 else
                     failed = failed + 1
                     note.tries = (note.tries or 0) + 1
+                    note.lastError = why or "unknown"
                     table.remove(pad.queue, 1)
                     if note.tries >= pad.maxRetries then
                         note.parkedAt = os.time()
                         table.insert(pad.parked, note)
                         print("🗒 Capture Pad: parked after " .. note.tries ..
-                              " failed sends — " .. pad.titleFor(note.text))
+                              " failed sends (" .. note.lastError .. ") — "
+                              .. pad.titleFor(note.text))
                     else
                         -- Back of the queue, not the front: one poisonous
                         -- note must not block the twenty behind it.
@@ -752,15 +764,36 @@ function M.setup(core)
                 os.date("%H:%M", n.createdAt or os.time()),
                 #(n.images or {}) > 0 and ("  ·  " .. #n.images .. " img") or ""))
         end
+        -- ⚠️ 6.44.5 — PARKED NOTES ARE NOW SHOWN, NOT JUST COUNTED. Before
+        -- this the pad said "1 note could not be sent" and then listed the
+        -- QUEUED notes underneath, so the row you were looking at was never
+        -- the one that failed. It read like a live error about the wrong
+        -- note. Parked notes get their own rows now, dated, with the reason
+        -- the send failed, and the banner says plainly that this is history
+        -- rather than something happening now.
         local parked = ""
         if #pad.parked > 0 then
+            local prows = {}
+            for _, n in ipairs(pad.parked) do
+                local title = pad.titleFor(n.text)
+                local when  = n.parkedAt and os.date("%d %b %H:%M", n.parkedAt) or "earlier"
+                table.insert(prows, string.format(
+                    '<li class="parkedrow"><span class="k pk">PARKED</span>'
+                    .. '<span class="t">%s</span><span class="m">%s%s</span></li>',
+                    escapeHtml(title),
+                    escapeHtml(n.lastError and (n.lastError .. "  ·  ") or ""),
+                    escapeHtml(when)))
+            end
             parked = string.format(
-                '<p class="parked">⚠️ %d note%s could not be sent after %d tries — '
-                .. 'kept in queue.json, not lost. '
+                '<p class="parked">⚠️ %d note%s from an earlier send %s still waiting — '
+                .. 'not lost, and NOT included in the next send until you put %s back. '
                 .. '<button type="button" class="retry" onclick="retryParked()">'
-                .. 'Put %s back in the queue</button></p>',
-                #pad.parked, #pad.parked == 1 and "" or "s", pad.maxRetries,
-                #pad.parked == 1 and "it" or "them")
+                .. 'Put %s back in the queue</button></p><ul>%s</ul>',
+                #pad.parked, #pad.parked == 1 and "" or "s",
+                #pad.parked == 1 and "is" or "are",
+                #pad.parked == 1 and "it" or "them",
+                #pad.parked == 1 and "it" or "them",
+                table.concat(prows))
         end
         -- Each thumbnail carries its own ✕, calling removeImg(i) with a
         -- 1-based index — so a wrongly pinned image can be taken back off
@@ -841,6 +874,8 @@ function M.setup(core)
   .t { flex:1; }
   .m { color:#75757f; font-size:13px; flex:none; }
   .parked { color:#e8b06a; font-size:13px; }
+  li.parkedrow { background:#241d12; }
+  .k.pk { background:#6b4a15; color:#f5d9a3; }
   button.retry { margin-left:8px; padding:3px 9px; font-size:12px;
                  background:#4a3a1e; border-color:#6b5528; color:#f0d5a8; }
   .empty { color:#6d6d78; font-style:italic; }

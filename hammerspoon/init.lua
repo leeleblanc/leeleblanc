@@ -4,9 +4,32 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.4-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.5-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.44.5 — A PARKED NOTE NOW EXPLAINS ITSELF:
+--   ⚠️ THE WARNING LOOKED LIKE A LIVE ERROR ABOUT THE WRONG NOTE. The pad
+--      said "1 note could not be sent after 3 tries" and then listed the
+--      QUEUED notes underneath — so the row you were reading was never the
+--      one that failed, and the banner reappeared after every successful
+--      send. Nothing was broken; it was just impossible to tell that from
+--      looking at it.
+--   🖥 PARKED NOTES GET THEIR OWN ROWS now, badged PARKED, dated, and
+--      carrying the reason the send failed — taken from Asana's own error
+--      message ("HTTP 403 — Not Authorized to access project") rather than
+--      a bare count. The banner says the note is from an EARLIER send and
+--      states plainly that it will NOT go out until you put it back.
+--   🚩 THE BEHAVIOUR THAT CAUSED THE CONFUSION IS CORRECT AND STAYS: a
+--      parked note is never included in a later send. That is what parking
+--      is for — a note that failed for a real reason must not be retried
+--      silently behind you. It moves only when you press the button.
+--   🧬 A MUTATION SURVIVED AND WAS INVESTIGATED RATHER THAN PAPERED OVER.
+--      Making flush() fall through to the parked list changed nothing —
+--      because the empty-queue guard returns before that line is ever
+--      reached. Proven equivalent by removing the guard as well, at which
+--      point the suite fails. A new test covers the real scenario: Send
+--      now with an empty queue and something parked must post nothing.
+--   🧪 312 checks in test_features.lua, 704 across all five suites.
 -- NEW IN 6.44.4 — TEN AUDIT PASSES, AND THE ONE REAL BOTTLENECK:
 --   ⚡ THE SEARCH PICKERS WERE O(history) PER KEYSTROKE. ⇪F and ⇪0 both
 --      run from queryChangedCallback, so their filter loop fires on EVERY
@@ -1904,7 +1927,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.44.4"
+_G.configVersion = "6.44.5"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -5719,9 +5742,9 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.44.4"
+    local currentVersion = "6.44.5"
     local currentDate    = "08-05-26"
-    local currentNotes   = "Ten audit passes over the whole config. The one real bottleneck: the file-tracker and activity pickers filter from queryChangedCallback, so their loop runs on every character typed, and each pass rebuilt a concatenated lowercased search string for every row of retained history — 90 days of file events and 120 days of raw activity sessions. Measured 18ms per keystroke at 10,000 rows and 78ms at 40,000, on the main thread. The search string is now built once per entry and cached on it, about 18x faster, and never reaches the CSV because both writers name their columns. The file-tracker in-memory log was also pruned only at boot, so it grew without limit on a Mac left logged in for weeks; it now prunes every 200 rows. Everything else came back clean: no discarded timers or watchers, no ipairs over a literal holding nil, no unprotected json decode, no window.filter, no string accumulation in a loop, no io.open in a loop, no unresolved bare-global calls. Two of the audits were themselves wrong and were fixed before being trusted. One optimisation was measured and rejected: replacing the autocorrect tap's pattern matches with lookup tables is 3-4x faster in ratio but saves 0.188 microseconds per keystroke, which is not worth the churn. The suite is now mutation-tested — 14 invariants deliberately reversed, two survived the first run because the cache tests grepped source text instead of driving the picker, both rewritten to poison a cache entry and prove it is read. 14 of 14 caught. 683 checks across five suites."
+    local currentNotes   = "Capture Pad: a parked note now explains itself. The warning said a note could not be sent and then listed the QUEUED notes underneath, so the row on screen was never the one that failed, and the banner reappeared after every successful send — nothing was broken, but it was impossible to tell that by looking. Parked notes now get their own rows, badged PARKED, dated, and carrying the reason the send failed taken from Asana's own error message rather than a bare count; the banner says the note is from an earlier send and will not go out until put back. The underlying behaviour is correct and unchanged: a parked note is never included in a later send, which is the entire point of parking. A mutation that made flush fall through to the parked list survived and was investigated rather than papered over — it is unreachable because the empty-queue guard returns first, proven by removing the guard as well and watching the suite fail. A new test covers the real case: Send now with an empty queue and something parked must post nothing. 704 checks across five suites."
 
     -- Only append if this version isn't already in the file
     local found = false
