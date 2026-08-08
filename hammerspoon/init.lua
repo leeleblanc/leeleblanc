@@ -4,9 +4,50 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.12-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.13-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.44.13 — "DOES IT WORK ON THIS MAC?", ANSWERED IN ONE CALL:
+--   🖥 ONE init.lua, TWO VERY DIFFERENT MACS. About a dozen things
+--      legitimately differ between the personal Air and the managed work
+--      MacBook. Every one was already handled, and every one printed its
+--      own line somewhere at boot — which is the problem. Twelve scattered
+--      lines is not an answer to "what works here", it is twelve things to
+--      go and find.
+--   ✅ NEW: core/capabilities.lua. _G.capabilityReport() reports OneDrive,
+--      backup, Asana, Accessibility, the hyper key, OCR, Homebrew and the
+--      module load — each with its STATE, the real REASON, and, when it is
+--      off, WHAT THAT COSTS YOU. "OFF" only means something if you know
+--      what it takes with it. Included in ⇪⇧D.
+--   ❔ UNKNOWN IS A REAL ANSWER. The hidutil remap and the OCR probe are
+--      decided asynchronously, well after boot. "Has not reported yet" and
+--      "this Mac cannot" need different reactions, so they are never
+--      folded together. A broken secret.lua is likewise distinguished from
+--      a missing one — broken is a typo you can fix in thirty seconds.
+--   🎹 The hyper remap's result is now RECORDED (_G.hyperRemapOK), not just
+--      printed once and lost. It is the single biggest difference between
+--      the two Macs, and asking you to scroll back for a line was a poor
+--      way to find it out.
+--   📄 NEW: INSTALL.md — rebuilding this config from nothing, step by step.
+--      Hammerspoon, Accessibility, the files, secret.lua, the machine
+--      profile, the OCR shortcut, no-admin Homebrew, verification, and
+--      what to do when a step fails. Every optional step is marked, with
+--      what you lose by skipping it.
+--   🧬 A TEST NOW KEEPS THE DOCS HONEST. Adding capabilities.lua left
+--      INSTALL.md saying "3 files", hs-doctor.sh checking three names and
+--      hs-install.sh requiring three — three places silently out of step
+--      with one new file, and the installer is what stands between a
+--      half-copied config and the primary Mac. The file list is read from
+--      DISK now and anything hard-coding it must agree. 7 mutations catch
+--      that drift, including one that only removed a name from the
+--      installer's PRE-CHECK loop and left the verify loop intact.
+--   🐛 Two of my own, both caught by running the code rather than reading
+--      it: a one-line conditional in the report's word-wrap relied on Lua
+--      binding `and` tighter than `or`, evaluated to a boolean and crashed
+--      on concat; and the capability load was first placed above
+--      `local hyperEnabled`, where a Lua local is invisible, so it
+--      captured nil and reported the hyper key disabled on BOTH Macs.
+--   🧪 940 checks across six suites.
 -- NEW IN 6.44.12 — PROVING THIS IS SAFE ON A MANAGED WORK MAC:
 --   🔒 THE WORK MACBOOK IS THE PRIMARY MACHINE AND HAS NO ADMIN RIGHTS.
 --      That is now a tested guarantee rather than a claim. The suite fails
@@ -239,7 +280,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.44.12
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.44.13
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -481,7 +522,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.44.12"
+_G.configVersion = "6.44.13"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -1098,6 +1139,7 @@ if not diagOK then
           .. 'trail are OFF for this session. Everything else still works. '
           .. tostring(diagErr))
 end
+
 
 -- =====================================================================
 -- 2. UTILITY & OCR ENGINE
@@ -1730,9 +1772,21 @@ end
 if hyperEnabled then
     _G.hyperRemapTask = hs.task.new("/usr/bin/hidutil",
         function(exitCode, stdOut, stdErr)
+            -- RECORDED, not just printed. This is THE most machine-dependent
+            -- thing in the config — it is the difference between the work Mac
+            -- having 34 shortcuts and having none — and it is decided
+            -- asynchronously, well after the boot report has gone by. Writing
+            -- the answer down is what lets _G.capabilities() and ⇪⇧D report
+            -- it later instead of me asking you to scroll back for a line.
+            _G.hyperRemapOK = (exitCode == 0)
             if exitCode == 0 then
+                _G.hyperRemapWhy = nil
+                _G.diag.say("hyper", "hidutil accepted the Caps Lock remap")
                 print("🎹 Hyper key ON — Caps Lock is the hyper modifier (it no longer toggles capitals)")
             else
+                _G.hyperRemapWhy = "exit " .. tostring(exitCode)
+                    .. (stdErr and stdErr ~= "" and (" — " .. tostring(stdErr):gsub("%s+$", "")) or "")
+                _G.diag.warn("hyper", "hidutil REFUSED the remap: " .. _G.hyperRemapWhy)
                 print("⚠️ 🎹 Hyper key OFF — hidutil could not remap Caps Lock (exit " .. tostring(exitCode) .. ")")
                 print("   " .. tostring(stdErr or ""):gsub("%s+$", ""))
                 print("   This is the documented macOS Sonoma+ restriction. Everything else still works;")
@@ -1743,6 +1797,35 @@ if hyperEnabled then
     _G.hyperRemapTask:start()
 else
     print("🎹 Hyper key disabled in config (hyperEnabled = false) — Caps Lock untouched")
+end
+
+-- Loaded HERE, not next to core/diagnostics.lua where it belongs
+-- logically: capabilities reports on hyperEnabled, and a Lua local is
+-- invisible to anything written above its declaration. Placed above,
+-- it captured nil and reported the hyper key as disabled on BOTH
+-- Macs. Nothing calls it before this point — ⇪⇧D runs on a keypress.
+-- ---------------------------------------------------------------------
+-- CAPABILITIES — the one answer to "does this work on THIS Mac?"
+-- ---------------------------------------------------------------------
+-- One init.lua, two very different Macs. About a dozen things genuinely
+-- differ between them, every one of them already handled, and every one
+-- printing its own line somewhere at boot. Twelve scattered lines is not
+-- an answer to "what works here" — it is twelve things to hunt for.
+-- _G.capabilities() collects them, with the REASON and, more usefully,
+-- what each one COSTS you when it is off. Loaded right after diagnostics
+-- because §1.11's report calls it.
+local capOK, capErr = pcall(function()
+    local path = hs.configdir .. '/core/capabilities.lua'
+    local chunk, loadErr = loadfile(path)
+    if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
+    chunk()({ cloudDir = cloudDir, logsDir = logsDir, backupDir = backupDir,
+              hostTag = hostTag, asanaEnabled = asanaEnabled,
+              secretsStatus = secretsStatus, hyperEnabled = hyperEnabled })
+end)
+if not capOK then
+    print('⚠️ core/capabilities.lua failed to load — _G.capabilities() is '
+          .. 'unavailable and ⇪⇧D loses its capability block. Nothing else '
+          .. 'is affected. ' .. tostring(capErr))
 end
 
 end -- do...end (§3.12 Hyper Key locals)
@@ -3345,14 +3428,14 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.44.12"
+    local currentVersion = "6.44.13"
     local currentDate    = "08-08-26"
     -- One line. The full entry for every version lives in CHANGELOG.md
     -- beside this file — which is also why prose no longer sits in a
     -- Lua string here: the work-Mac safety scan reads string literals
     -- as code, and a paragraph describing "no sudo, no launchctl"
     -- failed the very check it was describing.
-    local currentNotes   = "Work-Mac safety proven by test: no elevation, no writes outside $HOME, every external program reviewed and shipped with macOS. Added tools/hs-install.sh — verified, reversible install. See CHANGELOG.md for the full entry."
+    local currentNotes   = "Added core/capabilities.lua: _G.capabilityReport() answers does-it-work-on-this-Mac in one call, with each state, its real reason, and what it costs you when off. UNKNOWN is kept distinct from OFF for the async probes, and a broken secret.lua from a missing one. The hyper remap result is recorded rather than printed once and lost. Added INSTALL.md, a step-by-step rebuild from nothing. A test now reads the core file list from disk so the docs and both install tools cannot drift from it. See CHANGELOG.md for the full entry."
 
     -- Only append if this version isn't already in the file
     local found = false

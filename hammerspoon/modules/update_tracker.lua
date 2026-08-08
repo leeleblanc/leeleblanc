@@ -150,6 +150,9 @@ function M.setup(core)
     -- Phase two: if the well-known paths missed, ask the shell.
     function M.warm(core)
         if brewPath then
+            -- Recorded so _G.capabilities() can answer "is brew available on
+            -- THIS Mac" without re-probing the disk every time it is asked.
+            _G.brewPathInUse = brewPath
             _G.diag.say("updates", "brew at " .. brewPath)
             -- TWO INSTALLS IS THE ONLY AMBIGUOUS CASE, and it is real:
             -- a Mac can carry a leftover ~/homebrew alongside a working
@@ -167,6 +170,7 @@ function M.setup(core)
                     print("📦 App Update Tracker: two Homebrew installs found — using the one "
                           .. "on your PATH (" .. onPath .. "), not " .. brewPath)
                     brewPath = onPath
+                    _G.brewPathInUse = onPath
                 elseif onPath then
                     _G.diag.say("updates", "two installs found; PATH confirmed " .. brewPath)
                 else
@@ -188,7 +192,8 @@ function M.setup(core)
             if f then
                 f:close()
                 brewPath = out
-                print("📦 App Update Tracker: found Homebrew via your login shell at "
+                _G.brewPathInUse = brewPath
+            print("📦 App Update Tracker: found Homebrew via your login shell at "
                       .. brewPath .. " — update checks are available.")
                 _G.diag.say("updates", "brew discovered via shell: " .. brewPath)
                 if not _G.updateTrackerTimer then
@@ -198,6 +203,7 @@ function M.setup(core)
                 return
             end
         end
+        _G.brewPathInUse = nil
         _G.diag.warn("updates", "no Homebrew found; tried " .. table.concat(brewTried, ", "))
     end
 

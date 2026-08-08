@@ -671,5 +671,224 @@ check("...and those vendor pages open only on a row YOU selected",
 check("...and it is off entirely without secret.lua",
       initLive("asanaEnabled") ~= nil and initText:find("secret.lua", 1, true) ~= nil)
 
+
+-- =====================================================================
+-- 10. CAPABILITIES, EXECUTED — the two-Mac contract (6.44.13)
+-- =====================================================================
+-- One init.lua runs on a personal Mac with admin rights and a managed
+-- work Mac with none. This block drives BOTH profiles through the real
+-- file and reads what it says, because "works on both Macs" is a claim
+-- that can only be checked by asking it as both Macs.
+out("\n=== 10. Capabilities, executed ===\n")
+local CAP_PATH = HS .. "/core/capabilities.lua"
+local capChunk = loadfile(CAP_PATH)
+check("core/capabilities.lua loads", capChunk ~= nil, select(2, loadfile(CAP_PATH)))
+
+if capChunk then
+  local AX = true
+  hs.accessibilityState = function() return AX end
+
+  local function asMac(cfg, globals)
+    -- A LIST, not a table of nils. `{ brewPathInUse = nil }` stores
+    -- nothing at all — pairs() never yields a nil value — so the reset
+    -- silently did nothing and the previous Mac's brew path leaked into
+    -- the next profile, reporting brew ON for a Mac that has none. The
+    -- same trap that makes `#` unreliable on a list with holes.
+    for _, k in ipairs({ "hyperRemapOK", "hyperRemapWhy",
+                         "ocrShortcutAvailable", "brewPathInUse" }) do
+      _G[k] = nil
+    end
+    _G.moduleLoaded, _G.moduleFailed = 18, 0
+    for k, v in pairs(globals or {}) do _G[k] = v end
+    local base = { cloudDir = "/cloud", logsDir = "/cloud/Logs",
+                   backupDir = "/cloud/Backups", hostTag = "TestMac",
+                   asanaEnabled = true, secretsStatus = "loaded",
+                   hyperEnabled = true }
+    for k, v in pairs(cfg or {}) do if v == false then base[k] = nil else base[k] = v end end
+    capChunk()(base)
+    local caps, by = _G.capabilities(), {}
+    for _, c in ipairs(caps) do by[c.key] = c end
+    return by, _G.capabilityReport()
+  end
+
+  -- ---- the personal Mac: everything on ------------------------------
+  AX = true
+  local home, homeReport = asMac({}, { hyperRemapOK = true, ocrShortcutAvailable = true,
+                                       brewPathInUse = "/opt/homebrew/bin/brew" })
+  for _, k in ipairs({ "cloud", "backup", "asana", "ax", "hyper", "ocr", "brew", "modules" }) do
+    check("personal Mac — " .. k .. " reports ON", home[k] and home[k].state == "ON",
+          home[k] and home[k].state)
+  end
+  check("...and the report says so in one line",
+        homeReport:find("Everything this config can do", 1, true) ~= nil)
+  check("...with no cost lines, because nothing is degraded",
+        homeReport:find("↳", 1, true) == nil)
+
+  -- ---- the work Mac: no admin, no brew, no OneDrive, no remap -------
+  AX = false
+  local work, workReport = asMac(
+    { cloudDir = false, backupDir = false, asanaEnabled = false, secretsStatus = "missing" },
+    { hyperRemapOK = false, hyperRemapWhy = "exit 1 — not permitted",
+      ocrShortcutAvailable = false, brewPathInUse = nil })
+  for _, k in ipairs({ "cloud", "backup", "asana", "ax", "hyper", "ocr", "brew" }) do
+    check("work Mac — " .. k .. " reports OFF, not an error",
+          work[k] and work[k].state == "OFF", work[k] and work[k].state)
+  end
+  check("work Mac — modules still load, so it is not all bad news",
+        work.modules.state == "ON")
+  check("every OFF capability says WHY", (function()
+    for _, k in ipairs({ "cloud", "backup", "asana", "ax", "hyper", "ocr", "brew" }) do
+      if not work[k].why or work[k].why == "" then return false, k end
+    end
+    return true
+  end)())
+  check("every OFF capability says what it COSTS you", (function()
+    for _, k in ipairs({ "cloud", "backup", "asana", "ax", "hyper", "ocr", "brew" }) do
+      if not work[k].cost or work[k].cost == "" then return false, k end
+    end
+    return true
+  end)())
+  check("...and brew's cost says plainly that nothing else uses it",
+        work.brew.cost:find("NOTHING ELSE USES BREW", 1, true) ~= nil)
+  check("...and the hyper failure carries hidutil's actual reason",
+        work.hyper.why:find("not permitted", 1, true) ~= nil)
+  check("the report counts what is degraded instead of burying it",
+        workReport:find("not fully on", 1, true) ~= nil)
+
+  -- ---- UNKNOWN is a real answer, not a synonym for OFF --------------
+  AX = true
+  local booting = asMac({}, {})   -- async probes have not reported yet
+  check("a probe that has not finished is UNKNOWN, never OFF",
+        booting.hyper.state == "UNKNOWN" and booting.ocr.state == "UNKNOWN",
+        booting.hyper.state .. "/" .. booting.ocr.state)
+  check("...because 'not answered yet' and 'this Mac cannot' need "
+        .. "different reactions from me",
+        booting.hyper.why:find("not reported back yet", 1, true) ~= nil)
+
+  -- ---- a broken secret.lua is NOT the same as a missing one ---------
+  local broke = asMac({ asanaEnabled = false, secretsStatus = "broken: unexpected symbol" },
+                      {})
+  check("a BROKEN secret.lua is distinguished from a missing one",
+        broke.asana.why:find("EXISTS but failed", 1, true) ~= nil)
+  check("...and says it is the fixable kind", broke.asana.cost:find("fixable", 1, true) ~= nil)
+
+  -- ---- a partly-failed module load is PARTIAL, not ON or OFF --------
+  local partial = asMac({}, { moduleLoaded = 15, moduleFailed = 3 })
+  check("modules failing is PARTIAL — the rest still work",
+        partial.modules.state == "PARTIAL" and partial.modules.why:find("3", 1, true))
+
+  -- ---- hyperEnabled = false is a CHOICE, not a failure --------------
+  local off = asMac({ hyperEnabled = false }, {})
+  check("hyperEnabled = false reads as your choice, not a fault",
+        off.hyper.why:find("your choice", 1, true) ~= nil)
+
+  -- ---- accessibility unreadable -> UNKNOWN, and no crash ------------
+  hs.accessibilityState = function() error("boom") end
+  local axbad = asMac({}, {})
+  check("an unreadable Accessibility state is UNKNOWN, and does not raise",
+        axbad.ax.state == "UNKNOWN", axbad.ax.state)
+  hs.accessibilityState = function() return AX end
+end
+
+
+-- =====================================================================
+-- 11. THE DOCS AND TOOLS MUST TRACK THE CODE (6.44.13)
+-- =====================================================================
+-- Adding core/capabilities.lua left INSTALL.md saying "3 files",
+-- hs-doctor.sh checking three names, and hs-install.sh refusing to
+-- require the fourth. Three separate places silently out of step with
+-- one new file — and the install script is the one thing standing
+-- between a half-copied config and the primary work Mac. So the file
+-- list is derived from DISK here, and anything that hard-codes it has
+-- to agree.
+out("\n=== 11. Docs and tools track the code ===\n")
+local onDisk = {}
+do
+  local pipe = io.popen('ls "' .. HS .. '/core"/*.lua 2>/dev/null')
+  if pipe then
+    for line in pipe:lines() do
+      local n = line:match("([^/]+)%.lua$")
+      if n then onDisk[#onDisk + 1] = n end
+    end
+    pipe:close()
+  end
+end
+table.sort(onDisk)
+check("core/ has files to check", #onDisk > 0, #onDisk)
+
+local function readAll(p)
+  local f = realopen(p, "r"); if not f then return nil end
+  local t = f:read("*a"); f:close(); return t
+end
+
+local doctor  = readAll(HS .. "/tools/hs-doctor.sh")  or ""
+local install = readAll(HS .. "/tools/hs-install.sh") or ""
+local guide   = readAll(HS .. "/INSTALL.md")          or ""
+
+check("hs-doctor.sh exists",  doctor  ~= "")
+check("hs-install.sh exists", install ~= "")
+check("INSTALL.md exists",    guide   ~= "")
+
+-- hs-install.sh names the core files in TWO loops — once to refuse an
+-- incomplete download, once to verify the result. A plain substring
+-- search over the file passes when a name is dropped from one of them,
+-- which is the worse half: the pre-check is what stops a half-copied
+-- config reaching the work Mac. So both loops are pulled out and each
+-- must list every file.
+local installLoops = {}
+for line in install:gmatch("[^\n]+") do
+  if line:find("for n in ", 1, true) and line:find("boot_report", 1, true) then
+    installLoops[#installLoops + 1] = line
+  end
+end
+check("hs-install.sh still has both core loops (pre-check and verify)",
+      #installLoops == 2, #installLoops)
+
+for _, n in ipairs(onDisk) do
+  check("hs-doctor.sh knows about core/" .. n,  doctor:find(n, 1, true)  ~= nil)
+  check("hs-install.sh REQUIRES core/" .. n .. " in BOTH loops", (function()
+    if #installLoops == 0 then return false end
+    for _, loop in ipairs(installLoops) do
+      if not loop:find(n, 1, true) then return false, loop end
+    end
+    return true
+  end)())
+  check("INSTALL.md documents core/" .. n,      guide:find(n, 1, true)   ~= nil)
+  check("init.lua actually loads core/" .. n,
+        initLive("hs.configdir .. '/core/" .. n .. ".lua'") ~= nil)
+end
+
+-- the counts printed to a human have to match reality too, or the
+-- "expect N" line becomes a lie the moment a file is added
+check("hs-doctor.sh's expected core count matches disk",
+      doctor:find("expect " .. #onDisk .. ")", 1, true) ~= nil, #onDisk)
+check("hs-install.sh's core count matches disk",
+      install:find("all " .. #onDisk .. " present", 1, true) ~= nil, #onDisk)
+check("INSTALL.md's core count matches disk",
+      guide:find(tostring(#onDisk) .. " files, loaded directly", 1, true) ~= nil, #onDisk)
+
+-- and the module count, for the same reason
+local modCount = 0
+do
+  local pipe = io.popen('ls "' .. HS .. '/modules"/*.lua 2>/dev/null | wc -l')
+  if pipe then modCount = tonumber(pipe:read("*a")) or 0; pipe:close() end
+end
+check("hs-doctor.sh's expected module count matches disk",
+      modCount > 0 and doctor:find("expect " .. modCount .. ")", 1, true) ~= nil, modCount)
+check("INSTALL.md's module count matches disk",
+      modCount > 0 and guide:find(modCount .. " files, loaded by", 1, true) ~= nil, modCount)
+
+-- INSTALL.md has to name the things it tells you to type
+for _, needed in ipairs({
+  "hs-install.sh", "hs-doctor.sh", "run-tests.sh", "secret.lua",
+  "asanaToken", "scutil --get ComputerName", "_G.capabilityReport()",
+  "_G.bootVerbose(true)", "--rollback", "--dry-run",
+}) do
+  check("INSTALL.md tells you about: " .. needed, guide:find(needed, 1, true) ~= nil)
+end
+check("INSTALL.md names the OCR shortcut EXACTLY as the code looks for it",
+      guide:find("HS OCR", 1, true) ~= nil
+      and initText:find('ocrShortcutName = "HS OCR"', 1, true) ~= nil)
+
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

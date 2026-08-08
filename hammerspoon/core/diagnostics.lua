@@ -251,6 +251,26 @@ return function(core)
             add("   frontmost app  : %s", app and app:name() or "?")
         end)
 
+        -- 6.44.13 — THE CAPABILITY BLOCK. This is the first thing I want
+        -- when you paste a report back: not "what is installed" but "what
+        -- can this particular Mac actually do, and what does it cost when
+        -- it cannot". pcall'd and optional on purpose — capabilities is a
+        -- separate core file, and a report that dies because one optional
+        -- block is missing is worse than a report without that block.
+        add("")
+        if type(_G.capabilityReport) == "function" then
+            local okCap, block = pcall(_G.capabilityReport)
+            if okCap and type(block) == "string" then
+                add("── %s", block:gsub("\n", "\n"))
+            else
+                add("── CAPABILITIES ──────────────────────────────────────")
+                add("   report failed: %s", tostring(block))
+            end
+        else
+            add("── CAPABILITIES ──────────────────────────────────────")
+            add("   core/capabilities.lua is not loaded on this Mac")
+        end
+
         add("")
         add("── PATHS ─────────────────────────────────────────────")
         add("   logs dir       : %s", _G.diag.fileInfo(logsDir))
