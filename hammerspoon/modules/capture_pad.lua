@@ -115,6 +115,11 @@ function M.setup(core)
     pad.key        = "n"
     pad.maxImagesPerNote = 8
     pad.maxQueue   = 200         -- a bounded queue; see the note on flush()
+    -- true = the pad takes the keyboard when it opens, so you can start
+    -- typing immediately. Set false if you would rather it appear without
+    -- taking focus at all and click into it yourself. Either way it no
+    -- longer activates the whole Hammerspoon app — see the note in show().
+    pad.focusOnOpen = true
     pad.uploadTimeout = 60       -- seconds curl may spend on one attachment
     pad.flushTimeout  = 300      -- seconds a whole flush may take before the
                                  -- "already sending" latch is force-cleared
@@ -1113,15 +1118,27 @@ function M.setup(core)
         -- NSWindowStyleMaskBorderless when it builds the window, so asking
         -- for a title bar did nothing except look like it had been handled.
         -- The header bar is the drag handle instead — see pad.beginDrag.
-        pcall(function() view:allowTextEntry(true) end)       -- without this you cannot type
+        -- allowTextEntry(true) is what lets this window take the keyboard at
+        -- all: inside hs.webview it sets canBecomeKeyWindow, which defaults
+        -- to NO. Without it the pad draws fine and swallows every keystroke.
+        pcall(function() view:allowTextEntry(true) end)
         pcall(function() view:closeOnEscape(true) end)
         pcall(function() view:level(hs.drawing.windowLevels.floating) end)
         pad.render()
         pcall(function() view:show() end)
-        -- bringToFront + the window being key is what puts the caret in the
-        -- textarea; autofocus alone does nothing if the window is not key.
-        pcall(function() view:bringToFront(true) end)
-        pcall(function() hs.application.launchOrFocus("Hammerspoon") end)
+
+        -- 🐛 6.44.6 — THE CONSOLE USED TO JUMP FORWARD WITH THE PAD. There
+        -- was an hs.application.launchOrFocus("Hammerspoon") here, added to
+        -- get the caret into the textarea. It was the wrong tool twice over:
+        -- it activates the WHOLE APPLICATION, so every Hammerspoon window
+        -- came forward with it — the Console most visibly — and it was not
+        -- even needed, because bringToFront() already calls
+        -- makeKeyAndOrderFront: and allowTextEntry(true) above has already
+        -- made this window able to become key. Raising one window is the
+        -- job; activating the app was collateral damage.
+        if pad.focusOnOpen then
+            pcall(function() view:bringToFront(true) end)
+        end
         _G.diag.say("capturePad", "pad opened, " .. #pad.queue .. " queued")
     end
 

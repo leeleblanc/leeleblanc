@@ -4,9 +4,30 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.5-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.6-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.44.6 — ⇪N NO LONGER DRAGS THE CONSOLE FORWARD:
+--   🐛 OPENING THE CAPTURE PAD ACTIVATED THE WHOLE APPLICATION. show() had
+--      an hs.application.launchOrFocus("Hammerspoon") in it, which I added
+--      to get the caret into the textarea. Wrong tool twice over: it
+--      activates the APP, so every Hammerspoon window came forward with
+--      the pad — the Console most visibly — and it was not needed at all.
+--      allowTextEntry(true) already sets canBecomeKeyWindow inside
+--      hs.webview (it defaults to NO), and bringToFront() already calls
+--      makeKeyAndOrderFront:. Raising one window was the job; activating
+--      the app was collateral damage. The call is gone.
+--   ⚙️ capturePad.focusOnOpen (default true) decides whether the pad takes
+--      the keyboard when it opens. Set it false to have the pad appear
+--      without stealing focus and click into it yourself. Neither setting
+--      activates the application.
+--   🔍 CHECKED THE REST OF THE CONFIG FOR THE SAME MISTAKE: nothing else
+--      does this. The other activate() calls (App Peek, Window Arranger,
+--      ⌥Tab) target the app you are switching TO, which is their whole
+--      purpose.
+--   🧪 A test asserts the app is never activated, and a mutation putting
+--      the old call back is caught. 317 checks in test_features.lua,
+--      709 across all five suites.
 -- NEW IN 6.44.5 — A PARKED NOTE NOW EXPLAINS ITSELF:
 --   ⚠️ THE WARNING LOOKED LIKE A LIVE ERROR ABOUT THE WRONG NOTE. The pad
 --      said "1 note could not be sent after 3 tries" and then listed the
@@ -1927,7 +1948,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.44.5"
+_G.configVersion = "6.44.6"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -5742,9 +5763,9 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.44.5"
+    local currentVersion = "6.44.6"
     local currentDate    = "08-05-26"
-    local currentNotes   = "Capture Pad: a parked note now explains itself. The warning said a note could not be sent and then listed the QUEUED notes underneath, so the row on screen was never the one that failed, and the banner reappeared after every successful send — nothing was broken, but it was impossible to tell that by looking. Parked notes now get their own rows, badged PARKED, dated, and carrying the reason the send failed taken from Asana's own error message rather than a bare count; the banner says the note is from an earlier send and will not go out until put back. The underlying behaviour is correct and unchanged: a parked note is never included in a later send, which is the entire point of parking. A mutation that made flush fall through to the parked list survived and was investigated rather than papered over — it is unreachable because the empty-queue guard returns first, proven by removing the guard as well and watching the suite fail. A new test covers the real case: Send now with an empty queue and something parked must post nothing. 704 checks across five suites."
+    local currentNotes   = "Opening the Capture Pad no longer drags the Hammerspoon Console forward. show() called hs.application.launchOrFocus on Hammerspoon to get the caret into the text box, which activates the whole application and brings every one of its windows with it. It was also unnecessary: allowTextEntry(true) already sets canBecomeKeyWindow inside hs.webview, which defaults to NO, and bringToFront already calls makeKeyAndOrderFront. Raising one window was the job; activating the app was collateral damage. Added capturePad.focusOnOpen, default true, to control whether the pad takes the keyboard at all when it opens. Checked the rest of the config for the same mistake and found none — the other activate calls target the app being switched to, which is their purpose. A test asserts the application is never activated and a mutation restoring the old call is caught. 709 checks across five suites."
 
     -- Only append if this version isn't already in the file
     local found = false

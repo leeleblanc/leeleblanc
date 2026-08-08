@@ -1646,6 +1646,54 @@ do
 end
 
 -- =====================================================================
+-- 10. OPENING THE PAD MUST NOT ACTIVATE THE WHOLE APPLICATION (6.44.6)
+-- =====================================================================
+do
+  APP_ACTIVATIONS = {}
+  hs.application = { launchOrFocus = function(n)
+      table.insert(APP_ACTIVATIONS, n) end }
+  hs.webview = {
+    usercontent = { new = function(name)
+        local uc = { name = name }
+        function uc:setCallback(fn) self.callback = fn; return self end
+        return uc
+    end },
+    new = function(rect, opts, uc)
+        local w = { rect = rect, uc = uc, htmlText = nil, front = nil,
+                    textEntry = nil,
+                    frameRect = { x = rect.x, y = rect.y, w = rect.w, h = rect.h } }
+        function w:frame(f) if f then self.frameRect = f; return self end return self.frameRect end
+        function w:html(h) self.htmlText = h; return self end
+        function w:allowTextEntry(v) self.textEntry = v; return self end
+        function w:bringToFront(v) self.front = v; return self end
+        for _, m in ipairs({ "windowTitle","windowStyle","closeOnEscape",
+                             "level","show","delete" }) do
+          w[m] = function(self) return self end
+        end
+        return w
+    end,
+  }
+  pad.queue, pad.parked, pad.draftImages, pad.draft = {}, {}, {}, ""
+  pad.show()
+  check("🐛 6.44.6 — opening the pad does NOT activate the Hammerspoon app "
+        .. "(that is what dragged the Console forward with it)",
+        #APP_ACTIVATIONS == 0, table.concat(APP_ACTIVATIONS, ","))
+  check("...the pad window itself is still raised", pad.webview.front == true)
+  check("...and can still take the keyboard, which is what allowTextEntry does",
+        pad.webview.textEntry == true)
+
+  pad.hide()
+  pad.focusOnOpen = false
+  pad.show()
+  check("focusOnOpen = false opens the pad without grabbing focus at all",
+        pad.webview.front == nil)
+  check("...and still never activates the app", #APP_ACTIVATIONS == 0)
+  pad.focusOnOpen = true
+  pad.hide()
+  hs.webview = nil
+end
+
+-- =====================================================================
 os.execute('rm -rf "' .. TMP .. '"')
 realPrint(string.format("\n%d passed, %d failed", pass, fail))
 if fail > 0 then
