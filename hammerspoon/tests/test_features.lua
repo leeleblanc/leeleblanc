@@ -550,6 +550,50 @@ local okFull, whyFull = pad.addNote("third", {})
 check("the queue is bounded", okFull == false and tostring(whyFull):find("full", 1, true))
 pad.maxQueue = 200
 
+-- 🐛 6.44.10 — A NOTE MUST LIVE IN EXACTLY ONE LIST. Reported as a PARKED
+-- row showing the same text as the QUEUED row beneath it, with "parked
+-- before this pad tracked reasons" as the reason — which is precisely what
+-- a QUEUED note rendered as parked looks like, since queued notes carry no
+-- parkedAt and no lastError and the reason line falls through to that.
+printed = {}
+pad.queue  = { { id = "dup", text = "Drink that tang", createdAt = 1, images = {}, tries = 0 } }
+pad.parked = { { id = "dup", text = "Drink that tang", createdAt = 1, images = {}, tries = 3 } }
+check("🐛 6.44.10 — a parked entry duplicating a queued note is dropped",
+      pad.normalize() == true and #pad.parked == 0)
+check("...and the QUEUED copy survives, because it is the one that sends",
+      #pad.queue == 1 and pad.queue[1].text == "Drink that tang")
+check("...and the console says so rather than repairing it silently",
+      logged("stale parked"))
+
+-- the worst version of the same fault: ONE table used as both lists, which
+-- renders every queued note as parked too and which no id check would see
+printed = {}
+pad.queue = { { id = "z", text = "one list", createdAt = 1, images = {}, tries = 0 } }
+pad.parked = pad.queue
+check("...one table used as BOTH lists is caught by identity, not by id",
+      pad.normalize() == true and #pad.parked == 0 and #pad.queue == 1)
+check("...and that one is announced too", logged("SAME"))
+
+-- and a genuinely parked note must be left completely alone
+printed = {}
+pad.queue  = { { id = "q1", text = "still going", createdAt = 1, images = {}, tries = 0 } }
+pad.parked = { { id = "p1", text = "really failed", createdAt = 1, images = {}, tries = 3,
+                 parkedAt = 5, lastError = "HTTP 403" } }
+check("...a real parked note is untouched — this guard must not eat history",
+      pad.normalize() == false and #pad.parked == 1
+      and pad.parked[1].text == "really failed" and #pad.queue == 1)
+check("...and stays quiet when there is nothing to fix", not logged("stale parked"))
+
+-- and load() must apply it, or a bad queue.json survives every restart
+pad.queue  = { { id = "same", text = "written twice", createdAt = 1, images = {}, tries = 0 } }
+pad.parked = { { id = "same", text = "written twice", createdAt = 1, images = {}, tries = 3 } }
+pad.save()
+pad.queue, pad.parked = {}, {}
+pad.load()
+check("...and load() repairs it on the way in, so a bad file cannot persist",
+      #pad.queue == 1 and #pad.parked == 0)
+pad.queue, pad.parked = {}, {}
+
 -- flush: success path
 HTTP_POSTS = {}
 pad.queue = { { id = "a", text = "Email Dana the numbers", createdAt = 1, images = {}, tries = 0 } }

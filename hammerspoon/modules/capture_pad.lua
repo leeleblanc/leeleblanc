@@ -382,8 +382,56 @@ function M.setup(core)
         if type(data) ~= "table" then return end
         pad.queue  = type(data.queue)  == "table" and data.queue  or {}
         pad.parked = type(data.parked) == "table" and data.parked or {}
+        pad.normalize()
         _G.diag.say("capturePad", string.format("loaded %d queued, %d parked",
                                                 #pad.queue, #pad.parked))
+    end
+
+    -- 🐛 6.44.10 — THE TWO LISTS MUST BE SEPARATE, AND A NOTE MUST BE IN
+    -- ONLY ONE OF THEM. A parked row that shows the same text as a queued
+    -- row, with "parked before this pad tracked reasons" as its reason, is
+    -- what you see when a queued note is being rendered as a parked one —
+    -- queued notes have no parkedAt and no lastError, so the reason line
+    -- falls through to that message every time. It looks like a display
+    -- fault and it is really a data fault, so it is fixed in the data.
+    --
+    -- The QUEUED copy always wins: it is the one that will actually send.
+    -- A parked duplicate of it is stale by definition.
+    --
+    -- This is LOUD on purpose. If it ever fires, the console says so, which
+    -- is worth more than a silent repair I would have to guess about later.
+    function pad.normalize()
+        if type(pad.queue)  ~= "table" then pad.queue  = {} end
+        if type(pad.parked) ~= "table" then pad.parked = {} end
+        -- rawequal, not ==: one table used as both lists renders every
+        -- queued note as parked as well, and no id check would catch it.
+        if rawequal(pad.queue, pad.parked) then
+            print("🗒 Capture Pad: the queue and the parked list were the SAME "
+                  .. "table — parked has been reset to empty. Every note is "
+                  .. "still in the queue and will send normally.")
+            pad.parked = {}
+            return true
+        end
+        local queued, fixed = {}, 0
+        for _, n in ipairs(pad.queue) do
+            if type(n) == "table" and n.id then queued[n.id] = true end
+        end
+        for i = #pad.parked, 1, -1 do
+            local n = pad.parked[i]
+            if type(n) ~= "table" or (n.id and queued[n.id]) then
+                table.remove(pad.parked, i)
+                fixed = fixed + 1
+            end
+        end
+        if fixed > 0 then
+            print(string.format(
+                "🗒 Capture Pad: removed %d stale parked entr%s that duplicated a "
+                .. "note already in the queue. The queued copy is the live one "
+                .. "and still sends; nothing was lost.",
+                fixed, fixed == 1 and "y" or "ies"))
+            pad.save()
+        end
+        return fixed > 0
     end
 
     local function newId()

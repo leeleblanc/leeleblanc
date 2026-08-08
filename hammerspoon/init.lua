@@ -4,9 +4,34 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.9-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.10-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.44.10 — THE DUPLICATE "PARKED" ROW, AND A READABLE CONSOLE:
+--   🐛 A PARKED ROW SHOWING THE SAME NOTE AS THE QUEUED ROW BELOW IT. Two
+--      screenshots taken four minutes apart both showed it, and in both the
+--      parked text matched the queued text exactly — which is not a thing
+--      that happens twice by chance. The reason line gave it away: "parked
+--      before this pad tracked reasons" is what prints when a note has no
+--      parkedAt and no lastError, and a QUEUED note never has either. So a
+--      queued note was living in the parked list as well.
+--   🔒 FIXED IN THE DATA, NOT IN THE VIEW. pad.normalize() runs on every
+--      load: if the two lists are literally the same table it separates
+--      them, and any parked entry whose id is already in the queue is
+--      dropped. THE QUEUED COPY ALWAYS WINS — it is the one that actually
+--      sends, so the parked twin is stale by definition. A genuinely parked
+--      note, with its own id, is never touched.
+--   📣 AND IT SAYS SO. Both repairs print to the Console. A silent fix here
+--      would have left me guessing at the cause again later.
+--   🧬 4 mutations caught, including "one table used as both lists goes
+--      undetected" and "the guard eats genuinely parked notes".
+--   🔇 THE CONSOLE IS WORTH READING AGAIN. hs.hotkey logged every enable and
+--      disable at info level, and the ⌥Tab switcher binds 32 arrow hotkeys
+--      on open and releases them on close — 64 lines per use. Three switches
+--      in half a minute buried the boot report and the pad's send results
+--      under ~200 lines of bookkeeping. Log level is "warning" now: real
+--      problems still print, the chatter does not.
+--   🧪 374 checks in test_features.lua, 801 across all six suites.
 -- NEW IN 6.44.9 — SEND NOW SENDS THE NOTE YOU ARE LOOKING AT, AND THE PAD
 -- STOPS DRAGGING HAMMERSPOON TO THE FRONT:
 --   🐛 "NOTHING HAPPENS OTHER THAN LOCAL ACTIONS." Reported with a
@@ -2035,12 +2060,25 @@ safeRequire("hs.fs"); safeRequire("hs.host"); safeRequire("hs.pathwatcher"); saf
 safeRequire("hs.axuielement")
 safeRequire("hs.caffeinate")
 
+-- 🔇 6.44.10 — QUIET THE CONSOLE SO IT IS WORTH READING. hs.hotkey logs
+-- every enable and disable at info level. The ⌥Tab switcher binds 32 arrow
+-- hotkeys when it opens and releases them when it closes (8 keys × 4
+-- modifier masks, because hs.hotkey matches modifier flags EXACTLY, so a
+-- bare-mask binding cannot fire while ⌥ is held). That is 64 console lines
+-- per use of the switcher. Three switches in half a minute buried the only
+-- lines that mattered — the boot report and the Capture Pad's send results
+-- — under ~200 lines of bookkeeping, which is how a console stops being a
+-- debugging tool. Warnings and errors still print; the routine chatter does
+-- not. Set this to "info" if a hotkey ever fails to bind and you want the
+-- play-by-play back.
+pcall(function() hs.hotkey.setLogLevel("warning") end)
+
 -- DYNAMIC HOME DIRECTORY RESOLUTION
 local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.44.9"
+_G.configVersion = "6.44.10"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -5855,9 +5893,9 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.44.9"
+    local currentVersion = "6.44.10"
     local currentDate    = "08-08-26"
-    local currentNotes   = "Send now sends the note you are looking at. Filing and sending were two separate steps, so pressing Send with a note still in the compose box answered nothing queued — true, and useless, since the note on screen is self-evidently the one meant to go. Send now files the open draft first, then sends. Whitespace is still not a note, and a draft that cannot be filed stops the send instead of sending a half-state. The pad also stops dragging Hammerspoon to the front: 6.44.6 removed this module's launchOrFocus, but macOS activates an app whenever any ordinary window of it becomes key, and the pad must become key to accept typing. It now asks for a non-activating panel, the one window kind exempt from that, and reads the mask back rather than assuming — reporting the reason and naming capturePad.focusOnOpen = false when AppKit refuses. The bigger change is how this is checked: every Capture Pad bug in 6.44.x lived in the page's JavaScript, which the suites could only read as text. tests/dump_pad_html.lua renders the page from the real module and tests/test_pad_js.js executes it against a DOM stub, driving the actual onclick strings, keydown handler and drag; it catches the 6.44.7 wiped-draft bug that no structural test could. 12 mutations caught across the two layers. Added tools/run-tests.sh: one command and one exit code for syntax, the five Lua suites and the page JavaScript, which reports a skipped stage as a skip and never as a pass. 793 checks across six suites."
+    local currentNotes   = "Fixed a PARKED row that showed the same note as the queued row below it. The reason line gave it away: 'parked before this pad tracked reasons' is what prints when a note has no parkedAt and no lastError, and a queued note never has either — so a queued note was living in the parked list too. pad.normalize() now runs on every load: if the two lists are the same table it separates them, and any parked entry whose id is already in the queue is dropped. The queued copy always wins because it is the one that actually sends; a genuinely parked note with its own id is never touched, and both repairs print to the Console rather than being silent. 4 mutations caught. Also quieted the Console: hs.hotkey logged every enable and disable at info level, and the Alt-Tab switcher binds 32 arrow hotkeys on open and releases them on close, so three switches in half a minute buried the boot report and the pad's send results under about 200 lines of bookkeeping. Log level is now warning. 801 checks across six suites."
 
     -- Only append if this version isn't already in the file
     local found = false
