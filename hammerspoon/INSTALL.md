@@ -21,7 +21,7 @@ with no admin password. The two steps that *can* use admin are marked
 │   ├── cheatsheet.lua        ⇪/
 │   ├── boot_report.lua       the Console's first two lines
 │   └── capabilities.lua      what works on THIS Mac
-├── modules/              18 files, loaded by the §1.12 loader
+├── modules/              19 files, loaded by the §1.12 loader
 ├── tools/                hs-doctor.sh · hs-install.sh · run-tests.sh
 └── logs/                 only if there is no OneDrive on this Mac
 ```
@@ -201,6 +201,7 @@ run and whether it exists here, and every path it writes to. Read-only.
 | ⇪⇧D | a diagnostic report, also copied to your clipboard |
 | ⌥Tab | the window switcher |
 | ⇪N | the Capture Pad |
+| ⇪M | the mouse grid — type a cell's 3 letters, the pointer jumps there |
 | ⌃⌥⌘V | clipboard history |
 
 If **⇪ does nothing at all**, the Caps Lock remap was refused — check
@@ -265,7 +266,7 @@ No OneDrive on that Mac is fine — logs fall back to
 sh ~/.hammerspoon/tools/run-tests.sh ~/.hammerspoon
 ```
 
-Syntax on `init.lua`, `core/` and all 18 modules, six Lua suites, then the
+Syntax on `init.lua`, `core/` and all 19 modules, seven Lua suites, then the
 Capture Pad's page JavaScript **executed** against a DOM stub. One exit
 code. A skipped stage is reported as a skip, never as a pass.
 

@@ -4,6 +4,60 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.45.0 — MOUSE GRID (⇪M): TYPE THREE LETTERS, THE POINTER GOES THERE:
+  🎯 ⇪M lays a labelled grid over EVERY display. Each cell carries three
+     home-row letters; type them and the pointer jumps to that cell. ⇪⇧M
+     clicks on arrival. After it lands you can stay on the keyboard —
+     SPACE clicks, ⇧SPACE right-clicks, 2 double-clicks, arrows nudge 8pt
+     (1pt with ⇧), ⎋ backs out — or just use the trackpad.
+  📐 A COORDINATE TOOL, DELIBERATELY NOT AN ELEMENT TOOL. It knows nothing
+     about what is underneath, which is exactly why it never fails: video,
+     PDFs, a Photoshop canvas, a remote desktop, any pixel is reachable.
+     Walking the Accessibility tree for real buttons (Vimac/Homerow style)
+     is more precise where it works and returns NOTHING in Electron and
+     Java apps, costs 100–500ms per invocation, and needs a permission the
+     work Mac may withhold. That can be layered on later as a second stage
+     sharing these keys; it must not be merged in, because the two have
+     opposite failure modes.
+  🚨 THE MOST DANGEROUS MODULE IN THIS CONFIG, AND BUILT LIKE IT. A
+     full-screen overlay that captures keystrokes can lock you out of your
+     own Mac. Four independent defences: ONE invariant (state ⟺ modal ⟺
+     canvas) behind a single idempotent teardown that pcalls each step
+     separately; a WATCHDOG so nothing outlives its keypress; a PANIC key
+     on a plain chord (⌃⌥⌘⇧M) rather than ⇪, because if ⇪ is what broke
+     then a ⇪ panic key is no panic key; and unbound keys PASS THROUGH, so
+     ⌘Q and ⌘Tab keep working while the grid is up. Landed mode is never
+     invisible — whenever keys are captured, a badge says so.
+  🐛 THE SUITE CAUGHT THE EXACT FAILURE THAT MATTERS. hide() first walked
+     `grid.cache.screens or {}` to put the overlay away. When the thing
+     that broke IS the cache, `or {}` makes the teardown a no-op: the
+     modal exited, the state cleared, and the sheet stayed on screen over
+     everything. Teardown must never depend on the structure that just
+     failed, so a flat list of what is actually on screen is now kept
+     separately, and a mutation pins the regression.
+  🐛 Also mine: `#chars ^ n` parses as `#(chars ^ n)` because Lua binds ^
+     tighter than unary # — the same precedence family that crashed
+     6.44.13's word-wrap.
+  ⚡️ FAST BY ARCHITECTURE, NOT BY LUCK. 729 cells is ~1,500 canvas
+     elements. Scrim and lines are one cached canvas per screen, built
+     once per display layout; labels are a second canvas and the only
+     thing redrawn; each keystroke shrinks 729 → 81 → 9, so every redraw
+     is cheaper than the last. A screen watcher drops the cache when
+     displays change, rather than drawing yesterday's grid over today's
+     screens.
+  🔢 CAPACITY IS ARITHMETIC, AND IT IS PUBLISHED. alphabet^length = 9³ =
+     729 cells, ~45pt on one display, near Apple's own 44pt minimum
+     control size. TWO DISPLAYS SPLIT THAT into ~85pt cells, coarser than
+     many buttons — which is what the arrow-nudge is for, and widening
+     grid.alphabet buys the fine grid back. _G.mouseGridReport() prints
+     the real cell size on THIS Mac and warns when it is too coarse.
+  ♿️ MOVING AND CLICKING ARE NOT THE SAME PERMISSION. Warping the pointer
+     needs nothing, so the JUMP works on any Mac. Synthesising a click
+     goes through hs.eventtap, which macOS gates behind Accessibility — so
+     without it the grid still jumps and SPACE says why it could not
+     click, instead of looking broken.
+  🧪 207 new checks, 10 mutations, 1,123 across seven suites.
+
 NEW IN 6.44.10 — THE DUPLICATE "PARKED" ROW, AND A READABLE CONSOLE:
   🐛 A PARKED ROW SHOWING THE SAME NOTE AS THE QUEUED ROW BELOW IT. Two
      screenshots taken four minutes apart both showed it, and in both the

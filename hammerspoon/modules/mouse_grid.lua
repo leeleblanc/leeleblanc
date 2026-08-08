@@ -1,0 +1,910 @@
+-- =====================================================================
+-- MODULE: MOUSE GRID (⇪M) — type three letters, the pointer goes there
+-- =====================================================================
+-- ⇪M lays a labelled grid over every display. Every cell carries a
+-- three-letter code ("agl"). Type it and the pointer jumps to that cell's
+-- centre. Then either click with the trackpad, or stay on the keyboard:
+-- SPACE clicks, arrows nudge, ⎋ backs out.
+--
+-- ⇪⇧M is the same thing that clicks for you the moment you finish typing.
+-- ⌃⌥⌘⇧M is the panic key — see SAFETY below.
+--
+-- ---------------------------------------------------------------------
+-- WHAT THIS IS, AND THE THING IT DELIBERATELY IS NOT
+-- ---------------------------------------------------------------------
+-- This is a COORDINATE tool. It divides screen area into cells and moves
+-- the pointer. It knows nothing about what is underneath, which is
+-- exactly why it never fails: it works over video, PDFs, a Photoshop
+-- canvas, a remote desktop session, a game, a screen-shared window — any
+-- pixel is reachable.
+--
+-- The other family of tool (Vimac, Homerow, Scoot's element mode) walks
+-- the ACCESSIBILITY TREE, finds real buttons and links, and labels only
+-- those. It is more precise where it works, and it is what "like tabbing
+-- onto a button" literally means. It was not built here, on purpose:
+--
+--   · it returns nothing in Electron apps, nothing in Java apps, and
+--     nothing in anything that draws its own controls
+--   · a full AX walk of a large window costs 100–500ms, every invocation
+--   · it needs Accessibility, which a managed Mac can withhold — and
+--     this module has to work on the work MacBook
+--
+-- So the FEEL of "tab onto it, press space" is provided instead, without
+-- the fragility: after the jump the pointer stays live (see LANDED MODE)
+-- so SPACE activates whatever it is sitting on. If the grid ever proves
+-- too coarse for real targets, element detection can be added later as a
+-- second stage sharing this same key handling. It should not be merged
+-- into this one — the two have opposite failure modes.
+--
+-- ---------------------------------------------------------------------
+-- 🚨 SAFETY — THE REAL RISK IN THIS FILE
+-- ---------------------------------------------------------------------
+-- A full-screen overlay that captures keystrokes is the most dangerous
+-- thing in this config. Get the state machine wrong and the Mac is
+-- unusable until Hammerspoon is force-quit. Four defences, each of which
+-- works when the other three have failed:
+--
+--   1. ONE INVARIANT, ONE EXIT. `grid.state ~= nil` ⟺ a modal is entered
+--      ⟺ a canvas is visible. Every path out goes through grid.hide(),
+--      which is idempotent and pcalls each teardown step separately, so
+--      one failing step cannot strand the others.
+--   2. WATCHDOG. An overlay that outlives its keypress tears itself down
+--      (grid.timeoutSecs). Nothing here can sit on your screen forever.
+--   3. PANIC KEY. ⌃⌥⌘⇧M is a PLAIN global chord, not a ⇪ shortcut —
+--      because if ⇪ itself is what broke, a ⇪ panic key is no panic key.
+--      Same reasoning as Screen Veil's ⌃⌥⌘⇧G.
+--   4. UNBOUND KEYS PASS THROUGH. Only the alphabet plus a handful of
+--      control keys are claimed. ⌘Q, ⌘Tab and ⌃F2 keep working while the
+--      grid is up. This is a deliberate refusal to capture everything:
+--      an overlay you can always ⌘Q out of cannot lock you out.
+--
+-- And LANDED MODE is never invisible. Whenever keys are being captured
+-- there is something on screen saying so — the grid itself, or the
+-- crosshair badge. A keyboard-eating mode with no visual is the hazard;
+-- the badge is not decoration.
+--
+-- ---------------------------------------------------------------------
+-- HOW MANY CELLS YOU GET — the arithmetic, because it is not obvious
+-- ---------------------------------------------------------------------
+-- Labels are FIXED length, which a grid requires: uniform cells cannot
+-- carry a prefix-free variable-length code. So capacity is exactly
+--
+--        #alphabet ^ labelLength
+--
+-- Default: 9 home-row keys, 3 deep = 729 cells, and your fingers never
+-- leave asdfghjkl. On one 1512×982 display that is ~34×21 cells of about
+-- 45pt — near Apple's own 44pt minimum control size, so most targets are
+-- a straight hit.
+--
+-- ⚠️ TWO OR MORE DISPLAYS SPLIT THAT 729. Two screens gives roughly
+-- 85pt cells, which is coarser than many buttons — the arrow-key nudge in
+-- landed mode exists for exactly that. If you run multiple displays and
+-- want the fine grid back, buy capacity by widening the alphabet:
+--
+--        "asdfghjkl"          9  ->    729 cells
+--        "asdfghjklzxcvbnm"  16  ->  4,096 cells   (adds the bottom row)
+--        "asdfghjkl", len 4   9  ->  6,561 cells   (home row, 4 keystrokes)
+--
+-- `_G.mouseGridReport()` prints what this Mac actually resolved to —
+-- per screen, cols × rows and the real cell size in points. Run it once
+-- on each machine; it is the fastest way to see whether the grid is fine
+-- enough for the way you work.
+--
+-- ---------------------------------------------------------------------
+-- WHY IT IS FAST — and it has to be, or you will not use it
+-- ---------------------------------------------------------------------
+-- 729 cells is ~1,500 canvas elements. Rebuilding that on every press
+-- would put a visible stall between the keystroke and the grid, which is
+-- the difference between a tool you reach for and one you forget. So:
+--
+--   · GRID LINES AND SCRIM are one canvas per screen, built ONCE for a
+--     given display layout and cached forever after. ~50 elements.
+--   · LABELS are a SECOND canvas, and the only thing rebuilt. The full
+--     unfiltered element table is cached too, so even the first draw is
+--     a table reuse rather than a build, from the second invocation on.
+--   · FILTERING SHRINKS IT. Type one letter and 729 candidates become
+--     81; another and 81 become 9. Every redraw after the first is
+--     cheaper than the one before it.
+--   · The cache is keyed on the display layout and invalidated by a
+--     screen watcher, so plugging in a monitor rebuilds rather than
+--     drawing yesterday's grid over today's screens.
+--
+-- Timings go to the diagnostic trail on every show; `_G.diag.verbose =
+-- true` puts them in the Console.
+--
+-- ⚠️ ACCESSIBILITY: MOVING AND CLICKING ARE NOT THE SAME PERMISSION.
+-- Warping the pointer needs nothing at all, so the JUMP always works,
+-- on any Mac, granted or not. Synthesising a CLICK goes through
+-- hs.eventtap, which macOS gates behind Accessibility. Without it the
+-- grid still jumps and SPACE reports why it could not click, rather than
+-- doing nothing and looking broken.
+
+local M = {
+    name  = "Mouse Grid",
+    order = 13.6,
+    cheatsheet = {
+        title = "🎯 MOUSE GRID (⇪M — type 3 letters, the pointer goes there)",
+        entries = {
+            { "⇪M",       "Overlay the labelled grid on every display" },
+            { "⇪⇧M",      "Same, but click the moment you finish typing" },
+            { "asdfghjkl","Type a cell's 3 letters — the pointer jumps there" },
+            { "⌫",        "Undo one letter while typing" },
+            { "⎋",        "Cancel — the pointer does not move" },
+            { "-- after it lands --", "" },
+            { "space",    "Left click · ⇧space right click · 2 double click" },
+            { "↑↓←→",     "Nudge 8pt · with ⇧ nudge 1pt for a tight target" },
+            { "⎋",        "Done — leave the pointer where it is" },
+            { "⌃⌥⌘⇧M",   "PANIC — tear the overlay down whatever state it is in" },
+            { "check it", "_G.mouseGridReport() — cell size on THIS Mac" },
+        },
+    },
+}
+
+function M.setup(core)
+    local grid = {}
+
+    -- ✏️ EDIT HERE ---------------------------------------------------------
+    grid.enabled     = true
+    grid.key         = "m"          -- ⇪M. ⇪⇧M is the click-on-arrival twin.
+
+    -- Capacity is alphabet^labelLength — see the arithmetic block above.
+    -- These two are ONE decision, not two: changing either changes how
+    -- many cells exist and therefore how precise the grid is.
+    grid.alphabet    = "asdfghjkl"  -- home row only; never leave it
+    grid.labelLength = 3
+
+    -- 🎨 The look you asked for. Read as COVERAGE and BRIGHTNESS, which is
+    -- the only reading that works: a 30% *opaque* grey would hide the very
+    -- thing you are aiming at.
+    --   scrim = black at 30% alpha  ("a 30% shade of grey")
+    --   lines = 80% white           ("lines are 80% grey")
+    grid.scrimWhite  = 0.00
+    grid.scrimAlpha  = 0.30
+    grid.lineWhite   = 0.80
+    grid.lineAlpha   = 0.55
+    grid.lineWidth   = 1.0
+
+    grid.labelSize   = 12
+    grid.labelWhite  = 1.00
+    grid.labelAlpha  = 0.95
+
+    -- After the jump, stay live so SPACE can click (the "tab onto it"
+    -- feel). false = jump and get out of the way immediately.
+    grid.landedMode  = true
+    grid.nudgeStep   = 8            -- arrows, in points
+    grid.nudgeFine   = 1            -- ⇧ + arrows
+
+    -- 🚨 Watchdogs. Neither of these is a nicety.
+    grid.timeoutSecs = 12           -- overlay up, nothing typed
+    grid.landedSecs  = 8            -- landed badge up, nothing pressed
+
+    -- "screenSaver" draws ABOVE the menu bar, which is required: at
+    -- "overlay" the top ~25pt of the grid hides behind it and menu-bar
+    -- items become unreachable. The cost is that it also covers
+    -- hs.alert, so every error path below hides the grid BEFORE it
+    -- alerts. Change this only if something pokes through.
+    grid.windowLevel = "screenSaver"
+    -- ----------------------------------------------------------------------
+
+    -- ---- state -----------------------------------------------------------
+    -- 🚨 THE INVARIANT: state ~= nil  ⟺  a modal is entered  ⟺  a canvas
+    -- is visible. Nothing may break this. grid.hide() is the only way out
+    -- and it restores all three together.
+    grid.state    = nil
+    grid.cache    = nil    -- geometry + canvases, keyed on the screen layout
+    grid.watchdog = nil    -- HELD: an unreferenced hs.timer is collected and
+                           -- silently never fires. That lesson cost 6.33.0 a
+                           -- warm-up, and here it would cost the watchdog.
+    grid.screenWatch = nil -- HELD for the same reason
+    grid.cross    = nil    -- the landed-mode badge canvas
+
+    -- 🐛 A FLAT LIST OF WHAT IS ON SCREEN, KEPT DELIBERATELY SEPARATE FROM
+    -- grid.cache. The first version of hide() walked `grid.cache.screens or
+    -- {}` to put the overlay away, and the test suite caught what that
+    -- means: when the thing that broke IS the cache, `or {}` makes the
+    -- teardown a no-op. The modal exited, the state cleared, and the sheet
+    -- stayed on screen at screenSaver level over everything.
+    --
+    -- Teardown must never depend on the structure that just failed. So
+    -- every canvas made visible is recorded here, and hide() walks THIS.
+    grid.shown = {}
+
+    local function showCanvas(c)
+        if not c then return end
+        c:show()
+        grid.shown[#grid.shown + 1] = c
+    end
+
+    -- Idempotent, and each canvas is pcall'd on its own: one throwing must
+    -- not leave the rest of them up.
+    local function hideAllShown()
+        for _, c in ipairs(grid.shown) do
+            pcall(function() c:hide() end)
+        end
+        grid.shown = {}
+    end
+
+    local function say(msg) if _G.diag then _G.diag.say("mouseGrid", msg) end end
+    local function warn(msg) if _G.diag then _G.diag.warn("mouseGrid", msg) end end
+
+    -- =====================================================================
+    -- LABELS
+    -- =====================================================================
+    -- Index -> label, plain base-N in the alphabet. Row-major assignment
+    -- means the FIRST letter always selects a contiguous horizontal band,
+    -- so typing it lights up a block you can see rather than a scatter.
+    local function alphabetChars()
+        local t = {}
+        for ch in tostring(grid.alphabet):gmatch(".") do t[#t + 1] = ch:lower() end
+        return t
+    end
+
+    local function labelFor(index, chars)
+        local n, out = #chars, {}
+        for place = grid.labelLength, 1, -1 do
+            local digit = math.floor(index / (n ^ (place - 1))) % n
+            out[#out + 1] = chars[digit + 1]
+        end
+        return table.concat(out)
+    end
+
+    -- =====================================================================
+    -- GEOMETRY
+    -- =====================================================================
+    -- fullFrame(), NOT frame(). frame() excludes the menu bar and the Dock,
+    -- and a pointer tool that cannot reach the menu bar or the Dock has
+    -- given away two of the places you most want to click.
+    local function layoutKey()
+        local parts = {}
+        for _, s in ipairs(hs.screen.allScreens()) do
+            local f = s:fullFrame()
+            parts[#parts + 1] = string.format("%d:%d,%d,%d,%d",
+                s:id() or 0, f.x, f.y, f.w, f.h)
+        end
+        parts[#parts + 1] = string.format("|%s^%d|%.2f|%.2f|%.2f",
+            grid.alphabet, grid.labelLength, grid.scrimAlpha, grid.lineAlpha, grid.labelSize)
+        return table.concat(parts, ";")
+    end
+
+    -- Split the label space across displays BY AREA, then pick the
+    -- cols×rows that lands closest to square cells for that display's
+    -- aspect. Doing it by area rather than per-screen-equally is what
+    -- stops a 27" monitor getting the same 200 cells as a laptop panel.
+    local function planScreen(frame, share)
+        if share < 1 then share = 1 end
+        local cols = math.max(1, math.floor(math.sqrt(share * frame.w / frame.h) + 0.5))
+        local rows = math.max(1, math.floor(share / cols))
+        return cols, rows
+    end
+
+    local function buildGeometry()
+        local t0     = hs.timer.secondsSinceEpoch()
+        local chars  = alphabetChars()
+        -- ⚠️ THE PARENTHESES ARE LOAD-BEARING. In Lua `^` binds TIGHTER than
+        -- the unary `#`, so `#chars ^ n` parses as `#(chars ^ n)` and tries
+        -- to exponentiate a table. Same family of precedence trap that
+        -- crashed capabilities.lua's word-wrap in 6.44.13 — clever
+        -- one-liners in arithmetic buy nothing and cost a crash.
+        local capacity = (#chars) ^ grid.labelLength
+        local screens  = hs.screen.allScreens()
+
+        local totalArea = 0
+        for _, s in ipairs(screens) do
+            local f = s:fullFrame(); totalArea = totalArea + (f.w * f.h)
+        end
+        if totalArea <= 0 then return nil, "no screens reported any area" end
+
+        local plan, index, truncated = {}, 0, 0
+        for _, s in ipairs(screens) do
+            local f     = s:fullFrame()
+            local share = math.floor(capacity * (f.w * f.h) / totalArea)
+            local cols, rows = planScreen(f, share)
+            local cw, ch = f.w / cols, f.h / rows
+
+            local cells = {}
+            for r = 0, rows - 1 do
+                for c = 0, cols - 1 do
+                    if index >= capacity then
+                        -- Reported, never silent. A silently truncated grid
+                        -- means a corner of a screen you can never reach and
+                        -- no clue as to why.
+                        truncated = truncated + 1
+                    else
+                        cells[#cells + 1] = {
+                            label = labelFor(index, chars),
+                            -- canvas-relative, for drawing
+                            rx = c * cw, ry = r * ch, rw = cw, rh = ch,
+                            -- absolute screen coords, for the pointer
+                            ax = f.x + c * cw + cw / 2,
+                            ay = f.y + r * ch + ch / 2,
+                        }
+                        index = index + 1
+                    end
+                end
+            end
+            plan[#plan + 1] = {
+                screenId = s:id(), frame = f, cols = cols, rows = rows,
+                cellW = cw, cellH = ch, cells = cells,
+            }
+        end
+
+        local ms = (hs.timer.secondsSinceEpoch() - t0) * 1000
+        if truncated > 0 then
+            warn(string.format("%d cells had no label left (capacity %d) — "
+                .. "widen grid.alphabet or raise grid.labelLength", truncated, capacity))
+        end
+        say(string.format("geometry: %d screens, %d cells of %d capacity, %.1fms",
+            #plan, index, capacity, ms))
+        return { screens = plan, used = index, capacity = capacity,
+                 truncated = truncated, chars = chars }
+    end
+
+    -- =====================================================================
+    -- DRAWING
+    -- =====================================================================
+    -- The scrim and the lines never change for a given layout, so they are
+    -- built once and then only shown/hidden. Lines are drawn as segments
+    -- (2 points, stroked) rather than thin rectangles so strokeWidth means
+    -- exactly what it says at any scale factor.
+    local function gridElements(p)
+        local els = {
+            { type = "rectangle", action = "fill",
+              fillColor = { white = grid.scrimWhite, alpha = grid.scrimAlpha },
+              frame = { x = 0, y = 0, w = p.frame.w, h = p.frame.h } },
+        }
+        local stroke = { white = grid.lineWhite, alpha = grid.lineAlpha }
+        for c = 1, p.cols - 1 do
+            local x = c * p.cellW
+            els[#els + 1] = { type = "segments", action = "stroke",
+                strokeColor = stroke, strokeWidth = grid.lineWidth,
+                coordinates = { { x = x, y = 0 }, { x = x, y = p.frame.h } } }
+        end
+        for r = 1, p.rows - 1 do
+            local y = r * p.cellH
+            els[#els + 1] = { type = "segments", action = "stroke",
+                strokeColor = stroke, strokeWidth = grid.lineWidth,
+                coordinates = { { x = 0, y = y }, { x = p.frame.w, y = y } } }
+        end
+        return els
+    end
+
+    -- One text element per visible cell. `typedLen` chars are dropped from
+    -- the front of every label: once you have typed "a", every remaining
+    -- candidate starts with "a", so repeating it is noise — showing only
+    -- what is left to type is both clearer and progressively cheaper to
+    -- draw, which is the whole performance story on the next redraw.
+    local function labelElements(p, typedLen, matches)
+        local els = {}
+        local pad = math.max(0, (p.cellH - grid.labelSize * 1.25) / 2)
+        for _, cell in ipairs(p.cells) do
+            if matches == nil or matches[cell.label] then
+                els[#els + 1] = {
+                    type = "text",
+                    text = cell.label:sub(typedLen + 1),
+                    textSize  = grid.labelSize,
+                    textColor = { white = grid.labelWhite, alpha = grid.labelAlpha },
+                    textAlignment = "center",
+                    frame = { x = cell.rx, y = cell.ry + pad,
+                              w = cell.rw, h = p.cellH - pad },
+                }
+            end
+        end
+        return els
+    end
+
+    -- Build (or reuse) every canvas for the current layout.
+    local function ensureCache()
+        local key = layoutKey()
+        if grid.cache and grid.cache.key == key then return grid.cache end
+
+        if grid.cache then
+            for _, s in ipairs(grid.cache.screens or {}) do
+                pcall(function() if s.gridCanvas then s.gridCanvas:delete() end end)
+                pcall(function() if s.labelCanvas then s.labelCanvas:delete() end end)
+            end
+        end
+
+        local geo, err = buildGeometry()
+        if not geo then return nil, err end
+
+        local t0 = hs.timer.secondsSinceEpoch()
+        local level = (hs.canvas.windowLevels or {})[grid.windowLevel]
+                      or (hs.canvas.windowLevels or {}).overlay
+        for _, p in ipairs(geo.screens) do
+            local gc = hs.canvas.new(p.frame)
+            local lc = hs.canvas.new(p.frame)
+            if not (gc and lc) then
+                return nil, "hs.canvas.new returned nil — cannot draw the overlay"
+            end
+            gc:replaceElements(gridElements(p))
+            for _, c in ipairs({ gc, lc }) do
+                pcall(function() c:level(level) end)
+                pcall(function()
+                    c:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" })
+                end)
+            end
+            p.gridCanvas  = gc
+            p.labelCanvas = lc
+            -- The unfiltered label table is the expensive one; cached so
+            -- that from the second invocation on, showing the grid is a
+            -- table reuse rather than a build.
+            p.fullLabels  = labelElements(p, 0, nil)
+        end
+
+        say(string.format("canvases built: %.1fms (level %s)",
+            (hs.timer.secondsSinceEpoch() - t0) * 1000, grid.windowLevel))
+        grid.cache = { key = key, screens = geo.screens, used = geo.used,
+                       capacity = geo.capacity, truncated = geo.truncated,
+                       chars = geo.chars }
+        return grid.cache
+    end
+
+    -- =====================================================================
+    -- THE LANDED BADGE — the visual proof that keys are being captured
+    -- =====================================================================
+    local function showCrosshair(px, py)
+        local W, H = 232, 78
+        local scr  = hs.mouse.getCurrentScreen() or hs.screen.mainScreen()
+        local sf   = scr and scr:fullFrame() or { x = 0, y = 0, w = 1440, h = 900 }
+        -- Clamped into the display, then the rings are drawn wherever the
+        -- point ended up INSIDE that box — so the badge stays on screen at
+        -- an edge without the crosshair drifting off the actual target.
+        local cx = math.max(sf.x, math.min(px - W / 2, sf.x + sf.w - W))
+        local cy = math.max(sf.y, math.min(py - 26,    sf.y + sf.h - H))
+        local rx, ry = px - cx, py - cy
+
+        pcall(function() if grid.cross then grid.cross:delete() end end)
+        local c = hs.canvas.new({ x = cx, y = cy, w = W, h = H })
+        if not c then return end
+        local ink = { white = 1.0, alpha = 0.95 }
+        c:replaceElements({
+            { type = "circle", action = "stroke", strokeColor = ink, strokeWidth = 2,
+              center = { x = rx, y = ry }, radius = 13 },
+            { type = "circle", action = "fill", fillColor = { white = 1.0, alpha = 0.9 },
+              center = { x = rx, y = ry }, radius = 2 },
+            { type = "segments", action = "stroke", strokeColor = ink, strokeWidth = 1.5,
+              coordinates = { { x = rx - 22, y = ry }, { x = rx - 17, y = ry } } },
+            { type = "segments", action = "stroke", strokeColor = ink, strokeWidth = 1.5,
+              coordinates = { { x = rx + 17, y = ry }, { x = rx + 22, y = ry } } },
+            { type = "segments", action = "stroke", strokeColor = ink, strokeWidth = 1.5,
+              coordinates = { { x = rx, y = ry - 22 }, { x = rx, y = ry - 17 } } },
+            { type = "segments", action = "stroke", strokeColor = ink, strokeWidth = 1.5,
+              coordinates = { { x = rx, y = ry + 17 }, { x = rx, y = ry + 22 } } },
+            { type = "rectangle", action = "fill",
+              fillColor = { white = 0.0, alpha = 0.72 }, roundedRectRadii = { xRadius = 5, yRadius = 5 },
+              frame = { x = 8, y = H - 24, w = W - 16, h = 18 } },
+            { type = "text", text = "space click · ↑↓←→ nudge · ⎋ done",
+              textSize = 11, textColor = { white = 1.0, alpha = 0.95 },
+              textAlignment = "center",
+              frame = { x = 8, y = H - 23, w = W - 16, h = 17 } },
+        })
+        pcall(function()
+            c:level((hs.canvas.windowLevels or {})[grid.windowLevel]
+                    or (hs.canvas.windowLevels or {}).overlay)
+        end)
+        pcall(function() c:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" }) end)
+        c:show()
+        grid.cross = c
+    end
+
+    -- =====================================================================
+    -- TEARDOWN — the single exit. Everything else calls this.
+    -- =====================================================================
+    -- 🚨 Idempotent, and every step is pcall'd SEPARATELY on purpose: if
+    -- hiding one canvas throws, the modal must still exit and the rest
+    -- must still come down. A shared pcall would let one failure strand
+    -- the overlay, which is precisely the lock-out this guards against.
+    function grid.hide(reason)
+        if grid.watchdog then
+            pcall(function() grid.watchdog:stop() end)
+            grid.watchdog = nil
+        end
+        hideAllShown()
+        pcall(function() if grid.cross then grid.cross:delete() end end)
+        grid.cross = nil
+        pcall(function() if grid.pickModal then grid.pickModal:exit() end end)
+        pcall(function() if grid.landModal then grid.landModal:exit() end end)
+        if grid.state then
+            say("closed (" .. tostring(reason or "done") .. ")")
+            grid.state = nil
+        end
+    end
+
+    local function armWatchdog(secs, why)
+        if grid.watchdog then pcall(function() grid.watchdog:stop() end) end
+        grid.watchdog = hs.timer.doAfter(secs, function()
+            warn("watchdog fired after " .. secs .. "s — " .. why)
+            grid.hide("watchdog")
+        end)
+    end
+
+    -- =====================================================================
+    -- CLICKING
+    -- =====================================================================
+    -- Moving the pointer needs no permission; clicking does. Kept apart so
+    -- the failure is specific: on a Mac without Accessibility the jump
+    -- still works and only the click reports why.
+    local function axAvailable()
+        local ok, granted = pcall(hs.accessibilityState)
+        return ok and granted == true
+    end
+
+    local function clickAt(point, kind)
+        if not axAvailable() then
+            grid.hide("click refused")
+            hs.alert.show("🎯 Pointer moved. macOS will not let Hammerspoon "
+                .. "click without Accessibility —\nSystem Settings → Privacy & "
+                .. "Security → Accessibility. Trackpad click still works.")
+            warn("click requested with Accessibility off")
+            return false
+        end
+        local ok, err = pcall(function()
+            if kind == "right" then
+                hs.eventtap.rightClick(point)
+            elseif kind == "double" then
+                -- A real double click is ONE property, not two fast clicks:
+                -- without clickState = 2 most apps see two singles and you
+                -- get two selections instead of an open. Falls back to two
+                -- clicks if this build has no such property.
+                local e  = hs.eventtap.event
+                local okd = pcall(function()
+                    for _, t in ipairs({ e.types.leftMouseDown, e.types.leftMouseUp,
+                                         e.types.leftMouseDown, e.types.leftMouseUp }) do
+                        e.newMouseEvent(t, point)
+                         :setProperty(e.properties.mouseEventClickState, 2)
+                         :post()
+                    end
+                end)
+                if not okd then
+                    hs.eventtap.leftClick(point); hs.eventtap.leftClick(point)
+                end
+            else
+                hs.eventtap.leftClick(point)
+            end
+        end)
+        if not ok then
+            grid.hide("click failed")
+            hs.alert.show("🎯 Could not click — see the Console")
+            warn("click failed: " .. tostring(err))
+            return false
+        end
+        say(kind .. " click at " .. math.floor(point.x) .. "," .. math.floor(point.y))
+        return true
+    end
+
+    local function movePointer(point)
+        -- absolutePosition is the current name; setAbsolutePosition is the
+        -- old one. Both exist on some builds, neither on none — try in
+        -- order rather than assuming which Hammerspoon this Mac has.
+        local ok = pcall(function() hs.mouse.absolutePosition(point) end)
+        if not ok then ok = pcall(function() hs.mouse.setAbsolutePosition(point) end) end
+        if not ok then warn("could not move the pointer") end
+        return ok
+    end
+
+    -- =====================================================================
+    -- LANDED MODE
+    -- =====================================================================
+    local function enterLanded(point)
+        hideAllShown()
+        pcall(function() grid.pickModal:exit() end)
+        local okEnter = pcall(function() grid.landModal:enter() end)
+        if not okEnter then
+            -- Could not take the keyboard, so do not pretend to have it:
+            -- the pointer has already moved, which is most of the value.
+            grid.hide("could not enter landed mode")
+            warn("landModal:enter() failed — pointer moved, keys not captured")
+            return
+        end
+        grid.state = { phase = "landed", point = point }
+        showCrosshair(point.x, point.y)
+        armWatchdog(grid.landedSecs, "landed badge left open")
+        say("landed at " .. math.floor(point.x) .. "," .. math.floor(point.y))
+    end
+
+    local function nudge(dx, dy)
+        local s = grid.state
+        if not (s and s.phase == "landed") then return end
+        local p = { x = s.point.x + dx, y = s.point.y + dy }
+        s.point = p
+        movePointer(p)
+        showCrosshair(p.x, p.y)
+        armWatchdog(grid.landedSecs, "landed badge left open")
+    end
+
+    local function landedClick(kind)
+        local s = grid.state
+        if not (s and s.phase == "landed") then return end
+        local point = s.point
+        -- Hide FIRST. The badge sits at screenSaver level, directly over
+        -- the thing being clicked, and a menu opening underneath an
+        -- overlay is a confusing half-second. It also means the alert in
+        -- clickAt() is visible rather than covered.
+        grid.hide("clicked")
+        clickAt(point, kind)
+    end
+
+    -- =====================================================================
+    -- TYPING
+    -- =====================================================================
+    local function redraw()
+        local s = grid.state
+        if not (s and s.phase == "pick") then return end
+        local t0, shown = hs.timer.secondsSinceEpoch(), 0
+        for _, p in ipairs(grid.cache.screens) do
+            if #s.typed == 0 then
+                p.labelCanvas:replaceElements(p.fullLabels)
+                shown = shown + #p.fullLabels
+            else
+                local els = labelElements(p, #s.typed, s.matches)
+                p.labelCanvas:replaceElements(els)
+                shown = shown + #els
+            end
+        end
+        say(string.format("typed '%s' -> %d candidates, redraw %.1fms",
+            s.typed, shown, (hs.timer.secondsSinceEpoch() - t0) * 1000))
+    end
+
+    local function cellFor(label)
+        for _, p in ipairs(grid.cache.screens) do
+            for _, c in ipairs(p.cells) do
+                if c.label == label then return c end
+            end
+        end
+        return nil
+    end
+
+    function grid.typeChar(ch)
+        local s = grid.state
+        if not (s and s.phase == "pick") then return end
+
+        local nextTyped = s.typed .. ch
+        local matches, n = {}, 0
+        for _, p in ipairs(grid.cache.screens) do
+            for _, c in ipairs(p.cells) do
+                if c.label:sub(1, #nextTyped) == nextTyped then
+                    matches[c.label] = true; n = n + 1
+                end
+            end
+        end
+
+        -- With a full grid every prefix has candidates, so this is a
+        -- can't-happen — which is exactly why it is handled rather than
+        -- assumed away. A dead end rejects the keystroke and leaves you
+        -- where you were, instead of stranding you in a grid with nothing
+        -- selectable and no idea why.
+        if n == 0 then
+            hs.alert.show("🎯 no cell '" .. nextTyped .. "'")
+            warn("dead-end prefix '" .. nextTyped .. "' rejected")
+            return
+        end
+
+        s.typed, s.matches = nextTyped, matches
+        armWatchdog(grid.timeoutSecs, "grid left open mid-type")
+
+        if #s.typed >= grid.labelLength then
+            local cell = cellFor(s.typed)
+            if not cell then
+                grid.hide("lost cell")
+                warn("matched '" .. s.typed .. "' but no cell carried it")
+                return
+            end
+            local point = { x = cell.ax, y = cell.ay }
+            movePointer(point)
+            if s.clickOnArrival then
+                grid.hide("jumped + clicked")
+                clickAt(point, "left")
+            elseif grid.landedMode then
+                enterLanded(point)
+            else
+                grid.hide("jumped")
+            end
+            return
+        end
+        redraw()
+    end
+
+    function grid.backspace()
+        local s = grid.state
+        if not (s and s.phase == "pick") then return end
+        if #s.typed == 0 then grid.hide("backspaced out") return end
+        s.typed = s.typed:sub(1, #s.typed - 1)
+        local matches = {}
+        if #s.typed > 0 then
+            for _, p in ipairs(grid.cache.screens) do
+                for _, c in ipairs(p.cells) do
+                    if c.label:sub(1, #s.typed) == s.typed then matches[c.label] = true end
+                end
+            end
+        end
+        s.matches = matches
+        armWatchdog(grid.timeoutSecs, "grid left open mid-type")
+        redraw()
+    end
+
+    -- =====================================================================
+    -- SHOW
+    -- =====================================================================
+    function grid.show(clickOnArrival)
+        if not grid.enabled then return false end
+        -- Pressing the trigger while it is already up means "put it away".
+        if grid.state then grid.hide("toggled off") return false end
+
+        local t0 = hs.timer.secondsSinceEpoch()
+        local cache, err = ensureCache()
+        if not cache then
+            hs.alert.show("🎯 Mouse Grid could not draw — see the Console")
+            warn("show failed: " .. tostring(err))
+            return false
+        end
+
+        -- 🚨 STATE FIRST, THEN THE SCREEN, THEN THE KEYBOARD — and if
+        -- either of the last two fails, hide() undoes all three. Setting
+        -- state last would mean a throw halfway through left canvases up
+        -- that grid.hide() did not yet believe existed.
+        grid.state = { phase = "pick", typed = "", matches = nil,
+                       clickOnArrival = clickOnArrival == true }
+
+        local okDraw, drawErr = pcall(function()
+            for _, p in ipairs(cache.screens) do
+                p.labelCanvas:replaceElements(p.fullLabels)
+                showCanvas(p.gridCanvas)
+                showCanvas(p.labelCanvas)
+            end
+        end)
+        if not okDraw then
+            grid.hide("draw failed")
+            hs.alert.show("🎯 Mouse Grid could not draw — see the Console")
+            warn("draw failed: " .. tostring(drawErr))
+            return false
+        end
+
+        -- Taking the keyboard is the step that can strand you, so its
+        -- failure is handled rather than assumed away: no modal means the
+        -- overlay comes straight back down instead of sitting there
+        -- swallowing nothing and answering nothing.
+        if not pcall(function() grid.pickModal:enter() end) then
+            grid.hide("could not take the keyboard")
+            hs.alert.show("🎯 Mouse Grid could not capture the keyboard")
+            warn("pickModal:enter() failed")
+            return false
+        end
+        armWatchdog(grid.timeoutSecs, "grid left open with nothing typed")
+
+        say(string.format("shown: %d cells across %d screens in %.1fms%s",
+            cache.used, #cache.screens,
+            (hs.timer.secondsSinceEpoch() - t0) * 1000,
+            clickOnArrival and " (clicks on arrival)" or ""))
+        return true
+    end
+
+    -- =====================================================================
+    -- REPORT — run this once per Mac
+    -- =====================================================================
+    -- Answers the only question that decides whether this tool is usable
+    -- on a given machine: how big is a cell here, really.
+    function _G.mouseGridReport()
+        local cache, err = ensureCache()
+        if not cache then
+            print("🎯 Mouse Grid: " .. tostring(err))
+            return
+        end
+        local out = {
+            "🎯 MOUSE GRID on " .. tostring(core.hostTag),
+            string.format("   alphabet %q ^ %d = %d labels; %d cells in use",
+                grid.alphabet, grid.labelLength, cache.capacity, cache.used),
+        }
+        for i, p in ipairs(cache.screens) do
+            out[#out + 1] = string.format(
+                "   screen %d  %dx%d px   %d x %d cells   cell = %.0f x %.0f pt",
+                i, p.frame.w, p.frame.h, p.cols, p.rows, p.cellW, p.cellH)
+            -- 44pt is Apple's own minimum control size. Below it, most
+            -- targets are a straight hit; above it, expect to nudge.
+            if p.cellW > 60 or p.cellH > 60 then
+                out[#out + 1] = "              ⚠️  coarser than most buttons — "
+                    .. "arrow-nudge after landing, or widen grid.alphabet"
+            end
+        end
+        if cache.truncated > 0 then
+            out[#out + 1] = string.format(
+                "   ❌ %d cells have NO label and are unreachable — widen "
+                .. "grid.alphabet or raise grid.labelLength", cache.truncated)
+        end
+        out[#out + 1] = "   clicking: " .. (axAvailable()
+            and "✅ Accessibility granted"
+            or  "⚪️ Accessibility OFF — the jump works, space-to-click does not")
+        print(table.concat(out, "\n"))
+        return table.concat(out, "\n")
+    end
+
+    -- =====================================================================
+    -- KEYS
+    -- =====================================================================
+    -- 🚨 TWO MODALS, NOT ONE, and this is not tidiness. hs.hotkey.modal has
+    -- no unbind: once "a" is bound to typeChar it is bound forever. A
+    -- single modal would therefore keep eating the alphabet in landed mode,
+    -- where those keys must reach the app underneath. Two modals, and never
+    -- both entered — grid.hide() exits both regardless of which was live.
+    grid.pickModal = hs.hotkey.modal.new()
+    grid.landModal = hs.hotkey.modal.new()
+
+    for _, ch in ipairs(alphabetChars()) do
+        grid.pickModal:bind({}, ch, function()
+            -- Wrapped: a throw inside a modal binding would otherwise leave
+            -- the overlay up with its state half-changed. Any error tears
+            -- the whole thing down rather than leaving it on your screen.
+            local ok, err = pcall(grid.typeChar, ch)
+            if not ok then grid.hide("error"); warn("typeChar: " .. tostring(err)) end
+        end)
+    end
+    grid.pickModal:bind({}, "escape", function() grid.hide("escape") end)
+    grid.pickModal:bind({}, "delete", function()
+        local ok, err = pcall(grid.backspace)
+        if not ok then grid.hide("error"); warn("backspace: " .. tostring(err)) end
+    end)
+
+    grid.landModal:bind({}, "escape", function() grid.hide("escape") end)
+    grid.landModal:bind({}, "space",  function() landedClick("left")   end)
+    grid.landModal:bind({}, "return", function() landedClick("left")   end)
+    grid.landModal:bind({ "shift" }, "space", function() landedClick("right") end)
+    -- ⚠️ NOT a letter, on purpose. Landed mode must capture NO alphabet key,
+    -- so everything you type still reaches the app you just landed on. "d
+    -- for double" would have cost that rule for one mnemonic; "2" for two
+    -- clicks is as memorable and keeps the rule absolute and testable.
+    grid.landModal:bind({}, "2",      function() landedClick("double") end)
+    local dirs = { up = { 0, -1 }, down = { 0, 1 }, left = { -1, 0 }, right = { 1, 0 } }
+    for key, d in pairs(dirs) do
+        grid.landModal:bind({}, key, function()
+            nudge(d[1] * grid.nudgeStep, d[2] * grid.nudgeStep)
+        end)
+        grid.landModal:bind({ "shift" }, key, function()
+            nudge(d[1] * grid.nudgeFine, d[2] * grid.nudgeFine)
+        end)
+    end
+
+    if grid.enabled then
+        core.hyperAddShortcut({}, grid.key, function() grid.show(false) end, "mouse grid")
+        core.hyperAddShortcut({ "shift" }, grid.key, function() grid.show(true) end,
+                              "mouse grid (click on arrival)")
+    end
+
+    -- 🚨 THE PANIC KEY IS A PLAIN CHORD, NOT A ⇪ SHORTCUT. If ⇪ itself is
+    -- what failed — the remap refused, the hyper modal stuck — then a ⇪
+    -- panic key cannot be pressed. Bound directly, same as Screen Veil's.
+    hs.hotkey.bind({ "ctrl", "alt", "cmd", "shift" }, "M", function()
+        grid.hide("panic key")
+        hs.alert.show("🎯 Mouse Grid: overlay cleared")
+    end)
+
+    -- A display change invalidates every cached frame. HELD, or it is
+    -- collected and the grid quietly keeps drawing yesterday's layout.
+    grid.screenWatch = hs.screen.watcher.new(function()
+        grid.hide("displays changed")
+        if grid.cache then
+            for _, p in ipairs(grid.cache.screens or {}) do
+                pcall(function() p.gridCanvas:delete() end)
+                pcall(function() p.labelCanvas:delete() end)
+            end
+        end
+        grid.cache = nil
+        say("display layout changed — geometry cache dropped")
+    end)
+    pcall(function() grid.screenWatch:start() end)
+
+    -- Said once, at boot, rather than discovered the first time SPACE does
+    -- nothing. The jump works either way; only the click is gated.
+    if not axAvailable() then
+        print("🎯 Mouse Grid: Accessibility is OFF — ⇪M still moves the pointer, "
+              .. "but space-to-click cannot work until it is granted.")
+    end
+
+    core.provide("mouseGrid.show",   function() return grid.show(false) end)
+    core.provide("mouseGrid.hide",   function() return grid.hide("service") end)
+    core.provide("mouseGrid.report", function() return _G.mouseGridReport() end)
+
+    _G.mouseGrid = grid
+    M.grid   = grid
+    M.config = grid   -- so a machine profile can retune it per Mac
+end
+
+return M

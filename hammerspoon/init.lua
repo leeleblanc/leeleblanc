@@ -4,9 +4,51 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.13-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.45.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.45.0 — MOUSE GRID (⇪M): TYPE THREE LETTERS, THE POINTER GOES:
+--   🎯 ⇪M lays a labelled grid over EVERY display. Type a cell's three
+--      home-row letters and the pointer jumps to it. ⇪⇧M clicks on
+--      arrival. Then either use the trackpad, or stay on the keyboard:
+--      SPACE clicks, ⇧SPACE right-clicks, 2 double-clicks, arrows nudge
+--      8pt (1pt with ⇧), ⎋ backs out.
+--   📐 A COORDINATE TOOL, DELIBERATELY NOT AN ELEMENT TOOL. It knows
+--      nothing about what is underneath, which is exactly why it never
+--      fails: video, PDFs, a Photoshop canvas, a remote desktop, any
+--      pixel is reachable. Walking the Accessibility tree for real
+--      buttons (Vimac/Homerow style) is more precise where it works and
+--      returns NOTHING in Electron and Java apps, costs 100–500ms per
+--      invocation, and needs a permission the work Mac may withhold.
+--      That can be added later as a second stage; it must not be merged
+--      into this one, because the two have opposite failure modes.
+--   🚨 THE MOST DANGEROUS MODULE HERE, AND BUILT LIKE IT. A full-screen
+--      overlay that captures keys can lock you out of your own Mac. Four
+--      independent defences: ONE invariant (state ⟺ modal ⟺ canvas) with
+--      a single idempotent teardown that pcalls each step separately; a
+--      WATCHDOG so nothing outlives its keypress; a PANIC key on a plain
+--      chord (⌃⌥⌘⇧M) rather than ⇪, because if ⇪ is what broke then a ⇪
+--      panic key is no panic key; and unbound keys PASS THROUGH, so ⌘Q
+--      and ⌘Tab keep working while the grid is up. Landed mode is never
+--      invisible — whenever keys are captured, something says so.
+--   ⚡️ FAST BY ARCHITECTURE, NOT BY LUCK. 729 cells is ~1,500 canvas
+--      elements. Scrim and lines are one cached canvas per screen, built
+--      once per display layout; labels are a second canvas and the only
+--      thing redrawn; each keystroke shrinks 729 → 81 → 9, so every
+--      redraw is cheaper than the last. A screen watcher drops the cache
+--      when displays change. Timings go to the diagnostic trail.
+--   🔢 CAPACITY IS ARITHMETIC, AND IT IS PUBLISHED. alphabet^length =
+--      9³ = 729 cells, ~45pt on one display — near Apple's own 44pt
+--      minimum control size. TWO DISPLAYS SPLIT THAT, giving ~85pt cells,
+--      which is coarser than many buttons; that is what the arrow-nudge
+--      is for, and widening grid.alphabet buys the fine grid back.
+--      _G.mouseGridReport() prints the real cell size on THIS Mac.
+--   ♿️ MOVING AND CLICKING ARE NOT THE SAME PERMISSION. Warping the
+--      pointer needs nothing, so the JUMP works on any Mac. Synthesising
+--      a click goes through hs.eventtap, which macOS gates behind
+--      Accessibility — so without it the grid still jumps and SPACE says
+--      why it could not click, instead of looking broken.
+--   🧪 1,123 checks across seven suites.
 -- NEW IN 6.44.13 — "DOES IT WORK ON THIS MAC?", ANSWERED IN ONE CALL:
 --   🖥 ONE init.lua, TWO VERY DIFFERENT MACS. About a dozen things
 --      legitimately differ between the personal Air and the managed work
@@ -280,7 +322,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.44.13
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.45.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -522,7 +564,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.44.13"
+_G.configVersion = "6.45.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -3195,6 +3237,8 @@ _G.moduleProfiles = {
             -- 6.44.0
             "screen_veil", "mini_calendar", "quick_append", "capture_pad",
             "numpad_layer",
+            -- 6.45.0
+            "mouse_grid",
         },
     },
 
@@ -3214,6 +3258,8 @@ _G.moduleProfiles = {
             -- 6.44.0
             "screen_veil", "mini_calendar", "quick_append", "capture_pad",
             "numpad_layer",
+            -- 6.45.0
+            "mouse_grid",
         },
         settings = {
             -- Examples — delete or edit freely. These are exactly the
@@ -3237,6 +3283,8 @@ _G.moduleProfiles = {
             -- 6.44.0
             "screen_veil", "mini_calendar", "quick_append", "capture_pad",
             "numpad_layer",
+            -- 6.45.0
+            "mouse_grid",
         },
     },
 }
@@ -3428,14 +3476,14 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.44.13"
+    local currentVersion = "6.45.0"
     local currentDate    = "08-08-26"
     -- One line. The full entry for every version lives in CHANGELOG.md
     -- beside this file — which is also why prose no longer sits in a
     -- Lua string here: the work-Mac safety scan reads string literals
     -- as code, and a paragraph describing "no sudo, no launchctl"
     -- failed the very check it was describing.
-    local currentNotes   = "Added core/capabilities.lua: _G.capabilityReport() answers does-it-work-on-this-Mac in one call, with each state, its real reason, and what it costs you when off. UNKNOWN is kept distinct from OFF for the async probes, and a broken secret.lua from a missing one. The hyper remap result is recorded rather than printed once and lost. Added INSTALL.md, a step-by-step rebuild from nothing. A test now reads the core file list from disk so the docs and both install tools cannot drift from it. See CHANGELOG.md for the full entry."
+    local currentNotes   = "Added modules/mouse_grid.lua: hyper-M overlays a labelled grid on every display; type a cell's three home-row letters and the pointer jumps there, then space clicks, arrows nudge, escape backs out. A coordinate tool by choice, not an accessibility-tree tool, so it works over video, PDFs and remote desktops and needs no permission to jump. Built around one teardown invariant with a watchdog, a plain-chord panic key, and pass-through for unbound keys, because a full-screen overlay that captures keystrokes is the one thing here that could lock out a Mac. Scrim and grid lines are cached per display layout so only the labels redraw, and each keystroke shrinks the candidate set. mouseGridReport() prints the real cell size on this Mac. See CHANGELOG.md for the full entry."
 
     -- Only append if this version isn't already in the file
     local found = false
