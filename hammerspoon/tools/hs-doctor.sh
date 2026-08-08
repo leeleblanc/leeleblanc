@@ -121,6 +121,66 @@ else
   echo "   count: $(ls -1 "$HS/core"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 3)"
 fi
 
+# ---- 4c. what this config will actually run ---------------------------
+# THE WORK-MAC QUESTION, answered on the work Mac itself: what external
+# programs does this config invoke, do they exist here, and does any of
+# it need admin? Everything below except brew ships with macOS. Nothing
+# here is installed, nothing runs as root, nothing writes outside $HOME.
+echo
+echo "── 4c. EXTERNAL COMMANDS THIS CONFIG RUNS ──"
+printf "   %-22s %-9s %s\n" BINARY PRESENT PURPOSE
+check_bin () {
+  if [ -x "$1" ]; then p="yes"; else p="MISSING"; fi
+  printf "   %-22s %-9s %s\n" "$1" "$p" "$2"
+}
+check_bin /usr/bin/curl      "Asana API + attachments (macOS built-in)"
+check_bin /usr/bin/shortcuts "image OCR via your Shortcut (macOS built-in)"
+check_bin /usr/bin/hidutil   "Caps Lock -> hyper, per-user (macOS built-in)"
+check_bin /usr/bin/open      "reopen an app you asked for (macOS built-in)"
+check_bin /usr/bin/defaults  "read an app version (macOS built-in)"
+check_bin /bin/zsh           "runs the rsync backup line (macOS built-in)"
+check_bin /usr/bin/rsync     "the daily backup copy (macOS built-in)"
+echo "   none of the above needs admin, and none is installed by this config"
+
+echo
+echo "   Homebrew (OPTIONAL — powers ⌃⌥⇧U update checks and nothing else):"
+brewfound=""
+for b in "$HOME/homebrew/bin/brew" "$HOME/.homebrew/bin/brew" \
+         "$HOME/.local/homebrew/bin/brew" /opt/homebrew/bin/brew /usr/local/bin/brew; do
+  if [ -x "$b" ]; then
+    printf "   %-46s %s\n" "$b" "found"
+    brewfound="$brewfound $b"
+  fi
+done
+if [ -z "$brewfound" ]; then
+  echo "   none found — update checks are OFF. Every other feature is unaffected."
+else
+  onpath=$(command -v brew 2>/dev/null || true)
+  [ -n "$onpath" ] && echo "   on your PATH: $onpath"
+fi
+
+echo
+echo "── 4d. WHERE THIS CONFIG WRITES ──"
+# Every write target is built from logsDir or configDir. Both are under
+# $HOME. If anything below is outside your home folder, that is a bug.
+echo "   config : $HS"
+if [ -d "$HOME/Library/CloudStorage" ]; then
+  od=$(ls -d "$HOME"/Library/CloudStorage/OneDrive* 2>/dev/null | head -1)
+  if [ -n "$od" ]; then
+    echo "   logs   : $od/Logs"
+    echo "   backup : $od/Backups/Hammerspoon/$(scutil --get ComputerName 2>/dev/null | tr ' ' '-')"
+  else
+    echo "   logs   : $HS/logs   (no OneDrive found — local fallback)"
+    echo "   backup : disabled (no cloud destination)"
+  fi
+else
+  echo "   logs   : $HS/logs   (no CloudStorage folder — local fallback)"
+fi
+case "$HS" in
+  "$HOME"/*) echo "   ✅ everything above is inside your home folder" ;;
+  *)         echo "   ⚠️ config is OUTSIDE your home folder: $HS" ;;
+esac
+
 # ---- 5. version markers ----------------------------------------------
 # Cheap, exact "is this file the one I sent" check. Each marker only
 # exists at or after the version noted.

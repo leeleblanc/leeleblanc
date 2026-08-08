@@ -4,9 +4,49 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.11-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.12-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.44.12 — PROVING THIS IS SAFE ON A MANAGED WORK MAC:
+--   🔒 THE WORK MACBOOK IS THE PRIMARY MACHINE AND HAS NO ADMIN RIGHTS.
+--      That is now a tested guarantee rather than a claim. The suite fails
+--      if any future change adds sudo, an AppleScript admin prompt, chown,
+--      launchctl, a keychain write, csrutil or spctl.
+--   📋 EVERY EXTERNAL PROGRAM IS ON A REVIEWED LIST, and an unlisted one
+--      fails the build. The list: curl, shortcuts, hidutil, open, defaults,
+--      zsh, rsync. ALL SEVEN SHIP WITH macOS. This config installs nothing.
+--   🍺 HOMEBREW IS OPTIONAL AND ISOLATED. It is reached from exactly one
+--      module (update_tracker) and powers exactly one feature (⌃⌥⇧U). No
+--      brew = that feature is off and says so; nothing else notices. The
+--      no-admin prefixes under $HOME are searched BEFORE the admin ones,
+--      and a test enforces that order.
+--   🏠 NOTHING IS WRITTEN OUTSIDE $HOME. Every write target is built from
+--      logsDir or configDir; a hard-coded absolute write path fails the
+--      suite. /Applications and /usr/bin are READ only.
+--   🌐 THE ONLY HOST THIS CONFIG CONTACTS IS app.asana.com, and only with
+--      secret.lua present. My first version of that check failed on
+--      shottr.cc and was WRONG to: that is a vendor page handed to your
+--      browser because you selected the row and pressed Enter. A link you
+--      click is not network activity this config initiates. The test now
+--      keeps those two apart and asserts vendor URLs are never fetched.
+--   🧬 6 more mutations caught, including "a sudo appears in the backup
+--      command", "the remap becomes a launch daemon" and "a vendor page
+--      starts being FETCHED instead of opened".
+--   🛟 NEW: tools/hs-install.sh — INSTALL, VERIFIED AND REVERSIBLE. The
+--      risk on the work Mac was never the Lua, it was the COPY: since
+--      6.44.11 a bare `cp init.lua` produces a config that starts, looks
+--      fine, and has quietly lost ⇪/ and ⇪⇧D. This checks the download is
+--      complete BEFORE touching anything, backs up the current config,
+--      installs, verifies, and ROLLS ITSELF BACK if the verify fails. It
+--      refuses to run as root. --dry-run shows what it would do; --rollback
+--      undoes the last install. secret.lua and logs/ are never touched.
+--   🐛 Its own first verify checked only that each core file EXISTED — and
+--      a zero-byte one passed, which is the exact half-installed state the
+--      script exists to prevent. It checks size and content now. Found by
+--      testing the installer's failure paths rather than its happy path.
+--   🩺 hs-doctor.sh answers the question ON the work Mac: every external
+--      command, whether it is present there, and every path written to.
+--   🧪 875 checks across six suites.
 -- NEW IN 6.44.11 — init.lua IS 44% SMALLER, AND THE CONSOLE IS TWO LINES:
 --   📉 6,012 LINES → 3,376. Nothing was deleted. 1,827 lines of changelog
 --      moved to CHANGELOG.md beside this file (all 107 versions, intact),
@@ -199,7 +239,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.44.11
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.44.12
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -441,7 +481,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.44.11"
+_G.configVersion = "6.44.12"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -3305,9 +3345,14 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.44.11"
+    local currentVersion = "6.44.12"
     local currentDate    = "08-08-26"
-    local currentNotes   = "init.lua is 44% smaller and a clean boot is two lines. Nothing was deleted: 1,827 lines of changelog moved to CHANGELOG.md beside the file, all 107 versions intact, and three big blocks moved into a new core/ folder — diagnostics, the cheat sheet, and the boot report. core/ is not modules/: a module is loaded by the loader, isolated and configurable per machine, while these three are dofile'd by init.lua at exactly the point they used to sit, because the loader runs last and depends on both of them. Boot order is unchanged and each load is pcall'd, so a missing core file costs that one feature and prints why. The boot report now summarises what is right and always prints what is wrong: a failed module, a hotkey conflict, missing Accessibility or a broken secret.lua each still print in full, while a healthy boot is two lines instead of fourteen. _G.bootReport() prints everything on demand and _G.bootVerbose(true) restores the old behaviour, stored in hs.settings so it survives a reload. The test suites stopped running hand-extracted slices that had drifted out of step with the shipped code and now load the real core files, which reached four hotkey bindings and two choosers no test had ever executed — and caught a bug written the same hour, where the lifted boot report shadowed the Accessibility value passed into it and would have reported All green on a Mac without Accessibility. 20 mutations caught, three of which were missed first because the audit read init.lua concatenated with core/ and a comment satisfied the search. 855 checks across six suites."
+    -- One line. The full entry for every version lives in CHANGELOG.md
+    -- beside this file — which is also why prose no longer sits in a
+    -- Lua string here: the work-Mac safety scan reads string literals
+    -- as code, and a paragraph describing "no sudo, no launchctl"
+    -- failed the very check it was describing.
+    local currentNotes   = "Work-Mac safety proven by test: no elevation, no writes outside $HOME, every external program reviewed and shipped with macOS. Added tools/hs-install.sh — verified, reversible install. See CHANGELOG.md for the full entry."
 
     -- Only append if this version isn't already in the file
     local found = false

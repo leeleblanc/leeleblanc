@@ -112,10 +112,20 @@ else
             syn_fail=$((syn_fail + 1))
         fi
     done
+    # The shell tools ship too, and a broken one is discovered at the
+    # worst possible moment — hs-install.sh runs when the config is
+    # half-copied. `sh -n` parses without executing.
+    for t in "$HS"/tools/*.sh; do
+        [ -f "$t" ] || continue
+        msg=$(sh -n "$t" 2>&1) || {
+            echo "   ✗ $(basename "$t"): $msg"
+            syn_fail=$((syn_fail + 1))
+        }
+    done
     n=$(ls "$HS"/modules/*.lua 2>/dev/null | wc -l | tr -d ' ')
     nc=$(ls "$HS"/core/*.lua 2>/dev/null | wc -l | tr -d ' ')
     if [ "$syn_fail" -eq 0 ]; then
-        echo "   ✅ init.lua + $nc core + $n modules compile"
+        echo "   ✅ init.lua + $nc core + $n modules compile · $(ls -1 "$HS"/tools/*.sh 2>/dev/null | wc -l | tr -d ' ') shell tools parse"
     else
         echo "   ❌ $syn_fail file(s) will not compile — Hammerspoon would not start"
         FAILED=$((FAILED + 1))

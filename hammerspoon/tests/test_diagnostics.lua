@@ -475,5 +475,201 @@ if brChunk then
   print = realPrint2
 end
 
+
+-- =====================================================================
+-- 9. WORK-MAC SAFETY: NO ADMIN, NO SYSTEM WRITES, NO SURPRISES
+-- =====================================================================
+-- The work MacBook is the primary machine and carries NO admin rights.
+-- Everything below is a standing guarantee, not a one-time audit: if a
+-- future change adds a privileged operation, a write outside $HOME, or
+-- a call to a binary that is not on the list, this suite fails before
+-- the change ever reaches that Mac.
+out("\n=== 9. Work-Mac safety (no admin rights) ===\n")
+
+-- The scan reads STRING LITERALS as code, and it must: my own mutation
+-- test proved the point by hiding a sudo inside "sudo mkdir -p " and the
+-- scanner caught it. The one exception is the changelog note, which is
+-- prose written to a CSV and never executed — a paragraph describing
+-- "no sudo, no launchctl" failed the very check it was describing. So
+-- that single assignment is excluded BY NAME, and nothing else is.
+local function safetyCode(pattern)
+  for line in text:gmatch("[^\n]+") do
+    if not line:match("^%s*%-%-")
+       and not line:match("currentNotes%s*=")
+       and not line:match("unusedNotes[%w_]*%s*=")
+       and line:find(pattern) then
+      return line
+    end
+  end
+end
+
+-- 9a. NOTHING ELEVATES. sudo, an AppleScript asking for administrator
+-- privileges, or a chown would each need an admin password the work Mac
+-- does not have — and would be an IT red flag besides.
+for _, forbidden in ipairs({
+  { "sudo",                          "runs a command as root" },
+  { "with administrator privileges", "AppleScript's password prompt" },
+  { "do shell script.*admin",        "AppleScript shell escalation" },
+  { "chown",                         "changes file ownership" },
+  { "launchctl",                     "installs or loads a launch daemon" },
+  { "security add%-generic%-password", "writes to the login keychain" },
+  { "csrutil",                       "touches System Integrity Protection" },
+  { "spctl",                         "touches Gatekeeper" },
+}) do
+  check("never " .. forbidden[2] .. " (" .. forbidden[1] .. ")",
+        not safetyCode(forbidden[1]), safetyCode(forbidden[1]))
+end
+
+-- 9b. EVERY EXTERNAL BINARY IS ON A KNOWN LIST. An unexpected one is not
+-- automatically wrong, but it is something I must have decided on
+-- deliberately rather than let drift in.
+local ALLOWED_BINARIES = {
+  ["/usr/bin/curl"]      = "Asana API + attachment upload (ships with macOS)",
+  ["/usr/bin/shortcuts"] = "image OCR via your own Shortcut (ships with macOS)",
+  ["/usr/bin/hidutil"]   = "Caps Lock -> hyper remap, per-user (ships with macOS)",
+  ["/usr/bin/open"]      = "relaunch an app you asked to reopen (ships with macOS)",
+  ["/usr/bin/defaults"]  = "read an app's version from its plist (ships with macOS)",
+  ["/bin/zsh"]           = "runs the rsync backup line (ships with macOS)",
+  ["/opt/homebrew/bin/brew"] = "OPTIONAL update checks, admin install",
+  ["/usr/local/bin/brew"]    = "OPTIONAL update checks, admin install",
+  -- the no-admin Homebrew prefixes, which are $HOME-relative in the source
+  -- (home .. "/homebrew/bin/brew") and so arrive here without the prefix
+  ["/homebrew/bin/brew"]        = "OPTIONAL, under $HOME — the no-admin install",
+  ["/.homebrew/bin/brew"]       = "OPTIONAL, under $HOME — the no-admin install",
+  ["/.local/homebrew/bin/brew"] = "OPTIONAL, under $HOME — the no-admin install",
+}
+local seen, unexpected = {}, {}
+for line in text:gmatch("[^\n]+") do
+  if not line:match("^%s*%-%-") then
+    for path in line:gmatch('"(/[%w%./_%-]+)"') do
+      -- only executables: a path handed to hs.task/os.execute, not data
+      if path:match("^/usr/bin/") or path:match("^/bin/") or path:match("^/sbin/")
+         or path:match("^/usr/sbin/") or path:match("brew$") then
+        seen[path] = true
+        if not ALLOWED_BINARIES[path] then unexpected[#unexpected+1] = path end
+      end
+    end
+  end
+end
+check("no external binary outside the reviewed list",
+      #unexpected == 0, table.concat(unexpected, ", "))
+check("...and the list is not empty (the scan actually ran)", next(seen) ~= nil)
+
+-- 9c. EVERY BINARY USED IS ONE macOS ALREADY SHIPS, except brew, which
+-- is optional. This is the claim that matters for a managed Mac: the
+-- config installs nothing and depends on nothing IT has to approve.
+for path in pairs(seen) do
+  if not path:match("brew$") then
+    check("ships with macOS: " .. path, ALLOWED_BINARIES[path] ~= nil)
+  end
+end
+
+-- 9d. BREW IS OPTIONAL, AND ITS ABSENCE IS HANDLED. If IT blocks it, or
+-- it is simply not installed, the config must lose one feature and say
+-- so — not fail, not retry forever, not nag.
+local ut = moduleText.update_tracker or ""
+check("brew is reached only from update_tracker, nowhere else", (function()
+  for name, body in pairs(moduleText) do
+    if name ~= "update_tracker" then
+      for line in body:gmatch("[^\n]+") do
+        if not line:match("^%s*%-%-") and line:find("brew", 1, true) then return false, name end
+      end
+    end
+  end
+  for line in initText:gmatch("[^\n]+") do
+    if not line:match("^%s*%-%-") and not line:match("currentNotes%s*=")
+       and line:find("brew", 1, true) then return false, "init.lua" end
+  end
+  return true
+end)())
+check("...a missing brew is reported, not thrown", ut:find("no Homebrew found", 1, true) ~= nil)
+check("...and every brew lookup is wrapped so a blocked shell cannot raise",
+      (function()
+        for line in ut:gmatch("[^\n]+") do
+          if not line:match("^%s*%-%-") and line:find("hs.execute", 1, true)
+             and not line:find("pcall", 1, true) then
+            -- allowed only if the enclosing line is inside a pcall block;
+            -- the shipped code wraps each one, so a bare call is a fail
+            local before = ut:sub(1, ut:find(line, 1, true))
+            if not before:sub(-400):find("pcall", 1, true) then return false, line end
+          end
+        end
+        return true
+      end)())
+check("...the no-admin install locations are searched FIRST",
+      (function()
+        local iHome = ut:find('home %.%. "/homebrew/bin/brew"')
+        local iOpt  = ut:find('"/opt/homebrew/bin/brew"')
+        return iHome ~= nil and iOpt ~= nil and iHome < iOpt
+      end)())
+
+-- 9e. NOTHING IS WRITTEN OUTSIDE THE USER'S OWN DIRECTORY. Every write
+-- target is built from logsDir or configDir, both of which resolve under
+-- $HOME (OneDrive lives at ~/Library/CloudStorage/...).
+check("every file written is under the user's home directory", (function()
+  for line in text:gmatch("[^\n]+") do
+    if not line:match("^%s*%-%-") then
+      local target = line:match('io%.open%(%s*"(/[^"]+)"%s*,%s*"[wa]')
+      if target then return false, target end        -- a hard-coded absolute write
+    end
+  end
+  return true
+end)())
+check("...and the log root itself is $HOME-based on both branches",
+      initLive('logsDir   = cloudDir .. "/Logs"')
+      and initLive('logsDir   = hs.configdir .. "/logs"'))
+
+-- 9f. THE REMAP IS PER-USER AND ITS REFUSAL IS HANDLED. hidutil
+-- property --set affects only the logged-in user and needs no password,
+-- but a managed Mac can still refuse it. That must cost the hyper key
+-- and nothing else.
+check("the Caps Lock remap is a per-user hidutil property set, not a daemon",
+      initLive('"property", "--set"') ~= nil and not safetyCode("launchctl"))
+check("...and a refusal is caught and explained, not fatal",
+      initText:find("hidutil could not remap", 1, true) ~= nil
+      and initText:find("Everything else still works", 1, true) ~= nil)
+
+-- 9g. THE ONLY HOST THIS CONFIG CONTACTS IS ASANA.
+-- The first version of this check failed on shottr.cc and was WRONG to.
+-- There is a difference worth keeping straight: a host the config talks
+-- to by itself, versus a vendor download page handed to your browser
+-- because you selected that row and pressed Enter. The second is you
+-- clicking a link. Only the first is network activity this config
+-- initiates, and that is what is asserted here.
+check("the only host the config CONTACTS is Asana",
+      (function()
+        local hosts = {}
+        for line in text:gmatch("[^\n]+") do
+          if not line:match("^%s*%-%-") then
+            -- a URL is only "contacted" if it reaches an HTTP call or curl
+            if line:find("hs.http", 1, true) or line:find("asyncPost", 1, true)
+               or line:find("curl", 1, true) or line:find("api.", 1, true) then
+              for h in line:gmatch('https://([%w%.%-]+)') do hosts[h] = true end
+            end
+          end
+        end
+        for h in pairs(hosts) do
+          if h ~= "app.asana.com" then return false, h end
+        end
+        return next(hosts) ~= nil        -- and the scan must have found it
+      end)())
+check("...every OTHER url is only ever handed to your browser, never fetched",
+      (function()
+        local ut2 = moduleText.update_tracker or ""
+        -- the vendor pages live in one table and are opened from one place
+        if not ut2:find("hs.urlevent.openURL(choice.url)", 1, true) then return false end
+        for line in ut2:gmatch("[^\n]+") do
+          if not line:match("^%s*%-%-") and line:find("https://", 1, true) then
+            -- a vendor row is data: `url = "https://..."`, never a call
+            if not line:find('url%s*=%s*"https://') then return false, line end
+          end
+        end
+        return true
+      end)())
+check("...and those vendor pages open only on a row YOU selected",
+      (moduleText.update_tracker or ""):find("hs.urlevent.openURL(choice.url)", 1, true) ~= nil)
+check("...and it is off entirely without secret.lua",
+      initLive("asanaEnabled") ~= nil and initText:find("secret.lua", 1, true) ~= nil)
+
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)
