@@ -57,6 +57,16 @@
 -- ✏️ To use the pad for something OTHER than windows, edit numpad.actions
 -- at the top of setup(): a value may be a zone name, a function, or the
 -- name of a published service ("activity.renderChoices" and friends).
+--
+-- 🅿️ THIS LAYER SHIPS PARKED. numpad.enabled = false, so NOTHING below is
+-- bound and every ⇪ + pad key is still free — the layout is here as a
+-- worked-out plan you can switch on the day you want it, not as live
+-- shortcuts you did not ask for. The cheat sheet shows it with a PARKED
+-- banner so it stays findable instead of being forgotten in a file.
+--    To make it live:  numpad.enabled = true  (a few lines down), reload.
+-- ⚠️ A MACHINE PROFILE CANNOT switch it on. Profile settings are applied
+-- AFTER setup() runs, and binding happens during setup — so the override
+-- would land too late to claim any keys. This one is the file switch.
 
 local M = {
     name  = "Numpad Layer",
@@ -82,7 +92,10 @@ function M.setup(core)
     local numpad = {}
 
     -- ✏️ EDIT HERE ---------------------------------------------------------
-    numpad.enabled  = true
+    -- 🅿️ false = PARKED. The layout below is documented in the cheat sheet
+    -- for when you want it, but NO key is bound and every ⇪ + pad
+    -- combination stays free. Flip this to true and reload to make it live.
+    numpad.enabled  = false
     numpad.animate  = 0        -- seconds; 0 = snap. Anything else feels laggy.
     numpad.centreW  = 0.70     -- pad5 / padenter width as a fraction of screen
     numpad.centreH  = 0.80
@@ -272,27 +285,68 @@ function M.setup(core)
         _G.service.call(what)
     end
 
-    -- ---- bind ------------------------------------------------------------
-    -- Only keys macOS actually knows are bound. hs.keycodes.map returns nil
-    -- for a name this build of macOS has no code for, and binding a nil key
-    -- is an error that would take the rest of the layer down with it.
+    -- ---- bind (or don't) -------------------------------------------------
+    -- 🅿️ PARKED BY DEFAULT. numpad.enabled = false means this file is a
+    -- DESIGN kept on the shelf, not a set of live shortcuts: nothing is
+    -- bound, and every ⇪ + pad key stays completely free for whatever you
+    -- decide later. The plan still shows up in the cheat sheet, marked as
+    -- parked, so it is somewhere you will actually find it again — which
+    -- is the whole point of writing it down.
+    --
+    -- Not binding is a REAL difference, not a cosmetic one: a disabled
+    -- run() that still claimed the keys would swallow every ⇪ + pad press
+    -- and do nothing with it, which looks identical to a broken keyboard.
     numpad.bound, numpad.skipped = {}, {}
-    for key, what in pairs(numpad.actions) do
-        if hs.keycodes.map[key] ~= nil then
-            core.hyperAddShortcut({}, key, function() numpad.run(what) end,
-                                  "numpad " .. key)
-            table.insert(numpad.bound, key)
-        else
-            table.insert(numpad.skipped, key)
+
+    -- The binding loop lives in its own function purely so there is ONE
+    -- place that claims keys, and so a test can exercise the live path
+    -- without editing the file. ⚠️ Calling this from the Console after boot
+    -- is NOT the supported way to switch the layer on: §3.12 finalises the
+    -- hyper modal once, near the end of init.lua, and a shortcut added
+    -- after that may never reach it. The supported route is the one-line
+    -- switch above plus a reload.
+    function numpad.bindAll()
+        if #numpad.bound > 0 then return #numpad.bound end   -- idempotent
+        -- Only keys macOS actually knows are bound. hs.keycodes.map returns
+        -- nil for a name this build has no code for, and binding a nil key
+        -- is an error that would take the rest of the layer down with it.
+        for key, what in pairs(numpad.actions) do
+            if hs.keycodes.map[key] ~= nil then
+                core.hyperAddShortcut({}, key, function() numpad.run(what) end,
+                                      "numpad " .. key)
+                table.insert(numpad.bound, key)
+            else
+                table.insert(numpad.skipped, key)
+            end
         end
+        table.sort(numpad.bound)
+        table.sort(numpad.skipped)
+        if #numpad.skipped > 0 then
+            print("🔢 Numpad layer: this macOS has no key code for " ..
+                  table.concat(numpad.skipped, ", ") .. " — those are not bound")
+        end
+        _G.diag.say("numpad", #numpad.bound .. " number-pad keys bound to ⇪")
+        return #numpad.bound
     end
-    table.sort(numpad.bound)
-    table.sort(numpad.skipped)
-    if #numpad.skipped > 0 then
-        print("🔢 Numpad layer: this macOS has no key code for " ..
-              table.concat(numpad.skipped, ", ") .. " — those are not bound")
+
+    if not numpad.enabled then
+        -- The loader reads M.cheatsheet AFTER setup() returns, so rewriting
+        -- it here is what puts the parked banner on the sheet.
+        M.cheatsheet.title = "🅿️ NUMPAD LAYER — PARKED (a plan, not live shortcuts)"
+        table.insert(M.cheatsheet.entries, 1, {
+            "status", "NOTHING IS BOUND — every ⇪ + pad key is still free",
+        })
+        table.insert(M.cheatsheet.entries, 2, {
+            "to use it", "numpad.enabled = true in modules/numpad_layer.lua, then reload",
+        })
+        _G.diag.say("numpad", "parked — no keys bound, layout kept for reference")
+        _G.numpadLayer = numpad
+        M.numpad = numpad
+        M.config = numpad
+        return
     end
-    _G.diag.say("numpad", #numpad.bound .. " number-pad keys bound to ⇪")
+
+    numpad.bindAll()
 
     _G.numpadLayer = numpad
     M.numpad = numpad

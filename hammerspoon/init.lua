@@ -4,9 +4,39 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.2-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.44.3-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.44.3 — PARKED NUMPAD, CLICK-TO-COPY DATES, PERMISSION SWITCH:
+--   🅿️ THE NUMPAD LAYER IS NOW PARKED, NOT LIVE. numpad.enabled = false
+--      ships by default: the 3x3 layout is kept as a worked-out plan in
+--      the cheat sheet under a PARKED banner, and NOT ONE ⇪ + pad key is
+--      bound, so every one of them stays free for whatever you decide
+--      later. Not binding is a real difference, not cosmetic — a disabled
+--      handler that still claimed the keys would swallow each press and
+--      do nothing, which is indistinguishable from a dead keyboard.
+--      ⚠️ A MACHINE PROFILE CANNOT switch it on: profile settings are
+--      applied AFTER setup(), and binding happens during setup, so the
+--      override would arrive too late to claim anything. Edit the one
+--      line in modules/numpad_layer.lua and reload.
+--   📋 CLICKING A DATE IN THE CALENDAR COPIES IT, as 08-07-26 — every
+--      part zero-padded to two digits so pasted dates line up in a
+--      column. The alert names the weekday too ("08-07-26 (Fri) copied"),
+--      because the point of copying a date is usually that you are about
+--      to commit to it. C copies the highlighted date without the mouse,
+--      with no repeat handler so holding it cannot refill the clipboard
+--      thirty times a second. cal.copyFormat changes the shape;
+--      cal.copyOnClick = false goes back to click-selects-only.
+--   🔐 ONE SWITCH FOR THE ONE PERMISSION THIS CONFIG ACTUALLY NEEDS.
+--      altTab.useSnapshots = false. hs.window:snapshot() — photographing
+--      another app's window for the ⌥Tab tiles — is the ONLY call in the
+--      whole config that macOS treats as a screen capture, and therefore
+--      the only reason it ever asks for Screen Recording. Turn it off and
+--      every tile shows the app icon instead, the switcher is otherwise
+--      identical, and macOS is never asked. A test asserts snapshot() is
+--      called exactly zero times with the switch off.
+--   🧪 269 checks in test_features.lua, 116 in test_switcher.lua,
+--      661 across all five suites.
 -- NEW IN 6.44.2 — CAPTURE PAD: DRAGGABLE, RELIABLE, AND CAPTIONED:
 --   🖱 THE PAD MOVES NOW. Drag it by its header bar. hs.webview builds
 --      its window with NSWindowStyleMaskBorderless hard-coded in the
@@ -1837,7 +1867,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.44.2"
+_G.configVersion = "6.44.3"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -5652,9 +5682,9 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.44.2"
+    local currentVersion = "6.44.3"
     local currentDate    = "08-05-26"
-    local currentNotes   = "Capture Pad follow-up. The pad is draggable by its header bar: hs.webview hard-codes a borderless window and never sets movableByWindowBackground, so the windowStyle titled call was being ignored and there was no title bar to grab. The drag is driven from Lua polling the real mouse and button state, not JS mousemove, because a WKWebView stops seeing the pointer the moment it leaves the window. Fixed the remaining attachment inconsistency: 6.44.1 stopped uploads failing every time, but feeding the auth header on curl's stdin still races curl's own read loop, which is why it worked sometimes. The header now goes into a short-lived file, written and closed before curl exists, passed as -H at-path, deleted when the callback fires, and swept at boot if a force-quit left one behind. Fixed a note with an image losing its own text: the description was only built for notes too long for their title, so a short note plus a screenshot produced a description with no caption. Parked notes can now be put back in the queue from a button instead of hand-editing queue.json. A test caught a bug in the new drag code on its first run: beginDrag set the grab offset then called endDrag, which cleared it. 246 checks in the feature suite, 632 across all five."
+    local currentNotes   = "The numpad layer ships PARKED: enabled = false, nothing bound, every hyper plus number-pad key still free, with the 3x3 layout kept in the cheat sheet under a PARKED banner so the plan stays findable. Not binding is deliberate — a disabled handler that still claimed the keys would swallow every press and look like a dead keyboard. Note that a machine profile cannot switch it on, because profile settings are applied after setup and binding happens during setup; it is a one-line file edit plus a reload. Clicking any date in the mini calendar now copies it as MM-DD-YY (08-07-26), zero-padded so pasted dates align, with the weekday named in the confirmation; C copies the highlighted date from the keyboard, with no repeat handler so holding it cannot spam the clipboard. Added altTab.useSnapshots: window snapshot is the only call in the whole config macOS treats as a screen capture, so it is the only reason Screen Recording is ever requested — turning it off falls back to app icons and never asks, and a test asserts snapshot is called zero times in that mode. 661 checks across five suites."
 
     -- Only append if this version isn't already in the file
     local found = false

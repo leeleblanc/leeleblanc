@@ -200,6 +200,7 @@ hs = {
     },
     pasteboard = {
         getContents = function() return CLIPBOARD_TEXT end,
+        setContents = function(s) CLIPBOARD_TEXT = s; return true end,
         readImage   = function() return CLIPBOARD_IMAGE end,
     },
     image = {
@@ -1111,6 +1112,64 @@ check("...and Esc has NO repeat handler (a repeat would close twice)", (function
         if b.key == "escape" then return b.repeatFn == nil end
     end
 end)())
+-- 📋 CLICKING A DATE COPIES IT. The format is the one asked for:
+-- 08-07-26, every part zero-padded to two digits so pasted dates align.
+CLIPBOARD_TEXT = ""
+local aug7 = at(2026, 8, 7)
+check("the date format is MM-DD-YY", cal.formatDate(aug7) == "08-07-26")
+check("...zero-padded, so a single-digit month still has two digits",
+      cal.formatDate(at(2026, 1, 5)) == "01-05-26")
+check("...and the year rolls to two digits too",
+      cal.formatDate(at(2027, 12, 31)) == "12-31-27")
+
+ALERTS = {}
+local copied = cal.copyDate(aug7)
+check("copyDate returns what it put on the clipboard", copied == "08-07-26")
+check("...and it really reached the clipboard", CLIPBOARD_TEXT == "08-07-26")
+check("...and says so, with the weekday as a sanity check",
+      ALERTS[#ALERTS]:find("08-07-26", 1, true) ~= nil
+      and ALERTS[#ALERTS]:find("Fri", 1, true) ~= nil)
+
+-- through the real mouse callback, the way an actual click arrives
+-- The panel is already open from the block above; re-render it on a known
+-- date rather than calling show(), which toggles and would close it.
+CLIPBOARD_TEXT, ALERTS = "", {}
+cal.today, cal.cursor = at(2026, 8, 6), at(2026, 8, 6)
+cal.render()
+local dayId = "day:2026-08-20"
+check("(the fixture day is on screen and clickable)",
+      cal.hitboxes[dayId] ~= nil)
+cal.canvas._mouseCallback(cal.canvas, "mouseDown", dayId)
+check("🖱 clicking a date selects it", ymd(cal.cursor) == "2026-08-20")
+check("...AND copies it in one action", CLIPBOARD_TEXT == "08-20-26")
+check("C copies the highlighted date without the mouse", (function()
+    CLIPBOARD_TEXT = ""
+    for _, b in ipairs(cal.modal.bindings) do
+        if b.key == "c" then b.fn(); return CLIPBOARD_TEXT == "08-20-26" end
+    end
+end)())
+check("...and holding C does NOT refill the clipboard 30 times a second",
+      (function()
+          for _, b in ipairs(cal.modal.bindings) do
+              if b.key == "c" then return b.repeatFn == nil end
+          end
+      end)())
+check("the ‹ › and Today buttons still only navigate, never copy", (function()
+    CLIPBOARD_TEXT = ""
+    cal.canvas._mouseCallback(cal.canvas, "mouseDown", "nav:today")
+    return CLIPBOARD_TEXT == "" and ymd(cal.cursor) == "2026-08-06"
+end)())
+check("copyOnClick = false makes a click select only", (function()
+    cal.copyOnClick = false
+    CLIPBOARD_TEXT = ""
+    cal.canvas._mouseCallback(cal.canvas, "mouseDown", "day:2026-08-20")
+    local quiet = (CLIPBOARD_TEXT == "")
+    cal.copyOnClick = true
+    return quiet and ymd(cal.cursor) == "2026-08-20"
+end)())
+check("calendar.format is published for other modules",
+      _G.service.call("calendar.format", aug7) == "08-07-26")
+
 cal.hide()
 check("closing deletes the canvas and disarms the keys",
       cal.canvas == nil and cal.modal.entered == false)
@@ -1130,17 +1189,38 @@ local numMod = load("numpad_layer")
 numMod.setup(core)
 local numpad = numMod.numpad
 
-check("all ten digits of the pad are bound", (function()
-    for i = 0, 9 do if not hyperFor({}, "pad" .. i) then return false end end
+-- 🅿️ PARKED BY DEFAULT. The layout is a plan kept on the shelf, so the
+-- important assertion is the NEGATIVE one: not a single ⇪ + pad key is
+-- claimed, leaving them all free.
+check("the layer ships parked, not live", numpad.enabled == false)
+check("🅿️ NOT ONE pad key is bound — they all stay free", (function()
+    for i = 0, 9 do if hyperFor({}, "pad" .. i) then return false end end
+    for _, k in ipairs({ "pad+", "pad-", "pad*", "pad/", "pad.",
+                         "padenter", "padclear" }) do
+        if hyperFor({}, k) then return false end
+    end
     return true
 end)())
-check("the arithmetic keys are bound too",
-      hyperFor({}, "pad+") and hyperFor({}, "pad-")
-      and hyperFor({}, "pad*") and hyperFor({}, "pad/"))
+check("...and it says so, rather than binding keys that do nothing",
+      #numpad.bound == 0)
+check("the cheat sheet carries a PARKED banner so the plan stays findable",
+      numMod.cheatsheet.title:find("PARKED", 1, true) ~= nil)
+check("...and the first thing it says is that nothing is bound",
+      numMod.cheatsheet.entries[1][2]:find("NOTHING IS BOUND", 1, true) ~= nil)
+check("...and the second is how to switch it on",
+      numMod.cheatsheet.entries[2][2]:find("numpad.enabled = true", 1, true) ~= nil)
+
+-- The layout itself is still fully defined — parked means unbound, not
+-- unwritten. Everything below drives it directly, without any key.
 check("pad7 is TOP-LEFT — the key's own position", numpad.actions.pad7 == "topLeft")
 check("pad5 is the centre", numpad.actions.pad5 == "centre")
 check("pad3 is BOTTOM-RIGHT", numpad.actions.pad3 == "bottomRight")
 check("pad0, the widest key, maximises", numpad.actions.pad0 == "full")
+
+-- ---- and now the LIVE path -------------------------------------------
+-- Everything from here runs with the layer switched on, so parking it is
+-- proven to be a switch rather than a way of quietly deleting the feature.
+numpad.enabled = true
 
 -- ⇪pad7 on a 1440×900 screen with a 25pt menu bar
 local placed
@@ -1192,13 +1272,36 @@ check("the remembered-frames table is bounded, not a slow leak",
       #numpad.priorOrder == 3)
 FOCUSED.id = function() return 77 end
 
+-- Switching the layer on really does claim the keys — the other half of
+-- the parked test above, so "parked" is proven to be reversible.
+local liveMod = load("numpad_layer")
+liveMod.setup(core)
+local live = liveMod.numpad
+check("a parked layer binds nothing on setup", #live.bound == 0)
+live.enabled = true
+local boundCount = live.bindAll()
+check("switching it on claims every pad key", boundCount == 17, boundCount)
+check("...including all ten digits", (function()
+    for i = 0, 9 do if not hyperFor({}, "pad" .. i) then return false end end
+    return true
+end)())
+check("...and the arithmetic keys", hyperFor({}, "pad+") and hyperFor({}, "pad-")
+      and hyperFor({}, "pad*") and hyperFor({}, "pad/"))
+check("binding twice does not double-claim anything", live.bindAll() == boundCount)
+
 check("an unmapped key name is SKIPPED, not bound to nil", (function()
-    numpad.actions.padnonsense = "full"
-    hs.keycodes.map.padnonsense = nil
-    local before = #HYPER
     local m2 = load("numpad_layer")
-    m2.actions = nil
-    return before >= 0
+    m2.setup(core)
+    local n2 = m2.numpad
+    n2.actions = { padnonsense = "full", pad1 = "bottomLeft" }
+    hs.keycodes.map.padnonsense = nil     -- this macOS has no such key
+    n2.enabled = true
+    n2.bindAll()
+    -- The real key binds, the imaginary one is skipped and NAMED rather
+    -- than passed to hs.hotkey as nil, which would throw.
+    return #n2.bound == 1 and n2.bound[1] == "pad1"
+           and #n2.skipped == 1 and n2.skipped[1] == "padnonsense"
+           and logged("no key code for")
 end)())
 
 printed = {}

@@ -66,6 +66,8 @@ local M = {
             { "shows", "EVERY window: all desktops/Spaces, all monitors, minimised too" },
             { "also", "Running apps with no open window — selecting one activates it" },
             { "tuning", "altTab.includeOtherSpaces / includeApps / maxWindows (module file)" },
+            { "no perms", "altTab.useSnapshots = false — icons not thumbnails, and macOS" },
+            { "",       "is never asked for Screen Recording (nothing else here needs it)" },
             { "⌘Tab", "Untouched — macOS reserves it, and it switches apps not windows" },
         },
     },
@@ -85,6 +87,11 @@ function M.setup(core)
                                      -- open window, so "every open program"
                                      -- really means every one
     altTab.maxWindows        = 36    -- hard cap on tiles, keeps cost bounded
+    -- 🔐 false = never photograph a window; every tile shows the app icon
+    -- instead. This is the ONE setting in the whole config that decides
+    -- whether macOS ever asks for Screen Recording permission — see the
+    -- note at the snapshot call in begin() below.
+    altTab.useSnapshots      = true
 
     -- ⏱ 6.41.0 — A HARD DEADLINE ON THE WINDOW SWEEP. On a real Mac this
     -- took 15.9 SECONDS across 15 apps: the Accessibility API can block
@@ -570,8 +577,19 @@ function M.setup(core)
             -- A window on another Space has nothing on screen to capture,
             -- so snapshot() returns nil for it and the app icon stands in.
             -- That is expected here, not a failure.
+            --
+            -- 🔐 THIS CALL IS THE ONLY THING IN THE WHOLE CONFIG THAT NEEDS
+            -- SCREEN RECORDING PERMISSION. Photographing another app's
+            -- window is a screen capture as far as macOS is concerned, so
+            -- w:snapshot() is what makes the prompt appear. Set
+            -- altTab.useSnapshots = false on a Mac where you cannot grant it
+            -- (or simply do not want to): every tile falls back to the app
+            -- icon, the switcher is otherwise identical, and macOS is never
+            -- asked for the permission in the first place.
             local okSnap, img = false, nil
-            if w then okSnap, img = pcall(function() return w:snapshot() end) end
+            if w and altTab.useSnapshots then
+                okSnap, img = pcall(function() return w:snapshot() end)
+            end
             if not (okSnap and img) and app then
                 local okIcon, icon = pcall(function()
                     return hs.image.imageFromAppBundle(app:bundleID())

@@ -38,7 +38,8 @@ local M = {
             { "↑ ↓",   "A week at a time" },
             { "[ ]",   "A month at a time (⇧← ⇧→ do the same)" },
             { "T / Home", "Back to today" },
-            { "click",  "A date to select it · ‹ › to change month · Today" },
+            { "click",  "A date COPIES it as 08-07-26 · ‹ › change month · Today" },
+            { "C",      "Copy the highlighted date without reaching for the mouse" },
             { "range",  "±1 year from today, then it stops and tells you" },
             { "Esc",    "Close" },
         },
@@ -62,6 +63,11 @@ function M.setup(core)
     cal.menuFormat  = "%a %-d"  -- "Thu 6" — %-d is handled below for portability
     cal.anchor      = "topRight"-- "topRight" (under the clock) or "center"
     cal.margin      = 12        -- gap from the screen edge when anchored
+    -- Clicking a date copies it in this format. %m-%d-%y is 08-07-26 —
+    -- all three parts zero-padded and two digits, so pasted dates line up.
+    -- %Y for a four-digit year, %d-%m-%y for day-first, etc.
+    cal.copyFormat  = "%m-%d-%y"
+    cal.copyOnClick = true      -- false = clicking only selects, never copies
     -- ----------------------------------------------------------------------
 
     cal.canvas = nil    -- HELD. A collected canvas takes the panel with it.
@@ -345,7 +351,8 @@ function M.setup(core)
         end
         table.insert(els, {
             type = "text",
-            text = "←→ day   ↑↓ week   [ ] month   T today   Esc close" .. edgeNote,
+            text = "←→ day   ↑↓ week   [ ] month   T today   click or C copies "
+                   .. os.date(cal.copyFormat, cal.cursor) .. "   Esc close" .. edgeNote,
             textSize = 13, textAlignment = "left",
             textColor = cal.atEdge and { red = 1, green = 0.72, blue = 0.4 }
                                     or { white = 0.42 },
@@ -368,6 +375,37 @@ function M.setup(core)
     function cal.moveDays(n)   cal.moveTo(addDays(cal.cursor, n))   end
     function cal.moveMonths(n) cal.moveTo(addMonths(cal.cursor, n)) end
     function cal.goToday()     cal.moveTo(cal.today)                end
+
+    -- ---- copying a date --------------------------------------------------
+    -- Clicking a date puts it on the clipboard in cal.copyFormat and says
+    -- what it copied. Returns the string so a test — and any other module,
+    -- via the published service — can check it without a clipboard.
+    --
+    -- The whole point is pasting it somewhere immediately, so the format is
+    -- one setting (cal.copyFormat) rather than something spread through the
+    -- drawing code. os.date's %m/%d/%y are all zero-padded and 2-digit,
+    -- which is what makes "08-07-26" line up in a column.
+    function cal.formatDate(t)
+        return os.date(cal.copyFormat, t or cal.cursor)
+    end
+
+    function cal.copyDate(t)
+        t = t or cal.cursor
+        local text = cal.formatDate(t)
+        local ok = false
+        pcall(function() ok = hs.pasteboard.setContents(text) ~= false end)
+        if not ok then
+            hs.alert.show("🗓 Could not reach the clipboard")
+            print("🗓 Mini calendar: hs.pasteboard.setContents failed for " .. text)
+            return nil
+        end
+        -- Named day as well as the digits: the point of copying 08-07-26 is
+        -- usually that you are about to commit to it, and "Fri" is the part
+        -- worth double-checking before you paste.
+        hs.alert.show("🗓 " .. text .. "   (" .. os.date("%a", t) .. ")  copied", 1.6)
+        _G.diag.say("calendar", "copied " .. text)
+        return text
+    end
 
     -- ---- show / hide -----------------------------------------------------
     local function frameFor()
@@ -427,7 +465,12 @@ function M.setup(core)
                 if id == "nav:1"     then cal.moveMonths(1)  return end
                 if id == "nav:today" then cal.goToday()      return end
                 local t = cal.hitboxes[id]
-                if type(t) == "number" then cal.moveTo(t) end
+                if type(t) == "number" then
+                    -- Select AND copy. moveTo first so the highlight has
+                    -- already landed on the date the alert is about to name.
+                    cal.moveTo(t)
+                    if cal.copyOnClick then cal.copyDate(t) end
+                end
             end)
         end)
 
@@ -461,6 +504,7 @@ function M.setup(core)
             { {}, "pagedown", function() cal.moveMonths(1)  end },
             { {}, "home",   function() cal.goToday() end },
             { {}, "t",      function() cal.goToday() end },
+            { {}, "c",      function() cal.copyDate() end },
             { {}, "escape", function() cal.hide() end },
             { {}, "return", function() cal.hide() end },
             { {}, "q",      function() cal.hide() end },
@@ -468,8 +512,11 @@ function M.setup(core)
         for _, b in ipairs(bindings) do
             -- The third and fifth arguments are pressed and repeated: holding
             -- → walks forward, which is how you get across a month quickly.
-            local repeatFn = (b[2] ~= "escape" and b[2] ~= "return" and b[2] ~= "q")
-                             and b[3] or nil
+            -- The one-shot keys get NO repeat handler: a held Esc would close
+            -- twice, and a held C would refill the clipboard and stack an
+            -- alert thirty times a second.
+            local noRepeat = { escape = true, ["return"] = true, q = true, c = true }
+            local repeatFn = (not noRepeat[b[2]]) and b[3] or nil
             pcall(function() cal.modal:bind(b[1], b[2], b[3], nil, repeatFn) end)
         end
     else
@@ -477,6 +524,11 @@ function M.setup(core)
     end
 
     core.hyperAddShortcut({ "shift" }, "0", function() cal.toggle() end, "mini calendar")
+
+    -- Published so anything else can ask for a formatted date without
+    -- opening the panel:  _G.service.call("calendar.format", os.time())
+    core.provide("calendar.format", function(t) return cal.formatDate(t) end)
+    core.provide("calendar.copyToday", function() return cal.copyDate(todayNoon()) end)
 
     _G.miniCalendar = cal
     M.cal    = cal

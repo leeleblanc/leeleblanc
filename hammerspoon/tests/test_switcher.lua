@@ -22,6 +22,7 @@ local function mkwin(id, app, title, minimized, standard, snap)
   function w:isStandard() return standard ~= false end
   function w:isMinimized() return minimized == true end
   function w:snapshot()
+    SNAPSHOT_CALLS = SNAPSHOT_CALLS + 1
     if FAIL.snapshot then error("no snapshot") end
     return snap ~= false and ("snap:" .. id) or nil
   end
@@ -135,6 +136,7 @@ local AT = mod.altTab
 
 local out = io.write
 NAVKEYS = {}
+SNAPSHOT_CALLS = 0
 local pass, fail = 0, 0
 local function check(name, cond, detail)
   if cond then pass = pass + 1; out("  ✅ ", name, "\n")
@@ -153,6 +155,8 @@ local function reset(n)
   COUNT.ordered, COUNT.all, COUNT.apps, COUNT.canvasNew, COUNT.deleted, COUNT.alerts = 0,0,0,0,0,0
   ACTIVATED = nil
   FAIL.list, FAIL.canvas, FAIL.snapshot = false, false, false
+  SNAPSHOT_CALLS = 0
+  AT.useSnapshots = true    -- the Screen Recording switch, on by default
   focused, unminimized, drawn, timer, log = nil, nil, nil, nil, {}
   MODS = { alt = true }; NOW = 1000
   AT.cache = nil          -- each scenario starts with a cold list
@@ -564,6 +568,32 @@ check("...and the footer does not advertise ↑↓ when there is only one row",
     end
     return true
   end)())
+AT.finish(false)
+
+-- =====================================================================
+out("\n=== 12. Screen Recording: the one permission this config needs ===\n")
+-- 🔐 w:snapshot() photographs another app's window, which macOS treats as
+-- a screen capture — it is the ONLY call in the whole config that makes
+-- the Screen Recording prompt appear. On a managed Mac where that cannot
+-- be granted, altTab.useSnapshots = false avoids ever asking.
+reset(4)
+combos["alt+tab"]()
+check("with snapshots ON, windows really are photographed", SNAPSHOT_CALLS > 0,
+  SNAPSHOT_CALLS)
+check("...and the tiles show those photographs",
+  AT.session.items[1].image == "snap:1", tostring(AT.session.items[1].image))
+AT.finish(false)
+
+reset(4)
+AT.useSnapshots = false
+combos["alt+tab"]()
+check("🔐 with the switch OFF, snapshot() is never called even once — so "
+   .. "macOS is never asked for Screen Recording", SNAPSHOT_CALLS == 0, SNAPSHOT_CALLS)
+check("...the switcher still opens with every window", #AT.session.items == 4)
+check("...and every tile falls back to its app icon",
+  AT.session.items[1].image == "icon:com.test.App1",
+  tostring(AT.session.items[1].image))
+check("...so nothing about switching windows is lost", AT.session.index == 2)
 AT.finish(false)
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
