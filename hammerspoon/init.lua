@@ -4,9 +4,53 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.45.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.45.1-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.45.1 — THE MOUSE GRID, AUDITED AGAINST HAMMERSPOON'S OWN SOURCE:
+--   🔬 THE GAP A TEST SUITE CANNOT CLOSE BY ITSELF. Every check in 6.45.0
+--      validated the module against MY stubs, which encode MY assumptions
+--      about the hs API. A wrong assumption passes the test and crashes
+--      the Mac. So Hammerspoon's source was read directly and every call
+--      this module makes was checked against it.
+--   ✅ CONFIRMED CORRECT: the canvas element types and every attribute
+--      used; center/radius on circle; coordinates on segments; frame on
+--      rectangle and text; roundedRectRadii; textAlignment "center";
+--      fillColor on closed shapes and strokeColor on primitives;
+--      windowLevels.screenSaver; every canvas method called; the mouse,
+--      eventtap and screen-watcher calls; and — the one most worth
+--      checking — that modal:bind is declared (mods, key, MESSAGE, fn) but
+--      shifts its arguments when a function arrives in the message slot.
+--   🐛 A HANG, WHICH IS WORSE THAN A CRASH. A display reporting height 0
+--      (one disconnecting mid-query, a virtual display, some
+--      screen-sharing sessions) makes w/h infinite; math.floor(math.huge)
+--      is math.huge, so the cell loop became `for c = 0, inf` and
+--      Hammerspoon spun forever with no error and no recovery but a
+--      force-quit. Frames are now sanity-filtered, and one clamp bounds
+--      the loop even for a frame that passes the filter and still
+--      overflows.
+--   🐛 UNREACHABLE SCREEN. Without cols <= share, an extreme aspect ratio
+--      on a small share produced more cells than labels; the surplus was a
+--      region of screen that could never be reached. The fuzzer finds it
+--      within ~50 layouts once the clamp is removed.
+--   🐛 A CRASH ON A SCALED DISPLAY. string.format("%d", x) RAISES in Lua
+--      5.4 for any float without an exact integer representation, and
+--      screen frames are not something this module controls. No "%d"
+--      touches a frame now.
+--   🐛 INVISIBLE KEY CAPTURE. If the landed badge failed to draw, the old
+--      one had already been destroyed — leaving the keyboard captured with
+--      nothing on screen saying so, the one thing this design forbids.
+--      Landed mode is now refused outright rather than entered blind.
+--   🐛 A KEY YOUR KEYBOARD CANNOT SEND. hs.hotkey RAISES on an unknown key
+--      name rather than returning nil, so one exotic character in
+--      grid.alphabet would have taken the module down at setup.
+--   🗑 AND ONE DELETION. A NaN/infinity guard was written, then removed on
+--      proof that it was UNREACHABLE — the clamp beside it already handled
+--      both. Untested code that looks like a safety net is worse than no
+--      code, because the next reader trusts it.
+--   🧪 4 mutations run against the NEW tests themselves; two were
+--      toothless and were rewritten until reverting each fix fails the
+--      suite. 1,500-layout geometry fuzzer. 244 checks on this module.
 -- NEW IN 6.45.0 — MOUSE GRID (⇪M): TYPE THREE LETTERS, THE POINTER GOES:
 --   🎯 ⇪M lays a labelled grid over EVERY display. Type a cell's three
 --      home-row letters and the pointer jumps to it. ⇪⇧M clicks on
@@ -48,7 +92,7 @@
 --      a click goes through hs.eventtap, which macOS gates behind
 --      Accessibility — so without it the grid still jumps and SPACE says
 --      why it could not click, instead of looking broken.
---   🧪 1,123 checks across seven suites.
+--   🧪 1,160 checks across seven suites.
 -- NEW IN 6.44.13 — "DOES IT WORK ON THIS MAC?", ANSWERED IN ONE CALL:
 --   🖥 ONE init.lua, TWO VERY DIFFERENT MACS. About a dozen things
 --      legitimately differ between the personal Air and the managed work
@@ -322,7 +366,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.45.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.45.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -564,7 +608,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.45.0"
+_G.configVersion = "6.45.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -3476,14 +3520,14 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.45.0"
+    local currentVersion = "6.45.1"
     local currentDate    = "08-08-26"
     -- One line. The full entry for every version lives in CHANGELOG.md
     -- beside this file — which is also why prose no longer sits in a
     -- Lua string here: the work-Mac safety scan reads string literals
     -- as code, and a paragraph describing "no sudo, no launchctl"
     -- failed the very check it was describing.
-    local currentNotes   = "Added modules/mouse_grid.lua: hyper-M overlays a labelled grid on every display; type a cell's three home-row letters and the pointer jumps there, then space clicks, arrows nudge, escape backs out. A coordinate tool by choice, not an accessibility-tree tool, so it works over video, PDFs and remote desktops and needs no permission to jump. Built around one teardown invariant with a watchdog, a plain-chord panic key, and pass-through for unbound keys, because a full-screen overlay that captures keystrokes is the one thing here that could lock out a Mac. Scrim and grid lines are cached per display layout so only the labels redraw, and each keystroke shrinks the candidate set. mouseGridReport() prints the real cell size on this Mac. See CHANGELOG.md for the full entry."
+    local currentNotes   = "Audited mouse_grid.lua against Hammerspoon's own source rather than against the test stubs, which encode my assumptions and would pass a wrong one. Confirmed every canvas, mouse, eventtap, hotkey and screen call the module makes. Fixed a HANG on a display reporting zero height, where an infinite cols value made the cell loop never return; a region of screen left unreachable when an extreme aspect ratio on a small share produced more cells than labels; a raise on scaled displays from formatting a fractional frame with %d; landed mode capturing the keyboard with no visible badge when the badge failed to draw; and setup dying on an alphabet key the keyboard has no code for. Deleted a guard proven unreachable. Added a 1500-layout geometry fuzzer and re-tested the new tests until reverting each fix actually fails. See CHANGELOG.md for the full entry."
 
     -- Only append if this version isn't already in the file
     local found = false

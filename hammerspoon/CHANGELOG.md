@@ -4,6 +4,51 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.45.1 — THE MOUSE GRID, AUDITED AGAINST HAMMERSPOON'S OWN SOURCE:
+  🔬 THE GAP A TEST SUITE CANNOT CLOSE BY ITSELF. Every check in 6.45.0
+     validated the module against MY stubs, which encode MY assumptions
+     about the hs API. A wrong assumption passes the test and crashes
+     the Mac. So Hammerspoon's source was read directly and every call
+     this module makes was checked against it.
+  ✅ CONFIRMED CORRECT: the canvas element types and every attribute
+     used; center/radius on circle; coordinates on segments; frame on
+     rectangle and text; roundedRectRadii; textAlignment "center";
+     fillColor on closed shapes and strokeColor on primitives;
+     windowLevels.screenSaver; every canvas method called; the mouse,
+     eventtap and screen-watcher calls; and — the one most worth
+     checking — that modal:bind is declared (mods, key, MESSAGE, fn) but
+     shifts its arguments when a function arrives in the message slot.
+  🐛 A HANG, WHICH IS WORSE THAN A CRASH. A display reporting height 0
+     (one disconnecting mid-query, a virtual display, some
+     screen-sharing sessions) makes w/h infinite; math.floor(math.huge)
+     is math.huge, so the cell loop became `for c = 0, inf` and
+     Hammerspoon spun forever with no error and no recovery but a
+     force-quit. Frames are now sanity-filtered, and one clamp bounds
+     the loop even for a frame that passes the filter and still
+     overflows.
+  🐛 UNREACHABLE SCREEN. Without cols <= share, an extreme aspect ratio
+     on a small share produced more cells than labels; the surplus was a
+     region of screen that could never be reached. The fuzzer finds it
+     within ~50 layouts once the clamp is removed.
+  🐛 A CRASH ON A SCALED DISPLAY. string.format("%d", x) RAISES in Lua
+     5.4 for any float without an exact integer representation, and
+     screen frames are not something this module controls. No "%d"
+     touches a frame now.
+  🐛 INVISIBLE KEY CAPTURE. If the landed badge failed to draw, the old
+     one had already been destroyed — leaving the keyboard captured with
+     nothing on screen saying so, the one thing this design forbids.
+     Landed mode is now refused outright rather than entered blind.
+  🐛 A KEY YOUR KEYBOARD CANNOT SEND. hs.hotkey RAISES on an unknown key
+     name rather than returning nil, so one exotic character in
+     grid.alphabet would have taken the module down at setup.
+  🗑 AND ONE DELETION. A NaN/infinity guard was written, then removed on
+     proof that it was UNREACHABLE — the clamp beside it already handled
+     both. Untested code that looks like a safety net is worse than no
+     code, because the next reader trusts it.
+  🧪 4 mutations run against the NEW tests themselves; two were
+     toothless and were rewritten until reverting each fix fails the
+     suite. 1,500-layout geometry fuzzer. 244 checks on this module.
+
 NEW IN 6.45.0 — MOUSE GRID (⇪M): TYPE THREE LETTERS, THE POINTER GOES THERE:
   🎯 ⇪M lays a labelled grid over EVERY display. Each cell carries three
      home-row letters; type them and the pointer jumps to that cell. ⇪⇧M

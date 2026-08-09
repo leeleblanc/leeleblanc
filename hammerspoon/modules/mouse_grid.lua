@@ -233,9 +233,32 @@ function M.setup(core)
     -- Index -> label, plain base-N in the alphabet. Row-major assignment
     -- means the FIRST letter always selects a contiguous horizontal band,
     -- so typing it lights up a block you can see rather than a scatter.
+    -- ⚠️ ONLY KEYS THIS KEYBOARD CAN ACTUALLY SEND. hs.hotkey's getKeycode
+    -- RAISES on a name your keymap has no code for — it does not return nil
+    -- — so one exotic character in grid.alphabet would take the whole
+    -- module down at setup(). Numpad Layer learned the same lesson against
+    -- the same API; this is the same guard.
+    --
+    -- Filtering HERE rather than at bind time is deliberate: the alphabet
+    -- feeds the geometry as well, so a letter you cannot type would
+    -- otherwise label cells you can never reach.
+    local warnedKeys = false
     local function alphabetChars()
-        local t = {}
-        for ch in tostring(grid.alphabet):gmatch(".") do t[#t + 1] = ch:lower() end
+        local t, dropped = {}, {}
+        local map = (hs.keycodes and hs.keycodes.map) or nil
+        for ch in tostring(grid.alphabet):gmatch(".") do
+            local c = ch:lower()
+            -- No keycodes table at all (a test harness) means take it as
+            -- given rather than silently returning an empty alphabet.
+            if map == nil or map[c] ~= nil then t[#t + 1] = c
+            else dropped[#dropped + 1] = c end
+        end
+        if #dropped > 0 and not warnedKeys then
+            warnedKeys = true
+            print("🎯 Mouse Grid: this keyboard layout has no key code for "
+                  .. table.concat(dropped, ", ") .. " — dropped from the alphabet")
+            warn("dropped unusable alphabet keys: " .. table.concat(dropped, ", "))
+        end
         return t
     end
 
@@ -254,12 +277,22 @@ function M.setup(core)
     -- fullFrame(), NOT frame(). frame() excludes the menu bar and the Dock,
     -- and a pointer tool that cannot reach the menu bar or the Dock has
     -- given away two of the places you most want to click.
+    -- ⚠️ NO "%d" ON SCREEN GEOMETRY, ANYWHERE. In Lua 5.4
+    -- string.format("%d", x) RAISES "number has no integer representation"
+    -- for any float that is not exactly integral, and a scaled display's
+    -- frame is not something this module controls. A cache key only has to
+    -- be stable and unique, so tostring() is both safer and sufficient.
     local function layoutKey()
         local parts = {}
-        for _, s in ipairs(hs.screen.allScreens()) do
-            local f = s:fullFrame()
-            parts[#parts + 1] = string.format("%d:%d,%d,%d,%d",
-                s:id() or 0, f.x, f.y, f.w, f.h)
+        local okAll, screens = pcall(hs.screen.allScreens)
+        if not (okAll and screens) then return "no-screens" end
+        for _, s in ipairs(screens) do
+            local okF, f = pcall(function() return s:fullFrame() end)
+            local okI, id = pcall(function() return s:id() end)
+            if okF and type(f) == "table" then
+                parts[#parts + 1] = table.concat({ tostring(okI and id or "?"),
+                    tostring(f.x), tostring(f.y), tostring(f.w), tostring(f.h) }, ",")
+            end
         end
         parts[#parts + 1] = string.format("|%s^%d|%.2f|%.2f|%.2f",
             grid.alphabet, grid.labelLength, grid.scrimAlpha, grid.lineAlpha, grid.labelSize)
@@ -270,11 +303,51 @@ function M.setup(core)
     -- cols×rows that lands closest to square cells for that display's
     -- aspect. Doing it by area rather than per-screen-equally is what
     -- stops a 27" monitor getting the same 200 cells as a laptop panel.
+    -- 🚨 ONE EXPRESSION DOES TWO JOBS, AND IT STOPS A HANG.
+    --
+    -- `math.max(1, math.min(cols, share))` is not defensive padding:
+    --
+    --   · CORRECTNESS. cols <= share means cols*rows <= share, so every
+    --     cell gets a label. Without it an extreme aspect ratio on a small
+    --     share produces more cells than there are labels, and the surplus
+    --     is a region of your screen you can never reach. The fuzzer finds
+    --     this within ~50 layouts once the clamp is gone.
+    --
+    --   · NO HANG. A display reporting height 0 — one disconnecting
+    --     between allScreens() and fullFrame(), a virtual display, some
+    --     screen-sharing sessions — makes w/h infinite, and
+    --     math.floor(math.huge) is math.huge in Lua. `cols` becomes inf
+    --     and the loop below becomes `for c = 0, inf`: Hammerspoon spins
+    --     forever, with no error and no recovery but a force-quit. A hang
+    --     is strictly worse than a crash, because a crash tells you what
+    --     happened. share is bounded by capacity, and min()/max() collapse
+    --     BOTH inf and NaN into [1, share], so the loop is always finite.
+    --
+    -- ⚠️ An earlier version had a separate `if cols ~= cols or cols ==
+    -- math.huge` line above this. It was deleted, not because it was
+    -- wrong, but because it was UNREACHABLE: the clamp already handles
+    -- both cases, so nothing could ever test that line. Untested code that
+    -- looks like a safety net is worse than no code — the next reader
+    -- trusts it.
     local function planScreen(frame, share)
         if share < 1 then share = 1 end
-        local cols = math.max(1, math.floor(math.sqrt(share * frame.w / frame.h) + 0.5))
+        local cols = math.floor(math.sqrt(share * frame.w / frame.h) + 0.5)
+        cols = math.max(1, math.min(cols, share))
         local rows = math.max(1, math.floor(share / cols))
         return cols, rows
+    end
+
+    -- A frame we can actually divide. Anything else is skipped and named,
+    -- because a display quietly missing from the grid is a region of screen
+    -- you cannot reach and no clue as to why.
+    local function usableFrame(f)
+        if type(f) ~= "table" then return false end
+        for _, v in ipairs({ f.x, f.y, f.w, f.h }) do
+            if type(v) ~= "number" or v ~= v or v == math.huge or v == -math.huge then
+                return false
+            end
+        end
+        return f.w > 0 and f.h > 0
     end
 
     local function buildGeometry()
@@ -288,15 +361,29 @@ function M.setup(core)
         local capacity = (#chars) ^ grid.labelLength
         local screens  = hs.screen.allScreens()
 
-        local totalArea = 0
+        -- Sanity-filter FIRST. Every number below is divided by or looped
+        -- over, so one bad frame reaching planScreen is the hang described
+        -- there. A skipped display is named rather than silently absent.
+        local usable, totalArea, skipped = {}, 0, 0
         for _, s in ipairs(screens) do
-            local f = s:fullFrame(); totalArea = totalArea + (f.w * f.h)
+            local okF, f = pcall(function() return s:fullFrame() end)
+            if okF and usableFrame(f) then
+                usable[#usable + 1] = f
+                totalArea = totalArea + (f.w * f.h)
+            else
+                skipped = skipped + 1
+            end
         end
-        if totalArea <= 0 then return nil, "no screens reported any area" end
+        if skipped > 0 then
+            warn(skipped .. " display(s) reported an unusable frame and were "
+                 .. "left out of the grid")
+        end
+        if #usable == 0 or totalArea <= 0 then
+            return nil, "no display reported a usable frame"
+        end
 
         local plan, index, truncated = {}, 0, 0
-        for _, s in ipairs(screens) do
-            local f     = s:fullFrame()
+        for _, f in ipairs(usable) do
             local share = math.floor(capacity * (f.w * f.h) / totalArea)
             local cols, rows = planScreen(f, share)
             local cw, ch = f.w / cols, f.h / rows
@@ -323,7 +410,7 @@ function M.setup(core)
                 end
             end
             plan[#plan + 1] = {
-                screenId = s:id(), frame = f, cols = cols, rows = rows,
+                frame = f, cols = cols, rows = rows,
                 cellW = cw, cellH = ch, cells = cells,
             }
         end
@@ -454,8 +541,13 @@ function M.setup(core)
         local rx, ry = px - cx, py - cy
 
         pcall(function() if grid.cross then grid.cross:delete() end end)
+        grid.cross = nil
         local c = hs.canvas.new({ x = cx, y = cy, w = W, h = H })
-        if not c then return end
+        -- 🚨 RETURNS FALSE, AND THE CALLER MUST ACT ON IT. The old cross has
+        -- already been destroyed by this point, so carrying on would leave
+        -- landed mode capturing the keyboard with NOTHING on screen saying
+        -- so — the precise hazard the whole design forbids.
+        if not c then return false end
         local ink = { white = 1.0, alpha = 0.95 }
         c:replaceElements({
             { type = "circle", action = "stroke", strokeColor = ink, strokeWidth = 2,
@@ -485,6 +577,7 @@ function M.setup(core)
         pcall(function() c:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" }) end)
         c:show()
         grid.cross = c
+        return true
     end
 
     -- =====================================================================
@@ -573,12 +666,13 @@ function M.setup(core)
     end
 
     local function movePointer(point)
-        -- absolutePosition is the current name; setAbsolutePosition is the
-        -- old one. Both exist on some builds, neither on none — try in
-        -- order rather than assuming which Hammerspoon this Mac has.
-        local ok = pcall(function() hs.mouse.absolutePosition(point) end)
-        if not ok then ok = pcall(function() hs.mouse.setAbsolutePosition(point) end) end
-        if not ok then warn("could not move the pointer") end
+        -- ⚠️ NO setAbsolutePosition FALLBACK. It looks like a safety net and
+        -- is not one: in Hammerspoon's source setAbsolutePosition is a
+        -- deprecated shim whose entire body calls absolutePosition and
+        -- prints a deprecation notice. Retrying through it would re-run the
+        -- call that just failed and spam the Console for the privilege.
+        local ok, err = pcall(function() hs.mouse.absolutePosition(point) end)
+        if not ok then warn("could not move the pointer: " .. tostring(err)) end
         return ok
     end
 
@@ -597,7 +691,12 @@ function M.setup(core)
             return
         end
         grid.state = { phase = "landed", point = point }
-        showCrosshair(point.x, point.y)
+        if not showCrosshair(point.x, point.y) then
+            grid.hide("no badge could be drawn")
+            warn("landed badge could not be drawn — refusing to capture keys "
+                 .. "invisibly; the pointer has still moved")
+            return
+        end
         armWatchdog(grid.landedSecs, "landed badge left open")
         say("landed at " .. math.floor(point.x) .. "," .. math.floor(point.y))
     end
@@ -608,7 +707,12 @@ function M.setup(core)
         local p = { x = s.point.x + dx, y = s.point.y + dy }
         s.point = p
         movePointer(p)
-        showCrosshair(p.x, p.y)
+        if not showCrosshair(p.x, p.y) then
+            grid.hide("badge lost during nudge")
+            warn("badge could not be redrawn mid-nudge — refusing to capture "
+                 .. "keys invisibly")
+            return
+        end
         armWatchdog(grid.landedSecs, "landed badge left open")
     end
 
@@ -796,13 +900,21 @@ function M.setup(core)
         }
         for i, p in ipairs(cache.screens) do
             out[#out + 1] = string.format(
-                "   screen %d  %dx%d px   %d x %d cells   cell = %.0f x %.0f pt",
+                "   screen %d  %.0fx%.0f px   %d x %d cells   cell = %.0f x %.0f pt",
                 i, p.frame.w, p.frame.h, p.cols, p.rows, p.cellW, p.cellH)
             -- 44pt is Apple's own minimum control size. Below it, most
             -- targets are a straight hit; above it, expect to nudge.
             if p.cellW > 60 or p.cellH > 60 then
                 out[#out + 1] = "              ⚠️  coarser than most buttons — "
                     .. "arrow-nudge after landing, or widen grid.alphabet"
+            end
+            -- The opposite failure, and easier to cause than the first: a
+            -- big alphabet makes cells too small for their own label, and
+            -- overlapping text is a grid you cannot read at all.
+            if p.cellW < grid.labelSize * grid.labelLength * 0.62 then
+                out[#out + 1] = "              ⚠️  cells are narrower than "
+                    .. "their labels — text will overlap. Lower "
+                    .. "grid.labelSize or shorten grid.alphabet"
             end
         end
         if cache.truncated > 0 then

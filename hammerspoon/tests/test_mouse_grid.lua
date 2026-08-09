@@ -1046,6 +1046,266 @@ do
 end
 
 -- =====================================================================
+out("\n=== 12. Hostile display geometry — the hang, not the crash ===\n")
+-- =====================================================================
+-- Everything here was found by reading the code against Hammerspoon's own
+-- source rather than by a test failing, which is why each one gets a test
+-- now. The first is the worst failure this module could have.
+out("   -- a display reporting zero height --\n")
+setScreens({ mkScreen(1, 0, 0, 1512, 982), mkScreen(2, 1512, 0, 1920, 0) })
+loadModule()
+-- 🚨 If this regresses, it does not fail — it HANGS. w/h is infinite,
+-- math.floor(math.huge) is math.huge, and `for c = 0, inf` never returns.
+-- Hammerspoon spins with no error and no recovery but a force-quit.
+do
+    local done = false
+    local ok = pcall(function() grid.show(false); done = true end)
+    check("a zero-height display does not hang the cell loop", ok and done)
+end
+checkInv("zero-height display")
+check("the good display still gets a full grid", grid.cache ~= nil
+      and #grid.cache.screens == 1, grid.cache and #grid.cache.screens)
+check("the unusable display is NAMED, not silently dropped — a screen "
+      .. "missing from the grid is a region you cannot reach",
+      warned("unusable frame"))
+check("no cell is left unlabelled", grid.cache.truncated == 0)
+grid.hide("t"); checkInv("cleanup")
+
+out("   -- every other way a frame can be broken --\n")
+for _, bad in ipairs({
+    { "negative width",  mkScreen(2, 0, 0, -100, 800) },
+    { "zero width",      mkScreen(2, 0, 0, 0, 800) },
+    { "NaN height",      mkScreen(2, 0, 0, 800, 0 / 0) },
+    { "infinite width",  mkScreen(2, 0, 0, math.huge, 800) },
+}) do
+    setScreens({ mkScreen(1, 0, 0, 1512, 982), bad[2] })
+    loadModule()
+    local ok = pcall(function() grid.show(false) end)
+    check("survives a display with " .. bad[1], ok and grid.state ~= nil, bad[1])
+    checkInv(bad[1])
+    grid.hide("t")
+end
+
+out("   -- a frame that PASSES the filter and still overflows --\n")
+-- 🚨 THE FRAME FILTER IS NOT ENOUGH, AND THIS IS THE PROOF. w and h here
+-- are both finite and positive, so usableFrame() accepts them — and w/h is
+-- still infinity, so cols becomes inf and the cell loop never returns.
+-- What saves it is the cols clamp in planScreen. Remove that clamp and
+-- this check does not fail, it HANGS — which is why it is worth its own
+-- case rather than being folded into the fuzzer.
+setScreens({ mkScreen(1, 0, 0, 1512, 982), mkScreen(2, 0, 982, 1e300, 1e-300) })
+loadModule()
+do
+    local done = false
+    local ok = pcall(function() grid.show(false); done = true end)
+    check("a frame that survives the filter but overflows the division is "
+          .. "still bounded by the cols clamp", ok and done)
+end
+checkInv("overflowing frame")
+check("...and it produces no unreachable cells",
+      grid.cache and grid.cache.truncated == 0)
+grid.hide("t")
+
+out("   -- a thin strip beside big displays (small share, huge aspect) --\n")
+-- This is when cols can exceed the labels actually available: the strip's
+-- share of the label space is tiny while its aspect ratio is enormous.
+-- Without cols <= share the surplus cells carry no label and the right of
+-- that display is unreachable.
+setScreens({ mkScreen(1, 0, 0, 3840, 2160), mkScreen(2, 3840, 0, 3840, 2160),
+             mkScreen(3, 7680, 0, 3840, 2160), mkScreen(4, 0, 2160, 6016, 100) })
+loadModule(); grid.show(false); checkInv("thin strip")
+check("cells never exceed the label capacity even on a pathological layout",
+      grid.cache.used <= grid.cache.capacity,
+      grid.cache.used .. "/" .. grid.cache.capacity)
+check("...and nothing is left unlabelled", grid.cache.truncated == 0,
+      grid.cache.truncated)
+check("every display still gets at least one cell", (function()
+    for _, p in ipairs(grid.cache.screens) do
+        if #p.cells == 0 then return false end
+    end
+    return true
+end)())
+grid.hide("t")
+
+out("   -- fractional frames (a scaled Retina display) --\n")
+-- string.format("%d", 1512.5) RAISES in Lua 5.4. Screen frames are not
+-- something this module controls, so no %d may touch one.
+setScreens({ mkScreen(1, 0.5, 0.5, 1512.5, 982.25) })
+loadModule()
+do
+    local ok = pcall(function() grid.show(false) end)
+    check("a fractional screen frame does not raise 'number has no integer "
+          .. "representation'", ok and grid.state ~= nil)
+end
+checkInv("fractional frame")
+grid.hide("t")
+check("and the report survives it too", (function()
+    return (pcall(_G.mouseGridReport))
+end)())
+
+out("   -- an alphabet key this keyboard cannot send --\n")
+-- hs.hotkey's getKeycode RAISES on an unknown key name rather than
+-- returning nil, so one exotic character would kill setup().
+hs.keycodes = { map = { a = 0, s = 1, d = 2, f = 3, g = 5, h = 4,
+                        j = 38, k = 40, l = 37 } }
+setScreens(ONE); loadModule()
+grid.alphabet = "asdfghjkl€"
+do
+    local ok = pcall(function() grid.show(false) end)
+    check("an untypeable character is dropped rather than taking the module "
+          .. "down", ok and grid.state ~= nil)
+end
+check("...and it says which key it dropped", warned("dropped unusable"))
+check("no cell is labelled with a key you cannot press", (function()
+    for _, c in ipairs(grid.cache.screens[1].cells) do
+        if c.label:find("€", 1, true) then return false end
+    end
+    return true
+end)())
+checkInv("bad alphabet key")
+grid.hide("t")
+hs.keycodes = nil
+
+out("   -- a badge that cannot be drawn --\n")
+-- 🚨 The invisible-capture hazard: landed mode with no badge means keys are
+-- being eaten and nothing on screen says so.
+setScreens(ONE); loadModule(); grid.show(false)
+local savedNew2 = hs.canvas.new
+typeLabel("aa")
+hs.canvas.new = function() return nil end     -- fail only the badge
+pickKey("a")
+hs.canvas.new = savedNew2
+checkInv("badge allocation failed")
+check("if the landed badge cannot be drawn, landed mode is REFUSED rather "
+      .. "than captured invisibly", grid.state == nil)
+check("...but the pointer still moved, which is most of the value",
+      MOUSE_AT.x > 0)
+check("and it says why", warned("invisibly"))
+
+setScreens(ONE); loadModule(); grid.show(false); typeLabel("aaa")
+check("landed normally first", grid.state ~= nil and grid.cross ~= nil)
+hs.canvas.new = function() return nil end
+landKey("up")
+hs.canvas.new = savedNew2
+checkInv("badge lost mid-nudge")
+check("a badge lost DURING a nudge tears landed mode down too — the old "
+      .. "one is already destroyed by then", grid.state == nil)
+
+-- =====================================================================
+out("\n=== 13. Geometry fuzz — 4,000 random display layouts ===\n")
+-- =====================================================================
+-- The invariants above were checked against layouts I thought of. This
+-- checks them against layouts I did not. Every property here is one whose
+-- violation is a screen region you cannot reach, or a hang.
+do
+    math.randomseed(20260808)
+    -- The last few of each are deliberately pathological. Realistic monitor
+    -- sizes alone never produce a share small enough with an aspect large
+    -- enough to expose the cols<=share clamp — reverting that clamp left
+    -- 237 checks green until these shapes were added.
+    local sizes = { 800, 1024, 1280, 1366, 1440, 1512, 1680, 1920, 2560,
+                    3440, 3840, 5120, 640, 320, 6016, 7680 }
+    local heights = { 480, 600, 720, 768, 800, 900, 982, 1050, 1080, 1440,
+                      1600, 1964, 2160, 240, 100, 60 }
+    local worst, cases, bad = 0, 0, nil
+    -- ⚠️ The alphabet is NOT varied in here. The modal binds one hotkey per
+    -- alphabet character during setup(), so widening it afterwards would
+    -- build a geometry using letters that were never bound — and the probe
+    -- below would fail on the test's own mistake rather than on the
+    -- module's. The wide alphabet is covered in section 9, where the
+    -- module is set up with it. Only labelLength varies here, because every
+    -- home-row character stays bound whatever its length.
+    for iter = 1, 1500 do
+      -- Each case is isolated: an unexpected throw is REPORTED with its
+      -- layout, not allowed to kill the run and hide the other 1,499.
+      local okCase, caseErr = pcall(function()
+        local n = 1 + (iter % 4)          -- 1..4 displays
+        local list, x, desc = {}, 0, {}
+        for i = 1, n do
+            local w = sizes[math.random(#sizes)]
+            local h = heights[math.random(#heights)]
+            list[#list + 1] = mkScreen(i, x, 0, w, h)
+            desc[#desc + 1] = w .. "x" .. h
+            x = x + w
+        end
+        local layout = table.concat(desc, " + ")
+        setScreens(list)
+        loadModule()
+        if iter % 7 == 0 then grid.labelLength = 2 + (iter % 3) end
+        local ok, err = pcall(function() grid.show(false) end)
+        cases = cases + 1
+        if not ok then bad = bad or (layout .. " threw: " .. tostring(err)); return end
+        local c = grid.cache
+        if not c then bad = bad or (layout .. ": no cache built"); return end
+        local function fault(m) bad = bad or (layout .. ": " .. m) end
+
+        -- P1: never more cells than labels. Violation = unreachable screen.
+        if c.used > c.capacity then
+            fault("cells > capacity " .. c.used .. "/" .. c.capacity); return
+        end
+        -- P2: no cell may be left without a label.
+        if c.truncated ~= 0 then fault("truncated " .. c.truncated); return end
+        -- P3: labels unique across every display. A duplicate sends the
+        -- pointer somewhere you did not ask for and looks like randomness.
+        local seen = {}
+        for _, p in ipairs(c.screens) do
+            for _, cell in ipairs(p.cells) do
+                if seen[cell.label] then fault("dup label " .. cell.label); return end
+                seen[cell.label] = true
+            end
+        end
+        -- P4: every cell centre lands inside its own display.
+        for _, p in ipairs(c.screens) do
+            if p.cols < 1 or p.rows < 1 then fault("empty grid"); return end
+            for _, cell in ipairs(p.cells) do
+                if cell.ax < p.frame.x or cell.ax > p.frame.x + p.frame.w
+                or cell.ay < p.frame.y or cell.ay > p.frame.y + p.frame.h then
+                    fault("cell centre outside its display"); return
+                end
+            end
+        end
+        -- P5: the grid must reach the far edges. A band of screen the
+        -- labels never cover is invisible to every other check here.
+        for _, p in ipairs(c.screens) do
+            local last = p.cells[#p.cells]
+            if not last then fault("a display got no cells"); return end
+            if (p.frame.x + p.frame.w) - last.ax > p.cellW then
+                fault("right edge unreachable"); return
+            end
+            if (p.frame.y + p.frame.h) - last.ay > p.cellH then
+                fault("bottom edge unreachable"); return
+            end
+        end
+        -- P6: typing a label lands the pointer on exactly that cell —
+        -- probed on the LAST display, the one an off-by-one in the
+        -- area-split would strand.
+        local pn = c.screens[#c.screens]
+        local probe = pn.cells[math.random(#pn.cells)]
+        typeLabel(probe.label)
+        if math.abs(MOUSE_AT.x - probe.ax) > 0.01
+        or math.abs(MOUSE_AT.y - probe.ay) > 0.01 then
+            fault("landed off-target on " .. probe.label); return
+        end
+        -- P7: the invariant, on every one of these layouts.
+        local st, cv, md = grid.state ~= nil, anyCanvasVisible(), anyModalEntered()
+        if not (st == cv and cv == md) then fault("invariant broken"); return end
+        grid.hide("fuzz")
+        if grid.state ~= nil or anyCanvasVisible() or anyModalEntered() then
+            fault("not fully torn down"); return
+        end
+        worst = math.max(worst, c.used)
+      end)
+      if not okCase then bad = bad or ("case " .. iter .. " threw: " .. tostring(caseErr)) end
+      if bad then break end
+    end
+    check(cases .. " random layouts: no crash, no hang, no unreachable cell, "
+          .. "no duplicate label, no off-target landing, both far edges "
+          .. "covered, invariant held", bad == nil, bad)
+    check("the fuzzer actually exercised large grids", worst > 500, worst)
+end
+setScreens(ONE); loadModule()
+
+-- =====================================================================
 realPrint(table.concat(printed, "\n"))
 out("\n")
 if fail > 0 then
