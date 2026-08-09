@@ -48,6 +48,23 @@
 --      scan budget each fails the suite by name. Two of my first attempts
 --      at those mutations were too narrow to fire and had to be rewritten.
 --   🧪 1,410 checks across eleven suites.
+--   🩹 THE SHIP CHECK THEN FOUND TWO THINGS THE SUITES CANNOT SEE, both
+--      in what travels ALONGSIDE the code rather than in the code:
+--      · hs-doctor.sh's "is each module current?" markers stopped at
+--        6.44.4, so the four newest tools had no staleness check at all.
+--        Added, and menubar_items is checked for mb.axTimeout
+--        specifically — a copy without it is not merely old, it is the
+--        version that can hold the keyboard while an app fails to answer.
+--      · GUIDE.md still said 6.44.0, "18 modules", and "five suites, 593
+--        checks". It now says 22, eleven and 1,410, documents core/ and
+--        tools/, and stops listing §1.6 and §1.11 as work to do — they
+--        moved to core/ in 6.46.1. Headroom re-measured: 111, not 116.
+--      · hs-install.sh shipped WITHOUT its executable bit while the
+--        other two tools had theirs. All three are 755 now.
+--      None is a runtime change, so the version stays 6.47.1.
+--   📦 THE ZIP IS VERIFIED BY EXTRACTING IT: unpacked to an empty
+--      directory, its own tools/run-tests.sh runs all 1,410 checks green
+--      with nothing else present.
 -- NEW IN 6.47.0 — MENU BAR ITEMS (⇪M), AND WHY IT IS NOT BARTENDER:
 --   🚫 THE HONEST PART FIRST. Bartender's central trick — HIDING other
 --      apps' menu bar icons — CANNOT be done in Hammerspoon, and the

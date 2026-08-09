@@ -202,6 +202,17 @@ check_marker mini_calendar   "copyFormat"         6.44.3
 check_marker numpad_layer    "bindAll"            6.44.3
 check_marker file_tracker    "_ftSincePrune"      6.44.4
 check_marker activity_tracker "e._hay"            6.44.4
+# The four newest tools. These matter MORE than the ones above, not less:
+# a stale copy of one of these is the likeliest thing to be sitting in a
+# ~/.hammerspoon that was updated by hand instead of by hs-install.sh.
+check_marker mouse_grid      "grid.labelLength"   6.45.0
+check_marker url_cleaner     "cleaner.maxUnwraps" 6.46.0
+check_marker health_monitor  "health.bootGraceMins" 6.46.0
+# 🚨 axTimeout is the per-app Accessibility timeout. A menubar_items.lua
+# without it is not merely old — it is the version that can hold the
+# keyboard while a wedged app fails to answer. Treat its absence as
+# serious, not cosmetic.
+check_marker menubar_items   "mb.axTimeout"       6.47.0
 
 # ---- 6. the hyper key remap ------------------------------------------
 echo

@@ -1,6 +1,6 @@
 # Hammerspoon config — how the new design works
 
-Version 6.44.0. Keep this next to the config; it is the manual for the
+Version 6.47.1. Keep this next to the config; it is the manual for the
 structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ---
@@ -9,10 +9,21 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator + core services (5,500 lines)
+├── init.lua          the orchestrator (3,479 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
-└── modules/          one file per feature (18 files, ~5,800 lines)
+├── core/             dofile'd at a fixed point, NOT loader-managed (4 files)
+├── modules/          one file per feature (22 files, ~9,600 lines)
+├── tests/            run on any machine with lua5.4; no Mac required
+└── tools/            hs-install.sh · hs-doctor.sh · run-tests.sh
 ```
+
+`core/` is the part that is easy to get wrong when updating by hand.
+Those four files are **not** modules — the loader never sees them;
+`init.lua` `dofile`s them at a fixed point during boot, so a missing or
+half-copied one takes the whole config down rather than costing you one
+feature. `cp init.lua ~/.hammerspoon/` on its own leaves an install
+half-updated. Use `tools/hs-install.sh`, which copies all four folders
+and verifies them.
 
 `init.lua` keeps only what everything else needs:
 
@@ -208,8 +219,9 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Five suites, 593 checks, run with `lua5.4` — no Mac required, they stub
-the `hs` API:
+Ten Lua suites, 1,375 checks, plus 35 more that run the Capture Pad's
+page JavaScript under `node`. All of it runs with `lua5.4` on any
+machine — no Mac required, they stub the `hs` API:
 
 ```
 tests/test_modules.lua       loader, profiles, warm phase, failure isolation, slot uniqueness
@@ -217,15 +229,44 @@ tests/test_switcher.lua      ⌥Tab: Spaces, minimised, apps, degradation, arrow
 tests/test_cheatsheet.lua    layout, scrolling, assembled group order
 tests/test_diagnostics.lua   ⇪⇧D report + a whole-file audit of init.lua and every module
 tests/test_features.lua      Capture Pad · Mini Calendar · Quick Append · Screen Veil · Numpad
+tests/test_mouse_grid.lua    ⇪X, and the random-sequence explorer that shrinks its own failures
+tests/test_url_cleaner.lua   ⇪K, over 8,000 generated URLs
+tests/test_health.lua        ⇪⇧H, over 600 generated timelines / 36,000 events
+tests/test_menubar.lua       ⇪M, over 500 generated Mac populations
+tests/test_integration.lua   🚨 all 22 modules loaded TOGETHER: shortcut, service and
+                             cheat-sheet-slot collisions — the only suite that can
+                             catch two modules quietly claiming the same key
+tests/test_pad_js.js         the Capture Pad's in-page JavaScript, actually executed
 ```
 
-Copy the whole `tests/` folder to `~/.hammerspoon/tests/` and run it from
-anywhere — each suite finds `~/.hammerspoon` on its own, or takes the
-path as its first argument:
+**Run them with `tools/run-tests.sh`, not by hand.** It compiles every
+file first, runs all eleven suites in order, and is the thing to trust
+before copying anything to a Mac:
+
+```bash
+~/.hammerspoon/tools/run-tests.sh
+```
+
+Each suite also stands alone — it finds `~/.hammerspoon` on its own, or
+takes the path as its first argument:
 
 ```bash
 for t in ~/.hammerspoon/tests/test_*.lua; do lua5.4 "$t"; done
 ```
+
+`tests/loader_test.lua` is deliberately **not** in that list and will
+error if you run it directly. It is not a suite; it is §1.12's real
+loader, extracted so `test_integration.lua` can `dofile` it against a
+stubbed `hs` instead of testing a hand-copied imitation of it.
+
+The four newest suites are **property-based**: rather than checking
+listed cases, they generate random input and assert things that must be
+true of every result — cleaning an already-clean URL changes nothing,
+the menu bar scan returns inside its budget however many apps are
+wedged, no staleness alert fires twice in one day. When one fails it
+shrinks the failing input to the shortest version that still fails. Read
+6.47.1 in `CHANGELOG.md` for what that turned up, including the three
+findings that were faults in the *tests* rather than the modules.
 
 `tests/test_features.lua` takes the **modules** folder rather than the
 config folder, and wants a real timezone:
@@ -247,22 +288,30 @@ discarded timers, and no `hs.window.filter`.
 
 ## 7. What is left to modularize
 
+§1.6 Cheat Sheet and §1.11 Diagnostics are **done** — 6.46.1 moved them
+to `core/cheatsheet.lua` and `core/diagnostics.lua`, leaving a ~30-line
+`dofile` stub at each original position so the boot order is byte-for-byte
+unchanged. That is the pattern for anything below that is infrastructure
+rather than a feature: it cannot become a loader-managed module (the
+loader runs too late), but it can leave the file.
+
 | Section | Lines | Note |
 |---|---|---|
-| 1.6 Cheat Sheet | 746 | infrastructure — consumes module registrations |
-| 3.12 Hyper Key | 797 | infrastructure — must run last |
+| 3.12 Hyper Key | 838 | infrastructure — must run last, after every module claims its keys |
 | 2 OCR/clipboard | 341 | shared utilities; splitting means promoting them to core first |
-| 5 Hotkey integrations | 263 | small glue |
 | 6 Asana dashboard | 387 | pairs with `asana_comments` |
+| 5 Hotkey integrations | 263 | small glue |
 
 None of these is urgent. The rule for each: **find the helper the
 section is squatting on, promote it to core, then move the section** —
 that is how `splitCSVLine`, `csvQuote` and `formatDuration` were freed.
 
-Headroom in `init.lua`'s main chunk: **116 of the 200 local slots free**
+Headroom in `init.lua`'s main chunk: **111 of the 200 local slots free**
 (measured, not estimated — a probe that binary-searches how many extra
-`local` declarations still compile). Every one of the five new features
-lives in a module and spends none of them.
+`local` declarations still compile). All 22 features live in modules and
+spend none of them; that is the whole point of the split, since the 200
+limit is per chunk and hitting it is a compile error that takes the
+entire config down rather than one feature.
 
 ---
 
