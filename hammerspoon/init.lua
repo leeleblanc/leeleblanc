@@ -4,9 +4,30 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.46.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.46.1-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.46.1 — init.lua GOES BACK TO BEING AN ORCHESTRATOR:
+--   📉 3,735 LINES → 3,511, AND NOT ONE LINE OF CODE WAS TOUCHED. 6.44.11
+--      cut this file from 6,012 to 3,376 by moving history out; within a
+--      few releases it was back to TWELVE inline changelog entries against
+--      a stated rule of five. Bloat creeps back about fifty lines a
+--      release and nobody notices, because each release only adds a little.
+--   🚨 AND IT NEARLY COST THREE VERSIONS OF HISTORY. 6.44.11, 6.44.12 and
+--      6.44.13 existed ONLY in this header — they were never backfilled
+--      into CHANGELOG.md. Trimming on the assumption that CHANGELOG.md was
+--      complete would have deleted them silently. They were moved across
+--      FIRST; CHANGELOG.md now holds all 114 versions.
+--   🧬 A TEST NOW ENFORCES BOTH HALVES, because a convention nothing checks
+--      is a convention that decays: at most five entries inline, and
+--      nothing inline that CHANGELOG.md is missing. The second is the one
+--      that matters — it makes losing history by trimming impossible.
+--   📐 AND THE ARCHITECTURAL CLAIM IS NOW TESTED RATHER THAN ASSERTED. A
+--      new tool costs init.lua its NAME in three profiles and nothing
+--      else. Across the whole of 6.45.0 → 6.46.0, three new tools added
+--      1,867 lines of module code and exactly NINE lines to init.lua.
+--      The suite fails if a module name ever appears here as code.
+--   🧪 1,358 checks across ten suites.
 -- NEW IN 6.46.0 — A LINK CLEANER, A TOOL-HEALTH WATCHDOG, AND ⇪M → ⇪X:
 --   🎯 THE MOUSE GRID MOVED TO ⇪X. ⇪X opens it, ⇪⇧X clicks on arrival,
 --      ⌃⌥⌘⇧X is the panic key. Nothing else about it changed.
@@ -180,280 +201,9 @@
 --      Accessibility — so without it the grid still jumps and SPACE says
 --      why it could not click, instead of looking broken.
 --   🧪 1,160 checks across seven suites.
--- NEW IN 6.44.13 — "DOES IT WORK ON THIS MAC?", ANSWERED IN ONE CALL:
---   🖥 ONE init.lua, TWO VERY DIFFERENT MACS. About a dozen things
---      legitimately differ between the personal Air and the managed work
---      MacBook. Every one was already handled, and every one printed its
---      own line somewhere at boot — which is the problem. Twelve scattered
---      lines is not an answer to "what works here", it is twelve things to
---      go and find.
---   ✅ NEW: core/capabilities.lua. _G.capabilityReport() reports OneDrive,
---      backup, Asana, Accessibility, the hyper key, OCR, Homebrew and the
---      module load — each with its STATE, the real REASON, and, when it is
---      off, WHAT THAT COSTS YOU. "OFF" only means something if you know
---      what it takes with it. Included in ⇪⇧D.
---   ❔ UNKNOWN IS A REAL ANSWER. The hidutil remap and the OCR probe are
---      decided asynchronously, well after boot. "Has not reported yet" and
---      "this Mac cannot" need different reactions, so they are never
---      folded together. A broken secret.lua is likewise distinguished from
---      a missing one — broken is a typo you can fix in thirty seconds.
---   🎹 The hyper remap's result is now RECORDED (_G.hyperRemapOK), not just
---      printed once and lost. It is the single biggest difference between
---      the two Macs, and asking you to scroll back for a line was a poor
---      way to find it out.
---   📄 NEW: INSTALL.md — rebuilding this config from nothing, step by step.
---      Hammerspoon, Accessibility, the files, secret.lua, the machine
---      profile, the OCR shortcut, no-admin Homebrew, verification, and
---      what to do when a step fails. Every optional step is marked, with
---      what you lose by skipping it.
---   🧬 A TEST NOW KEEPS THE DOCS HONEST. Adding capabilities.lua left
---      INSTALL.md saying "3 files", hs-doctor.sh checking three names and
---      hs-install.sh requiring three — three places silently out of step
---      with one new file, and the installer is what stands between a
---      half-copied config and the primary Mac. The file list is read from
---      DISK now and anything hard-coding it must agree. 7 mutations catch
---      that drift, including one that only removed a name from the
---      installer's PRE-CHECK loop and left the verify loop intact.
---   🐛 Two of my own, both caught by running the code rather than reading
---      it: a one-line conditional in the report's word-wrap relied on Lua
---      binding `and` tighter than `or`, evaluated to a boolean and crashed
---      on concat; and the capability load was first placed above
---      `local hyperEnabled`, where a Lua local is invisible, so it
---      captured nil and reported the hyper key disabled on BOTH Macs.
---   🧪 940 checks across six suites.
--- NEW IN 6.44.12 — PROVING THIS IS SAFE ON A MANAGED WORK MAC:
---   🔒 THE WORK MACBOOK IS THE PRIMARY MACHINE AND HAS NO ADMIN RIGHTS.
---      That is now a tested guarantee rather than a claim. The suite fails
---      if any future change adds sudo, an AppleScript admin prompt, chown,
---      launchctl, a keychain write, csrutil or spctl.
---   📋 EVERY EXTERNAL PROGRAM IS ON A REVIEWED LIST, and an unlisted one
---      fails the build. The list: curl, shortcuts, hidutil, open, defaults,
---      zsh, rsync. ALL SEVEN SHIP WITH macOS. This config installs nothing.
---   🍺 HOMEBREW IS OPTIONAL AND ISOLATED. It is reached from exactly one
---      module (update_tracker) and powers exactly one feature (⌃⌥⇧U). No
---      brew = that feature is off and says so; nothing else notices. The
---      no-admin prefixes under $HOME are searched BEFORE the admin ones,
---      and a test enforces that order.
---   🏠 NOTHING IS WRITTEN OUTSIDE $HOME. Every write target is built from
---      logsDir or configDir; a hard-coded absolute write path fails the
---      suite. /Applications and /usr/bin are READ only.
---   🌐 THE ONLY HOST THIS CONFIG CONTACTS IS app.asana.com, and only with
---      secret.lua present. My first version of that check failed on
---      shottr.cc and was WRONG to: that is a vendor page handed to your
---      browser because you selected the row and pressed Enter. A link you
---      click is not network activity this config initiates. The test now
---      keeps those two apart and asserts vendor URLs are never fetched.
---   🧬 6 more mutations caught, including "a sudo appears in the backup
---      command", "the remap becomes a launch daemon" and "a vendor page
---      starts being FETCHED instead of opened".
---   🛟 NEW: tools/hs-install.sh — INSTALL, VERIFIED AND REVERSIBLE. The
---      risk on the work Mac was never the Lua, it was the COPY: since
---      6.44.11 a bare `cp init.lua` produces a config that starts, looks
---      fine, and has quietly lost ⇪/ and ⇪⇧D. This checks the download is
---      complete BEFORE touching anything, backs up the current config,
---      installs, verifies, and ROLLS ITSELF BACK if the verify fails. It
---      refuses to run as root. --dry-run shows what it would do; --rollback
---      undoes the last install. secret.lua and logs/ are never touched.
---   🐛 Its own first verify checked only that each core file EXISTED — and
---      a zero-byte one passed, which is the exact half-installed state the
---      script exists to prevent. It checks size and content now. Found by
---      testing the installer's failure paths rather than its happy path.
---   🩺 hs-doctor.sh answers the question ON the work Mac: every external
---      command, whether it is present there, and every path written to.
---   🧪 875 checks across six suites.
--- NEW IN 6.44.11 — init.lua IS 44% SMALLER, AND THE CONSOLE IS TWO LINES:
---   📉 6,012 LINES → 3,376. Nothing was deleted. 1,827 lines of changelog
---      moved to CHANGELOG.md beside this file (all 107 versions, intact),
---      and three big blocks moved into core/.
---   📂 core/ IS NOT modules/. A module is loaded by the §1.12 loader,
---      isolated, and configurable per machine. These three are dofile'd by
---      init.lua at exactly the point they used to sit, because the loader
---      runs LAST and depends on them: it logs through _G.diag, and every
---      module registers a cheat sheet group as it loads. Boot order is
---      unchanged. Each load is pcall'd, so a missing core file costs you
---      that one feature and prints why — it does not stop the Mac.
---        core/diagnostics.lua   §1.11, 287 lines   ⇪⇧D
---        core/cheatsheet.lua    §1.6,  721 lines   ⇪/
---        core/boot_report.lua   the Console's first impression
---   🔇 A CLEAN BOOT IS NOW TWO LINES, not fourteen. Fourteen lines you have
---      read a hundred times is not information; it is what you scroll past
---      to reach the line you reloaded to see. The rule now: SUMMARISE WHAT
---      IS RIGHT, ALWAYS PRINT WHAT IS WRONG. A failed module, a hotkey
---      conflict, missing Accessibility, a broken secret.lua — each still
---      prints its own full line, every time. Nothing was lost:
---      _G.bootReport() prints everything on demand, and _G.bootVerbose(true)
---      restores the full report at every boot. That preference is stored in
---      hs.settings, so it survives the reload you set it before.
---   🧪 THE TESTS STOPPED LYING. test_cheatsheet and test_diagnostics ran
---      against tests/block_test.lua and tests/diag_test.lua — hand-extracted
---      slices that had DRIFTED so far they were no longer even substrings of
---      init.lua. Both suites now load the shipped core/ file. The drift was
---      real and it was hiding things: running the real cheat sheet reached
---      four hs.hotkey.bind calls and two hs.chooser pickers that the slice
---      did not contain, none of which had ever been executed by a test. The
---      two dead slices are deleted.
---   🐛 AND THAT CAUGHT A BUG I HAD JUST WRITTEN. Lifting the boot report out
---      carried its `local axOK = false; pcall(...)` along with it, where it
---      shadowed the value being passed in. Effect: a Mac WITHOUT
---      Accessibility would still boot to "All green" — the single most
---      important thing that report has to warn about, silently dropped. The
---      whole-file text audit could not see it. The test that RUNS the file
---      caught it on its first execution.
---   🧬 20 mutations caught. Three of them were MISSED first: the audit read
---      init.lua concatenated with core/, so "init.lua loads the boot report"
---      stayed green when init.lua stopped loading it — the core file names
---      itself in its own header, and a comment satisfied the search. Fixed
---      by auditing init.lua alone, ignoring comment lines, and matching the
---      real loader expression instead of the bare filename.
---   🩺 tools/run-tests.sh compiles core/ too; tools/hs-doctor.sh reports it
---      and says plainly what is off if the folder never got copied across.
---   🧪 855 checks across six suites.
--- NEW IN 6.44.10 — THE DUPLICATE "PARKED" ROW, AND A READABLE CONSOLE:
---   🐛 A PARKED ROW SHOWING THE SAME NOTE AS THE QUEUED ROW BELOW IT. Two
---      screenshots taken four minutes apart both showed it, and in both the
---      parked text matched the queued text exactly — which is not a thing
---      that happens twice by chance. The reason line gave it away: "parked
---      before this pad tracked reasons" is what prints when a note has no
---      parkedAt and no lastError, and a QUEUED note never has either. So a
---      queued note was living in the parked list as well.
---   🔒 FIXED IN THE DATA, NOT IN THE VIEW. pad.normalize() runs on every
---      load: if the two lists are literally the same table it separates
---      them, and any parked entry whose id is already in the queue is
---      dropped. THE QUEUED COPY ALWAYS WINS — it is the one that actually
---      sends, so the parked twin is stale by definition. A genuinely parked
---      note, with its own id, is never touched.
---   📣 AND IT SAYS SO. Both repairs print to the Console. A silent fix here
---      would have left me guessing at the cause again later.
---   🧬 4 mutations caught, including "one table used as both lists goes
---      undetected" and "the guard eats genuinely parked notes".
---   🔇 THE CONSOLE IS WORTH READING AGAIN. hs.hotkey logged every enable and
---      disable at info level, and the ⌥Tab switcher binds 32 arrow hotkeys
---      on open and releases them on close — 64 lines per use. Three switches
---      in half a minute buried the boot report and the pad's send results
---      under ~200 lines of bookkeeping. Log level is "warning" now: real
---      problems still print, the chatter does not.
---   🧪 374 checks in test_features.lua, 801 across all six suites.
--- NEW IN 6.44.9 — SEND NOW SENDS THE NOTE YOU ARE LOOKING AT, AND THE PAD
--- STOPS DRAGGING HAMMERSPOON TO THE FRONT:
---   🐛 "NOTHING HAPPENS OTHER THAN LOCAL ACTIONS." Reported with a
---      screenshot: text typed, an image attached, "0 queued", and Send now
---      answering that there was nothing to send. It was telling the truth
---      and it was useless. "File it" moves the compose box into the queue;
---      "Send now" sends the QUEUE. So a note still sitting in front of you
---      was, to the code, not a note yet. That is a distinction the pad
---      invented and the person using it has no reason to care about. Send
---      now files the open draft first and then sends. Whitespace is still
---      not a note, and a draft that cannot be filed (queue full) stops the
---      send and says so rather than sending a half-state.
---   🪟 HAMMERSPOON JUMPED FORWARD ANYWAY. 6.44.6 removed this module's
---      launchOrFocus, which stopped it ASKING for the app to activate — but
---      macOS activates an application whenever one of its ordinary windows
---      becomes key, and the pad has to become key to accept typing. Removing
---      the request was never going to be enough. The one exemption is a
---      panel carrying NSWindowStyleMaskNonactivatingPanel, and hs.webview
---      builds its window on NSPanel, so the bit applies here.
---   ✅ AND IT IS VERIFIED, NOT ASSUMED. This file already carried one
---      windowStyle() call that looked handled and did nothing. So
---      pad.applyNonActivating sets the mask and then READS IT BACK, because
---      AppKit silently drops style bits it will not honour. It reports what
---      actually happened in pad.nonActivatingApplied, and when the mask does
---      not take it prints the reason and names the switch that certainly
---      works (capturePad.focusOnOpen = false — the pad then opens without
---      taking the keyboard at all, and you click into it).
---   🧪 THE REAL CHANGE IS HOW THIS IS NOW CHECKED. Every Capture Pad bug in
---      6.44.x lived in the page's JAVASCRIPT, and the suites could only read
---      that JavaScript as TEXT. Grepping source for a function name proves
---      the name is present; it proves nothing about what happens when you
---      click. tests/dump_pad_html.lua renders the page from the REAL module
---      and tests/test_pad_js.js EXECUTES it against a DOM stub, driving the
---      actual onclick strings, the keydown handler and the drag. It catches
---      the 6.44.7 wiped-draft bug, which no structural test could.
---   🧬 12 mutations caught across the two layers, 6 Lua and 6 JavaScript,
---      including "Send now stops filing the draft", "applyNonActivating
---      claims success without reading the mask back", and "Send now bypasses
---      say() and posts a bare message".
---   🩺 NEW: tools/run-tests.sh. One command, one exit code: syntax on
---      init.lua and all 18 modules, the five Lua suites, then the page
---      JavaScript. It says plainly what it did NOT check — a skipped stage
---      is never reported as a pass.
---   🧪 366 checks in test_features.lua, 793 across all six suites.
--- NEW IN 6.44.8 — A STALE PARKED NOTE CAN NOW BE READ AND CLEARED:
---   🕰 "PARKED · (blank) · earlier" MEANT NOTHING. A note parked BEFORE
---      6.44.5 has no lastError and no parkedAt, because nothing recorded
---      them yet — so its row rendered an empty gap where the reason
---      belongs, which reads like a display fault rather than missing
---      history. It now says which it is: "parked before this pad tracked
---      reasons", or "reason not recorded" when the time is known but the
---      cause is not.
---   🗑 DISCARD, WITH A CONFIRMATION. Until now the only exit for a parked
---      note was putting it back in the queue — which re-parks it if it
---      still fails, so a note that can never send (a project you lost
---      access to) sat in the banner forever and the only real fix was
---      hand-editing queue.json. There is a Discard button now. It asks
---      first, because this is the ONE action in the pad that destroys a
---      note; it removes the note's images too rather than orphaning them
---      in the images folder; and it never touches the live queue.
---   🧬 Three mutations on the new destructive path are caught, including
---      "discard also wipes the live queue" and "discard stops asking".
---   🩺 NEW: tools/hs-doctor.sh. One read-only command that reports what
---      is ACTUALLY installed — versions, per-module fix markers, file
---      completeness, whether the remap is live — and works even when
---      Hammerspoon will not start. Too much of 6.44's debugging went on
---      guessing at the Mac's state from here.
---   🧪 343 checks in test_features.lua, 735 across all five suites.
--- NEW IN 6.44.7 — ATTACHING AN IMAGE NO LONGER WIPES WHAT YOU TYPED:
---   🐛 TWO BUTTONS SENT NO TEXT. The draft lives only in the page's DOM
---      until a message carries it to Lua, which then writes it back on the
---      next redraw. Every KEYBOARD path passed it (text: t.value) — but
---      the "Attach clipboard image" and "Send now" BUTTONS sent bare
---      {a:'image'} and {a:'flush'}. Lua kept its stale copy (empty, on a
---      fresh pad) and the redraw replaced everything typed with it. That
---      is exactly why ⌘⇧V worked and clicking the button did not.
---   🔒 FIXED IN ONE PLACE, NOT AT SEVEN CALL SITES. say() now attaches the
---      live textarea to EVERY message it sends, so a button added later
---      cannot forget. All the individual `text: t.value` arguments are
---      gone, and a test asserts none come back.
---   ⌨️ THE CARET SURVIVES THE REDRAW TOO. Attaching an image mid-sentence
---      used to dump the cursor at the end of the draft; the position now
---      travels with the message and is restored. It is clamped in
---      JavaScript rather than Lua on purpose — selectionStart counts
---      UTF-16 units while Lua's # counts BYTES, and the two disagree the
---      moment an emoji is in the note.
---   ⚠️ HONEST LIMIT ON THE TESTS: this bug lived in JavaScript, which
---      cannot be executed from Lua. The new checks are STRUCTURAL — they
---      prove no call site omits the text and that say() always attaches
---      it — plus the Lua half is exercised for real. Three mutations,
---      including the original bug, are caught.
---   🧪 330 checks in test_features.lua, 722 across all five suites.
--- NEW IN 6.44.6 — ⇪N NO LONGER DRAGS THE CONSOLE FORWARD:
---   🐛 OPENING THE CAPTURE PAD ACTIVATED THE WHOLE APPLICATION. show() had
---      an hs.application.launchOrFocus("Hammerspoon") in it, which I added
---      to get the caret into the textarea. Wrong tool twice over: it
---      activates the APP, so every Hammerspoon window came forward with
---      the pad — the Console most visibly — and it was not needed at all.
---      allowTextEntry(true) already sets canBecomeKeyWindow inside
---      hs.webview (it defaults to NO), and bringToFront() already calls
---      makeKeyAndOrderFront:. Raising one window was the job; activating
---      the app was collateral damage. The call is gone.
---   ⚙️ capturePad.focusOnOpen (default true) decides whether the pad takes
---      the keyboard when it opens. Set it false to have the pad appear
---      without stealing focus and click into it yourself. Neither setting
---      activates the application.
---   🔍 CHECKED THE REST OF THE CONFIG FOR THE SAME MISTAKE: nothing else
---      does this. The other activate() calls (App Peek, Window Arranger,
---      ⌥Tab) target the app you are switching TO, which is their whole
---      purpose.
---   🧪 A test asserts the app is never activated, and a mutation putting
---      the old call back is caught. 317 checks in test_features.lua,
---      709 across all five suites.
--- The five most recent entries are above. THE FULL HISTORY — all 107
--- versions, every bug and why it happened — lives in CHANGELOG.md beside
--- this file. It was 1,827 lines of this one, which made the thing you
--- actually edit harder to find. Nothing was discarded, only moved.
--- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.46.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.46.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -695,7 +445,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.46.0"
+_G.configVersion = "6.46.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -3613,14 +3363,14 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.46.0"
+    local currentVersion = "6.46.1"
     local currentDate    = "08-08-26"
     -- One line. The full entry for every version lives in CHANGELOG.md
     -- beside this file — which is also why prose no longer sits in a
     -- Lua string here: the work-Mac safety scan reads string literals
     -- as code, and a paragraph describing "no sudo, no launchctl"
     -- failed the very check it was describing.
-    local currentNotes   = "Moved the Mouse Grid to hyper-X. Added modules/url_cleaner.lua: hyper-K rewrites the link on the clipboard into the one the sender meant, stripping tracking parameters and unwrapping redirect wrappers including Outlook Safe Links and Proofpoint with its own encoding scheme; hyper-shift-K undoes it. It refuses to expand shorteners because that would register the click and send the link off this Mac, and it makes no network calls at all. It uses a blocklist so an unrecognised parameter is always kept. Added modules/health_monitor.lua, which watches the output files of every tool that produces some and raises a persistent notification when one goes quiet, catching the module that loads fine and silently stopped working. It watches files rather than instrumenting code, so no existing module changed. Staleness is counted in awake ticks so sleep costs nothing, each check has active hours, and it speaks once per tool per day. Added an explorer to the test suite that generates random action sequences and shrinks any failure to its shortest reproduction. See CHANGELOG.md for the full entry."
+    local currentNotes   = "Trimmed init.lua from 3735 to 3511 lines without touching a line of code, by moving the inline changelog back to the five most recent entries the file's own rule calls for. First backfilled 6.44.11, 6.44.12 and 6.44.13 into CHANGELOG.md, which held every other version but not those three - trimming on the assumption the record was complete would have deleted them silently. A test now enforces at most five entries inline and, more importantly, that nothing inline is missing from CHANGELOG.md, so history cannot be lost this way again. Another test asserts the architectural claim directly: a new tool costs init.lua its name in three profiles and nothing else. See CHANGELOG.md for the full entry."
 
     -- Only append if this version isn't already in the file
     local found = false

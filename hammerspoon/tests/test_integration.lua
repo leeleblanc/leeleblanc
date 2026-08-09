@@ -424,6 +424,70 @@ check("mouse_grid draws NOTHING at load — the grid must cost nothing until "
            and _G.mouseGrid.cache == nil
 end)())
 
+-- =====================================================================
+out("\n=== 3. init.lua must stay an ORCHESTRATOR, not a container ===\n")
+-- =====================================================================
+-- 6.44.11 cut this file from 6,012 lines to 3,376 by moving history and
+-- three big blocks out. Within a few releases it was back to twelve
+-- inline changelog entries and 3,735 lines — bloat creeps back roughly
+-- 50 lines a release, and nobody notices because each release only adds
+-- a little. These checks make the drift fail the build instead.
+do
+    local f = io.open(HS .. "/init.lua", "r")
+    local init = f and f:read("*a") or "" ; if f then f:close() end
+    local f2 = io.open(HS .. "/CHANGELOG.md", "r")
+    local chg = f2 and f2:read("*a") or "" ; if f2 then f2:close() end
+
+    local inline = {}
+    for v in init:gmatch("\n%-%- NEW IN ([%d%.]+)") do inline[#inline + 1] = v end
+    check("init.lua keeps at most FIVE changelog entries inline, which is "
+          .. "the rule the file states for itself", #inline <= 5, #inline)
+
+    -- 🚨 THE IMPORTANT ONE. Trimming the header is only safe while
+    -- CHANGELOG.md is the complete record. When this cleanup was done,
+    -- 6.44.11, 6.44.12 and 6.44.13 existed ONLY in init.lua — trimming
+    -- blind would have destroyed three versions of history. This makes
+    -- that impossible to do by accident ever again.
+    local missing = {}
+    for _, v in ipairs(inline) do
+        if not chg:find("\nNEW IN " .. v:gsub("%.", "%%."), 1, false) then
+            missing[#missing + 1] = v
+        end
+    end
+    check("🚨 every entry still inline is ALSO in CHANGELOG.md, so trimming "
+          .. "the header can never lose history", #missing == 0,
+          table.concat(missing, ", "))
+
+    check("CHANGELOG.md is the complete record and keeps growing",
+          select(2, chg:gsub("\nNEW IN ", "")) >= 110,
+          select(2, chg:gsub("\nNEW IN ", "")))
+
+    local total = select(2, init:gsub("\n", "")) + 1
+    local comments = select(2, init:gsub("\n%s*%-%-", ""))
+    check("init.lua stays under 4,000 lines — it is the orchestrator, and "
+          .. "every feature belongs in modules/ or core/", total < 4000, total)
+    check("...and under 60% comment, which is where the header bloat shows "
+          .. "up before the line count does",
+          comments / total < 0.60, string.format("%.0f%%", comments / total * 100))
+
+    -- The actual architectural claim, tested rather than asserted: a new
+    -- tool costs init.lua its NAME in the profiles and nothing else.
+    for _, m in ipairs({ "mouse_grid", "url_cleaner", "health_monitor" }) do
+        local fh = io.open(HS .. "/modules/" .. m .. ".lua", "r")
+        check(m .. " lives in its own file, not in init.lua", fh ~= nil)
+        if fh then
+            local body = fh:read("*a") ; fh:close()
+            check("..." .. m .. " follows the module contract",
+                  body:find("function M.setup", 1, true) ~= nil
+                  and body:find("return M", 1, true) ~= nil)
+        end
+        local live = init:gsub("%-%-[^\n]*", "")
+        local mentions = select(2, live:gsub('"' .. m .. '"', ""))
+        check("...init.lua mentions " .. m .. " ONLY as a profile entry (3x), "
+              .. "never as code", mentions == 3, mentions)
+    end
+end
+
 realPrint(table.concat(printed, "\n"))
 out("\n")
 if fail > 0 then

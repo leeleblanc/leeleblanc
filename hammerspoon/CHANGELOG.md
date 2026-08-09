@@ -4,6 +4,28 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.46.1 — init.lua GOES BACK TO BEING AN ORCHESTRATOR:
+  📉 3,735 LINES → 3,511, AND NOT ONE LINE OF CODE WAS TOUCHED. 6.44.11
+     cut this file from 6,012 to 3,376 by moving history out; within a
+     few releases it was back to TWELVE inline changelog entries against
+     a stated rule of five. Bloat creeps back about fifty lines a
+     release and nobody notices, because each release only adds a little.
+  🚨 AND IT NEARLY COST THREE VERSIONS OF HISTORY. 6.44.11, 6.44.12 and
+     6.44.13 existed ONLY in this header — they were never backfilled
+     into CHANGELOG.md. Trimming on the assumption that CHANGELOG.md was
+     complete would have deleted them silently. They were moved across
+     FIRST; CHANGELOG.md now holds all 114 versions.
+  🧬 A TEST NOW ENFORCES BOTH HALVES, because a convention nothing checks
+     is a convention that decays: at most five entries inline, and
+     nothing inline that CHANGELOG.md is missing. The second is the one
+     that matters — it makes losing history by trimming impossible.
+  📐 AND THE ARCHITECTURAL CLAIM IS NOW TESTED RATHER THAN ASSERTED. A
+     new tool costs init.lua its NAME in three profiles and nothing
+     else. Across the whole of 6.45.0 → 6.46.0, three new tools added
+     1,867 lines of module code and exactly NINE lines to init.lua.
+     The suite fails if a module name ever appears here as code.
+  🧪 1,358 checks across ten suites.
+
 NEW IN 6.46.0 — A LINK CLEANER, A TOOL-HEALTH WATCHDOG, AND ⇪M → ⇪X:
   🎯 THE MOUSE GRID MOVED TO ⇪X. ⇪X opens it, ⇪⇧X clicks on arrival,
      ⌃⌥⌘⇧X is the panic key. Nothing else about it changed.
@@ -191,6 +213,137 @@ NEW IN 6.45.0 — MOUSE GRID (⇪M): TYPE THREE LETTERS, THE POINTER GOES THERE:
      without it the grid still jumps and SPACE says why it could not
      click, instead of looking broken.
   🧪 207 new checks, 10 mutations, 1,123 across seven suites.
+
+NEW IN 6.44.13 — "DOES IT WORK ON THIS MAC?", ANSWERED IN ONE CALL:
+  🖥 ONE init.lua, TWO VERY DIFFERENT MACS. About a dozen things
+     legitimately differ between the personal Air and the managed work
+     MacBook. Every one was already handled, and every one printed its
+     own line somewhere at boot — which is the problem. Twelve scattered
+     lines is not an answer to "what works here", it is twelve things to
+     go and find.
+  ✅ NEW: core/capabilities.lua. _G.capabilityReport() reports OneDrive,
+     backup, Asana, Accessibility, the hyper key, OCR, Homebrew and the
+     module load — each with its STATE, the real REASON, and, when it is
+     off, WHAT THAT COSTS YOU. "OFF" only means something if you know
+     what it takes with it. Included in ⇪⇧D.
+  ❔ UNKNOWN IS A REAL ANSWER. The hidutil remap and the OCR probe are
+     decided asynchronously, well after boot. "Has not reported yet" and
+     "this Mac cannot" need different reactions, so they are never
+     folded together. A broken secret.lua is likewise distinguished from
+     a missing one — broken is a typo you can fix in thirty seconds.
+  🎹 The hyper remap's result is now RECORDED (_G.hyperRemapOK), not just
+     printed once and lost. It is the single biggest difference between
+     the two Macs, and asking you to scroll back for a line was a poor
+     way to find it out.
+  📄 NEW: INSTALL.md — rebuilding this config from nothing, step by step.
+     Hammerspoon, Accessibility, the files, secret.lua, the machine
+     profile, the OCR shortcut, no-admin Homebrew, verification, and
+     what to do when a step fails. Every optional step is marked, with
+     what you lose by skipping it.
+  🧬 A TEST NOW KEEPS THE DOCS HONEST. Adding capabilities.lua left
+     INSTALL.md saying "3 files", hs-doctor.sh checking three names and
+     hs-install.sh requiring three — three places silently out of step
+     with one new file, and the installer is what stands between a
+     half-copied config and the primary Mac. The file list is read from
+     DISK now and anything hard-coding it must agree. 7 mutations catch
+     that drift, including one that only removed a name from the
+     installer's PRE-CHECK loop and left the verify loop intact.
+  🐛 Two of my own, both caught by running the code rather than reading
+     it: a one-line conditional in the report's word-wrap relied on Lua
+     binding `and` tighter than `or`, evaluated to a boolean and crashed
+     on concat; and the capability load was first placed above
+     `local hyperEnabled`, where a Lua local is invisible, so it
+     captured nil and reported the hyper key disabled on BOTH Macs.
+  🧪 940 checks across six suites.
+
+NEW IN 6.44.12 — PROVING THIS IS SAFE ON A MANAGED WORK MAC:
+  🔒 THE WORK MACBOOK IS THE PRIMARY MACHINE AND HAS NO ADMIN RIGHTS.
+     That is now a tested guarantee rather than a claim. The suite fails
+     if any future change adds sudo, an AppleScript admin prompt, chown,
+     launchctl, a keychain write, csrutil or spctl.
+  📋 EVERY EXTERNAL PROGRAM IS ON A REVIEWED LIST, and an unlisted one
+     fails the build. The list: curl, shortcuts, hidutil, open, defaults,
+     zsh, rsync. ALL SEVEN SHIP WITH macOS. This config installs nothing.
+  🍺 HOMEBREW IS OPTIONAL AND ISOLATED. It is reached from exactly one
+     module (update_tracker) and powers exactly one feature (⌃⌥⇧U). No
+     brew = that feature is off and says so; nothing else notices. The
+     no-admin prefixes under $HOME are searched BEFORE the admin ones,
+     and a test enforces that order.
+  🏠 NOTHING IS WRITTEN OUTSIDE $HOME. Every write target is built from
+     logsDir or configDir; a hard-coded absolute write path fails the
+     suite. /Applications and /usr/bin are READ only.
+  🌐 THE ONLY HOST THIS CONFIG CONTACTS IS app.asana.com, and only with
+     secret.lua present. My first version of that check failed on
+     shottr.cc and was WRONG to: that is a vendor page handed to your
+     browser because you selected the row and pressed Enter. A link you
+     click is not network activity this config initiates. The test now
+     keeps those two apart and asserts vendor URLs are never fetched.
+  🧬 6 more mutations caught, including "a sudo appears in the backup
+     command", "the remap becomes a launch daemon" and "a vendor page
+     starts being FETCHED instead of opened".
+  🛟 NEW: tools/hs-install.sh — INSTALL, VERIFIED AND REVERSIBLE. The
+     risk on the work Mac was never the Lua, it was the COPY: since
+     6.44.11 a bare `cp init.lua` produces a config that starts, looks
+     fine, and has quietly lost ⇪/ and ⇪⇧D. This checks the download is
+     complete BEFORE touching anything, backs up the current config,
+     installs, verifies, and ROLLS ITSELF BACK if the verify fails. It
+     refuses to run as root. --dry-run shows what it would do; --rollback
+     undoes the last install. secret.lua and logs/ are never touched.
+  🐛 Its own first verify checked only that each core file EXISTED — and
+     a zero-byte one passed, which is the exact half-installed state the
+     script exists to prevent. It checks size and content now. Found by
+     testing the installer's failure paths rather than its happy path.
+  🩺 hs-doctor.sh answers the question ON the work Mac: every external
+     command, whether it is present there, and every path written to.
+  🧪 875 checks across six suites.
+
+NEW IN 6.44.11 — init.lua IS 44% SMALLER, AND THE CONSOLE IS TWO LINES:
+  📉 6,012 LINES → 3,376. Nothing was deleted. 1,827 lines of changelog
+     moved to CHANGELOG.md beside this file (all 107 versions, intact),
+     and three big blocks moved into core/.
+  📂 core/ IS NOT modules/. A module is loaded by the §1.12 loader,
+     isolated, and configurable per machine. These three are dofile'd by
+     init.lua at exactly the point they used to sit, because the loader
+     runs LAST and depends on them: it logs through _G.diag, and every
+     module registers a cheat sheet group as it loads. Boot order is
+     unchanged. Each load is pcall'd, so a missing core file costs you
+     that one feature and prints why — it does not stop the Mac.
+       core/diagnostics.lua   §1.11, 287 lines   ⇪⇧D
+       core/cheatsheet.lua    §1.6,  721 lines   ⇪/
+       core/boot_report.lua   the Console's first impression
+  🔇 A CLEAN BOOT IS NOW TWO LINES, not fourteen. Fourteen lines you have
+     read a hundred times is not information; it is what you scroll past
+     to reach the line you reloaded to see. The rule now: SUMMARISE WHAT
+     IS RIGHT, ALWAYS PRINT WHAT IS WRONG. A failed module, a hotkey
+     conflict, missing Accessibility, a broken secret.lua — each still
+     prints its own full line, every time. Nothing was lost:
+     _G.bootReport() prints everything on demand, and _G.bootVerbose(true)
+     restores the full report at every boot. That preference is stored in
+     hs.settings, so it survives the reload you set it before.
+  🧪 THE TESTS STOPPED LYING. test_cheatsheet and test_diagnostics ran
+     against tests/block_test.lua and tests/diag_test.lua — hand-extracted
+     slices that had DRIFTED so far they were no longer even substrings of
+     init.lua. Both suites now load the shipped core/ file. The drift was
+     real and it was hiding things: running the real cheat sheet reached
+     four hs.hotkey.bind calls and two hs.chooser pickers that the slice
+     did not contain, none of which had ever been executed by a test. The
+     two dead slices are deleted.
+  🐛 AND THAT CAUGHT A BUG I HAD JUST WRITTEN. Lifting the boot report out
+     carried its `local axOK = false; pcall(...)` along with it, where it
+     shadowed the value being passed in. Effect: a Mac WITHOUT
+     Accessibility would still boot to "All green" — the single most
+     important thing that report has to warn about, silently dropped. The
+     whole-file text audit could not see it. The test that RUNS the file
+     caught it on its first execution.
+  🧬 20 mutations caught. Three of them were MISSED first: the audit read
+     init.lua concatenated with core/, so "init.lua loads the boot report"
+     stayed green when init.lua stopped loading it — the core file names
+     itself in its own header, and a comment satisfied the search. Fixed
+     by auditing init.lua alone, ignoring comment lines, and matching the
+     real loader expression instead of the bare filename.
+  🩺 tools/run-tests.sh compiles core/ too; tools/hs-doctor.sh reports it
+     and says plainly what is off if the folder never got copied across.
+  🧪 855 checks across six suites.
 
 NEW IN 6.44.10 — THE DUPLICATE "PARKED" ROW, AND A READABLE CONSOLE:
   🐛 A PARKED ROW SHOWING THE SAME NOTE AS THE QUEUED ROW BELOW IT. Two
