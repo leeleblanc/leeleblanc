@@ -4,9 +4,40 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.45.1-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.45.2-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.45.2 — DOES THE NEW MODULE BREAK THE OLD CONFIG?
+--   🔗 THE QUESTION NO OTHER SUITE HERE ASKED. Every test file proves one
+--      module correct IN ISOLATION, against stubs. That says nothing about
+--      nineteen of them sharing one keyboard, one hotkey table and one
+--      global namespace. NEW: tests/test_integration.lua.
+--   ⌨️ THE REAL RISK, AND IT IS SUBTLE. Mouse Grid binds BARE letters
+--      (a s d f g h j k l) while its overlay is up. The hyper key works by
+--      doing the same thing, and §3.12 deliberately does NOT exit the
+--      hyper modal when a shortcut fires — so while the grid is open BOTH
+--      modals have bare "a" bound. Whether that works is decided inside
+--      hs.hotkey's shadowing stack, which nothing here modelled.
+--   ✅ SO THE STACK IS NOW SIMULATED FAITHFULLY — enable()/disable()
+--      reimplemented from Hammerspoon's own hotkey.lua, same shadowing,
+--      same un-shadow scan — and the real sequence driven through it:
+--      ⇪ held → grid opens → grid's letters WIN → release ⇪ mid-grid and
+--      the grid KEEPS them → close the grid and hyper gets them BACK →
+--      close everything and the keyboard is clean. Both release orders,
+--      plus double-enter, double-exit, and the grid with no hyper at all.
+--   🧬 ALL 19 MODULES LOADED TOGETHER through the real §1.12 loader, then
+--      audited for the collisions that only appear in company: two modules
+--      on one ⇪ key, two on one global chord, two publishing one service
+--      name, two on one cheat-sheet slot, a malformed cheat-sheet row that
+--      would break EVERY group's rendering rather than just its own.
+--   🧪 4 mutations prove those checks bite: stealing ⇪N from the Capture
+--      Pad, Screen Veil's cheat-sheet slot, Screen Veil's panic key, and
+--      the Capture Pad's flush service are each caught by name.
+--   📣 ONE THING THIS COSTS YOU, BY DESIGN. §3.12 forwards every UNCLAIMED
+--      ⇪ key to the frontmost app as ⌘⇧⌃⌥+key. Claiming M means ⌘⇧⌃⌥M and
+--      ⌘⇧⌃⌥⇧M no longer reach Raycast, Rectangle or a browser extension.
+--      That is true of adding any ⇪ shortcut; it is worth knowing once.
+--   🧪 1,227 checks across eight suites.
 -- NEW IN 6.45.1 — THE MOUSE GRID, AUDITED AGAINST HAMMERSPOON'S OWN SOURCE:
 --   🔬 THE GAP A TEST SUITE CANNOT CLOSE BY ITSELF. Every check in 6.45.0
 --      validated the module against MY stubs, which encode MY assumptions
@@ -366,7 +397,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.45.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.45.2
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -608,7 +639,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.45.1"
+_G.configVersion = "6.45.2"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -3520,14 +3551,14 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.45.1"
+    local currentVersion = "6.45.2"
     local currentDate    = "08-08-26"
     -- One line. The full entry for every version lives in CHANGELOG.md
     -- beside this file — which is also why prose no longer sits in a
     -- Lua string here: the work-Mac safety scan reads string literals
     -- as code, and a paragraph describing "no sudo, no launchctl"
     -- failed the very check it was describing.
-    local currentNotes   = "Audited mouse_grid.lua against Hammerspoon's own source rather than against the test stubs, which encode my assumptions and would pass a wrong one. Confirmed every canvas, mouse, eventtap, hotkey and screen call the module makes. Fixed a HANG on a display reporting zero height, where an infinite cols value made the cell loop never return; a region of screen left unreachable when an extreme aspect ratio on a small share produced more cells than labels; a raise on scaled displays from formatting a fractional frame with %d; landed mode capturing the keyboard with no visible badge when the badge failed to draw; and setup dying on an alphabet key the keyboard has no code for. Deleted a guard proven unreachable. Added a 1500-layout geometry fuzzer and re-tested the new tests until reverting each fix actually fails. See CHANGELOG.md for the full entry."
+    local currentNotes   = "Added tests/test_integration.lua, which asks whether the new module breaks the old config rather than whether it is correct alone. Reimplements Hammerspoon's own hotkey shadowing stack from its source and drives the real key sequence through it, because Mouse Grid binds bare letters while the hyper modal is still entered and both claim the same keys. Confirms the grid wins while open, keeps its keys when Caps Lock is released mid-grid, hands them back to hyper when it closes, and leaves the keyboard clean. Also loads all 19 modules through the real loader and audits for duplicate hyper keys, duplicate global chords, duplicate service names, duplicate cheat-sheet slots and malformed cheat-sheet rows, with 4 mutations proving each check bites. Note that claiming a hyper key stops that chord being forwarded to other apps. See CHANGELOG.md for the full entry."
 
     -- Only append if this version isn't already in the file
     local found = false

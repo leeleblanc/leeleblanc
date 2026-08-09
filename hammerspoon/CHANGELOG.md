@@ -4,6 +4,38 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.45.2 — DOES THE NEW MODULE BREAK THE OLD CONFIG?
+  🔗 THE QUESTION NO OTHER SUITE HERE ASKED. Every test file proves one
+     module correct IN ISOLATION, against stubs. That says nothing about
+     nineteen of them sharing one keyboard, one hotkey table and one
+     global namespace. NEW: tests/test_integration.lua.
+  ⌨️ THE REAL RISK, AND IT IS SUBTLE. Mouse Grid binds BARE letters
+     (a s d f g h j k l) while its overlay is up. The hyper key works by
+     doing the same thing, and §3.12 deliberately does NOT exit the
+     hyper modal when a shortcut fires — so while the grid is open BOTH
+     modals have bare "a" bound. Whether that works is decided inside
+     hs.hotkey's shadowing stack, which nothing here modelled.
+  ✅ SO THE STACK IS NOW SIMULATED FAITHFULLY — enable()/disable()
+     reimplemented from Hammerspoon's own hotkey.lua, same shadowing,
+     same un-shadow scan — and the real sequence driven through it:
+     ⇪ held → grid opens → grid's letters WIN → release ⇪ mid-grid and
+     the grid KEEPS them → close the grid and hyper gets them BACK →
+     close everything and the keyboard is clean. Both release orders,
+     plus double-enter, double-exit, and the grid with no hyper at all.
+  🧬 ALL 19 MODULES LOADED TOGETHER through the real §1.12 loader, then
+     audited for the collisions that only appear in company: two modules
+     on one ⇪ key, two on one global chord, two publishing one service
+     name, two on one cheat-sheet slot, a malformed cheat-sheet row that
+     would break EVERY group's rendering rather than just its own.
+  🧪 4 mutations prove those checks bite: stealing ⇪N from the Capture
+     Pad, Screen Veil's cheat-sheet slot, Screen Veil's panic key, and
+     the Capture Pad's flush service are each caught by name.
+  📣 ONE THING THIS COSTS YOU, BY DESIGN. §3.12 forwards every UNCLAIMED
+     ⇪ key to the frontmost app as ⌘⇧⌃⌥+key. Claiming M means ⌘⇧⌃⌥M and
+     ⌘⇧⌃⌥⇧M no longer reach Raycast, Rectangle or a browser extension.
+     That is true of adding any ⇪ shortcut; it is worth knowing once.
+  🧪 1,227 checks across eight suites.
+
 NEW IN 6.45.1 — THE MOUSE GRID, AUDITED AGAINST HAMMERSPOON'S OWN SOURCE:
   🔬 THE GAP A TEST SUITE CANNOT CLOSE BY ITSELF. Every check in 6.45.0
      validated the module against MY stubs, which encode MY assumptions
