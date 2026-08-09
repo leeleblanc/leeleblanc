@@ -314,6 +314,151 @@ do
           .. "menu bar should be opt-in", body:find("health.menubar      = false", 1, true) ~= nil)
 end
 
+-- =====================================================================
+out("\n=== 7. THE EXPLORER — 600 random timelines ===\n")
+-- =====================================================================
+-- Sections 2 and 3 test the situations I thought of. This builds
+-- timelines I did not: files going quiet and coming back, midnight
+-- crossing mid-outage, the lid shutting during a fault, a module failing
+-- and recovering, all interleaved at random.
+--
+-- The properties are the alerting RULES, stated as arithmetic. If any
+-- of them can be violated by some ordering of ordinary events, this
+-- monitor will eventually cry wolf — and then be ignored.
+do
+    math.randomseed(31337)
+    local bad = nil
+
+    for iter = 1, 600 do
+        -- ⚠️ RESET THE CLOCK PER TIMELINE. Without this, TODAY carries over
+        -- from the previous run while dayNum restarts at 9 — so the
+        -- simulated date jumps BACKWARD and then marches past itself,
+        -- visiting one calendar day twice. Real clocks do not do that, and
+        -- the once-per-day rule is meaningless in a world where they do.
+        -- The explorer reported a genuine double-notification; the fault was
+        -- an impossible timeline, not the monitor.
+        TODAY, HOUR, NOWSEC = "2026-08-09", 10, 1770000000
+        boot()
+        allFresh()
+        M.warm(CORE)
+        local seen = {}          -- "tool|day" -> times notified
+        local dayNum = 9
+
+        for step = 1, 60 do
+            -- ⚠️ NO ACTION MAY CALL check() ITSELF, and the observation state
+            -- is captured immediately BEFORE the single check of each step.
+            -- The first version of this loop read the hour at the TOP of the
+            -- step, then let an action change it, then checked — and reported
+            -- the module for alerting at an hour it had never seen. Two
+            -- assertions were being made about two different moments.
+            local act = math.random(6)
+            if act == 1 then                      -- a tool writes
+                local c = H.checks[math.random(#H.checks)]
+                if c.file then MTIMES[c.file] = NOWSEC + H.tick end
+            elseif act == 2 then                  -- the clock moves on
+                HOUR = math.random(0, 23)
+            elseif act == 3 then                  -- a new day
+                dayNum = dayNum + 1
+                TODAY = string.format("2026-08-%02d", math.min(dayNum, 28))
+            elseif act == 4 then                  -- the lid shuts for a while
+                NOWSEC = NOWSEC + math.random(1, 72) * 3600
+            elseif act == 5 then                  -- a module fails, or recovers
+                if math.random(2) == 1 then
+                    _G.moduleStatus = { { name = "capture_pad", ok = false, err = "x" } }
+                else
+                    _G.moduleStatus = {}
+                end
+            end                                   -- act == 6: just let time pass
+
+            local before = #NOTIFIES
+            local graceTicks = math.ceil(H.bootGraceMins / H.intervalMins)
+            local wasGrace  = H.tick < graceTicks
+            local hourAtTick = HOUR
+            local dayAtTick  = TODAY
+
+            -- P1: no throw, ever.
+            local okC, err = pcall(H.check, false)
+            if not okC then bad = "check() threw: " .. tostring(err) break end
+
+            -- P2: every state is one this module defines.
+            for k, v in pairs(H.state) do
+                if not (v == "OK" or v == "STALE" or v == "MISSING"
+                        or v == "WAIT" or v == "OFF" or v == "FAILED") then
+                    bad = "invented a state '" .. tostring(v) .. "' for " .. k
+                    break
+                end
+            end
+            if bad then break end
+
+            -- P3: no STALENESS alert during the boot grace period.
+            -- ⚠️ SCOPED TO STALENESS ON PURPOSE. A module that failed to LOAD
+            -- is exempt, and that is a deliberate asymmetry: the grace period
+            -- exists because modules warm on a timer and their files do not
+            -- exist yet, which says nothing about load status. A load failure
+            -- is a certain fault already known at boot, and telling you in
+            -- twenty minutes instead of now would be worse. The explorer
+            -- reported this as a violation; it is the design.
+            if wasGrace then
+                for i = before + 1, #NOTIFIES do
+                    local body = tostring(NOTIFIES[i].informativeText)
+                    for _, c in ipairs(H.checks) do
+                        if body:find(c.label, 1, true) then
+                            bad = "staleness alert during the boot grace period "
+                               .. "(tick " .. H.tick .. " of " .. graceTicks .. ")"
+                        end
+                    end
+                end
+                if bad then break end
+            end
+
+            -- P4: AT MOST ONE NOTICE PER TOOL PER DAY. The rule that keeps
+            -- this thing worth listening to.
+            for i = before + 1, #NOTIFIES do
+                local body = tostring(NOTIFIES[i].informativeText)
+                -- Load failures obey the once-per-day rule too, and nothing
+                -- was checking that until the explorer forced the question.
+                if body:find("failed to load", 1, true) then
+                    local key = "mod|" .. dayAtTick
+                    seen[key] = (seen[key] or 0) + 1
+                    if seen[key] > 1 then
+                        bad = "told me about a failed module twice on " .. dayAtTick
+                        break
+                    end
+                end
+                for _, c in ipairs(H.checks) do
+                    if body:find(c.label, 1, true) then
+                        local key = c.label .. "|" .. dayAtTick
+                        seen[key] = (seen[key] or 0) + 1
+                        if seen[key] > 1 then
+                            bad = "told me about " .. c.label .. " twice on "
+                               .. dayAtTick
+                        end
+                        -- P5: and never outside that check's active hours.
+                        local a = c.active or { 0, 24 }
+                        local inWindow = (a[1] <= a[2])
+                            and (hourAtTick >= a[1] and hourAtTick < a[2])
+                            or  (a[1] > a[2] and (hourAtTick >= a[1] or hourAtTick < a[2]))
+                        if not inWindow then
+                            bad = "alerted about " .. c.label .. " at "
+                               .. hourAtTick .. ":00, outside its active hours "
+                               .. a[1] .. "-" .. a[2]
+                        end
+                    end
+                end
+                if bad then break end
+            end
+            if bad then break end
+        end
+        if bad then bad = "timeline " .. iter .. ": " .. bad break end
+    end
+
+    check("600 random timelines (36,000 events): never threw, never invented a "
+          .. "state, never alerted during the grace period, never twice about "
+          .. "one tool in a day, never outside a check's active hours",
+          bad == nil, bad)
+end
+TODAY = "2026-08-09" ; HOUR = 10 ; NOWSEC = 1770000000
+
 out("\n")
 if fail > 0 then
     out("FAILURES:\n")

@@ -4,9 +4,50 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.47.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.47.1-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.47.1 — THE EXPLORER TURNED ON THE THREE NEWEST TOOLS:
+--   🔎 The random-sequence explorer built for the Mouse Grid now runs
+--      against the URL Cleaner, the Health Monitor and Menu Bar Items.
+--      Four findings came back. NONE was a bug in the shipped modules —
+--      three were faults in my own test instrumentation and one was a
+--      deliberate design decision the property had stated too broadly.
+--      That is worth recording rather than quietly fixing, because it is
+--      what property testing actually feels like: the properties are
+--      harder to state correctly than the code is to write.
+--   🔗 URL CLEANER, 8,000 generated URLs. Properties: never throws,
+--      IDEMPOTENT (cleaning a clean URL is a no-op), still a URL,
+--      wrapping cannot change the answer, every non-tracker survives,
+--      every tracker goes, the fragment is untouched.
+--      → Finding: it refused to unwrap a generic ?url= pointing at its
+--        OWN host. That is correct and now has its own test:
+--        example.com/login?url=example.com/dashboard is a login return
+--        path, not a redirect, and rewriting it sends you somewhere you
+--        did not ask to go. The fuzzer had generated an unrealistic
+--        input and asserted a naive substring match.
+--   🩺 HEALTH MONITOR, 600 random timelines / 36,000 events — files
+--      going quiet and coming back, midnight mid-outage, the lid shutting
+--      during a fault, modules failing and recovering, interleaved.
+--      → Finding: a module that FAILED TO LOAD is announced during the
+--        boot grace period. Deliberate: the grace period exists because
+--        module files do not exist yet, which says nothing about load
+--        status, and a certain fault should not wait twenty minutes.
+--      → Two of mine: the property read the clock BEFORE the action that
+--        changed it, and the harness let the simulated date run backward
+--        between timelines, visiting one calendar day twice.
+--      → And it added a rule nothing had checked: load failures obey the
+--        once-per-day limit too.
+--   📊 MENU BAR ITEMS, 500 random Mac populations — up to 30 apps mixing
+--      healthy, silent, wedged and action-refusing. The property that
+--      matters is that the scan returns inside its budget however bad the
+--      population, because that budget is your keyboard.
+--   🧬 EVERY PROPERTY WAS THEN MUTATION-TESTED, because a property that
+--      cannot fail is decoration. Breaking idempotence, the parameter
+--      blocklist, the once-per-day guard, the active-hours guard and the
+--      scan budget each fails the suite by name. Two of my first attempts
+--      at those mutations were too narrow to fire and had to be rewritten.
+--   🧪 1,410 checks across eleven suites.
 -- NEW IN 6.47.0 — MENU BAR ITEMS (⇪M), AND WHY IT IS NOT BARTENDER:
 --   🚫 THE HONEST PART FIRST. Bartender's central trick — HIDING other
 --      apps' menu bar icons — CANNOT be done in Hammerspoon, and the
@@ -148,53 +189,9 @@
 --      ⌘⇧⌃⌥⇧X no longer reach Raycast, Rectangle or a browser extension.
 --      That is true of adding any ⇪ shortcut; it is worth knowing once.
 --   🧪 1,227 checks across eight suites.
--- NEW IN 6.45.1 — THE MOUSE GRID, AUDITED AGAINST HAMMERSPOON'S OWN SOURCE:
---   🔬 THE GAP A TEST SUITE CANNOT CLOSE BY ITSELF. Every check in 6.45.0
---      validated the module against MY stubs, which encode MY assumptions
---      about the hs API. A wrong assumption passes the test and crashes
---      the Mac. So Hammerspoon's source was read directly and every call
---      this module makes was checked against it.
---   ✅ CONFIRMED CORRECT: the canvas element types and every attribute
---      used; center/radius on circle; coordinates on segments; frame on
---      rectangle and text; roundedRectRadii; textAlignment "center";
---      fillColor on closed shapes and strokeColor on primitives;
---      windowLevels.screenSaver; every canvas method called; the mouse,
---      eventtap and screen-watcher calls; and — the one most worth
---      checking — that modal:bind is declared (mods, key, MESSAGE, fn) but
---      shifts its arguments when a function arrives in the message slot.
---   🐛 A HANG, WHICH IS WORSE THAN A CRASH. A display reporting height 0
---      (one disconnecting mid-query, a virtual display, some
---      screen-sharing sessions) makes w/h infinite; math.floor(math.huge)
---      is math.huge, so the cell loop became `for c = 0, inf` and
---      Hammerspoon spun forever with no error and no recovery but a
---      force-quit. Frames are now sanity-filtered, and one clamp bounds
---      the loop even for a frame that passes the filter and still
---      overflows.
---   🐛 UNREACHABLE SCREEN. Without cols <= share, an extreme aspect ratio
---      on a small share produced more cells than labels; the surplus was a
---      region of screen that could never be reached. The fuzzer finds it
---      within ~50 layouts once the clamp is removed.
---   🐛 A CRASH ON A SCALED DISPLAY. string.format("%d", x) RAISES in Lua
---      5.4 for any float without an exact integer representation, and
---      screen frames are not something this module controls. No "%d"
---      touches a frame now.
---   🐛 INVISIBLE KEY CAPTURE. If the landed badge failed to draw, the old
---      one had already been destroyed — leaving the keyboard captured with
---      nothing on screen saying so, the one thing this design forbids.
---      Landed mode is now refused outright rather than entered blind.
---   🐛 A KEY YOUR KEYBOARD CANNOT SEND. hs.hotkey RAISES on an unknown key
---      name rather than returning nil, so one exotic character in
---      grid.alphabet would have taken the module down at setup.
---   🗑 AND ONE DELETION. A NaN/infinity guard was written, then removed on
---      proof that it was UNREACHABLE — the clamp beside it already handled
---      both. Untested code that looks like a safety net is worse than no
---      code, because the next reader trusts it.
---   🧪 4 mutations run against the NEW tests themselves; two were
---      toothless and were rewritten until reverting each fix fails the
---      suite. 1,500-layout geometry fuzzer. 244 checks on this module.
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.47.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.47.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -436,7 +433,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.47.0"
+_G.configVersion = "6.47.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -3360,14 +3357,14 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.47.0"
+    local currentVersion = "6.47.1"
     local currentDate    = "08-08-26"
     -- One line. The full entry for every version lives in CHANGELOG.md
     -- beside this file — which is also why prose no longer sits in a
     -- Lua string here: the work-Mac safety scan reads string literals
     -- as code, and a paragraph describing "no sudo, no launchctl"
     -- failed the very check it was describing.
-    local currentNotes   = "Added modules/menubar_items.lua: hyper-M lists every menu bar status icon by owning app, type to filter, return opens it; hyper-shift-M prints an inventory. This is NOT a Bartender clone and cannot be one - macOS exposes no API for one process to hide, move or reorder another's status item, which is why Bartender covers the menu bar and needs Screen Recording to photograph it. For real hiding use Ice, which is free and open source. What is reachable through Accessibility is keyboard access to every icon, which suits this config better anyway. Its worst failure would be a freeze rather than a crash, because reading another app's Accessibility tree blocks the main thread, so every app element gets an explicit timeout before being asked anything and the whole scan is time-boxed and checked every iteration. See CHANGELOG.md for the full entry."
+    local currentNotes   = "Turned the random-sequence explorer on the URL Cleaner, Health Monitor and Menu Bar Items. 8000 generated URLs checking idempotence and that wrapping cannot change the answer; 600 random timelines checking the alerting rules; 500 random Mac populations checking the scan budget holds. Four findings, none a bug in the shipped modules: the cleaner correctly refuses to unwrap a site's own return path, the monitor correctly announces a load failure without waiting out the grace period, and two were faults in my own instrumentation - reading the clock before the action that changed it, and letting the simulated date run backward. Added a rule nothing had checked, that load failures obey the once-per-day limit. Every property was then mutation tested so none of them is decoration. See CHANGELOG.md for the full entry."
 
     -- Only append if this version isn't already in the file
     local found = false

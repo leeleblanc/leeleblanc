@@ -110,6 +110,19 @@ eq("wrapper inside wrapper — Safe Links around a mailer redirect",
    "https://nam12.safelinks.protection.outlook.com/?url=https%3A%2F%2Fclick.m.io"
    .. "%2Fc%3Furl%3Dhttps%253A%252F%252Ffinal.com%252Fx%26uid%3D9&data=05",
    "https://final.com/x")
+-- 🛟 THE GENERIC ?url= UNWRAP REFUSES WHEN THE INNER HOST MATCHES THE
+-- OUTER, AND THAT IS DELIBERATE. A site linking to ITSELF through a
+-- ?url= parameter is almost never a redirect — it is a login return
+-- path, a callback, an app route. Rewriting it sends you somewhere you
+-- did not ask to go. The explorer flagged this as a missed unwrap; it is
+-- a refused one.
+eq("a site's own ?url= return path is left alone — this is a login flow, "
+   .. "not a redirector",
+   "https://example.com/login?url=https%3A%2F%2Fexample.com%2Fdashboard",
+   "https://example.com/login?url=https%3A%2F%2Fexample.com%2Fdashboard")
+eq("...while the same wrapper pointing at a DIFFERENT host does unwrap",
+   "https://click.mailer.io/c?url=https%3A%2F%2Fshop.co.uk%2Fa%3Fid%3D1%26utm_source%3Dx&uid=9",
+   "https://shop.co.uk/a?id=1")
 check("the unwrap loop is BOUNDED — a self-referential wrapper must not spin",
       (function()
     local self1 = "https://click.mailer.io/c?url=" ..
@@ -250,6 +263,149 @@ do
     for _, bad in ipairs({ "sudo", "launchctl", "chown", "io%.open" }) do
         check("url_cleaner uses no " .. bad:gsub("%%", ""), body:find(bad) == nil)
     end
+end
+
+-- =====================================================================
+out("\n=== 8. THE EXPLORER — 8,000 generated URLs ===\n")
+-- =====================================================================
+-- Sections 1-3 test URLs I thought of. This generates ones I did not, and
+-- checks properties that must hold for EVERY input rather than expected
+-- answers for particular ones.
+--
+-- P2 (idempotence) is the one that earns its keep: cleaning an already
+-- clean URL must be a no-op. A cleaner that keeps nibbling is one that
+-- eventually eats something real, and no hand-written case finds that.
+do
+    math.randomseed(90210)
+    local hosts = { "example.com", "shop.co.uk", "a.b.c.net", "xn--80ak6aa92e.com",
+                    "localhost", "192.168.1.5", "sub.domain.example.org" }
+    local paths = { "", "/", "/a", "/a/b/c", "/my%20file.pdf", "/p(1)",
+                    "/a+b", "/%E2%9C%93", "/trailing/" }
+    local trackers = { "utm_source=x", "utm_medium=y", "fbclid=abc", "gclid=1",
+                       "mc_eid=q", "igshid=z", "_hsenc=p", "mkt_tok=t", "spm=a" }
+    local keepers  = { "id=42", "q=search+terms", "v=abc123", "page=3",
+                       "ref=readme", "s=find", "lang=en", "t=1", "a=%26",
+                       "empty=", "novalue" }
+    local frags    = { "", "#top", "#a=b", "#" }
+    local schemes  = { "http", "https" }
+
+    local function randURL()
+        local q, mustKeep = {}, {}
+        for _ = 1, math.random(0, 4) do q[#q + 1] = trackers[math.random(#trackers)] end
+        for _ = 1, math.random(0, 4) do
+            local k = keepers[math.random(#keepers)]
+            q[#q + 1] = k ; mustKeep[#mustKeep + 1] = k
+        end
+        -- shuffle so trackers and keepers interleave
+        for i = #q, 2, -1 do
+            local j = math.random(i) ; q[i], q[j] = q[j], q[i]
+        end
+        local u = schemes[math.random(#schemes)] .. "://" .. hosts[math.random(#hosts)]
+                  .. paths[math.random(#paths)]
+        if #q > 0 then u = u .. "?" .. table.concat(q, "&") end
+        u = u .. frags[math.random(#frags)]
+        return u, mustKeep
+    end
+
+    local function encode(s)
+        return (s:gsub("[^%w%-%._~]", function(c)
+            return string.format("%%%02X", string.byte(c)) end))
+    end
+
+    local wrappers = {
+        function(u) return "https://nam12.safelinks.protection.outlook.com/?url="
+                           .. encode(u) .. "&data=05&reserved=0" end,
+        function(u) return "https://click.mailer.io/c?url=" .. encode(u) .. "&uid=9" end,
+        function(u) return "https://www.google.com/url?q=" .. encode(u) .. "&sa=D" end,
+        function(u) return "https://l.facebook.com/l.php?u=" .. encode(u) .. "&h=AT" end,
+    }
+
+    local bad = nil
+    local nWrapped, nPlain = 0, 0
+    for iter = 1, 8000 do
+        local inner, mustKeep = randURL()
+        local input = inner
+        -- ⚠️ EACH WRAPPER AT MOST ONCE. Nesting the generic ?url= redirector
+        -- inside ITSELF produces a same-host pair, which the module
+        -- deliberately refuses to unwrap (see section 2) — so generating it
+        -- here tests the guard, not the unwrapper, and reports a refusal as
+        -- a failure. The first version of this fuzzer did exactly that.
+        local pool = {}
+        for i = 1, #wrappers do pool[i] = i end
+        for i = #pool, 2, -1 do
+            local j = math.random(i) ; pool[i], pool[j] = pool[j], pool[i]
+        end
+        local layers = math.random(0, 2)
+        for n = 1, layers do input = wrappers[pool[n]](input) end
+        if layers > 0 then nWrapped = nWrapped + 1 else nPlain = nPlain + 1 end
+
+        -- P1: never throws, always terminates.
+        local ok, out1 = pcall(C.clean, input)
+        if not ok then bad = "threw on: " .. input .. "  -> " .. tostring(out1) break end
+
+        -- P2: IDEMPOTENT. Cleaning the result again must change nothing.
+        local ok2, out2 = pcall(C.clean, out1)
+        if not ok2 then bad = "threw on its own output: " .. out1 break end
+        if out2 ~= out1 then
+            bad = "NOT IDEMPOTENT\n        in:   " .. input
+               .. "\n        once: " .. out1 .. "\n        twice:" .. out2
+            break
+        end
+
+        -- P3: still a URL, and still http(s).
+        if not out1:match("^https?://") then
+            bad = "output is not a URL: " .. input .. " -> " .. out1 break
+        end
+
+        -- P4: WRAPPING MUST NOT CHANGE THE ANSWER. Cleaning U, and cleaning
+        -- U buried under two redirectors, must give the identical result.
+        -- This subsumes the naive "is the parameter still in the string"
+        -- check, which could not tell a dropped parameter from one still
+        -- percent-encoded inside a wrapper that was correctly left alone.
+        local okI, cleanInner = pcall(C.clean, inner)
+        if not okI then bad = "threw on the unwrapped form: " .. inner break end
+        if out1 ~= cleanInner then
+            bad = "WRAPPING CHANGED THE ANSWER\n        inner:   " .. inner
+               .. "\n        wrapped: " .. input
+               .. "\n        got:     " .. out1
+               .. "\n        expected:" .. cleanInner
+            break
+        end
+
+        -- P4b: and every non-tracker parameter really is still there.
+        for _, k in ipairs(mustKeep) do
+            if not out1:find(k, 1, true) then
+                bad = "DROPPED A REAL PARAMETER '" .. k .. "'\n        in:  "
+                   .. input .. "\n        out: " .. out1
+                break
+            end
+        end
+        if bad then break end
+
+        -- P5: no tracker survives.
+        for _, t in ipairs(trackers) do
+            local name = t:match("^([^=]+)")
+            if out1:find("[?&]" .. name .. "=") then
+                bad = "tracker '" .. name .. "' survived\n        in:  " .. input
+                   .. "\n        out: " .. out1
+                break
+            end
+        end
+        if bad then break end
+
+        -- P6: the fragment is never invented, and never lost when non-empty.
+        local inFrag  = inner:match("#(.*)$")
+        local outFrag = out1:match("#(.*)$")
+        if inFrag and inFrag ~= "" and outFrag ~= inFrag then
+            bad = "fragment changed: '" .. tostring(inFrag) .. "' -> '"
+               .. tostring(outFrag) .. "'  in: " .. input
+            break
+        end
+    end
+    check(string.format("8,000 generated URLs (%d wrapped, %d plain): no crash, "
+          .. "idempotent, still a URL, every real parameter kept, every "
+          .. "tracker gone, fragment intact", nWrapped, nPlain),
+          bad == nil, bad)
 end
 
 out("\n")

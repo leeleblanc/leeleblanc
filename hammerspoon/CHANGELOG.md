@@ -4,6 +4,48 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.47.1 — THE EXPLORER TURNED ON THE THREE NEWEST TOOLS:
+  🔎 The random-sequence explorer built for the Mouse Grid now runs
+     against the URL Cleaner, the Health Monitor and Menu Bar Items.
+     Four findings came back. NONE was a bug in the shipped modules —
+     three were faults in my own test instrumentation and one was a
+     deliberate design decision the property had stated too broadly.
+     That is worth recording rather than quietly fixing, because it is
+     what property testing actually feels like: the properties are
+     harder to state correctly than the code is to write.
+  🔗 URL CLEANER, 8,000 generated URLs. Properties: never throws,
+     IDEMPOTENT (cleaning a clean URL is a no-op), still a URL,
+     wrapping cannot change the answer, every non-tracker survives,
+     every tracker goes, the fragment is untouched.
+     → Finding: it refused to unwrap a generic ?url= pointing at its
+       OWN host. That is correct and now has its own test:
+       example.com/login?url=example.com/dashboard is a login return
+       path, not a redirect, and rewriting it sends you somewhere you
+       did not ask to go. The fuzzer had generated an unrealistic
+       input and asserted a naive substring match.
+  🩺 HEALTH MONITOR, 600 random timelines / 36,000 events — files
+     going quiet and coming back, midnight mid-outage, the lid shutting
+     during a fault, modules failing and recovering, interleaved.
+     → Finding: a module that FAILED TO LOAD is announced during the
+       boot grace period. Deliberate: the grace period exists because
+       module files do not exist yet, which says nothing about load
+       status, and a certain fault should not wait twenty minutes.
+     → Two of mine: the property read the clock BEFORE the action that
+       changed it, and the harness let the simulated date run backward
+       between timelines, visiting one calendar day twice.
+     → And it added a rule nothing had checked: load failures obey the
+       once-per-day limit too.
+  📊 MENU BAR ITEMS, 500 random Mac populations — up to 30 apps mixing
+     healthy, silent, wedged and action-refusing. The property that
+     matters is that the scan returns inside its budget however bad the
+     population, because that budget is your keyboard.
+  🧬 EVERY PROPERTY WAS THEN MUTATION-TESTED, because a property that
+     cannot fail is decoration. Breaking idempotence, the parameter
+     blocklist, the once-per-day guard, the active-hours guard and the
+     scan budget each fails the suite by name. Two of my first attempts
+     at those mutations were too narrow to fire and had to be rewritten.
+  🧪 1,410 checks across eleven suites.
+
 NEW IN 6.47.0 — MENU BAR ITEMS (⇪M), AND WHY IT IS NOT BARTENDER:
   🚫 THE HONEST PART FIRST. Bartender's central trick — HIDING other
      apps' menu bar icons — CANNOT be done in Hammerspoon, and the

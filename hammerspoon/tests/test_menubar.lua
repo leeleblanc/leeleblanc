@@ -332,6 +332,85 @@ check("the report without Accessibility says so", (function()
 end)())
 AX_OK = true
 
+-- =====================================================================
+out("\n=== 6. THE EXPLORER — 500 random Mac populations ===\n")
+-- =====================================================================
+-- Random mixes of well-behaved apps, apps that hang for random lengths,
+-- apps that throw, and apps whose items refuse every action. The
+-- property that matters is the one that keeps your keyboard: however bad
+-- the population, the scan must come back inside its budget.
+do
+    math.randomseed(8675309)
+    local names = { "Dropbox", "1Password", "Zoom", "Slack", "VPN", "Docker",
+                    "Backblaze", "CleanShot", "Fantastical", "Bartender" }
+    local bad = nil
+    local worstBurn, worstApps = 0, 0
+
+    for iter = 1, 500 do
+        APPS = {}
+        local expected = 0
+        for i = 1, math.random(0, 30) do
+            local nm = names[math.random(#names)] .. i
+            local roll = math.random(10)
+            if roll <= 5 then                       -- healthy, 1-3 items
+                local items = {}
+                for _ = 1, math.random(1, 3) do
+                    items[#items + 1] = { desc = (math.random(2) == 1) and "d" or nil,
+                                          refuse = math.random(5) == 1,
+                                          pos = { x = 10, y = 5 }, size = { w = 20, h = 22 } }
+                end
+                APPS[#APPS + 1] = mkApp(nm, items)
+                expected = expected + #items
+            elseif roll <= 7 then                   -- no menu bar item at all
+                APPS[#APPS + 1] = mkApp(nm, nil)
+            else                                    -- wedged for a while
+                APPS[#APPS + 1] = mkApp(nm, nil, math.random() * 1.5)
+            end
+        end
+        boot()
+        local t0 = NOW
+        local ok, items = pcall(MB.scan, true)
+        local burned = NOW - t0
+        worstBurn = math.max(worstBurn, burned)
+        worstApps = math.max(worstApps, #APPS)
+
+        -- P1: never throws, whatever the population.
+        if not ok then bad = "scan threw: " .. tostring(items) break end
+        -- P2: 🚨 THE BUDGET HOLDS. This is the keyboard.
+        if burned > MB.scanBudget + 2.0 then
+            bad = string.format("scan burned %.1fs of clock against a %.1fs "
+                  .. "budget with %d apps", burned, MB.scanBudget, #APPS)
+            break
+        end
+        -- P3: a partial result is still a well-formed result.
+        for _, e in ipairs(items or {}) do
+            if type(e.app) ~= "string" or e.el == nil then
+                bad = "malformed entry in the result" break
+            end
+        end
+        if bad then break end
+        -- P4: if nothing hung, every item is found — the budget must not
+        --     silently cost results on a healthy Mac.
+        local anyHang = false
+        for _, a in ipairs(APPS) do if a._hangs then anyHang = true end end
+        if not anyHang and #(items or {}) ~= expected then
+            bad = "healthy Mac lost items: got " .. #(items or {})
+               .. " expected " .. expected
+            break
+        end
+        -- P5: activating anything, however broken, never throws.
+        for _, e in ipairs(items or {}) do
+            local okA = pcall(MB.activate, e)
+            if not okA then bad = "activate threw on " .. e.app break end
+        end
+        if bad then break end
+    end
+    check(string.format("500 random Mac populations (up to %d apps, worst scan "
+          .. "%.1fs): never threw, never blew the budget, never lost an item "
+          .. "on a healthy Mac, activation never threw", worstApps, worstBurn),
+          bad == nil, bad)
+end
+
 out("\n")
 if fail > 0 then
     out("FAILURES:\n")
