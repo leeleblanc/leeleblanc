@@ -4,6 +4,40 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.47.0 — MENU BAR ITEMS (⇪M), AND WHY IT IS NOT BARTENDER:
+  🚫 THE HONEST PART FIRST. Bartender's central trick — HIDING other
+     apps' menu bar icons — CANNOT be done in Hammerspoon, and the
+     reason is not a gap in Hammerspoon. A menu bar icon is an
+     NSStatusItem owned by the app that made it; macOS exposes no
+     public API for one process to hide, move or reorder another
+     process's status item. There is nothing to call. Bartender works
+     around it by covering the real bar and drawing its own copies of
+     the icons, which is why it needs SCREEN RECORDING — it has to
+     photograph the menu bar, because it cannot ask for the images
+     either. Hammerspoon could draw a black strip and nothing more.
+  ✅ FOR REAL HIDING, USE ICE — free, open source, actively maintained:
+     https://github.com/jordanbaird/Ice. It coexists fine with this.
+  ⌨️ WHAT IS REACHABLE is the half that suits a keyboard-driven setup
+     better anyway. ⇪M lists every status icon by owning app; type a
+     few letters and press ⏎ to open it. No aiming at a 22-pixel glyph
+     you cannot identify. ⇪⇧M prints an inventory. Accessibility only —
+     no Screen Recording, nothing covered, nothing moved.
+  🚨 ITS WORST FAILURE WOULD BE A FREEZE, NOT A CRASH. Reading another
+     app's Accessibility tree is a SYNCHRONOUS call into that app, and
+     Hammerspoon's main thread is your keyboard. Fifty apps with no
+     timeout is a plausible way to lose the Mac for a minute — 6.33.0's
+     ⌥Tab froze for exactly this reason. So every app element gets an
+     explicit 0.1s timeout BEFORE it is asked anything, the whole scan
+     is time-boxed at 2s and checked every iteration, and results are
+     cached. The suite drives forty deliberately wedged apps and fails
+     if the scan does not give up.
+  🐛 One of mine, caught by the tests: pcall(function() el:performAction
+     (a) end) DISCARDS the return value, so the success check never saw
+     it and AXShowMenu fired straight after a perfectly good AXPress —
+     activating every item twice. The `return` inside the wrapper is
+     load-bearing.
+  🧪 1,405 checks across eleven suites.
+
 NEW IN 6.46.1 — init.lua GOES BACK TO BEING AN ORCHESTRATOR:
   📉 3,735 LINES → 3,511, AND NOT ONE LINE OF CODE WAS TOUCHED. 6.44.11
      cut this file from 6,012 to 3,376 by moving history out; within a

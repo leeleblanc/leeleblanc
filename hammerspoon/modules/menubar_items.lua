@@ -1,0 +1,331 @@
+-- =====================================================================
+-- MODULE: MENU BAR ITEMS (⇪M) — every status icon, by name, from the keyboard
+-- =====================================================================
+-- ⇪M lists every icon in the right-hand menu bar. Type a few letters,
+-- press Return, and that icon's menu opens — without aiming a pointer at
+-- a 22-pixel glyph you cannot always identify. ⇪⇧M prints an inventory.
+--
+-- ---------------------------------------------------------------------
+-- 🚫 READ THIS FIRST: THIS IS NOT BARTENDER, AND IT CANNOT BE
+-- ---------------------------------------------------------------------
+-- You asked for Bartender. Bartender's central trick — HIDING other
+-- apps' menu bar icons and showing them in a second bar — is not
+-- something Hammerspoon can do, and the reason is not a missing feature
+-- in Hammerspoon:
+--
+--   · A menu bar icon is an NSStatusItem owned by the app that created
+--     it, laid out by the system. macOS exposes NO public API for one
+--     process to hide, move or reorder another process's status item.
+--     There is nothing to call.
+--   · Bartender gets around this by covering the real menu bar with its
+--     own view and drawing its own copies of the icons — which is why it
+--     asks for SCREEN RECORDING permission. It has to photograph the
+--     menu bar, because it cannot ask for the icon images either.
+--
+-- Hammerspoon could draw a black strip over part of the menu bar, and
+-- that is all it would be: a black strip. It could not redraw the icons
+-- it covered, could not know when their positions shifted, and would
+-- either swallow every click in that region or let them fall through to
+-- icons you can no longer see. That is not worth shipping.
+--
+-- ✅ IF YOU WANT ACTUAL HIDING, the honest answer is a dedicated app.
+--    ICE is free, open source and actively maintained:
+--    https://github.com/jordanbaird/Ice   — it does what Bartender does,
+--    it costs nothing, and it coexists fine with everything here.
+--
+-- ---------------------------------------------------------------------
+-- SO WHAT THIS DOES, AND WHY IT MAY SUIT YOU BETTER
+-- ---------------------------------------------------------------------
+-- The half of Bartender that IS reachable through Accessibility is the
+-- useful half for a keyboard-driven setup: every status item's name, and
+-- the ability to open it. A searchable list beats a tidy row of
+-- unlabelled glyphs when what you actually want is "open the VPN one".
+-- It needs no Screen Recording, covers nothing, and moves nothing.
+--
+-- ---------------------------------------------------------------------
+-- ⚠️ THE REAL RISK IN THIS FILE IS A FREEZE, NOT A CRASH
+-- ---------------------------------------------------------------------
+-- Reading another app's Accessibility tree is a SYNCHRONOUS call into
+-- that app. If it is busy, wedged, or mid-beachball, the call blocks
+-- Hammerspoon's main thread — and Hammerspoon's main thread is your
+-- keyboard. Scanning fifty apps with no timeout is a plausible way to
+-- freeze the Mac for a minute. This config has met that failure before:
+-- 6.33.0's ⌥Tab froze for the same reason, snapshotting windows.
+--
+-- So: EVERY app element gets an explicit short timeout before it is
+-- asked anything, the whole scan is time-boxed, and the result is cached
+-- so repeated presses cost nothing. A slow scan prints how slow it was
+-- rather than leaving you to wonder.
+
+local M = {
+    name  = "Menu Bar Items",
+    order = 13.9,
+    cheatsheet = {
+        title = "📊 MENU BAR ITEMS (⇪M — status icons by name, from the keyboard)",
+        entries = {
+            { "⇪M",     "List every menu bar icon — type to filter, ⏎ opens it" },
+            { "⇪⇧M",    "Inventory: what is up there, and which app owns each" },
+            { "why",    "Beats aiming at a 22px glyph you cannot always identify" },
+            { "NOT",    "This does NOT hide icons. macOS has no API for that —" },
+            { "",       "Bartender covers the bar and screenshots it. For real" },
+            { "",       "hiding use Ice (free): github.com/jordanbaird/Ice" },
+            { "needs",  "Accessibility. Without it, it says so and does nothing." },
+        },
+    },
+}
+
+function M.setup(core)
+    local mb = {}
+
+    -- ✏️ EDIT HERE ---------------------------------------------------------
+    mb.enabled     = true
+    mb.key         = "m"          -- ⇪M list · ⇪⇧M inventory
+    -- 🚨 Per-app Accessibility timeout, in seconds. This is the freeze
+    -- guard, not a tuning knob. Raise it and a single wedged app can hold
+    -- your keyboard for that long, times however many apps are running.
+    mb.axTimeout   = 0.10
+    mb.scanBudget  = 2.0          -- hard stop for the whole scan, seconds
+    mb.cacheSecs   = 10           -- repeated presses reuse the last scan
+    mb.slowWarn    = 0.75         -- print a warning if a scan exceeds this
+    -- Owners never worth listing: Hammerspoon's own items, and the system
+    -- clock/Control Center which you cannot usefully drive this way.
+    mb.skipApps    = { ["Hammerspoon"] = true }
+    -- ----------------------------------------------------------------------
+
+    mb.cache, mb.cacheAt, mb.lastScanMs = nil, 0, 0
+
+    local function say(m)  if _G.diag then _G.diag.say("menuBar", m)  end end
+    local function warn(m) if _G.diag then _G.diag.warn("menuBar", m) end end
+
+    local function axOK()
+        local ok, granted = pcall(hs.accessibilityState)
+        return ok and granted == true
+    end
+
+    -- Reading one attribute, defensively. Every call here crosses a process
+    -- boundary and can fail, return nil, or return something of the wrong
+    -- shape depending on how the owning app implements accessibility.
+    local function attr(el, name)
+        if not el then return nil end
+        local ok, v = pcall(function() return el:attributeValue(name) end)
+        if ok then return v end
+        return nil
+    end
+
+    -- A menu bar extra rarely has a title. What identifies it, when
+    -- anything does, is AXDescription — and plenty of apps set neither, so
+    -- the owning app's name is the reliable label and the description is a
+    -- bonus.
+    local function labelFor(appName, el)
+        local desc  = attr(el, "AXDescription")
+        local title = attr(el, "AXTitle")
+        local extra = nil
+        for _, v in ipairs({ desc, title }) do
+            if type(v) == "string" and v ~= "" and v ~= appName then extra = v break end
+        end
+        return appName, extra
+    end
+
+    -- ---- the scan --------------------------------------------------------
+    function mb.scan(force)
+        if not axOK() then return nil, "Accessibility is not granted" end
+        local now = hs.timer.secondsSinceEpoch()
+        if not force and mb.cache and (now - mb.cacheAt) < mb.cacheSecs then
+            return mb.cache
+        end
+
+        local t0, found, scanned, timedOut = now, {}, 0, 0
+        local okApps, apps = pcall(hs.application.runningApplications)
+        if not okApps or not apps then return nil, "could not list running apps" end
+
+        for _, app in ipairs(apps) do
+            -- 🚨 THE BUDGET IS CHECKED EVERY ITERATION, not just at the end.
+            -- Stopping early with a partial list is strictly better than
+            -- holding the keyboard while the last few apps time out.
+            if hs.timer.secondsSinceEpoch() - t0 > mb.scanBudget then
+                warn("scan budget exhausted after " .. scanned .. " apps")
+                break
+            end
+            local name = "?"
+            pcall(function() name = app:name() or "?" end)
+            if not mb.skipApps[name] then
+                local okEl, el = pcall(hs.axuielement.applicationElement, app)
+                if okEl and el then
+                    -- ⚠️ SET THE TIMEOUT BEFORE ASKING ANYTHING. This is the
+                    -- single line standing between a wedged app and a frozen
+                    -- keyboard, and it has to come first.
+                    pcall(function() el:setTimeout(mb.axTimeout) end)
+                    scanned = scanned + 1
+                    local extras = attr(el, "AXExtrasMenuBar")
+                    if extras == nil then
+                        -- Indistinguishable from "this app has no status
+                        -- item", which is the common case, so it is counted
+                        -- rather than reported.
+                        timedOut = timedOut + 1
+                    else
+                        for _, item in ipairs(attr(extras, "AXChildren") or {}) do
+                            local appName, extra = labelFor(name, item)
+                            found[#found + 1] = {
+                                app = appName, detail = extra, el = item,
+                            }
+                        end
+                    end
+                end
+            end
+        end
+
+        table.sort(found, function(a, b)
+            if a.app == b.app then return (a.detail or "") < (b.detail or "") end
+            return a.app:lower() < b.app:lower()
+        end)
+
+        mb.lastScanMs = (hs.timer.secondsSinceEpoch() - t0) * 1000
+        mb.cache, mb.cacheAt = found, hs.timer.secondsSinceEpoch()
+        say(string.format("scanned %d apps in %.0fms, %d menu bar items",
+            scanned, mb.lastScanMs, #found))
+        if mb.lastScanMs > mb.slowWarn * 1000 then
+            print(string.format("📊 Menu Bar Items: that scan took %.2fs. An app "
+                .. "is slow to answer Accessibility; lower mb.scanBudget if it "
+                .. "becomes a nuisance.", mb.lastScanMs / 1000))
+        end
+        return found
+    end
+
+    -- ---- activating one --------------------------------------------------
+    -- Three ways, in order of how well they behave. AXPress is correct and
+    -- most apps implement it; AXShowMenu is the documented alternative; a
+    -- synthetic click at the item's own coordinates is the last resort for
+    -- an app that implements neither, and is why the position is read.
+    function mb.activate(entry)
+        if not entry or not entry.el then return false end
+        local el = entry.el
+        for _, action in ipairs({ "AXPress", "AXShowMenu" }) do
+            -- ⚠️ `return` INSIDE THE WRAPPER IS LOAD-BEARING. Without it the
+            -- anonymous function discards performAction's result, pcall
+            -- reports success with a nil value, the "did it work" test
+            -- fails, and AXShowMenu fires immediately after a perfectly
+            -- good AXPress — activating every item twice.
+            local ok, res = pcall(function() return el:performAction(action) end)
+            if ok and res then
+                say("activated " .. entry.app .. " via " .. action)
+                return true
+            end
+        end
+        local pos  = attr(el, "AXPosition")
+        local size = attr(el, "AXSize")
+        if type(pos) == "table" and type(size) == "table"
+           and pos.x and size.w then
+            local point = { x = pos.x + size.w / 2, y = pos.y + size.h / 2 }
+            local ok = pcall(function()
+                hs.mouse.absolutePosition(point)
+                hs.eventtap.leftClick(point)
+            end)
+            if ok then
+                say("activated " .. entry.app .. " by clicking its position")
+                return true
+            end
+        end
+        hs.alert.show("📊 " .. entry.app .. " would not respond")
+        warn(entry.app .. ": AXPress, AXShowMenu and a click all failed")
+        return false
+    end
+
+    -- ---- the picker ------------------------------------------------------
+    mb.chooser = nil     -- HELD: an unreferenced hs.chooser is collected
+
+    function mb.show()
+        if not mb.enabled then return end
+        if not axOK() then
+            hs.alert.show("📊 Menu bar items need Accessibility —\nSystem "
+                .. "Settings → Privacy & Security → Accessibility", 4)
+            return
+        end
+        local items, err = mb.scan(false)
+        if not items then
+            hs.alert.show("📊 " .. tostring(err))
+            return
+        end
+        if #items == 0 then
+            hs.alert.show("📊 No menu bar items found. Apps that draw their "
+                .. "icon without Accessibility support are invisible to this.", 4)
+            return
+        end
+
+        local choices = {}
+        for i, e in ipairs(items) do
+            choices[#choices + 1] = {
+                text    = e.app,
+                subText = e.detail or "menu bar item",
+                idx     = i,
+            }
+        end
+
+        if not mb.chooser then
+            mb.chooser = hs.chooser.new(function(pick)
+                if not pick then return end
+                local e = (mb.cache or {})[pick.idx]
+                if e then mb.activate(e) end
+            end)
+            pcall(function()
+                mb.chooser:searchSubText(true)
+                mb.chooser:width(30)
+            end)
+        end
+        mb.chooser:choices(choices)
+        mb.chooser:placeholderText(#items .. " menu bar items — type to filter")
+        -- Placed by the same rule as every other popup in this config, so it
+        -- lands on the screen you are looking at rather than the main one.
+        local okScr, scr = pcall(core.resolveBaseScreen)
+        if okScr and scr then pcall(function() _G.popupScreenOverride = nil end) end
+        mb.chooser:show()
+    end
+
+    function _G.menuBarReport()
+        if not axOK() then
+            print("📊 Menu Bar Items: Accessibility is not granted, so nothing "
+                  .. "up there is readable.")
+            return
+        end
+        local items = mb.scan(true) or {}
+        local L = { string.format("📊 MENU BAR ITEMS on %s — %d found in %.0fms",
+                    tostring(core.hostTag), #items, mb.lastScanMs) }
+        local byApp = {}
+        for _, e in ipairs(items) do
+            byApp[e.app] = (byApp[e.app] or 0) + 1
+        end
+        for _, e in ipairs(items) do
+            L[#L + 1] = string.format("   %-28s %s", e.app, e.detail or "")
+        end
+        L[#L + 1] = "   ⚠️ This module CANNOT hide or reorder these — macOS has"
+        L[#L + 1] = "      no API for it. For real hiding use Ice (free):"
+        L[#L + 1] = "      https://github.com/jordanbaird/Ice"
+        local s = table.concat(L, "\n")
+        print(s)
+        return s
+    end
+
+    if mb.enabled then
+        core.hyperAddShortcut({}, mb.key, mb.show, "menu bar items")
+        core.hyperAddShortcut({ "shift" }, mb.key, function()
+            local r = _G.menuBarReport()
+            if r then
+                pcall(function() hs.pasteboard.setContents(r) end)
+                hs.alert.show("📊 Menu bar inventory printed and copied", 2)
+            end
+        end, "menu bar inventory")
+    end
+
+    core.provide("menuBar.list",   function() return mb.scan(false) end)
+    core.provide("menuBar.report", function() return _G.menuBarReport() end)
+
+    if not axOK() then
+        print("📊 Menu Bar Items: Accessibility is OFF — ⇪M will explain "
+              .. "rather than doing nothing.")
+    end
+
+    _G.menuBarItems = mb
+    M.mb     = mb
+    M.config = mb
+end
+
+return M

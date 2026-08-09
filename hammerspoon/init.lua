@@ -4,9 +4,42 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.46.1-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.47.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.47.0 — MENU BAR ITEMS (⇪M), AND WHY IT IS NOT BARTENDER:
+--   🚫 THE HONEST PART FIRST. Bartender's central trick — HIDING other
+--      apps' menu bar icons — CANNOT be done in Hammerspoon, and the
+--      reason is not a gap in Hammerspoon. A menu bar icon is an
+--      NSStatusItem owned by the app that made it; macOS exposes no
+--      public API for one process to hide, move or reorder another
+--      process's status item. There is nothing to call. Bartender works
+--      around it by covering the real bar and drawing its own copies of
+--      the icons, which is why it needs SCREEN RECORDING — it has to
+--      photograph the menu bar, because it cannot ask for the images
+--      either. Hammerspoon could draw a black strip and nothing more.
+--   ✅ FOR REAL HIDING, USE ICE — free, open source, actively maintained:
+--      https://github.com/jordanbaird/Ice. It coexists fine with this.
+--   ⌨️ WHAT IS REACHABLE is the half that suits a keyboard-driven setup
+--      better anyway. ⇪M lists every status icon by owning app; type a
+--      few letters and press ⏎ to open it. No aiming at a 22-pixel glyph
+--      you cannot identify. ⇪⇧M prints an inventory. Accessibility only —
+--      no Screen Recording, nothing covered, nothing moved.
+--   🚨 ITS WORST FAILURE WOULD BE A FREEZE, NOT A CRASH. Reading another
+--      app's Accessibility tree is a SYNCHRONOUS call into that app, and
+--      Hammerspoon's main thread is your keyboard. Fifty apps with no
+--      timeout is a plausible way to lose the Mac for a minute — 6.33.0's
+--      ⌥Tab froze for exactly this reason. So every app element gets an
+--      explicit 0.1s timeout BEFORE it is asked anything, the whole scan
+--      is time-boxed at 2s and checked every iteration, and results are
+--      cached. The suite drives forty deliberately wedged apps and fails
+--      if the scan does not give up.
+--   🐛 One of mine, caught by the tests: pcall(function() el:performAction
+--      (a) end) DISCARDS the return value, so the success check never saw
+--      it and AXShowMenu fired straight after a perfectly good AXPress —
+--      activating every item twice. The `return` inside the wrapper is
+--      load-bearing.
+--   🧪 1,405 checks across eleven suites.
 -- NEW IN 6.46.1 — init.lua GOES BACK TO BEING AN ORCHESTRATOR:
 --   📉 3,735 LINES → 3,511, AND NOT ONE LINE OF CODE WAS TOUCHED. 6.44.11
 --      cut this file from 6,012 to 3,376 by moving history out; within a
@@ -159,51 +192,9 @@
 --   🧪 4 mutations run against the NEW tests themselves; two were
 --      toothless and were rewritten until reverting each fix fails the
 --      suite. 1,500-layout geometry fuzzer. 244 checks on this module.
--- NEW IN 6.45.0 — MOUSE GRID (⇪X): TYPE THREE LETTERS, THE POINTER GOES:
---   🎯 ⇪X lays a labelled grid over EVERY display. Type a cell's three
---      home-row letters and the pointer jumps to it. ⇪⇧X clicks on
---      arrival. Then either use the trackpad, or stay on the keyboard:
---      SPACE clicks, ⇧SPACE right-clicks, 2 double-clicks, arrows nudge
---      8pt (1pt with ⇧), ⎋ backs out.
---   📐 A COORDINATE TOOL, DELIBERATELY NOT AN ELEMENT TOOL. It knows
---      nothing about what is underneath, which is exactly why it never
---      fails: video, PDFs, a Photoshop canvas, a remote desktop, any
---      pixel is reachable. Walking the Accessibility tree for real
---      buttons (Vimac/Homerow style) is more precise where it works and
---      returns NOTHING in Electron and Java apps, costs 100–500ms per
---      invocation, and needs a permission the work Mac may withhold.
---      That can be added later as a second stage; it must not be merged
---      into this one, because the two have opposite failure modes.
---   🚨 THE MOST DANGEROUS MODULE HERE, AND BUILT LIKE IT. A full-screen
---      overlay that captures keys can lock you out of your own Mac. Four
---      independent defences: ONE invariant (state ⟺ modal ⟺ canvas) with
---      a single idempotent teardown that pcalls each step separately; a
---      WATCHDOG so nothing outlives its keypress; a PANIC key on a plain
---      chord (⌃⌥⌘⇧M) rather than ⇪, because if ⇪ is what broke then a ⇪
---      panic key is no panic key; and unbound keys PASS THROUGH, so ⌘Q
---      and ⌘Tab keep working while the grid is up. Landed mode is never
---      invisible — whenever keys are captured, something says so.
---   ⚡️ FAST BY ARCHITECTURE, NOT BY LUCK. 729 cells is ~1,500 canvas
---      elements. Scrim and lines are one cached canvas per screen, built
---      once per display layout; labels are a second canvas and the only
---      thing redrawn; each keystroke shrinks 729 → 81 → 9, so every
---      redraw is cheaper than the last. A screen watcher drops the cache
---      when displays change. Timings go to the diagnostic trail.
---   🔢 CAPACITY IS ARITHMETIC, AND IT IS PUBLISHED. alphabet^length =
---      9³ = 729 cells, ~45pt on one display — near Apple's own 44pt
---      minimum control size. TWO DISPLAYS SPLIT THAT, giving ~85pt cells,
---      which is coarser than many buttons; that is what the arrow-nudge
---      is for, and widening grid.alphabet buys the fine grid back.
---      _G.mouseGridReport() prints the real cell size on THIS Mac.
---   ♿️ MOVING AND CLICKING ARE NOT THE SAME PERMISSION. Warping the
---      pointer needs nothing, so the JUMP works on any Mac. Synthesising
---      a click goes through hs.eventtap, which macOS gates behind
---      Accessibility — so without it the grid still jumps and SPACE says
---      why it could not click, instead of looking broken.
---   🧪 1,160 checks across seven suites.
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.46.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.47.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -445,7 +436,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.46.1"
+_G.configVersion = "6.47.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -3122,6 +3113,8 @@ _G.moduleProfiles = {
             "mouse_grid",
             -- 6.46.0
             "url_cleaner", "health_monitor",
+            -- 6.47.0
+            "menubar_items",
         },
     },
 
@@ -3145,6 +3138,8 @@ _G.moduleProfiles = {
             "mouse_grid",
             -- 6.46.0
             "url_cleaner", "health_monitor",
+            -- 6.47.0
+            "menubar_items",
         },
         settings = {
             -- Examples — delete or edit freely. These are exactly the
@@ -3172,6 +3167,8 @@ _G.moduleProfiles = {
             "mouse_grid",
             -- 6.46.0
             "url_cleaner", "health_monitor",
+            -- 6.47.0
+            "menubar_items",
         },
     },
 }
@@ -3363,14 +3360,14 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.46.1"
+    local currentVersion = "6.47.0"
     local currentDate    = "08-08-26"
     -- One line. The full entry for every version lives in CHANGELOG.md
     -- beside this file — which is also why prose no longer sits in a
     -- Lua string here: the work-Mac safety scan reads string literals
     -- as code, and a paragraph describing "no sudo, no launchctl"
     -- failed the very check it was describing.
-    local currentNotes   = "Trimmed init.lua from 3735 to 3511 lines without touching a line of code, by moving the inline changelog back to the five most recent entries the file's own rule calls for. First backfilled 6.44.11, 6.44.12 and 6.44.13 into CHANGELOG.md, which held every other version but not those three - trimming on the assumption the record was complete would have deleted them silently. A test now enforces at most five entries inline and, more importantly, that nothing inline is missing from CHANGELOG.md, so history cannot be lost this way again. Another test asserts the architectural claim directly: a new tool costs init.lua its name in three profiles and nothing else. See CHANGELOG.md for the full entry."
+    local currentNotes   = "Added modules/menubar_items.lua: hyper-M lists every menu bar status icon by owning app, type to filter, return opens it; hyper-shift-M prints an inventory. This is NOT a Bartender clone and cannot be one - macOS exposes no API for one process to hide, move or reorder another's status item, which is why Bartender covers the menu bar and needs Screen Recording to photograph it. For real hiding use Ice, which is free and open source. What is reachable through Accessibility is keyboard access to every icon, which suits this config better anyway. Its worst failure would be a freeze rather than a crash, because reading another app's Accessibility tree blocks the main thread, so every app element gets an explicit timeout before being asked anything and the whole scan is time-boxed and checked every iteration. See CHANGELOG.md for the full entry."
 
     -- Only append if this version isn't already in the file
     local found = false
