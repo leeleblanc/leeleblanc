@@ -268,11 +268,11 @@ check("it declares an order", M and type(M.order) == "number")
 check("it registers a cheat sheet group", M and M.cheatsheet ~= nil)
 check("config is exposed so a machine profile can retune it",
       M and M.config ~= nil and M.config == grid)
-check("⇪M is claimed", HYPER["|m"] ~= nil)
-check("⇪⇧M is claimed for click-on-arrival", HYPER["shift|m"] ~= nil)
+check("⇪X is claimed", HYPER["|x"] ~= nil)
+check("⇪⇧X is claimed for click-on-arrival", HYPER["shift|x"] ~= nil)
 check("the PANIC key is a plain chord, NOT a ⇪ shortcut — if ⇪ is what "
       .. "broke, a ⇪ panic key cannot be pressed",
-      GLOBAL_HOTKEYS["alt+cmd+ctrl+shift|M"] ~= nil)
+      GLOBAL_HOTKEYS["alt+cmd+ctrl+shift|X"] ~= nil)
 check("a screen watcher is registered", #SCREEN_WATCHERS == 1)
 check("...and STARTED (an unstarted watcher never fires)",
       SCREEN_WATCHERS[1] and SCREEN_WATCHERS[1].started == true)
@@ -530,10 +530,10 @@ check("2 posts a REAL double click (clickState 2), not two singles that "
       .. "most apps read as two separate selections",
       #CLICKS == 4 and CLICKS[1].kind == "double", #CLICKS)
 
-out("   -- ⇪⇧M clicks on arrival --\n")
+out("   -- ⇪⇧X clicks on arrival --\n")
 loadModule(); grid.show(true); typeLabel("aaa")
 checkInv("click on arrival")
-check("⇪⇧M clicks the moment the label completes", #CLICKS == 1)
+check("⇪⇧X clicks the moment the label completes", #CLICKS == 1)
 check("...and does not linger in landed mode", grid.state == nil)
 
 out("   -- no Accessibility (the work Mac) --\n")
@@ -575,13 +575,13 @@ check("...and leaves the pointer where you put it", MOUSE_AT.x > 0)
 
 out("   -- the panic key --\n")
 loadModule(); grid.show(false); typeLabel("a")
-GLOBAL_HOTKEYS["alt+cmd+ctrl+shift|M"]()
+GLOBAL_HOTKEYS["alt+cmd+ctrl+shift|X"]()
 checkInv("panic from pick")
-check("⌃⌥⌘⇧M clears a grid mid-type", grid.state == nil and not anyCanvasVisible())
+check("⌃⌥⌘⇧X clears a grid mid-type", grid.state == nil and not anyCanvasVisible())
 loadModule(); grid.show(false); typeLabel("aaa")
-GLOBAL_HOTKEYS["alt+cmd+ctrl+shift|M"]()
+GLOBAL_HOTKEYS["alt+cmd+ctrl+shift|X"]()
 checkInv("panic from landed")
-check("⌃⌥⌘⇧M clears the landed badge too", grid.state == nil and grid.cross == nil)
+check("⌃⌥⌘⇧X clears the landed badge too", grid.state == nil and grid.cross == nil)
 
 out("   -- the watchdog --\n")
 loadModule(); grid.show(false)
@@ -615,7 +615,7 @@ out("   -- toggle, double-show, double-hide --\n")
 loadModule()
 grid.show(false); checkInv("show 1")
 grid.show(false); checkInv("show 2 (toggle off)")
-check("pressing ⇪M while it is up puts it away rather than stacking a "
+check("pressing ⇪X while it is up puts it away rather than stacking a "
       .. "second overlay", grid.state == nil and not anyCanvasVisible())
 grid.hide("again"); checkInv("hide when already hidden")
 grid.hide("again"); checkInv("hide x3")
@@ -1033,16 +1033,24 @@ do
     local f3 = io.open(HS .. "/tools/hs-doctor.sh", "r")
     local dr = f3 and f3:read("*a") or ""
     if f3 then f3:close() end
-    check("hs-doctor.sh expects the new module count",
-          dr:find("expect 19", 1, true) ~= nil)
+    -- Counted from DISK, not typed here: a hard-coded number in the test
+    -- that keeps the docs honest is the same drift it exists to prevent.
+    local nMods = 0
+    do
+        local pipe = io.popen('ls -1 "' .. HS .. '/modules"/*.lua 2>/dev/null | wc -l')
+        if pipe then nMods = tonumber((pipe:read("*a") or ""):match("%d+")) or 0; pipe:close() end
+    end
+    check("the module directory was counted", nMods > 0, nMods)
+    check("hs-doctor.sh expects the REAL module count",
+          dr:find("expect " .. nMods, 1, true) ~= nil, nMods)
 
     local f4 = io.open(HS .. "/INSTALL.md", "r")
     local inst = f4 and f4:read("*a") or ""
     if f4 then f4:close() end
     check("INSTALL.md's module count matches what ships",
-          inst:find("19 files", 1, true) ~= nil)
-    check("INSTALL.md's confirmation table includes ⇪M, so a fresh install "
-          .. "is actually verified", inst:find("⇪M", 1, true) ~= nil)
+          inst:find(nMods .. " files", 1, true) ~= nil, nMods)
+    check("INSTALL.md's confirmation table includes ⇪X, so a fresh install "
+          .. "is actually verified", inst:find("⇪X", 1, true) ~= nil)
 end
 
 -- =====================================================================
@@ -1302,6 +1310,244 @@ do
           .. "no duplicate label, no off-target landing, both far edges "
           .. "covered, invariant held", bad == nil, bad)
     check("the fuzzer actually exercised large grids", worst > 500, worst)
+end
+setScreens(ONE); loadModule()
+
+-- =====================================================================
+out("\n=== 14. THE EXPLORER — random action sequences, then shrinking ===\n")
+-- =====================================================================
+-- WHAT THIS IS, IN PLAIN TERMS. Every test above this line is a sequence
+-- of actions I thought to write down. This one writes them itself.
+--
+-- The whole algorithm is three steps and fits in your head:
+--
+--   1. GENERATE. Pick random actions from the list a real person can
+--      perform — open, type a letter, backspace, escape, nudge, click,
+--      let the watchdog fire, change displays, hit the panic key — and
+--      do them in a random order.
+--   2. CHECK. After EVERY single action, assert the things that must be
+--      true no matter what happened before. Not "did it do the right
+--      thing" — that needs a human. "Is it in a state that is allowed."
+--   3. SHRINK. When a sequence fails, delete steps one at a time and
+--      keep any deletion that still fails. Repeat until nothing more can
+--      go. A 40-step failure becomes a 3-step bug report.
+--
+-- STEP 3 IS THE ONE THAT MAKES THIS WORTH HAVING. Random testing without
+-- shrinking hands you a 40-step trace and a shrug. With it you get the
+-- shortest sequence that reproduces the fault, which is usually short
+-- enough to read and fix directly.
+--
+-- WHAT IT CAN AND CANNOT DO. It cannot tell you the grid landed on the
+-- RIGHT cell — that is a correctness question and needs the scripted
+-- tests above. It CAN tell you the module got into a state it swears is
+-- impossible, via a route neither of us would have thought to try. Those
+-- are exactly the bugs that survive review.
+do
+    -- ---- the properties. Violating any of these is a bug, whatever the
+    -- route taken to get there. P3 is the important one: it is the
+    -- "never capture the keyboard invisibly" rule, stated as arithmetic.
+    local function violation()
+        local st = grid.state ~= nil
+        local cv, md = anyCanvasVisible(), anyModalEntered()
+        if not (st == cv and cv == md) then
+            return ("P1 state=%s canvas=%s modal=%s"):format(
+                tostring(st), tostring(cv), tostring(md))
+        end
+        if not st then
+            if #grid.shown ~= 0 then return "P2 closed but " .. #grid.shown .. " canvases tracked as shown" end
+            if grid.cross ~= nil then return "P2 closed but the badge survives" end
+            for _, t in ipairs(TIMERS) do
+                if not t.stopped then return "P2 closed but a watchdog is still ticking" end
+            end
+        else
+            if grid.state.phase == "landed" and not (grid.cross and grid.cross.visible) then
+                return "P3 capturing keys in landed mode with NO visible badge"
+            end
+            if grid.state.phase == "pick" and #grid.state.typed >= grid.labelLength then
+                return "P4 a complete label was typed and it is still picking"
+            end
+            local live = 0
+            for _, t in ipairs(TIMERS) do if not t.stopped then live = live + 1 end end
+            if live > 1 then return "P5 " .. live .. " watchdogs live at once" end
+        end
+        return nil
+    end
+
+    -- ---- the actions a person can actually perform. Each is named, so a
+    -- failing sequence is a list of strings you can read and replay.
+    local ACT = {}
+    local function act(name, fn) ACT[#ACT + 1] = { name = name, fn = fn } end
+    act("show",      function() grid.show(false) end)
+    act("showClick", function() grid.show(true) end)
+    act("hide",      function() grid.hide("explorer") end)
+    act("escape",    function()
+        if grid.state and grid.state.phase == "pick" then grid.pickModal.binds["|escape"]()
+        elseif grid.state then grid.landModal.binds["|escape"]() end end)
+    act("backspace", function() if grid.state then pcall(grid.backspace) end end)
+    for ch in ("asdfghjkl"):gmatch(".") do
+        act("type:" .. ch, function()
+            local fn = grid.pickModal.binds["|" .. ch]
+            if fn then fn() end
+        end)
+    end
+    -- Reaching landed mode by chance would take 9^3 aligned keystrokes, so
+    -- it is offered directly. Without this the whole landed half of the
+    -- state machine is explored roughly never.
+    act("land", function()
+        if not (grid.state and grid.state.phase == "pick" and grid.cache) then return end
+        local label = grid.cache.screens[1].cells[1].label
+        for c in label:sub(#grid.state.typed + 1):gmatch(".") do
+            local fn = grid.pickModal.binds["|" .. c]
+            if fn then fn() end
+        end
+    end)
+    for _, k in ipairs({ "up", "down", "left", "right" }) do
+        act("nudge:" .. k, function()
+            local fn = grid.landModal.binds["|" .. k]
+            if fn and grid.state and grid.state.phase == "landed" then fn() end end)
+    end
+    act("click",  function()
+        local fn = grid.landModal.binds["|space"]
+        if fn and grid.state and grid.state.phase == "landed" then fn() end end)
+    act("dblclick", function()
+        local fn = grid.landModal.binds["|2"]
+        if fn and grid.state and grid.state.phase == "landed" then fn() end end)
+    act("watchdog", function()
+        local t = liveTimer(); if t then t.fn() end end)
+    act("panic",   function() GLOBAL_HOTKEYS["alt+cmd+ctrl+shift|X"]() end)
+    act("screens", function()
+        setScreens(TWO)
+        if SCREEN_WATCHERS[1] then SCREEN_WATCHERS[1].fn() end
+        setScreens(ONE) end)
+    act("axOff",   function() AX_OK = false end)
+    act("axOn",    function() AX_OK = true end)
+    act("report",  function() pcall(_G.mouseGridReport) end)
+
+    local byName = {}
+    for _, a in ipairs(ACT) do byName[a.name] = a.fn end
+
+    -- ---- replay a named sequence from a clean module. Returns the step
+    -- and the reason on failure, so the shrinker can tell "still broken"
+    -- from "broken differently".
+    -- `src` is threaded through so the explorer can be pointed at a
+    -- MUTATED module, which is the only honest way to prove the whole
+    -- pipeline works. (It also means a planted bug cannot be monkey-
+    -- patched in from outside: replay() reloads the module every time and
+    -- would wipe it — which is exactly how the first version of the
+    -- self-check below fooled itself into passing.)
+    local function replay(seq, src)
+        setScreens(ONE)
+        AX_OK = true
+        loadModule(src)
+        for i, name in ipairs(seq) do
+            local ok, err = pcall(byName[name])
+            if not ok then return i, name .. " threw: " .. tostring(err) end
+            local v = violation()
+            if v then return i, v end
+        end
+        return nil
+    end
+
+    -- ---- the shrinker. Greedy deletion: try removing each step; keep the
+    -- removal if the sequence still fails. Repeat until a full pass
+    -- removes nothing. Simple, and it is what turns a wall of noise into
+    -- something you can act on.
+    local function shrink(seq, src)
+        local changed = true
+        while changed and #seq > 1 do
+            changed = false
+            local i = 1
+            while i <= #seq do
+                local cand = {}
+                for j, n in ipairs(seq) do if j ~= i then cand[#cand + 1] = n end end
+                if #cand > 0 and replay(cand, src) then
+                    seq = cand ; changed = true
+                else
+                    i = i + 1
+                end
+            end
+        end
+        return seq
+    end
+
+    math.randomseed(4711)
+    local SEQS, LEN = 400, 40
+    local found, steps = nil, 0
+    for _ = 1, SEQS do
+        local seq = {}
+        for _ = 1, LEN do seq[#seq + 1] = ACT[math.random(#ACT)].name end
+        local at, why = replay(seq)
+        steps = steps + (at or LEN)
+        if at then
+            local minimal = shrink(seq)
+            local _, minWhy = replay(minimal)
+            found = ("%s  ←  %s"):format(minWhy or why, table.concat(minimal, " → "))
+            break
+        end
+    end
+    check(SEQS .. " random action sequences (" .. steps .. " actions): the "
+          .. "module never reached a state it forbids — not locked out, not "
+          .. "stranded, never capturing keys without a visible badge",
+          found == nil, found)
+
+    -- ---- DOES THE EXPLORER ACTUALLY WORK? ----------------------------
+    -- 400 green sequences prove nothing unless the machinery can fail. So
+    -- the whole pipeline — generate, check, shrink — is run against a
+    -- module deliberately broken in the exact way that matters.
+    do
+        check("a legal sequence is judged legal", replay({ "show", "type:a" }) == nil)
+
+        -- 1. Do the PROPERTIES bite? Put the module into each forbidden
+        --    state by hand and confirm violation() names it.
+        setScreens(ONE); loadModule(); grid.show(false)
+        grid.state = nil                            -- stranded: sheet up, keys freed
+        check("P1 catches a teardown that clears the state and leaves the "
+              .. "overlay on screen", (violation() or ""):find("P1", 1, true) ~= nil,
+              violation())
+        -- P3 earns its place only where P1 cannot see the fault: landed
+        -- mode with the badge gone but SOMETHING still on screen, so the
+        -- state/canvas/modal counts all agree and only the badge rule
+        -- notices that what you can see is not what is capturing keys.
+        loadModule(); grid.show(false); typeLabel("aaa")
+        pcall(function() grid.cross:delete() end)
+        grid.cross = nil
+        grid.cache.screens[1].gridCanvas:show()     -- the grid, not the badge
+        check("P3 catches landed mode with no badge in the one case P1 "
+              .. "cannot see — something else is on screen, so the counts "
+              .. "agree and only the badge rule objects",
+              (violation() or ""):find("P3", 1, true) ~= nil, violation())
+
+        -- 2. Does the SEARCH find it, and does the SHRINKER reduce it?
+        --    A module whose hide() no longer puts the canvases away is the
+        --    lock-out shape, reachable from a two-step sequence.
+        local broken = src:gsub("        hideAllShown%(%)\n        pcall%(function%(%) if grid%.cross",
+                                "        pcall(function() if grid.cross", 1)
+        check("the mutation anchor still matches the shipped file", broken ~= src)
+        math.randomseed(99)
+        local hit, minimal = nil, nil
+        for _ = 1, 40 do
+            local seq = {}
+            for _ = 1, LEN do seq[#seq + 1] = ACT[math.random(#ACT)].name end
+            if replay(seq, broken) then
+                hit = seq
+                minimal = shrink(seq, broken)
+                break
+            end
+        end
+        check("🔎 the explorer FINDS a broken teardown on its own, without "
+              .. "being told where to look", hit ~= nil)
+        if hit and minimal then
+            out(("      planted a broken teardown → found in a %d-step "
+                 .. "sequence → shrank to %d: %s\n"):format(
+                 #hit, #minimal, table.concat(minimal, " → ")))
+        end
+        check("✂️ and the shrinker cuts the "
+              .. (hit and #hit or 0) .. "-step failure down to "
+              .. (minimal and #minimal or 0) .. " steps — that reduction is "
+              .. "the whole reason this is worth running",
+              minimal ~= nil and #minimal <= 4,
+              minimal and table.concat(minimal, " → "))
+    end
 end
 setScreens(ONE); loadModule()
 

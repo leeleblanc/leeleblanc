@@ -1,13 +1,13 @@
 -- =====================================================================
--- MODULE: MOUSE GRID (⇪M) — type three letters, the pointer goes there
+-- MODULE: MOUSE GRID (⇪X) — type three letters, the pointer goes there
 -- =====================================================================
--- ⇪M lays a labelled grid over every display. Every cell carries a
+-- ⇪X lays a labelled grid over every display. Every cell carries a
 -- three-letter code ("agl"). Type it and the pointer jumps to that cell's
 -- centre. Then either click with the trackpad, or stay on the keyboard:
 -- SPACE clicks, arrows nudge, ⎋ backs out.
 --
--- ⇪⇧M is the same thing that clicks for you the moment you finish typing.
--- ⌃⌥⌘⇧M is the panic key — see SAFETY below.
+-- ⇪⇧X is the same thing that clicks for you the moment you finish typing.
+-- ⌃⌥⌘⇧X is the panic key — see SAFETY below.
 --
 -- ---------------------------------------------------------------------
 -- WHAT THIS IS, AND THE THING IT DELIBERATELY IS NOT
@@ -50,7 +50,7 @@
 --      one failing step cannot strand the others.
 --   2. WATCHDOG. An overlay that outlives its keypress tears itself down
 --      (grid.timeoutSecs). Nothing here can sit on your screen forever.
---   3. PANIC KEY. ⌃⌥⌘⇧M is a PLAIN global chord, not a ⇪ shortcut —
+--   3. PANIC KEY. ⌃⌥⌘⇧X is a PLAIN global chord, not a ⇪ shortcut —
 --      because if ⇪ itself is what broke, a ⇪ panic key is no panic key.
 --      Same reasoning as Screen Veil's ⌃⌥⌘⇧G.
 --   4. UNBOUND KEYS PASS THROUGH. Only the alphabet plus a handful of
@@ -123,10 +123,10 @@ local M = {
     name  = "Mouse Grid",
     order = 13.6,
     cheatsheet = {
-        title = "🎯 MOUSE GRID (⇪M — type 3 letters, the pointer goes there)",
+        title = "🎯 MOUSE GRID (⇪X — type 3 letters, the pointer goes there)",
         entries = {
-            { "⇪M",       "Overlay the labelled grid on every display" },
-            { "⇪⇧M",      "Same, but click the moment you finish typing" },
+            { "⇪X",       "Overlay the labelled grid on every display" },
+            { "⇪⇧X",      "Same, but click the moment you finish typing" },
             { "asdfghjkl","Type a cell's 3 letters — the pointer jumps there" },
             { "⌫",        "Undo one letter while typing" },
             { "⎋",        "Cancel — the pointer does not move" },
@@ -134,7 +134,7 @@ local M = {
             { "space",    "Left click · ⇧space right click · 2 double click" },
             { "↑↓←→",     "Nudge 8pt · with ⇧ nudge 1pt for a tight target" },
             { "⎋",        "Done — leave the pointer where it is" },
-            { "⌃⌥⌘⇧M",   "PANIC — tear the overlay down whatever state it is in" },
+            { "⌃⌥⌘⇧X",   "PANIC — tear the overlay down whatever state it is in" },
             { "check it", "_G.mouseGridReport() — cell size on THIS Mac" },
         },
     },
@@ -145,7 +145,7 @@ function M.setup(core)
 
     -- ✏️ EDIT HERE ---------------------------------------------------------
     grid.enabled     = true
-    grid.key         = "m"          -- ⇪M. ⇪⇧M is the click-on-arrival twin.
+    grid.key         = "x"          -- ⇪X. ⇪⇧X is the click-on-arrival twin.
 
     -- Capacity is alphabet^labelLength — see the arithmetic block above.
     -- These two are ONE decision, not two: changing either changes how
@@ -983,7 +983,7 @@ function M.setup(core)
     -- 🚨 THE PANIC KEY IS A PLAIN CHORD, NOT A ⇪ SHORTCUT. If ⇪ itself is
     -- what failed — the remap refused, the hyper modal stuck — then a ⇪
     -- panic key cannot be pressed. Bound directly, same as Screen Veil's.
-    hs.hotkey.bind({ "ctrl", "alt", "cmd", "shift" }, "M", function()
+    hs.hotkey.bind({ "ctrl", "alt", "cmd", "shift" }, "X", function()
         grid.hide("panic key")
         hs.alert.show("🎯 Mouse Grid: overlay cleared")
     end)
@@ -1006,7 +1006,7 @@ function M.setup(core)
     -- Said once, at boot, rather than discovered the first time SPACE does
     -- nothing. The jump works either way; only the click is gated.
     if not axAvailable() then
-        print("🎯 Mouse Grid: Accessibility is OFF — ⇪M still moves the pointer, "
+        print("🎯 Mouse Grid: Accessibility is OFF — ⇪X still moves the pointer, "
               .. "but space-to-click cannot work until it is granted.")
     end
 

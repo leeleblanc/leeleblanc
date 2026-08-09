@@ -4,6 +4,63 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.46.0 — A LINK CLEANER, A TOOL-HEALTH WATCHDOG, AND ⇪M → ⇪X:
+  🎯 THE MOUSE GRID MOVED TO ⇪X. ⇪X opens it, ⇪⇧X clicks on arrival,
+     ⌃⌥⌘⇧X is the panic key. Nothing else about it changed.
+  🔗 NEW: modules/url_cleaner.lua. ⇪K rewrites the link on your
+     clipboard into the one the sender actually meant — tracking
+     parameters stripped, redirect wrappers unwrapped. ⇪⇧K undoes it.
+     Works on a whole paragraph, cleaning every link in it.
+  📧 THE WORK-INBOX CASES ARE THE POINT. Outlook Safe Links wraps
+     almost every link in almost every corporate email; Proofpoint
+     wraps the rest, and uses its OWN encoding where "-" means "%" and
+     "_" means "/" — decode that as ordinary percent-encoding and you
+     get a dead link. Both are handled, including one wrapper nested
+     inside another, with a BOUNDED unwrap loop.
+  🚫 IT WILL NOT EXPAND bit.ly & co, AND THAT IS THE DESIGN. A
+     shortener does not contain its destination; the only way to learn
+     it is to ask their server, which REGISTERS THE CLICK you were
+     trying to avoid and sends a work link to a third-party host. The
+     module makes NO network calls at all — a test fails the build if
+     one ever appears — and says plainly why it stopped.
+  🛟 BLOCKLIST, NEVER ALLOWLIST. Only known trackers are removed;
+     anything unrecognised is kept. ?v= on YouTube, ?q= on a search,
+     ?ref= on GitHub and ?page= everywhere are load-bearing. A cleaner
+     that leaves a stray parameter is a nuisance; one that breaks the
+     link is worse than not having it.
+  🩺 NEW: modules/health_monitor.lua. The boot report says what LOADED.
+     The capability report says what this Mac CAN do. Neither notices a
+     module that loaded fine, reports no error, and stopped writing to
+     its file three days ago — which you only find out by opening the
+     Console you do not have open. This watches the OUTPUT of every
+     tool that produces some and puts a PERSISTENT notification on
+     screen when one goes quiet. ⇪⇧H for the full report.
+  🧩 IT WATCHES FILES, SO NOT ONE LINE OF ANY EXISTING MODULE CHANGED.
+     Twenty other modules, zero regression risk. It also catches
+     HALF-broken — a watcher that silently detached still loads, still
+     binds, still reports healthy, and stops writing.
+  🚨 THE REAL WORK WAS NOT ALERTING. A monitor that cries wolf gets
+     ignored, and an ignored monitor is worse than none: it trains you
+     to dismiss the one notice that mattered. Staleness is counted in
+     AWAKE TICKS, so shutting the lid for three days costs nothing;
+     each check names the hours it is expected to be active; it speaks
+     once per tool per day; and a boot grace period stops it judging
+     modules that warm on a timer. Most of its test file is about
+     staying silent.
+  ⏱ hs.notify.show() WOULD HAVE BEEN THE WRONG CALL and looks like the
+     right one: its notices inherit withdrawAfter = 5 seconds and
+     vanish while you are looking elsewhere — the exact situation this
+     module exists for. withdrawAfter = 0 makes them persist. Found by
+     reading Hammerspoon's source, not by guessing.
+  🔎 NEW IN THE TEST SUITE: AN EXPLORER. It writes its own test cases —
+     random sequences of real actions, checking after EVERY step that
+     the module is in a state it allows, then SHRINKING any failure by
+     deleting steps while it still fails. Planted a broken teardown and
+     it found it unaided in a 40-step sequence, then cut it to two:
+     "showClick → escape". That reduction is the whole point; a 40-step
+     trace is a haystack, a 2-step one is a bug report.
+  🧪 1,344 checks across ten suites.
+
 NEW IN 6.45.2 — DOES THE NEW MODULE BREAK THE OLD CONFIG?
   🔗 THE QUESTION NO OTHER SUITE HERE ASKED. Every test file proves one
      module correct IN ISOLATION, against stubs. That says nothing about

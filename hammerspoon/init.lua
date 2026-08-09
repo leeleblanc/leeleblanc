@@ -4,9 +4,65 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.45.2-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.46.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.46.0 — A LINK CLEANER, A TOOL-HEALTH WATCHDOG, AND ⇪M → ⇪X:
+--   🎯 THE MOUSE GRID MOVED TO ⇪X. ⇪X opens it, ⇪⇧X clicks on arrival,
+--      ⌃⌥⌘⇧X is the panic key. Nothing else about it changed.
+--   🔗 NEW: modules/url_cleaner.lua. ⇪K rewrites the link on your
+--      clipboard into the one the sender actually meant — tracking
+--      parameters stripped, redirect wrappers unwrapped. ⇪⇧K undoes it.
+--      Works on a whole paragraph, cleaning every link in it.
+--   📧 THE WORK-INBOX CASES ARE THE POINT. Outlook Safe Links wraps
+--      almost every link in almost every corporate email; Proofpoint
+--      wraps the rest, and uses its OWN encoding where "-" means "%" and
+--      "_" means "/" — decode that as ordinary percent-encoding and you
+--      get a dead link. Both are handled, including one wrapper nested
+--      inside another, with a BOUNDED unwrap loop.
+--   🚫 IT WILL NOT EXPAND bit.ly & co, AND THAT IS THE DESIGN. A
+--      shortener does not contain its destination; the only way to learn
+--      it is to ask their server, which REGISTERS THE CLICK you were
+--      trying to avoid and sends a work link to a third-party host. The
+--      module makes NO network calls at all — a test fails the build if
+--      one ever appears — and says plainly why it stopped.
+--   🛟 BLOCKLIST, NEVER ALLOWLIST. Only known trackers are removed;
+--      anything unrecognised is kept. ?v= on YouTube, ?q= on a search,
+--      ?ref= on GitHub and ?page= everywhere are load-bearing. A cleaner
+--      that leaves a stray parameter is a nuisance; one that breaks the
+--      link is worse than not having it.
+--   🩺 NEW: modules/health_monitor.lua. The boot report says what LOADED.
+--      The capability report says what this Mac CAN do. Neither notices a
+--      module that loaded fine, reports no error, and stopped writing to
+--      its file three days ago — which you only find out by opening the
+--      Console you do not have open. This watches the OUTPUT of every
+--      tool that produces some and puts a PERSISTENT notification on
+--      screen when one goes quiet. ⇪⇧H for the full report.
+--   🧩 IT WATCHES FILES, SO NOT ONE LINE OF ANY EXISTING MODULE CHANGED.
+--      Twenty other modules, zero regression risk. It also catches
+--      HALF-broken — a watcher that silently detached still loads, still
+--      binds, still reports healthy, and stops writing.
+--   🚨 THE REAL WORK WAS NOT ALERTING. A monitor that cries wolf gets
+--      ignored, and an ignored monitor is worse than none: it trains you
+--      to dismiss the one notice that mattered. Staleness is counted in
+--      AWAKE TICKS, so shutting the lid for three days costs nothing;
+--      each check names the hours it is expected to be active; it speaks
+--      once per tool per day; and a boot grace period stops it judging
+--      modules that warm on a timer. Most of its test file is about
+--      staying silent.
+--   ⏱ hs.notify.show() WOULD HAVE BEEN THE WRONG CALL and looks like the
+--      right one: its notices inherit withdrawAfter = 5 seconds and
+--      vanish while you are looking elsewhere — the exact situation this
+--      module exists for. withdrawAfter = 0 makes them persist. Found by
+--      reading Hammerspoon's source, not by guessing.
+--   🔎 NEW IN THE TEST SUITE: AN EXPLORER. It writes its own test cases —
+--      random sequences of real actions, checking after EVERY step that
+--      the module is in a state it allows, then SHRINKING any failure by
+--      deleting steps while it still fails. Planted a broken teardown and
+--      it found it unaided in a 40-step sequence, then cut it to two:
+--      "showClick → escape". That reduction is the whole point; a 40-step
+--      trace is a haystack, a 2-step one is a bug report.
+--   🧪 1,344 checks across ten suites.
 -- NEW IN 6.45.2 — DOES THE NEW MODULE BREAK THE OLD CONFIG?
 --   🔗 THE QUESTION NO OTHER SUITE HERE ASKED. Every test file proves one
 --      module correct IN ISOLATION, against stubs. That says nothing about
@@ -34,8 +90,8 @@
 --      Pad, Screen Veil's cheat-sheet slot, Screen Veil's panic key, and
 --      the Capture Pad's flush service are each caught by name.
 --   📣 ONE THING THIS COSTS YOU, BY DESIGN. §3.12 forwards every UNCLAIMED
---      ⇪ key to the frontmost app as ⌘⇧⌃⌥+key. Claiming M means ⌘⇧⌃⌥M and
---      ⌘⇧⌃⌥⇧M no longer reach Raycast, Rectangle or a browser extension.
+--      ⇪ key to the frontmost app as ⌘⇧⌃⌥+key. Claiming X means ⌘⇧⌃⌥X and
+--      ⌘⇧⌃⌥⇧X no longer reach Raycast, Rectangle or a browser extension.
 --      That is true of adding any ⇪ shortcut; it is worth knowing once.
 --   🧪 1,227 checks across eight suites.
 -- NEW IN 6.45.1 — THE MOUSE GRID, AUDITED AGAINST HAMMERSPOON'S OWN SOURCE:
@@ -82,9 +138,9 @@
 --   🧪 4 mutations run against the NEW tests themselves; two were
 --      toothless and were rewritten until reverting each fix fails the
 --      suite. 1,500-layout geometry fuzzer. 244 checks on this module.
--- NEW IN 6.45.0 — MOUSE GRID (⇪M): TYPE THREE LETTERS, THE POINTER GOES:
---   🎯 ⇪M lays a labelled grid over EVERY display. Type a cell's three
---      home-row letters and the pointer jumps to it. ⇪⇧M clicks on
+-- NEW IN 6.45.0 — MOUSE GRID (⇪X): TYPE THREE LETTERS, THE POINTER GOES:
+--   🎯 ⇪X lays a labelled grid over EVERY display. Type a cell's three
+--      home-row letters and the pointer jumps to it. ⇪⇧X clicks on
 --      arrival. Then either use the trackpad, or stay on the keyboard:
 --      SPACE clicks, ⇧SPACE right-clicks, 2 double-clicks, arrows nudge
 --      8pt (1pt with ⇧), ⎋ backs out.
@@ -397,7 +453,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.45.2
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.46.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -639,7 +695,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.45.2"
+_G.configVersion = "6.46.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -3314,6 +3370,8 @@ _G.moduleProfiles = {
             "numpad_layer",
             -- 6.45.0
             "mouse_grid",
+            -- 6.46.0
+            "url_cleaner", "health_monitor",
         },
     },
 
@@ -3335,6 +3393,8 @@ _G.moduleProfiles = {
             "numpad_layer",
             -- 6.45.0
             "mouse_grid",
+            -- 6.46.0
+            "url_cleaner", "health_monitor",
         },
         settings = {
             -- Examples — delete or edit freely. These are exactly the
@@ -3360,6 +3420,8 @@ _G.moduleProfiles = {
             "numpad_layer",
             -- 6.45.0
             "mouse_grid",
+            -- 6.46.0
+            "url_cleaner", "health_monitor",
         },
     },
 }
@@ -3551,14 +3613,14 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.45.2"
+    local currentVersion = "6.46.0"
     local currentDate    = "08-08-26"
     -- One line. The full entry for every version lives in CHANGELOG.md
     -- beside this file — which is also why prose no longer sits in a
     -- Lua string here: the work-Mac safety scan reads string literals
     -- as code, and a paragraph describing "no sudo, no launchctl"
     -- failed the very check it was describing.
-    local currentNotes   = "Added tests/test_integration.lua, which asks whether the new module breaks the old config rather than whether it is correct alone. Reimplements Hammerspoon's own hotkey shadowing stack from its source and drives the real key sequence through it, because Mouse Grid binds bare letters while the hyper modal is still entered and both claim the same keys. Confirms the grid wins while open, keeps its keys when Caps Lock is released mid-grid, hands them back to hyper when it closes, and leaves the keyboard clean. Also loads all 19 modules through the real loader and audits for duplicate hyper keys, duplicate global chords, duplicate service names, duplicate cheat-sheet slots and malformed cheat-sheet rows, with 4 mutations proving each check bites. Note that claiming a hyper key stops that chord being forwarded to other apps. See CHANGELOG.md for the full entry."
+    local currentNotes   = "Moved the Mouse Grid to hyper-X. Added modules/url_cleaner.lua: hyper-K rewrites the link on the clipboard into the one the sender meant, stripping tracking parameters and unwrapping redirect wrappers including Outlook Safe Links and Proofpoint with its own encoding scheme; hyper-shift-K undoes it. It refuses to expand shorteners because that would register the click and send the link off this Mac, and it makes no network calls at all. It uses a blocklist so an unrecognised parameter is always kept. Added modules/health_monitor.lua, which watches the output files of every tool that produces some and raises a persistent notification when one goes quiet, catching the module that loads fine and silently stopped working. It watches files rather than instrumenting code, so no existing module changed. Staleness is counted in awake ticks so sleep costs nothing, each check has active hours, and it speaks once per tool per day. Added an explorer to the test suite that generates random action sequences and shrinks any failure to its shortest reproduction. See CHANGELOG.md for the full entry."
 
     -- Only append if this version isn't already in the file
     local found = false

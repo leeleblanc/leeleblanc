@@ -123,7 +123,7 @@ out("   -- ⇪ held, grid opened, letters typed --\n")
 buildWorld()
 hyper:enter()                                   -- Caps Lock down
 check("with ⇪ held, a bare letter belongs to hyper", press("a") == "hyper")
-gridPick:enter()                                -- ⇪M opened the grid
+gridPick:enter()                                -- ⇪X opened the grid
 check("the grid SHADOWS hyper's bare letters while it is up — otherwise "
       .. "typing a cell code would fire hyper shortcuts instead",
       press("a") == "grid")
@@ -343,8 +343,8 @@ check("🚨 NO TWO MODULES CLAIM THE SAME ⇪ SHORTCUT", (function()
     if #dupes > 0 then return false, table.concat(dupes, "; ") end
     return true
 end)())
-check("mouse_grid claimed exactly ⇪M and ⇪⇧M",
-      HYPER_CLAIMS["|m"] ~= nil and HYPER_CLAIMS["shift|m"] ~= nil)
+check("mouse_grid claimed exactly ⇪X and ⇪⇧X",
+      HYPER_CLAIMS["|x"] ~= nil and HYPER_CLAIMS["shift|x"] ~= nil)
 check("NO TWO MODULES CLAIM THE SAME GLOBAL CHORD (the panic keys)",
       (function()
     local dupes = {}
@@ -355,7 +355,7 @@ check("NO TWO MODULES CLAIM THE SAME GLOBAL CHORD (the panic keys)",
     return true
 end)())
 check("the Mouse Grid panic key is bound and is NOT a ⇪ shortcut",
-      GLOBAL_HOTKEYS["alt+cmd+ctrl+shift|m"] == 1)
+      GLOBAL_HOTKEYS["alt+cmd+ctrl+shift|x"] == 1)
 check("it does not collide with Screen Veil's panic key ⌃⌥⌘⇧G",
       GLOBAL_HOTKEYS["alt+cmd+ctrl+shift|g"] == 1)
 
@@ -414,7 +414,7 @@ check("no module failed with a timing that suggests a boot-path stall",
     return true
 end)())
 check("mouse_grid draws NOTHING at load — the grid must cost nothing until "
-      .. "you press ⇪M", (function()
+      .. "you press ⇪X", (function()
     for _, l in ipairs(printed) do
         if l:find("MODULE FAILED", 1, true) and l:find("mouse_grid", 1, true) then
             return false
