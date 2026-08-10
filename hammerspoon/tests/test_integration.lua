@@ -376,24 +376,24 @@ check("mouse_grid's services are published", SERVICES["mouseGrid.show"] == 1)
 -- registry is empty there and the check would pass vacuously. This is the
 -- only suite where all 24 modules are loaded together and the names can
 -- actually be resolved.
-check("🚨 EVERY ⇪⇧ pad KEY NAMES A SERVICE SOME MODULE REALLY PUBLISHES — "
+check("🚨 EVERY ⇪ pad KEY NAMES A SERVICE SOME MODULE REALLY PUBLISHES — "
       .. "a typo binds a key that silently does nothing", (function()
     local np = _G.numpadLayer
     if not np then return false, "numpad_layer did not load" end
-    if not np.shiftActions then return false, "no shifted layer defined" end
+    if not np.actions then return false, "no tool layer defined" end
     local missing, n = {}, 0
-    for key, name in pairs(np.shiftActions) do
+    for key, name in pairs(np.actions) do
         n = n + 1
         if type(name) == "string" and not SERVICES[name] then
             missing[#missing + 1] = key .. "→" .. name
         end
     end
-    if n == 0 then return false, "the shifted layer is empty" end
+    if n == 0 then return false, "the tool layer is empty" end
     if #missing > 0 then return false, table.concat(missing, ", ") end
     return true
 end)())
-check("...and the pad's own window layer claims nothing on the ⇧ layer "
-      .. "that the tool layer also claims", (function()
+check("...and no pad key means the same thing on both layers, which "
+      .. "would waste a slot", (function()
     local np = _G.numpadLayer
     for key in pairs((np or {}).shiftActions or {}) do
         if (np.actions or {})[key] and np.actions[key] == np.shiftActions[key] then

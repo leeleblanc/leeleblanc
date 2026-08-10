@@ -1010,8 +1010,67 @@ function M.setup(core)
               .. "but space-to-click cannot work until it is granted.")
     end
 
+    -- =====================================================================
+    -- WHERE IS THE POINTER? — the MouseCircle Spoon, done natively
+    -- =====================================================================
+    -- Flashes a ring at the pointer so you can find it on a wide or
+    -- multi-monitor desktop. This is what the MouseCircle Spoon does; it
+    -- is ~20 lines, so it lives here rather than pulling in SpoonInstall
+    -- and a second loading system alongside the module loader.
+    --
+    -- 🅿️ DELIBERATELY BOUND TO NO KEY. macOS's own shake-to-grow already
+    -- does this, and doubling it up is clutter. It is published as a
+    -- service so you can put it on a free pad key the day you want it —
+    -- ⇪pad+ and friends are unclaimed for exactly this.
+    --       numpad.actions["pad+"] = "mouseGrid.locate"
+    grid.locateColor  = { red = 0.4, green = 0.2, blue = 0.6 }  -- rebeccapurple
+    grid.locateRadius = 60
+    grid.locateSecs   = 0.6
+    grid.locateCanvas = nil   -- HELD: an unreferenced canvas is collected
+    grid.locateTimer  = nil   -- HELD: so is an unreferenced timer
+
+    function grid.locate()
+        -- Idempotent: a second press replaces the first ring rather than
+        -- stacking canvases that each delete themselves on their own
+        -- schedule, which is how this kind of thing leaks.
+        if grid.locateTimer  then pcall(function() grid.locateTimer:stop() end) end
+        if grid.locateCanvas then pcall(function() grid.locateCanvas:delete() end) end
+        grid.locateCanvas, grid.locateTimer = nil, nil
+
+        local okPos, pos = pcall(hs.mouse.absolutePosition)
+        if not (okPos and pos) then return false end
+        local r = grid.locateRadius
+        local okNew, c = pcall(hs.canvas.new,
+                               { x = pos.x - r, y = pos.y - r, w = r * 2, h = r * 2 })
+        if not (okNew and c) then return false end
+        pcall(function()
+            c:replaceElements({ {
+                type = "circle", action = "stroke",
+                strokeColor = { red = grid.locateColor.red,
+                                green = grid.locateColor.green,
+                                blue = grid.locateColor.blue, alpha = 0.9 },
+                strokeWidth = 5,
+                center = { x = r, y = r }, radius = r - 4,
+            } })
+            c:level((hs.canvas.windowLevels or {}).overlay)
+            c:behaviorAsLabels({ "canJoinAllSpaces", "stationary" })
+            -- 🚨 CLICK-THROUGH. Without this the ring is a disc of glass
+            -- over whatever you were about to click, for half a second —
+            -- which is precisely when you are reaching for something.
+            c:canvasMouseEvents(false, false, false, false)
+            c:show()
+        end)
+        grid.locateCanvas = c
+        grid.locateTimer = hs.timer.doAfter(grid.locateSecs, function()
+            pcall(function() c:delete() end)
+            if grid.locateCanvas == c then grid.locateCanvas = nil end
+        end)
+        return true
+    end
+
     core.provide("mouseGrid.show",   function() return grid.show(false) end)
     core.provide("mouseGrid.hide",   function() return grid.hide("service") end)
+    core.provide("mouseGrid.locate", function() return grid.locate()      end)
     core.provide("mouseGrid.report", function() return _G.mouseGridReport() end)
 
     _G.mouseGrid = grid

@@ -72,6 +72,9 @@ local function mkCanvas(frame)
     function c:delete() self.visible = false; self.deleted = true; return self end
     function c:level(l) self.lvl = l; return self end
     function c:behaviorAsLabels() return self end
+    function c:canvasMouseEvents(a, b, d, e)
+        self.mouseEvents = { a, b, d, e }; return self
+    end
     CANVASES[#CANVASES + 1] = c
     return c
 end
@@ -1550,6 +1553,67 @@ do
     end
 end
 setScreens(ONE); loadModule()
+
+-- =====================================================================
+out("\n=== POINTER LOCATOR (the MouseCircle Spoon, done natively) ===\n")
+-- =====================================================================
+do
+    setScreens(ONE); loadModule()
+    local G = _G.mouseGrid
+    check("it is published as a service so a pad key can reach it",
+          PROVIDED["mouseGrid.locate"] ~= nil)
+    check("🅿️ but it is bound to NO key — macOS shake-to-grow already does "
+          .. "this, and doubling it up is clutter", (function()
+        for combo, _ in pairs(HYPER_CLAIMS or {}) do
+            if tostring(combo):find("locate") then return false end
+        end
+        return true
+    end)())
+
+    local before = #CANVASES
+    hs.mouse.absolutePosition({ x = 400, y = 300 })
+    check("locate() reports success", G.locate() == true)
+    local ring = CANVASES[#CANVASES]
+    check("a ring canvas was created", #CANVASES == before + 1)
+    check("it is centred on the pointer", ring.frame.x == 400 - G.locateRadius
+          and ring.frame.y == 300 - G.locateRadius,
+          tostring(ring.frame.x) .. "," .. tostring(ring.frame.y))
+    check("it is shown", ring.visible == true)
+    check("🚨 IT IS CLICK-THROUGH — without this the ring is a disc of glass "
+          .. "over whatever you were about to click, for half a second",
+          ring.mouseEvents ~= nil and ring.mouseEvents[1] == false)
+    check("it draws in rebeccapurple, as asked",
+          math.abs(G.locateColor.red - 0.4) < 0.001
+          and math.abs(G.locateColor.green - 0.2) < 0.001
+          and math.abs(G.locateColor.blue - 0.6) < 0.001)
+
+    -- 🚨 THE LEAK. A second press must REPLACE the first ring, not stack a
+    -- second canvas that deletes itself on its own schedule.
+    local n1 = #CANVASES
+    G.locate()
+    check("a second press replaces the first ring rather than stacking",
+          ring.deleted == true, tostring(ring.deleted))
+    check("...and exactly one new canvas was made", #CANVASES == n1 + 1)
+
+    -- The self-cleanup actually fires.
+    local live = CANVASES[#CANVASES]
+    local fired = false
+    for _, t in ipairs(TIMERS) do
+        if not t.stopped and t.secs == G.locateSecs then t.fn(); fired = true end
+    end
+    check("the ring removes itself when its timer fires",
+          fired and live.deleted == true)
+    check("...and the held reference is dropped, so nothing lingers",
+          G.locateCanvas == nil)
+
+    -- A machine where the canvas cannot be allocated must not throw.
+    local savedNew2 = hs.canvas.new
+    hs.canvas.new = function() return nil end
+    local okNil, resNil = pcall(G.locate)
+    hs.canvas.new = savedNew2
+    check("a refused canvas allocation returns false instead of throwing",
+          okNil and resNil == false)
+end
 
 -- =====================================================================
 realPrint(table.concat(printed, "\n"))

@@ -37,12 +37,22 @@
 --                                     │ left│ half│right│
 --                                     └─────┴─────┴─────┘
 --
--- ⇪ + pad7 puts the front window in the top-left QUARTER. ⇪ + pad4 puts
--- it in the left HALF. ⇪ + pad5 centres it. There is nothing to
+-- ⇪⇧ + pad7 puts the front window in the top-left QUARTER. ⇪⇧ + pad4
+-- puts it in the left HALF. ⇪⇧ + pad5 centres it. There is nothing to
 -- remember: you are pointing at where you want the window, with a key
 -- that is already in that shape. The remaining keys follow the same
 -- logic — 0 is the widest key so it maximises, and the arithmetic keys
 -- do arithmetic on the size.
+--
+-- 🔀 WHICH LAYER IS WHICH, AND WHY (changed in 6.50.0):
+--        ⇪  + pad  →  TOOLS    focus, rename, grid, menu bar, links
+--        ⇪⇧ + pad  →  WINDOWS  the 3×3 map drawn above
+-- 6.49.0 had these the other way round, on the argument that the window
+-- map deserved the easier layer because it needs no memory. That was the
+-- wrong trade: the layer you press twenty times a day should be the one
+-- without the extra modifier, and that is the tools. The window map is
+-- just as memorable one modifier up — its mnemonic is spatial, not
+-- positional-on-the-keyboard, so nothing about it degrades.
 --
 -- ⚠️ TWO THINGS THAT WILL STOP THIS WORKING, both outside Hammerspoon:
 --   • ACCESSIBILITY → POINTER CONTROL → MOUSE KEYS. When that is on,
@@ -54,15 +64,13 @@
 --     the moment you plug the full-size keyboard back in — which is why
 --     this module is safe to load on both Macs.
 --
--- ✏️ To use the pad for something OTHER than windows, edit numpad.actions
--- at the top of setup(): a value may be a zone name, a function, or the
--- name of a published service ("activity.renderChoices" and friends).
+-- ✏️ To change what a pad key does, edit numpad.actions (the ⇪ layer) or
+-- numpad.shiftActions (the ⇪⇧ layer) at the top of setup(). A value may
+-- be a zone name, a function, or the name of a published service.
 --
 -- ✅ LIVE SINCE 6.49.0. This layer shipped PARKED from 6.44.0 so it would
--- claim nothing you had not asked for. It is now switched on, and it grew
--- a second layer: ⇪ + pad drives WINDOWS, ⇪⇧ + pad drives TOOLS. See
--- numpad.shiftActions below for the second map and why it is arranged the
--- way it is.
+-- claim nothing you had not asked for. It is now switched on, on two
+-- layers — see the 🔀 note above for which is which.
 --    To park it again:  numpad.enabled = false  (a few lines down), reload.
 -- ⚠️ A MACHINE PROFILE CANNOT switch it on or off. Profile settings are
 -- applied AFTER setup() runs, and binding happens during setup — so the
@@ -73,23 +81,24 @@ local M = {
     name  = "Numpad Layer",
     order = 13.5,
     cheatsheet = {
-        title = "🔢 NUMPAD LAYER (⇪ pad = windows · ⇪⇧ pad = tools)",
+        title = "🔢 NUMPAD LAYER (⇪ pad = tools · ⇪⇧ pad = windows)",
         entries = {
-            { "⇪ pad7 8 9", "Top-left quarter · top half · top-right quarter" },
-            { "⇪ pad4 5 6", "Left half · centre 70% · right half" },
-            { "⇪ pad1 2 3", "Bottom-left quarter · bottom half · bottom-right quarter" },
-            { "⇪ pad0",     "Maximise (the widest key does the widest thing)" },
-            { "⇪ pad.",     "Put it back where it was" },
-            { "⇪ pad+ / -", "Grow / shrink around the centre" },
-            { "⇪ pad/ *",   "Previous monitor / next monitor" },
-            { "⇪ padenter", "Centre without resizing" },
-            { "—",          "———— second layer: hold shift ————" },
-            { "⇪⇧ pad7 8 9", "Focus mode toggle · focus report · health report" },
-            { "⇪⇧ pad4 5 6", "Bulk rename · mouse grid · menu bar items" },
-            { "⇪⇧ pad1 2 3", "Clean copied link · flush Capture Pad · copy today" },
-            { "⇪⇧ pad0",    "Run the health check now" },
-            { "⇪⇧ pad.",    "Undo the last rename (⇪pad. undoes a window)" },
-            { "why",        "The pad sends its OWN key codes — pad7 ≠ 7, both are free" },
+            { "⇪ pad7 8 9",  "Focus mode toggle · focus report · health report" },
+            { "⇪ pad4 5 6",  "Bulk rename · mouse grid · menu bar items" },
+            { "⇪ pad1 2 3",  "Clean copied link · flush Capture Pad · copy today" },
+            { "⇪ pad0",      "Run the health check now" },
+            { "⇪ pad.",      "Undo the last rename" },
+            { "free",        "⇪ pad + - * / enter clear are unclaimed, for later" },
+            { "—",           "———— hold shift for windows ————" },
+            { "⇪⇧ pad7 8 9", "Top-left quarter · top half · top-right quarter" },
+            { "⇪⇧ pad4 5 6", "Left half · centre 70% · right half" },
+            { "⇪⇧ pad1 2 3", "Bottom-left qtr · bottom half · bottom-right qtr" },
+            { "⇪⇧ pad0",     "Maximise (the widest key does the widest thing)" },
+            { "⇪⇧ pad.",     "Put the window back where it was" },
+            { "⇪⇧ pad+ / -", "Grow / shrink around the centre" },
+            { "⇪⇧ pad/ *",   "Previous monitor / next monitor" },
+            { "⇪⇧ padenter", "Centre without resizing" },
+            { "why",         "The pad sends its OWN key codes — pad7 ≠ 7, both free" },
             { "if dead",    "Accessibility → Pointer Control → Mouse Keys steals the pad" },
         },
     },
@@ -128,7 +137,58 @@ function M.setup(core)
         full        = { 0,    0,    1.0,  1.0  },
     }
 
+    -- ---- LAYER 1: ⇪ + pad → TOOLS (the primary layer) -------------------
+    -- 6.50.0 PUT TOOLS HERE, on the plain hyper key, because this is the
+    -- layer you actually reach for. It was the other way round in 6.49.0.
+    --
+    -- ⚠️ EVERY VALUE HERE IS A PUBLISHED SERVICE NAME, not a function.
+    -- That is deliberate: this file then knows nothing about focus mode
+    -- or renaming, and a pad key whose module is switched off on this Mac
+    -- prints "no provider" instead of erroring. You can use a function
+    -- value too — see numpad.run. A typo in a name binds a key that
+    -- silently does nothing, which is why test_integration.lua resolves
+    -- every one of these against the real service registry.
+    --
+    -- Grouped by ROW, because unlike the window layer there is no spatial
+    -- truth to appeal to and pretending otherwise is a mnemonic that lies:
+    --      top row    (7 8 9) — meetings and machine health
+    --      middle row (4 5 6) — the three pickers
+    --      bottom row (1 2 3) — clipboard and capture
     numpad.actions = {
+        pad7 = "focus.toggle",       -- join a meeting / leave it
+        pad8 = "focus.report",       -- what focus changed, and what it restores
+        pad9 = "health.report",      -- the tool-health report
+        pad4 = "rename.show",        -- rename the Finder selection
+        pad5 = "mouseGrid.show",     -- centre key, and the grid is a pointer
+        pad6 = "menuBar.show",       -- menu bar icons by name
+        pad1 = "url.cleanClipboard", -- strip trackers from the copied link
+        pad2 = "capturePad.flush",   -- send the pad to Asana now
+        pad3 = "calendar.copyToday", -- today's date to the clipboard
+        pad0 = "health.check",       -- run the health scan right now
+        ["pad."] = "rename.undo",    -- the echo: ⇪pad. undoes a rename,
+                                     -- ⇪⇧pad. undoes a window move
+        -- 🆓 FREE ON THIS LAYER, ready for whatever comes next:
+        --    pad+  pad-  pad*  pad/  padenter  padclear
+    }
+
+    -- ---- LAYER 2: ⇪⇧ + pad → WINDOWS ------------------------------------
+    -- The pad keys are their own key codes, and a modifier makes them
+    -- their own shortcuts again — ⇪pad7 and ⇪⇧pad7 are two distinct
+    -- combinations. That is what lets one small pad carry both maps
+    -- without costing a single letter on the main keyboard.
+    --
+    -- The window map keeps its shape: THE KEY'S POSITION IS THE WINDOW'S
+    -- POSITION. pad7 is the top-left quarter because 7 is the top-left
+    -- key. Nothing to memorise, just point at where you want it.
+    --
+    --        ┌─────┬─────┬─────┐
+    --        │  7  │  8  │  9  │   quarter · half · quarter
+    --        ├─────┼─────┼─────┤
+    --        │  4  │  5  │  6  │   left half · centre · right half
+    --        ├─────┼─────┼─────┤
+    --        │  1  │  2  │  3  │   quarter · half · quarter
+    --        └─────┴─────┴─────┘
+    numpad.shiftActions = {
         pad7 = "topLeft",    pad8 = "topHalf",    pad9 = "topRight",
         pad4 = "leftHalf",   pad5 = "centre",     pad6 = "rightHalf",
         pad1 = "bottomLeft", pad2 = "bottomHalf", pad3 = "bottomRight",
@@ -140,46 +200,6 @@ function M.setup(core)
         ["pad*"]  = "nextScreen",
         padenter  = "centreOnly",
         padclear  = "restore",
-    }
-
-    -- ---- THE SECOND LAYER: ⇪⇧ + pad ------------------------------------
-    -- 6.49.0. The pad keys are their own key codes, and a modifier makes
-    -- them their own shortcuts again — so ⇪pad7 and ⇪⇧pad7 are two free,
-    -- distinct combinations. That doubles the pad to ~34 without costing
-    -- a single letter on the main keyboard.
-    --
-    -- WINDOWS STAY ON THE UNSHIFTED LAYER because their mnemonic is the
-    -- best thing in this file: the key's position IS the window's
-    -- position, and there is nothing to memorise. Burying that under a
-    -- modifier to make room for tools would trade the one layout that
-    -- needs no memory for one that does. Tools go on the shifted layer.
-    --
-    -- ⚠️ EVERY VALUE HERE IS A PUBLISHED SERVICE NAME, not a function.
-    -- That is deliberate: this file then knows nothing about focus mode
-    -- or renaming, and a pad key whose module is switched off on this Mac
-    -- prints "no provider" instead of erroring. You can add your own with
-    -- a function value too — see numpad.run.
-    --
-    -- The grouping is by ROW rather than by position, because unlike the
-    -- window layer there is no spatial truth to appeal to; pretending
-    -- otherwise would be a mnemonic that lies.
-    --      top row    (7 8 9) — meetings and machine health
-    --      middle row (4 5 6) — the three pickers
-    --      bottom row (1 2 3) — clipboard and capture
-    -- The one deliberate echo across layers: pad. undoes on both. ⇪pad.
-    -- puts a window back, ⇪⇧pad. puts a rename back.
-    numpad.shiftActions = {
-        pad7 = "focus.toggle",       -- join a meeting / leave it
-        pad8 = "focus.report",       -- what focus changed, and what it will restore
-        pad9 = "health.report",      -- the tool-health report
-        pad4 = "rename.show",        -- rename the Finder selection
-        pad5 = "mouseGrid.show",     -- centre key, and the grid is a pointer
-        pad6 = "menuBar.show",       -- menu bar icons by name
-        pad1 = "url.cleanClipboard", -- strip trackers from the copied link
-        pad2 = "capturePad.flush",   -- send the pad to Asana now
-        pad3 = "calendar.copyToday", -- today's date to the clipboard
-        pad0 = "health.check",       -- run the health scan right now
-        ["pad."] = "rename.undo",    -- the echo: ⇪pad. restores, ⇪⇧pad. undoes
     }
 
     -- Bounded on purpose: one entry per window id, and windows come and go

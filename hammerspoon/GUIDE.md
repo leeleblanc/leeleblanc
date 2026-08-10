@@ -1,6 +1,6 @@
 # Hammerspoon config — how the new design works
 
-Version 6.49.0. Keep this next to the config; it is the manual for the
+Version 6.50.0. Keep this next to the config; it is the manual for the
 structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ---
@@ -219,7 +219,7 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Twelve Lua suites, 1,483 checks, plus 35 more that run the Capture Pad's
+Twelve Lua suites, 1,496 checks, plus 35 more that run the Capture Pad's
 page JavaScript under `node`. All of it runs with `lua5.4` on any
 machine — no Mac required, they stub the `hs` API:
 
@@ -322,8 +322,9 @@ entire config down rather than one feature.
 
 ## 8. The number pad, as a second keyboard
 
-Yes — the pad is a **separate key path**, and since 6.49.0 it is **live
-on two layers**: `⇪ + pad` drives windows, `⇪⇧ + pad` drives tools. It
+Yes — the pad is a **separate key path**, and it is **live on two
+layers**: `⇪ + pad` drives tools (the primary layer), `⇪⇧ + pad`
+drives windows. It
 sends its own key codes, so `⇪7`, `⇪pad7` and `⇪⇧pad7` are three
 different shortcuts and all three are free:
 

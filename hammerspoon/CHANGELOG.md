@@ -4,6 +4,45 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.50.0 — THE PAD SWAPS LAYERS, AND A POINTER RING:
+  🔀 TOOLS MOVED TO THE PRIMARY HYPER KEY. 6.49.0 put windows on ⇪ + pad
+     and tools on ⇪⇧ + pad. That was the wrong trade and it is now the
+     other way round:
+        ⇪  + pad  →  TOOLS    focus, rename, grid, menu bar, links
+        ⇪⇧ + pad  →  WINDOWS  the 3×3 position map
+     The argument for the old order was that the window map deserved the
+     easier layer because it needs no memory. But the layer you press
+     twenty times a day should be the one without the extra modifier, and
+     that is the tools. The window map loses nothing by moving up one
+     modifier: its mnemonic is spatial — the key's position is the
+     window's position — not a fact about which modifiers are held.
+  🆓 SIX KEYS LEFT DELIBERATELY FREE on the tool layer — pad+ pad- pad*
+     pad/ padenter padclear — as the room for whatever comes next, with
+     a test asserting they stay unclaimed so the reserve does not quietly
+     get eaten.
+  🖱 THE MouseCircle SPOON, DONE NATIVELY. A ring flashes at the pointer
+     so you can find it on a wide desktop. Implemented as ~20 lines in
+     mouse_grid.lua rather than by adding SpoonInstall, which would mean
+     a second loading system running alongside the module loader, and a
+     network fetch on the boot path, for one circle. Same result, in
+     rebeccapurple as asked.
+     · 🅿️ BOUND TO NO KEY ON PURPOSE. macOS shake-to-grow already does
+       this, which is exactly why you had the Spoon disabled. It is
+       published as mouseGrid.locate, so it goes on a free pad key the
+       day you want it: numpad.actions["pad+"] = "mouseGrid.locate".
+     · Note the Spoon bound it to hyper+M, which in this config is
+       already Menu Bar Items — one more reason it did not simply drop in.
+     · The ring is CLICK-THROUGH. Without that it is a disc of glass over
+       whatever you were reaching for, for half a second. And a second
+       press REPLACES the first ring rather than stacking canvases that
+       each delete on their own schedule, which is how this leaks. Both
+       are tested, and the leak guard was mutation-checked by removing it
+       and watching the test fail.
+  🧪 1,496 checks. The swap broke six existing assertions, which is what
+     they were for — they encoded which layer was which. They now encode
+     the new arrangement, including that the arithmetic keys moved to the
+     window layer and that the tool layer's six free slots stay free.
+
 NEW IN 6.49.0 — THE NUMBER PAD, SWITCHED ON, WITH TWO LAYERS:
   🔢 THE PAD IS LIVE. It shipped PARKED in 6.44.0 — a worked-out layout
      bound to nothing — and it is now on, with a second layer added:

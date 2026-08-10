@@ -1379,26 +1379,32 @@ local numpad = numMod.numpad
 -- that is still tested below — "live" has to be a switch, not a one-way
 -- door.
 check("the layer ships live", numpad.enabled == true)
-check("every ⇪ + pad WINDOW key is claimed", (function()
-    for i = 0, 9 do if not hyperFor({}, "pad" .. i) then return false, i end end
-    for _, k in ipairs({ "pad+", "pad-", "pad*", "pad/", "pad.",
-                         "padenter", "padclear" }) do
+check("every ⇪ + pad TOOL key is claimed on the PRIMARY layer", (function()
+    for k in pairs(numpad.actions) do
         if not hyperFor({}, k) then return false, k end
     end
     return true
 end)())
-check("every ⇪⇧ + pad TOOL key is claimed on the second layer", (function()
-    for k in pairs(numpad.shiftActions) do
+check("every ⇪⇧ + pad WINDOW key is claimed on the second layer", (function()
+    for i = 0, 9 do if not hyperFor({ "shift" }, "pad" .. i) then return false, i end end
+    for _, k in ipairs({ "pad+", "pad-", "pad*", "pad/", "pad.",
+                         "padenter", "padclear" }) do
         if not hyperFor({ "shift" }, k) then return false, k end
     end
     return true
 end)())
+check("🚨 TOOLS ARE ON THE PLAIN HYPER KEY, windows one modifier up — the "
+      .. "layer pressed most often is the one without the extra reach",
+      type(numpad.actions.pad7) == "string"
+      and numpad.actions.pad7:find("%.") ~= nil
+      and numpad.shiftActions.pad7 == "topLeft",
+      tostring(numpad.actions.pad7) .. " / " .. tostring(numpad.shiftActions.pad7))
 check("🚨 THE TWO LAYERS DO NOT OVERLAP — ⇪pad7 and ⇪⇧pad7 are different "
       .. "shortcuts, and the whole design depends on that being true",
       hyperFor({}, "pad7") ~= hyperFor({ "shift" }, "pad7"))
-check("the cheat sheet advertises both layers rather than just windows",
-      numMod.cheatsheet.title:find("windows", 1, true) ~= nil
-      and numMod.cheatsheet.title:find("tools", 1, true) ~= nil,
+check("the cheat sheet advertises both layers, tools first",
+      numMod.cheatsheet.title:find("⇪ pad = tools", 1, true) ~= nil
+      and numMod.cheatsheet.title:find("⇪⇧ pad = windows", 1, true) ~= nil,
       numMod.cheatsheet.title)
 
 -- 🚨 THE TYPO TEST FOR THE SHIFTED LAYER LIVES IN test_integration.lua,
@@ -1408,9 +1414,9 @@ check("the cheat sheet advertises both layers rather than just windows",
 -- OTHER modules loaded, and this suite loads one module at a time
 -- against stubs. Checking it here would have meant checking it against
 -- an empty registry, which is a test that always passes.
-check("every shifted binding is a string service name, so the integration "
+check("every TOOL binding is a string service name, so the integration "
       .. "suite can resolve it", (function()
-    for key, name in pairs(numpad.shiftActions) do
+    for key, name in pairs(numpad.actions) do
         if type(name) ~= "string" or not name:find("%.") then
             return false, tostring(key)
         end
@@ -1420,10 +1426,10 @@ end)())
 
 -- The layout itself is still fully defined — parked means unbound, not
 -- unwritten. Everything below drives it directly, without any key.
-check("pad7 is TOP-LEFT — the key's own position", numpad.actions.pad7 == "topLeft")
-check("pad5 is the centre", numpad.actions.pad5 == "centre")
-check("pad3 is BOTTOM-RIGHT", numpad.actions.pad3 == "bottomRight")
-check("pad0, the widest key, maximises", numpad.actions.pad0 == "full")
+check("pad7 is TOP-LEFT — the key's own position", numpad.shiftActions.pad7 == "topLeft")
+check("pad5 is the centre", numpad.shiftActions.pad5 == "centre")
+check("pad3 is BOTTOM-RIGHT", numpad.shiftActions.pad3 == "bottomRight")
+check("pad0, the widest key, maximises", numpad.shiftActions.pad0 == "full")
 
 -- ---- and now the LIVE path -------------------------------------------
 -- Everything from here runs with the layer switched on, so parking it is
@@ -1508,15 +1514,24 @@ check("...including all ten digits", (function()
     for i = 0, 9 do if not hyperFor({}, "pad" .. i) then return false end end
     return true
 end)())
-check("...and the arithmetic keys", hyperFor({}, "pad+") and hyperFor({}, "pad-")
-      and hyperFor({}, "pad*") and hyperFor({}, "pad/"))
+check("...and the arithmetic keys, which live on the WINDOW layer",
+      hyperFor({ "shift" }, "pad+") and hyperFor({ "shift" }, "pad-")
+      and hyperFor({ "shift" }, "pad*") and hyperFor({ "shift" }, "pad/"))
+check("🆓 pad + - * / enter clear are deliberately UNCLAIMED on the tool "
+      .. "layer — that is the room set aside for whatever comes next",
+      (function()
+    for _, k in ipairs({ "pad+", "pad-", "pad*", "pad/", "padenter", "padclear" }) do
+        if live.actions[k] ~= nil then return false, k end
+    end
+    return true
+end)())
 check("binding twice does not double-claim anything", live.bindAll() == boundCount)
 
 check("an unmapped key name is SKIPPED, not bound to nil", (function()
     local m2 = load("numpad_layer")
     m2.setup(core)
     local n2 = m2.numpad
-    n2.actions = { padnonsense = "full", pad1 = "bottomLeft" }
+    n2.actions = { padnonsense = "focus.toggle", pad1 = "focus.toggle" }
     -- Cleared so this checks the unshifted map alone; the shifted layer
     -- gets the same guard and its own assertion below.
     n2.shiftActions = {}
@@ -1542,7 +1557,7 @@ check("the SHIFTED layer gets the same nil-key guard — a key macOS has no "
     m3.setup(core)
     local n3 = m3.numpad
     n3.actions      = {}
-    n3.shiftActions = { padnonsense2 = "focus.toggle", pad1 = "focus.toggle" }
+    n3.shiftActions = { padnonsense2 = "full", pad1 = "bottomLeft" }
     n3.bound, n3.skipped = {}, {}
     hs.keycodes.map.padnonsense2 = nil
     n3.enabled = true
