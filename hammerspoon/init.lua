@@ -4,9 +4,45 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.51.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.52.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.52.0 — TWO FIXES FOUND BY AUDITING init.lua:
+--   📋 AN EDITED CLIPBOARD ENTRY IS NOW COPIED. You edit an entry because
+--      you want to paste it, and the edit updated the stored history
+--      without touching the pasteboard — so you had to go and copy it
+--      again. Deleting still copies nothing, which is the asked-for split.
+--      · NO DUPLICATE APPEARS, and the reason is worth recording. Setting
+--        the pasteboard wakes the clipboard watcher, which would normally
+--        file a brand new entry and leave the same text twice — once
+--        edited in place, once fresh at the top. It does not, because the
+--        watcher's dedupe pass first REMOVES every entry matching the text
+--        that just arrived, and this entry now carries exactly that text,
+--        so it is LIFTED to the front instead of copied. That makes the
+--        ORDER load-bearing: the cache must hold the new text before the
+--        pasteboard does, and a test asserts that ordering specifically.
+--   🖥 THE CAPTURE PAD NOW OPENS OVER FULL-SCREEN APPS. It worked
+--      "sometimes", and the sometimes was: which Hammerspoon window you
+--      happened to open. LEVEL AND COLLECTION BEHAVIOUR ARE DIFFERENT
+--      THINGS. Level decides z-order WITHIN a Space, and bringToFront(true)
+--      already handled that — but a full-screen app is its OWN Space, and
+--      whether a window may appear over one is governed entirely by
+--      fullScreenAuxiliary. Every canvas popup here has set that since
+--      6.20. The webview never did, so it was left behind on the desktop
+--      Space, which looks exactly like "it opened but nothing appeared".
+--   🧪 THE TEST STUB WAS PART OF THE BUG CLASS. capture_pad's call is
+--      pcall'd, so when the webview stub lacked behaviorAsLabels the call
+--      failed silently and any assertion would have passed while the real
+--      module did nothing. The stub gained the method and a comment saying
+--      why it is load-bearing. Both fixes were mutation-checked by removing
+--      them and watching the tests fail.
+--   🔍 AND THE AUDIT ITSELF, which prompted both: 3,077 of init.lua's
+--      3,553 lines run BEFORE the module loader. Anything that throws in
+--      that stretch takes the WHOLE config down rather than one feature —
+--      so that is where fragility actually lives, and roughly 1,830 of
+--      those lines (§3.12 hyper key 838, §6 Asana 387, §2 OCR/clipboard
+--      341, §5 hotkey glue 263) are movable. Recorded here as the map for
+--      the next release rather than done in a hurry alongside two fixes.
 -- NEW IN 6.51.0 — WORKSPACES (⇪W): NAME A SET OF APPS, BIND IT TO A SPACE:
 --   🗂 ⇪W asks which workspace this Space should be, remembers the answer,
 --      and sets it up: run onStart, open the apps, WAIT FOR THEM TO ACTUALLY
@@ -193,67 +229,9 @@
 --      one grouped by a rule that changed nothing, one probed a teardown
 --      that already guarded itself and was aimed at a step that runs
 --      first anyway.
--- NEW IN 6.47.1 — THE EXPLORER TURNED ON THE THREE NEWEST TOOLS:
---   🔎 The random-sequence explorer built for the Mouse Grid now runs
---      against the URL Cleaner, the Health Monitor and Menu Bar Items.
---      Four findings came back. NONE was a bug in the shipped modules —
---      three were faults in my own test instrumentation and one was a
---      deliberate design decision the property had stated too broadly.
---      That is worth recording rather than quietly fixing, because it is
---      what property testing actually feels like: the properties are
---      harder to state correctly than the code is to write.
---   🔗 URL CLEANER, 8,000 generated URLs. Properties: never throws,
---      IDEMPOTENT (cleaning a clean URL is a no-op), still a URL,
---      wrapping cannot change the answer, every non-tracker survives,
---      every tracker goes, the fragment is untouched.
---      → Finding: it refused to unwrap a generic ?url= pointing at its
---        OWN host. That is correct and now has its own test:
---        example.com/login?url=example.com/dashboard is a login return
---        path, not a redirect, and rewriting it sends you somewhere you
---        did not ask to go. The fuzzer had generated an unrealistic
---        input and asserted a naive substring match.
---   🩺 HEALTH MONITOR, 600 random timelines / 36,000 events — files
---      going quiet and coming back, midnight mid-outage, the lid shutting
---      during a fault, modules failing and recovering, interleaved.
---      → Finding: a module that FAILED TO LOAD is announced during the
---        boot grace period. Deliberate: the grace period exists because
---        module files do not exist yet, which says nothing about load
---        status, and a certain fault should not wait twenty minutes.
---      → Two of mine: the property read the clock BEFORE the action that
---        changed it, and the harness let the simulated date run backward
---        between timelines, visiting one calendar day twice.
---      → And it added a rule nothing had checked: load failures obey the
---        once-per-day limit too.
---   📊 MENU BAR ITEMS, 500 random Mac populations — up to 30 apps mixing
---      healthy, silent, wedged and action-refusing. The property that
---      matters is that the scan returns inside its budget however bad the
---      population, because that budget is your keyboard.
---   🧬 EVERY PROPERTY WAS THEN MUTATION-TESTED, because a property that
---      cannot fail is decoration. Breaking idempotence, the parameter
---      blocklist, the once-per-day guard, the active-hours guard and the
---      scan budget each fails the suite by name. Two of my first attempts
---      at those mutations were too narrow to fire and had to be rewritten.
---   🧪 1,410 checks across eleven suites.
---   🩹 THE SHIP CHECK THEN FOUND TWO THINGS THE SUITES CANNOT SEE, both
---      in what travels ALONGSIDE the code rather than in the code:
---      · hs-doctor.sh's "is each module current?" markers stopped at
---        6.44.4, so the four newest tools had no staleness check at all.
---        Added, and menubar_items is checked for mb.axTimeout
---        specifically — a copy without it is not merely old, it is the
---        version that can hold the keyboard while an app fails to answer.
---      · GUIDE.md still said 6.44.0, "18 modules", and "five suites, 593
---        checks". It now says 22, eleven and 1,410, documents core/ and
---        tools/, and stops listing §1.6 and §1.11 as work to do — they
---        moved to core/ in 6.46.1. Headroom re-measured: 111, not 116.
---      · hs-install.sh shipped WITHOUT its executable bit while the
---        other two tools had theirs. All three are 755 now.
---      None is a runtime change, so the version stays 6.47.1.
---   📦 THE ZIP IS VERIFIED BY EXTRACTING IT: unpacked to an empty
---      directory, its own tools/run-tests.sh runs all 1,410 checks green
---      with nothing else present.
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.51.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.52.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -495,7 +473,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.51.0"
+_G.configVersion = "6.52.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -2448,7 +2426,21 @@ _G.choosers.clipboardEdit = hs.chooser.new(function(choice)
     else
         _G.clipboardCache[idx].text = text
         saveClipboardToDisk(_G.clipboardCache)
-        hs.alert.show("✏️ Clipboard entry updated")
+        -- 6.52.0 — THE EDITED TEXT GOES ONTO THE CLIPBOARD. Editing an
+        -- entry and then having to copy it again was the wrong shape: you
+        -- edited it because you want to paste it.
+        --
+        -- ⚠️ AND THIS IS WHY NO DUPLICATE APPEARS. Setting the pasteboard
+        -- wakes the clipboard watcher, which would normally file a brand
+        -- new entry — leaving the same text twice, once edited in place
+        -- and once fresh at the top. It does not, because the watcher's
+        -- dedupe pass first REMOVES every entry whose text matches what
+        -- just arrived, and this entry now carries exactly that text. So
+        -- it is lifted to the front rather than copied. The order above
+        -- is load-bearing: the cache has to hold the new text BEFORE the
+        -- pasteboard does.
+        pcall(function() hs.pasteboard.setContents(text) end)
+        hs.alert.show("✏️ Clipboard entry updated — and copied")
     end
 end)
 _G.choosers.clipboardEdit:placeholderText("Search clipboard history to edit or delete — Enter opens a row")
@@ -3431,7 +3423,7 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.51.0"
+    local currentVersion = "6.52.0"
     local currentDate    = "08-08-26"
     -- One line. The full entry for every version lives in CHANGELOG.md
     -- beside this file — which is also why prose no longer sits in a

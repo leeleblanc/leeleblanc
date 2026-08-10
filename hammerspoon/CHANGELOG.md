@@ -4,6 +4,43 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.52.0 — TWO FIXES FOUND BY AUDITING init.lua:
+  📋 AN EDITED CLIPBOARD ENTRY IS NOW COPIED. You edit an entry because
+     you want to paste it, and the edit updated the stored history
+     without touching the pasteboard — so you had to go and copy it
+     again. Deleting still copies nothing, which is the asked-for split.
+     · NO DUPLICATE APPEARS, and the reason is worth recording. Setting
+       the pasteboard wakes the clipboard watcher, which would normally
+       file a brand new entry and leave the same text twice — once
+       edited in place, once fresh at the top. It does not, because the
+       watcher's dedupe pass first REMOVES every entry matching the text
+       that just arrived, and this entry now carries exactly that text,
+       so it is LIFTED to the front instead of copied. That makes the
+       ORDER load-bearing: the cache must hold the new text before the
+       pasteboard does, and a test asserts that ordering specifically.
+  🖥 THE CAPTURE PAD NOW OPENS OVER FULL-SCREEN APPS. It worked
+     "sometimes", and the sometimes was: which Hammerspoon window you
+     happened to open. LEVEL AND COLLECTION BEHAVIOUR ARE DIFFERENT
+     THINGS. Level decides z-order WITHIN a Space, and bringToFront(true)
+     already handled that — but a full-screen app is its OWN Space, and
+     whether a window may appear over one is governed entirely by
+     fullScreenAuxiliary. Every canvas popup here has set that since
+     6.20. The webview never did, so it was left behind on the desktop
+     Space, which looks exactly like "it opened but nothing appeared".
+  🧪 THE TEST STUB WAS PART OF THE BUG CLASS. capture_pad's call is
+     pcall'd, so when the webview stub lacked behaviorAsLabels the call
+     failed silently and any assertion would have passed while the real
+     module did nothing. The stub gained the method and a comment saying
+     why it is load-bearing. Both fixes were mutation-checked by removing
+     them and watching the tests fail.
+  🔍 AND THE AUDIT ITSELF, which prompted both: 3,077 of init.lua's
+     3,553 lines run BEFORE the module loader. Anything that throws in
+     that stretch takes the WHOLE config down rather than one feature —
+     so that is where fragility actually lives, and roughly 1,830 of
+     those lines (§3.12 hyper key 838, §6 Asana 387, §2 OCR/clipboard
+     341, §5 hotkey glue 263) are movable. Recorded here as the map for
+     the next release rather than done in a hurry alongside two fixes.
+
 NEW IN 6.51.0 — WORKSPACES (⇪W): NAME A SET OF APPS, BIND IT TO A SPACE:
   🗂 ⇪W asks which workspace this Space should be, remembers the answer,
      and sets it up: run onStart, open the apps, WAIT FOR THEM TO ACTUALLY

@@ -825,6 +825,12 @@ hs.webview = {
         function w:allowTextEntry(b) self.textEntry = b; return self end
         function w:closeOnEscape(b) self.closeOnEsc = b; return self end
         function w:level(l) self.lvl = l; return self end
+        -- ⚠️ THIS STUB METHOD IS LOAD-BEARING. capture_pad's call is
+        -- pcall'd, so if the stub lacked behaviorAsLabels the call would
+        -- fail silently and the assertion below would pass while the real
+        -- module did nothing — a test that proves the opposite of what it
+        -- claims. That is the exact bug shape 6.52.0 fixed in the module.
+        function w:behaviorAsLabels(b) self.behavior = b; return self end
         function w:show() self.shown = true; return self end
         function w:bringToFront(b) self.front = b; return self end
         function w:delete() self.deleted = true; return self end
@@ -835,6 +841,28 @@ pad.queue, pad.draftImages, pad.draft = {}, {}, ""
 pad.show()
 check("pad.show() takes the real webview path when hs.webview exists",
       pad.webview ~= nil and pad.webview.htmlText ~= nil)
+-- 🚨 6.52.0 — WHY THE PAD DID NOT APPEAR OVER FULL-SCREEN APPS.
+-- Level and collection behaviour are different things. Level decides
+-- z-order WITHIN a Space and bringToFront(true) already handled that —
+-- but a full-screen app is its OWN Space, and whether a window may show
+-- over one is governed entirely by fullScreenAuxiliary. Every canvas
+-- popup here has set these flags since 6.20; the webview never did,
+-- which is why the behaviour depended on which window you opened.
+check("🚨 the pad asks to join all Spaces AND to overlay full-screen ones",
+      (function()
+    local b = pad.webview.behavior
+    if type(b) ~= "table" then return false, "behaviorAsLabels never called" end
+    local joins, fullscreen = false, false
+    for _, v in ipairs(b) do
+        if v == "canJoinAllSpaces"    then joins = true end
+        if v == "fullScreenAuxiliary" then fullscreen = true end
+    end
+    if not joins then return false, "missing canJoinAllSpaces" end
+    if not fullscreen then return false, "missing fullScreenAuxiliary" end
+    return true
+end)())
+check("...and it still raises itself, since behaviour alone is not z-order",
+      pad.webview.front == true)
 check("...sized to the 760x700 configured above", pad.webview.rect.w == 760
       and pad.webview.rect.h == 700)
 check("🐛 6.44.1 — the textarea no longer carries the invalid `font:…px inherit` "

@@ -307,6 +307,41 @@ check("no unprotected hs.json.decode on network replies",
 check("hs.window.filter is never CALLED (naming it in a changelog string is fine)",
   not liveCode("hs%%.window%%.filter%%.new") and not liveCode("window%%.filter%%.default"))
 check("no discarded timer objects", not liveCode("^%s*hs%.timer%.do"))
+
+-- 🚨 6.52.0 — EDITING A CLIPBOARD ENTRY MUST PUT IT ON THE CLIPBOARD.
+-- You edit an entry because you want to paste it, so leaving the
+-- pasteboard untouched meant editing then copying again. Audited from
+-- source rather than behaviour because the clipboard history still lives
+-- in init.lua (see §2/§5) and has no module harness to drive.
+do
+  local block = initText:match("_G%.choosers%.clipboardEdit%s*=%s*hs%.chooser%.new.-\n end%)")
+             or initText:match("_G%.choosers%.clipboardEdit%s*=%s*hs%.chooser%.new.-end%)")
+  check("the clipboard edit picker is still in init.lua where the audit "
+        .. "expects it", block ~= nil)
+  if block then
+    -- Strip comments so the prose explaining the fix cannot pass for it.
+    local live = {}
+    for line in block:gmatch("[^\n]+") do
+      if not line:match("^%s*%-%-") then live[#live + 1] = line end
+    end
+    local code = table.concat(live, "\n")
+    check("🚨 AN EDITED ENTRY IS COPIED TO THE CLIPBOARD",
+          code:find("hs%.pasteboard%.setContents") ~= nil)
+    -- The DELETE branch must NOT copy anything: "unless I delete it".
+    local delBranch = code:match("table%.remove%(_G%.clipboardCache.-\n")
+    check("...but deleting one does NOT copy it",
+          delBranch == nil or delBranch:find("setContents") == nil)
+    -- 🚨 ORDER IS LOAD-BEARING. The cache must hold the new text BEFORE
+    -- the pasteboard does, or the watcher's dedupe cannot recognise the
+    -- arriving text as this entry and files a SECOND copy at the top.
+    local assignAt = code:find("_G%.clipboardCache%[idx%]%.text%s*=%s*text")
+    local copyAt   = code:find("hs%.pasteboard%.setContents")
+    check("🚨 ...and the cache is updated BEFORE the pasteboard, or the "
+          .. "watcher files a duplicate at the top",
+          assignAt ~= nil and copyAt ~= nil and assignAt < copyAt,
+          tostring(assignAt) .. " vs " .. tostring(copyAt))
+  end
+end
 check("no io.open used as a bare existence test", not liveCode("io%.open%b()%s*==%s*nil"))
 check("uncaughtErrorHandler is wired in the real file",
   liveCode("hs%.uncaughtErrorHandler") ~= nil)

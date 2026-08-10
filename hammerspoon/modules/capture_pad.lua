@@ -1298,6 +1298,23 @@ function M.setup(core)
         pcall(function() view:allowTextEntry(true) end)
         pcall(function() view:closeOnEscape(true) end)
         pcall(function() view:level(hs.drawing.windowLevels.floating) end)
+        -- 🚨 6.52.0 — THIS IS WHAT LETS THE PAD SIT OVER A FULL-SCREEN APP,
+        -- and its absence is why it worked "sometimes". LEVEL AND
+        -- COLLECTION BEHAVIOUR ARE DIFFERENT THINGS: level decides z-order
+        -- WITHIN a Space, and bringToFront(true) below already handles
+        -- that — but a full-screen app is its own SPACE, and whether a
+        -- window may appear over one is governed entirely by
+        -- fullScreenAuxiliary. Without it macOS simply leaves the pad
+        -- behind on the desktop Space, which looks like "it opened but
+        -- nothing appeared". Every canvas popup in this config has set
+        -- these two flags since 6.20; the webview never did, which is
+        -- exactly why the behaviour differed depending on which
+        -- Hammerspoon window you happened to open.
+        --   canJoinAllSpaces    = show on whichever Space you are on
+        --   fullScreenAuxiliary = allowed over a full-screen Space
+        pcall(function()
+            view:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" })
+        end)
         -- 🐛 6.44.9 — HAMMERSPOON STILL JUMPED FORWARD. 6.44.6 removed this
         -- module's launchOrFocus, so the pad stopped ASKING for the app to
         -- activate — but macOS activates an application whenever one of its
