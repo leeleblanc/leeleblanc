@@ -4,9 +4,67 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.47.1-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.48.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.48.0 — FOCUS MODE (⇪F) AND BULK RENAME (⇪R):
+--   🎯 FOCUS MODE. A Zoom or Teams MEETING WINDOW — not merely the app
+--      being open — mutes the mic, turns the camera off if it is provably
+--      on, runs your Do Not Disturb Shortcut, and dims every app that is
+--      not the meeting. Leaving puts back exactly what it changed.
+--      · IT CANNOT REVOKE CAMERA ACCESS. No macOS API exists. What it does
+--        instead is READ the meeting app's own menu: "Stop Video" present
+--        means the camera is on, so clicking it is deterministic. If only
+--        "Start Video" is there the camera is already off and it does
+--        NOTHING. Firing ⌘⇧V blindly is a coin flip that switches the
+--        camera ON half the time, which is worse than doing nothing.
+--        Teams exposes no readable camera menu, so Teams gets a muted mic
+--        and its camera left alone — stated rather than faked.
+--      · OUTLOOK'S CALENDAR IS NOT READ, deliberately. Classic Outlook had
+--        AppleScript; the rewritten one largely dropped it, and a detector
+--        that works on one build and silently fails on the next is worse
+--        than none. It watches the REMINDER WINDOW for a join link, which
+--        works on both builds and fires exactly when you care.
+--      · THE FAILURE THAT MATTERS IS A MIC LEFT MUTED, so the design is
+--        built around restoring rather than detecting: prior state is
+--        recorded BEFORE any change and a mic you muted yourself is never
+--        unmuted; every restore step is independently pcall'd and the mic
+--        goes first; a watchdog disengages on its own if detection dies.
+--   ✏️ BULK RENAME. Select files in Finder, ⇪R, pick a rule, check the
+--      preview, ⏎. ⇪⇧R undoes the batch and survives a restart.
+--      · SUBTITLES MOVE WITH THEIR VIDEO, BY CONSTRUCTION. A player finds
+--        captions by filename, so renaming a .mp4 and not its .srt does
+--        not leave a stray file — it silently kills subtitles. Rules
+--        rewrite the GROUP stem and extensions are reattached, so there is
+--        no code path that can separate them. It knows the tails that
+--        break naive matching too: film.en.srt, film.forced.srt.
+--      · IT REFUSES RATHER THAN OVERWRITES. os.rename destroys the target
+--        with no warning and no undo, and a bulk rename is exactly where
+--        two names collapse into one. Any collision aborts the WHOLE
+--        batch — a half-renamed folder is worse than an unrenamed one —
+--        and renames run in two phases through temporaries so a swap or a
+--        rotation works instead of eating a file.
+--      · The `tv` rule fixes the season that prompted this: eight episodes
+--        named .1080p.ATVP-[y2flix.cc] and one named .108 all become
+--        Dark.Matter.2024.S01E01 and siblings, subtitles included.
+--   🚨 THE SUITE CAUGHT TWO REAL BUGS IN THIS RELEASE BEFORE IT SHIPPED:
+--      · order = 13.10 IS order = 13.1 IN LUA. Trailing zeros do not
+--        survive, and 13.1 is the Capture Pad — so the obvious "next
+--        number after 13.9" was a silent cheat-sheet tie whose running
+--        order then depended on table iteration. Both new modules moved to
+--        14.x. This is why the integration suite loads all 24 modules
+--        together instead of testing each alone.
+--      · INSTALL.md's module count is asserted against disk, so 22-vs-24
+--        failed two suites rather than shipping a doc that lies.
+--   🧪 1,479 checks across twelve Lua suites. The two new ones are
+--      property-based: 400 random messy folders assert that no file is
+--      lost, no clean plan collides, every subtitle stays with its video
+--      and every batch undoes exactly; 500 random meeting days assert the
+--      mic is never stranded and never unmuted against the user's wishes.
+--      Three mutations were too weak to fire and had to be rewritten —
+--      one grouped by a rule that changed nothing, one probed a teardown
+--      that already guarded itself and was aimed at a step that runs
+--      first anyway.
 -- NEW IN 6.47.1 — THE EXPLORER TURNED ON THE THREE NEWEST TOOLS:
 --   🔎 The random-sequence explorer built for the Mouse Grid now runs
 --      against the URL Cleaner, the Health Monitor and Menu Bar Items.
@@ -175,40 +233,9 @@
 --      "showClick → escape". That reduction is the whole point; a 40-step
 --      trace is a haystack, a 2-step one is a bug report.
 --   🧪 1,344 checks across ten suites.
--- NEW IN 6.45.2 — DOES THE NEW MODULE BREAK THE OLD CONFIG?
---   🔗 THE QUESTION NO OTHER SUITE HERE ASKED. Every test file proves one
---      module correct IN ISOLATION, against stubs. That says nothing about
---      nineteen of them sharing one keyboard, one hotkey table and one
---      global namespace. NEW: tests/test_integration.lua.
---   ⌨️ THE REAL RISK, AND IT IS SUBTLE. Mouse Grid binds BARE letters
---      (a s d f g h j k l) while its overlay is up. The hyper key works by
---      doing the same thing, and §3.12 deliberately does NOT exit the
---      hyper modal when a shortcut fires — so while the grid is open BOTH
---      modals have bare "a" bound. Whether that works is decided inside
---      hs.hotkey's shadowing stack, which nothing here modelled.
---   ✅ SO THE STACK IS NOW SIMULATED FAITHFULLY — enable()/disable()
---      reimplemented from Hammerspoon's own hotkey.lua, same shadowing,
---      same un-shadow scan — and the real sequence driven through it:
---      ⇪ held → grid opens → grid's letters WIN → release ⇪ mid-grid and
---      the grid KEEPS them → close the grid and hyper gets them BACK →
---      close everything and the keyboard is clean. Both release orders,
---      plus double-enter, double-exit, and the grid with no hyper at all.
---   🧬 ALL 19 MODULES LOADED TOGETHER through the real §1.12 loader, then
---      audited for the collisions that only appear in company: two modules
---      on one ⇪ key, two on one global chord, two publishing one service
---      name, two on one cheat-sheet slot, a malformed cheat-sheet row that
---      would break EVERY group's rendering rather than just its own.
---   🧪 4 mutations prove those checks bite: stealing ⇪N from the Capture
---      Pad, Screen Veil's cheat-sheet slot, Screen Veil's panic key, and
---      the Capture Pad's flush service are each caught by name.
---   📣 ONE THING THIS COSTS YOU, BY DESIGN. §3.12 forwards every UNCLAIMED
---      ⇪ key to the frontmost app as ⌘⇧⌃⌥+key. Claiming X means ⌘⇧⌃⌥X and
---      ⌘⇧⌃⌥⇧X no longer reach Raycast, Rectangle or a browser extension.
---      That is true of adding any ⇪ shortcut; it is worth knowing once.
---   🧪 1,227 checks across eight suites.
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.47.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.48.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -450,7 +477,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.47.1"
+_G.configVersion = "6.48.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -3129,6 +3156,8 @@ _G.moduleProfiles = {
             "url_cleaner", "health_monitor",
             -- 6.47.0
             "menubar_items",
+            -- 6.48.0
+            "focus_mode", "bulk_rename",
         },
     },
 
@@ -3154,6 +3183,8 @@ _G.moduleProfiles = {
             "url_cleaner", "health_monitor",
             -- 6.47.0
             "menubar_items",
+            -- 6.48.0
+            "focus_mode", "bulk_rename",
         },
         settings = {
             -- Examples — delete or edit freely. These are exactly the
@@ -3183,6 +3214,8 @@ _G.moduleProfiles = {
             "url_cleaner", "health_monitor",
             -- 6.47.0
             "menubar_items",
+            -- 6.48.0
+            "focus_mode", "bulk_rename",
         },
     },
 }
@@ -3374,7 +3407,7 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.47.1"
+    local currentVersion = "6.48.0"
     local currentDate    = "08-08-26"
     -- One line. The full entry for every version lives in CHANGELOG.md
     -- beside this file — which is also why prose no longer sits in a

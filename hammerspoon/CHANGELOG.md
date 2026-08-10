@@ -4,6 +4,65 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.48.0 — FOCUS MODE (⇪F) AND BULK RENAME (⇪R):
+  🎯 FOCUS MODE. A Zoom or Teams MEETING WINDOW — not merely the app
+     being open — mutes the mic, turns the camera off if it is provably
+     on, runs your Do Not Disturb Shortcut, and dims every app that is
+     not the meeting. Leaving puts back exactly what it changed.
+     · IT CANNOT REVOKE CAMERA ACCESS. No macOS API exists. What it does
+       instead is READ the meeting app's own menu: "Stop Video" present
+       means the camera is on, so clicking it is deterministic. If only
+       "Start Video" is there the camera is already off and it does
+       NOTHING. Firing ⌘⇧V blindly is a coin flip that switches the
+       camera ON half the time, which is worse than doing nothing.
+       Teams exposes no readable camera menu, so Teams gets a muted mic
+       and its camera left alone — stated rather than faked.
+     · OUTLOOK'S CALENDAR IS NOT READ, deliberately. Classic Outlook had
+       AppleScript; the rewritten one largely dropped it, and a detector
+       that works on one build and silently fails on the next is worse
+       than none. It watches the REMINDER WINDOW for a join link, which
+       works on both builds and fires exactly when you care.
+     · THE FAILURE THAT MATTERS IS A MIC LEFT MUTED, so the design is
+       built around restoring rather than detecting: prior state is
+       recorded BEFORE any change and a mic you muted yourself is never
+       unmuted; every restore step is independently pcall'd and the mic
+       goes first; a watchdog disengages on its own if detection dies.
+  ✏️ BULK RENAME. Select files in Finder, ⇪R, pick a rule, check the
+     preview, ⏎. ⇪⇧R undoes the batch and survives a restart.
+     · SUBTITLES MOVE WITH THEIR VIDEO, BY CONSTRUCTION. A player finds
+       captions by filename, so renaming a .mp4 and not its .srt does
+       not leave a stray file — it silently kills subtitles. Rules
+       rewrite the GROUP stem and extensions are reattached, so there is
+       no code path that can separate them. It knows the tails that
+       break naive matching too: film.en.srt, film.forced.srt.
+     · IT REFUSES RATHER THAN OVERWRITES. os.rename destroys the target
+       with no warning and no undo, and a bulk rename is exactly where
+       two names collapse into one. Any collision aborts the WHOLE
+       batch — a half-renamed folder is worse than an unrenamed one —
+       and renames run in two phases through temporaries so a swap or a
+       rotation works instead of eating a file.
+     · The `tv` rule fixes the season that prompted this: eight episodes
+       named .1080p.ATVP-[y2flix.cc] and one named .108 all become
+       Dark.Matter.2024.S01E01 and siblings, subtitles included.
+  🚨 THE SUITE CAUGHT TWO REAL BUGS IN THIS RELEASE BEFORE IT SHIPPED:
+     · order = 13.10 IS order = 13.1 IN LUA. Trailing zeros do not
+       survive, and 13.1 is the Capture Pad — so the obvious "next
+       number after 13.9" was a silent cheat-sheet tie whose running
+       order then depended on table iteration. Both new modules moved to
+       14.x. This is why the integration suite loads all 24 modules
+       together instead of testing each alone.
+     · INSTALL.md's module count is asserted against disk, so 22-vs-24
+       failed two suites rather than shipping a doc that lies.
+  🧪 1,479 checks across twelve Lua suites. The two new ones are
+     property-based: 400 random messy folders assert that no file is
+     lost, no clean plan collides, every subtitle stays with its video
+     and every batch undoes exactly; 500 random meeting days assert the
+     mic is never stranded and never unmuted against the user's wishes.
+     Three mutations were too weak to fire and had to be rewritten —
+     one grouped by a rule that changed nothing, one probed a teardown
+     that already guarded itself and was aimed at a step that runs
+     first anyway.
+
 NEW IN 6.47.1 — THE EXPLORER TURNED ON THE THREE NEWEST TOOLS:
   🔎 The random-sequence explorer built for the Mouse Grid now runs
      against the URL Cleaner, the Health Monitor and Menu Bar Items.

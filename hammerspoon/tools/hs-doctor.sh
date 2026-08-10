@@ -92,7 +92,7 @@ else
     [ "$n" = "init" ] && note="⚠️ STRAY init.lua — should NOT be in modules/"
     printf "   %-22s %7s  %-16s %s\n" "$n" "$b" "$m" "$note"
   done
-  echo "   count: $(ls -1 "$HS/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 22)"
+  echo "   count: $(ls -1 "$HS/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 24)"
 fi
 
 # ---- 4b. core ---------------------------------------------------------
@@ -213,6 +213,13 @@ check_marker health_monitor  "health.bootGraceMins" 6.46.0
 # keyboard while a wedged app fails to answer. Treat its absence as
 # serious, not cosmetic.
 check_marker menubar_items   "mb.axTimeout"       6.47.0
+# 🚨 Both 6.48.0 markers guard against DESTRUCTIVE older copies, which is
+# a different class from "missing a feature":
+#   · focus_mode without fm.watchdogSecs cannot un-stick itself, so a
+#     missed meeting-end leaves the microphone muted indefinitely.
+#   · bulk_rename without a two-phase apply destroys a file on any swap.
+check_marker focus_mode      "fm.watchdogSecs"    6.48.0
+check_marker bulk_rename     "__brtmp"            6.48.0
 
 # ---- 6. the hyper key remap ------------------------------------------
 echo

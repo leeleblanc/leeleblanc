@@ -1,6 +1,6 @@
 # Hammerspoon config — how the new design works
 
-Version 6.47.1. Keep this next to the config; it is the manual for the
+Version 6.48.0. Keep this next to the config; it is the manual for the
 structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ---
@@ -12,7 +12,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 ├── init.lua          the orchestrator (3,479 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (4 files)
-├── modules/          one file per feature (22 files, ~9,600 lines)
+├── modules/          one file per feature (24 files, ~10,700 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
 └── tools/            hs-install.sh · hs-doctor.sh · run-tests.sh
 ```
@@ -219,7 +219,7 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Ten Lua suites, 1,375 checks, plus 35 more that run the Capture Pad's
+Twelve Lua suites, 1,479 checks, plus 35 more that run the Capture Pad's
 page JavaScript under `node`. All of it runs with `lua5.4` on any
 machine — no Mac required, they stub the `hs` API:
 
@@ -233,14 +233,16 @@ tests/test_mouse_grid.lua    ⇪X, and the random-sequence explorer that shrinks
 tests/test_url_cleaner.lua   ⇪K, over 8,000 generated URLs
 tests/test_health.lua        ⇪⇧H, over 600 generated timelines / 36,000 events
 tests/test_menubar.lua       ⇪M, over 500 generated Mac populations
-tests/test_integration.lua   🚨 all 22 modules loaded TOGETHER: shortcut, service and
+tests/test_focus.lua         ⇪F, over 500 generated meeting days — the mic is never stranded
+tests/test_rename.lua        ⇪R, over 400 generated messy folders — no file is ever lost
+tests/test_integration.lua   🚨 all 24 modules loaded TOGETHER: shortcut, service and
                              cheat-sheet-slot collisions — the only suite that can
                              catch two modules quietly claiming the same key
 tests/test_pad_js.js         the Capture Pad's in-page JavaScript, actually executed
 ```
 
 **Run them with `tools/run-tests.sh`, not by hand.** It compiles every
-file first, runs all eleven suites in order, and is the thing to trust
+file first, runs all thirteen suites in order, and is the thing to trust
 before copying anything to a Mac:
 
 ```bash
@@ -259,14 +261,17 @@ error if you run it directly. It is not a suite; it is §1.12's real
 loader, extracted so `test_integration.lua` can `dofile` it against a
 stubbed `hs` instead of testing a hand-copied imitation of it.
 
-The four newest suites are **property-based**: rather than checking
+The six newest suites are **property-based**: rather than checking
 listed cases, they generate random input and assert things that must be
 true of every result — cleaning an already-clean URL changes nothing,
 the menu bar scan returns inside its budget however many apps are
 wedged, no staleness alert fires twice in one day. When one fails it
 shrinks the failing input to the shortest version that still fails. Read
-6.47.1 in `CHANGELOG.md` for what that turned up, including the three
-findings that were faults in the *tests* rather than the modules.
+6.47.1 and 6.48.0 in `CHANGELOG.md` for what that turned up — including
+the findings that were faults in the *tests* rather than the modules, and
+the two real bugs the integration suite caught in 6.48.0 before it
+shipped (a cheat-sheet order tie caused by `13.10 == 13.1` in Lua, and a
+module count in INSTALL.md that no longer matched disk).
 
 `tests/test_features.lua` takes the **modules** folder rather than the
 config folder, and wants a real timezone:
