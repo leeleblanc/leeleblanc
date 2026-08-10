@@ -4,9 +4,47 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.48.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.49.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.49.0 — THE NUMBER PAD, SWITCHED ON, WITH TWO LAYERS:
+--   🔢 THE PAD IS LIVE. It shipped PARKED in 6.44.0 — a worked-out layout
+--      bound to nothing — and it is now on, with a second layer added:
+--         ⇪  + pad  →  WINDOWS   (the key's position IS the window's)
+--         ⇪⇧ + pad  →  TOOLS     (focus, rename, grid, menu bar, links)
+--      That is ~28 live shortcuts that cost ZERO letters on the main
+--      keyboard, because the pad sends its own key codes: pad7 is not 7,
+--      and ⇪pad7 is not ⇪⇧pad7.
+--   🪟 WINDOWS STAYED ON THE UNSHIFTED LAYER, deliberately. Its mnemonic is
+--      the best thing in that module — pad7 is the top-left quarter because
+--      7 IS the top-left key — and there is nothing to memorise. Burying it
+--      under a modifier to make room for tools would have traded the one
+--      layout that needs no memory for one that does. Tools took the
+--      shifted layer instead.
+--   🔌 THE TOOL LAYER BINDS BY SERVICE NAME, NOT BY FUNCTION. numpad_layer
+--      knows nothing about focus mode or renaming; it calls "focus.toggle"
+--      and the dispatcher resolves it. A pad key whose module is switched
+--      off on this Mac prints "no provider" instead of erroring. Four
+--      modules gained the entry-point service they had been missing —
+--      focus.toggle, rename.show, rename.undo, menuBar.show,
+--      url.cleanClipboard — because they had published only QUERIES
+--      (report, list, plan) and nothing a key could actually press.
+--   🚨 WHICH CREATED A NEW FAILURE MODE, SO IT GOT A NEW TEST. A typo in a
+--      service name — "focus.tggle" — binds perfectly, does nothing when
+--      pressed, and prints to a Console nobody is reading. The check that
+--      every shifted binding resolves to a real provider had to go in
+--      test_integration.lua and NOWHERE ELSE: every other suite loads one
+--      module at a time against stubs, so the registry is empty there and
+--      the same check would have passed vacuously while proving nothing.
+--      Verified by planting the typo and watching it fail.
+--   ✏️ ONE ECHO ACROSS THE LAYERS, on purpose: pad. undoes on both. ⇪pad.
+--      puts a window back where it was, ⇪⇧pad. undoes the last rename.
+--      The tool rows are grouped by row (meetings · pickers · clipboard)
+--      rather than pretending to a spatial logic they do not have.
+--   🧪 1,483 checks. Turning the layer on broke nine existing tests, which
+--      is exactly what they were for — they asserted it ships parked. They
+--      now assert the live two-layer contract, that parking is still
+--      reachable, and that the nil-key guard covers the shifted layer too.
 -- NEW IN 6.48.0 — FOCUS MODE (⇪F) AND BULK RENAME (⇪R):
 --   🎯 FOCUS MODE. A Zoom or Teams MEETING WINDOW — not merely the app
 --      being open — mutes the mic, turns the camera off if it is provably
@@ -177,65 +215,9 @@
 --      1,867 lines of module code and exactly NINE lines to init.lua.
 --      The suite fails if a module name ever appears here as code.
 --   🧪 1,358 checks across ten suites.
--- NEW IN 6.46.0 — A LINK CLEANER, A TOOL-HEALTH WATCHDOG, AND ⇪M → ⇪X:
---   🎯 THE MOUSE GRID MOVED TO ⇪X. ⇪X opens it, ⇪⇧X clicks on arrival,
---      ⌃⌥⌘⇧X is the panic key. Nothing else about it changed.
---   🔗 NEW: modules/url_cleaner.lua. ⇪K rewrites the link on your
---      clipboard into the one the sender actually meant — tracking
---      parameters stripped, redirect wrappers unwrapped. ⇪⇧K undoes it.
---      Works on a whole paragraph, cleaning every link in it.
---   📧 THE WORK-INBOX CASES ARE THE POINT. Outlook Safe Links wraps
---      almost every link in almost every corporate email; Proofpoint
---      wraps the rest, and uses its OWN encoding where "-" means "%" and
---      "_" means "/" — decode that as ordinary percent-encoding and you
---      get a dead link. Both are handled, including one wrapper nested
---      inside another, with a BOUNDED unwrap loop.
---   🚫 IT WILL NOT EXPAND bit.ly & co, AND THAT IS THE DESIGN. A
---      shortener does not contain its destination; the only way to learn
---      it is to ask their server, which REGISTERS THE CLICK you were
---      trying to avoid and sends a work link to a third-party host. The
---      module makes NO network calls at all — a test fails the build if
---      one ever appears — and says plainly why it stopped.
---   🛟 BLOCKLIST, NEVER ALLOWLIST. Only known trackers are removed;
---      anything unrecognised is kept. ?v= on YouTube, ?q= on a search,
---      ?ref= on GitHub and ?page= everywhere are load-bearing. A cleaner
---      that leaves a stray parameter is a nuisance; one that breaks the
---      link is worse than not having it.
---   🩺 NEW: modules/health_monitor.lua. The boot report says what LOADED.
---      The capability report says what this Mac CAN do. Neither notices a
---      module that loaded fine, reports no error, and stopped writing to
---      its file three days ago — which you only find out by opening the
---      Console you do not have open. This watches the OUTPUT of every
---      tool that produces some and puts a PERSISTENT notification on
---      screen when one goes quiet. ⇪⇧H for the full report.
---   🧩 IT WATCHES FILES, SO NOT ONE LINE OF ANY EXISTING MODULE CHANGED.
---      Twenty other modules, zero regression risk. It also catches
---      HALF-broken — a watcher that silently detached still loads, still
---      binds, still reports healthy, and stops writing.
---   🚨 THE REAL WORK WAS NOT ALERTING. A monitor that cries wolf gets
---      ignored, and an ignored monitor is worse than none: it trains you
---      to dismiss the one notice that mattered. Staleness is counted in
---      AWAKE TICKS, so shutting the lid for three days costs nothing;
---      each check names the hours it is expected to be active; it speaks
---      once per tool per day; and a boot grace period stops it judging
---      modules that warm on a timer. Most of its test file is about
---      staying silent.
---   ⏱ hs.notify.show() WOULD HAVE BEEN THE WRONG CALL and looks like the
---      right one: its notices inherit withdrawAfter = 5 seconds and
---      vanish while you are looking elsewhere — the exact situation this
---      module exists for. withdrawAfter = 0 makes them persist. Found by
---      reading Hammerspoon's source, not by guessing.
---   🔎 NEW IN THE TEST SUITE: AN EXPLORER. It writes its own test cases —
---      random sequences of real actions, checking after EVERY step that
---      the module is in a state it allows, then SHRINKING any failure by
---      deleting steps while it still fails. Planted a broken teardown and
---      it found it unaided in a 40-step sequence, then cut it to two:
---      "showClick → escape". That reduction is the whole point; a 40-step
---      trace is a haystack, a 2-step one is a bug report.
---   🧪 1,344 checks across ten suites.
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.48.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.49.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -477,7 +459,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.48.0"
+_G.configVersion = "6.49.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -3407,7 +3389,7 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.48.0"
+    local currentVersion = "6.49.0"
     local currentDate    = "08-08-26"
     -- One line. The full entry for every version lives in CHANGELOG.md
     -- beside this file — which is also why prose no longer sits in a

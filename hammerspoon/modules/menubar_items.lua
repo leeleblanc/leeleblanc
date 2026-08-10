@@ -315,6 +315,7 @@ function M.setup(core)
         end, "menu bar inventory")
     end
 
+    core.provide("menuBar.show",   function() return mb.show()      end)
     core.provide("menuBar.list",   function() return mb.scan(false) end)
     core.provide("menuBar.report", function() return _G.menuBarReport() end)
 

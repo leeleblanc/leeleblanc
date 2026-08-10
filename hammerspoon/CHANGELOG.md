@@ -4,6 +4,45 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.49.0 — THE NUMBER PAD, SWITCHED ON, WITH TWO LAYERS:
+  🔢 THE PAD IS LIVE. It shipped PARKED in 6.44.0 — a worked-out layout
+     bound to nothing — and it is now on, with a second layer added:
+        ⇪  + pad  →  WINDOWS   (the key's position IS the window's)
+        ⇪⇧ + pad  →  TOOLS     (focus, rename, grid, menu bar, links)
+     That is ~28 live shortcuts that cost ZERO letters on the main
+     keyboard, because the pad sends its own key codes: pad7 is not 7,
+     and ⇪pad7 is not ⇪⇧pad7.
+  🪟 WINDOWS STAYED ON THE UNSHIFTED LAYER, deliberately. Its mnemonic is
+     the best thing in that module — pad7 is the top-left quarter because
+     7 IS the top-left key — and there is nothing to memorise. Burying it
+     under a modifier to make room for tools would have traded the one
+     layout that needs no memory for one that does. Tools took the
+     shifted layer instead.
+  🔌 THE TOOL LAYER BINDS BY SERVICE NAME, NOT BY FUNCTION. numpad_layer
+     knows nothing about focus mode or renaming; it calls "focus.toggle"
+     and the dispatcher resolves it. A pad key whose module is switched
+     off on this Mac prints "no provider" instead of erroring. Four
+     modules gained the entry-point service they had been missing —
+     focus.toggle, rename.show, rename.undo, menuBar.show,
+     url.cleanClipboard — because they had published only QUERIES
+     (report, list, plan) and nothing a key could actually press.
+  🚨 WHICH CREATED A NEW FAILURE MODE, SO IT GOT A NEW TEST. A typo in a
+     service name — "focus.tggle" — binds perfectly, does nothing when
+     pressed, and prints to a Console nobody is reading. The check that
+     every shifted binding resolves to a real provider had to go in
+     test_integration.lua and NOWHERE ELSE: every other suite loads one
+     module at a time against stubs, so the registry is empty there and
+     the same check would have passed vacuously while proving nothing.
+     Verified by planting the typo and watching it fail.
+  ✏️ ONE ECHO ACROSS THE LAYERS, on purpose: pad. undoes on both. ⇪pad.
+     puts a window back where it was, ⇪⇧pad. undoes the last rename.
+     The tool rows are grouped by row (meetings · pickers · clipboard)
+     rather than pretending to a spatial logic they do not have.
+  🧪 1,483 checks. Turning the layer on broke nine existing tests, which
+     is exactly what they were for — they asserted it ships parked. They
+     now assert the live two-layer contract, that parking is still
+     reachable, and that the nil-key guard covers the shifted layer too.
+
 NEW IN 6.48.0 — FOCUS MODE (⇪F) AND BULK RENAME (⇪R):
   🎯 FOCUS MODE. A Zoom or Teams MEETING WINDOW — not merely the app
      being open — mutes the mic, turns the camera off if it is provably

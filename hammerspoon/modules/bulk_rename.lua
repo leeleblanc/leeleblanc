@@ -563,6 +563,8 @@ end tell]]
         core.hyperAddShortcut({ "shift" }, br.key, br.undo, "undo last rename")
     end
 
+    core.provide("rename.show",   function()        return br.show()         end)
+    core.provide("rename.undo",   function()        return br.undo()         end)
     core.provide("rename.plan",   function(p, r, c) return br.plan(p, r, c) end)
     core.provide("rename.groups", function(p)      return br.group(p)       end)
     core.provide("rename.report", function()       return _G.renameReport() end)

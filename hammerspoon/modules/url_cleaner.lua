@@ -449,6 +449,10 @@ function M.setup(core)
                               "url cleaner — undo")
     end
 
+    -- url.clean is the PURE function and takes a URL; these two are the
+    -- key actions, which read and write the clipboard on their own.
+    core.provide("url.cleanClipboard", function() return cleaner.run()  end)
+    core.provide("url.undo",           function() return cleaner.undo() end)
     core.provide("url.clean",     function(u) return (cleaner.clean(u)) end)
     core.provide("url.cleanText", function(t) return (cleaner.cleanText(t)) end)
 

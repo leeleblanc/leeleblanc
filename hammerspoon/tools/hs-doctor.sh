@@ -213,6 +213,9 @@ check_marker health_monitor  "health.bootGraceMins" 6.46.0
 # keyboard while a wedged app fails to answer. Treat its absence as
 # serious, not cosmetic.
 check_marker menubar_items   "mb.axTimeout"       6.47.0
+# A numpad_layer without shiftActions is the PARKED-era file: the tool
+# layer simply will not exist, and ⇪⇧ + pad will do nothing at all.
+check_marker numpad_layer    "shiftActions"       6.49.0
 # 🚨 Both 6.48.0 markers guard against DESTRUCTIVE older copies, which is
 # a different class from "missing a feature":
 #   · focus_mode without fm.watchdogSecs cannot un-stick itself, so a

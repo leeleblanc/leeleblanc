@@ -553,6 +553,10 @@ function M.setup(core)
         end, "focus mode report")
     end
 
+    -- The ENTRY POINT, published so a number-pad key (or anything else)
+    -- can drive the module without knowing what is inside it. engage and
+    -- disengage below are the precise halves; toggle is what a key wants.
+    core.provide("focus.toggle",    function()  return fm.toggle()             end)
     core.provide("focus.engage",    function(r) return fm.engage(r or "service") end)
     core.provide("focus.disengage", function()  return fm.disengage("service")   end)
     core.provide("focus.engaged",   function()  return fm.engaged                end)

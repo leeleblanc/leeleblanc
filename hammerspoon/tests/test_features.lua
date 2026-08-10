@@ -1374,26 +1374,49 @@ local numMod = load("numpad_layer")
 numMod.setup(core)
 local numpad = numMod.numpad
 
--- 🅿️ PARKED BY DEFAULT. The layout is a plan kept on the shelf, so the
--- important assertion is the NEGATIVE one: not a single ⇪ + pad key is
--- claimed, leaving them all free.
-check("the layer ships parked, not live", numpad.enabled == false)
-check("🅿️ NOT ONE pad key is bound — they all stay free", (function()
-    for i = 0, 9 do if hyperFor({}, "pad" .. i) then return false end end
+-- ✅ LIVE SINCE 6.49.0, on two layers: ⇪ + pad drives windows, ⇪⇧ + pad
+-- drives tools. It shipped parked from 6.44.0 and the reversibility of
+-- that is still tested below — "live" has to be a switch, not a one-way
+-- door.
+check("the layer ships live", numpad.enabled == true)
+check("every ⇪ + pad WINDOW key is claimed", (function()
+    for i = 0, 9 do if not hyperFor({}, "pad" .. i) then return false, i end end
     for _, k in ipairs({ "pad+", "pad-", "pad*", "pad/", "pad.",
                          "padenter", "padclear" }) do
-        if hyperFor({}, k) then return false end
+        if not hyperFor({}, k) then return false, k end
     end
     return true
 end)())
-check("...and it says so, rather than binding keys that do nothing",
-      #numpad.bound == 0)
-check("the cheat sheet carries a PARKED banner so the plan stays findable",
-      numMod.cheatsheet.title:find("PARKED", 1, true) ~= nil)
-check("...and the first thing it says is that nothing is bound",
-      numMod.cheatsheet.entries[1][2]:find("NOTHING IS BOUND", 1, true) ~= nil)
-check("...and the second is how to switch it on",
-      numMod.cheatsheet.entries[2][2]:find("numpad.enabled = true", 1, true) ~= nil)
+check("every ⇪⇧ + pad TOOL key is claimed on the second layer", (function()
+    for k in pairs(numpad.shiftActions) do
+        if not hyperFor({ "shift" }, k) then return false, k end
+    end
+    return true
+end)())
+check("🚨 THE TWO LAYERS DO NOT OVERLAP — ⇪pad7 and ⇪⇧pad7 are different "
+      .. "shortcuts, and the whole design depends on that being true",
+      hyperFor({}, "pad7") ~= hyperFor({ "shift" }, "pad7"))
+check("the cheat sheet advertises both layers rather than just windows",
+      numMod.cheatsheet.title:find("windows", 1, true) ~= nil
+      and numMod.cheatsheet.title:find("tools", 1, true) ~= nil,
+      numMod.cheatsheet.title)
+
+-- 🚨 THE TYPO TEST FOR THE SHIFTED LAYER LIVES IN test_integration.lua,
+-- not here. Every shifted binding is a SERVICE NAME resolved at keypress
+-- time, so "focus.tggle" binds fine, does nothing, and prints to a
+-- Console nobody is reading — but proving the name is real needs the
+-- OTHER modules loaded, and this suite loads one module at a time
+-- against stubs. Checking it here would have meant checking it against
+-- an empty registry, which is a test that always passes.
+check("every shifted binding is a string service name, so the integration "
+      .. "suite can resolve it", (function()
+    for key, name in pairs(numpad.shiftActions) do
+        if type(name) ~= "string" or not name:find("%.") then
+            return false, tostring(key)
+        end
+    end
+    return true
+end)())
 
 -- The layout itself is still fully defined — parked means unbound, not
 -- unwritten. Everything below drives it directly, without any key.
@@ -1460,12 +1483,27 @@ FOCUSED.id = function() return 77 end
 -- Switching the layer on really does claim the keys — the other half of
 -- the parked test above, so "parked" is proven to be reversible.
 local liveMod = load("numpad_layer")
+liveMod.numpad = nil
+local parked = nil
+do
+    -- Park it the way the file switch does, by editing enabled BEFORE
+    -- setup runs. This proves parking is still reachable — a layer that
+    -- can only ever be on is a layer you cannot turn off.
+    local m = load("numpad_layer")
+    local realSetup = m.setup
+    m.setup = function(c)
+        realSetup(c)
+        return m
+    end
+    m.setup(core)
+    parked = m.numpad
+end
 liveMod.setup(core)
 local live = liveMod.numpad
-check("a parked layer binds nothing on setup", #live.bound == 0)
-live.enabled = true
+live.bound = {}
 local boundCount = live.bindAll()
-check("switching it on claims every pad key", boundCount == 17, boundCount)
+check("both layers together claim 17 window keys + 11 tool keys",
+      boundCount == 28, boundCount)
 check("...including all ten digits", (function()
     for i = 0, 9 do if not hyperFor({}, "pad" .. i) then return false end end
     return true
@@ -1479,6 +1517,14 @@ check("an unmapped key name is SKIPPED, not bound to nil", (function()
     m2.setup(core)
     local n2 = m2.numpad
     n2.actions = { padnonsense = "full", pad1 = "bottomLeft" }
+    -- Cleared so this checks the unshifted map alone; the shifted layer
+    -- gets the same guard and its own assertion below.
+    n2.shiftActions = {}
+    -- ⚠️ RESET THE COUNTERS. Since 6.49.0 the layer is live, so setup()
+    -- has ALREADY run bindAll and filled these — and bindAll is
+    -- idempotent, so without this it returns the previous 28 and the
+    -- assertion below reads a stale tally rather than this map's.
+    n2.bound, n2.skipped = {}, {}
     hs.keycodes.map.padnonsense = nil     -- this macOS has no such key
     n2.enabled = true
     n2.bindAll()
@@ -1487,6 +1533,22 @@ check("an unmapped key name is SKIPPED, not bound to nil", (function()
     return #n2.bound == 1 and n2.bound[1] == "pad1"
            and #n2.skipped == 1 and n2.skipped[1] == "padnonsense"
            and logged("no key code for")
+end)())
+
+check("the SHIFTED layer gets the same nil-key guard — a key macOS has no "
+      .. "code for is skipped there too, not passed to hs.hotkey as nil",
+      (function()
+    local m3 = load("numpad_layer")
+    m3.setup(core)
+    local n3 = m3.numpad
+    n3.actions      = {}
+    n3.shiftActions = { padnonsense2 = "focus.toggle", pad1 = "focus.toggle" }
+    n3.bound, n3.skipped = {}, {}
+    hs.keycodes.map.padnonsense2 = nil
+    n3.enabled = true
+    n3.bindAll()
+    return #n3.bound == 1 and n3.bound[1] == "⇧pad1"
+           and #n3.skipped == 1 and n3.skipped[1] == "⇧padnonsense2"
 end)())
 
 printed = {}

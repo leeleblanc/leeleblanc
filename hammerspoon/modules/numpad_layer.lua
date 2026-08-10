@@ -58,21 +58,22 @@
 -- at the top of setup(): a value may be a zone name, a function, or the
 -- name of a published service ("activity.renderChoices" and friends).
 --
--- 🅿️ THIS LAYER SHIPS PARKED. numpad.enabled = false, so NOTHING below is
--- bound and every ⇪ + pad key is still free — the layout is here as a
--- worked-out plan you can switch on the day you want it, not as live
--- shortcuts you did not ask for. The cheat sheet shows it with a PARKED
--- banner so it stays findable instead of being forgotten in a file.
---    To make it live:  numpad.enabled = true  (a few lines down), reload.
--- ⚠️ A MACHINE PROFILE CANNOT switch it on. Profile settings are applied
--- AFTER setup() runs, and binding happens during setup — so the override
--- would land too late to claim any keys. This one is the file switch.
+-- ✅ LIVE SINCE 6.49.0. This layer shipped PARKED from 6.44.0 so it would
+-- claim nothing you had not asked for. It is now switched on, and it grew
+-- a second layer: ⇪ + pad drives WINDOWS, ⇪⇧ + pad drives TOOLS. See
+-- numpad.shiftActions below for the second map and why it is arranged the
+-- way it is.
+--    To park it again:  numpad.enabled = false  (a few lines down), reload.
+-- ⚠️ A MACHINE PROFILE CANNOT switch it on or off. Profile settings are
+-- applied AFTER setup() runs, and binding happens during setup — so the
+-- override would land too late to claim any keys. This one is the file
+-- switch.
 
 local M = {
     name  = "Numpad Layer",
     order = 13.5,
     cheatsheet = {
-        title = "🔢 NUMPAD LAYER (⇪ + number pad — window is where the key is)",
+        title = "🔢 NUMPAD LAYER (⇪ pad = windows · ⇪⇧ pad = tools)",
         entries = {
             { "⇪ pad7 8 9", "Top-left quarter · top half · top-right quarter" },
             { "⇪ pad4 5 6", "Left half · centre 70% · right half" },
@@ -82,6 +83,12 @@ local M = {
             { "⇪ pad+ / -", "Grow / shrink around the centre" },
             { "⇪ pad/ *",   "Previous monitor / next monitor" },
             { "⇪ padenter", "Centre without resizing" },
+            { "—",          "———— second layer: hold shift ————" },
+            { "⇪⇧ pad7 8 9", "Focus mode toggle · focus report · health report" },
+            { "⇪⇧ pad4 5 6", "Bulk rename · mouse grid · menu bar items" },
+            { "⇪⇧ pad1 2 3", "Clean copied link · flush Capture Pad · copy today" },
+            { "⇪⇧ pad0",    "Run the health check now" },
+            { "⇪⇧ pad.",    "Undo the last rename (⇪pad. undoes a window)" },
             { "why",        "The pad sends its OWN key codes — pad7 ≠ 7, both are free" },
             { "if dead",    "Accessibility → Pointer Control → Mouse Keys steals the pad" },
         },
@@ -95,7 +102,7 @@ function M.setup(core)
     -- 🅿️ false = PARKED. The layout below is documented in the cheat sheet
     -- for when you want it, but NO key is bound and every ⇪ + pad
     -- combination stays free. Flip this to true and reload to make it live.
-    numpad.enabled  = false
+    numpad.enabled  = true     -- 6.49.0: LIVE. Was parked; see the header.
     numpad.animate  = 0        -- seconds; 0 = snap. Anything else feels laggy.
     numpad.centreW  = 0.70     -- pad5 / padenter width as a fraction of screen
     numpad.centreH  = 0.80
@@ -133,6 +140,46 @@ function M.setup(core)
         ["pad*"]  = "nextScreen",
         padenter  = "centreOnly",
         padclear  = "restore",
+    }
+
+    -- ---- THE SECOND LAYER: ⇪⇧ + pad ------------------------------------
+    -- 6.49.0. The pad keys are their own key codes, and a modifier makes
+    -- them their own shortcuts again — so ⇪pad7 and ⇪⇧pad7 are two free,
+    -- distinct combinations. That doubles the pad to ~34 without costing
+    -- a single letter on the main keyboard.
+    --
+    -- WINDOWS STAY ON THE UNSHIFTED LAYER because their mnemonic is the
+    -- best thing in this file: the key's position IS the window's
+    -- position, and there is nothing to memorise. Burying that under a
+    -- modifier to make room for tools would trade the one layout that
+    -- needs no memory for one that does. Tools go on the shifted layer.
+    --
+    -- ⚠️ EVERY VALUE HERE IS A PUBLISHED SERVICE NAME, not a function.
+    -- That is deliberate: this file then knows nothing about focus mode
+    -- or renaming, and a pad key whose module is switched off on this Mac
+    -- prints "no provider" instead of erroring. You can add your own with
+    -- a function value too — see numpad.run.
+    --
+    -- The grouping is by ROW rather than by position, because unlike the
+    -- window layer there is no spatial truth to appeal to; pretending
+    -- otherwise would be a mnemonic that lies.
+    --      top row    (7 8 9) — meetings and machine health
+    --      middle row (4 5 6) — the three pickers
+    --      bottom row (1 2 3) — clipboard and capture
+    -- The one deliberate echo across layers: pad. undoes on both. ⇪pad.
+    -- puts a window back, ⇪⇧pad. puts a rename back.
+    numpad.shiftActions = {
+        pad7 = "focus.toggle",       -- join a meeting / leave it
+        pad8 = "focus.report",       -- what focus changed, and what it will restore
+        pad9 = "health.report",      -- the tool-health report
+        pad4 = "rename.show",        -- rename the Finder selection
+        pad5 = "mouseGrid.show",     -- centre key, and the grid is a pointer
+        pad6 = "menuBar.show",       -- menu bar icons by name
+        pad1 = "url.cleanClipboard", -- strip trackers from the copied link
+        pad2 = "capturePad.flush",   -- send the pad to Asana now
+        pad3 = "calendar.copyToday", -- today's date to the clipboard
+        pad0 = "health.check",       -- run the health scan right now
+        ["pad."] = "rename.undo",    -- the echo: ⇪pad. restores, ⇪⇧pad. undoes
     }
 
     -- Bounded on purpose: one entry per window id, and windows come and go
@@ -317,6 +364,19 @@ function M.setup(core)
                 table.insert(numpad.bound, key)
             else
                 table.insert(numpad.skipped, key)
+            end
+        end
+        -- The shifted layer. Same nil-key guard, for the same reason: a
+        -- keyboard whose macOS build has no code for padclear must skip
+        -- that key rather than take the whole layer down with it.
+        for key, what in pairs(numpad.shiftActions or {}) do
+            if hs.keycodes.map[key] ~= nil then
+                core.hyperAddShortcut({ "shift" }, key,
+                                      function() numpad.run(what) end,
+                                      "numpad shift " .. key)
+                table.insert(numpad.bound, "⇧" .. key)
+            else
+                table.insert(numpad.skipped, "⇧" .. key)
             end
         end
         table.sort(numpad.bound)
