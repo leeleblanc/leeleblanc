@@ -4,6 +4,59 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.51.0 — WORKSPACES (⇪W): NAME A SET OF APPS, BIND IT TO A SPACE:
+  🗂 ⇪W asks which workspace this Space should be, remembers the answer,
+     and sets it up: run onStart, open the apps, WAIT FOR THEM TO ACTUALLY
+     APPEAR, then run onComplete. Press ⇪W on that Space again and the
+     first row offers to re-apply what is already assigned.
+     The format is the one that was asked for, unchanged:
+        ws.workspaces = {
+            DevWork = {
+                onStart      = "~/.something/command.sh",
+                Applications = { ["Google Chrome"] = {} },
+                onComplete   = "~/.something/command.sh",
+            },
+        }
+     ⚠️ THOSE COMMAS ARE NOT OPTIONAL. Lua separates table fields with
+     `,` or `;`, so the version without them is a SYNTAX ERROR and the
+     module will not load at all. Worth saying because the layout reads
+     perfectly well without them. The `{}` after each app is where
+     per-app options go; `{ zone = "leftHalf" }` places its window using
+     the same zone names the numpad layer uses.
+  ⏱ onComplete MEANS "THE APPS ARE UP", so it waits for them rather than
+     firing straight after launchOrFocus, which would be a lie. It polls
+     until every app answers or the budget runs out, then runs anyway —
+     an app that never starts must not strand the workspace.
+  🚨 THE FLAG THAT MUST NEVER STICK. ws.busy is the one-apply-at-a-time
+     guard, so a failing step that leaves it set kills the feature until
+     a reload with nothing saying why — the same failure shape as Focus
+     Mode leaving the mic muted. Every exit goes through one finish()
+     that clears it, a hook that never exits is TERMINATED after
+     ws.hookTimeout, and 300 generated workspaces mixing failing
+     launches, failing hooks and hooks that hang assert it always clears.
+  🗺 SPACE IDs ARE NOT STABLE ACROSS LOGOUTS, which leaks straight into
+     this feature: yesterday's saved binding can point at a Space that is
+     now somebody else entirely. So the store is PRUNED against the
+     Spaces that actually exist every time it is read, and a dead ID is
+     dropped rather than guessed at — applying the wrong workspace to the
+     wrong desktop is worse than forgetting. But an EMPTY answer from the
+     API does not wipe the store: "told us nothing" is not "all gone".
+     With no hs.spaces at all it degrades to one workspace for the Mac
+     and says so once.
+  🅿️ ⇪⇧W WAS ALREADY TAKEN by the Document Watcher, and quietly stealing
+     a working shortcut is not a trade worth making silently. So reset
+     lives on the FIRST ROW of the ⇪W picker whenever the Space already
+     has a workspace, and is published as workspace.reset for one of the
+     free number-pad keys:  numpad.actions["pad+"] = "workspace.reset"
+  🐛 THE SUITE FOUND A REAL BUG ON ITS FIRST RUN: validate() recorded
+     "Applications must be a table" and then iterated it anyway, so the
+     validator CRASHED on exactly the input it had just caught — the one
+     thing a validator must not do. Guarded and tested.
+  🧪 1,545 checks across thirteen Lua suites. The explorer also caught a
+     fault in its own clock budget: when BOTH hooks hang the chain needs
+     two full timeouts to unwind, and advancing only one stopped the
+     clock mid-chain and reported a working module as stuck.
+
 NEW IN 6.50.0 — THE PAD SWAPS LAYERS, AND A POINTER RING:
   🔀 TOOLS MOVED TO THE PRIMARY HYPER KEY. 6.49.0 put windows on ⇪ + pad
      and tools on ⇪⇧ + pad. That was the wrong trade and it is now the
