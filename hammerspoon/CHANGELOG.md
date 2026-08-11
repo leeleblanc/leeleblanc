@@ -4,6 +4,56 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.59.0 — TWO SMALL THINGS, BOTH OF THEM "IT WAS LYING TO YOU":
+  🔊 APP MONITOR NOW SOUNDS "Hero" INSTEAD OF "Ping". Purely LL's
+     choice, and the reasoning is worth keeping: since 6.16.21 the
+     popup has had NO auto-dismiss — it waits indefinitely and pings
+     every 2 seconds until answered — precisely so that being away
+     from the desk cannot cause a closed app to go unnoticed. That
+     design only works if the sound survives the distance. Ping does
+     not always carry; Hero does.
+  🎛 THE SETTING IS ONE CONSTANT, ON PURPOSE. appMonitorSoundName near
+     the top of modules/app_watcher.lua feeds BOTH the initial alert
+     and the repeating ping timer, so the two can never drift apart,
+     and changing it again is a one-word edit plus a reload. The
+     comment block above it now lists all fourteen built-in macOS
+     sounds grouped by how much they carry, so the next change does
+     not require going and looking them up.
+  ⚠️ WHAT IS DELIBERATELY *NOT* FIXED HERE, RECORDED SO IT IS NOT
+     FORGOTTEN: hs.sound.getByName is pcall-wrapped and its result is
+     nil-checked, which means a MISSPELLED SOUND NAME PRODUCES NO
+     SOUND AND NO ERROR — the popup still appears, silently, and
+     nothing says why. That is exactly the class of silent failure the
+     notice ledger exists to abolish; app_watcher predates it and was
+     never wired in. Routing the miss into notices was offered for
+     this release and declined in favour of the sound change alone.
+     The constant's comment now warns about it in plain language
+     ("if you change this and hear nothing, the spelling is the first
+     suspect"), which is a smaller guarantee than the ledger but not
+     nothing. Still outstanding.
+  🩺 hs-doctor WAS CALLING A WORKING HYPER KEY "unexpected". Section 6
+     tested for the Caps-Lock HID usage as the literal hex string
+     0x700000039, but `hidutil property --get UserKeyMapping` returns
+     DECIMAL on a real Mac — 30064771129, the same number written the
+     other way. A correct remap therefore never matched, fell through
+     to the error branch, and echoed the entire raw property list —
+     once per HID device carrying the mapping, which in practice runs
+     to a hundred-plus near-identical blocks scrolling past someone
+     who has just been told something is wrong when nothing is.
+  ✅ CONFIRMED AGAINST A REAL REPORT, not reasoned about: 30064771129
+     = 0x700000039 (Caps Lock) and 30064771181 = 0x70000006D (F18) —
+     exactly the remap this config installs. The diagnostic was wrong;
+     the Mac was fine. Both forms are matched now, decimal first,
+     since decimal is what actually appears.
+  📉 AND THE ERROR BRANCH IS NOW READABLE. A genuinely wrong mapping
+     prints the UNIQUE Src/Dst pairs rather than every repeated
+     registry entry. A diagnostic that scrolls its own answer off the
+     screen is not a diagnostic, and the repeat count is a property of
+     how many HID devices are registered, not of the problem.
+  🧪 Fixture-tested five ways before shipping: decimal mapping, hex
+     mapping, empty output, "(null)", and a wrong mapping repeated
+     four times (collapses to two lines). Full Lua suite green.
+
 NEW IN 6.58.0 — THE INSTALLER CAUGHT WHAT THE TEST SUITE MISSED:
   🚨 REAL INSTALL, REAL FAILURE, WORKING SAFETY NET. Running
      hs-install.sh for real (not --dry-run) failed verification on

@@ -4,9 +4,41 @@
 -- =====================================================================
 -- 08-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.58.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.59.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.59.0 — TWO SMALL THINGS, BOTH OF THEM "IT WAS LYING TO YOU":
+--   🔊 APP MONITOR NOW SOUNDS "Hero" INSTEAD OF "Ping". Purely LL's
+--      choice: the popup waits indefinitely and pings every 2 seconds
+--      until answered, so the sound has to survive being away from the
+--      desk. Ping does not always carry; Hero does. The name lives in
+--      ONE constant (modules/app_watcher.lua, near the top) which feeds
+--      both the first alert and the repeating ping — they cannot drift
+--      apart, and changing it again is a one-word edit + reload.
+--      · WHAT IS DELIBERATELY *NOT* FIXED HERE: hs.sound.getByName is
+--        pcall'd, so a misspelled name yields NO SOUND AND NO ERROR. The
+--        comment block above the constant now says so in plain terms and
+--        lists the fourteen valid names. Wiring that miss into the notice
+--        ledger was offered and declined for this release — noted here so
+--        the gap is on the record rather than forgotten.
+--   🩺 hs-doctor WAS CALLING A WORKING HYPER KEY "unexpected". Section 6
+--      grepped the Caps-Lock HID usage as the hex string 0x700000039, but
+--      `hidutil property --get UserKeyMapping` returns DECIMAL on a real
+--      Mac — 30064771129, the same number. So a correct remap never
+--      matched, fell to the error branch, and dumped the raw property
+--      list once per HID device carrying the mapping: a hundred-plus
+--      near-identical blocks scrolling past a person who was told
+--      something was wrong when nothing was.
+--      · Confirmed against LL's real report: 30064771129 = 0x700000039
+--        (Caps Lock) and 30064771181 = 0x70000006D (F18) — exactly the
+--        remap this config installs. The report was right; the check was
+--        wrong. Both forms now match, decimal first since that is what
+--        actually appears.
+--      · AND THE ERROR BRANCH IS NOW READABLE: a genuinely wrong mapping
+--        prints the UNIQUE Src/Dst pairs, not every repeated registry
+--        entry. A diagnostic that scrolls off the screen is not one.
+--      · Fixture-tested five ways: decimal, hex, empty, "(null)", and a
+--        wrong mapping repeated four times (collapses to two lines).
 -- NEW IN 6.58.0 — THE INSTALLER CAUGHT WHAT THE TEST SUITE MISSED:
 --   🚨 REAL INSTALL, REAL FAILURE, WORKING SAFETY NET. Running
 --      hs-install.sh for real (not --dry-run) failed verification on
@@ -160,61 +192,8 @@
 --      up" branch was never reached and a working guard looked untested
 --      when it was merely unexercised.
 --   🧪 1,641 checks across sixteen Lua suites.
--- NEW IN 6.54.0 — NOTHING FAILS SILENTLY: THE NOTICE LEDGER (7g/7d/7e/6):
---   🔔 ONE LEDGER, AND SURFACES THAT READ FROM IT. Every failure — a module
---      that would not load, a runtime error, a failed shell hook — records
---      into core/notices.lua, and that file alone decides whether, how and
---      when you are told. Twenty-five modules each calling hs.notify would
---      be twenty-five slightly different behaviours, twenty-five chances to
---      forget, and nowhere that knows whether you have already been told.
---      Add a surface later and every existing failure flows into it free.
---   🔕 AND THE UNCOMFORTABLE PART, which is why 7d was needed at all: FOCUS
---      MODE TURNS DO NOT DISTURB ON DURING MEETINGS, and macOS then
---      SWALLOWS notifications WITHOUT REFUSING THEM. A hs.notify that
---      "succeeded" can have shown you nothing, so a failure during a
---      meeting could vanish entirely. Notices raised while Focus is on are
---      now HELD and delivered when it ends — as ONE combined message, since
---      coming out of a meeting to twelve stacked alerts is its own kind of
---      failure. The queue is bounded and drops the OLDEST, because the
---      recent ones are the ones still true when you get back.
---      · WHAT CAN HONESTLY BE KNOWN about Focus: macOS has no public API.
---        Two things are reliable — whether THIS config turned Focus on
---        (exact, we did it), and the Do Not Disturb assertions file. When
---        neither is conclusive it assumes NOT suppressed and shows you.
---        That direction is deliberate: a notice shown during Focus is a
---        mild annoyance, a notice silently swallowed is the whole bug.
---      · hs.alert IS ALWAYS USED AS WELL, not as a nicety. Notification
---        Centre can be switched off for Hammerspoon entirely and nothing
---        tells us; hs.alert draws on the screen and obeys neither that nor
---        Focus. It is what makes the guarantee true rather than hopeful.
---   🆗 ONE SIGNAL AT LOGIN, AND ONLY WHEN IT MEANS SOMETHING. A clean boot
---      gets a brief "ready" flash — the FadeLogo idea, natively, no Spoon —
---      so a quiet Mac is never ambiguous between "fine" and "never
---      started". A module that failed to load gets an alert NAMING it, and
---      shown even during Focus, because a tool that did not load is wrong
---      for the whole session. Silence means it worked; you are never asked
---      to go and check.
---      · ON A TIMER, NOT INLINE: an alert fired during the boot chunk can
---        land before the screen is ready at login and simply not be seen,
---        which would make the mechanism a lie on the one boot you most
---        care about.
---   🚨 THE LEDGER IS ITSELF A BOOT-PATH RISK, and is written accordingly.
---      It reports other failures, so if it throws it takes the config down
---      AND removes the explanation. Every macOS call is pcall'd, both
---      queues are bounded, every entry point tolerates nil — and if
---      core/notices.lua fails to load, THAT is announced on screen rather
---      than leaving reporting quietly off.
---   🩹 AND THE SUITE CAUGHT THE HALF-UPDATED INSTALL. Adding a fifth core/
---      file failed four checks immediately: hs-install.sh would not have
---      COPIED it (both loops name the files explicitly), and its count and
---      INSTALL.md's still said four. That is the exact failure hs-doctor
---      exists to catch, caught before shipping instead.
---   🧪 1,603 checks across fourteen Lua suites. test_notices asserts a
---      notice is never lost, never floods, that unknown Focus state means
---      SHOW rather than hide, and that a clean boot stays quiet — each
---      mutation-checked.
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.58.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.59.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -456,7 +435,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.58.0"
+_G.configVersion = "6.59.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -3410,14 +3389,14 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.58.0"
-    local currentDate    = "08-08-26"
+    local currentVersion = "6.59.0"
+    local currentDate    = "08-11-26"
     -- One line. The full entry for every version lives in CHANGELOG.md
     -- beside this file — which is also why prose no longer sits in a
     -- Lua string here: the work-Mac safety scan reads string literals
     -- as code, and a paragraph describing "no sudo, no launchctl"
     -- failed the very check it was describing.
-    local currentNotes   = "Turned the random-sequence explorer on the URL Cleaner, Health Monitor and Menu Bar Items. 8000 generated URLs checking idempotence and that wrapping cannot change the answer; 600 random timelines checking the alerting rules; 500 random Mac populations checking the scan budget holds. Four findings, none a bug in the shipped modules: the cleaner correctly refuses to unwrap a site's own return path, the monitor correctly announces a load failure without waiting out the grace period, and two were faults in my own instrumentation - reading the clock before the action that changed it, and letting the simulated date run backward. Added a rule nothing had checked, that load failures obey the once-per-day limit. Every property was then mutation tested so none of them is decoration. See CHANGELOG.md for the full entry."
+    local currentNotes   = "App Monitor now sounds Hero instead of Ping - the popup waits indefinitely and pings every two seconds until answered, so the sound has to carry from away-from-the-desk, and Ping does not always. One constant drives both the first alert and the repeating ping so they cannot drift apart. Noted in the file, and here: a misspelled sound name yields no sound and no error, because the lookup is pcall-wrapped; the fourteen valid names are now listed beside the setting. Also fixed hs-doctor calling a WORKING hyper key unexpected - it grepped the Caps Lock HID usage as hex, but hidutil returns decimal on a real Mac, so a correct remap never matched and the error branch dumped the raw property list once per HID device. Both forms match now, and a genuinely wrong mapping prints unique pairs instead of a hundred repeats. Fixture tested five ways. See CHANGELOG.md for the full entry."
 
     -- Only append if this version isn't already in the file
     local found = false

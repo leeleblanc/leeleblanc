@@ -61,7 +61,17 @@ function M.setup(core)
     -- 6.16.21: no more auto-dismiss — if you're away when an app quits, a
     -- popup that gives up after 30s means you'd never know. It now stays
     -- up, pinging gently, until you actually respond (a button, or Esc).
-    local appMonitorSoundName      = "Ping"  -- any system sound: Ping, Glass, Hero, Sosumi, Submarine… ("Ping" is one of the gentler ones)
+    -- TO CHANGE THE SOUND: edit the name below, save, reload (⇪R). That is
+    -- the whole edit — this one constant drives BOTH the first alert and
+    -- the repeating ping, so they can never drift apart.
+    -- Valid names are the built-in macOS sounds in /System/Library/Sounds:
+    --   gentlest → Tink · Purr · Pop · Frog
+    --   middle   → Ping · Bottle · Blow · Morse · Funk
+    --   loudest  → Glass · Hero · Sosumi · Basso · Submarine
+    -- ⚠️ CASE-SENSITIVE, and a name that does not exist means NO SOUND AT
+    --    ALL rather than an error (see the pcall in appMonitorShowNext). If you
+    --    change this and hear nothing, the spelling is the first suspect.
+    local appMonitorSoundName      = "Hero"  -- 6.59.0: was "Ping" — Hero carries further when LL is away from the desk
     local appMonitorPingInterval   = 2       -- seconds between pings while waiting
 
     local appMonitorQueue   = {}   -- apps waiting their turn if several close at once
