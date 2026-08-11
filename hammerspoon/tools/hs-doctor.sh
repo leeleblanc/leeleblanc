@@ -231,17 +231,36 @@ check_marker workspaces      "pruneStore"         6.51.0
 check_marker clipboard_history "clip.preload"       6.55.0
 
 # ---- 6. the hyper key remap ------------------------------------------
+# 🚨 6.59.0 — hidutil PRINTS THE MAPPING IN DECIMAL, NOT HEX. The check
+# here used to grep only for the literal hex string "0x700000039" (Caps
+# Lock's HID usage), but `hidutil property --get UserKeyMapping` on a
+# real Mac returns HIDKeyboardModifierMappingSrc = 30064771129 — the
+# same value, decimal. The hex string never matched, so a WORKING remap
+# fell into the "unexpected" branch and dumped the raw property list —
+# once per HID device registered with that mapping, which is why it can
+# run to a hundred-plus near-identical blocks. Confirmed against a real
+# report: 30064771129 = 0x700000039 (Caps Lock) and its paired
+# 30064771181 = 0x70000006D (F18), exactly the remap this config sets.
+#
+# Both forms are checked now, decimal first since that is what was
+# actually observed. And if the mapping genuinely is something else —
+# a real misconfiguration, not this bug — the fallback summarises the
+# UNIQUE Src/Dst pairs instead of echoing every repeated registry entry,
+# so a real problem stays readable instead of scrolling off the screen.
 echo
 echo "── 6. CAPS LOCK → F18 REMAP (the hyper key) ──"
 out=$(hidutil property --get "UserKeyMapping" 2>/dev/null)
-if echo "$out" | grep -q 0x700000039; then
+if echo "$out" | grep -qE '0x700000039|30064771129'; then
   echo "   ✅ remap is ACTIVE (Caps Lock is sending F18)"
 elif [ -z "$out" ] || [ "$out" = "(null)" ]; then
   echo "   ⚠️  NO REMAP SET — Caps Lock is a normal Caps Lock right now."
   echo "      init.lua sets this at boot, so this usually means init.lua"
   echo "      did not finish loading."
 else
-  echo "   ? unexpected: $out"
+  echo "   ? unexpected — the remap does not match Caps Lock -> F18."
+  echo "     Unique mapping(s) found (repeated entries per HID device collapsed):"
+  echo "$out" | grep -E 'HIDKeyboardModifierMapping(Src|Dst)' \
+    | sed 's/^[[:space:]]*//' | sort -u | sed 's/^/       /'
 fi
 
 # ---- 7. what to paste back -------------------------------------------
