@@ -612,7 +612,18 @@ return function(core)
         -- reading mid-lookup. Mouse events are left OFF entirely so clicks
         -- pass through to whatever is underneath instead of being swallowed
         -- (the wheel is handled by an eventtap, not by the canvas).
-        canvas:show()
+        -- 🚨 GUARDED, AND enableInput() RUNS EITHER WAY. An unprotected
+        -- show() that throws (see _G.showCanvasSafely in init.lua — an
+        -- AppKit assertion raised inside ANOTHER app's remote view)
+        -- abandoned the rest of this function, leaving _G.cheatSheetCanvas
+        -- set, the panel half-ordered on screen, and the scroll keys
+        -- unbound. ⇪/ then only ever called hide(). The phantom panel was
+        -- not the throw; it was everything after the throw not happening.
+        if _G.showCanvasSafely then
+            _G.showCanvasSafely(canvas, "cheat sheet")
+        else
+            pcall(function() canvas:show() end)
+        end
 
         cheatSheet.enableInput()
     end

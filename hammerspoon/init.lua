@@ -4,9 +4,46 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.55.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.56.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.56.0 — THE PHANTOM PANEL, AND WHY IT WAS NOT OUR CRASH:
+--   👻 REPORTED FROM A REAL MAC: pressing ⇪/ while Safari's address-bar
+--      autocomplete was open threw
+--         NSInternalInconsistencyException: '<NSRemoteView …
+--         SPCompletionListServiceViewController> notified of
+--         <HSCanvasWindow> but expected (null)'
+--      — and left a panel on screen that would not close, with the
+--      Console filling for minutes with alternating "Disabled / Re-enabled
+--      previous hotkey UP DOWN HOME END PAGEUP PAGEDOWN ESCAPE".
+--   🔍 THE THROW IS NOT OURS AND CANNOT BE PREVENTED. Ordering ANY window
+--      on screen makes AppKit post a notification that every observer
+--      receives — including Safari's completion list, which lives in
+--      ANOTHER PROCESS behind an NSRemoteView. If that view is
+--      mid-transition when the notification lands, its own assertion fires,
+--      inside Safari, about a window Safari does not own. No argument to
+--      :show() avoids it.
+--   🚨 WHAT WAS OURS WAS THE DAMAGE, and the damage was the whole symptom.
+--      canvas:show() was UNPROTECTED, so the throw abandoned the rest of
+--      the open sequence: _G.cheatSheetCanvas had already been set, and
+--      enableInput() never ran. The config then believed the sheet was
+--      open while the canvas sat half-ordered on screen — a panel you
+--      could see, could not scroll, and could not close, because every
+--      later ⇪/ took the hide() branch. Those are exactly the alternating
+--      hotkey lines. The phantom panel was not the exception; it was
+--      everything after the exception not happening.
+--   🩹 THE FIX, at all three canvas:show() sites: catch it, RETRY ONCE on
+--      the next run loop turn — this is a timing collision with another
+--      process, not a permanent state, so a moment later it works — and if
+--      it still refuses, say so through the 6.54.0 notice ledger instead
+--      of leaving a ghost behind. enableInput() now runs either way, so
+--      ⇪/ is never left toggling a panel you cannot use.
+--   🧪 REPRODUCED IN THE SUITE. The cheat sheet's canvas stub can now be
+--      told to throw exactly as AppKit did, and the test asserts the
+--      exception does not escape into the hotkey callback, that the input
+--      keys are still bound afterwards, and that the sheet reopens
+--      cleanly. Restoring the unprotected show() fails it.
+--   🧪 1,644 checks across sixteen Lua suites.
 -- NEW IN 6.55.0 — CLIPBOARD HISTORY BECOMES A MODULE:
 --   📋 IT LIVED IN init.lua, IN FOUR SEPARATE PLACES: the file path in
 --      §0.2, load and save in §2, the dedupe buried inside the pasteboard
@@ -178,61 +215,9 @@
 --      those lines (§3.12 hyper key 838, §6 Asana 387, §2 OCR/clipboard
 --      341, §5 hotkey glue 263) are movable. Recorded here as the map for
 --      the next release rather than done in a hurry alongside two fixes.
--- NEW IN 6.51.0 — WORKSPACES (⇪W): NAME A SET OF APPS, BIND IT TO A SPACE:
---   🗂 ⇪W asks which workspace this Space should be, remembers the answer,
---      and sets it up: run onStart, open the apps, WAIT FOR THEM TO ACTUALLY
---      APPEAR, then run onComplete. Press ⇪W on that Space again and the
---      first row offers to re-apply what is already assigned.
---      The format is the one that was asked for, unchanged:
---         ws.workspaces = {
---             DevWork = {
---                 onStart      = "~/.something/command.sh",
---                 Applications = { ["Google Chrome"] = {} },
---                 onComplete   = "~/.something/command.sh",
---             },
---         }
---      ⚠️ THOSE COMMAS ARE NOT OPTIONAL. Lua separates table fields with
---      `,` or `;`, so the version without them is a SYNTAX ERROR and the
---      module will not load at all. Worth saying because the layout reads
---      perfectly well without them. The `{}` after each app is where
---      per-app options go; `{ zone = "leftHalf" }` places its window using
---      the same zone names the numpad layer uses.
---   ⏱ onComplete MEANS "THE APPS ARE UP", so it waits for them rather than
---      firing straight after launchOrFocus, which would be a lie. It polls
---      until every app answers or the budget runs out, then runs anyway —
---      an app that never starts must not strand the workspace.
---   🚨 THE FLAG THAT MUST NEVER STICK. ws.busy is the one-apply-at-a-time
---      guard, so a failing step that leaves it set kills the feature until
---      a reload with nothing saying why — the same failure shape as Focus
---      Mode leaving the mic muted. Every exit goes through one finish()
---      that clears it, a hook that never exits is TERMINATED after
---      ws.hookTimeout, and 300 generated workspaces mixing failing
---      launches, failing hooks and hooks that hang assert it always clears.
---   🗺 SPACE IDs ARE NOT STABLE ACROSS LOGOUTS, which leaks straight into
---      this feature: yesterday's saved binding can point at a Space that is
---      now somebody else entirely. So the store is PRUNED against the
---      Spaces that actually exist every time it is read, and a dead ID is
---      dropped rather than guessed at — applying the wrong workspace to the
---      wrong desktop is worse than forgetting. But an EMPTY answer from the
---      API does not wipe the store: "told us nothing" is not "all gone".
---      With no hs.spaces at all it degrades to one workspace for the Mac
---      and says so once.
---   🅿️ ⇪⇧W WAS ALREADY TAKEN by the Document Watcher, and quietly stealing
---      a working shortcut is not a trade worth making silently. So reset
---      lives on the FIRST ROW of the ⇪W picker whenever the Space already
---      has a workspace, and is published as workspace.reset for one of the
---      free number-pad keys:  numpad.actions["pad+"] = "workspace.reset"
---   🐛 THE SUITE FOUND A REAL BUG ON ITS FIRST RUN: validate() recorded
---      "Applications must be a table" and then iterated it anyway, so the
---      validator CRASHED on exactly the input it had just caught — the one
---      thing a validator must not do. Guarded and tested.
---   🧪 1,545 checks across thirteen Lua suites. The explorer also caught a
---      fault in its own clock budget: when BOTH hooks hang the chain needs
---      two full timeouts to unwind, and advancing only one stopped the
---      clock mid-chain and reported a working module as stuck.
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.55.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.56.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -474,7 +459,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.55.0"
+_G.configVersion = "6.56.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -1144,6 +1129,63 @@ end)
 -- If it fails, ⇪/ and the custom-shortcut editor are off for the session
 -- and everything else still boots. Modules call the registration helper
 -- defensively, so a missing cheat sheet costs you the panel, not the keys.
+-- =====================================================================
+-- 🚨 SHOWING A CANVAS CAN THROW, AND IT IS NOT OUR BUG — 6.56.0
+-- =====================================================================
+-- Seen in the wild, from a ⇪/ press while Safari's address-bar
+-- autocomplete was open:
+--
+--   NSInternalInconsistencyException: '<NSRemoteView …
+--   SPCompletionListServiceViewController> notified of <HSCanvasWindow>
+--   but expected (null)' in -[NSRemoteView containingWindowWillOrderOnScreen:]
+--
+-- Ordering ANY window on screen makes AppKit post a notification that
+-- every observer receives — including Safari's completion list, which
+-- lives in ANOTHER PROCESS behind an NSRemoteView. If that view is
+-- mid-transition when the notification lands, its assertion fires. The
+-- throw comes from AppKit's ViewBridge, in Safari's observer, about a
+-- window it does not own. Nothing we can pass to :show() prevents it.
+--
+-- WHAT WE CAN PREVENT IS THE DAMAGE, and the damage was the real
+-- symptom. An unprotected canvas:show() that throws abandons the REST
+-- of the open sequence — so the cheat sheet set _G.cheatSheetCanvas,
+-- threw, and never reached enableInput(). The config then believed the
+-- sheet was open while the canvas sat half-ordered on screen: a phantom
+-- panel, and a ⇪/ that only ever called hide() from then on. That is
+-- exactly the alternating "Disabled / Re-enabled previous hotkey" pairs
+-- in the Console.
+--
+-- So: catch it, RETRY ONCE on the next run loop turn (by which point
+-- the other process's view has settled — this is a timing collision,
+-- not a permanent state), and if it still refuses, say so and let the
+-- caller clean up rather than leaving a ghost behind.
+_G.canvasShowTimers = _G.canvasShowTimers or {}
+function _G.showCanvasSafely(canvas, label)
+    if not canvas then return false end
+    local ok = pcall(function() canvas:show() end)
+    if ok then return true end
+    -- One retry, a run loop turn later.
+    local t = hs.timer.doAfter(0.05, function()
+        local ok2 = pcall(function() canvas:show() end)
+        if ok2 then return end
+        print("⚠️ " .. tostring(label or "canvas") .. ": macOS refused to show "
+              .. "it twice — usually another app's popup (Safari's URL "
+              .. "completion, Spotlight) was mid-transition. Press the key "
+              .. "again.")
+        if _G.notices then
+            _G.notices.record("runtime", tostring(label or "canvas"),
+                              "AppKit refused to order the window on screen")
+            _G.notices.tell("A panel would not open",
+                            tostring(label or "canvas") .. " — press the key again",
+                            { key = "canvas:" .. tostring(label), every = 300 })
+        end
+    end)
+    -- HELD: an unreferenced timer is collected and never fires.
+    _G.canvasShowTimers[#_G.canvasShowTimers + 1] = t
+    while #_G.canvasShowTimers > 8 do table.remove(_G.canvasShowTimers, 1) end
+    return false
+end
+
 local csOK, csErr = pcall(function()
     local path = hs.configdir .. '/core/cheatsheet.lua'
     local chunk, loadErr = loadfile(path)
@@ -2156,7 +2198,7 @@ local function taskMirrorShow(text)
     -- and cheat sheet — without them the mirror can't appear over
     -- native full-screen apps
     pcall(function() canvas:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" }) end)
-    canvas:show()
+    _G.showCanvasSafely(canvas, "popup panel")
     _G.taskMirrorCanvas = canvas
 end
 
@@ -2639,7 +2681,7 @@ local function asanaLegendShow()
     -- (hs.chooser's panel declares these internally, which is why the
     -- picker never had this problem.)
     pcall(function() canvas:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" }) end)
-    canvas:show()
+    _G.showCanvasSafely(canvas, "popup panel")
     _G.asanaLegendCanvas = canvas
     -- Console diagnostic (harmless; invaluable if placement misbehaves)
     local scrName = "?"
@@ -3359,7 +3401,7 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.55.0"
+    local currentVersion = "6.56.0"
     local currentDate    = "08-08-26"
     -- One line. The full entry for every version lives in CHANGELOG.md
     -- beside this file — which is also why prose no longer sits in a

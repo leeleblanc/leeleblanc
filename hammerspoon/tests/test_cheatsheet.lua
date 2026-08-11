@@ -1,3 +1,4 @@
+SHOW_THROWS = false
 -- Run from anywhere:  lua5.4 <this file> [path to ~/.hammerspoon]
 -- HS   = the config being tested (init.lua + modules/)
 -- HERE = this tests folder, which is where the extracted fixtures live
@@ -24,7 +25,13 @@ hs = {
       local c = {}
       function c:replaceElements(els) drawn = els; return c end
       function c:appendElements(els) drawn = els; return c end
-      function c:show() shown = shown + 1; return c end
+      -- SHOW_THROWS models the AppKit assertion seen in the wild: an
+      -- exception raised inside ANOTHER app's remote view while our
+      -- window is ordered on screen. See _G.showCanvasSafely.
+      function c:show()
+        if SHOW_THROWS then error("NSInternalInconsistencyException: remote view") end
+        shown = shown + 1; return c
+      end
       function c:delete() deleted = deleted + 1; return c end
       function c:level() return c end
       function c:behaviorAsLabels() return c end
@@ -418,6 +425,38 @@ check("...and neither does ⇪⇧= (edit) with nothing to edit", (function()
   local edit = boundKeys["="]
   return edit ~= nil and pcall(edit.fire)
 end)())
+
+-- =====================================================================
+-- 🚨 THE PHANTOM PANEL — a canvas:show() that throws (6.56.0)
+-- =====================================================================
+-- Reported from a real Mac: pressing ⇪/ while Safari's address-bar
+-- autocomplete was open raised an AppKit assertion INSIDE SAFARI's
+-- out-of-process view, about a window Safari does not own. The throw
+-- itself is unpreventable. What was preventable is what it did to us:
+-- _G.cheatSheetCanvas was already set, show() threw, and enableInput()
+-- never ran — so the config believed the sheet was open while the panel
+-- sat half-ordered on screen, and every later ⇪/ only called hide().
+-- That is the alternating "Disabled / Re-enabled previous hotkey" pairs
+-- the Console showed for minutes afterwards.
+do
+  CS.hide()
+  SHOW_THROWS = true
+  local ok = pcall(CS.show)
+  SHOW_THROWS = false
+  check("🚨 a throwing canvas:show() does NOT escape into the hotkey "
+        .. "callback — the whole open sequence used to be abandoned", ok)
+  check("🚨 ...and the input keys are still bound, so ⇪/ is not left "
+        .. "toggling a panel you cannot see or scroll",
+        _G.cheatSheetInputBound ~= false)
+  CS.hide()
+  check("...and it can be closed and reopened cleanly afterwards",
+        (function()
+           local ok2 = pcall(CS.show)
+           local opened = (_G.cheatSheetCanvas ~= nil)
+           CS.hide()
+           return ok2 and opened
+         end)())
+end
 
 print(("\n%d passed, %d failed\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

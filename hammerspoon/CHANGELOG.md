@@ -4,6 +4,44 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.56.0 — THE PHANTOM PANEL, AND WHY IT WAS NOT OUR CRASH:
+  👻 REPORTED FROM A REAL MAC: pressing ⇪/ while Safari's address-bar
+     autocomplete was open threw
+        NSInternalInconsistencyException: '<NSRemoteView …
+        SPCompletionListServiceViewController> notified of
+        <HSCanvasWindow> but expected (null)'
+     — and left a panel on screen that would not close, with the
+     Console filling for minutes with alternating "Disabled / Re-enabled
+     previous hotkey UP DOWN HOME END PAGEUP PAGEDOWN ESCAPE".
+  🔍 THE THROW IS NOT OURS AND CANNOT BE PREVENTED. Ordering ANY window
+     on screen makes AppKit post a notification that every observer
+     receives — including Safari's completion list, which lives in
+     ANOTHER PROCESS behind an NSRemoteView. If that view is
+     mid-transition when the notification lands, its own assertion fires,
+     inside Safari, about a window Safari does not own. No argument to
+     :show() avoids it.
+  🚨 WHAT WAS OURS WAS THE DAMAGE, and the damage was the whole symptom.
+     canvas:show() was UNPROTECTED, so the throw abandoned the rest of
+     the open sequence: _G.cheatSheetCanvas had already been set, and
+     enableInput() never ran. The config then believed the sheet was
+     open while the canvas sat half-ordered on screen — a panel you
+     could see, could not scroll, and could not close, because every
+     later ⇪/ took the hide() branch. Those are exactly the alternating
+     hotkey lines. The phantom panel was not the exception; it was
+     everything after the exception not happening.
+  🩹 THE FIX, at all three canvas:show() sites: catch it, RETRY ONCE on
+     the next run loop turn — this is a timing collision with another
+     process, not a permanent state, so a moment later it works — and if
+     it still refuses, say so through the 6.54.0 notice ledger instead
+     of leaving a ghost behind. enableInput() now runs either way, so
+     ⇪/ is never left toggling a panel you cannot use.
+  🧪 REPRODUCED IN THE SUITE. The cheat sheet's canvas stub can now be
+     told to throw exactly as AppKit did, and the test asserts the
+     exception does not escape into the hotkey callback, that the input
+     keys are still bound afterwards, and that the sheet reopens
+     cleanly. Restoring the unprotected show() fails it.
+  🧪 1,644 checks across sixteen Lua suites.
+
 NEW IN 6.55.0 — CLIPBOARD HISTORY BECOMES A MODULE:
   📋 IT LIVED IN init.lua, IN FOUR SEPARATE PLACES: the file path in
      §0.2, load and save in §2, the dedupe buried inside the pasteboard
