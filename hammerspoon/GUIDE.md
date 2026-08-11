@@ -1,6 +1,6 @@
 # Hammerspoon config — how the new design works
 
-Version 6.54.0. Keep this next to the config; it is the manual for the
+Version 6.55.0. Keep this next to the config; it is the manual for the
 structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ---
@@ -9,10 +9,10 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,479 lines)
+├── init.lua          the orchestrator (3,443 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (5 files)
-├── modules/          one file per feature (25 files, ~11,200 lines)
+├── modules/          one file per feature (26 files, ~11,600 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
 └── tools/            hs-install.sh · hs-doctor.sh · run-tests.sh
 ```
@@ -219,7 +219,7 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Fourteen Lua suites, 1,603 checks, plus 35 more that run the Capture Pad's
+Sixteen Lua suites, 1,641 checks, plus 35 more that run the Capture Pad's
 page JavaScript under `node`. All of it runs with `lua5.4` on any
 machine — no Mac required, they stub the `hs` API:
 
@@ -237,14 +237,15 @@ tests/test_focus.lua         ⇪F, over 500 generated meeting days — the mic i
 tests/test_rename.lua        ⇪R, over 400 generated messy folders — no file is ever lost
 tests/test_workspaces.lua    ⇪W, 300 generated workspaces — the busy flag never sticks
 tests/test_notices.lua       the failure ledger — a notice is never lost, and never floods
-tests/test_integration.lua   🚨 all 25 modules loaded TOGETHER: shortcut, service and
+tests/test_clipboard.lua     ⇪V, and the writes that must never destroy the history file
+tests/test_integration.lua   🚨 all 26 modules loaded TOGETHER: shortcut, service and
                              cheat-sheet-slot collisions — the only suite that can
                              catch two modules quietly claiming the same key
 tests/test_pad_js.js         the Capture Pad's in-page JavaScript, actually executed
 ```
 
 **Run them with `tools/run-tests.sh`, not by hand.** It compiles every
-file first, runs all fifteen suites in order, and is the thing to trust
+file first, runs all sixteen suites in order, and is the thing to trust
 before copying anything to a Mac:
 
 ```bash

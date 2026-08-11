@@ -4,9 +4,47 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.54.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.55.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.55.0 — CLIPBOARD HISTORY BECOMES A MODULE:
+--   📋 IT LIVED IN init.lua, IN FOUR SEPARATE PLACES: the file path in
+--      §0.2, load and save in §2, the dedupe buried inside the pasteboard
+--      watcher in §3, and two choosers in §5. Every one of those lines ran
+--      BEFORE the module loader — the stretch where a single error takes
+--      the WHOLE config down instead of costing you one feature. It is now
+--      modules/clipboard_history.lua, on ⇪V and ⇪⇧V. init.lua lost 190
+--      lines and clipboard history gained somewhere to be tested.
+--   🔗 ONE PIECE STAYED BEHIND, DELIBERATELY. The pasteboard watcher is
+--      SHARED with image OCR: one timer, one changeCount, choosing between
+--      copied image files, a raw image and text. Splitting it would mean
+--      two timers polling the same counter and racing over which handled a
+--      change first. So the watcher stays and calls clipboard.add through
+--      the service registry — and if the module is ever switched off, it
+--      gets no provider, says so once, and OCR carries on.
+--   🚨 AND THE MOVE INTRODUCED A DATA-LOSS BUG, WHICH THE NEW TESTS CAUGHT
+--      BEFORE IT SHIPPED. Reading the file was deferred to warm() to keep
+--      a possible megabyte off the boot path — correct on its own, but it
+--      opened a two-second window in which a copy would call save() and
+--      write a ONE-ITEM file straight over the real history. warm() would
+--      then dutifully load that back, having destroyed everything. Copies
+--      made before the file is in are now HELD and re-applied on top of it
+--      afterwards, and nothing is written until the file has been read.
+--      That property is exactly why the move needed its own suite rather
+--      than being done quickly.
+--   🧪 THE SOURCE AUDIT BECAME A REAL TEST. 6.52.0 could only check from
+--      SOURCE that an edit copies to the clipboard and that the cache is
+--      written before the pasteboard, because the code sat in init.lua
+--      with nothing to drive it. The module can be run, so those are now
+--      assertions about behaviour — including the one that matters most:
+--      the watcher waking on our own write does NOT add a second row,
+--      because the dedupe lifts the edited entry instead of copying it.
+--   🧪 The stub had to learn to fail properly, too. hs.json.decode RAISES
+--      on malformed input; the first version of the test's stand-in
+--      quietly returned an empty table, so the "unreadable file is backed
+--      up" branch was never reached and a working guard looked untested
+--      when it was merely unexercised.
+--   🧪 1,641 checks across sixteen Lua suites.
 -- NEW IN 6.54.0 — NOTHING FAILS SILENTLY: THE NOTICE LEDGER (7g/7d/7e/6):
 --   🔔 ONE LEDGER, AND SURFACES THAT READ FROM IT. Every failure — a module
 --      that would not load, a runtime error, a failed shell hook — records
@@ -192,47 +230,9 @@
 --      fault in its own clock budget: when BOTH hooks hang the chain needs
 --      two full timeouts to unwind, and advancing only one stopped the
 --      clock mid-chain and reported a working module as stuck.
--- NEW IN 6.50.0 — THE PAD SWAPS LAYERS, AND A POINTER RING:
---   🔀 TOOLS MOVED TO THE PRIMARY HYPER KEY. 6.49.0 put windows on ⇪ + pad
---      and tools on ⇪⇧ + pad. That was the wrong trade and it is now the
---      other way round:
---         ⇪  + pad  →  TOOLS    focus, rename, grid, menu bar, links
---         ⇪⇧ + pad  →  WINDOWS  the 3×3 position map
---      The argument for the old order was that the window map deserved the
---      easier layer because it needs no memory. But the layer you press
---      twenty times a day should be the one without the extra modifier, and
---      that is the tools. The window map loses nothing by moving up one
---      modifier: its mnemonic is spatial — the key's position is the
---      window's position — not a fact about which modifiers are held.
---   🆓 SIX KEYS LEFT DELIBERATELY FREE on the tool layer — pad+ pad- pad*
---      pad/ padenter padclear — as the room for whatever comes next, with
---      a test asserting they stay unclaimed so the reserve does not quietly
---      get eaten.
---   🖱 THE MouseCircle SPOON, DONE NATIVELY. A ring flashes at the pointer
---      so you can find it on a wide desktop. Implemented as ~20 lines in
---      mouse_grid.lua rather than by adding SpoonInstall, which would mean
---      a second loading system running alongside the module loader, and a
---      network fetch on the boot path, for one circle. Same result, in
---      rebeccapurple as asked.
---      · 🅿️ BOUND TO NO KEY ON PURPOSE. macOS shake-to-grow already does
---        this, which is exactly why you had the Spoon disabled. It is
---        published as mouseGrid.locate, so it goes on a free pad key the
---        day you want it: numpad.actions["pad+"] = "mouseGrid.locate".
---      · Note the Spoon bound it to hyper+M, which in this config is
---        already Menu Bar Items — one more reason it did not simply drop in.
---      · The ring is CLICK-THROUGH. Without that it is a disc of glass over
---        whatever you were reaching for, for half a second. And a second
---        press REPLACES the first ring rather than stacking canvases that
---        each delete on their own schedule, which is how this leaks. Both
---        are tested, and the leak guard was mutation-checked by removing it
---        and watching the test fail.
---   🧪 1,496 checks. The swap broke six existing assertions, which is what
---      they were for — they encoded which layer was which. They now encode
---      the new arrangement, including that the arithmetic keys moved to the
---      window layer and that the tool layer's six free slots stay free.
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.54.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.55.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -474,7 +474,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.54.0"
+_G.configVersion = "6.55.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -753,9 +753,7 @@ end
 -- one file would mean OneDrive conflict copies). Existing files in
 -- ~/.hammerspoon are adopted on first boot; originals left in place.
 local historyFile   = logsDir .. "/asana_history-" .. hostTag .. ".json"
-local clipboardFile = logsDir .. "/clipboard_history-" .. hostTag .. ".json"
 adoptLegacyFile(historyFile,   hs.configdir .. "/asana_history.json")
-adoptLegacyFile(clipboardFile, hs.configdir .. "/clipboard_history.json")
 
 -- 💬 AUTO-COMMENT — this text is posted as a comment on every task you
 -- create with the Task Creator (⌃⌥⌘T). Set it to "" to disable.
@@ -1205,49 +1203,11 @@ local function formatDuration(seconds)
     return hrs .. "h " .. (mins % 60) .. "m"
 end
 
-local function loadClipboardHistoryIntoCache()
-    local f = io.open(clipboardFile, "r")
-    if not f then _G.clipboardCache = {} return end
-    local content = f:read("*a"); f:close()
-    local success, data = pcall(hs.json.decode, content)
-    if success and type(data) == "table" then
-        _G.clipboardCache = data
-        return
-    end
-    -- 6.15.2 FIX: this used to fall back to {} silently — and the VERY
-    -- NEXT save (any future edit or copy) would then overwrite the
-    -- broken file with that empty array, permanently losing whatever
-    -- was still in it. Back up the unreadable file first and say so
-    -- loudly, instead of quietly starting over.
-    _G.clipboardCache = {}
-    local backupPath = clipboardFile .. ".corrupt-" .. os.date("%Y%m%d-%H%M%S")
-    local bf = io.open(backupPath, "w")
-    if bf then bf:write(content); bf:close() end
-    hs.alert.show("⚠️ Clipboard history was unreadable — backed up, starting fresh (see Console)", 8)
-    print("🚨 Clipboard history JSON failed to parse — raw content backed up to " .. backupPath)
-end
-loadClipboardHistoryIntoCache()
-
--- Clipboard history is written on EVERY copy, so a failed write here
--- (OneDrive quit / Logs folder online-only) is the most likely place
--- to notice a storage problem — it warns once instead of silently
--- dropping history (see warnWriteFailed, §0.1).
-local function saveClipboardToDisk(data)
-    local body = hs.json.encode(data)
-    -- 6.15.2 FIX: verify before committing. If encode ever produces
-    -- something that doesn't round-trip, DON'T write it — that's what
-    -- silently corrupted the file in the first place, discovered only
-    -- much later (next reload) as "history wiped". Abort and warn now.
-    local ok, decoded = pcall(hs.json.decode, body)
-    if not ok or type(decoded) ~= "table" then
-        hs.alert.show("⚠️ Clipboard history NOT saved — bad encode, existing file left untouched (see Console)", 6)
-        print("🚨 saveClipboardToDisk: hs.json.encode produced unparseable JSON — write aborted")
-        return
-    end
-    local f = io.open(clipboardFile, "w")
-    if f then f:write(body); f:close()
-    else warnWriteFailed("clipboard history") end
-end
+-- 📋 CLIPBOARD HISTORY MOVED OUT in 6.55.0 — loading, saving, the
+-- corrupt-file backup and the verify-before-write guard all now live in
+-- modules/clipboard_history.lua. They used to run here, before the
+-- module loader, where an error took the whole config down instead of
+-- costing one feature.
 
 -- OCR Daemon (Apple Shortcut Integrated)
 -- Boot check: does THIS Mac's Shortcuts app have the OCR shortcut?
@@ -1542,8 +1502,6 @@ end
 -- moves to the front (fresh timestamp) instead of occupying two slots.
 -- Items over ~1 MB are left out of history (they'd bloat the JSON file
 -- that gets rewritten on every copy) — a console line notes the skip.
-local clipboardHistoryMax  = 1000
-local clipboardMaxItemSize = 1000000  -- ~1 MB per item
 
 local lastChangeCount = hs.pasteboard.changeCount()
 _G.clipboardTimer = hs.timer.doEvery(0.5, function()
@@ -1566,21 +1524,15 @@ _G.clipboardTimer = hs.timer.doEvery(0.5, function()
         else
             local text = hs.pasteboard.readString()
             if text and #text > 0 then
-                if #text > clipboardMaxItemSize then
-                    print("📋 Clipboard item not saved to history (over 1 MB)")
-                elseif not _G.clipboardCache[1] or _G.clipboardCache[1].text ~= text then
-                    -- Dedupe: same text anywhere in history moves to front
-                    for i = #_G.clipboardCache, 1, -1 do
-                        if _G.clipboardCache[i].text == text then
-                            table.remove(_G.clipboardCache, i)
-                        end
-                    end
-                    table.insert(_G.clipboardCache, 1, { date = os.date("%b %d %H:%M"), text = text })
-                    if #_G.clipboardCache > clipboardHistoryMax then
-                        table.remove(_G.clipboardCache)
-                    end
-                    saveClipboardToDisk(_G.clipboardCache)
-                end
+                -- 6.55.0 — the history itself now lives in
+                -- modules/clipboard_history.lua. THIS WATCHER STAYED
+                -- BEHIND on purpose: it is shared with image OCR, one
+                -- timer reading one changeCount and choosing between
+                -- copied image files, a raw image, and text. Two timers
+                -- polling the same counter would race over which handled
+                -- a change first. A missing provider prints once and
+                -- OCR carries on.
+                _G.service.call("clipboard.add", text)
             end
         end
         end  -- closes the copied-image-files branch (6.11.0)
@@ -1893,45 +1845,6 @@ end):placeholderText("Search OCR Logs...")
 -- Clipboard chooser — searches the FULL text of every saved item, not
 -- just the 100 characters a row displays. Matches are newest first,
 -- capped at 250 rows for snappy typing (narrow the search for more).
-_G.choosers.clipboard = hs.chooser.new(function(c)
-    if c and c.rawText then
-        hs.pasteboard.setContents(c.rawText)
-        hs.alert.show("📋 Sync")
-    end
-end):placeholderText("Search Clipboard History...")
-
-local function renderClipboardChoices(query)
-    local q = (query or ""):lower():match("^%s*(.-)%s*$")
-    local choices = {}
-    for _, item in ipairs(_G.clipboardCache) do
-        if q == "" or item.text:lower():find(q, 1, true) then
-            local oneLine = item.text:gsub("%s+", " ")
-            table.insert(choices, {
-                text    = oneLine:sub(1, 100),
-                subText = item.date or "",
-                rawText = item.text,
-            })
-            if #choices >= 250 then break end
-        end
-    end
-    if #choices == 0 then
-        table.insert(choices, {
-            text    = (q == "") and "Clipboard history is empty" or ("No matches for \"" .. q .. "\""),
-            subText = "Searches the full text of every saved item",
-        })
-    end
-    _G.choosers.clipboard:choices(choices)
-end
-
-_G.choosers.clipboard:queryChangedCallback(function(query)
-    local ok, err = pcall(renderClipboardChoices, query)
-    if not ok then
-        print("🚨 Clipboard chooser render error: " .. tostring(err))
-        _G.choosers.clipboard:choices({
-            { text = "⚠️ Display error — details in Hammerspoon Console", subText = tostring(err) },
-        })
-    end
-end)
 
 -- =====================================================================
 -- TASK HISTORY — Persistent 30-day store (OneDrive, machine-tagged)
@@ -2470,123 +2383,12 @@ hs.hotkey.bind(coreKeys.formatAsanaURL[1], coreKeys.formatAsanaURL[2], function(
     end
 end)
 
--- Clipboard history
-hs.hotkey.bind(coreKeys.clipboardHistory[1], coreKeys.clipboardHistory[2], function()
-    renderClipboardChoices("")
-    showPopup(_G.choosers.clipboard)
-end)
 
--- ⌘⌃⌥⇧V — EDIT or DELETE a clipboard history entry.
--- 6.15.3 FIX: this originally matched by putting the entry TABLE
--- itself on the choice and comparing it by == inside the callback —
--- but hs.chooser round-trips every choice through its Objective-C
--- bridge, and what the completion callback receives back is a FRESHLY
--- REBUILT Lua table, never the same object you handed it. Table
--- identity can never survive that trip, so the match always failed
--- ("That entry is gone" even though nothing had changed) — exactly
--- why the OCR edit picker (which passes a plain NUMBER index — a
--- VALUE, which the bridge preserves correctly) worked and this didn't.
--- Same snapshot+index pattern as OCR now: clipboardEditSnapshot is
--- built fresh each time the picker opens, keyed by each entry's
--- position in _G.clipboardCache at that moment; the callback looks up
--- clipboardEditSnapshot[choice.idx] to get the TRUE entry object (an
--- ordinary Lua reference from OUR OWN code, never bridged), then
--- re-finds that object's CURRENT position in the live cache before
--- mutating — still safe if a new copy shifted every index in between.
--- Wrapped in do...end (same reasoning as the OCR edit picker above):
--- these locals are needed nowhere else, so scoping them here frees
--- their slots for the rest of the file.
-do
-
-local clipboardEditSnapshot = {}
-
-_G.choosers.clipboardEdit = hs.chooser.new(function(choice)
-    if not (choice and choice.idx) then return end
-    local entry = clipboardEditSnapshot[choice.idx]
-    if not entry then return end
-
-    local idx = nil
-    for i, v in ipairs(_G.clipboardCache) do
-        if v == entry then idx = i break end
-    end
-    if not idx then
-        hs.alert.show("⚠️ That entry is gone — history changed since this picker opened")
-        return
-    end
-
-    local button, text = hs.dialog.textPrompt(
-        "✏️ Edit clipboard entry (" .. (entry.date or "") .. ")",
-        "Edit the text below.\nSave with it EMPTY to delete this entry.",
-        entry.text, "Save", "Cancel")
-    if button ~= "Save" then return end
-
-    if not text or text:match("^%s*$") then
-        table.remove(_G.clipboardCache, idx)
-        saveClipboardToDisk(_G.clipboardCache)
-        hs.alert.show("🗑 Clipboard entry deleted")
-    else
-        _G.clipboardCache[idx].text = text
-        saveClipboardToDisk(_G.clipboardCache)
-        -- 6.52.0 — THE EDITED TEXT GOES ONTO THE CLIPBOARD. Editing an
-        -- entry and then having to copy it again was the wrong shape: you
-        -- edited it because you want to paste it.
-        --
-        -- ⚠️ AND THIS IS WHY NO DUPLICATE APPEARS. Setting the pasteboard
-        -- wakes the clipboard watcher, which would normally file a brand
-        -- new entry — leaving the same text twice, once edited in place
-        -- and once fresh at the top. It does not, because the watcher's
-        -- dedupe pass first REMOVES every entry whose text matches what
-        -- just arrived, and this entry now carries exactly that text. So
-        -- it is lifted to the front rather than copied. The order above
-        -- is load-bearing: the cache has to hold the new text BEFORE the
-        -- pasteboard does.
-        pcall(function() hs.pasteboard.setContents(text) end)
-        hs.alert.show("✏️ Clipboard entry updated — and copied")
-    end
-end)
-_G.choosers.clipboardEdit:placeholderText("Search clipboard history to edit or delete — Enter opens a row")
-
-local function renderClipboardEditChoices(query)
-    local q = (query or ""):lower():match("^%s*(.-)%s*$")
-    clipboardEditSnapshot = {}
-    local choices = {}
-    for i, item in ipairs(_G.clipboardCache) do
-        if q == "" or item.text:lower():find(q, 1, true) then
-            clipboardEditSnapshot[i] = item
-            local oneLine = item.text:gsub("%s+", " ")
-            table.insert(choices, {
-                text    = oneLine:sub(1, 100),
-                subText = (item.date or "") .. "  ·  Enter to edit or delete",
-                idx     = i,
-            })
-            if #choices >= 250 then break end
-        end
-    end
-    if #choices == 0 then
-        table.insert(choices, {
-            text    = (q == "") and "Clipboard history is empty" or ("No matches for \"" .. q .. "\""),
-            subText = "",
-        })
-    end
-    _G.choosers.clipboardEdit:choices(choices)
-end
-
-_G.choosers.clipboardEdit:queryChangedCallback(function(query)
-    local ok, err = pcall(renderClipboardEditChoices, query)
-    if not ok then
-        print("🚨 Clipboard edit render error: " .. tostring(err))
-        _G.choosers.clipboardEdit:choices({
-            { text = "⚠️ Display error — details in Hammerspoon Console", subText = tostring(err) },
-        })
-    end
-end)
-
-hs.hotkey.bind({"cmd", "ctrl", "alt", "shift"}, "V", function()
-    renderClipboardEditChoices("")
-    showPopup(_G.choosers.clipboardEdit)
-end)
-
-end -- do...end (⌘⌃⌥⇧V clipboard edit/delete picker locals)
+-- 📋 THE CLIPBOARD EDIT PICKER MOVED OUT in 6.55.0, to
+-- modules/clipboard_history.lua — including the snapshot+index pattern
+-- that makes it work at all (hs.chooser rebuilds every choice through
+-- its Objective-C bridge, so table identity cannot survive the trip and
+-- only a NUMBER comes back intact).
 
 -- Task creator — reopens with your unsent DRAFT restored (6.10.1).
 -- Previously this line wiped the box with query("") on every open,
@@ -3269,6 +3071,8 @@ _G.moduleProfiles = {
             "menubar_items",
             -- 6.48.0
             "focus_mode", "bulk_rename",
+            -- 6.55.0
+            "clipboard_history",
             -- 6.51.0
             "workspaces",
         },
@@ -3298,6 +3102,8 @@ _G.moduleProfiles = {
             "menubar_items",
             -- 6.48.0
             "focus_mode", "bulk_rename",
+            -- 6.55.0
+            "clipboard_history",
             -- 6.51.0
             "workspaces",
         },
@@ -3331,6 +3137,8 @@ _G.moduleProfiles = {
             "menubar_items",
             -- 6.48.0
             "focus_mode", "bulk_rename",
+            -- 6.55.0
+            "clipboard_history",
             -- 6.51.0
             "workspaces",
         },
@@ -3551,7 +3359,7 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.54.0"
+    local currentVersion = "6.55.0"
     local currentDate    = "08-08-26"
     -- One line. The full entry for every version lives in CHANGELOG.md
     -- beside this file — which is also why prose no longer sits in a

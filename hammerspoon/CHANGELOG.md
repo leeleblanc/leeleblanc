@@ -4,6 +4,45 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.55.0 — CLIPBOARD HISTORY BECOMES A MODULE:
+  📋 IT LIVED IN init.lua, IN FOUR SEPARATE PLACES: the file path in
+     §0.2, load and save in §2, the dedupe buried inside the pasteboard
+     watcher in §3, and two choosers in §5. Every one of those lines ran
+     BEFORE the module loader — the stretch where a single error takes
+     the WHOLE config down instead of costing you one feature. It is now
+     modules/clipboard_history.lua, on ⇪V and ⇪⇧V. init.lua lost 190
+     lines and clipboard history gained somewhere to be tested.
+  🔗 ONE PIECE STAYED BEHIND, DELIBERATELY. The pasteboard watcher is
+     SHARED with image OCR: one timer, one changeCount, choosing between
+     copied image files, a raw image and text. Splitting it would mean
+     two timers polling the same counter and racing over which handled a
+     change first. So the watcher stays and calls clipboard.add through
+     the service registry — and if the module is ever switched off, it
+     gets no provider, says so once, and OCR carries on.
+  🚨 AND THE MOVE INTRODUCED A DATA-LOSS BUG, WHICH THE NEW TESTS CAUGHT
+     BEFORE IT SHIPPED. Reading the file was deferred to warm() to keep
+     a possible megabyte off the boot path — correct on its own, but it
+     opened a two-second window in which a copy would call save() and
+     write a ONE-ITEM file straight over the real history. warm() would
+     then dutifully load that back, having destroyed everything. Copies
+     made before the file is in are now HELD and re-applied on top of it
+     afterwards, and nothing is written until the file has been read.
+     That property is exactly why the move needed its own suite rather
+     than being done quickly.
+  🧪 THE SOURCE AUDIT BECAME A REAL TEST. 6.52.0 could only check from
+     SOURCE that an edit copies to the clipboard and that the cache is
+     written before the pasteboard, because the code sat in init.lua
+     with nothing to drive it. The module can be run, so those are now
+     assertions about behaviour — including the one that matters most:
+     the watcher waking on our own write does NOT add a second row,
+     because the dedupe lifts the edited entry instead of copying it.
+  🧪 The stub had to learn to fail properly, too. hs.json.decode RAISES
+     on malformed input; the first version of the test's stand-in
+     quietly returned an empty table, so the "unreadable file is backed
+     up" branch was never reached and a working guard looked untested
+     when it was merely unexercised.
+  🧪 1,641 checks across sixteen Lua suites.
+
 NEW IN 6.54.0 — NOTHING FAILS SILENTLY: THE NOTICE LEDGER (7g/7d/7e/6):
   🔔 ONE LEDGER, AND SURFACES THAT READ FROM IT. Every failure — a module
      that would not load, a runtime error, a failed shell hook — records

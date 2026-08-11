@@ -92,7 +92,7 @@ else
     [ "$n" = "init" ] && note="⚠️ STRAY init.lua — should NOT be in modules/"
     printf "   %-22s %7s  %-16s %s\n" "$n" "$b" "$m" "$note"
   done
-  echo "   count: $(ls -1 "$HS/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 25)"
+  echo "   count: $(ls -1 "$HS/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 26)"
 fi
 
 # ---- 4b. core ---------------------------------------------------------
@@ -226,6 +226,9 @@ check_marker bulk_rename     "__brtmp"            6.48.0
 # A workspaces.lua without pruneStore trusts Space IDs across logouts,
 # which silently applies the wrong workspace to the wrong desktop.
 check_marker workspaces      "pruneStore"         6.51.0
+# A clipboard_history.lua without the preload guard writes a one-item
+# file over the real history if you copy during the first seconds of boot.
+check_marker clipboard_history "clip.preload"       6.55.0
 
 # ---- 6. the hyper key remap ------------------------------------------
 echo
