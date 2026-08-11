@@ -4,9 +4,55 @@
 -- =====================================================================
 -- 08-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.59.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.60.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.60.0 — THE APP MONITOR PING BECOMES A SEQUENCE, AND GETS TESTED:
+--   🔊 ONE SECOND, AND A DIFFERENT SOUND EVERY TIME. The waiting popup
+--      now pings every 1s instead of 2s, and each ping takes the next
+--      entry from a ten-name list: Hero, Glass, Sosumi, Submarine, Basso,
+--      Ping, Funk, Morse, Bottle, Blow. Ordered loudest-first so the
+--      opening seconds are the ones most likely to reach another room.
+--      Ten sounds at one second each is the ten seconds LL asked for.
+--   🔁 AND THEN IT WRAPS, RATHER THAN ENDING. This is the one real design
+--      decision in the change and it is deliberate: the popup waits
+--      INDEFINITELY (6.16.21), so a sound sequence that simply ran out
+--      would hand back the exact "you were away, so you never found out"
+--      failure that removing the auto-dismiss existed to prevent. After
+--      ten seconds the list starts again.
+--      · WORTH KNOWING: this is now a once-per-second sound that can run
+--        for hours if a Mac is left alone. That is louder than the old
+--        2s single ping by design, but if it proves too much, the
+--        interval and the list are two constants at the top of
+--        modules/app_watcher.lua and either can be tuned alone.
+--   🧯 A MISSPELLED NAME NOW COSTS ONE SOUND, NOT ALL OF THEM. Names are
+--      resolved once when the popup opens and any that fail are dropped,
+--      so the rest of the sequence carries on. The old single-constant
+--      version turned one typo into total silence. If EVERY name is
+--      wrong you still get a silent popup with nothing explaining why —
+--      the known gap, still not wired into the notice ledger, still
+--      recorded here rather than quietly forgotten.
+--   ⏱ RESOLVED ONCE, NOT ON EVERY TICK. hs.sound.getByName goes out to
+--      the system; calling it inside a 1s timer that may run for hours
+--      would be thousands of lookups for an answer that cannot change.
+--   🧪 AND THE PART THAT WAS MISSING: NOTHING IN THE SUITE HAD EVER
+--      EXECUTED THIS CODE. As one constant and one unconditional play()
+--      there was arguably nothing to test; as a resolve-and-filter loop
+--      plus a wrapping index there certainly is. tests/test_app_watcher
+--      drives the REAL module through a stub hs — real setup(), real
+--      watcher callback, real timer function — rather than re-checking a
+--      copy of the logic, and asserts the first sound is immediate, that
+--      ten seconds gives ten DIFFERENT sounds, that ping 11 wraps, that
+--      the interval is 1s, that one bad name is survivable, and that an
+--      entirely bad list fails silent rather than throwing.
+--      · 27 checks, all six mutations caught: wrap removed, off-by-one,
+--        interval reverted, bad name aborting the list, list reordered,
+--        and the initial ping dropped.
+--   🧪 1,663 checks across sixteen Lua suites, plus 35 executed in the
+--      Capture Pad page JavaScript.
+--      · The first run of it printed NOTHING and looked like a pass —
+--        the harness silences print() for the module and swallowed its
+--        own output with it. Test output goes through io.write now.
 -- NEW IN 6.59.0 — TWO SMALL THINGS, BOTH OF THEM "IT WAS LYING TO YOU":
 --   🔊 APP MONITOR NOW SOUNDS "Hero" INSTEAD OF "Ping". Purely LL's
 --      choice: the popup waits indefinitely and pings every 2 seconds
@@ -154,46 +200,8 @@
 --      keys are still bound afterwards, and that the sheet reopens
 --      cleanly. Restoring the unprotected show() fails it.
 --   🧪 1,644 checks across sixteen Lua suites.
--- NEW IN 6.55.0 — CLIPBOARD HISTORY BECOMES A MODULE:
---   📋 IT LIVED IN init.lua, IN FOUR SEPARATE PLACES: the file path in
---      §0.2, load and save in §2, the dedupe buried inside the pasteboard
---      watcher in §3, and two choosers in §5. Every one of those lines ran
---      BEFORE the module loader — the stretch where a single error takes
---      the WHOLE config down instead of costing you one feature. It is now
---      modules/clipboard_history.lua, on ⇪V and ⇪⇧V. init.lua lost 190
---      lines and clipboard history gained somewhere to be tested.
---   🔗 ONE PIECE STAYED BEHIND, DELIBERATELY. The pasteboard watcher is
---      SHARED with image OCR: one timer, one changeCount, choosing between
---      copied image files, a raw image and text. Splitting it would mean
---      two timers polling the same counter and racing over which handled a
---      change first. So the watcher stays and calls clipboard.add through
---      the service registry — and if the module is ever switched off, it
---      gets no provider, says so once, and OCR carries on.
---   🚨 AND THE MOVE INTRODUCED A DATA-LOSS BUG, WHICH THE NEW TESTS CAUGHT
---      BEFORE IT SHIPPED. Reading the file was deferred to warm() to keep
---      a possible megabyte off the boot path — correct on its own, but it
---      opened a two-second window in which a copy would call save() and
---      write a ONE-ITEM file straight over the real history. warm() would
---      then dutifully load that back, having destroyed everything. Copies
---      made before the file is in are now HELD and re-applied on top of it
---      afterwards, and nothing is written until the file has been read.
---      That property is exactly why the move needed its own suite rather
---      than being done quickly.
---   🧪 THE SOURCE AUDIT BECAME A REAL TEST. 6.52.0 could only check from
---      SOURCE that an edit copies to the clipboard and that the cache is
---      written before the pasteboard, because the code sat in init.lua
---      with nothing to drive it. The module can be run, so those are now
---      assertions about behaviour — including the one that matters most:
---      the watcher waking on our own write does NOT add a second row,
---      because the dedupe lifts the edited entry instead of copying it.
---   🧪 The stub had to learn to fail properly, too. hs.json.decode RAISES
---      on malformed input; the first version of the test's stand-in
---      quietly returned an empty table, so the "unreadable file is backed
---      up" branch was never reached and a working guard looked untested
---      when it was merely unexercised.
---   🧪 1,641 checks across sixteen Lua suites.
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.59.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.60.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -435,7 +443,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.59.0"
+_G.configVersion = "6.60.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -3389,14 +3397,14 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.59.0"
+    local currentVersion = "6.60.0"
     local currentDate    = "08-11-26"
     -- One line. The full entry for every version lives in CHANGELOG.md
     -- beside this file — which is also why prose no longer sits in a
     -- Lua string here: the work-Mac safety scan reads string literals
     -- as code, and a paragraph describing "no sudo, no launchctl"
     -- failed the very check it was describing.
-    local currentNotes   = "App Monitor now sounds Hero instead of Ping - the popup waits indefinitely and pings every two seconds until answered, so the sound has to carry from away-from-the-desk, and Ping does not always. One constant drives both the first alert and the repeating ping so they cannot drift apart. Noted in the file, and here: a misspelled sound name yields no sound and no error, because the lookup is pcall-wrapped; the fourteen valid names are now listed beside the setting. Also fixed hs-doctor calling a WORKING hyper key unexpected - it grepped the Caps Lock HID usage as hex, but hidutil returns decimal on a real Mac, so a correct remap never matched and the error branch dumped the raw property list once per HID device. Both forms match now, and a genuinely wrong mapping prints unique pairs instead of a hundred repeats. Fixture tested five ways. See CHANGELOG.md for the full entry."
+    local currentNotes   = "App Monitor ping is now every ONE second with a DIFFERENT sound each time - ten of them (Hero, Glass, Sosumi, Submarine, Basso, Ping, Funk, Morse, Bottle, Blow), loudest first, which is ten seconds of varied alert. It then WRAPS rather than ending, because the popup waits indefinitely and a sequence that ran out would hand back the exact away-from-the-desk failure that removing the auto-dismiss existed to prevent. A misspelled name now costs one sound instead of all of them, since names are resolved once when the popup opens and failures are dropped. Names are resolved once rather than on every tick - a one-second timer running for hours would otherwise be thousands of system lookups for an answer that cannot change. New suite tests/test_app_watcher drives the real module and covers this path, which nothing had ever executed before: 27 checks, all six mutations caught. Previous 6.59.0 notes follow. App Monitor sounded Hero instead of Ping - the popup waits indefinitely and pings every two seconds until answered, so the sound has to carry from away-from-the-desk, and Ping does not always. One constant drives both the first alert and the repeating ping so they cannot drift apart. Noted in the file, and here: a misspelled sound name yields no sound and no error, because the lookup is pcall-wrapped; the fourteen valid names are now listed beside the setting. Also fixed hs-doctor calling a WORKING hyper key unexpected - it grepped the Caps Lock HID usage as hex, but hidutil returns decimal on a real Mac, so a correct remap never matched and the error branch dumped the raw property list once per HID device. Both forms match now, and a genuinely wrong mapping prints unique pairs instead of a hundred repeats. Fixture tested five ways. See CHANGELOG.md for the full entry."
 
     -- Only append if this version isn't already in the file
     local found = false

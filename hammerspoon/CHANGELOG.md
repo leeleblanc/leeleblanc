@@ -4,6 +4,70 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.60.0 — THE APP MONITOR PING BECOMES A SEQUENCE, AND GETS TESTED:
+  🔊 ONE SECOND, AND A DIFFERENT SOUND EVERY TIME. The waiting popup now
+     pings every 1s instead of 2s, and each ping takes the next entry
+     from a ten-name list: Hero, Glass, Sosumi, Submarine, Basso, Ping,
+     Funk, Morse, Bottle, Blow. Ordered loudest-first so the opening
+     seconds are the ones most likely to reach another room. Ten sounds
+     at one second each is the ten seconds LL asked for.
+  🔁 AND THEN IT WRAPS, RATHER THAN ENDING. This is the one real design
+     decision in the change, and it is deliberate. The popup has waited
+     INDEFINITELY since 6.16.21 — no auto-dismiss — precisely so that
+     being away from the desk cannot let a closed app go unnoticed. A
+     sound sequence that simply ran out after ten seconds would hand
+     that failure straight back: the popup would still be there, but
+     nothing would be calling you to it. So after ten seconds the list
+     starts again, and the only thing that ever stops it is answering.
+  🔉 WORTH KNOWING, SINCE IT IS A REAL TRADE: this is now a once-per-
+     second sound that can run for hours if a Mac is left alone. Louder
+     than the old 2s single ping by design. If it proves too much, the
+     interval and the list are two separate constants at the top of
+     modules/app_watcher.lua and either can be tuned without touching
+     the other — a longer interval keeps the variety, a shorter list
+     keeps the urgency.
+  🧯 A MISSPELLED NAME NOW COSTS ONE SOUND, NOT ALL OF THEM. Every name
+     is resolved once when the popup opens, and any that fail to resolve
+     are dropped there rather than re-checked forever; the sequence
+     closes the gap and carries on. The old single-constant version
+     turned one typo into total silence.
+  ⚠️ THE KNOWN GAP IS UNCHANGED AND STILL RECORDED: if EVERY name is
+     wrong you get a silent popup and nothing explains why. That is the
+     class of silent failure the notice ledger exists to abolish;
+     app_watcher predates it and wiring it in was offered and declined.
+     Now pinned by a test, so the behaviour is at least described rather
+     than merely happening.
+  ⏱ RESOLVED ONCE, NOT ON EVERY TICK. hs.sound.getByName goes out to the
+     system. Calling it inside a one-second timer that may run for hours
+     would be thousands of lookups for an answer that cannot change.
+  🧪 AND THE PART THAT WAS MISSING: NOTHING IN THE SUITE HAD EVER
+     EXECUTED THIS CODE. As one constant and one unconditional play()
+     there was arguably nothing to test. As a resolve-and-filter loop
+     plus a wrapping index there certainly is — an off-by-one that skips
+     the first sound, a wrap that throws when the list runs out, and a
+     resolution failure that takes the sequence down with it are all
+     things this shape can now get wrong.
+  🧪 tests/test_app_watcher DRIVES THE REAL MODULE through a stub hs —
+     real setup(), real application-watcher callback, real timer
+     function — rather than re-implementing the sequence and checking a
+     copy of it. That distinction is not pedantry here: this config has
+     already shipped a suite that passed while the real code was broken.
+     27 checks: the first sound is immediate, ten seconds gives ten
+     DIFFERENT sounds in the configured order, ping 11 wraps and ping 21
+     wraps again, the interval is 1s, one bad name is survivable, and an
+     entirely bad list fails silent rather than throwing.
+  🔬 ALL SIX MUTATIONS CAUGHT: wrap removed, off-by-one on the index,
+     interval reverted to 2s, a bad name aborting the whole list, the
+     list reordered, and the initial pre-timer ping dropped.
+  🧪 1,663 checks across sixteen Lua suites, plus 35 executed in the
+     Capture Pad page JavaScript — 1,698 in total, counted from the
+     runner's own output rather than added up by hand.
+  🙈 AND ONE MORE INSTRUMENTATION BUG, LOGGED BECAUSE IT IS THE SAME
+     FAMILY AS THE OTHERS: the first run of the new suite printed
+     NOTHING and looked like a pass. The harness silences print() while
+     the module runs, and swallowed its own output along with it. Test
+     output goes through io.write now.
+
 NEW IN 6.59.0 — TWO SMALL THINGS, BOTH OF THEM "IT WAS LYING TO YOU":
   🔊 APP MONITOR NOW SOUNDS "Hero" INSTEAD OF "Ping". Purely LL's
      choice, and the reasoning is worth keeping: since 6.16.21 the

@@ -61,18 +61,33 @@ function M.setup(core)
     -- 6.16.21: no more auto-dismiss — if you're away when an app quits, a
     -- popup that gives up after 30s means you'd never know. It now stays
     -- up, pinging gently, until you actually respond (a button, or Esc).
-    -- TO CHANGE THE SOUND: edit the name below, save, reload (⇪R). That is
-    -- the whole edit — this one constant drives BOTH the first alert and
-    -- the repeating ping, so they can never drift apart.
+    -- TO CHANGE THE SOUNDS: edit the list below, save, reload (⇪R). That is
+    -- the whole edit — this one list drives BOTH the first alert and every
+    -- ping after it, so they can never drift apart.
     -- Valid names are the built-in macOS sounds in /System/Library/Sounds:
     --   gentlest → Tink · Purr · Pop · Frog
     --   middle   → Ping · Bottle · Blow · Morse · Funk
     --   loudest  → Glass · Hero · Sosumi · Basso · Submarine
-    -- ⚠️ CASE-SENSITIVE, and a name that does not exist means NO SOUND AT
-    --    ALL rather than an error (see the pcall in appMonitorShowNext). If you
-    --    change this and hear nothing, the spelling is the first suspect.
-    local appMonitorSoundName      = "Hero"  -- 6.59.0: was "Ping" — Hero carries further when LL is away from the desk
-    local appMonitorPingInterval   = 2       -- seconds between pings while waiting
+    -- ⚠️ CASE-SENSITIVE. A name that does not exist is SKIPPED rather than
+    --    erroring (see appMonitorShowNext) — so one typo costs you that one
+    --    sound and the rest of the sequence carries on. If EVERY name is
+    --    wrong you get a silent popup and nothing says why, so if you swap
+    --    the whole list and hear nothing, spelling is the first suspect.
+    --
+    -- 6.60.0 — A DIFFERENT SOUND ON EVERY PING. Each ping takes the next
+    -- entry and WRAPS at the end, so at one-second intervals this is ten
+    -- seconds of varied alert that then starts over. It restarts rather
+    -- than falling silent on purpose: the popup waits indefinitely (see
+    -- 6.16.21 above), and a sequence that ends would quietly reintroduce
+    -- the exact "you were away, so you never found out" failure that the
+    -- no-auto-dismiss design exists to prevent.
+    -- Ordered loudest-first so the opening seconds are the ones most
+    -- likely to reach you from another room.
+    local appMonitorSounds = {
+        "Hero", "Glass", "Sosumi", "Submarine", "Basso",
+        "Ping", "Funk", "Morse", "Bottle", "Blow",
+    }
+    local appMonitorPingInterval   = 1       -- seconds between pings while waiting
 
     local appMonitorQueue   = {}   -- apps waiting their turn if several close at once
     local appMonitorCurrent = nil  -- app the popup is currently asking about
@@ -165,18 +180,37 @@ function M.setup(core)
         local width = f.w * (pct / 100)
         _G.appMonitorChooser:show(hs.geometry.point(f.x + (f.w - width) / 2, f.y + f.h * 0.35))
 
-        -- Audible ping now, then repeating every appMonitorPingInterval
-        -- seconds INDEFINITELY — no auto-dismiss anymore, so this keeps
-        -- gently sounding until you actually respond, even if that's hours
-        -- later. Stopped only by appMonitorStopTimers (called from
-        -- appMonitorFinish, which only runs on a button press or Esc).
-        local sound = nil
-        pcall(function() sound = hs.sound.getByName(appMonitorSoundName) end)
-        if sound then
-            pcall(function() sound:play() end)
-            appMonitorPing = hs.timer.doEvery(appMonitorPingInterval, function()
-                pcall(function() sound:play() end)
-            end)
+        -- Audible ping now, then again every appMonitorPingInterval seconds
+        -- INDEFINITELY — no auto-dismiss anymore, so this keeps sounding
+        -- until you actually respond, even if that's hours later. Stopped
+        -- only by appMonitorStopTimers (called from appMonitorFinish, which
+        -- only runs on a button press or Esc).
+        --
+        -- Every name is resolved ONCE here, not on each tick: hs.sound
+        -- .getByName goes out to the system, and doing that inside a
+        -- one-second timer that may run for hours would be thousands of
+        -- lookups for an answer that cannot change. Names that fail to
+        -- resolve are dropped now rather than checked repeatedly later,
+        -- which is also what makes a single typo survivable.
+        local sounds = {}
+        for _, soundName in ipairs(appMonitorSounds) do
+            local resolved = nil
+            pcall(function() resolved = hs.sound.getByName(soundName) end)
+            if resolved then sounds[#sounds + 1] = resolved end
+        end
+
+        if #sounds > 0 then
+            -- Modulo, so the sequence wraps forever instead of running out.
+            -- Each tick uses a DIFFERENT sound object, which also means a
+            -- ping never cuts off the one before it the way replaying a
+            -- single object at short intervals would.
+            local nextSound = 0
+            local function ping()
+                nextSound = (nextSound % #sounds) + 1
+                pcall(function() sounds[nextSound]:play() end)
+            end
+            ping()
+            appMonitorPing = hs.timer.doEvery(appMonitorPingInterval, ping)
         end
     end
 
