@@ -4,9 +4,45 @@
 -- =====================================================================
 -- 08-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.57.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.58.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.58.0 — THE INSTALLER CAUGHT WHAT THE TEST SUITE MISSED:
+--   🚨 REAL INSTALL, REAL FAILURE, WORKING SAFETY NET. Running
+--      hs-install.sh for real (not --dry-run) failed verification on
+--      "core/notices-not-an-initialiser" and rolled itself back
+--      automatically — exactly the job that check exists to do. Nothing
+--      on the Mac broke; it landed back on 6.54.0, untouched, with an
+--      explicit "do NOT reload" so there was never a moment of doubt
+--      about what state it was in.
+--   🔍 THE BUG: core/notices.lua was written as a bare `return notices`
+--      table and loaded with a bare `chunk()` — every one of the other
+--      four core/ files is `return function(core) ... end`, called as
+--      `chunk()(coreTable)`. It happened to run fine either way, because
+--      nothing inside notices.lua ever reads `core` — but "happens to
+--      run" and "matches the shape the installer promises to verify" are
+--      different claims, and the installer checks the second one on
+--      purpose. It refused rather than trust a file that merely worked.
+--   🩹 THE FIX: notices.lua now returns `function(core) ... end` like its
+--      siblings. Its call site in init.lua passes `{}` rather than the
+--      usual per-machine table, because notices loads BEFORE hostTag and
+--      logsDir exist as locals — deliberately, so it can report a module
+--      that fails to load. Moving the load point later to hand it real
+--      values would undo the reason it loads first. An honest empty table
+--      beats reordering fragile boot code to make one argument non-empty.
+--   🕳 THE GAP THIS EXPOSES: NOTHING IN THE TEST SUITE HAD EVER CHECKED
+--      THIS SHAPE. dofile()-ing a core file in a test does not care what
+--      it returns, so four releases shipped with this bug and every one
+--      of them passed the full suite. The installer's independent verify
+--      step was the only thing that ever looked. Closed now: an audit
+--      reads every file in core/ from DISK (not a retyped list — the same
+--      fix applied to the stale MODS list a few releases back) and checks
+--      it is `return function(core)`; a second pass reads init.lua's own
+--      load sites and checks each one calls its chunk with an argument.
+--      Verified by reverting notices.lua to the broken shape and by
+--      reverting init.lua's call site to a bare chunk() — the suite
+--      catches each independently.
+--   🧪 1,663 checks across sixteen Lua suites.
 -- NEW IN 6.57.0 — THREE SHORTCUTS THAT WERE DYING SILENTLY, AND A LARGER PANEL:
 --   🚨 THE COLLISION test_integration NEVER CHECKED FOR. It loads all
 --      modules together and catches module-vs-module key clashes — but
@@ -177,45 +213,8 @@
 --      notice is never lost, never floods, that unknown Focus state means
 --      SHOW rather than hide, and that a clean boot stays quiet — each
 --      mutation-checked.
--- NEW IN 6.52.0 — TWO FIXES FOUND BY AUDITING init.lua:
---   📋 AN EDITED CLIPBOARD ENTRY IS NOW COPIED. You edit an entry because
---      you want to paste it, and the edit updated the stored history
---      without touching the pasteboard — so you had to go and copy it
---      again. Deleting still copies nothing, which is the asked-for split.
---      · NO DUPLICATE APPEARS, and the reason is worth recording. Setting
---        the pasteboard wakes the clipboard watcher, which would normally
---        file a brand new entry and leave the same text twice — once
---        edited in place, once fresh at the top. It does not, because the
---        watcher's dedupe pass first REMOVES every entry matching the text
---        that just arrived, and this entry now carries exactly that text,
---        so it is LIFTED to the front instead of copied. That makes the
---        ORDER load-bearing: the cache must hold the new text before the
---        pasteboard does, and a test asserts that ordering specifically.
---   🖥 THE CAPTURE PAD NOW OPENS OVER FULL-SCREEN APPS. It worked
---      "sometimes", and the sometimes was: which Hammerspoon window you
---      happened to open. LEVEL AND COLLECTION BEHAVIOUR ARE DIFFERENT
---      THINGS. Level decides z-order WITHIN a Space, and bringToFront(true)
---      already handled that — but a full-screen app is its OWN Space, and
---      whether a window may appear over one is governed entirely by
---      fullScreenAuxiliary. Every canvas popup here has set that since
---      6.20. The webview never did, so it was left behind on the desktop
---      Space, which looks exactly like "it opened but nothing appeared".
---   🧪 THE TEST STUB WAS PART OF THE BUG CLASS. capture_pad's call is
---      pcall'd, so when the webview stub lacked behaviorAsLabels the call
---      failed silently and any assertion would have passed while the real
---      module did nothing. The stub gained the method and a comment saying
---      why it is load-bearing. Both fixes were mutation-checked by removing
---      them and watching the tests fail.
---   🔍 AND THE AUDIT ITSELF, which prompted both: 3,077 of init.lua's
---      3,553 lines run BEFORE the module loader. Anything that throws in
---      that stretch takes the WHOLE config down rather than one feature —
---      so that is where fragility actually lives, and roughly 1,830 of
---      those lines (§3.12 hyper key 838, §6 Asana 387, §2 OCR/clipboard
---      341, §5 hotkey glue 263) are movable. Recorded here as the map for
---      the next release rather than done in a hurry alongside two fixes.
-
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.57.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.58.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -457,7 +456,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.57.0"
+_G.configVersion = "6.58.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -533,7 +532,14 @@ local notOK, notErr = pcall(function()
     local path = hs.configdir .. '/core/notices.lua'
     local chunk, loadErr = loadfile(path)
     if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
-    chunk()
+    -- 6.58.0 — chunk()(core), matching every other core/ file. This one
+    -- loads before hostTag/logsDir exist as locals (§0.1 has not run
+    -- yet) — moving the load point later to hand them over would undo
+    -- the whole point of loading notices this early, which is to be
+    -- able to report a module-load failure. So it gets an empty table:
+    -- honest about having nothing to offer yet, and still the same
+    -- shape every other core/ file expects to be called in.
+    chunk()({})
 end)
 if not notOK then
     print('⚠️ core/notices.lua failed to load — failures will still reach the '
@@ -3404,7 +3410,7 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.57.0"
+    local currentVersion = "6.58.0"
     local currentDate    = "08-08-26"
     -- One line. The full entry for every version lives in CHANGELOG.md
     -- beside this file — which is also why prose no longer sits in a

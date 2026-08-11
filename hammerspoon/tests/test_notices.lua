@@ -95,7 +95,12 @@ local function boot()
     CLOCK, ALERTS, NOTIFIES, TIMERS, printed = 1000, {}, {}, {}, {}
     FOCUS_ENGAGED, DND_FILE, NOTIFY_REFUSES = false, nil, false
     _G.diag.errs = {}
-    N = dofile(HS .. "/core/notices.lua")
+    -- 6.58.0 — dofile() now returns a function, not the table directly:
+    -- notices.lua matches the other core/ files' `return function(core)
+    -- ... end` shape, called by init.lua as chunk()(coreTable). Called
+    -- with {} here for the same reason init.lua does: this file has
+    -- nothing to offer notices.lua yet, and nothing in it is read.
+    N = dofile(HS .. "/core/notices.lua")({})
     return N
 end
 

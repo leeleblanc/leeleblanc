@@ -973,6 +973,53 @@ end
 table.sort(onDisk)
 check("core/ has files to check", #onDisk > 0, #onDisk)
 
+-- 🚨 6.58.0 — THE GAP THAT LET core/notices.lua SHIP BROKEN. Every one of
+-- these files is loaded by init.lua as `chunk()(coreTable)`, which means
+-- the file MUST `return function(core) ... end` — but nothing in this
+-- suite ever checked that shape, because dofile()-ing a core file
+-- directly in a test does not care what it returns. The only thing that
+-- caught it was tools/hs-install.sh's independent verify step, on a real
+-- install, after the fact. That is a real safety net doing its job, but
+-- a bug it alone catches is a bug this suite should have caught first.
+--
+-- Two checks, and they are read from the SAME two places the real
+-- failure came from: every file actually on disk in core/, and every
+-- chunk()(...) call site actually in init.lua — not a retyped list of
+-- either, for the same reason MODS above is read from disk now instead
+-- of hand-copied.
+for _, n in ipairs(onDisk) do
+  -- readAll is defined further down this file; inlined here rather than
+  -- reordering the suite around one check.
+  local body = ""
+  local f = realopen(HS .. "/core/" .. n .. ".lua", "r")
+  if f then body = f:read("*a") or ""; f:close() end
+  check("core/" .. n .. ".lua IS an initialiser — `return function(core)`, "
+        .. "the exact shape hs-install.sh verifies before trusting an "
+        .. "install", body:find("return function(core)", 1, true) ~= nil)
+end
+
+do
+  local codeOnly = {}
+  for line in initText:gmatch("[^\n]+") do
+    codeOnly[#codeOnly + 1] = line:match("^%s*%-%-") and "" or line
+  end
+  local initCode = table.concat(codeOnly, "\n")
+  for _, n in ipairs(onDisk) do
+    -- Find this file's own loadfile(path) call, then confirm the chunk
+    -- is CALLED WITH AN ARGUMENT close by — `chunk()(` for the normal
+    -- case, or `chunk()` immediately followed by `({` on the next call
+    -- for the multi-line table literals cheatsheet/capabilities use.
+    local siteAt = initCode:find("core/" .. n .. "%.lua")
+    if siteAt then
+      local window = initCode:sub(siteAt, siteAt + 400)
+      check("init.lua calls core/" .. n .. ".lua's chunk with an argument "
+            .. "— a bare chunk() silently discards whatever function(core) "
+            .. "expected to receive, exactly as core/notices.lua did",
+            window:find("chunk%(%)%(") ~= nil, n)
+    end
+  end
+end
+
 local function readAll(p)
   local f = realopen(p, "r"); if not f then return nil end
   local t = f:read("*a"); f:close(); return t

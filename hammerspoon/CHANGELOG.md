@@ -4,6 +4,43 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.58.0 — THE INSTALLER CAUGHT WHAT THE TEST SUITE MISSED:
+  🚨 REAL INSTALL, REAL FAILURE, WORKING SAFETY NET. Running
+     hs-install.sh for real (not --dry-run) failed verification on
+     "core/notices-not-an-initialiser" and rolled itself back
+     automatically — exactly the job that check exists to do. Nothing
+     on the Mac broke; it landed back on 6.54.0, untouched, with an
+     explicit "do NOT reload" so there was never a moment of doubt
+     about what state it was in.
+  🔍 THE BUG: core/notices.lua was written as a bare `return notices`
+     table and loaded with a bare `chunk()` — every one of the other
+     four core/ files is `return function(core) ... end`, called as
+     `chunk()(coreTable)`. It happened to run fine either way, because
+     nothing inside notices.lua ever reads `core` — but "happens to
+     run" and "matches the shape the installer promises to verify" are
+     different claims, and the installer checks the second one on
+     purpose. It refused rather than trust a file that merely worked.
+  🩹 THE FIX: notices.lua now returns `function(core) ... end` like its
+     siblings. Its call site in init.lua passes `{}` rather than the
+     usual per-machine table, because notices loads BEFORE hostTag and
+     logsDir exist as locals — deliberately, so it can report a module
+     that fails to load. Moving the load point later to hand it real
+     values would undo the reason it loads first. An honest empty table
+     beats reordering fragile boot code to make one argument non-empty.
+  🕳 THE GAP THIS EXPOSES: NOTHING IN THE TEST SUITE HAD EVER CHECKED
+     THIS SHAPE. dofile()-ing a core file in a test does not care what
+     it returns, so four releases shipped with this bug and every one
+     of them passed the full suite. The installer's independent verify
+     step was the only thing that ever looked. Closed now: an audit
+     reads every file in core/ from DISK (not a retyped list — the same
+     fix applied to the stale MODS list a few releases back) and checks
+     it is `return function(core)`; a second pass reads init.lua's own
+     load sites and checks each one calls its chunk with an argument.
+     Verified by reverting notices.lua to the broken shape and by
+     reverting init.lua's call site to a bare chunk() — the suite
+     catches each independently.
+  🧪 1,663 checks across sixteen Lua suites.
+
 NEW IN 6.57.0 — THREE SHORTCUTS THAT WERE DYING SILENTLY, AND A LARGER PANEL:
   🚨 THE COLLISION test_integration NEVER CHECKED FOR. It loads all
      modules together and catches module-vs-module key clashes — but

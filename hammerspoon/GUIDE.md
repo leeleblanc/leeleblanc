@@ -1,6 +1,6 @@
 # Hammerspoon config — how the new design works
 
-Version 6.57.0. Keep this next to the config; it is the manual for the
+Version 6.58.0. Keep this next to the config; it is the manual for the
 structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ---
@@ -219,7 +219,7 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Sixteen Lua suites, 1,655 checks, plus 35 more that run the Capture Pad's
+Sixteen Lua suites, 1,663 checks, plus 35 more that run the Capture Pad's
 page JavaScript under `node`. All of it runs with `lua5.4` on any
 machine — no Mac required, they stub the `hs` API:
 
