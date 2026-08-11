@@ -185,7 +185,11 @@ boot()
 check("the module returns name, order and a cheatsheet",
       M.name == "Focus Mode" and type(M.order) == "number"
       and type(M.cheatsheet) == "table")
-check("it claims ⇪F and ⇪⇧F", HYPER["|f"] ~= nil and HYPER["shift|f"] ~= nil)
+check("it claims ⇪Q and ⇪⇧Q — NOT ⇪F, which is the file tracker's key "
+      .. "via §0.4's migration map; claiming it silently killed a working "
+      .. "shortcut and cost a HYPER CONFLICT warning nobody was watching for",
+      HYPER["|q"] ~= nil and HYPER["shift|q"] ~= nil
+      and HYPER["|f"] == nil and HYPER["shift|f"] == nil)
 check("its order does not collide with bulk_rename (13.11)", M.order ~= 13.11)
 check("it publishes services rather than relying on globals",
       PROVIDED["focus.engage"] and PROVIDED["focus.disengage"]

@@ -65,6 +65,18 @@ return function(core)
     -- the section that added it. Everything §1.6 needs therefore hangs off
     -- one table. Do the same in any new section.
     local cheatSheet = {}
+    -- ✏️ PANEL SIZE. 6.57.0 — was a fixed 760 wide and up to 86% of the
+    -- screen tall. Both are now yours to set.
+    --
+    -- ⚠️ THE TRADE-OFF IS REAL AND WORTH KNOWING. WIDTH is free: a wider
+    -- column means fewer entries have to wrap onto continuation lines, so
+    -- 1024 actually shows MORE shortcuts than 760 did, not fewer. HEIGHT
+    -- is not free: at 30pt per row, 768 shows about 22 rows where 1194
+    -- showed 36. If you would rather see more at once, raise this — it is
+    -- clamped to the screen either way, so it can never open a panel
+    -- taller than the display it lands on.
+    cheatSheet.width     = 1024
+    cheatSheet.height    = 768
     cheatSheet.key       = "/"   -- toggle key; same mods as everything above
     cheatSheet.addKey    = "="   -- add-a-custom-entry key ("+" without shift)
 
@@ -468,7 +480,10 @@ return function(core)
         -- stays a panel instead of a wall on a 4K monitor, and shrunk to fit
         -- a laptop display. It never grows sideways — length goes downward
         -- and you scroll it.
-        local panelW   = math.max(360, math.min(760, sf.w * 0.55))
+        -- Clamped to the screen, never beyond it: a 1024-wide panel on a
+        -- 1280-wide laptop is fine, on a 900-wide one it would hang off.
+        local wantW    = cheatSheet.width  or 1024
+        local panelW   = math.max(360, math.min(wantW, sf.w * 0.90))
         local contentX = pad
         local contentW = panelW - pad * 2 - sbW - 10
 
@@ -555,7 +570,15 @@ return function(core)
         -- the height and scrolls.
         local contentTop = pad + titleH
         local chromeH    = contentTop + footerH + 8
-        local panelH     = math.min(sf.h * 0.86, chromeH + #lines * lineH)
+        -- ⚠️ THE 86% CEILING STAYS, and it is not decoration. The first
+        -- version of this clamped to sf.h - 40, which on a 1280x800
+        -- laptop produced a 760pt panel — 95% of the usable screen, a
+        -- wall rather than a panel, pressed against both edges. The
+        -- suite caught it. On a big display 768 is well under the
+        -- ceiling and wins; on a small one the ceiling wins. Neither
+        -- ever exceeds the screen.
+        local wantH      = math.min(cheatSheet.height or 768, sf.h * 0.86)
+        local panelH     = math.min(wantH, chromeH + #lines * lineH)
         local visible    = math.max(1, math.floor((panelH - chromeH) / lineH))
         -- Snap to a whole number of rows so there is never a half-row strip
         -- of dead space above the footer.

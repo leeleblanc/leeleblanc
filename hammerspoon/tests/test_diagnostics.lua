@@ -184,12 +184,19 @@ local function initLive(needle, plain)
 end
 -- The audit covers the MODULE FILES too, so a bug class cannot escape
 -- it simply by having been moved out of init.lua.
-local MODS = { "daily_backup", "app_peek", "window_switcher",
-               "window_arranger", "copy_on_select", "command_history",
-               "app_watcher", "file_tracker", "autocorrect", "activity_tracker",
-               "update_tracker", "asana_comments", "document_watcher",
-               "screen_veil", "mini_calendar", "quick_append",
-               "capture_pad", "numpad_layer" }
+-- ⚠️ READ FROM DISK, NOT RETYPED. A hand-copied list drifts the moment a
+-- module is added — this one sat at 18 of 26 files for several releases,
+-- so the audit below silently stopped covering a third of the config.
+-- init.lua's own default profile is the source of truth for what SHIPS;
+-- reading it is what test_integration already does for the same reason.
+local MODS = {}
+do
+  local f = realopen(HS .. "/init.lua", "r")
+  local src = f and f:read("*a") or ""
+  if f then f:close() end
+  local block = src:match('default%s*=%s*{%s*modules%s*=%s*{(.-)}')
+  for name in (block or ""):gmatch('"([%w_]+)"') do MODS[#MODS + 1] = name end
+end
 local moduleText = {}
 for _, m in ipairs(MODS) do
   local mf = realopen(HS .. "/modules/" .. m .. ".lua", "r")
@@ -307,6 +314,59 @@ check("no unprotected hs.json.decode on network replies",
 check("hs.window.filter is never CALLED (naming it in a changelog string is fine)",
   not liveCode("hs%%.window%%.filter%%.new") and not liveCode("window%%.filter%%.default"))
 check("no discarded timer objects", not liveCode("^%s*hs%.timer%.do"))
+
+-- 🚨 6.57.0 — THE HEADER DATE MUST TRACK THE VERSION.
+-- The file carried "08-05-26" for a dozen releases while the version
+-- marker moved on without it, so the one line a human reads first was
+-- quietly wrong. Asserted here so it cannot drift again.
+do
+  local dateLine = initText:match("\n%-%- (%d%d%-%d%d%-%d%d) using Claude")
+  check("init.lua's header carries an edited date", dateLine ~= nil, dateLine)
+  check("...and it is marked as something that gets bumped, so the next "
+        .. "person knows it is not decoration",
+        initText:find("Bumped with every release", 1, true) ~= nil)
+end
+
+-- 🚨 6.57.0 — A MODULE MUST NOT CLAIM A HYPER KEY THAT §0.4 ALREADY
+-- MIGRATES SOMETHING ONTO. This is the gap that let three working
+-- shortcuts die silently. test_integration checks module-against-module
+-- collisions, but §0.4's migration map lives in init.lua and was never
+-- part of that comparison — so focus_mode took ⇪F from the file
+-- tracker, workspaces took ⇪W from the summon-an-app picker, and bulk
+-- rename took ⇪⇧R from reset-nudge-offset. Each printed ONE line at
+-- boot and killed a feature. Never again.
+do
+  local migr = {}
+  for old, mods, key in initText:gmatch('%["([^"]+)"%]%s*=%s*{%s*{([^}]*)}%s*,%s*"([^"]+)"%s*}') do
+    -- Only entries whose OLD chord is still bound somewhere can actually
+    -- claim the hyper key; a map entry nothing triggers is inert.
+    migr[(mods:find("shift") and "shift|" or "|") .. key] = old
+  end
+  local claims, dupes = {}, {}
+  for _, m in ipairs(MODS) do
+    local src = moduleText[m]
+    if src then
+      -- resolve `x.key = "q"` style indirection
+      local keyvals = {}
+      for var, k in src:gmatch('(%w+%.%w*[Kk]ey)%s*=%s*"([%w]+)"') do keyvals[var] = k end
+      for mods, k in src:gmatch('hyperAddShortcut%(%s*{([^}]*)}%s*,%s*([^,]+),') do
+        k = k:gsub("%s+", "")
+        local key = k:match('^"(.-)"$') or keyvals[k]
+        if key then
+          local tag = (mods:find("shift") and "shift|" or "|") .. key
+          if migr[tag] then
+            dupes[#dupes + 1] = tag .. " (" .. m .. " vs migrated "
+                                .. migr[tag] .. ")"
+          end
+          claims[tag] = m
+        end
+      end
+    end
+  end
+  check("🚨 NO MODULE CLAIMS A HYPER KEY THE MIGRATION MAP ALSO CLAIMS — "
+        .. "the collision that silently killed ⇪F, ⇪W and ⇪⇧R",
+        #dupes == 0, table.concat(dupes, "; "))
+end
 
 -- 🚨 6.53.0 — A BAD KEY NAME MUST NOT TAKE THE WHOLE CONFIG DOWN.
 -- hs.hotkey.bind THROWS on a key macOS has no code for. A module's bad

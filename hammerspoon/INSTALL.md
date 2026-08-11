@@ -206,9 +206,9 @@ run and whether it exists here, and every path it writes to. Read-only.
 | ⇪K | paste a link with `?utm_source=…` first — it should come back clean |
 | ⇪⇧H | the tool-health report |
 | ⇪M | menu bar icons by name — type to filter, ⏎ opens one |
-| ⇪F | focus mode — mutes the mic and dims everything but the meeting |
-| ⇪R | bulk rename the Finder selection · ⇪⇧R undoes the whole batch |
-| ⇪W | workspaces — pick one for this Space, it is remembered |
+| ⇪Q | focus mode (Quiet) — mutes the mic and dims everything but the meeting |
+| ⇪R | bulk rename the Finder selection · undo is the picker's first row |
+| ⇪⇧S | workspaces — pick one for this Space, it is remembered |
 | ⇪ pad7 | number pad → focus mode. ⇪ pad = TOOLS, the primary layer |
 | ⇪⇧ pad7 | same key, shifted → window to the top-left quarter |
 | ⌃⌥⌘V | clipboard history |

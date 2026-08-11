@@ -100,7 +100,9 @@ out("\n=== 1. Contract ===\n")
 check("the module returns name, order and a cheatsheet",
       M.name == "Bulk Rename" and type(M.order) == "number"
       and type(M.cheatsheet) == "table")
-check("it claims ⇪R and ⇪⇧R", HYPER["|r"] ~= nil and HYPER["shift|r"] ~= nil)
+check("it claims ⇪R but NOT ⇪⇧R — ⇪⇧R already resets the nudge offset "
+      .. "via §0.4's migration map; undo lives on the picker's first row "
+      .. "instead, see §3", HYPER["|r"] ~= nil and HYPER["shift|r"] == nil)
 check("it publishes its planner rather than exposing a global",
       PROVIDED["rename.plan"] ~= nil and PROVIDED["rename.groups"] ~= nil)
 check("its cheat-sheet order does not collide with menubar_items (13.9)",
@@ -431,6 +433,45 @@ do
 end
 
 -- =====================================================================
+out("\n=== 8b. The undo row on the picker — where ⇪⇧R went ===\n")
+-- =====================================================================
+do
+    -- ⇪⇧R was removed because it collided with a working migrated
+    -- shortcut (see modules/bulk_rename.lua's wiring note). Undo instead
+    -- surfaces as the FIRST ROW of ⇪R's own picker, exactly the pattern
+    -- Workspaces uses for its reset — and hasUndo() is what decides
+    -- whether that row appears, read from disk so it survives a restart.
+    local realOpen = io.open
+    local files = {}
+    io.open = function(path, mode)
+        if (mode or "r"):find("w") then
+            local buf = {}
+            return { write = function(_, s) buf[#buf + 1] = s end,
+                     close = function() files[path] = table.concat(buf) end }
+        end
+        if files[path] == nil then return realOpen(path, mode) end
+        local content, done = files[path], false
+        return { read = function() if done then return nil end done = true return content end,
+                 close = function() end }
+    end
+
+    files = {}
+    check("with nothing to undo, hasUndo is false", BR.hasUndo() == false)
+
+    files[BR.undoFile] = '{}'
+    check("an empty '{}' undo file (2 bytes) is treated as nothing to "
+          .. "undo, not as a real batch", BR.hasUndo() == false)
+
+    files = {}
+    files[BR.undoFile] = '{"items":[{"from":"/v/a","to":"/v/b"}]}'
+    check("🚨 with a real undo log on disk, hasUndo is true — this is what "
+          .. "puts the undo row on the picker, and it is read from DISK so "
+          .. "it survives a Hammerspoon restart the same way undo() does",
+          BR.hasUndo() == true)
+
+    io.open = realOpen
+end
+
 out("\n=== 9. Mutation — are these properties actually load-bearing? ===\n")
 -- =====================================================================
 -- A property that cannot fail is decoration. Each mutation below breaks

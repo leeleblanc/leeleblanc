@@ -2,11 +2,53 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 08-05-26 using Claude
+-- 08-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.56.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.57.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.57.0 — THREE SHORTCUTS THAT WERE DYING SILENTLY, AND A LARGER PANEL:
+--   🚨 THE COLLISION test_integration NEVER CHECKED FOR. It loads all
+--      modules together and catches module-vs-module key clashes — but
+--      §0.4's hyper MIGRATION MAP lives in init.lua, outside that
+--      comparison, and three new modules had quietly claimed keys it
+--      already pointed somewhere else:
+--         ⇪F      focus_mode     vs   the FILE TRACKER (⌃⌥⇧F migrated)
+--         ⇪W      workspaces     vs   the SUMMON-AN-APP PICKER (⌃⌥W)
+--         ⇪⇧R     bulk_rename    vs   RESET NUDGE OFFSET (⌘⌃⌥⇧R)
+--      Each one printed a single "HYPER CONFLICT" line at boot and then
+--      silently killed the OLDER, working shortcut — "the later one wins"
+--      is correct Lua table semantics and the worst possible UX. Found
+--      from a real Console log, not from the suite.
+--   🔀 THE FIX, and a new test that makes the class impossible again:
+--         focus mode     → ⇪Q  ("Quiet") · ⇪⇧Q report
+--         workspaces     → ⇪⇧S ("Spaces")
+--         bulk rename    → undo moved OFF ⇪⇧R entirely, onto the picker's
+--                           own first row when there is a batch to undo —
+--                           the same pattern Workspaces already uses for
+--                           its reset, discovered rather than invented
+--      New code yields to what already works. test_diagnostics now reads
+--      §0.4's migration map and every module's hyperAddShortcut calls from
+--      the SAME source pass and fails if any two ever name the same chord
+--      — verified by reverting focus_mode to ⇪F and watching it catch it.
+--   📐 THE CHEAT SHEET IS 1024×768 BY DEFAULT, both configurable
+--      (cheatSheet.width / .height), both still clamped to the screen so
+--      neither can ever open larger than the display. Worth knowing which
+--      way the trade runs: WIDTH is free — a wider column means fewer
+--      entries wrap onto continuation lines, so 1024 shows MORE at once
+--      than 760 did — but HEIGHT is not: at 30pt a row, 768 shows roughly
+--      22 rows against the old ceiling's 36. The 86%-of-screen ceiling
+--      stayed, because a naive fixed clamp produced a panel covering 95%
+--      of a 1280×800 laptop screen, caught by the suite before shipping.
+--   🗓 THE HEADER DATE NOW TRACKS THE VERSION. It sat on 08-05-26 for a
+--      dozen releases while the version marker moved past it, so the one
+--      line a person reads first was quietly wrong — the same species of
+--      drift as this release's hyper-key bug, just in prose instead of
+--      code. Bumped every release from now on; asserted in the suite.
+--   🧪 1,655 checks. Also fixed in passing: the audit's own MODULE list
+--      had drifted to 18 of 26 files and was silently covering barely two
+--      thirds of the config — replaced with a read of init.lua's actual
+--      default profile, the same source test_integration already trusts.
 -- NEW IN 6.56.0 — THE PHANTOM PANEL, AND WHY IT WAS NOT OUR CRASH:
 --   👻 REPORTED FROM A REAL MAC: pressing ⇪/ while Safari's address-bar
 --      autocomplete was open threw
@@ -135,50 +177,6 @@
 --      notice is never lost, never floods, that unknown Focus state means
 --      SHOW rather than hide, and that a clean boot stays quiet — each
 --      mutation-checked.
--- NEW IN 6.53.0 — THE CRITICAL-STOP PASS: TWO WAYS THE WHOLE CONFIG DIED:
---   🚨 A BAD KEY NAME TOOK EVERYTHING DOWN. hs.hotkey.bind THROWS on a key
---      macOS has no code for — a typo in an ✏️ EDIT HERE block, "esc " with
---      a trailing space. A MODULE's bad key was always survivable, because
---      §1.12 runs every setup() inside its own pcall. init.lua's OWN binds
---      are not so lucky: they sit at top level in the 3,077 lines that run
---      BEFORE the loader, so one typo meant no hotkeys, no modules, no
---      cheat sheet, and the reason visible only in a Console you were not
---      looking at. The sentry now catches the throw, NAMES the key, counts
---      it, and hands back the same inert stub the migration path already
---      returns — so that one shortcut is off and everything else boots.
---      Returning nil was not an option: it only moves the crash to the
---      caller's :enable() one line later.
---   🚨 ERROR REPORTING DEPENDED ON A FILE THAT CAN FAIL. A Lua error inside
---      a timer, an HTTP reply or a watcher CANNOT be caught by a pcall in
---      whatever scheduled it — hs.uncaughtErrorHandler is the only place it
---      can be seen at all. It was installed ONLY by core/diagnostics.lua,
---      which loads a thousand lines into boot and is correctly pcall'd so a
---      broken copy cannot stop the config. Two silent windows followed:
---      every line before that file loads, and THE ENTIRE SESSION if it
---      failed to load — which is precisely when you most need reporting,
---      and nothing announced the loss. The earliest possible handler is now
---      installed in init.lua itself, and the stand-in diag's err() RECORDS
---      instead of being the no-op it was. core/diagnostics.lua still
---      upgrades both, and preserves the error list, so anything caught
---      during early boot still reaches ⇪⇧D.
---   ✅ WHAT THE PASS CLEARED. All four core/ files load inside pcall. warm()
---      is pcall'd, so a slow module cannot strand boot. 111 of 200 local
---      slots free, so init.lua is not near the compile limit that would
---      kill it outright. The only hs.execute calls — a LOGIN shell, which
---      blocks — are in update_tracker's warm() and never on the boot path;
---      setup() uses cheap io.open probes.
---   🧪 TWO ROUNDS OF MY OWN TEST BUGS, both the same shape as the code bug.
---      The first audit searched init.lua raw and failed on its own
---      documentation: the comment explaining the fix names both
---      "core/diagnostics.lua" and the old `err = function() end`, so the
---      PROSE was mistaken for the code — the exact trap this suite warns
---      about at the top. And the sentry audit's first draft passed with the
---      guard removed, because "does pcall appear" and "does the stub
---      appear" were both already true of the migration branch beside it;
---      what actually distinguishes the fixed file is the ABSENCE of a bare
---      `return hsHotkeyBindOriginal(...)`. Restoring the bug now fails four
---      assertions instead of one.
---   🧪 1,566 checks across thirteen Lua suites.
 -- NEW IN 6.52.0 — TWO FIXES FOUND BY AUDITING init.lua:
 --   📋 AN EDITED CLIPBOARD ENTRY IS NOW COPIED. You edit an entry because
 --      you want to paste it, and the edit updated the stored history
@@ -217,7 +215,7 @@
 --      the next release rather than done in a hurry alongside two fixes.
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.56.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.57.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -459,7 +457,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.56.0"
+_G.configVersion = "6.57.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -825,8 +823,13 @@ _G.hyperKeyMap = {
     ["alt+cmd+ctrl+t"]       = { {},        "t"     },  -- create task
     ["alt+cmd+ctrl+l"]       = { {},        "l"     },  -- list tasks
     -- ---- Clipboard / OCR / Activity ----
-    ["alt+cmd+ctrl+v"]       = { {},        "v"     },  -- clipboard history
-    ["alt+cmd+ctrl+shift+v"] = { {"shift"}, "v"     },  -- clipboard EDIT
+    -- 6.57.0 — the two clipboard entries were REMOVED here. They existed
+    -- to redirect ⌃⌥⌘V / ⌃⌥⌘⇧V onto ⇪V / ⇪⇧V, and 6.55.0 moved clipboard
+    -- history into its own module which claims those hyper keys DIRECTLY.
+    -- Leaving the map entries behind meant two claims on one key for the
+    -- SAME feature — a HYPER CONFLICT warning about a conflict that was
+    -- not real, which is its own kind of harm: it teaches you to ignore
+    -- the warnings that are.
     ["alt+cmd+ctrl+o"]       = { {},        "o"     },  -- OCR search
     ["alt+cmd+ctrl+shift+o"] = { {"shift"}, "o"     },  -- OCR EDIT
     ["alt+cmd+ctrl+shift+c"] = { {"shift"}, "c"     },  -- copy-on-select toggle
@@ -3401,7 +3404,7 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.56.0"
+    local currentVersion = "6.57.0"
     local currentDate    = "08-08-26"
     -- One line. The full entry for every version lives in CHANGELOG.md
     -- beside this file — which is also why prose no longer sits in a

@@ -4,6 +4,49 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.57.0 — THREE SHORTCUTS THAT WERE DYING SILENTLY, AND A LARGER PANEL:
+  🚨 THE COLLISION test_integration NEVER CHECKED FOR. It loads all
+     modules together and catches module-vs-module key clashes — but
+     §0.4's hyper MIGRATION MAP lives in init.lua, outside that
+     comparison, and three new modules had quietly claimed keys it
+     already pointed somewhere else:
+        ⇪F      focus_mode     vs   the FILE TRACKER (⌃⌥⇧F migrated)
+        ⇪W      workspaces     vs   the SUMMON-AN-APP PICKER (⌃⌥W)
+        ⇪⇧R     bulk_rename    vs   RESET NUDGE OFFSET (⌘⌃⌥⇧R)
+     Each one printed a single "HYPER CONFLICT" line at boot and then
+     silently killed the OLDER, working shortcut — "the later one wins"
+     is correct Lua table semantics and the worst possible UX. Found
+     from a real Console log, not from the suite.
+  🔀 THE FIX, and a new test that makes the class impossible again:
+        focus mode     → ⇪Q  ("Quiet") · ⇪⇧Q report
+        workspaces     → ⇪⇧S ("Spaces")
+        bulk rename    → undo moved OFF ⇪⇧R entirely, onto the picker's
+                          own first row when there is a batch to undo —
+                          the same pattern Workspaces already uses for
+                          its reset, discovered rather than invented
+     New code yields to what already works. test_diagnostics now reads
+     §0.4's migration map and every module's hyperAddShortcut calls from
+     the SAME source pass and fails if any two ever name the same chord
+     — verified by reverting focus_mode to ⇪F and watching it catch it.
+  📐 THE CHEAT SHEET IS 1024×768 BY DEFAULT, both configurable
+     (cheatSheet.width / .height), both still clamped to the screen so
+     neither can ever open larger than the display. Worth knowing which
+     way the trade runs: WIDTH is free — a wider column means fewer
+     entries wrap onto continuation lines, so 1024 shows MORE at once
+     than 760 did — but HEIGHT is not: at 30pt a row, 768 shows roughly
+     22 rows against the old ceiling's 36. The 86%-of-screen ceiling
+     stayed, because a naive fixed clamp produced a panel covering 95%
+     of a 1280×800 laptop screen, caught by the suite before shipping.
+  🗓 THE HEADER DATE NOW TRACKS THE VERSION. It sat on 08-05-26 for a
+     dozen releases while the version marker moved past it, so the one
+     line a person reads first was quietly wrong — the same species of
+     drift as this release's hyper-key bug, just in prose instead of
+     code. Bumped every release from now on; asserted in the suite.
+  🧪 1,655 checks. Also fixed in passing: the audit's own MODULE list
+     had drifted to 18 of 26 files and was silently covering barely two
+     thirds of the config — replaced with a read of init.lua's actual
+     default profile, the same source test_integration already trusts.
+
 NEW IN 6.56.0 — THE PHANTOM PANEL, AND WHY IT WAS NOT OUR CRASH:
   👻 REPORTED FROM A REAL MAC: pressing ⇪/ while Safari's address-bar
      autocomplete was open threw

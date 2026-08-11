@@ -1,6 +1,6 @@
 # Hammerspoon config — how the new design works
 
-Version 6.56.0. Keep this next to the config; it is the manual for the
+Version 6.57.0. Keep this next to the config; it is the manual for the
 structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ---
@@ -219,7 +219,7 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Sixteen Lua suites, 1,644 checks, plus 35 more that run the Capture Pad's
+Sixteen Lua suites, 1,655 checks, plus 35 more that run the Capture Pad's
 page JavaScript under `node`. All of it runs with `lua5.4` on any
 machine — no Mac required, they stub the `hs` API:
 
@@ -233,9 +233,9 @@ tests/test_mouse_grid.lua    ⇪X, and the random-sequence explorer that shrinks
 tests/test_url_cleaner.lua   ⇪K, over 8,000 generated URLs
 tests/test_health.lua        ⇪⇧H, over 600 generated timelines / 36,000 events
 tests/test_menubar.lua       ⇪M, over 500 generated Mac populations
-tests/test_focus.lua         ⇪F, over 500 generated meeting days — the mic is never stranded
+tests/test_focus.lua         ⇪Q, over 500 generated meeting days — the mic is never stranded
 tests/test_rename.lua        ⇪R, over 400 generated messy folders — no file is ever lost
-tests/test_workspaces.lua    ⇪W, 300 generated workspaces — the busy flag never sticks
+tests/test_workspaces.lua    ⇪⇧S, 300 generated workspaces — the busy flag never sticks
 tests/test_notices.lua       the failure ledger — a notice is never lost, and never floods
 tests/test_clipboard.lua     ⇪V, and the writes that must never destroy the history file
 tests/test_integration.lua   🚨 all 26 modules loaded TOGETHER: shortcut, service and

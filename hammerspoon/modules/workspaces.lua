@@ -79,10 +79,10 @@ local M = {
     name  = "Workspaces",
     order = 14.2,
     cheatsheet = {
-        title = "🗂 WORKSPACES (⇪W — name a set of apps, bind it to a Space)",
+        title = "🗂 WORKSPACES (⇪⇧S — Spaces: a named set of apps per Space)",
         entries = {
-            { "⇪W",      "Pick a workspace for this Space, remember it, set it up" },
-            { "⇪W again","First row re-applies whatever this Space is already set to" },
+            { "⇪⇧S",     "Pick a workspace for this Space, remember it, set it up" },
+            { "⇪⇧S again","First row re-applies what this Space is already set to" },
             { "does",    "onStart → open the apps → wait for them → onComplete" },
             { "shell",   "Hooks run via hs.task, never blocking the keyboard" },
             { "define",  "ws.workspaces at the top of modules/workspaces.lua" },
@@ -98,7 +98,12 @@ function M.setup(core)
 
     -- ✏️ EDIT HERE ---------------------------------------------------------
     ws.enabled       = true
-    ws.key           = "w"      -- ⇪W. ⇪⇧W belongs to the Document Watcher.
+    -- 🚨 ⇪⇧S FOR "SPACES", NOT ⇪W. ⇪W was already the SUMMON-AN-APP
+    -- picker, reached through §0.4's migration of ⌃⌥W, and ⇪⇧W is the
+    -- Document Watcher. Claiming ⇪W printed one HYPER CONFLICT line and
+    -- silently killed a working shortcut — new code yields.
+    ws.key           = "s"
+    ws.mods          = { "shift" }   -- ⇪⇧S
     ws.settleSecs    = 8        -- how long to wait for apps before onComplete
     ws.pollSecs      = 0.25     -- how often to check whether they have arrived
     ws.hookTimeout   = 30       -- a hook still running after this is abandoned
@@ -524,7 +529,7 @@ function M.setup(core)
     end
 
     if ws.enabled then
-        core.hyperAddShortcut({}, ws.key, ws.show, "workspaces")
+        core.hyperAddShortcut(ws.mods, ws.key, ws.show, "workspaces")
     end
 
     core.provide("workspace.show",   function()  return ws.show()     end)

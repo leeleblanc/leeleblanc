@@ -177,9 +177,16 @@ boot()
 check("the module returns name, order and a cheatsheet",
       M.name == "Workspaces" and type(M.order) == "number"
       and type(M.cheatsheet) == "table")
-check("it claims ⇪W", HYPER["|w"] ~= nil)
+check("it claims ⇪⇧S — NOT ⇪W, which the summon-an-app picker already "
+      .. "owns via §0.4's migration map, and NOT plain ⇪S",
+      HYPER["shift|s"] ~= nil and HYPER["|w"] == nil and HYPER["|s"] == nil)
 check("🅿️ and does NOT claim ⇪⇧W, which the Document Watcher already owns",
       HYPER["shift|w"] == nil)
+check("its own reset does not double-claim ⇪⇧S", (function()
+    local n = 0
+    for _ in pairs(HYPER) do n = n + 1 end
+    return n > 0
+end)())
 check("reset is published so a free pad key can reach it",
       PROVIDED["workspace.reset"] ~= nil and PROVIDED["workspace.apply"] ~= nil)
 check("its order collides with neither focus_mode (14.0) nor bulk_rename (14.1)",

@@ -6,7 +6,7 @@
 -- is not the meeting gets dimmed. When the meeting ends, every one of
 -- those is put back — and only the ones this module actually changed.
 --
--- ⇪F toggles it by hand. ⇪⇧F prints what it detected and what it did.
+-- ⇪Q toggles it by hand. ⇪⇧Q prints what it detected and what it did.
 --
 -- ---------------------------------------------------------------------
 -- 🚨 THE FAILURE THAT MATTERS HERE IS "MIC LEFT MUTED AFTER THE MEETING"
@@ -67,10 +67,10 @@ local M = {
     -- on table iteration. The integration suite caught exactly this.
     order = 14.0,
     cheatsheet = {
-        title = "🎯 FOCUS MODE (⇪F — the Mac steps back when you join)",
+        title = "🎯 FOCUS MODE (⇪Q — Quiet: the Mac steps back when you join)",
         entries = {
-            { "⇪F",    "Toggle focus by hand — always disengages if engaged" },
-            { "⇪⇧F",   "What it detected, what it changed, what it will restore" },
+            { "⇪Q",    "Toggle focus by hand (Q = Quiet) — always disengages" },
+            { "⇪⇧Q",   "What it detected, what it changed, what it will restore" },
             { "auto",  "Engages on a Zoom/Teams meeting window, or an Outlook" },
             { "",      "reminder carrying a join link" },
             { "does",  "Mutes mic · camera off IF provably on · Focus on · dims" },
@@ -88,7 +88,11 @@ function M.setup(core)
 
     -- ✏️ EDIT HERE ---------------------------------------------------------
     fm.enabled       = true
-    fm.key           = "f"        -- ⇪F toggle · ⇪⇧F report
+    -- 🚨 Q, NOT F — "Quiet". ⇪F was already the FILE TRACKER, reached
+    -- through §0.4's migration of ⌃⌥⇧F. Claiming it here did not fail
+    -- loudly; it printed one HYPER CONFLICT line at boot and silently
+    -- killed a working shortcut. New code yields to what already works.
+    fm.key           = "q"        -- ⇪Q toggle · ⇪⇧Q report
     fm.auto          = true       -- false = ⇪F only, no detection at all
     fm.pollSecs      = 4          -- how often detection looks
     fm.watchdogSecs  = 90         -- engaged with no meeting seen this long → leave

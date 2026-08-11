@@ -57,7 +57,7 @@ local M = {
         title = "✏️ BULK RENAME (⇪R — Finder selection, 2 files or 1,000)",
         entries = {
             { "⇪R",     "Rename the Finder selection — pick rule, preview, ⏎" },
-            { "⇪⇧R",    "Undo the last batch (survives a Hammerspoon restart)" },
+            { "undo",   "First row of ⇪R undoes the last batch — survives a restart" },
             { "tv",     "Normalise S01E01 naming across a whole season" },
             { "junk",   "Strip [tags], 1080p, WEBRip, release groups" },
             { "find",   "Find and replace · regex · sequential numbering" },
@@ -369,6 +369,15 @@ function M.setup(core)
         f:write(enc); f:close()
     end
 
+    -- Is there a batch to put back? Read from disk, so it survives a
+    -- Hammerspoon restart exactly as the undo itself does.
+    function br.hasUndo()
+        local f = io.open(br.undoFile, "r")
+        if not f then return false end
+        local raw = f:read("*a"); f:close()
+        return type(raw) == "string" and #raw > 2
+    end
+
     function br.undo()
         local f = io.open(br.undoFile, "r")
         if not f then hs.alert.show("✏️ Nothing to undo"); return end
@@ -514,6 +523,15 @@ end tell]]
         local order = { "tv", "junk", "replace", "regex", "seq",
                         "dots", "spaces", "title", "lower" }
         local choices = {}
+        -- Undo first, when there is a batch to undo. It has no key of its
+        -- own because ⇪⇧R belongs to something older; see the wiring note.
+        if br.hasUndo() then
+            choices[#choices + 1] = {
+                text    = "↺ Undo the last rename",
+                subText = "puts the previous batch back, exactly",
+                undo    = true,
+            }
+        end
         for _, name in ipairs(order) do
             local r = br.rules[name]
             if r then
@@ -525,6 +543,7 @@ end tell]]
 
         local ch = hs.chooser.new(function(pick)
             if not pick then return end
+            if pick.undo then br.undo() return end
             collect(pick.rule, paths)
         end)
         pcall(function() ch:width(40); ch:searchSubText(true) end)
@@ -560,7 +579,14 @@ end tell]]
 
     if br.enabled then
         core.hyperAddShortcut({}, br.key, br.show, "bulk rename")
-        core.hyperAddShortcut({ "shift" }, br.key, br.undo, "undo last rename")
+        -- 🚨 NO ⇪⇧R BINDING. ⇪⇧R was already RESET NUDGE OFFSET, reached
+        -- through §0.4's migration of ⌃⌥⌘R. Claiming it printed one HYPER
+        -- CONFLICT line at boot and silently killed a working shortcut.
+        -- Undo needs no key of its own: it is the FIRST ROW of the ⇪R
+        -- picker whenever there is something to undo — the same pattern
+        -- Workspaces uses for reset, for the same reason — and it stays
+        -- published as rename.undo for a free number-pad key:
+        --       numpad.actions["pad-"] = "rename.undo"
     end
 
     core.provide("rename.show",   function()        return br.show()         end)

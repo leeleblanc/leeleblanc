@@ -187,7 +187,12 @@ check("one column only (no colGap / no second x)", (function()
   local n = 0; for _ in pairs(xs) do n = n + 1 end
   return n <= 1
 end)(), "more than one text column x found")
-check("panel narrower than half a 4K screen", canvasRect.w <= SCR.w * 0.55 and canvasRect.w <= 760, canvasRect.w)
+-- 6.57.0 — the cap is now cheatSheet.width (1024 by default), not 760.
+-- Width is the free dimension: a wider column means fewer entries wrap
+-- onto continuation lines, so 1024 shows MORE shortcuts than 760 did.
+check("panel no wider than asked for, and never more than 90% of screen",
+      canvasRect.w <= 1024 + 0.01 and canvasRect.w <= SCR.w * 0.90 + 0.01,
+      canvasRect.w)
 check("panel height within 86% of screen", canvasRect.h <= SCR.h * 0.86 + 0.01, canvasRect.h)
 check("panel centred on the screen", math.abs((canvasRect.x + canvasRect.w/2) - (SCR.x + SCR.w/2)) < 0.01)
 check("content is long enough to need scrolling", S.maxFirst > 1, S.maxFirst)
@@ -297,7 +302,7 @@ CS.show()
 check("300 extra entries are all in the list", #st().lines > 300, #st().lines)
 check("but the canvas element count barely moves",
   #drawn <= baseEls + 2, #drawn .. " vs " .. baseEls)
-check("still one column, still the same width", canvasRect.w <= 760, canvasRect.w)
+check("still one column, still the same width", canvasRect.w <= 1024 + 0.01, canvasRect.w)
 _G.customShortcuts = {}
 
 print("\n=== 9. Redraw keeps your place; a fresh open does not ===")
