@@ -1,6 +1,6 @@
 # Hammerspoon config — how the new design works
 
-Version 6.50.0. Keep this next to the config; it is the manual for the
+Version 6.54.0. Keep this next to the config; it is the manual for the
 structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ---
@@ -11,14 +11,14 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 ~/.hammerspoon/
 ├── init.lua          the orchestrator (3,479 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
-├── core/             dofile'd at a fixed point, NOT loader-managed (4 files)
+├── core/             dofile'd at a fixed point, NOT loader-managed (5 files)
 ├── modules/          one file per feature (25 files, ~11,200 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
 └── tools/            hs-install.sh · hs-doctor.sh · run-tests.sh
 ```
 
 `core/` is the part that is easy to get wrong when updating by hand.
-Those four files are **not** modules — the loader never sees them;
+Those five files are **not** modules — the loader never sees them;
 `init.lua` `dofile`s them at a fixed point during boot, so a missing or
 half-copied one takes the whole config down rather than costing you one
 feature. `cp init.lua ~/.hammerspoon/` on its own leaves an install
@@ -219,7 +219,7 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Thirteen Lua suites, 1,545 checks, plus 35 more that run the Capture Pad's
+Fourteen Lua suites, 1,603 checks, plus 35 more that run the Capture Pad's
 page JavaScript under `node`. All of it runs with `lua5.4` on any
 machine — no Mac required, they stub the `hs` API:
 
@@ -236,6 +236,7 @@ tests/test_menubar.lua       ⇪M, over 500 generated Mac populations
 tests/test_focus.lua         ⇪F, over 500 generated meeting days — the mic is never stranded
 tests/test_rename.lua        ⇪R, over 400 generated messy folders — no file is ever lost
 tests/test_workspaces.lua    ⇪W, 300 generated workspaces — the busy flag never sticks
+tests/test_notices.lua       the failure ledger — a notice is never lost, and never floods
 tests/test_integration.lua   🚨 all 25 modules loaded TOGETHER: shortcut, service and
                              cheat-sheet-slot collisions — the only suite that can
                              catch two modules quietly claiming the same key
@@ -243,7 +244,7 @@ tests/test_pad_js.js         the Capture Pad's in-page JavaScript, actually exec
 ```
 
 **Run them with `tools/run-tests.sh`, not by hand.** It compiles every
-file first, runs all fourteen suites in order, and is the thing to trust
+file first, runs all fifteen suites in order, and is the thing to trust
 before copying anything to a Mac:
 
 ```bash

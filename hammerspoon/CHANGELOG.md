@@ -4,6 +4,60 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.54.0 — NOTHING FAILS SILENTLY: THE NOTICE LEDGER (7g/7d/7e/6):
+  🔔 ONE LEDGER, AND SURFACES THAT READ FROM IT. Every failure — a module
+     that would not load, a runtime error, a failed shell hook — records
+     into core/notices.lua, and that file alone decides whether, how and
+     when you are told. Twenty-five modules each calling hs.notify would
+     be twenty-five slightly different behaviours, twenty-five chances to
+     forget, and nowhere that knows whether you have already been told.
+     Add a surface later and every existing failure flows into it free.
+  🔕 AND THE UNCOMFORTABLE PART, which is why 7d was needed at all: FOCUS
+     MODE TURNS DO NOT DISTURB ON DURING MEETINGS, and macOS then
+     SWALLOWS notifications WITHOUT REFUSING THEM. A hs.notify that
+     "succeeded" can have shown you nothing, so a failure during a
+     meeting could vanish entirely. Notices raised while Focus is on are
+     now HELD and delivered when it ends — as ONE combined message, since
+     coming out of a meeting to twelve stacked alerts is its own kind of
+     failure. The queue is bounded and drops the OLDEST, because the
+     recent ones are the ones still true when you get back.
+     · WHAT CAN HONESTLY BE KNOWN about Focus: macOS has no public API.
+       Two things are reliable — whether THIS config turned Focus on
+       (exact, we did it), and the Do Not Disturb assertions file. When
+       neither is conclusive it assumes NOT suppressed and shows you.
+       That direction is deliberate: a notice shown during Focus is a
+       mild annoyance, a notice silently swallowed is the whole bug.
+     · hs.alert IS ALWAYS USED AS WELL, not as a nicety. Notification
+       Centre can be switched off for Hammerspoon entirely and nothing
+       tells us; hs.alert draws on the screen and obeys neither that nor
+       Focus. It is what makes the guarantee true rather than hopeful.
+  🆗 ONE SIGNAL AT LOGIN, AND ONLY WHEN IT MEANS SOMETHING. A clean boot
+     gets a brief "ready" flash — the FadeLogo idea, natively, no Spoon —
+     so a quiet Mac is never ambiguous between "fine" and "never
+     started". A module that failed to load gets an alert NAMING it, and
+     shown even during Focus, because a tool that did not load is wrong
+     for the whole session. Silence means it worked; you are never asked
+     to go and check.
+     · ON A TIMER, NOT INLINE: an alert fired during the boot chunk can
+       land before the screen is ready at login and simply not be seen,
+       which would make the mechanism a lie on the one boot you most
+       care about.
+  🚨 THE LEDGER IS ITSELF A BOOT-PATH RISK, and is written accordingly.
+     It reports other failures, so if it throws it takes the config down
+     AND removes the explanation. Every macOS call is pcall'd, both
+     queues are bounded, every entry point tolerates nil — and if
+     core/notices.lua fails to load, THAT is announced on screen rather
+     than leaving reporting quietly off.
+  🩹 AND THE SUITE CAUGHT THE HALF-UPDATED INSTALL. Adding a fifth core/
+     file failed four checks immediately: hs-install.sh would not have
+     COPIED it (both loops name the files explicitly), and its count and
+     INSTALL.md's still said four. That is the exact failure hs-doctor
+     exists to catch, caught before shipping instead.
+  🧪 1,603 checks across fourteen Lua suites. test_notices asserts a
+     notice is never lost, never floods, that unknown Focus state means
+     SHOW rather than hide, and that a clean boot stays quiet — each
+     mutation-checked.
+
 NEW IN 6.53.0 — THE CRITICAL-STOP PASS: TWO WAYS THE WHOLE CONFIG DIED:
   🚨 A BAD KEY NAME TOOK EVERYTHING DOWN. hs.hotkey.bind THROWS on a key
      macOS has no code for — a typo in an ✏️ EDIT HERE block, "esc " with

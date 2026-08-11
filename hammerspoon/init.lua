@@ -4,9 +4,62 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.53.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.54.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.54.0 — NOTHING FAILS SILENTLY: THE NOTICE LEDGER (7g/7d/7e/6):
+--   🔔 ONE LEDGER, AND SURFACES THAT READ FROM IT. Every failure — a module
+--      that would not load, a runtime error, a failed shell hook — records
+--      into core/notices.lua, and that file alone decides whether, how and
+--      when you are told. Twenty-five modules each calling hs.notify would
+--      be twenty-five slightly different behaviours, twenty-five chances to
+--      forget, and nowhere that knows whether you have already been told.
+--      Add a surface later and every existing failure flows into it free.
+--   🔕 AND THE UNCOMFORTABLE PART, which is why 7d was needed at all: FOCUS
+--      MODE TURNS DO NOT DISTURB ON DURING MEETINGS, and macOS then
+--      SWALLOWS notifications WITHOUT REFUSING THEM. A hs.notify that
+--      "succeeded" can have shown you nothing, so a failure during a
+--      meeting could vanish entirely. Notices raised while Focus is on are
+--      now HELD and delivered when it ends — as ONE combined message, since
+--      coming out of a meeting to twelve stacked alerts is its own kind of
+--      failure. The queue is bounded and drops the OLDEST, because the
+--      recent ones are the ones still true when you get back.
+--      · WHAT CAN HONESTLY BE KNOWN about Focus: macOS has no public API.
+--        Two things are reliable — whether THIS config turned Focus on
+--        (exact, we did it), and the Do Not Disturb assertions file. When
+--        neither is conclusive it assumes NOT suppressed and shows you.
+--        That direction is deliberate: a notice shown during Focus is a
+--        mild annoyance, a notice silently swallowed is the whole bug.
+--      · hs.alert IS ALWAYS USED AS WELL, not as a nicety. Notification
+--        Centre can be switched off for Hammerspoon entirely and nothing
+--        tells us; hs.alert draws on the screen and obeys neither that nor
+--        Focus. It is what makes the guarantee true rather than hopeful.
+--   🆗 ONE SIGNAL AT LOGIN, AND ONLY WHEN IT MEANS SOMETHING. A clean boot
+--      gets a brief "ready" flash — the FadeLogo idea, natively, no Spoon —
+--      so a quiet Mac is never ambiguous between "fine" and "never
+--      started". A module that failed to load gets an alert NAMING it, and
+--      shown even during Focus, because a tool that did not load is wrong
+--      for the whole session. Silence means it worked; you are never asked
+--      to go and check.
+--      · ON A TIMER, NOT INLINE: an alert fired during the boot chunk can
+--        land before the screen is ready at login and simply not be seen,
+--        which would make the mechanism a lie on the one boot you most
+--        care about.
+--   🚨 THE LEDGER IS ITSELF A BOOT-PATH RISK, and is written accordingly.
+--      It reports other failures, so if it throws it takes the config down
+--      AND removes the explanation. Every macOS call is pcall'd, both
+--      queues are bounded, every entry point tolerates nil — and if
+--      core/notices.lua fails to load, THAT is announced on screen rather
+--      than leaving reporting quietly off.
+--   🩹 AND THE SUITE CAUGHT THE HALF-UPDATED INSTALL. Adding a fifth core/
+--      file failed four checks immediately: hs-install.sh would not have
+--      COPIED it (both loops name the files explicitly), and its count and
+--      INSTALL.md's still said four. That is the exact failure hs-doctor
+--      exists to catch, caught before shipping instead.
+--   🧪 1,603 checks across fourteen Lua suites. test_notices asserts a
+--      notice is never lost, never floods, that unknown Focus state means
+--      SHOW rather than hide, and that a clean boot stays quiet — each
+--      mutation-checked.
 -- NEW IN 6.53.0 — THE CRITICAL-STOP PASS: TWO WAYS THE WHOLE CONFIG DIED:
 --   🚨 A BAD KEY NAME TOOK EVERYTHING DOWN. hs.hotkey.bind THROWS on a key
 --      macOS has no code for — a typo in an ✏️ EDIT HERE block, "esc " with
@@ -177,47 +230,9 @@
 --      they were for — they encoded which layer was which. They now encode
 --      the new arrangement, including that the arithmetic keys moved to the
 --      window layer and that the tool layer's six free slots stay free.
--- NEW IN 6.49.0 — THE NUMBER PAD, SWITCHED ON, WITH TWO LAYERS:
---   🔢 THE PAD IS LIVE. It shipped PARKED in 6.44.0 — a worked-out layout
---      bound to nothing — and it is now on, with a second layer added:
---         ⇪  + pad  →  WINDOWS   (the key's position IS the window's)
---         ⇪⇧ + pad  →  TOOLS     (focus, rename, grid, menu bar, links)
---      That is ~28 live shortcuts that cost ZERO letters on the main
---      keyboard, because the pad sends its own key codes: pad7 is not 7,
---      and ⇪pad7 is not ⇪⇧pad7.
---   🪟 WINDOWS STAYED ON THE UNSHIFTED LAYER, deliberately. Its mnemonic is
---      the best thing in that module — pad7 is the top-left quarter because
---      7 IS the top-left key — and there is nothing to memorise. Burying it
---      under a modifier to make room for tools would have traded the one
---      layout that needs no memory for one that does. Tools took the
---      shifted layer instead.
---   🔌 THE TOOL LAYER BINDS BY SERVICE NAME, NOT BY FUNCTION. numpad_layer
---      knows nothing about focus mode or renaming; it calls "focus.toggle"
---      and the dispatcher resolves it. A pad key whose module is switched
---      off on this Mac prints "no provider" instead of erroring. Four
---      modules gained the entry-point service they had been missing —
---      focus.toggle, rename.show, rename.undo, menuBar.show,
---      url.cleanClipboard — because they had published only QUERIES
---      (report, list, plan) and nothing a key could actually press.
---   🚨 WHICH CREATED A NEW FAILURE MODE, SO IT GOT A NEW TEST. A typo in a
---      service name — "focus.tggle" — binds perfectly, does nothing when
---      pressed, and prints to a Console nobody is reading. The check that
---      every shifted binding resolves to a real provider had to go in
---      test_integration.lua and NOWHERE ELSE: every other suite loads one
---      module at a time against stubs, so the registry is empty there and
---      the same check would have passed vacuously while proving nothing.
---      Verified by planting the typo and watching it fail.
---   ✏️ ONE ECHO ACROSS THE LAYERS, on purpose: pad. undoes on both. ⇪pad.
---      puts a window back where it was, ⇪⇧pad. undoes the last rename.
---      The tool rows are grouped by row (meetings · pickers · clipboard)
---      rather than pretending to a spatial logic they do not have.
---   🧪 1,483 checks. Turning the layer on broke nine existing tests, which
---      is exactly what they were for — they asserted it ships parked. They
---      now assert the live two-layer contract, that parking is still
---      reachable, and that the nil-key guard covers the shifted layer too.
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.53.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.54.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -459,7 +474,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.53.0"
+_G.configVersion = "6.54.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -504,8 +519,46 @@ _G.diag = { verbose = false, trail = {}, errors = {}, marks = {},
 hs.uncaughtErrorHandler = function(err)
     pcall(function() _G.diag.err(err) end)
     print("💥 UNCAUGHT (early): " .. tostring(err))
+    -- Routed through the ledger once it exists, so a runtime error lands
+    -- in the same place as every other failure. Before that it still
+    -- reaches the Console and the screen — the point is that no window
+    -- of the boot is ever silent.
+    local told = false
     pcall(function()
-        hs.alert.show("💥 Hammerspoon error — ⇪⇧D for the report", 4)
+        if _G.notices then
+            _G.notices.record("runtime", "uncaught", tostring(err))
+            told = _G.notices.tell("Hammerspoon hit an error",
+                       tostring(err):sub(1, 160) .. "\n⇪⇧D for the report",
+                       { key = "uncaught:" .. tostring(err):sub(1, 60),
+                         every = 300, seconds = 6 })
+        end
+    end)
+    if not told then
+        pcall(function()
+            hs.alert.show("💥 Hammerspoon error — ⇪⇧D for the report", 4)
+        end)
+    end
+end
+
+-- 🔔 THE NOTICE LEDGER, loaded as early as it can be.
+-- It has to exist BEFORE the module loader runs, because the failure it
+-- most needs to report is a module that would not load. Same shape as
+-- the other core files: pcall'd, so a broken copy costs you the
+-- reporting and not the Mac — and if it does fail, that fact is itself
+-- printed rather than swallowed, which would be a bleak little irony.
+local notOK, notErr = pcall(function()
+    local path = hs.configdir .. '/core/notices.lua'
+    local chunk, loadErr = loadfile(path)
+    if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
+    chunk()
+end)
+if not notOK then
+    print('⚠️ core/notices.lua failed to load — failures will still reach the '
+          .. 'Console and ⇪⇧D, but you will not be told about them on screen. '
+          .. tostring(notErr))
+    pcall(function()
+        hs.alert.show("⚠️ Hammerspoon: failure reporting is OFF\n"
+                      .. "core/notices.lua did not load", 8)
     end)
 end
 
@@ -3460,6 +3513,33 @@ do
     _G.loadModules(profile.modules, profile.settings)
 end
 
+-- 🔔 THE ONE THING YOU SEE AT LOGIN.
+-- Clean boot: a brief flash, then nothing. A module that did not load:
+-- an alert naming it. You are never asked to go and check anything —
+-- silence means it worked, which is the only arrangement that survives
+-- not having the Console open.
+--
+-- ⏱ ON A TIMER, NOT INLINE. hs.alert during the boot chunk can land
+-- before the screen is ready at login and simply not be seen — which
+-- would make the whole mechanism a lie on the one boot you most care
+-- about. A second's delay costs nothing and is reliably visible.
+pcall(function()
+    if not _G.notices then return end
+    local names = {}
+    for _, st in ipairs(_G.moduleStatus or {}) do
+        if not st.ok then
+            names[#names + 1] = tostring(st.name)
+            _G.notices.record("load", tostring(st.name), tostring(st.err or "failed"))
+        end
+    end
+    -- HELD in _G: an unreferenced hs.timer is collected, and a collected
+    -- timer never fires — which would silently remove the one signal
+    -- this whole mechanism exists to give.
+    _G.noticesBootTimer = hs.timer.doAfter(1.0, function()
+        pcall(_G.notices.bootFinished, _G.moduleLoaded, _G.moduleFailed, names)
+    end)
+end)
+
 if _G.hyperFinalize then _G.hyperFinalize() end
 if _G.diag then _G.diag.mark("§3.12 hyper wired") end
 
@@ -3471,7 +3551,7 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.53.0"
+    local currentVersion = "6.54.0"
     local currentDate    = "08-08-26"
     -- One line. The full entry for every version lives in CHANGELOG.md
     -- beside this file — which is also why prose no longer sits in a
