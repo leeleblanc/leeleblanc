@@ -308,6 +308,94 @@ check("hs.window.filter is never CALLED (naming it in a changelog string is fine
   not liveCode("hs%%.window%%.filter%%.new") and not liveCode("window%%.filter%%.default"))
 check("no discarded timer objects", not liveCode("^%s*hs%.timer%.do"))
 
+-- 🚨 6.53.0 — A BAD KEY NAME MUST NOT TAKE THE WHOLE CONFIG DOWN.
+-- hs.hotkey.bind THROWS on a key macOS has no code for. A module's bad
+-- key was always survivable (§1.12 runs every setup() in a pcall), but
+-- init.lua's own binds are top level in the stretch that runs BEFORE the
+-- loader — so one typo in an ✏️ EDIT HERE block took everything down:
+-- no hotkeys, no modules, no cheat sheet, and the reason only in a
+-- Console nobody had open. Audited from source: the sentry wraps
+-- hs.hotkey.bind at file scope and has no harness to drive.
+do
+  local codeOnly = {}
+  for line in initText:gmatch("[^\n]+") do
+    codeOnly[#codeOnly + 1] = line:match("^%s*%-%-") and "" or line
+  end
+  local initCode = table.concat(codeOnly, "\n")
+
+  local sentry = initCode:match("hs%.hotkey%.bind%s*=%s*function.-\nend")
+  check("the hotkey sentry still wraps hs.hotkey.bind", sentry ~= nil)
+  if sentry then
+    -- ⚠️ THESE TWO HAVE TO BE PRECISE, and the first draft was not.
+    -- "does pcall appear" and "does hyperBindStub appear" were both TRUE
+    -- even with the guard removed, because the migration branch above
+    -- already contains a pcall and already returns the stub. Restoring
+    -- the unprotected bind failed only one of three assertions — two
+    -- were reading neighbouring code. What actually distinguishes the
+    -- fixed file is the ABSENCE of a bare tail call.
+    check("🚨 THE REAL BIND IS NOT CALLED UNPROTECTED — a bare "
+          .. "`return hsHotkeyBindOriginal(...)` lets an invalid key throw "
+          .. "out of init.lua and take every feature with it",
+          initCode:find("return%s+hsHotkeyBindOriginal%(") == nil)
+    check("🚨 ...it is called inside a pcall that captures the result",
+          initCode:find("pcall%(function%(%)%s*bound%s*=%s*hsHotkeyBindOriginal") ~= nil
+          or initCode:find("bound%s*=%s*hsHotkeyBindOriginal") ~= nil)
+    -- Returning nil would only move the failure: the caller's :enable()
+    -- would then throw instead, which is the same death one line later.
+    check("🚨 ...and a rejected key returns the inert stub, not nil — nil "
+          .. "just moves the crash to the caller's :enable()", (function()
+        local rejectAt = sentry:find("HOTKEY REJECTED")
+        local stubAt   = sentry:find("_G%.hyperBindStub%(%)", rejectAt or 1)
+        return rejectAt ~= nil and stubAt ~= nil and stubAt > rejectAt
+    end)())
+    check("...and the rejection is COUNTED and NAMED, so it is not silent",
+          sentry:find("hotkeyRejected") ~= nil
+          and sentry:find("HOTKEY REJECTED") ~= nil)
+  end
+end
+
+-- 🚨 6.53.0 — ERROR REPORTING MUST NOT DEPEND ON A FILE THAT CAN FAIL.
+-- hs.uncaughtErrorHandler is the ONLY place an error inside a timer,
+-- HTTP reply or watcher can be seen — a pcall in whatever scheduled the
+-- callback cannot catch it. It used to be installed only by
+-- core/diagnostics.lua, which loads ~1,000 lines into boot and is
+-- correctly pcall'd so a broken copy cannot stop the config. That left
+-- errors vanishing silently (a) for all of early boot and (b) for the
+-- entire session if that one file failed to load — precisely when you
+-- most need reporting, and nothing announced the loss.
+do
+  -- ⚠️ THESE CHECKS COMPARE POSITIONS, SO THEY MUST READ CODE ONLY.
+  -- The first version searched initText raw and failed on its own
+  -- documentation: the comment above the fix names both
+  -- "core/diagnostics.lua" and the old `err = function() end`, so the
+  -- prose explaining the bug was mistaken for the bug. That is the exact
+  -- trap this file warns about at the top — a prose mention is not a
+  -- call — and it caught the person who wrote the warning.
+  local codeOnly = {}
+  for line in initText:gmatch("[^\n]+") do
+    codeOnly[#codeOnly + 1] = line:match("^%s*%-%-") and "" or line
+  end
+  local initCode = table.concat(codeOnly, "\n")
+
+  local initAt = initCode:find("hs%.uncaughtErrorHandler%s*=")
+  check("🚨 init.lua INSTALLS AN UNCAUGHT ERROR HANDLER ITSELF",
+        initAt ~= nil)
+  local coreAt = initCode:find("core/diagnostics%.lua")
+  check("🚨 ...and installs it BEFORE core/diagnostics.lua loads, or early "
+        .. "boot keeps its silent window",
+        initAt ~= nil and coreAt ~= nil and initAt < coreAt,
+        tostring(initAt) .. " vs " .. tostring(coreAt))
+  check("🚨 the stand-in diag RECORDS errors rather than discarding them — "
+        .. "`err = function() end` is a no-op that loses every early error",
+        initCode:find("err%s*=%s*function%(%s*%)%s*end") == nil)
+  -- The recorder has to be bounded: an error inside a repeating timer
+  -- fires forever, and an unbounded list grows until the Mac suffers.
+  check("...and the recorder is bounded, so a repeating error cannot grow "
+        .. "without limit",
+        initCode:find("_G%.diag%.errors") ~= nil
+        and initCode:find("table%.remove") ~= nil)
+end
+
 -- 🚨 6.52.0 — EDITING A CLIPBOARD ENTRY MUST PUT IT ON THE CLIPBOARD.
 -- You edit an entry because you want to paste it, so leaving the
 -- pasteboard untouched meant editing then copying again. Audited from

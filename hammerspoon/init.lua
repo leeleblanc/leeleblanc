@@ -4,9 +4,53 @@
 -- =====================================================================
 -- 08-05-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.52.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.53.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.53.0 — THE CRITICAL-STOP PASS: TWO WAYS THE WHOLE CONFIG DIED:
+--   🚨 A BAD KEY NAME TOOK EVERYTHING DOWN. hs.hotkey.bind THROWS on a key
+--      macOS has no code for — a typo in an ✏️ EDIT HERE block, "esc " with
+--      a trailing space. A MODULE's bad key was always survivable, because
+--      §1.12 runs every setup() inside its own pcall. init.lua's OWN binds
+--      are not so lucky: they sit at top level in the 3,077 lines that run
+--      BEFORE the loader, so one typo meant no hotkeys, no modules, no
+--      cheat sheet, and the reason visible only in a Console you were not
+--      looking at. The sentry now catches the throw, NAMES the key, counts
+--      it, and hands back the same inert stub the migration path already
+--      returns — so that one shortcut is off and everything else boots.
+--      Returning nil was not an option: it only moves the crash to the
+--      caller's :enable() one line later.
+--   🚨 ERROR REPORTING DEPENDED ON A FILE THAT CAN FAIL. A Lua error inside
+--      a timer, an HTTP reply or a watcher CANNOT be caught by a pcall in
+--      whatever scheduled it — hs.uncaughtErrorHandler is the only place it
+--      can be seen at all. It was installed ONLY by core/diagnostics.lua,
+--      which loads a thousand lines into boot and is correctly pcall'd so a
+--      broken copy cannot stop the config. Two silent windows followed:
+--      every line before that file loads, and THE ENTIRE SESSION if it
+--      failed to load — which is precisely when you most need reporting,
+--      and nothing announced the loss. The earliest possible handler is now
+--      installed in init.lua itself, and the stand-in diag's err() RECORDS
+--      instead of being the no-op it was. core/diagnostics.lua still
+--      upgrades both, and preserves the error list, so anything caught
+--      during early boot still reaches ⇪⇧D.
+--   ✅ WHAT THE PASS CLEARED. All four core/ files load inside pcall. warm()
+--      is pcall'd, so a slow module cannot strand boot. 111 of 200 local
+--      slots free, so init.lua is not near the compile limit that would
+--      kill it outright. The only hs.execute calls — a LOGIN shell, which
+--      blocks — are in update_tracker's warm() and never on the boot path;
+--      setup() uses cheap io.open probes.
+--   🧪 TWO ROUNDS OF MY OWN TEST BUGS, both the same shape as the code bug.
+--      The first audit searched init.lua raw and failed on its own
+--      documentation: the comment explaining the fix names both
+--      "core/diagnostics.lua" and the old `err = function() end`, so the
+--      PROSE was mistaken for the code — the exact trap this suite warns
+--      about at the top. And the sentry audit's first draft passed with the
+--      guard removed, because "does pcall appear" and "does the stub
+--      appear" were both already true of the migration branch beside it;
+--      what actually distinguishes the fixed file is the ABSENCE of a bare
+--      `return hsHotkeyBindOriginal(...)`. Restoring the bug now fails four
+--      assertions instead of one.
+--   🧪 1,566 checks across thirteen Lua suites.
 -- NEW IN 6.52.0 — TWO FIXES FOUND BY AUDITING init.lua:
 --   📋 AN EDITED CLIPBOARD ENTRY IS NOW COPIED. You edit an entry because
 --      you want to paste it, and the edit updated the stored history
@@ -171,67 +215,9 @@
 --      is exactly what they were for — they asserted it ships parked. They
 --      now assert the live two-layer contract, that parking is still
 --      reachable, and that the nil-key guard covers the shifted layer too.
--- NEW IN 6.48.0 — FOCUS MODE (⇪F) AND BULK RENAME (⇪R):
---   🎯 FOCUS MODE. A Zoom or Teams MEETING WINDOW — not merely the app
---      being open — mutes the mic, turns the camera off if it is provably
---      on, runs your Do Not Disturb Shortcut, and dims every app that is
---      not the meeting. Leaving puts back exactly what it changed.
---      · IT CANNOT REVOKE CAMERA ACCESS. No macOS API exists. What it does
---        instead is READ the meeting app's own menu: "Stop Video" present
---        means the camera is on, so clicking it is deterministic. If only
---        "Start Video" is there the camera is already off and it does
---        NOTHING. Firing ⌘⇧V blindly is a coin flip that switches the
---        camera ON half the time, which is worse than doing nothing.
---        Teams exposes no readable camera menu, so Teams gets a muted mic
---        and its camera left alone — stated rather than faked.
---      · OUTLOOK'S CALENDAR IS NOT READ, deliberately. Classic Outlook had
---        AppleScript; the rewritten one largely dropped it, and a detector
---        that works on one build and silently fails on the next is worse
---        than none. It watches the REMINDER WINDOW for a join link, which
---        works on both builds and fires exactly when you care.
---      · THE FAILURE THAT MATTERS IS A MIC LEFT MUTED, so the design is
---        built around restoring rather than detecting: prior state is
---        recorded BEFORE any change and a mic you muted yourself is never
---        unmuted; every restore step is independently pcall'd and the mic
---        goes first; a watchdog disengages on its own if detection dies.
---   ✏️ BULK RENAME. Select files in Finder, ⇪R, pick a rule, check the
---      preview, ⏎. ⇪⇧R undoes the batch and survives a restart.
---      · SUBTITLES MOVE WITH THEIR VIDEO, BY CONSTRUCTION. A player finds
---        captions by filename, so renaming a .mp4 and not its .srt does
---        not leave a stray file — it silently kills subtitles. Rules
---        rewrite the GROUP stem and extensions are reattached, so there is
---        no code path that can separate them. It knows the tails that
---        break naive matching too: film.en.srt, film.forced.srt.
---      · IT REFUSES RATHER THAN OVERWRITES. os.rename destroys the target
---        with no warning and no undo, and a bulk rename is exactly where
---        two names collapse into one. Any collision aborts the WHOLE
---        batch — a half-renamed folder is worse than an unrenamed one —
---        and renames run in two phases through temporaries so a swap or a
---        rotation works instead of eating a file.
---      · The `tv` rule fixes the season that prompted this: eight episodes
---        named .1080p.ATVP-[y2flix.cc] and one named .108 all become
---        Dark.Matter.2024.S01E01 and siblings, subtitles included.
---   🚨 THE SUITE CAUGHT TWO REAL BUGS IN THIS RELEASE BEFORE IT SHIPPED:
---      · order = 13.10 IS order = 13.1 IN LUA. Trailing zeros do not
---        survive, and 13.1 is the Capture Pad — so the obvious "next
---        number after 13.9" was a silent cheat-sheet tie whose running
---        order then depended on table iteration. Both new modules moved to
---        14.x. This is why the integration suite loads all 24 modules
---        together instead of testing each alone.
---      · INSTALL.md's module count is asserted against disk, so 22-vs-24
---        failed two suites rather than shipping a doc that lies.
---   🧪 1,479 checks across twelve Lua suites. The two new ones are
---      property-based: 400 random messy folders assert that no file is
---      lost, no clean plan collides, every subtitle stays with its video
---      and every batch undoes exactly; 500 random meeting days assert the
---      mic is never stranded and never unmuted against the user's wishes.
---      Three mutations were too weak to fire and had to be rewritten —
---      one grouped by a rule that changed nothing, one probed a teardown
---      that already guarded itself and was aimed at a step that runs
---      first anyway.
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.52.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.53.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -473,7 +459,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.52.0"
+_G.configVersion = "6.53.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -481,9 +467,47 @@ _G.diagBootStart = hs.timer.secondsSinceEpoch()
 -- that loaded before §1.11 — or a partial load that never reached it —
 -- would otherwise throw on a logging call. A diagnostics system that can
 -- cause the outage it exists to explain is worse than none.
+-- 🚨 6.53.0 — err() RECORDS RATHER THAN DISCARDS, AND THE HANDLER IS
+-- INSTALLED HERE, NOT IN core/diagnostics.lua.
+--
+-- This stand-in used to have `err = function() end` — a no-op — and
+-- hs.uncaughtErrorHandler was set ONLY by core/diagnostics.lua, which
+-- loads about a thousand lines further down and is (correctly) wrapped
+-- in a pcall so a broken copy cannot stop the config booting. Those two
+-- facts together left two windows in which an error vanished in silence:
+--
+--   1. EVERY LINE BEFORE core/diagnostics.lua LOADS. An error raised in
+--      an async callback during early boot had nowhere to go at all.
+--   2. THE WHOLE SESSION, if core/diagnostics.lua failed to load. The
+--      config survives that by design — but it survives it with NO error
+--      reporting, which is the exact moment you most need some, and
+--      nothing announces the loss.
+--
+-- A Lua error inside a timer, an HTTP reply or a watcher CANNOT be
+-- caught by a pcall in whatever scheduled it; hs.uncaughtErrorHandler is
+-- the only place it can be seen. So the earliest possible version is
+-- installed right here, with no dependencies beyond hs.alert.
+-- core/diagnostics.lua replaces it later with the fuller version, and
+-- preserves this table's `errors` (see its `_G.diag.errors or {}`), so
+-- anything caught during early boot still reaches ⇪⇧D.
 _G.diag = { verbose = false, trail = {}, errors = {}, marks = {},
             say = function() end, warn = function() end,
-            err = function() end, mark = function() end }
+            mark = function() end,
+            err = function(e)
+                local t = _G.diag.errors
+                t[#t + 1] = os.date("%H:%M:%S ") .. tostring(e)
+                -- Bounded: an error in a repeating timer fires forever,
+                -- and an unbounded list would grow until the Mac hurts.
+                while #t > 50 do table.remove(t, 1) end
+            end }
+
+hs.uncaughtErrorHandler = function(err)
+    pcall(function() _G.diag.err(err) end)
+    print("💥 UNCAUGHT (early): " .. tostring(err))
+    pcall(function()
+        hs.alert.show("💥 Hammerspoon error — ⇪⇧D for the report", 4)
+    end)
+end
 
 -- 6.42.0 — THE SERVICE REGISTRY, stubbed here so it is never nil.
 -- When a section moved into a module, any code left in THIS file that
@@ -854,7 +878,31 @@ hs.hotkey.bind = function(mods, key, fn, releasedFn, repeatFn)
                 .. " — the system usually wins (System Settings → Keyboard → Keyboard Shortcuts)")
         end
     end
-    return hsHotkeyBindOriginal(mods, key, fn, releasedFn, repeatFn)
+    -- 🚨 6.53.0 — A BAD KEY NAME MUST COST ONE SHORTCUT, NOT THE CONFIG.
+    -- hs.hotkey.bind THROWS on a key macOS has no code for ("Command",
+    -- "esc " with a space, a typo in an ✏️ EDIT HERE block). A module's
+    -- bad key was always survivable because §1.12 runs every setup()
+    -- inside a pcall — but init.lua's OWN binds sit at top level in the
+    -- stretch that runs BEFORE the loader, so one typo there took the
+    -- entire config down: no hotkeys, no modules, no cheat sheet, and an
+    -- explanation only in a Console you were not looking at.
+    -- Now the throw is caught, named, and answered with the same inert
+    -- stub the migration path already returns, so the caller's
+    -- :enable()/:delete() still work and everything else boots.
+    local bound, err = nil, nil
+    local okBind = pcall(function()
+        bound = hsHotkeyBindOriginal(mods, key, fn, releasedFn, repeatFn)
+    end)
+    if okBind and bound then return bound end
+    err = tostring(key)
+    _G.hotkeyRejectedCount = (_G.hotkeyRejectedCount or 0) + 1
+    _G.hotkeyRejected = _G.hotkeyRejected or {}
+    table.insert(_G.hotkeyRejected, tostring(ok and combo or err))
+    print("⚠️ HOTKEY REJECTED: " .. tostring(ok and combo or err)
+          .. " — macOS has no such key, so THAT shortcut is off. Everything "
+          .. "else still loaded. Check the key name where it is bound.")
+    pcall(function() _G.diag.err("hotkey rejected: " .. tostring(ok and combo or err)) end)
+    return _G.hyperBindStub()
 end
 
 -- =====================================================================
@@ -3423,7 +3471,7 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.52.0"
+    local currentVersion = "6.53.0"
     local currentDate    = "08-08-26"
     -- One line. The full entry for every version lives in CHANGELOG.md
     -- beside this file — which is also why prose no longer sits in a

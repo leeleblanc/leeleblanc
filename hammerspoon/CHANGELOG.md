@@ -4,6 +4,51 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.53.0 — THE CRITICAL-STOP PASS: TWO WAYS THE WHOLE CONFIG DIED:
+  🚨 A BAD KEY NAME TOOK EVERYTHING DOWN. hs.hotkey.bind THROWS on a key
+     macOS has no code for — a typo in an ✏️ EDIT HERE block, "esc " with
+     a trailing space. A MODULE's bad key was always survivable, because
+     §1.12 runs every setup() inside its own pcall. init.lua's OWN binds
+     are not so lucky: they sit at top level in the 3,077 lines that run
+     BEFORE the loader, so one typo meant no hotkeys, no modules, no
+     cheat sheet, and the reason visible only in a Console you were not
+     looking at. The sentry now catches the throw, NAMES the key, counts
+     it, and hands back the same inert stub the migration path already
+     returns — so that one shortcut is off and everything else boots.
+     Returning nil was not an option: it only moves the crash to the
+     caller's :enable() one line later.
+  🚨 ERROR REPORTING DEPENDED ON A FILE THAT CAN FAIL. A Lua error inside
+     a timer, an HTTP reply or a watcher CANNOT be caught by a pcall in
+     whatever scheduled it — hs.uncaughtErrorHandler is the only place it
+     can be seen at all. It was installed ONLY by core/diagnostics.lua,
+     which loads a thousand lines into boot and is correctly pcall'd so a
+     broken copy cannot stop the config. Two silent windows followed:
+     every line before that file loads, and THE ENTIRE SESSION if it
+     failed to load — which is precisely when you most need reporting,
+     and nothing announced the loss. The earliest possible handler is now
+     installed in init.lua itself, and the stand-in diag's err() RECORDS
+     instead of being the no-op it was. core/diagnostics.lua still
+     upgrades both, and preserves the error list, so anything caught
+     during early boot still reaches ⇪⇧D.
+  ✅ WHAT THE PASS CLEARED. All four core/ files load inside pcall. warm()
+     is pcall'd, so a slow module cannot strand boot. 111 of 200 local
+     slots free, so init.lua is not near the compile limit that would
+     kill it outright. The only hs.execute calls — a LOGIN shell, which
+     blocks — are in update_tracker's warm() and never on the boot path;
+     setup() uses cheap io.open probes.
+  🧪 TWO ROUNDS OF MY OWN TEST BUGS, both the same shape as the code bug.
+     The first audit searched init.lua raw and failed on its own
+     documentation: the comment explaining the fix names both
+     "core/diagnostics.lua" and the old `err = function() end`, so the
+     PROSE was mistaken for the code — the exact trap this suite warns
+     about at the top. And the sentry audit's first draft passed with the
+     guard removed, because "does pcall appear" and "does the stub
+     appear" were both already true of the migration branch beside it;
+     what actually distinguishes the fixed file is the ABSENCE of a bare
+     `return hsHotkeyBindOriginal(...)`. Restoring the bug now fails four
+     assertions instead of one.
+  🧪 1,566 checks across thirteen Lua suites.
+
 NEW IN 6.52.0 — TWO FIXES FOUND BY AUDITING init.lua:
   📋 AN EDITED CLIPBOARD ENTRY IS NOW COPIED. You edit an entry because
      you want to paste it, and the edit updated the stored history
