@@ -229,6 +229,12 @@ check_marker workspaces      "pruneStore"         6.51.0
 # A clipboard_history.lua without the preload guard writes a one-item
 # file over the real history if you copy during the first seconds of boot.
 check_marker clipboard_history "clip.preload"       6.55.0
+# A mouse_grid.lua without setElements throws on a second display the
+# moment you type a letter whose matches are all on the other screen.
+check_marker mouse_grid      "setElements"        6.62.0
+# A capture_pad.lua without asList adopts the JSON decoder's own tables,
+# which can leave queue and parked as ONE table.
+check_marker capture_pad     "asList"             6.62.0
 # An app_watcher.lua without appMonitorSounds is still on the single
 # repeating sound at 2s. Worth a marker because the alternative way to
 # check is to quit an app and listen, and a WRONG sound and a config

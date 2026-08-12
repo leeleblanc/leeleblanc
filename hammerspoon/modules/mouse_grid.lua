@@ -460,6 +460,39 @@ function M.setup(core)
     -- candidate starts with "a", so repeating it is noise — showing only
     -- what is left to type is both clearer and progressively cheaper to
     -- draw, which is the whole performance story on the next redraw.
+    -- 🚨 6.62.0 — NEVER HAND hs.canvas AN EMPTY ELEMENT LIST.
+    -- Reported from LL's Console, four times in one session:
+    --   canvas.lua:382: bad argument #1 to 'assignElement'
+    --   (invalid element definition; must contain key-value pairs)
+    --
+    -- replaceElements(...) packs its varargs and only unwraps the
+    -- single-table form when that table is NON-EMPTY:
+    --     if elementList.n == 1 and #elementList[1] ~= 0 then ...
+    -- so replaceElements({}) does not mean "draw nothing". It means "draw
+    -- this one element", the element being `{}` — which has no key-value
+    -- pairs, so it throws.
+    --
+    -- WHERE IT BIT: typeChar filters cells by the typed prefix and then
+    -- redraws EVERY screen. With two displays the matches for a letter
+    -- can all live on one of them, leaving the other with zero elements.
+    -- typeChar's own `n == 0` guard does not catch it, because n counts
+    -- matches ACROSS ALL SCREENS — it is non-zero while an individual
+    -- screen has none. And because typeChar runs inside a pcall, the
+    -- throw did not just log: it HID THE GRID. Typing the first letter
+    -- made the grid vanish.
+    --
+    -- An element with action = "skip" is a valid definition that draws
+    -- nothing, which is exactly "this screen has no candidates". Built
+    -- fresh each call rather than shared, so no canvas can ever hold a
+    -- reference to a table another canvas might be handed.
+    local function setElements(canvas, els)
+        if not canvas then return end
+        if type(els) ~= "table" or #els == 0 then
+            els = { { type = "rectangle", action = "skip" } }
+        end
+        canvas:replaceElements(els)
+    end
+
     local function labelElements(p, typedLen, matches)
         local els = {}
         local pad = math.max(0, (p.cellH - grid.labelSize * 1.25) / 2)
@@ -503,7 +536,7 @@ function M.setup(core)
             if not (gc and lc) then
                 return nil, "hs.canvas.new returned nil — cannot draw the overlay"
             end
-            gc:replaceElements(gridElements(p))
+            setElements(gc, gridElements(p))
             for _, c in ipairs({ gc, lc }) do
                 pcall(function() c:level(level) end)
                 pcall(function()
@@ -737,11 +770,11 @@ function M.setup(core)
         local t0, shown = hs.timer.secondsSinceEpoch(), 0
         for _, p in ipairs(grid.cache.screens) do
             if #s.typed == 0 then
-                p.labelCanvas:replaceElements(p.fullLabels)
+                setElements(p.labelCanvas, p.fullLabels)
                 shown = shown + #p.fullLabels
             else
                 local els = labelElements(p, #s.typed, s.matches)
-                p.labelCanvas:replaceElements(els)
+                setElements(p.labelCanvas, els)
                 shown = shown + #els
             end
         end
@@ -851,7 +884,7 @@ function M.setup(core)
 
         local okDraw, drawErr = pcall(function()
             for _, p in ipairs(cache.screens) do
-                p.labelCanvas:replaceElements(p.fullLabels)
+                setElements(p.labelCanvas, p.fullLabels)
                 showCanvas(p.gridCanvas)
                 showCanvas(p.labelCanvas)
             end

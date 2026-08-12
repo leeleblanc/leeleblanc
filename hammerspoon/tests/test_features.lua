@@ -594,6 +594,55 @@ check("...and load() repairs it on the way in, so a bad file cannot persist",
       #pad.queue == 1 and #pad.parked == 0)
 pad.queue, pad.parked = {}, {}
 
+-- 🐛 6.62.0 — FROM LL's CONSOLE, ON A REAL BOOT:
+--   🗒 Capture Pad: the queue and the parked list were the SAME table —
+--      parked has been reset to empty.
+-- The emergency guard fired, and it was right to. But it fired because
+-- load() ADOPTED the decoder's tables, which silently assumes decode
+-- returns a distinct table per key. load() now takes its own copy, so
+-- the two lists cannot be the same object no matter what the decoder
+-- hands back. The guard stays as a second line — it just should not be
+-- the thing doing the work on an ordinary boot.
+do
+    printed = {}
+    local shared = {}                     -- ONE table behind both keys
+    local realJson = _G.safeJson
+    _G.safeJson = function() return { queue = shared, parked = shared } end
+    pad.queue, pad.parked = {}, {}
+    pad.load()
+    _G.safeJson = realJson
+
+    check("🐛 a decoder returning ONE table for both keys cannot alias the lists",
+          not rawequal(pad.queue, pad.parked))
+    check("...and the emergency guard does not have to fire to achieve it",
+          not logged("SAME"))
+    pad.queue, pad.parked = {}, {}
+end
+
+-- and the copy must not quietly change what was loaded
+do
+    printed = {}
+    local realJson = _G.safeJson
+    _G.safeJson = function()
+        return { queue  = { { id = "k1", text = "keep me", createdAt = 1,
+                              images = {}, tries = 0 } },
+                 parked = { { id = "k2", text = "parked me", createdAt = 2,
+                              images = {}, tries = 3, parkedAt = 9,
+                              lastError = "HTTP 500" } } }
+    end
+    pad.queue, pad.parked = {}, {}
+    pad.load()
+    _G.safeJson = realJson
+
+    check("...a normal load still lands both lists intact",
+          #pad.queue == 1 and #pad.parked == 1
+          and pad.queue[1].text == "keep me"
+          and pad.parked[1].text == "parked me")
+    check("...and the parked note keeps the fields that make it parked",
+          pad.parked[1].lastError == "HTTP 500" and pad.parked[1].parkedAt == 9)
+    pad.queue, pad.parked = {}, {}
+end
+
 -- flush: success path
 HTTP_POSTS = {}
 pad.queue = { { id = "a", text = "Email Dana the numbers", createdAt = 1, images = {}, tries = 0 } }

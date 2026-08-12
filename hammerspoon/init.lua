@@ -4,9 +4,56 @@
 -- =====================================================================
 -- 08-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.61.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.62.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.62.0 — TWO BUGS OFF LL's OWN CONSOLE, AND THE STUB THAT HID ONE:
+--   🎯 MOUSE GRID DIED THE MOMENT YOU TYPED, ON TWO SCREENS. The Console
+--      showed it four times in one session:
+--        mouseGrid: typeChar: canvas.lua:382: bad argument #1 to
+--        'assignElement' (invalid element definition; must contain
+--        key-value pairs)
+--      typeChar filters cells by the typed prefix then redraws EVERY
+--      screen. With two displays the matches for a letter can all sit on
+--      ONE of them — and the other screen was handed replaceElements({}).
+--      hs.canvas only unwraps the single-table form when that table is
+--      NON-EMPTY, so `{}` is not read as "draw nothing": it is read as one
+--      element with no key-value pairs, and it throws.
+--   💥 AND IT WAS WORSE THAN A LOG LINE. typeChar runs inside a pcall
+--      whose failure branch calls grid.hide("error") — so the throw did
+--      not just complain, it TORE THE GRID DOWN. On a two-screen Mac,
+--      typing the first letter made the grid vanish. That is the symptom
+--      LL was living with; the Console line was only its receipt.
+--   🧩 WHY THE EXISTING GUARD DID NOT COVER IT: typeChar already refuses a
+--      dead-end prefix, but its count is of matches ACROSS ALL SCREENS.
+--      It is happily non-zero while an individual screen has none. The
+--      guard and the bug were looking at different things.
+--   🩹 THE FIX: one setElements() helper that every label and grid draw
+--      goes through, substituting a single `action = "skip"` element —
+--      a valid definition that draws nothing — when the list is empty.
+--      Built fresh per call, so no two canvases share a table.
+--   🕳 THE REAL LESSON IS THE TEST STUB, NOT THE BUG. test_mouse_grid's
+--      canvas stub was `function c:replaceElements(e) self.elements = e end`
+--      — it accepted ANYTHING, including the exact empty table the real
+--      API rejects. 265 checks, a 4,000-layout geometry fuzzer and a
+--      random-action explorer all ran green over a crash that a real Mac
+--      hit within seconds. A stub more permissive than the thing it
+--      stands in for does not just miss bugs, it MANUFACTURES confidence.
+--      The stub now enforces what hs.canvas enforces, and with it in place
+--      the fuzzer failed on its own before any new test was written.
+--   🗒 CAPTURE PAD: THE QUEUE AND PARKED LIST WERE ONE TABLE. Also from
+--      the boot log. The rawequal guard added in 6.44.10 caught it and
+--      reset parked, losing nothing — the guard doing exactly its job.
+--      But a safety net firing on an ordinary boot is a bug report, not a
+--      resting state, so the cause is fixed too: load() was ADOPTING the
+--      JSON decoder's own tables, which quietly assumes decode returns a
+--      distinct table per key. It now takes its own copy, so the two
+--      lists are structurally incapable of being the same object whatever
+--      the decoder does. The guard stays as the second line.
+--   🧪 386 checks in test_features, 269 in test_mouse_grid; 1,688 across
+--      sixteen Lua suites, 1,723 with the Capture Pad JavaScript. Both new cases
+--      are written from the Console lines themselves, and both were
+--      confirmed to FAIL against the old code before the fix went in.
 -- NEW IN 6.61.0 — THE LAST SILENT FAILURE IN APP MONITOR IS CLOSED:
 --   🔔 A WRONG SOUND NAME NOW TELLS YOU. This was the one thing still
 --      outstanding against rule 7, flagged in both 6.59.0 and 6.60.0 and
@@ -175,50 +222,8 @@
 --      reverting init.lua's call site to a bare chunk() — the suite
 --      catches each independently.
 --   🧪 1,663 checks across sixteen Lua suites.
--- NEW IN 6.57.0 — THREE SHORTCUTS THAT WERE DYING SILENTLY, AND A LARGER PANEL:
---   🚨 THE COLLISION test_integration NEVER CHECKED FOR. It loads all
---      modules together and catches module-vs-module key clashes — but
---      §0.4's hyper MIGRATION MAP lives in init.lua, outside that
---      comparison, and three new modules had quietly claimed keys it
---      already pointed somewhere else:
---         ⇪F      focus_mode     vs   the FILE TRACKER (⌃⌥⇧F migrated)
---         ⇪W      workspaces     vs   the SUMMON-AN-APP PICKER (⌃⌥W)
---         ⇪⇧R     bulk_rename    vs   RESET NUDGE OFFSET (⌘⌃⌥⇧R)
---      Each one printed a single "HYPER CONFLICT" line at boot and then
---      silently killed the OLDER, working shortcut — "the later one wins"
---      is correct Lua table semantics and the worst possible UX. Found
---      from a real Console log, not from the suite.
---   🔀 THE FIX, and a new test that makes the class impossible again:
---         focus mode     → ⇪Q  ("Quiet") · ⇪⇧Q report
---         workspaces     → ⇪⇧S ("Spaces")
---         bulk rename    → undo moved OFF ⇪⇧R entirely, onto the picker's
---                           own first row when there is a batch to undo —
---                           the same pattern Workspaces already uses for
---                           its reset, discovered rather than invented
---      New code yields to what already works. test_diagnostics now reads
---      §0.4's migration map and every module's hyperAddShortcut calls from
---      the SAME source pass and fails if any two ever name the same chord
---      — verified by reverting focus_mode to ⇪F and watching it catch it.
---   📐 THE CHEAT SHEET IS 1024×768 BY DEFAULT, both configurable
---      (cheatSheet.width / .height), both still clamped to the screen so
---      neither can ever open larger than the display. Worth knowing which
---      way the trade runs: WIDTH is free — a wider column means fewer
---      entries wrap onto continuation lines, so 1024 shows MORE at once
---      than 760 did — but HEIGHT is not: at 30pt a row, 768 shows roughly
---      22 rows against the old ceiling's 36. The 86%-of-screen ceiling
---      stayed, because a naive fixed clamp produced a panel covering 95%
---      of a 1280×800 laptop screen, caught by the suite before shipping.
---   🗓 THE HEADER DATE NOW TRACKS THE VERSION. It sat on 08-05-26 for a
---      dozen releases while the version marker moved past it, so the one
---      line a person reads first was quietly wrong — the same species of
---      drift as this release's hyper-key bug, just in prose instead of
---      code. Bumped every release from now on; asserted in the suite.
---   🧪 1,655 checks. Also fixed in passing: the audit's own MODULE list
---      had drifted to 18 of 26 files and was silently covering barely two
---      thirds of the config — replaced with a read of init.lua's actual
---      default profile, the same source test_integration already trusts.
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.61.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.62.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -460,7 +465,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.61.0"
+_G.configVersion = "6.62.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -3414,14 +3419,14 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.61.0"
+    local currentVersion = "6.62.0"
     local currentDate    = "08-11-26"
     -- One line. The full entry for every version lives in CHANGELOG.md
     -- beside this file — which is also why prose no longer sits in a
     -- Lua string here: the work-Mac safety scan reads string literals
     -- as code, and a paragraph describing "no sudo, no launchctl"
     -- failed the very check it was describing.
-    local currentNotes   = "Closed the last silent failure in App Monitor, the one outstanding against rule 7 since 6.59.0: a sound name that does not resolve is now reported by name instead of just going quiet. Two severities - SOME names bad writes a ledger line visible in the diagnostics report and does not interrupt, since the popup still makes noise; ALL names bad raises an on-screen alert, because a mute popup cannot draw you to itself and nothing else would tell you. The alert names the failing spellings and carries a dedupe key so it appears once an hour rather than on every app close. Resolution moved into warm() so a broken list surfaces a couple of seconds after login rather than on the night an app actually crashes, with the popup path still resolving on demand as a fallback. Cached, so ten lookups happen once. The mutation run found two faults in the tests themselves - mutations that broke the file rather than the behaviour were scoring as caught, and the repeat-reporting case was quitting an already-quit app so it measured nothing - both fixed, nine mutations caught afterwards. Previous 6.60.0 notes follow. App Monitor ping is now every ONE second with a DIFFERENT sound each time - ten of them (Hero, Glass, Sosumi, Submarine, Basso, Ping, Funk, Morse, Bottle, Blow), loudest first, which is ten seconds of varied alert. It then WRAPS rather than ending, because the popup waits indefinitely and a sequence that ran out would hand back the exact away-from-the-desk failure that removing the auto-dismiss existed to prevent. A misspelled name now costs one sound instead of all of them, since names are resolved once when the popup opens and failures are dropped. Names are resolved once rather than on every tick - a one-second timer running for hours would otherwise be thousands of system lookups for an answer that cannot change. New suite tests/test_app_watcher drives the real module and covers this path, which nothing had ever executed before: 27 checks, all six mutations caught. Previous 6.59.0 notes follow. App Monitor sounded Hero instead of Ping - the popup waits indefinitely and pings every two seconds until answered, so the sound has to carry from away-from-the-desk, and Ping does not always. One constant drives both the first alert and the repeating ping so they cannot drift apart. Noted in the file, and here: a misspelled sound name yields no sound and no error, because the lookup is pcall-wrapped; the fourteen valid names are now listed beside the setting. Also fixed hs-doctor calling a WORKING hyper key unexpected - it grepped the Caps Lock HID usage as hex, but hidutil returns decimal on a real Mac, so a correct remap never matched and the error branch dumped the raw property list once per HID device. Both forms match now, and a genuinely wrong mapping prints unique pairs instead of a hundred repeats. Fixture tested five ways. See CHANGELOG.md for the full entry."
+    local currentNotes   = "Two bugs off LL's own Console. MOUSE GRID: on two screens, typing the first letter tore the grid down. typeChar filters cells by the typed prefix then redraws EVERY screen, and when a letter's matches all sit on one display the other was handed an empty element list - which hs.canvas reads not as draw-nothing but as one element with no key-value pairs, so it threw, and because typeChar runs inside a pcall that hides the grid on error, the grid vanished. Fixed with one setElements helper that substitutes a single skip element when the list is empty. The existing dead-end guard never covered this because it counts matches across ALL screens, so it stays non-zero while one screen has none. The real lesson is the test stub: it accepted anything, including the exact empty table the real API rejects, so 265 checks plus a 4000-layout fuzzer and a random-action explorer all ran green over a crash a real Mac hit in seconds. The stub now rejects what hs.canvas rejects, and the existing fuzzer then failed on its own before any new test was written. CAPTURE PAD: the queue and parked list were one table. The rawequal guard from 6.44.10 caught it and lost nothing, but a safety net firing on an ordinary boot is a bug report, so the cause is fixed too - load() was adopting the JSON decoder's own tables, and now takes its own copy. Previous 6.61.0 notes follow. Closed the last silent failure in App Monitor, the one outstanding against rule 7 since 6.59.0: a sound name that does not resolve is now reported by name instead of just going quiet. Two severities - SOME names bad writes a ledger line visible in the diagnostics report and does not interrupt, since the popup still makes noise; ALL names bad raises an on-screen alert, because a mute popup cannot draw you to itself and nothing else would tell you. The alert names the failing spellings and carries a dedupe key so it appears once an hour rather than on every app close. Resolution moved into warm() so a broken list surfaces a couple of seconds after login rather than on the night an app actually crashes, with the popup path still resolving on demand as a fallback. Cached, so ten lookups happen once. The mutation run found two faults in the tests themselves - mutations that broke the file rather than the behaviour were scoring as caught, and the repeat-reporting case was quitting an already-quit app so it measured nothing - both fixed, nine mutations caught afterwards. Previous 6.60.0 notes follow. App Monitor ping is now every ONE second with a DIFFERENT sound each time - ten of them (Hero, Glass, Sosumi, Submarine, Basso, Ping, Funk, Morse, Bottle, Blow), loudest first, which is ten seconds of varied alert. It then WRAPS rather than ending, because the popup waits indefinitely and a sequence that ran out would hand back the exact away-from-the-desk failure that removing the auto-dismiss existed to prevent. A misspelled name now costs one sound instead of all of them, since names are resolved once when the popup opens and failures are dropped. Names are resolved once rather than on every tick - a one-second timer running for hours would otherwise be thousands of system lookups for an answer that cannot change. New suite tests/test_app_watcher drives the real module and covers this path, which nothing had ever executed before: 27 checks, all six mutations caught. Previous 6.59.0 notes follow. App Monitor sounded Hero instead of Ping - the popup waits indefinitely and pings every two seconds until answered, so the sound has to carry from away-from-the-desk, and Ping does not always. One constant drives both the first alert and the repeating ping so they cannot drift apart. Noted in the file, and here: a misspelled sound name yields no sound and no error, because the lookup is pcall-wrapped; the fourteen valid names are now listed beside the setting. Also fixed hs-doctor calling a WORKING hyper key unexpected - it grepped the Caps Lock HID usage as hex, but hidutil returns decimal on a real Mac, so a correct remap never matched and the error branch dumped the raw property list once per HID device. Both forms match now, and a genuinely wrong mapping prints unique pairs instead of a hundred repeats. Fixture tested five ways. See CHANGELOG.md for the full entry."
 
     -- Only append if this version isn't already in the file
     local found = false

@@ -380,8 +380,30 @@ function M.setup(core)
         -- raises, and a raise here would take the whole module's setup down.
         local data = _G.safeJson(blob, "capturePad/queue")
         if type(data) ~= "table" then return end
-        pad.queue  = type(data.queue)  == "table" and data.queue  or {}
-        pad.parked = type(data.parked) == "table" and data.parked or {}
+        -- 🚨 6.62.0 — COPY, DO NOT ADOPT. This used to hand pad.queue and
+        -- pad.parked the decoder's own tables:
+        --     pad.queue  = type(data.queue)  == "table" and data.queue  or {}
+        --     pad.parked = type(data.parked) == "table" and data.parked or {}
+        -- which quietly assumes hs.json.decode returns a DISTINCT table per
+        -- key. LL's Console proved that assumption wrong on a real boot:
+        --     🗒 Capture Pad: the queue and the parked list were the SAME
+        --        table — parked has been reset to empty.
+        -- normalize()'s rawequal guard caught it and nothing was lost, which
+        -- is the guard doing exactly its job — but a safety net firing on
+        -- every boot is a bug report, not a resting state.
+        --
+        -- Taking our own copy makes the two lists structurally incapable of
+        -- being the same table, whatever the decoder does. It also forces
+        -- array shape, so a JSON object that decoded to a keyed table cannot
+        -- masquerade as a list. Cheap: these hold a handful of short notes.
+        local function asList(v)
+            local out = {}
+            if type(v) ~= "table" then return out end
+            for i = 1, #v do out[i] = v[i] end
+            return out
+        end
+        pad.queue  = asList(data.queue)
+        pad.parked = asList(data.parked)
         pad.normalize()
         _G.diag.say("capturePad", string.format("loaded %d queued, %d parked",
                                                 #pad.queue, #pad.parked))

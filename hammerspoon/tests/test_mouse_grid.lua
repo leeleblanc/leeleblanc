@@ -66,7 +66,37 @@ local function setScreens(list) SCREENS = list end
 local function mkCanvas(frame)
     CANVAS_NEW = CANVAS_NEW + 1
     local c = { frame = frame, elements = {}, visible = false, deleted = false, lvl = nil }
-    function c:replaceElements(e) self.elements = e; return self end
+    -- 🚨 FAITHFUL TO THE REAL hs.canvas, WHICH THIS STUB WAS NOT.
+    -- The old stub was `self.elements = e; return self` — it accepted
+    -- ANYTHING, including an empty table, so 265 checks ran green while
+    -- the shipped code threw on a real Mac:
+    --     canvas.lua:382: bad argument #1 to 'assignElement'
+    --     (invalid element definition; must contain key-value pairs)
+    -- Hammerspoon's replaceElements(...) packs its varargs and only
+    -- UNWRAPS the single-table form when that table is non-empty:
+    --     if elementList.n == 1 and #elementList[1] ~= 0 then ...
+    -- so replaceElements({}) is not read as "no elements" — it is read as
+    -- ONE element that happens to be `{}`, and an empty table has no
+    -- key-value pairs. Hence the throw. A stub that shrugs at the exact
+    -- input the real API rejects is worse than no stub, because it buys
+    -- confidence it has not earned.
+    function c:replaceElements(e)
+        if type(e) ~= "table" then
+            error("bad argument #1 to 'replaceElements' (table expected)", 2)
+        end
+        if #e == 0 then
+            error("canvas.lua:382: bad argument #1 to 'assignElement' "
+                  .. "(invalid element definition; must contain key-value pairs)", 2)
+        end
+        for i, el in ipairs(e) do
+            if type(el) ~= "table" or next(el) == nil then
+                error("canvas.lua:382: bad argument #1 to 'assignElement' "
+                      .. "(invalid element definition; must contain key-value "
+                      .. "pairs) at index " .. i, 2)
+            end
+        end
+        self.elements = e; return self
+    end
     function c:show()   self.visible = true;  return self end
     function c:hide()   self.visible = false; return self end
     function c:delete() self.visible = false; self.deleted = true; return self end
@@ -1315,6 +1345,80 @@ do
     check("the fuzzer actually exercised large grids", worst > 500, worst)
 end
 setScreens(ONE); loadModule()
+
+-- =====================================================================
+out("\n=== 13b. THE TWO-SCREEN EMPTY-CANVAS THROW (from LL's Console) ===\n")
+-- =====================================================================
+-- REPORTED FROM A REAL MAC, four times in one session:
+--   ⚠️ mouseGrid: typeChar: canvas.lua:382: bad argument #1 to
+--      'assignElement' (invalid element definition; must contain
+--      key-value pairs)
+--
+-- THE MECHANISM: typeChar filters cells by the typed prefix and then
+-- redraws EVERY screen's label canvas. On a multi-screen setup the
+-- matches for a given first letter can all live on ONE screen — and the
+-- other screen then gets replaceElements({}). That is not read as "draw
+-- nothing"; hs.canvas only unwraps the single-table form when the table
+-- is non-empty, so `{}` is read as ONE element with no key-value pairs,
+-- and it throws.
+--
+-- typeChar's own n == 0 guard does NOT cover this: n counts matches
+-- ACROSS ALL SCREENS, so it is happily non-zero while an individual
+-- screen has none. The guard and the bug are looking at different things.
+do
+    setScreens(TWO); loadModule()
+    grid.show(false)
+
+    -- Find a first letter whose matches all sit on ONE screen. On any
+    -- real two-screen layout with different sizes this is not a corner
+    -- case — it is most letters.
+    local lonely, onScreen = nil, nil
+    for _, ch in ipairs({ "a","s","d","f","g","h","j","k","l" }) do
+        local perScreen = {}
+        for i, p in ipairs(grid.cache.screens) do
+            perScreen[i] = 0
+            for _, c in ipairs(p.cells) do
+                if c.label:sub(1, 1) == ch then perScreen[i] = perScreen[i] + 1 end
+            end
+        end
+        local withCells, total = 0, 0
+        for _, n in ipairs(perScreen) do
+            total = total + n
+            if n > 0 then withCells = withCells + 1 end
+        end
+        if total > 0 and withCells < #grid.cache.screens then
+            lonely, onScreen = ch, perScreen; break
+        end
+    end
+
+    check("a first letter exists whose matches are on one screen only",
+          lonely ~= nil, lonely)
+
+    if lonely then
+        local ok, err = pcall(pickKey, lonely)
+        check("typing it does NOT throw (this is the reported bug)", ok, err)
+        check("the grid is still up afterwards", grid.state ~= nil)
+
+        -- And the screen with no candidates must show nothing, rather
+        -- than keeping a stale full label set that offers cells the
+        -- prefix has already ruled out.
+        local staleShown = nil
+        for i, p in ipairs(grid.cache.screens) do
+            if onScreen[i] == 0 then
+                local els = p.labelCanvas.elements or {}
+                local drawn = 0
+                for _, el in ipairs(els) do
+                    if el.action ~= "skip" and el.type == "text" then drawn = drawn + 1 end
+                end
+                if drawn > 0 then staleShown = "screen " .. i .. " still drew " .. drawn end
+            end
+        end
+        check("a screen with no candidates draws no labels", staleShown == nil, staleShown)
+    end
+
+    grid.hide("test done")
+    setScreens(ONE); loadModule()
+end
 
 -- =====================================================================
 out("\n=== 14. THE EXPLORER — random action sequences, then shrinking ===\n")

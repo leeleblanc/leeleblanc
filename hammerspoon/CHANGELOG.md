@@ -4,6 +4,77 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.62.0 — TWO BUGS OFF LL's OWN CONSOLE, AND THE STUB THAT HID ONE:
+  🎯 MOUSE GRID DIED THE MOMENT YOU TYPED, ON TWO SCREENS. Four times in
+     one session:
+       mouseGrid: typeChar: canvas.lua:382: bad argument #1 to
+       'assignElement' (invalid element definition; must contain
+       key-value pairs)
+     typeChar filters cells by the typed prefix and then redraws EVERY
+     screen's label canvas. On a multi-display setup the matches for a
+     given letter can all live on ONE screen, and the other was handed
+     replaceElements({}). hs.canvas only unwraps the single-table form
+     when that table is NON-EMPTY:
+       if elementList.n == 1 and #elementList[1] ~= 0 then ...
+     so `{}` is not read as "draw nothing" — it is read as ONE element
+     that happens to be empty, and an empty table has no key-value
+     pairs. Hence the throw.
+  💥 AND IT WAS WORSE THAN A LOG LINE. typeChar runs inside a pcall
+     whose failure branch calls grid.hide("error"), so the throw did not
+     merely complain — it TORE THE GRID DOWN. On a two-screen Mac,
+     typing the first letter made the grid disappear. That is the
+     symptom; the Console line was only the receipt for it.
+  🧩 WHY THE EXISTING GUARD MISSED IT. typeChar already refuses a
+     dead-end prefix, but the count it checks is of matches ACROSS ALL
+     SCREENS. It is happily non-zero while an individual screen has
+     none. The guard and the bug were looking at different things — a
+     reminder that a check placed one level away from the failure is not
+     the same as a check on the failure.
+  🩹 THE FIX: a single setElements() helper that every label and grid
+     draw goes through. When the element list is empty it substitutes
+     one `action = "skip"` element — a valid definition that draws
+     nothing, which is exactly what "this screen has no candidates"
+     means. Built fresh on each call rather than shared, so no two
+     canvases can ever hold the same table.
+  🕳 THE REAL LESSON IS THE TEST STUB, NOT THE BUG. test_mouse_grid's
+     canvas stub was, in full:
+       function c:replaceElements(e) self.elements = e; return self end
+     It accepted ANYTHING — including the precise empty table the real
+     API rejects. So 265 checks, a 4,000-layout geometry fuzzer AND a
+     random-action explorer with shrinking all ran green over a crash a
+     real Mac hit within seconds of being used. A stub more permissive
+     than the thing it stands in for does not merely fail to catch bugs;
+     it MANUFACTURES confidence, which is worse than having no test.
+     The stub now rejects what hs.canvas rejects, and with it in place
+     the existing fuzzer failed on its own before a single new test had
+     been written — the bug had been reachable by the suite all along.
+  🗒 CAPTURE PAD: THE QUEUE AND THE PARKED LIST WERE ONE TABLE. Also
+     straight off the boot log. The rawequal guard added in 6.44.10
+     caught it and reset parked, and nothing was lost — the guard doing
+     precisely its job, and worth noting it was written for a fault
+     nobody had seen yet.
+  🩹 BUT A SAFETY NET FIRING ON AN ORDINARY BOOT IS A BUG REPORT, NOT A
+     RESTING STATE. The cause: load() ADOPTED the JSON decoder's own
+     tables, which quietly assumes decode hands back a distinct table
+     per key. It now takes its own copy, so the two lists are
+     structurally incapable of being the same object no matter what the
+     decoder does — and array shape is forced while we are there, so a
+     JSON object cannot masquerade as a list. The rawequal guard stays
+     as the second line; it just should not be the thing doing the work.
+  🧪 386 checks in test_features, 269 in test_mouse_grid; 1,688 across
+     sixteen Lua suites, 1,723 with the Capture Pad JavaScript. Both new cases
+     were written from the Console lines themselves, and both were
+     confirmed to FAIL against the old code before the fixes went in —
+     the only evidence that a regression test is testing the regression.
+  🔬 Mutations caught: the empty guard removed, redraw bypassing
+     setElements, the skip element replaced by a bare empty table, the
+     skip element made visible, load() adopting the decoder's tables
+     again, asList returning its argument, and the rawequal guard
+     removed. One mutation (asList dropping contents) crashes the suite
+     rather than failing an assertion — still caught, since the runner
+     reports a suite that does not finish, but recorded as the noisier
+     kind of detection rather than counted as a clean one.
+
 NEW IN 6.61.0 — THE LAST SILENT FAILURE IN APP MONITOR IS CLOSED:
   🔔 A WRONG SOUND NAME NOW TELLS YOU. This was the one thing still
      outstanding against rule 7 — flagged in 6.59.0, flagged again in
