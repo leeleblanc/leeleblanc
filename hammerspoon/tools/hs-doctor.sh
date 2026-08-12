@@ -233,7 +233,7 @@ check_marker clipboard_history "clip.preload"       6.55.0
 # repeating sound at 2s. Worth a marker because the alternative way to
 # check is to quit an app and listen, and a WRONG sound and a config
 # that never installed sound identical from across the room.
-check_marker app_watcher     "appMonitorSounds"   6.60.0
+check_marker app_watcher     "appMonitorResolveSounds" 6.61.0
 
 # ---- 6. the hyper key remap ------------------------------------------
 # 🚨 6.59.0 — hidutil PRINTS THE MAPPING IN DECIMAL, NOT HEX. The check

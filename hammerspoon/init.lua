@@ -4,9 +4,63 @@
 -- =====================================================================
 -- 08-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.60.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.61.0-UNIVERSAL-COMMENTS
 -- =====================================================================
 
+-- NEW IN 6.61.0 — THE LAST SILENT FAILURE IN APP MONITOR IS CLOSED:
+--   🔔 A WRONG SOUND NAME NOW TELLS YOU. This was the one thing still
+--      outstanding against rule 7, flagged in both 6.59.0 and 6.60.0 and
+--      declined both times: hs.sound.getByName returns nil for a name
+--      that does not exist, the nil-check skipped it, and you got a
+--      quieter — or entirely silent — popup with nothing anywhere saying
+--      why. Now the names that fail are reported by name.
+--   🎚 TWO SEVERITIES, BECAUSE THEY ARE NOT THE SAME PROBLEM:
+--      · SOME names bad → a LEDGER LINE (⇪⇧D), no interruption. The
+--        popup still makes noise, so nothing is broken in the moment;
+--        it is a config mistake to find when you go looking. Alerting
+--        here would train you to dismiss the alert without reading it,
+--        which is how a safety net becomes furniture.
+--      · ALL names bad → an ON-SCREEN ALERT. This is the case that
+--        matters: a mute popup cannot draw you to itself, so nothing
+--        else is going to tell you. It names the spellings that failed
+--        so the fix is obvious, and carries a dedupe key so it says so
+--        once an hour rather than on every app close.
+--   ⏰ REPORTED AT LOGIN, NOT AT THE WORST MOMENT. Resolution moved into
+--      warm(), which the loader runs a couple of seconds after boot, off
+--      the load path. So a broken sound list surfaces while you are
+--      sitting there — not on the night an app actually crashes, which
+--      is precisely when you need it to work and least want to be
+--      debugging it. The popup path still resolves on demand as a
+--      fallback, so sound works even if warm() never ran.
+--   💾 AND IT IS CACHED, so ten lookups happen once rather than once per
+--      popup — the same reason they were never put on the 1s ping timer.
+--   🧪 43 → 44 checks in test_app_watcher. New cases: total silence
+--      alerts and names the failures, a partly-broken list records
+--      instead of interrupting, three real closes still look up once, a
+--      healthy list says NOTHING at all, warm() surfaces it at login,
+--      and a MISSING ledger still does not break the popup.
+--   🔬 MUTATION RUN FOUND TWO FAULTS IN THE TESTS THEMSELVES, both the
+--      same species — a test that could not fail:
+--      · The first run reported every mutation as "caught" because the
+--        mutations had broken the FILE, not the behaviour: an empty
+--        result read as a failure. There is a compile gate now, so a
+--        mutant that will not parse is reported as invalid rather than
+--        counted as a win.
+--      · "Three closes report once" was quitting an already-quit app
+--        twice. The module only opens a popup for an app it believes is
+--        RUNNING, and only one popup shows at a time, so three quits
+--        were really one popup and the test measured nothing. It now
+--        relaunches and answers between closes — and only then did the
+--        cache mutation actually fail.
+--      All nine mutations caught after that, each verified to compile.
+--   🧪 1,680 checks across sixteen Lua suites, plus 35 executed in the
+--      Capture Pad page JavaScript — 1,715 in total, read from the
+--      runner's output rather than added up by hand.
+--   ⚖️ ONE EQUIVALENT MUTANT, recorded rather than pretended away:
+--      removing the `if not _G.notices` guard changes nothing, because
+--      the whole report is inside a pcall already. Two guards for one
+--      job — kept, because the pcall protects the popup while the check
+--      states the intent.
 -- NEW IN 6.60.0 — THE APP MONITOR PING BECOMES A SEQUENCE, AND GETS TESTED:
 --   🔊 ONE SECOND, AND A DIFFERENT SOUND EVERY TIME. The waiting popup
 --      now pings every 1s instead of 2s, and each ping takes the next
@@ -163,45 +217,8 @@
 --      had drifted to 18 of 26 files and was silently covering barely two
 --      thirds of the config — replaced with a read of init.lua's actual
 --      default profile, the same source test_integration already trusts.
--- NEW IN 6.56.0 — THE PHANTOM PANEL, AND WHY IT WAS NOT OUR CRASH:
---   👻 REPORTED FROM A REAL MAC: pressing ⇪/ while Safari's address-bar
---      autocomplete was open threw
---         NSInternalInconsistencyException: '<NSRemoteView …
---         SPCompletionListServiceViewController> notified of
---         <HSCanvasWindow> but expected (null)'
---      — and left a panel on screen that would not close, with the
---      Console filling for minutes with alternating "Disabled / Re-enabled
---      previous hotkey UP DOWN HOME END PAGEUP PAGEDOWN ESCAPE".
---   🔍 THE THROW IS NOT OURS AND CANNOT BE PREVENTED. Ordering ANY window
---      on screen makes AppKit post a notification that every observer
---      receives — including Safari's completion list, which lives in
---      ANOTHER PROCESS behind an NSRemoteView. If that view is
---      mid-transition when the notification lands, its own assertion fires,
---      inside Safari, about a window Safari does not own. No argument to
---      :show() avoids it.
---   🚨 WHAT WAS OURS WAS THE DAMAGE, and the damage was the whole symptom.
---      canvas:show() was UNPROTECTED, so the throw abandoned the rest of
---      the open sequence: _G.cheatSheetCanvas had already been set, and
---      enableInput() never ran. The config then believed the sheet was
---      open while the canvas sat half-ordered on screen — a panel you
---      could see, could not scroll, and could not close, because every
---      later ⇪/ took the hide() branch. Those are exactly the alternating
---      hotkey lines. The phantom panel was not the exception; it was
---      everything after the exception not happening.
---   🩹 THE FIX, at all three canvas:show() sites: catch it, RETRY ONCE on
---      the next run loop turn — this is a timing collision with another
---      process, not a permanent state, so a moment later it works — and if
---      it still refuses, say so through the 6.54.0 notice ledger instead
---      of leaving a ghost behind. enableInput() now runs either way, so
---      ⇪/ is never left toggling a panel you cannot use.
---   🧪 REPRODUCED IN THE SUITE. The cheat sheet's canvas stub can now be
---      told to throw exactly as AppKit did, and the test asserts the
---      exception does not escape into the hotkey callback, that the input
---      keys are still bound afterwards, and that the sheet reopens
---      cleanly. Restoring the unprotected show() fails it.
---   🧪 1,644 checks across sixteen Lua suites.
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.60.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.61.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -443,7 +460,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.60.0"
+_G.configVersion = "6.61.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
@@ -3397,14 +3414,14 @@ print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 -- lives in your OneDrive Logs folder (Excel-ready).
 ;(function()
     local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.60.0"
+    local currentVersion = "6.61.0"
     local currentDate    = "08-11-26"
     -- One line. The full entry for every version lives in CHANGELOG.md
     -- beside this file — which is also why prose no longer sits in a
     -- Lua string here: the work-Mac safety scan reads string literals
     -- as code, and a paragraph describing "no sudo, no launchctl"
     -- failed the very check it was describing.
-    local currentNotes   = "App Monitor ping is now every ONE second with a DIFFERENT sound each time - ten of them (Hero, Glass, Sosumi, Submarine, Basso, Ping, Funk, Morse, Bottle, Blow), loudest first, which is ten seconds of varied alert. It then WRAPS rather than ending, because the popup waits indefinitely and a sequence that ran out would hand back the exact away-from-the-desk failure that removing the auto-dismiss existed to prevent. A misspelled name now costs one sound instead of all of them, since names are resolved once when the popup opens and failures are dropped. Names are resolved once rather than on every tick - a one-second timer running for hours would otherwise be thousands of system lookups for an answer that cannot change. New suite tests/test_app_watcher drives the real module and covers this path, which nothing had ever executed before: 27 checks, all six mutations caught. Previous 6.59.0 notes follow. App Monitor sounded Hero instead of Ping - the popup waits indefinitely and pings every two seconds until answered, so the sound has to carry from away-from-the-desk, and Ping does not always. One constant drives both the first alert and the repeating ping so they cannot drift apart. Noted in the file, and here: a misspelled sound name yields no sound and no error, because the lookup is pcall-wrapped; the fourteen valid names are now listed beside the setting. Also fixed hs-doctor calling a WORKING hyper key unexpected - it grepped the Caps Lock HID usage as hex, but hidutil returns decimal on a real Mac, so a correct remap never matched and the error branch dumped the raw property list once per HID device. Both forms match now, and a genuinely wrong mapping prints unique pairs instead of a hundred repeats. Fixture tested five ways. See CHANGELOG.md for the full entry."
+    local currentNotes   = "Closed the last silent failure in App Monitor, the one outstanding against rule 7 since 6.59.0: a sound name that does not resolve is now reported by name instead of just going quiet. Two severities - SOME names bad writes a ledger line visible in the diagnostics report and does not interrupt, since the popup still makes noise; ALL names bad raises an on-screen alert, because a mute popup cannot draw you to itself and nothing else would tell you. The alert names the failing spellings and carries a dedupe key so it appears once an hour rather than on every app close. Resolution moved into warm() so a broken list surfaces a couple of seconds after login rather than on the night an app actually crashes, with the popup path still resolving on demand as a fallback. Cached, so ten lookups happen once. The mutation run found two faults in the tests themselves - mutations that broke the file rather than the behaviour were scoring as caught, and the repeat-reporting case was quitting an already-quit app so it measured nothing - both fixed, nine mutations caught afterwards. Previous 6.60.0 notes follow. App Monitor ping is now every ONE second with a DIFFERENT sound each time - ten of them (Hero, Glass, Sosumi, Submarine, Basso, Ping, Funk, Morse, Bottle, Blow), loudest first, which is ten seconds of varied alert. It then WRAPS rather than ending, because the popup waits indefinitely and a sequence that ran out would hand back the exact away-from-the-desk failure that removing the auto-dismiss existed to prevent. A misspelled name now costs one sound instead of all of them, since names are resolved once when the popup opens and failures are dropped. Names are resolved once rather than on every tick - a one-second timer running for hours would otherwise be thousands of system lookups for an answer that cannot change. New suite tests/test_app_watcher drives the real module and covers this path, which nothing had ever executed before: 27 checks, all six mutations caught. Previous 6.59.0 notes follow. App Monitor sounded Hero instead of Ping - the popup waits indefinitely and pings every two seconds until answered, so the sound has to carry from away-from-the-desk, and Ping does not always. One constant drives both the first alert and the repeating ping so they cannot drift apart. Noted in the file, and here: a misspelled sound name yields no sound and no error, because the lookup is pcall-wrapped; the fourteen valid names are now listed beside the setting. Also fixed hs-doctor calling a WORKING hyper key unexpected - it grepped the Caps Lock HID usage as hex, but hidutil returns decimal on a real Mac, so a correct remap never matched and the error branch dumped the raw property list once per HID device. Both forms match now, and a genuinely wrong mapping prints unique pairs instead of a hundred repeats. Fixture tested five ways. See CHANGELOG.md for the full entry."
 
     -- Only append if this version isn't already in the file
     local found = false

@@ -4,6 +4,67 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.61.0 — THE LAST SILENT FAILURE IN APP MONITOR IS CLOSED:
+  🔔 A WRONG SOUND NAME NOW TELLS YOU. This was the one thing still
+     outstanding against rule 7 — flagged in 6.59.0, flagged again in
+     6.60.0, declined both times because a sound was being chosen rather
+     than a mechanism. hs.sound.getByName returns nil for a name that
+     does not exist; the nil-check skipped it; you got a quieter, or
+     entirely silent, popup and nothing anywhere said why. The names
+     that fail are now reported, by name.
+  🎚 TWO SEVERITIES, BECAUSE THEY ARE NOT THE SAME PROBLEM:
+     · SOME names bad → a LEDGER LINE, visible in ⇪⇧D, no interruption.
+       The popup still makes noise, so nothing is broken in the moment;
+       it is a config mistake to find when you go looking. Alerting here
+       would train you to dismiss the alert without reading it, which is
+       how a safety net turns into furniture.
+     · ALL names bad → an ON-SCREEN ALERT. This is the case that
+       matters, and the reasoning is the whole point: a mute popup
+       CANNOT DRAW YOU TO ITSELF, so if the sound is gone there is
+       nothing else left to tell you. The alert names the exact
+       spellings that failed so the fix is obvious, and carries a dedupe
+       key so it says so once an hour rather than on every app close.
+  ⏰ REPORTED AT LOGIN, NOT AT THE WORST MOMENT. Resolution moved into
+     warm(), which the loader runs a couple of seconds after boot, off
+     the load path. A broken sound list now surfaces while you are
+     sitting at the machine — not on the night an app actually crashes,
+     which is exactly when you need it to work and least want to be
+     debugging it. The popup path still resolves on demand as a
+     fallback, so sound works even if warm() never ran.
+  💾 AND IT IS CACHED, so the ten lookups happen once rather than once
+     per popup — the same reason they were never put on the 1s ping
+     timer in the first place.
+  🧪 44 checks in test_app_watcher. New cases: total silence alerts AND
+     names the failures, a partly-broken list records instead of
+     interrupting, three real closes still look up only once, a healthy
+     list says NOTHING at all, warm() surfaces the problem at login, and
+     a MISSING notice ledger still does not break the popup.
+  🔬 THE MUTATION RUN FOUND TWO FAULTS IN THE TESTS THEMSELVES, both the
+     same species as the bugs this suite exists to catch — a test that
+     could not fail:
+     · The first pass reported every mutation as "caught" because the
+       mutations had broken the FILE, not the behaviour. An empty result
+       read as a failure, so a syntax error scored as a win. There is a
+       compile gate now: a mutant that will not parse is reported as
+       INVALID rather than counted.
+     · "Three closes report once" was quitting an already-quit app three
+       times. The module only opens a popup for an app it believes is
+       RUNNING, and only one popup is on screen at a time — so three
+       quits were really one popup and the case measured nothing. It now
+       relaunches and answers between closes. Only after that fix did
+       the cache mutation actually fail, which is the point.
+     All nine mutations caught afterwards, each verified to compile and
+     to fail on an assertion rather than a crash.
+  🧪 1,680 checks across sixteen Lua suites, plus 35 executed in the
+     Capture Pad page JavaScript — 1,715 in total, read from the
+     runner's output rather than added up by hand.
+  ⚖️ ONE EQUIVALENT MUTANT, recorded rather than pretended away:
+     removing the `if not _G.notices` guard changes nothing observable,
+     because the whole report already sits inside a pcall. Two guards
+     for one job. Kept anyway — the pcall protects the popup, the check
+     states the intent — but it is not evidence of coverage and is not
+     counted as such.
+
 NEW IN 6.60.0 — THE APP MONITOR PING BECOMES A SEQUENCE, AND GETS TESTED:
   🔊 ONE SECOND, AND A DIFFERENT SOUND EVERY TIME. The waiting popup now
      pings every 1s instead of 2s, and each ping takes the next entry

@@ -48,6 +48,9 @@ local function bootModule(opts)
     local everyFns   = {}                -- hs.timer.doEvery callbacks
     local running    = { ["Shottr"] = true }
     local chooserShown = false
+    local shownCount   = 0
+    local lookups      = 0
+    local chooserFn    = nil   -- the module's completion callback
 
     local function makeSound(name)
         return { play = function() played[#played + 1] = name end }
@@ -58,6 +61,7 @@ local function bootModule(opts)
     _G.hs = {
         configdir = HS,
         sound = { getByName = function(name)
+            lookups = lookups + 1
             if resolvable and not resolvable[name] then return nil end
             return makeSound(name)
         end },
@@ -69,12 +73,14 @@ local function bootModule(opts)
                         return { stop = function() end } end,
             secondsSinceEpoch = function() return 100 end,
         },
-        chooser = { new = function() local c = {}
+        chooser = { new = function(fn) local c = {}
+            chooserFn = fn
             local noop = function() return c end
             c.rows, c.width, c.bgDark, c.fgColor, c.subTextColor = noop, noop, noop, noop, noop
             c.placeholderText, c.choices, c.searchSubText = noop, noop, noop
             c.query, c.hide, c.cancel = noop, noop, noop
-            c.show = function() chooserShown = true; return c end
+            c.show = function() chooserShown = true
+                                shownCount = shownCount + 1; return c end
             return c end },
         geometry = { point = function(x, y) return { x = x, y = y } end },
         screen = { mainScreen = function() return { frame = function()
@@ -106,6 +112,20 @@ local function bootModule(opts)
         logsDir = "/tmp",
     }
 
+    -- The notice ledger, recorded rather than stubbed away, so the tests
+    -- can assert on what the module actually said.
+    local recorded, told = {}, {}
+    _G.notices = {
+        record = function(kind, source, msg)
+            recorded[#recorded + 1] = { kind = kind, source = source, msg = msg }
+        end,
+        tell = function(title, text, o)
+            told[#told + 1] = { title = title, text = text, opts = o }
+            return true
+        end,
+    }
+    if opts.noNotices then _G.notices = nil end
+
     local chunk = assert(loadfile(HS .. "/modules/app_watcher.lua"))
     local M = chunk()
     M.setup(core)
@@ -118,7 +138,13 @@ local function bootModule(opts)
         played = played,
         everyFns = everyFns,
         afterFns = afterFns,
+        recorded = recorded,
+        told = told,
+        warm = function() return M.warm and M.warm() end,
+        hasWarm = function() return type(M.warm) == "function" end,
         wasShown = function() return chooserShown end,
+        shownCount = function() return shownCount end,
+        lookups = function() return lookups end,
         -- Quit a watched app and let the module notice, exactly the way a
         -- real termination arrives: name is nil, so it must re-scan.
         quit = function(name)
@@ -127,6 +153,22 @@ local function bootModule(opts)
             for i = 1, #afterFns do afterFns[i]() end
             for i = #afterFns, 1, -1 do table.remove(afterFns, i) end
         end,
+        -- 🚨 NEEDED FOR ANY "happens once" TEST. The module only opens a
+        -- popup for an app it believes is RUNNING, so calling quit() twice
+        -- in a row fires exactly one popup and any test counting repeats
+        -- is measuring nothing. (Test 8 did precisely that until a
+        -- mutation run showed it could not fail.) Bring the app back
+        -- first, the way a relaunch would.
+        relaunch = function(name)
+            running[name] = true
+            _G.__watcherFn(name, hs.application.watcher.launched, nil)
+        end,
+        -- 🚨 ALSO NEEDED FOR "happens once" TESTS. Only ONE popup is on
+        -- screen at a time — further closes QUEUE behind it, by design.
+        -- So a test that wants three popups must answer each one, exactly
+        -- as pressing Esc would. Without this, relaunch+quit still yields
+        -- a single popup and the test is measuring nothing again.
+        dismiss = function() if chooserFn then chooserFn(nil) end end,
     }
 end
 
@@ -212,18 +254,96 @@ do
     eq(h.played[3], "Submarine", "the sequence closes the gap rather than pausing")
 end
 
--- 6. Every name bad = no crash (documented silent case) ---------------
---    Worth pinning even though it is the known gap: the failure mode
---    must stay "no sound", never "the popup throws and you get nothing
---    at all". Recorded so that if the notice ledger is ever wired in,
---    this test says what the behaviour used to be.
+-- 6. Every name bad = no crash, and now: you are TOLD -----------------
 do
     local h = bootModule({ resolvable = {} })
     local okRun = pcall(function() h.quit("Shottr") end)
     ok(okRun, "an unresolvable sound list does not throw")
     ok(h.wasShown(), "the popup is still shown when no sound can be played")
-    eq(#h.played, 0, "nothing plays (the documented silent case)")
+    eq(#h.played, 0, "nothing plays")
     eq(#h.everyFns, 0, "and no pointless timer is left running")
+
+    -- 6.61.0: the whole point. A mute popup cannot draw you to itself,
+    -- so total silence gets an ALERT, not just a ledger line.
+    eq(#h.told, 1, "total silence raises exactly one alert")
+    ok(h.told[1] and h.told[1].title:find("no sound"),
+       "the alert says the App Monitor has no sound",
+       h.told[1] and h.told[1].title)
+    ok(h.told[1] and h.told[1].text:find("Hero"),
+       "and names the spellings that failed, so it is actionable")
+    ok(h.told[1] and h.told[1].opts and h.told[1].opts.key,
+       "it carries a dedupe key, so it cannot nag on every app close")
+end
+
+-- 7. SOME names bad = ledger line, not an interruption -----------------
+--    A partly-working list still makes noise, so it does not need to
+--    interrupt; it needs to be findable in ⇪⇧D. Getting this backwards
+--    (alerting every time) is how a safety net turns into something you
+--    learn to dismiss without reading.
+do
+    local every = { Hero = true, Glass = true, Submarine = true, Basso = true,
+                    Ping = true, Funk = true, Morse = true, Bottle = true,
+                    Blow = true }   -- Sosumi missing
+    local h = bootModule({ resolvable = every })
+    h.quit("Shottr")
+
+    eq(#h.told, 0, "a partly-working list does NOT interrupt with an alert")
+    eq(#h.recorded, 1, "it records exactly one ledger entry")
+    ok(h.recorded[1] and h.recorded[1].msg:find("Sosumi"),
+       "naming the sound that failed", h.recorded[1] and h.recorded[1].msg)
+    ok(h.recorded[1] and h.recorded[1].source == "app_watcher",
+       "attributed to app_watcher so ⇪⇧D shows where it came from")
+end
+
+-- 8. Reported ONCE, not per popup --------------------------------------
+--    Resolution is cached, so three app closes must not mean three
+--    reports. This is also what stops a 1s ping path doing system
+--    lookups forever.
+do
+    local h = bootModule({ resolvable = {} })
+    h.quit("Shottr");                h.dismiss()
+    h.relaunch("Shottr"); h.quit("Shottr"); h.dismiss()
+    h.relaunch("Shottr"); h.quit("Shottr"); h.dismiss()
+    -- First, prove the test is not vacuous: three closes must really have
+    -- opened three popups. Without the relaunch between them the module
+    -- ignores closes 2 and 3 and this whole case measures nothing.
+    eq(h.shownCount(), 3, "three real closes opened three popups")
+    -- THE ACTUAL CLAIM: resolution is cached, so ten lookups total rather
+    -- than ten per popup. In the real ledger notices.tell's own key is
+    -- what keeps the ALERT from repeating; the cache is what keeps the
+    -- system calls from repeating, and only that is this module's job.
+    eq(h.lookups(), 10, "sound names are looked up ONCE, not once per close")
+end
+
+-- 9. warm() reports at login, before anything has closed ---------------
+do
+    local h = bootModule({ resolvable = {} })
+    ok(h.hasWarm(), "the module exposes warm()")
+    eq(#h.told, 0, "nothing is reported before warm() runs")
+    h.warm()
+    eq(#h.told, 1, "warm() alone surfaces a broken sound list at login")
+end
+
+-- 10. A healthy list says NOTHING --------------------------------------
+--     Silence has to mean "it worked", or the mechanism trains you to
+--     ignore it.
+do
+    local h = bootModule()
+    h.warm()
+    h.quit("Shottr")
+    eq(#h.told, 0, "a working sound list raises no alert")
+    eq(#h.recorded, 0, "and writes no ledger entry")
+end
+
+-- 11. No ledger present = still no crash -------------------------------
+--     notices is loaded before app_watcher in the real boot order, but
+--     the module must not assume it: if the ledger itself failed to
+--     load, App Monitor still has to work.
+do
+    local h = bootModule({ resolvable = {}, noNotices = true })
+    local okRun = pcall(function() h.quit("Shottr") end)
+    ok(okRun, "a missing notice ledger does not break the popup")
+    ok(h.wasShown(), "the popup is still shown without the ledger")
 end
 
 -- run-tests.sh greps for this exact shape and adds its own "✅ <suite> —"

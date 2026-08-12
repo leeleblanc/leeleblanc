@@ -69,10 +69,14 @@ function M.setup(core)
     --   middle   → Ping · Bottle · Blow · Morse · Funk
     --   loudest  → Glass · Hero · Sosumi · Basso · Submarine
     -- ⚠️ CASE-SENSITIVE. A name that does not exist is SKIPPED rather than
-    --    erroring (see appMonitorShowNext) — so one typo costs you that one
-    --    sound and the rest of the sequence carries on. If EVERY name is
-    --    wrong you get a silent popup and nothing says why, so if you swap
-    --    the whole list and hear nothing, spelling is the first suspect.
+    --    erroring — so one typo costs you that one sound and the rest of
+    --    the sequence carries on.
+    -- ✅ 6.61.0: AND YOU ARE NOW TOLD. A name that will not resolve is
+    --    reported through the notice ledger a couple of seconds after
+    --    login, naming the exact spelling that failed; if NONE of them
+    --    resolve you get an on-screen alert, because a silent popup
+    --    cannot draw you to itself. You no longer have to guess from
+    --    "hm, that was quieter than I expected".
     --
     -- 6.60.0 — A DIFFERENT SOUND ON EVERY PING. Each ping takes the next
     -- entry and WRAPS at the end, so at one-second intervals this is ten
@@ -92,6 +96,66 @@ function M.setup(core)
     local appMonitorQueue   = {}   -- apps waiting their turn if several close at once
     local appMonitorCurrent = nil  -- app the popup is currently asking about
     local appMonitorPing    = nil  -- repeating sound timer
+    local appMonitorResolved = nil -- cached sound objects (see below)
+
+    -- 6.61.0 — RESOLVE THE SOUND NAMES, AND SAY SO WHEN THEY ARE WRONG.
+    --
+    -- Until now a misspelled name was invisible: hs.sound.getByName
+    -- returns nil, the nil-check skipped it, and you got a quieter (or
+    -- entirely silent) popup with nothing anywhere explaining why. That is
+    -- precisely the silent failure the notice ledger exists to abolish,
+    -- and this module predated it.
+    --
+    -- Resolved ONCE and cached: getByName goes out to the system, and
+    -- calling it inside a one-second timer that may run for hours would be
+    -- thousands of lookups for an answer that cannot change. Called from
+    -- warm() so the report lands a couple of seconds after login — you
+    -- find out that the sound list is broken BEFORE the night an app
+    -- crashes, not during it — and from the popup as a fallback, so the
+    -- sound still works even if warm() never ran.
+    local function appMonitorResolveSounds()
+        if appMonitorResolved then return appMonitorResolved end
+
+        local sounds, missing = {}, {}
+        for _, soundName in ipairs(appMonitorSounds) do
+            local resolved = nil
+            pcall(function() resolved = hs.sound.getByName(soundName) end)
+            if resolved then sounds[#sounds + 1] = resolved
+            else missing[#missing + 1] = soundName end
+        end
+        appMonitorResolved = sounds
+
+        -- Report through the ledger, never by throwing: this runs on the
+        -- popup path, and an App Monitor that crashes while telling you a
+        -- sound name is wrong is worse than the wrong sound.
+        -- The `key` makes it once-an-hour rather than once-per-app-close;
+        -- a bad name is a config mistake, not news that improves on
+        -- repetition.
+        if #missing > 0 then
+            pcall(function()
+                local names = table.concat(missing, ", ")
+                if not _G.notices then return end
+                if #sounds == 0 then
+                    -- Total silence. This is the case that used to leave
+                    -- you with a mute popup and no explanation at all, so
+                    -- it gets an alert rather than a ledger line: nothing
+                    -- else is going to make a sound to draw you to it.
+                    _G.notices.tell("App Monitor has no sound",
+                        "None of these resolved: " .. names ..
+                        ". The popup will still appear, silently. Check the "
+                        .. "spelling in modules/app_watcher.lua.",
+                        { key = "appmonitor.sounds.none", every = 3600 })
+                else
+                    _G.notices.record("config", "app_watcher",
+                        "sound name(s) not found, skipped: " .. names ..
+                        " (" .. #sounds .. " of " .. #appMonitorSounds ..
+                        " still play)")
+                end
+            end)
+        end
+
+        return sounds
+    end
 
     local function appMonitorStopTimers()
         if appMonitorPing then appMonitorPing:stop(); appMonitorPing = nil end
@@ -186,18 +250,7 @@ function M.setup(core)
         -- only by appMonitorStopTimers (called from appMonitorFinish, which
         -- only runs on a button press or Esc).
         --
-        -- Every name is resolved ONCE here, not on each tick: hs.sound
-        -- .getByName goes out to the system, and doing that inside a
-        -- one-second timer that may run for hours would be thousands of
-        -- lookups for an answer that cannot change. Names that fail to
-        -- resolve are dropped now rather than checked repeatedly later,
-        -- which is also what makes a single typo survivable.
-        local sounds = {}
-        for _, soundName in ipairs(appMonitorSounds) do
-            local resolved = nil
-            pcall(function() resolved = hs.sound.getByName(soundName) end)
-            if resolved then sounds[#sounds + 1] = resolved end
-        end
+        local sounds = appMonitorResolveSounds()
 
         if #sounds > 0 then
             -- Modulo, so the sequence wraps forever instead of running out.
@@ -319,6 +372,17 @@ function M.setup(core)
         end)
         _G.appMonitorWatcher:start()
     end)
+
+    -- Runs a couple of seconds after boot, off the load path (see §1.12's
+    -- two-phase notes). The only job is to resolve the sound names early
+    -- so a broken list is reported at LOGIN rather than discovered on the
+    -- night an app actually crashes — which is the whole point of the
+    -- ledger: you should not have to go and check, and you should not
+    -- learn about it at the moment you needed it to work.
+    -- Cheap enough to belong here: ten lookups, once, never repeated.
+    M.warm = function()
+        pcall(appMonitorResolveSounds)
+    end
 end
 
 return M
