@@ -4,6 +4,79 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.63.0 — FOCUS MODE WAS MUTING YOUR MIC BECAUSE TEAMS WAS OPEN:
+  🎤 THE BUG, AND IT IS THE BAD KIND. The Teams pattern list was
+       { "Meeting", "Call with", "| Microsoft Teams$" }
+     and the third entry matches EVERY Teams window, because every Teams
+     window title ends "| Microsoft Teams". In a Lua pattern `|` is an
+     ordinary character, not alternation — it is a literal pipe, not
+     "or". So Focus Mode read "Teams is open" as "you are in a meeting",
+     muted the microphone, turned Focus on and dimmed the screen. LL's
+     own ⇪⇧Q report named the culprits, verbatim:
+       Chat | Canales, Beatrice E | Microsoft Teams
+       Teams and Channels | SAC-Library Team | 📚 CoDev (Collection …
+       Teams and Channels | SAC-Library Team | 🌙 Good evening (Show …
+     A chat, a channel, and a greeting card in a channel feed. The bare
+     "Meeting" entry was nearly as bad: any channel or chat named
+     "Meeting Notes" would do it too.
+  🎯 STRICT NOW, AND DELIBERATELY SO. Patterns are ^-anchored to what a
+     real meeting window STARTS with — Meeting in / Meeting with /
+     Meeting | / Call with / Calling / Screen sharing — plus an
+     exclusion list naming the main-window sections (Chat, Teams and
+     Channels, Calendar, Activity, Files…) which is checked FIRST and
+     wins outright.
+  ⚖️ THIS WILL SOMETIMES MISS A REAL MEETING, and that is the correct
+     way round. A miss costs one ⇪Q. A false positive mutes you
+     mid-sentence and you find out from the silence — which is exactly
+     what has been happening. When this feature is wrong, it should be
+     wrong quietly.
+  🔁 AND ⇪Q WAS BEING OVERRULED THREE SECONDS LATER. The file carried
+     the comment "⇪Q is the override, so it must never argue with you",
+     and then argued: turning Focus off by hand cleared the flag, and
+     the very next detection tick found the same window and turned it
+     straight back on.
+       08:23:54 disengaged (manual ⇪Q)
+       08:23:57 engaged (Microsoft Teams: Chat | …)
+       08:24:00 disengaged (manual ⇪Q)
+       08:24:01 engaged (Microsoft Teams: Chat | …)
+     Three seconds, then one. That is not an override, it is a fight the
+     person cannot win — and since the override exists precisely for
+     when detection is wrong, failing then is the worst possible time.
+  ⏳ A manual off now suppresses AUTO re-engagement for fm.manualOffSecs
+     (15 minutes, tunable, 0 restores the old behaviour). Detection
+     keeps running and the watchdog keeps its own clock; only the
+     automatic engage is held off. Pressing ⇪Q ON engages instantly and
+     CLEARS the suppression — it holds off the machine changing its
+     mind, never the person changing theirs.
+  🔍 _G.focusWindows() — RUN IT WHILE YOU ARE ACTUALLY IN A MEETING. It
+     prints every Zoom and Teams window title open right now and, for
+     each, whether the current rules would call it a meeting and exactly
+     which pattern decided. The strict patterns above are informed
+     guesses: Teams titles vary by build, by tenant, and by how a
+     meeting was joined, and guessing confidently is what produced this
+     bug. Rather than guess again, this prints the evidence.
+  🧪 39 → 67 checks in test_focus. The false positives are written
+     verbatim from the report, and the ⇪Q fight is reproduced as a
+     sequence rather than asserted about. Six mutations caught: the
+     original catch-all restored, a bare "Meeting" pattern, patterns
+     unanchored, "Call with" unanchored, the exclusion pass deleted, and
+     exclusions checked after the patterns instead of before.
+  ⚖️ HONEST NOTE ON THE EXCLUSION LIST. With the patterns ^-anchored it
+     is redundant BY CONSTRUCTION — a title starting "Chat |" cannot
+     also start "Meeting in " — and a mutation run confirmed it:
+     deleting the exclusion pass changed no result, which makes it an
+     equivalent mutant rather than coverage. It is kept anyway, because
+     the patterns WILL be loosened once real meeting titles come back
+     from _G.focusWindows(), and the moment an anchor comes off,
+     exclusions are the only thing standing between a channel and a
+     muted microphone. So what the suite pins is the guarantee that
+     survives that change: exclusions are checked first, and they win
+     even against a pattern that matches.
+  🏷 Stale ⇪F labels in this module corrected to ⇪Q — the key moved in
+     6.48.0 and the header, the override note and the log line had all
+     kept saying ⇪F, which is exactly the kind of thing that sends a
+     non-coder pressing the wrong key during a meeting.
+
 NEW IN 6.62.0 — TWO BUGS OFF LL's OWN CONSOLE, AND THE STUB THAT HID ONE:
   🎯 MOUSE GRID DIED THE MOMENT YOU TYPED, ON TWO SCREENS. Four times in
      one session:

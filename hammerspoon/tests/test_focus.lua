@@ -337,6 +337,174 @@ check("every Accessibility element got a timeout before being asked "
       TIMEOUTS["Microsoft Outlook"] ~= nil)
 
 -- =====================================================================
+out("\n=== 6b. TEAMS: the false positives from LL's own report ===\n")
+-- =====================================================================
+-- 🚨 6.63.0. The pattern list was { "Meeting", "Call with",
+-- "| Microsoft Teams$" }, and that third entry matches EVERY Teams
+-- window — in a Lua pattern `|` is a literal pipe, not alternation, and
+-- every Teams window title ends "| Microsoft Teams". So Focus Mode
+-- muted the microphone whenever Teams was merely open. These three
+-- titles are verbatim from the ⇪⇧Q report on LL's Mac, each of which
+-- had engaged Focus and muted the mic:
+local TEAMS_NOT_MEETINGS = {
+    "Chat | Canales, Beatrice E | Microsoft Teams",
+    "Teams and Channels | SAC-Library Team | 📚 CoDev (Collection Development) | Microsoft Teams",
+    "Teams and Channels | SAC-Library Team | 🌙 Good evening (Show gratitude to your teammates) | Microsoft Teams",
+}
+for _, title in ipairs(TEAMS_NOT_MEETINGS) do
+    boot()
+    APPS = { mkApp("Microsoft Teams", { title }) }
+    FM.tick()
+    check("NOT a meeting: " .. title:sub(1, 46) .. "…", FM.engaged == false)
+end
+
+-- The plain main window, and Teams sitting idle, are not meetings either
+for _, title in ipairs({ "Microsoft Teams", "Calendar | Microsoft Teams",
+                         "Activity | Microsoft Teams" }) do
+    boot()
+    APPS = { mkApp("Microsoft Teams", { title }) }
+    FM.tick()
+    check("NOT a meeting: " .. title, FM.engaged == false)
+end
+
+-- 🚨 THE ONE THAT MATTERS MOST. A channel or chat NAMED for a meeting is
+-- still not a meeting — this is what the bare "Meeting" pattern got
+-- wrong, and it is the likeliest way for the old bug to creep back.
+for _, title in ipairs({
+        "Teams and Channels | Ops | Meeting Notes | Microsoft Teams",
+        "Chat | Weekly Meeting Planning | Microsoft Teams",
+        "Teams and Channels | SAC | Call with Vendors (channel) | Microsoft Teams",
+    }) do
+    boot()
+    APPS = { mkApp("Microsoft Teams", { title }) }
+    FM.tick()
+    check("NOT a meeting even though it says so: " .. title:sub(1, 40) .. "…",
+          FM.engaged == false)
+end
+
+-- 🚨 THE CASE THE EXCLUSION LIST CANNOT SAVE US FROM, and therefore the
+-- one that proves the PATTERNS are doing work rather than the exclusions
+-- doing all of it. A popped-out Teams chat has no section prefix at all —
+-- its title is just the person's name — so no exclusion matches it. Only
+-- the strict patterns keep it from counting as a meeting, and under the
+-- old catch-all it counted as one every time.
+for _, title in ipairs({
+        "Canales, Beatrice E | Microsoft Teams",
+        "SAC-Library Team | Microsoft Teams",
+        -- contains the word, is not one, and no section prefix to exclude:
+        -- this is what a bare "Meeting" pattern gets wrong
+        "Weekly Meeting Crew | Microsoft Teams",
+        "Meeting Notes | Microsoft Teams",
+        -- contains the whole phrase, but not at the start: this is what
+        -- dropping the ^ anchor gets wrong
+        "Notes from Meeting in Ops | Microsoft Teams",
+        "Re: Call with Vendors | Microsoft Teams",
+    }) do
+    boot()
+    APPS = { mkApp("Microsoft Teams", { title }) }
+    FM.tick()
+    check("NOT a meeting, and no exclusion covers it: " .. title,
+          FM.engaged == false)
+end
+
+-- 🧱 THE EXCLUSION LIST IS BELT-AND-BRACES, AND THAT IS WORTH BEING
+-- HONEST ABOUT. With the patterns ^-anchored, exclusions are redundant
+-- BY CONSTRUCTION: a title starting "Chat |" cannot also start
+-- "Meeting in ". A mutation run confirmed it — deleting the exclusion
+-- pass changed no result, which makes it an equivalent mutant, not
+-- coverage.
+--
+-- It is kept because the patterns are informed guesses that will be
+-- LOOSENED once real Teams meeting titles come back from _G.focusWindows()
+-- — and the moment an anchor comes off, exclusions are the only thing
+-- standing between a channel and a muted microphone. So what is pinned
+-- here is the guarantee that survives that change: exclusions are checked
+-- FIRST and they WIN, even against a pattern that matches.
+do
+    boot()
+    local spec = FM.meetingApps["Microsoft Teams"]
+    local savedPatterns = spec.windowPatterns
+    spec.windowPatterns = { "Meeting", "Teams" }   -- deliberately far too broad
+    APPS = { mkApp("Microsoft Teams",
+                   { "Teams and Channels | Ops | Meeting Notes | Microsoft Teams" }) }
+    FM.tick()
+    check("🧱 an excluded window stays excluded even when a pattern DOES "
+          .. "match it — exclusions are checked first and win",
+          FM.engaged == false)
+    spec.windowPatterns = savedPatterns
+end
+
+-- And real meeting windows must still engage, or the fix has simply
+-- turned the feature off — which would be its own kind of broken.
+for _, title in ipairs({ "Meeting in Ops | Microsoft Teams",
+                         "Call with Beatrice | Microsoft Teams",
+                         "Meeting with Beatrice | Microsoft Teams" }) do
+    boot()
+    APPS = { mkApp("Microsoft Teams", { title }) }
+    FM.tick()
+    check("IS a meeting: " .. title, FM.engaged == true)
+end
+
+-- =====================================================================
+out("\n=== 6c. ⇪Q must not be overruled three seconds later ===\n")
+-- =====================================================================
+-- From the same report:
+--   08:23:54 disengaged (manual ⇪Q)
+--   08:23:57 engaged (Microsoft Teams: Chat | …)
+--   08:24:00 disengaged (manual ⇪Q)
+--   08:24:01 engaged (Microsoft Teams: Chat | …)
+-- The file promised "⇪Q is the override, so it must never argue with
+-- you" and then argued within seconds. The override matters MOST when
+-- detection is wrong, so failing then is the worst possible time.
+do
+    boot()
+    APPS = { mkApp("Microsoft Teams", { "Meeting in Ops | Microsoft Teams" }) }
+    FM.tick()
+    check("a real meeting engages it", FM.engaged == true)
+
+    FM.toggle()                       -- the person says no
+    check("⇪Q turns it off", FM.engaged == false)
+
+    FM.tick(); FM.tick(); FM.tick()   -- detection keeps finding the meeting
+    check("🚨 and detection does NOT turn it straight back on",
+          FM.engaged == false)
+
+    -- but pressing it again engages at once: the suppression is on the
+    -- machine changing its mind, never on the person changing theirs
+    FM.toggle()
+    check("...while ⇪Q itself still engages immediately", FM.engaged == true)
+end
+
+-- Turning it ON by hand must CLEAR any suppression, not merely bypass it.
+-- Otherwise: ⇪Q off (suppressed) → ⇪Q on → the watchdog times out → and
+-- auto-detection is still silently held off for the rest of the window,
+-- even though the last thing the person said was "yes".
+do
+    boot()
+    APPS = { mkApp("Microsoft Teams", { "Meeting in Ops | Microsoft Teams" }) }
+    FM.tick(); FM.toggle()            -- engaged, then manually off (suppressed)
+    check("suppressed after a manual off", FM.engaged == false)
+    FM.toggle()                       -- manually ON again — that is a "yes"
+    check("manual on re-engages", FM.engaged == true)
+    FM.disengage("watchdog: pretend the meeting window vanished")
+    FM.tick()
+    check("🚨 a manual ON clears the suppression, so auto works again after",
+          FM.engaged == true)
+end
+
+-- the suppression must expire, or one ⇪Q disables auto-detection forever
+do
+    boot()
+    APPS = { mkApp("Microsoft Teams", { "Meeting in Ops | Microsoft Teams" }) }
+    FM.tick(); FM.toggle()
+    check("engaged then manually off", FM.engaged == false)
+    NOW = NOW + (FM.manualOffSecs or 900) + 5
+    FM.tick()
+    check("...auto-detection resumes once the suppression window passes",
+          FM.engaged == true)
+end
+
+-- =====================================================================
 out("\n=== 7. The watchdog — P6 ===\n")
 -- =====================================================================
 boot()

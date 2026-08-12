@@ -1,5 +1,5 @@
 -- =====================================================================
--- MODULE: FOCUS MODE (⇪F) — the Mac gets out of the way when you join
+-- MODULE: FOCUS MODE (⇪Q) — the Mac gets out of the way when you join
 -- =====================================================================
 -- When a meeting starts: the mic goes muted, the camera is turned off
 -- ONLY if it is provably on, notifications go quiet, and every app that
@@ -25,7 +25,7 @@
 --   · DISENGAGING IS UNCONDITIONAL AND IDEMPOTENT. Every step is
 --     pcall'd separately, so one failing step cannot strand the rest —
 --     the old shape of this bug is a canvas error skipping the unmute.
---   · ⇪F ALWAYS DISENGAGES when engaged, whatever detection thinks.
+--   · ⇪Q ALWAYS DISENGAGES when engaged, whatever detection thinks.
 --     That is the manual override, and it is why the toggle exists.
 --
 -- ---------------------------------------------------------------------
@@ -93,11 +93,15 @@ function M.setup(core)
     -- loudly; it printed one HYPER CONFLICT line at boot and silently
     -- killed a working shortcut. New code yields to what already works.
     fm.key           = "q"        -- ⇪Q toggle · ⇪⇧Q report
-    fm.auto          = true       -- false = ⇪F only, no detection at all
+    fm.auto          = true       -- false = ⇪Q only, no detection at all
     fm.pollSecs      = 4          -- how often detection looks
     fm.watchdogSecs  = 90         -- engaged with no meeting seen this long → leave
     fm.axTimeout     = 0.10       -- 🚨 per-app Accessibility timeout. Freeze guard.
     fm.scanBudget    = 1.0        -- hard stop for one detection sweep, seconds
+    -- After you turn Focus off by hand, how long auto-detection is not
+    -- allowed to turn it straight back on. Set to 0 to go back to the old
+    -- behaviour, in which ⇪Q was overruled within seconds.
+    fm.manualOffSecs = 900        -- 15 minutes
 
     fm.doMuteMic     = true
     fm.doCameraOff   = true       -- only ever acts when the state is READABLE
@@ -136,14 +140,58 @@ function M.setup(core)
             camOn  = { "Meeting", "Stop Video" },   -- present ⇒ camera is ON
             camOff = { "Meeting", "Start Video" },  -- present ⇒ camera is OFF
         },
+        -- 🚨 6.63.0 — THIS ENTRY USED TO MUTE YOUR MIC WHENEVER TEAMS WAS
+        -- OPEN. The pattern list was:
+        --     { "Meeting", "Call with", "| Microsoft Teams$" }
+        -- and that third one matches EVERY Teams window, because every
+        -- Teams window title ends "| Microsoft Teams" (in a Lua pattern
+        -- `|` is an ordinary character, not alternation — it is not
+        -- "or", it is a literal pipe). LL's own report caught it naming
+        -- these as meetings:
+        --     Chat | Canales, Beatrice E | Microsoft Teams
+        --     Teams and Channels | SAC-Library Team | 📚 CoDev …
+        --     Teams and Channels | SAC-Library Team | 🌙 Good evening …
+        -- A chat, a channel, and a greeting card in a channel feed. The
+        -- bare "Meeting" was nearly as bad: any channel or chat with the
+        -- word Meeting in its name would do it.
+        --
+        -- 🎯 THE TRADE, CHOSEN DELIBERATELY: these patterns are now STRICT,
+        -- and strict means it will sometimes MISS a real meeting. That is
+        -- the right way round for this feature. A miss costs one ⇪Q. A
+        -- false positive mutes your microphone while you are talking, and
+        -- you find out from the silence — which is what has been
+        -- happening. When it is wrong it should be wrong quietly.
         ["Microsoft Teams"] = {
-            windowPatterns = { "Meeting", "Call with", "| Microsoft Teams$" },
+            windowPatterns = {
+                "^Meeting in ",     -- channel meeting
+                "^Meeting with ",
+                "^Meeting | ",      -- literal pipe: "Meeting | Microsoft Teams"
+                "^Call with ",
+                "^Calling",
+                "^Screen sharing",
+            },
+            -- Belt and braces: the main Teams window is the one that
+            -- carries a section name, and it is never a meeting however
+            -- the rest of the title reads. Checked BEFORE the patterns.
+            excludePatterns = {
+                "^Chat |", "^Teams and Channels |", "^Calendar |",
+                "^Activity |", "^Files |", "^Apps |", "^Help |",
+                "^Settings", "^Search |", "^Microsoft Teams$",
+            },
             -- Teams exposes no reliable camera menu item. Deliberately no
             -- camOn/camOff: the system mic mute still applies, and the
             -- camera is left alone rather than blind-toggled.
         },
         ["Microsoft Teams (work or school)"] = {
-            windowPatterns = { "Meeting", "Call with" },
+            windowPatterns = {
+                "^Meeting in ", "^Meeting with ", "^Meeting | ",
+                "^Call with ", "^Calling", "^Screen sharing",
+            },
+            excludePatterns = {
+                "^Chat |", "^Teams and Channels |", "^Calendar |",
+                "^Activity |", "^Files |", "^Apps |", "^Help |",
+                "^Settings", "^Search |", "^Microsoft Teams$",
+            },
         },
     }
 
@@ -163,6 +211,7 @@ function M.setup(core)
     fm.timer        = nil     -- HELD: an unreferenced hs.timer is collected.
     fm.appWatcher   = nil     -- HELD: likewise.
     fm.warnedQuiet  = false
+    fm.manualOffUntil = 0     -- auto-engage suppressed until this time
     fm.log          = {}      -- last few transitions, for ⇪⇧F
 
     local function say(m)  if _G.diag then _G.diag.say("focus", m)  end end
@@ -214,9 +263,21 @@ function M.setup(core)
                 for _, w in ipairs((okW and wins) or {}) do
                     local title = ""
                     pcall(function() title = w:title() or "" end)
-                    for _, pat in ipairs(spec.windowPatterns or {}) do
+                    -- Exclusions FIRST, and they are absolute: a window
+                    -- that names a Teams section is the main window, and
+                    -- the main window is never a meeting no matter what
+                    -- the channel or chat happens to be called.
+                    local excluded = false
+                    for _, pat in ipairs(spec.excludePatterns or {}) do
                         if title ~= "" and title:find(pat) then
-                            return app, name .. ": " .. title
+                            excluded = true; break
+                        end
+                    end
+                    if not excluded then
+                        for _, pat in ipairs(spec.windowPatterns or {}) do
+                            if title ~= "" and title:find(pat) then
+                                return app, name .. ": " .. title
+                            end
                         end
                     end
                 end
@@ -470,10 +531,33 @@ function M.setup(core)
 
     function fm.toggle()
         -- Deliberately asymmetric: engaging by hand needs no meeting, and
-        -- disengaging by hand ignores detection entirely. ⇪F is the
+        -- disengaging by hand ignores detection entirely. ⇪Q is the
         -- override, so it must never argue with you.
-        if fm.engaged then fm.disengage("manual ⇪F")
-        else fm.engage("manual ⇪F", hs.application.frontmostApplication(),
+        --
+        -- 🚨 6.63.0 — AND UNTIL NOW IT DID ARGUE, WITHIN SECONDS. The
+        -- comment above was a promise the code did not keep: turning
+        -- Focus off by hand cleared the flag, then the very next
+        -- detection tick found the same window and turned it straight
+        -- back on. Straight from LL's report:
+        --     08:23:54 disengaged (manual ⇪Q)
+        --     08:23:57 engaged (Microsoft Teams: Chat | …)
+        --     08:24:00 disengaged (manual ⇪Q)
+        --     08:24:01 engaged (Microsoft Teams: Chat | …)
+        -- Three seconds, then one second. That is not an override, it is
+        -- a fight the person cannot win — and the override is the last
+        -- resort when detection is wrong, so it failing exactly when
+        -- detection is wrong is the worst possible time for it to fail.
+        --
+        -- Turning it off by hand now suppresses AUTO re-engagement for
+        -- fm.manualOffSecs. Detection keeps running and the watchdog
+        -- keeps its own clock; only the automatic engage is held off.
+        -- Pressing ⇪Q again engages immediately — the suppression is on
+        -- the machine changing its mind, never on you changing yours.
+        if fm.engaged then
+            fm.manualOffUntil = now() + fm.manualOffSecs
+            fm.disengage("manual ⇪Q")
+        else fm.manualOffUntil = 0
+             fm.engage("manual ⇪Q", hs.application.frontmostApplication(),
                        (function()
                            local n
                            pcall(function()
@@ -491,6 +575,11 @@ function M.setup(core)
             local app, reason = fm.detectMeetingWindow()
             if app then
                 fm.lastSeenAt = now()
+                -- Held off after a manual ⇪Q. lastSeenAt is still updated
+                -- above on purpose: if the suppression lapses while the
+                -- meeting is genuinely still running, the watchdog should
+                -- not immediately think the meeting vanished.
+                if now() < (fm.manualOffUntil or 0) then return end
                 if not fm.engaged then
                     local n
                     pcall(function() n = app:name() end)
@@ -499,6 +588,7 @@ function M.setup(core)
                 return
             end
             if not fm.engaged then
+                if now() < (fm.manualOffUntil or 0) then return end
                 local r = fm.scanOutlookReminder()
                 if r then fm.engage(r, nil, nil) end
                 return
@@ -515,6 +605,66 @@ function M.setup(core)
     end
 
     -- ---- the report -------------------------------------------------------
+    -- 🔍 6.63.0 — RUN THIS WHILE YOU ARE ACTUALLY IN A MEETING.
+    --     _G.focusWindows()
+    -- It prints every window title Zoom and Teams currently have, and says
+    -- for each one whether the CURRENT rules would call it a meeting and
+    -- exactly which pattern decided.
+    --
+    -- WHY IT EXISTS: the strict Teams patterns above are informed guesses.
+    -- Teams window titles vary by build, by tenant and by how a meeting was
+    -- joined, and guessing is what produced the bug this release fixes. So
+    -- rather than guess again more confidently, this prints the evidence.
+    -- Run it mid-meeting, send the output, and the patterns get set from
+    -- what your Teams actually says instead of what it ought to say.
+    function _G.focusWindows()
+        local L = { "🔍 FOCUS MODE — window titles right now" }
+        local okApps, apps = pcall(hs.application.runningApplications)
+        local found = 0
+        for _, app in ipairs((okApps and apps) or {}) do
+            local name = "?"
+            pcall(function() name = app:name() or "?" end)
+            local spec = fm.meetingApps[name]
+            if spec then
+                found = found + 1
+                L[#L + 1] = ""
+                L[#L + 1] = "  " .. name .. ":"
+                local okW, wins = pcall(function() return app:allWindows() end)
+                local n = 0
+                for _, w in ipairs((okW and wins) or {}) do
+                    local title = ""
+                    pcall(function() title = w:title() or "" end)
+                    n = n + 1
+                    local verdict, why = "not a meeting", nil
+                    for _, pat in ipairs(spec.excludePatterns or {}) do
+                        if title ~= "" and title:find(pat) then
+                            verdict, why = "EXCLUDED", pat; break
+                        end
+                    end
+                    if not why then
+                        for _, pat in ipairs(spec.windowPatterns or {}) do
+                            if title ~= "" and title:find(pat) then
+                                verdict, why = "▶ MEETING", pat; break
+                            end
+                        end
+                    end
+                    L[#L + 1] = string.format("    [%d] %s", n, title)
+                    L[#L + 1] = string.format("        → %s%s", verdict,
+                                why and ("  (pattern: " .. why .. ")") or "")
+                end
+                if n == 0 then L[#L + 1] = "    (no windows)" end
+            end
+        end
+        if found == 0 then
+            L[#L + 1] = "  No Zoom or Teams running."
+        end
+        L[#L + 1] = ""
+        L[#L + 1] = "  Copy this whole block back if detection is still wrong."
+        local out = table.concat(L, "\n")
+        print(out)
+        return out
+    end
+
     function _G.focusReport()
         local L = { string.format("🎯 FOCUS MODE on %s — %s",
                     tostring(core.hostTag), fm.engaged and "ENGAGED" or "idle") }

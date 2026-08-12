@@ -222,6 +222,9 @@ check_marker numpad_layer    "shiftActions"       6.49.0
 #     missed meeting-end leaves the microphone muted indefinitely.
 #   · bulk_rename without a two-phase apply destroys a file on any swap.
 check_marker focus_mode      "fm.watchdogSecs"    6.48.0
+# A focus_mode.lua without manualOffSecs re-engages three seconds after
+# you turn it off by hand, and still treats any Teams window as a meeting.
+check_marker focus_mode      "manualOffSecs"      6.63.0
 check_marker bulk_rename     "__brtmp"            6.48.0
 # A workspaces.lua without pruneStore trusts Space IDs across logouts,
 # which silently applies the wrong workspace to the wrong desktop.
