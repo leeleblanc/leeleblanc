@@ -352,24 +352,54 @@ print("\n=== 12. Toggle ===")
 CS.toggle(); check("toggle opens", _G.cheatSheetCanvas ~= nil)
 CS.toggle(); check("toggle closes", _G.cheatSheetCanvas == nil)
 
-print("\n=== 13. Group order (locked to what you asked for) ===")
-local want = {
-  "APP MONITOR", "ASANA", "CLIPBOARD", "ACTIVITY TRACKER", "POPUP POSITION",
-  "WINDOW ARRANGER", "APP PEEK", "WINDOW SWITCHER", "APP UPDATES",
-  "FILE TRACKER", "DOCUMENT WATCHER", "COMMAND HISTORY", "AUTOCORRECT",
-  "CAPS LOCK", "BACKUP", "HELP",
-}
+print("\n=== 13. Group order — pinned first, then A-Z (6.65.0) ===")
+-- 🔄 THIS SECTION CHANGED IN 6.65.0 AND THE OLD VERSION WAS RIGHT TO FAIL.
+-- Until now the sheet was ordered by each module's `order` field, which is
+-- its LOAD order — so the page read in the sequence the config happened to
+-- boot in, and moving a section up the page meant renumbering the boot.
+-- The order is now decided by the sheet itself: pinned sections first,
+-- everything else alphabetical, ⭐ custom entries last.
+--
+-- What the checks below pin is the RULE, not a transcript of today's list.
+-- The old version listed all sixteen titles in sequence, so adding a
+-- module broke it whether or not anything was actually wrong.
 local got = {}
 for _, g in ipairs(CS.groups()) do table.insert(got, g.title) end
-check("group count", #got == #want, #got .. " vs " .. #want)
-for i, w in ipairs(want) do
-  check(("%2d. %s"):format(i, w), got[i] and got[i]:find(w, 1, true) ~= nil,
-        "found: " .. tostring(got[i]))
+
+-- The pinned sections are not in this test's fixture (they belong to
+-- modules, and this file stubs the module list), so what is asserted here
+-- is the fallback: with nothing pinned present, the page is A-Z.
+local function sortKey(t)
+  return (tostring(t):gsub("^[^%a]*", ""):gsub("%s*%b()%s*$", ""):upper())
 end
-check("App Peek sits directly below Window Arranger",
-  got[6]:find("WINDOW ARRANGER", 1, true) and got[7]:find("APP PEEK", 1, true))
-check("Autocorrect sits directly below Command History",
-  got[12]:find("COMMAND HISTORY", 1, true) and got[13]:find("AUTOCORRECT", 1, true))
+check("every group is in alphabetical order by title, ignoring the "
+      .. "leading emoji and the trailing (key) parenthetical", (function()
+  for i = 2, #got do
+    if sortKey(got[i - 1]) > sortKey(got[i]) then
+      return false, sortKey(got[i - 1]) .. " > " .. sortKey(got[i])
+    end
+  end
+  return true
+end)())
+check("the emoji does NOT decide position — ✅ ASANA sorts under A, "
+      .. "not under whatever ✅ happens to be", (function()
+  for i, t in ipairs(got) do
+    if t:find("ASANA", 1, true) then
+      -- ACTIVITY TRACKER, APP MONITOR, APP PEEK, APP UPDATES all precede it.
+      return i > 1 and sortKey(got[i - 1]) < "ASANA"
+    end
+  end
+  return false
+end)())
+check("a title's trailing parenthetical does not decide position either — "
+      .. "WINDOW SWITCHER (⌥Tab …) files under W", (function()
+  for i, t in ipairs(got) do
+    if t:find("WINDOW SWITCHER", 1, true) then
+      return sortKey(t) == "WINDOW SWITCHER"
+    end
+  end
+  return false
+end)())
 check("APP LOCK is gone from the sheet", (function()
   for _, g in ipairs(CS.groups()) do
     if g.title:find("LOCK", 1, true) and not g.title:find("CAPS", 1, true) then return false end
@@ -379,15 +409,59 @@ check("APP LOCK is gone from the sheet", (function()
   end
   return true
 end)())
-check("App Updates -> File Tracker -> Document Watcher keep that order", (function()
-  local iu, ift, idw
-  for i, t in ipairs(got) do
-    if t:find("APP UPDATES",1,true) then iu = i end
-    if t:find("FILE TRACKER",1,true) then ift = i end
-    if t:find("DOCUMENT WATCHER",1,true) then idw = i end
-  end
-  return iu < ift and ift < idw
-end)())
+
+-- 🚨 THE PIN ITSELF, driven through the real sort rather than described.
+-- A module group whose title contains MOUSE GRID must come FIRST, ahead of
+-- everything alphabetical — including a title starting with "A", which is
+-- the case that would pass by accident if the pin did nothing.
+do
+  local saved = _G.moduleCheatsheets
+  _G.moduleCheatsheets = {
+    { title = "🎯 MOUSE GRID (⇪X — type 3 letters)", entries = { { "⇪X", "grid" } }, order = 13.6 },
+    { title = "🔎 TOOL PICKER (⇪⇧/ — search)",       entries = { { "⇪⇧/", "find" } }, order = 13.55 },
+    { title = "🅰️ AAA FIRST ALPHABETICALLY",         entries = { { "⇪Z", "z" } },    order = 2 },
+  }
+  local pinned = {}
+  for _, g in ipairs(CS.groups()) do table.insert(pinned, g.title) end
+  check("🚨 MOUSE GRID is pinned to the top of the sheet, ahead of a "
+        .. "group whose title beats it alphabetically",
+        pinned[1] and pinned[1]:find("MOUSE GRID", 1, true) ~= nil,
+        "found: " .. tostring(pinned[1]))
+  check("TOOL PICKER is pinned second — pinned sections keep the order "
+        .. "they are listed in, NOT alphabetical among themselves",
+        pinned[2] and pinned[2]:find("TOOL PICKER", 1, true) ~= nil,
+        "found: " .. tostring(pinned[2]))
+  check("...and the alphabetical band starts immediately after the pins",
+        pinned[3] and pinned[3]:find("AAA FIRST", 1, true) ~= nil,
+        "found: " .. tostring(pinned[3]))
+  _G.moduleCheatsheets = saved
+end
+
+-- A module that FAILED to load outranks even a pin. A feature that
+-- vanished with no explanation is the one thing that must never be
+-- scrolled to.
+do
+  local saved = _G.moduleStatus
+  _G.moduleStatus = { { name = "mouse_grid", ok = false, err = "boom" } }
+  local first = CS.groups()[1]
+  check("🚨 a broken module is announced ABOVE the pinned sections — a "
+        .. "feature that vanished without explanation is the worst thing "
+        .. "to bury", first and first.title:find("FAILED TO LOAD", 1, true) ~= nil,
+        "found: " .. tostring(first and first.title))
+  _G.moduleStatus = saved
+end
+
+-- ⭐ custom entries sort last, after everything alphabetical.
+do
+  local saved = _G.customShortcuts
+  _G.customShortcuts = { { keys = "⇪1", desc = "mine", group = "AAA" } }
+  local list = CS.groups()
+  local last = list[#list]
+  check("your own ⭐ entries stay at the bottom even when the group name "
+        .. "would sort first", last and last.title:find("⭐", 1, true) ~= nil,
+        "found: " .. tostring(last and last.title))
+  _G.customShortcuts = saved
+end
 
 -- =====================================================================
 -- 6.44.11 — THE SURFACE THE OLD SLICE HID

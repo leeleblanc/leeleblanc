@@ -727,11 +727,125 @@ pickKey("a")
 local one = #grid.cache.screens[1].labelCanvas.elements
 pickKey("a")
 local two = #grid.cache.screens[1].labelCanvas.elements
-check("each keystroke shrinks the redraw — 714 -> 81 -> 9",
-      full > one and one > two and two == 9,
+-- 6.65.0 — a MATCHING cell now costs two elements, not one: the amber
+-- box and the text on top of it. The counts are therefore doubled from
+-- the first keystroke on (714 -> 162 -> 18), and 714 stays odd-one-out
+-- because with nothing typed there is no highlight to draw. What the
+-- check is really pinning is unchanged and is the thing that matters:
+-- each keystroke costs STRICTLY LESS to draw than the one before.
+check("each keystroke shrinks the redraw — 714 -> 162 -> 18",
+      full > one and one > two and two == 18,
       full .. " -> " .. one .. " -> " .. two)
 grid.hide("t"); checkInv("cleanup")
 
+out("   -- 6.65.0: the amber highlight and the vanishing lattice --\n")
+grid.show(false)
+check("with nothing typed the lattice is fully drawn — scrim plus one "
+      .. "line per divider, not one rectangle per cell", (function()
+    local p = grid.cache.screens[1]
+    return #p.gridCanvas.elements == 1 + (p.cols - 1) + (p.rows - 1)
+end)(), #grid.cache.screens[1].gridCanvas.elements)
+check("with nothing typed NO cell is highlighted — boxing all of them is "
+      .. "not a highlight, it is a second lattice", (function()
+    for _, e in ipairs(grid.cache.screens[1].labelCanvas.elements) do
+        if e.type == "rectangle" then return false end
+    end
+    return true
+end)())
+pickKey("a")
+check("one keystroke and the grid lines are GONE — the survivors stand "
+      .. "alone on the scrim",
+      #grid.cache.screens[1].gridCanvas.elements == 1,
+      #grid.cache.screens[1].gridCanvas.elements)
+check("dropping the lattice costs ONE element regardless of how many "
+      .. "cells were discarded — it gets cheaper as the grid narrows",
+      grid.cache.screens[1].gridCanvas.elements[1].action == "fill")
+local boxes, texts = 0, 0
+for _, e in ipairs(grid.cache.screens[1].labelCanvas.elements) do
+    if e.type == "rectangle" then boxes = boxes + 1
+    elseif e.type == "text" then texts = texts + 1 end
+end
+check("every surviving cell gets exactly one box and one label",
+      boxes == texts and boxes > 0, boxes .. " boxes / " .. texts .. " labels")
+check("the highlight is amber, thick, and stroked — a border you notice "
+      .. "arriving, not one you have to look for", (function()
+    for _, e in ipairs(grid.cache.screens[1].labelCanvas.elements) do
+        if e.type == "rectangle" then
+            return e.strokeColor.red == 1.00 and e.strokeColor.green == 0.84
+               and e.strokeColor.blue == 0.00 and e.strokeWidth >= 3.0
+               and e.action == "strokeAndFill"
+        end
+    end
+    return false
+end)())
+check("the box is INSET by half its stroke, so two adjacent survivors "
+      .. "read as two targets and not one wide one", (function()
+    local p = grid.cache.screens[1]
+    for _, e in ipairs(p.labelCanvas.elements) do
+        if e.type == "rectangle" then
+            for _, c in ipairs(p.cells) do
+                if math.abs(e.frame.x - (c.rx + grid.matchWidth / 2)) < 0.001 then
+                    return math.abs(e.frame.w - (c.rw - grid.matchWidth)) < 0.001
+                end
+            end
+        end
+    end
+    return false
+end)())
+-- 🚨 THE STALE-CANVAS TRAP. The canvases are cached across hide/show and
+-- the lattice is stripped on the first keystroke, so without an explicit
+-- restore the NEXT ⇪X opens a grid with no lines in it — last session's
+-- final frame, looking exactly like a rendering bug.
+grid.hide("t")
+grid.show(false)
+check("🚨 the NEXT show restores the lattice — a cached canvas must never "
+      .. "open showing the last session's final frame", (function()
+    local p = grid.cache.screens[1]
+    return #p.gridCanvas.elements == 1 + (p.cols - 1) + (p.rows - 1)
+end)(), #grid.cache.screens[1].gridCanvas.elements)
+-- Backspacing out returns you to the full grid in the same session.
+pickKey("a")
+check("typing drops the lattice again in the same session",
+      #grid.cache.screens[1].gridCanvas.elements == 1)
+grid.backspace()
+check("backspacing to nothing brings the lattice BACK, rather than "
+      .. "leaving you on a bare scrim with every cell selectable", (function()
+    local p = grid.cache.screens[1]
+    return #p.gridCanvas.elements == 1 + (p.cols - 1) + (p.rows - 1)
+end)(), #grid.cache.screens[1].gridCanvas.elements)
+grid.hide("t"); checkInv("cleanup")
+
+out("   -- 6.65.0: label size is a floor plus a fit --\n")
+check("labelSize is the FLOOR and it is at least 14pt — 12 was chosen to "
+      .. "fit, not to be read at a glance", grid.labelSize >= 14)
+grid.show(false)
+check("no label is ever drawn below the floor", (function()
+    for _, e in ipairs(grid.cache.screens[1].labelCanvas.elements) do
+        if e.type == "text" and e.textSize < grid.labelSize then return false end
+    end
+    return true
+end)())
+check("nor above the ceiling, so a coarse grid does not shout", (function()
+    for _, e in ipairs(grid.cache.screens[1].labelCanvas.elements) do
+        if e.type == "text" and e.textSize > grid.labelMaxSize then return false end
+    end
+    return true
+end)())
+local sizeAt3 = grid.cache.screens[1].labelCanvas.elements[1].textSize
+pickKey("a")
+local sizeAt2
+for _, e in ipairs(grid.cache.screens[1].labelCanvas.elements) do
+    if e.type == "text" then sizeAt2 = e.textSize break end
+end
+check("fewer characters left to type means MORE room per character, so "
+      .. "the label grows as you narrow rather than staying at its "
+      .. "worst-case size", sizeAt2 >= sizeAt3,
+      tostring(sizeAt3) .. " -> " .. tostring(sizeAt2))
+grid.hide("t"); checkInv("cleanup")
+
+-- 6.65.0 — these read the LATTICE, so they need a grid that is up with
+-- nothing typed. Every block above leaves the canvas mid-narrowing.
+grid.show(false)
 check("the grid canvas is the scrim plus one line per divider, not one "
       .. "rectangle per cell", (function()
     local p = grid.cache.screens[1]
@@ -747,8 +861,14 @@ check("the scrim is 30% coverage, not 30% brightness — an opaque 30% grey "
       .. "would hide the very thing you are aiming at",
       scrim.fillColor.alpha == 0.30 and scrim.fillColor.white == 0.00,
       tostring(scrim.fillColor.alpha))
+-- Indexed defensively on purpose. When a mutation stops show() from
+-- restoring the lattice this element does not exist, and a bare index
+-- would ABORT the run — killing every check after it and pointing the
+-- traceback at this line instead of at the one that actually broke.
 local line = grid.cache.screens[1].gridCanvas.elements[2]
-check("grid lines are 80% grey", line.strokeColor.white == 0.80)
+check("grid lines are 80% grey",
+      line ~= nil and line.strokeColor.white == 0.80,
+      line == nil and "no line element — the lattice was not drawn" or nil)
 check("the scrim covers the whole display", scrim.frame.w == 1512
       and scrim.frame.h == 982)
 

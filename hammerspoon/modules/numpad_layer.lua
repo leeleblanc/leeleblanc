@@ -88,7 +88,9 @@ local M = {
             { "⇪ pad1 2 3",  "Clean copied link · flush Capture Pad · copy today" },
             { "⇪ pad0",      "Run the health check now" },
             { "⇪ pad.",      "Undo the last rename" },
-            { "free",        "⇪ pad + - * / enter clear are unclaimed, for later" },
+            { "⇪ pad+",      "Pomodoro — 25 on, 5 off (press again to close)" },
+            { "⇪ pad*",      "Find the pointer — flashes a ring around it" },
+            { "free",        "⇪ pad - / enter clear are unclaimed, for later" },
             { "—",           "———— hold shift for windows ————" },
             { "⇪⇧ pad7 8 9", "Top-left quarter · top half · top-right quarter" },
             { "⇪⇧ pad4 5 6", "Left half · centre 70% · right half" },
@@ -167,8 +169,17 @@ function M.setup(core)
         pad0 = "health.check",       -- run the health scan right now
         ["pad."] = "rename.undo",    -- the echo: ⇪pad. undoes a rename,
                                      -- ⇪⇧pad. undoes a window move
-        -- 🆓 FREE ON THIS LAYER, ready for whatever comes next:
-        --    pad+  pad-  pad*  pad/  padenter  padclear
+        -- 6.65.0 — the arithmetic keys start earning their keep. Both are
+        -- on THIS layer rather than ⇪⇧ because both are tools, and the
+        -- 6.50.0 split is the whole reason this layer exists: ⇪pad is what
+        -- you do, ⇪⇧pad is where the window goes. A pomodoro on the window
+        -- layer would be the first thing there that is not a window.
+        ["pad+"] = "pomodoro.toggle",  -- 25 on, 5 off; press again to close
+        ["pad*"] = "mouseGrid.locate", -- flash a ring at the pointer.
+                                       -- The asterisk IS the mnemonic: it
+                                       -- is the only key on the pad shaped
+                                       -- like the thing it draws.
+        -- 🆓 STILL FREE ON THIS LAYER:  pad-  pad/  padenter  padclear
     }
 
     -- ---- LAYER 2: ⇪⇧ + pad → WINDOWS ------------------------------------

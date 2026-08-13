@@ -92,7 +92,7 @@ else
     [ "$n" = "init" ] && note="⚠️ STRAY init.lua — should NOT be in modules/"
     printf "   %-22s %7s  %-16s %s\n" "$n" "$b" "$m" "$note"
   done
-  echo "   count: $(ls -1 "$HS/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 26)"
+  echo "   count: $(ls -1 "$HS/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 30)"
 fi
 
 # ---- 4b. core ---------------------------------------------------------
@@ -243,6 +243,19 @@ check_marker capture_pad     "asList"             6.62.0
 # check is to quit an app and listen, and a WRONG sound and a config
 # that never installed sound identical from across the room.
 check_marker app_watcher     "appMonitorResolveSounds" 6.61.0
+# 🚨 A mouse_grid.lua without dropLattice is the pre-6.65.0 file, and the
+# tell is subtle enough to be worth a marker: the grid still WORKS, it
+# just never narrows visibly, so you would assume the feature was never
+# delivered rather than that the file is stale.
+check_marker mouse_grid      "dropLattice"        6.65.0
+# The four tools added in 6.65.0. A MISSING FILE here is the likeliest
+# outcome of a hand-copied install — init.lua's profile names them, so
+# init.lua landing without them means four modules that fail to load and
+# announce themselves at the top of the cheat sheet.
+check_marker tool_picker       "tp.runnable"      6.65.0
+check_marker universal_actions "ua.ordered"       6.65.0
+check_marker pomodoro          "pom.answerSecs"   6.65.0
+check_marker outlook_probe     "outlookProbe"     6.65.0
 
 # ---- 6. the hyper key remap ------------------------------------------
 # 🚨 6.59.0 — hidutil PRINTS THE MAPPING IN DECIMAL, NOT HEX. The check

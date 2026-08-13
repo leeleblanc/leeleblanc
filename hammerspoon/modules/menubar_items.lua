@@ -87,9 +87,40 @@ function M.setup(core)
     mb.scanBudget  = 2.0          -- hard stop for the whole scan, seconds
     mb.cacheSecs   = 10           -- repeated presses reuse the last scan
     mb.slowWarn    = 0.75         -- print a warning if a scan exceeds this
-    -- Owners never worth listing: Hammerspoon's own items, and the system
-    -- clock/Control Center which you cannot usefully drive this way.
-    mb.skipApps    = { ["Hammerspoon"] = true }
+    -- ✏️ OWNERS NEVER WORTH LISTING. 6.65.0 — this was one entry, and the
+    -- picker was consequently full of things that are not applications.
+    -- macOS runs a fleet of faceless background agents that each own a
+    -- menu bar extra: the clock, Control Center, the input-source menu,
+    -- Stage Manager, the Wi-Fi and battery and volume items. They ARE
+    -- status items, so the scan is right to find them — but none of them
+    -- can be usefully driven by "pick it from a list and click it", and
+    -- together they crowd out the real apps you opened this picker for.
+    --
+    -- ⚠️ THIS IS A DENY LIST, NOT A RULE. There is no reliable flag that
+    -- says "agent, not app" — LSUIElement is set by plenty of legitimate
+    -- menu-bar-only apps you DO want here (1Password, Bartender, Ice,
+    -- NordVPN), so filtering on it would throw away the good with the
+    -- bad. Names it is, and a name that is not on this list still shows
+    -- up, which is the failure direction that costs you nothing.
+    --
+    -- To bring one back, delete its line. To hide something else, add it
+    -- by the exact name the picker shows in its left column.
+    mb.skipApps    = {
+        ["Hammerspoon"]         = true,  -- our own 🩺 and calendar items
+        ["Control Center"]      = true,  -- clock, Wi-Fi, battery, volume…
+        ["ControlCenter"]       = true,  -- the bundle name, on some builds
+        ["SystemUIServer"]      = true,  -- the legacy extras host
+        ["TextInputMenuAgent"]  = true,  -- the input-source / emoji menu
+        ["Spotlight"]           = true,  -- ⌘space already opens it
+        ["WindowManager"]       = true,  -- Stage Manager
+        ["Window Manager"]      = true,
+        ["Dock"]                = true,  -- owns several invisible extras
+        ["NotificationCenter"]  = true,
+        ["universalaccessd"]    = true,
+        ["talagent"]            = true,
+        ["AirPlayUIAgent"]      = true,
+        ["ScreenSaverEngine"]   = true,
+    }
     -- ----------------------------------------------------------------------
 
     mb.cache, mb.cacheAt, mb.lastScanMs = nil, 0, 0

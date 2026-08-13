@@ -22,7 +22,7 @@ with no admin password. The two steps that *can* use admin are marked
 │   ├── boot_report.lua       the Console's first two lines
 │   ├── capabilities.lua      what works on THIS Mac
 │   └── notices.lua           the failure ledger — nothing fails silently
-├── modules/              26 files, loaded by the §1.12 loader
+├── modules/              30 files, loaded by the §1.12 loader
 ├── tools/                hs-doctor.sh · hs-install.sh · run-tests.sh
 └── logs/                 only if there is no OneDrive on this Mac
 ```
@@ -275,7 +275,7 @@ No OneDrive on that Mac is fine — logs fall back to
 sh ~/.hammerspoon/tools/run-tests.sh ~/.hammerspoon
 ```
 
-Syntax on `init.lua`, `core/` and all 26 modules, fifteen Lua suites, then the
+Syntax on `init.lua`, `core/` and all 30 modules, seventeen Lua suites, then the
 Capture Pad's page JavaScript **executed** against a DOM stub. One exit
 code. A skipped stage is reported as a skip, never as a pass.
 

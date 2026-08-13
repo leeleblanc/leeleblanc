@@ -4,9 +4,58 @@
 -- =====================================================================
 -- 08-13-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.64.0-EMMYLUA-AUTOCOMPLETE
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.65.0-SEARCH-PIN-POMODORO
 -- =====================================================================
 
+-- NEW IN 6.65.0 — A SEARCH BOX, A PINNED SHEET, AND FOUR NEW TOOLS:
+--   🔎 ⇪⇧/ IS A SEARCH BOX OVER EVERY SHORTCUT. "oh I need a URL tool" —
+--      type "url" and there they are. Same entries the cheat sheet draws,
+--      so the two can never disagree; words match in any order, so
+--      "clean url" and "url clean" both find the link cleaner. ⏎ RUNS the
+--      tool when it can rather than just naming its key.
+--      ⚠️ It is a separate window on purpose. The cheat sheet is drawn on
+--      hs.canvas, and a canvas cannot take keyboard focus without losing
+--      the two things that make it good: it floats WITHOUT stealing focus,
+--      and it closes on Esc without capturing Esc globally. ⇪/ to browse,
+--      ⇪⇧/ to search, neither one compromised.
+--   📌 THE SHEET IS PINNED-THEN-ALPHABETICAL. Mouse Grid first, Tool
+--      Picker second, everything else A–Z. It used to be ordered by each
+--      module's `order` field — which is the BOOT order, so moving a
+--      section up the page meant renumbering the load sequence. The sheet
+--      sorts for itself now and the boot is left alone.
+--   🎯 THE GRID NARROWS VISIBLY. Type a letter and the lattice drops away;
+--      what is left is the still-reachable cells, each in a thick amber
+--      box. Labels are 14pt minimum and grow to fill their cell — and they
+--      grow FURTHER as you narrow, because two characters left to type
+--      need less width than three. 12pt was chosen to fit; this is chosen
+--      to be read.
+--   🍅 POMODORO on ⇪pad+. 25 minutes, then it flashes and gives you 5.
+--      170×99, top-right, under the clock. ⏎ and esc answer it — but ONLY
+--      in the ~20s after a phase ends, never during the countdown: a modal
+--      that owned Enter for 25 minutes would be a keyboard-holding bug
+--      dressed as a feature.
+--   ⚡ UNIVERSAL ACTIONS on ⇪U. Reveal · Copy Path · Copy File · Open With
+--      · Open URL · Clean URL · Large Type · Email · Terminal Here ·
+--      Snippet · Rename. The one you used last is at the top next time.
+--      Actions that cannot apply right now are HIDDEN, not offered and
+--      then failed. Ours, natively — Alfred's own list has no API.
+--   🖱 ⇪pad* FINDS THE POINTER. It has existed since 6.45.0 and has been
+--      bound to nothing this whole time. It is bound now.
+--   📧 _G.outlookProbe() — a READ-ONLY diagnostic, no key, no watcher.
+--      The email tracker is buildable in full on legacy Outlook and only
+--      partly on the redesign, and guessing which you have is exactly how
+--      6.63.0 muted your microphone for a week. Run it with a message
+--      open and paste the output back.
+--   🔇 OCR SUCCESS IS SILENT NOW. "📋 OCR Indexed" popped on every image
+--      that touched the clipboard — an alert for the thing working. A
+--      FAILED Finder tag still reports, through the ledger.
+--   🧹 The ⇪M menu bar picker lists real apps only; fourteen faceless
+--      system agents (Control Center, the clock, Stage Manager, the input
+--      menu) no longer crowd out what you opened it for.
+--   🧪 269 → 285 grid checks, 65 → 71 sheet checks, eleven mutations
+--      caught between them — including the stale-canvas trap where the
+--      next ⇪X would have opened showing the last session's final frame.
+--
 -- NEW IN 6.64.0 — EDITOR AUTOCOMPLETE FOR hs.* API:
 --   💡 EMMYLUA ANNOTATIONS: Zero runtime cost, generates type files your
 --      editor reads for ⇥ autocomplete and error highlighting on the hs.*
@@ -168,86 +217,8 @@
 --      the whole report is inside a pcall already. Two guards for one
 --      job — kept, because the pcall protects the popup while the check
 --      states the intent.
--- NEW IN 6.60.0 — THE APP MONITOR PING BECOMES A SEQUENCE, AND GETS TESTED:
---   🔊 ONE SECOND, AND A DIFFERENT SOUND EVERY TIME. The waiting popup
---      now pings every 1s instead of 2s, and each ping takes the next
---      entry from a ten-name list: Hero, Glass, Sosumi, Submarine, Basso,
---      Ping, Funk, Morse, Bottle, Blow. Ordered loudest-first so the
---      opening seconds are the ones most likely to reach another room.
---      Ten sounds at one second each is the ten seconds LL asked for.
---   🔁 AND THEN IT WRAPS, RATHER THAN ENDING. This is the one real design
---      decision in the change and it is deliberate: the popup waits
---      INDEFINITELY (6.16.21), so a sound sequence that simply ran out
---      would hand back the exact "you were away, so you never found out"
---      failure that removing the auto-dismiss existed to prevent. After
---      ten seconds the list starts again.
---      · WORTH KNOWING: this is now a once-per-second sound that can run
---        for hours if a Mac is left alone. That is louder than the old
---        2s single ping by design, but if it proves too much, the
---        interval and the list are two constants at the top of
---        modules/app_watcher.lua and either can be tuned alone.
---   🧯 A MISSPELLED NAME NOW COSTS ONE SOUND, NOT ALL OF THEM. Names are
---      resolved once when the popup opens and any that fail are dropped,
---      so the rest of the sequence carries on. The old single-constant
---      version turned one typo into total silence. If EVERY name is
---      wrong you still get a silent popup with nothing explaining why —
---      the known gap, still not wired into the notice ledger, still
---      recorded here rather than quietly forgotten.
---   ⏱ RESOLVED ONCE, NOT ON EVERY TICK. hs.sound.getByName goes out to
---      the system; calling it inside a 1s timer that may run for hours
---      would be thousands of lookups for an answer that cannot change.
---   🧪 AND THE PART THAT WAS MISSING: NOTHING IN THE SUITE HAD EVER
---      EXECUTED THIS CODE. As one constant and one unconditional play()
---      there was arguably nothing to test; as a resolve-and-filter loop
---      plus a wrapping index there certainly is. tests/test_app_watcher
---      drives the REAL module through a stub hs — real setup(), real
---      watcher callback, real timer function — rather than re-checking a
---      copy of the logic, and asserts the first sound is immediate, that
---      ten seconds gives ten DIFFERENT sounds, that ping 11 wraps, that
---      the interval is 1s, that one bad name is survivable, and that an
---      entirely bad list fails silent rather than throwing.
---      · 27 checks, all six mutations caught: wrap removed, off-by-one,
---        interval reverted, bad name aborting the list, list reordered,
---        and the initial ping dropped.
---   🧪 1,663 checks across sixteen Lua suites, plus 35 executed in the
---      Capture Pad page JavaScript.
---      · The first run of it printed NOTHING and looked like a pass —
---        the harness silences print() for the module and swallowed its
---        own output with it. Test output goes through io.write now.
--- NEW IN 6.59.0 — TWO SMALL THINGS, BOTH OF THEM "IT WAS LYING TO YOU":
---   🔊 APP MONITOR NOW SOUNDS "Hero" INSTEAD OF "Ping". Purely LL's
---      choice: the popup waits indefinitely and pings every 2 seconds
---      until answered, so the sound has to survive being away from the
---      desk. Ping does not always carry; Hero does. The name lives in
---      ONE constant (modules/app_watcher.lua, near the top) which feeds
---      both the first alert and the repeating ping — they cannot drift
---      apart, and changing it again is a one-word edit + reload.
---      · WHAT IS DELIBERATELY *NOT* FIXED HERE: hs.sound.getByName is
---        pcall'd, so a misspelled name yields NO SOUND AND NO ERROR. The
---        comment block above the constant now says so in plain terms and
---        lists the fourteen valid names. Wiring that miss into the notice
---        ledger was offered and declined for this release — noted here so
---        the gap is on the record rather than forgotten.
---   🩺 hs-doctor WAS CALLING A WORKING HYPER KEY "unexpected". Section 6
---      grepped the Caps-Lock HID usage as the hex string 0x700000039, but
---      `hidutil property --get UserKeyMapping` returns DECIMAL on a real
---      Mac — 30064771129, the same number. So a correct remap never
---      matched, fell to the error branch, and dumped the raw property
---      list once per HID device carrying the mapping: a hundred-plus
---      near-identical blocks scrolling past a person who was told
---      something was wrong when nothing was.
---      · Confirmed against LL's real report: 30064771129 = 0x700000039
---        (Caps Lock) and 30064771181 = 0x70000006D (F18) — exactly the
---        remap this config installs. The report was right; the check was
---        wrong. Both forms now match, decimal first since that is what
---        actually appears.
---      · AND THE ERROR BRANCH IS NOW READABLE: a genuinely wrong mapping
---        prints the UNIQUE Src/Dst pairs, not every repeated registry
---        entry. A diagnostic that scrolls off the screen is not one.
---      · Fixture-tested five ways: decimal, hex, empty, "(null)", and a
---        wrong mapping repeated four times (collapses to two lines).
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.63.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.65.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -489,7 +460,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.64.0"
+_G.configVersion = "6.65.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -1274,7 +1245,13 @@ local csOK, csErr = pcall(function()
     local path = hs.configdir .. '/core/cheatsheet.lua'
     local chunk, loadErr = loadfile(path)
     if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
-    chunk()({
+    -- 6.65.0 — THE RETURNED TABLE IS NOW PUBLISHED. It used to be dropped
+    -- on the floor here (the file returns it so tests can drive the real
+    -- namespace). The Tool Picker (⇪⇧/) searches the SAME assembled groups
+    -- this sheet draws, which is the only way the two can never disagree
+    -- about what exists — and it cannot reach them without this line.
+    -- Assigned, not merged: nothing else owns this name.
+    _G.cheatSheet = chunk()({
         logsDir           = logsDir,
         panelAlpha        = panelAlpha,
         popupScreenKeys   = popupScreenKeys,
@@ -1385,7 +1362,18 @@ local function processAutomaticImageOCR(img)
                         f:write(os.date("%Y-%m-%d %H:%M:%S") .. ',"' ..
                             extractedText:gsub('"', '""'):gsub('\r\n', '\\n'):gsub('\r', '\\n'):gsub('\n', '\\n') .. '"\n')
                         f:close()
-                        hs.alert.show("📋 OCR Indexed")
+                        -- 6.65.0 — SUCCESS IS SILENT NOW. This fired on
+                        -- every image that touched the clipboard, which is
+                        -- a popup for the thing working exactly as it is
+                        -- supposed to. The rule this config runs on is
+                        -- "tell me when something FAILS" (rule 7), and the
+                        -- corollary has to be that success does not
+                        -- interrupt — an alert you see twenty times a day
+                        -- is one you stop reading, including on the day it
+                        -- says something else. The text is still indexed
+                        -- and still searchable with ⌃⌥⌘O; the console line
+                        -- below is the receipt if you want one.
+                        print("📋 OCR indexed " .. #extractedText .. " chars")
                     else
                         warnWriteFailed("OCR log")
                     end
@@ -1589,10 +1577,21 @@ local function processClipboardFileOCR(paths)
 
             local name = p:match("[^/]+$") or p
             if ocrWriteFinderComment(p, textOut) then
-                hs.alert.show("🏷 OCR → Finder comment: " .. name)
+                -- 6.65.0 — silent on success, same reasoning as above.
+                print("🏷 OCR → Finder comment: " .. name)
             else
+                -- NOT silent, because this one is a partial failure: the
+                -- text was indexed but the FILE did not get tagged, so a
+                -- Finder search for it will not find this file. It goes to
+                -- the notice ledger rather than straight to an alert —
+                -- recorded either way, delivered in the combined report
+                -- instead of popping over whatever you were doing, and
+                -- held back entirely while Focus Mode is on.
                 print("ℹ️ OCR tag skipped for " .. name .. " (existing comment kept, or Finder scripting unavailable) — text is in the ⌃⌥⌘O history")
-                hs.alert.show("📋 OCR indexed (file comment untouched): " .. name)
+                if _G.notices then
+                    _G.notices.record("ocr", "finder comment not written",
+                        name .. " — indexed for ⌃⌥⌘O, but Finder search will not match it")
+                end
             end
         end, {"run", ocrShortcutName, "-i", p}):start()
     end
@@ -3267,6 +3266,11 @@ _G.moduleProfiles = {
             "clipboard_history",
             -- 6.51.0
             "workspaces",
+            -- 6.65.0
+            "tool_picker",        -- ⇪⇧/  search every shortcut
+            "universal_actions",  -- ⇪U   act on the Finder selection
+            "pomodoro",           -- ⇪pad+ 25 on, 5 off
+            "outlook_probe",      -- diagnostic only, binds no key
         },
     },
 }

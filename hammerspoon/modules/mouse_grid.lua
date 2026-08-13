@@ -164,9 +164,34 @@ function M.setup(core)
     grid.lineAlpha   = 0.55
     grid.lineWidth   = 1.0
 
-    grid.labelSize   = 12
+    -- 🔠 6.65.0 — LABEL SIZE IS NOW A FLOOR PLUS A FIT, not one number.
+    -- 12pt was chosen when the only question was "does it fit". The
+    -- question that actually matters is "can you read it at a glance from
+    -- normal sitting distance", and 12 loses that on a 4K panel where a
+    -- cell is physically small. labelSize is the MINIMUM; labelFitFrac
+    -- lets a label grow to fill its box on a coarse grid, and the whole
+    -- thing is clamped by width so a 3-character label can never spill
+    -- out of a narrow cell (see fittedLabelSize below).
+    grid.labelSize    = 14      -- floor, in points. Never smaller than this.
+    grid.labelFitFrac = 0.55    -- of cell HEIGHT, when there is room for more
+    grid.labelMaxSize = 34      -- ceiling, so a 2-column grid isn't absurd
     grid.labelWhite  = 1.00
     grid.labelAlpha  = 0.95
+
+    -- 🟡 6.65.0 — THE MATCH HIGHLIGHT. Once you type a letter, the cells
+    -- that are still reachable get a thick yellow box and everything else
+    -- gets out of the way (see redraw() — the lattice itself is dropped on
+    -- the first keystroke, so what is left on screen is only what you can
+    -- still choose). Before this the survivors were distinguished purely
+    -- by "the other labels went away", which is a difference you have to
+    -- look for rather than one that arrives on its own.
+    grid.matchStroke  = { red = 1.00, green = 0.84, blue = 0.00 }  -- amber
+    grid.matchWidth   = 3.0     -- border thickness, in points
+    grid.matchFill    = { red = 1.00, green = 0.84, blue = 0.00, alpha = 0.13 }
+    grid.matchRadius  = 4       -- rounded corners; 0 for square
+    -- Drop the grid lines once typing starts, so the survivors stand alone
+    -- on the scrim. false keeps the full lattice up the whole time.
+    grid.dropLattice  = true
 
     -- After the jump, stay live so SPACE can click (the "tab onto it"
     -- feel). false = jump and get out of the way immediately.
@@ -493,15 +518,64 @@ function M.setup(core)
         canvas:replaceElements(els)
     end
 
+    -- 🔠 6.65.0 — HOW BIG THE LABEL ACTUALLY GETS.
+    -- Two constraints, and the SMALLER of them wins, then the floor is
+    -- applied last so a genuinely tiny cell still gets legible text even
+    -- if that means the glyphs touch the cell edges:
+    --   · HEIGHT — labelFitFrac of the cell, so text sits in its box.
+    --   · WIDTH  — the remaining characters have to fit across the cell.
+    --     0.62 is the measured average advance of this config's alphabet
+    --     (home row, no wide glyphs) as a fraction of point size; it is
+    --     the same constant §mouseGridReport already uses to warn about
+    --     cells too narrow to label, so the two agree by construction.
+    -- `chars` is how many characters are still to be typed, NOT the full
+    -- label: after "a" the cell shows two characters and may therefore
+    -- use a larger size than it could have at three.
+    local function fittedLabelSize(p, chars)
+        chars = math.max(1, chars or grid.labelLength)
+        local byHeight = p.cellH * grid.labelFitFrac
+        local byWidth  = (p.cellW * 0.92) / (chars * 0.62)
+        local size     = math.min(byHeight, byWidth, grid.labelMaxSize)
+        return math.max(grid.labelSize, size)
+    end
+
+    -- The label canvas carries BOTH the amber match boxes and the text,
+    -- boxes first so the text paints on top of them. One list, one
+    -- replaceElements — two canvases would mean two draws per keystroke
+    -- and a way for them to disagree about which cells still match.
     local function labelElements(p, typedLen, matches)
-        local els = {}
-        local pad = math.max(0, (p.cellH - grid.labelSize * 1.25) / 2)
+        local els  = {}
+        local size = fittedLabelSize(p, grid.labelLength - typedLen)
+        local pad  = math.max(0, (p.cellH - size * 1.25) / 2)
         for _, cell in ipairs(p.cells) do
             if matches == nil or matches[cell.label] then
+                -- Highlight only while narrowing. With nothing typed every
+                -- cell matches, and boxing all of them is not a highlight,
+                -- it is a second lattice on top of the first.
+                if matches ~= nil then
+                    els[#els + 1] = {
+                        type = "rectangle", action = "strokeAndFill",
+                        strokeColor = { red   = grid.matchStroke.red,
+                                        green = grid.matchStroke.green,
+                                        blue  = grid.matchStroke.blue, alpha = 1.0 },
+                        fillColor   = grid.matchFill,
+                        strokeWidth = grid.matchWidth,
+                        roundedRectRadii = { xRadius = grid.matchRadius,
+                                             yRadius = grid.matchRadius },
+                        -- Inset by half the stroke so the border sits
+                        -- INSIDE the cell. Drawn on the boundary, adjacent
+                        -- survivors share a doubled line and read as one
+                        -- wide box rather than two separate targets.
+                        frame = { x = cell.rx + grid.matchWidth / 2,
+                                  y = cell.ry + grid.matchWidth / 2,
+                                  w = math.max(1, cell.rw - grid.matchWidth),
+                                  h = math.max(1, p.cellH - grid.matchWidth) },
+                    }
+                end
                 els[#els + 1] = {
                     type = "text",
                     text = cell.label:sub(typedLen + 1),
-                    textSize  = grid.labelSize,
+                    textSize  = size,
                     textColor = { white = grid.labelWhite, alpha = grid.labelAlpha },
                     textAlignment = "center",
                     frame = { x = cell.rx, y = cell.ry + pad,
@@ -764,11 +838,29 @@ function M.setup(core)
     -- =====================================================================
     -- TYPING
     -- =====================================================================
+    -- 🟡 6.65.0 — "the other boxes fall away". The lattice is one scrim
+    -- plus (cols-1)+(rows-1) line segments; dropping the segments and
+    -- keeping the scrim leaves the survivors' amber boxes alone on a dark
+    -- field. That is ONE element to draw, not one per discarded cell, so
+    -- the more the grid narrows the CHEAPER this gets — the opposite of
+    -- greying out each loser individually.
+    local function scrimOnly(p)
+        return { { type = "rectangle", action = "fill",
+                   fillColor = { white = grid.scrimWhite, alpha = grid.scrimAlpha },
+                   frame = { x = 0, y = 0, w = p.frame.w, h = p.frame.h } } }
+    end
+
     local function redraw()
         local s = grid.state
         if not (s and s.phase == "pick") then return end
         local t0, shown = hs.timer.secondsSinceEpoch(), 0
+        -- Tracked so the lattice is rebuilt exactly once when you
+        -- backspace all the way out, rather than on every keystroke.
+        local bare = grid.dropLattice and #s.typed > 0
         for _, p in ipairs(grid.cache.screens) do
+            if bare ~= s.latticeDropped then
+                setElements(p.gridCanvas, bare and scrimOnly(p) or gridElements(p))
+            end
             if #s.typed == 0 then
                 setElements(p.labelCanvas, p.fullLabels)
                 shown = shown + #p.fullLabels
@@ -778,6 +870,7 @@ function M.setup(core)
                 shown = shown + #els
             end
         end
+        s.latticeDropped = bare
         say(string.format("typed '%s' -> %d candidates, redraw %.1fms",
             s.typed, shown, (hs.timer.secondsSinceEpoch() - t0) * 1000))
     end
@@ -884,6 +977,14 @@ function M.setup(core)
 
         local okDraw, drawErr = pcall(function()
             for _, p in ipairs(cache.screens) do
+                -- 🚨 6.65.0 — THE LATTICE IS RESTORED HERE, NOT ASSUMED.
+                -- The canvases are CACHED across hide/show, and redraw()
+                -- strips the grid lines the moment you type (dropLattice).
+                -- Without this line the next ⇪X would open a grid that
+                -- still had no lines in it — a stale canvas that looks
+                -- like a rendering bug and is really just last session's
+                -- final frame.
+                setElements(p.gridCanvas, gridElements(p))
                 setElements(p.labelCanvas, p.fullLabels)
                 showCanvas(p.gridCanvas)
                 showCanvas(p.labelCanvas)

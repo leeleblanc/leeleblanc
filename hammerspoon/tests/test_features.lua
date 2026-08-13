@@ -1585,8 +1585,12 @@ liveMod.setup(core)
 local live = liveMod.numpad
 live.bound = {}
 local boundCount = live.bindAll()
-check("both layers together claim 17 window keys + 11 tool keys",
-      boundCount == 28, boundCount)
+-- 6.65.0 — 13 tool keys, not 11: ⇪pad+ is the pomodoro and ⇪pad* flashes
+-- a ring around the pointer. Both are on the TOOL layer rather than the
+-- window layer, which is the 6.50.0 split holding: ⇪pad is what you do,
+-- ⇪⇧pad is where the window goes.
+check("both layers together claim 17 window keys + 13 tool keys",
+      boundCount == 30, boundCount)
 check("...including all ten digits", (function()
     for i = 0, 9 do if not hyperFor({}, "pad" .. i) then return false end end
     return true
@@ -1594,14 +1598,25 @@ end)())
 check("...and the arithmetic keys, which live on the WINDOW layer",
       hyperFor({ "shift" }, "pad+") and hyperFor({ "shift" }, "pad-")
       and hyperFor({ "shift" }, "pad*") and hyperFor({ "shift" }, "pad/"))
-check("🆓 pad + - * / enter clear are deliberately UNCLAIMED on the tool "
-      .. "layer — that is the room set aside for whatever comes next",
+-- 6.65.0 — pad+ and pad* were spent, deliberately and on the record.
+-- The remaining four are still the room set aside for what comes next,
+-- and this check is what stops that room being taken by accident.
+check("🆓 pad - / enter clear are STILL deliberately unclaimed on the "
+      .. "tool layer — the room set aside for whatever comes next",
       (function()
-    for _, k in ipairs({ "pad+", "pad-", "pad*", "pad/", "padenter", "padclear" }) do
+    for _, k in ipairs({ "pad-", "pad/", "padenter", "padclear" }) do
         if live.actions[k] ~= nil then return false, k end
     end
     return true
 end)())
+check("⇪pad+ is the pomodoro and ⇪pad* finds the pointer — both on the "
+      .. "TOOL layer, because ⇪⇧pad is windows and a timer is not a window",
+      live.actions["pad+"] == "pomodoro.toggle"
+      and live.actions["pad*"] == "mouseGrid.locate",
+      tostring(live.actions["pad+"]) .. " / " .. tostring(live.actions["pad*"]))
+check("...and ⇪⇧pad+ still grows the window — the tool layer taking pad+ "
+      .. "must not have quietly stolen the window key of the same name",
+      live.shiftActions["pad+"] == "grow")
 check("binding twice does not double-claim anything", live.bindAll() == boundCount)
 
 check("an unmapped key name is SKIPPED, not bound to nil", (function()

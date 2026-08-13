@@ -182,10 +182,72 @@ return function(core)
             table.insert(groups, { title = "⭐ " .. g, entries = byGroup[g], order = 900 + i })
         end
 
-        -- Assemble. Every group carries a UNIQUE order number, which matters
-        -- because table.sort in Lua is NOT stable — equal keys could shuffle
-        -- between reloads and the sheet would quietly reorder itself.
-        table.sort(groups, function(a, b) return (a.order or 500) < (b.order or 500) end)
+        -- ---- ORDER ON THE PAGE (6.65.0) ---------------------------------
+        -- 🚨 THE MODULE'S `order` FIELD IS NOT THE ANSWER HERE, and this is
+        -- the trap worth naming: that number is the module LOAD order, and
+        -- the sheet was piggybacking on it. Renumbering modules to move a
+        -- section up the page would reorder the boot, which is how a module
+        -- ends up running before something it depends on. So the sheet
+        -- sorts for ITSELF, and load order is left alone entirely.
+        --
+        -- Three bands, and the reasoning for each:
+        --   0  BROKEN MODULES — always first. A feature that vanished
+        --      without explanation is the worst possible thing to bury.
+        --   1  PINNED — the sections you reach for most, in the order you
+        --      named them. Alphabetical is a fine default and a poor top
+        --      of the page; the first screenful should be what you use.
+        --   2  EVERYTHING ELSE, A–Z by title. Alphabetical is the only
+        --      order you can PREDICT without having read the file: you
+        --      know where "File Tracker" is before you look.
+        --   3  YOUR OWN ⭐ entries, last, as before.
+        --
+        -- ✏️ To pin another section, add the words that appear in its
+        -- title. Matching is case-insensitive and on a substring, so
+        -- "MOUSE GRID" catches "🎯 MOUSE GRID (⇪X — type 3 letters …)"
+        -- without anyone having to keep the full title in two places.
+        local pinned = { "MOUSE GRID", "TOOL PICKER" }
+
+        -- The title carries a leading emoji and, usually, a parenthetical
+        -- naming the key. Neither should decide alphabetical position —
+        -- sorting on the raw string files most of the sheet under whatever
+        -- emoji happens to lead, which is not an order anyone can predict.
+        local function sortKey(title)
+            return (tostring(title or "")
+                :gsub("^[^%a]*", "")          -- drop leading emoji/spaces
+                :gsub("%s*%b()%s*$", "")      -- drop a trailing (⇪X — …)
+                :upper())
+        end
+
+        for _, g in ipairs(groups) do
+            if (g.order or 500) == 0 then
+                g.band, g.key = 0, ""                    -- broken modules
+            elseif (g.order or 500) >= 900 then
+                g.band, g.key = 3, sortKey(g.title)      -- ⭐ custom
+            else
+                g.band, g.key = 2, sortKey(g.title)
+                local up = tostring(g.title or ""):upper()
+                for i, p in ipairs(pinned) do
+                    if up:find(p, 1, true) then
+                        -- The pin's own index is the sort key, so pinned
+                        -- sections keep the order they are listed in above
+                        -- rather than falling back to alphabetical.
+                        g.band, g.key = 1, string.format("%03d", i)
+                        break
+                    end
+                end
+            end
+        end
+
+        -- Assemble. table.sort in Lua is NOT stable, so equal keys could
+        -- shuffle between reloads and the sheet would quietly reorder
+        -- itself. The tie-break on `order` is what makes this total: two
+        -- groups can share a title band and a sort key, but their load
+        -- order is unique.
+        table.sort(groups, function(a, b)
+            if a.band ~= b.band then return a.band < b.band end
+            if a.key  ~= b.key  then return a.key  <  b.key  end
+            return (a.order or 500) < (b.order or 500)
+        end)
         return groups
     end
 

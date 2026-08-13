@@ -139,7 +139,7 @@ if [ -z "$LUA" ]; then
     echo "   ⚠️  skipped — no lua interpreter on PATH"
     SKIPPED="$SKIPPED lua-suites"
 else
-    for t in test_features test_switcher test_modules test_cheatsheet test_diagnostics test_mouse_grid test_url_cleaner test_health test_menubar test_focus test_rename test_workspaces test_notices test_clipboard test_app_watcher test_integration; do
+    for t in test_features test_switcher test_modules test_cheatsheet test_diagnostics test_mouse_grid test_url_cleaner test_health test_menubar test_focus test_rename test_workspaces test_notices test_clipboard test_app_watcher test_integration test_tools; do
         f="$HS/tests/$t.lua"
         if [ ! -f "$f" ]; then
             echo "   ⚠️  $t — missing"

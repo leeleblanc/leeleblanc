@@ -4,6 +4,183 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.65.0 — A SEARCH BOX, A PINNED SHEET, AND FOUR NEW TOOLS:
+  🔎 ⇪⇧/ IS A SEARCH BOX OVER EVERY SHORTCUT. The cheat sheet (⇪/) is a
+     good thing to READ, and reading is the wrong verb when you already
+     know roughly what you want. "oh I need a URL tool" — type "url" and
+     there they are. It searches the SAME assembled groups the sheet
+     draws, so the two can never disagree about what exists; the entries
+     come from whichever modules actually loaded this session, rebuilt on
+     every press rather than cached, so a module that failed to load
+     cannot still be offered here.
+     · Words match in ANY ORDER and ALL must match — "clean url" and
+       "url clean" both find the link cleaner.
+     · 🧨 THE FILTER IS PLAIN TEXT, NEVER A PATTERN. This config's
+       shortcuts are written in ⇪[ ⇪\ ⇪- ⇪/ ⇪= and every one of those is
+       an operator in Lua's pattern engine. Each find() passes `true` as
+       its fourth argument, which is what turns matching off.
+     · ⏎ RUNS IT when it can, rather than telling you a key and leaving
+       you to press it. Entries whose key maps to a published service are
+       invoked; the rest are copied to the clipboard.
+     · 🚨 has() BEFORE call(). _G.service.call does NOT throw on a missing
+       provider — it prints and returns nil — so a pcall around it
+       succeeds whether the service ran or never existed. Without the
+       has() check this picker would have reported "ran it" while doing
+       nothing at all. The run map is also verified against the live
+       registry on first press, and a name that resolves to nothing is
+       reported through the ledger.
+     · ⚠️ WHY NOT A SEARCH BOX ON THE SHEET ITSELF: that sheet is drawn on
+       hs.canvas, and a canvas cannot take keyboard focus without giving
+       up the two properties that make it good — it floats WITHOUT
+       stealing focus, so it never interrupts typing, and it closes on Esc
+       without capturing Esc globally. The other branch already paid that
+       price in 6.31.1. ⇪/ to browse, ⇪⇧/ to search, neither compromised.
+     · The cost, and it is a real one: hs.chooser picks its own row font
+       and exposes no opacity API, so this window does not inherit the
+       sheet's 20pt text or its translucency. macOS limitation, same one
+       §1.5 has noted for every picker in this config.
+  📌 THE SHEET IS PINNED-THEN-ALPHABETICAL. Mouse Grid first, Tool Picker
+     second, everything else A–Z, ⭐ custom entries last, and a module
+     that FAILED to load still outranks all of it.
+     · 🚨 THE TRAP THAT WAS ALMOST WALKED INTO: the sheet was ordered by
+       each module's `order` field, which is its LOAD order. Renumbering
+       modules to move a section up the page would have reordered the
+       BOOT — which is how a module ends up running before something it
+       depends on. The sheet sorts for itself now; load order is
+       untouched.
+     · Position is decided on the title with the leading emoji and the
+       trailing (⇪X — …) parenthetical stripped. Sorting the raw string
+       files most of the sheet under whatever emoji happens to lead,
+       which is not an order anyone can predict.
+  🎯 THE GRID NARROWS VISIBLY, WHICH IT DID NOT BEFORE. Type a letter and
+     the lattice DROPS AWAY; what remains is the still-reachable cells,
+     each in a thick amber box.
+     · Dropping the lattice is ONE element (keep the scrim, drop the
+       segments), not one greyed rectangle per discarded cell — so the
+       more the grid narrows the CHEAPER the redraw gets.
+     · Labels are 14pt MINIMUM and grow to fill their cell, clamped by
+       width so a label can never spill out of a narrow one. They grow
+       FURTHER as you narrow: two characters left to type need less width
+       than three. 12pt was chosen to fit; this is chosen to be read.
+     · The box is inset by half its stroke so two adjacent survivors read
+       as two targets rather than one wide one.
+     · 🚨 AND THE BUG THAT CAME WITH IT, caught by its own test: the
+       canvases are CACHED across hide/show, so once typing had stripped
+       the lattice the next ⇪X would have opened a grid with no lines in
+       it — last session's final frame, looking exactly like a rendering
+       fault. show() restores the lattice explicitly now.
+  🍅 POMODORO on ⇪pad+. 25 minutes, then it flashes amber and counts you
+     five. 170×99, top-right, just under the clock, on the monitor
+     holding the frontmost app. Click-through, so it is a timer and not
+     an obstacle.
+     · 🚨 ⏎ AND esc ARE CAPTURED ONLY WHILE IT IS ASKING — the ~20s after
+       a phase ends. The obvious implementation captures Enter for as
+       long as the timer is up, which is TWENTY-FIVE MINUTES in which
+       Enter does not send an email, submit a form or make a newline, and
+       nothing on screen explains why. This config has shipped one
+       keyboard-holding bug already (the pre-6.47.0 menu bar scan).
+     · The watchdog that releases the keys is armed BEFORE the modal is
+       entered, so a throw between the two cannot strand it.
+     · The flash IS the notification — no sound, no hs.notify. It fires
+       while you are mid-sentence in something else.
+  ⚡ UNIVERSAL ACTIONS on ⇪U — Alfred's panel, done natively, for what
+     this config can actually do: Reveal · Open · Open With · Copy Path ·
+     Copy File · Terminal Here · Get Info · Open URL · Clean URL · Plain
+     Text · Large Type · Email · Snippet · Rename.
+     · The action you used last is at the top next time, persisted to the
+       Logs folder and shared between both Macs. Remembered on SUCCESS
+       only — floating an action that just failed is the opposite of help.
+     · Actions that cannot apply right now are HIDDEN, not offered and
+       then failed. A list that offers "Open URL" when there is no URL is
+       a list you stop trusting.
+     · The context is captured for THAT press, not re-read in the
+       callback — after a few seconds of scrolling the Finder selection
+       need not still be what the panel said it was acting on.
+     · It takes its own copy of the JSON decoder's table, one string at a
+       time. Adopting the decoder's tables is what left the Capture Pad
+       with queue and parked as ONE table in 6.62.0.
+     · ⚠️ NOT Alfred's list and it cannot be — Alfred owns its actions and
+       exposes no API to enumerate or invoke them. Ours works with Alfred
+       closed.
+  🖱 ⇪pad* FINDS THE POINTER. grid.locate() has existed since 6.45.0,
+     published as a service and deliberately bound to nothing on the
+     argument that macOS shake-to-grow already covers it. It is bound
+     now. The asterisk is the mnemonic — the only key on the pad shaped
+     like the thing it draws.
+  📧 _G.outlookProbe() — READ-ONLY, no key, no watcher, runs only when
+     called by name. The email tracker asked for (sender, keyword,
+     attachment type, month, weekday) is buildable IN FULL on legacy
+     Outlook, which ships a real AppleScript dictionary, and only PARTLY
+     on the redesign, which dropped most of it. Guessing which is
+     installed is precisely how 6.63.0 muted a microphone for a week.
+     Nine scripting probes, then an Accessibility tree walk (bounded at
+     4,000 nodes — an unbounded walk of a mail client's view tree hangs),
+     with a verdict at the end. Samples are truncated so a paste-back
+     cannot spill a whole email.
+  🔇 OCR SUCCESS IS SILENT NOW. "📋 OCR Indexed" popped on every image
+     that touched the clipboard — an alert for the thing working exactly
+     as designed. Rule 7 says tell me when something FAILS, and the
+     corollary has to be that success does not interrupt: an alert seen
+     twenty times a day is one you stop reading, including on the day it
+     says something else. A failed Finder tag is a PARTIAL failure (text
+     indexed, file not tagged, so a Finder search will not match it) and
+     still reports — through the ledger, not a popup.
+  🧹 THE ⇪M PICKER LISTS REAL APPS ONLY. macOS runs a fleet of faceless
+     agents that each own a menu bar extra — the clock, Control Center,
+     the input-source menu, Stage Manager, WindowManager. They ARE status
+     items, so the scan was right to find them, and none can be usefully
+     driven by "pick it and click it". Fourteen are skipped now.
+     ⚠️ A DENY LIST, NOT A RULE: there is no flag that means "agent, not
+     app". LSUIElement is set by plenty of menu-bar-only apps you DO want
+     here (1Password, Bartender, Ice, NordVPN), so filtering on it would
+     throw away the good with the bad.
+  🧪 269 → 285 grid checks and 65 → 71 sheet checks, ELEVEN mutations
+     caught between them: the pin emptied, the pins reversed, the emoji
+     left in the sort key, broken modules demoted, custom entries
+     promoted, the lattice never dropped, the lattice never restored,
+     the highlight never drawn, the highlight not inset, a thin border,
+     and the label floor put back to 12.
+     · The old order test listed all sixteen titles in sequence, so it
+       broke whenever a module was added whether or not anything was
+       wrong. It pins the RULE now, and drives the pin through the real
+       sort against a fixture whose title beats "MOUSE GRID"
+       alphabetically — the case that would pass by accident if the pin
+       did nothing.
+     · One test was made to fail CLEANLY rather than crash: with the
+       lattice-restore mutation applied it indexed a element that no
+       longer existed, aborting the run and pointing the traceback at
+       the wrong line.
+
+NEW IN 6.64.0 — EDITOR AUTOCOMPLETE FOR THE hs.* API:
+  💡 EMMYLUA ANNOTATIONS. It writes out files describing every
+     Hammerspoon function — name, arguments, return type — and an editor
+     that speaks the Lua language server protocol reads them, finishes
+     `hs.pasteboard.` for you and underlines a call you got wrong WHILE
+     YOU TYPE. Ported from the 6.31.4 lineage on the other branch.
+     · That last part is why it is worth having. Several real bugs in
+       this config's history were exactly that shape: hs.pasteboard.readURL
+       returning a different type than assumed, and the canvas
+       replaceElements signature that caused 6.62.0's two-screen crash.
+       Both parse fine. Both are invisible to luac and visible to a
+       language server.
+     · ZERO RUNTIME COST — it generates the files and stops. No hotkey,
+       no timer, no watcher, nothing on the main thread afterwards.
+     · Not installed? One console line and the config carries on, so this
+       stays portable to a Mac that has never heard of it.
+     · ⚠️ THE GENERATED FILES ALONE DO NOTHING. Your EDITOR has to be
+       pointed at Spoons/EmmyLua.spoon/annotations. CotEditor cannot use
+       them at all.
+     · 🚨 AND IT SHIPPED BROKEN, FOR ONE CHARACTER. The block sits
+       directly after `_G.diagBootStart = hs.timer.secondsSinceEpoch()`,
+       and Lua read the assignment and the following `(function() … end)()`
+       as ONE statement — a call of the number that assignment returned:
+       "attempt to call a number value", and the whole config failed to
+       load. A semicolon after the assignment is the entire fix. This is
+       the one piece of Lua syntax where a newline is not a separator.
+  🔊 APP MONITOR PINGS EVERY 0.5s, was 1s. Same ten sounds, same wrap,
+     twice the rate — the popup waits indefinitely by design, so the
+     thing that matters is reaching you in another room.
+
 NEW IN 6.63.0 — FOCUS MODE WAS MUTING YOUR MIC BECAUSE TEAMS WAS OPEN:
   🎤 THE BUG, AND IT IS THE BAD KIND. The Teams pattern list was
        { "Meeting", "Call with", "| Microsoft Teams$" }
