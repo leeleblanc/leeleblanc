@@ -91,7 +91,7 @@ function M.setup(core)
         "Hero", "Glass", "Sosumi", "Submarine", "Basso",
         "Ping", "Funk", "Morse", "Bottle", "Blow",
     }
-    local appMonitorPingInterval   = 1       -- seconds between pings while waiting
+    local appMonitorPingInterval   = 0.5     -- seconds between pings while waiting
 
     local appMonitorQueue   = {}   -- apps waiting their turn if several close at once
     local appMonitorCurrent = nil  -- app the popup is currently asking about

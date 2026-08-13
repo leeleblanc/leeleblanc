@@ -2,11 +2,23 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 08-12-26 using Claude          ← EDITED date. Bumped with every release.
+-- 08-13-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.63.0-UNIVERSAL-COMMENTS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.64.0-EMMYLUA-AUTOCOMPLETE
 -- =====================================================================
 
+-- NEW IN 6.64.0 — EDITOR AUTOCOMPLETE FOR hs.* API:
+--   💡 EMMYLUA ANNOTATIONS: Zero runtime cost, generates type files your
+--      editor reads for ⇥ autocomplete and error highlighting on the hs.*
+--      API while you type. Several bugs in this file's history were silent
+--      API misuse: hs.pasteboard.readURL returning a different type than
+--      assumed, and canvas replaceElements whose signature was in doubt.
+--      Both parse fine, fail at runtime. A language server spots them
+--      before a reload. Install from https://www.hammerspoon.org/Spoons/.
+--      If absent, one console line and the config carries on — not required.
+--   🔊 APP MONITOR SOUNDS: Ping interval 1s → 0.5s. Same sounds, twice
+--      as fast. Brings them in more reliably when you're away.
+--
 -- NEW IN 6.63.0 — FOCUS MODE WAS MUTING YOUR MIC BECAUSE TEAMS WAS OPEN:
 --   🎤 THE BUG, AND IT IS THE BAD KIND. The Teams pattern list was
 --        { "Meeting", "Call with", "| Microsoft Teams$" }
@@ -477,8 +489,50 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.63.0"
+_G.configVersion = "6.64.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch()
+
+-- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
+-- WHAT THIS ACTUALLY IS, in plain terms: it writes out a set of files
+-- describing every Hammerspoon function — its name, what arguments it
+-- takes, what it hands back. A code editor that speaks the Lua language
+-- server protocol reads those files and can then finish `hs.pasteboard.`
+-- for you and underline a call you got wrong WHILE YOU TYPE, instead of
+-- you finding out after a reload when something quietly does nothing.
+--
+-- That last part is why it is here. Several real bugs in this file's
+-- history were exactly that shape: hs.pasteboard.readURL returning a
+-- different type than assumed, and a canvas replaceElements call whose
+-- signature was in doubt. Both were "wrong API usage that parses fine"
+-- — invisible to luac, visible to a language server.
+--
+-- IT COSTS NOTHING AT RUNTIME. It generates the files and stops. No
+-- hotkey, no timer, no watcher, nothing on the main thread afterwards.
+-- Not installed? One console line and the config carries on, so this
+-- stays portable to a Mac that has never heard of it.
+--
+-- ⚠️ THE GENERATED FILES ALONE DO NOTHING. They are half the setup —
+-- your EDITOR has to be pointed at them. See the README's EmmyLua
+-- section for that half; CotEditor cannot use them at all.
+(function()
+    local home = os.getenv("HOME") or ""
+    local spoonPath = home .. "/.hammerspoon/Spoons/EmmyLua.spoon"
+    local there = false
+    pcall(function() there = hs.fs.attributes(spoonPath) ~= nil end)
+    if not there then
+        print("💡 EmmyLua not installed — hs.* editor autocomplete is off.")
+        print("   Get it: https://www.hammerspoon.org/Spoons/EmmyLua.html")
+        print("   Then point your editor at Spoons/EmmyLua.spoon/annotations")
+        return
+    end
+    local ok, err = pcall(hs.loadSpoon, "EmmyLua")
+    if ok then
+        print("💡 EmmyLua: hs.* annotations refreshed for your editor")
+    else
+        -- Never fatal. A dev convenience must not take the config down.
+        print("⚠️ EmmyLua present but failed to load: " .. tostring(err))
+    end
+end)()
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
 -- §1.11. Sections earlier in the file log through _G.diag, and a section

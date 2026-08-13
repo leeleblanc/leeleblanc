@@ -231,7 +231,7 @@ do
     local h = bootModule()
     h.quit("Shottr")
     eq(#h.everyFns, 1, "exactly one repeating timer is created")
-    eq(h.everyFns[1].interval, 1, "the ping interval is one second")
+    eq(h.everyFns[1].interval, 0.5, "the ping interval is half a second")
 end
 
 -- 5. One bad name costs one sound, not all of them --------------------
