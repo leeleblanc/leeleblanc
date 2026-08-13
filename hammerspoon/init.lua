@@ -490,7 +490,7 @@ local homeDir = os.getenv("HOME")
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
 _G.configVersion = "6.64.0"
-_G.diagBootStart = hs.timer.secondsSinceEpoch()
+_G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
 -- WHAT THIS ACTUALLY IS, in plain terms: it writes out a set of files
