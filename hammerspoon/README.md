@@ -1,3 +1,65 @@
+# Hammerspoon config — 6.31.4
+
+## What's new in 6.31.4 — the two deferred items, and EmmyLua
+
+- **Hard 50,000-row cap on both tracker CSVs.** This was the one with teeth.
+  Chunked loading (6.11.3) stopped a huge history from *blocking* boot, but
+  nothing stopped the file growing back to the ~400,000 rows that caused the
+  original 13-second beachball. It keeps the **newest** rows and prints what
+  it trimmed.
+- **`changelog.csv`** in your Logs folder — Date | Version | Change notes,
+  appended once per version, never duplicated.
+- **One version string instead of three.** Three separate literals is exactly
+  how 6.31.1 shipped a stale `6.30.0` in the tool index: two got bumped, one
+  didn't. Everything executable now reads `_G.configVersion`, so that class of
+  mistake can't recur. The header banners are comments and still need a manual
+  bump — that's the one copy the code can't reach.
+
+## EmmyLua — what it is, and the half you have to do
+
+**In plain terms:** Hammerspoon has hundreds of functions (`hs.pasteboard.…`,
+`hs.canvas.…`). EmmyLua writes out a set of files describing every one of them
+— its name, what arguments it takes, what it gives back. A code editor that
+can read those files will then finish your typing and **underline a call you
+got wrong as you write it**, instead of you finding out after a reload when
+something quietly does nothing.
+
+That's why it's worth having here specifically. Several real bugs in this
+file's history were exactly that shape: `hs.pasteboard.readURL` returning a
+different type than assumed, and a canvas `replaceElements` call whose
+signature was in doubt. Both *parse fine* — `luac` can't see them. A language
+server can.
+
+**It costs nothing at runtime.** It writes the files and stops. No hotkey, no
+timer, no watcher. If it isn't installed, boot prints one line and carries on,
+so the config stays portable to your work Mac.
+
+### Setup — two halves, and the second is the one people miss
+
+**Half 1 — install the Spoon** (once per Mac):
+
+1. Download from <https://www.hammerspoon.org/Spoons/EmmyLua.html>
+2. Double-click `EmmyLua.spoon` — it installs into `~/.hammerspoon/Spoons/`
+3. Reload Hammerspoon. The console should say
+   `💡 EmmyLua: hs.* annotations refreshed for your editor`
+
+That generates the files into
+`~/.hammerspoon/Spoons/EmmyLua.spoon/annotations/`.
+
+**Half 2 — point your editor at them.** Until you do this, half 1 has
+accomplished nothing visible.
+
+| Editor | What to do |
+| --- | --- |
+| **VS Code** | Install the **Lua** extension by *sumneko*, then add the `annotations` path above to the `Lua.workspace.library` setting. Easiest path by a wide margin. |
+| **Sublime Text** | Package Control → install `LSP` and `LSP-lua`, then add the same path to `LSP-lua`'s library setting. |
+| **CotEditor** | **Won't work.** No language-server support at all. It's a fine editor, it just can't do this. |
+
+Since you use CotEditor and Sublime, Sublime is where you'd see the benefit —
+or VS Code if you'd rather take the easy road.
+
+---
+
 # Hammerspoon config — 6.31.3
 
 ## What's new in 6.31.3 — desktops, the W swap, and a reconciliation
@@ -47,14 +109,9 @@ This file descends from **6.30.0** and silently missed everything delivered
 after it. Rather than keep finding that one item at a time, I audited every
 feature promised across the whole history against what's actually here.
 
-Two things are still missing. I'm naming them rather than rushing them in at
-the end of a long session:
-
-- **The 50,000-row cap on the tracker CSVs.** The chunked background loading
-  from 6.11.3 *is* here, so boot won't beachball — but the cap that stops the
-  files regrowing to 400k rows is not. This is the one with real consequences.
-- **`changelog.csv`.** The boot-time writer that logs Date | Version | Change
-  notes to the OneDrive Logs folder.
+Two things were still missing at 6.31.3 and were deferred rather than rushed
+in at the end of a long session — **both landed in 6.31.4 above**: the
+50,000-row cap on the tracker CSVs, and the `changelog.csv` writer.
 
 ## Tests
 
@@ -63,7 +120,14 @@ cd hammerspoon
 lua5.4 tests/quick_notes_test.lua    # 135 checks
 lua5.4 tests/cheat_sheet_test.lua    #  82 checks
 lua5.4 tests/spaces_test.lua         #  33 checks
+lua5.4 tests/retention_test.lua      #  27 checks
 ```
+
+The retention suite guards the one destructive operation in the config: the
+row cap deletes rows from your real history on every boot, so keeping the
+*oldest* 50,000 instead of the newest would quietly discard everything recent
+while looking like it worked. Verified it catches exactly that — reversing the
+direction turns it red (24/27, exit 1).
 
 The spaces suite is mostly about **failure** paths, because that's where a
 private-API feature actually lives: missing `hs.spaces`, full-screen windows,

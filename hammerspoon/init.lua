@@ -4,8 +4,25 @@
 -- =====================================================================
 -- 08-04-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.31.3-DESKTOPS-AND-RECONCILE
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.31.4-CAP-CHANGELOG-EMMYLUA
 -- =====================================================================
+--
+-- NEW IN 6.31.4 — THE TWO DEFERRED ITEMS, AND EDITOR AUTOCOMPLETE:
+--   🧯 HARD 50,000-ROW CAP on both tracker CSVs. This is the piece that
+--      was missing: chunked loading (6.11.3) stopped a huge history
+--      from BLOCKING boot, but nothing stopped the file growing to the
+--      ~400,000 rows that caused the 13-second beachball. Keeps the
+--      NEWEST rows and says on the console what it trimmed.
+--   📋 changelog.csv in the Logs folder — Date | Version | Change
+--      notes, appended once per version, never duplicated.
+--   💡 EmmyLua annotations for editor autocomplete on hs.*. Zero
+--      runtime cost, prints one line and carries on if not installed.
+--      See the README: the generated files do nothing until your
+--      EDITOR is pointed at them.
+--   🔢 ONE version string instead of three. Three separate literals is
+--      precisely how 6.31.1 shipped a stale 6.30.0 in the tool index —
+--      two got bumped, one did not. Everything executable now reads
+--      _G.configVersion.
 --
 -- NEW IN 6.31.3 — DESKTOPS, THE W SWAP, AND A RECONCILIATION:
 --   🖥 MOVE A WINDOW TO ANOTHER DESKTOP: ⇪⇧[ and ⇪⇧]. Bare brackets
@@ -1160,7 +1177,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.31.3
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.31.4
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -3511,6 +3528,26 @@ local function appendActivityRow(entry)
     end
 end
 
+-- 6.31.4 — HARD ROW CAP FOR BOTH TRACKER CSVs.
+-- The day-based cutoffs alone let file_changes reach ~400,000 rows,
+-- which took 13 seconds to parse at boot and beachballed the machine.
+-- Chunked loading stopped that from BLOCKING, but nothing stopped the
+-- file growing. This is the part that was missing.
+-- In _G. rather than a local: the main chunk is at Lua's 200 ceiling.
+_G.trackerMaxRows = 50000
+
+-- Keeps the NEWEST rows. Every write appends, so newest are at the end.
+_G.trackerCapRows = function(rows, label)
+    if #rows <= _G.trackerMaxRows then return rows end
+    local trimmed = {}
+    for i = #rows - _G.trackerMaxRows + 1, #rows do
+        trimmed[#trimmed + 1] = rows[i]
+    end
+    print(string.format("%s: capped %d rows to %d (newest kept)",
+        label, #rows, #trimmed))
+    return trimmed
+end
+
 local function pruneActivityLog(log)
     local cutoff = os.date("%Y-%m-%d", os.time() - (activityRetentionDays * 86400))
     local pruned = {}
@@ -3519,7 +3556,7 @@ local function pruneActivityLog(log)
             table.insert(pruned, entry)
         end
     end
-    return pruned
+    return _G.trackerCapRows(pruned, "📊 Activity tracker")
 end
 
 -- 6.11.3: one-time cleanup for rows recorded BEFORE kind-1 filtering
@@ -4357,7 +4394,7 @@ local function fileTrackerPrune(log)
     for _, e in ipairs(log) do
         if e.epoch >= cutoff then table.insert(kept, e) end
     end
-    return kept
+    return _G.trackerCapRows(kept, "📁 File tracker")
 end
 
 local _ftLoaded = fileTrackerLoad()
@@ -10290,7 +10327,84 @@ end)() -- X.3 desktop/space mover
 -- enumeration, nothing that could stall the main thread at boot.
 if _G.hyperFinalize then _G.hyperFinalize() end
 
-print("📌 init.lua ARCHITECTURE VERSION: 6.31.3")
+-- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
+-- WHAT THIS ACTUALLY IS, in plain terms: it writes out a set of files
+-- describing every Hammerspoon function — its name, what arguments it
+-- takes, what it hands back. A code editor that speaks the Lua language
+-- server protocol reads those files and can then finish `hs.pasteboard.`
+-- for you and underline a call you got wrong WHILE YOU TYPE, instead of
+-- you finding out after a reload when something quietly does nothing.
+--
+-- That last part is why it is here. Several real bugs in this file's
+-- history were exactly that shape: hs.pasteboard.readURL returning a
+-- different type than assumed, and a canvas replaceElements call whose
+-- signature was in doubt. Both were "wrong API usage that parses fine"
+-- — invisible to luac, visible to a language server.
+--
+-- IT COSTS NOTHING AT RUNTIME. It generates the files and stops. No
+-- hotkey, no timer, no watcher, nothing on the main thread afterwards.
+-- Not installed? One console line and the config carries on, so this
+-- stays portable to a Mac that has never heard of it.
+--
+-- ⚠️ THE GENERATED FILES ALONE DO NOTHING. They are half the setup —
+-- your EDITOR has to be pointed at them. See the README's EmmyLua
+-- section for that half; CotEditor cannot use them at all.
+(function()
+    local home = os.getenv("HOME") or ""
+    local spoonPath = home .. "/.hammerspoon/Spoons/EmmyLua.spoon"
+    local there = false
+    pcall(function() there = hs.fs.attributes(spoonPath) ~= nil end)
+    if not there then
+        print("💡 EmmyLua not installed — hs.* editor autocomplete is off.")
+        print("   Get it: https://www.hammerspoon.org/Spoons/EmmyLua.html")
+        print("   Then point your editor at Spoons/EmmyLua.spoon/annotations")
+        return
+    end
+    local ok, err = pcall(hs.loadSpoon, "EmmyLua")
+    if ok then
+        print("💡 EmmyLua: hs.* annotations refreshed for your editor")
+    else
+        -- Never fatal. A dev convenience must not take the config down.
+        print("⚠️ EmmyLua present but failed to load: " .. tostring(err))
+    end
+end)()
+
+-- 6.31.4 — ONE version string, not three. Three separate literals is
+-- exactly how 6.31.1 shipped with a stale 6.30.0 in the tool index: two
+-- got bumped, one did not. The header banners are comments and cannot
+-- read this, but everything executable now derives from here.
+_G.configVersion  = "6.31.4"
+_G.changelogNote  = "Tracker row cap, changelog CSV, EmmyLua annotations"
+
+-- ---- changelog.csv -------------------------------------------------
+-- Date | Version | Change notes, appended once per version on first
+-- boot. Never duplicated: an existing row for this version wins.
+(function()
+    local path = logsDir .. "/changelog.csv"
+    local seen, hasHeader = {}, false
+    local fh = io.open(path, "r")
+    if fh then
+        for line in fh:lines() do
+            if line:match("^Date,") then
+                hasHeader = true
+            else
+                local v = line:match("^[^,]*,([^,]*),")
+                if v and v ~= "" then seen[v] = true end
+            end
+        end
+        fh:close()
+    end
+    if seen[_G.configVersion] then return end
+    local out = io.open(path, "a")
+    if not out then warnWriteFailed("changelog CSV") return end
+    if not hasHeader then out:write("Date,Version,Change notes\n") end
+    out:write(os.date("%Y-%m-%d") .. "," .. _G.configVersion .. ","
+        .. csvQuote(_G.changelogNote) .. "\n")
+    out:close()
+    print("📋 changelog.csv: logged " .. _G.configVersion)
+end)()
+
+print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 print("🧭 PORTABILITY REPORT — " .. hostTag)
 print("   Storage:  " .. (cloudDir and ("OneDrive found → " .. cloudDir) or ("no OneDrive → local " .. logsDir)))
 print("   Data:     ALL log/note/history files in " .. logsDir)
