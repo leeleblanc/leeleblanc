@@ -4,6 +4,79 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.66.0 — THE SEARCH BOX, AND A KEY THAT WAS NEVER BOUND:
+  🔎 TYPE INTO THE CHEAT SHEET ITSELF. ⇪/ and then just start typing. The
+     panel filters live, in the SAME 20pt translucent column, with the
+     query shown in the title and a match count beside it. Esc clears the
+     query; a second Esc closes the sheet.
+     · ↩️ THIS REVERSES WHAT I TOLD LL, and the reversal is the point. I
+       said a canvas cannot take keyboard focus, so search had to be a
+       separate hs.chooser window. Both halves are true and together they
+       are beside the point: Mouse Grid has captured bare letters over a
+       canvas overlay since 6.45.0 without ever taking focus. Bind the
+       keys, keep the typed string yourself, draw it. The constraint was
+       real and the conclusion drawn from it was lazy.
+     · A group whose TITLE matches keeps ALL its entries — searching
+       "grid" shows the whole Mouse Grid section, not only the rows with
+       the word in them.
+     · 🧨 PLAIN TEXT, NEVER A PATTERN. This sheet is a wall of ⇪[ ⇪\ ⇪-
+       ⇪/ ⇪= and every one is an operator in Lua's pattern engine. Typing
+       one into a box that fed that engine hands it a malformed pattern
+       and throws. Fourteen of them are test cases.
+     · Backspace steps a CHARACTER, not a byte: lopping one byte off a
+       multi-byte glyph leaves a string hs.canvas will not draw.
+     · 🚨 THE TRADE, STATED PLAINLY: while the sheet is open it CAPTURES
+       LETTERS, so you cannot type into another window without closing it.
+       That is the same bargain the Mouse Grid makes, with the same safety
+       property behind it — keys are only ever taken while something is on
+       screen saying so — and hide() gives all thirty-eight back through
+       individual pcalls, so one failing disable cannot strand the rest.
+  🔢 THE ⇪ + PAD LAYER IS EMPTY, on request, and that is a feature. Every
+     entry it held was a SECOND way to press a key that already existed:
+     pad7→⇪Q, pad8→⇪⇧Q, pad4→⇪R, pad5→⇪X, pad6→⇪M, pad1→⇪K, pad3→⇪⇧0,
+     pad.→⇪⇧R. Ten keys spent on duplicates is ten keys unavailable for
+     anything new. All ten digits and every arithmetic key are now free.
+     The ⇪⇧ WINDOW MAP IS UNTOUCHED — its 3×3 layout is the one thing on
+     the pad that is not duplicated by a letter anywhere.
+  🚨 AND ⇪pad+ NEVER WORKED. LL was right, and the way it failed is the
+     lesson. It was assigned to the pomodoro in 6.65.0, documented in the
+     header, listed on the cheat sheet, and covered by a test that
+     asserted the assignment. On his Mac hs.keycodes.map["pad+"] returns
+     nil, so bindAll correctly SKIPPED it rather than binding nil and
+     taking the layer down. Every layer of the process agreed the feature
+     worked. The only thing that disagreed was the keyboard, and it said
+     so in one console line at boot.
+     · The pomodoro is on ⇪⇧P now. A letter cannot fail that way.
+     · A SKIPPED KEY IS REPORTED through the notice ledger, not whispered
+       to a console nobody has open. That was a rule-7 violation sitting
+       in a module that already knew the answer and kept it to itself.
+     · _G.padProbe() prints every pad key, its key code on THIS Mac, and
+       what it is bound to on both layers. Run it BEFORE assigning a pad
+       key, not after wondering why nothing happens. It also names the
+       usual culprit: Accessibility → Pointer Control → Mouse Keys eats
+       the entire number pad when it is on.
+     · The test that asserted ⇪pad+ was the pomodoro now asserts the
+       opposite — the timer must NOT be on a pad key — so the shape of
+       this mistake cannot come back.
+  🖱 ⇪⇧L FINDS THE POINTER. grid.locate() has existed since 6.45.0 bound
+     to nothing, went to ⇪pad* in 6.65.0, and lands on a letter now that
+     the pad is clear.
+     · 🚨 AND IT WAS DRAWING WRONG. The ring used "overlay" level and
+       "stationary" behaviour while the grid itself uses screenSaver and
+       fullScreenAuxiliary. Consequences, both invisible until hit: at
+       overlay the ring HIDES BEHIND THE MENU BAR, so a pointer parked
+       near the top was not found by the tool whose only job is finding
+       it; and without fullScreenAuxiliary a canvas cannot draw over a
+       FULL-SCREEN app at all — exactly when a pointer goes missing,
+       because there is no window furniture left to locate it against.
+       "stationary" only means "do not move me when Spaces change".
+  🧪 1,873 checks across 17 suites, 0 failures, 0 lint errors, 0 lint
+     warnings. Twenty-seven new checks; six mutations caught on the search
+     box alone, including show() losing the query to its own internal
+     hide() — which would have made typing filter the list and instantly
+     unfilter it, reading as "the search does nothing" rather than as a
+     bug.
+
 NEW IN 6.65.2 — A LINTER, INSTEAD OF FIXING ONE MORE OF THESE BY HAND:
   🔍 tools/hs-lint.lua — every rule is a bug that REACHED LL'S MAC. Not a
      style guide, not best practice copied from somewhere: a receipt, with

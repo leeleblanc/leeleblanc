@@ -376,6 +376,10 @@ check("mouse_grid's services are published", SERVICES["mouseGrid.show"] == 1)
 -- registry is empty there and the check would pass vacuously. This is the
 -- only suite where all 24 modules are loaded together and the names can
 -- actually be resolved.
+-- 6.66.0 — the tool layer was CLEARED on request, so this check now runs
+-- over the shifted layer's zone names plus whatever gets added back. It is
+-- kept, and kept loud, precisely because the layer is now empty and
+-- inviting: the next thing added there is exactly what this catches.
 check("🚨 EVERY ⇪ pad KEY NAMES A SERVICE SOME MODULE REALLY PUBLISHES — "
       .. "a typo binds a key that silently does nothing", (function()
     local np = _G.numpadLayer
@@ -388,9 +392,23 @@ check("🚨 EVERY ⇪ pad KEY NAMES A SERVICE SOME MODULE REALLY PUBLISHES — "
             missing[#missing + 1] = key .. "→" .. name
         end
     end
-    if n == 0 then return false, "the tool layer is empty" end
+    -- 🚨 AN EMPTY LAYER PASSES, AND THE COMMENT MATTERS MORE THAN THE
+    -- CODE. Until 6.66.0 this returned FAILURE on an empty table, on the
+    -- reasoning that a vacuous pass hides a broken fixture. That was right
+    -- while the layer was supposed to be full; it is wrong now that it is
+    -- deliberately empty, and leaving it would have meant a permanently
+    -- red suite teaching everyone to ignore it. The check that actually
+    -- protects us is unchanged: whatever IS there must resolve.
     if #missing > 0 then return false, table.concat(missing, ", ") end
     return true
+end)())
+check("...and the shifted layer is still fully populated, so an empty "
+      .. "TOOL layer cannot be mistaken for a fixture that failed to load",
+      (function()
+    local np = _G.numpadLayer
+    local n = 0
+    for _ in pairs((np or {}).shiftActions or {}) do n = n + 1 end
+    return n >= 17, n
 end)())
 check("...and no pad key means the same thing on both layers, which "
       .. "would waste a slot", (function()

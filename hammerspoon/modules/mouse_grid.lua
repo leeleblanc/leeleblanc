@@ -134,6 +134,7 @@ local M = {
             { "space",    "Left click · ⇧space right click · 2 double click" },
             { "↑↓←→",     "Nudge 8pt · with ⇧ nudge 1pt for a tight target" },
             { "⎋",        "Done — leave the pointer where it is" },
+            { "⇪⇧L",      "Find the pointer — flashes a ring around it" },
             { "⌃⌥⌘⇧X",   "PANIC — tear the overlay down whatever state it is in" },
             { "check it", "_G.mouseGridReport() — cell size on THIS Mac" },
         },
@@ -146,6 +147,13 @@ function M.setup(core)
     -- ✏️ EDIT HERE ---------------------------------------------------------
     grid.enabled     = true
     grid.key         = "x"          -- ⇪X. ⇪⇧X is the click-on-arrival twin.
+    -- 🖱 6.66.0 — THE POINTER RING GETS A REAL KEY AT LAST. grid.locate()
+    -- has existed since 6.45.0 and was bound to nothing on the argument
+    -- that macOS shake-to-grow already covers it. 6.65.0 put it on ⇪pad*,
+    -- and 6.66.0 cleared the pad layer — so it lands on a letter, which is
+    -- also the only kind of key that cannot turn out to be missing from
+    -- this keyboard (see _G.padProbe and the ⇪pad+ story).
+    grid.locateKey   = "l"          -- ⇪⇧L — L for locate
 
     -- Capacity is alphabet^labelLength — see the arithmetic block above.
     -- These two are ONE decision, not two: changing either changes how
@@ -1110,6 +1118,8 @@ function M.setup(core)
 
     if grid.enabled then
         core.hyperAddShortcut({}, grid.key, function() grid.show(false) end, "mouse grid")
+        core.hyperAddShortcut({ "shift" }, grid.locateKey,
+                              function() grid.locate() end, "find the pointer")
         core.hyperAddShortcut({ "shift" }, grid.key, function() grid.show(true) end,
                               "mouse grid (click on arrival)")
     end
@@ -1186,8 +1196,23 @@ function M.setup(core)
                 strokeWidth = 5,
                 center = { x = r, y = r }, radius = r - 4,
             } })
-            c:level((hs.canvas.windowLevels or {}).overlay)
-            c:behaviorAsLabels({ "canJoinAllSpaces", "stationary" })
+            -- 🚨 6.66.0 — MATCH THE GRID'S OWN LEVEL AND BEHAVIOUR.
+            -- This ring was the odd one out: "overlay" level and
+            -- "stationary" behaviour, while the grid itself uses
+            -- screenSaver + fullScreenAuxiliary. The consequences were both
+            -- real and both invisible until you hit them:
+            --   · at "overlay" the ring hides behind the menu bar, so a
+            --     pointer parked near the top of the screen was not found
+            --     by the tool whose entire job is finding it;
+            --   · WITHOUT fullScreenAuxiliary a canvas cannot draw over a
+            --     FULL-SCREEN app at all — which is exactly when a pointer
+            --     goes missing, because there is no window furniture left
+            --     to locate it against.
+            -- "stationary" only means "do not move me when Spaces change";
+            -- it says nothing about full-screen, and it is not what was
+            -- wanted here.
+            c:level((hs.canvas.windowLevels or {}).screenSaver)
+            c:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" })
             -- 🚨 CLICK-THROUGH. Without this the ring is a disc of glass
             -- over whatever you were about to click, for half a second —
             -- which is precisely when you are reaching for something.

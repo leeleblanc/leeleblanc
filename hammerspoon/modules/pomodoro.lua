@@ -1,5 +1,5 @@
 -- =====================================================================
--- MODULE: POMODORO (⇪ pad+) — launch it and forget it
+-- MODULE: POMODORO (⇪⇧P) — launch it and forget it
 -- =====================================================================
 -- 25 minutes of work, then 5 minutes to stand up. One key starts it, the
 -- same key puts it away, and in between you are not asked to do anything.
@@ -10,7 +10,15 @@
 -- notification landing on whatever you are doing. Then it counts the five
 -- minutes and stops.
 --
---        ⇪ pad+     start · and press it again to put it away
+--        ⇪⇧P        start · and press it again to put it away
+--
+-- 🚨 IT WAS ⇪pad+ IN 6.65.0, AND THAT KEY WAS DEAD. It was assigned,
+-- documented, listed on the cheat sheet and covered by a test — and on
+-- LL's Mac hs.keycodes.map["pad+"] returns nil, so the numpad layer
+-- correctly SKIPPED it rather than binding nil, and the key did nothing.
+-- Every layer of the process agreed it worked; the keyboard disagreed.
+-- A letter key cannot fail that way, so the timer lives on one now.
+-- Run _G.padProbe() to see which pad keys this Mac can actually send.
 --        ⏎          reset and go again          ┐ only while it is
 --        esc        stop and close it           ┘ asking (see below)
 --
@@ -45,14 +53,15 @@ local M = {
     name  = "Pomodoro",
     order = 13.65,
     cheatsheet = {
-        title = "🍅 POMODORO (⇪ pad+ — 25 on, 5 off)",
+        title = "🍅 POMODORO (⇪⇧P — 25 on, 5 off)",
         entries = {
-            { "⇪ pad+",  "Start it · press again to put it away" },
+            { "⇪⇧P",     "Start it · press again to put it away" },
             { "auto",    "25:00 work, then it FLASHES and counts 5:00 break" },
             { "⏎",       "Reset and go again — only while it is flashing" },
             { "esc",     "Stop and close — only while it is flashing" },
             { "where",   "Top-right, just under the clock" },
             { "note",    "Enter/esc are NOT captured during the countdown" },
+            { "was",     "⇪pad+ in 6.65.0 — that key does not exist on this Mac" },
         },
     },
 }
@@ -62,6 +71,8 @@ function M.setup(core)
 
     -- ✏️ EDIT HERE ---------------------------------------------------------
     pom.enabled    = true
+    pom.key        = "p"         -- ⇪⇧P. A LETTER, deliberately: see the 🚨
+                                 -- in the header for why it is not a pad key.
     pom.workMins   = 25          -- the session
     pom.breakMins  = 5           -- stand up, stretch
     pom.width      = 170         -- the size you asked for
@@ -308,6 +319,11 @@ function M.setup(core)
         end)
     else
         warn("no modal — ⏎/esc will not answer the timer, ⇪pad+ still toggles it")
+    end
+
+    if pom.enabled then
+        core.hyperAddShortcut({ "shift" }, pom.key, function() pom.toggle() end,
+                              "pomodoro")
     end
 
     core.provide("pomodoro.toggle", function() return pom.toggle() end)

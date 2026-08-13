@@ -266,6 +266,72 @@ return function(core)
     -- start losing the fight against a bright background.
     cheatSheet.alpha = 0.75
 
+    -- =====================================================================
+    -- 🔎 SEARCH (6.66.0) — type while the sheet is open
+    -- =====================================================================
+    -- LL asked for this twice, and the first answer was a separate
+    -- hs.chooser window (⇪⇧/) with the reasoning that "a canvas cannot take
+    -- keyboard focus". That reasoning was too quick. A canvas cannot take
+    -- FOCUS, true — but it does not need to. Mouse Grid has captured bare
+    -- letters over a canvas overlay since 6.45.0: bind the keys, keep the
+    -- typed string yourself, and draw it. Same technique, and it keeps the
+    -- 20pt text and the translucency that made this sheet worth having.
+    --
+    -- 🚨 THE TRADE, AND IT IS A REAL ONE: while the sheet is open it now
+    -- CAPTURES LETTERS. You cannot type into another window without
+    -- closing it first. That is the same bargain Mouse Grid makes, with
+    -- the same safety property behind it — whenever keys are being taken
+    -- there is something on screen saying so, and this panel is about as
+    -- visible as an overlay gets. Two ways out, unchanged: ⇪/ and Esc.
+    --
+    -- Esc CLEARS the query before it closes the sheet, so a search you did
+    -- not mean costs one keypress rather than a close-and-reopen.
+    cheatSheet.query = ""
+
+    -- 🧨 PLAIN TEXT, NEVER A PATTERN — the same rule the Tool Picker
+    -- documents, and it matters more here: this sheet is a wall of ⇪[ ⇪\
+    -- ⇪- ⇪/ ⇪= and every one of those is an operator in Lua's pattern
+    -- engine. Typing one into a box that fed the pattern engine would hand
+    -- it a malformed pattern and throw. Every find() below passes `true`.
+    -- Words match in ANY ORDER and ALL must match.
+    function cheatSheet.matches(hay, query)
+        if query == nil or query:match("^%s*$") then return true end
+        hay = hay:lower()
+        for word in query:lower():gmatch("%S+") do
+            if not hay:find(word, 1, true) then return false end
+        end
+        return true
+    end
+
+    -- Groups filtered to the entries that match. A group whose TITLE
+    -- matches keeps all of its entries — searching "grid" should show you
+    -- the whole Mouse Grid section, not just the rows with "grid" in them.
+    function cheatSheet.filtered()
+        local all = cheatSheet.groups()
+        if cheatSheet.query == "" then return all, nil end
+        local out, shown = {}, 0
+        for _, g in ipairs(all) do
+            local title = tostring(g.title or "")
+            if cheatSheet.matches(title, cheatSheet.query) then
+                out[#out + 1] = g
+                shown = shown + #(g.entries or {})
+            else
+                local keep = {}
+                for _, e in ipairs(g.entries or {}) do
+                    if cheatSheet.matches(tostring(e[1] or "") .. " "
+                                          .. tostring(e[2] or ""), cheatSheet.query) then
+                        keep[#keep + 1] = e
+                    end
+                end
+                if #keep > 0 then
+                    out[#out + 1] = { title = title, entries = keep, order = g.order }
+                    shown = shown + #keep
+                end
+            end
+        end
+        return out, shown
+    end
+
     -- ---- The sheet: one tall column you scroll -------------------------
     -- 6.32.0 — the sheet used to fill a column, then start ANOTHER column
     -- to the right, so on a long list it grew sideways into a wall of text.
@@ -307,6 +373,18 @@ return function(core)
         for _, hk in ipairs(_G.cheatSheetScrollKeys or {}) do
             pcall(function() hk:disable() end)
         end
+        -- 🚨 GIVE THE ALPHABET BACK. These are BARE letter keys, so leaving
+        -- one enabled after the sheet is gone means a keyboard that types
+        -- into nothing — the single worst failure this file could have, and
+        -- the reason every disable here is its own pcall: one that throws
+        -- must not stop the next thirty-six from running.
+        for _, hk in ipairs(_G.cheatSheetSearchKeys or {}) do
+            pcall(function() hk:disable() end)
+        end
+        -- Cleared on close, so ⇪/ always opens on the full list. A sheet
+        -- that reopened still filtered by yesterday's search would look
+        -- like most of your shortcuts had disappeared.
+        cheatSheet.query = ""
         if _G.cheatSheetWheelTap then
             pcall(function() _G.cheatSheetWheelTap:stop() end)
         end
@@ -337,9 +415,25 @@ return function(core)
             roundedRectRadii = { xRadius = 16, yRadius = 16 },
         })
 
+        -- 🔎 The title doubles as the search box. A separate field would
+        -- mean re-laying out the panel and a second thing that can be out
+        -- of step with the rows below it; the title is already centred,
+        -- already the right size, and already redrawn on every keystroke.
+        -- The ▏ is a caret, so it is obvious the sheet is taking your keys.
+        local titleText, titleColor = "⌨️  Hammerspoon Shortcuts", { white = 1 }
+        if cheatSheet.query ~= "" then
+            titleText = "🔎  " .. cheatSheet.query .. "▏"
+            if cheatSheet.matchCount then
+                titleText = titleText .. "   ·   " .. cheatSheet.matchCount
+                    .. (cheatSheet.matchCount == 1 and " match" or " matches")
+            end
+            -- Amber while filtering: the same colour the Mouse Grid uses to
+            -- say "you are narrowing something", for the same reason.
+            titleColor = { red = 1.00, green = 0.84, blue = 0.00 }
+        end
         table.insert(els, {
-            type = "text", text = "⌨️  Hammerspoon Shortcuts",
-            textSize = st.titleSize, textColor = { white = 1 }, textAlignment = "center",
+            type = "text", text = titleText,
+            textSize = st.titleSize, textColor = titleColor, textAlignment = "center",
             frame = { x = 0, y = st.pad * 0.55, w = st.panelW, h = st.titleH },
         })
 
@@ -478,9 +572,51 @@ return function(core)
     -- individually pcall'd: if one key can't be bound the sheet still opens
     -- and still scrolls by the other routes, and the Console says which one
     -- was lost rather than the whole feature dying.
+    -- ---- typing into the sheet ------------------------------------------
+    -- Scroll position resets to the top on every keystroke: after filtering
+    -- you are looking at a different, shorter list, and keeping row 40 of
+    -- the old one would leave you staring at blank space wondering whether
+    -- the search found nothing.
+    function cheatSheet.typeChar(ch)
+        if not _G.cheatSheetCanvas then return end
+        cheatSheet.query = cheatSheet.query .. ch
+        -- show(), not render(): the ROWS are built in show(), so render()
+        -- alone would repaint a new title over an unfiltered list.
+        cheatSheet.show(false)
+    end
+
+    function cheatSheet.backspace()
+        if not _G.cheatSheetCanvas then return end
+        if cheatSheet.query == "" then return end
+        -- ⚠️ BYTES ARE NOT CHARACTERS. A query can contain a multi-byte
+        -- glyph, and lopping one byte off the end of a UTF-8 sequence
+        -- leaves a malformed string that hs.canvas will not draw. Step back
+        -- to the previous CHARACTER boundary instead.
+        local q = cheatSheet.query
+        local cut = #q
+        if utf8 and utf8.offset then
+            local n = utf8.len(q)
+            if n and n > 0 then cut = (utf8.offset(q, n) or #q) - 1 end
+        end
+        cheatSheet.query = q:sub(1, math.max(0, cut))
+        cheatSheet.show(false)
+    end
+
+    -- Esc CLEARS before it CLOSES. A mistyped search costing a
+    -- close-and-reopen is the kind of small friction that stops people
+    -- using a feature at all.
+    function cheatSheet.escape()
+        if cheatSheet.query ~= "" then
+            cheatSheet.query = ""
+            cheatSheet.show(false)
+            return
+        end
+        cheatSheet.hide()
+    end
+
     function cheatSheet.enableInput()
         if not _G.cheatSheetEscHotkey then
-            local ok, hk = pcall(hs.hotkey.new, {}, "escape", cheatSheet.hide)
+            local ok, hk = pcall(hs.hotkey.new, {}, "escape", cheatSheet.escape)
             if ok then _G.cheatSheetEscHotkey = hk end
         end
         if not _G.cheatSheetScrollKeys then
@@ -511,6 +647,33 @@ return function(core)
             if ok then _G.cheatSheetWheelTap = tap end
         end
 
+        -- 🔎 THE SEARCH KEYS. Built once and reused, like everything else
+        -- here: rebuilding hotkeys per open is how a config ends up with
+        -- two objects bound to one key, one of which nothing can disable.
+        --
+        -- 🚨 THIS IS WHAT CAPTURES YOUR KEYBOARD. Letters, digits, space
+        -- and backspace are taken while the sheet is visible and given
+        -- back the moment it closes. Bare keys, no modifier — which is
+        -- exactly what makes it a search box and exactly what makes it a
+        -- thing that must never be left enabled. disableInput() is called
+        -- from hide(), which every exit path goes through.
+        if not _G.cheatSheetSearchKeys then
+            local keys = {}
+            local function claim(k, fn)
+                local ok, hk = pcall(hs.hotkey.new, {}, k, fn, nil, fn)
+                if ok and hk then keys[#keys + 1] = hk end
+            end
+            for c in ("abcdefghijklmnopqrstuvwxyz0123456789"):gmatch(".") do
+                claim(c, function() cheatSheet.typeChar(c) end)
+            end
+            claim("space",  function() cheatSheet.typeChar(" ") end)
+            claim("delete", cheatSheet.backspace)
+            _G.cheatSheetSearchKeys = keys
+        end
+        for _, hk in ipairs(_G.cheatSheetSearchKeys or {}) do
+            pcall(function() hk:enable() end)
+        end
+
         if _G.cheatSheetEscHotkey then
             pcall(function() _G.cheatSheetEscHotkey:enable() end)
         end
@@ -527,7 +690,15 @@ return function(core)
     function cheatSheet.show(preserveScroll)
         local keepFirst = (preserveScroll and _G.cheatSheetState
                            and _G.cheatSheetState.first) or 1
+        -- 🚨 SAVE THE QUERY ACROSS OUR OWN hide(). hide() clears it — which
+        -- is right for closing the sheet and wrong for redrawing it, and
+        -- show() begins by calling hide() so it can never stack two panels.
+        -- Without this, typing one letter filtered the list and then
+        -- immediately unfiltered it, which reads as "the search does
+        -- nothing" rather than as a bug.
+        local keepQuery = cheatSheet.query
         cheatSheet.hide()  -- never stack two
+        cheatSheet.query = keepQuery
 
         -- ---- layout metrics (20pt text as originally requested) ----
         local entrySize, headerSize, titleSize = 20, 20, 24
@@ -617,7 +788,19 @@ return function(core)
         -- Flatten every group into one flat list of rows. A blank spacer row
         -- separates groups, which keeps every row the same height.
         local lines = {}
-        for gi, g in ipairs(cheatSheet.groups()) do
+        -- ⚠️ ON THE NAMESPACE, NOT ON `st`. This block runs inside show(),
+        -- which BUILDS the state table further down — `st` does not exist
+        -- yet here. render() reads it back on every keystroke, and it
+        -- outlives any one state table, which is what we want anyway.
+        local groupList, matchCount = cheatSheet.filtered()
+        cheatSheet.matchCount = matchCount
+        if #groupList == 0 then
+            table.insert(lines, { kind = "header",
+                                  text = "no shortcut matches \"" .. cheatSheet.query .. "\"" })
+            table.insert(lines, { kind = "entry",
+                                  text = "      ⌫ to edit  ·  esc to clear" })
+        end
+        for gi, g in ipairs(groupList) do
             if gi > 1 then table.insert(lines, { kind = "spacer", text = "" }) end
             table.insert(lines, { kind = "header", text = g.title })
             for _, e in ipairs(g.entries) do

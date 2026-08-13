@@ -4,9 +4,45 @@
 -- =====================================================================
 -- 08-13-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.65.2-LINT-SWEEP
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.66.0-SEARCH-AND-PAD
 -- =====================================================================
 
+-- NEW IN 6.66.0 — THE SEARCH BOX YOU ASKED FOR, AND A KEY THAT WAS DEAD:
+--   🔎 TYPE INTO THE CHEAT SHEET. ⇪/ then just start typing — the panel
+--      filters live, in the SAME 20pt translucent panel, with the query in
+--      the title and a match count beside it. Esc clears the query; a
+--      second Esc closes.
+--      ↩️ THIS REVERSES WHAT I TOLD YOU. I said a canvas cannot take
+--      keyboard focus so search had to be a separate window. True and
+--      beside the point: Mouse Grid has captured bare letters over a
+--      canvas since 6.45.0 without ever taking focus. Bind the keys, keep
+--      the string yourself, draw it. The reasoning was too quick and the
+--      answer was worse for it.
+--      🚨 THE TRADE: while the sheet is open it CAPTURES LETTERS, so you
+--      cannot type elsewhere without closing it. Same bargain the grid
+--      makes, same safety behind it — keys are only ever taken while
+--      something is on screen saying so, and hide() gives all 38 back.
+--   🔢 THE ⇪ + PAD LAYER IS EMPTY, on request. Every entry it held was a
+--      second way to press a key you already had (pad7→⇪Q, pad4→⇪R,
+--      pad5→⇪X …). All ten digits and every arithmetic key are yours.
+--      The ⇪⇧ window map is untouched — it is the one thing on the pad
+--      not duplicated anywhere else.
+--   🚨 AND ⇪pad+ NEVER WORKED. You were right. It was assigned to the
+--      pomodoro in 6.65.0, documented, cheat-sheeted and covered by a
+--      test — and hs.keycodes.map["pad+"] is nil on your Mac, so the
+--      layer correctly SKIPPED it rather than binding nil. Everything
+--      agreed it worked except the keyboard, and the only complaint was
+--      one console line at boot.
+--        · The pomodoro is on ⇪⇧P now — a letter cannot fail that way.
+--        · A skipped key is REPORTED through the notice ledger, not
+--          whispered to a console nobody has open.
+--        · _G.padProbe() prints every pad key, its key code on THIS Mac,
+--          and what it is bound to. Run it before assigning a pad key.
+--   🖱 ⇪⇧L FINDS THE POINTER, and the ring now draws at screenSaver level
+--      with fullScreenAuxiliary. It was at "overlay" with "stationary" —
+--      which hid it behind the menu bar and made it invisible over a
+--      FULL-SCREEN app, the exact case where you lose a pointer.
+--
 -- NEW IN 6.65.2 — A LINTER INSTEAD OF ANOTHER ONE-BY-ONE FIX:
 --   🔍 tools/hs-lint.lua. Every rule in it is a bug that REACHED YOUR MAC
 --      — not a style opinion, a receipt. It runs over init.lua, core/ and
@@ -150,56 +186,8 @@
 --   🔊 APP MONITOR SOUNDS: Ping interval 1s → 0.5s. Same sounds, twice
 --      as fast. Brings them in more reliably when you're away.
 --
--- NEW IN 6.63.0 — FOCUS MODE WAS MUTING YOUR MIC BECAUSE TEAMS WAS OPEN:
---   🎤 THE BUG, AND IT IS THE BAD KIND. The Teams pattern list was
---        { "Meeting", "Call with", "| Microsoft Teams$" }
---      and that third entry matches EVERY Teams window, because every
---      Teams window title ends "| Microsoft Teams". In a Lua pattern `|`
---      is an ordinary character, not alternation — it is a literal pipe,
---      not "or". So Focus Mode treated "Teams is open" as "you are in a
---      meeting", muted the microphone, turned Focus on and dimmed the
---      screen. LL's own ⇪⇧Q report named the culprits:
---        Chat | Canales, Beatrice E | Microsoft Teams
---        Teams and Channels | SAC-Library Team | 📚 CoDev …
---        Teams and Channels | SAC-Library Team | 🌙 Good evening …
---      A chat, a channel, and a greeting card in a channel feed. The bare
---      "Meeting" was nearly as bad — any channel called Meeting Notes.
---   🎯 STRICT NOW, AND DELIBERATELY SO. Patterns are ^-anchored to what a
---      real meeting window starts with (Meeting in / Meeting with /
---      Call with / Calling / Screen sharing), plus an exclusion list for
---      the main window sections that is checked FIRST and wins outright.
---      This will sometimes MISS a meeting. That is the correct way round:
---      a miss costs one ⇪Q, a false positive mutes you mid-sentence and
---      you find out from the silence.
---   🔁 AND ⇪Q WAS BEING OVERRULED THREE SECONDS LATER. The file promised
---      "⇪Q is the override, so it must never argue with you" — and then
---      argued, because turning Focus off cleared the flag and the next
---      detection tick turned it straight back on:
---        08:23:54 disengaged (manual ⇪Q)   08:23:57 engaged (Chat | …)
---        08:24:00 disengaged (manual ⇪Q)   08:24:01 engaged (Chat | …)
---      A manual off now suppresses AUTO re-engagement for
---      fm.manualOffSecs (15 min). Pressing ⇪Q on engages instantly and
---      clears the suppression — it holds off the machine changing its
---      mind, never you changing yours.
---   🔍 _G.focusWindows() — RUN IT WHILE YOU ARE ACTUALLY IN A MEETING. It
---      prints every Zoom/Teams window title and, for each, whether the
---      current rules call it a meeting and which pattern decided. The
---      strict patterns above are informed guesses; Teams titles vary by
---      build and tenant, and guessing is what caused this bug. Send that
---      output back and the patterns get set from evidence instead.
---   🧪 39 → 67 checks in test_focus, the false positives written verbatim
---      from the report. Six mutations caught, including the original
---      catch-all, an unanchored pattern, and exclusions checked in the
---      wrong order.
---   ⚖️ HONEST NOTE: with patterns ^-anchored the exclusion list is
---      redundant BY CONSTRUCTION — a title starting "Chat |" cannot also
---      start "Meeting in ", and deleting the exclusion pass changed no
---      result. It is kept because the patterns WILL be loosened once real
---      titles come back, and the moment an anchor comes off it is the
---      only thing between a channel and a muted mic. What the suite pins
---      is the guarantee that survives that change: exclusions win.
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.65.2
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.66.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -441,7 +429,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.65.2"
+_G.configVersion = "6.66.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

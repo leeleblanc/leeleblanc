@@ -1470,18 +1470,22 @@ check("every ⇪⇧ + pad WINDOW key is claimed on the second layer", (function(
     end
     return true
 end)())
-check("🚨 TOOLS ARE ON THE PLAIN HYPER KEY, windows one modifier up — the "
-      .. "layer pressed most often is the one without the extra reach",
-      type(numpad.actions.pad7) == "string"
-      and numpad.actions.pad7:find("%.") ~= nil
-      and numpad.shiftActions.pad7 == "topLeft",
+-- 6.66.0 — the 6.50.0 split (⇪pad = tools, ⇪⇧pad = windows) is now
+-- half a design: the tools half was cleared on request because every
+-- entry duplicated a letter key. What still has to hold is that the
+-- WINDOW map is intact and that the empty layer is empty by intent
+-- rather than by accident.
+check("🚨 the window map is on the SHIFTED layer and the plain layer is "
+      .. "clear — the 6.50.0 split with its tools half deliberately empty",
+      numpad.actions.pad7 == nil and numpad.shiftActions.pad7 == "topLeft",
       tostring(numpad.actions.pad7) .. " / " .. tostring(numpad.shiftActions.pad7))
-check("🚨 THE TWO LAYERS DO NOT OVERLAP — ⇪pad7 and ⇪⇧pad7 are different "
-      .. "shortcuts, and the whole design depends on that being true",
+check("🚨 THE TWO LAYERS ARE STILL DISTINCT KEYS — ⇪pad7 and ⇪⇧pad7 are "
+      .. "different shortcuts, which is what makes the free layer usable",
       hyperFor({}, "pad7") ~= hyperFor({ "shift" }, "pad7"))
-check("the cheat sheet advertises both layers, tools first",
-      numMod.cheatsheet.title:find("⇪ pad = tools", 1, true) ~= nil
-      and numMod.cheatsheet.title:find("⇪⇧ pad = windows", 1, true) ~= nil,
+check("the cheat sheet says the plain layer is FREE rather than listing "
+      .. "tools that are no longer there",
+      numMod.cheatsheet.title:find("free", 1, true) ~= nil
+      or numMod.cheatsheet.title:find("FREE", 1, true) ~= nil,
       numMod.cheatsheet.title)
 
 -- 🚨 THE TYPO TEST FOR THE SHIFTED LAYER LIVES IN test_integration.lua,
@@ -1585,14 +1589,25 @@ liveMod.setup(core)
 local live = liveMod.numpad
 live.bound = {}
 local boundCount = live.bindAll()
--- 6.65.0 — 13 tool keys, not 11: ⇪pad+ is the pomodoro and ⇪pad* flashes
--- a ring around the pointer. Both are on the TOOL layer rather than the
--- window layer, which is the 6.50.0 split holding: ⇪pad is what you do,
--- ⇪⇧pad is where the window goes.
-check("both layers together claim 17 window keys + 13 tool keys",
-      boundCount == 30, boundCount)
-check("...including all ten digits", (function()
-    for i = 0, 9 do if not hyperFor({}, "pad" .. i) then return false end end
+-- 6.66.0 — THE TOOL LAYER IS EMPTY ON PURPOSE, on LL's instruction, and
+-- the count dropped from 30 to 17. Every entry it used to hold was a
+-- SECOND way to press a key that already existed (pad7→⇪Q, pad4→⇪R,
+-- pad5→⇪X …). Ten keys spent on duplicates is ten keys unavailable for
+-- anything new. The window layer stays: its 3×3 map is the only way to do
+-- what it does, and it is not duplicated by any letter.
+check("only the WINDOW layer claims keys now — 17, and the tool layer is "
+      .. "deliberately empty", boundCount == 17, boundCount)
+check("...including all ten digits, on the SHIFTED layer", (function()
+    for i = 0, 9 do if not hyperFor({ "shift" }, "pad" .. i) then return false end end
+    return true
+end)())
+check("🆓 and NO bare ⇪ + pad key is claimed at all — the whole layer is "
+      .. "free for whatever comes next", (function()
+    for i = 0, 9 do if hyperFor({}, "pad" .. i) then return false, i end end
+    for _, k in ipairs({ "pad+", "pad-", "pad*", "pad/", "pad.",
+                         "padenter", "padclear" }) do
+        if hyperFor({}, k) then return false, k end
+    end
     return true
 end)())
 check("...and the arithmetic keys, which live on the WINDOW layer",
@@ -1601,22 +1616,24 @@ check("...and the arithmetic keys, which live on the WINDOW layer",
 -- 6.65.0 — pad+ and pad* were spent, deliberately and on the record.
 -- The remaining four are still the room set aside for what comes next,
 -- and this check is what stops that room being taken by accident.
-check("🆓 pad - / enter clear are STILL deliberately unclaimed on the "
-      .. "tool layer — the room set aside for whatever comes next",
-      (function()
-    for _, k in ipairs({ "pad-", "pad/", "padenter", "padclear" }) do
-        if live.actions[k] ~= nil then return false, k end
-    end
+check("🆓 EVERY tool-layer key is unclaimed — the table is empty, not "
+      .. "merely short", (function()
+    for _ in pairs(live.actions) do return false end
     return true
 end)())
-check("⇪pad+ is the pomodoro and ⇪pad* finds the pointer — both on the "
-      .. "TOOL layer, because ⇪⇧pad is windows and a timer is not a window",
-      live.actions["pad+"] == "pomodoro.toggle"
-      and live.actions["pad*"] == "mouseGrid.locate",
-      tostring(live.actions["pad+"]) .. " / " .. tostring(live.actions["pad*"]))
-check("...and ⇪⇧pad+ still grows the window — the tool layer taking pad+ "
-      .. "must not have quietly stolen the window key of the same name",
-      live.shiftActions["pad+"] == "grow")
+-- 🚨 THE ⇪pad+ STORY, pinned so it cannot repeat. That key was assigned
+-- to the pomodoro in 6.65.0, documented, cheat-sheeted and TESTED — and on
+-- LL's Mac hs.keycodes.map["pad+"] is nil, so bindAll correctly skipped it
+-- and the key did nothing at all. Everything agreed it worked except the
+-- keyboard. The timer is on a LETTER now, which cannot fail that way.
+check("the pomodoro is NOT on a pad key — a key this keyboard may not "
+      .. "have is a key that silently does nothing",
+      live.actions["pad+"] == nil and live.shiftActions["pad+"] ~= "pomodoro.toggle")
+check("...and the window layer is untouched — clearing the tool layer must "
+      .. "not have taken the 3×3 map with it",
+      live.shiftActions["pad+"] == "grow"
+      and live.shiftActions.pad7 == "topLeft"
+      and live.shiftActions.pad5 == "centre")
 check("binding twice does not double-claim anything", live.bindAll() == boundCount)
 
 check("an unmapped key name is SKIPPED, not bound to nil", (function()

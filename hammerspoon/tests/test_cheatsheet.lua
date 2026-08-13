@@ -42,11 +42,21 @@ hs = {
     new = function(mods, key, pressed, released, repeatfn)
       -- hotkey.new is the SCROLLING panel's own keys, and only those. A
       -- new key appearing here is a mistake worth failing on.
-      local valid = { escape=1, up=1, down=1, pageup=1, pagedown=1, home=1, ["end"]=1 }
+      -- 6.66.0 — the SEARCH keys join the scrolling keys: every letter,
+      -- every digit, space and delete are claimed while the sheet is open.
+      -- They are still an allow-list rather than "anything goes", because
+      -- the point of this assert is that a key appearing here unexpectedly
+      -- is a mistake worth failing on.
+      local valid = { escape=1, up=1, down=1, pageup=1, pagedown=1, home=1, ["end"]=1,
+                      space=1, delete=1 }
+      for c in ("abcdefghijklmnopqrstuvwxyz0123456789"):gmatch(".") do valid[c] = 1 end
       assert(valid[key], "unexpected key bound: " .. tostring(key))
-      local hk = { key = key, fire = pressed, repeatfn = repeatfn }
-      function hk:enable() hotkeysEnabled = hotkeysEnabled + 1; return hk end
-      function hk:disable() hotkeysDisabled = hotkeysDisabled + 1; return hk end
+      -- `enabled` is tracked per hotkey now, not just counted: "did closing
+      -- the sheet give the alphabet back" is a question about individual
+      -- keys, and a counter cannot answer it.
+      local hk = { key = key, fire = pressed, repeatfn = repeatfn, enabled = false }
+      function hk:enable() hotkeysEnabled = hotkeysEnabled + 1; hk.enabled = true; return hk end
+      function hk:disable() hotkeysDisabled = hotkeysDisabled + 1; hk.enabled = false; return hk end
       return hk
     end,
     -- 6.44.11 — the shipped §1.6 binds ⇪/ ⇪= ⇪- ⇪⇧= at load time via
@@ -347,6 +357,92 @@ check("scrolling after hide is a no-op, not an error", (function()
   local ok = pcall(function() CS.scrollBy(5); CS.render(); CS.wheelHandler(wheelEvent({})) end)
   return ok
 end)())
+
+print("\n=== 11b. 🔎 SEARCH — typing into the sheet (6.66.0) ===")
+-- LL asked for this twice. The first answer was a separate hs.chooser
+-- window, on the reasoning that "a canvas cannot take keyboard focus".
+-- True, and beside the point: Mouse Grid has captured bare letters over a
+-- canvas since 6.45.0 without ever taking focus. Bind the keys, keep the
+-- string yourself, draw it.
+CS.show()
+-- The canvas stub records what it was handed in `drawn`, not on the
+-- canvas object — so counting elements means reading that.
+local function rowsNow()
+  local n = 0
+  for _, e in ipairs(drawn or {}) do
+    if e.type == "text" then n = n + 1 end
+  end
+  return n
+end
+local unfiltered = rowsNow()
+check("the sheet opens unfiltered", CS.query == "" and unfiltered > 10, unfiltered)
+
+CS.typeChar("a"); CS.typeChar("s"); CS.typeChar("a")
+check("typing narrows the list", rowsNow() < unfiltered,
+      unfiltered .. " -> " .. rowsNow())
+check("...and the query is what was typed", CS.query == "asa", CS.query)
+check("a group whose TITLE matches keeps ALL its entries — searching "
+      .. "'asana' should show the whole section, not only the rows with "
+      .. "the word in them", (function()
+  local g = CS.filtered()
+  for _, grp in ipairs(g) do
+    if grp.title:find("ASANA", 1, true) then return #grp.entries >= 5, #grp.entries end
+  end
+  return false, "asana group not found"
+end)())
+
+CS.backspace()
+check("backspace widens it again", CS.query == "as", CS.query)
+check("🚨 backspace steps a CHARACTER, not a byte — lopping one byte off a "
+      .. "multi-byte glyph leaves a string hs.canvas will not draw",
+      (function()
+  CS.query = "⇪"                      -- three bytes, one character
+  CS.backspace()
+  return CS.query == ""
+end)())
+
+-- 🧨 THE ONE THAT MATTERS. This sheet is a wall of ⇪[ ⇪\ ⇪- ⇪/ ⇪= and
+-- every one is an operator in Lua's pattern engine.
+for _, q in ipairs({ "[", "]", "%", "%d", "(", ")", "*", "+", "-", "?",
+                     "^", "$", ".", "%b()" }) do
+  CS.query = ""
+  local ok = pcall(function() CS.typeChar(q) end)
+  check("typing " .. q .. " searches instead of throwing", ok)
+end
+CS.query = ""
+
+check("esc CLEARS a query before it closes the sheet — a mistyped search "
+      .. "should not cost a close-and-reopen", (function()
+  CS.show(); CS.typeChar("z"); CS.typeChar("z"); CS.typeChar("z")
+  CS.escape()
+  return CS.query == "" and _G.cheatSheetCanvas ~= nil
+end)())
+check("...and a SECOND esc closes it", (function()
+  CS.escape()
+  return _G.cheatSheetCanvas == nil
+end)())
+check("a query matching nothing says so instead of drawing an empty panel",
+      (function()
+  CS.show(); CS.query = "zzzznothing"
+  CS.show(false)
+  for _, e in ipairs(drawn or {}) do
+    if e.type == "text" and tostring(e.text):find("no shortcut matches", 1, true) then
+      return true
+    end
+  end
+  return false
+end)())
+CS.hide()
+check("🚨 closing GIVES THE ALPHABET BACK — bare letter keys left enabled "
+      .. "after the sheet is gone is a keyboard that types into nothing",
+      (function()
+  for _, hk in ipairs(_G.cheatSheetSearchKeys or {}) do
+    if hk.enabled then return false end
+  end
+  return true
+end)())
+check("...and the query is cleared, so ⇪/ never reopens still filtered",
+      CS.query == "")
 
 print("\n=== 12. Toggle ===")
 CS.toggle(); check("toggle opens", _G.cheatSheetCanvas ~= nil)

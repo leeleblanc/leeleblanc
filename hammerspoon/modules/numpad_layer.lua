@@ -87,16 +87,11 @@ local M = {
     name  = "Numpad Layer",
     order = 13.5,
     cheatsheet = {
-        title = "🔢 NUMPAD LAYER (⇪ pad = tools · ⇪⇧ pad = windows)",
+        title = "🔢 NUMPAD LAYER (⇪ pad = FREE · ⇪⇧ pad = windows)",
         entries = {
-            { "⇪ pad7 8 9",  "Focus mode toggle · focus report · health report" },
-            { "⇪ pad4 5 6",  "Bulk rename · mouse grid · menu bar items" },
-            { "⇪ pad1 2 3",  "Clean copied link · flush Capture Pad · copy today" },
-            { "⇪ pad0",      "Run the health check now" },
-            { "⇪ pad.",      "Undo the last rename" },
-            { "⇪ pad+",      "Pomodoro — 25 on, 5 off (press again to close)" },
-            { "⇪ pad*",      "Find the pointer — flashes a ring around it" },
-            { "free",        "⇪ pad - / enter clear are unclaimed, for later" },
+            { "⇪ pad ALL",   "🆓 every key free — cleared 6.66.0, yours to assign" },
+            { "how",         "Add padN = \"some.service\" in numpad_layer.lua" },
+            { "first",       "_G.padProbe() — which pad keys this Mac can send" },
             { "—",           "———— hold shift for windows ————" },
             { "⇪⇧ pad7 8 9", "Top-left quarter · top half · top-right quarter" },
             { "⇪⇧ pad4 5 6", "Left half · centre 70% · right half" },
@@ -162,30 +157,31 @@ function M.setup(core)
     --      top row    (7 8 9) — meetings and machine health
     --      middle row (4 5 6) — the three pickers
     --      bottom row (1 2 3) — clipboard and capture
+    -- 🧹 6.66.0 — CLEARED, ON REQUEST. Every entry that used to be here
+    -- was a SECOND way to press a key you already had:
+    --      pad7 pad8 → ⇪Q ⇪⇧Q      pad4 → ⇪R       pad5 → ⇪X
+    --      pad9 pad0 → ⇪⇧H         pad6 → ⇪M       pad1 → ⇪K
+    --      pad2 → the Capture Pad  pad3 → ⇪⇧0      pad. → ⇪⇧R
+    -- Ten keys spent on duplicates is ten keys not available for anything
+    -- new, and none of them was reachable more easily than the letter it
+    -- shadowed. The whole ⇪ + pad layer is now FREE.
+    --
+    -- ✏️ TO CLAIM ONE: add `padN = "some.service"` here and reload. The
+    -- value may be a published service name, a zone name, or a function.
+    -- Whatever you add is checked against the live service registry by
+    -- tests/test_integration.lua, so a typo fails the build rather than
+    -- your fingertips.
+    --
+    -- 🚨 AND BEFORE YOU PICK A KEY, RUN _G.padProbe(). Not every pad key
+    -- exists on every macOS build and keyboard layout, and a key macOS has
+    -- no code for is SKIPPED here rather than bound — correctly, since
+    -- binding nil takes the whole layer down. The cost of that correctness
+    -- is that the key simply does nothing and only a console line says so.
+    -- That is exactly how ⇪pad+ came to be documented, tested, shipped and
+    -- dead on LL's Mac. padProbe() prints every pad key and whether this
+    -- Mac can actually send it.
     numpad.actions = {
-        pad7 = "focus.toggle",       -- join a meeting / leave it
-        pad8 = "focus.report",       -- what focus changed, and what it restores
-        pad9 = "health.report",      -- the tool-health report
-        pad4 = "rename.show",        -- rename the Finder selection
-        pad5 = "mouseGrid.show",     -- centre key, and the grid is a pointer
-        pad6 = "menuBar.show",       -- menu bar icons by name
-        pad1 = "url.cleanClipboard", -- strip trackers from the copied link
-        pad2 = "capturePad.flush",   -- send the pad to Asana now
-        pad3 = "calendar.copyToday", -- today's date to the clipboard
-        pad0 = "health.check",       -- run the health scan right now
-        ["pad."] = "rename.undo",    -- the echo: ⇪pad. undoes a rename,
-                                     -- ⇪⇧pad. undoes a window move
-        -- 6.65.0 — the arithmetic keys start earning their keep. Both are
-        -- on THIS layer rather than ⇪⇧ because both are tools, and the
-        -- 6.50.0 split is the whole reason this layer exists: ⇪pad is what
-        -- you do, ⇪⇧pad is where the window goes. A pomodoro on the window
-        -- layer would be the first thing there that is not a window.
-        ["pad+"] = "pomodoro.toggle",  -- 25 on, 5 off; press again to close
-        ["pad*"] = "mouseGrid.locate", -- flash a ring at the pointer.
-                                       -- The asterisk IS the mnemonic: it
-                                       -- is the only key on the pad shaped
-                                       -- like the thing it draws.
-        -- 🆓 STILL FREE ON THIS LAYER:  pad-  pad/  padenter  padclear
+        -- 🆓 EVERY ⇪ + pad KEY IS FREE. See the note above.
     }
 
     -- ---- LAYER 2: ⇪⇧ + pad → WINDOWS ------------------------------------
@@ -418,9 +414,22 @@ function M.setup(core)
         end
         table.sort(numpad.bound)
         table.sort(numpad.skipped)
+        -- 🚨 6.66.0 — A SKIPPED KEY IS NOW REPORTED, NOT WHISPERED.
+        -- This used to be a bare print(). ⇪pad+ was assigned to the
+        -- pomodoro in 6.65.0, documented in the cheat sheet, covered by a
+        -- test — and on LL's Mac hs.keycodes.map["pad+"] is nil, so it was
+        -- silently skipped and the key did nothing. The console said so,
+        -- once, at boot, in a window nobody had open. That is precisely the
+        -- silent failure rule 7 exists to forbid, in a module that already
+        -- knew the answer and kept it to itself.
         if #numpad.skipped > 0 then
-            print("🔢 Numpad layer: this macOS has no key code for " ..
-                  table.concat(numpad.skipped, ", ") .. " — those are not bound")
+            local msg = table.concat(numpad.skipped, ", ")
+            print("🔢 Numpad layer: this macOS has no key code for " .. msg
+                  .. " — those are NOT bound. Run _G.padProbe() for the full map.")
+            if _G.notices then
+                _G.notices.record("numpad", "keys this Mac cannot send",
+                    msg .. " — assigned but not bound. _G.padProbe() for detail")
+            end
         end
         _G.diag.say("numpad", #numpad.bound .. " number-pad keys bound to ⇪")
         return #numpad.bound
@@ -444,6 +453,65 @@ function M.setup(core)
     end
 
     numpad.bindAll()
+
+    -- =====================================================================
+    -- _G.padProbe() — WHICH PAD KEYS DOES *THIS* MAC ACTUALLY HAVE?
+    -- =====================================================================
+    -- 🚨 WRITTEN BECAUSE ⇪pad+ SHIPPED DEAD. It was assigned, documented,
+    -- listed on the cheat sheet and covered by a test — and on LL's Mac
+    -- hs.keycodes.map["pad+"] is nil, so it was skipped at bind time and
+    -- the key did nothing at all. Every layer of the process agreed it
+    -- worked; the only thing that disagreed was the keyboard.
+    --
+    -- Run this BEFORE assigning a pad key, not after wondering why it does
+    -- nothing. It prints, for every pad key this config knows about:
+    --      the name · the key code macOS reports · what we bound to it
+    -- A key with no code cannot be used on this Mac, full stop — that is
+    -- macOS's keyboard layout talking, not Hammerspoon.
+    function _G.padProbe()
+        local names = { "pad0","pad1","pad2","pad3","pad4","pad5","pad6",
+                        "pad7","pad8","pad9","pad.","pad+","pad-","pad*",
+                        "pad/","pad=","padenter","padclear" }
+        local out = {
+            "════════════════════════════════════════════════════════",
+            " NUMBER PAD PROBE   " .. os.date("%Y-%m-%d %H:%M"),
+            " 'no code' = this Mac's keyboard layout cannot send it.",
+            "════════════════════════════════════════════════════════",
+            string.format("   %-10s %-9s %-22s %s", "KEY", "CODE", "⇪ DOES", "⇪⇧ DOES"),
+        }
+        local usable, dead = 0, {}
+        for _, n in ipairs(names) do
+            local code = hs.keycodes.map[n]
+            local a = numpad.actions[n]
+            local b = (numpad.shiftActions or {})[n]
+            if code then usable = usable + 1 else dead[#dead + 1] = n end
+            out[#out + 1] = string.format("   %-10s %-9s %-22s %s",
+                n, code and tostring(code) or "no code",
+                type(a) == "string" and a or (a and "(function)" or "—"),
+                type(b) == "string" and b or (b and "(function)" or "—"))
+        end
+        out[#out + 1] = ""
+        out[#out + 1] = string.format("   %d of %d pad keys exist on this Mac", usable, #names)
+        if #dead > 0 then
+            out[#out + 1] = "   ❌ UNUSABLE HERE: " .. table.concat(dead, ", ")
+            out[#out + 1] = "      Assigning any of those is assigning a key that"
+            out[#out + 1] = "      cannot be pressed. Pick from the ones with a code."
+        end
+        out[#out + 1] = ""
+        out[#out + 1] = "   ⚠️ If EVERY key says 'no code', or they all have codes"
+        out[#out + 1] = "      and still do nothing, check System Settings →"
+        out[#out + 1] = "      Accessibility → Pointer Control → Mouse Keys. When"
+        out[#out + 1] = "      that is on, macOS eats the whole number pad and no"
+        out[#out + 1] = "      application ever sees those keys."
+        out[#out + 1] = "════════════════════════════════════════════════════════"
+        local text = table.concat(out, "\n")
+        print(text)
+        pcall(function() hs.pasteboard.setContents(text) end)
+        hs.alert.show("🔢 Pad probe copied — paste it back", 3)
+        return text
+    end
+
+    core.provide("numpad.probe", function() return _G.padProbe() end)
 
     _G.numpadLayer = numpad
     M.numpad = numpad
