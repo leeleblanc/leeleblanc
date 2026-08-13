@@ -4,8 +4,31 @@
 -- =====================================================================
 -- 08-04-26 using Claude
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.31.2-HOUSEKEEPING
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.31.3-DESKTOPS-AND-RECONCILE
 -- =====================================================================
+--
+-- NEW IN 6.31.3 — DESKTOPS, THE W SWAP, AND A RECONCILIATION:
+--   🖥 MOVE A WINDOW TO ANOTHER DESKTOP: ⇪⇧[ and ⇪⇧]. Bare brackets
+--      move it a MONITOR, shift moves it a DESKTOP (Space). Built on
+--      hs.spaces, which drives PRIVATE macOS APIs — read the warning
+--      at §X.3 before relying on it. Every failure path names the step
+--      that broke instead of doing nothing.
+--   🔄 ⇪W IS THE APP-SUMMON PICKER AGAIN; the Document Watcher moved to
+--      ⇪⇧W. This was promised in a delivery that never reached this
+--      file's lineage, which is why ⇪W kept opening the wrong thing.
+--   🌫 panelAlpha 0.80 → 0.90. Same missed delivery.
+--   🔔 OCR FAILURES ARE NO LONGER SILENT. A file that isn't an image
+--      stays quiet (console only, as before), but an image we TRIED and
+--      failed on now raises an alert naming why — shortcut error, no
+--      text found, or nothing typeable. All three were bare returns.
+--   🔄 Hammerspoon now appears in the update tracker (§3.10).
+--
+--   📋 RECONCILIATION: this file descends from 6.30.0 and silently
+--      missed everything delivered after it. Audited every feature
+--      promised across that history against what is actually here.
+--      Still missing, deliberately deferred rather than rushed:
+--      the 50,000-row cap on the tracker CSVs (beachball prevention)
+--      and the changelog.csv writer. Both are noted in the README.
 --
 -- NEW IN 6.31.2 — HOUSEKEEPING (no behaviour changes):
 --   🧹 The "Lee additions" app list is gone from this header. It was a
@@ -1137,7 +1160,7 @@
 -- =====================================================================
 
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.31.2
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.31.3
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -1197,7 +1220,7 @@
 --    ⇪←/→    snap to left or right half of the screen
 --    ⇪↑       fill the screen (not native full-screen mode)
 --    ⇪\\       split the two most recent windows side by side
---    ⇪⇧W      picker: summon any running app to this monitor
+--    ⇪W       picker: summon any running app to this monitor
 --    ⇪↓       return the window to where it was before you moved it
 --    ⌃⌥⌘[ ]   throw the window to the next monitor right or left
 --
@@ -1617,8 +1640,10 @@ _G.hyperKeyMap = {
     ["alt+ctrl+f"]           = { {},        "up"    },  -- fill screen
     ["alt+ctrl+m"]           = { {},        "down"  },  -- restore prior frame
     ["alt+ctrl+v"]           = { {},        "\\"    },  -- split two windows
-    -- 6.28.0: moved to ⇪⇧W so the Document Watcher can own ⇪W.
-    ["alt+ctrl+w"]           = { {"shift"}, "w"     },  -- summon-an-app picker
+    -- 6.31.3: swapped back. Summoning an app to this monitor is the
+    -- far more frequent action, so it takes the bare letter; the
+    -- Document Watcher moved to ⇪⇧W. (6.28.0 had it the other way.)
+    ["alt+ctrl+w"]           = { {},        "w"     },  -- summon-an-app picker
     ["alt+cmd+ctrl+["]       = { {},        "["     },  -- monitor left
     ["alt+cmd+ctrl+]"]       = { {},        "]"     },  -- monitor right
     -- ---- Cheat sheet & custom entries ----
@@ -1731,7 +1756,7 @@ local popupNudgeStep = 50  -- pixels moved per arrow-key tap; edit freely.
 -- 6.31.1: the cheat sheet used to be the third one. It is an hs.chooser
 -- now (§1.6), so it is a native panel and this number no longer reaches
 -- it — that is the same opacity limit, not a regression in this setting.
-local panelAlpha = 0.80
+local panelAlpha = 0.90
 
 _G.popupOffset = { x = 0, y = 0 }  -- pixel offset from nudging, stacks on
                                     -- top of wherever the popup would
@@ -1976,9 +2001,10 @@ local function cheatSheetGroups()
             { "⇪← / ⇪→", "Left / right half of screen" },
             { "⇪↑", "Fill screen (not full-screen mode)" },
             { "⇪\\", "Split two most recent windows side-by-side" },
-            { "⇪⇧W", "Summon an app to this monitor (picker)" },
+            { "⇪W", "Summon an app to this monitor (picker)" },
             { "⇪↓", "Return window to prior spot (toggles)" },
             { "⇪[ / ⇪]", "Move window left / right a monitor" },
+            { "⇪⇧[ / ⇪⇧]", "Move window to previous / next desktop (Space)" },
         }},
         { title = "📁 FILE TRACKER", entries = {
             { "⇪F", "Rename / move / copy history (searchable)" },
@@ -2000,7 +2026,7 @@ local function cheatSheetGroups()
             { "⇪P", "Hide frontmost app — press again to bring back" },
         }},
         { title = "📄 DOCUMENT WATCHER (experimental)", entries = {
-            { "⇪W", "Documents worked on today — search name / ext / date" },
+            { "⇪⇧W", "Documents worked on today — search name / ext / date" },
             { "Enter", "Copy the highlighted row" },
             { "☑️ row", "Copy several: pick rows with Enter, then copy together" },
             { "⇪⇧E", "Edit or delete an entry (clear the name = delete)" },
@@ -3002,10 +3028,34 @@ local function processClipboardFileOCR(paths)
     end
     for _, p in ipairs(paths) do
         hs.task.new("/usr/bin/shortcuts", function(exitCode, stdOut, stdErr)
+            local nameF = p:match("[^/]+$") or p
+            -- 6.31.3 — FAILURES USED TO BE SILENT.
+            -- Every branch below used to be a bare `return`, so an image
+            -- that failed to OCR looked identical to one that was never
+            -- an image: nothing on screen either way. A file that isn't
+            -- an image is still silent (it never reaches here — see the
+            -- console-only line in the detection pass), but an image we
+            -- TRIED and failed on now says so, because that is the case
+            -- where you would otherwise sit waiting for a tag that is
+            -- never coming.
+            if exitCode ~= 0 then
+                print("⚠️ OCR failed for " .. nameF .. " — shortcuts exit "
+                    .. tostring(exitCode) .. " " .. tostring(stdErr or ""))
+                hs.alert.show("⚠️ Not OCR'd: " .. nameF .. " (OCR shortcut failed)")
+                return
+            end
             local textOut = stdOut
-            if not textOut or #textOut == 0 then return end
+            if not textOut or #textOut == 0 then
+                print("⚠️ OCR returned nothing for " .. nameF)
+                hs.alert.show("⚠️ Not OCR'd: " .. nameF .. " (no text found)")
+                return
+            end
             textOut = stripToQwerty(textOut:gsub("%z", ""):gsub("\x1A", ""))
-            if #textOut == 0 then return end
+            if #textOut == 0 then
+                print("⚠️ OCR text was all non-typeable for " .. nameF)
+                hs.alert.show("⚠️ Not OCR'd: " .. nameF .. " (no readable text)")
+                return
+            end
 
             local f = io.open(csvFile, "a")
             if f then
@@ -4896,6 +4946,12 @@ do
 local updateTrackerApps = {
     { app = "1Password",           cask = "1password",           url = "https://1password.com/downloads/mac/" },
     { app = "Alfred",               cask = "alfred",               url = "https://www.alfredapp.com/" },
+    -- 6.31.3: Hammerspoon tracks its own updates now. It is excluded
+    -- from the App Monitor (§3.7) and from App Lock on purpose — those
+    -- would have it watching/locking itself — but an update tracker has
+    -- no such conflict, and a stale Hammerspoon is exactly the thing
+    -- that breaks every other tool in this file.
+    { app = "Hammerspoon",          cask = "hammerspoon",          url = "https://www.hammerspoon.org/" },
     { app = "Bartender",            cask = "bartender",            url = "https://www.macbartender.com/" },
     { app = "CotEditor",            cask = "coteditor",            url = "https://coteditor.com/" },
     { app = "Ghostty",               cask = "ghostty",               url = "https://ghostty.org/download" },
@@ -8238,7 +8294,7 @@ end)() -- §6.6 App Lock
 -- // EXPERIMENTAL SECTION BEGIN                //
 
 -- =====================================================================
--- X.1 DOCUMENT WATCHER — ⇪W list · ⇪⇧E edit · doc_wather.csv
+-- X.1 DOCUMENT WATCHER — ⇪⇧W list · ⇪⇧E edit · doc_wather.csv
 -- =====================================================================
 -- Records every document you actually work in, with how long you spent
 -- in it, and gives you a searchable list.
@@ -8263,7 +8319,7 @@ end)() -- §6.6 App Lock
 --       into your search. You asked for search AND bare-letter commands
 --       in the same window; those are mutually exclusive. Editing is on
 --       ⇪⇧E instead, and works while the list is open.
---    3. ⇪W was already the app-summon picker. That moved to ⇪⇧W.
+--    3. ⇪W is the app-summon picker (6.31.3), so this list is ⇪⇧W.
 --
 -- HOW TIME IS MEASURED: the frontmost window is sampled every 5s. A
 -- sample only counts if you are actually present (no keyboard/mouse for
@@ -8485,7 +8541,7 @@ end
 
 _G.docSampleForTest = docSample
 
--- ---- the list (⇪W) ---------------------------------------------------
+-- ---- the list (⇪⇧W) --------------------------------------------------
 local function docTodayTally()
     -- os.date() with no time argument reads the WALL CLOCK, while every
     -- row is stamped from os.time(). Those are the same thing on a real
@@ -8714,7 +8770,7 @@ end)
 -- ---- wiring ----------------------------------------------------------
 docLoad()
 
-_G.hyperAddShortcut({}, "w", function()
+_G.hyperAddShortcut({"shift"}, "w", function()
     docSelectMode, docTagged = false, {}
     docRenderList("")
     _G.choosers.docWatcher:query("")
@@ -10088,6 +10144,134 @@ _G.qnPendingForTest    = qnPending
 
 end)() -- X.2 Quick Notes → Asana
 
+-- =====================================================================
+-- X.3 SEND A WINDOW TO ANOTHER DESKTOP (SPACE) — ⇪⇧[ and ⇪⇧]
+-- =====================================================================
+-- The bracket keys already mean "throw this window somewhere else":
+--   ⇪[  ⇪]    → the next MONITOR   (physical display)
+--   ⇪⇧[ ⇪⇧]   → the next DESKTOP   (macOS Space, same monitor)
+-- Bare is the physical axis, shift is the virtual one.
+--
+-- ⚠️ READ THIS BEFORE TRUSTING IT. Everything below rides on hs.spaces,
+-- which drives PRIVATE CoreGraphics calls that Apple does not support
+-- and has changed between macOS releases. Hammerspoon has removed and
+-- reinstated this module more than once. That is categorically shakier
+-- ground than the rest of this file, all of which uses public API, so
+-- it is built to fail loudly and specifically instead of silently:
+-- every failure path says which step broke. If a macOS update breaks
+-- it, ⇪⇧[ / ⇪⇧] will tell you so rather than doing nothing.
+--
+-- KNOWN LIMITS, none of which are fixable from here:
+--   • A native full-screen window cannot be moved between desktops —
+--     macOS gives it a space of its own. Guarded, with a message.
+--   • Full-screen spaces are excluded from the ordering. Counting them
+--     would make the key land on a space nothing can move into.
+--   • Needs Accessibility permission (System Settings → Privacy &
+--     Security → Accessibility → Hammerspoon).
+--   • With "Displays have separate Spaces" OFF, macOS treats all
+--     monitors as one desktop set; the count reflects whatever it says.
+--
+-- Self-contained: borrows focusedStandardWindow, guardNotFullScreen and
+-- rememberFrame from §2 and _G.hyperAddShortcut. Delete the block and
+-- nothing else changes.
+(function()
+
+-- All state in _G. — the main chunk sits at Lua's 200-local ceiling.
+_G.spaceMoveAvailable = nil   -- nil = not probed yet
+
+-- Probe once and cache. Checking on every keypress would mean a pcall
+-- storm on a build that simply does not ship the module.
+_G.spaceMoveProbe = function()
+    if _G.spaceMoveAvailable ~= nil then return _G.spaceMoveAvailable end
+    local ok = pcall(function() return hs.spaces end)
+    _G.spaceMoveAvailable = ok
+        and type(hs.spaces) == "table"
+        and hs.spaces.focusedSpace      ~= nil
+        and hs.spaces.spacesForScreen   ~= nil
+        and hs.spaces.moveWindowToSpace ~= nil
+        and hs.spaces.gotoSpace         ~= nil
+    return _G.spaceMoveAvailable
+end
+
+-- Only ordinary desktops are valid targets.
+_G.spaceUserSpaces = function(screen)
+    local out = {}
+    local ok, all = pcall(hs.spaces.spacesForScreen, screen)
+    if not ok or type(all) ~= "table" then return out end
+    for _, id in ipairs(all) do
+        local t
+        pcall(function() t = hs.spaces.spaceType(id) end)
+        -- Older builds have no spaceType. Treating nil as "user" keeps
+        -- those working; dropping them would leave an empty list and
+        -- make the feature look broken on a build where it works fine.
+        if t == nil or t == "user" then out[#out + 1] = id end
+    end
+    return out
+end
+
+_G.spaceMoveFocused = function(direction)
+    if not _G.spaceMoveProbe() then
+        print("🖥 Space move: hs.spaces missing on this Hammerspoon build")
+        hs.alert.show("🖥 This Hammerspoon has no Spaces support")
+        return
+    end
+
+    local win = focusedStandardWindow()
+    if not win then hs.alert.show("🖥 No window in focus") return end
+    -- Reuses §2's guard so the message matches the monitor keys.
+    if not guardNotFullScreen(win) then return end
+
+    local screen = win:screen()
+    local ids = _G.spaceUserSpaces(screen)
+    if #ids < 2 then
+        hs.alert.show("🖥 Only one desktop — add one in Mission Control")
+        return
+    end
+
+    local cur
+    pcall(function() cur = hs.spaces.focusedSpace() end)
+    local idx
+    for i, id in ipairs(ids) do if id == cur then idx = i break end end
+    if not idx then
+        print("🖥 Space move: focused space " .. tostring(cur)
+            .. " is not in this screen's list — likely a full-screen space")
+        hs.alert.show("🖥 Can't tell which desktop this is")
+        return
+    end
+
+    -- Wraps both ways, like the monitor keys do.
+    local nextIdx = (direction == "next")
+        and (idx % #ids) + 1
+        or  ((idx - 2) % #ids) + 1
+    local target = ids[nextIdx]
+
+    rememberFrame(win)
+    local ok = pcall(hs.spaces.moveWindowToSpace, win, target)
+    if not ok then
+        print("🖥 Space move: moveWindowToSpace failed for " .. tostring(target))
+        hs.alert.show("🖥 Move failed — check Accessibility permission")
+        return
+    end
+
+    pcall(hs.spaces.gotoSpace, target)
+    -- Mission Control animates the switch; focusing before it settles
+    -- lands on the old desktop. This delay is the animation, not a guess
+    -- at how slow the machine is.
+    hs.timer.doAfter(0.35, function() pcall(function() win:focus() end) end)
+    hs.alert.show("🖥 → Desktop " .. nextIdx .. " of " .. #ids)
+end
+
+_G.hyperAddShortcut({"shift"}, "]",
+    function() _G.spaceMoveFocused("next") end, "window to next desktop")
+_G.hyperAddShortcut({"shift"}, "[",
+    function() _G.spaceMoveFocused("prev") end, "window to previous desktop")
+
+-- Test seams (same convention as X.2).
+_G.spaceMoveForTest      = function(d) _G.spaceMoveFocused(d) end
+_G.spaceUserSpacesForTest = function(s) return _G.spaceUserSpaces(s) end
+
+end)() -- X.3 desktop/space mover
+
 -- // EXPERIMENTAL SECTION END                //
 -- /////////////////////////////////////////////
 -- ////////////////////////////////////////////
@@ -10106,7 +10290,7 @@ end)() -- X.2 Quick Notes → Asana
 -- enumeration, nothing that could stall the main thread at boot.
 if _G.hyperFinalize then _G.hyperFinalize() end
 
-print("📌 init.lua ARCHITECTURE VERSION: 6.31.2")
+print("📌 init.lua ARCHITECTURE VERSION: 6.31.3")
 print("🧭 PORTABILITY REPORT — " .. hostTag)
 print("   Storage:  " .. (cloudDir and ("OneDrive found → " .. cloudDir) or ("no OneDrive → local " .. logsDir)))
 print("   Data:     ALL log/note/history files in " .. logsDir)

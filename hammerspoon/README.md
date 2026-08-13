@@ -1,3 +1,78 @@
+# Hammerspoon config — 6.31.3
+
+## What's new in 6.31.3 — desktops, the W swap, and a reconciliation
+
+### Move a window to another desktop — `⇪⇧[` / `⇪⇧]`
+
+The bracket keys now cover both axes:
+
+| Key | Moves the focused window |
+| --- | --- |
+| `⇪[` / `⇪]` | one **monitor** left / right (wraps) |
+| `⇪⇧[` / `⇪⇧]` | one **desktop** (Space) back / forward (wraps) |
+
+Bare is physical, shift is virtual.
+
+**This is the least trustworthy code in the file, and you should know that
+going in.** It rides on `hs.spaces`, which drives private CoreGraphics calls
+Apple doesn't support and has changed between macOS releases; Hammerspoon has
+removed and reinstated the module more than once. Everything else in this
+config uses public API. So X.3 is built to fail *loudly and specifically* —
+every failure path names the step that broke. If a macOS update kills it,
+the key tells you rather than doing nothing.
+
+Known limits, none fixable from here: native full-screen windows can't move
+between desktops (macOS gives them their own space); full-screen spaces are
+excluded from the ordering; it needs Accessibility permission.
+
+### The `⇪W` fix
+
+`⇪W` summons an app to your monitor again, and the Document Watcher moved to
+`⇪⇧W`. This was promised in a delivery that never reached this file — which
+is exactly why pressing `⇪W` kept opening the wrong thing.
+
+### Other
+
+- **OCR failures are no longer silent.** A file that isn't an image stays
+  quiet (console only). An image we *tried* and failed on now alerts, naming
+  why: shortcut error, no text found, or nothing typeable. All three were
+  bare `return`s.
+- **`panelAlpha` 0.80 → 0.90** — your "10% less translucent," also from the
+  missed delivery.
+- **Hammerspoon is in the update tracker** (§3.10).
+
+### Reconciliation — why these kept surfacing one at a time
+
+This file descends from **6.30.0** and silently missed everything delivered
+after it. Rather than keep finding that one item at a time, I audited every
+feature promised across the whole history against what's actually here.
+
+Two things are still missing. I'm naming them rather than rushing them in at
+the end of a long session:
+
+- **The 50,000-row cap on the tracker CSVs.** The chunked background loading
+  from 6.11.3 *is* here, so boot won't beachball — but the cap that stops the
+  files regrowing to 400k rows is not. This is the one with real consequences.
+- **`changelog.csv`.** The boot-time writer that logs Date | Version | Change
+  notes to the OneDrive Logs folder.
+
+## Tests
+
+```sh
+cd hammerspoon
+lua5.4 tests/quick_notes_test.lua    # 135 checks
+lua5.4 tests/cheat_sheet_test.lua    #  82 checks
+lua5.4 tests/spaces_test.lua         #  33 checks
+```
+
+The spaces suite is mostly about **failure** paths, because that's where a
+private-API feature actually lives: missing `hs.spaces`, full-screen windows,
+a single desktop, an unrecognised current space, a failed move, and
+`spacesForScreen` throwing. Verified it can fail — breaking the full-screen
+filter turns it red (31/33, exit 1).
+
+---
+
 # Hammerspoon config — 6.31.2
 
 ## What's new in 6.31.2 — housekeeping only
