@@ -19,8 +19,17 @@ local HS = (arg and arg[1]) or os.getenv("HAMMERSPOON_DIR")
 local pass, fail, failures = 0, 0, {}
 local function check(label, cond, extra)
     if cond then pass = pass + 1
-    else fail = fail + 1
-         failures[#failures + 1] = label .. (extra and ("  [" .. tostring(extra) .. "]") or "") end
+    else
+        fail = fail + 1
+        local line = label .. (extra and ("  [" .. tostring(extra) .. "]") or "")
+        failures[#failures + 1] = line
+        -- Printed AS IT FAILS, not only in the summary. A later check can
+        -- abort the run, and a summary that never prints takes every
+        -- finding before it down with it — which is exactly what happened
+        -- while testing the 6.65.1 skip filters: the mutation was caught,
+        -- and all the run had to show was a traceback from a later line.
+        io.write("   ❌ " .. line .. "\n")
+    end
 end
 local function out(s) io.write(s) end
 
@@ -38,9 +47,17 @@ local HYPER, PROVIDED = {}, {}
 -- Each fake app: name, a list of {desc}, and optionally hangs=<seconds it
 -- burns off the clock when asked>. A hanging app is how a real wedged app
 -- behaves from Hammerspoon's side.
-local function mkApp(name, items, hangs)
+-- 6.65.1 — apps carry a PATH now. Without it the stub had no answer for
+-- app:path(), the pcall around that call swallowed the failure, and the
+-- CoreServices filter was dead code that every test happily passed
+-- through. A stub missing a method the shipped code calls does not fail —
+-- it silently skips the branch, which is the same trap the canvas stub
+-- set in 6.62.0.
+local function mkApp(name, items, hangs, path)
     return { _name = name, _items = items, _hangs = hangs,
-             name = function(self) return self._name end }
+             _path = path or ("/Applications/" .. name .. ".app"),
+             name = function(self) return self._name end,
+             path = function(self) return self._path end }
 end
 
 local function mkElement(kind, owner)
@@ -230,8 +247,93 @@ check("Hammerspoon's own item is skipped — listing yourself is noise",
     for _, e in ipairs(items) do if e.app == "Hammerspoon" then return false end end
     return true
 end)())
+-- Indexed defensively: a mutation that makes the scan return NOTHING —
+-- an over-broad skip filter is exactly that shape — would abort the run
+-- here on a bare index, killing every check after it and pointing the
+-- traceback at this line instead of at the filter that broke.
 check("items are sorted by owning app, so the list is stable between presses",
-      items[1].app <= items[2].app and items[2].app <= items[3].app)
+      #items >= 3 and items[1].app <= items[2].app
+      and items[2].app <= items[3].app,
+      #items < 3 and ("only " .. #items .. " items — the scan returned "
+                      .. "almost nothing, check the skip filters") or nil)
+
+-- =====================================================================
+-- 6.65.1 — REAL APPS ONLY. From LL's own screenshot:
+--     MenuBarAgent
+--     3.5% CPU @ /System/Library/CoreServices/MenuBarAgent.app/…
+-- =====================================================================
+APPS = {
+    mkApp("MenuBarAgent",  { { desc = "the menu bar itself" } },
+          nil, "/System/Library/CoreServices/MenuBarAgent.app"),
+    mkApp("Control Center", { { desc = "clock, wifi, battery" } },
+          nil, "/System/Library/CoreServices/ControlCenter.app"),
+    mkApp("SomeFutureAgent", { { desc = "not on any list I wrote" } },
+          nil, "/System/Library/CoreServices/SomeFutureAgent.app"),
+    mkApp("1Password",     { { desc = "vault locked" } },
+          nil, "/Applications/1Password.app"),
+    mkApp("Ice",           { { desc = "hidden items" } },
+          nil, "/Users/lee/Applications/Ice.app"),
+}
+boot()
+items = MB.scan(true)
+local function listed(n)
+    for _, e in ipairs(items) do if e.app == n then return true end end
+    return false
+end
+check("🎯 MenuBarAgent is gone — the one LL actually saw. It owns the menu "
+      .. "bar on Tahoe; there is nothing behind it to click",
+      not listed("MenuBarAgent"))
+check("Control Center is gone too", not listed("Control Center"))
+check("🚨 an Apple agent I have NEVER HEARD OF is also gone, because the "
+      .. "filter is on the CoreServices path and not only on a list of "
+      .. "names — a name list can only be as current as the last macOS I "
+      .. "have seen", not listed("SomeFutureAgent"))
+check("1Password SURVIVES — it is menu-bar-only, so filtering on "
+      .. "LSUIElement would have thrown away exactly what you opened the "
+      .. "picker to reach", listed("1Password"))
+-- ⚖️ HONEST NOTE, and the reason this check exists at all: for MenuBarAgent
+-- as macOS ships it TODAY the name entry is redundant — its path is under
+-- CoreServices, so the path filter alone would catch it, and deleting the
+-- name changed no result. The name list is kept because it is the layer
+-- that still works if Apple MOVES the binary, and this is the only check
+-- that pins it: same name, a path the path-filter does not match.
+check("MenuBarAgent is skipped BY NAME too, not only by its path — the "
+      .. "name is what still holds if Apple relocates the binary",
+      (function()
+    APPS = { mkApp("MenuBarAgent", { { desc = "moved" } },
+                   nil, "/Applications/MenuBarAgent.app"),
+             mkApp("Dropbox", { { desc = "x" } }) }
+    boot()
+    local it = MB.scan(true)
+    return #it == 1 and it[1].app == "Dropbox"
+end)())
+check("Ice survives, including installed under $HOME rather than "
+      .. "/Applications", listed("Ice"))
+check("...so the list is the two real apps and nothing else",
+      #items == 2, #items)
+check("an app that cannot answer app:path() is KEPT, not dropped — an "
+      .. "unanswerable question must never silently hide a real app",
+      (function()
+    APPS = { { _name = "Mute", _items = { { desc = "x" } },
+               name = function(self) return self._name end } }  -- no path()
+    boot()
+    local it = MB.scan(true)
+    return #it == 1 and it[1].app == "Mute"
+end)())
+
+-- 🚨 PUT THE FIXTURE BACK. The checks below this point were written
+-- against the four-app population above and read `items`; leaving the
+-- CoreServices fixture in place made three of them fail against code that
+-- was correct. A shared mutable fixture is only safe if every block that
+-- changes it also restores it.
+APPS = {
+    mkApp("Dropbox",   { { desc = "Syncing 3 files" } }),
+    mkApp("1Password", { { desc = nil } }),
+    mkApp("Zoom",      { { desc = "Meeting" }, { desc = "Mute" } }),
+    mkApp("Hammerspoon", { { desc = "should be skipped" } }),
+}
+boot()
+items = MB.scan(true)
 check("an item with a description keeps it as the detail line", (function()
     for _, e in ipairs(items) do
         if e.app == "Dropbox" then return e.detail == "Syncing 3 files" end
@@ -249,8 +351,14 @@ out("   -- the picker --\n")
 boot() ; HYPER["|m"]()
 check("⇪M opens a chooser", #CHOOSERS == 1 and CHOOSERS[1].shown)
 check("...listing every item", #CHOOSERS[1].rows == 4, #CHOOSERS[1].rows)
+-- Guarded for the same reason as the sort check above: an over-broad skip
+-- filter empties the list, and a bare index here turns a clean failure
+-- into an aborted run that blames the wrong line.
 check("...with the app as the row and the description beneath",
-      CHOOSERS[1].rows[1].text ~= nil and CHOOSERS[1].rows[1].subText ~= nil)
+      CHOOSERS[1].rows[1] ~= nil
+      and CHOOSERS[1].rows[1].text ~= nil
+      and CHOOSERS[1].rows[1].subText ~= nil,
+      CHOOSERS[1].rows[1] == nil and "the picker had no rows at all" or nil)
 CHOOSERS[1].fn(CHOOSERS[1].rows[1])
 check("picking a row activates that item", #ACTIONS == 1, #ACTIONS)
 check("...via AXPress, the correct action", ACTIONS[1].action == "AXPress")

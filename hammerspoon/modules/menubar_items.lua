@@ -107,6 +107,15 @@ function M.setup(core)
     -- by the exact name the picker shows in its left column.
     mb.skipApps    = {
         ["Hammerspoon"]         = true,  -- our own 🩺 and calendar items
+        -- 🎯 THE ONE LL ACTUALLY SAW, named from his own screenshot:
+        --      MenuBarAgent
+        --      3.5% CPU @ /System/Library/CoreServices/MenuBarAgent.app/…
+        -- New in macOS 26 (Tahoe): MenuBarAgent is the system process that
+        -- now draws the menu bar itself. It owns status items the way a
+        -- landlord owns a building — the scan is right to find it, and
+        -- there is nothing behind it to click.
+        ["MenuBarAgent"]        = true,
+        ["Menu Bar Agent"]      = true,   -- display-name form, just in case
         ["Control Center"]      = true,  -- clock, Wi-Fi, battery, volume…
         ["ControlCenter"]       = true,  -- the bundle name, on some builds
         ["SystemUIServer"]      = true,  -- the legacy extras host
@@ -121,6 +130,19 @@ function M.setup(core)
         ["AirPlayUIAgent"]      = true,
         ["ScreenSaverEngine"]   = true,
     }
+    -- 🚨 AND A RULE ON TOP OF THE LIST, because a list of names can only
+    -- ever be as current as the last macOS release I have seen. Anything
+    -- living in /System/Library/CoreServices is an Apple background agent
+    -- by definition — MenuBarAgent, SystemUIServer, Dock, Spotlight and
+    -- whatever Apple adds next all sit there. Filtering on the PATH catches
+    -- the ones nobody has told me about yet.
+    --
+    -- ⚠️ THIS IS NOT LSUIElement, deliberately. Plenty of legitimate
+    -- menu-bar-only apps set that flag — 1Password, Bartender, Ice,
+    -- NordVPN — and filtering on it would throw away exactly the apps you
+    -- opened this picker to reach. Path is the honest signal: a real
+    -- application you installed does not live in CoreServices.
+    mb.skipSystemPaths = { "/System/Library/CoreServices/" }
     -- ----------------------------------------------------------------------
 
     mb.cache, mb.cacheAt, mb.lastScanMs = nil, 0, 0
@@ -179,7 +201,21 @@ function M.setup(core)
             end
             local name = "?"
             pcall(function() name = app:name() or "?" end)
-            if not mb.skipApps[name] then
+            -- Path check second, and only when the name did not already
+            -- settle it: app:path() crosses a process boundary like every
+            -- other question here, so it is asked once per app and only
+            -- when it can change the answer.
+            local skip = mb.skipApps[name] == true
+            if not skip then
+                local p
+                pcall(function() p = app:path() end)
+                if type(p) == "string" then
+                    for _, prefix in ipairs(mb.skipSystemPaths) do
+                        if p:sub(1, #prefix) == prefix then skip = true break end
+                    end
+                end
+            end
+            if not skip then
                 local okEl, el = pcall(hs.axuielement.applicationElement, app)
                 if okEl and el then
                     -- ⚠️ SET THE TIMEOUT BEFORE ASKING ANYTHING. This is the
