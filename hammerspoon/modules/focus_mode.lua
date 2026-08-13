@@ -467,7 +467,12 @@ function M.setup(core)
                     local lvl = (hs.canvas.windowLevels or {}).overlay
                     pcall(function() c:level(lvl) end)
                     pcall(function()
-                        c:behaviorAsLabels({ "canJoinAllSpaces", "stationary" })
+                        -- 🚨 6.66.1 — see the note in pomodoro.lua:
+                        -- "stationary" is about Spaces, not full screen.
+                        -- A dimmer that cannot cover a full-screen app is
+                        -- a dimmer that fails in the one case where the
+                        -- distraction fills the whole display.
+                        c:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" })
                     end)
                     -- 🚨 CLICKS MUST PASS THROUGH. Without this the dim
                     -- becomes a sheet of glass over the whole Mac and the

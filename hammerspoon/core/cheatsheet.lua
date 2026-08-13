@@ -78,6 +78,12 @@ return function(core)
     cheatSheet.width     = 1024
     cheatSheet.height    = 768
     cheatSheet.key       = "/"   -- toggle key; same mods as everything above
+    -- ✏️ SECTIONS PINNED ABOVE THE A–Z RUN. Empty = pure alphabetical,
+    -- which is what LL asked for in 6.66.1. Add words from a group title
+    -- to pin it; matching is case-insensitive substring, and pinned
+    -- sections keep the order listed here rather than sorting among
+    -- themselves. A module that FAILED to load still outranks any pin.
+    cheatSheet.pinned    = { }
     cheatSheet.addKey    = "="   -- add-a-custom-entry key ("+" without shift)
 
     cheatSheet.customFile = logsDir .. "/custom_shortcuts.json"
@@ -205,7 +211,22 @@ return function(core)
         -- title. Matching is case-insensitive and on a substring, so
         -- "MOUSE GRID" catches "🎯 MOUSE GRID (⇪X — type 3 letters …)"
         -- without anyone having to keep the full title in two places.
-        local pinned = { "MOUSE GRID", "TOOL PICKER" }
+        -- 🔤 6.66.1 — EMPTY, ON REQUEST: "Alphabetize my shortcut list".
+        -- 6.65.0 pinned Mouse Grid and Tool Picker above the A–Z run,
+        -- which was also asked for at the time ("put the grid first, then
+        -- alphabetize the rest"). Those two instructions do not agree, and
+        -- the later one wins. Pure A–Z is also the more defensible answer:
+        -- alphabetical is the only order you can PREDICT without having
+        -- read the file, and a pinned section is one you have to remember
+        -- is pinned before you can find anything else.
+        --
+        -- ✏️ TO PIN ONE BACK: put words from its title in here. Matching is
+        -- case-insensitive and on a substring, so "MOUSE GRID" catches
+        -- "🎯 MOUSE GRID (⇪X — type 3 letters …)". Pinned sections keep the
+        -- order they are listed in, not alphabetical among themselves.
+        -- Read from the namespace so a test (and you, from the Console)
+        -- can set it without editing this file.
+        local pinned = cheatSheet.pinned or { }
 
         -- The title carries a leading emoji and, usually, a parenthetical
         -- naming the key. Neither should decide alphabetical position —

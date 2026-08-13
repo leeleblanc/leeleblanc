@@ -278,8 +278,16 @@ function M.setup(core)
         end
         pom.state = { phase = "work", endsAt = 0, canvas = c }
         local okShow = pcall(function()
+            -- 🚨 6.66.1 — fullScreenAuxiliary, NOT "stationary".
+            -- "stationary" means "do not move me when Spaces change". It
+            -- says NOTHING about full screen, and without
+            -- fullScreenAuxiliary a canvas cannot draw over a full-screen
+            -- app at all — the timer simply was not there, which reads as
+            -- "the shortcut did nothing" rather than as a drawing bug.
+            -- Every other panel in this config already had this; the two
+            -- that did not were the two written most recently.
             c:level((hs.canvas.windowLevels or {}).overlay)
-            c:behaviorAsLabels({ "canJoinAllSpaces", "stationary" })
+            c:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" })
             -- Click-through. A quarter of the screen corner that swallows
             -- clicks for 25 minutes is not a timer, it is an obstacle.
             c:canvasMouseEvents(false, false, false, false)

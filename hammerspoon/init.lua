@@ -4,9 +4,36 @@
 -- =====================================================================
 -- 08-13-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.66.0-SEARCH-AND-PAD
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.66.1-FULLSCREEN-AZ
 -- =====================================================================
 
+-- NEW IN 6.66.1 — "MY SHORTCUTS DON'T WORK OVER FULL SCREEN APPS":
+--   🚨 THEY DID. THE PANELS WERE INVISIBLE, which is indistinguishable
+--      from a dead key and much harder to report. Two canvases were still
+--      on "stationary" behaviour instead of fullScreenAuxiliary — the
+--      POMODORO and the Focus Mode dimmer, the two most recently written.
+--      "stationary" means "do not move me when Spaces change"; it says
+--      NOTHING about full screen, and without fullScreenAuxiliary a canvas
+--      cannot draw over a full-screen app at all. The shortcut fired, the
+--      panel was built, and nothing appeared.
+--   🔒 AND A LINT RULE SO IT CANNOT COME BACK. canvas-not-fullscreen
+--      counts behaviorAsLabels calls against fullScreenAuxiliary mentions
+--      per file. Getting it right took two tries and both failures are
+--      worth knowing: string literals are BLANKED before rules see a line
+--      (so the flag was invisible and all twelve correct call sites were
+--      flagged), and counting over raw text instead let a COMMENT
+--      mentioning the flag silence the check on the very file explaining
+--      the fix. It reads comment-stripped, string-preserved source now.
+--   🔤 THE SHEET IS PURE A–Z. The pins are gone. 6.65.0 pinned Mouse Grid
+--      and Tool Picker above the alphabetical run, which was also asked
+--      for at the time; the two instructions disagree and the later one
+--      wins. Alphabetical is the only order you can predict without having
+--      read the file. cheatSheet.pinned is still there and still works if
+--      you want one back — empty is a choice, not a dead code path, and
+--      there is a test that drives the mechanism to prove it.
+--   🔢 THE PAD SCREENSHOT WAS 6.65.x. Everything in it was already cleared
+--      in 6.66.0 — every ⇪ + pad key is free. Install and it is done.
+--
 -- NEW IN 6.66.0 — THE SEARCH BOX YOU ASKED FOR, AND A KEY THAT WAS DEAD:
 --   🔎 TYPE INTO THE CHEAT SHEET. ⇪/ then just start typing — the panel
 --      filters live, in the SAME 20pt translucent panel, with the query in
@@ -174,20 +201,8 @@
 --      caught between them — including the stale-canvas trap where the
 --      next ⇪X would have opened showing the last session's final frame.
 --
--- NEW IN 6.64.0 — EDITOR AUTOCOMPLETE FOR hs.* API:
---   💡 EMMYLUA ANNOTATIONS: Zero runtime cost, generates type files your
---      editor reads for ⇥ autocomplete and error highlighting on the hs.*
---      API while you type. Several bugs in this file's history were silent
---      API misuse: hs.pasteboard.readURL returning a different type than
---      assumed, and canvas replaceElements whose signature was in doubt.
---      Both parse fine, fail at runtime. A language server spots them
---      before a reload. Install from https://www.hammerspoon.org/Spoons/.
---      If absent, one console line and the config carries on — not required.
---   🔊 APP MONITOR SOUNDS: Ping interval 1s → 0.5s. Same sounds, twice
---      as fast. Brings them in more reliably when you're away.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.66.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.66.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -429,7 +444,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.66.0"
+_G.configVersion = "6.66.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

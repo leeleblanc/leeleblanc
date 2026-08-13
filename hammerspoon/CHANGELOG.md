@@ -4,6 +4,52 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.66.1 — "MY SHORTCUTS DON'T WORK OVER FULL SCREEN APPS":
+  🚨 THEY DID WORK. THE PANELS WERE INVISIBLE, and that is a much worse
+     failure than a dead key because it is indistinguishable from one.
+     Two canvases were still on "stationary" behaviour rather than
+     fullScreenAuxiliary: the POMODORO and the Focus Mode dimmer — the two
+     most recently written, which is exactly where a convention gets lost.
+     · "stationary" means "do not move me when Spaces change". It says
+       NOTHING about full screen. Without fullScreenAuxiliary a canvas
+       cannot draw over a full-screen app AT ALL, so the shortcut fired,
+       the panel was built, and nothing appeared.
+     · Ten of the twelve call sites in this config were already correct.
+       That is the shape of this class of bug: a convention followed
+       almost everywhere is invisible in the one place it was not.
+  🔒 A LINT RULE, SO IT CANNOT COME BACK — and it took two attempts, both
+     of which are worth recording because each was a plausible-looking
+     check that silently did the wrong thing:
+     · ATTEMPT ONE flagged all twelve correct call sites. The linter
+       BLANKS STRING LITERALS before rules see a line, which is right for
+       nearly every rule and fatal for one that has to read what is inside
+       a string — "fullScreenAuxiliary" was invisible to it.
+     · ATTEMPT TWO counted over raw file text instead, and a COMMENT
+       mentioning fullScreenAuxiliary counted as a use of it. The file
+       explaining the fix silenced the check on itself.
+     · It now reads comment-stripped, string-preserved source, and counts
+       behaviorAsLabels calls against fullScreenAuxiliary mentions per
+       file — which also handles the call being split across two lines.
+  🔤 THE CHEAT SHEET IS PURE A–Z. The pins are gone, on request.
+     6.65.0 pinned Mouse Grid and Tool Picker above the alphabetical run,
+     which was ALSO asked for at the time ("put the grid first, then
+     alphabetize the rest"). Those two instructions do not agree and the
+     later one wins. Pure alphabetical is the more defensible default
+     anyway: it is the only order you can PREDICT without having read the
+     file, and a pinned section is one you must remember is pinned before
+     you can find anything else.
+     · cheatSheet.pinned still exists and still works — add words from a
+       group's title to pin it back. A test drives the mechanism with a
+       pin set, so an empty list stays a CHOICE rather than quietly
+       becoming a dead code path.
+     · A module that FAILED to load still outranks everything, pinned or
+       not. A feature that vanished without explanation is the one thing
+       that must never be scrolled to.
+  🔢 THE NUMBER PAD SCREENSHOT WAS 6.65.x. Everything shown in it was
+     already cleared in 6.66.0 — every ⇪ + pad key is free, all ten digits
+     and every arithmetic key. Installing 6.66.1 is the whole fix.
+  🧪 1,873 checks, 17 suites, 0 failures, 0 lint findings.
+
 NEW IN 6.66.0 — THE SEARCH BOX, AND A KEY THAT WAS NEVER BOUND:
   🔎 TYPE INTO THE CHEAT SHEET ITSELF. ⇪/ and then just start typing. The
      panel filters live, in the SAME 20pt translucent column, with the

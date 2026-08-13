@@ -34,6 +34,7 @@ local findings, filesSeen = {}, 0
 -- `file` (whole-file). Line functions get (code, lineNo, ctx) where
 -- `code` has comments and string literals blanked out — see scrub().
 local RULES = {}
+local STRIP    -- forward declaration; defined below
 
 local function rule(t) RULES[#RULES + 1] = t end
 
@@ -203,6 +204,39 @@ rule{ id = "module-contract", sev = "ERROR", file = true,
       return { 1, "missing " .. table.concat(miss, " and ") }
   end }
 
+-- 🚨 6.66.1 — "my shortcuts don't work over full screen apps". They did.
+-- The PANELS were invisible, which is indistinguishable from a dead key.
+rule{ id = "canvas-not-fullscreen", sev = "ERROR",
+  why = "A canvas without fullScreenAuxiliary CANNOT DRAW over a "
+     .. "full-screen app. The shortcut fires, the panel is created, and "
+     .. "nothing appears — which reads as a broken shortcut, not a drawing "
+     .. "bug, and is the hardest kind of failure to report. 'stationary' "
+     .. "does NOT cover this: it means 'do not move me when Spaces "
+     .. "change'. Use behaviorAsLabels({ 'canJoinAllSpaces', "
+     .. "'fullScreenAuxiliary' }).",
+  -- ⚠️ FILE-LEVEL AND OVER RAW TEXT, for two reasons that each defeat the
+  -- obvious per-line version:
+  --   1. scrub() BLANKS STRING LITERALS before rules see a line, so
+  --      "fullScreenAuxiliary" is invisible to a normal rule — the first
+  --      draft of this check flagged all twelve correct call sites.
+  --   2. the call is routinely split across lines:
+  --          c:behaviorAsLabels({ "canJoinAllSpaces",
+  --                               "fullScreenAuxiliary" })
+  -- Counting both tokens in the whole file handles both, and the count
+  -- comparison is what makes it precise: one missing flag anywhere in a
+  -- file with several correct calls still shows up.
+  file = true, raw = true,
+  check = function(_, name, path, raw)
+      local src = STRIP(raw)
+      local calls, flags = 0, 0
+      for _ in src:gmatch("behaviorAsLabels") do calls = calls + 1 end
+      for _ in src:gmatch("fullScreenAuxiliary") do flags = flags + 1 end
+      if calls == 0 or flags >= calls then return end
+      return { 1, calls .. " behaviorAsLabels call(s) but only " .. flags
+                  .. " fullScreenAuxiliary — one panel cannot draw over a "
+                  .. "full-screen app" }
+  end }
+
 -- 🚨 Deprecated in Hammerspoon; hs.canvas replaced it years ago.
 rule{ id = "deprecated-drawing", sev = "WARN",
   why = "hs.drawing is deprecated in favour of hs.canvas and is not "
@@ -253,6 +287,38 @@ local function scrub(line, inBlock)
     return table.concat(out), false
 end
 
+-- Comments stripped, STRING LITERALS KEPT. scrub() blanks both, which is
+-- right for nearly every rule and wrong for the one rule that has to read
+-- what is inside a string. Counting over raw text is not the answer
+-- either: the first version of canvas-not-fullscreen counted a mention of
+-- fullScreenAuxiliary in a COMMENT as a use of it, so the file explaining
+-- the fix silenced the check on itself.
+function STRIP(text)
+    local out = {}
+    for line in (text .. "\n"):gmatch("([^\n]*)\n") do
+        local i, n, keep = 1, #line, {}
+        while i <= n do
+            local c = line:sub(i, i)
+            if c == "-" and line:sub(i, i + 1) == "--" then break end
+            if c == '"' or c == "'" then
+                local q, j = c, i + 1
+                while j <= n do
+                    local d = line:sub(j, j)
+                    if d == "\\" then j = j + 2
+                    elseif d == q then break
+                    else j = j + 1 end
+                end
+                keep[#keep + 1] = line:sub(i, math.min(j, n))
+                i = j + 1
+            else
+                keep[#keep + 1] = c; i = i + 1
+            end
+        end
+        out[#out + 1] = table.concat(keep)
+    end
+    return table.concat(out, "\n")
+end
+
 -- ---------------------------------------------------------------------
 local function suppressions(lines, i)
     -- Same line or the line above. The reason after the dash is required.
@@ -295,7 +361,7 @@ local function lintFile(path, name)
     -- the header comment where nobody would ever read it.
     for _, r in ipairs(RULES) do
         if r.file then
-            local hit = r.check(codeText, name, path)
+            local hit = r.check(codeText, name, path, text)
             if hit then
                 -- 🚨 ESCAPE THE ID. Rule ids contain '-', which is a
                 -- QUANTIFIER in a Lua pattern, so "service-call-unchecked"

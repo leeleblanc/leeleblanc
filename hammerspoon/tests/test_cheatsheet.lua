@@ -519,17 +519,33 @@ do
   }
   local pinned = {}
   for _, g in ipairs(CS.groups()) do table.insert(pinned, g.title) end
-  check("🚨 MOUSE GRID is pinned to the top of the sheet, ahead of a "
-        .. "group whose title beats it alphabetically",
-        pinned[1] and pinned[1]:find("MOUSE GRID", 1, true) ~= nil,
+  -- 🔤 6.66.1 — THE PIN LIST IS EMPTY, on request ("Alphabetize my
+  -- shortcut list"). 6.65.0 pinned Mouse Grid and Tool Picker, which was
+  -- ALSO asked for at the time; the two instructions disagree and the
+  -- later one wins. What is asserted now is that nothing jumps the queue.
+  check("🔤 NOTHING is pinned — a group whose title starts with A sorts "
+        .. "first, even against sections that used to be pinned above it",
+        pinned[1] and pinned[1]:find("AAA FIRST", 1, true) ~= nil,
         "found: " .. tostring(pinned[1]))
-  check("TOOL PICKER is pinned second — pinned sections keep the order "
-        .. "they are listed in, NOT alphabetical among themselves",
-        pinned[2] and pinned[2]:find("TOOL PICKER", 1, true) ~= nil,
-        "found: " .. tostring(pinned[2]))
-  check("...and the alphabetical band starts immediately after the pins",
-        pinned[3] and pinned[3]:find("AAA FIRST", 1, true) ~= nil,
-        "found: " .. tostring(pinned[3]))
+  check("...and MOUSE GRID takes its alphabetical place rather than the "
+        .. "top", (function()
+    for i, t in ipairs(pinned) do
+      if t:find("MOUSE GRID", 1, true) then return i > 1, "position " .. i end
+    end
+    return false, "mouse grid not found"
+  end)())
+  -- ✏️ THE MECHANISM IS STILL THERE AND STILL WORKS. Driving it through
+  -- the real sort keeps it honest: an empty list is a CHOICE, not a
+  -- feature that quietly rotted.
+  check("the pin mechanism still functions when a pin IS set — an empty "
+        .. "list must be a decision, not a broken code path", (function()
+    local savedPins = CS.pinned
+    CS.pinned = { "MOUSE GRID" }
+    local g = CS.groups()
+    CS.pinned = savedPins
+    return g[1] and g[1].title:find("MOUSE GRID", 1, true) ~= nil,
+           "found: " .. tostring(g[1] and g[1].title)
+  end)())
   _G.moduleCheatsheets = saved
 end
 
