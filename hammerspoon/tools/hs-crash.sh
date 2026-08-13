@@ -193,6 +193,28 @@ else
   echo "   ✅ not a login item, or the list is not readable without permission"
 fi
 
+# ---- 5b. THE EXCEPTION'S OWN WORDS -----------------------------------
+# 🚨 THE PIECE THE CRASH REPORT DOES NOT CONTAIN. A .ips gives the stack
+# and the signal; it does NOT give the NSException's `reason` string —
+# which is the one line that says WHICH selector, WHICH nil, WHICH class.
+# macOS logs that separately, to the unified log, and it is still there.
+#
+# Without it, an Apple Event crash is "something in a handler threw",
+# and that is a guess dressed as a diagnosis.
+echo
+echo "── 5b. WHAT THE EXCEPTION ACTUALLY SAID (unified log) ──"
+echo "   The crash report has the stack but NOT the exception's message."
+LOGOUT=$(log show --predicate 'process == "Hammerspoon"' --style compact \
+         --last 6h 2>/dev/null \
+         | grep -iE 'exception|unrecognized selector|NSInvalidArgument|NSRange|terminating|\*\*\*' \
+         | tail -25)
+if [ -z "$LOGOUT" ]; then
+  echo "   (nothing in the last 6 hours — widen it with --last 24h, or the"
+  echo "    log has rotated. Crash reports in section 3 still stand.)"
+else
+  echo "$LOGOUT" | sed 's/^/   /'
+fi
+
 echo
 echo "── 6. NEXT ──"
 echo "   Paste everything above. Section 2 plus the 'launch→crash' line in"
