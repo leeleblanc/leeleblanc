@@ -57,6 +57,10 @@ function M.setup(core)
     ua.key      = "a"         -- on ⇪⇧, not ⇪ — see the 🔑 note in the header
     ua.rows     = 12
     ua.width    = 38          -- percent of screen width
+    -- How long a cached Finder selection is trusted before it is re-read.
+    -- The read is out of process and therefore asynchronous (see the 🚨 in
+    -- ua.refresh), so "current" here means "as of the last refresh".
+    ua.selectionSecs = 2
     ua.maxMRU   = 40          -- bounded: this list can only ever be as long
                               -- as the action table, but the FILE is written
                               -- by us and read back next boot, and an
@@ -85,18 +89,72 @@ function M.setup(core)
         end tell
     ]]
 
-    function ua.finderSelection()
-        -- pcall AROUND the call, not a second call inside it: osascript
-        -- itself can throw on a Mac where Finder scripting is refused, and
-        -- running it twice would pay that cost twice and still have to
-        -- handle the failure.
-        local okCall, okRun, res = pcall(hs.osascript.applescript, FINDER_SEL)
-        if not (okCall and okRun and type(res) == "string") then return {} end
-        local paths = {}
-        for line in res:gmatch("[^\r\n]+") do
-            if line ~= "" then paths[#paths + 1] = line end
+    -- 🚨 6.65.1 — OUT OF PROCESS, AND THIS IS NOT A STYLE PREFERENCE.
+    --
+    -- This used to call hs.osascript.applescript, which runs NSAppleScript
+    -- INSIDE Hammerspoon and therefore sends Apple Events on Hammerspoon's
+    -- main thread. When that machinery raises an Objective-C exception —
+    -- and on a fresh macOS, or with Automation permission in an odd state,
+    -- it can — the process ABORTS. LL's crash report is that, frame for
+    -- frame:
+    --        _NSAppleEventManagerGenericHandler
+    --        handleUncaughtException
+    --        -[SentryCrashExceptionApplication reportException:]
+    --        abort()
+    --
+    -- ⚠️ AND THE pcall AROUND IT WAS WORTH NOTHING. Lua's pcall catches
+    -- Lua errors. An Objective-C exception is not a Lua error: it unwinds
+    -- straight past pcall to the uncaught handler and kills the app. Every
+    -- "it is wrapped, so it is safe" instinct is wrong here, which is what
+    -- made this worth a crash to learn.
+    --
+    -- /usr/bin/osascript is the SAME AppleScript in a SEPARATE PROCESS. If
+    -- it throws, dies, or hangs, a child process dies and we get an exit
+    -- code. Nothing can take Hammerspoon down with it.
+    --
+    -- The cost is that it is ASYNCHRONOUS, so the panel cannot ask for the
+    -- selection and have it in the same breath. It is read on a short
+    -- cadence and cached instead — see ua.refresh().
+    ua.selection, ua.selectionAt, ua.selTask = {}, 0, nil
+
+    function ua.refresh(done)
+        -- One in flight at a time. Holding the reference matters twice
+        -- over: an unreferenced hs.task is collected mid-run, and without
+        -- the guard a held-down key would fan out a process per press.
+        if ua.selTask then
+            local okRun, running = pcall(function() return ua.selTask:isRunning() end)
+            if okRun and running then if done then done(ua.selection) end return end
         end
-        return paths
+        local okNew, t = pcall(hs.task.new, "/usr/bin/osascript",
+            function(_, stdOut, _)
+                local paths = {}
+                for line in tostring(stdOut or ""):gmatch("[^\r\n]+") do
+                    if line ~= "" then paths[#paths + 1] = line end
+                end
+                ua.selection, ua.selectionAt = paths, hs.timer.secondsSinceEpoch()
+                ua.selTask = nil
+                if done then pcall(done, paths) end
+            end,
+            { "-e", FINDER_SEL })
+        if not (okNew and t) then
+            -- No child process is a degraded panel, not a dead one: the
+            -- clipboard actions still apply.
+            warn("could not start osascript — Finder selection unavailable")
+            if done then pcall(done, {}) end
+            return
+        end
+        ua.selTask = t
+        pcall(function() t:start() end)
+    end
+
+    -- What the panel uses. Never blocks: it returns the last known answer
+    -- and kicks off a refresh for the next press. The staleness window is
+    -- one press wide, and a wrong file would be visible in the panel's own
+    -- title before you chose anything.
+    function ua.finderSelection()
+        local age = hs.timer.secondsSinceEpoch() - (ua.selectionAt or 0)
+        if age > ua.selectionSecs then ua.refresh() end
+        return ua.selection or {}
     end
 
     function ua.clipboardText()

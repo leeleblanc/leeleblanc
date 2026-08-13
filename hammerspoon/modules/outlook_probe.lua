@@ -136,22 +136,43 @@ function M.setup(core)
             end tell]] },
     }
 
+    -- 🚨 6.65.1 — OUT OF PROCESS, and in THIS file it matters most of all.
+    -- The in-process form (hs.osascript.applescript) sends Apple Events on
+    -- Hammerspoon's main thread, and an Objective-C exception from that
+    -- machinery ABORTS the app — past any pcall, because a pcall catches
+    -- Lua errors and an ObjC exception is not one. See the 🚨 on
+    -- ocrWriteFinderComment in init.lua for the crash this caused.
+    --
+    -- A DIAGNOSTIC MUST NOT BE ABLE TO CRASH THE THING IT IS DIAGNOSING.
+    -- This file exists to poke at nine Outlook scripting entry points on a
+    -- Mac we know nothing about, which is exactly the situation most
+    -- likely to raise one. Every probe is a separate osascript process:
+    -- the worst any of them can do is exit non-zero, which is a result.
+    local function ask(src)
+        local quoted = "'" .. src:gsub("'", [['\'']]) .. "'"
+        local okExec, out, ok = pcall(hs.execute, "/usr/bin/osascript -e " .. quoted .. " 2>&1")
+        if not okExec then return false, "osascript could not be started" end
+        return ok == true, tostring(out or ""):gsub("%s+$", "")
+    end
+
     local function scriptProbes(out)
         local worked, failed = 0, 0
         for _, p in ipairs(PROBES) do
             local label, src = p[1], p[2]
-            local okCall, ok, res = pcall(hs.osascript.applescript, src)
-            if okCall and ok then
+            local ok, res = ask(src)
+            if ok then
                 worked = worked + 1
                 out[#out + 1] = string.format("   ✅ %-46s %s", label, trunc(res))
             else
                 failed = failed + 1
-                local why = okCall and tostring(res) or "osascript threw"
                 -- The error text is the useful part: "can't get sender" and
                 -- "not authorised" are different problems with different
-                -- fixes, and collapsing both to ❌ throws that away.
+                -- fixes, and collapsing both to ❌ throws that away. 2>&1
+                -- on the command is what keeps it — osascript writes its
+                -- errors to stderr, which we would otherwise discard and
+                -- report every failure as a bare ❌.
                 out[#out + 1] = string.format("   ❌ %-46s %s", label,
-                    trunc(why:gsub("^.*error[^:]*:%s*", ""), 90))
+                    trunc(tostring(res):gsub("^.*error[^:]*:%s*", ""), 90))
             end
         end
         return worked, failed

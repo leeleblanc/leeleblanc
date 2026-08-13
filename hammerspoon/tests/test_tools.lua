@@ -42,7 +42,16 @@ local function check(label, cond, extra)
     if cond then pass = pass + 1
     else
         fail = fail + 1
-        failures[#failures + 1] = label .. (extra and ("  [" .. tostring(extra) .. "]") or "")
+        local line = label .. (extra and ("  [" .. tostring(extra) .. "]") or "")
+        failures[#failures + 1] = line
+        -- 🚨 PRINTED THE MOMENT IT FAILS, not only in the summary. A later
+        -- check can ABORT the run — the banned-call stub below throws on
+        -- purpose — and a summary that never prints takes every finding
+        -- before it down too. That happened while writing this file: the
+        -- ban check correctly caught a reintroduced in-process AppleScript
+        -- call, and the traceback from three sections later was all the
+        -- run had to show for it.
+        say("   ❌ " .. line)
     end
 end
 
@@ -50,6 +59,7 @@ end
 -- STUBS
 -- =====================================================================
 local ALERTS, TIMERS, CANVASES, TASKS, CLIPBOARD = {}, {}, {}, {}, nil
+local EXECUTED, EXEC_OUT = {}, nil
 local CHOOSERS, MODALS, HYPER, PROVIDED = {}, {}, {}, {}
 local NOW, FILES = 1000, {}
 
@@ -146,13 +156,31 @@ hs = {
     task = {
         new = function(cmd, cb, args)
             local t = { cmd = cmd, args = args }
-            function t:start() TASKS[#TASKS + 1] = { cmd = cmd, args = args }; return self end
+            function t:start()
+                TASKS[#TASKS + 1] = { cmd = cmd, args = args, cb = cb }
+                return self
+            end
+            function t:isRunning() return false end
             function t:waitUntilExit() return self end
             function t:standardOutput() return "" end
             return t
         end,
     },
-    osascript = { applescript = function() return false, nil end },
+    -- 🚨 6.65.1 — CALLING THIS IS A TEST FAILURE, not a stubbed success.
+    -- hs.osascript.applescript runs NSAppleScript IN PROCESS and sends
+    -- Apple Events on Hammerspoon's main thread; an Objective-C exception
+    -- from that machinery aborts the app and cannot be caught by pcall.
+    -- It crashed LL's Mac. Nothing in this config may call it, so the stub
+    -- throws rather than quietly answering — a stub that returns a
+    -- plausible value would let the crash walk straight back in.
+    osascript = { applescript = function()
+        error("hs.osascript.applescript is BANNED — use out-of-process "
+              .. "osascript via hs.task or hs.execute", 0)
+    end },
+    execute = function(cmd)
+        EXECUTED[#EXECUTED + 1] = cmd
+        return (EXEC_OUT or ""), true, "exit", 0
+    end,
     http = { encodeForQuery = function(s) return tostring(s):gsub("%s", "%%20") end },
     application = { get = function() return nil end },
     accessibilityState = function() return true end,
@@ -208,6 +236,60 @@ local core = {
 local function load(name)
     local chunk = assert(loadfile(HS .. "/modules/" .. name .. ".lua"))
     return chunk()
+end
+
+-- =====================================================================
+say("\n=== 0. 🚨 NOTHING MAY SEND APPLE EVENTS IN PROCESS (6.65.1) ===")
+-- =====================================================================
+-- THE CRASH THIS PINS, from LL's report on macOS 26.6.1:
+--        _NSAppleEventManagerGenericHandler
+--        handleUncaughtException
+--        -[SentryCrashExceptionApplication reportException:]
+--        abort()
+--
+-- hs.osascript.applescript runs NSAppleScript INSIDE Hammerspoon, which
+-- sends Apple Events on the main thread. When that machinery raises an
+-- Objective-C exception the process aborts — and a Lua pcall around the
+-- call does NOT help, because pcall catches Lua errors and an ObjC
+-- exception is not one. Four versions of this config wrapped those calls
+-- in pcall and believed they were handled.
+--
+-- ⚠️ THIS CHECK IS A GREP, DELIBERATELY, and that is worth defending:
+-- everywhere else this suite executes the module rather than reading it,
+-- because a name being present proves nothing about behaviour. Here the
+-- property IS textual — "this call does not appear in the shipped
+-- source" — and no amount of executing can prove a branch is absent when
+-- the branch may be the one the test did not take. The runtime half is
+-- covered too: the stub above THROWS if the call is ever made.
+do
+    local banned = {}
+    local files = { "init.lua" }
+    local p = io.popen("ls " .. HS .. "/modules/*.lua " .. HS .. "/core/*.lua 2>/dev/null")
+    if p then
+        for line in p:lines() do files[#files + 1] = line:gsub("^" .. HS .. "/", "") end
+        p:close()
+    end
+    for _, rel in ipairs(files) do
+        local fh = realOpen(HS .. "/" .. rel, "r")
+        if fh then
+            local n = 0
+            for line in fh:lines() do
+                n = n + 1
+                -- Comments describing the ban are not the ban being broken.
+                if not line:match("^%s*%-%-") and line:find("hs.osascript.applescript", 1, true) then
+                    banned[#banned + 1] = rel .. ":" .. n
+                end
+            end
+            fh:close()
+        end
+    end
+    check("🚨 NO shipped file calls hs.osascript.applescript — every "
+          .. "AppleScript in this config runs as a SEPARATE PROCESS, so "
+          .. "the worst it can do is exit non-zero",
+          #banned == 0, table.concat(banned, ", "))
+    check("...and the suite checked more than one file, so a broken glob "
+          .. "cannot make the check above pass by finding nothing",
+          #files >= 20, #files)
 end
 
 -- =====================================================================
@@ -503,7 +585,7 @@ end)())
 
 say("   -- opening --")
 CLIPBOARD = nil
-hs.osascript.applescript = function() return false, nil end   -- no Finder selection
+TASKS = {}   -- no Finder selection: the task never calls back
 ALERTS = {}
 check("with nothing selected and nothing copied it says so, rather than "
       .. "opening a panel of actions that would all fail",
@@ -667,13 +749,54 @@ check("a canvas that refuses to draw takes the timer down with it rather "
     return r == false and pom.state == nil and #ALERTS >= 1
 end)())
 
+say("\n=== 4. OUT-OF-PROCESS APPLESCRIPT: two shapes, two reasons ===")
+-- The two out-of-process shapes, and why the choice differs.
+do
+    -- Bulk rename feeds a DESTRUCTIVE operation, so its read must be
+    -- fresh and synchronous — a stale list renames files you did not
+    -- select. hs.execute is both, and still a separate process.
+    local brSrc = realOpen(HS .. "/modules/bulk_rename.lua", "r")
+    local br = brSrc and brSrc:read("*a") or ""
+    if brSrc then brSrc:close() end
+    check("bulk_rename reads the selection SYNCHRONOUSLY (hs.execute) — a "
+          .. "cached list would rename files you did not select",
+          br:find("hs.execute", 1, true) ~= nil)
+    check("...and it shell-quotes with single quotes, not Lua's %q — %q "
+          .. "escapes a newline as backslash-newline, which the shell "
+          .. "reads as a line continuation and silently joins the "
+          .. "AppleScript into one broken line",
+          br:find([[gsub("'", [==[]], 1, true) ~= nil
+          or br:find("script:gsub", 1, true) ~= nil)
+
+    -- Universal Actions is non-destructive and shows you the filename it
+    -- is acting on, so it can afford the fully async read.
+    ua.selection, ua.selectionAt, ua.selTask = {}, 0, nil
+    TASKS = {}
+    ua.finderSelection()
+    check("universal_actions reads the selection ASYNCHRONOUSLY, out of "
+          .. "process", #TASKS == 1 and TASKS[1].cmd == "/usr/bin/osascript",
+          #TASKS > 0 and TASKS[1].cmd or "no task")
+    check("...and the callback fills the cache", (function()
+        TASKS[1].cb(0, "/tmp/one.png\n/tmp/two.png\n", "")
+        return #ua.selection == 2 and ua.selection[1] == "/tmp/one.png"
+    end)())
+    check("...so the next press has it without waiting",
+          #ua.finderSelection() == 2)
+    check("a task that cannot start degrades to no selection rather than "
+          .. "taking the panel down — the clipboard actions still apply",
+          (function()
+        local realNew = hs.task.new
+        hs.task.new = function() error("no task") end
+        ua.selection, ua.selectionAt, ua.selTask = {}, 0, nil
+        local ok = pcall(ua.finderSelection)
+        hs.task.new = realNew
+        return ok
+    end)())
+end
+
 -- =====================================================================
 print = realPrint
 io.open = realOpen
 say("")
-if fail > 0 then
-    for _, f in ipairs(failures) do say("   ❌ " .. f) end
-    say("")
-end
 say(pass .. " passed, " .. fail .. " failed")
 os.exit(fail == 0 and 0 or 1)

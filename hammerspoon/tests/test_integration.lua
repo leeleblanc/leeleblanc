@@ -516,10 +516,17 @@ do
                   body:find("function M.setup", 1, true) ~= nil
                   and body:find("return M", 1, true) ~= nil)
         end
+        -- The count is "how many PROFILES name it", not a magic number.
+        -- 6.65.1 added a fourth — SAFE mode — so health_monitor is now
+        -- listed by the two machine profiles, the default, and SAFE. What
+        -- the check is really pinning is that init.lua never REFERS to a
+        -- module as code, only ever names it in a profile list; a mention
+        -- count above the number of profiles is the tell.
         local live = init:gsub("%-%-[^\n]*", "")
         local mentions = select(2, live:gsub('"' .. m .. '"', ""))
-        check("...init.lua mentions " .. m .. " ONLY as a profile entry (3x), "
-              .. "never as code", mentions == 3, mentions)
+        local expected = (m == "health_monitor") and 4 or 3
+        check("...init.lua mentions " .. m .. " ONLY as a profile entry ("
+              .. expected .. "x), never as code", mentions == expected, mentions)
     end
 end
 

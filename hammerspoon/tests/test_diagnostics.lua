@@ -686,6 +686,18 @@ local ALLOWED_BINARIES = {
   ["/usr/bin/hidutil"]   = "Caps Lock -> hyper remap, per-user (ships with macOS)",
   ["/usr/bin/open"]      = "relaunch an app you asked to reopen (ships with macOS)",
   ["/usr/bin/defaults"]  = "read an app's version from its plist (ships with macOS)",
+  -- 🚨 6.65.1 — AND THIS ONE IS A DELIBERATE, LOAD-BEARING CHOICE, which
+  -- is exactly what this list exists to record. Every AppleScript in this
+  -- config used to run IN PROCESS via hs.osascript.applescript, which
+  -- sends Apple Events on Hammerspoon's main thread. An Objective-C
+  -- exception from that machinery ABORTS the application, and a Lua
+  -- pcall cannot catch it — pcall catches Lua errors, and an ObjC
+  -- exception is not one. It crashed LL's Mac on macOS 26.6.1.
+  -- Shelling out to the SAME AppleScript means the worst case is a child
+  -- process exiting non-zero. The extra binary is the price, and it is
+  -- one Apple ships.
+  ["/usr/bin/osascript"] = "Finder selection + Finder comment tags, OUT OF "
+                        .. "PROCESS so an Apple Event cannot abort us (ships with macOS)",
   ["/bin/zsh"]           = "runs the rsync backup line (ships with macOS)",
   ["/opt/homebrew/bin/brew"] = "OPTIONAL update checks, admin install",
   ["/usr/local/bin/brew"]    = "OPTIONAL update checks, admin install",

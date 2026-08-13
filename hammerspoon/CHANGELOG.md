@@ -4,6 +4,99 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.65.1 — THE CRASH, AND THE pcall THAT WAS NEVER PROTECTION:
+  💥 HAMMERSPOON WAS ABORTING, from LL's report on macOS 26.6.1, 0.6
+     seconds after launch:
+       _NSAppleEventManagerGenericHandler
+       handleUncaughtException
+       -[SentryCrashExceptionApplication reportException:]
+       abort()
+     An uncaught OBJECTIVE-C exception raised while the main thread was
+     handling an Apple Event.
+  🚨 EVERY AppleScript IN THIS CONFIG NOW RUNS OUT OF PROCESS.
+     hs.osascript.applescript runs NSAppleScript INSIDE Hammerspoon and
+     sends Apple Events on its main thread. /usr/bin/osascript is the
+     same AppleScript in a child process, where the worst outcome is a
+     non-zero exit.
+     · ⚠️ AND THE pcall AROUND IT WAS WORTH NOTHING — the part worth
+       carrying forward. Lua's pcall catches LUA errors. An Objective-C
+       exception is not one: it unwinds straight past pcall into the
+       uncaught handler and aborts the application. Four versions of this
+       file wrapped those calls and read as if they were handled. Every
+       "it is wrapped, so it is safe" instinct was wrong here.
+     · 🎯 THE WORST OFFENDER NEEDED NO KEYPRESS. The OCR Finder-comment
+       tagger runs from the CLIPBOARD WATCHER: copy image files in Finder
+       and it fires on its own, including seconds after login while the
+       clipboard still holds what it held yesterday. LL's own console
+       shows that path running on file URLs at boot, which is why the
+       crash looked unconnected to anything he did.
+     · TWO SHAPES, AND THE DIFFERENCE IS SAFETY, NOT TASTE. bulk_rename
+       reads the Finder selection SYNCHRONOUSLY via hs.execute, because
+       it feeds a rename and a stale list would rename files you did not
+       select — destructive and unrecoverable. Universal Actions reads it
+       ASYNCHRONOUSLY via hs.task and caches, because it is
+       non-destructive and shows you the filename in its own title before
+       you choose. The cost of hs.execute is named: it blocks the main
+       thread until Finder answers, on a keypress you made, never on a
+       timer.
+     · A SHELL-QUOTING BUG CAUGHT ON THE WAY: the first version used
+       Lua's ("%q"):format for the script. %q escapes a newline as
+       backslash-newline, which is correct Lua and WRONG SHELL — inside
+       double quotes the shell reads that as a line CONTINUATION and
+       joins the lines, so a multi-line AppleScript arrives as one line
+       and fails to compile. Single quotes with '\'' is the only form
+       that passes an arbitrary string through /bin/sh unaltered.
+  🔑 CAPS LOCK IS GIVEN BACK WHEN HAMMERSPOON GOES AWAY. A hidutil remap
+     is a SYSTEM-WIDE HID mapping. It is not owned by this process and it
+     does not die with it: quit, force quit or crash, and Caps Lock is
+     still sending F18 with nothing left running to turn that into a
+     modifier. The keyboard is then quietly missing a key and the obvious
+     remedy — kill the app that did this — is the one thing that cannot
+     help. That is the "killing it does not free up the keys you can use
+     natively" half of LL's report, and it was this line's absence.
+     hs.shutdownCallback now lifts the remap on a clean quit and on ⇪R.
+     · ⚠️ A HARD CRASH STILL CANNOT RUN THAT, because nothing gets to
+       run. The manual escape hatch stays the important one:
+           hidutil property --set '{"UserKeyMapping":[]}'
+       A reboot clears it too.
+  🚑 SAFE MODE. `touch ~/.hammerspoon/SAFE`, reload, and four modules
+     load instead of thirty. In a crash loop every way of fixing this
+     config goes THROUGH the config — the cheat sheet, ⇪⇧D, the reload
+     key, the Console — and a loop takes all of them at once. The only
+     advice left was "move init.lua aside", which turns everything off
+     and teaches you nothing about which part was at fault.
+     · WHAT SURVIVES: the hyper key and the cheat sheet are not modules,
+       they live in init.lua and always load, so ⇪/ still works and you
+       can read your way out. Plus health_monitor, mini_calendar,
+       window_arranger and numpad_layer.
+     · WHAT DOES NOT, and this is the point: nothing that talks to
+       another application, drives a private macOS API, or runs on a
+       timer. Those are the three things that can abort the app or wedge
+       the desktop.
+     · `rm ~/.hammerspoon/SAFE` restores everything.
+  🖱 ON MISSION CONTROL AND THE FOUR-FINGER SWIPE, HONESTLY: nothing in
+     this config binds a trackpad gesture, and I cannot prove the cause
+     from the report. What I can say is that the only module touching
+     Spaces internals is workspaces, through hs.spaces, which drives
+     PRIVATE macOS APIs — precisely the kind that break on a new major
+     release, and macOS 26.6.1 is new. When they wedge, the thing that is
+     stuck is the DOCK, not Hammerspoon, which explains why killing
+     Hammerspoon does not release it and `killall Dock` does. Safe mode
+     excludes workspaces, so a safe-mode boot is also the test.
+  🧪 1,834 checks, 17 suites, 0 failures. New in this release:
+     · A STATIC BAN: no shipped file may contain the string
+       hs.osascript.applescript. This is a grep, deliberately, in a suite
+       that otherwise executes everything — the property IS textual
+       ("this call is absent"), and executing cannot prove a branch is
+       absent when the branch may be the one the test did not take.
+     · AND A RUNTIME ONE: the stubbed hs.osascript.applescript THROWS.
+       A stub returning a plausible value would let the crash walk back
+       in unnoticed.
+     · The harness now prints each failure AS IT HAPPENS. The banned-call
+       stub aborts the run by design, and a summary that never prints
+       took every finding before it down with it — which happened while
+       writing these very checks.
+
 NEW IN 6.65.0 — A SEARCH BOX, A PINNED SHEET, AND FOUR NEW TOOLS:
   🔎 ⇪⇧/ IS A SEARCH BOX OVER EVERY SHORTCUT. The cheat sheet (⇪/) is a
      good thing to READ, and reading is the wrong verb when you already

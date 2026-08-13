@@ -4,9 +4,48 @@
 -- =====================================================================
 -- 08-13-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.65.0-SEARCH-PIN-POMODORO
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.65.1-CRASH-FIX
 -- =====================================================================
 
+-- NEW IN 6.65.1 — THE CRASH, AND THE pcall THAT WAS NEVER PROTECTION:
+--   💥 HAMMERSPOON WAS ABORTING. LL's report, macOS 26.6.1, 0.6s after
+--      launch:
+--        _NSAppleEventManagerGenericHandler
+--        handleUncaughtException → reportException: → abort()
+--      An uncaught OBJECTIVE-C exception while handling an Apple Event.
+--   🚨 EVERY AppleScript CALL IS NOW OUT OF PROCESS. The in-process form,
+--      hs.osascript.applescript, runs NSAppleScript INSIDE Hammerspoon and
+--      sends Apple Events on its main thread. When that machinery raises,
+--      the process dies.
+--   ⚠️ AND THE pcall AROUND IT WAS WORTH NOTHING — the part worth
+--      remembering. Lua's pcall catches LUA errors. An Objective-C
+--      exception is not a Lua error: it unwinds straight past pcall into
+--      the uncaught handler and aborts the app. Four versions of this file
+--      wrapped those calls and believed they were handled.
+--   🎯 THE WORST OFFENDER NEEDED NO KEYPRESS. The OCR Finder-comment
+--      tagger runs from the CLIPBOARD WATCHER — copy image files and it
+--      fires on its own, including seconds after login while the clipboard
+--      still holds yesterday's contents. LL's console shows that path
+--      running on file URLs at boot.
+--   🔑 CAPS LOCK IS GIVEN BACK ON QUIT. A hidutil remap is a SYSTEM-WIDE
+--      HID mapping that does not die with the process — quit or kill
+--      Hammerspoon and Caps Lock is still sending F18 with nothing left to
+--      interpret it. That is the "killing it does not free up the keys"
+--      half of the report. hs.shutdownCallback now lifts it.
+--      ⚠️ A hard crash still cannot run that. The manual escape hatch:
+--            hidutil property --set '{"UserKeyMapping":[]}'
+--   🚑 SAFE MODE. `touch ~/.hammerspoon/SAFE`, reload, and only four
+--      modules load — nothing that talks to another app, drives a private
+--      macOS API, or runs on a timer. In a crash loop every way of fixing
+--      this config goes through the config; this is the way that does not.
+--      `rm ~/.hammerspoon/SAFE` restores everything.
+--   🖱 ON MISSION CONTROL AND THE TRACKPAD, HONESTLY: nothing here binds a
+--      gesture. The only module touching Spaces internals is workspaces,
+--      via hs.spaces, which drives PRIVATE macOS APIs — the kind that
+--      break on a new release. When they wedge, what is stuck is the DOCK,
+--      not us, which is why killing Hammerspoon does not help and
+--      `killall Dock` does. Not proven, and safe mode excludes it.
+--
 -- NEW IN 6.65.0 — A SEARCH BOX, A PINNED SHEET, AND FOUR NEW TOOLS:
 --   🔎 ⇪⇧/ IS A SEARCH BOX OVER EVERY SHORTCUT. "oh I need a URL tool" —
 --      type "url" and there they are. Same entries the cheat sheet draws,
@@ -163,60 +202,6 @@
 --      sixteen Lua suites, 1,723 with the Capture Pad JavaScript. Both new cases
 --      are written from the Console lines themselves, and both were
 --      confirmed to FAIL against the old code before the fix went in.
--- NEW IN 6.61.0 — THE LAST SILENT FAILURE IN APP MONITOR IS CLOSED:
---   🔔 A WRONG SOUND NAME NOW TELLS YOU. This was the one thing still
---      outstanding against rule 7, flagged in both 6.59.0 and 6.60.0 and
---      declined both times: hs.sound.getByName returns nil for a name
---      that does not exist, the nil-check skipped it, and you got a
---      quieter — or entirely silent — popup with nothing anywhere saying
---      why. Now the names that fail are reported by name.
---   🎚 TWO SEVERITIES, BECAUSE THEY ARE NOT THE SAME PROBLEM:
---      · SOME names bad → a LEDGER LINE (⇪⇧D), no interruption. The
---        popup still makes noise, so nothing is broken in the moment;
---        it is a config mistake to find when you go looking. Alerting
---        here would train you to dismiss the alert without reading it,
---        which is how a safety net becomes furniture.
---      · ALL names bad → an ON-SCREEN ALERT. This is the case that
---        matters: a mute popup cannot draw you to itself, so nothing
---        else is going to tell you. It names the spellings that failed
---        so the fix is obvious, and carries a dedupe key so it says so
---        once an hour rather than on every app close.
---   ⏰ REPORTED AT LOGIN, NOT AT THE WORST MOMENT. Resolution moved into
---      warm(), which the loader runs a couple of seconds after boot, off
---      the load path. So a broken sound list surfaces while you are
---      sitting there — not on the night an app actually crashes, which
---      is precisely when you need it to work and least want to be
---      debugging it. The popup path still resolves on demand as a
---      fallback, so sound works even if warm() never ran.
---   💾 AND IT IS CACHED, so ten lookups happen once rather than once per
---      popup — the same reason they were never put on the 1s ping timer.
---   🧪 43 → 44 checks in test_app_watcher. New cases: total silence
---      alerts and names the failures, a partly-broken list records
---      instead of interrupting, three real closes still look up once, a
---      healthy list says NOTHING at all, warm() surfaces it at login,
---      and a MISSING ledger still does not break the popup.
---   🔬 MUTATION RUN FOUND TWO FAULTS IN THE TESTS THEMSELVES, both the
---      same species — a test that could not fail:
---      · The first run reported every mutation as "caught" because the
---        mutations had broken the FILE, not the behaviour: an empty
---        result read as a failure. There is a compile gate now, so a
---        mutant that will not parse is reported as invalid rather than
---        counted as a win.
---      · "Three closes report once" was quitting an already-quit app
---        twice. The module only opens a popup for an app it believes is
---        RUNNING, and only one popup shows at a time, so three quits
---        were really one popup and the test measured nothing. It now
---        relaunches and answers between closes — and only then did the
---        cache mutation actually fail.
---      All nine mutations caught after that, each verified to compile.
---   🧪 1,680 checks across sixteen Lua suites, plus 35 executed in the
---      Capture Pad page JavaScript — 1,715 in total, read from the
---      runner's output rather than added up by hand.
---   ⚖️ ONE EQUIVALENT MUTANT, recorded rather than pretended away:
---      removing the `if not _G.notices` guard changes nothing, because
---      the whole report is inside a pcall already. Two guards for one
---      job — kept, because the pcall protects the popup while the check
---      states the intent.
 -- =====================================================================
 -- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.65.0
 -- =====================================================================
@@ -460,7 +445,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.65.0"
+_G.configVersion = "6.65.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -1537,17 +1522,70 @@ local function ocrWriteFinderComment(path, text)
         .. 'return "skipped"\n'
         .. 'end if\n'
         .. 'end tell'
-    local wrote = false
-    pcall(function()
-        local ok, result = hs.osascript.applescript(script)
-        wrote = (ok and result == "written")
-        if not ok then
-            print("⚠️ OCR tag: Finder scripting failed for " .. path
-                .. " — grant Hammerspoon Automation permission for Finder "
-                .. "(System Settings → Privacy & Security → Automation)")
-        end
-    end)
-    return wrote
+    -- 🚨 6.65.1 — OUT OF PROCESS. THIS LINE CRASHED HAMMERSPOON.
+    --
+    -- This was hs.osascript.applescript, which runs NSAppleScript INSIDE
+    -- Hammerspoon and sends Apple Events on its main thread. When that
+    -- machinery raises an Objective-C exception the process ABORTS, and
+    -- LL's crash report is exactly that stack:
+    --        _NSAppleEventManagerGenericHandler
+    --        handleUncaughtException  →  reportException:  →  abort()
+    --
+    -- ⚠️ THE pcall BELOW WAS NEVER PROTECTION. Lua's pcall catches Lua
+    -- errors. An Objective-C exception is not one: it unwinds straight
+    -- past pcall into the uncaught handler and kills the app. The wrapper
+    -- made this look handled for four versions.
+    --
+    -- 🎯 AND THIS PATH IS THE WORST PLACE FOR IT, because nothing about it
+    -- requires you to press anything. It runs from the CLIPBOARD WATCHER —
+    -- copy image files in Finder and it fires on its own, including
+    -- seconds after login while the clipboard still holds whatever it held
+    -- yesterday. A crash you cannot connect to an action you took is the
+    -- hardest kind to report, and LL's console shows this exact path
+    -- running on file URLs at boot.
+    --
+    -- /usr/bin/osascript is the SAME script in a SEPARATE process: it can
+    -- throw, hang or die and all that happens is a child exits.
+    --
+    -- ⚠️ CONSEQUENCE, STATED PLAINLY: this can no longer return whether it
+    -- wrote. A separate process answers later, and this function had to
+    -- answer now. Every caller therefore treats the tag as best-effort,
+    -- and the RESULT is reported from the callback instead of the caller
+    -- guessing. That is a real reduction in what we know, traded for not
+    -- aborting the application.
+    local okNew, t = pcall(hs.task.new, "/usr/bin/osascript",
+        function(exitCode, stdOut, stdErr)
+            local result = tostring(stdOut or ""):gsub("%s+$", "")
+            if exitCode == 0 and result == "written" then
+                print("🏷 OCR → Finder comment: " .. (path:match("[^/]+$") or path))
+            elseif exitCode == 0 then
+                -- "skipped" — the file already had a comment, and keeping
+                -- what you wrote by hand is the correct behaviour.
+                print("ℹ️ OCR tag: existing Finder comment kept for "
+                    .. (path:match("[^/]+$") or path))
+            else
+                print("⚠️ OCR tag: Finder scripting failed for " .. path
+                    .. " — grant Hammerspoon Automation permission for Finder "
+                    .. "(System Settings → Privacy & Security → Automation)")
+                if _G.notices then
+                    _G.notices.record("ocr", "finder comment not written",
+                        (path:match("[^/]+$") or path)
+                        .. " — indexed for ⌃⌥⌘O, but Finder search will not match it")
+                end
+            end
+        end,
+        { "-e", script })
+    if not (okNew and t) then
+        print("⚠️ OCR tag: could not start osascript for " .. path)
+        return false
+    end
+    -- HELD: an unreferenced hs.task is collected mid-run, which shows up
+    -- as "it works sometimes" and is miserable to chase.
+    _G.ocrTagTasks = _G.ocrTagTasks or {}
+    _G.ocrTagTasks[#_G.ocrTagTasks + 1] = t
+    while #_G.ocrTagTasks > 20 do table.remove(_G.ocrTagTasks, 1) end
+    pcall(function() t:start() end)
+    return true          -- "started", not "wrote" — see the ⚠️ above
 end
 
 -- One copied batch: OCR each file with the same "HS OCR" shortcut the
@@ -1575,23 +1613,16 @@ local function processClipboardFileOCR(paths)
                 warnWriteFailed("OCR log")
             end
 
+            -- 6.65.1 — the tag is now written by a SEPARATE PROCESS (see
+            -- the 🚨 on ocrWriteFinderComment: the in-process version was
+            -- aborting Hammerspoon). It answers later, so the outcome is
+            -- reported from ITS callback and there is nothing to branch on
+            -- here. What this call still tells us is whether the attempt
+            -- could be STARTED at all.
             local name = p:match("[^/]+$") or p
-            if ocrWriteFinderComment(p, textOut) then
-                -- 6.65.0 — silent on success, same reasoning as above.
-                print("🏷 OCR → Finder comment: " .. name)
-            else
-                -- NOT silent, because this one is a partial failure: the
-                -- text was indexed but the FILE did not get tagged, so a
-                -- Finder search for it will not find this file. It goes to
-                -- the notice ledger rather than straight to an alert —
-                -- recorded either way, delivered in the combined report
-                -- instead of popping over whatever you were doing, and
-                -- held back entirely while Focus Mode is on.
-                print("ℹ️ OCR tag skipped for " .. name .. " (existing comment kept, or Finder scripting unavailable) — text is in the ⌃⌥⌘O history")
-                if _G.notices then
-                    _G.notices.record("ocr", "finder comment not written",
-                        name .. " — indexed for ⌃⌥⌘O, but Finder search will not match it")
-                end
+            if not ocrWriteFinderComment(p, textOut) then
+                print("ℹ️ OCR tag not attempted for " .. name
+                      .. " — text is in the ⌃⌥⌘O history either way")
             end
         end, {"run", ocrShortcutName, "-i", p}):start()
     end
@@ -1924,6 +1955,36 @@ if hyperEnabled then
         end,
         { "property", "--set", HYPER_REMAP_ON })
     _G.hyperRemapTask:start()
+
+    -- 🚨 6.65.1 — GIVE CAPS LOCK BACK WHEN HAMMERSPOON GOES AWAY.
+    --
+    -- A hidutil remap is a SYSTEM-WIDE HID mapping. It is not owned by
+    -- this process and it does not die with it: quit Hammerspoon, force
+    -- quit it, or let it crash, and Caps Lock is STILL sending F18 with
+    -- nothing left running to turn that into anything. The keyboard is
+    -- then quietly missing a key and the obvious remedy — "kill the app
+    -- that did this" — is the one thing that cannot help.
+    --
+    -- LL hit exactly that: "killing it does not free up the trackpad or
+    -- the keys you can use natively". The keys half is this line's
+    -- absence. hs.shutdownCallback runs on a clean quit and on a reload,
+    -- so the remap now lifts with the app that relies on it.
+    --
+    -- ⚠️ WHAT THIS STILL CANNOT COVER: a hard CRASH (SIGABRT) never runs
+    -- this, because nothing gets to run. The manual escape hatch is
+    -- therefore still the important one, and it is one line in Terminal:
+    --        hidutil property --set '{"UserKeyMapping":[]}'
+    -- A reboot clears it too.
+    hs.shutdownCallback = function()
+        -- Synchronous on purpose, unlike the async apply above. There is
+        -- no "later" during shutdown — an hs.task started here would be
+        -- reaped with the process before it ever ran, which is precisely
+        -- how this kind of cleanup ends up looking implemented and doing
+        -- nothing.
+        pcall(function()
+            hs.execute("/usr/bin/hidutil property --set '{\"UserKeyMapping\":[]}'")
+        end)
+    end
 else
     print("🎹 Hyper key disabled in config (hyperEnabled = false) — Caps Lock untouched")
 end
@@ -3444,10 +3505,70 @@ function _G.loadModules(list, settingsByModule)
     return loaded, failed
 end
 
--- Pick this machine's profile and run it.
+-- =====================================================================
+-- 🚑 SAFE MODE — 6.65.1
+-- =====================================================================
+-- WHAT IT IS FOR. When Hammerspoon is crashing at launch, every way of
+-- fixing it goes THROUGH Hammerspoon: the cheat sheet, ⇪⇧D, the reload
+-- key, the Console. A crash loop takes all of those away at once, and
+-- the only advice left is "move init.lua out of the way", which turns
+-- the whole config off and tells you nothing about which part was at
+-- fault.
+--
+-- So: create an empty file called SAFE next to init.lua and Hammerspoon
+-- boots with the smallest module set that still leaves the machine
+-- usable. Delete it to go back to normal.
+--
+--        touch ~/.hammerspoon/SAFE      # then reload Hammerspoon
+--        rm    ~/.hammerspoon/SAFE      # back to the full set
+--
+-- ✏️ WHAT SURVIVES SAFE MODE, and why exactly these:
+--   · the hyper key and the cheat sheet are NOT modules — they are in
+--     this file and always load, so ⇪/ still works and you can still
+--     read your way out.
+--   · health_monitor, so ⇪⇧H can tell you what it sees.
+--   · NOTHING that talks to another application, drives a private macOS
+--     API, or runs on a timer. That is the whole point: those are the
+--     three things that can take the app down or wedge the desktop, and
+--     in safe mode none of them is running.
+--
+-- 🚨 SPECIFICALLY EXCLUDED, and named so this is not a mystery:
+--   · workspaces — the only module using hs.spaces, which drives PRIVATE
+--     macOS Spaces APIs. Private APIs are exactly what breaks on a new
+--     macOS release, and when they break they can wedge Mission Control
+--     and the trackpad gestures that open it. That state survives
+--     Hammerspoon being killed, because what is stuck is the Dock, not
+--     us. `killall Dock` clears it.
+--   · everything AppleScript-adjacent (bulk_rename, universal_actions,
+--     outlook_probe) — see the 🚨 on ocrWriteFinderComment above.
+--   · copy_on_select, menubar_items, app_watcher, file_tracker — all
+--     Accessibility watchers or timers against other apps.
+local safeMode = false
+pcall(function()
+    safeMode = hs.fs.attributes(hs.configdir .. "/SAFE") ~= nil
+end)
+
 _G.moduleProfileName = _G.moduleProfiles[hostTag] and hostTag or "default"
+if safeMode then _G.moduleProfileName = "SAFE" end
 do
     local profile = _G.moduleProfiles[_G.moduleProfileName]
+    if safeMode then
+        profile = { modules = { "health_monitor", "mini_calendar",
+                                "window_arranger", "numpad_layer" } }
+        print("🚑 SAFE MODE — " .. #profile.modules .. " modules only. "
+              .. "Delete ~/.hammerspoon/SAFE and reload for the full set.")
+        -- Said on screen as well as the console, because the whole reason
+        -- you are here is that you could not see the console.
+        -- HELD, like every other timer in this file: an unreferenced
+        -- hs.timer can be collected before it fires, which turns a
+        -- reliable message into one that shows up most of the time.
+        _G.safeModeTimer = hs.timer.doAfter(1.0, function()
+            pcall(function()
+                hs.alert.show("🚑 Hammerspoon is in SAFE MODE\n"
+                    .. "Most tools are off. rm ~/.hammerspoon/SAFE to restore.", 6)
+            end)
+        end)
+    end
     _G.loadModules(profile.modules, profile.settings)
 end
 

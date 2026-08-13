@@ -411,8 +411,43 @@ tell application "Finder"
   end repeat
   return out
 end tell]]
-        local ok, res = hs.osascript.applescript(script)
-        if not ok or type(res) ~= "string" then return {} end
+        -- 🚨 6.65.1 — OUT OF PROCESS. This was hs.osascript.applescript,
+        -- which runs NSAppleScript inside Hammerspoon; an Objective-C
+        -- exception from the Apple Event machinery ABORTS the app and
+        -- CANNOT be caught by pcall (Lua's pcall catches Lua errors, and
+        -- an ObjC exception is not one). That crash is documented on
+        -- ocrWriteFinderComment in init.lua, from LL's own report.
+        --
+        -- ⚠️ WHY hs.execute HERE AND AN ASYNC TASK IN universal_actions.
+        -- They need different things and the difference is safety, not
+        -- taste. This function feeds a RENAME — acting on a stale list
+        -- would rename files you did not select, which is destructive and
+        -- unrecoverable. So this read must be FRESH and it must be
+        -- SYNCHRONOUS. hs.execute is both, and it still runs osascript as
+        -- a separate process, so nothing it does can take Hammerspoon
+        -- down. The Universal Actions panel is non-destructive and shows
+        -- you the filename it is acting on, so it can afford a cached
+        -- answer and the fully asynchronous read that goes with it.
+        --
+        -- THE COST, NAMED: hs.execute blocks the main thread until Finder
+        -- answers. Finder is normally instant; a wedged Finder would hold
+        -- the keyboard for as long as it takes. That is the accepted
+        -- trade against renaming the wrong files, and it happens on a
+        -- keypress you made, never on a timer.
+        --
+        -- ⚠️ SHELL QUOTING, NOT LUA QUOTING. The first version of this
+        -- line used ("%q"):format(script), which is Lua's quoting: it
+        -- escapes a newline as backslash-then-newline. That is correct
+        -- Lua and WRONG SHELL — inside double quotes the shell reads
+        -- backslash-newline as a line CONTINUATION and joins the lines,
+        -- so a multi-line AppleScript arrives as one line and fails to
+        -- compile. Single quotes with '\'' for any embedded quote is the
+        -- only form that passes an arbitrary string through /bin/sh
+        -- unaltered.
+        local quoted = "'" .. script:gsub("'", [['\'']]) .. "'"
+        local okExec, out = pcall(hs.execute, "/usr/bin/osascript -e " .. quoted)
+        if not okExec or type(out) ~= "string" then return {} end
+        local res = out
         local paths = {}
         for line in res:gmatch("[^\r\n]+") do
             -- Finder gives directories a trailing slash; renaming folders
