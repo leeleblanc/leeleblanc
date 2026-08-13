@@ -133,6 +133,25 @@ else
 fi
 echo ""
 
+# ------------------------------------------------------------- 1b. lint
+# Runs BEFORE the suites on purpose. Every rule in hs-lint is a bug that
+# actually reached LL's Mac, and most of them are the kind that a unit
+# test cannot see: an Accessibility call with no timeout is correct Lua
+# that passes every test and freezes a real keyboard. Static first, then
+# behaviour.
+echo "1b. LINT (the bugs this config has actually shipped)"
+if [ -f "$HS/tools/hs-lint.lua" ]; then
+    if "$LUA" "$HS/tools/hs-lint.lua" "$HS"; then
+        echo "   ✅ no ERROR-level findings"
+    else
+        echo "   ❌ hs-lint found ERROR-level problems — see above"
+        FAILED=$((FAILED + 1))
+    fi
+else
+    echo "   ⚠️  tools/hs-lint.lua missing — static checks skipped"
+fi
+echo ""
+
 # ------------------------------------------------------------------- 2. lua
 echo "2. LUA SUITES"
 if [ -z "$LUA" ]; then

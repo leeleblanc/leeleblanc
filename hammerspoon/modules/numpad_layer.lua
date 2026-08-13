@@ -77,6 +77,12 @@
 -- override would land too late to claim any keys. This one is the file
 -- switch.
 
+-- hs-lint: allow service-call-unchecked — every value in numpad.actions
+-- and numpad.shiftActions is resolved against the LIVE service registry by
+-- tests/test_integration.lua, which is the only suite that loads all
+-- thirty modules together and can therefore resolve them at all. A typo
+-- here fails the build rather than failing silently at your fingertips,
+-- which is a stronger guarantee than a runtime has() check would give.
 local M = {
     name  = "Numpad Layer",
     order = 13.5,

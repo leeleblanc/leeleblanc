@@ -1,3 +1,8 @@
+-- hs-lint: allow service-call-unchecked — the only call in this file is
+-- service.call("focus.engaged"), and nil is a MEANINGFUL answer there:
+-- no focus module loaded means nothing is holding notices back, which is
+-- exactly the conclusion we want. No outcome is reported to the user that
+-- could be wrong, so has() would add a branch and change no behaviour.
 -- =====================================================================
 -- CORE: NOTICES — nothing fails silently, and you are not made to watch
 -- =====================================================================

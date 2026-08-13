@@ -148,6 +148,10 @@ function M.setup(core)
     -- Mac we know nothing about, which is exactly the situation most
     -- likely to raise one. Every probe is a separate osascript process:
     -- the worst any of them can do is exit non-zero, which is a result.
+    -- hs-lint: allow blocking-main-thread — this file runs ONLY when you
+    -- type _G.outlookProbe(). No key, no timer, no watcher. Synchronous is
+    -- also correct here: nine probes whose results are compared against
+    -- each other must all be answered before the verdict is written.
     local function ask(src)
         local quoted = "'" .. src:gsub("'", [['\'']]) .. "'"
         local okExec, out, ok = pcall(hs.execute, "/usr/bin/osascript -e " .. quoted .. " 2>&1")

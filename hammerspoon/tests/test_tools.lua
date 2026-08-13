@@ -583,6 +583,33 @@ check("the reset row clears the order and is never itself remembered",
     return #ua.mru == 0
 end)())
 
+-- 🚨 6.65.2 — THE SAME GUARD tool_picker got when it was written, which
+-- this file did NOT get, and which hs-lint found rather than a user
+-- noticing an action that had quietly stopped working.
+-- _G.service.call prints and returns nil on a missing provider; it never
+-- throws. So a pcall around it succeeds either way, and without has()
+-- these three actions report success, get remembered, and float to the
+-- top of the list having done nothing.
+do
+    local saved = _G.service.registry
+    _G.service.registry = {}        -- every service gone, as if its module failed
+    ua.mru, ua.ctx = {}, URL_CTX
+    ALERTS = {}
+    local r = ua.run("cleanurl")
+    check("🚨 an action whose SERVICE does not exist reports FAILURE — "
+          .. "service.call does not throw, so a pcall alone would call "
+          .. "this a success", r == false, tostring(r))
+    check("...and it is NOT remembered, so a dead action cannot climb to "
+          .. "the top of your list", ua.mru[1] ~= "cleanurl",
+          tostring(ua.mru[1]))
+    check("...and you are told, rather than left wondering", #ALERTS == 1)
+    _G.service.registry = saved
+    _G.service.provide("url.cleanClipboard", function() return true end)
+    ua.mru, ua.ctx = {}, URL_CTX
+    check("with the service present the same action succeeds and IS "
+          .. "remembered", ua.run("cleanurl") == true and ua.mru[1] == "cleanurl")
+end
+
 say("   -- opening --")
 CLIPBOARD = nil
 TASKS = {}   -- no Finder selection: the task never calls back

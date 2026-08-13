@@ -202,6 +202,22 @@ function M.setup(core)
     local function sh(cmd)
         return pcall(function() hs.task.new("/bin/zsh", nil, { "-lc", cmd }):start() end)
     end
+
+    -- 🚨 6.65.2 — has() BEFORE call(), and I had already learned this once.
+    -- _G.service.call does NOT throw on a missing provider: it prints and
+    -- returns nil. So a pcall around it succeeds whether the service ran
+    -- or never existed, and ua.run would report success, float the action
+    -- to the top of your most-used list, and have done nothing at all.
+    -- tool_picker got this guard when it was written; this file did not,
+    -- and hs-lint found it rather than a user noticing an action that
+    -- quietly stopped working.
+    local function svc(name, a)
+        if not (_G.service and _G.service.has and _G.service.has(name)) then
+            return false, "no provider for " .. name
+        end
+        local ok = pcall(function() _G.service.call(name, a) end)
+        return ok, (not ok) and (name .. " threw") or nil
+    end
     local function shq(s) return "'" .. tostring(s):gsub("'", [['\'']]) .. "'" end
 
     ua.actions = {
@@ -257,8 +273,9 @@ function M.setup(core)
         { id = "cleanurl", title = "Clean URL (strip trackers)", sub = "Then copy it back",
           when = function(c) return c.url ~= nil end,
           run  = function()
-              if not _G.service then return false end
-              return pcall(function() _G.service.call("url.cleanClipboard") end)
+              local ok, why = svc("url.cleanClipboard")
+              if not ok then error(why or "url cleaner unavailable", 0) end
+              return true
           end },
 
         { id = "plaintext", title = "Copy as Plain Text", sub = "Strip formatting from the clipboard",
@@ -284,15 +301,17 @@ function M.setup(core)
         { id = "snippet", title = "Save as Snippet", sub = "Append to the Capture Pad",
           when = function(c) return c.text ~= nil end,
           run  = function(c)
-              if not _G.service then return false end
-              return pcall(function() _G.service.call("capturePad.add", c.text) end)
+              local ok, why = svc("capturePad.add", c.text)
+              if not ok then error(why or "capture pad unavailable", 0) end
+              return true
           end },
 
         { id = "rename", title = "Bulk Rename…", sub = "Open the renamer on this selection",
           when = function(c) return c.file ~= nil end,
           run  = function()
-              if not _G.service then return false end
-              return pcall(function() _G.service.call("rename.show") end)
+              local ok, why = svc("rename.show")
+              if not ok then error(why or "bulk rename unavailable", 0) end
+              return true
           end },
     }
 

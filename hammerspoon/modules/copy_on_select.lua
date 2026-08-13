@@ -44,6 +44,37 @@ function M.setup(core)
     local cosExcludedApps = {}
     local cosFocusObserver, cosSelectionObserver = nil, nil
 
+    -- 🚨 6.65.2 — THE PER-ELEMENT ACCESSIBILITY TIMEOUT. Found by hs-lint,
+    -- not by a crash, which is the whole reason that tool exists.
+    --
+    -- Every attributeValue() call below crosses a process boundary into
+    -- ANOTHER application and waits for it to answer. With no timeout the
+    -- default is generous, and a wedged app holds Hammerspoon's main
+    -- thread — the thread that reads your keyboard — for as long as it
+    -- likes. menubar_items learned this in 6.47.0 and got a timeout; this
+    -- module has been asking the same questions without one ever since,
+    -- and it asks them on EVERY APP SWITCH rather than on a keypress.
+    --
+    -- LL's own console named the apps that answer badly:
+    --      ⚠️ Copy-on-select: Microsoft Teams didn't accept an
+    --         Accessibility watcher
+    --      ⚠️ Copy-on-select: System Settings didn't accept an
+    --         Accessibility watcher
+    -- Those two lines are the observer being refused, which is handled.
+    -- The unhandled case is the app that ACCEPTS and then does not reply.
+    --
+    -- ⚠️ THIS IS A SAFETY LIMIT, NOT A TUNING KNOB. Raising it raises how
+    -- long a single misbehaving app can hold your keyboard.
+    local cos = { axTimeout = 0.10 }
+
+    -- Set the timeout BEFORE asking anything — the ordering is the whole
+    -- protection, and it is the same rule as menubar_items 6.47.0.
+    local function withTimeout(el)
+        if not el then return nil end
+        pcall(function() el:setTimeout(cos.axTimeout) end)
+        return el
+    end
+
     local function cosIsExcluded(name)
         for _, ex in ipairs(cosExcludedApps) do if name == ex then return true end end
         return false
@@ -56,6 +87,7 @@ function M.setup(core)
     -- copies — reading it fresh at fire time, not a stale snapshot.
     local cosDebounce = nil
     local function cosCopyFrom(element)
+        withTimeout(element)
         if cosDebounce then cosDebounce:stop() end
         cosDebounce = hs.timer.doAfter(0.35, function()
             local ok, text = pcall(function() return element:attributeValue("AXSelectedText") end)
@@ -103,6 +135,7 @@ function M.setup(core)
         if not okPid or not pid then return end
         local okAx, axApp = pcall(hs.axuielement.applicationElement, app)
         if not okAx or not axApp then return end
+        withTimeout(axApp)
 
         local okObs, obs = pcall(hs.axuielement.observer.new, pid)
         if not okObs or not obs then return end

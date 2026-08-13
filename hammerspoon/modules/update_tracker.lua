@@ -161,6 +161,9 @@ function M.setup(core)
             -- actually on PATH — that is the one `brew` means when YOU
             -- type it. Only in this case, so the usual Mac pays nothing.
             if #brewFound > 1 then
+                -- hs-lint: allow blocking-main-thread — same reasoning as
+                -- the call below: warm(), once, and only to disambiguate
+                -- two Homebrew installs, which is not guessable.
                 local ok, out = pcall(function()
                     local o = hs.execute("command -v brew 2>/dev/null", true)
                     return tostring(o or ""):gsub("%s+$", "")
@@ -181,6 +184,11 @@ function M.setup(core)
             end
             return
         end
+        -- hs-lint: allow blocking-main-thread — deliberate, and already
+        -- argued in the header above: this runs in warm(), ~2s after boot
+        -- and off the boot path, exactly once per session, and only when
+        -- the well-known paths all missed. Asking a login shell is the
+        -- only way to find a Homebrew installed at a custom prefix.
         local ok, out = pcall(function()
             -- `true` = run through a LOGIN shell, so ~/.zprofile (which is
             -- what puts a custom prefix on PATH) is sourced first.

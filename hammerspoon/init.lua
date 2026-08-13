@@ -4,9 +4,52 @@
 -- =====================================================================
 -- 08-13-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.65.1-CRASH-FIX
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.65.2-LINT-SWEEP
 -- =====================================================================
 
+-- NEW IN 6.65.2 — A LINTER INSTEAD OF ANOTHER ONE-BY-ONE FIX:
+--   🔍 tools/hs-lint.lua. Every rule in it is a bug that REACHED YOUR MAC
+--      — not a style opinion, a receipt. It runs over init.lua, core/ and
+--      all thirty modules in about a second, and it runs FIRST in
+--      run-tests.sh, before any suite.
+--      Why static and not more tests: an Accessibility call with no
+--      timeout is correct Lua that passes every test ever written and
+--      then freezes a real keyboard. Some bug classes are only visible
+--      by shape.
+--   🚨 IT FOUND A REAL FREEZE ON THE FIRST RUN. copy_on_select asks other
+--      applications AXFocusedUIElement and AXSelectedText with NO
+--      setTimeout — the exact hazard menubar_items fixed in 6.47.0 — and
+--      it asks on EVERY APP SWITCH rather than on a keypress. A wedged app
+--      could hold the main thread, and the main thread is what reads your
+--      keyboard. Your own console had been naming the badly-behaved apps
+--      for weeks (Teams, System Settings).
+--   🚨 AND A BUG I HAD JUST WRITTEN. universal_actions reported success
+--      for three actions whose service might not exist: _G.service.call
+--      prints and returns nil on a missing provider rather than throwing,
+--      so the pcall around it succeeded either way — and the action then
+--      got REMEMBERED and floated to the top of your most-used list having
+--      done nothing. tool_picker got that guard when it was written; this
+--      file did not. Same mistake, twice, three weeks apart.
+--   📋 THE OTHER RULES, all from this project's own history: in-process
+--      AppleScript (the crash), replaceElements({}) (the two-screen
+--      crash), a line starting with '(' (the 6.64.0 non-boot), Lua %q used
+--      for shell quoting, discarded timers and menubar items, adopting a
+--      JSON decoder's tables, patterns run on user input, and the module
+--      contract.
+--   ✍️ SILENCING ONE REQUIRES A REASON. `-- hs-lint: allow <rule> — why`.
+--      A bare waiver is itself reported: the point of an exception is that
+--      somebody thought about it, and the reason is the only evidence.
+--      Five are in place, each naming its argument.
+--   ℹ️ AND A REGISTER, NOT A TO-DO LIST. Seven INFO notes mark code that
+--      is CORRECT but fragile — hs.spaces private APIs, calls that block
+--      the main thread. Waivers deliberately do not clear those. After
+--      every macOS update, that list is what you re-verify first.
+--   ⚖️ THE LINTER MADE ITS OWN MISTAKE, kept here because it is the best
+--      argument for the rule: interpolating a rule id into a Lua pattern
+--      matched nothing, because "service-call-unchecked" contains '-',
+--      which is a QUANTIFIER. Every waiver silently failed to apply. That
+--      is the pattern-on-variable rule, in the file that defines it.
+--
 -- NEW IN 6.65.1 — THE CRASH, AND THE pcall THAT WAS NEVER PROTECTION:
 --   💥 HAMMERSPOON WAS ABORTING. LL's report, macOS 26.6.1, 0.6s after
 --      launch:
@@ -155,55 +198,8 @@
 --      titles come back, and the moment an anchor comes off it is the
 --      only thing between a channel and a muted mic. What the suite pins
 --      is the guarantee that survives that change: exclusions win.
--- NEW IN 6.62.0 — TWO BUGS OFF LL's OWN CONSOLE, AND THE STUB THAT HID ONE:
---   🎯 MOUSE GRID DIED THE MOMENT YOU TYPED, ON TWO SCREENS. The Console
---      showed it four times in one session:
---        mouseGrid: typeChar: canvas.lua:382: bad argument #1 to
---        'assignElement' (invalid element definition; must contain
---        key-value pairs)
---      typeChar filters cells by the typed prefix then redraws EVERY
---      screen. With two displays the matches for a letter can all sit on
---      ONE of them — and the other screen was handed replaceElements({}).
---      hs.canvas only unwraps the single-table form when that table is
---      NON-EMPTY, so `{}` is not read as "draw nothing": it is read as one
---      element with no key-value pairs, and it throws.
---   💥 AND IT WAS WORSE THAN A LOG LINE. typeChar runs inside a pcall
---      whose failure branch calls grid.hide("error") — so the throw did
---      not just complain, it TORE THE GRID DOWN. On a two-screen Mac,
---      typing the first letter made the grid vanish. That is the symptom
---      LL was living with; the Console line was only its receipt.
---   🧩 WHY THE EXISTING GUARD DID NOT COVER IT: typeChar already refuses a
---      dead-end prefix, but its count is of matches ACROSS ALL SCREENS.
---      It is happily non-zero while an individual screen has none. The
---      guard and the bug were looking at different things.
---   🩹 THE FIX: one setElements() helper that every label and grid draw
---      goes through, substituting a single `action = "skip"` element —
---      a valid definition that draws nothing — when the list is empty.
---      Built fresh per call, so no two canvases share a table.
---   🕳 THE REAL LESSON IS THE TEST STUB, NOT THE BUG. test_mouse_grid's
---      canvas stub was `function c:replaceElements(e) self.elements = e end`
---      — it accepted ANYTHING, including the exact empty table the real
---      API rejects. 265 checks, a 4,000-layout geometry fuzzer and a
---      random-action explorer all ran green over a crash that a real Mac
---      hit within seconds. A stub more permissive than the thing it
---      stands in for does not just miss bugs, it MANUFACTURES confidence.
---      The stub now enforces what hs.canvas enforces, and with it in place
---      the fuzzer failed on its own before any new test was written.
---   🗒 CAPTURE PAD: THE QUEUE AND PARKED LIST WERE ONE TABLE. Also from
---      the boot log. The rawequal guard added in 6.44.10 caught it and
---      reset parked, losing nothing — the guard doing exactly its job.
---      But a safety net firing on an ordinary boot is a bug report, not a
---      resting state, so the cause is fixed too: load() was ADOPTING the
---      JSON decoder's own tables, which quietly assumes decode returns a
---      distinct table per key. It now takes its own copy, so the two
---      lists are structurally incapable of being the same object whatever
---      the decoder does. The guard stays as the second line.
---   🧪 386 checks in test_features, 269 in test_mouse_grid; 1,688 across
---      sixteen Lua suites, 1,723 with the Capture Pad JavaScript. Both new cases
---      are written from the Console lines themselves, and both were
---      confirmed to FAIL against the old code before the fix went in.
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.65.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.65.2
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -445,7 +441,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.65.1"
+_G.configVersion = "6.65.2"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -1981,6 +1977,11 @@ if hyperEnabled then
         -- reaped with the process before it ever ran, which is precisely
         -- how this kind of cleanup ends up looking implemented and doing
         -- nothing.
+        -- hs-lint: allow blocking-main-thread — synchronous is the ONLY
+        -- correct choice during shutdown. There is no "later": an hs.task
+        -- started here is reaped with the process before it ever runs,
+        -- which is how this kind of cleanup ends up looking implemented
+        -- and doing nothing.
         pcall(function()
             hs.execute("/usr/bin/hidutil property --set '{\"UserKeyMapping\":[]}'")
         end)

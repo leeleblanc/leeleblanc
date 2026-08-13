@@ -4,6 +4,82 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.65.2 — A LINTER, INSTEAD OF FIXING ONE MORE OF THESE BY HAND:
+  🔍 tools/hs-lint.lua — every rule is a bug that REACHED LL'S MAC. Not a
+     style guide, not best practice copied from somewhere: a receipt, with
+     the version it was found in attached. It reads init.lua, core/ and
+     all thirty modules in about a second and runs FIRST in run-tests.sh,
+     ahead of every suite.
+     · WHY STATIC AND NOT MORE TESTS, which is the real argument: an
+       Accessibility call with no setTimeout is correct Lua. It compiles,
+       it passes every test anyone will ever write for it, and then it
+       freezes a real keyboard when one app answers slowly. Some bug
+       classes are only visible by SHAPE, and no amount of behavioural
+       testing finds them.
+     · A LINTER THAT CRIES WOLF GETS TURNED OFF, so rules are narrow on
+       purpose. A check that is 80% right is worse than none: the 20%
+       teaches you to skim past output you should be reading. Two rules
+       were cut back for exactly this after their first run.
+  🚨 IT FOUND A REAL FREEZE ON ITS FIRST RUN — copy_on_select.
+     The module asks other applications for AXFocusedUIElement and
+     AXSelectedText with NO setTimeout. That is the precise hazard
+     menubar_items fixed in 6.47.0, still live in a second module, and
+     WORSE placed: menubar_items asks on a keypress, this asks on EVERY
+     APP SWITCH. A wedged app holds Hammerspoon's main thread, and the
+     main thread is what reads your keyboard.
+     · LL's console had been naming the badly-behaved apps for weeks —
+       "Microsoft Teams didn't accept an Accessibility watcher", "System
+       Settings didn't accept an Accessibility watcher". Those lines are
+       the observer being REFUSED, which was handled. The unhandled case
+       is the app that accepts and then does not answer.
+  🚨 AND A BUG THREE WEEKS OLD, IN CODE I HAD JUST WRITTEN.
+     universal_actions reported SUCCESS for three actions whose service
+     might not exist. _G.service.call prints and returns nil on a missing
+     provider — it never throws — so the pcall around it succeeded whether
+     the service ran or was never registered. The action was then
+     REMEMBERED and floated to the top of the most-used list having done
+     nothing at all.
+     · tool_picker got exactly this guard when it was written, with a
+       comment explaining why. universal_actions, written the same day,
+       did not. That is what a linter is for: I do not reliably remember
+       my own lesson across two files in one sitting.
+  📋 THE FULL RULE SET, all of it from this project's own scar tissue:
+     · applescript-in-process   (6.65.1 — the crash)
+     · canvas-empty-elements    (6.62.0 — the two-screen crash)
+     · paren-starts-line        (6.64.0 — the config that would not load)
+     · lua-quote-for-shell      (6.65.1 — %q is not shell quoting)
+     · ax-without-timeout       (6.47.0 — the frozen keyboard)
+     · unheld-object            (collected timers and menubar items)
+     · service-call-unchecked   (6.65.0 — "ran it", having not)
+     · adopt-decoded-table      (6.62.0 — queue and parked became ONE)
+     · pattern-on-variable      (⇪[ and ⇪% are pattern operators)
+     · module-contract          (a module that loads as nothing)
+     · deprecated-drawing, private-api, blocking-main-thread
+  ✍️ A WAIVER REQUIRES A REASON. `-- hs-lint: allow <rule> — why`, and a
+     BARE waiver is itself reported. The point of an exception is that
+     somebody thought about it; the written reason is the only evidence
+     that anyone did. Five are in place, each one arguing its case —
+     notices.lua (nil is a meaningful answer), numpad_layer (a test
+     resolves every name against the live registry, which is stronger
+     than a runtime check), update_tracker and outlook_probe and the
+     shutdown hidutil call (blocking is correct in each).
+  ℹ️ INFO IS A REGISTER, NOT A QUEUE. Seven notes mark code that is
+     CORRECT but fragile — hs.spaces private APIs, calls that block the
+     main thread. Waivers deliberately do NOT clear them. After a macOS
+     update, that list is the first thing to re-verify: Tahoe is exactly
+     the event those notes exist for.
+  ⚖️ THE LINTER MADE ITS OWN MISTAKE, and it stays in the history because
+     it is the best possible argument for one of its rules: interpolating
+     a rule id straight into a Lua pattern matched nothing, because
+     "service-call-unchecked" contains '-', which is a QUANTIFIER. Every
+     file-level waiver silently failed to apply, and the tool reported
+     problems that had already been argued and settled. That is the
+     pattern-on-variable rule, committed by the file that defines it.
+  🧪 1,846 checks, 17 suites, 0 failures, 0 lint errors, 0 lint warnings.
+     The copy_on_select timeout and the universal_actions guard both have
+     tests; the guard's three checks were mutation-verified by removing
+     it again.
+
 NEW IN 6.65.1 — THE CRASH, AND THE pcall THAT WAS NEVER PROTECTION:
   💥 HAMMERSPOON WAS ABORTING, from LL's report on macOS 26.6.1, 0.6
      seconds after launch:
