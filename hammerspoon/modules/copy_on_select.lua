@@ -151,7 +151,21 @@ function M.setup(core)
             local okFocused, focused = pcall(function() return axApp:attributeValue("AXFocusedUIElement") end)
             if okFocused and focused then cosWatchFocusedElement(pid, focused) end
         else
-            print("⚠️ Copy-on-select: " .. name .. " didn't accept an Accessibility watcher")
+            -- 🔇 6.66.5 — ONCE PER APP, NOT ONCE PER ACTIVATION.
+            -- This fires from the app watcher, so every switch back to a
+            -- refusing app printed the line again: Finder, Asana, Archive
+            -- Utility, Teams, System Settings, over and over. The fact is
+            -- worth knowing exactly once — a whole class of app (Electron
+            -- shells, Apple's own newer panels) simply does not implement
+            -- AXFocusedUIElementChanged, and no amount of retrying changes
+            -- that. Repeating it turns a real finding into wallpaper, and
+            -- wallpaper is what you scroll past on the day it matters.
+            cos.refused = cos.refused or {}
+            if not cos.refused[name] then
+                cos.refused[name] = true
+                print("⚠️ Copy-on-select: " .. name .. " didn't accept an "
+                      .. "Accessibility watcher (said once per app per session)")
+            end
         end
     end
 

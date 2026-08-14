@@ -391,6 +391,38 @@ check("a group whose TITLE matches keeps ALL its entries — searching "
   return false, "asana group not found"
 end)())
 
+-- 🚨 6.66.5 — TYPING MUST NOT CHURN THE KEYBOARD. From LL's Console,
+-- seventeen times in two seconds:
+--      hs.hotkey system callback for an eventUID we don't know about: 0
+-- That is Hammerspoon getting a key event for a hotkey it was just told
+-- to forget. typeChar calls show() to rebuild the filtered rows, show()
+-- calls hide() so it can never stack two panels, and hide() disabled all
+-- 38 search keys — which enableInput() re-enabled a moment later. SEVENTY
+-- SIX hotkey operations per character, with real key events landing in
+-- the middle of them.
+do
+  local before = hotkeysDisabled
+  CS.typeChar("d")
+  local churn = hotkeysDisabled - before
+  check("🚨 typing a character disables NO hotkeys — a redraw rebuilds the "
+        .. "canvas, never the keyboard", churn == 0, churn .. " disabled")
+  check("...and the sheet is still up and still filtering afterwards",
+        _G.cheatSheetCanvas ~= nil and CS.query == "asad", CS.query)
+  CS.backspace()
+end
+check("a real CLOSE still gives every key back — keepInput is for redraws "
+      .. "only, and a sheet that closed without releasing 38 bare letters "
+      .. "would be the worst bug in this file", (function()
+  CS.show()
+  CS.hide()
+  for _, hk in ipairs(_G.cheatSheetSearchKeys or {}) do
+    if hk.enabled then return false end
+  end
+  return true
+end)())
+-- Re-seed to the state the checks below were written against: the block
+-- above closed the sheet to prove a real close releases the keys.
+CS.show(); CS.typeChar("a"); CS.typeChar("s"); CS.typeChar("a")
 CS.backspace()
 check("backspace widens it again", CS.query == "as", CS.query)
 check("🚨 backspace steps a CHARACTER, not a byte — lopping one byte off a "

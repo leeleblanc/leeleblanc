@@ -4,9 +4,32 @@
 -- =====================================================================
 -- 08-13-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.66.4-HONEST-COUNT
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.66.5-QUIET-KEYS
 -- =====================================================================
 
+-- NEW IN 6.66.5 — SEVENTEEN WARNINGS IN TWO SECONDS, AND THEY WERE MINE:
+--   🚨 "hs.hotkey system callback for an eventUID we don't know about: 0"
+--      That is Hammerspoon receiving a key event for a hotkey it has just
+--      been told to forget, and the cause was the search box I added in
+--      6.66.0. Typing a character calls show() to rebuild the filtered
+--      rows; show() calls hide() first so it can never stack two panels;
+--      and hide() disabled all THIRTY-EIGHT search keys, which
+--      enableInput() re-enabled a moment later.
+--      SEVENTY-SIX hotkey operations per character typed, with real key
+--      events landing in the middle of them. Nothing broke. The warnings
+--      were macOS telling us the churn was absurd, and it was right.
+--   ✅ A redraw now rebuilds the CANVAS and leaves the keyboard alone
+--      (hide(keepInput)). Measured: 45 disables per keystroke → 0. A real
+--      close still releases every key, which is the one thing in that file
+--      that must never regress — a sheet that closed holding 38 bare
+--      letters is a keyboard that types into nothing.
+--   🔇 COPY-ON-SELECT SAYS IT ONCE PER APP. "Finder didn't accept an
+--      Accessibility watcher" fired on every switch back to Finder, and
+--      the same for Asana, Archive Utility, Teams, System Settings. The
+--      fact is worth knowing exactly once: a whole class of app simply
+--      does not implement AXFocusedUIElementChanged, and retrying changes
+--      nothing. Repeating it turns a real finding into wallpaper.
+--
 -- NEW IN 6.66.4 — THE BOOT LINE WAS COUNTING ONE SOURCE OUT OF THREE:
 --   🔢 "32 ⇪ shortcuts" WAS THE SAME NUMBER BEFORE AND AFTER 6.66.3 added
 --      four modules and four keys — because _G.hyperShortcutCount was
@@ -56,36 +79,8 @@
 --      All six go through it now, and a lint rule counts bare shows
 --      against protected ones so a seventh cannot appear.
 --
--- NEW IN 6.66.2 — "SOME WINDOWS DON'T COME FORWARD BUT SOME DO":
---   🎯 EXACTLY RIGHT, AND THE SPLIT IS THE DIAGNOSIS. The ones that work
---      are hs.canvas — the cheat sheet, Mouse Grid, pomodoro, screen veil.
---      A canvas can be told fullScreenAuxiliary, and 6.66.1 fixed the last
---      two that were not. The ones that do NOT are hs.chooser: clipboard
---      history (⇪V), OCR search (⇪O), the Tool Picker (⇪⇧/), Universal
---      Actions (⇪⇧A), the menu bar picker (⇪M), every Asana list.
---   🖥 THE CAUSE IS THE DOCK ICON, and this is documented Hammerspoon
---      behaviour rather than a bug here. From the hs.chooser docs:
---        "As of macOS Sierra and later, if you want an hs.chooser object
---         to appear above full-screen windows you must hide the
---         Hammerspoon Dock icon first, using hs.dockicon.hide()"
---      It is AppKit's rule: an app WITH a Dock icon is a regular
---      application, and a regular app's panels cannot draw over another
---      app's full-screen Space. An app without one is an accessory
---      application, and its panels float anywhere. A chooser is a native
---      NSPanel with no collection-behaviour API, so no amount of Lua can
---      grant it what a canvas gets for free.
---   ✅ THE DOCK ICON IS HIDDEN AT BOOT NOW, in init.lua rather than by the
---      Preferences checkbox — a setting that lives only in a GUI does not
---      travel to the other Mac, and in this config the file IS the
---      configuration.
---   ⚖️ WHAT YOU GIVE UP: no Dock icon, and Hammerspoon stops appearing in
---      ⌘Tab. WHAT YOU KEEP: the menu bar icon, every hotkey, the Console
---      and Preferences. Nothing becomes unreachable — this config is
---      driven entirely by ⇪ shortcuts and the menu bar.
---      Set hideDockIcon = false near the top to put it back.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.66.4
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.66.5
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -386,7 +381,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.66.4"
+_G.configVersion = "6.66.5"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

@@ -4,6 +4,45 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.66.5 — SEVENTEEN WARNINGS IN TWO SECONDS, AND THEY WERE MINE:
+  🚨 "hs.hotkey system callback for an eventUID we don't know about: 0",
+     seventeen times across two seconds of LL's Console. That is
+     Hammerspoon being handed a key event for a hotkey it has just been
+     told to forget — and the cause was the cheat sheet search box added
+     in 6.66.0.
+     · Typing a character calls show() to rebuild the filtered rows.
+       show() calls hide() first, so it can never stack two panels. And
+       hide() disabled all THIRTY-EIGHT search keys, which enableInput()
+       re-enabled a moment later.
+     · SEVENTY-SIX hotkey operations per character typed, with real key
+       events arriving in the middle of them. Nothing broke — every check
+       passed, the search worked, and the only symptom was macOS saying
+       the churn was absurd. It was right.
+  ✅ hide(keepInput) — a REDRAW rebuilds the canvas and leaves the
+     keyboard exactly as it is; only a real close touches the keys.
+     Measured in the suite: 45 disables per keystroke before, 0 after.
+     · AND THE OTHER HALF IS PINNED JUST AS HARD: a real close must still
+       release every key. A sheet that closed while holding 38 bare
+       letters is a keyboard that types into nothing, which would be the
+       worst bug this file could have. Both directions are
+       mutation-verified.
+  🔇 COPY-ON-SELECT SAYS IT ONCE PER APP, NOT ONCE PER ACTIVATION.
+     "Finder didn't accept an Accessibility watcher" fired every time
+     Finder came forward, and the same for Asana, Archive Utility, Teams
+     and System Settings. The fact is worth knowing exactly once: a whole
+     class of application — Electron shells, Apple's own newer panels —
+     simply does not implement AXFocusedUIElementChanged, and no amount of
+     retrying changes that. Repeating it turns a real finding into
+     wallpaper, and wallpaper is what you scroll past on the day it
+     matters.
+  ✅ EVERYTHING ELSE IN THAT LOG WAS THE CONFIG WORKING: OCR indexed 276
+     characters silently (6.65.0's rule), the Capture Pad sent one item to
+     Asana, and the file tracker suppressed a created-file burst. The only
+     remaining noise is the /.file/id= clipboard form, which is macOS
+     handing us a file reference with no extension — correctly reported,
+     nothing to fix.
+  🧪 1,888 checks, 17 suites, 0 failures, 0 lint findings.
+
 NEW IN 6.66.4 — THE BOOT LINE COUNTED ONE SOURCE OUT OF THREE:
   🔢 "32 ⇪ shortcuts" READ THE SAME BEFORE AND AFTER 6.66.3 added four
      modules and four new keys. That is what gave it away.

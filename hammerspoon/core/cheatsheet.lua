@@ -387,7 +387,33 @@ return function(core)
     _G.cheatSheetScrollKeys = nil   -- ↑↓ PgUp/PgDn Home/End    (same)
     _G.cheatSheetWheelTap   = nil   -- trackpad / mouse wheel    (same)
 
-    function cheatSheet.hide()
+    -- 🚨 6.66.5 — keepInput: TEAR DOWN THE CANVAS, NOT THE KEYBOARD.
+    --
+    -- LL's Console, seventeen times in two seconds:
+    --      hs.hotkey system callback for an eventUID we don't know about: 0
+    -- That is Hammerspoon receiving a key event for a hotkey it has just
+    -- been told to forget. The cause was mine: typing into the sheet calls
+    -- show() to rebuild the filtered rows, show() calls hide() first so it
+    -- can never stack two panels, and hide() disabled all THIRTY-EIGHT
+    -- search keys — which enableInput() then immediately re-enabled.
+    --
+    -- SEVENTY-SIX hotkey operations per character typed, with real key
+    -- events arriving in the middle of them. Nothing broke, but the churn
+    -- is absurd and the warnings are the system telling us so.
+    --
+    -- A redraw now passes keepInput = true: the canvas is rebuilt, the
+    -- keyboard is left exactly as it is. Only a real close touches it.
+    function cheatSheet.hide(keepInput)
+        if keepInput then
+            -- Canvas only. Every key stays bound, because the sheet is not
+            -- going away — it is being repainted with fewer rows.
+            if _G.cheatSheetCanvas then
+                pcall(function() _G.cheatSheetCanvas:delete() end)
+                _G.cheatSheetCanvas = nil
+            end
+            _G.cheatSheetState = nil
+            return
+        end
         if _G.cheatSheetEscHotkey then
             pcall(function() _G.cheatSheetEscHotkey:disable() end)
         end
@@ -718,7 +744,10 @@ return function(core)
         -- immediately unfiltered it, which reads as "the search does
         -- nothing" rather than as a bug.
         local keepQuery = cheatSheet.query
-        cheatSheet.hide()  -- never stack two
+        -- keepInput: this hide() is a REDRAW, not a close. See the 🚨 on
+        -- hide() — tearing down 38 hotkeys per keystroke is what produced
+        -- the "eventUID we don't know about" warnings.
+        cheatSheet.hide(true)
         cheatSheet.query = keepQuery
 
         -- ---- layout metrics (20pt text as originally requested) ----
