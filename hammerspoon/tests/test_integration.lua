@@ -412,6 +412,31 @@ check("the Mouse Grid panic key is bound and is NOT a ⇪ shortcut",
 check("it does not collide with Screen Veil's panic key ⌃⌥⌘⇧G",
       GLOBAL_HOTKEYS["alt+cmd+ctrl+shift|g"] == 1)
 
+-- 🚨 6.66.4 — THE BOOT LINE'S SHORTCUT COUNT MUST INCLUDE MODULES.
+-- It was #_G.hyperMigrations: the §0.4 migration map alone. Every
+-- shortcut a module registers was invisible, so LL's boot line read
+-- "32 ⇪ shortcuts" before AND after four modules added four keys. A
+-- number printed at every login that looks like a total and is not is a
+-- quiet misreport, and it sat next to the module count that DID show the
+-- real problem — lending it credibility it had not earned.
+check("🚨 modules really do claim ⇪ shortcuts — if this is zero the boot "
+      .. "line's count is measuring the wrong thing again", (function()
+    local n = 0
+    for _ in pairs(HYPER_CLAIMS) do n = n + 1 end
+    return n >= 20, n
+end)())
+do
+    local f = io.open(HS .. "/init.lua", "r")
+    local init = f and f:read("*a") or "" ; if f then f:close() end
+    local code = init:gsub("\n%s*%-%-[^\n]*", "\n")
+    check("...and the boot line counts what was actually BOUND, not just "
+          .. "the migration map",
+          code:find("hyperShortcutCount%s*=%s*_G%.hyperBoundCount") ~= nil)
+    check("...minus the forwarded chords, which are not shortcuts — every "
+          .. "unclaimed letter re-sends itself so hyper works with Raycast",
+          code:find("hyperBoundCount%s*%-%s*forwarded") ~= nil)
+end
+
 out("   -- namespace collisions --\n")
 check("NO SERVICE NAME IS PUBLISHED TWICE", (function()
     local dupes = {}

@@ -4,9 +4,27 @@
 -- =====================================================================
 -- 08-13-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.66.3-PROFILE-DRIFT
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.66.4-HONEST-COUNT
 -- =====================================================================
 
+-- NEW IN 6.66.4 — THE BOOT LINE WAS COUNTING ONE SOURCE OUT OF THREE:
+--   🔢 "32 ⇪ shortcuts" WAS THE SAME NUMBER BEFORE AND AFTER 6.66.3 added
+--      four modules and four keys — because _G.hyperShortcutCount was
+--      #_G.hyperMigrations: the §0.4 migration map ALONE. Every shortcut a
+--      MODULE registers through hyperAddShortcut was invisible to it. The
+--      number has never described what it claims to.
+--   🚨 AND IT IS ON THE ONE LINE PRINTED AT EVERY LOGIN, sitting next to
+--      the module count that DID reveal the missing modules — which lent
+--      it a credibility it had not earned. A figure that looks like a
+--      total and is not is precisely the quiet misreport rule 7 forbids.
+--   ✅ It now reads _G.hyperBoundCount, which hyperBind increments once
+--      per combo actually claimed, from every source: migrations, modules
+--      and your own hyperActions. Forwarded chords are subtracted — every
+--      unclaimed letter re-sends ⌘⇧⌃⌥+itself so hyper keeps working with
+--      Raycast, and counting those would report ~40 regardless.
+--   📈 Expect the number to JUMP on this boot. That jump is the bug, not
+--      the fix: those shortcuts were always there and never counted.
+--
 -- NEW IN 6.66.3 — FOUR MODULES WERE NEVER LOADING ON YOUR MAC:
 --   🚨 YOUR BOOT LINE SAID "26 modules · All green" WHILE THIRTY SAT ON
 --      DISK. It was telling the truth: nothing failed, because nothing was
@@ -66,35 +84,8 @@
 --      driven entirely by ⇪ shortcuts and the menu bar.
 --      Set hideDockIcon = false near the top to put it back.
 --
--- NEW IN 6.66.1 — "MY SHORTCUTS DON'T WORK OVER FULL SCREEN APPS":
---   🚨 THEY DID. THE PANELS WERE INVISIBLE, which is indistinguishable
---      from a dead key and much harder to report. Two canvases were still
---      on "stationary" behaviour instead of fullScreenAuxiliary — the
---      POMODORO and the Focus Mode dimmer, the two most recently written.
---      "stationary" means "do not move me when Spaces change"; it says
---      NOTHING about full screen, and without fullScreenAuxiliary a canvas
---      cannot draw over a full-screen app at all. The shortcut fired, the
---      panel was built, and nothing appeared.
---   🔒 AND A LINT RULE SO IT CANNOT COME BACK. canvas-not-fullscreen
---      counts behaviorAsLabels calls against fullScreenAuxiliary mentions
---      per file. Getting it right took two tries and both failures are
---      worth knowing: string literals are BLANKED before rules see a line
---      (so the flag was invisible and all twelve correct call sites were
---      flagged), and counting over raw text instead let a COMMENT
---      mentioning the flag silence the check on the very file explaining
---      the fix. It reads comment-stripped, string-preserved source now.
---   🔤 THE SHEET IS PURE A–Z. The pins are gone. 6.65.0 pinned Mouse Grid
---      and Tool Picker above the alphabetical run, which was also asked
---      for at the time; the two instructions disagree and the later one
---      wins. Alphabetical is the only order you can predict without having
---      read the file. cheatSheet.pinned is still there and still works if
---      you want one back — empty is a choice, not a dead code path, and
---      there is a test that drives the mechanism to prove it.
---   🔢 THE PAD SCREENSHOT WAS 6.65.x. Everything in it was already cleared
---      in 6.66.0 — every ⇪ + pad key is free. Install and it is done.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.66.3
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.66.4
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -395,7 +386,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.66.3"
+_G.configVersion = "6.66.4"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -1872,7 +1863,28 @@ function _G.hyperFinalize()
         for _, c in ipairs(orphans) do print("     " .. c) end
     end
 
-    _G.hyperShortcutCount = #_G.hyperMigrations
+    -- 🚨 6.66.4 — THIS COUNTED ONE SOURCE OUT OF THREE AND CALLED IT THE
+    -- TOTAL. It was #_G.hyperMigrations — the §0.4 migration map ONLY —
+    -- so every shortcut a MODULE registers through hyperAddShortcut was
+    -- invisible to it. That is why LL's boot line read "32 ⇪ shortcuts"
+    -- both before and after 6.66.3 added four modules and four new keys:
+    -- the number is a constant that has never described what it claims to.
+    --
+    -- Worse, it is on the ONE LINE printed at every login. A number that
+    -- looks like a total and is not is exactly the kind of quiet
+    -- misreport rule 7 exists to forbid — and it sat next to the module
+    -- count that DID reveal the missing modules, lending it false weight.
+    --
+    -- _G.hyperBoundCount is the authoritative figure: hyperBind increments
+    -- it once per combo actually claimed, from every source — migrations,
+    -- modules, and your own hyperActions.
+    --
+    -- ⚠️ FORWARDED KEYS ARE NOT SHORTCUTS and are deliberately excluded.
+    -- Every unclaimed letter re-sends ⌘⇧⌃⌥+itself so hyper keeps working
+    -- with Raycast and friends; counting those would report ~40 whatever
+    -- this config actually binds.
+    _G.hyperShortcutCount = _G.hyperBoundCount - forwarded
+    _G.hyperMigrationCount = #_G.hyperMigrations
     _G.hyperForwardCount  = forwarded
 end
 

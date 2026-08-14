@@ -4,6 +4,37 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.66.4 — THE BOOT LINE COUNTED ONE SOURCE OUT OF THREE:
+  🔢 "32 ⇪ shortcuts" READ THE SAME BEFORE AND AFTER 6.66.3 added four
+     modules and four new keys. That is what gave it away.
+     _G.hyperShortcutCount was #_G.hyperMigrations — the §0.4 migration
+     map ALONE — so every shortcut a module registers through
+     hyperAddShortcut was invisible to it. The number never described what
+     it claimed to; it happened to look plausible.
+  🚨 AND IT IS PRINTED AT EVERY LOGIN, on the one line this config asks
+     you to read, immediately beside the module count that DID reveal the
+     four missing modules. Sitting next to a number that was doing its job
+     lent it a credibility it had not earned. A figure that looks like a
+     total and is not is exactly the quiet misreport rule 7 exists to
+     forbid — and unlike a silent failure, this one was actively
+     reassuring.
+  ✅ It reads _G.hyperBoundCount now: hyperBind increments that once per
+     combo actually claimed, from every source — the migration map,
+     modules, and your own hyperActions.
+     · FORWARDED CHORDS ARE SUBTRACTED, deliberately. Every unclaimed
+       letter re-sends ⌘⇧⌃⌥+itself so hyper keeps working with Raycast and
+       browser extensions; counting those would report roughly forty
+       whatever this config actually binds, which is a different lie.
+     · _G.hyperMigrationCount keeps the old figure for anyone who wants
+       it, under a name that says what it is.
+  📈 EXPECT THE NUMBER TO JUMP on the next boot. The jump IS the bug:
+     those shortcuts were always bound and never counted.
+  🧪 1,885 checks, 17 suites, 0 failures, 0 lint findings. The new checks
+     assert that modules really do claim ⇪ keys (a zero there would mean
+     the count is measuring the wrong thing again) and that the boot line
+     derives from hyperBoundCount rather than the migration map. Both
+     mutation-verified by restoring the old expression.
+
 NEW IN 6.66.3 — FOUR MODULES HAD NEVER LOADED ON LL'S MAC:
   🚨 "26 modules · All green" WAS TRUE, AND THAT IS THE WORST PART.
      Thirty module files sat on disk. Nothing failed, because nothing was
