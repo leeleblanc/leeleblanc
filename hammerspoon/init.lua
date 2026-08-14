@@ -4,9 +4,46 @@
 -- =====================================================================
 -- 08-14-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.70.0-UNSTUCK
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.71.0-KEYCASTER
 -- =====================================================================
 
+-- NEW IN 6.71.0 — SHOW THE KEYS, AND THE BUG THAT ATE THE SNIPPETS:
+--   🚨 NOT ONE SNIPPET LOADED IN 6.69.0, and the Console said why:
+--        text_expander.lua:208: bad argument #1 to 'for iterator'
+--        (directory metatable expected, got nil)
+--      hs.fs.dir returns TWO values — the iterator AND the directory it
+--      walks — and I captured one. The iterator reads the directory out
+--      of that second value on every call, so warm() threw on the first
+--      folder it touched. capture_pad.lua has always had this right; I
+--      did not look. Fixed in both places it appears.
+--   ⚠️ AND MY TEST RATIFIED IT. The stub returned a self-contained Lua
+--      closure that needed no state, so the broken call worked perfectly
+--      against it — the same failure as reading a module list from the
+--      file that had the list wrong. The stub now DEMANDS the state, and
+--      hs-lint has a rule so this class cannot come back anywhere.
+--   ⌨️ KEY CASTER (⇪⇧B). A near-black rounded panel on a shadow, right
+--      edge of whichever screen you are on, vertically centred, 16px
+--      sans. Every shortcut you press appears in it; it stays up while
+--      you keep pressing and fades after you stop. Draggable.
+--   🚨 IT SHOWS SHORTCUTS, NOT TYPING. ⇧+letter is a CAPITAL, not a
+--      shortcut — that single rule is the difference between a useful
+--      panel and one that scrolls your sentence up the side of the
+--      screen. ⌘⌃⌥fn⇪ combos, bare ⎋ ⇥ ⏎ arrows and F-keys all show;
+--      letters do not. _G.keyCastTyping(true) shows everything.
+--   🛟 AND IT SWITCHES ITSELF OFF RATHER THAN DEGRADING YOUR KEYBOARD.
+--      It is the THIRD global keyboard tap here and the only one that
+--      exists purely to look — so: it returns false on every path
+--      including the failure paths, it never logs a keystroke anywhere,
+--      it stands down for the shared injection guard, and five
+--      consecutive failures stop it and report. It also starts OFF.
+--   🔦 _G.hyperActive IS PUBLISHED so ⇪ can be drawn as ⇪. Caps Lock is
+--      remapped to F18 and forwards a synthetic ⌘⇧⌃⌥ chord, so anything
+--      watching the keyboard would have drawn "⌘⇧⌃⌥X" for a key you
+--      experienced as "⇪X" — accurate and useless.
+--   🔑 ⇪⇧K AND ⇪⇧C WERE BOTH TAKEN, and §0.3 caught both before this
+--      module ever reached a keyboard — the second by the §0.4 MIGRATION
+--      MAP, a source no survey of modules/ would have found.
+--
 -- NEW IN 6.70.0 — THE TIMER PANEL THAT WOULD NOT GO AWAY:
 --   🍅 IT WAS STUCK, AND YOU WERE PRESSING ESCAPE CORRECTLY. When a
 --      pomodoro cycle finished, the panel showed "DONE ⏎ ⁄ esc" and
@@ -79,47 +116,8 @@
 --      guard and clipboard borrowing moved into one file. They belong
 --      together: all four answer "two features want the same thing".
 --
--- NEW IN 6.68.0 — SNIPPETS, AND THREE THINGS THAT WERE LEFT TO CHANCE:
---   ✂️ TEXT EXPANDER (⇪⇧T). Type a trigger, get the text. BOTH of your
---      conventions work at once — `;bd` and a bare `gg1` — because the
---      prefix is read from each collection's info.plist rather than being
---      a rule this config imposes. .alfredsnippets files import directly
---      (_G.snippetsImport); {cursor} {clipboard} {date} {time} expand.
---      It watches every keystroke, which is the only way to build one, so:
---      nothing is ever logged, the buffer is 64 characters, macOS blocks
---      it in password fields, and it is revived when macOS kills the tap.
---   🧨 A BARE THREE-LETTER TRIGGER NEEDS A WORD BOUNDARY. Plain suffix
---      matching would fire `abc` inside "fabcd". A trigger starting with
---      punctuation (`;bd`) is exempt — that character IS the boundary,
---      and requiring another would break the convention it exists for.
---   🪟 THE POMODORO NOW SITS ABOVE THE CHEAT SHEET. Both were drawn at
---      `overlay`; two windows at one level stack by whichever was shown
---      last, so the timer was in front or behind depending on the order
---      you pressed the keys. Undefined, not wrong — and undefined reads
---      as "sometimes broken". _G.panelLevels writes the order down.
---   ⎋ AND ESC GOES TO THE RIGHT PANEL. hs.hotkey hands a key to whichever
---      binding was enabled most recently, so opening the sheet while the
---      timer was flashing stole Esc from the timer. _G.routeEscape makes
---      that a policy: highest ACTIVE priority wins, timer over sheet, and
---      only for the ~20s a phase-end is actually waiting on an answer.
---   🔄 ⌥TAB ACTUALLY SWITCHES NOW, and says so when it doesn't.
---      hs.window:focus() is becomeMain()+raise() — both act INSIDE the
---      owning app and neither activates it, so a target in a background
---      app rose without taking your keyboard. The app is activated first
---      now, unminimising waits for the animation, and a check 0.35s later
---      retries once and then reports rather than leaving you guessing.
---   🎯 THE FIRST TILE IS ANCHORED TO THE WINDOW YOU ARE IN, not to
---      position 1, and the 4-second list cache is DROPPED on every switch
---      — front-to-back order is precisely what a switch changes, so two
---      quick ⌥Tabs used to "switch" you to where you already were.
---   🚨 THE TOOL PICKER'S RUN MAP STILL SAID ⇪pad+. Those keys moved to
---      letters in 6.66.0 and the map kept the old names, so the pomodoro
---      and the mouse locator were the two tools ⇪⇧/ could never run.
---      verify() only checked that the SERVICE existed — half of a join.
---      It checks the key side too now, which is what found it.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.70.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.71.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -420,7 +418,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.70.0"
+_G.configVersion = "6.71.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -1913,9 +1911,19 @@ _G.hyperModal = hs.hotkey.modal.new({}, nil)
 
 -- F18 held = hyper active. Pressed enters the modal, released exits it,
 -- so bindings only fire while Caps Lock is actually held down.
+--
+-- 🔦 _G.hyperActive IS PUBLISHED (6.71.0) because ⇪ IS INVISIBLE FROM THE
+-- OUTSIDE. Caps Lock is remapped to F18 at the HID level and turned into
+-- a modal here, so anything watching the keyboard sees either a bare F18
+-- or — for an unclaimed key — a synthetic ⌘⇧⌃⌥ chord. Neither of those
+-- is what you pressed. The Key Caster would have drawn "⌘⇧⌃⌥X" for a key
+-- you experienced as "⇪X", which is a display that is technically
+-- accurate and useless. One boolean, set in the two handlers that already
+-- know, beats every consumer guessing.
+_G.hyperActive = false
 hs.hotkey.bind({}, "F18",
-    function() _G.hyperModal:enter() end,
-    function() _G.hyperModal:exit()  end)
+    function() _G.hyperActive = true;  _G.hyperModal:enter() end,
+    function() _G.hyperActive = false; _G.hyperModal:exit()  end)
 
 -- ---- binding helper + conflict sentry for the hyper namespace --------
 -- The §0.3 sentry only sees hs.hotkey.bind, so once shortcuts moved into
@@ -3461,6 +3469,8 @@ local BASE = {
     "outlook_probe",      -- diagnostic only, binds no key
     -- 6.68.0
     "text_expander",      -- ⇪⇧T  Alfred snippets, typed anywhere
+    -- 6.71.0
+    "key_caster",         -- ⇪⇧K  show the shortcuts as you press them
 }
 
 -- BASE minus `without`, plus `plus`. The list is COPIED, never shared: a

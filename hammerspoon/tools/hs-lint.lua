@@ -142,6 +142,55 @@ rule{ id = "adopt-decoded-table", sev = "WARN",
          and code:match("^%s*local%s") == nil
   end }
 
+-- 🚨 SHIPPED IN 6.69.0 AND IT COST EVERY SNIPPET. hs.fs.dir returns TWO
+-- values — the iterator AND the directory object it walks. The iterator
+-- is a C function that reads the directory out of that second value on
+-- every call, so dropping it hands the iterator a nil state:
+--     bad argument #1 to 'for iterator' (directory metatable expected,
+--     got nil)
+-- warm() died on the first directory it touched and not one of LL's
+-- 2,006 snippets loaded. capture_pad.lua had always had it right.
+--
+-- The two safe forms:
+--     for entry in hs.fs.dir(path) do              -- for takes all three
+--     local it, obj = hs.fs.dir(path) ; for e in it, obj do
+-- The unsafe one is capturing ONE value and iterating it alone, which is
+-- what a pcall around the call makes easy to write by accident.
+rule{ id = "fs-dir-loses-state", sev = "ERROR", file = true,
+  why = "hs.fs.dir returns (iterator, directoryObject) and the iterator "
+     .. "needs that second value. Capturing one variable and writing "
+     .. "`for e in iter do` throws 'directory metatable expected, got "
+     .. "nil' at runtime — never at load, so nothing catches it until "
+     .. "the feature is silently dead. Capture both and iterate "
+     .. "`in iter, dirObj`.",
+  check = function(code)
+      -- Names bound from an hs.fs.dir call, whether direct or via pcall.
+      -- pcall(hs.fs.dir, …) puts `ok` first, so `local ok, iter = pcall(…)`
+      -- captures TWO names and still only ONE real return value — which
+      -- is exactly the shape that reads as correct and is not.
+      local single = {}
+      for names, rhs in code:gmatch("local%s+([%w_%s,]-)%s*=%s*([^\n]-hs%.fs%.dir[^\n]*)") do
+          local parts = {}
+          for id in names:gmatch("[%w_]+") do parts[#parts + 1] = id end
+          local captured = rhs:find("pcall") and (#parts - 1) or #parts
+          if captured == 1 and parts[#parts] then single[parts[#parts]] = true end
+      end
+      if not next(single) then return false end
+      local n = 0
+      for line in (code .. "\n"):gmatch("([^\n]*)\n") do
+          n = n + 1
+          for name in pairs(single) do
+              -- `for e in iter do` — the state is missing. `in iter, obj`
+              -- is the correct form and must not be flagged.
+              if line:find("for%s+[%w_%s,]+%s+in%s+" .. name .. "%s+do") then
+                  return { n, name .. " is the iterator alone — its "
+                              .. "directory object was dropped" }
+              end
+          end
+      end
+      return false
+  end }
+
 -- 🚨 The cheat sheet is full of ⇪[ ⇪\ ⇪- ⇪/ ⇪= and every one of those is
 -- a Lua pattern operator.
 rule{ id = "pattern-on-variable", sev = "WARN",

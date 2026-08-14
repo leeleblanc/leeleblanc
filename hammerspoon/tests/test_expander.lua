@@ -40,17 +40,36 @@ end
 
 hs = {
   fs = {
+    -- 🚨 THIS STUB RETURNS **TWO** VALUES AND THE ITERATOR DEMANDS THE
+    -- SECOND, because the real hs.fs.dir does. It used to return a
+    -- self-contained closure that needed no state — which meant
+    --      local iter = hs.fs.dir(p) ; for e in iter do
+    -- worked perfectly here and threw on a real Mac:
+    --      bad argument #1 to 'for iterator' (directory metatable
+    --      expected, got nil)
+    -- 6.69.0 shipped that. warm() died on the first directory and NOT ONE
+    -- of LL's 2,006 snippets loaded. A stub more forgiving than the API it
+    -- stands in for does not test the code, it ratifies my idea of the
+    -- API — the same failure as reading a module list from the file that
+    -- had it wrong. So the state is mandatory here now.
     dir = function(p)
-      -- A real directory iterator over a real directory. `ls -a` rather
-      -- than a Lua library so this suite needs nothing installed.
       local h = io.popen("ls -a '" .. p .. "' 2>/dev/null")
       if not h then error("no such directory") end
       local names = {}
       for l in h:lines() do names[#names + 1] = l end
       h:close()
       if #names == 0 then error("no such directory") end
-      local i = 0
-      return function() i = i + 1; return names[i] end
+      local dirObj = { i = 0, names = names }
+      local function iter(state)
+        if type(state) ~= "table" or not state.names then
+          error("bad argument #1 to 'for iterator' "
+                .. "(directory metatable expected, got "
+                .. type(state) .. ")", 2)
+        end
+        state.i = state.i + 1
+        return state.names[state.i]
+      end
+      return iter, dirObj
     end,
     attributes = function(p)
       local h = io.popen("test -d '" .. p .. "' && echo d || (test -e '" .. p .. "' && echo f || echo n)")

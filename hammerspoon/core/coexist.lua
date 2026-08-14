@@ -64,6 +64,9 @@ _G.panelLevels = {
     focus      = 0,
     popup      = 0,
     switcher   = 1,   -- ⌥Tab HUD: above the sheet, below the timer
+    keycaster  = 2,   -- it shows what you just pressed, so it must not be
+                      -- hidden BY what you just pressed: above the sheet
+                      -- and the switcher, below the timer
     pomodoro   = 3,   -- ABOVE the cheat sheet — this is the ask
 }
 

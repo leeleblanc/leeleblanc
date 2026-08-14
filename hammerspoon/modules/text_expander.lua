@@ -200,12 +200,30 @@ function M.setup(core)
     -- Scan one directory of .json files. Collections are subdirectories
     -- (that is how an import lands); loose .json in the top level works
     -- too, with no prefix, so a single file can just be dropped in.
+    -- 🚨 hs.fs.dir RETURNS **TWO** VALUES: the iterator function AND the
+    -- directory object it walks. The iterator is a C function that reads
+    -- the directory out of that second value on every call — so capturing
+    -- only the first and writing `for entry in iter do` hands it a nil
+    -- state and it raises:
+    --      bad argument #1 to 'for iterator' (directory metatable
+    --      expected, got nil)
+    -- That is precisely what happened on LL's Mac in 6.69.0: warm() threw
+    -- on the first directory it touched and NOT ONE SNIPPET LOADED.
+    --
+    -- ⚠️ AND MY TEST DID NOT CATCH IT, WHICH IS THE REAL LESSON. The stub
+    -- returned a self-contained Lua closure that needed no state, so the
+    -- broken call worked perfectly against it. A stub that is more
+    -- forgiving than the API it stands in for is a stub that confirms my
+    -- idea of the API instead of checking the code against it — the same
+    -- mistake as reading a module list from the file that had it wrong.
+    -- The stub now demands the state, so this line cannot regress.
+    -- (capture_pad.lua has always had this right; I did not look.)
     local function scanDir(dir, label, into, problems, chooserOnly)
-        local okIter, iter = pcall(hs.fs.dir, dir)
+        local okIter, iter, dirObj = pcall(hs.fs.dir, dir)
         if not okIter or not iter then return 0, 0 end
         local prefix, suffix = readPlist(dir)
         local loaded, subdirs = 0, {}
-        for entry in iter do
+        for entry in iter, dirObj do
             if entry ~= "." and entry ~= ".." then
                 local full = dir .. "/" .. entry
                 local attrs = hs.fs.attributes(full) or {}
@@ -836,9 +854,12 @@ function M.setup(core)
         local home = os.getenv("HOME") or "~"
         local found = {}
         for _, d in ipairs(exp.searchDirs) do
-            local okIter, iter = pcall(hs.fs.dir, home .. d)
+            -- Same two-value contract as scanDir above. This site had the
+            -- identical bug and would have failed the moment the first one
+            -- was fixed.
+            local okIter, iter, dirObj = pcall(hs.fs.dir, home .. d)
             if okIter and iter then
-                for entry in iter do
+                for entry in iter, dirObj do
                     if entry:sub(-15) == ".alfredsnippets" then
                         found[#found + 1] = home .. d .. "/" .. entry
                     end

@@ -4,6 +4,95 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.71.0 — SHOW THE KEYS, AND THE BUG THAT ATE THE SNIPPETS:
+  🚨 NOT ONE SNIPPET LOADED IN 6.69.0. From LL's Console:
+        text_expander.lua:208: bad argument #1 to 'for iterator'
+        (directory metatable expected, got nil)
+     · hs.fs.dir returns TWO values — the iterator AND the directory
+       object it walks. The iterator is a C function that reads the
+       directory out of that second value on EVERY call, so capturing
+       one variable and writing `for entry in iter do` hands it a nil
+       state. warm() threw on the first folder it touched and the whole
+       feature was dead: 2,006 triggers, none of them loaded.
+     · Both call sites in text_expander had it. capture_pad.lua has
+       always had it right — I did not look before writing mine.
+     · The two safe forms, for the record:
+           for entry in hs.fs.dir(path) do            -- for takes all 3
+           local it, obj = hs.fs.dir(path) ; for e in it, obj do
+       A pcall around the call is what makes the unsafe one easy to
+       write without noticing.
+  ⚠️ AND MY OWN TEST RATIFIED THE BUG, which is the part worth keeping.
+     The stub returned a self-contained Lua closure that needed no
+     state, so the broken call worked perfectly against it and the suite
+     was green. A stub more forgiving than the API it stands in for does
+     not test the code — it confirms my idea of the API. That is the
+     same failure as reading a module list from the file that had the
+     list wrong (6.66.3), in a different costume.
+     · The stub now DEMANDS the state and raises the real message.
+     · hs-lint has a new ERROR rule, fs-dir-loses-state, so the class
+       cannot come back anywhere in the config rather than just here.
+  ⌨️ KEY CASTER (⇪⇧B) — show the shortcuts as you press them.
+     · A nearly black rounded panel floating on a shadow, right-hand
+       edge of whichever screen you are working on, vertically centred.
+       16px sans serif. Draggable, and it remembers where you put it.
+     · It STAYS UP WHILE YOU ARE STILL PRESSING. The fade is an IDLE
+       timeout, not a lifetime: every new keystroke cancels the pending
+       fade and arms a fresh one, so a chord held down simply stays.
+     · A held key becomes "⌘V ×3" rather than three rows.
+  🚨 IT SHOWS SHORTCUTS, NOT TYPING, and one rule carries that:
+     ⇧ + A LETTER IS A CAPITAL LETTER, NOT A SHORTCUT. Without it the
+     panel scrolls your whole sentence up the side of the screen.
+     · Shows: any ⌘ ⌃ ⌥ fn or ⇪ combination; ⇧ with a NON-typing key
+       (⇧⇥, ⇧⎋, ⇧↑); bare special keys that need no modifier (⎋ ⇥ ⏎
+       arrows ⇞ ⇟ ↖ ↘); every F-key; fn + anything.
+     · Hides: letters, digits, punctuation, with or without ⇧. And
+       backspace on its own — it is part of typing, and a panel that lit
+       up on every correction would be unusable. ⌘⌫ still shows.
+     · _G.keyCastTyping(true) shows everything, for a demo or a
+       screencast.
+  🛟 AND IT SWITCHES ITSELF OFF RATHER THAN DEGRADING YOUR KEYBOARD.
+     LL's requirement, verbatim: "anything we add must fail without
+     ruining, stopping, or interfering with any other running tool that
+     functions properly." This is the THIRD global keyboard tap in the
+     config and the only one that exists purely to look at things, so:
+     · IT NEVER CONSUMES A KEYSTROKE. Every path returns false,
+       including the failure paths. The suite drives every branch and
+       asserts the return value, because a display tool that eats a
+       keypress is worse than no display tool.
+     · IT NEVER LOGS WHAT YOU TYPE. Nothing reaches the Console, the
+       ledger or ⇪⇧D except counts. The panel is the only place a
+       keystroke is ever rendered, and it holds six of them in memory
+       and nothing on disk.
+     · It stands down for the shared injection guard, so the expander's
+       and autocorrect's synthetic typing is not drawn as yours.
+     · Five consecutive callback failures and it STOPS ITSELF and says
+       so. A tap that throws on every keystroke does not stop on its
+       own — it just makes the whole keyboard slower and louder.
+     · It starts OFF. A module whose job is watching your keyboard does
+       nothing at all until you press ⇪⇧B.
+  🔦 _G.hyperActive IS NOW PUBLISHED BY §3.12, because ⇪ IS INVISIBLE
+     FROM THE OUTSIDE. Caps Lock is remapped to F18 at the HID level and
+     turned into a modal, so anything watching the keyboard sees either
+     a bare F18 or — for an unclaimed key — a synthetic ⌘⇧⌃⌥ chord.
+     Neither is what you pressed. The panel would have drawn "⌘⇧⌃⌥X"
+     for a key you experienced as "⇪X": technically accurate, useless.
+     One boolean set in the two handlers that already know beats every
+     consumer guessing. The module falls back to watching F18 itself if
+     that global is absent, and says which one it is using.
+  🔑 ⇪⇧K AND ⇪⇧C WERE BOTH ALREADY TAKEN, and §0.3 caught both before
+     this module ever reached a keyboard — ⇪⇧K by the URL cleaner's
+     undo, ⇪⇧C by a MIGRATED alt+cmd+ctrl+shift+c that lives in §0.4's
+     migration map rather than in any module. That second one is a
+     source no human survey of modules/ would have found, and a silently
+     shadowed shortcut is indistinguishable from a broken feature.
+     It is ⇪⇧B, for Broadcast.
+  🎹 A HELD KEY IS TOLD FROM A DOUBLE EVENT BY THE EVENT, NOT THE CLOCK.
+     A hyper press can arrive twice (the modal, then the synthetic
+     chord) so identical text inside 60ms is collapsed — but macOS
+     repeats a held key every 30-60ms, which is INSIDE that window. No
+     timer can separate them. The autorepeat flag on the event can, and
+     does. Found by the suite showing "⌘V ×1" for a held key.
+
 NEW IN 6.70.0 — THE TIMER PANEL THAT WOULD NOT GO AWAY:
   🍅 IT WAS STUCK, AND LL WAS PRESSING ESCAPE CORRECTLY. From the
      screenshot: a panel reading "DONE ⏎ ⁄ esc", and "is stuck on screen
