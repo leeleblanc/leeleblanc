@@ -4,9 +4,47 @@
 -- =====================================================================
 -- 08-14-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.68.0-SNIPPETS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.69.0-TWO-THOUSAND
 -- =====================================================================
 
+-- NEW IN 6.69.0 — YOUR ACTUAL 2,006 SNIPPETS, AND WHAT THEY BROKE:
+--   📦 ALL FIVE COLLECTIONS IMPORT AND WORK. Emoji Pack (1,349) ·
+--      ComposeKey (548) · textpanders (80) · Mac symbols (23) · Ghostty
+--      or Terminal (6). Every prefix rule read out of the real files:
+--      ComposeKey's is "§" — TWO BYTES, not a character — Mac symbols'
+--      is "!!", Emoji Pack HAS NO info.plist AT ALL, and the other two
+--      are empty because the ";" is already inside each keyword.
+--   ⌨️ MATCHING IS NOW A REVERSE TRIE. The first version compared every
+--      trigger to the buffer on EVERY KEYSTROKE — 2,006 string compares
+--      between your key and the letter appearing, on the only thread
+--      Hammerspoon has. Measured after: 0.6µs per keystroke, bounded by
+--      the longest trigger rather than by how many there are.
+--   ⏳ !!delf, !!tableft AND !!tabright WORK AGAIN. All three were
+--      unreachable: !!del and !!tab complete first and expand. The
+--      shorter trigger now waits 0.35s to see whether you are still
+--      typing — and consumes nothing while it waits, so abandoning the
+--      wait owes you nothing. Two triggers of 2,006 pay for it.
+--   📋 MULTI-LINE SNIPPETS ARE PASTED, NOT TYPED. A synthetic Return in
+--      a Teams or Asana box SENDS the message instead of breaking the
+--      line — and two of your snippets carry Windows CRLF endings, which
+--      would have sent "Kindly," on its own. Your clipboard is put back
+--      afterwards and the history watcher is told to ignore the swap.
+--   🚨 ONE INJECTION GUARD FOR BOTH TYPING WATCHERS. Autocorrect and the
+--      expander each had their OWN "am I injecting" flag, which is half
+--      of what is needed: a flag only tells the module that wrote it to
+--      stand down. A spelling fix ending in a trigger fired a snippet;
+--      an expansion fed a word nobody typed into an 11,000-row
+--      dictionary. It is a COUNTER, not a boolean — nesting is real —
+--      and it self-clears if anything throws past it.
+--   ✅ AND AUTOCORRECT FINALLY HAS A TEST SUITE. It has run since 6.10.0
+--      with none. The TWo-caps rule is now pinned to your own words:
+--      USa→Usa, SAt→Sat, USA untouched, TV's untouched, IDs allowed,
+--      ITs deliberately not.
+--   🤝 core/coexist.lua — init.lua crossed the 4,000-line ceiling its own
+--      suite holds it to, so panel stacking, Esc routing, the injection
+--      guard and clipboard borrowing moved into one file. They belong
+--      together: all four answer "two features want the same thing".
+--
 -- NEW IN 6.68.0 — SNIPPETS, AND THREE THINGS THAT WERE LEFT TO CHANCE:
 --   ✂️ TEXT EXPANDER (⇪⇧T). Type a trigger, get the text. BOTH of your
 --      conventions work at once — `;bd` and a bare `gg1` — because the
@@ -75,31 +113,8 @@
 --      grab is a panel that takes clicks; it cannot do both. A click
 --      still does not CLOSE it, which was the actual hazard 6.31.0 fixed.
 --
--- NEW IN 6.66.5 — SEVENTEEN WARNINGS IN TWO SECONDS, AND THEY WERE MINE:
---   🚨 "hs.hotkey system callback for an eventUID we don't know about: 0"
---      That is Hammerspoon receiving a key event for a hotkey it has just
---      been told to forget, and the cause was the search box I added in
---      6.66.0. Typing a character calls show() to rebuild the filtered
---      rows; show() calls hide() first so it can never stack two panels;
---      and hide() disabled all THIRTY-EIGHT search keys, which
---      enableInput() re-enabled a moment later.
---      SEVENTY-SIX hotkey operations per character typed, with real key
---      events landing in the middle of them. Nothing broke. The warnings
---      were macOS telling us the churn was absurd, and it was right.
---   ✅ A redraw now rebuilds the CANVAS and leaves the keyboard alone
---      (hide(keepInput)). Measured: 45 disables per keystroke → 0. A real
---      close still releases every key, which is the one thing in that file
---      that must never regress — a sheet that closed holding 38 bare
---      letters is a keyboard that types into nothing.
---   🔇 COPY-ON-SELECT SAYS IT ONCE PER APP. "Finder didn't accept an
---      Accessibility watcher" fired on every switch back to Finder, and
---      the same for Asana, Archive Utility, Teams, System Settings. The
---      fact is worth knowing exactly once: a whole class of app simply
---      does not implement AXFocusedUIElementChanged, and retrying changes
---      nothing. Repeating it turns a real finding into wallpaper.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.68.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.69.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -400,7 +415,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.68.0"
+_G.configVersion = "6.69.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -1314,122 +1329,34 @@ function _G.clampToScreen(pt, w, h)
 end
 
 -- =====================================================================
--- 🪟 PANEL STACKING ORDER (6.68.0)
+-- 🤝 SHARED ARBITRATION (§0.5) — core/coexist.lua
 -- =====================================================================
--- LL: "Bring the Hammerspoon tool window in front of shortcuts."
+-- Panel stacking, who gets Esc, the shared typing-injection guard and
+-- clipboard borrowing. Lifted out of init.lua in 6.69.0 when it crossed
+-- the 4,000-line ceiling; see that file's header for what each one is
+-- for and why they belong together.
 --
--- The pomodoro and the cheat sheet were both drawn at hs.canvas's
--- `overlay` level. Two windows at the SAME level are ordered by whichever
--- was shown last, which is why the timer sat behind the shortcut panel
--- some of the time and in front of it the rest — the stacking wasn't
--- wrong, it was UNDEFINED, and undefined reads as "sometimes broken".
---
--- So it is defined here, in one table, instead of as a magic string in
--- each module. The numbers are OFFSETS FROM `overlay`, not absolute
--- levels: an NSWindow level is just an integer and hs.canvas:level()
--- takes one, so "the cheat sheet's level plus three" survives macOS
--- renumbering the named constants in a way that hard-coded 200 would not.
---
--- 🚨 THE INVARIANT IS TESTED, not assumed: test_cheatsheet asserts
--- pomodoro > cheatsheet. Anything that quietly equalises them fails.
---
--- The Mouse Grid is NOT in this table on purpose. It sits at
--- `screenSaver` (~1000) because it is a targeting overlay that must be
--- above literally everything including these panels, and expressing that
--- as "overlay + 898" would obscure why.
-_G.panelLevels = {
-    cheatsheet = 0,   -- the reference level
-    focus      = 0,
-    popup      = 0,
-    switcher   = 1,   -- ⌥Tab HUD: above the sheet, below the timer
-    pomodoro   = 3,   -- ABOVE the cheat sheet — this is the ask
-}
-
-function _G.panelLevel(name)
-    local base = 102   -- hs.canvas.windowLevels.overlay on every macOS to date
-    pcall(function()
-        local lv = (hs.canvas and hs.canvas.windowLevels or {}).overlay
-        if type(lv) == "number" then base = lv end
-    end)
-    return base + (_G.panelLevels[name] or 0)
+-- LOADED HERE, BEFORE EVERYTHING THAT USES IT. The cheat sheet asks
+-- _G.routeEscape, the pomodoro asks _G.panelLevel, autocorrect and the
+-- text expander ask _G.withInjection — all of which set up later. A
+-- failure is degradation, not death: every caller checks the global
+-- exists first, so a broken copy costs the arbitration and not the Mac.
+local coOK, coErr = pcall(function()
+    local path = hs.configdir .. '/core/coexist.lua'
+    local chunk, loadErr = loadfile(path)
+    if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
+    chunk()({})
+end)
+if not coOK then
+    print('⚠️ core/coexist.lua failed to load — panels fall back to one shared '
+          .. 'level, Esc goes to whichever binding was enabled last, and the '
+          .. 'two typing watchers stop standing down for each other. '
+          .. tostring(coErr))
+    if _G.notices then
+        _G.notices.record('boot', 'core/coexist.lua', tostring(coErr))
+    end
 end
 
--- =====================================================================
--- ⎋ WHO GETS ESCAPE (6.68.0)
--- =====================================================================
--- LL: "Everytime I hit escape the shortcut windows disappear. And, the
--- tool should be in the foreground so I [don't] accidently stop [the
--- timer by] escaping the shortcuts window first."
---
--- Two panels can want Esc at the same moment: the cheat sheet always
--- wants it (Esc closes it), and the pomodoro wants it for the ~20s after
--- a phase ends (Esc stops the timer). hs.hotkey resolves that by
--- ENABLE ORDER — the most recently enabled binding for a key wins — so
--- opening the sheet while the timer was flashing silently stole Esc from
--- the timer, and closing the sheet first was the only way to reach it.
--- Enable order is an implementation detail, not a policy, and a policy
--- is what this needs.
---
--- So: claimants register a priority and an "am I active right now?"
--- test, and whoever holds Esc asks this router FIRST. Highest active
--- priority wins; ties and inactive claimants are ignored. A claimant
--- whose handler throws does NOT swallow the keystroke — it reports and
--- lets the caller carry on, because an Esc that does nothing at all is
--- the worst of the three outcomes.
-_G.escapeClaims = {}
-
--- priority: bigger wins. active(): true when this claimant wants Esc NOW.
-function _G.claimEscape(name, priority, active, handle)
-    if type(name) ~= "string" or type(active) ~= "function"
-       or type(handle) ~= "function" then
-        print("⎋ claimEscape: bad registration for " .. tostring(name))
-        return false
-    end
-    for _, c in ipairs(_G.escapeClaims) do
-        if c.name == name then
-            c.priority, c.active, c.handle = priority or 0, active, handle
-            return true
-        end
-    end
-    table.insert(_G.escapeClaims, {
-        name = name, priority = priority or 0, active = active, handle = handle,
-    })
-    return true
-end
-
--- Called by whoever currently owns the Esc key. Returns the name of the
--- claimant that handled it, or nil meaning "it's yours, carry on".
-function _G.routeEscape(caller)
-    local mine = 0
-    for _, c in ipairs(_G.escapeClaims) do
-        if c.name == caller then mine = c.priority or 0 end
-    end
-    local best
-    for _, c in ipairs(_G.escapeClaims) do
-        if c.name ~= caller and (c.priority or 0) > mine then
-            local ok, live = pcall(c.active)
-            if ok and live and (not best or c.priority > best.priority) then
-                best = c
-            elseif not ok then
-                print("⎋ escape router: " .. c.name .. " could not say whether "
-                      .. "it wanted Esc — skipped")
-            end
-        end
-    end
-    if not best then return nil end
-    local ok, err = pcall(best.handle)
-    if not ok then
-        print("⎋ escape router: " .. best.name .. " failed to handle Esc — "
-              .. tostring(err))
-        if _G.notices then
-            _G.notices.record("runtime", "escape router",
-                              best.name .. " failed to handle Esc: " .. tostring(err))
-        end
-        return nil          -- fall through: the caller still gets its Esc
-    end
-    if _G.diag then _G.diag.say("escape", best.name .. " took Esc from " .. tostring(caller)) end
-    return best.name
-end
 
 local csOK, csErr = pcall(function()
     local path = hs.configdir .. '/core/cheatsheet.lua'
@@ -1869,6 +1796,17 @@ _G.clipboardTimer = hs.timer.doEvery(0.5, function()
     local currentChangeCount = hs.pasteboard.changeCount()
     if currentChangeCount ~= lastChangeCount then
         lastChangeCount = currentChangeCount
+
+        -- 📋 6.69.0 — SOMEONE BORROWED THE CLIPBOARD. The text expander
+        -- pastes multi-line snippets and puts your clipboard straight
+        -- back; both changes land inside one 0.5s poll, so what we would
+        -- see here is your ORIGINAL entry arriving as if freshly copied.
+        -- Filing it again reorders the history you were about to use.
+        -- The counter is still advanced above, so the NEXT real copy is
+        -- seen normally.
+        if hs.timer.secondsSinceEpoch() < (_G.pasteboardSuppressUntil or 0) then
+            return
+        end
 
         -- Copied image FILES take priority (6.11.0): OCR + tag each
         -- one, and skip the image/text handling for this clipboard

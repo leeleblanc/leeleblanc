@@ -96,6 +96,15 @@ function M.setup(core)
     exp.maxChars      = 2000      -- a snippet longer than this is REFUSED
     exp.wordStartOnly = true      -- see the 🧨 note in the header
     exp.injectDelay   = 0.01      -- let the app settle before we retype
+    -- Snippets longer than this, and ANY snippet containing a newline,
+    -- are pasted rather than typed. See the 📋 note at pasteText.
+    exp.pasteOver     = 80
+    exp.restoreAfter  = 0.25      -- seconds before your clipboard comes back
+    -- How long a trigger that is a PREFIX of a longer trigger waits to see
+    -- whether you are still typing. Only affects those few — !!del and
+    -- !!tab in LL's Mac symbols pack. Everything else fires immediately.
+    exp.ambiguityWait = 0.35
+    exp.slowLoadSecs  = 2.0       -- past this, the scan reports itself
     exp.excludedApps  = {         -- exact names; expansion never runs here
         "Terminal",
     }
@@ -168,6 +177,13 @@ function M.setup(core)
         if type(text) ~= "string" or text == "" then
             return nil, nil, nil, "empty snippet"
         end
+        -- 🚨 CRLF IS NORMALISED AT LOAD. Alfred stores what was on the
+        -- clipboard when the snippet was made, and two of LL's — kn1
+        -- ("Kindly,\r\nLL") and ll1 — carry Windows line endings. A lone
+        -- CR is a Return to macOS: pasted into a chat box, "Kindly," would
+        -- send on its own and "LL" would become a second message. One
+        -- gsub here is worth more than any amount of care later.
+        text = text:gsub("\r\n", "\n"):gsub("\r", "\n")
         if clen(text) > exp.maxChars then
             return nil, nil, nil, string.format("%d characters — over the %d limit",
                                                 clen(text), exp.maxChars)
@@ -229,6 +245,7 @@ function M.setup(core)
     -- trigger you will type and watch do nothing, and "it just didn't
     -- work" is the single least debuggable sentence in this config.
     function exp.load()
+        local t0 = hs.timer.secondsSinceEpoch()
         local into, problems, chooserOnly = {}, {}, {}
         local attrs = hs.fs.attributes(exp.dir)
         if not attrs then
@@ -249,34 +266,14 @@ function M.setup(core)
 
         exp.snippets    = into
         exp.chooserOnly = chooserOnly
-        exp.count, exp.longest = 0, 0
+        exp.count, exp.longest, exp.longestBytes = 0, 0, 0
         for trigger in pairs(into) do
             exp.count = exp.count + 1
             local n = clen(trigger)
             if n > exp.longest then exp.longest = n end
+            if #trigger > exp.longestBytes then exp.longestBytes = #trigger end
         end
-        -- 🚨 A TRIGGER THAT CAN NEVER FIRE IS REPORTED. Expansion happens
-        -- the instant a trigger COMPLETES — it cannot wait to see whether
-        -- more is coming — so if `gg1` is a trigger, `gg12` is unreachable:
-        -- `gg1` fires on the "1" and the "2" lands in a fresh buffer.
-        -- Alfred has the same limit and says nothing about it, which is how
-        -- you end up believing a snippet is broken.
-        --
-        -- Note the direction. A trigger that is a strict PREFIX of another
-        -- shadows it. A trigger that is a SUFFIX does not: `bd` and `;bd`
-        -- both complete on the same keystroke, and longest-match gives it
-        -- to `;bd`. Getting that backwards would report the working case
-        -- and stay quiet about the broken one.
-        for a in pairs(into) do
-            for b in pairs(into) do
-                if a ~= b and #a < #b and b:sub(1, #a) == a then
-                    problems[#problems + 1] = string.format(
-                        "%s can never fire: %s completes first and expands. "
-                        .. "Rename one of them.", b, a)
-                end
-            end
-        end
-
+        exp.buildIndex()
         exp.problems = problems
         if #problems > 0 then
             table.sort(problems)
@@ -288,8 +285,33 @@ function M.setup(core)
                                   table.concat(problems, " · "))
             end
         end
-        say(string.format("loaded %d triggers (longest %d chars), %d chooser-only, %d problems",
-                          exp.count, exp.longest, #chooserOnly, #problems))
+        exp.loadSecs = hs.timer.secondsSinceEpoch() - t0
+        say(string.format("loaded %d triggers in %.0fms (longest %d chars, %d "
+                          .. "trie nodes, %d waiting), %d chooser-only, %d problems",
+                          exp.count, exp.loadSecs * 1000, exp.longest,
+                          exp.indexNodes or 0, exp.ambiguousCount or 0,
+                          #chooserOnly, #problems))
+        -- 🚨 A SLOW SCAN IS REPORTED WITH ITS NUMBER, not left to be felt.
+        -- The snippets live in the OneDrive Logs folder, shared with the
+        -- other Mac like autocorrect.csv — and two thousand tiny files in
+        -- a synced folder is exactly the shape that OneDrive Files
+        -- On-Demand turns into two thousand downloads. This runs in warm()
+        -- so it is off the boot path either way, but a scan that has gone
+        -- from a quarter of a second to twenty is a fact worth having
+        -- rather than a Mac that feels wrong after login.
+        if exp.loadSecs > exp.slowLoadSecs then
+            print(string.format(
+                "✂️ Text expander: reading %d snippets took %.1fs from %s. "
+                .. "If that folder is on OneDrive, its files may be cloud-only "
+                .. "placeholders — mark it \"Always keep on this device\", or "
+                .. "set expander.dir to a local path.",
+                exp.count, exp.loadSecs, exp.dir))
+            if _G.notices then
+                _G.notices.record("expander", "slow snippet scan",
+                    string.format("%.1fs for %d files in %s",
+                                  exp.loadSecs, exp.count, exp.dir))
+            end
+        end
         return true
     end
 
@@ -332,7 +354,49 @@ function M.setup(core)
     -- deleteCount is the number of characters ALREADY IN THE DOCUMENT, so
     -- it is the trigger minus its final character: that keystroke was
     -- consumed by the tap and never reached the app.
-    function exp.inject(trigger, snip, deleteCount)
+    -- 📋 WHY SOME SNIPPETS ARE PASTED INSTEAD OF TYPED.
+    -- hs.eventtap.keyStrokes sends text as synthetic key events. For a
+    -- word or an emoji that is exactly right — fast, and it leaves your
+    -- clipboard alone. For anything with a NEWLINE in it it is dangerous:
+    -- a synthetic Return inside a chat box, a Teams message or an Asana
+    -- comment SENDS the thing instead of breaking the line. LL has eight
+    -- such snippets — the out-of-office, the book-recommendation reply,
+    -- the Asana and OCLC blocks — and they are precisely the ones where
+    -- firing early would be most embarrassing.
+    --
+    -- So: multi-line or long → the clipboard, ⌘V, and put the old
+    -- contents straight back. Everything else is typed.
+    --
+    -- ⚠️ THE RESTORE IS NOT OPTIONAL AND NOT BEST-EFFORT. Borrowing
+    -- someone's clipboard and forgetting to give it back is worse than
+    -- not having the feature. It restores on the failure path too.
+    local function shouldPaste(text)
+        return text:find("\n", 1, true) ~= nil or clen(text) > exp.pasteOver
+    end
+
+    local function pasteText(text)
+        local okRead, prior = pcall(hs.pasteboard.getContents)
+        if _G.pasteboardSuppress then _G.pasteboardSuppress(exp.restoreAfter + 1.0) end
+        local okSet = pcall(function() hs.pasteboard.setContents(text) end)
+        if not okSet then return false, "could not put the snippet on the clipboard" end
+        local okPaste = pcall(function() hs.eventtap.keyStroke({ "cmd" }, "v", 0) end)
+        -- The restore is DELAYED, not immediate: ⌘V is asynchronous from
+        -- here — the paste is a synthetic event the app has not processed
+        -- yet — and putting the old text back in the same breath is a race
+        -- the app loses, pasting whatever was there before.
+        hold(hs.timer.doAfter(exp.restoreAfter, function()
+            pcall(function()
+                hs.pasteboard.setContents((okRead and prior) or "")
+            end)
+        end))
+        if not okPaste then return false, "⌘V was refused" end
+        return true
+    end
+
+    -- tail: characters that were typed AFTER the trigger and consumed by
+    -- us, which have to reappear after the snippet. Only the deferred
+    -- path uses it — see the ⏳ note in the tap.
+    function exp.inject(trigger, snip, deleteCount, tail)
         exp.injecting = true
         local body = exp.substitute(snip.text, exp.unknownSeen)
         local before, after = body, nil
@@ -341,28 +405,55 @@ function M.setup(core)
             before = body:sub(1, cut - 1)
             after  = body:sub(cut + #"{cursor}")
         end
-        local ok, err = pcall(function()
+        local whole = before .. (after or "") .. (tail or "")
+        local pasteErr
+        -- 🚨 THROUGH THE SHARED GUARD (6.69.0), not just our own flag.
+        -- exp.injecting stops OUR tap re-reading what we type; it says
+        -- nothing to autocorrect's tap, which is watching the same
+        -- keystrokes. Without this, expanding `hte` into "the" fed a word
+        -- nobody typed into the spelling corrector. See _G.withInjection.
+        local ok, err = (_G.withInjection or pcall)(function()
             for _ = 1, deleteCount do
                 hs.eventtap.keyStroke({}, "delete", 0)
             end
-            hs.eventtap.keyStrokes(before .. (after or ""))
-            if after and #after > 0 then
-                for _ = 1, clen(after) do
+            if shouldPaste(whole) then
+                local okP, why = pasteText(whole)
+                if not okP then pasteErr = why; error(why) end
+                snip.viaPaste = true
+            else
+                hs.eventtap.keyStrokes(whole)
+            end
+            -- {cursor} walks back over everything that follows it, which
+            -- includes any tail we re-typed — the caret belongs where the
+            -- snippet said, not before the character you happened to end on.
+            local back = clen(after or "") + clen(tail or "")
+            if after and back > 0 then
+                for _ = 1, back do
                     hs.eventtap.keyStroke({}, "left", 0)
                 end
             end
         end)
+        err = pasteErr or err
         exp.injecting = false
         if ok then
             exp.lastFired = { name = snip.name, trigger = trigger,
                               at = os.date("%H:%M:%S") }
+            -- Autocorrect watched us eat the trigger's last character and
+            -- is now holding the front of a word that no longer exists on
+            -- screen. Tell it to let go — see the 🚨 above its tap.
+            if _G.autocorrectResetBuffer then
+                pcall(_G.autocorrectResetBuffer)
+            end
             say("expanded " .. snip.name)
             return true
         end
-        -- 🚨 THE KEYSTROKE IS NOT LOST. The final character was consumed on
-        -- the promise that this would replace it, and a failed injection
-        -- that also ate a character is two bugs instead of one.
-        pcall(function() hs.eventtap.keyStrokes(trigger:sub(-1)) end)
+        -- 🚨 THE KEYSTROKES ARE NOT LOST. Whatever we consumed on the
+        -- promise that this would replace it gets typed back — the final
+        -- character of the trigger on the immediate path, the tail on the
+        -- deferred one. An injection that fails AND eats a character is
+        -- two bugs instead of one.
+        local owed = tail or trigger:sub(-1)
+        pcall(function() hs.eventtap.keyStrokes(owed) end)
         print("✂️ Text expander: could not insert '" .. tostring(snip.name)
               .. "' — " .. tostring(err))
         if _G.notices then
@@ -373,11 +464,93 @@ function M.setup(core)
     end
 
     -- ---- matching --------------------------------------------------------
-    -- The longest trigger wins, so `;bdx` beats `;bd` when both exist and
-    -- the shorter one can never shadow the longer one.
+    -- 🚨 THIS RUNS ON EVERY KEYSTROKE YOU MAKE, ON THE MAIN THREAD, WHICH
+    -- IS THE ONLY THREAD HAMMERSPOON HAS. LL's five Alfred collections
+    -- come to 2,006 triggers. The first version of this function walked
+    -- every one of them per character typed — 2,006 string comparisons
+    -- between pressing a key and the letter appearing. That is fine for
+    -- the six snippets it was written against and it is not fine for the
+    -- corpus it was written FOR, and "correct but too slow to type
+    -- through" is a bug like any other.
     --
+    -- So: a REVERSE TRIE, keyed on bytes. Each trigger is inserted
+    -- backwards; matching walks the buffer backwards from the end and
+    -- stops the moment there is no child. Cost is bounded by the LONGEST
+    -- TRIGGER (33 bytes here), not by how many there are — the same 33
+    -- steps whether you have six snippets or six thousand.
+    --
+    -- Bytes rather than characters on purpose: a UTF-8 string compares
+    -- and slices by byte in Lua, the buffer is bytes, and every multi-byte
+    -- character has a unique byte sequence — so byte-wise matching gives
+    -- exactly the same answers as character-wise matching, without
+    -- decoding anything on the hot path. It is the character COUNT that
+    -- has to be right, and that is computed once at load.
+    exp.index = { children = {} }
+
+    -- 🚨 ONE FUNCTION REBUILDS **EVERYTHING** DERIVED FROM exp.snippets.
+    -- There are two derived structures — the trie and the ambiguity map —
+    -- and while they were built in different places, adding a trigger
+    -- rebuilt one and left the other stale. A snippet that exists, matches,
+    -- and then takes the wrong path is worse than one that does not load.
+    -- If you add a third derived thing, it goes in here.
+    function exp.buildIndex()
+        local root, nodes, list = { children = {} }, 1, {}
+        for trigger, snip in pairs(exp.snippets) do
+            list[#list + 1] = trigger
+            local node = root
+            for i = #trigger, 1, -1 do
+                local b = trigger:sub(i, i)
+                local nxt = node.children[b]
+                if not nxt then
+                    nxt = { children = {} }
+                    node.children[b] = nxt
+                    nodes = nodes + 1
+                end
+                node = nxt
+            end
+            node.trigger, node.snip = trigger, snip
+        end
+        exp.index = root
+        exp.indexNodes = nodes
+
+        -- ⏳ WHICH TRIGGERS ARE PREFIXES OF OTHER TRIGGERS.
+        -- !!del is one, because !!delf exists; those wait before expanding
+        -- (see the ⏳ note in the tap) so both stay reachable.
+        --
+        -- 🚨 SORTED-ADJACENCY, NOT EVERY PAIR. The obvious double loop is
+        -- O(n²) — 4,024,036 comparisons on LL's 2,006 triggers, on the
+        -- main thread, every reload. Sorted lexicographically, every
+        -- string beginning with A lands immediately after A, so scanning
+        -- forward while the prefix still holds finds all of them and stops.
+        -- O(n log n) plus the number of matches, which here is three.
+        table.sort(list)
+        exp.ambiguous, exp.ambiguousCount = {}, 0
+        for i = 1, #list do
+            local a = list[i]
+            local j = i + 1
+            while list[j] and #list[j] > #a and list[j]:sub(1, #a) == a do
+                if not exp.ambiguous[a] then
+                    exp.ambiguous[a] = {}
+                    exp.ambiguousCount = exp.ambiguousCount + 1
+                end
+                exp.ambiguous[a][#exp.ambiguous[a] + 1] = list[j]
+                j = j + 1
+            end
+        end
+        return nodes
+    end
+
     -- boundaryOK: see the 🧨 note in the header. Only triggers that begin
-    -- with a letter or digit are asked for one.
+    -- with a letter or digit are asked for one — 77 of LL's 2,006, which
+    -- is exactly the `gg1` family the rule exists for.
+    --
+    -- ⚠️ THE PRECEDING CHARACTER IS TESTED BY ITS LAST BYTE. If what comes
+    -- before the trigger is multi-byte (§, an emoji, an accented letter),
+    -- `at` lands on a UTF-8 continuation byte, which never matches %w — so
+    -- it reads as a boundary. That is the right answer for the right
+    -- reason: Lua's %w is ASCII-only, so a non-ASCII letter would not
+    -- match even if we decoded it properly. Written down because it looks
+    -- like an accident and is not one.
     function exp.boundaryOK(buffer, trigger)
         if not exp.wordStartOnly then return true end
         if not trigger:sub(1, 1):match("[%w]") then return true end
@@ -386,17 +559,61 @@ function M.setup(core)
         return buffer:sub(at, at):match("[%w]") == nil
     end
 
+    -- Walks back from the end of the buffer. The DEEPEST node carrying a
+    -- trigger wins, which is longest-match: `;bd` beats `bd` when both end
+    -- on the same keystroke. A trigger whose word boundary fails is
+    -- skipped but the walk CONTINUES — a longer trigger further back may
+    -- still be legitimate.
     function exp.match(buffer)
-        local best, bestLen = nil, 0
-        for trigger, snip in pairs(exp.snippets) do
-            local n = #trigger
-            if n > bestLen and #buffer >= n
-               and buffer:sub(-n) == trigger
-               and exp.boundaryOK(buffer, trigger) then
-                best, bestLen = { trigger = trigger, snip = snip }, n
+        local node, best = exp.index, nil
+        local n = #buffer
+        local limit = math.min(n, exp.longestBytes or n)
+        for i = 0, limit - 1 do
+            local b = buffer:sub(n - i, n - i)
+            node = node.children[b]
+            if not node then break end
+            if node.trigger and exp.boundaryOK(buffer, node.trigger) then
+                best = { trigger = node.trigger, snip = node.snip }
             end
         end
         return best
+    end
+
+    -- Forward-declared: armPending's timer needs it, and the definition
+    -- lives with the rest of the tap below where it reads in context.
+    local excluded
+
+    -- ---- the deferred expansion, armed and disarmed ----------------------
+    -- Held in exp.pending so ⇪⇧D can see one waiting, and so the cancel
+    -- paths below have one thing to clear rather than three.
+    exp.pending, exp.pendingTimer = nil, nil
+
+    function exp.cancelPending(why)
+        if exp.pendingTimer then
+            pcall(function() exp.pendingTimer:stop() end)
+        end
+        if why and exp.pending then
+            say("stopped waiting on " .. exp.pending.trigger .. " (" .. why .. ")")
+        end
+        exp.pending, exp.pendingTimer = nil, nil
+    end
+
+    function exp.armPending(p)
+        if exp.pendingTimer then pcall(function() exp.pendingTimer:stop() end) end
+        exp.pending = p
+        exp.pendingTimer = hs.timer.doAfter(exp.ambiguityWait, function()
+            local q = exp.pending
+            exp.pending, exp.pendingTimer = nil, nil
+            if not q then return end
+            if not exp.enabled then return end
+            if excluded() then return end
+            -- You stopped typing. Nothing was consumed, so the trigger AND
+            -- everything typed since it are both on screen and ours to
+            -- remove; `since` is re-typed after the snippet.
+            exp.inject(q.trigger, q.snip,
+                       clen(q.trigger) + clen(q.since), q.since ~= "" and q.since or nil)
+        end)
+        hold(exp.pendingTimer)
     end
 
     -- ---- the typing watcher ---------------------------------------------
@@ -418,7 +635,7 @@ function M.setup(core)
         [36]  = true, [76]  = true, [48] = true,            -- return, enter, tab
     }
 
-    local function excluded()
+    function excluded()
         local ok, app = pcall(hs.application.frontmostApplication)
         if not ok or not app then return false end
         local okN, name = pcall(function() return app:name() end)
@@ -436,14 +653,28 @@ function M.setup(core)
         function(ev)
             if exp.injecting then return false end
 
+            -- 🚨 EVERY PATH THAT ABANDONS THE BUFFER MUST ALSO ABANDON A
+            -- PENDING EXPANSION, and this is the sharpest edge in the whole
+            -- module. A deferred expansion deletes N characters BACKWARDS
+            -- FROM THE CARET on the assumption the trigger is still sitting
+            -- there. Click somewhere else, press an arrow, hit Return — the
+            -- caret is now somewhere else entirely and those deletes would
+            -- eat a sentence you did not type. Cancelling is always safe
+            -- (nothing was consumed, so nothing is owed); firing into a
+            -- moved caret never is.
             local t = ev:getType()
             if t ~= hs.eventtap.event.types.keyDown then
                 buffer = ""              -- the cursor moved; nothing carries over
+                exp.cancelPending("mouse click")
                 return false
             end
 
             local flags = ev:getFlags()
-            if flags.cmd or flags.ctrl then buffer = "" return false end
+            if flags.cmd or flags.ctrl then
+                buffer = ""
+                exp.cancelPending("a ⌘/⌃ chord")
+                return false
+            end
 
             local code = ev:getKeyCode()
             if code == 51 then                                  -- delete
@@ -453,13 +684,21 @@ function M.setup(core)
                              and buffer:sub(1, (utf8.offset(buffer, n) or #buffer) - 1)
                              or  buffer:sub(1, -2)
                 end
+                -- Backspace means you are UNDOING the trigger, which is the
+                -- clearest possible "no" a pending expansion can receive.
+                exp.cancelPending("backspace")
                 return false
             end
-            if clearCodes[code] then buffer = "" return false end
+            if clearCodes[code] then
+                buffer = ""
+                exp.cancelPending("the caret moved")
+                return false
+            end
 
             local ch = ev:getCharacters()
             if not ch or ch == "" or clen(ch) ~= 1 then
                 buffer = ""                                     -- function keys, IME
+                exp.cancelPending("a key we cannot account for")
                 return false
             end
 
@@ -473,10 +712,65 @@ function M.setup(core)
 
             if not (exp.enabled and exp.count > 0) then return false end
             local hit = exp.match(buffer)
+
+            -- ⏳ ---- THE DEFERRED PATH: TRIGGERS THAT ARE PREFIXES OF OTHERS
+            -- !!del is a trigger and so is !!delf. Fire on the "l" and
+            -- !!delf is unreachable forever and you are left holding a
+            -- stray "f". So !!del WAITS to see whether you are still
+            -- typing. Three of LL's Mac symbols depend on this; nothing
+            -- else in 2,006 triggers pays a millisecond for it.
+            --
+            -- 🚨 WHILE WAITING WE CONSUME NOTHING. The characters reach
+            -- the document exactly as typed, so if the wait is abandoned
+            -- there is nothing to give back and nothing to undo. That is
+            -- the whole reason this is safe: the ONLY thing a pending
+            -- expansion ever does is delete text it can see is there.
+            if exp.pending then
+                local p = exp.pending
+                -- Did this keystroke keep us on the road to a longer one?
+                local grown = p.trigger .. p.since .. ch
+                local stillPossible = false
+                for _, longer in ipairs(exp.ambiguous[p.trigger] or {}) do
+                    if #longer >= #grown and longer:sub(1, #grown) == grown then
+                        stillPossible = true break
+                    end
+                end
+                if hit and #hit.trigger > #p.trigger then
+                    -- The longer one completed. The wait did its job.
+                    exp.cancelPending("a longer trigger completed")
+                    -- fall through to the immediate path below
+                elseif stillPossible then
+                    p.since = p.since .. ch
+                    exp.armPending(p)          -- restart the clock
+                    return false
+                else
+                    -- 🚨 THIS KEYSTROKE SETTLES IT: no longer trigger can
+                    -- follow, so the short one was right after all. Consume
+                    -- this character and re-type it AFTER the snippet — the
+                    -- same move autocorrect makes with its boundary key.
+                    -- Deleting the whole trigger, not len-1: none of it was
+                    -- consumed on the way in.
+                    local tail = p.since .. ch
+                    exp.cancelPending(nil)
+                    buffer = ""
+                    if excluded() then return false end
+                    hold(hs.timer.doAfter(exp.injectDelay, function()
+                        exp.inject(p.trigger, p.snip, clen(p.trigger) + clen(tail), tail)
+                    end))
+                    return true
+                end
+            end
+
             if not hit then return false end
             if excluded() then return false end
 
             local trigger, snip = hit.trigger, hit.snip
+
+            if exp.ambiguous[trigger] then
+                exp.armPending({ trigger = trigger, snip = snip, since = "" })
+                return false             -- let the character through
+            end
+
             buffer = ""
             -- The last character is consumed here and re-typed as part of
             -- the replacement, so only the preceding characters need

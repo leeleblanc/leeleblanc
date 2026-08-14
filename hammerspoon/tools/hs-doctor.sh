@@ -109,7 +109,7 @@ if [ ! -d "$HS/core" ]; then
   echo "      and the boot summary are all OFF. Copy the core/ folder across."
 else
   printf "   %-22s %7s  %-16s %s\n" NAME BYTES MODIFIED NOTE
-  for n in diagnostics cheatsheet boot_report capabilities notices; do
+  for n in diagnostics cheatsheet boot_report capabilities notices coexist; do
     f="$HS/core/$n.lua"
     if [ -f "$f" ]; then
       printf "   %-22s %7s  %-16s %s\n" "$n" \
@@ -118,7 +118,7 @@ else
       printf "   %-22s %7s  %-16s %s\n" "$n" "-" "-" "❌ MISSING"
     fi
   done
-  echo "   count: $(ls -1 "$HS/core"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 5)"
+  echo "   count: $(ls -1 "$HS/core"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 6)"
 fi
 
 # ---- 4c. what this config will actually run ---------------------------

@@ -217,6 +217,10 @@ return function(core)
             local e = _G.textExpander
             add("   Snippet detail : %d triggers, %d problems, expansion %s",
                 e.count or 0, #(e.problems or {}), e.enabled and "ON" or "OFF")
+            add("   Snippet index  : %d trie nodes, longest trigger %d chars, "
+                .. "%d waiting on a longer one, scan %.0fms",
+                e.indexNodes or 0, e.longest or 0, e.ambiguousCount or 0,
+                (e.loadSecs or 0) * 1000)
             for _, p in ipairs(e.problems or {}) do
                 add("      ⚠️ %s", tostring(p))
             end

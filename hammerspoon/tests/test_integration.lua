@@ -671,14 +671,26 @@ out("\n=== 4. 6.68.0 — WHO IS IN FRONT, AND WHO GETS ESCAPE ===\n")
 -- checks the code against another copy of the same assumption confirms
 -- the assumption. That is exactly how four modules never loaded (§2).
 do
-    local f = io.open(HS .. "/init.lua", "r")
+    local f = io.open(HS .. "/core/coexist.lua", "r")
     local init = f and f:read("*a") or "" ; if f then f:close() end
-    local block = init:match("(_G%.panelLevels = {.-\n    return best%.name\nend)")
-    check("the stacking + escape block was found in init.lua", block ~= nil)
+    -- 🚨 TWO SEPARATE ANCHORS, ONE PER BLOCK. A single span from
+    -- _G.panelLevels to routeEscape's end LOOKED right and quietly grew to
+    -- swallow whatever was inserted between them — which in 6.69.0 was the
+    -- injection guard, complete with an hs.timer.doEvery the sandbox does
+    -- not stub. An extraction that silently widens is an extraction that
+    -- eventually tests something else.
+    local levelsBlock = init:match(
+        "(_G%.panelLevels = {.-\n    return base %+ %(_G%.panelLevels%[name%] or 0%)\nend)")
+    local escBlock = init:match("(_G%.escapeClaims = {}.-\n    return best%.name\nend)")
+    check("the panel-stacking block was found in core/coexist.lua", levelsBlock ~= nil)
+    check("the escape-router block was found in core/coexist.lua", escBlock ~= nil)
+    local block = levelsBlock and escBlock and (levelsBlock .. "\n" .. escBlock)
 
     if block then
         local sandbox = {
-            hs = { canvas = { windowLevels = { overlay = 102 } } },
+            hs = { canvas = { windowLevels = { overlay = 102 } },
+                   timer = { secondsSinceEpoch = function() return 1000 end,
+                             doEvery = function() return { stop = function() end } end } },
             print = function() end,
             table = table, type = type, ipairs = ipairs, pairs = pairs,
             pcall = pcall, tostring = tostring, math = math, string = string,
@@ -784,6 +796,88 @@ do
                   sandbox.claimEscape("bad", 1, function() return true end, 42) == false
                   and #sandbox.escapeClaims == 2, #sandbox.escapeClaims)
         end
+    end
+
+    out("   -- 6.69.0: the shared injection guard --\n")
+    -- Two taps now watch every keystroke AND type back into the document.
+    -- Each had its own "am I injecting" flag, which is half of what is
+    -- needed: a flag only tells the module that wrote it to stand down.
+    local gblock = init:match("(_G%.injectDepth = 0.-\n    return ok, err\nend)")
+    check("the injection guard was found in core/coexist.lua", gblock ~= nil)
+    if gblock then
+        local sb = {
+            hs = { timer = { secondsSinceEpoch = function() return 1000 end } },
+            pcall = pcall, math = math, type = type, print = function() end,
+        }
+        sb._G = sb
+        local ch = load(gblock, "guard", "t", sb)
+        check("...and it runs on its own", ch ~= nil)
+        if ch then
+            ch()
+            check("nothing is injecting to start with", sb.typingInjection() == false)
+            local sawInside = false
+            sb.withInjection(function() sawInside = sb.typingInjection() end)
+            check("a tap standing down can SEE that it should", sawInside == true)
+            check("...and the guard drops again afterwards",
+                  sb.typingInjection() == false)
+
+            local depths = {}
+            sb.withInjection(function()
+                depths[1] = sb.injectDepth
+                sb.withInjection(function() depths[2] = sb.injectDepth end)
+                depths[3] = sb.injectDepth
+            end)
+            check("🚨 IT IS A COUNTER, NOT A BOOLEAN. An expander snippet "
+               .. "ending in a word autocorrect wants to fix nests one "
+               .. "injection inside another; a boolean would clear on the "
+               .. "way out of the inner one and leave the outer unguarded",
+                  depths[1] == 1 and depths[2] == 2 and depths[3] == 1,
+                  table.concat(depths, "/"))
+            check("...and unwinds all the way to zero",
+                  sb.typingInjection() == false, sb.injectDepth)
+
+            -- pcall'd: a regression here THROWS PAST withInjection, which
+            -- aborts the whole run and blames the next line. Guarding the
+            -- call is what turns that into one failing check.
+            local outerOK, ok = pcall(sb.withInjection,
+                                      function() error("the app refused") end)
+            check("a throw inside does not escape withInjection", outerOK == true)
+            check("...and is reported to the caller", ok == false)
+            check("🚨 AND STILL RELEASES THE GUARD. A counter stuck above "
+               .. "zero switches BOTH typing features off for the rest of "
+               .. "the session — the quietest possible failure",
+                  sb.typingInjection() == false, sb.injectDepth)
+        end
+    end
+
+    out("   -- and the clipboard watcher can be told to look away --\n")
+    do
+        -- 🚨 THE TWO HALVES LIVE IN DIFFERENT FILES, so both are read.
+        -- The borrower's switch is in core/coexist.lua; the watcher that
+        -- has to honour it stayed in init.lua, shared with image OCR.
+        -- Checking only the half that declares it is how you end up with
+        -- a suppression nobody reads.
+        local co = init:gsub("%-%-[^\n]*", "")
+        local fi = io.open(HS .. "/init.lua", "r")
+        local live = (fi and fi:read("*a") or ""):gsub("%-%-[^\n]*", "")
+        if fi then fi:close() end
+        check("_G.pasteboardSuppress exists for a borrower to call",
+              co:find("function _G%.pasteboardSuppress%(") ~= nil)
+        check("🚨 AND THE SHARED WATCHER ACTUALLY HONOURS IT. Publishing a "
+           .. "suppression nobody reads is worse than not having one — it "
+           .. "reads like the problem is solved",
+              live:find("pasteboardSuppressUntil") ~= nil
+              and live:find("hs%.timer%.secondsSinceEpoch%(%) < %(_G%.pasteboardSuppressUntil")
+                  ~= nil)
+        check("...and the changeCount is still advanced first, so the NEXT "
+           .. "real copy is seen normally", (function()
+            local w = live:match("_G%.clipboardTimer = hs%.timer%.doEvery%b()")
+                      or live:match("_G%.clipboardTimer.-\n    end\n%)")
+            if not w then return false end
+            local iAdv = w:find("lastChangeCount = currentChangeCount", 1, true)
+            local iSup = w:find("pasteboardSuppressUntil", 1, true)
+            return iAdv and iSup and iAdv < iSup
+        end)())
     end
 
     out("   -- and the panels really use it --\n")

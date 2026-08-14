@@ -4,6 +4,119 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.69.0 — YOUR ACTUAL 2,006 SNIPPETS, AND WHAT THEY BROKE:
+  📦 ALL FIVE COLLECTIONS IMPORT AND WORK. Every prefix rule below was
+     READ OUT OF THE FILES, not guessed at:
+       Emoji Pack            1349   NO info.plist AT ALL
+       ComposeKey             548   prefix "§" — a TWO-BYTE character
+       textpanders             80   empty (bare gg1-style keywords)
+       Mac symbols             23   prefix "!!"
+       Ghostty or Terminal      6   empty (";" already in each keyword)
+     · A MISSING info.plist IS NOT A BROKEN COLLECTION, it is a
+       collection with no prefix. Emoji Pack ships without one.
+     · A PREFIX IS NOT REQUIRED TO BE ASCII. ComposeKey's "§" is two
+       bytes, so every length and offset in the matcher had to be honest
+       about the difference between bytes and characters.
+     · 636 of the 2,006 triggers CONTAIN A SPACE (":aerial tramway:",
+       "!!caps lock"). A buffer that cleared on space would have lost a
+       third of them; this one keeps spaces, which is why they work.
+     · Only 77 triggers begin with a letter or digit — and those are
+       exactly the gg1 family the word-boundary rule exists for. The
+       other 1,929 start with punctuation and are exempt automatically.
+     · 0 triggers collide across the five collections.
+  ⌨️ MATCHING IS NOW A REVERSE TRIE, AND THAT IS NOT A REFINEMENT.
+     The first version compared EVERY trigger against the buffer on
+     EVERY KEYSTROKE. Six snippets: invisible. 2,006 snippets: two
+     thousand string comparisons between pressing a key and the letter
+     appearing, on the only thread Hammerspoon has.
+     · Each trigger is inserted backwards into a byte trie; matching
+       walks back from the end of the buffer and stops the moment there
+       is no child. Cost is bounded by the LONGEST TRIGGER (33 bytes),
+       not by how many exist — the same work at six snippets or six
+       thousand.
+     · Measured in the suite: 0.6µs per keystroke over 2,006 triggers.
+     · "Correct but too slow to type through" is a bug like any other,
+       and it is the kind a six-snippet fixture will never show you.
+  ⏳ !!delf, !!tableft AND !!tabright WORK AGAIN — all three were
+     unreachable. Expansion fires the instant a trigger completes, so
+     !!del expanded on the "l" and left you holding a stray "f"; !!tab
+     did the same to both tab variants.
+     · The SHORTER trigger now waits 0.35s to see whether you are still
+       typing. One more keystroke either extends it to the longer
+       trigger or settles it immediately — no pause you have to sit
+       through unless you genuinely stop.
+     · 🚨 AND IT CONSUMES NOTHING WHILE WAITING. The characters reach
+       the document exactly as typed, so abandoning the wait owes you
+       nothing. The only thing a pending expansion ever does is delete
+       text it can see is there — which is why an arrow key, a click,
+       Return, Escape or backspace cancels it outright rather than
+       firing into a caret that has moved.
+     · Two triggers out of 2,006 pay for this. Nothing else waits.
+  📋 MULTI-LINE SNIPPETS ARE PASTED, NOT TYPED. hs.eventtap.keyStrokes
+     sends synthetic key events, and a synthetic Return inside a Teams
+     message, an Asana comment or a chat box SENDS the thing instead of
+     breaking the line. Eight of your snippets are multi-line or long —
+     the out-of-office, the book-recommendation reply, the Asana and
+     OCLC blocks — precisely the ones where firing early would be most
+     embarrassing.
+     · TWO OF THEM CARRY WINDOWS CRLF LINE ENDINGS (kn1, ll1). A lone
+       CR is a Return to macOS, so "Kindly," would have sent on its own
+       and "LL" would have become a second message. Normalised at load.
+     · Your clipboard is borrowed and PUT BACK — on the failure path
+       too. Borrowing it and forgetting to return it is worse than not
+       having the feature.
+     · The restore is DELAYED, because ⌘V is asynchronous from here:
+       restoring in the same breath is a race the app loses.
+     · And the clipboard-history watcher is told to look away, so a
+       snippet does not reorder the history you were about to use.
+  🚨 ONE INJECTION GUARD FOR BOTH TYPING WATCHERS. Autocorrect and the
+     text expander both watch every keystroke AND type back into the
+     document. Each had its OWN "am I injecting" flag, which is exactly
+     half of what is needed — a flag only tells the module that wrote it
+     to stand down. What actually happened without a shared one:
+     · The expander fires `hte` → types "the". Autocorrect's tap reads
+       those as real typing and files them into a word buffer that
+       already held part of the trigger.
+     · Worse in the other direction: autocorrect fixes "teh" → "the",
+       and if the corrected word happens to end in a trigger, a snippet
+       fires. A spelling fix that expands into an email signature is
+       indistinguishable from a bug from where you are sitting.
+     · It is a COUNTER, not a boolean. Nesting is a real state, and a
+       boolean would clear on the way out of the inner call and leave
+       the outer one unguarded.
+     · And it SELF-CLEARS. A throw between the increment and the
+       decrement would wedge it above zero forever, silently switching
+       BOTH features off for the rest of the session — the quietest
+       possible failure. There is a watchdog for that too.
+     · The expander also tells autocorrect to drop its word buffer after
+       an expansion, since it ate the trigger's last character and left
+       autocorrect holding the front of a word that is no longer there.
+  ✅ AND AUTOCORRECT FINALLY HAS A TEST SUITE. It has run on this Mac
+     since 6.10.0 against ~11,000 dictionary rows with NO behavioural
+     test of any kind — the other suites only ever checked that it
+     loaded. The TWo-caps rule is one line of Lua pattern, and it is now
+     pinned to LL's own description of it:
+         USa → Usa   ·   SAt → Sat   ·   USA untouched
+         US untouched (no third letter to judge by)
+         TV's untouched (the apostrophe ends the word first)
+         IDs / TVs / MHz allowed   ·   ITs deliberately NOT allowed
+     That suite got written the moment a SECOND event tap started
+     sharing the keyboard with it. Two taps on one keystroke stream is
+     exactly the arrangement where a rule this quiet breaks unnoticed.
+  🤝 core/coexist.lua. init.lua crossed the 4,000-line ceiling its own
+     integration suite holds it to — and that ceiling is not
+     housekeeping, it is what keeps init.lua an orchestrator instead of
+     a container. Panel stacking, Esc routing, the injection guard and
+     clipboard borrowing moved into one file, because all four answer
+     the same question in four places: TWO FEATURES WANT THE SAME
+     RESOURCE, WHO GETS IT?
+  📈 A SLOW SNIPPET SCAN NOW REPORTS ITSELF WITH ITS NUMBER. Reading
+     2,006 files takes ~0.3s locally and runs in warm(), off the boot
+     path — but the folder lives in OneDrive alongside autocorrect.csv,
+     and two thousand tiny files in a synced folder is exactly the shape
+     that Files On-Demand turns into two thousand downloads. Past two
+     seconds it says so, names the folder, and tells you what to do.
+
 NEW IN 6.68.0 — SNIPPETS, AND THREE THINGS THAT WERE LEFT TO CHANCE:
   ✂️ TEXT EXPANDER (⇪⇧T). LL: "Snippets attached. Some have a trigger
      convention and some are just three letter combos like gg1 … Not all

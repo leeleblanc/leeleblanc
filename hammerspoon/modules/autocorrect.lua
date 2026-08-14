@@ -186,7 +186,14 @@ function M.setup(core)
 
     local function acInject(word, fixed, boundary, wasRule)
         acInjecting = true
-        local ok = pcall(function()
+        -- 🚨 6.69.0 — THROUGH THE SHARED GUARD. acInjecting only ever told
+        -- THIS tap to stand down. The text expander has its own tap on the
+        -- same keystrokes, and without a shared flag a correction that
+        -- happens to end in a snippet trigger fires that snippet — a
+        -- spelling fix that expands into an email signature. See
+        -- _G.withInjection in init.lua. The local flag stays because it is
+        -- what protects this module when the shared one is unavailable.
+        local ok = (_G.withInjection or pcall)(function()
             for _ = 1, #word do
                 hs.eventtap.keyStroke({}, "delete", 0)
             end
@@ -201,12 +208,30 @@ function M.setup(core)
         end
     end
 
+    -- 🚨 6.69.0 — THE EXPANDER CAN LEAVE HALF A TRIGGER IN THIS BUFFER.
+    -- When the text expander fires on `hte` it CONSUMES the final "e", so
+    -- this module saw "h" and "t" and never the end of the word. It then
+    -- types "the", which the shared guard makes us ignore — correctly.
+    -- What is left behind is "ht", which goes on to join whatever you type
+    -- next: "htre", checked against an 11,000-row dictionary at the next
+    -- space. It will almost always miss. "Almost always" is not a standard
+    -- this config holds itself to, and the fix is one line called from the
+    -- one place that knows an expansion happened.
+    function _G.autocorrectResetBuffer()
+        acBuffer = ""
+        if acLast then acLast.undoSafe = false end
+    end
+
     _G.autocorrectTap = hs.eventtap.new(
         { hs.eventtap.event.types.keyDown,
           hs.eventtap.event.types.leftMouseDown,
           hs.eventtap.event.types.rightMouseDown },
         function(ev)
+            -- Either flag standing means "this keystroke is not a person
+            -- typing". The local one covers our own injection; the shared
+            -- one covers the text expander's (6.69.0).
             if acInjecting then return false end
+            if _G.typingInjection and _G.typingInjection() then return false end
 
             local t = ev:getType()
             if t == hs.eventtap.event.types.leftMouseDown
@@ -320,7 +345,9 @@ function M.setup(core)
         -- Rewind the text if nothing has happened since the fix
         if last.undoSafe then
             acInjecting = true
-            pcall(function()
+            -- Same shared guard as acInject: an undo types too, and the
+            -- expander must not read the restored word as a trigger.
+            ;(_G.withInjection or pcall)(function()
                 for _ = 1, #last.fixed + #last.boundary do
                     hs.eventtap.keyStroke({}, "delete", 0)
                 end
