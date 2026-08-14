@@ -297,7 +297,14 @@ function M.setup(core)
             -- "the shortcut did nothing" rather than as a drawing bug.
             -- Every other panel in this config already had this; the two
             -- that did not were the two written most recently.
-            c:level((hs.canvas.windowLevels or {}).overlay)
+            -- 🪟 6.68.0 — ABOVE THE CHEAT SHEET. Both panels used to be at
+            -- `overlay`, and two windows at one level are stacked by
+            -- whichever was shown last: the timer appeared in front or
+            -- behind depending on the order you happened to press the
+            -- keys. _G.panelLevel makes that a decision instead of an
+            -- accident — see the stacking table in init.lua.
+            c:level((_G.panelLevel and _G.panelLevel("pomodoro"))
+                    or (hs.canvas.windowLevels or {}).overlay)
             c:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" })
             -- 🖐 6.67.0 — DRAGGABLE, which means it no longer clicks
             -- through. That was the old behaviour and the reasoning was
@@ -362,7 +369,24 @@ function M.setup(core)
             modal:bind({}, "escape",   function() releaseKeys("esc"); pom.stop("esc") end)
         end)
     else
-        warn("no modal — ⏎/esc will not answer the timer, ⇪pad+ still toggles it")
+        warn("no modal — ⏎/esc will not answer the timer, ⇪⇧P still toggles it")
+    end
+
+    -- ⎋ 6.68.0 — CLAIM Esc WHILE THE TIMER IS ASKING. The modal above is
+    -- enough on its own ONLY when nothing else holds a bare Esc. The cheat
+    -- sheet does, for as long as it is open, and hs.hotkey gives the key
+    -- to whichever binding was enabled most recently — so opening the
+    -- sheet during the flash took Esc away from the timer, and you had to
+    -- close the sheet first to reach it. That is the bug LL reported.
+    --
+    -- Priority 100 against the sheet's 10: for the ~20 seconds a phase
+    -- ending is waiting on an answer, the timer wins. The rest of the
+    -- time active() returns false and Esc closes the sheet exactly as
+    -- before — this takes nothing away, it only breaks a tie.
+    if _G.claimEscape then
+        _G.claimEscape("pomodoro", 100,
+            function() return (pom.state and pom.state.asking) == true end,
+            function() releaseKeys("esc"); pom.stop("esc") end)
     end
 
     if pom.enabled then

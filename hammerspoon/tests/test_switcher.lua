@@ -27,10 +27,20 @@ local function mkwin(id, app, title, minimized, standard, snap)
     return snap ~= false and ("snap:" .. id) or nil
   end
   function w:unminimize() unminimized = id end
+  -- 6.68.0 — becomeMain/raise are what hs.window:focus() is actually made
+  -- of, and the fix is that they are NOT a substitute for activating the
+  -- owning app. Recorded separately so a test can tell the two apart.
+  function w:becomeMain() MAINED = id end
+  function w:raise() RAISED = id end
   function w:focus() focused = id end
   function w:application()
+    -- activate() belongs here because a REAL hs.window:application() hands
+    -- back a real hs.application, which has it. Leaving it off made the
+    -- 6.68.0 "activate the owning app" fix look like it had not been
+    -- written — the pcall around it succeeded at doing nothing.
     return { name = function() return app end,
-             bundleID = function() return "com.test." .. app end }
+             bundleID = function() return "com.test." .. app end,
+             activate = function() ACTIVATED = app end }
   end
   return w
 end
@@ -63,6 +73,8 @@ function mkapp(name, wins, kind)
   function a:activate() ACTIVATED = name end
   return a
 end
+PENDING = {}        -- one-shot timers the module has queued but not run
+MAINED, RAISED, FRONTWIN = nil, nil, nil
 hs = {
   window = {
     orderedWindows = function()
@@ -76,6 +88,11 @@ hs = {
       return out
     end,
     allWindows = function() COUNT.all = COUNT.all + 1; return WINS end,
+    -- 6.68.0 — the switcher asks who is in front, twice: to anchor the
+    -- starting tile, and to VERIFY the switch actually landed. FRONTWIN is
+    -- the test's handle on both. nil = "nothing focused", which is the
+    -- default and keeps every pre-6.68 expectation intact.
+    focusedWindow = function() return FRONTWIN end,
   },
   application = { runningApplications = function() COUNT.apps = COUNT.apps + 1; return APPS end },
   timer = {
@@ -84,6 +101,17 @@ hs = {
       timer = { interval = interval, fn = fn, running = true }
       function timer:stop() self.running = false end
       return timer
+    end,
+    -- 6.68.0 — the switch VERIFIER runs on a one-shot timer, as does the
+    -- wait for the unminimize animation. They are queued rather than fired
+    -- so a test can decide when (and whether) time passes: firing them
+    -- inline would make every switch synchronous and hide the very race
+    -- the delay exists to avoid.
+    doAfter = function(delay, fn)
+      local t = { delay = delay, fn = fn, running = true }
+      function t:stop() self.running = false end
+      table.insert(PENDING, t)
+      return t
     end,
   },
   canvas = {
@@ -137,6 +165,17 @@ local AT = mod.altTab
 local out = io.write
 NAVKEYS = {}
 SNAPSHOT_CALLS = 0
+-- Drain every queued one-shot timer, repeatedly, because a verifier that
+-- retries queues another one. Bounded so a retry loop that never settles
+-- fails the test instead of hanging it.
+local function runPending(rounds)
+  for _ = 1, (rounds or 4) do
+    local batch = PENDING
+    PENDING = {}
+    if #batch == 0 then return end
+    for _, t in ipairs(batch) do if t.running then t.fn() end end
+  end
+end
 local pass, fail = 0, 0
 local function check(name, cond, detail)
   if cond then pass = pass + 1; out("  ✅ ", name, "\n")
@@ -158,6 +197,8 @@ local function reset(n)
   SNAPSHOT_CALLS = 0
   AT.useSnapshots = true    -- the Screen Recording switch, on by default
   focused, unminimized, drawn, timer, log = nil, nil, nil, nil, {}
+  MAINED, RAISED, FRONTWIN = nil, nil, nil
+  PENDING = {}
   MODS = { alt = true }; NOW = 1000
   AT.cache = nil          -- each scenario starts with a cold list
   AT.listBudget = 999     -- no deadline unless a test sets one
@@ -595,6 +636,115 @@ check("...and every tile falls back to its app icon",
   tostring(AT.session.items[1].image))
 check("...so nothing about switching windows is lost", AT.session.index == 2)
 AT.finish(false)
+
+-- =====================================================================
+out("\n=== 13. 6.68.0 — the switch actually switches ===\n")
+-- LL: "Alt+tab does not reliably bring me to the select app or do it
+-- consistently." Three separate causes, one section each.
+
+out("\n  13a. the owning app is ACTIVATED, not just the window raised\n")
+reset(4)
+combos["alt+tab"]()                       -- index 2 → App2
+MODS = {}; timer.fn()
+check("the window is focused", focused == 2, focused)
+check("🚨 AND ITS APPLICATION IS ACTIVATED. hs.window:focus() is "
+   .. "becomeMain()+raise(); both act INSIDE the owning app and neither "
+   .. "brings it forward, which is the whole bug", ACTIVATED == "App2", ACTIVATED)
+check("becomeMain and raise still happen too", MAINED == 2 and RAISED == 2,
+      tostring(MAINED) .. "/" .. tostring(RAISED))
+
+out("\n  13b. the switch is VERIFIED, and reports when it fails\n")
+reset(4)
+combos["alt+tab"]()
+FRONTWIN = nil                            -- nothing came forward
+MODS = {}; timer.fn()
+check("a verifier is queued rather than assuming it worked", #PENDING > 0, #PENDING)
+FRONTWIN = WINS[2]                        -- ...but it did land
+runPending()
+check("a confirmed switch is silent", not logged("but the focus stayed on"))
+check("...and recorded", _G.altTabLastSwitch and _G.altTabLastSwitch.ok == true,
+      _G.altTabLastSwitch and tostring(_G.altTabLastSwitch.ok))
+
+reset(4)
+combos["alt+tab"]()
+MODS = {}; timer.fn()
+FRONTWIN = WINS[4]                        -- macOS put someone ELSE in front
+runPending()
+check("🚨 A SWITCH THAT DID NOT TAKE IS REPORTED, not swallowed (rule 7)",
+      logged("but the focus stayed on"), table.concat(log, " | "):sub(1, 120))
+check("...it retried before giving up", _G.altTabLastSwitch
+      and _G.altTabLastSwitch.attempts == 2,
+      _G.altTabLastSwitch and tostring(_G.altTabLastSwitch.attempts))
+check("...and the report names both apps", logged("App2") and logged("App4"))
+
+out("\n  13c. unminimizing waits for the animation\n")
+reset(3)
+local hidden = mkwin(80, "Hidden", "Minimised", true)
+table.insert(WINS, hidden); APPS = appsFromWindows(WINS)
+combos["alt+tab"]()
+for i, it in ipairs(AT.session.items) do
+  if it.win and it.win:id() == 80 then AT.jumpTo(i) end
+end
+MODS = {}; timer.fn()
+check("unminimize was called", unminimized == 80, unminimized)
+check("🚨 BUT FOCUS DID NOT FIRE IN THE SAME TICK — the genie animation "
+   .. "is still running and a focus() there is simply dropped",
+      focused == nil, focused)
+FRONTWIN = hidden
+runPending()
+check("...it lands once the animation has had its beat", focused == 80, focused)
+
+out("\n  13d. the stale-cache switch, which is the 'twice in a row' bug\n")
+reset(5)
+combos["alt+tab"]()
+MODS = {}; timer.fn()
+runPending()
+check("🚨 THE CACHE IS DROPPED ON A SWITCH. It is keyed on TIME alone, and "
+   .. "front-to-back order is exactly what a switch changes — so a second "
+   .. "⌥Tab inside 4s reused a list where you were already position 2",
+      AT.cache == nil, tostring(AT.cache))
+reset(5)
+combos["alt+tab"]()
+AT.escKey.fire()                          -- cancelled, nothing changed
+check("...but CANCELLING keeps it, because nothing moved", AT.cache ~= nil)
+
+out("\n  13e. the first tile is anchored to the window you are IN\n")
+reset(5)
+FRONTWIN = WINS[3]                        -- you are in window 3, not window 1
+combos["alt+tab"]()
+check("🎯 opens on the tile AFTER the front window, wherever it sits in "
+   .. "the list — `index = 2` assumed the list always starts with you",
+      AT.session.index == 4, AT.session.index)
+AT.finish(false)
+
+reset(5)
+FRONTWIN = WINS[3]
+combos["alt+shift+tab"]()
+check("⌥⇧Tab steps back from where you are", AT.session.index == 2, AT.session.index)
+AT.finish(false)
+
+reset(5)
+FRONTWIN = WINS[1]
+combos["alt+shift+tab"]()
+check("...wrapping past the front of the list", AT.session.index == 5, AT.session.index)
+AT.finish(false)
+
+reset(5)
+FRONTWIN = mkwin(999, "Elsewhere", "not in the list")
+combos["alt+tab"]()
+check("a front window that is not listed falls back to the old behaviour",
+      AT.session.index == 2, AT.session.index)
+AT.finish(false)
+
+out("\n  13f. the panel level is shared, not hand-typed\n")
+check("the HUD asks _G.panelLevel rather than naming `overlay` itself",
+  (function()
+    local f = io.open(HS .. "/modules/window_switcher.lua"); local s = f:read("*a"); f:close()
+    -- Comments are stripped: an explanatory comment mentioning the helper
+    -- silenced this exact class of check twice before (6.66.2, 6.66.3).
+    s = s:gsub("%-%-[^\n]*", "")
+    return s:find("panelLevel(\"switcher\")", 1, true) ~= nil
+  end)())
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

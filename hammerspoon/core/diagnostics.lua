@@ -203,6 +203,28 @@ return function(core)
             local ok, on = pcall(function() return _G.autocorrectTap:isEnabled() end)
             return (ok and on) and "running" or "STOPPED (macOS may have disabled it)"
         end)())
+        -- 🔒 THE SNIPPET LINES NAME NOTHING YOU TYPED. Trigger COUNTS, tap
+        -- state and the NAME of the last snippet that fired — never the
+        -- buffer, never a keystroke. This report goes on the clipboard and
+        -- into a file; it is exactly the wrong place to be clever.
+        add("   Snippets       : %s", (_G.textExpander and _G.textExpander.status) or "not loaded")
+        add("   Snippet tap    : %s", (function()
+            if not _G.expanderTap then return "not created" end
+            local ok, on = pcall(function() return _G.expanderTap:isEnabled() end)
+            return (ok and on) and "running" or "STOPPED (macOS may have disabled it)"
+        end)())
+        if _G.textExpander then
+            local e = _G.textExpander
+            add("   Snippet detail : %d triggers, %d problems, expansion %s",
+                e.count or 0, #(e.problems or {}), e.enabled and "ON" or "OFF")
+            for _, p in ipairs(e.problems or {}) do
+                add("      ⚠️ %s", tostring(p))
+            end
+            if e.lastFired then
+                add("   Last expansion : %s (%s) at %s", tostring(e.lastFired.name),
+                    tostring(e.lastFired.trigger), tostring(e.lastFired.at))
+            end
+        end
         add("   Cheat sheet    : %s", _G.cheatSheetState and "open" or "closed")
         -- The switcher is a MODULE now, so "not loaded" is a real state the
         -- report has to be able to say out loud.

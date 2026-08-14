@@ -657,6 +657,155 @@ do
     end
 end
 
+-- =====================================================================
+out("\n=== 4. 6.68.0 — WHO IS IN FRONT, AND WHO GETS ESCAPE ===\n")
+-- =====================================================================
+-- Two panels can be on screen at once and two can want Esc at the same
+-- moment. Both used to be settled by accident — by whichever canvas was
+-- shown last, and by whichever hotkey was enabled last. Neither is a
+-- policy, and "sometimes it works" is what an undefined policy feels
+-- like from the keyboard.
+--
+-- 🚨 THE REAL BLOCK IS EXTRACTED FROM init.lua AND EXECUTED. Retyping it
+-- here would be a second copy of my own idea of the rule, and a test that
+-- checks the code against another copy of the same assumption confirms
+-- the assumption. That is exactly how four modules never loaded (§2).
+do
+    local f = io.open(HS .. "/init.lua", "r")
+    local init = f and f:read("*a") or "" ; if f then f:close() end
+    local block = init:match("(_G%.panelLevels = {.-\n    return best%.name\nend)")
+    check("the stacking + escape block was found in init.lua", block ~= nil)
+
+    if block then
+        local sandbox = {
+            hs = { canvas = { windowLevels = { overlay = 102 } } },
+            print = function() end,
+            table = table, type = type, ipairs = ipairs, pairs = pairs,
+            pcall = pcall, tostring = tostring, math = math, string = string,
+        }
+        sandbox._G = sandbox
+        local chunk, err = load(block, "panels", "t", sandbox)
+        check("...and it loads and runs on its own", chunk ~= nil, err)
+        if chunk then
+            chunk()
+
+            out("   -- the stacking order --\n")
+            check("the cheat sheet is the reference level",
+                  sandbox.panelLevel("cheatsheet") == 102,
+                  sandbox.panelLevel("cheatsheet"))
+            check("🪟 THE POMODORO IS STRICTLY ABOVE THE CHEAT SHEET. Both "
+               .. "were `overlay`, and two windows at one level stack by "
+               .. "whichever was shown last — so the timer was in front or "
+               .. "behind depending on the order you pressed the keys",
+                  sandbox.panelLevel("pomodoro") > sandbox.panelLevel("cheatsheet"),
+                  sandbox.panelLevel("pomodoro") .. " vs "
+                  .. sandbox.panelLevel("cheatsheet"))
+            check("...and the ⌥Tab HUD sits between them",
+                  sandbox.panelLevel("switcher") > sandbox.panelLevel("cheatsheet")
+                  and sandbox.panelLevel("switcher") < sandbox.panelLevel("pomodoro"),
+                  sandbox.panelLevel("switcher"))
+            -- pcall'd: a regression here THROWS (arithmetic on nil) rather
+            -- than returning a wrong number, and an unguarded throw aborts
+            -- the run and blames whatever line came next. That lesson has
+            -- cost this repo three debugging sessions.
+            check("an unknown panel falls back to the reference level rather "
+               .. "than to nil, which hs.canvas:level() would reject",
+                  select(2, pcall(sandbox.panelLevel, "nothing at all")) == 102)
+            check("the levels are OFFSETS, so they follow macOS if it "
+               .. "renumbers the named constants", (function()
+                sandbox.hs.canvas.windowLevels.overlay = 500
+                local ok = sandbox.panelLevel("cheatsheet") == 500
+                           and sandbox.panelLevel("pomodoro") == 503
+                sandbox.hs.canvas.windowLevels.overlay = 102
+                return ok
+            end)())
+
+            out("   -- who gets Esc --\n")
+            local fired = {}
+            local sheetOpen, timerAsking = true, false
+            sandbox.claimEscape("cheatsheet", 10,
+                function() return sheetOpen end,
+                function() table.insert(fired, "cheatsheet") end)
+            sandbox.claimEscape("pomodoro", 100,
+                function() return timerAsking end,
+                function() table.insert(fired, "pomodoro") end)
+
+            check("with the timer idle, the sheet keeps its own Esc",
+                  sandbox.routeEscape("cheatsheet") == nil)
+            check("...and nothing else ran", #fired == 0, fired[1])
+
+            timerAsking = true
+            check("⎋ WHILE THE TIMER IS ASKING, IT TAKES Esc FROM THE SHEET. "
+               .. "hs.hotkey gives a key to whichever binding was enabled "
+               .. "most recently, so opening the sheet mid-flash silently "
+               .. "stole Esc and you had to close the sheet first",
+                  sandbox.routeEscape("cheatsheet") == "pomodoro")
+            check("...and the timer's handler is what ran", fired[1] == "pomodoro",
+                  fired[1])
+
+            fired = {}
+            check("a claimant never routes to ITSELF (that would recurse)",
+                  sandbox.routeEscape("pomodoro") == nil)
+            check("...and lower priorities are never promoted", #fired == 0)
+
+            timerAsking = false
+            fired = {}
+            check("the moment the timer stops asking, Esc goes back to the "
+               .. "sheet — this takes nothing away, it only breaks a tie",
+                  sandbox.routeEscape("cheatsheet") == nil and #fired == 0)
+
+            out("   -- and it fails safe --\n")
+            timerAsking = true
+            sandbox.claimEscape("pomodoro", 100,
+                function() return true end,
+                function() error("handler exploded") end)
+            check("🚨 A CLAIMANT THAT THROWS DOES NOT SWALLOW THE KEYSTROKE. "
+               .. "An Esc that does nothing at all is the worst of the three "
+               .. "outcomes, so the caller still gets its own",
+                  sandbox.routeEscape("cheatsheet") == nil)
+            sandbox.claimEscape("pomodoro", 100,
+                function() error("cannot say") end,
+                function() table.insert(fired, "pomodoro") end)
+            check("...and one that cannot even say whether it wants Esc is "
+               .. "skipped rather than taken at its word",
+                  sandbox.routeEscape("cheatsheet") == nil)
+            check("re-registering a name REPLACES it instead of stacking a "
+               .. "second claimant nothing can remove",
+                  #sandbox.escapeClaims == 2, #sandbox.escapeClaims)
+            -- BOTH callbacks are checked, not just the first. A registration
+            -- with a live active() and a junk handle() would pass an
+            -- active-only check and then throw the first time Esc was
+            -- pressed — at which point the claim has already won the
+            -- arbitration and the real owner has been skipped.
+            check("a registration with a junk active() is refused, not stored",
+                  sandbox.claimEscape("bad", 1, "not a function", function() end) == false
+                  and #sandbox.escapeClaims == 2)
+            check("...and so is one with a junk handle()",
+                  sandbox.claimEscape("bad", 1, function() return true end, 42) == false
+                  and #sandbox.escapeClaims == 2, #sandbox.escapeClaims)
+        end
+    end
+
+    out("   -- and the panels really use it --\n")
+    local function code(p)
+        local fh = io.open(HS .. "/" .. p, "r")
+        local s = fh and fh:read("*a") or "" ; if fh then fh:close() end
+        -- 🚨 COMMENTS STRIPPED. An explanatory comment naming the helper
+        -- silenced this exact class of check twice (6.66.2, 6.66.3).
+        return s:gsub("%-%-[^\n]*", "")
+    end
+    check("the pomodoro asks for its level by name",
+          code("modules/pomodoro.lua"):find('panelLevel("pomodoro")', 1, true) ~= nil)
+    check("the cheat sheet asks for its level by name",
+          code("core/cheatsheet.lua"):find('panelLevel("cheatsheet")', 1, true) ~= nil)
+    check("the pomodoro claims Esc while it is asking",
+          code("modules/pomodoro.lua"):find('claimEscape("pomodoro"', 1, true) ~= nil)
+    check("🚨 AND THE CHEAT SHEET ASKS THE ROUTER BEFORE CLOSING ITSELF — "
+       .. "it holds the bare Esc hotkey, so if it does not ask, no policy "
+       .. "in init.lua can ever apply",
+          code("core/cheatsheet.lua"):find('routeEscape("cheatsheet")', 1, true) ~= nil)
+end
+
 realPrint(table.concat(printed, "\n"))
 out("\n")
 if fail > 0 then

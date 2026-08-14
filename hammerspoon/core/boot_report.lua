@@ -61,6 +61,14 @@ return function(core)
         { "Asana", asanaEnabled and "ON (secret.lua loaded)"
                    or ("OFF — secret.lua " .. secretsStatus), not asanaEnabled },
         { "Autocorrect", _G.autocorrectStatus or "off", false },
+        -- The expander is the SECOND global keystroke tap in this config,
+        -- and the one whose failure is invisible from the keyboard: a
+        -- trigger that does nothing looks identical to a trigger you
+        -- mistyped. It says its state at every boot for that reason.
+        -- This line runs BEFORE warm(), so "snippets loading…" here is
+        -- accurate rather than optimistic.
+        { "Snippets", (_G.textExpander and _G.textExpander.status) or "off (not loaded)",
+          (_G.textExpander and _G.textExpander.status or ""):sub(1, 3) == "OFF" },
         { "Hotkeys", _G.hotkeyBoundCount .. " global bound, "
             .. (_G.hotkeyConflictCount == 0 and "no internal conflicts"
                 or (_G.hotkeyConflictCount .. " CONFLICTS — see warnings above"))

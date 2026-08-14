@@ -2,11 +2,50 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 08-13-26 using Claude          ← EDITED date. Bumped with every release.
+-- 08-14-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.67.0-DRAGGABLE
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.68.0-SNIPPETS
 -- =====================================================================
 
+-- NEW IN 6.68.0 — SNIPPETS, AND THREE THINGS THAT WERE LEFT TO CHANCE:
+--   ✂️ TEXT EXPANDER (⇪⇧T). Type a trigger, get the text. BOTH of your
+--      conventions work at once — `;bd` and a bare `gg1` — because the
+--      prefix is read from each collection's info.plist rather than being
+--      a rule this config imposes. .alfredsnippets files import directly
+--      (_G.snippetsImport); {cursor} {clipboard} {date} {time} expand.
+--      It watches every keystroke, which is the only way to build one, so:
+--      nothing is ever logged, the buffer is 64 characters, macOS blocks
+--      it in password fields, and it is revived when macOS kills the tap.
+--   🧨 A BARE THREE-LETTER TRIGGER NEEDS A WORD BOUNDARY. Plain suffix
+--      matching would fire `abc` inside "fabcd". A trigger starting with
+--      punctuation (`;bd`) is exempt — that character IS the boundary,
+--      and requiring another would break the convention it exists for.
+--   🪟 THE POMODORO NOW SITS ABOVE THE CHEAT SHEET. Both were drawn at
+--      `overlay`; two windows at one level stack by whichever was shown
+--      last, so the timer was in front or behind depending on the order
+--      you pressed the keys. Undefined, not wrong — and undefined reads
+--      as "sometimes broken". _G.panelLevels writes the order down.
+--   ⎋ AND ESC GOES TO THE RIGHT PANEL. hs.hotkey hands a key to whichever
+--      binding was enabled most recently, so opening the sheet while the
+--      timer was flashing stole Esc from the timer. _G.routeEscape makes
+--      that a policy: highest ACTIVE priority wins, timer over sheet, and
+--      only for the ~20s a phase-end is actually waiting on an answer.
+--   🔄 ⌥TAB ACTUALLY SWITCHES NOW, and says so when it doesn't.
+--      hs.window:focus() is becomeMain()+raise() — both act INSIDE the
+--      owning app and neither activates it, so a target in a background
+--      app rose without taking your keyboard. The app is activated first
+--      now, unminimising waits for the animation, and a check 0.35s later
+--      retries once and then reports rather than leaving you guessing.
+--   🎯 THE FIRST TILE IS ANCHORED TO THE WINDOW YOU ARE IN, not to
+--      position 1, and the 4-second list cache is DROPPED on every switch
+--      — front-to-back order is precisely what a switch changes, so two
+--      quick ⌥Tabs used to "switch" you to where you already were.
+--   🚨 THE TOOL PICKER'S RUN MAP STILL SAID ⇪pad+. Those keys moved to
+--      letters in 6.66.0 and the map kept the old names, so the pomodoro
+--      and the mouse locator were the two tools ⇪⇧/ could never run.
+--      verify() only checked that the SERVICE existed — half of a join.
+--      It checks the key side too now, which is what found it.
+--
 -- NEW IN 6.67.0 — GRAB THE PANELS AND MOVE THEM:
 --   🖐 THE POMODORO AND THE CHEAT SHEET DRAG NOW. An hs.canvas is not a
 --      window with a title bar — there is nothing to grab — so dragging
@@ -59,26 +98,8 @@
 --      does not implement AXFocusedUIElementChanged, and retrying changes
 --      nothing. Repeating it turns a real finding into wallpaper.
 --
--- NEW IN 6.66.4 — THE BOOT LINE WAS COUNTING ONE SOURCE OUT OF THREE:
---   🔢 "32 ⇪ shortcuts" WAS THE SAME NUMBER BEFORE AND AFTER 6.66.3 added
---      four modules and four keys — because _G.hyperShortcutCount was
---      #_G.hyperMigrations: the §0.4 migration map ALONE. Every shortcut a
---      MODULE registers through hyperAddShortcut was invisible to it. The
---      number has never described what it claims to.
---   🚨 AND IT IS ON THE ONE LINE PRINTED AT EVERY LOGIN, sitting next to
---      the module count that DID reveal the missing modules — which lent
---      it a credibility it had not earned. A figure that looks like a
---      total and is not is precisely the quiet misreport rule 7 forbids.
---   ✅ It now reads _G.hyperBoundCount, which hyperBind increments once
---      per combo actually claimed, from every source: migrations, modules
---      and your own hyperActions. Forwarded chords are subtracted — every
---      unclaimed letter re-sends ⌘⇧⌃⌥+itself so hyper keeps working with
---      Raycast, and counting those would report ~40 regardless.
---   📈 Expect the number to JUMP on this boot. That jump is the bug, not
---      the fix: those shortcuts were always there and never counted.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.67.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.68.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -379,7 +400,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.67.0"
+_G.configVersion = "6.68.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -1290,6 +1311,124 @@ function _G.clampToScreen(pt, w, h)
         x = math.max(best.x, math.min(pt.x, best.x + best.w - (w or 0))),
         y = math.max(best.y, math.min(pt.y, best.y + best.h - (h or 0))),
     }
+end
+
+-- =====================================================================
+-- 🪟 PANEL STACKING ORDER (6.68.0)
+-- =====================================================================
+-- LL: "Bring the Hammerspoon tool window in front of shortcuts."
+--
+-- The pomodoro and the cheat sheet were both drawn at hs.canvas's
+-- `overlay` level. Two windows at the SAME level are ordered by whichever
+-- was shown last, which is why the timer sat behind the shortcut panel
+-- some of the time and in front of it the rest — the stacking wasn't
+-- wrong, it was UNDEFINED, and undefined reads as "sometimes broken".
+--
+-- So it is defined here, in one table, instead of as a magic string in
+-- each module. The numbers are OFFSETS FROM `overlay`, not absolute
+-- levels: an NSWindow level is just an integer and hs.canvas:level()
+-- takes one, so "the cheat sheet's level plus three" survives macOS
+-- renumbering the named constants in a way that hard-coded 200 would not.
+--
+-- 🚨 THE INVARIANT IS TESTED, not assumed: test_cheatsheet asserts
+-- pomodoro > cheatsheet. Anything that quietly equalises them fails.
+--
+-- The Mouse Grid is NOT in this table on purpose. It sits at
+-- `screenSaver` (~1000) because it is a targeting overlay that must be
+-- above literally everything including these panels, and expressing that
+-- as "overlay + 898" would obscure why.
+_G.panelLevels = {
+    cheatsheet = 0,   -- the reference level
+    focus      = 0,
+    popup      = 0,
+    switcher   = 1,   -- ⌥Tab HUD: above the sheet, below the timer
+    pomodoro   = 3,   -- ABOVE the cheat sheet — this is the ask
+}
+
+function _G.panelLevel(name)
+    local base = 102   -- hs.canvas.windowLevels.overlay on every macOS to date
+    pcall(function()
+        local lv = (hs.canvas and hs.canvas.windowLevels or {}).overlay
+        if type(lv) == "number" then base = lv end
+    end)
+    return base + (_G.panelLevels[name] or 0)
+end
+
+-- =====================================================================
+-- ⎋ WHO GETS ESCAPE (6.68.0)
+-- =====================================================================
+-- LL: "Everytime I hit escape the shortcut windows disappear. And, the
+-- tool should be in the foreground so I [don't] accidently stop [the
+-- timer by] escaping the shortcuts window first."
+--
+-- Two panels can want Esc at the same moment: the cheat sheet always
+-- wants it (Esc closes it), and the pomodoro wants it for the ~20s after
+-- a phase ends (Esc stops the timer). hs.hotkey resolves that by
+-- ENABLE ORDER — the most recently enabled binding for a key wins — so
+-- opening the sheet while the timer was flashing silently stole Esc from
+-- the timer, and closing the sheet first was the only way to reach it.
+-- Enable order is an implementation detail, not a policy, and a policy
+-- is what this needs.
+--
+-- So: claimants register a priority and an "am I active right now?"
+-- test, and whoever holds Esc asks this router FIRST. Highest active
+-- priority wins; ties and inactive claimants are ignored. A claimant
+-- whose handler throws does NOT swallow the keystroke — it reports and
+-- lets the caller carry on, because an Esc that does nothing at all is
+-- the worst of the three outcomes.
+_G.escapeClaims = {}
+
+-- priority: bigger wins. active(): true when this claimant wants Esc NOW.
+function _G.claimEscape(name, priority, active, handle)
+    if type(name) ~= "string" or type(active) ~= "function"
+       or type(handle) ~= "function" then
+        print("⎋ claimEscape: bad registration for " .. tostring(name))
+        return false
+    end
+    for _, c in ipairs(_G.escapeClaims) do
+        if c.name == name then
+            c.priority, c.active, c.handle = priority or 0, active, handle
+            return true
+        end
+    end
+    table.insert(_G.escapeClaims, {
+        name = name, priority = priority or 0, active = active, handle = handle,
+    })
+    return true
+end
+
+-- Called by whoever currently owns the Esc key. Returns the name of the
+-- claimant that handled it, or nil meaning "it's yours, carry on".
+function _G.routeEscape(caller)
+    local mine = 0
+    for _, c in ipairs(_G.escapeClaims) do
+        if c.name == caller then mine = c.priority or 0 end
+    end
+    local best
+    for _, c in ipairs(_G.escapeClaims) do
+        if c.name ~= caller and (c.priority or 0) > mine then
+            local ok, live = pcall(c.active)
+            if ok and live and (not best or c.priority > best.priority) then
+                best = c
+            elseif not ok then
+                print("⎋ escape router: " .. c.name .. " could not say whether "
+                      .. "it wanted Esc — skipped")
+            end
+        end
+    end
+    if not best then return nil end
+    local ok, err = pcall(best.handle)
+    if not ok then
+        print("⎋ escape router: " .. best.name .. " failed to handle Esc — "
+              .. tostring(err))
+        if _G.notices then
+            _G.notices.record("runtime", "escape router",
+                              best.name .. " failed to handle Esc: " .. tostring(err))
+        end
+        return nil          -- fall through: the caller still gets its Esc
+    end
+    if _G.diag then _G.diag.say("escape", best.name .. " took Esc from " .. tostring(caller)) end
+    return best.name
 end
 
 local csOK, csErr = pcall(function()
@@ -3377,6 +3516,8 @@ local BASE = {
     "universal_actions",  -- ⇪⇧A  act on the Finder selection
     "pomodoro",           -- ⇪⇧P  25 on, 5 off
     "outlook_probe",      -- diagnostic only, binds no key
+    -- 6.68.0
+    "text_expander",      -- ⇪⇧T  Alfred snippets, typed anywhere
 }
 
 -- BASE minus `without`, plus `plus`. The list is COPIED, never shared: a

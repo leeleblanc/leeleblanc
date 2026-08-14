@@ -90,8 +90,15 @@ function M.setup(core)
         ["⇪⇧Q"]   = "focus.report",
         ["⇪⇧H"]   = "health.report",
         ["⇪⇧A"]   = "universalActions.show",
-        ["⇪pad+"] = "pomodoro.toggle",
-        ["⇪pad*"] = "mouseGrid.locate",
+        -- 🚨 6.68.0 — THESE TWO WERE ⇪pad+ AND ⇪pad*. Both keys moved to
+        -- letters in 6.66.0 (pad+ does not exist in hs.keycodes.map on
+        -- LL's Mac) and this map kept the old names, so the two newest
+        -- tools were the two the picker could never run. tp.verify() did
+        -- not catch it because it checked that the SERVICE existed — which
+        -- it did — and never that the KEY did. It checks both now.
+        ["⇪⇧P"]   = "pomodoro.toggle",
+        ["⇪⇧L"]   = "mouseGrid.locate",
+        ["⇪⇧T"]   = "expander.show",
     }
 
     -- Run once, on the first press — not at setup(), because modules load
@@ -106,15 +113,33 @@ function M.setup(core)
         local missing = {}
         for keys, svc in pairs(tp.runnable) do
             if not _G.service.has(svc) then
-                missing[#missing + 1] = keys .. " → " .. svc
+                missing[#missing + 1] = keys .. " → " .. svc .. " (no such service)"
             end
         end
+
+        -- 🚨 AND THAT THE KEY STILL EXISTS. A run map is a join between two
+        -- tables that both change, and checking only one side of a join
+        -- catches only half the drift. ⇪pad+ sat in this map for three
+        -- versions after the pomodoro moved to ⇪⇧P: the service resolved
+        -- perfectly, the key matched nothing the cheat sheet draws, and
+        -- the row was simply never runnable. Nothing said a word.
+        local live = {}
+        local okRows, rows = pcall(tp.choices)
+        if okRows then
+            for _, r in ipairs(rows or {}) do live[r.keys] = true end
+            for keys in pairs(tp.runnable) do
+                if not live[keys] then
+                    missing[#missing + 1] = keys .. " (no cheat sheet entry uses that key)"
+                end
+            end
+        end
+
         if #missing > 0 then
             table.sort(missing)   -- pairs() has no order; the report needs one
             local msg = table.concat(missing, ", ")
-            warn("runnable entries name services that do not exist: " .. msg)
+            warn("run map entries that cannot fire: " .. msg)
             if _G.notices then
-                _G.notices.record("toolPicker", "unknown service in the run map", msg)
+                _G.notices.record("toolPicker", "stale entries in the run map", msg)
             end
         end
     end

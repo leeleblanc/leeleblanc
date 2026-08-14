@@ -4,6 +4,107 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.68.0 — SNIPPETS, AND THREE THINGS THAT WERE LEFT TO CHANCE:
+  ✂️ TEXT EXPANDER (⇪⇧T). LL: "Snippets attached. Some have a trigger
+     convention and some are just three letter combos like gg1 … Not all
+     my snippets require a prefix. Ghostty does. Textapanders doesn't."
+     Type a trigger, get the text — and BOTH conventions work at once.
+     · WHY THEY CAN COEXIST, which is the whole design: .alfredsnippets
+       is a ZIP of one JSON per snippet plus an info.plist carrying
+       snippetkeywordprefix / snippetkeywordsuffix. That plist is the
+       COLLECTION-WIDE convention. A collection exported with prefix ";"
+       stores bare keywords and gets the ";" added here; your Ghostty
+       export has an EMPTY prefix because the ";" is already baked into
+       each keyword. Read the plist, apply it, and `;bd` and `gg1` come
+       out as equals. Nothing about either style is hard-coded.
+     · _G.snippetsImport("~/Downloads/x.alfredsnippets") imports one.
+       _G.snippetAdd("gg1", "text") writes one by hand into its own
+       collection, so an Alfred re-import can never overwrite yours.
+       _G.snippetsList() prints every trigger loaded, and every snippet
+       that did NOT load, with the reason.
+     · {cursor} {clipboard} {date} {time} expand. Anything else in braces
+       is inserted LITERALLY and reported once — a snippet that quietly
+       loses "{date:yyyy}" is worse than one that visibly contains it.
+     · ⇪⇧T searches them by name and inserts one, for the snippet you know
+       you have and cannot remember the trigger for.
+  🚨 IT WATCHES EVERY KEYSTROKE YOU TYPE, because there is no other way to
+     build an expander. So, explicitly: NOTHING IS EVER LOGGED — not the
+     buffer, not to the Console, not to the ledger, not into a
+     diagnostic. The only thing that leaves the module is the NAME of a
+     snippet that fired. The buffer holds 64 characters. macOS secure
+     input switches event taps off inside password fields, so those are
+     structurally unreachable. Terminal is excluded by default. The tap
+     is revived on the same 30s watchdog autocorrect uses, because a
+     silently dead expander is rule 7's exact failure mode.
+  🧨 A BARE THREE-LETTER TRIGGER NEEDS A WORD BOUNDARY IN FRONT OF IT.
+     Plain suffix matching fires the moment the last character is typed,
+     wherever it lands: `abc` would expand in the middle of "fabcd". A
+     trigger starting with punctuation — `;bd`, `:sig` — is EXEMPT,
+     because that leading character IS the boundary and demanding another
+     would break the very convention it exists to serve.
+     expander.wordStartOnly = false restores plain Alfred behaviour.
+  🪟 THE POMODORO NOW SITS ABOVE THE CHEAT SHEET. LL: "Bring the
+     Hammerspoon tool window in front of shortcuts."
+     · Both panels were drawn at hs.canvas's `overlay` level, and two
+       windows at the SAME level are ordered by whichever was shown last.
+       So the timer appeared in front or behind depending on the order you
+       happened to press the keys. The stacking was not wrong, it was
+       UNDEFINED — and undefined reads as "sometimes broken".
+     · _G.panelLevels writes the order down in one table, as OFFSETS from
+       `overlay` rather than absolute numbers: an NSWindow level is just an
+       integer, so "the sheet's level plus three" survives macOS
+       renumbering the named constants. The invariant is TESTED —
+       pomodoro > cheatsheet — not assumed.
+  ⎋ AND ESC NOW GOES TO THE RIGHT PANEL. LL: "Everytime I hit escape the
+     shortcut windows disappear."
+     · The cheat sheet holds a bare-Esc hotkey the whole time it is open.
+       The pomodoro wants Esc for the ~20 seconds after a phase ends.
+       hs.hotkey resolves that by ENABLE ORDER — most recently enabled
+       wins — so opening the sheet while the timer was flashing silently
+       stole Esc from the timer and you had to close the sheet first.
+       Enable order is an implementation detail; this needed a policy.
+     · _G.routeEscape is that policy. Claimants register a priority and an
+       "am I active right now" test; whoever holds Esc asks the router
+       first. Timer (100) over sheet (10), and ONLY while a phase-end is
+       actually waiting on an answer — the rest of the time Esc closes the
+       sheet exactly as before. A claimant whose handler throws does not
+       swallow the keystroke: it reports and the caller carries on,
+       because an Esc that does nothing at all is the worst outcome.
+  🔄 ⌥TAB ACTUALLY SWITCHES NOW — AND SAYS SO WHEN IT DOESN'T. LL:
+     "Alt+tab does not reliably bring me to the select app or do it
+     consistently." Three separate causes, all real:
+     · hs.window:focus() IS becomeMain() + raise(). Both act WITHIN the
+       owning application and NEITHER activates it. If the target belongs
+       to an app that is not already frontmost — the only interesting case
+       for a window switcher — the window rose and your keyboard stayed
+       exactly where it was. The app is activated first now, then the
+       window focused. One missing line, every background switch.
+     · UNMINIMIZING IS NOT INSTANT. unminimize() starts the genie
+       animation and returns immediately; a focus() in the same tick lands
+       on a window that is not on screen yet and is dropped. That path
+       waits for the animation now.
+     · THE 4-SECOND LIST CACHE IS DROPPED ON EVERY SWITCH. It was keyed on
+       time alone, and front-to-back order is exactly what a switch
+       CHANGES — so a second ⌥Tab within the window reused a list where
+       position 1 was the window you had just left and position 2 was the
+       one you were now in. Two quick presses "switched" you to where you
+       already were.
+  🎯 AND THE STARTING TILE IS ANCHORED TO THE WINDOW YOU ARE ACTUALLY IN.
+     `index = 2` was shorthand for "the tile after the current one" and
+     assumed the list always begins with the focused window. It usually
+     does and it does not have to. The front window is now located in the
+     list by id, so the answer is right whatever order the list came back
+     in; not found falls back to the old behaviour, which is correct.
+  🚨 THE TOOL PICKER'S RUN MAP STILL SAID ⇪pad+ AND ⇪pad*. Both keys moved
+     to letters in 6.66.0 — pad+ does not exist in hs.keycodes.map on this
+     Mac — and the map kept the old names, so the pomodoro and the mouse
+     locator were the two tools ⇪⇧/ could never actually run.
+     · tp.verify() did not catch it because it checked that the SERVICE
+       existed, which it did. A run map is a JOIN between two tables that
+       both change, and checking one side of a join catches half the
+       drift. It checks the key side against the live cheat sheet now,
+       which is what found this.
+
 NEW IN 6.67.0 — GRAB THE PANELS AND MOVE THEM:
   🖐 LL: "Great pop-up. But I can't drag the window. Same with shortcuts
      window. Both should be moveable." An hs.canvas is not an NSWindow

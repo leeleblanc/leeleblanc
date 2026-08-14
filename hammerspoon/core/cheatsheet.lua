@@ -656,12 +656,29 @@ return function(core)
     -- close-and-reopen is the kind of small friction that stops people
     -- using a feature at all.
     function cheatSheet.escape()
+        -- ⎋ 6.68.0 — ASK FIRST. The sheet holds a bare-Esc hotkey the whole
+        -- time it is open, so when the pomodoro is flashing "⏎ ⁄ esc" the
+        -- sheet was the one receiving the keystroke and the timer never
+        -- saw it. See _G.routeEscape in init.lua: a claimant with a higher
+        -- priority that is ACTIVE right now gets it instead, and nil means
+        -- nobody else wanted it.
+        if _G.routeEscape and _G.routeEscape("cheatsheet") then return end
         if cheatSheet.query ~= "" then
             cheatSheet.query = ""
             cheatSheet.show(false)
             return
         end
         cheatSheet.hide()
+    end
+
+    -- Registered so the router knows what the sheet's priority IS, rather
+    -- than defaulting it to zero. active() is "am I on screen", which is
+    -- also what makes the pomodoro's own modal Esc work unchanged when the
+    -- sheet is closed — the router only ever arbitrates, it never binds.
+    if _G.claimEscape then
+        _G.claimEscape("cheatsheet", 10,
+            function() return _G.cheatSheetCanvas ~= nil end,
+            function() cheatSheet.hide() end)
     end
 
     function cheatSheet.enableInput()
@@ -949,7 +966,14 @@ return function(core)
         _G.diag.say("cheatSheet", string.format("opened: %d rows, %d visible, panel %dx%d",
             #lines, visible, panelW, panelH))
 
-        pcall(function() canvas:level(hs.canvas.windowLevels.overlay) end)
+        -- 🪟 6.68.0 — through _G.panelLevel, not a bare `overlay`. The
+        -- pomodoro sits three levels above this one; see the stacking
+        -- table in init.lua for why that is written down instead of being
+        -- left to whichever panel happened to be shown last.
+        pcall(function()
+            canvas:level((_G.panelLevel and _G.panelLevel("cheatsheet"))
+                         or hs.canvas.windowLevels.overlay)
+        end)
         -- Same Spaces/full-screen visibility fix as the dashboard legend:
         -- without these, the sheet can't appear over full-screen apps.
         pcall(function() canvas:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" }) end)

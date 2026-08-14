@@ -376,6 +376,117 @@ function M.setup(core)
         if not ok then print("🔄 Window switcher: render failed — " .. tostring(err)) end
     end
 
+    -- ---- actually switching (6.68.0) ------------------------------------
+    -- LL: "Alt+tab does not reliably bring me to the select app or do it
+    -- consistently."
+    --
+    -- 🚨 WHY win:focus() ON ITS OWN IS NOT A SWITCH. hs.window:focus() is
+    -- becomeMain() + raise(), and both of those act WITHIN the owning
+    -- application. Neither one activates that application. If the target
+    -- belongs to an app that is not already frontmost — which is the only
+    -- interesting case for a window switcher — the window rises and your
+    -- keyboard stays exactly where it was. That is the whole "sometimes it
+    -- doesn't take me there" complaint, and it is a one-line omission.
+    --
+    -- So the order is: activate the APP, then focus the WINDOW. Both, in
+    -- that order, every time.
+    --
+    -- ⏱ AND UNMINIMIZING IS NOT INSTANT. unminimize() starts the genie
+    -- animation and returns immediately; a focus() fired in the same tick
+    -- lands on a window that is not on screen yet and is simply dropped.
+    -- That path waits a beat first.
+    altTab.verifyAfter  = 0.35   -- seconds before checking it worked
+    altTab.unminimizeWait = 0.45 -- genie animation, roughly
+    _G.altTabSwitchTimers = {}   -- HELD: an unreferenced timer never fires
+
+    local function hold(t)
+        table.insert(_G.altTabSwitchTimers, t)
+        while #_G.altTabSwitchTimers > 8 do table.remove(_G.altTabSwitchTimers, 1) end
+        return t
+    end
+
+    local function nameOf(item)
+        local ok, n = pcall(function() return item.app and item.app:name() end)
+        return (ok and n) or "?"
+    end
+
+    -- One switch attempt. Returns nothing; correctness is checked by the
+    -- verifier below rather than assumed, because every call in here can
+    -- fail silently at the macOS level.
+    local function raise(item)
+        if item.app then pcall(function() item.app:activate() end) end
+        if item.win then
+            pcall(function()
+                item.win:becomeMain()
+                item.win:raise()
+                item.win:focus()
+            end)
+        end
+    end
+
+    -- 🚨 RULE #7: THE SWITCH REPORTS WHETHER IT WORKED. Everything above
+    -- is best-effort at the macOS level, so a beat later we look at what
+    -- is actually focused. Wrong window → one more attempt (an app that
+    -- was swapped out often needs the second one). Still wrong → say so,
+    -- with both names, instead of leaving you wondering whether you
+    -- pressed the key properly.
+    function altTab.switchTo(item)
+        if not item then return false end
+        local wantId
+        pcall(function() wantId = item.win and item.win:id() end)
+        local wantApp = nameOf(item)
+
+        local function attempt(n)
+            raise(item)
+            hold(hs.timer.doAfter(altTab.verifyAfter, function()
+                local okF, got = pcall(hs.window.focusedWindow)
+                local gotId, gotApp
+                if okF and got then
+                    pcall(function() gotId = got:id() end)
+                    pcall(function() gotApp = got:application():name() end)
+                end
+                -- An app-only tile has no window id to match, so the test
+                -- is "is that app frontmost now", which is all it promised.
+                local good
+                if wantId then good = (gotId == wantId)
+                else good = (gotApp == wantApp) end
+                if good then
+                    _G.diag.say("altTab", "switch confirmed: " .. wantApp)
+                    _G.altTabLastSwitch = { ok = true, app = wantApp, attempts = n }
+                    return
+                end
+                if n < 2 then
+                    _G.diag.say("altTab", "switch to " .. wantApp
+                                .. " did not take — retrying once")
+                    attempt(n + 1)
+                    return
+                end
+                _G.altTabLastSwitch = { ok = false, app = wantApp, got = gotApp,
+                                        attempts = n }
+                print("🔄 Window switcher: asked for " .. wantApp
+                      .. " but the focus stayed on " .. tostring(gotApp or "nothing")
+                      .. ". Usually macOS refusing to activate an app that is "
+                      .. "busy or mid-launch — press ⌥Tab again.")
+                if _G.notices then
+                    _G.notices.record("runtime", "window switcher",
+                        "could not switch to " .. wantApp
+                        .. " (focus stayed on " .. tostring(gotApp or "nothing") .. ")")
+                end
+            end))
+        end
+
+        if item.win then
+            local okMin, minimized = pcall(function() return item.win:isMinimized() end)
+            if okMin and minimized then
+                pcall(function() item.win:unminimize() end)
+                hold(hs.timer.doAfter(altTab.unminimizeWait, function() attempt(1) end))
+                return true
+            end
+        end
+        attempt(1)
+        return true
+    end
+
     -- ---- session lifecycle ----------------------------------------------
     function altTab.finish(commit)
         local s = altTab.session
@@ -392,19 +503,16 @@ function M.setup(core)
 
         _G.diag.say("altTab", "HUD closed (" .. (commit and "switching" or "cancelled") .. ")")
         if commit then
-            local item = s.items[s.index]
-            if item and item.appOnly and item.app then
-                -- No window to focus: bring the application forward instead.
-                pcall(function() item.app:activate() end)
-            elseif item and item.win then
-                pcall(function()
-                    if item.win:isMinimized() then item.win:unminimize() end
-                    -- focus() on a window living on another Space makes
-                    -- macOS switch Spaces to reach it, which is what
-                    -- Windows' Alt+Tab does too.
-                    item.win:focus()
-                end)
-            end
+            -- 🚨 THE CACHE IS DROPPED ON EVERY SWITCH. It is keyed on time
+            -- alone (4s), and front-to-back order is exactly what a switch
+            -- changes — so a second ⌥Tab inside the window reused a list
+            -- in which position 1 was still the window you had just LEFT
+            -- and position 2 was the one you were now IN. Pressing ⌥Tab
+            -- twice in quick succession therefore "switched" you to where
+            -- you already were. That is the other half of "does not do it
+            -- consistently", and no amount of focus-fixing addresses it.
+            altTab.cache = nil
+            altTab.switchTo(s.items[s.index])
         end
     end
 
@@ -622,19 +730,49 @@ function M.setup(core)
             return false
         end
 
+        -- 🎯 6.68.0 — THE STARTING TILE IS ANCHORED TO THE WINDOW YOU ARE
+        -- ACTUALLY IN, not to position 1. `index = 2` was shorthand for
+        -- "the tile after the current one" and quietly assumed the list
+        -- always begins with the focused window. It usually does and it
+        -- does not have to: a cached list is up to 4s old, and
+        -- orderedWindows() puts a window there that may since have gone.
+        -- When the assumption missed, the first ⌥Tab landed on a window
+        -- one place off — sometimes the one you were already in, which
+        -- looks exactly like the switcher doing nothing.
+        --
+        -- Found by asking the front window who it is and locating it, so
+        -- the answer is right whatever order the list came back in. Not
+        -- found (front app owns no listed window) → the old behaviour,
+        -- which is the correct fallback: the first tile is a real target.
+        local here = 1
+        local okCur, cur = pcall(hs.window.focusedWindow)
+        if okCur and cur then
+            local okId, curId = pcall(function() return cur:id() end)
+            if okId and curId then
+                for i, it in ipairs(items) do
+                    local okW, wid = pcall(function() return it.win and it.win:id() end)
+                    if okW and wid == curId then here = i break end
+                end
+            end
+        end
+        -- Windows selects the NEXT window on the first press, not the one
+        -- you are already in; ⌥⇧Tab selects the previous one. Both wrap.
+        local start = ((here - 1 + (reverse and -1 or 1)) % n) + 1
+
         altTab.session = {
             items = items, cols = cols, rows = rows, w = w, h = h, hidden = total - n,
         truncated = (_G.altTabLastListing or {}).truncated or false,
-            -- Windows selects the NEXT window on the first press, not the
-            -- one you are already in; ⌥⇧Tab selects the last one.
-            index = reverse and n or 2,
+            index = start,
             startedAt = hs.timer.secondsSinceEpoch(),
             canvas = canvas,
         }
         altTab.render()
         _G.diag.say("altTab", string.format("HUD open: %d tiles, %d cols, %dx%d, start index %d",
             n, cols, w, h, altTab.session.index))
-        pcall(function() canvas:level(hs.canvas.windowLevels.overlay) end)
+        pcall(function()
+            canvas:level((_G.panelLevel and _G.panelLevel("switcher"))
+                         or hs.canvas.windowLevels.overlay)
+        end)
         pcall(function() canvas:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" }) end)
         -- See _G.showCanvasSafely in init.lua: a bare :show() throws when
         -- another app's remote view is mid-transition (Safari's URL
