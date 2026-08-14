@@ -204,7 +204,13 @@ function M.setup(core)
                     end
                     if c then
                         pcall(function() c:replaceElements(elementsFor(f)) end)
-                        pcall(function() c:show() end)
+                        -- See _G.showCanvasSafely in init.lua: a bare pcall stops the throw
+                        -- from escaping but gives up on the FIRST failure. The helper retries a
+                        -- run loop turn later, which is what actually recovers a collision with
+                        -- another app's remote view.
+                        if _G.showCanvasSafely then
+                            _G.showCanvasSafely(c, "screen veil")
+                        else pcall(function() c:show() end) end
                     end
                 end
             end

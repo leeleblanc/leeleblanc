@@ -636,7 +636,12 @@ function M.setup(core)
             n, cols, w, h, altTab.session.index))
         pcall(function() canvas:level(hs.canvas.windowLevels.overlay) end)
         pcall(function() canvas:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" }) end)
-        canvas:show()
+        -- See _G.showCanvasSafely in init.lua: a bare :show() throws when
+        -- another app's remote view is mid-transition (Safari's URL
+        -- completion is the usual one), abandoning the rest of the open
+        -- sequence and leaving a half-ordered ghost.
+        if _G.showCanvasSafely then _G.showCanvasSafely(canvas, "window switcher")
+        else pcall(function() canvas:show() end) end
 
         altTab.ensureNavKeys()
         altTab.armNavKeys(true)

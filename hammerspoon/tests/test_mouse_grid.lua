@@ -1172,10 +1172,21 @@ do
     -- Live code only: my own comment mentioning a file is not the file
     -- being loaded, and that exact mistake made a 6.44.11 audit lie.
     local live = init:gsub("%-%-[^\n]*", "")
+    -- 🚨 6.66.3 — ONE LIST, NOT THREE. This used to demand three mentions,
+    -- one per hand-typed machine profile. Three hand-typed lists is exactly
+    -- what let 6.65.0–6.66.2 add four modules to `default` alone, so the
+    -- Tool Picker, Universal Actions, Pomodoro and Outlook Probe never
+    -- loaded on LL's Mac at all. Profiles derive from BASE now, so the
+    -- right assertion is that mouse_grid is IN BASE — and that no profile
+    -- has gone back to typing its own list.
     local profiles = 0
     for _ in live:gmatch('"mouse_grid"') do profiles = profiles + 1 end
-    check("mouse_grid is listed in ALL THREE machine profiles — personal, "
-          .. "work and default", profiles == 3, profiles)
+    check("mouse_grid is in init.lua's BASE module list — once, because "
+          .. "there is now ONE list rather than one per machine",
+          profiles == 1, profiles)
+    check("...and no profile hand-types its own list, which is what let "
+          .. "four modules reach only one of three Macs",
+          live:match("modules%s*=%s*{%s*\n%s*\"") == nil)
 
     local f2 = io.open(HS .. "/tools/run-tests.sh", "r")
     local rt = f2 and f2:read("*a") or ""

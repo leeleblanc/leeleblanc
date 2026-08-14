@@ -479,7 +479,13 @@ function M.setup(core)
                     -- meeting is the only thing you can use — which is not
                     -- "dimmed", it is "disabled".
                     pcall(function() c:canvasMouseEvents(false, false, false, false) end)
-                    pcall(function() c:show() end)
+                    -- See _G.showCanvasSafely in init.lua: a bare pcall stops the throw
+                    -- from escaping but gives up on the FIRST failure. The helper retries a
+                    -- run loop turn later, which is what actually recovers a collision with
+                    -- another app's remote view.
+                    if _G.showCanvasSafely then
+                        _G.showCanvasSafely(c, "focus dimmer")
+                    else pcall(function() c:show() end) end
                     fm.canvases[scr:id() or (#fm.canvases + 1)] = c
                 end
             end

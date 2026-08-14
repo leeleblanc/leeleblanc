@@ -4,6 +4,63 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.66.3 — FOUR MODULES HAD NEVER LOADED ON LL'S MAC:
+  🚨 "26 modules · All green" WAS TRUE, AND THAT IS THE WORST PART.
+     Thirty module files sat on disk. Nothing failed, because nothing was
+     asked to load. init.lua carried THREE hand-typed `modules` lists —
+     one per machine profile — and 6.65.0 through 6.66.2 added the new
+     modules to `default` alone. LL's Mac matches the "Lees-MacBook-Air"
+     profile, so the Tool Picker (⇪⇧/), Universal Actions (⇪⇧A), the
+     Pomodoro (⇪⇧P) and the Outlook Probe have not existed on his machine
+     since the day each was written.
+     · Four releases of work, every one of it tested, documented,
+       shipped, and absent. He has been reporting on features he did not
+       have — and the boot report, the cheat sheet and the diagnostics all
+       agreed with him that everything was fine.
+  ⚠️ THE TEST SUITE AGREED WITH THE BUG, which is the part worth carrying
+     forward. test_integration deliberately READS the module list out of
+     init.lua rather than retyping it, on the sound reasoning that a
+     hand-copied list in a test would drift from the config. But init.lua
+     contained three hand-copied lists, and the test read the one that
+     happened to be correct. test_diagnostics had the identical read and
+     the identical blind spot.
+     · A test that reads the same wrong source as the code does not check
+       the code, it CONFIRMS it. The fix is not a better pattern match —
+     it is checking against something the code cannot also be wrong
+       about, which here is the FILESYSTEM.
+  ✅ ONE LIST. `local BASE` holds the modules; every profile calls
+     profileFrom{ without = {…}, plus = {…}, settings = {…} } and declares
+     only its DIFFERENCES. The list is COPIED per profile, never shared —
+     a profile that referenced BASE and then dropped an entry would drop
+     it for every other profile too. Adding a module is now one edit that
+     reaches all three Macs.
+  🔒 TWO CHECKS THAT WOULD HAVE CAUGHT IT, both now failing the build:
+     · EVERY MODULE FILE ON DISK MUST BE IN BASE. A .lua in modules/ that
+       no profile loads is a feature that reports "All green" forever.
+     · NO PROFILE MAY HAND-TYPE ITS OWN LIST. The structural fix has to be
+       proven in use, not described in a comment.
+     Both were mutation-verified: removing pomodoro from BASE and giving a
+     profile its own list each fail loudly and name the cause.
+  🖼 THE CANVAS EXCEPTION FROM LL'S CONSOLE IS FIXED TOO:
+       NSInternalInconsistencyException … '<NSRemoteView …
+       SPCompletionListServiceViewController> notified of <HSCanvasWindow>
+       but expected (null)' … -[NSRemoteView containingWindowWillOrderOnScreen:]
+     A bare canvas:show() colliding with Safari's URL-completion popup
+     mid-transition. _G.showCanvasSafely — which catches it, retries one
+     run loop turn later, and reports through the ledger if it still
+     refuses — has existed since the last time this happened, and SIX
+     canvases bypassed it: three in Mouse Grid, plus the pomodoro, window
+     switcher and mini calendar. Focus Mode and Screen Veil used a bare
+     pcall, which stops the throw escaping but gives up on the first
+     failure and says nothing.
+     · All eight go through the helper now, and lint rule
+       canvas-show-unprotected counts bare shows against protected ones
+       per file — counted rather than forbidden, because the CORRECT
+       pattern deliberately contains a bare show in its else-branch
+       fallback. The first version of the rule flagged all three correct
+       call sites.
+  🧪 1,882 checks, 17 suites, 0 failures, 0 lint findings.
+
 NEW IN 6.66.2 — "SOME WINDOWS DON'T COME FORWARD BUT SOME DO":
   🎯 EXACTLY RIGHT, AND THE SPLIT IS THE WHOLE DIAGNOSIS. LL noticed that
      the shortcuts panel appears over full-screen apps and other windows

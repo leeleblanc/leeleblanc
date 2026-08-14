@@ -204,6 +204,42 @@ rule{ id = "module-contract", sev = "ERROR", file = true,
       return { 1, "missing " .. table.concat(miss, " and ") }
   end }
 
+-- 🚨 6.66.3 — from LL's Console, on a hotkey press while Safari's
+-- URL-completion popup was on screen:
+--   NSInternalInconsistencyException … -[NSRemoteView
+--   containingWindowWillOrderOnScreen:] … canvas_show
+rule{ id = "canvas-show-unprotected", sev = "ERROR", file = true, raw = true,
+  why = "canvas:show() THROWS when another process's remote view is "
+     .. "mid-transition — Safari's URL completion and Spotlight are the "
+     .. "usual culprits. The throw abandons the rest of the open sequence, "
+     .. "so state is set, the canvas half-orders on screen, and the config "
+     .. "believes a panel is open that you cannot see. Use "
+     .. "_G.showCanvasSafely(canvas, label), which retries once a run loop "
+     .. "turn later and reports through the ledger if it still refuses.",
+  check = function(_, name, path, raw)
+      if name == "init.lua" then return end          -- defines the helper
+      local src = STRIP(raw)
+      local bare, safe = 0, 0
+      for line in src:gmatch("[^\n]+") do
+          if line:find("[%w_%.]*[Cc]anvas[%w_%.]*:show%s*%(")
+             and not line:find("showCanvasSafely") then
+              bare = bare + 1
+          end
+      end
+      for _ in src:gmatch("showCanvasSafely") do safe = safe + 1 end
+      -- ⚠️ COUNTED, NOT FORBIDDEN, because the CORRECT pattern contains a
+      -- bare show on purpose:
+      --      if _G.showCanvasSafely then _G.showCanvasSafely(c, "x")
+      --      else pcall(function() c:show() end) end
+      -- That fallback exists because a module can load before init.lua has
+      -- defined the helper, and it is on its own line. A rule that flagged
+      -- any bare show would report all three correct call sites — which is
+      -- exactly what the first version of this rule did.
+      if bare == 0 or bare <= safe then return end
+      return { 1, bare .. " bare canvas:show() call(s) against " .. safe
+                  .. " protected — route them through _G.showCanvasSafely" }
+  end }
+
 -- 🚨 6.66.1 — "my shortcuts don't work over full screen apps". They did.
 -- The PANELS were invisible, which is indistinguishable from a dead key.
 rule{ id = "canvas-not-fullscreen", sev = "ERROR",

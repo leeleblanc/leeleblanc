@@ -244,7 +244,22 @@ function M.setup(core)
 
     local function showCanvas(c)
         if not c then return end
-        c:show()
+        -- 🚨 6.66.3 — THROUGH showCanvasSafely, NOT A BARE :show().
+        -- From LL's Console, on a hotkey press while Safari's URL-completion
+        -- popup was on screen:
+        --   NSInternalInconsistencyException: '<NSRemoteView …
+        --   SPCompletionListServiceViewController> notified of <HSCanvasWindow>
+        --   but expected (null)' in -[NSRemoteView containingWindowWillOrderOnScreen:]
+        -- AppKit asserts when our window is ordered on screen while ANOTHER
+        -- process's remote view is mid-transition. It is a timing collision, not
+        -- a permanent state, which is why the shared helper retries once a run
+        -- loop turn later and only then reports. A bare :show() throws, abandons
+        -- the rest of the open sequence, and leaves a half-ordered ghost.
+        if _G.showCanvasSafely then
+            _G.showCanvasSafely(c, "mouse grid")
+        else
+            pcall(function() c:show() end)
+        end
         grid.shown[#grid.shown + 1] = c
     end
 
@@ -1217,8 +1232,10 @@ function M.setup(core)
             -- over whatever you were about to click, for half a second —
             -- which is precisely when you are reaching for something.
             c:canvasMouseEvents(false, false, false, false)
-            c:show()
         end)
+        -- Same protection as every other canvas here — see showCanvas above.
+        if _G.showCanvasSafely then _G.showCanvasSafely(c, "pointer ring")
+        else pcall(function() c:show() end) end
         grid.locateCanvas = c
         grid.locateTimer = hs.timer.doAfter(grid.locateSecs, function()
             pcall(function() c:delete() end)

@@ -297,21 +297,74 @@ asanaProjectId = "proj"
 dofile(HERE .. "/loader_test.lua")     -- the REAL §1.12 loader
 _G.moduleDir = HS .. "/modules"
 
--- The real list, read from init.lua rather than retyped — a hand-copied
--- list here would drift from the profile that actually ships.
+-- 🚨 6.66.3 — THIS BLOCK USED TO READ ONLY THE `default` PROFILE, and
+-- that is how four releases of new modules never reached LL's Mac.
+--
+-- The list is read from init.lua rather than retyped, on the sound
+-- reasoning that a hand-copied list here would drift. But init.lua
+-- carried THREE hand-copied lists, one per machine profile, and this read
+-- the one that happened to be correct. The Tool Picker, Universal
+-- Actions, the Pomodoro and the Outlook Probe were all in `default` and
+-- in neither machine profile; his boot said "26 modules · All green"
+-- because nothing failed — nothing was asked to load.
+--
+-- A test that reads the same wrong source as the code confirms the code
+-- instead of checking it. So the source of truth is now BASE, and the
+-- check below is against the FILESYSTEM: every module that exists must be
+-- loaded by every profile, or be explicitly excluded.
 local MODULES = {}
 do
     local f = io.open(HS .. "/init.lua", "r")
     local init = f and f:read("*a") or ""
     if f then f:close() end
-    local block = init:match('default%s*=%s*{%s*modules%s*=%s*{(.-)}')
+    local block = init:match("local BASE = {(.-)\n}")
     for name in (block or ""):gmatch('"([%w_]+)"') do MODULES[#MODULES + 1] = name end
 end
-check("the module list was read from init.lua's default profile",
-      #MODULES >= 19, #MODULES)
+check("the module list was read from init.lua's BASE list", #MODULES >= 19, #MODULES)
 check("mouse_grid is in it", (function()
     for _, m in ipairs(MODULES) do if m == "mouse_grid" then return true end end
 end)())
+
+-- 🚨 THE CHECK THAT WOULD HAVE CAUGHT IT: disk versus config.
+do
+    local onDisk, listed = {}, {}
+    local p = io.popen('ls "' .. HS .. '"/modules/*.lua 2>/dev/null')
+    if p then
+        for line in p:lines() do
+            local n = line:match("([%w_]+)%.lua$")
+            if n then onDisk[#onDisk + 1] = n end
+        end
+        p:close()
+    end
+    for _, m in ipairs(MODULES) do listed[m] = true end
+    local orphans = {}
+    for _, n in ipairs(onDisk) do
+        if not listed[n] then orphans[#orphans + 1] = n end
+    end
+    check("🚨 EVERY MODULE ON DISK IS IN BASE — a module file that no "
+          .. "profile loads is a feature written, tested, shipped and "
+          .. "ABSENT, and it reports 'All green' the whole time",
+          #orphans == 0, table.concat(orphans, ", "))
+    check("...and the check saw a real directory, so a broken glob cannot "
+          .. "make it pass by finding nothing", #onDisk >= 25, #onDisk)
+end
+
+-- 🚨 AND EVERY PROFILE GETS THEM. The bug was not a short list; it was
+-- THREE lists that could disagree. profileFrom() makes that structurally
+-- impossible, and this proves the structure is actually used rather than
+-- described in a comment.
+do
+    local f = io.open(HS .. "/init.lua", "r")
+    local init = f and f:read("*a") or "" ; if f then f:close() end
+    local profileBlock = init:match("_G%.moduleProfiles = {(.-)\n}") or ""
+    local handTyped = profileBlock:match("modules%s*=%s*{")
+    check("🚨 NO profile hand-types its own module list — every one derives "
+          .. "from BASE, so adding a module reaches all three Macs in one "
+          .. "edit", handTyped == nil,
+          handTyped and "a profile still has its own modules = { }" or nil)
+    local n = select(2, profileBlock:gsub("profileFrom", ""))
+    check("...and all three profiles use it", n >= 3, n)
+end
 
 -- ⚠️ loader_test.lua LOADS THE REAL LIST as a side effect of being
 -- dofile'd. Measuring without clearing first counts every module twice
@@ -562,17 +615,20 @@ do
                   body:find("function M.setup", 1, true) ~= nil
                   and body:find("return M", 1, true) ~= nil)
         end
-        -- The count is "how many PROFILES name it", not a magic number.
-        -- 6.65.1 added a fourth — SAFE mode — so health_monitor is now
-        -- listed by the two machine profiles, the default, and SAFE. What
-        -- the check is really pinning is that init.lua never REFERS to a
-        -- module as code, only ever names it in a profile list; a mention
-        -- count above the number of profiles is the tell.
+        -- 6.66.3 — THE COUNT DROPPED FROM THREE TO ONE, and that drop IS
+        -- the fix: there used to be three hand-typed profile lists and
+        -- there is now one BASE. health_monitor is named twice because
+        -- SAFE mode lists it separately.
+        --
+        -- What this check has always really been about is unchanged:
+        -- init.lua must never REFER to a module as code, only ever NAME it
+        -- in a list. A count above the number of lists is the tell.
         local live = init:gsub("%-%-[^\n]*", "")
         local mentions = select(2, live:gsub('"' .. m .. '"', ""))
-        local expected = (m == "health_monitor") and 4 or 3
-        check("...init.lua mentions " .. m .. " ONLY as a profile entry ("
-              .. expected .. "x), never as code", mentions == expected, mentions)
+        local expected = (m == "health_monitor") and 2 or 1
+        check("...init.lua NAMES " .. m .. " in a list (" .. expected
+              .. "x) and never refers to it as code", mentions == expected,
+              mentions)
     end
 end
 

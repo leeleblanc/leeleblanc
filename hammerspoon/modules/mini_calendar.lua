@@ -475,7 +475,11 @@ function M.setup(core)
         end)
 
         cal.render()
-        cal.canvas:show()
+        -- See _G.showCanvasSafely in init.lua — a bare :show() can throw
+        -- when another app's popup is mid-transition, and then the rest of
+        -- this open sequence never runs.
+        if _G.showCanvasSafely then _G.showCanvasSafely(cal.canvas, "mini calendar")
+        else pcall(function() cal.canvas:show() end) end
         if cal.modal then pcall(function() cal.modal:enter() end) end
         _G.diag.say("calendar", "opened on " .. os.date("%Y-%m-%d", cal.cursor))
     end

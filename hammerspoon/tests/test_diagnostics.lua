@@ -194,9 +194,23 @@ do
   local f = realopen(HS .. "/init.lua", "r")
   local src = f and f:read("*a") or ""
   if f then f:close() end
-  local block = src:match('default%s*=%s*{%s*modules%s*=%s*{(.-)}')
+  -- 🚨 6.66.3 — READS BASE, NOT THE `default` PROFILE. init.lua used to
+  -- carry three hand-typed module lists, one per machine, and this read
+  -- one of them. When the restructure replaced them with a single BASE
+  -- list this match returned nil, MODS came back EMPTY, no module source
+  -- was appended, and SEVEN unrelated checks failed at once — none of
+  -- them mentioning modules. A silent nil from a pattern is a bad way to
+  -- learn that, which is why the guard below is now an assertion rather
+  -- than an `or ""`.
+  local block = src:match("local BASE = {(.-)\n}")
   for name in (block or ""):gmatch('"([%w_]+)"') do MODS[#MODS + 1] = name end
 end
+-- 🚨 FAIL LOUDLY IF THE LIST IS EMPTY. Every check below that greps
+-- module source silently passes-or-fails on nothing when MODS is empty,
+-- and the failures point anywhere but here.
+check("the module list was read out of init.lua's BASE — an empty list "
+      .. "here makes every module check below meaningless",
+      #MODS >= 25, #MODS)
 local moduleText = {}
 for _, m in ipairs(MODS) do
   local mf = realopen(HS .. "/modules/" .. m .. ".lua", "r")

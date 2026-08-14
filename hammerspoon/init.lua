@@ -4,9 +4,40 @@
 -- =====================================================================
 -- 08-13-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.66.2-DOCK-ICON
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.66.3-PROFILE-DRIFT
 -- =====================================================================
 
+-- NEW IN 6.66.3 — FOUR MODULES WERE NEVER LOADING ON YOUR MAC:
+--   🚨 YOUR BOOT LINE SAID "26 modules · All green" WHILE THIRTY SAT ON
+--      DISK. It was telling the truth: nothing failed, because nothing was
+--      asked to load. init.lua carried THREE hand-typed module lists — one
+--      per machine profile — and 6.65.0 through 6.66.2 added the new
+--      modules to `default` only. Your Mac uses the "Lees-MacBook-Air"
+--      profile, so the Tool Picker (⇪⇧/), Universal Actions (⇪⇧A), the
+--      Pomodoro (⇪⇧P) and the Outlook Probe have not existed on your
+--      machine at all. Written, tested, documented, shipped and absent.
+--   ⚠️ AND THE TEST SUITE AGREED WITH THE BUG. test_integration reads the
+--      module list OUT of init.lua rather than retyping it, exactly so a
+--      copy cannot drift — but it read only `default`. It validated the
+--      one list that was right and never looked at the two that were
+--      wrong. A test that reads the same wrong source as the code
+--      confirms the code instead of checking it. test_diagnostics had the
+--      same read, and the same blind spot.
+--   ✅ ONE LIST NOW. `local BASE` is the module list; each profile calls
+--      profileFrom{ without = {…}, plus = {…}, settings = {…} } and states
+--      only its DIFFERENCES. Adding a module is one edit that reaches
+--      every Mac.
+--   🔒 AND THE CHECK THAT WOULD HAVE CAUGHT IT: every module file on disk
+--      must appear in BASE, and no profile may hand-type its own list.
+--      Both fail the build now.
+--   🖼 THE CANVAS EXCEPTION IN YOUR CONSOLE IS FIXED TOO. That
+--      NSInternalInconsistencyException came from a bare canvas:show()
+--      colliding with Safari's URL-completion popup mid-transition. The
+--      helper for exactly this (_G.showCanvasSafely — it retries a run
+--      loop turn later) already existed and SIX canvases bypassed it.
+--      All six go through it now, and a lint rule counts bare shows
+--      against protected ones so a seventh cannot appear.
+--
 -- NEW IN 6.66.2 — "SOME WINDOWS DON'T COME FORWARD BUT SOME DO":
 --   🎯 EXACTLY RIGHT, AND THE SPLIT IS THE DIAGNOSIS. The ones that work
 --      are hs.canvas — the cheat sheet, Mouse Grid, pomodoro, screen veil.
@@ -62,126 +93,8 @@
 --   🔢 THE PAD SCREENSHOT WAS 6.65.x. Everything in it was already cleared
 --      in 6.66.0 — every ⇪ + pad key is free. Install and it is done.
 --
--- NEW IN 6.66.0 — THE SEARCH BOX YOU ASKED FOR, AND A KEY THAT WAS DEAD:
---   🔎 TYPE INTO THE CHEAT SHEET. ⇪/ then just start typing — the panel
---      filters live, in the SAME 20pt translucent panel, with the query in
---      the title and a match count beside it. Esc clears the query; a
---      second Esc closes.
---      ↩️ THIS REVERSES WHAT I TOLD YOU. I said a canvas cannot take
---      keyboard focus so search had to be a separate window. True and
---      beside the point: Mouse Grid has captured bare letters over a
---      canvas since 6.45.0 without ever taking focus. Bind the keys, keep
---      the string yourself, draw it. The reasoning was too quick and the
---      answer was worse for it.
---      🚨 THE TRADE: while the sheet is open it CAPTURES LETTERS, so you
---      cannot type elsewhere without closing it. Same bargain the grid
---      makes, same safety behind it — keys are only ever taken while
---      something is on screen saying so, and hide() gives all 38 back.
---   🔢 THE ⇪ + PAD LAYER IS EMPTY, on request. Every entry it held was a
---      second way to press a key you already had (pad7→⇪Q, pad4→⇪R,
---      pad5→⇪X …). All ten digits and every arithmetic key are yours.
---      The ⇪⇧ window map is untouched — it is the one thing on the pad
---      not duplicated anywhere else.
---   🚨 AND ⇪pad+ NEVER WORKED. You were right. It was assigned to the
---      pomodoro in 6.65.0, documented, cheat-sheeted and covered by a
---      test — and hs.keycodes.map["pad+"] is nil on your Mac, so the
---      layer correctly SKIPPED it rather than binding nil. Everything
---      agreed it worked except the keyboard, and the only complaint was
---      one console line at boot.
---        · The pomodoro is on ⇪⇧P now — a letter cannot fail that way.
---        · A skipped key is REPORTED through the notice ledger, not
---          whispered to a console nobody has open.
---        · _G.padProbe() prints every pad key, its key code on THIS Mac,
---          and what it is bound to. Run it before assigning a pad key.
---   🖱 ⇪⇧L FINDS THE POINTER, and the ring now draws at screenSaver level
---      with fullScreenAuxiliary. It was at "overlay" with "stationary" —
---      which hid it behind the menu bar and made it invisible over a
---      FULL-SCREEN app, the exact case where you lose a pointer.
---
--- NEW IN 6.65.2 — A LINTER INSTEAD OF ANOTHER ONE-BY-ONE FIX:
---   🔍 tools/hs-lint.lua. Every rule in it is a bug that REACHED YOUR MAC
---      — not a style opinion, a receipt. It runs over init.lua, core/ and
---      all thirty modules in about a second, and it runs FIRST in
---      run-tests.sh, before any suite.
---      Why static and not more tests: an Accessibility call with no
---      timeout is correct Lua that passes every test ever written and
---      then freezes a real keyboard. Some bug classes are only visible
---      by shape.
---   🚨 IT FOUND A REAL FREEZE ON THE FIRST RUN. copy_on_select asks other
---      applications AXFocusedUIElement and AXSelectedText with NO
---      setTimeout — the exact hazard menubar_items fixed in 6.47.0 — and
---      it asks on EVERY APP SWITCH rather than on a keypress. A wedged app
---      could hold the main thread, and the main thread is what reads your
---      keyboard. Your own console had been naming the badly-behaved apps
---      for weeks (Teams, System Settings).
---   🚨 AND A BUG I HAD JUST WRITTEN. universal_actions reported success
---      for three actions whose service might not exist: _G.service.call
---      prints and returns nil on a missing provider rather than throwing,
---      so the pcall around it succeeded either way — and the action then
---      got REMEMBERED and floated to the top of your most-used list having
---      done nothing. tool_picker got that guard when it was written; this
---      file did not. Same mistake, twice, three weeks apart.
---   📋 THE OTHER RULES, all from this project's own history: in-process
---      AppleScript (the crash), replaceElements({}) (the two-screen
---      crash), a line starting with '(' (the 6.64.0 non-boot), Lua %q used
---      for shell quoting, discarded timers and menubar items, adopting a
---      JSON decoder's tables, patterns run on user input, and the module
---      contract.
---   ✍️ SILENCING ONE REQUIRES A REASON. `-- hs-lint: allow <rule> — why`.
---      A bare waiver is itself reported: the point of an exception is that
---      somebody thought about it, and the reason is the only evidence.
---      Five are in place, each naming its argument.
---   ℹ️ AND A REGISTER, NOT A TO-DO LIST. Seven INFO notes mark code that
---      is CORRECT but fragile — hs.spaces private APIs, calls that block
---      the main thread. Waivers deliberately do not clear those. After
---      every macOS update, that list is what you re-verify first.
---   ⚖️ THE LINTER MADE ITS OWN MISTAKE, kept here because it is the best
---      argument for the rule: interpolating a rule id into a Lua pattern
---      matched nothing, because "service-call-unchecked" contains '-',
---      which is a QUANTIFIER. Every waiver silently failed to apply. That
---      is the pattern-on-variable rule, in the file that defines it.
---
--- NEW IN 6.65.1 — THE CRASH, AND THE pcall THAT WAS NEVER PROTECTION:
---   💥 HAMMERSPOON WAS ABORTING. LL's report, macOS 26.6.1, 0.6s after
---      launch:
---        _NSAppleEventManagerGenericHandler
---        handleUncaughtException → reportException: → abort()
---      An uncaught OBJECTIVE-C exception while handling an Apple Event.
---   🚨 EVERY AppleScript CALL IS NOW OUT OF PROCESS. The in-process form,
---      hs.osascript.applescript, runs NSAppleScript INSIDE Hammerspoon and
---      sends Apple Events on its main thread. When that machinery raises,
---      the process dies.
---   ⚠️ AND THE pcall AROUND IT WAS WORTH NOTHING — the part worth
---      remembering. Lua's pcall catches LUA errors. An Objective-C
---      exception is not a Lua error: it unwinds straight past pcall into
---      the uncaught handler and aborts the app. Four versions of this file
---      wrapped those calls and believed they were handled.
---   🎯 THE WORST OFFENDER NEEDED NO KEYPRESS. The OCR Finder-comment
---      tagger runs from the CLIPBOARD WATCHER — copy image files and it
---      fires on its own, including seconds after login while the clipboard
---      still holds yesterday's contents. LL's console shows that path
---      running on file URLs at boot.
---   🔑 CAPS LOCK IS GIVEN BACK ON QUIT. A hidutil remap is a SYSTEM-WIDE
---      HID mapping that does not die with the process — quit or kill
---      Hammerspoon and Caps Lock is still sending F18 with nothing left to
---      interpret it. That is the "killing it does not free up the keys"
---      half of the report. hs.shutdownCallback now lifts it.
---      ⚠️ A hard crash still cannot run that. The manual escape hatch:
---            hidutil property --set '{"UserKeyMapping":[]}'
---   🚑 SAFE MODE. `touch ~/.hammerspoon/SAFE`, reload, and only four
---      modules load — nothing that talks to another app, drives a private
---      macOS API, or runs on a timer. In a crash loop every way of fixing
---      this config goes through the config; this is the way that does not.
---      `rm ~/.hammerspoon/SAFE` restores everything.
---   🖱 ON MISSION CONTROL AND THE TRACKPAD, HONESTLY: nothing here binds a
---      gesture. The only module touching Spaces internals is workspaces,
---      via hs.spaces, which drives PRIVATE macOS APIs — the kind that
---      break on a new release. When they wedge, what is stuck is the DOCK,
---      not us, which is why killing Hammerspoon does not help and
---      `killall Dock` does. Not proven, and safe mode excludes it.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.66.2
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.66.3
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -482,7 +395,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.66.2"
+_G.configVersion = "6.66.3"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -3280,61 +3193,83 @@ _G.moduleWarmTimers  = {}    -- HELD: an unreferenced hs.timer is collected
 -- `settings` = per-module overrides applied to that module's `config`
 --              table after setup. Anything the module exposes there can
 --              differ per machine without touching the module file.
-_G.moduleProfiles = {
-    -- ---- personal Mac: everything on -------------------------------
-    ["Lees-MacBook-Air"] = {
-        modules = {
-            "daily_backup", "app_peek", "window_switcher", "window_arranger",
-            "copy_on_select", "command_history", "app_watcher", "file_tracker",
-            "autocorrect", "activity_tracker", "update_tracker",
-            "asana_comments", "document_watcher",
-            -- 6.44.0
-            "screen_veil", "mini_calendar", "quick_append", "capture_pad",
-            "numpad_layer",
-            -- 6.45.0
-            "mouse_grid",
-            -- 6.46.0
-            "url_cleaner", "health_monitor",
-            -- 6.47.0
-            "menubar_items",
-            -- 6.48.0
-            "focus_mode", "bulk_rename",
-            -- 6.55.0
-            "clipboard_history",
-            -- 6.51.0
-            "workspaces",
-        },
-    },
+-- 🚨 6.66.3 — ONE LIST, NOT THREE COPIES. THIS IS A BUG FIX, and the bug
+-- had been silently costing LL every new feature for four releases.
+--
+-- Each profile used to carry its own hand-typed `modules` list. Adding a
+-- module meant editing THREE lists, and 6.65.0 through 6.66.2 edited only
+-- `default` — so on "Lees-MacBook-Air", which has its own profile, the
+-- Tool Picker, Universal Actions, the Pomodoro and the Outlook Probe were
+-- NEVER LOADED. Every one of them was written, tested, documented,
+-- shipped, and absent. The boot line read "26 modules" while thirty sat
+-- on disk, and "All green" was perfectly true: nothing failed, because
+-- nothing was asked to load.
+--
+-- ⚠️ AND THE SUITE AGREED WITH THE BUG. test_integration reads the module
+-- list out of init.lua rather than retyping it, precisely so a hand-copied
+-- list cannot drift — but it read only the `default` profile. It
+-- validated the one list that was right and never looked at the two that
+-- were wrong. A test that reads the same wrong source as the code
+-- confirms the code instead of checking it.
+--
+-- So: BASE is the list. A profile declares only its DIFFERENCES. Adding a
+-- module is one edit that reaches every Mac, and a module on disk that no
+-- profile loads now fails the build.
+local BASE = {
+    "daily_backup", "app_peek", "window_switcher", "window_arranger",
+    "copy_on_select", "command_history", "app_watcher", "file_tracker",
+    "autocorrect", "activity_tracker", "update_tracker",
+    "asana_comments", "document_watcher",
+    -- 6.44.0
+    "screen_veil", "mini_calendar", "quick_append", "capture_pad",
+    "numpad_layer",
+    -- 6.45.0
+    "mouse_grid",
+    -- 6.46.0
+    "url_cleaner", "health_monitor",
+    -- 6.47.0
+    "menubar_items",
+    -- 6.48.0
+    "focus_mode", "bulk_rename",
+    -- 6.55.0
+    "clipboard_history",
+    -- 6.51.0
+    "workspaces",
+    -- 6.65.0
+    "tool_picker",        -- ⇪⇧/  search every shortcut
+    "universal_actions",  -- ⇪⇧A  act on the Finder selection
+    "pomodoro",           -- ⇪⇧P  25 on, 5 off
+    "outlook_probe",      -- diagnostic only, binds no key
+}
 
-    -- ---- work Mac -------------------------------------------------
+-- BASE minus `without`, plus `plus`. The list is COPIED, never shared: a
+-- profile that referenced BASE and then dropped an entry would drop it
+-- for every other profile too.
+local function profileFrom(opts)
+    opts = opts or {}
+    local drop = {}
+    for _, n in ipairs(opts.without or {}) do drop[n] = true end
+    local mods = {}
+    for _, n in ipairs(BASE) do
+        if not drop[n] then mods[#mods + 1] = n end
+    end
+    for _, n in ipairs(opts.plus or {}) do mods[#mods + 1] = n end
+    return { modules = mods, settings = opts.settings }
+end
+
+-- ✏️ EACH PROFILE NOW SAYS ONLY WHAT MAKES IT DIFFERENT.
+--      without = { "workspaces" }   -- do not load this one here
+--      plus    = { "something" }    -- load an extra one here
+--      settings = { … }             -- per-machine config overrides
+_G.moduleProfiles = {
+    -- ---- personal Mac: everything on ----
+    ["Lees-MacBook-Air"] = profileFrom(),
+
+    -- ---- work Mac ----
     -- ✏️ PUT YOUR WORK MACHINE'S NAME HERE. Find it by running
     --      scutil --get ComputerName
-    -- on that Mac, or just read the 🧭 PORTABILITY REPORT line at the
-    -- top of its Hammerspoon Console — it prints the same name.
-    -- Until you do, the work Mac uses `default` below, which loads
-    -- everything; nothing breaks either way.
-    ["Lees-Work-MacBook"] = {
-        modules = {
-            "daily_backup", "app_peek", "window_switcher", "window_arranger",
-            "copy_on_select", "command_history", "app_watcher", "file_tracker",
-            "autocorrect", "activity_tracker", "update_tracker",
-            "asana_comments", "document_watcher",
-            -- 6.44.0
-            "screen_veil", "mini_calendar", "quick_append", "capture_pad",
-            "numpad_layer",
-            -- 6.45.0
-            "mouse_grid",
-            -- 6.46.0
-            "url_cleaner", "health_monitor",
-            -- 6.47.0
-            "menubar_items",
-            -- 6.48.0
-            "focus_mode", "bulk_rename",
-            -- 6.55.0
-            "clipboard_history",
-            -- 6.51.0
-            "workspaces",
-        },
+    -- on that Mac, or read the 🧭 line at the top of its Console.
+    ["Lees-Work-MacBook"] = profileFrom({
         settings = {
             -- Examples — delete or edit freely. These are exactly the
             -- knobs a work Mac tends to want different:
@@ -3345,37 +3280,10 @@ _G.moduleProfiles = {
                 maxWindows = 24,
             },
         },
-    },
+    }),
 
-    -- ---- any other Mac --------------------------------------------
-    default = {
-        modules = {
-            "daily_backup", "app_peek", "window_switcher", "window_arranger",
-            "copy_on_select", "command_history", "app_watcher", "file_tracker",
-            "autocorrect", "activity_tracker", "update_tracker",
-            "asana_comments", "document_watcher",
-            -- 6.44.0
-            "screen_veil", "mini_calendar", "quick_append", "capture_pad",
-            "numpad_layer",
-            -- 6.45.0
-            "mouse_grid",
-            -- 6.46.0
-            "url_cleaner", "health_monitor",
-            -- 6.47.0
-            "menubar_items",
-            -- 6.48.0
-            "focus_mode", "bulk_rename",
-            -- 6.55.0
-            "clipboard_history",
-            -- 6.51.0
-            "workspaces",
-            -- 6.65.0
-            "tool_picker",        -- ⇪⇧/  search every shortcut
-            "universal_actions",  -- ⇪U   act on the Finder selection
-            "pomodoro",           -- ⇪pad+ 25 on, 5 off
-            "outlook_probe",      -- diagnostic only, binds no key
-        },
-    },
+    -- ---- any other Mac ----
+    default = profileFrom(),
 }
 
 _G.moduleWarmDelay = 2.0   -- seconds after boot before warm() runs

@@ -293,8 +293,23 @@ function M.setup(core)
             c:canvasMouseEvents(false, false, false, false)
             c:replaceElements(elements("FOCUS", mmss(pom.workMins * 60),
                                        pom.bgWork, pom.fgWork))
-            c:show()
         end)
+        if okShow then
+            -- 🚨 6.66.3 — THROUGH showCanvasSafely, NOT A BARE :show().
+            -- From LL's Console, on a hotkey press while Safari's URL-completion
+            -- popup was on screen:
+            --   NSInternalInconsistencyException: '<NSRemoteView …
+            --   SPCompletionListServiceViewController> notified of <HSCanvasWindow>
+            --   but expected (null)' in -[NSRemoteView containingWindowWillOrderOnScreen:]
+            -- AppKit asserts when our window is ordered on screen while ANOTHER
+            -- process's remote view is mid-transition. It is a timing collision, not
+            -- a permanent state, which is why the shared helper retries once a run
+            -- loop turn later and only then reports. A bare :show() throws, abandons
+            -- the rest of the open sequence, and leaves a half-ordered ghost.
+            okShow = (_G.showCanvasSafely
+                      and _G.showCanvasSafely(c, "pomodoro"))
+                     or pcall(function() c:show() end)
+        end
         if not okShow then
             pom.stop("draw failed")
             hs.alert.show("🍅 Pomodoro could not draw — see the Console")
