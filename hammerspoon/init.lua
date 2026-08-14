@@ -4,9 +4,37 @@
 -- =====================================================================
 -- 08-13-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.66.1-FULLSCREEN-AZ
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.66.2-DOCK-ICON
 -- =====================================================================
 
+-- NEW IN 6.66.2 — "SOME WINDOWS DON'T COME FORWARD BUT SOME DO":
+--   🎯 EXACTLY RIGHT, AND THE SPLIT IS THE DIAGNOSIS. The ones that work
+--      are hs.canvas — the cheat sheet, Mouse Grid, pomodoro, screen veil.
+--      A canvas can be told fullScreenAuxiliary, and 6.66.1 fixed the last
+--      two that were not. The ones that do NOT are hs.chooser: clipboard
+--      history (⇪V), OCR search (⇪O), the Tool Picker (⇪⇧/), Universal
+--      Actions (⇪⇧A), the menu bar picker (⇪M), every Asana list.
+--   🖥 THE CAUSE IS THE DOCK ICON, and this is documented Hammerspoon
+--      behaviour rather than a bug here. From the hs.chooser docs:
+--        "As of macOS Sierra and later, if you want an hs.chooser object
+--         to appear above full-screen windows you must hide the
+--         Hammerspoon Dock icon first, using hs.dockicon.hide()"
+--      It is AppKit's rule: an app WITH a Dock icon is a regular
+--      application, and a regular app's panels cannot draw over another
+--      app's full-screen Space. An app without one is an accessory
+--      application, and its panels float anywhere. A chooser is a native
+--      NSPanel with no collection-behaviour API, so no amount of Lua can
+--      grant it what a canvas gets for free.
+--   ✅ THE DOCK ICON IS HIDDEN AT BOOT NOW, in init.lua rather than by the
+--      Preferences checkbox — a setting that lives only in a GUI does not
+--      travel to the other Mac, and in this config the file IS the
+--      configuration.
+--   ⚖️ WHAT YOU GIVE UP: no Dock icon, and Hammerspoon stops appearing in
+--      ⌘Tab. WHAT YOU KEEP: the menu bar icon, every hotkey, the Console
+--      and Preferences. Nothing becomes unreachable — this config is
+--      driven entirely by ⇪ shortcuts and the menu bar.
+--      Set hideDockIcon = false near the top to put it back.
+--
 -- NEW IN 6.66.1 — "MY SHORTCUTS DON'T WORK OVER FULL SCREEN APPS":
 --   🚨 THEY DID. THE PANELS WERE INVISIBLE, which is indistinguishable
 --      from a dead key and much harder to report. Two canvases were still
@@ -152,57 +180,8 @@
 --      not us, which is why killing Hammerspoon does not help and
 --      `killall Dock` does. Not proven, and safe mode excludes it.
 --
--- NEW IN 6.65.0 — A SEARCH BOX, A PINNED SHEET, AND FOUR NEW TOOLS:
---   🔎 ⇪⇧/ IS A SEARCH BOX OVER EVERY SHORTCUT. "oh I need a URL tool" —
---      type "url" and there they are. Same entries the cheat sheet draws,
---      so the two can never disagree; words match in any order, so
---      "clean url" and "url clean" both find the link cleaner. ⏎ RUNS the
---      tool when it can rather than just naming its key.
---      ⚠️ It is a separate window on purpose. The cheat sheet is drawn on
---      hs.canvas, and a canvas cannot take keyboard focus without losing
---      the two things that make it good: it floats WITHOUT stealing focus,
---      and it closes on Esc without capturing Esc globally. ⇪/ to browse,
---      ⇪⇧/ to search, neither one compromised.
---   📌 THE SHEET IS PINNED-THEN-ALPHABETICAL. Mouse Grid first, Tool
---      Picker second, everything else A–Z. It used to be ordered by each
---      module's `order` field — which is the BOOT order, so moving a
---      section up the page meant renumbering the load sequence. The sheet
---      sorts for itself now and the boot is left alone.
---   🎯 THE GRID NARROWS VISIBLY. Type a letter and the lattice drops away;
---      what is left is the still-reachable cells, each in a thick amber
---      box. Labels are 14pt minimum and grow to fill their cell — and they
---      grow FURTHER as you narrow, because two characters left to type
---      need less width than three. 12pt was chosen to fit; this is chosen
---      to be read.
---   🍅 POMODORO on ⇪pad+. 25 minutes, then it flashes and gives you 5.
---      170×99, top-right, under the clock. ⏎ and esc answer it — but ONLY
---      in the ~20s after a phase ends, never during the countdown: a modal
---      that owned Enter for 25 minutes would be a keyboard-holding bug
---      dressed as a feature.
---   ⚡ UNIVERSAL ACTIONS on ⇪U. Reveal · Copy Path · Copy File · Open With
---      · Open URL · Clean URL · Large Type · Email · Terminal Here ·
---      Snippet · Rename. The one you used last is at the top next time.
---      Actions that cannot apply right now are HIDDEN, not offered and
---      then failed. Ours, natively — Alfred's own list has no API.
---   🖱 ⇪pad* FINDS THE POINTER. It has existed since 6.45.0 and has been
---      bound to nothing this whole time. It is bound now.
---   📧 _G.outlookProbe() — a READ-ONLY diagnostic, no key, no watcher.
---      The email tracker is buildable in full on legacy Outlook and only
---      partly on the redesign, and guessing which you have is exactly how
---      6.63.0 muted your microphone for a week. Run it with a message
---      open and paste the output back.
---   🔇 OCR SUCCESS IS SILENT NOW. "📋 OCR Indexed" popped on every image
---      that touched the clipboard — an alert for the thing working. A
---      FAILED Finder tag still reports, through the ledger.
---   🧹 The ⇪M menu bar picker lists real apps only; fourteen faceless
---      system agents (Control Center, the clock, Stage Manager, the input
---      menu) no longer crowd out what you opened it for.
---   🧪 269 → 285 grid checks, 65 → 71 sheet checks, eleven mutations
---      caught between them — including the stale-canvas trap where the
---      next ⇪X would have opened showing the last session's final frame.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.66.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.66.2
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -425,6 +404,65 @@ safeRequire("hs.window"); safeRequire("hs.sound"); safeRequire("hs.notify"); saf
 safeRequire("hs.fs"); safeRequire("hs.host"); safeRequire("hs.pathwatcher"); safeRequire("hs.osascript")
 safeRequire("hs.axuielement")
 safeRequire("hs.caffeinate")
+safeRequire("hs.dockicon")
+
+-- =====================================================================
+-- 🖥 THE DOCK ICON, AND WHY HIDING IT IS A FEATURE (6.66.2)
+-- =====================================================================
+-- LL: "some windows don't come forward but some do, like the shortcuts
+-- panel." Exactly right, and the split is the diagnosis:
+--
+--   · THE ONES THAT WORK are hs.canvas — the cheat sheet, the Mouse
+--     Grid, the pomodoro, the screen veil. A canvas can be told
+--     `fullScreenAuxiliary`, and every one of ours is (6.66.1 fixed the
+--     last two that were not).
+--   · THE ONES THAT DO NOT are hs.chooser — the clipboard history (⇪V),
+--     OCR search (⇪O), the Tool Picker (⇪⇧/), Universal Actions (⇪⇧A),
+--     the menu bar picker (⇪M), every Asana list. A chooser is a native
+--     NSPanel and exposes NO collection-behaviour API, so nothing in
+--     Lua can grant it the same permission.
+--
+-- 🚨 THIS IS DOCUMENTED HAMMERSPOON BEHAVIOUR, not a bug in this config.
+-- From the official hs.chooser docs:
+--     "As of macOS Sierra and later, if you want an hs.chooser object to
+--      appear above full-screen windows you must hide the Hammerspoon
+--      Dock icon first, using hs.dockicon.hide()"
+-- The reason is AppKit's, not ours: an app with a Dock icon is a REGULAR
+-- application, and a regular app's panels cannot be drawn over another
+-- app's full-screen Space without switching Spaces. An app without one
+-- is an ACCESSORY application, and its panels can float anywhere.
+--
+-- ⚖️ WHAT YOU GIVE UP, stated plainly so this is a choice and not a
+-- surprise:
+--   · no Hammerspoon icon in the Dock
+--   · Hammerspoon stops appearing in ⌘Tab
+-- WHAT YOU KEEP: the menu bar icon, every hotkey, the Console (menu bar
+-- icon → Console), and Preferences. Nothing becomes unreachable — this
+-- config is driven entirely by ⇪ shortcuts and the menu bar, so the Dock
+-- icon was never a route to anything.
+--
+-- ✏️ SET THIS TO false to keep the Dock icon. The pickers will then work
+-- everywhere EXCEPT over full-screen apps, which is the behaviour you
+-- have been living with.
+--
+-- ⚠️ THIS ALSO OVERRIDES the "Show dock icon" checkbox in Hammerspoon
+-- Preferences on every load, deliberately: a setting that lives only in
+-- a GUI checkbox does not travel to the other Mac, and this config's
+-- whole design is that the file IS the configuration.
+local hideDockIcon = true
+
+if hideDockIcon then
+    local ok = pcall(function() hs.dockicon.hide() end)
+    if ok then
+        print("🖥 Dock icon hidden — pickers can now open over full-screen apps")
+    else
+        -- Not fatal, and worth saying rather than leaving you to wonder
+        -- why ⇪V still will not open over Excel in full screen.
+        print("⚠️ 🖥 Could not hide the Dock icon — hs.chooser pickers will")
+        print("   not appear over full-screen apps. Uncheck 'Show dock icon'")
+        print("   in Hammerspoon Preferences to get the same effect by hand.")
+    end
+end
 
 -- 🔇 6.44.10 — QUIET THE CONSOLE SO IT IS WORTH READING. hs.hotkey logs
 -- every enable and disable at info level. The ⌥Tab switcher binds 32 arrow
@@ -444,7 +482,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.66.1"
+_G.configVersion = "6.66.2"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

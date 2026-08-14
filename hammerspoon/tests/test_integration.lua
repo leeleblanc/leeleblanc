@@ -491,6 +491,34 @@ do
     local f2 = io.open(HS .. "/CHANGELOG.md", "r")
     local chg = f2 and f2:read("*a") or "" ; if f2 then f2:close() end
 
+    -- 🚨 6.66.2 — THE DOCK ICON IS LOAD-BEARING, which is not obvious and
+    -- is exactly why it is pinned here. Every hs.chooser in this config —
+    -- clipboard history, OCR search, the Tool Picker, Universal Actions,
+    -- the menu bar picker, every Asana list — CANNOT open over a
+    -- full-screen app while Hammerspoon has a Dock icon. That is AppKit's
+    -- rule, documented in the hs.chooser docs, and there is no Lua-side
+    -- workaround: a chooser is a native NSPanel with no collection
+    -- behaviour API. Deleting this line silently costs you every picker in
+    -- full screen, and the symptom ("some windows come forward, some do
+    -- not") points nowhere near the cause.
+    -- ⚠️ COMMENTS STRIPPED FIRST. The block above this call in init.lua
+    -- explains the fix and therefore CONTAINS the string being searched
+    -- for — so a grep over raw text passes even when the call itself is
+    -- deleted. That exact mistake was made twice in one day: once here,
+    -- and once in hs-lint's canvas-not-fullscreen rule, where a comment
+    -- mentioning fullScreenAuxiliary silenced the check on the very file
+    -- documenting it. A search for code has to look at code.
+    local code = init:gsub("\n%s*%-%-[^\n]*", "\n")
+    check("🚨 init.lua HIDES THE DOCK ICON — without it no hs.chooser can "
+          .. "open over a full-screen app, and nothing in Lua can fix that "
+          .. "afterwards", code:find("hs%.dockicon%.hide") ~= nil)
+    check("...and it is behind a named switch rather than a bare call, so "
+          .. "the Dock icon can be put back in one edit",
+          code:find("hideDockIcon") ~= nil)
+    check("...and the failure path SAYS SO rather than leaving you to "
+          .. "wonder why ⇪V will not open over a full-screen app",
+          init:find("not appear over full%-screen apps") ~= nil)
+
     local inline = {}
     for v in init:gmatch("\n%-%- NEW IN ([%d%.]+)") do inline[#inline + 1] = v end
     check("init.lua keeps at most FIVE changelog entries inline, which is "

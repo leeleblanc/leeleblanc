@@ -4,6 +4,52 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.66.2 — "SOME WINDOWS DON'T COME FORWARD BUT SOME DO":
+  🎯 EXACTLY RIGHT, AND THE SPLIT IS THE WHOLE DIAGNOSIS. LL noticed that
+     the shortcuts panel appears over full-screen apps and other windows
+     do not. That is not inconsistency, it is two different technologies:
+     · WORKING: hs.canvas — the cheat sheet, Mouse Grid, pomodoro, screen
+       veil. A canvas accepts fullScreenAuxiliary, and 6.66.1 fixed the
+       last two that were still on "stationary".
+     · NOT WORKING: hs.chooser — clipboard history (⇪V), OCR search (⇪O),
+       the Tool Picker (⇪⇧/), Universal Actions (⇪⇧A), the menu bar
+       picker (⇪M), every Asana list.
+  🖥 THE CAUSE IS THE DOCK ICON, and it is documented Hammerspoon
+     behaviour rather than a defect in this config. From the official
+     hs.chooser documentation:
+       "As of macOS Sierra and later, if you want an hs.chooser object to
+        appear above full-screen windows you must hide the Hammerspoon
+        Dock icon first, using hs.dockicon.hide()"
+     The rule is AppKit's: an app WITH a Dock icon is a REGULAR
+     application, and a regular app's panels cannot be drawn over another
+     app's full-screen Space without switching Spaces. An app without one
+     is an ACCESSORY application, and its panels float anywhere. A
+     chooser is a native NSPanel exposing no collection-behaviour API, so
+     no amount of Lua can grant it what a canvas gets for free — which is
+     why 6.66.1's fix helped the canvases and did nothing for the
+     pickers.
+  ✅ HIDDEN AT BOOT, FROM init.lua rather than from the Preferences
+     checkbox. A setting that lives only in a GUI does not travel to the
+     other Mac, and this config's whole design is that the file IS the
+     configuration. The failure path says so out loud rather than leaving
+     you to wonder why ⇪V still will not open over Excel in full screen.
+  ⚖️ THE TRADE, STATED SO IT IS A CHOICE AND NOT A SURPRISE:
+     · GIVES UP: the Dock icon, and Hammerspoon in ⌘Tab.
+     · KEEPS: the menu bar icon, every hotkey, the Console (menu bar icon
+       → Console) and Preferences. Nothing becomes unreachable — this
+       config is driven entirely by ⇪ shortcuts and the menu bar, so the
+       Dock icon was never a route to anything.
+     · hideDockIcon = false near the top of init.lua puts it back.
+  🧪 THE TEST FOR THIS CAUGHT ME OUT FIRST, and the mistake is worth
+     recording because it is the SECOND time in one day: the check greps
+     init.lua for hs.dockicon.hide, and the comment block explaining the
+     fix CONTAINS that string — so deleting the actual call still passed.
+     hs-lint's canvas-not-fullscreen rule had the identical failure a few
+     hours earlier, where a comment mentioning fullScreenAuxiliary
+     silenced the check on the file documenting it. Both strip comments
+     before searching now. A search for CODE has to look at code.
+  🧪 1,876 checks, 17 suites, 0 failures, 0 lint findings.
+
 NEW IN 6.66.1 — "MY SHORTCUTS DON'T WORK OVER FULL SCREEN APPS":
   🚨 THEY DID WORK. THE PANELS WERE INVISIBLE, and that is a much worse
      failure than a dead key because it is indistinguishable from one.
