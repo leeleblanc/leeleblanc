@@ -200,6 +200,14 @@ function M.setup(core)
             hs.eventtap.keyStrokes(fixed .. boundary)
         end)
         acInjecting = false
+        -- 🚨 TELL THE EXPANDER THE DOCUMENT MOVED (6.72.0). We just
+        -- deleted a word and typed a different one, and its rolling
+        -- buffer has no way to know — our injection is invisible to it by
+        -- design, via the shared guard. Left unsaid, its buffer describes
+        -- text that is no longer on screen, and an expansion matched
+        -- against that stale tail deletes characters that are not there.
+        -- The mirror of the call it makes to us.
+        if _G.expanderResetBuffer then pcall(_G.expanderResetBuffer) end
         if ok then
             acLast = { word = word, fixed = fixed, boundary = boundary,
                        wasRule = wasRule, undoSafe = true }
@@ -222,11 +230,22 @@ function M.setup(core)
         if acLast then acLast.undoSafe = false end
     end
 
-    _G.autocorrectTap = hs.eventtap.new(
-        { hs.eventtap.event.types.keyDown,
-          hs.eventtap.event.types.leftMouseDown,
-          hs.eventtap.event.types.rightMouseDown },
-        function(ev)
+    -- 🛟 6.72.0 — THE CALLBACK BODY IS GUARDED, and returns false if it
+    -- throws. This ran unguarded from 6.10.0 to here: every line below
+    -- reaches into an event object and any error in it — a malformed
+    -- event, a nil index introduced by a later edit — escapes straight
+    -- into Hammerspoon's event machinery, ON EVERY KEYSTROKE. It does not
+    -- stop; it just makes the whole keyboard louder and slower, and macOS
+    -- switches taps off that behave that way.
+    --
+    -- The key caster was written with this from the start. The two older
+    -- taps were not, which a three-tap integration test found by feeding
+    -- all of them one hostile event. Same shape in all three now:
+    -- absorb, count, and past acMaxFailures stand down rather than throw
+    -- on every key for the rest of the session.
+    local acFailures = 0
+    local acMaxFailures = 5
+    local function acOnEvent(ev)
             -- Either flag standing means "this keystroke is not a person
             -- typing". The local one covers our own injection; the shared
             -- one covers the text expander's (6.69.0).
@@ -298,6 +317,30 @@ function M.setup(core)
 
             acBuffer = ""                            -- digits & anything else
             return false
+    end
+
+    _G.autocorrectTap = hs.eventtap.new(
+        { hs.eventtap.event.types.keyDown,
+          hs.eventtap.event.types.leftMouseDown,
+          hs.eventtap.event.types.rightMouseDown },
+        function(ev)
+            local ok, ret = pcall(acOnEvent, ev)
+            if ok then acFailures = 0; return ret end
+            acFailures = acFailures + 1
+            if acFailures >= acMaxFailures then
+                pcall(function() _G.autocorrectTap:stop() end)
+                _G.autocorrectStatus = "OFF (failed " .. acFailures
+                                       .. " times in a row)"
+                print("✏️ Autocorrect: switched itself OFF after " .. acFailures
+                      .. " consecutive failures — your keyboard and every "
+                      .. "other tool are unaffected. Last error: " .. tostring(ret))
+                if _G.notices then
+                    _G.notices.record("autocorrect", "disabled itself", tostring(ret))
+                end
+            end
+            -- 🚨 false, ALWAYS. A corrector that eats a keystroke when it
+            -- fails is worse than one that simply does not correct.
+            return false
         end
     )
 
@@ -354,6 +397,9 @@ function M.setup(core)
                 hs.eventtap.keyStrokes(last.word .. last.boundary)
             end)
             acInjecting = false
+            -- An undo rewrites the document too — same reasoning as the
+            -- injection above.
+            if _G.expanderResetBuffer then pcall(_G.expanderResetBuffer) end
             hs.alert.show(last.wasRule
                 and ("↩️ Restored " .. last.word .. " — added to exceptions permanently")
                 or  ("↩️ Restored " .. last.word .. " — to make permanent, delete the CSV row: fix," .. last.word:lower() .. "," .. last.fixed:lower()))

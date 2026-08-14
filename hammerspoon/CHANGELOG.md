@@ -4,6 +4,89 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.72.0 — A FULL DEBUG PASS, AND TWO REAL BUGS IN THE KEYBOARD:
+  🔬 HOW THIS PASS WAS RUN, because the method is the point. Three bugs
+     had reached LL's Mac through a fully green suite in as many
+     releases, and every one of them was the same shape: a stub more
+     forgiving than the API it stood in for, or an assertion that checked
+     the easy half. So this pass hunted THAT, rather than re-reading
+     code hoping to spot something.
+       1. A multi-return audit over the whole config — the exact class
+          that killed hs.fs.dir.
+       2. All 32 modules executed against three hostile worlds.
+       3. All three keyboard taps loaded into ONE process for the first
+          time, with a stub that feeds synthetic keystrokes BACK through
+          the taps the way a real Mac does.
+     Step 3 is where both real bugs were, and neither could have been
+     found any other way: each module is correct about its own half.
+  🚨 A SPELLING FIX COULD FIRE A SNIPPET. The text expander never checked
+     the shared injection guard on the READ side.
+     · Its own header claimed "IT STANDS DOWN FOR THE SHARED INJECTION
+       GUARD". Only the WRITE half ever did — expansions went out through
+       withInjection, but the tap itself only ever checked exp.injecting,
+       which knows about this module's own typing and nothing else.
+     · So every character autocorrect typed arrived at the expander
+       looking exactly like a keypress. If a corrected word ended in a
+       trigger, THE SNIPPET FIRED. A spelling fix expanding into an email
+       signature.
+     · The buffer reset below cannot prevent this — by the time
+       autocorrect calls it, the expansion has already gone off. The
+       read-side check is the part that has to come first.
+  🚨 AND A CORRECTION MOVED THE DOCUMENT UNDER THE EXPANDER. The reset
+     between the two was one-directional: an expansion told autocorrect
+     to drop its word; a correction told the expander nothing.
+     · Type "teh" then space. Autocorrect consumes the space, fixes the
+       word and injects "the ". The expander correctly ignores the
+       injection — which is exactly what leaves its rolling buffer
+       holding "teh" while the document reads "the ".
+     · That is not cosmetic. The buffer is what the word-boundary rule
+       reads, so a trigger typed straight afterwards looks mid-word and
+       is silently suppressed; and an expansion's delete count assumes
+       the trigger's characters sit in front of the caret.
+  🛟 TWO OF THE THREE TAPS RAN WITH AN UNGUARDED CALLBACK. The key caster
+     was written with a pcall'd body and a self-disable; autocorrect has
+     run without one since 6.10.0, and the expander since 6.68.0.
+     · Everything in those callbacks reaches into an event object and
+       does utf8 arithmetic on a rolling buffer. An error there escapes
+       into Hammerspoon's event machinery ON EVERY KEYSTROKE. It does not
+       stop — it just makes the whole keyboard slower and louder, and
+       macOS switches off taps that behave that way.
+     · All three now absorb, count consecutive failures, and stand down
+       at five rather than degrade the keyboard for the session. All
+       three return false on the failure path: a tap that eats a
+       keystroke when it fails has taken a character and given nothing
+       back.
+  🧪 tools/hs-hostile.lua — A MAC THAT REFUSES EVERYTHING. All 32 modules
+     loaded and set up against three worlds:
+       EMPTY    every API answers nil — no screens attached, empty
+                pasteboard, Accessibility withheld, folders missing.
+                These are real shapes, not hypotheticals. Every module
+                degrades; it is a GATE in run-tests.sh now.
+       THROW    every API raises. ~19 modules throw at CREATION, which is
+                expected and fine — the loader isolates it and nothing is
+                left running. Read the line numbers, not the count.
+       MISSING  whole hs.* extensions absent, i.e. an older Hammerspoon.
+     THROW and MISSING are a register, not a to-do list. Wrapping every
+     hs.hotkey.bind in a pcall would be noise with no reader.
+  🔎 THREE NEW LINT RULES, one per class this pass turned up:
+       keyboard-tap-ignores-injection   ERROR
+       eventtap-callback-unguarded      WARN
+       fs-dir-loses-state               ERROR
+     Each was verified to fire against the pre-fix code and to stay quiet
+     after. A rule that has never been seen to fail is not a rule.
+  🧹 document_watcher was the only module reaching for the
+     _G.hyperAddShortcut GLOBAL instead of taking it from `core`, which
+     every other module does. Moved, for one less thing that is true of
+     thirty-one files and not the thirty-second.
+  ⏱ And the key caster's ⇪ fallback timer is stopped before it is
+     replaced. Holding ⇪ sends repeated F18 keyDowns; without that, the
+     first press's timer fired three seconds later and cleared the flag
+     while the key was still down.
+  ✅ VERIFIED CLEAN, and worth recording so the next pass can skip it:
+     no remaining multi-return misuse, no unheld timers (all five the
+     audit flagged are stored on the next line), no modal entered without
+     an exit path, and every module degrades in the empty world.
+
 NEW IN 6.71.0 — SHOW THE KEYS, AND THE BUG THAT ATE THE SNIPPETS:
   🚨 NOT ONE SNIPPET LOADED IN 6.69.0. From LL's Console:
         text_expander.lua:208: bad argument #1 to 'for iterator'

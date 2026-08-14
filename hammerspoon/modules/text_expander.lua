@@ -645,6 +645,32 @@ function M.setup(core)
     --   · the buffer is a rolling window, not a word.
     local buffer = ""
 
+    -- 🚨 6.72.0 — AUTOCORRECT CHANGES THE DOCUMENT UNDER US, and until now
+    -- nothing told this module about it. The reset was one-directional:
+    -- an expansion told autocorrect to drop its word, and a CORRECTION
+    -- told this module nothing.
+    --
+    -- Walk it through. You type "teh" then space:
+    --   1. Autocorrect decides teh→the, CONSUMES the space, and injects
+    --      "the " under the shared guard.
+    --   2. Whichever order the two taps run in, this buffer ends up
+    --      holding "teh" or "teh " — and the document now reads "the ".
+    --      The injected text is correctly ignored here (it is not you
+    --      typing), which is exactly what leaves the two out of step.
+    --   3. Every later keystroke extends a buffer that no longer
+    --      describes what is on screen.
+    -- The damage is not cosmetic. A trigger matched against a stale tail
+    -- fires an expansion whose delete count assumes those characters are
+    -- in front of the caret. They are not, so it eats real text.
+    --
+    -- One line, called from the one place that knows a correction
+    -- happened. It cannot be inferred from here: an injection is
+    -- invisible to us by design.
+    function _G.expanderResetBuffer()
+        buffer = ""
+        exp.cancelPending("the document changed underneath us")
+    end
+
     local clearCodes = {
         [53]  = true,                                       -- esc
         [123] = true, [124] = true, [125] = true, [126] = true, -- arrows
@@ -664,12 +690,31 @@ function M.setup(core)
         return false
     end
 
-    _G.expanderTap = hs.eventtap.new(
-        { hs.eventtap.event.types.keyDown,
-          hs.eventtap.event.types.leftMouseDown,
-          hs.eventtap.event.types.rightMouseDown },
-        function(ev)
+    -- 🛟 6.72.0 — THE CALLBACK BODY IS GUARDED. Same reasoning as
+    -- autocorrect's: everything below reaches into an event object and
+    -- does utf8 arithmetic on a rolling buffer, and an error in any of it
+    -- escapes into Hammerspoon's event machinery on EVERY KEYSTROKE. The
+    -- key caster was built with this from the start; the two older taps
+    -- were not, which a three-tap integration test found by handing all
+    -- of them one hostile event.
+    exp.failures = 0
+    exp.maxFailures = 5
+    local function expOnEvent(ev)
             if exp.injecting then return false end
+            -- 🚨 6.72.0 — AND THE **SHARED** GUARD, WHICH WAS MISSING.
+            -- exp.injecting only knows about OUR OWN typing. Autocorrect
+            -- types too, and every character of a correction was arriving
+            -- here as though you had pressed it:
+            --   · its corrected word joined this buffer, so the buffer
+            --     described text nobody typed;
+            --   · and if a corrected word happened to END in a trigger,
+            --     THE SNIPPET FIRED. A spelling fix expanding into an
+            --     email signature, from a module whose header already
+            --     claimed it stood down for exactly this.
+            -- The reset autocorrect calls afterwards cannot help: the
+            -- expansion has already gone off by then. This check is the
+            -- part that has to come first.
+            if _G.typingInjection and _G.typingInjection() then return false end
 
             -- 🚨 EVERY PATH THAT ABANDONS THE BUFFER MUST ALSO ABANDON A
             -- PENDING EXPANSION, and this is the sharpest edge in the whole
@@ -800,6 +845,32 @@ function M.setup(core)
                 exp.inject(trigger, snip, deletes)
             end))
             return true                  -- consume; the replacement covers it
+    end
+
+    _G.expanderTap = hs.eventtap.new(
+        { hs.eventtap.event.types.keyDown,
+          hs.eventtap.event.types.leftMouseDown,
+          hs.eventtap.event.types.rightMouseDown },
+        function(ev)
+            local ok, ret = pcall(expOnEvent, ev)
+            if ok then exp.failures = 0; return ret end
+            exp.failures = exp.failures + 1
+            -- A throw mid-match can leave a deferred expansion armed, and
+            -- that one deletes text. Disarm it before anything else.
+            pcall(exp.cancelPending, "the tap threw")
+            if exp.failures >= exp.maxFailures then
+                pcall(function() _G.expanderTap:stop() end)
+                exp.status = "OFF (failed " .. exp.failures .. " times in a row)"
+                print("✂️ Text expander: switched itself OFF after " .. exp.failures
+                      .. " consecutive failures — your keyboard and every other "
+                      .. "tool are unaffected. Last error: " .. tostring(ret))
+                if _G.notices then
+                    _G.notices.record("expander", "disabled itself", tostring(ret))
+                end
+            end
+            -- 🚨 false, ALWAYS. An expander that eats a keystroke when it
+            -- fails has taken a character away and given nothing back.
+            return false
         end
     )
 

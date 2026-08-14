@@ -495,14 +495,14 @@ function M.setup(core)
     -- ---- wiring ----------------------------------------------------------
     docLoad()
 
-    _G.hyperAddShortcut({"shift"}, "w", function()
+    core.hyperAddShortcut({"shift"}, "w", function()
         docSelectMode, docTagged = false, {}
         docRenderList("")
         _G.choosers.docWatcher:query("")
         core.showPopup(_G.choosers.docWatcher)
     end, "document watcher")
 
-    _G.hyperAddShortcut({"shift"}, "e", function()
+    core.hyperAddShortcut({"shift"}, "e", function()
         docRenderEdit("")
         _G.choosers.docWatcherEdit:query("")
         core.showPopup(_G.choosers.docWatcherEdit)

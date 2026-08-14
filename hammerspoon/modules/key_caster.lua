@@ -463,8 +463,13 @@ function M.setup(core)
         -- it as a key in its own right — you did not press "F18".
         if name == "f18" then
             kc.f18Down = true
-            local t2 = hs.timer.doAfter(3, function() kc.f18Down = false end)
-            kc.f18Timer = t2
+            -- The previous one is STOPPED before it is replaced. Holding
+            -- ⇪ sends repeated F18 keyDowns, and without this the first
+            -- press's timer fires three seconds later and clears the flag
+            -- while you are still holding the key — so the fallback would
+            -- start labelling ⇪ chords as plain keys mid-hold.
+            if kc.f18Timer then pcall(function() kc.f18Timer:stop() end) end
+            kc.f18Timer = hs.timer.doAfter(3, function() kc.f18Down = false end)
             return false
         end
         -- Is this macOS repeating a held key, or you pressing again?

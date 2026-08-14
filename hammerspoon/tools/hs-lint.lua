@@ -218,6 +218,62 @@ rule{ id = "pattern-on-variable", sev = "WARN",
       return true
   end }
 
+-- 🚨 6.72.0 — FOUND BY LOADING ALL THREE KEYBOARD TAPS IN ONE PROCESS.
+-- This config now has three eventtaps watching every keystroke, and two
+-- of them TYPE BACK into the document. Every character either of them
+-- injects arrives at the other two looking exactly like a keypress, so a
+-- tap that does not check the shared guard will:
+--   · read a correction or an expansion into its own buffer, and
+--   · in the expander's case, EXPAND a word autocorrect just fixed.
+-- The expander's header claimed it stood down for the guard. It did not;
+-- only the write side went through withInjection. Nothing noticed until
+-- the three ran together.
+rule{ id = "keyboard-tap-ignores-injection", sev = "ERROR", file = true,
+  why = "An hs.eventtap watching keyDown must check _G.typingInjection() "
+     .. "and return early. Another module's synthetic typing is "
+     .. "indistinguishable from yours at this layer, so without it a "
+     .. "correction feeds a snippet expander and an expansion feeds a "
+     .. "spelling corrector. See core/coexist.lua.",
+  check = function(code)
+      -- Only taps that watch keyDown. Mouse-only and scroll taps are not
+      -- affected: nothing in this config injects those.
+      if not code:find("hs%.eventtap%.new") then return false end
+      if not code:find("types%.keyDown") then return false end
+      if code:find("_G%.typingInjection") then return false end
+      local n = 0
+      for line in (code .. "\n"):gmatch("([^\n]*)\n") do
+          n = n + 1
+          if line:find("hs%.eventtap%.new") then
+              return { n, "watches keyDown and never checks the guard" }
+          end
+      end
+      return { 1, "watches keyDown and never checks the guard" }
+  end }
+
+-- 🚨 The same three taps, the other half of the lesson. A callback that
+-- throws does not stop — it raises into Hammerspoon's event machinery on
+-- EVERY KEYSTROKE, and macOS switches off taps that behave that way.
+rule{ id = "eventtap-callback-unguarded", sev = "WARN", file = true,
+  why = "An hs.eventtap callback body should be pcall'd, returning false "
+     .. "on failure. Everything inside reaches into an event object, and "
+     .. "an error there escapes into the event system once per keystroke "
+     .. "rather than failing once. Count consecutive failures and stand "
+     .. "down rather than degrade the whole keyboard.",
+  check = function(code)
+      if not code:find("hs%.eventtap%.new") then return false end
+      if not code:find("types%.keyDown") then return false end
+      -- The guarded shape: a named handler invoked through pcall.
+      if code:find("pcall%s*%(%s*[%w_%.]+%s*,%s*ev%s*%)") then return false end
+      local n = 0
+      for line in (code .. "\n"):gmatch("([^\n]*)\n") do
+          n = n + 1
+          if line:find("hs%.eventtap%.new") then
+              return { n, "callback body is not pcall'd" }
+          end
+      end
+      return { 1, "callback body is not pcall'd" }
+  end }
+
 -- 🚨 Private APIs are what break on a new macOS. This is INFO, not a
 -- defect: hs.spaces is legitimate and there is no public alternative.
 -- It is here so that when the next OS lands, one command lists every

@@ -4,9 +4,42 @@
 -- =====================================================================
 -- 08-14-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.71.0-KEYCASTER
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.72.0-DEEP-PASS
 -- =====================================================================
 
+-- NEW IN 6.72.0 — A FULL DEBUG PASS, AND TWO REAL BUGS IN THE KEYBOARD:
+--   🚨 A SPELLING FIX COULD FIRE A SNIPPET. The text expander never
+--      checked the shared injection guard on the READ side. Its header
+--      said it stood down; only the write half ever did. So every
+--      character autocorrect typed arrived at the expander looking
+--      exactly like you typing it — and if a corrected word happened to
+--      end in a trigger, the snippet expanded. One line, missing.
+--   🚨 AND A CORRECTION MOVED THE DOCUMENT UNDER THE EXPANDER. The
+--      buffer reset was one-directional: an expansion told autocorrect to
+--      drop its word, a correction told the expander nothing. Its rolling
+--      buffer then described text no longer on screen, and its delete
+--      count assumes those characters sit in front of the caret.
+--   🛟 AND TWO OF THE THREE TAPS RAN UNGUARDED. The key caster was built
+--      with a pcall'd callback; autocorrect (since 6.10.0) and the
+--      expander were not. A throw in either escapes into Hammerspoon's
+--      event machinery ON EVERY KEYSTROKE — it does not stop, it just
+--      makes the keyboard louder, and macOS switches off taps that behave
+--      that way. All three now absorb, count, and stand down at five.
+--   🔬 FOUND BY RUNNING ALL THREE TAPS IN ONE PROCESS, which no test had
+--      ever done — each suite proved one module right against its own
+--      stubs. tests/test_keyboard_stack.lua is that missing test, and its
+--      stub feeds synthetic keystrokes BACK through the taps the way a
+--      real Mac does. Without that the injection guard was untestable
+--      while looking tested.
+--   🧪 tools/hs-hostile.lua — all 32 modules against a Mac that answers
+--      nil to everything: no screens, empty pasteboard, no Accessibility,
+--      missing folders. Every one degrades. It is a gate in run-tests now.
+--   🔎 THREE NEW LINT RULES, one per class found: a keyboard tap that
+--      ignores the injection guard, an eventtap callback that is not
+--      pcall'd, and hs.fs.dir captured without its directory object.
+--   🧹 document_watcher was the only module reaching for the
+--      _G.hyperAddShortcut global instead of taking it from `core`.
+--
 -- NEW IN 6.71.0 — SHOW THE KEYS, AND THE BUG THAT ATE THE SNIPPETS:
 --   🚨 NOT ONE SNIPPET LOADED IN 6.69.0, and the Console said why:
 --        text_expander.lua:208: bad argument #1 to 'for iterator'
@@ -78,46 +111,8 @@
 --      anything else that understands modifiers. Add entries to
 --      numpad.cmdShiftActions.
 --
--- NEW IN 6.69.0 — YOUR ACTUAL 2,006 SNIPPETS, AND WHAT THEY BROKE:
---   📦 ALL FIVE COLLECTIONS IMPORT AND WORK. Emoji Pack (1,349) ·
---      ComposeKey (548) · textpanders (80) · Mac symbols (23) · Ghostty
---      or Terminal (6). Every prefix rule read out of the real files:
---      ComposeKey's is "§" — TWO BYTES, not a character — Mac symbols'
---      is "!!", Emoji Pack HAS NO info.plist AT ALL, and the other two
---      are empty because the ";" is already inside each keyword.
---   ⌨️ MATCHING IS NOW A REVERSE TRIE. The first version compared every
---      trigger to the buffer on EVERY KEYSTROKE — 2,006 string compares
---      between your key and the letter appearing, on the only thread
---      Hammerspoon has. Measured after: 0.6µs per keystroke, bounded by
---      the longest trigger rather than by how many there are.
---   ⏳ !!delf, !!tableft AND !!tabright WORK AGAIN. All three were
---      unreachable: !!del and !!tab complete first and expand. The
---      shorter trigger now waits 0.35s to see whether you are still
---      typing — and consumes nothing while it waits, so abandoning the
---      wait owes you nothing. Two triggers of 2,006 pay for it.
---   📋 MULTI-LINE SNIPPETS ARE PASTED, NOT TYPED. A synthetic Return in
---      a Teams or Asana box SENDS the message instead of breaking the
---      line — and two of your snippets carry Windows CRLF endings, which
---      would have sent "Kindly," on its own. Your clipboard is put back
---      afterwards and the history watcher is told to ignore the swap.
---   🚨 ONE INJECTION GUARD FOR BOTH TYPING WATCHERS. Autocorrect and the
---      expander each had their OWN "am I injecting" flag, which is half
---      of what is needed: a flag only tells the module that wrote it to
---      stand down. A spelling fix ending in a trigger fired a snippet;
---      an expansion fed a word nobody typed into an 11,000-row
---      dictionary. It is a COUNTER, not a boolean — nesting is real —
---      and it self-clears if anything throws past it.
---   ✅ AND AUTOCORRECT FINALLY HAS A TEST SUITE. It has run since 6.10.0
---      with none. The TWo-caps rule is now pinned to your own words:
---      USa→Usa, SAt→Sat, USA untouched, TV's untouched, IDs allowed,
---      ITs deliberately not.
---   🤝 core/coexist.lua — init.lua crossed the 4,000-line ceiling its own
---      suite holds it to, so panel stacking, Esc routing, the injection
---      guard and clipboard borrowing moved into one file. They belong
---      together: all four answer "two features want the same thing".
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.71.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.72.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -418,7 +413,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.71.0"
+_G.configVersion = "6.72.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
