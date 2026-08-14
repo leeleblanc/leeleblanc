@@ -274,6 +274,31 @@ rule{ id = "eventtap-callback-unguarded", sev = "WARN", file = true,
       return { 1, "callback body is not pcall'd" }
   end }
 
+-- 🚨 6.75.0 — A TWO-MINUTE BEACHBALL WAITING TO HAPPEN. hs.execute is
+-- SYNCHRONOUS: it blocks the only thread Hammerspoon has. Run osascript
+-- through it and you inherit AppleScript's DEFAULT TIMEOUT OF TWO
+-- MINUTES — so a Finder or Outlook that is wedged (network volume,
+-- mid-relaunch, waiting on a permissions prompt) freezes the Mac,
+-- keyboard taps included, for as long as it sulks.
+rule{ id = "sync-osascript-no-timeout", sev = "WARN", file = true,
+  why = "A synchronous osascript with no `with timeout of N seconds` "
+     .. "inherits AppleScript's two-minute default and blocks "
+     .. "Hammerspoon's only thread for all of it. Wrap the script, or "
+     .. "use hs.task and take the answer in a callback.",
+  check = function(code)
+      if not code:find("hs%.execute") then return false end
+      if not code:find("osascript") then return false end
+      if code:find("with timeout of") then return false end
+      local n = 0
+      for line in (code .. "\n"):gmatch("([^\n]*)\n") do
+          n = n + 1
+          if line:find("hs%.execute") and line:find("osascript") then
+              return { n, "no `with timeout of` anywhere in this file" }
+          end
+      end
+      return { 1, "no `with timeout of` anywhere in this file" }
+  end }
+
 -- 🚨 Private APIs are what break on a new macOS. This is INFO, not a
 -- defect: hs.spaces is legitimate and there is no public alternative.
 -- It is here so that when the next OS lands, one command lists every

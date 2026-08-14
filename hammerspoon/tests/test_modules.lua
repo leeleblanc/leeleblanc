@@ -115,6 +115,20 @@ hs = {
             imageFromPath = function() return nil end },
   accessibilityState = function() return true end,
   execute = function(cmd, loginShell) SHELL_CALLED = true; return SHELL_BREW or "", true, "exit", 0 end,
+  -- 🚨 THE BREW PROBE IS AN hs.task NOW, NOT hs.execute. A login shell
+  -- sources .zprofile/.zshrc and everything those pull in — routinely
+  -- seconds — and hs.execute blocks the only thread Hammerspoon has.
+  -- The stub records the launch and hands the callback back so a test
+  -- can decide WHEN the answer arrives, which is the whole point of
+  -- making it async.
+  task = { new = function(cmd, cb, args)
+      SHELL_CALLED = true
+      local t = { cmd = cmd, cb = cb, args = args, started = false }
+      function t:start() self.started = true; TASK_LAST = self; return self end
+      function t:terminate() return self end
+      TASK_LAST = t
+      return t
+    end },
 }
 SHELL_BREW = nil
 SHELL_CALLED = false
@@ -384,6 +398,20 @@ do
   SHELL_BREW = fakeHome .. "/homebrew/bin/brew"
   local bf2 = io.open(SHELL_BREW, "w"); bf2:write("#!/bin/sh\n"); bf2:close()
   warmTimerFns[#warmTimerFns]()
+  check("🚨 THE LOGIN-SHELL PROBE IS ASYNC — hs.task, not hs.execute. On "
+     .. "LL's Mac this branch runs EVERY boot, and a login shell sourcing "
+     .. "zsh config is seconds of frozen keyboard if it blocks",
+        TASK_LAST ~= nil and TASK_LAST.cmd == "/bin/zsh"
+        and TASK_LAST.started == true, TASK_LAST and TASK_LAST.cmd)
+  check("...through a LOGIN shell, or a custom prefix is never on PATH",
+        (function()
+           for _, a in ipairs((TASK_LAST or {}).args or {}) do
+             if a == "-l" then return true end
+           end
+         end)())
+  check("...and the task is HELD, or it is collected before it answers",
+        _G.brewProbeTask ~= nil)
+  TASK_LAST.cb(0, SHELL_BREW .. "\n", "")
   check("warm() asks the LOGIN shell and finds a custom-prefix install",
         logged("found Homebrew via your login shell"), printed[#printed])
   check("...and schedules the daily check it had skipped",

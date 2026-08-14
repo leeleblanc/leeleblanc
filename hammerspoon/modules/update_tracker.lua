@@ -184,35 +184,56 @@ function M.setup(core)
             end
             return
         end
-        -- hs-lint: allow blocking-main-thread — deliberate, and already
-        -- argued in the header above: this runs in warm(), ~2s after boot
-        -- and off the boot path, exactly once per session, and only when
-        -- the well-known paths all missed. Asking a login shell is the
-        -- only way to find a Homebrew installed at a custom prefix.
-        local ok, out = pcall(function()
-            -- `true` = run through a LOGIN shell, so ~/.zprofile (which is
-            -- what puts a custom prefix on PATH) is sourced first.
-            local o = hs.execute("command -v brew 2>/dev/null", true)
-            return tostring(o or ""):gsub("%s+$", "")
-        end)
-        if ok and out and out ~= "" then
-            local f = io.open(out, "r")
-            if f then
+        -- 🚨 6.75.0 — ASYNC. THIS USED TO BLOCK THE MAIN THREAD, AND ON
+        -- LL'S MAC IT RAN EVERY SINGLE BOOT.
+        -- The old waiver argued it was fine: warm(), once per session,
+        -- and only when the well-known paths all missed. Two of those
+        -- three were true. The third was the problem — their boot log
+        -- reads "no brew in the usual paths; asking your login shell
+        -- shortly…" EVERY TIME, so the rare branch is their normal one.
+        --
+        -- And `true` means a LOGIN shell: zsh sources ~/.zprofile,
+        -- ~/.zshrc and anything those pull in — nvm, pyenv, rbenv,
+        -- conda, corporate MDM profile scripts. That is routinely one to
+        -- three seconds, and hs.execute blocks the ONLY thread
+        -- Hammerspoon has. A beachball a few seconds after login, with
+        -- the keyboard taps frozen along with everything else.
+        --
+        -- hs.task is the same shell, off-thread, with the answer arriving
+        -- in a callback. Nothing waits.
+        local function brewNotFound()
+            _G.brewPathInUse = nil
+            _G.diag.warn("updates",
+                "no Homebrew found; tried " .. table.concat(brewTried, ", "))
+        end
+        local okTask, task = pcall(hs.task.new, "/bin/zsh",
+            function(rc, stdout)
+                local out = tostring(stdout or ""):gsub("%s+$", "")
+                if rc ~= 0 or out == "" then return brewNotFound() end
+                local f = io.open(out, "r")
+                if not f then return brewNotFound() end
                 f:close()
                 brewPath = out
                 _G.brewPathInUse = brewPath
-            print("📦 App Update Tracker: found Homebrew via your login shell at "
-                      .. brewPath .. " — update checks are available.")
+                print("📦 App Update Tracker: found Homebrew via your login "
+                      .. "shell at " .. brewPath .. " — update checks are available.")
                 _G.diag.say("updates", "brew discovered via shell: " .. brewPath)
                 if not _G.updateTrackerTimer then
                     _G.updateTrackerTimer = hs.timer.doAt(updateTrackerCheckTime, "1d",
                         function() runUpdateCheck() end)
                 end
-                return
-            end
+            end,
+            { "-l", "-c", "command -v brew 2>/dev/null" })
+        if okTask and task then
+            -- HELD: an unreferenced hs.task can be collected before it
+            -- finishes, and then the callback never runs.
+            _G.brewProbeTask = task
+            if pcall(function() task:start() end) then return end
         end
-        _G.brewPathInUse = nil
-        _G.diag.warn("updates", "no Homebrew found; tried " .. table.concat(brewTried, ", "))
+        -- Could not even start the probe. Say so rather than leaving the
+        -- feature looking merely absent.
+        _G.diag.warn("updates", "could not start the login-shell brew probe")
+        brewNotFound()
     end
 
     local updateStatusLabel = {

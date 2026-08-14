@@ -4,9 +4,25 @@
 -- =====================================================================
 -- 08-14-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.74.0-SNIPPETS-INCLUDED
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.75.0-NO-BEACHBALLS
 -- =====================================================================
 
+-- NEW IN 6.75.0 — NOTHING LEFT THAT CAN BEACHBALL YOUR MAC:
+--   🚨 THE BREW PROBE BLOCKED THE MAIN THREAD ON EVERY BOOT. Your log
+--      reads "no brew in the usual paths; asking your login shell
+--      shortly…" every time — and that asked a LOGIN shell with
+--      hs.execute, which is synchronous. zsh sources .zprofile, .zshrc,
+--      nvm, pyenv, any MDM script: routinely 1-3 seconds with the whole
+--      Mac frozen. Now hs.task, off-thread, answer in a callback.
+--   ⏱ AND THE FINDER CALL IN ⇪R HAD A TWO-MINUTE FUSE. A synchronous
+--      osascript inherits AppleScript's DEFAULT timeout of 120s, so a
+--      wedged Finder turned one keypress into a two-minute beachball.
+--      Now `with timeout of 3 seconds`: a sick Finder is an
+--      inconvenience instead of a lockup.
+--   🔎 New lint rule sync-osascript-no-timeout so the class cannot
+--      return. The Outlook probe is waived with its reason: it binds no
+--      key and runs only when you type it.
+--
 -- NEW IN 6.74.0 — THE SNIPPETS SHIP IN THE ZIP:
 --   📦 LL: "wait... I still have to use the .alfredsnippets?" No — that
 --      was an oversight. All 2,006 snippets from all five collections
@@ -63,79 +79,8 @@
 --   🧹 document_watcher was the only module reaching for the
 --      _G.hyperAddShortcut global instead of taking it from `core`.
 --
--- NEW IN 6.71.0 — SHOW THE KEYS, AND THE BUG THAT ATE THE SNIPPETS:
---   🚨 NOT ONE SNIPPET LOADED IN 6.69.0, and the Console said why:
---        text_expander.lua:208: bad argument #1 to 'for iterator'
---        (directory metatable expected, got nil)
---      hs.fs.dir returns TWO values — the iterator AND the directory it
---      walks — and I captured one. The iterator reads the directory out
---      of that second value on every call, so warm() threw on the first
---      folder it touched. capture_pad.lua has always had this right; I
---      did not look. Fixed in both places it appears.
---   ⚠️ AND MY TEST RATIFIED IT. The stub returned a self-contained Lua
---      closure that needed no state, so the broken call worked perfectly
---      against it — the same failure as reading a module list from the
---      file that had the list wrong. The stub now DEMANDS the state, and
---      hs-lint has a rule so this class cannot come back anywhere.
---   ⌨️ KEY CASTER (⇪⇧B). A near-black rounded panel on a shadow, right
---      edge of whichever screen you are on, vertically centred, 16px
---      sans. Every shortcut you press appears in it; it stays up while
---      you keep pressing and fades after you stop. Draggable.
---   🚨 IT SHOWS SHORTCUTS, NOT TYPING. ⇧+letter is a CAPITAL, not a
---      shortcut — that single rule is the difference between a useful
---      panel and one that scrolls your sentence up the side of the
---      screen. ⌘⌃⌥fn⇪ combos, bare ⎋ ⇥ ⏎ arrows and F-keys all show;
---      letters do not. _G.keyCastTyping(true) shows everything.
---   🛟 AND IT SWITCHES ITSELF OFF RATHER THAN DEGRADING YOUR KEYBOARD.
---      It is the THIRD global keyboard tap here and the only one that
---      exists purely to look — so: it returns false on every path
---      including the failure paths, it never logs a keystroke anywhere,
---      it stands down for the shared injection guard, and five
---      consecutive failures stop it and report. It also starts OFF.
---   🔦 _G.hyperActive IS PUBLISHED so ⇪ can be drawn as ⇪. Caps Lock is
---      remapped to F18 and forwards a synthetic ⌘⇧⌃⌥ chord, so anything
---      watching the keyboard would have drawn "⌘⇧⌃⌥X" for a key you
---      experienced as "⇪X" — accurate and useless.
---   🔑 ⇪⇧K AND ⇪⇧C WERE BOTH TAKEN, and §0.3 caught both before this
---      module ever reached a keyboard — the second by the §0.4 MIGRATION
---      MAP, a source no survey of modules/ would have found.
---
--- NEW IN 6.70.0 — THE TIMER PANEL THAT WOULD NOT GO AWAY:
---   🍅 IT WAS STUCK, AND YOU WERE PRESSING ESCAPE CORRECTLY. When a
---      pomodoro cycle finished, the panel showed "DONE ⏎ ⁄ esc" and
---      captured those two keys for 20 seconds. The watchdog that released
---      them at the end of that window released the KEYBOARD and left the
---      SCREEN alone — so after 20s the panel was a dead rectangle with
---      nothing bound to it. ⇪⇧P or the Console were the only ways out.
---      It now closes itself when the cycle is over and you have not said
---      "go again". The work→break question still expires harmlessly,
---      because the break is already counting by then.
---   🧟 AND A PANEL WITH NOTHING DRIVING IT NOW CLOSES ITSELF, WHATEVER
---      STRANDED IT. Fixing the one path is necessary and not sufficient:
---      this panel is a window only this module can close, so every future
---      path that forgets has the same symptom. The ticker asks once a
---      second whether it is still counting, flashing or asking — and if
---      it is none of those for a minute, it closes and SAYS SO.
---   ∞ THE CLOCK HAD BEEN THROWING ONCE A SECOND, SILENTLY. tick() sets
---      the end time to infinity so the phase-end fires exactly once, and
---      string.format("%02d", inf) raises "number has no integer
---      representation" — inside a pcall, so nobody ever saw it. Sixty
---      swallowed errors a minute is how a panel freezes on its last good
---      paint. mmss() guards it, and the tick reports a caught throw once.
---   🚨 A REPORTING CALL MUST NOT PREVENT THE REPAIR IT REPORTS. The first
---      version of the zombie fix printed "so it closed itself" and THEN
---      closed — and the notices call in between threw, so it never got
---      there. The Console was lying about a panel that was still stuck.
---      Repair first, report second, and pcall the report.
---   🔢 ⌘⇧ + NUMBER PAD IS A THIRD LAYER, AND IT IS FREE. ⇪pad has been
---      yours to assign since 6.66.0 — but only behind Caps Lock, which is
---      this config's own invention. ⌘⇧ is a real macOS modifier, so a
---      shortcut on it also works in Raycast, Keyboard Maestro and
---      anything else that understands modifiers. Add entries to
---      numpad.cmdShiftActions.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.74.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.75.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -436,7 +381,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.74.0"
+_G.configVersion = "6.75.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

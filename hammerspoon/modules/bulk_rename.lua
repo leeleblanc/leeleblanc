@@ -403,14 +403,28 @@ function M.setup(core)
     -- THE MAC HALF — Finder selection and the picker
     -- =====================================================================
     function br.selection()
+        -- 🚨 6.75.0 — `with timeout of 3 seconds`, AND THAT IS THE WHOLE
+        -- DURABILITY STORY FOR THIS LINE. The call below is SYNCHRONOUS:
+        -- it blocks the only thread Hammerspoon has until Finder answers.
+        -- AppleScript's default timeout is TWO MINUTES, so a Finder that
+        -- is wedged — spinning on a network volume, mid-relaunch, waiting
+        -- on a permissions prompt — turns one ⇪R into a two-minute
+        -- beachball with the keyboard taps frozen along with it.
+        -- Three seconds is far longer than a healthy Finder needs and
+        -- short enough that a sick one is an inconvenience rather than a
+        -- lockup. On timeout osascript exits non-zero, the pcall below
+        -- returns no paths, and the rename reports "nothing selected"
+        -- instead of hanging your Mac.
         local script = [[
-tell application "Finder"
-  set out to ""
-  repeat with f in (get selection)
-    set out to out & (POSIX path of (f as alias)) & linefeed
-  end repeat
-  return out
-end tell]]
+with timeout of 3 seconds
+  tell application "Finder"
+    set out to ""
+    repeat with f in (get selection)
+      set out to out & (POSIX path of (f as alias)) & linefeed
+    end repeat
+    return out
+  end tell
+end timeout]]
         -- 🚨 6.65.1 — OUT OF PROCESS. This was hs.osascript.applescript,
         -- which runs NSAppleScript inside Hammerspoon; an Objective-C
         -- exception from the Apple Event machinery ABORTS the app and

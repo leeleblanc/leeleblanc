@@ -4,6 +4,43 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.75.0 — NOTHING LEFT THAT CAN BEACHBALL YOUR MAC:
+  🧵 THE WHOLE RISK, IN ONE SENTENCE: Hammerspoon has ONE thread. Every
+     synchronous call on it freezes your keyboard, your event taps and
+     every panel until it returns. So this pass hunted synchronous calls
+     with no ceiling on how long they can take.
+  🚨 THE BREW PROBE BLOCKED THE MAIN THREAD ON EVERY BOOT. LL's log reads
+     "no brew in the usual paths; asking your login shell shortly…" EVERY
+     time — so the branch the old waiver dismissed as rare is their
+     normal one. And it asked a LOGIN shell: zsh sources .zprofile,
+     .zshrc and everything those pull in — nvm, pyenv, rbenv, conda,
+     corporate MDM scripts. Routinely one to three seconds with the whole
+     Mac frozen, a few seconds after login, every login.
+     · Now hs.task: same shell, off-thread, answer in a callback. The
+       task is HELD, or it is collected before it replies.
+     · The old waiver was not wrong about the mechanism, only about the
+       frequency. "Rare" is a claim about someone's machine, and it was
+       never checked against theirs.
+  ⏱ AND THE FINDER CALL BEHIND ⇪R HAD A TWO-MINUTE FUSE. A synchronous
+     osascript inherits AppleScript's DEFAULT timeout of 120 seconds. A
+     Finder spinning on a network volume, mid-relaunch, or waiting on a
+     permissions prompt would have held the main thread for all of it —
+     one keypress, a two-minute beachball, keyboard included.
+     · `with timeout of 3 seconds` now. Far longer than a healthy Finder
+       needs, short enough that a sick one is an inconvenience. On
+       timeout osascript exits non-zero, no paths come back, and the
+       rename says "nothing selected" instead of hanging the Mac.
+  🔎 sync-osascript-no-timeout is a lint rule now, so the class cannot
+     come back. outlook_probe is waived WITH ITS REASON: it binds no key
+     and runs only when you type _G.outlookProbe() in the Console — a
+     diagnostic you start deliberately and watch, where a slow answer is
+     the finding rather than a surprise.
+  ✅ VERIFIED CLEAN in the same sweep: both `while true` loops are
+     bounded (each iteration shortens the string or breaks), no usleep
+     anywhere, every automatic AppleScript path is already hs.task, and
+     every Accessibility call still carries the timeout that has been
+     enforced since 6.65.2.
+
 NEW IN 6.74.0 — THE SNIPPETS SHIP IN THE ZIP:
   📦 LL: "wait... I still have to use the .alfredsnippets?" No, and that
      was an oversight worth naming: I built the importer, tested it
