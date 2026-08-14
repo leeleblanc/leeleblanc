@@ -4,9 +4,18 @@
 -- =====================================================================
 -- 08-14-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.72.0-DEEP-PASS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.73.0-HONEST-BOOT
 -- =====================================================================
 
+-- NEW IN 6.73.0 — READ BACKWARDS: THE BOOT LINE CANNOT SEE WARM-UP:
+--   🚨 A warm() FAILURE WENT TO THE CONSOLE AND NOWHERE ELSE. No ledger
+--      entry, no on-screen word — and the boot summary had already said
+--      "All green", because it prints before the warm phase exists. That
+--      is exactly how 6.69.0 shipped with not one snippet loaded.
+--   ✅ Warm failures now reach the notices ledger and the screen, and the
+--      warm phase reports its own result after the last module has had
+--      its turn — silent when everything worked.
+--
 -- NEW IN 6.72.0 — A FULL DEBUG PASS, AND TWO REAL BUGS IN THE KEYBOARD:
 --   🚨 A SPELLING FIX COULD FIRE A SNIPPET. The text expander never
 --      checked the shared injection guard on the READ side. Its header
@@ -112,7 +121,7 @@
 --      numpad.cmdShiftActions.
 --
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.72.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.73.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -413,7 +422,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.72.0"
+_G.configVersion = "6.73.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -3649,6 +3658,24 @@ local function scheduleWarm(rec)
             rec.warmErr = tostring(err)
             print("🧩 MODULE WARM-UP FAILED — " .. rec.name .. ": " .. rec.warmErr)
             _G.diag.warn("module", rec.name .. " warm() — " .. rec.warmErr)
+            -- 🚨 6.73.0 — AND IT REACHES THE LEDGER AND THE SCREEN.
+            -- This was print-and-diag only, and that is precisely how
+            -- 6.69.0 shipped with NOT ONE SNIPPET LOADED: text_expander's
+            -- warm() threw, the Console said so once, and nothing else
+            -- did. Worse, the boot line had ALREADY printed "All green" —
+            -- it runs before this phase exists, so it was reporting on a
+            -- phase that had not happened yet.
+            -- A module that fails to warm is a DEAD FEATURE. It has no
+            -- data, no dictionary, no snippets — and every key it bound
+            -- still answers, doing nothing. That is the exact shape rule
+            -- 7 exists to forbid.
+            if _G.notices then
+                pcall(_G.notices.record, "module", rec.name .. " warm() failed",
+                      rec.warmErr)
+                pcall(_G.notices.tell, "🧩 " .. rec.name .. " did not finish loading",
+                      "Its data never loaded — see the Console",
+                      { key = "warm:" .. rec.name, every = 900 })
+            end
         end
     end)
     -- HELD. An unreferenced hs.timer is garbage-collected and silently
@@ -3678,6 +3705,28 @@ function _G.loadModules(list, settingsByModule)
     end
     _G.diag.mark("§1.12 modules loaded")
     _G.moduleLoaded, _G.moduleFailed = loaded, failed
+
+    -- 🚨 6.73.0 — THE BOOT LINE SAYS "All green" BEFORE THIS PHASE EXISTS.
+    -- It prints at the end of setup; warm() runs seconds later, so the
+    -- summary you read has no way to know whether the second half worked.
+    -- 6.69.0 proved that the hard way: "31 modules · All green", and then
+    -- the expander's warm() threw and all 2,006 snippets were missing.
+    -- So the warm phase reports its OWN result, once, after the last
+    -- module has had its turn. Silent when everything worked — a second
+    -- "all green" nobody needs is how people learn to skim the first one.
+    _G.warmSummaryTimer = hs.timer.doAfter(
+        (_G.moduleWarmDelay or 2.0) + 1.5, function()
+        local bad = {}
+        for _, r in ipairs(_G.moduleStatus or {}) do
+            if r.warmPending and r.warmed == false then bad[#bad + 1] = r.name end
+        end
+        if #bad == 0 then return end
+        table.sort(bad)
+        print(("🧩 WARM-UP: %d module(s) loaded but never finished starting — %s."
+               .. " Their keys still answer and do nothing. The boot line above"
+               .. " could not know: it prints before this phase runs.")
+              :format(#bad, table.concat(bad, ", ")))
+    end)
     return loaded, failed
 end
 

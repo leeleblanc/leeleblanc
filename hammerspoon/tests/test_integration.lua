@@ -900,6 +900,40 @@ do
           code("core/cheatsheet.lua"):find('routeEscape("cheatsheet")', 1, true) ~= nil)
 end
 
+-- =====================================================================
+out("\n=== 5. 6.73.0 — THE BOOT LINE CANNOT SEE THE WARM PHASE ===\n")
+-- =====================================================================
+-- Read backwards, the LAST thing that runs is warm() — seconds after the
+-- boot summary has already printed "All green". 6.69.0 proved what that
+-- costs: "31 modules · All green", then the expander's warm() threw and
+-- all 2,006 snippets were missing. The summary was not wrong; it was
+-- reporting on a phase that had not happened.
+do
+    local f = io.open(HS .. "/init.lua", "r")
+    local src = (f and f:read("*a") or ""):gsub("%-%-[^\n]*", "")
+    if f then f:close() end
+    local warmBlock = src:match("local function scheduleWarm.-\nend")
+    check("the warm scheduler was found", warmBlock ~= nil)
+    if warmBlock then
+        check("a warm() failure is printed", warmBlock:find("WARM%-UP FAILED"))
+        check("🚨 ...AND REACHES THE NOTICES LEDGER. Print-and-diag only is "
+           .. "exactly how a dead feature stays invisible — the Console "
+           .. "said it once and nothing else did",
+           warmBlock:find("notices%.record") ~= nil)
+        check("🚨 ...AND THE SCREEN. A module that failed to warm is a DEAD "
+           .. "FEATURE whose keys still answer and do nothing",
+           warmBlock:find("notices%.tell") ~= nil)
+    end
+    check("and the warm phase reports its OWN result, because the boot "
+       .. "line printed before it existed",
+       src:find("_G%.warmSummaryTimer") ~= nil)
+    check("...on a HELD timer, or it is collected and never fires",
+       src:find("_G%.warmSummaryTimer%s*=%s*hs%.timer%.doAfter") ~= nil)
+    check("...and it stays silent when everything worked — a second 'all "
+       .. "green' nobody needs teaches people to skim the first",
+       src:find("if #bad == 0 then return end") ~= nil)
+end
+
 realPrint(table.concat(printed, "\n"))
 out("\n")
 if fail > 0 then

@@ -4,6 +4,25 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.73.0 — READ BACKWARDS: THE BOOT LINE CANNOT SEE THE WARM PHASE:
+  🚨 THE ONE FAILURE THAT ACTUALLY BIT US WAS INVISIBLE BY DESIGN.
+     Reading the boot backwards, the LAST thing that runs is warm() —
+     seconds after the summary line has already printed "All green".
+     · 6.69.0: "31 modules · All green", and then text_expander's warm()
+       threw and all 2,006 snippets were missing. The summary was not
+       wrong; it was reporting on a phase that had not happened yet.
+     · And a warm() failure went to print() and _G.diag ONLY. No notices
+       ledger entry, no on-screen word. A module that fails to warm is a
+       DEAD FEATURE — no dictionary, no snippets — whose keys all still
+       answer and do nothing. That is precisely the silent failure rule 7
+       exists to forbid, in the code that reports failures.
+  ✅ A warm() failure now reaches the ledger AND the screen, and the warm
+     phase reports its own result once the last module has had its turn —
+     silent when everything worked, because a second "all green" nobody
+     needs is how people learn to skim the first one.
+  📦 And the release zip was verified file-for-file against the repo: 71
+     files each side, nothing missing.
+
 NEW IN 6.72.0 — A FULL DEBUG PASS, AND TWO REAL BUGS IN THE KEYBOARD:
   🔬 HOW THIS PASS WAS RUN, because the method is the point. Three bugs
      had reached LL's Mac through a fully green suite in as many
