@@ -99,6 +99,7 @@ function M.setup(core)
     local function warn(m) if _G.diag then _G.diag.warn("pomodoro", m) end end
 
     -- state: nil when off. Otherwise { phase, endsAt, canvas, ticker, … }
+    pom.pos   = nil       -- where you dragged it to, this session
     pom.state = nil
     pom.modal = nil       -- HELD across presses; built once, never rebuilt
     pom.guard = nil       -- the watchdog that releases the keyboard
@@ -116,6 +117,16 @@ function M.setup(core)
         local f
         pcall(function() f = scr:frame() end)          -- excludes the menu bar
         if not f then return nil end
+        -- 🖐 6.67.0 — A REMEMBERED POSITION WINS. Drag the panel and it
+        -- stays where you put it for the rest of the session; ⇪R (reload)
+        -- clears it, as does pom.pos = nil. Clamped to a real screen, so
+        -- unplugging the display you dragged it to cannot restore it to
+        -- coordinates that no longer exist.
+        if pom.pos then
+            local p2 = _G.clampToScreen and _G.clampToScreen(pom.pos, pom.width, pom.height)
+                       or pom.pos
+            return { x = p2.x, y = p2.y, w = pom.width, h = pom.height }
+        end
         return {
             x = f.x + f.w - pom.width - pom.marginX,
             y = f.y + pom.marginY,
@@ -288,12 +299,22 @@ function M.setup(core)
             -- that did not were the two written most recently.
             c:level((hs.canvas.windowLevels or {}).overlay)
             c:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" })
-            -- Click-through. A quarter of the screen corner that swallows
-            -- clicks for 25 minutes is not a timer, it is an obstacle.
-            c:canvasMouseEvents(false, false, false, false)
+            -- 🖐 6.67.0 — DRAGGABLE, which means it no longer clicks
+            -- through. That was the old behaviour and the reasoning was
+            -- sound (a panel that swallows clicks for 25 minutes is an
+            -- obstacle) — but you cannot grab something that is not there
+            -- to be grabbed, and being able to move it was the ask. It is
+            -- 170x99 in a screen corner; move it if it is in your way.
+            -- makeCanvasDraggable sets the mouse events it needs.
             c:replaceElements(elements("FOCUS", mmss(pom.workMins * 60),
                                        pom.bgWork, pom.fgWork))
         end)
+        if _G.makeCanvasDraggable then
+            _G.makeCanvasDraggable(c, "pomodoro", function(f)
+                pom.pos = { x = f.x, y = f.y }
+                say("moved to " .. math.floor(f.x) .. "," .. math.floor(f.y))
+            end)
+        end
         if okShow then
             -- 🚨 6.66.3 — THROUGH showCanvasSafely, NOT A BARE :show().
             -- From LL's Console, on a hotkey press while Safari's URL-completion

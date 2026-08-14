@@ -188,6 +188,19 @@ hs = {
 }
 
 _G.diag = { say = function() end, warn = function() end, err = function() end }
+
+-- 🖐 6.67.0 — the drag helpers live in init.lua and reach panels as
+-- globals. Stubbed here so the WIRING is testable: does the pomodoro
+-- register for dragging, and does it reopen where you dropped it.
+local DRAGGABLE = {}
+_G.makeCanvasDraggable = function(canvas, label, onDrop)
+    DRAGGABLE[#DRAGGABLE + 1] = { canvas = canvas, label = label, onDrop = onDrop }
+    return true
+end
+_G.clampToScreen = function(pt, w, h)
+    return { x = math.max(0, math.min(pt.x, 1512 - (w or 0))),
+             y = math.max(0, math.min(pt.y, 982 - (h or 0))) }
+end
 _G.notices = { record = function() end }
 _G.service = {
     registry = {},
@@ -667,6 +680,43 @@ check("it opens at 25:00, not at 00:00 counting up", (function()
         if e.type == "text" and e.text == "25:00" then return true end
     end
 end)())
+
+say("   -- 🖐 dragging --")
+do
+    local reg = DRAGGABLE[#DRAGGABLE] or {}
+    check("the timer registers itself as draggable — LL: 'Great pop-up. "
+          .. "But I can't drag the window.'", reg.label == "pomodoro",
+          tostring(reg.label))
+    check("...and hands over an onDrop, without which it would snap back "
+          .. "to the corner every time it redraws",
+          type(reg.onDrop) == "function")
+    if reg.onDrop then reg.onDrop({ x = 300, y = 400, w = 170, h = 99 }) end
+    check("dropping it remembers the position",
+          pom.pos and pom.pos.x == 300, pom.pos and pom.pos.x)
+    CANVASES = {}
+    pom.start()
+    local moved = CANVASES[#CANVASES]
+    check("...and the next start opens THERE rather than the top-right",
+          moved and moved.frame.x == 300 and moved.frame.y == 400,
+          moved and (moved.frame.x .. "," .. moved.frame.y))
+    pom.pos = { x = 99999, y = 99999 }
+    CANVASES = {}
+    pom.start()
+    local clamped = CANVASES[#CANVASES]
+    check("🚨 an off-screen remembered position is CLAMPED back — a "
+          .. "position outlives the display it was set on, and restoring "
+          .. "a panel off-screen leaves no way to reach it",
+          clamped and clamped.frame.x < 1512,
+          clamped and clamped.frame.x)
+    -- 🚨 HAND THE NEXT SECTION A LIVE CANVAS. This block restarted the
+    -- timer several times, so the `panel` captured above now points at a
+    -- deleted canvas that nothing paints. The counting checks below read
+    -- it, and would fail against perfectly correct code — a stale fixture
+    -- reporting a bug that is not there.
+    pom.pos = nil
+    pom.stop("test"); pom.start()
+    panel = CANVASES[#CANVASES]
+end
 
 say("   -- counting --")
 tickTo(60)

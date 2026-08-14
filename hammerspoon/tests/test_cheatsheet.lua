@@ -154,6 +154,23 @@ end
 
 _G.diag = { say = function() end, warn = function() end, mark = function() end,
             err = function() end, verbose = false, trail = {}, errors = {}, marks = {} }
+
+-- 🖐 6.67.0 — the drag helpers live in init.lua and are handed to panels
+-- as globals. Stubbing them here is what makes the WIRING testable: does
+-- the sheet register for dragging, does it remember where you dropped it,
+-- and does a remembered position survive the redraw that happens on every
+-- keystroke you type into the search box.
+local DRAGGABLE, CLAMPED = {}, {}
+_G.makeCanvasDraggable = function(canvas, label, onDrop)
+  DRAGGABLE[#DRAGGABLE + 1] = { canvas = canvas, label = label, onDrop = onDrop }
+  return true
+end
+_G.clampToScreen = function(pt, w, h)
+  CLAMPED[#CLAMPED + 1] = { pt = pt, w = w, h = h }
+  -- Clamp to the single stubbed screen, same contract as the real one.
+  return { x = math.max(SCR.x, math.min(pt.x, SCR.x + SCR.w - (w or 0))),
+           y = math.max(SCR.y, math.min(pt.y, SCR.y + SCR.h - (h or 0))) }
+end
 -- 6.44.11 — THIS NOW RUNS THE SHIPPED FILE, NOT A COPY OF IT. Until §1.6
 -- moved out of init.lua, the only way to test it was tests/block_test.lua,
 -- a hand-extracted slice. Slices drift: that one was no longer even a
@@ -475,6 +492,55 @@ check("🚨 closing GIVES THE ALPHABET BACK — bare letter keys left enabled "
 end)())
 check("...and the query is cleared, so ⇪/ never reopens still filtered",
       CS.query == "")
+
+print("\n=== 11c. 🖐 DRAGGING (6.67.0) ===")
+-- LL: "Great pop-up. But I can't drag the window. Same with shortcuts
+-- window. Both should be moveable."
+DRAGGABLE, CLAMPED = {}, {}
+CS.pos = nil
+CS.show()
+check("the sheet registers itself as draggable", #DRAGGABLE == 1, #DRAGGABLE)
+-- Indexed defensively: when the registration mutation lands there is no
+-- DRAGGABLE[1], and a bare index aborts the run — killing every check
+-- after it and blaming this line instead of the one that broke.
+local reg = DRAGGABLE[1] or {}
+check("...under a name, so a drag can be traced in the diagnostic trail",
+      reg.label == "cheat sheet", tostring(reg.label))
+check("...and hands over an onDrop, without which a dragged panel snaps "
+      .. "back the next time it is drawn", type(reg.onDrop) == "function")
+
+local defaultX = canvasRect.x
+if reg.onDrop then reg.onDrop({ x = 100, y = 200, w = 300, h = 400 }) end
+check("dropping it remembers where you put it",
+      CS.pos and CS.pos.x == 100 and CS.pos.y == 200,
+      CS.pos and CS.pos.x)
+CS.show()
+check("...and the next draw opens THERE, not back in the centre",
+      canvasRect.x == 100 and canvasRect.y == 200,
+      canvasRect.x .. "," .. canvasRect.y)
+check("...which is a different place from the default", defaultX ~= 100)
+
+-- 🚨 THE ONE THAT MATTERS MOST HERE. Typing rebuilds this canvas on every
+-- character. A position stored on the canvas would be lost between "a"
+-- and "as", and the sheet would jump back to centre mid-search.
+CS.typeChar("u"); CS.typeChar("r"); CS.typeChar("l")
+check("🚨 a dragged position SURVIVES the redraw that happens on every "
+      .. "keystroke — the search box rebuilds the canvas per character",
+      canvasRect.x == 100 and canvasRect.y == 200,
+      canvasRect.x .. "," .. canvasRect.y)
+CS.query = ""
+
+check("the remembered position is CLAMPED to a real screen — a position "
+      .. "outlives the display it was set on, and restoring a panel to "
+      .. "coordinates that no longer exist puts it somewhere invisible "
+      .. "with no way back", #CLAMPED > 0)
+CS.pos = { x = 99999, y = 99999 }
+CS.show()
+check("...so an off-screen position is pulled back onto the screen",
+      canvasRect.x < SCR.w and canvasRect.y < SCR.h,
+      canvasRect.x .. "," .. canvasRect.y)
+CS.pos = nil
+CS.hide()
 
 print("\n=== 12. Toggle ===")
 CS.toggle(); check("toggle opens", _G.cheatSheetCanvas ~= nil)

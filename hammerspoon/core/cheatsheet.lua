@@ -84,6 +84,9 @@ return function(core)
     -- sections keep the order listed here rather than sorting among
     -- themselves. A module that FAILED to load still outranks any pin.
     cheatSheet.pinned    = { }
+    -- Where you dragged the sheet to, this session. Reset with ⇪R, or
+    -- cheatSheet.pos = nil from the Console.
+    cheatSheet.pos       = nil
     cheatSheet.addKey    = "="   -- add-a-custom-entry key ("+" without shift)
 
     cheatSheet.customFile = logsDir .. "/custom_shortcuts.json"
@@ -880,17 +883,42 @@ return function(core)
         panelH = chromeH + visible * lineH
         local maxFirst = math.max(1, #lines - visible + 1)
 
+        -- 🖐 6.67.0 — A DRAGGED POSITION WINS, and it has to survive a
+        -- REDRAW as well as a reopen: typing into the search box rebuilds
+        -- this canvas on every character, so a position stored on the
+        -- canvas would be lost between "a" and "as". It lives on the
+        -- namespace instead.
+        -- Clamped to a real screen, because a remembered position outlives
+        -- the display it was set on — unplug that monitor and the sheet
+        -- would otherwise be restored somewhere invisible with no way back.
         local rect = {
             x = sf.x + (sf.w - panelW) / 2,
             y = sf.y + (sf.h - panelH) / 2,
             w = panelW,
             h = panelH,
         }
+        if cheatSheet.pos then
+            local p2 = _G.clampToScreen and _G.clampToScreen(cheatSheet.pos, panelW, panelH)
+                       or cheatSheet.pos
+            rect.x, rect.y = p2.x, p2.y
+        end
 
         local canvas = hs.canvas.new(rect)
         if not canvas then
             hs.alert.show("❌ Couldn't create cheat sheet — check Hammerspoon Console")
             return
+        end
+
+        -- 🖐 Draggable. ⚠️ THE COST IS REAL AND WAS A DOCUMENTED FEATURE:
+        -- this sheet used to let clicks fall THROUGH to the window behind
+        -- it (6.31.0 — "a stray click used to dismiss the reference
+        -- mid-lookup", so mouse events were turned off entirely). A panel
+        -- you can grab is a panel that takes clicks; it cannot do both.
+        -- A click still does not CLOSE it, which was the actual hazard.
+        if _G.makeCanvasDraggable then
+            _G.makeCanvasDraggable(canvas, "cheat sheet", function(f)
+                cheatSheet.pos = { x = f.x, y = f.y }
+            end)
         end
 
         _G.cheatSheetCanvas = canvas

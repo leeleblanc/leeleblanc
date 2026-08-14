@@ -4,9 +4,38 @@
 -- =====================================================================
 -- 08-13-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.66.5-QUIET-KEYS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.67.0-DRAGGABLE
 -- =====================================================================
 
+-- NEW IN 6.67.0 — GRAB THE PANELS AND MOVE THEM:
+--   🖐 THE POMODORO AND THE CHEAT SHEET DRAG NOW. An hs.canvas is not a
+--      window with a title bar — there is nothing to grab — so dragging
+--      had to be built: notice the press, follow the pointer, move the
+--      panel. Written once, in init.lua, for every panel rather than
+--      twice by hand.
+--   📌 AND THEY REMEMBER. Drop a panel and it reopens there for the rest
+--      of the session. That matters most for the cheat sheet, which
+--      REBUILDS ITS CANVAS ON EVERY CHARACTER you type into the search
+--      box — a position stored on the canvas would be lost between "a"
+--      and "as", and the sheet would jump back to centre mid-search.
+--      ⇪R clears both.
+--   🖥 CLAMPED TO A REAL SCREEN. A remembered position outlives the
+--      display it was set on: unplug that monitor and the panel would
+--      otherwise be restored to coordinates that no longer exist —
+--      invisible, with no way to reach it.
+--   🚨 THE DRAG IS FOLLOWED BY AN EVENTTAP, not by canvas mouse events. A
+--      canvas only reports movement while the pointer is INSIDE it, and
+--      any drag faster than the panel redraws leaves the pointer behind
+--      and strands the panel halfway. An eventtap is also the most
+--      dangerous object in this config, so: it starts on mouseDown, stops
+--      on mouseUp, a WATCHDOG stops it after 20s regardless (a mouseUp
+--      delivered to another process is one we never see), it returns
+--      false so nothing is swallowed, and only one drag can be live.
+--   ⚖️ THE COST, AND IT WAS A DOCUMENTED FEATURE: the cheat sheet used to
+--      let clicks fall THROUGH to the window behind it. A panel you can
+--      grab is a panel that takes clicks; it cannot do both. A click
+--      still does not CLOSE it, which was the actual hazard 6.31.0 fixed.
+--
 -- NEW IN 6.66.5 — SEVENTEEN WARNINGS IN TWO SECONDS, AND THEY WERE MINE:
 --   🚨 "hs.hotkey system callback for an eventUID we don't know about: 0"
 --      That is Hammerspoon receiving a key event for a hotkey it has just
@@ -48,39 +77,8 @@
 --   📈 Expect the number to JUMP on this boot. That jump is the bug, not
 --      the fix: those shortcuts were always there and never counted.
 --
--- NEW IN 6.66.3 — FOUR MODULES WERE NEVER LOADING ON YOUR MAC:
---   🚨 YOUR BOOT LINE SAID "26 modules · All green" WHILE THIRTY SAT ON
---      DISK. It was telling the truth: nothing failed, because nothing was
---      asked to load. init.lua carried THREE hand-typed module lists — one
---      per machine profile — and 6.65.0 through 6.66.2 added the new
---      modules to `default` only. Your Mac uses the "Lees-MacBook-Air"
---      profile, so the Tool Picker (⇪⇧/), Universal Actions (⇪⇧A), the
---      Pomodoro (⇪⇧P) and the Outlook Probe have not existed on your
---      machine at all. Written, tested, documented, shipped and absent.
---   ⚠️ AND THE TEST SUITE AGREED WITH THE BUG. test_integration reads the
---      module list OUT of init.lua rather than retyping it, exactly so a
---      copy cannot drift — but it read only `default`. It validated the
---      one list that was right and never looked at the two that were
---      wrong. A test that reads the same wrong source as the code
---      confirms the code instead of checking it. test_diagnostics had the
---      same read, and the same blind spot.
---   ✅ ONE LIST NOW. `local BASE` is the module list; each profile calls
---      profileFrom{ without = {…}, plus = {…}, settings = {…} } and states
---      only its DIFFERENCES. Adding a module is one edit that reaches
---      every Mac.
---   🔒 AND THE CHECK THAT WOULD HAVE CAUGHT IT: every module file on disk
---      must appear in BASE, and no profile may hand-type its own list.
---      Both fail the build now.
---   🖼 THE CANVAS EXCEPTION IN YOUR CONSOLE IS FIXED TOO. That
---      NSInternalInconsistencyException came from a bare canvas:show()
---      colliding with Safari's URL-completion popup mid-transition. The
---      helper for exactly this (_G.showCanvasSafely — it retries a run
---      loop turn later) already existed and SIX canvases bypassed it.
---      All six go through it now, and a lint rule counts bare shows
---      against protected ones so a seventh cannot appear.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.66.5
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.67.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -381,7 +379,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.66.5"
+_G.configVersion = "6.67.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -1160,6 +1158,138 @@ function _G.showCanvasSafely(canvas, label)
     _G.canvasShowTimers[#_G.canvasShowTimers + 1] = t
     while #_G.canvasShowTimers > 8 do table.remove(_G.canvasShowTimers, 1) end
     return false
+end
+
+-- =====================================================================
+-- 🖐 DRAGGABLE CANVAS PANELS (6.67.0)
+-- =====================================================================
+-- LL: "Great pop-up. But I can't drag the window. Same with shortcuts
+-- window. Both should be moveable."
+--
+-- An hs.canvas is not an NSWindow with a title bar — there is nothing to
+-- grab. Dragging has to be built: notice the press, follow the pointer,
+-- move the panel. This is that, once, for every panel rather than twice
+-- by hand.
+--
+-- 🚨 WHY AN EVENTTAP AND NOT canvas mouseMove. A canvas only reports
+-- movement while the pointer is INSIDE it. Drag faster than the panel
+-- redraws — which is most drags — and the pointer leaves, the events
+-- stop, and the panel is stranded halfway. So the press is caught on the
+-- canvas and the DRAG is followed by a global eventtap, which sees the
+-- pointer wherever it goes.
+--
+-- ⚠️ AND AN EVENTTAP IS THE MOST DANGEROUS OBJECT IN THIS CONFIG, so:
+--   · it starts on mouseDown and stops on mouseUp;
+--   · a WATCHDOG stops it after dragMaxSecs no matter what, because a
+--     mouseUp delivered to another process is a mouseUp we never see;
+--   · it returns false, so the events still reach everything else —
+--     this observes the drag, it does not swallow it;
+--   · only ONE drag can be live at a time, and starting a second stops
+--     the first.
+-- A tap left running is a tap watching every mouse event you make for
+-- the rest of the session.
+--
+-- ⚖️ THE COST, AND IT IS REAL: a panel that can be grabbed is a panel
+-- that CAPTURES CLICKS. The cheat sheet used to let clicks fall through
+-- to the window behind it. It cannot do both, and being able to move it
+-- is what was asked for.
+_G.dragMaxSecs = 20
+_G.dragTap, _G.dragGuard, _G.dragging = nil, nil, nil
+
+local function dragStop(why)
+    if _G.dragTap   then pcall(function() _G.dragTap:stop()   end) end
+    if _G.dragGuard then pcall(function() _G.dragGuard:stop() end) end
+    _G.dragTap, _G.dragGuard, _G.dragging = nil, nil, nil
+    if why and _G.diag then _G.diag.say("drag", "ended (" .. why .. ")") end
+end
+_G.dragStop = dragStop
+
+-- onDrop(frame) is called when the drag finishes, so a caller can
+-- REMEMBER where you put the panel. Without it a dragged panel snaps
+-- back to its computed position the next time it is drawn — and the cheat
+-- sheet redraws on every keystroke you type into it.
+function _G.makeCanvasDraggable(canvas, label, onDrop)
+    if not canvas then return false end
+    local okEv = pcall(function() canvas:canvasMouseEvents(true, true, false, false) end)
+    if not okEv then return false end
+    local okCb = pcall(function()
+        canvas:mouseCallback(function(cv, ev)
+            if ev ~= "mouseDown" then
+                if ev == "mouseUp" then dragStop("mouseUp on the panel") end
+                return
+            end
+            dragStop(nil)                       -- never two at once
+            local okM, m0 = pcall(hs.mouse.absolutePosition)
+            local okF, f0 = pcall(function() return cv:frame() end)
+            if not (okM and m0 and okF and f0) then return end
+            _G.dragging = { canvas = cv, m0 = m0, f0 = f0, label = label }
+
+            -- 🚨 WATCHDOG FIRST, THEN THE TAP — the same ordering the
+            -- Mouse Grid and the pomodoro use. Armed before the thing it
+            -- protects exists, so a throw in between cannot leave a
+            -- global mouse tap running with nothing scheduled to stop it.
+            _G.dragGuard = hs.timer.doAfter(_G.dragMaxSecs, function()
+                dragStop("watchdog — no mouseUp arrived")
+            end)
+
+            local okTap, tap = pcall(hs.eventtap.new, {
+                hs.eventtap.event.types.leftMouseDragged,
+                hs.eventtap.event.types.leftMouseUp,
+            }, function(e)
+                local d = _G.dragging
+                if not d then return false end
+                local t = e:getType()
+                if t == hs.eventtap.event.types.leftMouseUp then
+                    local f
+                    pcall(function() f = d.canvas:frame() end)
+                    dragStop("mouseUp")
+                    if f and onDrop then pcall(onDrop, f) end
+                    return false
+                end
+                local okNow, m = pcall(hs.mouse.absolutePosition)
+                if not (okNow and m) then return false end
+                pcall(function()
+                    d.canvas:topLeft({ x = d.f0.x + (m.x - d.m0.x),
+                                       y = d.f0.y + (m.y - d.m0.y) })
+                end)
+                return false        -- observe, never swallow
+            end)
+            if not (okTap and tap) then
+                dragStop("could not create the drag tap")
+                return
+            end
+            _G.dragTap = tap
+            pcall(function() tap:start() end)
+        end)
+    end)
+    return okCb
+end
+
+-- Keep a panel on a real screen. A dragged position is remembered, and a
+-- remembered position outlives the display it was set on: unplug the
+-- monitor it was dragged to and the panel would otherwise be restored to
+-- coordinates that no longer exist, i.e. invisibly off-screen with no
+-- way to get it back.
+function _G.clampToScreen(pt, w, h)
+    if not pt then return nil end
+    local best
+    pcall(function()
+        for _, scr in ipairs(hs.screen.allScreens() or {}) do
+            local f = scr:fullFrame()
+            if pt.x + (w or 0) > f.x and pt.x < f.x + f.w
+               and pt.y + (h or 0) > f.y and pt.y < f.y + f.h then
+                best = f; break
+            end
+        end
+        if not best and hs.screen.mainScreen() then
+            best = hs.screen.mainScreen():fullFrame()
+        end
+    end)
+    if not best then return pt end
+    return {
+        x = math.max(best.x, math.min(pt.x, best.x + best.w - (w or 0))),
+        y = math.max(best.y, math.min(pt.y, best.y + best.h - (h or 0))),
+    }
 end
 
 local csOK, csErr = pcall(function()

@@ -4,6 +4,57 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.67.0 — GRAB THE PANELS AND MOVE THEM:
+  🖐 LL: "Great pop-up. But I can't drag the window. Same with shortcuts
+     window. Both should be moveable." An hs.canvas is not an NSWindow
+     with a title bar — there is nothing to grab, so dragging has to be
+     built: notice the press, follow the pointer, move the panel.
+     _G.makeCanvasDraggable does it once, in init.lua, for every panel
+     rather than twice by hand and a third time next month.
+  📌 AND THE POSITION IS REMEMBERED. Drop a panel and it reopens where you
+     left it for the rest of the session; ⇪R clears both.
+     · THIS MATTERS MOST FOR THE CHEAT SHEET, and the reason is the search
+       box: typing REBUILDS THE CANVAS ON EVERY CHARACTER. A position
+       stored on the canvas would be lost between "a" and "as" and the
+       sheet would jump back to centre mid-search. It lives on the
+       namespace instead, and there is a check that types three
+       characters and asserts the panel has not moved.
+  🖥 CLAMPED TO A REAL SCREEN, both of them. A remembered position
+     outlives the display it was set on: drag the sheet to the 4K, unplug
+     it, and without clamping the sheet is restored to coordinates that no
+     longer exist — invisible, with no way to reach it and no obvious
+     cause.
+  🚨 THE DRAG IS FOLLOWED BY AN EVENTTAP, NOT BY CANVAS MOUSE EVENTS, and
+     that is not a preference. A canvas only reports movement while the
+     pointer is INSIDE it; any drag faster than the panel redraws — which
+     is most drags — leaves the pointer behind, the events stop, and the
+     panel is stranded halfway across the screen.
+     · An eventtap is also the most dangerous object in this config, so it
+       gets the same treatment as every other one here: it starts on
+       mouseDown and stops on mouseUp; a WATCHDOG stops it after 20
+       seconds no matter what, because a mouseUp delivered to another
+       process is a mouseUp we never see; it returns false, so it OBSERVES
+       the drag rather than swallowing it; and only one drag can be live
+       at a time. A tap left running is a tap reading every mouse event
+       you make for the rest of the session.
+     · The watchdog is armed BEFORE the tap is created, same ordering as
+       the Mouse Grid and the pomodoro modal: a throw between the two
+       must not leave a global mouse tap with nothing scheduled to stop
+       it.
+  ⚖️ THE COST, AND IT WAS A DOCUMENTED FEATURE. The cheat sheet used to
+     let clicks fall THROUGH to the window behind it — 6.31.0 turned mouse
+     events off entirely because "a stray click used to dismiss the
+     reference mid-lookup". A panel you can grab is a panel that takes
+     clicks; it cannot do both. A click still does not CLOSE it, which was
+     the actual hazard.
+  🧪 1,902 checks, 17 suites, 0 failures, 0 lint findings. Seven mutations
+     caught across the two panels: never registering, not storing the
+     drop, ignoring a stored position, and dropping the clamp. One check
+     had to be made defensive first — with the registration mutation
+     applied there is no DRAGGABLE[1], and a bare index aborted the run
+     and blamed the wrong line. That is the third time that lesson has
+     come up in this project.
+
 NEW IN 6.66.5 — SEVENTEEN WARNINGS IN TWO SECONDS, AND THEY WERE MINE:
   🚨 "hs.hotkey system callback for an eventUID we don't know about: 0",
      seventeen times across two seconds of LL's Console. That is
