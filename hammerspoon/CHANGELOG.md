@@ -4,6 +4,22 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.74.0 — THE SNIPPETS SHIP IN THE ZIP:
+  📦 LL: "wait... I still have to use the .alfredsnippets?" No, and that
+     was an oversight worth naming: I built the importer, tested it
+     against the real corpus, and then handed over a config that still
+     needed a manual step. All 2,006 snippets are now unpacked inside the
+     release zip at ~/.hammerspoon/snippets. Unzipping is the install.
+  🚨 SCANNED, NOT COPIED into the OneDrive folder. A copy needs an "have
+     I already done this" flag, and that flag is a thing that can be
+     wrong — stale after an edit, lost on a reinstall, or right on one
+     Mac and not the other. Two directories and no state instead. The
+     OneDrive folder is scanned SECOND, so anything you import or write
+     yourself overrides what shipped and re-unzipping never clobbers it.
+  🔒 IN THE ZIP ONLY, NEVER IN GIT. textpanders holds real email
+     addresses, a phone number, an employee ID, Zoom links and
+     out-of-office text. .gitignore says so, with the reason.
+
 NEW IN 6.73.0 — READ BACKWARDS: THE BOOT LINE CANNOT SEE THE WARM PHASE:
   🚨 THE ONE FAILURE THAT ACTUALLY BIT US WAS INVISIBLE BY DESIGN.
      Reading the boot backwards, the LAST thing that runs is warm() —

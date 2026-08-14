@@ -1,0 +1,5 @@
+
+# LL's own snippet collections. Shipped in the release zip, NEVER in
+# git: textpanders holds real email addresses, phone numbers, an
+# employee ID and out-of-office text.
+snippets/

@@ -168,6 +168,7 @@ hs = {
     return o, ok, "exit", rc or 0
   end,
   keycodes = { map = {} },
+  configdir = TMP .. "/cfg",
 }
 
 print = function(...)
@@ -1087,6 +1088,38 @@ check("...and this module never types outside the guard", (function()
   local total = select(2, m:gsub("hs%.eventtap%.keyStrokes", ""))
   return total >= 2 and m:find("_G.withInjection", 1, true) ~= nil, total
 end)())
+
+-- =====================================================================
+out("\n=== 17. 📦 SHIPPED SNIPPETS — unzipping IS the install ===\n")
+-- LL: "wait... I still have to use the .alfredsnippets?" No. The release
+-- zip carries all five collections already unpacked to
+-- ~/.hammerspoon/snippets, scanned IN ADDITION to the OneDrive folder.
+-- §15 pointed exp.dir at the big generated corpus and §16 never put it
+-- back. Restored explicitly: a suite that silently inherits a previous
+-- section's state is a suite whose later checks mean something else.
+exp.dir = TMP .. "/snippets"
+mkdirp(TMP .. "/bundled/Shipped")
+snippetFile(TMP .. "/bundled/Shipped", "s.json", "Shipped", "sh9", "from the zip")
+snippetFile(TMP .. "/bundled/Shipped", "dup.json", "Bundled dup", "dup1", "BUNDLED")
+mkdirp(TMP .. "/snippets/Mine")
+snippetFile(TMP .. "/snippets/Mine", "dup.json", "My dup", "dup1", "MINE")
+exp.bundledDir = TMP .. "/bundled"
+exp.load()
+check("a bundled snippet loads with no import step at all",
+  exp.snippets["sh9"] ~= nil and exp.snippets["sh9"].text == "from the zip",
+  exp.snippets["sh9"])
+check("...alongside everything in the OneDrive folder",
+  exp.snippets[";bd"] ~= nil and exp.snippets["gg1"] ~= nil)
+check("🚨 AND YOURS WINS ON A COLLISION, so re-unzipping can never "
+   .. "clobber a snippet you imported or wrote yourself",
+  exp.snippets["dup1"].text == "MINE", exp.snippets["dup1"].text)
+check("a missing bundled folder is simply nothing, not an error",
+  (function()
+     exp.bundledDir = TMP .. "/nope"
+     local ok = exp.load()
+     return ok and exp.snippets["gg1"] ~= nil
+   end)())
+exp.bundledDir = nil
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.execute("rm -rf '" .. TMP .. "'")

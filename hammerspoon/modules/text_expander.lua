@@ -92,6 +92,20 @@ function M.setup(core)
     exp.enabled       = true
     exp.key           = "t"       -- ⇪⇧T — the snippet chooser
     exp.dir           = core.logsDir .. "/snippets"
+    -- 📦 SHIPPED SNIPPETS. The zip carries LL's five collections already
+    -- unpacked to ~/.hammerspoon/snippets, so unzipping IS the install —
+    -- no import step, no .alfredsnippets files to keep track of. This
+    -- folder is scanned IN ADDITION to exp.dir above, rather than copied
+    -- into it: a copy needs an "have I done this already" flag, and that
+    -- flag is a thing that can be wrong. Two directories, no state.
+    --
+    -- exp.dir still wins on a collision, so anything you import or write
+    -- later overrides what shipped, and re-unzipping never clobbers your
+    -- own edits.
+    -- Guarded: hs.configdir is a value, not a call, and a build or a
+    -- harness without it must degrade to "no bundled snippets" rather
+    -- than throw inside setup() — which took the whole module down.
+    exp.bundledDir    = hs.configdir and (hs.configdir .. "/snippets") or nil
     exp.bufferMax     = 64        -- characters of typing kept in memory
     exp.maxChars      = 2000      -- a snippet longer than this is REFUSED
     exp.wordStartOnly = true      -- see the 🧨 note in the header
@@ -280,6 +294,12 @@ function M.setup(core)
             say("created the snippets folder: " .. exp.dir)
         end
 
+        -- Bundled FIRST so that a trigger you import or write yourself
+        -- into exp.dir overwrites the shipped one rather than the other
+        -- way round.
+        if exp.bundledDir and hs.fs.attributes(exp.bundledDir) then
+            scanDir(exp.bundledDir, "bundled", into, problems, chooserOnly)
+        end
         scanDir(exp.dir, "snippets", into, problems, chooserOnly)
 
         exp.snippets    = into

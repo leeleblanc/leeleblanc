@@ -4,9 +4,23 @@
 -- =====================================================================
 -- 08-14-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.73.0-HONEST-BOOT
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.74.0-SNIPPETS-INCLUDED
 -- =====================================================================
 
+-- NEW IN 6.74.0 — THE SNIPPETS SHIP IN THE ZIP:
+--   📦 LL: "wait... I still have to use the .alfredsnippets?" No — that
+--      was an oversight. All 2,006 snippets from all five collections
+--      are unpacked INSIDE the release zip at ~/.hammerspoon/snippets,
+--      scanned in addition to the OneDrive folder. Unzipping is the whole
+--      install: no import step, no files to keep track of.
+--   🚨 SCANNED, NOT COPIED. A copy needs an "have I done this already"
+--      flag, and that flag is a thing that can be wrong. Two directories,
+--      no state — and yours WINS on a collision, so re-unzipping can
+--      never clobber a snippet you imported or wrote.
+--   🔒 And they are in the ZIP ONLY, never in git: textpanders holds real
+--      email addresses, a phone number, an employee ID and out-of-office
+--      text. That does not belong in a repository.
+--
 -- NEW IN 6.73.0 — READ BACKWARDS: THE BOOT LINE CANNOT SEE WARM-UP:
 --   🚨 A warm() FAILURE WENT TO THE CONSOLE AND NOWHERE ELSE. No ledger
 --      entry, no on-screen word — and the boot summary had already said
@@ -121,7 +135,7 @@
 --      numpad.cmdShiftActions.
 --
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.73.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.74.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -422,7 +436,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.73.0"
+_G.configVersion = "6.74.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
