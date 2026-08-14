@@ -4,6 +4,86 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.70.0 — THE TIMER PANEL THAT WOULD NOT GO AWAY:
+  🍅 IT WAS STUCK, AND LL WAS PRESSING ESCAPE CORRECTLY. From the
+     screenshot: a panel reading "DONE ⏎ ⁄ esc", and "is stuck on screen
+     or I'm not hitting the escape key right. But escape works for other
+     Hammerspoon items."
+     · When a cycle finishes, the panel asks whether to go again and
+       captures ⏎ and esc for answerSecs (20s). A watchdog releases them
+       when that window expires — and it released the KEYBOARD while
+       leaving the SCREEN alone. Twenty seconds after the timer finished,
+       the panel was a dead rectangle with nothing bound to it. ⇪⇧P or
+       the Console were the only ways out.
+     · The watchdog now takes an onExpire. For the final "DONE", that is
+       "close". For the work→break question it is deliberately nothing,
+       because the break is already counting by then and closing there
+       would end your cycle for looking away for twenty seconds.
+     · It also closes if the modal cannot be entered at all — a panel
+       showing "⏎ ⁄ esc" over keys that are not bound is the same lie.
+  🧟 AND A PANEL WITH NOTHING DRIVING IT NOW CLOSES ITSELF, WHATEVER
+     STRANDED IT. Fixing the one path is necessary and not sufficient.
+     This panel is a window only this module can close, so EVERY future
+     path that forgets to close it has exactly the same symptom. So
+     instead of trusting the paths, the ticker asks once a second:
+         alive = counting down OR mid-flash OR waiting on an answer
+     Anything else for a minute is a bug whether or not I have thought
+     of it. It closes, and it says so — a panel that quietly tidies
+     itself away teaches nobody anything.
+  ∞ THE CLOCK HAD BEEN THROWING ONCE A SECOND, SILENTLY, AND THAT IS
+     WHY IT FROZE. tick() sets the end time to math.huge so the phase-end
+     fires exactly once. Once anything reached the clock formatter with
+     that value, string.format("%02d", inf) raises "number has no integer
+     representation" — inside paint()'s pcall, so it was swallowed. Sixty
+     errors a minute, forever, unseen; the panel simply stopped updating
+     and kept whatever it had painted last. mmss() guards infinity and
+     NaN now, and the tick reports a caught throw ONCE per run, because
+     the whole failure mode is repetition.
+  🚨 A REPORTING CALL MUST NEVER BE ABLE TO PREVENT THE REPAIR IT IS
+     REPORTING. The first version of the zombie fix printed "so it closed
+     itself" and THEN called stop() — with a notices call in between that
+     threw. The panel announced its own repair and stayed exactly where
+     it was, which is worse than the original bug: now the Console is
+     lying to you. Repair first, report second, pcall the report. Caught
+     by the new test, not by reading it back.
+  🎟 AND EACH ASK CARRIES ITS OWN TICKET. There are two questions per
+     cycle and both arm a watchdog on the same field. A stale one
+     arriving late called releaseKeys(), which stops whatever watchdog is
+     current — leaving the LIVE question with none, i.e. a keyboard held
+     with nothing scheduled to give it back. That is the one failure this
+     module's whole design exists to prevent. Also caught by the test.
+  🔢 ⌘⇧ + NUMBER PAD IS A THIRD LAYER, AND IT IS FREE. LL: "if i press
+     cmd+shift+{number pad 3} it should be assignable."
+     · ⇪pad has been free and assignable since 6.66.0, so the capability
+       existed — but only behind Caps Lock, which is this config's own
+       invention (hidutil remaps it to F18 and §3.12 makes it a modal).
+       None of that exists outside Hammerspoon.
+     · ⌘⇧ is a REAL modifier combination that macOS, Raycast, Keyboard
+       Maestro and everything else already understand, so a ⌘⇧pad
+       shortcut keeps working where a ⇪ one cannot reach and can be
+       handed to something other than this config later.
+     · Bound with hs.hotkey.bind, NOT hyperAddShortcut — the other two
+       layers only exist while Caps Lock is held, so registering this one
+       through the hyper modal would have meant it only fired with ⇪ held
+       too. It would have looked like it worked. There is a test for
+       exactly that.
+     · Add entries to numpad.cmdShiftActions, same service-name format as
+       the other two layers.
+  ✅ AND THE SUITE THAT WAS MISSING ALL OF THIS. The old check for the
+     answer watchdog asserted that the KEYBOARD came back and never once
+     asked about the SCREEN — which is precisely why this shipped. The
+     replacement drives a whole cycle to "DONE", expires the question,
+     and asserts the canvas is deleted. test_tools also captures print()
+     now instead of discarding it, so "it says so" is checkable at all.
+  🔊 NOT IN THIS RELEASE, AND SAYING SO PLAINLY: there is no volume
+     control tool in this config and there never has been. The only
+     audio code anywhere is focus mode muting the MICROPHONE. Per-app
+     volume of the kind SoundSource and Volume Mixer provide is not
+     something Hammerspoon can do at all — it needs an audio HAL driver,
+     which is why those products ship a system extension. System volume,
+     output/input device switching and a mute toggle ARE reachable and
+     are not built yet.
+
 NEW IN 6.69.0 — YOUR ACTUAL 2,006 SNIPPETS, AND WHAT THEY BROKE:
   📦 ALL FIVE COLLECTIONS IMPORT AND WORK. Every prefix rule below was
      READ OUT OF THE FILES, not guessed at:

@@ -4,9 +4,43 @@
 -- =====================================================================
 -- 08-14-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.69.0-TWO-THOUSAND
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.70.0-UNSTUCK
 -- =====================================================================
 
+-- NEW IN 6.70.0 — THE TIMER PANEL THAT WOULD NOT GO AWAY:
+--   🍅 IT WAS STUCK, AND YOU WERE PRESSING ESCAPE CORRECTLY. When a
+--      pomodoro cycle finished, the panel showed "DONE ⏎ ⁄ esc" and
+--      captured those two keys for 20 seconds. The watchdog that released
+--      them at the end of that window released the KEYBOARD and left the
+--      SCREEN alone — so after 20s the panel was a dead rectangle with
+--      nothing bound to it. ⇪⇧P or the Console were the only ways out.
+--      It now closes itself when the cycle is over and you have not said
+--      "go again". The work→break question still expires harmlessly,
+--      because the break is already counting by then.
+--   🧟 AND A PANEL WITH NOTHING DRIVING IT NOW CLOSES ITSELF, WHATEVER
+--      STRANDED IT. Fixing the one path is necessary and not sufficient:
+--      this panel is a window only this module can close, so every future
+--      path that forgets has the same symptom. The ticker asks once a
+--      second whether it is still counting, flashing or asking — and if
+--      it is none of those for a minute, it closes and SAYS SO.
+--   ∞ THE CLOCK HAD BEEN THROWING ONCE A SECOND, SILENTLY. tick() sets
+--      the end time to infinity so the phase-end fires exactly once, and
+--      string.format("%02d", inf) raises "number has no integer
+--      representation" — inside a pcall, so nobody ever saw it. Sixty
+--      swallowed errors a minute is how a panel freezes on its last good
+--      paint. mmss() guards it, and the tick reports a caught throw once.
+--   🚨 A REPORTING CALL MUST NOT PREVENT THE REPAIR IT REPORTS. The first
+--      version of the zombie fix printed "so it closed itself" and THEN
+--      closed — and the notices call in between threw, so it never got
+--      there. The Console was lying about a panel that was still stuck.
+--      Repair first, report second, and pcall the report.
+--   🔢 ⌘⇧ + NUMBER PAD IS A THIRD LAYER, AND IT IS FREE. ⇪pad has been
+--      yours to assign since 6.66.0 — but only behind Caps Lock, which is
+--      this config's own invention. ⌘⇧ is a real macOS modifier, so a
+--      shortcut on it also works in Raycast, Keyboard Maestro and
+--      anything else that understands modifiers. Add entries to
+--      numpad.cmdShiftActions.
+--
 -- NEW IN 6.69.0 — YOUR ACTUAL 2,006 SNIPPETS, AND WHAT THEY BROKE:
 --   📦 ALL FIVE COLLECTIONS IMPORT AND WORK. Emoji Pack (1,349) ·
 --      ComposeKey (548) · textpanders (80) · Mac symbols (23) · Ghostty
@@ -84,37 +118,8 @@
 --      verify() only checked that the SERVICE existed — half of a join.
 --      It checks the key side too now, which is what found it.
 --
--- NEW IN 6.67.0 — GRAB THE PANELS AND MOVE THEM:
---   🖐 THE POMODORO AND THE CHEAT SHEET DRAG NOW. An hs.canvas is not a
---      window with a title bar — there is nothing to grab — so dragging
---      had to be built: notice the press, follow the pointer, move the
---      panel. Written once, in init.lua, for every panel rather than
---      twice by hand.
---   📌 AND THEY REMEMBER. Drop a panel and it reopens there for the rest
---      of the session. That matters most for the cheat sheet, which
---      REBUILDS ITS CANVAS ON EVERY CHARACTER you type into the search
---      box — a position stored on the canvas would be lost between "a"
---      and "as", and the sheet would jump back to centre mid-search.
---      ⇪R clears both.
---   🖥 CLAMPED TO A REAL SCREEN. A remembered position outlives the
---      display it was set on: unplug that monitor and the panel would
---      otherwise be restored to coordinates that no longer exist —
---      invisible, with no way to reach it.
---   🚨 THE DRAG IS FOLLOWED BY AN EVENTTAP, not by canvas mouse events. A
---      canvas only reports movement while the pointer is INSIDE it, and
---      any drag faster than the panel redraws leaves the pointer behind
---      and strands the panel halfway. An eventtap is also the most
---      dangerous object in this config, so: it starts on mouseDown, stops
---      on mouseUp, a WATCHDOG stops it after 20s regardless (a mouseUp
---      delivered to another process is one we never see), it returns
---      false so nothing is swallowed, and only one drag can be live.
---   ⚖️ THE COST, AND IT WAS A DOCUMENTED FEATURE: the cheat sheet used to
---      let clicks fall THROUGH to the window behind it. A panel you can
---      grab is a panel that takes clicks; it cannot do both. A click
---      still does not CLOSE it, which was the actual hazard 6.31.0 fixed.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.69.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.70.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -415,7 +420,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.69.0"
+_G.configVersion = "6.70.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

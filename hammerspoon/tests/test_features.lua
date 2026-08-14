@@ -1482,11 +1482,70 @@ check("🚨 the window map is on the SHIFTED layer and the plain layer is "
 check("🚨 THE TWO LAYERS ARE STILL DISTINCT KEYS — ⇪pad7 and ⇪⇧pad7 are "
       .. "different shortcuts, which is what makes the free layer usable",
       hyperFor({}, "pad7") ~= hyperFor({ "shift" }, "pad7"))
-check("the cheat sheet says the plain layer is FREE rather than listing "
-      .. "tools that are no longer there",
-      numMod.cheatsheet.title:find("free", 1, true) ~= nil
-      or numMod.cheatsheet.title:find("FREE", 1, true) ~= nil,
+-- Strengthened in 6.70.0. This used to read the TITLE alone, and adding
+-- a third layer crowded the word out of it — which the check caught,
+-- correctly. But a title is a header; the promise being made is that the
+-- SHEET tells you the layer is free, so both halves are asserted now.
+check("the cheat sheet TITLE still says FREE rather than listing tools "
+      .. "that are no longer there",
+      numMod.cheatsheet.title:lower():find("free", 1, true) ~= nil,
       numMod.cheatsheet.title)
+check("...and an ENTRY says it for EACH free layer, which is where "
+      .. "someone reading the sheet actually looks", (function()
+    local sawHyper, sawCmd = false, false
+    for _, e in ipairs(numMod.cheatsheet.entries) do
+        local k, v = tostring(e[1]), tostring(e[2]):lower()
+        if k:find("⇪ pad", 1, true) and v:find("free", 1, true) then sawHyper = true end
+        if k:find("⌘⇧ pad", 1, true) and v:find("free", 1, true) then sawCmd = true end
+    end
+    return sawHyper and sawCmd, tostring(sawHyper) .. "/" .. tostring(sawCmd)
+end)())
+
+-- ---- LAYER 3: ⌘⇧ + pad, added 6.70.0 --------------------------------
+-- LL: "if i press cmd+shift+{number pad 3} it should be assignable."
+-- ⇪pad has been free since 6.66.0, so the capability existed — but only
+-- behind Caps Lock, which is this config's own invention. ⌘⇧ is a real
+-- macOS modifier combination, so a shortcut on it also works in Raycast,
+-- Keyboard Maestro and anything else that understands modifiers.
+check("⌘⇧ + pad is a THIRD layer, and it ships free like the ⇪ one",
+      type(numpad.cmdShiftActions) == "table"
+      and next(numpad.cmdShiftActions) == nil,
+      numpad.cmdShiftActions and next(numpad.cmdShiftActions))
+check("...on ⌘⇧ specifically", (function()
+    local m = numpad.cmdShiftMods or {}
+    local seen = {}
+    for _, x in ipairs(m) do seen[x] = true end
+    return #m == 2 and seen.cmd and seen.shift
+end)(), table.concat(numpad.cmdShiftMods or {}, "+"))
+check("🚨 AND IT IS BOUND AS A GLOBAL HOTKEY, NOT THROUGH THE HYPER "
+      .. "MODAL. The other two layers only exist while Caps Lock is held; "
+      .. "a ⌘⇧ combination is an ordinary hotkey and binding it through "
+      .. "hyperAddShortcut would mean it only fired with ⇪ held too — "
+      .. "which is not what was asked for and would look like it worked",
+      (function()
+        local f = io.open(MODDIR .. "/numpad_layer.lua")
+        local src = f:read("*a"); f:close()
+        src = src:gsub("%-%-[^\n]*", "")      -- comments name both freely
+        local blk = src:match("for key, what in pairs%(numpad%.cmdShiftActions.-\n        end")
+        if not blk then return false, "no cmdShift binding loop" end
+        return blk:find("hs.hotkey.bind", 1, true) ~= nil
+               and blk:find("hyperAddShortcut", 1, true) == nil
+      end)())
+check("...and it skips a key this Mac has no code for, like the others — "
+      .. "that guard is what stopped ⇪pad+ taking the whole layer down",
+      (function()
+        local f = io.open(MODDIR .. "/numpad_layer.lua")
+        local src = f:read("*a"); f:close()
+        src = src:gsub("%-%-[^\n]*", "")
+        local blk = src:match("for key, what in pairs%(numpad%.cmdShiftActions.-\n        end")
+        return blk and blk:find("hs.keycodes.map%[key%] ~= nil") ~= nil
+      end)())
+check("the cheat sheet tells you the ⌘⇧ layer exists — a free layer "
+      .. "nobody knows about is not a feature", (function()
+        for _, e in ipairs(numMod.cheatsheet.entries) do
+            if tostring(e[1]):find("⌘⇧", 1, true) then return true end
+        end
+      end)())
 
 -- 🚨 THE TYPO TEST FOR THE SHIFTED LAYER LIVES IN test_integration.lua,
 -- not here. Every shifted binding is a SERVICE NAME resolved at keypress

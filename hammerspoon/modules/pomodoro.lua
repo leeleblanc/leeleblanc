@@ -85,6 +85,11 @@ function M.setup(core)
     pom.answerSecs = 20
     pom.flashCount = 6           -- how many times the panel blinks
     pom.flashSecs  = 0.45        -- per blink
+    -- 🧟 How long the panel may sit on screen with nothing driving it
+    -- before it decides that is a bug and closes itself. See the note at
+    -- isAlive(). Generous, because a legitimate pause between phases must
+    -- never trip it — this is a safety net, not a policy.
+    pom.zombieSecs = 60
     -- ----------------------------------------------------------------------
 
     -- Colours. Work is calm, break is amber and loud enough to catch the
@@ -134,8 +139,22 @@ function M.setup(core)
         }
     end
 
+    -- 🚨 6.70.0 — GUARDED AGAINST INFINITY, AND THAT IS NOT HYPOTHETICAL.
+    -- tick() sets s.endsAt = math.huge to make phaseEnded fire exactly
+    -- once. If anything then reaches this function with that value —
+    -- which is exactly what happened once the answer window expired —
+    -- string.format("%02d", math.huge) raises "number has no integer
+    -- representation". paint() pcalls its caller, so the throw was
+    -- swallowed and the panel simply stopped updating: once a second,
+    -- forever, an error nobody ever saw. A silent throw on a repeating
+    -- timer is the quietest bug this config can have.
     local function mmss(secs)
+        if type(secs) ~= "number" or secs ~= secs        -- NaN
+           or secs == math.huge or secs == -math.huge then
+            return "--:--"
+        end
         secs = math.max(0, math.floor(secs + 0.5))
+        if secs > 359999 then secs = 359999 end          -- 99:59:59 of minutes
         return string.format("%02d:%02d", math.floor(secs / 60), secs % 60)
     end
 
@@ -173,15 +192,42 @@ function M.setup(core)
     -- 🚨 WATCHDOG FIRST, THEN THE MODAL. Armed before the keyboard is
     -- taken so that a throw in between cannot leave ⏎ and esc captured
     -- with nothing scheduled to give them back.
-    local function askForAnswer()
+    -- onExpire: what to do if you never answer. THIS PARAMETER IS THE BUG
+    -- FIX. It used to be nothing — the watchdog called releaseKeys() and
+    -- stopped there, which exits the modal and clears `asking` and leaves
+    -- the PANEL ON SCREEN. For the work→break case that was fine, because
+    -- the flash's completion starts the break regardless. For the final
+    -- "DONE ⏎ / esc" it was not: twenty seconds after the timer finished,
+    -- ⏎ and esc were released and the panel became furniture. Nothing was
+    -- bound to it, Esc did nothing, and the only way out was ⇪⇧P or the
+    -- Console. LL: "is stuck on screen or I'm not hitting the escape key
+    -- right." They were hitting it right.
+    local function askForAnswer(onExpire)
         local s = pom.state
         if not s then return end
+        -- 🚨 EACH ASK CARRIES ITS OWN TICKET, and a watchdog that is no
+        -- longer the current one does NOTHING. There are two asks per
+        -- cycle (work→break and break→DONE) and each arms a watchdog on
+        -- the same field. Without a ticket, a stale one arriving late
+        -- calls releaseKeys(), which stops pom.guard — by then the NEWER
+        -- watchdog — and the current question is left with no watchdog at
+        -- all. That is a keyboard held with nothing scheduled to give it
+        -- back, which is the one failure this whole design exists to
+        -- prevent. Found by a test firing both watchdogs in one go.
+        pom.askSeq = (pom.askSeq or 0) + 1
+        local ticket = pom.askSeq
         pom.guard = hs.timer.doAfter(pom.answerSecs, function()
+            if pom.askSeq ~= ticket then return end     -- a later ask owns it now
             releaseKeys("nobody answered")
+            if onExpire then pcall(onExpire) end
         end)
         if not pcall(function() pom.modal:enter() end) then
             releaseKeys("could not take the keyboard")
             warn("modal:enter() failed — ⏎/esc unavailable this round")
+            -- 🚨 AND IF THE KEYBOARD COULD NOT BE TAKEN, DO NOT SIT THERE
+            -- ASKING A QUESTION NOBODY CAN ANSWER. The panel is showing
+            -- "⏎ ⁄ esc" over keys that are not bound.
+            if onExpire then pcall(onExpire) end
             return
         end
         s.asking = true
@@ -232,25 +278,97 @@ function M.setup(core)
             -- design goal is "tells you without taking over".
             flash("STAND UP", pom.bgBreak, pom.fgWork, pom.bgFlash, pom.fgFlash,
                   function() startPhase("break") end)
-            askForAnswer()
+            -- Nothing to do on expiry: the flash's own completion starts
+            -- the break whether you answered or not, so the panel keeps
+            -- counting and stays alive.
+            askForAnswer(nil)
         else
             flash("DONE", pom.bgWork, pom.fgWork, pom.bgFlash, pom.fgFlash,
                   function()
                       paint("DONE", "⏎ ⁄ esc", pom.bgWork, pom.fgWork)
                   end)
-            askForAnswer()
+            -- 🚨 THE CYCLE IS OVER. If you do not say "go again" within
+            -- answerSecs, it closes itself. There is nothing left for this
+            -- panel to count and no keys left bound to it — leaving it up
+            -- is leaving a dead window on your screen.
+            askForAnswer(function() pom.stop("nobody answered — cycle over") end)
         end
+    end
+
+    -- 🧟 6.70.0 — THE ZOMBIE CHECK, AND WHY IT IS A CLASS FIX.
+    -- The bug LL hit was ONE path that left the panel on screen with
+    -- nothing driving it. Fixing that path is necessary and it is not
+    -- sufficient: the panel is a window this module opens and only this
+    -- module can close, so EVERY future path that forgets to close it has
+    -- the same symptom — a dead rectangle over your work with no
+    -- keystroke bound to it. So instead of trusting the paths, the ticker
+    -- asks once a second whether the panel is still ALIVE:
+    --
+    --      alive = counting down  OR  mid-flash  OR  waiting on an answer
+    --
+    -- Anything else for zombieSecs is a bug, whether or not I have thought
+    -- of it, and it closes itself and SAYS SO rather than sitting there.
+    -- The report is the point: a panel that quietly tidies itself away
+    -- teaches nobody anything.
+    local function isAlive(s)
+        if s.asking then return true end
+        if s.flasher then return true end
+        local e = s.endsAt
+        if type(e) == "number" and e ~= math.huge and e > hs.timer.secondsSinceEpoch() then
+            return true
+        end
+        return false
     end
 
     local function tick()
         local s = pom.state
         if not s then return end
-        if s.flasher then return end          -- mid-flash: leave it alone
+        if s.flasher then s.zombieSince = nil return end   -- mid-flash: leave it alone
         local left = s.endsAt - hs.timer.secondsSinceEpoch()
         if left <= 0 then
             s.endsAt = math.huge              -- fire phaseEnded exactly once
             phaseEnded()
             return
+        end
+        if isAlive(s) then
+            s.zombieSince = nil
+        else
+            s.zombieSince = s.zombieSince or hs.timer.secondsSinceEpoch()
+            if hs.timer.secondsSinceEpoch() - s.zombieSince > pom.zombieSecs then
+                local phase = tostring(s.phase)
+                -- 🚨 CLOSE FIRST, REPORT SECOND, AND THAT ORDER IS THE
+                -- WHOLE POINT. The first version of this block reported
+                -- and then closed — and the test caught it immediately,
+                -- because _G.notices.tell threw and pom.stop() was never
+                -- reached. The panel printed "so it closed itself" and
+                -- then sat there, which is worse than the bug it was
+                -- reporting: now the Console is lying to you.
+                -- A REPORTING CALL MUST NEVER BE ABLE TO PREVENT THE
+                -- REPAIR IT IS REPORTING. Everything below is pcall'd for
+                -- the same reason.
+                pom.stop("stranded panel")
+                pcall(function()
+                    print(string.format(
+                        "🍅 Pomodoro: the panel was on screen for %.0fs with "
+                        .. "nothing driving it — no countdown, no flash, no "
+                        .. "question — so it closed itself. That is a bug in "
+                        .. "this module, not in what you pressed. Phase was "
+                        .. "'%s'.", pom.zombieSecs, phase))
+                end)
+                pcall(function()
+                    if not _G.notices then return end
+                    if _G.notices.record then
+                        _G.notices.record("pomodoro", "stranded panel",
+                            "on screen with nothing driving it; phase " .. phase)
+                    end
+                    if _G.notices.tell then
+                        _G.notices.tell("🍅 The timer panel was stuck",
+                                        "It closed itself — see the Console",
+                                        { key = "pomodoro:zombie", every = 600 })
+                    end
+                end)
+                return
+            end
         end
         paint(s.phase == "work" and "FOCUS" or "BREAK", mmss(left),
               s.phase == "work" and pom.bgWork or pom.bgBreak, pom.fgWork)
@@ -344,7 +462,24 @@ function M.setup(core)
             return false
         end
         startPhase("work")
-        pom.state.ticker = hs.timer.doEvery(1, function() pcall(tick) end)
+        -- 🚨 THE TICK IS PCALL'D, AND A SWALLOWED THROW IS REPORTED.
+        -- It has to be pcall'd — an error on a repeating timer that
+        -- reaches the uncaught handler once a second is its own disaster
+        -- — but the bare pcall() that was here is how mmss(math.huge)
+        -- threw sixty times a minute without anyone ever seeing it. Said
+        -- ONCE per run, because the whole failure mode is repetition.
+        pom.tickErrorSaid = false
+        pom.state.ticker = hs.timer.doEvery(1, function()
+            local ok, err = pcall(tick)
+            if not ok and not pom.tickErrorSaid then
+                pom.tickErrorSaid = true
+                print("🍅 Pomodoro: the once-a-second update threw and was "
+                      .. "caught — the panel will stop updating. " .. tostring(err))
+                if _G.notices then
+                    _G.notices.record("pomodoro", "tick failed", tostring(err))
+                end
+            end
+        end)
         say("started")
         return true
     end

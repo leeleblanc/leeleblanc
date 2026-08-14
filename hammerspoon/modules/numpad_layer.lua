@@ -87,10 +87,12 @@ local M = {
     name  = "Numpad Layer",
     order = 13.5,
     cheatsheet = {
-        title = "🔢 NUMPAD LAYER (⇪ pad = FREE · ⇪⇧ pad = windows)",
+        title = "🔢 NUMPAD LAYER (⇪ pad FREE · ⇪⇧ pad windows · ⌘⇧ pad FREE)",
         entries = {
             { "⇪ pad ALL",   "🆓 every key free — cleared 6.66.0, yours to assign" },
-            { "how",         "Add padN = \"some.service\" in numpad_layer.lua" },
+            { "⌘⇧ pad ALL",  "🆓 also free — a REAL modifier, works outside ⇪ too" },
+            { "how",         "Add padN = \"some.service\" in numpad_layer.lua —" },
+            { "",            "numpad.actions (⇪) or numpad.cmdShiftActions (⌘⇧)" },
             { "first",       "_G.padProbe() — which pad keys this Mac can send" },
             { "—",           "———— hold shift for windows ————" },
             { "⇪⇧ pad7 8 9", "Top-left quarter · top half · top-right quarter" },
@@ -102,6 +104,8 @@ local M = {
             { "⇪⇧ pad/ *",   "Previous monitor / next monitor" },
             { "⇪⇧ padenter", "Centre without resizing" },
             { "why",         "The pad sends its OWN key codes — pad7 ≠ 7, both free" },
+            { "⇪ vs ⌘⇧",     "⇪ is ours (Caps Lock remapped). ⌘⇧ is real macOS —" },
+            { "",            "so a ⌘⇧pad shortcut also works in Raycast, KM, etc." },
             { "if dead",    "Accessibility → Pointer Control → Mouse Keys steals the pad" },
         },
     },
@@ -214,6 +218,36 @@ function M.setup(core)
         padenter  = "centreOnly",
         padclear  = "restore",
     }
+
+    -- ---- LAYER 3: ⌘⇧ + pad → FREE, AND NOT ON THE HYPER KEY (6.70.0) ----
+    -- LL: "We set-up my number pad to work with Hammerspoon key presses.
+    -- Therefore, if i press cmd+shift+{number pad 3} it should be
+    -- assignable."
+    --
+    -- ⇪pad has been free and assignable since 6.66.0, so the CAPABILITY
+    -- was already there — but only behind Caps Lock. This layer is the
+    -- same thing on ⌘⇧, which matters for a reason worth writing down:
+    -- ⇪ IS THIS CONFIG'S OWN INVENTION. Caps Lock is remapped to F18 by
+    -- hidutil and turned into a modal by §3.12, and none of that exists
+    -- outside Hammerspoon. ⌘⇧ is a REAL modifier combination that macOS,
+    -- Keyboard Maestro, Raycast and every other app already understand —
+    -- so a ⌘⇧pad shortcut keeps working in places a ⇪ one cannot reach,
+    -- and can be handed to something other than this config later.
+    --
+    -- 🚨 IT IS BOUND WITH hs.hotkey.bind, NOT hyperAddShortcut. The two
+    -- layers above go through the hyper modal, which only exists while
+    -- Caps Lock is held. A ⌘⇧ combination is an ordinary global hotkey
+    -- and has to be registered as one, through the §0.3 collision sentry
+    -- like every other global binding — so a clash with anything added
+    -- later is announced at boot instead of silently killing one of them.
+    --
+    -- Values are SERVICE NAMES, resolved against the live registry at
+    -- press time, exactly like the two layers above:
+    --      numpad.cmdShiftActions = { pad3 = "focus.toggle" }
+    numpad.cmdShiftActions = {
+        -- 🆓 EVERY ⌘⇧ + pad KEY IS FREE, yours to assign.
+    }
+    numpad.cmdShiftMods = { "cmd", "shift" }
 
     -- Bounded on purpose: one entry per window id, and windows come and go
     -- all day. Without the cap this is a slow leak that nothing ever
@@ -410,6 +444,18 @@ function M.setup(core)
                 table.insert(numpad.bound, "⇧" .. key)
             else
                 table.insert(numpad.skipped, "⇧" .. key)
+            end
+        end
+        -- The ⌘⇧ layer (6.70.0). Same nil-key guard as the other two, and
+        -- the same reason: a key this macOS has no code for must be
+        -- skipped and REPORTED, not bound as nil.
+        for key, what in pairs(numpad.cmdShiftActions or {}) do
+            if hs.keycodes.map[key] ~= nil then
+                hs.hotkey.bind(numpad.cmdShiftMods, key,
+                               function() numpad.run(what) end)
+                table.insert(numpad.bound, "⌘⇧" .. key)
+            else
+                table.insert(numpad.skipped, "⌘⇧" .. key)
             end
         end
         table.sort(numpad.bound)

@@ -64,7 +64,15 @@ local CHOOSERS, MODALS, HYPER, PROVIDED = {}, {}, {}, {}
 local NOW, FILES = 1000, {}
 
 local realPrint = print
-print = function() end
+-- 🚨 CAPTURED, NOT DISCARDED (6.70.0). A module that reports a problem
+-- through print() is making a promise this suite could not check while
+-- the stub threw everything away — and "it says so" is half of rule 7.
+PRINTED = {}
+print = function(...)
+    local p = {}
+    for i = 1, select("#", ...) do p[#p + 1] = tostring((select(i, ...))) end
+    PRINTED[#PRINTED + 1] = table.concat(p, " ")
+end
 
 local function mkTimer(kind, secs, fn)
     local t = { kind = kind, secs = secs, fn = fn, live = true }
@@ -809,6 +817,130 @@ check("🚨 a tick landing DURING teardown cannot repaint — state is "
     pom.stop("test")
     return fired and not paintedAfterDelete
 end)())
+-- =====================================================================
+say("   -- 🧟 6.70.0: THE PANEL THAT WOULD NOT GO AWAY --")
+-- LL, with a screenshot of a panel reading "DONE ⏎ / esc":
+--     "is stuck on screen or I'm not hitting the escape key right. But
+--      escape works for other Hammerspoon items."
+-- They were hitting it right. The answer watchdog called releaseKeys(),
+-- which exits the modal and clears `asking` — and LEAVES THE PANEL UP.
+-- Twenty seconds after the cycle finished, esc was no longer bound to
+-- anything and the panel was furniture. The old check below this one
+-- asserted the KEYBOARD came back and never asked about the SCREEN.
+local function fireAfter(secs)
+    for _, t in ipairs(TIMERS) do
+        if t.live and t.kind == "after" and t.secs == secs then t.fn() end
+    end
+end
+local function runFlash()
+    for _, t in ipairs(TIMERS) do
+        if t.live and t.kind == "every" and t.secs == pom.flashSecs then
+            for _ = 1, pom.flashCount * 2 + 1 do
+                if t.live then t.fn() end
+            end
+        end
+    end
+end
+
+pom.stop(nil)
+CANVASES, TIMERS, MODALS = {}, {}, {}
+pom.start()
+local doneCanvas = CANVASES[#CANVASES]
+tickTo(25 * 60)                     -- work phase ends
+runFlash()                          -- "STAND UP" flash → break starts
+tickTo(5 * 60)                      -- break ends
+runFlash()                          -- "DONE" flash → paints ⏎ / esc
+check("the cycle reaches DONE with the panel still up and asking",
+      pom.state ~= nil and pom.state.asking == true and not doneCanvas.deleted,
+      pom.state and tostring(pom.state.asking))
+fireAfter(pom.answerSecs)           -- ...and you never answer
+check("🚨 THE PANEL CLOSES ITSELF when the answer window expires. It used "
+      .. "to release ⏎ and esc and leave the window on screen with NOTHING "
+      .. "bound to it — the only way out was ⇪⇧P or the Console",
+      pom.state == nil, pom.state and tostring(pom.state.phase))
+check("...and the canvas is really gone, not just the state cleared",
+      doneCanvas.deleted == true)
+
+say("   -- and the same expiry MID-cycle must not close it --")
+pom.stop(nil)
+CANVASES, TIMERS, MODALS = {}, {}, {}
+pom.start()
+local midCanvas = CANVASES[#CANVASES]
+tickTo(25 * 60)
+runFlash()                          -- work→break: the flash starts the break
+check("the break is running", pom.state ~= nil and pom.state.phase == "break",
+      pom.state and pom.state.phase)
+fireAfter(pom.answerSecs)
+check("🚨 EXPIRING THE WORK→BREAK QUESTION DOES **NOT** CLOSE IT. The "
+      .. "break is already counting; closing there would end your cycle "
+      .. "because you looked away for twenty seconds",
+      pom.state ~= nil and not midCanvas.deleted,
+      pom.state and pom.state.phase)
+
+say("   -- 🧟 the class fix: a panel with nothing driving it --")
+-- Fixing the one path is necessary and not sufficient. The panel is a
+-- window only this module can close, so EVERY future path that forgets
+-- has the same symptom. The ticker asks once a second whether the panel
+-- is still alive, and closes it if it is not.
+pom.stop(nil)
+CANVASES, TIMERS, MODALS, PRINTED = {}, {}, {}, {}
+pom.start()
+local zombie = CANVASES[#CANVASES]
+-- Strand it by hand, the way a future bug would: no countdown, no flash,
+-- no question. Nothing in the module does this today — that is the point.
+pom.state.endsAt = math.huge
+pom.state.flasher = nil
+pom.state.asking = false
+tickTo(1)
+check("one second of being stranded is not yet a bug — a legitimate pause "
+      .. "between phases must never trip this",
+      pom.state ~= nil and not zombie.deleted)
+tickTo(pom.zombieSecs + 2)
+check("🧟 A PANEL ON SCREEN WITH NOTHING DRIVING IT CLOSES ITSELF, "
+      .. "whatever path stranded it", pom.state == nil and zombie.deleted,
+      pom.state and tostring(pom.state.phase))
+check("🚨 AND IT SAYS SO. A panel that quietly tidies itself away teaches "
+      .. "nobody anything — this is a bug report, not housekeeping",
+      (function()
+        for _, l in ipairs(PRINTED or {}) do
+            if tostring(l):find("nothing driving it", 1, true) then return true end
+        end
+      end)(), table.concat(PRINTED or {}, " | "):sub(1, 120))
+
+say("   -- ∞ the clock that threw once a second, silently --")
+-- tick() sets endsAt = math.huge so phaseEnded fires exactly once. Once
+-- anything reached mmss() with that value, string.format("%02d", inf)
+-- raised "number has no integer representation" — inside paint()'s
+-- pcall, so it was swallowed. Sixty times a minute, forever, unseen.
+pom.stop(nil)
+CANVASES, TIMERS, MODALS, PRINTED = {}, {}, {}, {}
+pom.start()
+pom.state.endsAt = math.huge
+pom.state.asking = true            -- alive, so the zombie check stays out
+local threw = false
+local okTick = pcall(function()
+    for _, t in ipairs(TIMERS) do
+        if t.live and t.kind == "every" and t.secs == 1 then t.fn() end
+    end
+end)
+check("🚨 THE CLOCK SURVIVES AN INFINITE endsAt rather than throwing into "
+      .. "a pcall nobody reads", okTick == true and pom.state ~= nil)
+check("...and it draws SOMETHING honest rather than freezing on the last "
+      .. "good paint", (function()
+    local c = CANVASES[#CANVASES]
+    for _, e in ipairs(c.elements or {}) do
+        if e.type == "text" and tostring(e.text):find("%-%-:%-%-") then return true end
+    end
+end)(), (function()
+    local c = CANVASES[#CANVASES]
+    local t = {}
+    for _, e in ipairs(c.elements or {}) do
+        if e.type == "text" then t[#t + 1] = tostring(e.text) end
+    end
+    return table.concat(t, " ")
+end)())
+pom.stop(nil)
+
 check("toggle() is start when off and stop when on", (function()
     pom.stop(nil)
     pom.toggle()
