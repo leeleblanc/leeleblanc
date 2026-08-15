@@ -4,9 +4,20 @@
 -- =====================================================================
 -- 08-15-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.83.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.83.2
 -- =====================================================================
 
+-- NEW IN 6.83.2 — KEY CASTER FIXED SIZE:
+--   Panel is now fixed at 270×134 (kc.fixedW / kc.fixedH). Set either
+--   to nil to revert to dynamic sizing.
+--
+-- NEW IN 6.83.1 — KEY CASTER 20PT + EXPANDER DOUBLE-POST FIX:
+--   Key caster font bumped 16→20pt, panel padding scaled up.
+--   Text expander: fixed double-post when expansion text contains its
+--   own trigger — hs.eventtap.keyStrokes() is async; kept injecting
+--   guard active for 80ms after expansion so in-flight events are
+--   discarded.
+--
 -- NEW IN 6.83.0 — WORKSPACES REMOVED:
 --   ⇪⇧S is free again. Module used private hs.spaces APIs (specifically
 --   excluded from safe mode for that reason) — removed on user request.
@@ -87,7 +98,7 @@
 --   🔊 modules/volume.lua — removed in 6.80.0. Use Vorssaint.
 --
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.83.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.83.2
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -388,7 +399,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.83.0"
+_G.configVersion = "6.83.2"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
