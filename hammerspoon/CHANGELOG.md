@@ -4,11 +4,10 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
-NEW IN 6.81.0 — GRAYSCALE TOGGLE:
-  ⬛️ modules/grayscale.lua — bare numpad 9 key toggles grayscale on/off.
-     No modifier. Uses defaults write + launchctl kickstart on
-     AXVisualSupportAgent for immediate effect on macOS 12+.
-     ⇪⇧ pad9 (window top-right) and ⇪ pad9 (free) are unchanged.
+NEW IN 6.82.0 — GRAYSCALE REMOVED:
+  pad9 is free again. macOS does not expose a reliable programmatic
+  interface for toggling the display grayscale filter — defaults write +
+  launchctl, killall, and osascript all failed or errored in practice.
 
 NEW IN 6.80.0 — VOLUME MODULE REMOVED:
   🗑 modules/volume.lua is gone. Use Vorssaint (vorssaint/vorssaint-utils)
