@@ -4,6 +4,53 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.89.0 — EVERY WINDOW MOVABLE + UNIFIED SEARCH (⇪space):
+  EVERY WINDOW MOVABLE (LL: "I need every window movable, I should be able
+  to click and hold then move the mouse cursor to move the window."):
+  NEW MODULE window_move.lua. Hold ⌘, click and hold ON any panel, move
+  the mouse — the Capture Pad, the editor, the Task Form, the mini
+  calendar, the pomodoro card, the key caster, Unified Search, and (the
+  hard part) THE NATIVE PICKERS: hs.chooser exposes no window handle, so
+  the module re-anchors the visible chooser live through chooser:show(pt)
+  and COMMITS where you drop it to §1.5's popupOffset — a dragged picker
+  position sticks for the next picker, and ⌃⌥⌘R still resets to automatic.
+  Display-only panels (pomodoro, key caster) drag with a BARE click-hold —
+  no ⌘ — because clicks mean nothing on them; panels you click IN keep
+  their clicks, and ⌘ is what says "the window, not the thing in it". The
+  editor gained a title-bar grip that bare-drags like the pad's header.
+  Driven from Lua by polling the real mouse at 60 Hz (the pad's proven
+  6.44.2 pattern — an event-driven drag dies when the pointer outruns the
+  window). The mouse tap consumes a click ONLY when it takes the drag, and
+  stands down after five consecutive errors, mouse untouched.
+  UNIFIED SEARCH, ⇪space (LL: "one unified clipboard picker where I can
+  type and search all my sources combined … So yes, everything"): NEW
+  MODULE unified_search.lua. One typed search across clipboard history,
+  command history, the screenshot folder (with thumbnails), quick-append
+  notes, Asana task history, the OCR log, document-watcher rows, file-move
+  rows, and the Capture Pad queue — each store read the way its own picker
+  reads it, each inside its own pcall so a broken store costs one source,
+  never the panel. Every word must match; a @tag word (@clip @cmd @shots
+  @note @asana @ocr @doc @file @pad) pins one source. ⏎ COPIES the row —
+  full text for text rows, the image itself for screenshots; ⌘⏎ copies
+  the file path (the ⇪⇧4 convention). Esc closes; header drags.
+  THUMBNAILS 50% LARGER (LL: "Thumbnails on image and this new tool must
+  be 50% larger, I can't read them."): an hs.chooser row's height is fixed
+  inside Hammerspoon itself (HSChooser.m sizes the panel as rowHeight ×
+  rows; no API exists), so a chooser thumbnail CANNOT grow — stated here
+  rather than pretended otherwise. Unified Search is the fix: it is a
+  webview, its rows are ours — 19px titles and 84px thumbnails (a chooser
+  renders ≈13px and ≈40px). ⇪⇧space opens it pre-filtered to "@shots",
+  and the ⇪⇧4 panel gained ⌘8 "BIG thumbnails" that does the same.
+  command_history now provides commands.entries so both pickers read one
+  loader; the ⇪⇧4 panel is 8 actions (⌘1–⌘8) and sizes itself from the
+  real action count.
+  Tests: new test_window_move (drag engine, ⌘/plain hit rules, chooser
+  re-anchor + offset commit, tap stand-down), new test_unified (all nine
+  sources parsed from fixture stores, caps, JSON escaping incl. </script,
+  pick/path/close bridge actions), a new run-tests stage 3c that EXECUTES
+  the search page's JS under node (filter, @tags, arrows, ⏎/⌘⏎, groups),
+  and test_screenshots updated for the eighth action row.
+
 NEW IN 6.88.0 — EDITOR TOOLS + PANEL SEARCH + COMPRESS:
   THE EDITOR GREW TOOLS (LL: "Can I draw text boxes… move them… white text
   and white outline? Can I draw arrows that rotate and stretch?"): ▦ Blur /

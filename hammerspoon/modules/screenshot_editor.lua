@@ -150,7 +150,7 @@ function M.setup(core)
           background:rgba(74,127,224,.15); pointer-events:none; display:none; }
 </style>
 <header>
-  <h1>🖌 Edit</h1>
+  <h1 id="grip" style="cursor:grab" title="drag to move">🖌 Edit</h1>
   <button id="tool-blur" class="tool on" onclick="setTool('blur')" title="B">▦ Blur</button>
   <button id="tool-text" class="tool" onclick="setTool('text')" title="T">🅣 Text</button>
   <button id="tool-arrow" class="tool" onclick="setTool('arrow')" title="A">➤ Arrow</button>
@@ -175,6 +175,18 @@ function M.setup(core)
   var JPEGQ = ]] .. tostring(ed.jpegQuality) .. [[;
 
   function say(m){ window.webkit.messageHandlers.shotEditor.postMessage(m || {}); }
+
+  // 6.89.0 — the title is the drag handle (same pattern as the Capture
+  // Pad: JS only REPORTS the grab; Lua polls the real mouse, so the drag
+  // survives the pointer outrunning the window). Guarded: the node
+  // harness's stub DOM has no #grip.
+  var grip = document.getElementById('grip');
+  if (grip && grip.addEventListener){
+    grip.addEventListener('mousedown', function(ev){
+      if (ev && ev.preventDefault) ev.preventDefault();
+      say({ a: 'dragStart' });
+    });
+  }
 
   // ---- THE BLUR CORE — pure, and tested by node against synthetic
   // pixels (tests/test_editor_js.js). px = flat RGBA Uint8ClampedArray.
@@ -598,6 +610,9 @@ function M.setup(core)
             ed.close()
         elseif body.a == "cancel" then
             ed.close()
+        elseif body.a == "dragStart" then
+            -- 6.89.0 — the title-bar grab; Window Move drives the drag
+            if _G.beginPanelDrag then _G.beginPanelDrag("screenshot editor") end
         end
     end
 
@@ -670,6 +685,19 @@ function M.setup(core)
 
     -- ---- wiring ----------------------------------------------------------
     core.provide("screenshotEditor.open", function(p) return ed.open(p) end)
+
+    -- 6.89.0 — listed for Window Move: ⌘-drag anywhere on the editor moves
+    -- it (a bare drag would fight the drawing tools), and the title grip
+    -- above gives the bare-click drag where it is safe.
+    _G.movablePanels = _G.movablePanels or {}
+    table.insert(_G.movablePanels, {
+        name  = "screenshot editor",
+        frame = function() return ed.webview and ed.webview:frame() end,
+        move  = function(x, y)
+            local f = ed.webview and ed.webview:frame()
+            if f then ed.webview:frame({ x = x, y = y, w = f.w, h = f.h }) end
+        end,
+    })
 
     _G.screenshotEditor = ed
     M.editor = ed

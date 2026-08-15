@@ -579,6 +579,19 @@ function M.setup(core)
               .. (kc.showTyping and "SHOWN" or "hidden"))
         return kc.showTyping
     end
+    -- 6.89.0 — listed for Window Move with plain = true: the caster is
+    -- pure display (clicks mean nothing on it), so a BARE click-hold
+    -- drags it, exactly as LL asked. ⌘-drag works too.
+    _G.movablePanels = _G.movablePanels or {}
+    table.insert(_G.movablePanels, {
+        name  = "key caster",
+        plain = true,
+        frame = function() return kc.canvas and kc.canvas:frame() end,
+        move  = function(x, y)
+            if kc.canvas then kc.canvas:topLeft({ x = x, y = y }) end
+        end,
+    })
+
     _G.keyCaster = kc
     M.kc     = kc
     M.config = kc

@@ -533,6 +533,22 @@ function M.setup(core)
     core.provide("pomodoro.start",  function() return pom.start()  end)
     core.provide("pomodoro.stop",   function() return pom.stop("service") end)
 
+    -- 6.89.0 — listed for Window Move with plain = true: the timer card is
+    -- pure display, so a bare click-hold drags it. ⌘-drag works too.
+    _G.movablePanels = _G.movablePanels or {}
+    table.insert(_G.movablePanels, {
+        name  = "pomodoro",
+        plain = true,
+        frame = function()
+            return pom.state and pom.state.canvas and pom.state.canvas:frame()
+        end,
+        move  = function(x, y)
+            if pom.state and pom.state.canvas then
+                pom.state.canvas:topLeft({ x = x, y = y })
+            end
+        end,
+    })
+
     _G.pomodoro = pom
     M.pom    = pom
     M.config = pom

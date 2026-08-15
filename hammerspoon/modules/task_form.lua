@@ -339,6 +339,18 @@ function M.setup(core)
     core.provide("taskform.show",   function() return form.show() end)
     core.provide("taskform.toggle", function() return form.toggle() end)
 
+    -- 6.89.0 — listed for Window Move: ⌘-drag anywhere on the form moves
+    -- it (bare clicks belong to its fields and buttons).
+    _G.movablePanels = _G.movablePanels or {}
+    table.insert(_G.movablePanels, {
+        name  = "task form",
+        frame = function() return form.webview and form.webview:frame() end,
+        move  = function(x, y)
+            local f = form.webview and form.webview:frame()
+            if f then form.webview:frame({ x = x, y = y, w = f.w, h = f.h }) end
+        end,
+    })
+
     _G.taskForm = form
     M.form   = form
     M.config = form

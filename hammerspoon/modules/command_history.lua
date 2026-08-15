@@ -221,6 +221,13 @@ function M.setup(core)
     _G.commandHistoryLoadForTest = commandHistoryLoad
     _G.commandHistoryParseForTest = commandHistoryParse
 
+    -- 6.89.0 — Unified Search (⇪space) reads the same log through this,
+    -- so the two pickers can never disagree about what you ran.
+    core.provide("commands.entries", function()
+        local entries = commandHistoryLoad()
+        return entries or {}
+    end)
+
     end)() -- §6.5 Command History
 
     -- /////////////////////////////////////////////////

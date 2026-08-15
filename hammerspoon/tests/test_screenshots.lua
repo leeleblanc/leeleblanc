@@ -156,6 +156,7 @@ _G.typingInjection = function() return false end
 _G.showCanvasSafely = function(c) c.shown = true; return true end
 
 local HYPER, PROVIDED, POPUPS, EDITOR_OPENS = {}, {}, {}, {}
+local UNIFIED_OPENS = {}      -- 6.89.0: what ⌘8 hands to unified.show
 local CORE = {
     homeDir = HOME,
     hyperAddShortcut = function(mods, key, fn, src)
@@ -168,6 +169,10 @@ local CORE = {
     call      = function(n, ...)
         if n == "screenshotEditor.open" then
             EDITOR_OPENS[#EDITOR_OPENS + 1] = (...)
+            return true
+        end
+        if n == "unified.show" then
+            UNIFIED_OPENS[#UNIFIED_OPENS + 1] = (...)
             return true
         end
         return nil
@@ -283,38 +288,39 @@ check("latest() is the picker's first row", S.latest() == shot1, S.latest())
 check("the service answers the same", PROVIDED["screenshots.latest"]() == shot1)
 
 local choices = S.choicesFrom(list)
-check("the panel leads with the SEVEN capture actions", (function()
+check("the panel leads with the EIGHT action rows", (function()
     local acts = {}
-    for i = 1, 7 do acts[#acts + 1] = choices[i] and choices[i].act end
+    for i = 1, 8 do acts[#acts + 1] = choices[i] and choices[i].act end
     return acts[1] == "area" and acts[2] == "scroll" and acts[3] == "recognize"
        and acts[4] == "editNewest" and acts[5] == "repeat"
        and acts[6] == "window" and acts[7] == "delayed"
+       and acts[8] == "bigBrowse"          -- 6.89.0: ⌘8 = BIG thumbnails
 end)())
-check("…then one row per screenshot, path attached", #choices == 7 + 4
-      and choices[8].path == shot1, #choices)
+check("…then one row per screenshot, path attached", #choices == 8 + 4
+      and choices[9].path == shot1, #choices)
 check("history subText carries date, size and the modifier hints",
-      (choices[9].subText or ""):find("MB") ~= nil
-      and (choices[8].subText or ""):find("⌥⏎") ~= nil,
-      choices[9].subText)
+      (choices[10].subText or ""):find("MB") ~= nil
+      and (choices[9].subText or ""):find("⌥⏎") ~= nil,
+      choices[10].subText)
 check("the cap is respected", (function()
     local old = S.maxList
     S.maxList = 2
     local c = S.choicesFrom(list)
     S.maxList = old
-    return #c == 7 + 2
+    return #c == 8 + 2
 end)())
 
 HYPER["shift|4"]()   -- open the panel
 check("⇪⇧4 shows the panel through showPopup", #POPUPS == 1 and POPUPS[1].shown)
 check("…with actions + history loaded", type(CHOICES_SET) == "table"
-      and #CHOICES_SET == 7 + 4, CHOICES_SET and #CHOICES_SET)
+      and #CHOICES_SET == 8 + 4, CHOICES_SET and #CHOICES_SET)
 check("…action rows carry no thumbnail", CHOICES_SET[1].image == nil)
 check("…and thumbnails attached to the history rows",
-      CHOICES_SET[8].image ~= nil and CHOICES_SET[8].image.__path == shot1)
+      CHOICES_SET[9].image ~= nil and CHOICES_SET[9].image.__path == shot1)
 -- 6.88.0 — LL: "I don't see the image history." The panel must be TALL
--- enough that history rows are visible UNDER the seven actions.
-check("the panel sizes itself past the 7 actions (history above the fold)",
-      type(POPUPS[1].nrows) == "number" and POPUPS[1].nrows == 7 + 4,
+-- enough that history rows are visible UNDER the action rows.
+check("the panel sizes itself past the 8 actions (history above the fold)",
+      type(POPUPS[1].nrows) == "number" and POPUPS[1].nrows == 8 + 4,
       POPUPS[1].nrows)
 
 -- 6.88.0 — LL: "I can't tell if I can search the window." Typing filters
@@ -334,7 +340,14 @@ check("…an unmatched query explains itself instead of going blank",
       CHOICES_SET[1] and CHOICES_SET[1].text)
 POPUPS[1].qcb("")
 check("…and an empty query brings the actions back",
-      #CHOICES_SET == 7 + 4 and CHOICES_SET[1].act == "area", #CHOICES_SET)
+      #CHOICES_SET == 8 + 4 and CHOICES_SET[1].act == "area", #CHOICES_SET)
+
+-- 6.89.0 — ⌘8 hands the folder to Unified Search, pre-filtered to
+-- @shots, where thumbnails render at 84px instead of a chooser row.
+S.onPick({ act = "bigBrowse" })
+check("⌘8 opens Unified Search filtered to screenshots",
+      #UNIFIED_OPENS == 1 and (UNIFIED_OPENS[1] or ""):find("@shots") == 1,
+      UNIFIED_OPENS[1])
 
 -- =====================================================================
 out("7. picking — ⏎ image, ⌘⏎ path\n")
@@ -392,8 +405,8 @@ for p, f in pairs(FILES) do saved[p] = f end
 for p in pairs(saved) do FILES[p] = nil end
 local c = S.choicesFrom(S.list())
 check("an empty folder still shows the actions, plus one row that explains",
-      #c == 8 and c[8].path == nil and (c[8].text or ""):find("No screenshots") ~= nil,
-      c[8] and c[8].text)
+      #c == 9 and c[9].path == nil and (c[9].text or ""):find("No screenshots") ~= nil,
+      c[9] and c[9].text)
 for p, f in pairs(saved) do FILES[p] = f end
 
 -- OneDrive not signed in: the parent folder cannot be made

@@ -4,40 +4,38 @@
 -- =====================================================================
 -- 08-15-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.88.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.89.0
 -- =====================================================================
 
+-- NEW IN 6.89.0 — EVERY WINDOW MOVABLE + UNIFIED SEARCH (⇪space):
+--   ⌘-click-hold-drag moves ANY panel — pickers included — and where
+--   you drop a picker STICKS (modules/window_move.lua). ⇪space
+--   searches EVERY store at once: clipboard, commands, screenshots
+--   (84px thumbnails), notes, Asana, OCR, docs, file moves, pad; ⏎
+--   copies, ⌘⏎ the path. ⇪⇧space / panel ⌘8 = BIG shot browser.
+--
 -- NEW IN 6.88.0 — EDITOR TOOLS + PANEL SEARCH + COMPRESS:
---   Editor: TEXT boxes (white text, white outline; drag to move) and
---   ARROWS (drag an end = stretch/rotate) join the blur; ⌘⇧⏎ saves a
---   small JPEG. Panel: history now visible UNDER the 7 actions, typing
---   SEARCHES it, ⌃⏎ compresses a row to jpg via sips. hs.alert + one
---   bare canvas show hardened against the Safari NSRemoteView throw.
+--   Editor: TEXT boxes (white text/outline; drag to move) and ARROWS
+--   (drag an end = stretch/rotate) join the blur; ⌘⇧⏎ small JPEG.
+--   Panel: history visible, typing SEARCHES it, ⌃⏎ compress via sips.
+--   hs.alert + one canvas show hardened vs the NSRemoteView throw.
 --
 -- NEW IN 6.87.0 — SCREENSHOT PANEL + BLUR EDITOR:
---   ⇪⇧4 is now a PANEL: 7 capture actions (⌘1–⌘7 — area · scrolling
---   [experimental] · text/QR · blur newest · repeat area · window ·
---   10s delay) with history below; ⌥⏎ on a history row opens the
---   BLUR EDITOR (drag boxes → blurred; ⌘Z undo; saves "… (edited)").
+--   ⇪⇧4 is now a PANEL: capture actions on ⌘1–⌘7 (area · scrolling ·
+--   text/QR · blur newest · repeat · window · delayed) with history
+--   below; ⌥⏎ opens the BLUR EDITOR (⌘Z undo; saves "… (edited)").
 --
 -- NEW IN 6.86.0 — TASK FORM + SCREENSHOTS:
---   ⇪T opens a labeled FORM (Title/Description/Assignee/Attachment;
---   ⏎ sends, Esc keeps the draft); past-task SEARCH moved to ⇪⇧S.
---   ⇪4 captures to OneDrive/2026 Screenshots AND the clipboard; ⇪⇧4
---   browses history with thumbnails (⏎ = image, ⌘⏎ = file path).
+--   ⇪T opens a labeled FORM (⏎ sends, Esc keeps the draft); past-task
+--   SEARCH moved to ⇪⇧S. ⇪4 captures to OneDrive/2026 Screenshots AND
+--   the clipboard; ⇪⇧4 browses history (⏎ = image, ⌘⏎ = file path).
 --
 -- NEW IN 6.85.0 — KEY CASTER TEXT LABELS + RIGHT-SIDE VERTICAL PANEL:
---   Vertical stacking (one line per combo, newest at bottom, older
---   dimmed), fixed 400×600 right-anchored, font auto-fills the box;
---   labels are plain text ("cmd+x", "hyper+x") — no Unicode glyphs.
---
--- NEW IN 6.84.0 — KEY CASTER HORIZONTAL LAYOUT:
---   Panel now displays key combos in a single horizontal row (left to
---   right). Box anchored left; grows right as combos accumulate. Font
---   bumped 20→28pt. Hold time 2.5→7 s; fade 0.35→0.15 s.
+--   Vertical stacking (newest at bottom, older dimmed), fixed 400×600
+--   right-anchored; labels plain text ("cmd+x") — no Unicode glyphs.
 --
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.88.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.89.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -91,11 +89,11 @@
 --    SHARED between both Macs, so an entry added on one appears on
 --    the other after its next reload.
 --
--- ⇪⇧ ARROWS  POPUP NUDGING (§1.5)
---    Every popup in this config opens centered on whichever monitor
---    your frontmost app is on — no manual pinning. If you want it
---    elsewhere, nudge it with ⇪⇧ + arrow keys (hold to walk it).
---    ⇪⇧R resets the offset back to automatic.
+-- ⇪⇧ ARROWS  POPUP NUDGING (§1.5) · 6.89.0: or just ⌘-DRAG it
+--    Every popup opens centered on your frontmost app's monitor. Want
+--    it elsewhere? Hold ⌘ and DRAG it (modules/window_move.lua — every
+--    picker and panel; where you drop a picker STICKS), or nudge with
+--    ⇪⇧ + arrow keys (hold to walk it). ⇪⇧R = back to automatic.
 --
 -- ☁️ DAILY BACKUP (§1.7)  ·  automatic at 5:00 PM
 --    rsync copies your ~/.hammerspoon folder (EXCEPT secret.lua —
@@ -117,6 +115,14 @@
 --    ⇪⇧W      picker: summon any running app to this monitor
 --    ⇪↓       return the window to where it was before you moved it
 --    ⌃⌥⌘[ ]   throw the window to the next monitor right or left
+--
+-- 🔎 ⇪space  UNIFIED SEARCH (modules/unified_search.lua) — 6.89.0
+--    One typed search over EVERY store: clipboard, commands,
+--    screenshots (84px thumbnails), notes, Asana tasks, OCR,
+--    documents, file moves, the pad queue. Every word must match; a
+--    @tag pins one source. ⏎ copies the row (text or the image),
+--    ⌘⏎ the file path. ⇪⇧space (or ⌘8 in the ⇪⇧4 panel) opens it
+--    as the big-thumbnail screenshot browser.
 --
 -- ⇪V  CLIPBOARD HISTORY (§2 / §3)
 --    Keeps your last 1,000 copied texts, saved per-machine to
@@ -140,21 +146,17 @@
 --    text cleared deletes it.
 --
 -- ✅ ⇪T  ASANA TASK CREATOR (§4 / §5 + modules/task_form.lua)
---    6.86.0: ⇪T opens a FORM — Title / Description / Assignee /
---    Attachment, labels always on screen. ⏎ sends from any field,
---    ⌥⏎ = newline in Description, Esc keeps the draft; 📸/⌘L drops
---    the newest ⇪4 screenshot into Attachment. Auto-comment +
---    attachment upload as always.
+--    6.86.0: ⇪T opens a FORM — labeled Title/Description/Assignee/
+--    Attachment. ⏎ sends from any field, ⌥⏎ = newline, Esc keeps the
+--    draft; 📸/⌘L drops the newest ⇪4 screenshot into Attachment.
 --    ⇪⇧S searches PAST tasks (the old pipe picker, 30-day history).
 --
 -- 📸 ⇪4  SCREENSHOTS (modules/screenshots.lua + screenshot_editor.lua)
---    ⇪4 = native crosshair capture (SPACE = window, Esc cancels) to a
---    timestamped PNG in OneDrive's "2026 Screenshots" AND the
---    clipboard. ⇪⇧4 = the PANEL: 7 actions on ⌘1–⌘7, history with
---    thumbnails below, and TYPING SEARCHES it. ⏎ image · ⌘⏎ path ·
---    ⌥⏎ EDITOR (blur boxes, white-outline text, arrows; ⌘Z undo;
---    ⌘⏎ saves "… (edited).png" + clipboard, ⌘⇧⏎ small JPEG) ·
---    ⌃⏎ compress to "… (compressed).jpg" via sips.
+--    ⇪4 = native crosshair capture (SPACE = window, Esc cancels) to
+--    OneDrive's "2026 Screenshots" AND the clipboard. ⇪⇧4 = the PANEL:
+--    actions on ⌘1–⌘8 (⌘8 = BIG thumbnails, via ⇪space) and TYPING
+--    SEARCHES the history. ⏎ image · ⌘⏎ path · ⌃⏎ compress to jpg ·
+--    ⌥⏎ EDITOR (blur, white text boxes, arrows; ⌘Z; ⌘⇧⏎ small JPEG).
 --
 -- 📅 ⌃⌥⌘L / ⌃⌥⌘C  ASANA DASHBOARD (§6)
 --    Fetches your incomplete Asana tasks and shows them in five
@@ -343,7 +345,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.88.0"
+_G.configVersion = "6.89.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -1143,9 +1145,7 @@ function _G.showCanvasSafely(canvas, label)
 end
 
 -- 6.88.0 — hs.alert draws with hs.canvas underneath, so ITS show hits
--- the same throw — LL's Console caught one killing a whole ⇪ handler.
--- Wrapped ONCE, here: every alert everywhere is protected; a missed
--- alert costs a Console line of feedback, never the handler around it.
+-- the same throw. Wrapped ONCE, here: every alert everywhere survives.
 _G.rawAlertShow = _G.rawAlertShow or (hs.alert and hs.alert.show)
 if _G.rawAlertShow then hs.alert.show = function(...)
     local okA, r = pcall(_G.rawAlertShow, ...)
@@ -2810,16 +2810,14 @@ _G.asanaOpenTaskChooser = function()
     end
 end
 
--- Task creator — 6.86.0: ⇪T opens the labeled FORM (task_form.lua);
--- the pipe chooser stays as its fallback and as ⇪⇧S's search below.
+-- Task creator — 6.86.0: ⇪T = the labeled FORM; pipe chooser = fallback.
 hs.hotkey.bind(coreKeys.taskCreator[1], coreKeys.taskCreator[2], function()
     if not requireAsana() then return end
     if _G.taskFormShow then _G.taskFormShow() return end
     _G.asanaOpenTaskChooser()
 end)
 
--- 6.86.0: past-task SEARCH. ⇪⇧T was taken (Text Expander, 6.68.0) —
--- so ⇪⇧S: S for Search, free since the Spaces module left (6.83.0).
+-- 6.86.0: past-task SEARCH on ⇪⇧S (⇪⇧T was the Text Expander's).
 _G.hyperAddShortcut({ "shift" }, "s", function()
     if not requireAsana() then return end
     _G.asanaOpenTaskChooser()
@@ -3526,6 +3524,8 @@ local BASE = {
     "task_form",          -- ⇪T   labeled Asana task entry (pipe search → ⇪⇧S)
     -- 6.87.0
     "screenshot_editor",  -- 🖌   blur boxes on a screenshot (via ⇪⇧4, no key)
+    "window_move",        -- 🪟   6.89.0 ⌘-drag any panel or picker (no key)
+    "unified_search",     -- ⇪space  one search over every store
 }
 
 -- BASE minus `without`, plus `plus`. The list is COPIED, never shared: a

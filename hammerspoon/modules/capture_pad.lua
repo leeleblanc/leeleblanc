@@ -1390,6 +1390,18 @@ function M.setup(core)
     core.provide("capturePad.flush", function() pad.flush("service") end)
     core.provide("capturePad.title", function(text) return pad.titleFor(text) end)
 
+    -- 6.89.0 — listed for Window Move, so ⌘-click-hold drags the pad from
+    -- ANYWHERE on it, not only the header. The header keeps its bare drag.
+    _G.movablePanels = _G.movablePanels or {}
+    table.insert(_G.movablePanels, {
+        name  = "capture pad",
+        frame = function() return pad.webview and pad.webview:frame() end,
+        move  = function(x, y)
+            local f = pad.webview and pad.webview:frame()
+            if f then pad.webview:frame({ x = x, y = y, w = f.w, h = f.h }) end
+        end,
+    })
+
     _G.capturePad = pad
     M.pad    = pad
     M.config = pad

@@ -153,7 +153,7 @@ fi
 echo ""
 
 # --------------------------------------------------------- 1c. hostile world
-# Every suite in tests/ stubs `hs` to behave WELL. This runs all 34
+# Every suite in tests/ stubs `hs` to behave WELL. This runs all 36
 # modules against a Mac that answers nil to everything — no screens, an
 # empty pasteboard, no Accessibility, a folder that is not there. Those
 # are real shapes, not hypotheticals, and a module that throws on them
@@ -179,7 +179,7 @@ if [ -z "$LUA" ]; then
     echo "   ⚠️  skipped — no lua interpreter on PATH"
     SKIPPED="$SKIPPED lua-suites"
 else
-    for t in test_features test_switcher test_modules test_cheatsheet test_diagnostics test_mouse_grid test_url_cleaner test_health test_menubar test_focus test_rename test_notices test_clipboard test_app_watcher test_integration test_tools test_expander test_autocorrect test_keycaster test_keyboard_stack test_hyper_key test_screenshots test_taskform test_editor; do
+    for t in test_features test_switcher test_modules test_cheatsheet test_diagnostics test_mouse_grid test_url_cleaner test_health test_menubar test_focus test_rename test_notices test_clipboard test_app_watcher test_integration test_tools test_expander test_autocorrect test_keycaster test_keyboard_stack test_hyper_key test_screenshots test_taskform test_editor test_window_move test_unified; do
         f="$HS/tests/$t.lua"
         if [ ! -f "$f" ]; then
             echo "   ⚠️  $t — missing"
@@ -260,6 +260,36 @@ else
     else
         echo "   ❌ the editor's HTML could not be generated:"
         tail -5 "$WORK/editor.err" | sed 's/^/        /'
+        FAILED=$((FAILED + 1))
+    fi
+fi
+echo ""
+
+# ------------------------------------------- 3c. unified search page JS
+echo "3c. UNIFIED SEARCH — PAGE JAVASCRIPT, EXECUTED"
+if [ -z "$LUA" ] || [ -z "$NODE" ]; then
+    echo "   ⚠️  skipped — needs both lua and node"
+    echo "      The filter, @tags and keyboard live in this page. If this is"
+    echo "      skipped, ⇪space's behaviour is UNTESTED this run."
+    SKIPPED="$SKIPPED unified-js"
+elif [ ! -f "$HS/tests/dump_unified_html.lua" ] || [ ! -f "$HS/tests/test_unified_js.js" ]; then
+    echo "   ⚠️  skipped — harness files missing from tests/"
+    SKIPPED="$SKIPPED unified-js"
+else
+    STAGES_RUN=$((STAGES_RUN + 1))
+    if "$LUA" "$HS/tests/dump_unified_html.lua" "$HS/modules" > "$WORK/unified.html" 2>"$WORK/unified.err"; then
+        out=$("$NODE" "$HS/tests/test_unified_js.js" "$WORK/unified.html" 2>&1)
+        line=$(echo "$out" | grep -E '[0-9]+ passed, [0-9]+ failed' | tail -1)
+        if echo "$line" | grep -q ', 0 failed'; then
+            echo "   ✅ test_unified_js — $line"
+        else
+            echo "   ❌ test_unified_js — ${line:-did not finish}"
+            echo "$out" | grep -E '^\s*(❌|FAIL)' | head -10 | sed 's/^/        /'
+            FAILED=$((FAILED + 1))
+        fi
+    else
+        echo "   ❌ the search page's HTML could not be generated:"
+        tail -5 "$WORK/unified.err" | sed 's/^/        /'
         FAILED=$((FAILED + 1))
     fi
 fi

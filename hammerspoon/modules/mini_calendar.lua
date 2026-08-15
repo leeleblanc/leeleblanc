@@ -546,6 +546,17 @@ function M.setup(core)
             function() cal.hide() end)
     end
 
+    -- 6.89.0 — listed for Window Move: ⌘-drag moves the calendar. ⌘ is
+    -- required here because bare clicks belong to the panel's own buttons.
+    _G.movablePanels = _G.movablePanels or {}
+    table.insert(_G.movablePanels, {
+        name  = "mini calendar",
+        frame = function() return cal.canvas and cal.canvas:frame() end,
+        move  = function(x, y)
+            if cal.canvas then cal.canvas:topLeft({ x = x, y = y }) end
+        end,
+    })
+
     _G.miniCalendar = cal
     M.cal    = cal
     M.config = cal

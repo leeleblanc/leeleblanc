@@ -14,8 +14,8 @@
 -- and then reads that file back onto the clipboard, which is the whole
 -- trick.
 --
--- ⇪⇧4 opens the SCREENSHOT PANEL (6.87.0): seven capture actions on
--- top (⌘1–⌘7 jump straight to one), your history below — newest first,
+-- ⇪⇧4 opens the SCREENSHOT PANEL (6.87.0): eight action rows on top
+-- (⌘1–⌘8 jump straight to one), your history below — newest first,
 -- each row with a thumbnail. TYPING SEARCHES (6.88.0): the moment the
 -- query is non-empty the action rows step aside and every matching
 -- screenshot is listed — filename, date and size all match, so "aug 13"
@@ -87,7 +87,7 @@ local M = {
         entries = {
             { "⇪4",   "Instant capture: crosshair · SPACE = window · Esc = cancel" },
             { "",     "saves to OneDrive/2026 Screenshots + copies to clipboard" },
-            { "⇪⇧4",  "Panel: 7 capture actions (⌘1–⌘7) + history below" },
+            { "⇪⇧4",  "Panel: 8 actions (⌘1–⌘8) + history below · ⌘8 = BIG thumbnails" },
             { "⌘1–7", "area · scrolling · text/QR · edit newest · repeat · window · 10s" },
             { "type",  "search the history — actions step aside while you type" },
             { "⏎",    "history row: image on clipboard · ⌘⏎ its file PATH" },
@@ -106,7 +106,7 @@ function M.setup(core)
     shots.dir       = (core.homeDir or os.getenv("HOME") or "")
                       .. "/Library/CloudStorage/OneDrive-Personal/2026 Screenshots"
     shots.maxList   = 30      -- newest N screenshots shown in the panel
-    shots.historyRows = 8     -- history rows VISIBLE below the 7 actions
+    shots.historyRows = 8     -- history rows VISIBLE below the action rows
     shots.thumbH    = 72      -- thumbnail height in panel rows, pixels
     shots.alertSecs = 2.0
     shots.jpegQuality = 70    -- ⌃⏎ compress: sips jpeg formatOptions 0–100
@@ -754,7 +754,7 @@ function M.setup(core)
         end
     end
 
-    -- ---- the ⇪⇧4 panel: seven actions, then history ----------------------
+    -- ---- the ⇪⇧4 panel: eight actions, then history -----------------------
     -- hs.chooser numbers its first rows ⌘1–⌘9 natively, which is why the
     -- actions sit on top: ⌘3 IS "recognize text", no arrowing needed.
     function shots.actionRows()
@@ -781,6 +781,13 @@ function M.setup(core)
             { text = ("⏲ Delayed capture (%ds)"):format(shots.delaySecs),
               act = "delayed",
               subText = "full screen, after the countdown" },
+            -- 6.89.0 — LL: "Thumbnails … must be 50% larger, I can't read
+            -- them." A chooser row's height is fixed inside Hammerspoon
+            -- itself, so the fix is one keystroke away instead: Unified
+            -- Search draws the same folder at 84px. (⇪⇧space from anywhere.)
+            { text = "🔎 BIG thumbnails — browse in Unified Search",
+              act = "bigBrowse",
+              subText = "same screenshots, 2× the thumbnail, searchable (⇪⇧space)" },
         }
     end
 
@@ -801,6 +808,12 @@ function M.setup(core)
         elseif act == "repeat"     then shots.repeatArea(edit)
         elseif act == "window"     then shots.captureWindow(edit)
         elseif act == "delayed"    then shots.captureDelayed(edit)
+        elseif act == "bigBrowse"  then
+            if not core.call("unified.show", "@shots ") then
+                pcall(function()
+                    hs.alert.show("🔎 Unified Search is not loaded", 3)
+                end)
+            end
         end
     end
 
@@ -874,7 +887,7 @@ function M.setup(core)
 
     -- 6.88.0 — LL: "I can't tell if I can search the window." Typing now
     -- ANSWERS that: the query filters the HISTORY (name + date + size all
-    -- match), and the seven action rows step aside while a query is live
+    -- match), and the action rows step aside while a query is live
     -- so the matches are all you see. Empty query = actions + history.
     function shots.filterChoices(query)
         query = tostring(query or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
@@ -909,7 +922,7 @@ function M.setup(core)
             end
             pcall(function()
                 shots.chooser:placeholderText(
-                    "Type to search screenshots · ⌘1–⌘7 capture actions")
+                    "Type to search screenshots · ⌘1–⌘8 actions")
             end)
             pcall(function()
                 shots.chooser:queryChangedCallback(function(q)
@@ -941,7 +954,7 @@ function M.setup(core)
         -- actions AND a screenful of history are visible at once.
         pcall(function()
             local hist = math.max(1, math.min(#list, shots.historyRows))
-            shots.chooser:rows(7 + hist)
+            shots.chooser:rows(#shots.actionRows() + hist)
         end)
         pcall(function() shots.chooser:choices(choices) end)
         if core.showPopup then
