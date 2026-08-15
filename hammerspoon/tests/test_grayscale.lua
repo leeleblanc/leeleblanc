@@ -22,13 +22,13 @@ local TASKS   = {}
 local HOTKEYS = {}
 local EXECS   = {}
 
--- Synchronous shell stub: osascript at load time is the only hs.execute
--- call this module makes. Return "true" so the initial state is read as
--- ON, giving the first toggle something to flip.
+-- Synchronous shell stub: `defaults read ... GrayscaleEnabled` at load
+-- time is the only hs.execute call this module makes. Return "1" so the
+-- initial state is read as ON, giving the first toggle something to flip.
 hs = {
     execute = function(cmd)
         table.insert(EXECS, cmd)
-        return "true\n"  -- initial state: grayscale is currently ON
+        return "1\n"     -- initial state: grayscale is currently ON
     end,
 
     alert = {
@@ -115,11 +115,11 @@ out("\n=== 2. Initial state read from system ===\n")
 
 check("hs.execute was called at load to read the pref",
       #EXECS >= 1, #EXECS)
-check("the call queries grayscale via System Events appearance preferences",
+check("the call targets the right domain and key",
       (function()
           for _, cmd in ipairs(EXECS) do
-              if cmd:find("System Events", 1, true)
-              and cmd:find("use grayscale", 1, true) then
+              if cmd:find("com.apple.accessibility", 1, true)
+              and cmd:find("GrayscaleEnabled",       1, true) then
                   return true
               end
           end
@@ -146,10 +146,10 @@ check("alert says Grayscale ON",
       lastAlert() and lastAlert():find("Grayscale ON", 1, true) ~= nil,
       lastAlert())
 
--- args is {"-e", script} — the AppleScript is args[2]
+-- args is {"-c", shellcmd} — the shell command is args[2]
 local cmd1 = lastTask().args[2]
-check("osascript sets use grayscale to true",
-      cmd1 and cmd1:find("set use grayscale to true", 1, true) ~= nil, cmd1)
+check("shell command sets GrayscaleEnabled -bool true",
+      cmd1 and cmd1:find("-bool true", 1, true) ~= nil, cmd1)
 fireCallback(0)
 
 -- State now ON. Next toggle → OFF.
@@ -157,12 +157,12 @@ reset()
 toggle()
 check("third toggle fires yet another task", lastTask() ~= nil)
 local cmd2 = lastTask().args[2]
-check("osascript sets use grayscale to false",
-      cmd2 and cmd2:find("set use grayscale to false", 1, true) ~= nil, cmd2)
-check("osascript targets System Events",
-      cmd2 and cmd2:find("System Events", 1, true) ~= nil, cmd2)
-check("osascript targets appearance preferences",
-      cmd2 and cmd2:find("appearance preferences", 1, true) ~= nil, cmd2)
+check("shell command sets GrayscaleEnabled -bool false",
+      cmd2 and cmd2:find("-bool false", 1, true) ~= nil, cmd2)
+check("shell command kills AXVisualSupportAgent to apply change",
+      cmd2 and cmd2:find("killall AXVisualSupportAgent", 1, true) ~= nil, cmd2)
+check("killall failure is swallowed — { killall …; true; } pattern",
+      cmd2 and cmd2:find("; true", 1, true) ~= nil, cmd2)
 fireCallback(0)
 
 -- ─────────────────────────────────────────────────────────────────────
@@ -192,8 +192,8 @@ check("failure is recorded to the notices ledger",
 reset()
 toggle()
 local cmd3 = lastTask().args[2]
-check("after rollback, state retried from the correct side (true expected)",
-      cmd3 and cmd3:find("set use grayscale to true", 1, true) ~= nil, cmd3)
+check("after rollback, state retried from the correct side (-bool true expected)",
+      cmd3 and cmd3:find("-bool true", 1, true) ~= nil, cmd3)
 fireCallback(0)
 
 -- ─────────────────────────────────────────────────────────────────────

@@ -26,24 +26,30 @@ local M = {
     },
 }
 
--- osascript talks directly to System Events, which sets the pref AND
--- applies the filter immediately — no agent restart needed, works on
--- every macOS version that Hammerspoon supports.
-local AS_GET   = "tell application \"System Events\" to tell appearance preferences to get use grayscale"
-local AS_SET   = "tell application \"System Events\" to tell appearance preferences to set use grayscale to "
+local DOMAIN = "com.apple.accessibility"
+local KEY    = "GrayscaleEnabled"
+
+-- HOW IMMEDIATE EFFECT WORKS: write the pref, then kill AXVisualSupportAgent.
+-- launchd restarts it automatically; the fresh process reads the new value
+-- and applies the display filter. More reliable than `launchctl kickstart`
+-- because it does not depend on the exact launchd service label, which
+-- changes across macOS versions.
+--
+-- Only `defaults write` failure is surfaced — killall not finding the
+-- process is normal and not reported.
 
 function M.setup(core)
     -- Read the current state ONCE at load so we never block a keypress.
     local state = false
-    local out = hs.execute("osascript -e '" .. AS_GET .. "' 2>/dev/null")
+    local out = hs.execute("defaults read " .. DOMAIN .. " " .. KEY .. " 2>/dev/null")
     if type(out) == "string" then
-        state = out:match("true") ~= nil
+        state = out:match("^%s*1%s*$") ~= nil
     end
 
     local function toggle()
         state = not state
         hs.alert.show(state and "⬛️ Grayscale ON" or "🎨 Colour ON", 1.5)
-        hs.task.new("/usr/bin/osascript", function(code, _, err)
+        hs.task.new("/bin/bash", function(code, _, err)
             if code ~= 0 then
                 -- Roll back so the next press retries from the right side.
                 state = not state
@@ -53,7 +59,11 @@ function M.setup(core)
                 end
                 pcall(hs.alert.show, "⬛️ Grayscale toggle failed", 2)
             end
-        end, { "-e", AS_SET .. (state and "true" or "false") }):start()
+        end, { "-c",
+            "defaults write " .. DOMAIN .. " " .. KEY
+            .. " -bool " .. (state and "true" or "false")
+            .. " && { killall AXVisualSupportAgent 2>/dev/null; true; }"
+        }):start()
     end
 
     -- Bare pad9: no hyper, no modifier, just the physical numpad key.
