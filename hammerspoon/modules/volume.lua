@@ -4,12 +4,34 @@
 -- LL: "Control the volume on individual apps, how can I?"
 --
 -- 🚨 READ THIS FIRST, BECAUSE THE HONEST ANSWER IS THE FEATURE. macOS HAS
--- NO PER-APP OUTPUT VOLUME. CoreAudio volume is a property of a DEVICE,
--- not a process: every app's audio is mixed by coreaudiod into one stream
--- before it ever reaches the output. To turn one app down you have to sit
--- in the path ahead of that mix, which means being an audio driver —
--- BackgroundMusic and SoundSource both install one, and both need admin
--- rights you do not have on the work Mac.
+-- NO PER-APP OUTPUT VOLUME THAT LUA CAN REACH. CoreAudio volume is a
+-- property of a DEVICE, not a process: every app's audio is mixed by
+-- coreaudiod into one stream before it ever reaches the output, and
+-- hs.audiodevice only ever touches the device.
+--
+-- ⚠️ CORRECTED IN 6.79.1, because the first version of this comment said
+-- something that is no longer true and LL would have made a decision on
+-- it. It said per-app mixing "means being an audio driver". That WAS the
+-- only way — BackgroundMusic and SoundSource both install one — but since
+-- macOS 14.2 there is a driverless route: CORE AUDIO PROCESS TAPS.
+--     CATapDescription(stereoMixdownOfProcesses:) + muteBehavior
+--     .mutedWhenTapped + isPrivate, AudioHardwareCreateProcessTap(),
+--     then AudioHardwareCreateAggregateDevice() with the tap in its list
+--     and an IO proc that multiplies the samples by your gain.
+-- Intercept the process, mute its normal output, re-render with gain,
+-- send it wherever you like. That is a real mixer, it needs only the
+-- System Audio Recording permission — no kext, no admin, no install — and
+-- it is why LL's Vorssaint can push one app past 100% while routing
+-- another to a different device. See Sources/Vorssaint/Services/Audio/
+-- AppVolumeMixer.swift in vorssaint/vorssaint-utils; it is GPL 3 and
+-- readable.
+--
+-- 🚧 AND HAMMERSPOON CANNOT DO IT. There is no binding for
+-- AudioHardwareCreateProcessTap in any hs.* extension, and none of this
+-- is reachable from Lua — it would take a native helper. So this module
+-- does the two things that ARE possible from here, and the point of the
+-- paragraph above is that you should use Vorssaint if you want the real
+-- thing. This is the zero-install approximation, not a rival.
 --
 -- So this module does the two things that ARE possible without installing
 -- anything, and it never lets you confuse them:
@@ -56,7 +78,7 @@ local M = {
             { "🎯 app",   "Music & Spotify move their OWN volume — real per-app" },
             { "🌐 system", "Everything else moves the SYSTEM volume, remembered" },
             { "follow",  "Switching apps restores that app's level automatically" },
-            { "real mixing", "needs a driver (BackgroundMusic / SoundSource)" },
+            { "real mixing", "Vorssaint — free, driverless, per-app since macOS 14.2" },
         },
     },
 }

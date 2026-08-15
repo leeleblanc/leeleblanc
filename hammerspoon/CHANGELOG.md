@@ -4,6 +4,45 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.79.1 — A CORRECTION: PER-APP MIXING NO LONGER NEEDS A DRIVER:
+  🚨 I TOLD LL THE WRONG THING, TWICE, AND THEY WOULD HAVE DECIDED ON IT.
+     I said real per-app volume on macOS "means being an audio driver",
+     and that the only options — BackgroundMusic and SoundSource — both
+     need admin rights and were therefore out on the work Mac. The first
+     half stopped being true in macOS 14.2 and I did not know it.
+  🔍 LL pointed at vorssaint/vorssaint-utils, which does exactly what I
+     said required a driver, and its README says "no audio driver, no
+     setup". Reading the source settles how:
+         Sources/Vorssaint/Services/Audio/AppVolumeMixer.swift
+         CATapDescription(stereoMixdownOfProcesses: objects)
+         description.muteBehavior = .mutedWhenTapped
+         description.isPrivate    = true
+         AudioHardwareCreateProcessTap(description, &tapID)
+         AudioHardwareCreateAggregateDevice(...)
+         engine.gain = Float(app.volume)
+     CORE AUDIO PROCESS TAPS. Tap the process, mute its normal output,
+     put the tap in an aggregate device, and re-render the samples through
+     an IO proc that multiplies by your gain. That is a real mixer.
+     · Multiplying the samples yourself is also why it can push an app
+       PAST 100% — you are no longer limited to attenuating a device.
+     · Pointing the aggregate at a chosen output is the per-app ROUTING.
+     · The cost is one TCC permission, System Audio Recording. No kext,
+       no admin, no install. macOS 14.2+ and Apple Silicon.
+  📌 WHAT THAT CHANGES FOR THE WORK MAC: it may well be possible there
+     after all. The blocker is no longer "needs admin to install a
+     driver" — it is only whether the Mac lets you install an app and
+     grant it System Audio Recording, which is an ordinary MDM question
+     rather than a flat no.
+  🚧 AND HAMMERSPOON STILL CANNOT DO IT. No hs.* extension binds
+     AudioHardwareCreateProcessTap and none of the API is reachable from
+     Lua; it would take a native helper. modules/volume.lua stays exactly
+     what it is — the zero-install approximation — and its header now says
+     so, and says to use Vorssaint if you want the real thing.
+  ✏️ Corrected in the three places that shipped the wrong claim: the
+     module header, its cheat-sheet row, and the GUIDE troubleshooting
+     table. A comment that is confidently wrong is worse than no comment,
+     and this config's comments are its documentation.
+
 NEW IN 6.79.0 — I MISDIAGNOSED YOUR MAC, AND PER-APP VOLUME:
   🚨 6.76.0's SELF-TEST WAS WRONG ON THE MAC WHERE EVERYTHING WORKS. LL's
      MacBook Air — where ⇪ has worked for sixty releases — booted to:

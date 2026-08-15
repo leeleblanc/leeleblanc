@@ -4,9 +4,28 @@
 -- =====================================================================
 -- 08-15-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.79.0-REAL-KEY
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.79.1-REAL-KEY
 -- =====================================================================
 
+-- NEW IN 6.79.1 — A CORRECTION: PER-APP MIXING NEEDS NO DRIVER:
+--   🚨 I told LL, twice, that real per-app volume "means being an audio
+--      driver" and that both options need admin — so it was out on the
+--      work Mac. The first half stopped being true in macOS 14.2.
+--   🔍 vorssaint/vorssaint-utils does it with CORE AUDIO PROCESS TAPS:
+--      CATapDescription(stereoMixdownOfProcesses:) with muteBehavior
+--      .mutedWhenTapped, AudioHardwareCreateProcessTap, then an aggregate
+--      device whose IO proc multiplies the samples by a gain. Tap the
+--      process, mute its normal output, re-render it louder or quieter,
+--      send it anywhere. Multiplying samples is also why it can go PAST
+--      100%. Cost: one permission, System Audio Recording. No kext, no
+--      admin, no install — macOS 14.2+, Apple Silicon.
+--   📌 So it may work on the WORK MAC after all: the blocker is no longer
+--      admin rights for a driver, only whether MDM lets you install an
+--      app and grant it that permission.
+--   🚧 Hammerspoon still cannot: no hs.* extension binds it and none of
+--      the API is reachable from Lua. modules/volume.lua stays the
+--      zero-install approximation and now says so.
+--
 -- NEW IN 6.79.0 — I MISDIAGNOSED YOUR MAC, AND PER-APP VOLUME:
 --   🚨 6.76.0's SELF-TEST WAS WRONG ON THE MAC WHERE EVERYTHING WORKS.
 --      The MacBook Air booted to "⇪ IS RUNNING WITHOUT CARBON" and
@@ -33,37 +52,8 @@
 --      back. The 🎯/🌐 in the alert is the entire safety story.
 --      ⇪. up · ⇪, down · ⇪⇧, mute · ⇪⇧. panel. 54 checks, 16/16 mutations.
 --
--- NEW IN 6.78.0 — THE CHEAT SHEET CLOSES LAST:
---   🚨 LL: "make the shortcut key cheat sheet stay up instead of it
---      grabbing escape and closing. It should be the last window to close
---      after all other pop-ups."
---   🔍 Only TWO things ever claimed Esc — the sheet and the pomodoro — so
---      every other panel was invisible to the router, and the sheet holds
---      a bare-Esc hotkey the whole time it is open, which fires whatever
---      has focus. Its priority was a literal 10 written inside
---      cheatsheet.lua: above every panel with no claim at all. The number
---      meant to make it yield was the number making it win.
---   🪟 "Closes last" and "sits at the bottom" are one statement, so the
---      escape order is now the panel order — _G.escapePriorities in
---      core/coexist.lua, cheat sheet as the FLOOR. The calendar, the
---      switcher, the mouse grid and every chooser now claim Esc; the
---      screen veil and Key Caster deliberately do not.
---   🚨 An omitted priority used to default to ZERO, which is the sheet's
---      floor — this bug reintroduced by a spelling mistake. It is looked
---      up now, an unknown name is reported, and it lands above the floor
---      meanwhile: "too eager" you can see, "the backdrop vanished" you
---      cannot.
---   🛟 And the sheet stays put even when the other panel's handler THROWS
---      — _G.escapeOthersActive() asks "is anything else up?" separately
---      from "did it handle the key?", because routeEscape returns nil for
---      both and only one of them should close the backdrop.
---   🧪 24 new checks across four suites, 12/12 mutations caught. Five
---      survived the first run: the router being right is worth nothing if
---      the panels never ask it, so the WIRING is tested where the real
---      files already run.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.79.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.79.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -364,7 +354,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.79.0"
+_G.configVersion = "6.79.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
