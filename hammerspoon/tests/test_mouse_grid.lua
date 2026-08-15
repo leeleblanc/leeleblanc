@@ -238,6 +238,11 @@ local function loadModule(src)
     if not chunk then return nil, err end
     local okM, M = pcall(chunk)
     if not okM then return nil, M end
+    _G.escapeClaims2 = {}
+    _G.claimEscape = function(name, priority, active, handle)
+      _G.escapeClaims2[name] = { priority = priority, active = active, handle = handle }
+      return true
+    end
     local okS, sErr = pcall(M.setup, CORE)
     if not okS then return nil, sErr end
     grid = _G.mouseGrid
@@ -1790,6 +1795,35 @@ end
 setScreens(ONE); loadModule()
 
 -- =====================================================================
+out("\n=== THE ESCAPE ORDER (6.78.0) ===\n")
+-- The grid is drawn at screenSaver level, above literally everything, so
+-- Esc belongs to it while it is up — and the cheat sheet, which holds a
+-- bare-Esc hotkey the whole time it is open, must not take it first.
+do
+    local c = _G.escapeClaims2 and _G.escapeClaims2["mousegrid"]
+    check("🚨 the grid claims Esc, so it closes BEFORE the cheat sheet", c ~= nil)
+    check("...and defers to coexist's one priority table",
+          c ~= nil and c.priority == nil, c and tostring(c.priority))
+    check("...with both callbacks real", c ~= nil
+          and type(c.active) == "function" and type(c.handle) == "function")
+    check("...and active() is FALSE with the grid down, TRUE with it up",
+      (function()
+        if not c then return false end
+        grid.hide("test")
+        if select(2, pcall(c.active)) ~= false then return false, "up when down" end
+        grid.show()
+        local up = select(2, pcall(c.active))
+        grid.hide("test")
+        return up == true
+      end)())
+    check("...and its handle() really closes the grid", (function()
+        if not c then return false end
+        grid.show()
+        pcall(c.handle)
+        return grid.state == nil
+      end)())
+end
+
 out("\n=== POINTER LOCATOR (the MouseCircle Spoon, done natively) ===\n")
 -- =====================================================================
 do

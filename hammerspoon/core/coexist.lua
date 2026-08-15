@@ -222,7 +222,66 @@ end
 _G.escapeClaims = {}
 
 -- priority: bigger wins. active(): true when this claimant wants Esc NOW.
+-- =====================================================================
+-- ⎋ ESCAPE ORDER MIRRORS PANEL ORDER (6.78.0)
+-- =====================================================================
+-- LL: "make the shortcut key cheat sheet stay up instead of it grabbing
+-- escape and closing. It should be the last window to close after all
+-- other pop-ups."
+--
+-- 🚨 WHY IT WAS GRABBING IT. Only TWO things ever claimed Esc — the sheet
+-- and the pomodoro — so the router had two members and every OTHER panel
+-- was invisible to it. The sheet holds a bare-Esc hotkey the entire time
+-- it is open, and a bare-Esc hotkey fires no matter which window has
+-- focus. Open the sheet, then open a chooser or the calendar, press Esc,
+-- and the SHEET closed: not because anything decided it should, but
+-- because nothing had decided anything.
+--
+-- 🪟 AND THE ANSWER WAS ALREADY WRITTEN DOWN ONE TABLE UP. "Last to
+-- close" is the same statement as "bottom of the stack": whatever is
+-- drawn on top is what Esc should take first. So the two orders are the
+-- same order, and the cheat sheet is the FLOOR of both — it is the
+-- backdrop you read while you work the thing in front of it.
+--
+-- ⚠️ NOT EVERY PANEL BELONGS HERE. A claim means "Esc closes me", so
+-- anything Esc must NOT close stays out on purpose:
+--   · the screen veil — deliberately hard to dismiss; it has its own
+--     panic chord (⌃⌥⌘⇧G) precisely so a stray Esc cannot lift it.
+--   · the Key Caster — it is a display, not a dialog. Esc is a keystroke
+--     it should be DRAWING, not obeying.
+_G.escapePriorities = {
+    cheatsheet =   0,   -- THE FLOOR. Deliberately. It closes last.
+    calendar   =  30,
+    switcher   =  40,
+    chooser    =  70,   -- has real keyboard focus, so it goes near the top
+    pomodoro   = 100,
+    mousegrid  = 900,   -- drawn at screenSaver level, above everything
+}
+
 function _G.claimEscape(name, priority, active, handle)
+    -- An omitted priority is looked up rather than defaulted to zero:
+    -- zero is the cheat sheet's floor, and a panel that silently landed
+    -- there is one the sheet closes INSTEAD of — the exact bug this
+    -- table exists to end, reintroduced by a spelling mistake.
+    --
+    -- 🚨 SO AN UNLISTED NAME IS REPORTED, and lands ABOVE the floor
+    -- rather than on it. Both halves matter: the message is how you find
+    -- out, and the placement means that until you do, the new panel takes
+    -- Esc too eagerly instead of the cheat sheet vanishing underneath it.
+    -- Of the two ways to be wrong, only one of them is confusing.
+    if priority == nil then
+        priority = _G.escapePriorities[name]
+        if priority == nil then
+            priority = 50
+            print("⎋ claimEscape: '" .. tostring(name) .. "' is not in "
+                  .. "_G.escapePriorities — using 50. Add it to core/"
+                  .. "coexist.lua so the order is decided in one place.")
+            if _G.notices then
+                pcall(_G.notices.record, "runtime", "escape router",
+                      tostring(name) .. " has no declared priority")
+            end
+        end
+    end
     if type(name) ~= "string" or type(active) ~= "function"
        or type(handle) ~= "function" then
         print("⎋ claimEscape: bad registration for " .. tostring(name))
@@ -273,5 +332,51 @@ function _G.routeEscape(caller)
     if _G.diag then _G.diag.say("escape", best.name .. " took Esc from " .. tostring(caller)) end
     return best.name
 end
+
+-- 🚨 "IS ANYTHING ELSE STILL ON SCREEN?" — asked SEPARATELY from "did it
+-- handle the Esc?", and the difference is the whole feature.
+--
+-- routeEscape returns nil in two very different situations: nobody else
+-- wanted it, and somebody wanted it but their handler THREW. It has to,
+-- because for most callers that fall-through is right — you pressed Esc,
+-- something should happen. For the cheat sheet it is exactly wrong: a
+-- broken calendar handler would close the SHEET, which is neither what
+-- you pressed Esc for nor something you can tell apart from a bug.
+--
+-- So the sheet asks this second question and stays put on a yes.
+function _G.escapeOthersActive(caller)
+    for _, c in ipairs(_G.escapeClaims) do
+        if c.name ~= caller then
+            local ok, live = pcall(c.active)
+            if ok and live then return c.name end
+        end
+    end
+    return nil
+end
+
+-- ---- the choosers, claimed centrally ---------------------------------
+-- Fifteen of them, and not one had a claim. They are the popups most
+-- likely to be open on top of the sheet — ⇪V, ⇪T, ⇪O, ⇪W and the rest —
+-- and a chooser holds real keyboard focus, so Esc reaching the sheet
+-- instead of the chooser is the most visible form of this bug.
+--
+-- ONE claim rather than fifteen, and it reads _G.choosers at Esc time
+-- rather than at load time: init.lua fills that table well after this
+-- file runs, and a list captured here would be permanently empty. It also
+-- means a chooser added later is covered without touching this file.
+function _G.visibleChooser()
+    for _, c in pairs(_G.choosers or {}) do
+        local ok, vis = pcall(function() return c:isVisible() end)
+        if ok and vis then return c end
+    end
+    return nil
+end
+
+_G.claimEscape("chooser", nil,
+    function() return _G.visibleChooser() ~= nil end,
+    function()
+        local c = _G.visibleChooser()
+        if c then c:hide() end
+    end)
 
 end

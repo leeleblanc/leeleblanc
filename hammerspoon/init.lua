@@ -4,9 +4,38 @@
 -- =====================================================================
 -- 08-15-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.77.0-WHOLE-KEYBOARD
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.78.0-CLOSES-LAST
 -- =====================================================================
 
+-- NEW IN 6.78.0 — THE CHEAT SHEET CLOSES LAST:
+--   🚨 LL: "make the shortcut key cheat sheet stay up instead of it
+--      grabbing escape and closing. It should be the last window to close
+--      after all other pop-ups."
+--   🔍 Only TWO things ever claimed Esc — the sheet and the pomodoro — so
+--      every other panel was invisible to the router, and the sheet holds
+--      a bare-Esc hotkey the whole time it is open, which fires whatever
+--      has focus. Its priority was a literal 10 written inside
+--      cheatsheet.lua: above every panel with no claim at all. The number
+--      meant to make it yield was the number making it win.
+--   🪟 "Closes last" and "sits at the bottom" are one statement, so the
+--      escape order is now the panel order — _G.escapePriorities in
+--      core/coexist.lua, cheat sheet as the FLOOR. The calendar, the
+--      switcher, the mouse grid and every chooser now claim Esc; the
+--      screen veil and Key Caster deliberately do not.
+--   🚨 An omitted priority used to default to ZERO, which is the sheet's
+--      floor — this bug reintroduced by a spelling mistake. It is looked
+--      up now, an unknown name is reported, and it lands above the floor
+--      meanwhile: "too eager" you can see, "the backdrop vanished" you
+--      cannot.
+--   🛟 And the sheet stays put even when the other panel's handler THROWS
+--      — _G.escapeOthersActive() asks "is anything else up?" separately
+--      from "did it handle the key?", because routeEscape returns nil for
+--      both and only one of them should close the backdrop.
+--   🧪 24 new checks across four suites, 12/12 mutations caught. Five
+--      survived the first run: the router being right is worth nothing if
+--      the panels never ask it, so the WIRING is tested where the real
+--      files already run.
+--
 -- NEW IN 6.77.0 — FIX IT ALL: THE REST OF THE KEYBOARD:
 --   🚨 6.76.0 RESCUED ⇪ AND LEFT EVERYTHING ELSE WHERE IT FOUND IT — a
 --      report, not a fix. Worse, it left a TRAP: ⇪/ opens a full-screen
@@ -29,58 +58,8 @@
 --      entry out of CHANGELOG.md, and a MISSING one is reported.
 --   🧪 tests/test_hyper_key.lua — 98 checks, 33/33 mutations caught.
 --
--- NEW IN 6.76.0 — THE HYPER KEY HAD ONE WAY IN, AND ON THE WORK MAC IT DIED:
---   🚨 A GREEN BOOT ON A DEAD KEYBOARD. The work Mac printed "32 modules
---      · 80 ⇪ shortcuts · All green" and nothing worked. Every number was
---      correct: registering a shortcut is not being able to FIRE one, and
---      neither this config nor its tests could tell the two apart.
---      Accessibility, the remap, Secure Input, conflicts and the taps
---      were all ruled out; holding Caps Lock for five seconds gave
---      _G.hyperActive = false where F18 demonstrably arrived.
---   🎹 SO ⇪ HAS TWO WAYS IN NOW. hs.hotkey is Carbon's
---      RegisterEventHotKey; hs.eventtap is a CGEventTap that sees the key
---      BEFORE Carbon does, and a managed Mac can lose the first and keep
---      the second. Both are idempotent: a Mac where Carbon works is
---      untouched.
---   🛟 AND A CARBON-FREE HYPER KEYBOARD BEHIND IT, inert unless the
---      self-test proves the modal's hotkeys dead. It reads the same table
---      hyperBind already fills — no second list to keep in step. It eats
---      the keystroke it acts on, refuses the forwarded ⌘⇧⌃⌥ chord so it
---      cannot feed itself, and honours the injection guard.
---   🔬 THE CONFIG NOW PRESSES ITS OWN KEY. Two seconds after boot it
---      posts F18 + ⇧F19 — a key no Mac keyboard has — and reads the
---      answer. Working: silent. Modal dead: engage the dispatcher, RETEST
---      rather than assume, say so on screen. Nothing: 🚨, with "F18 never
---      arrived" kept apart from "F18 arrived, nothing ran" — different
---      repairs. A lost keyUp can never latch ⇪ on.
---   🚨 "All green" no longer implies a key nobody has tried: the boot
---      line says the proof is seconds away, ⇪⇧D reports hyper PROVEN.
---   🧪 tests/test_hyper_key.lua — 71 checks, 20/20 mutations caught. The
---      work Mac is a test case now, not an anecdote: the stub has a switch
---      per layer and the real delivery order. Three mutations survived the
---      first run, one a boot-line check that was a source grep and stayed
---      green under `false and <the flag>`.
---   ⏳ _G.suppressTypingFor() — a deadline-based sibling to withInjection
---      for POSTED events: a post returns before the keystroke arrives.
---
--- NEW IN 6.75.0 — NOTHING LEFT THAT CAN BEACHBALL YOUR MAC:
---   🚨 THE BREW PROBE BLOCKED THE MAIN THREAD ON EVERY BOOT. Your log
---      reads "no brew in the usual paths; asking your login shell
---      shortly…" every time — and that asked a LOGIN shell with
---      hs.execute, which is synchronous. zsh sources .zprofile, .zshrc,
---      nvm, pyenv, any MDM script: routinely 1-3 seconds with the whole
---      Mac frozen. Now hs.task, off-thread, answer in a callback.
---   ⏱ AND THE FINDER CALL IN ⇪R HAD A TWO-MINUTE FUSE. A synchronous
---      osascript inherits AppleScript's DEFAULT timeout of 120s, so a
---      wedged Finder turned one keypress into a two-minute beachball.
---      Now `with timeout of 3 seconds`: a sick Finder is an
---      inconvenience instead of a lockup.
---   🔎 New lint rule sync-osascript-no-timeout so the class cannot
---      return. The Outlook probe is waived with its reason: it binds no
---      key and runs only when you type it.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.77.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.78.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -381,7 +360,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.77.0"
+_G.configVersion = "6.78.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

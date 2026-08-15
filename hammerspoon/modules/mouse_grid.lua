@@ -1106,6 +1106,15 @@ function M.setup(core)
             if not ok then grid.hide("error"); warn("typeChar: " .. tostring(err)) end
         end)
     end
+    -- ⎋ 6.78.0 — CLAIMED at the top of the order: the grid is drawn at
+    -- screenSaver level, above literally everything, so Esc belongs to it
+    -- while it is up. See core/coexist.lua.
+    if _G.claimEscape then
+        _G.claimEscape("mousegrid", nil,
+            function() return grid.state ~= nil end,
+            function() grid.hide("escape") end)
+    end
+
     grid.pickModal:bind({}, "escape", function() grid.hide("escape") end)
     grid.pickModal:bind({}, "delete", function()
         local ok, err = pcall(grid.backspace)

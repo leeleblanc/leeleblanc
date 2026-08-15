@@ -140,6 +140,13 @@ _G.service = { registry = {},
     if not f then return nil end
     return (select(2, pcall(f, ...))) end }
 _G.hyperPending = {}
+-- ⎋ 6.78.0 — recorded, so "this module claims Esc" is a fact the suite
+-- checks rather than a line of setup() nothing ever runs.
+_G.escapeClaims2 = {}
+_G.claimEscape = function(name, priority, active, handle)
+  _G.escapeClaims2[name] = { priority = priority, active = active, handle = handle }
+  return true
+end
 _G.hyperAddShortcut = function(mods, key, fn, src)
   table.insert(_G.hyperPending, { mods = mods, key = key, fn = fn, source = src })
 end
@@ -218,6 +225,25 @@ check("several modules now claim hyper keys the supported way",
 check("Window Switcher bound ⌥⇧Tab", combos["alt+shift+tab"])
 check("Daily Backup scheduled its 17:00 timer", timers[1] and timers[1].at == "17:00")
 check("the switcher published altTab for ⇪⇧D", type(_G.altTab) == "table")
+
+-- ⎋ THE CHEAT SHEET CLOSES LAST, and that only works if the panels ABOVE
+-- it say they are open. Before 6.78.0 exactly two things claimed Esc, so
+-- every other panel was invisible to the router and the sheet — which
+-- holds a bare-Esc hotkey the whole time it is up — took the keystroke.
+for _, name in ipairs({ "switcher", "calendar" }) do
+  local c = _G.escapeClaims2[name]
+  check("🚨 " .. name .. " claims Esc, so it closes BEFORE the cheat sheet",
+        c ~= nil)
+  check("...and defers to coexist's one priority table",
+        c ~= nil and c.priority == nil, c and tostring(c.priority))
+  check("...with both callbacks real, or the router arbitrates and then "
+     .. "throws where the real owner should have been",
+        c ~= nil and type(c.active) == "function"
+        and type(c.handle) == "function")
+  check("...and active() answers FALSE while the panel is closed",
+        c ~= nil and select(2, pcall(c.active)) == false,
+        c and tostring(select(2, pcall(c.active))))
+end
 
 out("\n=== 3. Cheat sheet groups travel WITH the module ===\n")
 -- 16, not 18: Copy-on-Select and Asana Comments each declare no group,

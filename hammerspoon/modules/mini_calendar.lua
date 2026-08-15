@@ -534,6 +534,18 @@ function M.setup(core)
     core.provide("calendar.format", function(t) return cal.formatDate(t) end)
     core.provide("calendar.copyToday", function() return cal.copyDate(todayNoon()) end)
 
+    -- ⎋ 6.78.0 — CLAIMED, so the cheat sheet knows the calendar is up.
+    -- The panel's own Esc is a MODAL binding and the sheet's is a plain
+    -- hotkey; both are Carbon, so which one won was decided by enable
+    -- order — an implementation detail, which is why LL saw the sheet
+    -- close instead of the calendar. Priority comes from coexist's one
+    -- table. See core/coexist.lua.
+    if _G.claimEscape then
+        _G.claimEscape("calendar", nil,
+            function() return cal.canvas ~= nil end,
+            function() cal.hide() end)
+    end
+
     _G.miniCalendar = cal
     M.cal    = cal
     M.config = cal

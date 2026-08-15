@@ -4,6 +4,65 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.78.0 — THE CHEAT SHEET CLOSES LAST:
+  🚨 LL: "make the shortcut key cheat sheet stay up instead of it grabbing
+     escape and closing. It should be the last window to close after all
+     other pop-ups."
+  🔍 WHY IT WAS GRABBING IT, and it is not what it looks like. Only TWO
+     things in the whole config ever claimed Esc — the sheet and the
+     pomodoro — so the router had two members and every OTHER panel was
+     invisible to it. The sheet holds a bare-Esc hotkey the entire time it
+     is open, and a bare-Esc hotkey fires no matter which window has
+     focus. Open the sheet, open a chooser or the calendar on top of it,
+     press Esc, and the SHEET closed — not because anything decided it
+     should, but because nothing had decided anything.
+     · Its priority was a literal 10 written inside cheatsheet.lua, which
+       sat ABOVE every panel with no claim at all, i.e. all of them but
+       the pomodoro. The one number that was supposed to make it yield was
+       the number making it win.
+  🪟 AND THE ANSWER WAS ALREADY WRITTEN DOWN ONE TABLE UP. "Closes last"
+     and "sits at the bottom of the stack" are one statement, so the
+     escape order is now the panel order: _G.escapePriorities in
+     core/coexist.lua, with the cheat sheet as the FLOOR. It is the
+     backdrop you read while you work the thing in front of it.
+         cheatsheet 0 · calendar 30 · switcher 40 · chooser 70 ·
+         pomodoro 100 · mousegrid 900
+  ⎋ FOUR PANELS THAT NEVER CLAIMED ESC NOW DO: the mini calendar, the
+     window switcher, the mouse grid, and — centrally — every chooser.
+     · ONE chooser claim, not fifteen. It reads _G.choosers at Esc time
+       rather than at load time, because init.lua fills that table long
+       after coexist runs and a list captured there would be permanently
+       empty. A chooser added later is covered without touching the file.
+       Choosers hold real keyboard focus, so this was the most visible
+       form of the bug.
+     · The screen veil and the Key Caster deliberately stay OUT. The veil
+       is meant to be hard to dismiss — it has its own panic chord
+       (⌃⌥⌘⇧G) precisely so a stray Esc cannot lift it — and the Key
+       Caster is a display, not a dialog: Esc is a keystroke it should be
+       DRAWING, not obeying.
+  🚨 AN UNLISTED PANEL IS REPORTED, AND LANDS ABOVE THE FLOOR. An omitted
+     priority used to default to zero, which is the sheet's floor — so a
+     new panel that forgot one would be a panel the sheet closes INSTEAD
+     of, i.e. this exact bug reintroduced by a spelling mistake. It is now
+     looked up, an unknown name prints and files a notice, and it gets 50
+     meanwhile. Of the two ways to be wrong, "too eager" is the one you
+     can see; "the backdrop vanished" is the one you cannot.
+  🛟 AND THE SHEET STAYS PUT EVEN WHEN THE OTHER PANEL FAILS. routeEscape
+     returns nil in two very different cases — nobody wanted the key, and
+     somebody wanted it and THREW — and it has to, because for most
+     callers that fall-through is right. For the sheet it is exactly
+     wrong: a broken calendar handler would close the SHEET, which is
+     neither what you pressed Esc for nor something you could tell apart
+     from a bug. _G.escapeOthersActive() asks the second question.
+  🧪 24 NEW CHECKS ACROSS FOUR SUITES, and the reason they are spread out
+     is the reason five mutations survived the first run: the router being
+     right is worth nothing if the panels never ask it. The policy is
+     tested in test_integration, and the WIRING — this module registers a
+     claim, this one defers to the central table, the sheet really does
+     consult it before closing — in test_cheatsheet, test_modules and
+     test_mouse_grid, where the real files are already executed.
+     12/12 mutations caught.
+
 NEW IN 6.77.0 — FIX IT ALL: THE REST OF THE KEYBOARD, AND A RECORD THAT WENT STALE:
   🚨 6.76.0 RESCUED ⇪ AND LEFT EVERYTHING ELSE WHERE IT FOUND IT. It
      shipped with a line in the GUIDE admitting that the plain ⌃⌥⌘ chords

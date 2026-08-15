@@ -828,6 +828,16 @@ function M.setup(core)
     -- return value because §1.11's report has to survive this module
     -- failing to load at all, and a nil check on a global is the
     -- simplest honest way to say "not loaded".
+    -- ⎋ 6.78.0 — CLAIMED. The HUD's own Esc is armed only while a switch
+    -- is in progress, and the cheat sheet's bare Esc is armed the whole
+    -- time it is open — so ⌥Tab with the sheet up could close the SHEET
+    -- and leave the switcher running. See core/coexist.lua.
+    if _G.claimEscape then
+        _G.claimEscape("switcher", nil,
+            function() return altTab.session ~= nil end,
+            function() altTab.finish(false) end)
+    end
+
     _G.altTab = altTab
     M.altTab  = altTab
     -- Exposed as `config` so a MACHINE PROFILE in init.lua can override

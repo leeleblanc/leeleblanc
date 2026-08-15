@@ -681,7 +681,15 @@ do
     -- eventually tests something else.
     local levelsBlock = init:match(
         "(_G%.panelLevels = {.-\n    return base %+ %(_G%.panelLevels%[name%] or 0%)\nend)")
-    local escBlock = init:match("(_G%.escapeClaims = {}.-\n    return best%.name\nend)")
+    -- 🚨 WIDENED ON PURPOSE IN 6.78.0, and the note above is the reason
+    -- to say so out loud: this now runs to the END of the escape section
+    -- rather than stopping at routeEscape, because _G.escapePriorities,
+    -- _G.escapeOthersActive and the central chooser claim are all part of
+    -- the same policy and all shipped after that old anchor. Stopping
+    -- where it used to stop would have left the new half untested while
+    -- the block it does extract stayed green.
+    local escBlock = init:match(
+        "(_G%.escapeClaims = {}.-if c then c:hide%(%) end\n    end%))")
     check("the panel-stacking block was found in core/coexist.lua", levelsBlock ~= nil)
     check("the escape-router block was found in core/coexist.lua", escBlock ~= nil)
     local block = levelsBlock and escBlock and (levelsBlock .. "\n" .. escBlock)
@@ -694,6 +702,7 @@ do
             print = function() end,
             table = table, type = type, ipairs = ipairs, pairs = pairs,
             pcall = pcall, tostring = tostring, math = math, string = string,
+            select = select, error = error,
         }
         sandbox._G = sandbox
         local chunk, err = load(block, "panels", "t", sandbox)
@@ -781,9 +790,19 @@ do
             check("...and one that cannot even say whether it wants Esc is "
                .. "skipped rather than taken at its word",
                   sandbox.routeEscape("cheatsheet") == nil)
+            -- 3, not 2: core/coexist.lua registers the central chooser
+            -- claim itself, which is the point of it being central.
+            check("core/coexist.lua registers the chooser claim ITSELF, so "
+               .. "fifteen choosers are covered without fifteen edits",
+              (function()
+                for _, c in ipairs(sandbox.escapeClaims) do
+                  if c.name == "chooser" then return true end
+                end
+                return false
+              end)())
             check("re-registering a name REPLACES it instead of stacking a "
                .. "second claimant nothing can remove",
-                  #sandbox.escapeClaims == 2, #sandbox.escapeClaims)
+                  #sandbox.escapeClaims == 3, #sandbox.escapeClaims)
             -- BOTH callbacks are checked, not just the first. A registration
             -- with a live active() and a junk handle() would pass an
             -- active-only check and then throw the first time Esc was
@@ -791,10 +810,121 @@ do
             -- arbitration and the real owner has been skipped.
             check("a registration with a junk active() is refused, not stored",
                   sandbox.claimEscape("bad", 1, "not a function", function() end) == false
-                  and #sandbox.escapeClaims == 2)
+                  and #sandbox.escapeClaims == 3)
             check("...and so is one with a junk handle()",
                   sandbox.claimEscape("bad", 1, function() return true end, 42) == false
-                  and #sandbox.escapeClaims == 2, #sandbox.escapeClaims)
+                  and #sandbox.escapeClaims == 3, #sandbox.escapeClaims)
+
+            out("   -- the cheat sheet closes LAST --\n")
+            -- LL: "make the shortcut key cheat sheet stay up instead of
+            -- it grabbing escape and closing. It should be the last
+            -- window to close after all other pop-ups."
+            check("🚨 THE CHEAT SHEET IS THE FLOOR of the escape order, "
+               .. "strictly below every other panel. It used to be a "
+               .. "literal 10, which was above every panel that had no "
+               .. "claim at all — i.e. all of them but the pomodoro",
+              (function()
+                local floor = sandbox.escapePriorities.cheatsheet
+                if floor == nil then return false, "no cheatsheet entry" end
+                for name, p in pairs(sandbox.escapePriorities) do
+                  if name ~= "cheatsheet" and p <= floor then return false, name end
+                end
+                return true
+              end)())
+            check("...and the order matches the order they STACK in, "
+               .. "because \"closes last\" and \"sits at the bottom\" are "
+               .. "one statement",
+                  sandbox.escapePriorities.pomodoro
+                    > sandbox.escapePriorities.switcher
+                  and sandbox.escapePriorities.switcher
+                    > sandbox.escapePriorities.cheatsheet)
+
+            -- claimEscape now looks the priority up, so a panel cannot
+            -- silently land on the sheet's floor by omitting one.
+            local said = {}
+            local realPrint = sandbox.print
+            sandbox.print = function(m) said[#said + 1] = tostring(m) end
+            sandbox.claimEscape("calendar", nil, function() return false end,
+                                function() end)
+            check("an omitted priority is LOOKED UP, not defaulted to zero",
+              (function()
+                for _, c in ipairs(sandbox.escapeClaims) do
+                  if c.name == "calendar" then
+                    return c.priority == sandbox.escapePriorities.calendar,
+                           c.priority
+                  end
+                end
+                return false, "calendar never registered"
+              end)())
+            sandbox.claimEscape("brand new panel", nil,
+                                function() return false end, function() end)
+            check("🚨 ...and a name NOT in the table is REPORTED rather than "
+               .. "quietly landing on the floor the sheet occupies",
+              (function()
+                for _, m in ipairs(said) do
+                  if m:find("_G.escapePriorities", 1, true) then return true end
+                end
+                return false, said[1]
+              end)())
+            check("...and lands ABOVE the sheet meanwhile, so the wrong "
+               .. "behaviour is \"too eager\" rather than \"the sheet "
+               .. "disappeared\"",
+              (function()
+                for _, c in ipairs(sandbox.escapeClaims) do
+                  if c.name == "brand new panel" then
+                    return c.priority > sandbox.escapePriorities.cheatsheet,
+                           c.priority
+                  end
+                end
+                return false
+              end)())
+            sandbox.print = realPrint
+
+            out("   -- and it stays up even when the other panel FAILS --\n")
+            local calOpen = false
+            for _, c in ipairs(sandbox.escapeClaims) do
+              if c.name == "calendar" then
+                c.active = function() return calOpen end
+                c.handle = function() error("calendar handler is broken", 0) end
+              end
+            end
+            timerAsking = false
+            calOpen = true
+            check("routeEscape reports nothing handled it when the other "
+               .. "panel's handler throws — which is right for most callers",
+                  sandbox.routeEscape("cheatsheet") == nil)
+            check("🚨 ...but the SHEET still knows something is on screen, "
+               .. "so it does not close. A broken calendar handler must "
+               .. "not make the backdrop vanish",
+                  sandbox.escapeOthersActive("cheatsheet") == "calendar",
+                  tostring(sandbox.escapeOthersActive("cheatsheet")))
+            calOpen = false
+            check("...and with nothing else up, the sheet is free to close",
+                  sandbox.escapeOthersActive("cheatsheet") == nil)
+
+            out("   -- the choosers, claimed centrally --\n")
+            local hidden = 0
+            local vis = false
+            sandbox.choosers = {
+              clipboard = { isVisible = function() return vis end,
+                            hide = function() hidden = hidden + 1 end },
+              broken    = { isVisible = function() error("gone", 0) end,
+                            hide = function() end },
+            }
+            check("a chooser that throws when asked is skipped, not fatal",
+                  select(1, pcall(sandbox.visibleChooser)) == true)
+            check("no visible chooser means no claim on Esc",
+                  sandbox.visibleChooser() == nil)
+            vis = true
+            check("🚨 a VISIBLE chooser takes Esc from the cheat sheet — "
+               .. "fifteen of them had no claim at all, and a chooser holds "
+               .. "real keyboard focus, so this was the most visible form "
+               .. "of the bug",
+                  sandbox.routeEscape("cheatsheet") == "chooser")
+            check("...and it is the chooser that got hidden", hidden == 1, hidden)
+            check("...and _G.choosers is read at Esc time, not at load time, "
+               .. "since init.lua fills it long after this file runs",
+                  sandbox.escapeOthersActive("cheatsheet") == "chooser")
         end
     end
 

@@ -177,6 +177,30 @@ end
 -- verbatim substring of init.lua, so every check here was passing against
 -- code that was not the code being shipped. core/cheatsheet.lua is the
 -- real file, loaded the same way init.lua loads it.
+-- ⎋ 6.78.0 — THE ESCAPE ROUTER, RECORDED. The sheet registers its claim
+-- when the chunk runs, so the recorder has to exist BEFORE that line. The
+-- priority table is lifted out of core/coexist.lua rather than retyped:
+-- the property under test is that the sheet defers to that ONE table, and
+-- a private copy here could agree with a literal the shipped file no
+-- longer uses.
+local ESC_CLAIMS = {}
+local ESC_PRIORITIES = (function()
+  local f = io.open(HS .. "/core/coexist.lua", "r")
+  local src = f and f:read("*a") or ""; if f then f:close() end
+  local block = src:match("(_G%.escapePriorities = {.-\n})")
+  assert(block, "could not lift _G.escapePriorities from core/coexist.lua")
+  local sb = { _G = nil }
+  sb._G = sb
+  load(block, "priorities", "t", sb)()
+  return sb.escapePriorities
+end)()
+_G.escapeOthersActive = function() return nil end
+_G.routeEscape = function() return nil end
+function _G.claimEscape(name, priority, active, handle)
+  ESC_CLAIMS[name] = { priority = priority, active = active, handle = handle }
+  return true
+end
+
 local CS_PATH = HS .. "/core/cheatsheet.lua"
 local csChunk = assert(loadfile(CS_PATH),
                        "cannot load the shipped cheat sheet: " .. CS_PATH)
@@ -745,6 +769,82 @@ do
            CS.hide()
            return ok2 and opened
          end)())
+end
+
+
+-- =====================================================================
+print("\n=== THE CHEAT SHEET CLOSES LAST (6.78.0) ===")
+-- =====================================================================
+-- LL: "make the shortcut key cheat sheet stay up instead of it grabbing
+-- escape and closing. It should be the last window to close after all
+-- other pop-ups."
+do
+  local claim = ESC_CLAIMS["cheatsheet"]
+  check("the sheet registers a claim on Esc at all", claim ~= nil)
+  -- 🚨 THE POINT OF THE WHOLE CHANGE. It used to pass a literal 10, which
+  -- sat ABOVE every panel that had no claim at all — i.e. all of them but
+  -- the pomodoro — so the sheet took Esc from the calendar, the switcher
+  -- and fifteen choosers. Deferring to coexist's table is what makes it
+  -- the floor, and asserting the literal is gone is what keeps it there.
+  check("🚨 ...and DEFERS to coexist's one priority table rather than "
+     .. "naming a number of its own",
+        claim ~= nil and (claim.priority == nil
+                          or claim.priority == ESC_PRIORITIES.cheatsheet),
+        claim and tostring(claim.priority))
+  check("...and that table really does put the sheet below everything else",
+    (function()
+      local floor = ESC_PRIORITIES.cheatsheet
+      if floor == nil then return false, "no cheatsheet entry" end
+      for name, prio in pairs(ESC_PRIORITIES) do
+        if name ~= "cheatsheet" and prio <= floor then return false, name end
+      end
+      return true
+    end)())
+  check("its active() is \"am I on screen\", so the router only arbitrates",
+    (function()
+      CS.hide()
+      if claim.active() ~= false then return false, "active with no canvas" end
+      CS.show(false)
+      local up = claim.active()
+      CS.hide()
+      return up == true
+    end)())
+
+  -- 🚨 AND THE SHEET ACTUALLY ASKS. The router being right is worth
+  -- nothing if cheatSheet.escape() never consults it — the mechanism and
+  -- its wiring are two different things, and only one of them was tested.
+  CS.show(false)
+  CS.query = ""
+  _G.escapeOthersActive = function() return "calendar" end
+  CS.escape()
+  check("🚨 the sheet STAYS UP while another panel is still on screen",
+        _G.cheatSheetCanvas ~= nil)
+
+  _G.escapeOthersActive = function() return nil end
+  CS.escape()
+  check("...and closes once it is the last thing left",
+        _G.cheatSheetCanvas == nil)
+
+  -- The clear-before-close behaviour has to survive all of it.
+  CS.show(false)
+  CS.query = "asana"
+  _G.escapeOthersActive = function() return nil end
+  CS.escape()
+  check("...Esc still CLEARS a search before it closes anything",
+        CS.query == "" and _G.cheatSheetCanvas ~= nil)
+  CS.escape()
+  check("...and the second Esc closes it", _G.cheatSheetCanvas == nil)
+
+  -- routeEscape wins outright when it reports a handler ran.
+  CS.show(false)
+  CS.query = ""
+  _G.routeEscape = function() return "pomodoro" end
+  CS.escape()
+  check("a panel that HANDLED the Esc keeps the sheet up too",
+        _G.cheatSheetCanvas ~= nil)
+  _G.routeEscape = function() return nil end
+  CS.escape()
+  check("...and the sheet is free again afterwards", _G.cheatSheetCanvas == nil)
 end
 
 print(("\n%d passed, %d failed\n"):format(pass, fail))

@@ -663,6 +663,17 @@ return function(core)
         -- priority that is ACTIVE right now gets it instead, and nil means
         -- nobody else wanted it.
         if _G.routeEscape and _G.routeEscape("cheatsheet") then return end
+        -- 🚨 6.78.0 — AND IT STAYS PUT EVEN IF THAT HANDLER FAILED.
+        -- LL: "It should be the last window to close after all other
+        -- pop-ups." routeEscape returns nil both when nobody else wanted
+        -- the key AND when somebody wanted it but threw — it has to, since
+        -- for most callers that fall-through is right. Here it is exactly
+        -- wrong: a broken calendar handler would close the SHEET, which is
+        -- neither what you pressed Esc for nor distinguishable from a bug.
+        -- The sheet is the backdrop. Nothing else on screen, nothing here.
+        if _G.escapeOthersActive and _G.escapeOthersActive("cheatsheet") then
+            return
+        end
         if cheatSheet.query ~= "" then
             cheatSheet.query = ""
             cheatSheet.show(false)
@@ -675,8 +686,13 @@ return function(core)
     -- than defaulting it to zero. active() is "am I on screen", which is
     -- also what makes the pomodoro's own modal Esc work unchanged when the
     -- sheet is closed — the router only ever arbitrates, it never binds.
+    -- Priority comes from coexist's _G.escapePriorities, where the sheet
+    -- is the FLOOR — the same order the panels stack in, because "closes
+    -- last" and "sits at the bottom" are one statement. It used to be a
+    -- literal 10 here, which was above every panel that had no claim at
+    -- all, i.e. all of them but the pomodoro.
     if _G.claimEscape then
-        _G.claimEscape("cheatsheet", 10,
+        _G.claimEscape("cheatsheet", nil,
             function() return _G.cheatSheetCanvas ~= nil end,
             function() cheatSheet.hide() end)
     end
