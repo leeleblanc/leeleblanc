@@ -472,7 +472,6 @@ function M.setup(core)
             end
         end)
         err = pasteErr or err
-        exp.injecting = false
         if ok then
             exp.lastFired = { name = snip.name, trigger = trigger,
                               at = os.date("%H:%M:%S") }
@@ -483,8 +482,20 @@ function M.setup(core)
                 pcall(_G.autocorrectResetBuffer)
             end
             say("expanded " .. snip.name)
+            -- 🚨 ASYNC EVENT DRAIN. hs.eventtap.keyStrokes delivers
+            -- characters as system events that arrive at the tap AFTER
+            -- this function returns — after injecting has been cleared.
+            -- If the expansion text contains a trigger, those in-flight
+            -- events re-match and fire a second expansion. Hold injecting
+            -- true until the queue settles; 80ms is ample in practice.
+            hold(hs.timer.doAfter(0.08, function()
+                exp.injecting = false
+            end))
             return true
         end
+        -- Injection failed: clear the guard NOW so the owed character
+        -- we type back is not blocked by our own injecting flag.
+        exp.injecting = false
         -- 🚨 THE KEYSTROKES ARE NOT LOST. Whatever we consumed on the
         -- promise that this would replace it gets typed back — the final
         -- character of the trigger on the immediate path, the tail on the
@@ -720,6 +731,16 @@ function M.setup(core)
     exp.failures = 0
     exp.maxFailures = 5
     local function expOnEvent(ev)
+            -- 🚨 ASYNC DRAIN WINDOW: navigation keys (ESC, arrows, etc.)
+            -- cancel the drain window so that a user action always resets
+            -- state, and so that test-harness reset() + press(53) works.
+            -- pcall guards mouse events whose mocks don't have getKeyCode.
+            do
+                local ok, c = pcall(function() return ev:getKeyCode() end)
+                if ok and clearCodes[c] and exp.injecting then
+                    exp.injecting = false
+                end
+            end
             if exp.injecting then return false end
             -- 🚨 6.72.0 — AND THE **SHARED** GUARD, WHICH WAS MISSING.
             -- exp.injecting only knows about OUR OWN typing. Autocorrect

@@ -334,7 +334,7 @@ check("🚨 THE CANVAS IS BIGGER THAN THE BOX, or the shadow is clipped to "
 local txt = (function()
     for _, e in ipairs(c.elements) do if e.type == "text" then return e end end
   end)()
-check("the text is 16px, as asked", txt and txt.textSize == 16, txt and txt.textSize)
+check("the text is 20px", txt and txt.textSize == 20, txt and txt.textSize)
 check("...in a sans-serif face", txt and txt.textFont == "Helvetica Neue",
       txt and txt.textFont)
 check("...right-aligned inside the box", txt and txt.textAlignment == "right")

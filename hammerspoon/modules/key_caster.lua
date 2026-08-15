@@ -109,12 +109,12 @@ function M.setup(core)
     kc.fadeSecs     = 0.35      -- how long the fade itself takes
     kc.repeatWindow = 0.9       -- same combo inside this becomes "×2"
     kc.dedupeWindow = 0.06      -- one press, two events (see the ⇪ note)
-    -- Type. Sans serif at 16px, as asked.
+    -- Type. Sans serif at 20px.
     kc.font         = "Helvetica Neue"
-    kc.fontSize     = 16
-    kc.lineH        = 26
-    kc.padX, kc.padY = 16, 12
-    kc.minWidth     = 120
+    kc.fontSize     = 20
+    kc.lineH        = 32
+    kc.padX, kc.padY = 18, 14
+    kc.minWidth     = 140
     kc.maxWidth     = 460
     kc.marginRight  = 28        -- gap from the right edge of the screen
     kc.radius       = 12
