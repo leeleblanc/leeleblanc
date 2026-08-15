@@ -4,6 +4,23 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.86.0 — TASK FORM + SCREENSHOTS:
+  ⇪T now opens a labeled FORM (modules/task_form.lua): Title / Description /
+  Assignee / Attachment, each label permanently visible — the old one-line
+  picker's placeholder vanished on the first keystroke. ⏎ sends from any
+  field, ⇥ moves between fields, ⌥⏎ = newline in Description, Esc keeps the
+  draft; 📸 button (or ⌘L) fills Attachment with the newest screenshot.
+  The pipe picker survives as the past-task SEARCH on ⇪⇧S (⇪⇧T was taken by
+  the Text Expander). Both paths submit through one shared function,
+  _G.asanaSubmitTask — extracted UNCHANGED from the chooser callback.
+  New Screenshots module (modules/screenshots.lua): ⇪4 runs the native
+  crosshair capture and puts the result in TWO places at once — a
+  timestamped PNG in OneDrive/2026 Screenshots AND the clipboard (macOS
+  natively does one or the other, never both). ⇪⇧4 opens the history:
+  newest-first with thumbnails, ⏎ puts the image back on the clipboard,
+  ⌘⏎ copies its file path. Deliberately NOT a clipboard watcher — only a
+  deliberate keystroke saves, so browser/PDF image copies never pile up.
+
 NEW IN 6.85.0 — KEY CASTER TEXT LABELS + RIGHT-SIDE VERTICAL PANEL:
   Panel reverts to vertical stacking (one line per combo, newest at bottom,
   older lines dimmed). Fixed 400×600, right-anchored, font auto-computed to

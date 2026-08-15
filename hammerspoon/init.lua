@@ -4,9 +4,16 @@
 -- =====================================================================
 -- 08-15-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.85.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.86.0
 -- =====================================================================
 
+-- NEW IN 6.86.0 — TASK FORM + SCREENSHOTS:
+--   ⇪T opens a labeled FORM (Title/Description/Assignee/Attachment —
+--   labels never disappear; ⏎ sends, Esc keeps the draft). The pipe
+--   picker became the past-task SEARCH on ⇪⇧S. New: ⇪4 captures to
+--   OneDrive/2026 Screenshots AND the clipboard in one gesture; ⇪⇧4
+--   browses history with thumbnails (⏎ = image, ⌘⏎ = file path).
+--
 -- NEW IN 6.85.0 — KEY CASTER TEXT LABELS + RIGHT-SIDE VERTICAL PANEL:
 --   Panel reverts to vertical stacking (one line per combo, newest at
 --   bottom, older lines dimmed). Fixed 400×600, right-anchored, font
@@ -30,12 +37,8 @@
 --   guard active for 80ms after expansion so in-flight events are
 --   discarded.
 --
--- NEW IN 6.83.0 — WORKSPACES REMOVED:
---   ⇪⇧S is free again. Module used private hs.spaces APIs (specifically
---   excluded from safe mode for that reason) — removed on user request.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.85.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.86.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -137,17 +140,26 @@
 --    fixes a bad OCR read in place, or clears out junk. Save with the
 --    text cleared deletes it.
 --
--- ✅ ⇪T  ASANA TASK CREATOR (§4 / §5)
+-- ✅ ⇪T  ASANA TASK CREATOR (§4 / §5 + modules/task_form.lua)
 --    Creates a task in your Asana project without opening a browser.
---    Format: Title | Description | Assignee | /path/to/attachment
---    All fields after Title are optional. Posts an auto-comment on
---    every new task and uploads an attachment if you provide a path.
---    30-day history is searchable (saved per-machine in OneDrive);
---    filter by typing in the box. Your typed text is a DRAFT: if
---    the popup closes before you create the task (click away, Esc),
---    ⌃⌥⌘T reopens with it intact. A live MIRROR panel above the box
---    shows your whole text, word-wrapped — long titles never scroll
---    out of sight.
+--    6.86.0: ⇪T opens a FORM — Title / Description / Assignee /
+--    Attachment, each label permanently on screen (the old one-line
+--    picker's placeholder vanished the moment you typed). ⏎ sends
+--    from any field, ⇥ moves between fields, ⌥⏎ makes a newline in
+--    the Description, Esc keeps your draft for next time. The 📸
+--    button (or ⌘L) drops the newest ⇪4 screenshot into Attachment.
+--    Posts an auto-comment on every new task and uploads the
+--    attachment if a path is given.
+--    ⇪⇧S searches PAST tasks — the old pipe picker, search-only:
+--    30-day history (saved per-machine in OneDrive), filter by
+--    typing; matches title, description and assignee.
+--
+-- 📸 ⇪4  SCREENSHOTS (modules/screenshots.lua)
+--    ⇪4 = the native crosshair capture (SPACE switches to window
+--    capture, Esc cancels), saved as a timestamped PNG in OneDrive's
+--    "2026 Screenshots" folder AND copied to the clipboard — macOS
+--    only ever does one or the other. ⇪⇧4 browses past screenshots,
+--    newest first with thumbnails: ⏎ image on clipboard, ⌘⏎ file PATH.
 --
 -- 📅 ⌃⌥⌘L / ⌃⌥⌘C  ASANA DASHBOARD (§6)
 --    Fetches your incomplete Asana tasks and shows them in five
@@ -336,7 +348,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.85.0"
+_G.configVersion = "6.86.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -758,7 +770,7 @@ _G.hyperKeyMap = {
     ["alt+cmd+ctrl+a"]       = { {},        "a"     },  -- format Asana URL
     ["alt+cmd+ctrl+b"]       = { {},        "b"     },  -- browse teams
     ["alt+cmd+ctrl+c"]       = { {},        "c"     },  -- comment on task
-    ["alt+cmd+ctrl+t"]       = { {},        "t"     },  -- create task
+    ["alt+cmd+ctrl+t"]       = { {},        "t"     },  -- create task (6.86.0: the labeled form)
     ["alt+cmd+ctrl+l"]       = { {},        "l"     },  -- list tasks
     -- ---- Clipboard / OCR / Activity ----
     -- 6.57.0 — the two clipboard entries were REMOVED here. They existed
@@ -2538,6 +2550,133 @@ _G.taskMirrorSync = function()
 end
 
 -- =====================================================================
+-- TASK SUBMIT — shared by the chooser below AND the Task Form (6.86.0)
+-- =====================================================================
+-- Moved UNCHANGED out of the chooser's isAction branch when the labeled
+-- form (modules/task_form.lua) became a second front end — both hand
+-- their four strings to this one place, so the two entry paths cannot
+-- drift apart. _G., not a local: the main chunk is at Lua's 200-local
+-- ceiling (§0.4's note). Returns TRUE when accepted for posting; FALSE
+-- on a validation failure, AFTER alerting — callers keep their draft on
+-- false and clear it on true.
+function _G.asanaSubmitTask(title, desc, assignee, attach)
+    title, desc     = title or "", desc or ""
+    assignee, attach = assignee or "", attach or ""
+
+    if title == "" then
+        hs.alert.show("⚠️ Task title cannot be empty")
+        return false
+    end
+
+    -- Build display summary for history subText
+    local subParts = {}
+    if desc     ~= "" then table.insert(subParts, "📝 " .. desc:sub(1, 35)) end
+    if assignee ~= "" then table.insert(subParts, "👤 " .. assignee) end
+    if attach   ~= "" then table.insert(subParts, "📎 " .. (attach:match("[^/]+$") or attach)) end
+
+    -- Asana's API rejects a display name outright (the actual bug:
+    -- "Not a valid actor ID: Lee") — assignee must be "me", a
+    -- numeric GID, or an email. Resolve a typed name against the
+    -- cached team roster (§3.5) before it ever reaches the API;
+    -- an unresolvable name ABORTS instead of sending a doomed
+    -- request, so the failure is a clear alert, not a Console error.
+    local function resolveAssignee(raw)
+        if raw == "" then return "" end
+        local lower = raw:lower()
+        if lower == "me" or lower == "myself" or lower == "i" then return "me" end
+        -- 6.16.14 FIX: real Asana GIDs are long (15+ digits, e.g. this
+        -- file's own asanaWorkspaceId/asanaProjectId) — a short digit
+        -- string like "1" isn't one, but ^%d+$ blindly accepted it
+        -- and sent it straight to the API unchecked, producing a raw
+        -- "Not a valid actor ID: 1" error instead of our own clear
+        -- "no match" alert. Require 6+ digits before trusting it.
+        if raw:match("^%d%d%d%d%d%d+$") then return raw end          -- already a GID
+        if raw:match("^[%w.+-]+@[%w.-]+%.%a+$") then return raw end  -- email
+        for _, m in ipairs(_G.asanaTeamMembers) do
+            if m.name:lower() == lower then return m.gid end
+        end
+        for _, m in ipairs(_G.asanaTeamMembers) do
+            if m.name:lower():find(lower, 1, true) then return m.gid end
+        end
+        return nil
+    end
+
+    local resolvedAssignee = resolveAssignee(assignee)
+    if assignee ~= "" and not resolvedAssignee then
+        hs.alert.show("⚠️ No team member matches \"" .. assignee
+            .. "\" — ⌃⌥⌘B to browse names, or use their email", 5)
+        return false
+    end
+
+    -- Create history entry (timestamp used for 30-day pruning)
+    local historyEntry = {
+        title      = title,
+        timestamp  = os.time(),
+        displaySub = "⏳ Posting…" .. (#subParts > 0 and "  ·  " .. table.concat(subParts, "  ·  ") or ""),
+        desc       = desc,
+        assignee   = assignee,
+        attachment = attach,
+    }
+    table.insert(_G.asanaTaskHistory, historyEntry)
+
+    -- Build Asana task payload
+    local payloadData = { name = title, projects = { asanaProjectId } }
+    if desc ~= "" then payloadData.notes = desc end
+    if resolvedAssignee ~= "" then payloadData.assignee = resolvedAssignee end
+    local body = hs.json.encode({ data = payloadData })
+
+    hs.http.asyncPost("https://app.asana.com/api/1.0/tasks", body, {
+        ["Authorization"] = "Bearer " .. asanaToken,
+        ["Content-Type"]  = "application/json"
+    }, function(status, responseBody)
+        if status == 200 or status == 201 then
+            hs.alert.show("✅ Task Created: " .. title)
+            historyEntry.displaySub = "✅ " .. os.date("%b %d %H:%M") ..
+                (#subParts > 0 and "  ·  " .. table.concat(subParts, "  ·  ") or "")
+
+            -- Parse the new task's GID once — used for comments & attachments
+            local parsed  = _G.safeJson(responseBody, "asana/newtask")
+            local taskGid = parsed and parsed.data and parsed.data.gid
+
+            if taskGid then
+                -- 💬 Auto-comment (configured at top of file; "" disables)
+                if autoCommentText ~= "" then
+                    _G.service.call("asana.addComment", taskGid, autoCommentText)
+                end
+
+                -- 📎 Attachment upload
+                if attach ~= "" then
+                    uploadAttachmentToTask(taskGid, attach, function(ok)
+                        if ok then
+                            historyEntry.displaySub = historyEntry.displaySub .. "  ·  📎 attached"
+                        else
+                            historyEntry.displaySub = historyEntry.displaySub .. "  ·  ⚠️ attach failed"
+                        end
+                        saveTaskHistory(_G.asanaTaskHistory)
+                    end)
+                end
+            elseif attach ~= "" then
+                hs.alert.show("⚠️ Could not parse task GID for attachment")
+            end
+        else
+            hs.alert.show("❌ Error: " .. tostring(status))
+            print("Asana API Error: ", responseBody)
+            historyEntry.displaySub = "❌ Failed (HTTP " .. tostring(status) .. ")" ..
+                (#subParts > 0 and "  ·  " .. table.concat(subParts, "  ·  ") or "")
+        end
+
+        -- Always persist history after any outcome (including non-attachment path)
+        if attach == "" then saveTaskHistory(_G.asanaTaskHistory) end
+    end)
+
+    return true
+end
+
+-- Published for task_form.lua: its Attachment field gets the same path
+-- cleanup the pipe picker's 4th segment gets (quotes, ~, leading junk).
+_G.asanaNormalizePath = normalizeAttachmentPath
+
+-- =====================================================================
 -- TASK CHOOSER
 -- =====================================================================
 _G.choosers.task = hs.chooser.new(function(choice)
@@ -2564,119 +2703,14 @@ _G.choosers.task = hs.chooser.new(function(choice)
     taskMirrorHide()   -- popup resolved (pick / Esc / click away)
 
     if choice.isAction then
-        local title    = choice.rawTitle
-        local desc     = choice.rawDesc
-        local assignee = choice.rawAssignee
-        local attach   = choice.rawAttach
-
-        if title == "" then
-            hs.alert.show("⚠️ Task title cannot be empty")
-            return
+        -- 6.86.0: the ~110 lines here moved WHOLE into _G.asanaSubmitTask
+        -- above. Unchanged behavior: false = validation failed (already
+        -- alerted), draft survives; true = posted, draft's job is done.
+        if _G.asanaSubmitTask(choice.rawTitle, choice.rawDesc,
+                              choice.rawAssignee, choice.rawAttach) then
+            _G.taskDraft = ""
+            _G.choosers.task:query("")
         end
-
-        -- Build display summary for history subText
-        local subParts = {}
-        if desc     ~= "" then table.insert(subParts, "📝 " .. desc:sub(1, 35)) end
-        if assignee ~= "" then table.insert(subParts, "👤 " .. assignee) end
-        if attach   ~= "" then table.insert(subParts, "📎 " .. (attach:match("[^/]+$") or attach)) end
-
-        -- Asana's API rejects a display name outright (the actual bug:
-        -- "Not a valid actor ID: Lee") — assignee must be "me", a
-        -- numeric GID, or an email. Resolve a typed name against the
-        -- cached team roster (§3.5) before it ever reaches the API;
-        -- an unresolvable name ABORTS instead of sending a doomed
-        -- request, so the failure is a clear alert, not a Console error.
-        local function resolveAssignee(raw)
-            if raw == "" then return "" end
-            local lower = raw:lower()
-            if lower == "me" or lower == "myself" or lower == "i" then return "me" end
-            -- 6.16.14 FIX: real Asana GIDs are long (15+ digits, e.g. this
-            -- file's own asanaWorkspaceId/asanaProjectId) — a short digit
-            -- string like "1" isn't one, but ^%d+$ blindly accepted it
-            -- and sent it straight to the API unchecked, producing a raw
-            -- "Not a valid actor ID: 1" error instead of our own clear
-            -- "no match" alert. Require 6+ digits before trusting it.
-            if raw:match("^%d%d%d%d%d%d+$") then return raw end          -- already a GID
-            if raw:match("^[%w.+-]+@[%w.-]+%.%a+$") then return raw end  -- email
-            for _, m in ipairs(_G.asanaTeamMembers) do
-                if m.name:lower() == lower then return m.gid end
-            end
-            for _, m in ipairs(_G.asanaTeamMembers) do
-                if m.name:lower():find(lower, 1, true) then return m.gid end
-            end
-            return nil
-        end
-
-        local resolvedAssignee = resolveAssignee(assignee)
-        if assignee ~= "" and not resolvedAssignee then
-            hs.alert.show("⚠️ No team member matches \"" .. assignee
-                .. "\" — ⌃⌥⌘B to browse names, or use their email", 5)
-            return
-        end
-
-        -- Create history entry (timestamp used for 30-day pruning)
-        local historyEntry = {
-            title      = title,
-            timestamp  = os.time(),
-            displaySub = "⏳ Posting…" .. (#subParts > 0 and "  ·  " .. table.concat(subParts, "  ·  ") or ""),
-            desc       = desc,
-            assignee   = assignee,
-            attachment = attach,
-        }
-        table.insert(_G.asanaTaskHistory, historyEntry)
-
-        -- Build Asana task payload
-        local payloadData = { name = title, projects = { asanaProjectId } }
-        if desc ~= "" then payloadData.notes = desc end
-        if resolvedAssignee ~= "" then payloadData.assignee = resolvedAssignee end
-        local body = hs.json.encode({ data = payloadData })
-
-        hs.http.asyncPost("https://app.asana.com/api/1.0/tasks", body, {
-            ["Authorization"] = "Bearer " .. asanaToken,
-            ["Content-Type"]  = "application/json"
-        }, function(status, responseBody)
-            if status == 200 or status == 201 then
-                hs.alert.show("✅ Task Created: " .. title)
-                historyEntry.displaySub = "✅ " .. os.date("%b %d %H:%M") ..
-                    (#subParts > 0 and "  ·  " .. table.concat(subParts, "  ·  ") or "")
-
-                -- Parse the new task's GID once — used for comments & attachments
-                local parsed  = _G.safeJson(responseBody, "asana/newtask")
-                local taskGid = parsed and parsed.data and parsed.data.gid
-
-                if taskGid then
-                    -- 💬 Auto-comment (configured at top of file; "" disables)
-                    if autoCommentText ~= "" then
-                        _G.service.call("asana.addComment", taskGid, autoCommentText)
-                    end
-
-                    -- 📎 Attachment upload
-                    if attach ~= "" then
-                        uploadAttachmentToTask(taskGid, attach, function(ok)
-                            if ok then
-                                historyEntry.displaySub = historyEntry.displaySub .. "  ·  📎 attached"
-                            else
-                                historyEntry.displaySub = historyEntry.displaySub .. "  ·  ⚠️ attach failed"
-                            end
-                            saveTaskHistory(_G.asanaTaskHistory)
-                        end)
-                    end
-                elseif attach ~= "" then
-                    hs.alert.show("⚠️ Could not parse task GID for attachment")
-                end
-            else
-                hs.alert.show("❌ Error: " .. tostring(status))
-                print("Asana API Error: ", responseBody)
-                historyEntry.displaySub = "❌ Failed (HTTP " .. tostring(status) .. ")" ..
-                    (#subParts > 0 and "  ·  " .. table.concat(subParts, "  ·  ") or "")
-            end
-
-            -- Always persist history after any outcome (including non-attachment path)
-            if attach == "" then saveTaskHistory(_G.asanaTaskHistory) end
-        end)
-
-        _G.taskDraft = ""            -- task submitted: draft's job is done
-        _G.choosers.task:query("")
     end
 end):placeholderText("Title | Description | Assignee | /path/to/attachment")
 
@@ -2761,11 +2795,11 @@ end)
 -- its Objective-C bridge, so table identity cannot survive the trip and
 -- only a NUMBER comes back intact).
 
--- Task creator — reopens with your unsent DRAFT restored (6.10.1).
--- Previously this line wiped the box with query("") on every open,
--- which is exactly why a stray click could eat what you'd typed.
-hs.hotkey.bind(coreKeys.taskCreator[1], coreKeys.taskCreator[2], function()
-    if not requireAsana() then return end
+-- The pipe chooser, openable by name — reopens with your unsent DRAFT
+-- restored (6.10.1; wiping with query("") is how a stray click used to
+-- eat your text). _G., not a local (200-local ceiling, §0.4). Its three
+-- callers: ⇪⇧S below, ⇪T's fallback, task_form's no-WKWebView fallback.
+_G.asanaOpenTaskChooser = function()
     local draft = _G.taskDraft or ""
     _G.choosers.task:query(draft)
     renderTaskChoices(draft)  -- render explicitly; programmatic query() alone isn't guaranteed to re-fire the callback
@@ -2774,7 +2808,24 @@ hs.hotkey.bind(coreKeys.taskCreator[1], coreKeys.taskCreator[2], function()
         hs.alert.show("📝 Draft restored — keep typing, or delete it to start fresh")
         pcall(taskMirrorShow, draft)   -- mirror needs the popup visible, so after showPopup
     end
+end
+
+-- Task creator — 6.86.0: ⇪T opens the labeled FORM (modules/
+-- task_form.lua). The pipe chooser is NOT gone: it is the fallback when
+-- the module didn't load, and the past-task SEARCH on ⇪⇧S below.
+hs.hotkey.bind(coreKeys.taskCreator[1], coreKeys.taskCreator[2], function()
+    if not requireAsana() then return end
+    if _G.taskFormShow then _G.taskFormShow() return end
+    _G.asanaOpenTaskChooser()
 end)
+
+-- 6.86.0: past-task SEARCH on its own key. ⇪⇧T was the natural spot but
+-- the Text Expander holds it (6.68.0) — so ⇪⇧S: S for Search, free
+-- since the Spaces module left (6.83.0).
+_G.hyperAddShortcut({ "shift" }, "s", function()
+    if not requireAsana() then return end
+    _G.asanaOpenTaskChooser()
+end, "task search — past Asana tasks")
 
 -- App tracker (today's activity; type 'week'/'month'/search once open)
 hs.hotkey.bind(coreKeys.activityTracker[1], coreKeys.activityTracker[2], function()
@@ -3472,6 +3523,9 @@ local BASE = {
     "text_expander",      -- ⇪⇧T  Alfred snippets, typed anywhere
     -- 6.71.0
     "key_caster",         -- ⇪⇧K  show the shortcuts as you press them
+    -- 6.86.0
+    "screenshots",        -- ⇪4   capture → OneDrive + clipboard · ⇪⇧4 history
+    "task_form",          -- ⇪T   labeled Asana task entry (pipe search → ⇪⇧S)
 }
 
 -- BASE minus `without`, plus `plus`. The list is COPIED, never shared: a

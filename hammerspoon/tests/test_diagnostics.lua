@@ -713,6 +713,10 @@ local ALLOWED_BINARIES = {
   ["/usr/bin/osascript"] = "Finder selection + Finder comment tags, OUT OF "
                         .. "PROCESS so an Apple Event cannot abort us (ships with macOS)",
   ["/bin/zsh"]           = "runs the rsync backup line (ships with macOS)",
+  -- 6.86.0 — the ⇪4 screenshot capture. The same binary ⌘⇧4 itself uses;
+  -- run with -i to a file in the OneDrive folder, which is what lets one
+  -- keystroke both SAVE and COPY where macOS natively only does one.
+  ["/usr/sbin/screencapture"] = "⇪4 capture to OneDrive + clipboard (ships with macOS)",
   ["/opt/homebrew/bin/brew"] = "OPTIONAL update checks, admin install",
   ["/usr/local/bin/brew"]    = "OPTIONAL update checks, admin install",
   -- the no-admin Homebrew prefixes, which are $HOME-relative in the source
