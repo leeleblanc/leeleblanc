@@ -4,9 +4,17 @@
 -- =====================================================================
 -- 08-15-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.83.2
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.84.0
 -- =====================================================================
 
+-- NEW IN 6.84.0 — KEY CASTER HORIZONTAL LAYOUT:
+--   Panel now displays key combos in a single horizontal row (left to right)
+--   instead of stacking them vertically. Box anchors to the left edge of the
+--   screen and grows rightward as combos accumulate. Font bumped 20→28pt.
+--   Hold time extended 2.5→7 s; fade is now quick (0.35→0.15 s). Single
+--   letters and numbers alone are still suppressed; hyper combos with any
+--   key (including letters/numbers) still show as ⇪+key.
+--
 -- NEW IN 6.83.2 — KEY CASTER FIXED SIZE:
 --   Panel is now fixed at 270×134 (kc.fixedW / kc.fixedH). Set either
 --   to nil to revert to dynamic sizing.
@@ -27,78 +35,8 @@
 --   interface for toggling the display grayscale filter — defaults write +
 --   launchctl, killall, and osascript all failed or errored in practice.
 --
--- NEW IN 6.80.0 — VOLUME MODULE REMOVED:
---   🗑 modules/volume.lua is gone. Use Vorssaint (vorssaint/vorssaint-utils)
---      for volume — driverless, Core Audio Process Taps, real per-app mixing,
---      macOS 14.2+, Apple Silicon, System Audio Recording permission only.
---      The ⇪. ⇪, ⇪⇧, ⇪⇧. keys are now free.
---   🐛 ROOT CAUSE of "can't reset the volume": the 6.79.2 escape shadow
---      (0.5s after any chooser closed) was triggered by the volume chooser
---      on Esc, holding the cheat sheet open on the same keypress. Gone.
---
--- NEW IN 6.79.2 — THE SHORTCUTS PANEL TRULY CLOSES LAST:
---   🐛 RACE: an hs.chooser (volume, app-switcher) dismisses itself natively
---      on Esc — by the time the cheat sheet's Carbon hotkey fired, the
---      chooser was already gone and escapeOthersActive() said "nothing else
---      is up." The sheet closed. LL lost their place every time.
---   🔍 ROOT CAUSE 1 — nil caller: routeEscape() used `mine = 0` for a
---      caller-less invocation (the hyper_key tap's Esc rescue). Priority 0
---      is the cheat sheet's own floor, so the sheet was invisible as a
---      valid target to its own dispatch path.
---   ✅ FIX 1: `local mine = nil` — a nil caller now reaches the floor
---      claimant (priority 0 = cheat sheet) so the tap's Esc path works.
---   🔍 ROOT CAUSE 2 — chooser race: the 0.5s shadow. The cheat sheet now
---      polls escapeOthersActive every 0.25s while it is visible. If any
---      other panel was seen in the last 0.5s, Esc defers. The poller writes
---      _G.cheatSheetOtherSeenAt; escape() reads it; if too recent → return.
---   ✅ FIX 2: cheatSheet.watchOthers(on) starts/stops the poller. The
---      shadow outlives the race. Chooser closes, sheet stays; next Esc
---      (outside the 0.5s window) finally closes the sheet.
---   🧪 19/19 new mutations caught in test_cheatsheet.lua and
---      test_integration.lua.
---
--- NEW IN 6.79.1 — A CORRECTION: PER-APP MIXING NEEDS NO DRIVER:
---   🚨 I told LL, twice, that real per-app volume "means being an audio
---      driver" and that both options need admin — so it was out on the
---      work Mac. The first half stopped being true in macOS 14.2.
---   🔍 vorssaint/vorssaint-utils does it with CORE AUDIO PROCESS TAPS:
---      CATapDescription(stereoMixdownOfProcesses:) with muteBehavior
---      .mutedWhenTapped, AudioHardwareCreateProcessTap, then an aggregate
---      device whose IO proc multiplies the samples by a gain. Tap the
---      process, mute its normal output, re-render it louder or quieter,
---      send it anywhere. Multiplying samples is also why it can go PAST
---      100%. Cost: one permission, System Audio Recording. No kext, no
---      admin, no install — macOS 14.2+, Apple Silicon.
---   📌 So it may work on the WORK MAC after all: the blocker is no longer
---      admin rights for a driver, only whether MDM lets you install an
---      app and grant it that permission.
---   🚧 Hammerspoon still cannot: no hs.* extension binds it and none of
---      the API is reachable from Lua. modules/volume.lua stays the
---      zero-install approximation and now says so.
---
--- NEW IN 6.79.0 — I MISDIAGNOSED YOUR MAC, AND PER-APP VOLUME:
---   🚨 6.76.0's SELF-TEST WAS WRONG ON THE MAC WHERE EVERYTHING WORKS.
---      The MacBook Air booted to "⇪ IS RUNNING WITHOUT CARBON" and
---      switched a healthy Mac onto the fallback — which stops entering
---      the modal, so it really did cost the cheat sheet's type-to-filter
---      and ⌥Tab's arrows. I broke a working Mac while fixing a broken one.
---   🔍 WHY: a CGEvent posted by hs.eventtap does NOT reliably reach
---      Carbon's hotkey dispatch. Taps see it; Carbon does not. So the
---      probe's Carbon column read zero on EVERY Mac, and a test whose
---      negative is identical on a working machine and a failing one is
---      not a test — this one had a side effect.
---   ✅ Verification now uses the key you actually press: the tap sees a
---      real F18, notes the Carbon counter, looks again 0.25s later. ⇪ is
---      proven on your first Caps Lock press. The synthetic probe survives
---      as _G.hyperSelfTest() and now says outright that a zero there
---      proves nothing; it decides nothing.
---   🐛 And it found a second bug: engaging the dispatcher left the modal
---      ENTERED for the session, 107 hotkeys enabled — dead weight, and a
---      double dispatch if Carbon ever recovered.
---   🔊 modules/volume.lua — removed in 6.80.0. Use Vorssaint.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.83.2
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.84.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -399,7 +337,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.83.2"
+_G.configVersion = "6.84.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

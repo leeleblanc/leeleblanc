@@ -4,6 +4,23 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.84.0 — KEY CASTER HORIZONTAL LAYOUT:
+  Panel now displays key combos in a single horizontal row (left→right)
+  instead of stacking vertically. Box anchors to the left screen edge and
+  grows rightward as combos accumulate. Font 20→28pt. Hold time 2.5→7 s;
+  fade 0.35→0.15 s (fast). Single letters/numbers alone still suppressed;
+  hyper combos with any key (including letters/numbers) still show as ⇪+key.
+
+NEW IN 6.83.2 — KEY CASTER FIXED SIZE:
+  Panel fixed at 270×134 (kc.fixedW / kc.fixedH). Set either to nil to
+  revert to dynamic sizing.
+
+NEW IN 6.83.1 — KEY CASTER 20PT + EXPANDER DOUBLE-POST FIX:
+  Key caster font bumped 16→20pt, panel padding scaled up.
+  Text expander: fixed double-post when expansion text contains its own
+  trigger — hs.eventtap.keyStrokes() is async; kept injecting guard active
+  for 80ms after expansion so in-flight events are discarded.
+
 NEW IN 6.83.0 — WORKSPACES REMOVED:
   ⇪⇧S is free again. Module used private hs.spaces APIs — removed on
   user request. Use macOS native Mission Control Spaces directly.

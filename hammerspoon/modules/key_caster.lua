@@ -77,7 +77,7 @@ local M = {
             { "shows",   "Shortcuts only — ⌘⌃⌥fn⇪ combos, ⎋ ⇥ ⏎ arrows, F-keys" },
             { "hides",   "Plain typing, and ⇧+letter (that is a capital)" },
             { "all keys", "_G.keyCastTyping(true) — show typing too, for a demo" },
-            { "where",   "Right edge, vertically centred, on the screen you are on" },
+            { "where",   "Left edge, vertically centred, grows right as you type" },
             { "drag",    "Move it anywhere; it stays there for the session" },
             { "stays",   "Up while you keep pressing, fades after you stop" },
             { "never",   "Nothing you type is logged anywhere — see the header" },
@@ -104,19 +104,18 @@ function M.setup(core)
     kc.startEnabled = false     -- 🔒 OFF at boot. Turn it on when you want it.
     kc.showTyping   = false     -- true = plain letters appear too
     kc.showBareModifiers = false -- true = a lone ⇧ or ⌘ press gets a line
-    kc.maxLines     = 6         -- how many keystrokes are visible at once
-    kc.holdSecs     = 2.5       -- fade this long after the LAST keystroke
-    kc.fadeSecs     = 0.35      -- how long the fade itself takes
+    kc.maxLines     = 6         -- how many key combos are visible at once
+    kc.holdSecs     = 7.0       -- fade this long after the LAST keystroke
+    kc.fadeSecs     = 0.15      -- fast fade
     kc.repeatWindow = 0.9       -- same combo inside this becomes "×2"
     kc.dedupeWindow = 0.06      -- one press, two events (see the ⇪ note)
-    -- Type. Sans serif at 20px.
+    -- Type. Sans serif at 28pt.
     kc.font         = "Helvetica Neue"
-    kc.fontSize     = 20
-    kc.lineH        = 32
-    kc.padX, kc.padY = 18, 14
-    kc.fixedW       = 270       -- fixed panel width (nil = dynamic)
-    kc.fixedH       = 134       -- fixed panel height (nil = dynamic)
-    kc.marginRight  = 28        -- gap from the right edge of the screen
+    kc.fontSize     = 28
+    kc.lineH        = 44        -- single horizontal row
+    kc.padX, kc.padY = 20, 14
+    kc.separator    = "   "     -- gap between key combos in the row
+    kc.marginLeft   = 28        -- gap from the left edge of the screen
     kc.radius       = 12
     -- Nearly black, with a shadow around the perimeter so it floats.
     kc.bg           = { red = 0.04, green = 0.04, blue = 0.05, alpha = 0.93 }
@@ -225,7 +224,7 @@ function M.setup(core)
     end
 
     -- ---- the panel -------------------------------------------------------
-    local function panelFrame(lineCount)
+    local function panelFrame()
         local scr
         pcall(function() scr = core.resolveBaseScreen and core.resolveBaseScreen() end)
         if not scr then pcall(function() scr = hs.screen.mainScreen() end) end
@@ -234,22 +233,19 @@ function M.setup(core)
         pcall(function() f = scr:frame() end)
         if not f then return nil end
 
-        -- Fixed size when set; otherwise width from the widest line, clamped.
-        local w, h
-        if kc.fixedW and kc.fixedH then
-            w, h = kc.fixedW, kc.fixedH
-        else
-            local minW = kc.minWidth or 140
-            local maxW = kc.maxWidth or 460
-            local widest = 0
-            for _, l in ipairs(kc.lines) do
-                local n = (utf8 and utf8.len(l.text)) or #l.text
-                local extra = (l.count > 1) and 4 or 0
-                if n + extra > widest then widest = n + extra end
-            end
-            w = math.max(minW, math.min(maxW, widest * (kc.fontSize * 0.72) + kc.padX * 2))
-            h = math.max(1, lineCount) * kc.lineH + kc.padY * 2
+        -- Width from all combos joined into one horizontal string.
+        local sep = kc.separator or "   "
+        local parts = {}
+        for _, l in ipairs(kc.lines) do
+            local t = l.text
+            if l.count > 1 then t = t .. " ×" .. l.count end
+            parts[#parts + 1] = t
         end
+        local joined = table.concat(parts, sep)
+        local nchars = (utf8 and utf8.len(joined)) or #joined
+        local w = math.max(80, nchars * (kc.fontSize * 0.72) + kc.padX * 2)
+        w = math.min(w, f.w - kc.marginLeft - 28)   -- never wider than the screen
+        local h = kc.lineH + kc.padY * 2
 
         -- The canvas is bigger than the box so the SHADOW is not clipped.
         -- A shadow drawn to the edge of its own canvas is a grey stripe.
@@ -261,12 +257,11 @@ function M.setup(core)
             return { x = p.x, y = p.y, w = w + pad * 2, h = h + pad * 2 },
                    w, h, pad
         end
-        -- 📍 RIGHT EDGE, VERTICALLY CENTRED — LL: "middle of screen far
-        -- right justified so it doesn't sit right in the middle of the
-        -- screen". On the screen holding the front window, so it follows
-        -- you between monitors and Spaces.
+        -- 📍 LEFT EDGE, VERTICALLY CENTRED — starts from the left and grows
+        -- right as key combos accumulate. Follows the screen holding the
+        -- front window, so it moves with you between monitors and Spaces.
         return {
-            x = f.x + f.w - w - kc.marginRight - pad,
+            x = f.x + kc.marginLeft - pad,
             y = f.y + (f.h - h) / 2 - pad,
             w = w + pad * 2, h = h + pad * 2,
         }, w, h, pad
@@ -290,22 +285,23 @@ function M.setup(core)
                 },
             },
         }
-        for i, l in ipairs(kc.lines) do
-            local text = l.text
-            if l.count > 1 then text = text .. "  ×" .. l.count end
-            -- The newest line is bright; older ones recede, so your eye
-            -- lands on what you just pressed without the panel flashing.
-            local newest = (i == #kc.lines)
-            els[#els + 1] = {
-                type = "text", text = text,
-                textFont = kc.font, textSize = kc.fontSize,
-                textColor = newest and kc.fg or kc.fgDim,
-                textAlignment = "right",
-                frame = { x = pad + kc.padX * 0.5,
-                          y = pad + kc.padY + (i - 1) * kc.lineH,
-                          w = w - kc.padX, h = kc.lineH },
-            }
+        -- All key combos in a single horizontal row, left to right.
+        local sep = kc.separator or "   "
+        local parts = {}
+        for _, l in ipairs(kc.lines) do
+            local t = l.text
+            if l.count > 1 then t = t .. " ×" .. l.count end
+            parts[#parts + 1] = t
         end
+        els[#els + 1] = {
+            type = "text", text = table.concat(parts, sep),
+            textFont = kc.font, textSize = kc.fontSize,
+            textColor = kc.fg,
+            textAlignment = "left",
+            frame = { x = pad + kc.padX,
+                      y = pad + kc.padY,
+                      w = w - kc.padX * 2, h = kc.lineH },
+        }
         return els
     end
 
@@ -348,7 +344,7 @@ function M.setup(core)
 
     function kc.render()
         if #kc.lines == 0 then kc.hide() return false end
-        local rect, w, h, pad = panelFrame(#kc.lines)
+        local rect, w, h, pad = panelFrame()
         if not rect then
             warn("no screen to draw on")
             return false

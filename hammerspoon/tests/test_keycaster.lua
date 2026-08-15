@@ -299,11 +299,10 @@ out("\n=== 5. The panel: where it is, and what it looks like ===\n")
 reset(); key("escape", {})
 local c = CANVASES[#CANVASES]
 check("it drew", c ~= nil and c.shown == true)
-check("📍 RIGHT-JUSTIFIED — its right edge is near the screen's, not in "
+check("📍 LEFT-JUSTIFIED — its left edge is near the screen's left, not in "
    .. "the middle", (function()
-    local right = c.frame_.x + c.frame_.w
-    return right > SCREEN.w - 80 and right <= SCREEN.w, right
-  end)(), c and (c.frame_.x + c.frame_.w))
+    return c.frame_.x >= 0 and c.frame_.x < 80, c.frame_.x
+  end)(), c and c.frame_.x)
 check("📍 VERTICALLY CENTRED", (function()
     local mid = c.frame_.y + c.frame_.h / 2
     return math.abs(mid - (SCREEN.y + SCREEN.h / 2)) < 4, mid
@@ -334,10 +333,10 @@ check("🚨 THE CANVAS IS BIGGER THAN THE BOX, or the shadow is clipped to "
 local txt = (function()
     for _, e in ipairs(c.elements) do if e.type == "text" then return e end end
   end)()
-check("the text is 20px", txt and txt.textSize == 20, txt and txt.textSize)
+check("the text is 28px", txt and txt.textSize == 28, txt and txt.textSize)
 check("...in a sans-serif face", txt and txt.textFont == "Helvetica Neue",
       txt and txt.textFont)
-check("...right-aligned inside the box", txt and txt.textAlignment == "right")
+check("...left-aligned inside the box", txt and txt.textAlignment == "left")
 check("it draws over full-screen apps and on every Space", (function()
     local b = {}
     for _, x in ipairs(c.behaviour or {}) do b[x] = true end
@@ -349,7 +348,25 @@ check("🪟 it sits ABOVE the cheat sheet — a panel that shows what you just "
    and _G.panelLevel("keycaster") > _G.panelLevel("cheatsheet"),
    c.level_)
 
-out("\n  5b. dragging\n")
+out("\n  5b. horizontal layout\n")
+check("🔲 all combos share ONE text element — not stacked vertically",
+  (function()
+    local cnt = 0
+    for _, e in ipairs(c.elements) do if e.type == "text" then cnt = cnt + 1 end end
+    return cnt == 1, cnt
+  end)())
+check("multiple combos appear together in one horizontal row",
+  (function()
+    reset(); key("escape", {}); NOW = NOW + 1; key("tab", {})
+    local el
+    for _, e in ipairs(CANVASES[#CANVASES].elements) do
+      if e.type == "text" then el = e; break end
+    end
+    return el ~= nil and el.text:find("⎋", 1, true) ~= nil
+                     and el.text:find("⇥", 1, true) ~= nil, el and el.text
+  end)())
+
+out("\n  5c. dragging\n")
 local reg = DRAGGABLE[#DRAGGABLE]
 check("it registers itself as draggable", reg and reg.label == "key caster",
       reg and reg.label)
