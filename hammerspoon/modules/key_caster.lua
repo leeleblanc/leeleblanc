@@ -114,8 +114,8 @@ function M.setup(core)
     kc.fontSize     = 20
     kc.lineH        = 32
     kc.padX, kc.padY = 18, 14
-    kc.minWidth     = 140
-    kc.maxWidth     = 460
+    kc.fixedW       = 270       -- fixed panel width (nil = dynamic)
+    kc.fixedH       = 134       -- fixed panel height (nil = dynamic)
     kc.marginRight  = 28        -- gap from the right edge of the screen
     kc.radius       = 12
     -- Nearly black, with a shadow around the perimeter so it floats.
@@ -234,19 +234,22 @@ function M.setup(core)
         pcall(function() f = scr:frame() end)
         if not f then return nil end
 
-        -- Width from the widest line, clamped. Measuring properly needs
-        -- hs.styledtext; an em-width estimate is within a few points at
-        -- this size and costs nothing per keystroke.
-        local widest = 0
-        for _, l in ipairs(kc.lines) do
-            local n = (utf8 and utf8.len(l.text)) or #l.text
-            local extra = (l.count > 1) and 4 or 0
-            if n + extra > widest then widest = n + extra end
+        -- Fixed size when set; otherwise width from the widest line, clamped.
+        local w, h
+        if kc.fixedW and kc.fixedH then
+            w, h = kc.fixedW, kc.fixedH
+        else
+            local minW = kc.minWidth or 140
+            local maxW = kc.maxWidth or 460
+            local widest = 0
+            for _, l in ipairs(kc.lines) do
+                local n = (utf8 and utf8.len(l.text)) or #l.text
+                local extra = (l.count > 1) and 4 or 0
+                if n + extra > widest then widest = n + extra end
+            end
+            w = math.max(minW, math.min(maxW, widest * (kc.fontSize * 0.72) + kc.padX * 2))
+            h = math.max(1, lineCount) * kc.lineH + kc.padY * 2
         end
-        local w = math.max(kc.minWidth,
-                           math.min(kc.maxWidth,
-                                    widest * (kc.fontSize * 0.72) + kc.padX * 2))
-        local h = math.max(1, lineCount) * kc.lineH + kc.padY * 2
 
         -- The canvas is bigger than the box so the SHADOW is not clipped.
         -- A shadow drawn to the edge of its own canvas is a grey stripe.
