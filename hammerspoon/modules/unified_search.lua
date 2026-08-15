@@ -453,6 +453,9 @@ function M.setup(core)
     end
 
     function uni.buildHtml(prefill)
+        -- 🎨 6.90.0 — shared card colors (ui_style.lua), cascade-last.
+        local themeCss = (_G.uiStyle and _G.uiStyle.cssOverride
+                          and _G.uiStyle.cssOverride()) or ""
         return [[<!doctype html><html><head><meta charset="utf-8"><style>
   html,body{margin:0;height:100%;overflow:hidden}
   body{background:#101018;color:#e9e9f2;
@@ -484,6 +487,7 @@ function M.setup(core)
      object-fit:cover;border-radius:6px;flex:none;background:#000}
   .pp{flex:none;color:#6a6a82;font-size:11px}
   .more{padding:12px 16px;color:#8a8aa2;font-size:13px}
+  ]] .. themeCss .. [[
 </style></head><body>
 <div id="bar"><span class="ttl">🔎 Unified Search</span>
 <span class="hint">drag here · ⏎ copy · ⌘⏎ path · Esc</span></div>

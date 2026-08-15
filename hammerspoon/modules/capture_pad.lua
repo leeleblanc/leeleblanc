@@ -926,6 +926,10 @@ function M.setup(core)
             end
         end
 
+        -- 🎨 6.90.0 — the shared card colors (ui_style.lua) land LAST in
+        -- the stylesheet, so they win the cascade without touching layout.
+        local themeCss = (_G.uiStyle and _G.uiStyle.cssOverride
+                          and _G.uiStyle.cssOverride()) or ""
         return [[
 <meta charset="utf-8">
 <style>
@@ -994,6 +998,7 @@ function M.setup(core)
   button.discard { margin-left:6px; padding:3px 9px; font-size:12px;
                    background:#2a2a34; border-color:#4a3a3a; color:#c9a3a3; }
   .empty { color:#6d6d78; font-style:italic; }
+  ]] .. themeCss .. [[
 </style>
 <header id="bar">
   <h1><span class="grip">⠿</span>🗒 Capture Pad</h1>

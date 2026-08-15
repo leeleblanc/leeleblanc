@@ -566,5 +566,27 @@ check("...and says why on screen", #ALERTS > 0
       ALERTS[1])
 AXOK = true
 
+-- =====================================================================
+out("\n=== 10. 6.90.0 — it wears the shared style when one is published ===\n")
+-- The run above proved the FALLBACK look (no _G.uiStyle → the module's
+-- own literals). This one proves ADOPTION: publish a style table the way
+-- modules/ui_style.lua does, reload, and the panel must take it — the
+-- very same tables, not copies, so an ✏️ edit there moves this panel.
+_G.uiStyle = {
+  bg     = { red = 0.09, green = 0.10, blue = 0.13, alpha = 0.92 },
+  fg     = { white = 1.00, alpha = 0.97 },
+  fgDim  = { white = 1.00, alpha = 0.55 },
+  radius = 12,
+}
+local mod2 = dofile(HS .. "/modules/key_caster.lua")
+mod2.setup(core)
+local kc2 = mod2.kc
+check("🎨 the box takes _G.uiStyle.bg — the FOCUS card's color, not its own",
+      kc2.bg == _G.uiStyle.bg)
+check("...and both text colors", kc2.fg == _G.uiStyle.fg
+      and kc2.fgDim == _G.uiStyle.fgDim)
+check("...and the shared corner radius", kc2.radius == _G.uiStyle.radius)
+_G.uiStyle = nil
+
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

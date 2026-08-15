@@ -4,19 +4,22 @@
 -- =====================================================================
 -- 08-15-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.89.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.90.0
 -- =====================================================================
 
+-- NEW IN 6.90.0 — ONE SHARED LOOK (modules/ui_style.lua):
+--   The pomodoro FOCUS card's style — background, white type, 12px
+--   corners, selection blues — now lives in ONE table that 11 panels
+--   read: timer, calendar, key caster, ⌥Tab, cheat sheet, task
+--   mirror, legend, all four webviews. Edit the ✏️ table, ⇪R applies.
+--
 -- NEW IN 6.89.0 — EVERY WINDOW MOVABLE + UNIFIED SEARCH (⇪space):
---   ⌘-click-hold-drag moves ANY panel — pickers included — and where
---   you drop a picker STICKS (modules/window_move.lua). ⇪space
---   searches EVERY store at once: clipboard, commands, screenshots
---   (84px thumbnails), notes, Asana, OCR, docs, file moves, pad; ⏎
---   copies, ⌘⏎ the path. ⇪⇧space / panel ⌘8 = BIG shot browser.
+--   ⌘-click-hold-drag moves ANY panel — pickers included — and drops
+--   STICK (window_move.lua). ⇪space searches EVERY store at once;
+--   ⏎ copies, ⌘⏎ the path. ⇪⇧space / panel ⌘8 = BIG shot browser.
 --
 -- NEW IN 6.88.0 — EDITOR TOOLS + PANEL SEARCH + COMPRESS:
---   Editor: TEXT boxes (white text/outline; drag to move) and ARROWS
---   (drag an end = stretch/rotate) join the blur; ⌘⇧⏎ small JPEG.
+--   Editor: TEXT boxes and ARROWS join the blur; ⌘⇧⏎ small JPEG.
 --   Panel: history visible, typing SEARCHES it, ⌃⏎ compress via sips.
 --   hs.alert + one canvas show hardened vs the NSRemoteView throw.
 --
@@ -26,16 +29,11 @@
 --   below; ⌥⏎ opens the BLUR EDITOR (⌘Z undo; saves "… (edited)").
 --
 -- NEW IN 6.86.0 — TASK FORM + SCREENSHOTS:
---   ⇪T opens a labeled FORM (⏎ sends, Esc keeps the draft); past-task
---   SEARCH moved to ⇪⇧S. ⇪4 captures to OneDrive/2026 Screenshots AND
---   the clipboard; ⇪⇧4 browses history (⏎ = image, ⌘⏎ = file path).
---
--- NEW IN 6.85.0 — KEY CASTER TEXT LABELS + RIGHT-SIDE VERTICAL PANEL:
---   Vertical stacking (newest at bottom, older dimmed), fixed 400×600
---   right-anchored; labels plain text ("cmd+x") — no Unicode glyphs.
+--   ⇪T = labeled FORM (⏎ sends, Esc keeps the draft); ⇪⇧S = past-task
+--   search. ⇪4 captures to OneDrive + clipboard; ⇪⇧4 browses history.
 --
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.89.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.90.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -117,12 +115,10 @@
 --    ⌃⌥⌘[ ]   throw the window to the next monitor right or left
 --
 -- 🔎 ⇪space  UNIFIED SEARCH (modules/unified_search.lua) — 6.89.0
---    One typed search over EVERY store: clipboard, commands,
---    screenshots (84px thumbnails), notes, Asana tasks, OCR,
---    documents, file moves, the pad queue. Every word must match; a
---    @tag pins one source. ⏎ copies the row (text or the image),
---    ⌘⏎ the file path. ⇪⇧space (or ⌘8 in the ⇪⇧4 panel) opens it
---    as the big-thumbnail screenshot browser.
+--    One typed search over EVERY store: clipboard, commands, shots
+--    (84px thumbnails), notes, Asana, OCR, docs, moves, pad. @tag
+--    pins one source; ⏎ copies the row, ⌘⏎ the file path. ⇪⇧space
+--    (or ⌘8 in the ⇪⇧4 panel) = the big-thumbnail shot browser.
 --
 -- ⇪V  CLIPBOARD HISTORY (§2 / §3)
 --    Keeps your last 1,000 copied texts, saved per-machine to
@@ -153,10 +149,9 @@
 --
 -- 📸 ⇪4  SCREENSHOTS (modules/screenshots.lua + screenshot_editor.lua)
 --    ⇪4 = native crosshair capture (SPACE = window, Esc cancels) to
---    OneDrive's "2026 Screenshots" AND the clipboard. ⇪⇧4 = the PANEL:
---    actions on ⌘1–⌘8 (⌘8 = BIG thumbnails, via ⇪space) and TYPING
---    SEARCHES the history. ⏎ image · ⌘⏎ path · ⌃⏎ compress to jpg ·
---    ⌥⏎ EDITOR (blur, white text boxes, arrows; ⌘Z; ⌘⇧⏎ small JPEG).
+--    OneDrive's "2026 Screenshots" AND the clipboard. ⇪⇧4 = the
+--    PANEL: ⌘1–⌘8 (⌘8 = BIG thumbnails) and TYPING searches. ⏎ image
+--    · ⌘⏎ path · ⌃⏎ compress · ⌥⏎ EDITOR (blur/text/arrows; ⌘Z).
 --
 -- 📅 ⌃⌥⌘L / ⌃⌥⌘C  ASANA DASHBOARD (§6)
 --    Fetches your incomplete Asana tasks and shows them in five
@@ -345,7 +340,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.89.0"
+_G.configVersion = "6.90.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2527,15 +2522,17 @@ local function taskMirrorShow(text)
     local canvas = hs.canvas.new({ x = topLeft.x, y = panelY, w = panelW, h = panelH })
     if not canvas then return end
 
+    local sty = _G.uiStyle or {}   -- 🎨 6.90.0 shared card look
     canvas:appendElements({
         {
             type = "rectangle", action = "fill",
-            fillColor = { red = 0.11, green = 0.11, blue = 0.13, alpha = panelAlpha },
+            fillColor = (sty.bgWith and sty.bgWith(panelAlpha))
+                        or { red = 0.11, green = 0.11, blue = 0.13, alpha = panelAlpha },
             roundedRectRadii = { xRadius = 12, yRadius = 12 },
         },
         {
             type = "text", text = text,
-            textSize = textSize, textColor = { white = 0.95 },
+            textSize = textSize, textColor = sty.fg or { white = 0.95 },
             textLineBreak = "wordWrap",
             frame = { x = pad, y = pad, w = panelW - pad * 2, h = panelH - pad * 2 },
         },
@@ -3026,10 +3023,12 @@ local function asanaLegendShow()
     local canvas = hs.canvas.new({ x = stripX, y = stripY, w = stripW, h = stripH })
     if not canvas then return end
 
+    local sty = _G.uiStyle or {}   -- 🎨 6.90.0 shared card look
     local els = {}
     table.insert(els, {
         type = "rectangle", action = "fill",
-        fillColor = { red = 0.11, green = 0.11, blue = 0.13, alpha = panelAlpha },
+        fillColor = (sty.bgWith and sty.bgWith(panelAlpha))
+                    or { red = 0.11, green = 0.11, blue = 0.13, alpha = panelAlpha },
         roundedRectRadii = { xRadius = 12, yRadius = 12 },
     })
     for _, p in ipairs(pills) do
@@ -3493,6 +3492,7 @@ _G.moduleWarmTimers  = {}    -- HELD: an unreferenced hs.timer is collected
 -- module is one edit that reaches every Mac, and a module on disk that no
 -- profile loads now fails the build.
 local BASE = {
+    "ui_style",           -- 🎨 6.90.0 the shared look — FIRST: panels read it
     "daily_backup", "app_peek", "window_switcher", "window_arranger",
     "copy_on_select", "command_history", "app_watcher", "file_tracker",
     "autocorrect", "activity_tracker", "update_tracker",

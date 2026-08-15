@@ -462,12 +462,16 @@ return function(core)
         -- alpha a darker panel keeps white text readable over a bright
         -- window behind it, which is the whole trade being made here.
         -- Tune the see-through with cheatSheet.alpha at the top of §1.6.
+        -- 🎨 6.90.0 — the shared card look (modules/ui_style.lua):
+        -- shared HUE, but cheatSheet.alpha keeps ruling the see-through.
+        local sty = _G.uiStyle or {}
         table.insert(els, {
             type = "rectangle", action = "strokeAndFill",
-            fillColor   = { red = 0.06, green = 0.06, blue = 0.08, alpha = cheatSheet.alpha },
-            strokeColor = { white = 1, alpha = 0.22 },
+            fillColor   = (sty.bgWith and sty.bgWith(cheatSheet.alpha))
+                          or { red = 0.06, green = 0.06, blue = 0.08, alpha = cheatSheet.alpha },
+            strokeColor = sty.stroke or { white = 1, alpha = 0.22 },
             strokeWidth = 1,
-            roundedRectRadii = { xRadius = 16, yRadius = 16 },
+            roundedRectRadii = { xRadius = sty.radius or 16, yRadius = sty.radius or 16 },
         })
 
         -- 🔎 The title doubles as the search box. A separate field would
@@ -500,13 +504,13 @@ return function(core)
                 table.insert(els, {
                     type = "text", text = line.text,
                     textSize = st.headerSize,
-                    textColor = { red = 0.55, green = 0.83, blue = 1.0 },
+                    textColor = sty.selectLine or { red = 0.55, green = 0.83, blue = 1.0 },
                     frame = { x = st.contentX, y = y, w = st.contentW, h = st.lineH },
                 })
             elseif line.kind == "entry" then
                 table.insert(els, {
                     type = "text", text = line.text,
-                    textSize = st.entrySize, textColor = { white = 1.0 },
+                    textSize = st.entrySize, textColor = sty.fg or { white = 1.0 },
                     frame = { x = st.contentX, y = y, w = st.contentW, h = st.lineH },
                 })
             end   -- a "spacer" row draws nothing; it just holds the gap open
@@ -544,7 +548,8 @@ return function(core)
         end
         table.insert(els, {
             type = "text", text = footer,
-            textSize = 13, textColor = { white = 0.62 }, textAlignment = "center",
+            textSize = 13, textColor = sty.fgDim or { white = 0.62 },
+            textAlignment = "center",
             frame = { x = 0, y = st.panelH - st.footerH - 4, w = st.panelW, h = st.footerH },
         })
 

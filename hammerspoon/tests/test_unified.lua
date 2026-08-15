@@ -307,6 +307,17 @@ check("the placeholder teaches the @tags",
 check("the header advertises drag · copy · path · Esc",
       html:find("drag here", 1, true) ~= nil
       and html:find("⌘⏎ path", 1, true) ~= nil)
+check("🎨 6.90.0 — the shared card colors ride in when published, last "
+   .. "in the stylesheet so the cascade lets them win", (function()
+    _G.uiStyle = { cssOverride = function()
+        return "body{background:#171a21;color:rgba(255,255,255,0.97)}"
+    end }
+    local themed = U.buildHtml("")
+    _G.uiStyle = nil
+    local at = themed:find("body{background:#171a21", 1, true)
+    return at ~= nil and at < themed:find("</style>", 1, true)
+           and html:find("#171a21", 1, true) == nil   -- absent when unset
+end)())
 
 -- =====================================================================
 out("4. the window\n")

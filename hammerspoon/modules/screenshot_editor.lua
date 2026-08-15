@@ -114,6 +114,9 @@ function M.setup(core)
     -- an OVERLAY canvas — movable and editable until save, when they are
     -- painted into the pixels once. One undo stack covers all of it.
     function ed.buildHtml(dataURI)
+        -- 🎨 6.90.0 — shared card colors (ui_style.lua), cascade-last.
+        local themeCss = (_G.uiStyle and _G.uiStyle.cssOverride
+                          and _G.uiStyle.cssOverride()) or ""
         return [[
 <meta charset="utf-8">
 <style>
@@ -148,6 +151,7 @@ function M.setup(core)
      in exactly that coordinate space */
   #band { position:fixed; border:2px dashed #4a7fe0;
           background:rgba(74,127,224,.15); pointer-events:none; display:none; }
+  ]] .. themeCss .. [[
 </style>
 <header>
   <h1 id="grip" style="cursor:grab" title="drag to move">🖌 Edit</h1>

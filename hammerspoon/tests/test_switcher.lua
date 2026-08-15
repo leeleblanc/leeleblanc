@@ -746,5 +746,31 @@ check("the HUD asks _G.panelLevel rather than naming `overlay` itself",
     return s:find("panelLevel(\"switcher\")", 1, true) ~= nil
   end)())
 
+out("\n=== 14. 6.90.0 — the card wears the shared style ===\n")
+-- Publish a style table the way modules/ui_style.lua does and redraw:
+-- the HUD's card must take it (same tables, not copies). Without one —
+-- every section above — it fell back to its own literals, so both
+-- halves of the contract are now proven.
+_G.uiStyle = {
+  bg         = { red = 0.09, green = 0.10, blue = 0.13, alpha = 0.92 },
+  stroke     = { white = 1.00, alpha = 0.18 },
+  radius     = 12,
+  selectLine = { red = 0.45, green = 0.72, blue = 1.00, alpha = 0.95 },
+}
+reset(3)
+combos["alt+tab"]()
+check("🎨 the card takes _G.uiStyle.bg — the FOCUS card's color",
+  drawn and drawn[1] and drawn[1].fillColor == _G.uiStyle.bg)
+check("...the shared hairline stroke", drawn[1].strokeColor == _G.uiStyle.stroke)
+check("...and the shared 12px corners",
+  drawn[1].roundedRectRadii and drawn[1].roundedRectRadii.xRadius == 12)
+check("the selected tile's border is the shared selection blue", (function()
+  for _, e in ipairs(drawn) do
+    if e.strokeColor == _G.uiStyle.selectLine then return true end
+  end
+  return false
+end)())
+_G.uiStyle = nil
+
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

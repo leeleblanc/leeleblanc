@@ -117,11 +117,13 @@ function M.setup(core)
     kc.lineH        = math.floor((kc.fixedH - kc.padY * 2) / kc.maxLines)
     kc.fontSize     = math.floor(kc.lineH * 0.74)
     kc.marginRight  = 28        -- gap from the right edge of the screen
-    kc.radius       = 12
-    -- Nearly black, with a shadow around the perimeter so it floats.
-    kc.bg           = { red = 0.04, green = 0.04, blue = 0.05, alpha = 0.93 }
-    kc.fg           = { white = 1.00, alpha = 0.97 }
-    kc.fgDim        = { white = 1.00, alpha = 0.45 }   -- older lines recede
+    -- 🎨 6.90.0 — the shared card look (modules/ui_style.lua); the old
+    -- literals stay as fallbacks so a boot without it draws unchanged.
+    local st = _G.uiStyle or {}
+    kc.radius       = st.radius or 12
+    kc.bg           = st.bg    or { red = 0.04, green = 0.04, blue = 0.05, alpha = 0.93 }
+    kc.fg           = st.fg    or { white = 1.00, alpha = 0.97 }
+    kc.fgDim        = st.fgDim or { white = 1.00, alpha = 0.45 }   -- older lines recede
     kc.shadowBlur   = 22
     kc.shadowAlpha  = 0.55
     -- 🛟 Consecutive callback failures before the tap switches itself off.

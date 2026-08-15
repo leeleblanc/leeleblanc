@@ -4,6 +4,40 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.90.0 — ONE SHARED LOOK (modules/ui_style.lua):
+  LL, looking at the pomodoro FOCUS card: "How many of the windows could
+  be in the GUI-style screenshot for the Pomodoro timer?" — then "Build
+  it and ship it!". Eleven panels could, and now they DO: the card's
+  style — background {0.09, 0.10, 0.13 @ 0.92}, white type @ 0.97, 12px
+  corners, the selection blues, the flash amber — lives in ONE ✏️ table
+  in NEW MODULE ui_style.lua, published as _G.uiStyle (and the style.get
+  service), loaded FIRST so every panel after it can read it.
+  WHO WEARS IT: the pomodoro card itself (the reference now CONSUMES the
+  table, so an edit there moves it too) · the mini calendar (was radius
+  16, its own near-black, its own blues) · the key caster (was its own
+  black) · the ⌥Tab switcher card (was radius 18) · the cheat sheet (was
+  radius 16; its alpha knob still rules the see-through, via
+  bgWith(alpha)) · the ⇪T task mirror and the Asana legend strip (shared
+  hue at their existing panelAlpha) · and all four webviews — Capture
+  Pad, screenshot editor, Task Form, Unified Search — which append
+  uiStyle.cssOverride() LAST inside their stylesheets so the cascade
+  lets the shared colors win without touching any layout.
+  WHAT IS NOT SHARED, deliberately: each panel's inner content — the
+  calendar's day cells, the switcher's translucent tile wash over window
+  snapshots, the editor's tools, the pomodoro's BREAK amber (a meaning,
+  not chrome). Chrome is unified; content keeps its job.
+  SAFETY: every consumer reads _G.uiStyle WITH a fallback to the exact
+  literals it shipped with — a boot where ui_style fails looks like
+  6.89.0, never like a blank panel. The module itself touches no hs.*
+  API at all (its test runs it with hs = nil to prove it). Machine
+  profiles can override any token (M.config IS the table).
+  TESTS: new test_style.lua (38 checks — tokens verbatim, converters
+  clamp garbage, bgWith hands out copies, pomodoro adoption, all 11
+  consumers wired); adoption sections added to test_keycaster (identity
+  with a published style) and test_switcher (card + selection border);
+  test_unified proves cssOverride rides in exactly when published.
+  Counts: 37 modules, 27 Lua suites.
+
 NEW IN 6.89.0 — EVERY WINDOW MOVABLE + UNIFIED SEARCH (⇪space):
   EVERY WINDOW MOVABLE (LL: "I need every window movable, I should be able
   to click and hold then move the mouse cursor to move the window."):

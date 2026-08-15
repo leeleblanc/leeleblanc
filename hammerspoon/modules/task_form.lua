@@ -110,6 +110,9 @@ function M.setup(core)
             end
         end
         local d = form.draft
+        -- 🎨 6.90.0 — shared card colors (ui_style.lua), cascade-last.
+        local themeCss = (_G.uiStyle and _G.uiStyle.cssOverride
+                          and _G.uiStyle.cssOverride()) or ""
         return [[
 <meta charset="utf-8">
 <style>
@@ -145,6 +148,7 @@ function M.setup(core)
   button:hover { filter:brightness(1.18); }
   .bar { margin-top:6px; display:flex; gap:10px; align-items:center; }
   .bar .hint { margin-left:auto; }
+  ]] .. themeCss .. [[
 </style>
 <header>
   <h1>✅ New Asana Task</h1>

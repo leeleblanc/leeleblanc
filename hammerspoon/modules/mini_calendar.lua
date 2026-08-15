@@ -56,7 +56,10 @@ function M.setup(core)
     cal.months      = 3         -- panels across. 3 fits 1024 comfortably.
     cal.dayTextSize = 16        -- the date numbers, as asked
     cal.alpha       = 0.90      -- translucent BLACK, not grey (see bg below)
-    cal.bg          = { red = 0.02, green = 0.02, blue = 0.035 }
+    -- 🎨 6.90.0 — the shared card hue (ui_style.lua); cal.alpha above
+    -- stays the translucency knob. Old literal kept as the fallback.
+    local st = _G.uiStyle or {}
+    cal.bg          = st.bg or { red = 0.02, green = 0.02, blue = 0.035 }
     cal.weekStart   = 2         -- 1 = Sunday, 2 = Monday (matches Itsycal)
     cal.rangeDays   = 365       -- how far the cursor may travel either way
     cal.menuBar     = true      -- show the date next to the clock
@@ -166,7 +169,7 @@ function M.setup(core)
         table.insert(els, {
             type = "text", text = MONTHS[m0] .. " " .. y0,
             textSize = 18, textAlignment = "center",
-            textColor = { white = 0.98 },
+            textColor = st.fg or { white = 0.98 },
             frame = { x = originX, y = y, w = L.colW, h = L.titleH },
         })
 
@@ -201,7 +204,8 @@ function M.setup(core)
                 if sameDay(startOfWeek(t), weekOfToday) then
                     table.insert(els, {
                         type = "rectangle", action = "fill",
-                        fillColor = { red = 0.30, green = 0.55, blue = 0.95, alpha = 0.16 },
+                        fillColor = st.selectSoft
+                                    or { red = 0.30, green = 0.55, blue = 0.95, alpha = 0.16 },
                         roundedRectRadii = { xRadius = 6, yRadius = 6 },
                         frame = { x = gridX, y = cy, w = L.cellW * 7, h = L.cellH },
                     })
@@ -214,14 +218,16 @@ function M.setup(core)
             if isSelected then
                 table.insert(els, {
                     type = "rectangle", action = "fill",
-                    fillColor = { red = 0.32, green = 0.58, blue = 0.98, alpha = 0.85 },
+                    fillColor = st.select
+                                or { red = 0.32, green = 0.58, blue = 0.98, alpha = 0.85 },
                     roundedRectRadii = { xRadius = 7, yRadius = 7 },
                     frame = { x = cx + 2, y = cy + 2, w = L.cellW - 4, h = L.cellH - 4 },
                 })
             elseif isToday then
                 table.insert(els, {
                     type = "rectangle", action = "stroke",
-                    strokeColor = { red = 0.45, green = 0.72, blue = 1.0, alpha = 0.95 },
+                    strokeColor = st.selectLine
+                                  or { red = 0.45, green = 0.72, blue = 1.0, alpha = 0.95 },
                     strokeWidth = 1.5,
                     roundedRectRadii = { xRadius = 7, yRadius = 7 },
                     frame = { x = cx + 2, y = cy + 2, w = L.cellW - 4, h = L.cellH - 4 },
@@ -273,8 +279,8 @@ function M.setup(core)
             type = "rectangle", action = "strokeAndFill",
             fillColor = { red = cal.bg.red, green = cal.bg.green,
                           blue = cal.bg.blue, alpha = cal.alpha },
-            strokeColor = { white = 1, alpha = 0.16 }, strokeWidth = 1,
-            roundedRectRadii = { xRadius = 16, yRadius = 16 },
+            strokeColor = st.stroke or { white = 1, alpha = 0.16 }, strokeWidth = 1,
+            roundedRectRadii = { xRadius = st.radius or 16, yRadius = st.radius or 16 },
             frame = { x = 0.5, y = 0.5, w = cal.width - 1, h = cal.height - 1 },
         })
 
@@ -285,7 +291,8 @@ function M.setup(core)
             text = MONTHS[c.month] .. " " .. c.year .. "  →  " ..
                    MONTHS[os.date("*t", lastShown).month] .. " " ..
                    os.date("*t", lastShown).year,
-            textSize = 24, textAlignment = "left", textColor = { white = 0.97 },
+            textSize = 24, textAlignment = "left",
+            textColor = st.fg or { white = 0.97 },
             frame = { x = L.pad + 4, y = 22, w = cal.width * 0.6, h = 34 },
         })
 
@@ -329,7 +336,8 @@ function M.setup(core)
         table.insert(els, {
             type = "text",
             text = os.date("%A, %d %B %Y", cal.cursor):gsub(" 0", " "),
-            textSize = 34, textAlignment = "left", textColor = { white = 0.98 },
+            textSize = 34, textAlignment = "left",
+            textColor = st.fg or { white = 0.98 },
             frame = { x = L.pad + 22, y = L.footY + 20, w = cal.width - L.pad * 2 - 44, h = 46 },
         })
 
@@ -341,7 +349,8 @@ function M.setup(core)
             text = string.format("%s  ·  week %s  ·  day %d of %d  ·  %d left in %d",
                 relativeWords(cal.cursor), os.date("%V", cal.cursor),
                 doy, total, total - doy, yr),
-            textSize = 15, textAlignment = "left", textColor = { white = 0.62 },
+            textSize = 15, textAlignment = "left",
+            textColor = st.fgDim or { white = 0.62 },
             frame = { x = L.pad + 22, y = L.footY + 70, w = cal.width - L.pad * 2 - 44, h = 24 },
         })
 

@@ -300,12 +300,16 @@ function M.setup(core)
         local s = altTab.session
         if not (s and s.canvas) then return end
 
+        -- 🎨 6.90.0 — the card wears the shared style (ui_style.lua);
+        -- the tiles' translucent wash stays its own: it sits OVER window
+        -- snapshots, and the solid selection blue would hide them.
+        local sty = _G.uiStyle or {}
         local els = {}
         table.insert(els, {
             type = "rectangle", action = "strokeAndFill",
-            fillColor   = { red = 0.06, green = 0.06, blue = 0.08, alpha = 0.94 },
-            strokeColor = { white = 1, alpha = 0.22 }, strokeWidth = 1,
-            roundedRectRadii = { xRadius = 18, yRadius = 18 },
+            fillColor   = sty.bg or { red = 0.06, green = 0.06, blue = 0.08, alpha = 0.94 },
+            strokeColor = sty.stroke or { white = 1, alpha = 0.22 }, strokeWidth = 1,
+            roundedRectRadii = { xRadius = sty.radius or 18, yRadius = sty.radius or 18 },
             frame = { x = 0.5, y = 0.5, w = s.w - 1, h = s.h - 1 },
         })
 
@@ -321,7 +325,8 @@ function M.setup(core)
                 type = "rectangle", action = "strokeAndFill",
                 fillColor   = selected and { red = 0.28, green = 0.52, blue = 0.92, alpha = 0.35 }
                                         or { white = 1, alpha = 0.06 },
-                strokeColor = selected and { red = 0.45, green = 0.68, blue = 1.0, alpha = 0.95 }
+                strokeColor = selected and (sty.selectLine
+                                            or { red = 0.45, green = 0.68, blue = 1.0, alpha = 0.95 })
                                         or { white = 1, alpha = 0.10 },
                 strokeWidth = selected and 2 or 1,
                 roundedRectRadii = { xRadius = 10, yRadius = 10 },

@@ -94,10 +94,15 @@ function M.setup(core)
 
     -- Colours. Work is calm, break is amber and loud enough to catch the
     -- eye at the edge of vision, which is the entire point of the flash.
-    pom.bgWork   = { red = 0.09, green = 0.10, blue = 0.13, alpha = 0.92 }
+    -- 🎨 6.90.0 — this card is the REFERENCE for modules/ui_style.lua,
+    -- and it reads the shared table like everyone else, so an edit
+    -- there moves this panel too. The literals are the same numbers,
+    -- kept as fallbacks for a boot where the style module failed.
+    local st = _G.uiStyle or {}
+    pom.bgWork   = st.bg     or { red = 0.09, green = 0.10, blue = 0.13, alpha = 0.92 }
     pom.bgBreak  = { red = 0.55, green = 0.38, blue = 0.02, alpha = 0.94 }
-    pom.bgFlash  = { red = 1.00, green = 0.84, blue = 0.00, alpha = 0.96 }
-    pom.fgWork   = { white = 1.0, alpha = 0.97 }
+    pom.bgFlash  = st.accent or { red = 1.00, green = 0.84, blue = 0.00, alpha = 0.96 }
+    pom.fgWork   = st.fg     or { white = 1.0, alpha = 0.97 }
     pom.fgFlash  = { red = 0.10, green = 0.08, blue = 0.00, alpha = 1.0 }
 
     local function say(m)  if _G.diag then _G.diag.say("pomodoro", m)  end end
@@ -162,13 +167,16 @@ function M.setup(core)
     local function elements(label, clock, bg, fg)
         return {
             { type = "rectangle", action = "fill", fillColor = bg,
-              roundedRectRadii = { xRadius = 12, yRadius = 12 },
+              roundedRectRadii = { xRadius = st.radius or 12,
+                                   yRadius = st.radius or 12 },
               frame = { x = 0, y = 0, w = pom.width, h = pom.height } },
             { type = "text", text = label,
-              textSize = 12, textColor = fg, textAlignment = "center",
+              textSize = (st.font and st.font.label) or 12,
+              textColor = fg, textAlignment = "center",
               frame = { x = 0, y = 10, w = pom.width, h = 18 } },
             { type = "text", text = clock,
-              textSize = 40, textColor = fg, textAlignment = "center",
+              textSize = (st.font and st.font.big) or 40,
+              textColor = fg, textAlignment = "center",
               frame = { x = 0, y = 30, w = pom.width, h = 52 } },
         }
     end
