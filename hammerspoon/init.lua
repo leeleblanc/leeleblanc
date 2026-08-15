@@ -7,19 +7,14 @@
 -- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.80.0
 -- =====================================================================
 
--- NEW IN 6.80.0 — VOLUME MODULE SIMPLIFIED:
---   🗑 PER-APP VOLUME REMOVED. The 🎯/🌐 routing, the app watcher, the
---      chooser panel, and the per-machine JSON file are all gone. That
---      approximation only made sense before Vorssaint existed. Use it.
---   ✅ FOUR SYSTEM-VOLUME KEYS REMAIN:
---      ⇪.   system volume +5%   (auto-repeats while held)
---      ⇪,   system volume -5%   (auto-repeats while held)
---      ⇪⇧,  mute / unmute (whole Mac)
---      ⇪⇧.  reset to 50% — the "get back to normal" button
---   🐛 ROOT CAUSE OF "can't reset the volume": the chooser panel (⇪⇧.)
---      listed remembered per-app levels; dismissing it with Esc triggered
---      the 0.5s escape shadow, which then kept the cheat sheet open on
---      the same keypress. That entire code path no longer exists.
+-- NEW IN 6.80.0 — VOLUME MODULE REMOVED:
+--   🗑 modules/volume.lua is gone. Use Vorssaint (vorssaint/vorssaint-utils)
+--      for volume — driverless, Core Audio Process Taps, real per-app mixing,
+--      macOS 14.2+, Apple Silicon, System Audio Recording permission only.
+--      The ⇪. ⇪, ⇪⇧, ⇪⇧. keys are now free.
+--   🐛 ROOT CAUSE of "can't reset the volume": the 6.79.2 escape shadow
+--      (0.5s after any chooser closed) was triggered by the volume chooser
+--      on Esc, holding the cheat sheet open on the same keypress. Gone.
 --
 -- NEW IN 6.79.2 — THE SHORTCUTS PANEL TRULY CLOSES LAST:
 --   🐛 RACE: an hs.chooser (volume, app-switcher) dismisses itself natively
@@ -80,7 +75,7 @@
 --   🐛 And it found a second bug: engaging the dispatcher left the modal
 --      ENTERED for the session, 107 hotkeys enabled — dead weight, and a
 --      double dispatch if Carbon ever recovered.
---   🔊 modules/volume.lua (simplified in 6.80.0 — see that entry above).
+--   🔊 modules/volume.lua — removed in 6.80.0. Use Vorssaint.
 --
 -- =====================================================================
 -- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.80.0
@@ -3522,7 +3517,6 @@ local BASE = {
     "text_expander",      -- ⇪⇧T  Alfred snippets, typed anywhere
     -- 6.71.0
     "key_caster",         -- ⇪⇧K  show the shortcuts as you press them
-    "volume",             -- ⇪. ⇪, per-app volume, honestly labelled
 }
 
 -- BASE minus `without`, plus `plus`. The list is COPIED, never shared: a
