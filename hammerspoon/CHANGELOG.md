@@ -4,6 +4,21 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.80.0 — VOLUME MODULE SIMPLIFIED:
+  🗑 PER-APP VOLUME REMOVED. The 🎯/🌐 routing, app-follow watcher, chooser
+     panel, and per-machine JSON file are gone. That approximation predates
+     Vorssaint (vorssaint/vorssaint-utils), which does the real thing
+     driverlessly via Core Audio Process Taps. Use Vorssaint instead.
+  🐛 ROOT CAUSE of "can't reset the volume": the chooser panel (⇪⇧.) listed
+     remembered per-app levels. Dismissing it with Esc triggered the 0.5s
+     escape shadow from 6.79.2, which then kept the cheat sheet open on
+     the same keypress. That entire path is now gone.
+  ✅ FOUR SYSTEM-VOLUME KEYS REMAIN:
+       ⇪.    system volume +5% (auto-repeats while held)
+       ⇪,    system volume -5% (auto-repeats while held)
+       ⇪⇧,   mute / unmute (whole Mac)
+       ⇪⇧.   reset to 50% — the "get back to normal" button
+
 NEW IN 6.79.2 — THE SHORTCUTS PANEL TRULY CLOSES LAST:
   🐛 RACE: an hs.chooser (volume, app-switcher) dismisses itself natively
      on Esc before the cheat sheet's Carbon hotkey fires. By then,

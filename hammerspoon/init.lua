@@ -4,9 +4,23 @@
 -- =====================================================================
 -- 08-15-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.79.2-CLOSE-LAST
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.80.0
 -- =====================================================================
 
+-- NEW IN 6.80.0 — VOLUME MODULE SIMPLIFIED:
+--   🗑 PER-APP VOLUME REMOVED. The 🎯/🌐 routing, the app watcher, the
+--      chooser panel, and the per-machine JSON file are all gone. That
+--      approximation only made sense before Vorssaint existed. Use it.
+--   ✅ FOUR SYSTEM-VOLUME KEYS REMAIN:
+--      ⇪.   system volume +5%   (auto-repeats while held)
+--      ⇪,   system volume -5%   (auto-repeats while held)
+--      ⇪⇧,  mute / unmute (whole Mac)
+--      ⇪⇧.  reset to 50% — the "get back to normal" button
+--   🐛 ROOT CAUSE OF "can't reset the volume": the chooser panel (⇪⇧.)
+--      listed remembered per-app levels; dismissing it with Esc triggered
+--      the 0.5s escape shadow, which then kept the cheat sheet open on
+--      the same keypress. That entire code path no longer exists.
+--
 -- NEW IN 6.79.2 — THE SHORTCUTS PANEL TRULY CLOSES LAST:
 --   🐛 RACE: an hs.chooser (volume, app-switcher) dismisses itself natively
 --      on Esc — by the time the cheat sheet's Carbon hotkey fired, the
@@ -66,15 +80,10 @@
 --   🐛 And it found a second bug: engaging the dispatcher left the modal
 --      ENTERED for the session, 107 hotkeys enabled — dead weight, and a
 --      double dispatch if Carbon ever recovered.
---   🔊 modules/volume.lua — PER-APP VOLUME, HONESTLY LABELLED. macOS has
---      none: volume belongs to a DEVICE. So 🎯 APP for Music and Spotify,
---      which move their own mixer, and 🌐 SYSTEM for everything else —
---      the system volume, remembered per app and restored when you switch
---      back. The 🎯/🌐 in the alert is the entire safety story.
---      ⇪. up · ⇪, down · ⇪⇧, mute · ⇪⇧. panel. 54 checks, 16/16 mutations.
+--   🔊 modules/volume.lua (simplified in 6.80.0 — see that entry above).
 --
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.79.2
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.80.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -375,7 +384,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.79.2"
+_G.configVersion = "6.80.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
