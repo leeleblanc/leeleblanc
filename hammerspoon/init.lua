@@ -4,9 +4,13 @@
 -- =====================================================================
 -- 08-15-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.82.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.83.0
 -- =====================================================================
 
+-- NEW IN 6.83.0 — WORKSPACES REMOVED:
+--   ⇪⇧S is free again. Module used private hs.spaces APIs (specifically
+--   excluded from safe mode for that reason) — removed on user request.
+--
 -- NEW IN 6.82.0 — GRAYSCALE REMOVED:
 --   pad9 is free again. macOS does not expose a reliable programmatic
 --   interface for toggling the display grayscale filter — defaults write +
@@ -83,7 +87,7 @@
 --   🔊 modules/volume.lua — removed in 6.80.0. Use Vorssaint.
 --
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.82.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.83.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -384,7 +388,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.82.0"
+_G.configVersion = "6.83.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -3511,8 +3515,6 @@ local BASE = {
     "focus_mode", "bulk_rename",
     -- 6.55.0
     "clipboard_history",
-    -- 6.51.0
-    "workspaces",
     -- 6.65.0
     "tool_picker",        -- ⇪⇧/  search every shortcut
     "universal_actions",  -- ⇪⇧A  act on the Finder selection
@@ -3540,7 +3542,7 @@ local function profileFrom(opts)
 end
 
 -- ✏️ EACH PROFILE NOW SAYS ONLY WHAT MAKES IT DIFFERENT.
---      without = { "workspaces" }   -- do not load this one here
+--      without = { "pomodoro" }      -- do not load this one here
 --      plus    = { "something" }    -- load an extra one here
 --      settings = { … }             -- per-machine config overrides
 _G.moduleProfiles = {
@@ -3805,12 +3807,6 @@ end
 --     in safe mode none of them is running.
 --
 -- 🚨 SPECIFICALLY EXCLUDED, and named so this is not a mystery:
---   · workspaces — the only module using hs.spaces, which drives PRIVATE
---     macOS Spaces APIs. Private APIs are exactly what breaks on a new
---     macOS release, and when they break they can wedge Mission Control
---     and the trackpad gestures that open it. That state survives
---     Hammerspoon being killed, because what is stuck is the Dock, not
---     us. `killall Dock` clears it.
 --   · everything AppleScript-adjacent (bulk_rename, universal_actions,
 --     outlook_probe) — see the 🚨 on ocrWriteFinderComment above.
 --   · copy_on_select, menubar_items, app_watcher, file_tracker — all

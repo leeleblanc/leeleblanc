@@ -4,6 +4,10 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.83.0 — WORKSPACES REMOVED:
+  ⇪⇧S is free again. Module used private hs.spaces APIs — removed on
+  user request. Use macOS native Mission Control Spaces directly.
+
 NEW IN 6.82.0 — GRAYSCALE REMOVED:
   pad9 is free again. macOS does not expose a reliable programmatic
   interface for toggling the display grayscale filter — defaults write +
