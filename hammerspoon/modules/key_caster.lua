@@ -77,7 +77,7 @@ local M = {
             { "shows",   "Shortcuts only — ⌘⌃⌥fn⇪ combos, ⎋ ⇥ ⏎ arrows, F-keys" },
             { "hides",   "Plain typing, and ⇧+letter (that is a capital)" },
             { "all keys", "_G.keyCastTyping(true) — show typing too, for a demo" },
-            { "where",   "Left edge, vertically centred, grows right as you type" },
+            { "where",   "Right edge, vertically centred, fixed 400×600, font fills" },
             { "drag",    "Move it anywhere; it stays there for the session" },
             { "stays",   "Up while you keep pressing, fades after you stop" },
             { "never",   "Nothing you type is logged anywhere — see the header" },
@@ -109,13 +109,14 @@ function M.setup(core)
     kc.fadeSecs     = 0.15      -- fast fade
     kc.repeatWindow = 0.9       -- same combo inside this becomes "×2"
     kc.dedupeWindow = 0.06      -- one press, two events (see the ⇪ note)
-    -- Type. Sans serif at 28pt.
+    -- Type. Sans serif, auto-sized to fill the fixed panel.
     kc.font         = "Helvetica Neue"
-    kc.fontSize     = 28
-    kc.lineH        = 44        -- single horizontal row
-    kc.padX, kc.padY = 20, 14
-    kc.separator    = "   "     -- gap between key combos in the row
-    kc.marginLeft   = 28        -- gap from the left edge of the screen
+    kc.fixedW       = 400       -- fixed panel width
+    kc.fixedH       = 600       -- fixed panel height
+    kc.padX, kc.padY = 20, 20
+    kc.lineH        = math.floor((kc.fixedH - kc.padY * 2) / kc.maxLines)
+    kc.fontSize     = math.floor(kc.lineH * 0.74)
+    kc.marginRight  = 28        -- gap from the right edge of the screen
     kc.radius       = 12
     -- Nearly black, with a shadow around the perimeter so it floats.
     kc.bg           = { red = 0.04, green = 0.04, blue = 0.05, alpha = 0.93 }
@@ -164,6 +165,18 @@ function M.setup(core)
     -- correction would be unusable. ⌘⌫ and ⌥⌫ still show, because those
     -- carry a modifier and go through the normal rule.
 
+    -- Text labels for the display — modifier names and special-key names,
+    -- joined with "+" so the panel reads like a menu item label.
+    local KEY_TEXT = {
+        ["escape"] = "escape", ["tab"] = "tab", ["return"] = "return",
+        ["padenter"] = "enter", ["delete"] = "delete",
+        ["forwarddelete"] = "fwd-del", ["space"] = "space",
+        ["up"] = "up", ["down"] = "down", ["left"] = "left", ["right"] = "right",
+        ["home"] = "home", ["end"] = "end", ["pageup"] = "page-up",
+        ["pagedown"] = "page-down", ["help"] = "help",
+        ["clear"] = "clear", ["padclear"] = "clear",
+    }
+
     local function isFKey(name)
         return name:match("^f%d+$") ~= nil
     end
@@ -206,21 +219,21 @@ function M.setup(core)
         if not worthy then return nil end
 
         local out = {}
-        if hyper then out[#out + 1] = "⇪" end
+        if hyper then out[#out + 1] = "hyper" end
         if fn    then out[#out + 1] = "fn" end
-        if ctrl  then out[#out + 1] = "⌃" end
-        if alt   then out[#out + 1] = "⌥" end
-        if shift then out[#out + 1] = "⇧" end
-        if cmd   then out[#out + 1] = "⌘" end
+        if ctrl  then out[#out + 1] = "ctrl" end
+        if alt   then out[#out + 1] = "opt" end
+        if shift then out[#out + 1] = "shift" end
+        if cmd   then out[#out + 1] = "cmd" end
 
-        local label = GLYPH[name]
+        local label = KEY_TEXT[name]
         if not label then
             if isFKey(name) then label = name:upper()
-            elseif #name == 1 then label = name:upper()
-            else label = name:sub(1, 1):upper() .. name:sub(2) end
+            elseif #name == 1 then label = name
+            else label = name end
         end
         out[#out + 1] = label
-        return table.concat(out)
+        return table.concat(out, "+")
     end
 
     -- ---- the panel -------------------------------------------------------
@@ -233,19 +246,7 @@ function M.setup(core)
         pcall(function() f = scr:frame() end)
         if not f then return nil end
 
-        -- Width from all combos joined into one horizontal string.
-        local sep = kc.separator or "   "
-        local parts = {}
-        for _, l in ipairs(kc.lines) do
-            local t = l.text
-            if l.count > 1 then t = t .. " ×" .. l.count end
-            parts[#parts + 1] = t
-        end
-        local joined = table.concat(parts, sep)
-        local nchars = (utf8 and utf8.len(joined)) or #joined
-        local w = math.max(80, nchars * (kc.fontSize * 0.72) + kc.padX * 2)
-        w = math.min(w, f.w - kc.marginLeft - 28)   -- never wider than the screen
-        local h = kc.lineH + kc.padY * 2
+        local w, h = kc.fixedW, kc.fixedH
 
         -- The canvas is bigger than the box so the SHADOW is not clipped.
         -- A shadow drawn to the edge of its own canvas is a grey stripe.
@@ -257,11 +258,11 @@ function M.setup(core)
             return { x = p.x, y = p.y, w = w + pad * 2, h = h + pad * 2 },
                    w, h, pad
         end
-        -- 📍 LEFT EDGE, VERTICALLY CENTRED — starts from the left and grows
-        -- right as key combos accumulate. Follows the screen holding the
-        -- front window, so it moves with you between monitors and Spaces.
+        -- 📍 RIGHT EDGE, VERTICALLY CENTRED — fixed 400×600 panel, on the
+        -- screen holding the front window, so it follows you between
+        -- monitors and Spaces.
         return {
-            x = f.x + kc.marginLeft - pad,
+            x = f.x + f.w - w - kc.marginRight - pad,
             y = f.y + (f.h - h) / 2 - pad,
             w = w + pad * 2, h = h + pad * 2,
         }, w, h, pad
@@ -285,23 +286,22 @@ function M.setup(core)
                 },
             },
         }
-        -- All key combos in a single horizontal row, left to right.
-        local sep = kc.separator or "   "
-        local parts = {}
-        for _, l in ipairs(kc.lines) do
-            local t = l.text
-            if l.count > 1 then t = t .. " ×" .. l.count end
-            parts[#parts + 1] = t
+        for i, l in ipairs(kc.lines) do
+            local text = l.text
+            if l.count > 1 then text = text .. "  ×" .. l.count end
+            -- Newest line is bright; older ones recede so your eye lands on
+            -- what you just pressed without the panel flashing.
+            local newest = (i == #kc.lines)
+            els[#els + 1] = {
+                type = "text", text = text,
+                textFont = kc.font, textSize = kc.fontSize,
+                textColor = newest and kc.fg or kc.fgDim,
+                textAlignment = "right",
+                frame = { x = pad + kc.padX * 0.5,
+                          y = pad + kc.padY + (i - 1) * kc.lineH,
+                          w = w - kc.padX, h = kc.lineH },
+            }
         end
-        els[#els + 1] = {
-            type = "text", text = table.concat(parts, sep),
-            textFont = kc.font, textSize = kc.fontSize,
-            textColor = kc.fg,
-            textAlignment = "left",
-            frame = { x = pad + kc.padX,
-                      y = pad + kc.padY,
-                      w = w - kc.padX * 2, h = kc.lineH },
-        }
         return els
     end
 
@@ -444,13 +444,13 @@ function M.setup(core)
             if not kc.showBareModifiers then return false end
             local f = ev:getFlags() or {}
             local names = {}
-            if hyper   then names[#names + 1] = "⇪" end
+            if hyper   then names[#names + 1] = "hyper" end
             if f.fn    then names[#names + 1] = "fn" end
-            if f.ctrl  then names[#names + 1] = "⌃" end
-            if f.alt   then names[#names + 1] = "⌥" end
-            if f.shift then names[#names + 1] = "⇧" end
-            if f.cmd   then names[#names + 1] = "⌘" end
-            if #names > 0 then kc.push(table.concat(names)) end
+            if f.ctrl  then names[#names + 1] = "ctrl" end
+            if f.alt   then names[#names + 1] = "opt" end
+            if f.shift then names[#names + 1] = "shift" end
+            if f.cmd   then names[#names + 1] = "cmd" end
+            if #names > 0 then kc.push(table.concat(names, "+")) end
             return false
         end
 

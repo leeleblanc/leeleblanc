@@ -4,16 +4,20 @@
 -- =====================================================================
 -- 08-15-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.84.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.85.0
 -- =====================================================================
 
+-- NEW IN 6.85.0 — KEY CASTER TEXT LABELS + RIGHT-SIDE VERTICAL PANEL:
+--   Panel reverts to vertical stacking (one line per combo, newest at
+--   bottom, older lines dimmed). Fixed 400×600, right-anchored, font
+--   auto-computed to fill the box (lineH=93 → fontSize=68). Key labels
+--   now use plain text joined with "+": cmd+x, shift+tab, hyper+x,
+--   fn+F3 — no Unicode glyphs. Bare letters/numbers still suppressed.
+--
 -- NEW IN 6.84.0 — KEY CASTER HORIZONTAL LAYOUT:
---   Panel now displays key combos in a single horizontal row (left to right)
---   instead of stacking them vertically. Box anchors to the left edge of the
---   screen and grows rightward as combos accumulate. Font bumped 20→28pt.
---   Hold time extended 2.5→7 s; fade is now quick (0.35→0.15 s). Single
---   letters and numbers alone are still suppressed; hyper combos with any
---   key (including letters/numbers) still show as ⇪+key.
+--   Panel now displays key combos in a single horizontal row (left to
+--   right). Box anchored left; grows right as combos accumulate. Font
+--   bumped 20→28pt. Hold time 2.5→7 s; fade 0.35→0.15 s.
 --
 -- NEW IN 6.83.2 — KEY CASTER FIXED SIZE:
 --   Panel is now fixed at 270×134 (kc.fixedW / kc.fixedH). Set either
@@ -30,13 +34,8 @@
 --   ⇪⇧S is free again. Module used private hs.spaces APIs (specifically
 --   excluded from safe mode for that reason) — removed on user request.
 --
--- NEW IN 6.82.0 — GRAYSCALE REMOVED:
---   pad9 is free again. macOS does not expose a reliable programmatic
---   interface for toggling the display grayscale filter — defaults write +
---   launchctl, killall, and osascript all failed or errored in practice.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.84.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.85.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -337,7 +336,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.84.0"
+_G.configVersion = "6.85.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

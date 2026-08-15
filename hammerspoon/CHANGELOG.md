@@ -4,6 +4,13 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.85.0 — KEY CASTER TEXT LABELS + RIGHT-SIDE VERTICAL PANEL:
+  Panel reverts to vertical stacking (one line per combo, newest at bottom,
+  older lines dimmed). Fixed 400×600, right-anchored, font auto-computed to
+  fill the box (lineH=93 → fontSize=68). Key labels now use plain text joined
+  with "+": cmd+x, shift+tab, hyper+x, fn+F3 — no Unicode glyphs.
+  Bare letters/numbers alone still suppressed.
+
 NEW IN 6.84.0 — KEY CASTER HORIZONTAL LAYOUT:
   Panel now displays key combos in a single horizontal row (left→right)
   instead of stacking vertically. Box anchors to the left screen edge and

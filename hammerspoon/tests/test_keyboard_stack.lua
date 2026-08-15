@@ -430,7 +430,7 @@ check("🚨 AN INJECTED ⌘V IS NOT DRAWN. It is the one injected keystroke "
 kc.lines = {}
 hs.eventtap.keyStroke({ "cmd" }, "v", 0)     -- the same chord, from you
 check("...but the same chord pressed by YOU is drawn", #kc.lines == 1
-      and kc.lines[1].text == "⌘V", kc.lines[1] and kc.lines[1].text)
+      and kc.lines[1].text == "cmd+v", kc.lines[1] and kc.lines[1].text)
 
 out("\n  2b. and the reset is genuinely two-way\n")
 check("the expander exposes a reset for autocorrect to call",
@@ -472,7 +472,7 @@ kc.lines = {}
 _G.expanderResetBuffer()
 local consumed = press("x", { cmd = true })
 check("a real shortcut is drawn by the caster", #kc.lines == 1
-      and kc.lines[1].text == "⌘X", kc.lines[1] and kc.lines[1].text)
+      and kc.lines[1].text == "cmd+x", kc.lines[1] and kc.lines[1].text)
 check("🚨 AND NOTHING CONSUMED IT — the caster returns false and neither "
    .. "of the other two claims a plain ⌘X", consumed == nil, consumed)
 
@@ -527,7 +527,7 @@ check("🚨 WITH THE EXPANDER OFF, AUTOCORRECT STILL WORKS",
 kc.lines = {}
 press("x", { cmd = true })
 check("...and the caster still draws a real shortcut", #kc.lines == 1
-      and kc.lines[1].text == "⌘X", kc.lines[1] and kc.lines[1].text)
+      and kc.lines[1].text == "cmd+x", kc.lines[1] and kc.lines[1].text)
 exp.enabled = true
 
 TYPED, DELETES, TIMERS = {}, 0, {}

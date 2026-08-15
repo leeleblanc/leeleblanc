@@ -225,33 +225,33 @@ check("🚨 ⇧ + A LETTER IS A CAPITAL, NOT A SHORTCUT — the single rule that
    .. "keeps your sentence off the side of the screen",
   key("a", { shift = true }) == false and #kc.lines == 0, lastLine())
 reset()
-check("⌘X earns a line", (function() key("x", { cmd = true }); return lastLine() end)() == "⌘X",
+check("cmd+x earns a line", (function() key("x", { cmd = true }); return lastLine() end)() == "cmd+x",
   lastLine())
 reset(); key("x", { cmd = true, shift = true })
-check("⌘⇧X too", lastLine() == "⇧⌘X", lastLine())
+check("shift+cmd+x too", lastLine() == "shift+cmd+x", lastLine())
 reset(); key("x", { ctrl = true, alt = true })
-check("⌃⌥X too", lastLine() == "⌃⌥X", lastLine())
+check("ctrl+opt+x too", lastLine() == "ctrl+opt+x", lastLine())
 reset(); key("escape", {})
-check("a bare ⎋ earns one — it is a shortcut with no modifier",
-  lastLine() == "⎋", lastLine())
+check("a bare escape earns one — it is a shortcut with no modifier",
+  lastLine() == "escape", lastLine())
 reset(); key("tab", {})
-check("bare ⇥ too", lastLine() == "⇥", lastLine())
+check("bare tab too", lastLine() == "tab", lastLine())
 reset(); key("up", {})
-check("bare arrows too", lastLine() == "↑", lastLine())
+check("bare arrows too", lastLine() == "up", lastLine())
 reset(); key("f3", {})
 check("a bare F-key too", lastLine() == "F3", lastLine())
 reset(); key("f3", { fn = true })
-check("fn + F-key, which is what the fn key is FOR", lastLine() == "fnF3",
+check("fn + F-key, which is what the fn key is FOR", lastLine() == "fn+F3",
   lastLine())
 reset(); key("tab", { shift = true })
-check("⇧⇥ earns one — ⇧ counts against a NON-typing key", lastLine() == "⇧⇥",
+check("shift+tab earns one — shift counts against a NON-typing key", lastLine() == "shift+tab",
   lastLine())
 reset()
 check("🚨 BACKSPACE ALONE DOES NOT. It is part of typing — you press it "
    .. "constantly — and a panel that lit up on every correction would be "
    .. "unusable", key("delete", {}) == false and #kc.lines == 0, lastLine())
 reset(); key("delete", { cmd = true })
-check("...but ⌘⌫ does, because it carries a modifier", lastLine() == "⌘⌫",
+check("...but cmd+delete does, because it carries a modifier", lastLine() == "cmd+delete",
   lastLine())
 reset()
 check("space alone does not", key("space", {}) == false and #kc.lines == 0)
@@ -260,9 +260,9 @@ out("\n  3b. the ⌨️ switch, for when you DO want everything\n")
 reset(); kc.showTyping = true
 key("a", {})
 check("_G.keyCastTyping(true) shows plain typing as well",
-  lastLine() == "A", lastLine())
+  lastLine() == "a", lastLine())
 key("b", { shift = true })
-check("...capitals included", lastLine() == "⇧B", lastLine())
+check("...capitals included", lastLine() == "shift+b", lastLine())
 kc.showTyping = false
 check("the Console switch really flips it", (function()
     _G.keyCastTyping(true);  local a = kc.showTyping
@@ -274,14 +274,14 @@ out("\n=== 4. ⇪ — the key that is invisible from outside ===\n")
 reset()
 _G.hyperActive = true
 key("x", { cmd = true, shift = true, ctrl = true, alt = true })
-check("🚨 WHILE ⇪ IS HELD, THE SYNTHETIC ⌘⇧⌃⌥ CHORD IS RENDERED AS ⇪. "
-   .. "Drawing '⌘⇧⌃⌥X' for a key you experienced as '⇪X' is accurate and "
-   .. "useless", lastLine() == "⇪X", lastLine())
+check("🚨 WHILE ⇪ IS HELD, THE SYNTHETIC ⌘⇧⌃⌥ CHORD IS RENDERED AS hyper. "
+   .. "Drawing 'cmd+shift+ctrl+opt+x' for a key you experienced as 'hyper+x' "
+   .. "is accurate and useless", lastLine() == "hyper+x", lastLine())
 reset()
 _G.hyperActive = true
 key("x", {})
 check("...and a claimed hyper key, which carries no modifiers at all, is "
-   .. "still ⇪X", lastLine() == "⇪X", lastLine())
+   .. "still hyper+x", lastLine() == "hyper+x", lastLine())
 reset()
 check("🚨 F18 ITSELF IS NEVER DRAWN — you did not press 'F18', you pressed "
    .. "Caps Lock, and the config remapped it",
@@ -292,16 +292,16 @@ reset()
 _G.hyperActive = false
 kc.f18Down = true
 key("x", {})
-check("...and that fallback really labels it ⇪", lastLine() == "⇪X", lastLine())
+check("...and that fallback really labels it hyper+x", lastLine() == "hyper+x", lastLine())
 
 -- =====================================================================
 out("\n=== 5. The panel: where it is, and what it looks like ===\n")
 reset(); key("escape", {})
 local c = CANVASES[#CANVASES]
 check("it drew", c ~= nil and c.shown == true)
-check("📍 LEFT-JUSTIFIED — its left edge is near the screen's left, not in "
-   .. "the middle", (function()
-    return c.frame_.x >= 0 and c.frame_.x < 80, c.frame_.x
+check("📍 RIGHT-JUSTIFIED — its right edge is near the screen's right, not "
+   .. "in the middle", (function()
+    return c.frame_.x > SCREEN.w - kc.fixedW - 100, c.frame_.x
   end)(), c and c.frame_.x)
 check("📍 VERTICALLY CENTRED", (function()
     local mid = c.frame_.y + c.frame_.h / 2
@@ -333,10 +333,10 @@ check("🚨 THE CANVAS IS BIGGER THAN THE BOX, or the shadow is clipped to "
 local txt = (function()
     for _, e in ipairs(c.elements) do if e.type == "text" then return e end end
   end)()
-check("the text is 28px", txt and txt.textSize == 28, txt and txt.textSize)
+check("the font fills the box — auto-sized to lineH", txt and txt.textSize == kc.fontSize, txt and txt.textSize)
 check("...in a sans-serif face", txt and txt.textFont == "Helvetica Neue",
       txt and txt.textFont)
-check("...left-aligned inside the box", txt and txt.textAlignment == "left")
+check("...right-aligned inside the box", txt and txt.textAlignment == "right")
 check("it draws over full-screen apps and on every Space", (function()
     local b = {}
     for _, x in ipairs(c.behaviour or {}) do b[x] = true end
@@ -348,25 +348,29 @@ check("🪟 it sits ABOVE the cheat sheet — a panel that shows what you just "
    and _G.panelLevel("keycaster") > _G.panelLevel("cheatsheet"),
    c.level_)
 
-out("\n  5b. horizontal layout\n")
-check("🔲 all combos share ONE text element — not stacked vertically",
-  (function()
-    local cnt = 0
-    for _, e in ipairs(c.elements) do if e.type == "text" then cnt = cnt + 1 end end
-    return cnt == 1, cnt
-  end)())
-check("multiple combos appear together in one horizontal row",
+out("\n  5b. vertical stacking\n")
+check("🔲 each combo gets its OWN text element — stacked vertically",
   (function()
     reset(); key("escape", {}); NOW = NOW + 1; key("tab", {})
-    local el
+    local cnt = 0
     for _, e in ipairs(CANVASES[#CANVASES].elements) do
-      if e.type == "text" then el = e; break end
+      if e.type == "text" then cnt = cnt + 1 end
     end
-    return el ~= nil and el.text:find("⎋", 1, true) ~= nil
-                     and el.text:find("⇥", 1, true) ~= nil, el and el.text
+    return cnt == 2, cnt
+  end)())
+check("the newest line is brighter than the previous ones",
+  (function()
+    local els = CANVASES[#CANVASES].elements
+    local texts = {}
+    for _, e in ipairs(els) do if e.type == "text" then texts[#texts + 1] = e end end
+    if #texts < 2 then return false, "only " .. #texts .. " text elements" end
+    local oldest = texts[#texts - 1]
+    local newest = texts[#texts]
+    return newest.textColor.alpha > oldest.textColor.alpha,
+           "newest=" .. newest.textColor.alpha .. " oldest=" .. oldest.textColor.alpha
   end)())
 
-out("\n  5c. dragging\n")
+out("\n  5b. dragging\n")
 local reg = DRAGGABLE[#DRAGGABLE]
 check("it registers itself as draggable", reg and reg.label == "key caster",
       reg and reg.label)
@@ -421,14 +425,14 @@ key("x", { cmd = true })
 key("x", { cmd = true }, nil, true)
 key("x", { cmd = true }, nil, true)
 check("three of the same combo is one line with a count, not three rows",
-      #kc.lines == 1 and lastLine() == "⌘X×3", table.concat(lines(), " "))
+      #kc.lines == 1 and lastLine() == "cmd+x×3", table.concat(lines(), " "))
 check("🚨 AND A NON-REPEAT DOUBLE EVENT IS STILL COLLAPSED — the dedupe "
    .. "did not simply get switched off to make the count work",
    (function()
       reset(); _G.hyperActive = true
       key("x", { cmd = true, ctrl = true, alt = true, shift = true })
       key("x", {})
-      return #kc.lines == 1 and lastLine() == "⇪X"
+      return #kc.lines == 1 and lastLine() == "hyper+x"
    end)(), table.concat(lines(), " "))
 reset()
 key("x", { cmd = true })
@@ -468,7 +472,7 @@ check("🚨 IT STANDS DOWN FOR THE SHARED INJECTION GUARD. The expander's "
 _G.injectDepth = 0
 key("x", { cmd = true })
 check("...and your next real keystroke is drawn normally",
-      lastLine() == "⌘X", lastLine())
+      lastLine() == "cmd+x", lastLine())
 
 -- =====================================================================
 out("\n=== 8. 🛟 It fails without taking anything else with it ===\n")
