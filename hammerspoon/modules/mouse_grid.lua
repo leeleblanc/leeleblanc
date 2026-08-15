@@ -705,7 +705,11 @@ function M.setup(core)
                     or (hs.canvas.windowLevels or {}).overlay)
         end)
         pcall(function() c:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" }) end)
-        c:show()
+        -- 6.88.0 — the LAST bare canvas:show() in the config, found the
+        -- hard way: LL's Console caught the NSRemoteView throw killing a
+        -- whole hotkey callback. Through showCanvasSafely like the rest.
+        if _G.showCanvasSafely then _G.showCanvasSafely(c, "grid crosshair")
+        else pcall(function() c:show() end) end
         grid.cross = c
         return true
     end

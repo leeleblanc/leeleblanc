@@ -133,6 +133,9 @@ check("cheat sheet group present with a title", type(M.cheatsheet) == "table"
 check("edited files land NEXT TO the original",
       E.editedPathFor("/x/Shot.png") == "/x/Shot (edited).png",
       E.editedPathFor("/x/Shot.png"))
+check("…as .jpg when the small-JPEG save asks for it",
+      E.editedPathFor("/x/Shot.png", "jpg") == "/x/Shot (edited).jpg",
+      E.editedPathFor("/x/Shot.png", "jpg"))
 
 -- =====================================================================
 out("2. open — the image travels INTO the page\n")
@@ -152,6 +155,10 @@ check("the page carries the blur core the node suite executes",
 check("…and the undo stack", LAST_HTML:find("undoStack", 1, true) ~= nil)
 check("…and the ⌘Z / ⌘⏎ / esc key handlers", LAST_HTML:find("'Escape'", 1, true) ~= nil
       and LAST_HTML:find("'Enter'", 1, true) ~= nil)
+check("…and the text/arrow tools the node suite drives (6.88.0)",
+      LAST_HTML:find("function drawNote", 1, true) ~= nil
+      and LAST_HTML:find("function setTool", 1, true) ~= nil
+      and LAST_HTML:find("'arrow'", 1, true) ~= nil)
 
 -- =====================================================================
 out("3. save — an edited copy, never the original\n")
@@ -175,6 +182,15 @@ E.open(SRC)
 BRIDGE({ body = { a = "save", data = "data:image/png;base64,EDIT2" } })
 check("a second edit becomes “… (edited 2).png”",
       WRITTEN["/od/2026 Screenshots/Screenshot demo (edited 2).png"] ~= nil)
+
+-- the "Small JPEG" path (6.88.0): same rules, .jpg extension
+E.open(SRC)
+BRIDGE({ body = { a = "save", data = "data:image/jpeg;base64,EDITJPG", ext = "jpg" } })
+check("a JPEG save writes “… (edited).jpg” next to the original",
+      WRITTEN["/od/2026 Screenshots/Screenshot demo (edited).jpg"]
+      == "DECODED<EDITJPG>",
+      WRITTEN["/od/2026 Screenshots/Screenshot demo (edited).jpg"])
+check("🚨 …and the ORIGINAL is still untouched", WRITTEN[SRC] == nil)
 
 -- =====================================================================
 out("4. cancel & bad input\n")

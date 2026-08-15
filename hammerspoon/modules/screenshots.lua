@@ -16,10 +16,16 @@
 --
 -- ⇪⇧4 opens the SCREENSHOT PANEL (6.87.0): seven capture actions on
 -- top (⌘1–⌘7 jump straight to one), your history below — newest first,
--- each row with a thumbnail. On a history row: ⏎ puts the image back
--- on the clipboard, ⌘⏎ copies its file PATH (which is exactly what the
--- Task Form's 📎 field wants), ⌥⏎ opens it in the blur EDITOR
--- (modules/screenshot_editor.lua).
+-- each row with a thumbnail. TYPING SEARCHES (6.88.0): the moment the
+-- query is non-empty the action rows step aside and every matching
+-- screenshot is listed — filename, date and size all match, so "aug 13"
+-- or "edited" or "1.2 MB" each work. Backspace to empty brings the
+-- actions back. On a history row: ⏎ puts the image back on the
+-- clipboard, ⌘⏎ copies its file PATH (which is exactly what the Task
+-- Form's 📎 field wants), ⌥⏎ opens it in the EDITOR
+-- (modules/screenshot_editor.lua), and ⌃⏎ COMPRESSES it — sips (the
+-- macOS image tool) writes a "… (compressed).jpg" next to the original
+-- and puts THAT on the clipboard; the PNG stays untouched.
 --
 --   1 · Capture area          native crosshair, like ⇪4
 --   2 · Scrolling capture     EXPERIMENTAL — see the honest note below
@@ -82,9 +88,11 @@ local M = {
             { "⇪4",   "Instant capture: crosshair · SPACE = window · Esc = cancel" },
             { "",     "saves to OneDrive/2026 Screenshots + copies to clipboard" },
             { "⇪⇧4",  "Panel: 7 capture actions (⌘1–⌘7) + history below" },
-            { "⌘1–7", "area · scrolling · text/QR · blur newest · repeat · window · 10s" },
+            { "⌘1–7", "area · scrolling · text/QR · edit newest · repeat · window · 10s" },
+            { "type",  "search the history — actions step aside while you type" },
             { "⏎",    "history row: image on clipboard · ⌘⏎ its file PATH" },
-            { "⌥⏎",   "history row: open in the blur editor" },
+            { "⌥⏎",   "history row: open in the editor (blur/text/arrows)" },
+            { "⌃⏎",   "history row: compress to “… (compressed).jpg” + clipboard" },
         },
     },
 }
@@ -98,8 +106,10 @@ function M.setup(core)
     shots.dir       = (core.homeDir or os.getenv("HOME") or "")
                       .. "/Library/CloudStorage/OneDrive-Personal/2026 Screenshots"
     shots.maxList   = 30      -- newest N screenshots shown in the panel
+    shots.historyRows = 8     -- history rows VISIBLE below the 7 actions
     shots.thumbH    = 72      -- thumbnail height in panel rows, pixels
     shots.alertSecs = 2.0
+    shots.jpegQuality = 70    -- ⌃⏎ compress: sips jpeg formatOptions 0–100
     -- captures started from the ⇪⇧4 panel open the blur editor when done;
     -- ⇪4 never does (it is the fast path)
     shots.editAfterMenu = true
@@ -678,6 +688,72 @@ function M.setup(core)
         return string.format("%d KB", math.max(1, math.floor(bytes / 1024)))
     end
 
+    -- ---- ⌃⏎ compress (6.88.0) --------------------------------------------
+    -- LL: "Can you give me an option to compress an image file if I want
+    -- to?" — sips ships with macOS and re-encodes a PNG screenshot as a
+    -- JPEG at a fraction of the size (screenshots compress spectacularly:
+    -- flat color, hard edges). The original is NEVER touched; the small
+    -- copy lands next to it and on the clipboard, ready to paste where a
+    -- 3 MB PNG would be rude.
+    function shots.compressedPathFor(path)
+        local stem = path:gsub("%.%w+$", "")
+        local candidate = stem .. " (compressed).jpg"
+        local exists
+        pcall(function() exists = hs.fs.attributes(candidate, "size") end)
+        if not exists then return candidate end
+        for n = 2, 99 do
+            local p = stem .. (" (compressed %d).jpg"):format(n)
+            local e
+            pcall(function() e = hs.fs.attributes(p, "size") end)
+            if not e then return p end
+        end
+        return candidate
+    end
+
+    function shots.compressFile(path)
+        local origSz = 0
+        pcall(function() origSz = hs.fs.attributes(path, "size") or 0 end)
+        local outPath = shots.compressedPathFor(path)
+        local t
+        local ok = pcall(function()
+            t = hs.task.new("/usr/bin/sips", function(code)
+                shots.sipsTask = nil
+                local newSz
+                pcall(function() newSz = hs.fs.attributes(outPath, "size") end)
+                if code == 0 and newSz and newSz > 0 then
+                    local copied = false
+                    pcall(function()
+                        local img = hs.image.imageFromPath(outPath)
+                        if img then
+                            copied = hs.pasteboard.writeObjects(img) and true
+                        end
+                    end)
+                    pcall(function()
+                        hs.alert.show(("🗜 %s → %s%s"):format(
+                            prettySize(origSz), prettySize(newSz),
+                            copied and " · on the clipboard" or ""), 3)
+                    end)
+                    say(("compressed %s → %s"):format(prettySize(origSz),
+                                                      prettySize(newSz)))
+                else
+                    pcall(function()
+                        hs.alert.show("🗜 Compression failed — could not re-encode "
+                                      .. (path:match("[^/]+$") or path), 4)
+                    end)
+                    warn("sips failed on " .. path)
+                end
+            end, { "-s", "format", "jpeg",
+                   "-s", "formatOptions", tostring(shots.jpegQuality),
+                   path, "--out", outPath })
+            t:start()
+        end)
+        if ok and t then
+            shots.sipsTask = t   -- HELD: an unreferenced hs.task is collected
+        else
+            pcall(function() hs.alert.show("🗜 sips unavailable", 3) end)
+        end
+    end
+
     -- ---- the ⇪⇧4 panel: seven actions, then history ----------------------
     -- hs.chooser numbers its first rows ⌘1–⌘9 natively, which is why the
     -- actions sit on top: ⌘3 IS "recognize text", no arrowing needed.
@@ -737,7 +813,7 @@ function M.setup(core)
                 text    = e.name,
                 subText = os.date("%b %d %Y  %H:%M", e.mtime)
                           .. "  ·  " .. prettySize(e.size)
-                          .. "  ·  ⏎ image · ⌘⏎ path · ⌥⏎ blur/edit",
+                          .. "  ·  ⏎ image · ⌘⏎ path · ⌥⏎ edit · ⌃⏎ jpg",
                 path    = e.path,
             }
         end
@@ -759,9 +835,13 @@ function M.setup(core)
         if not choice.path then return end
         -- hs.chooser reports nothing about modifiers, but the keyboard
         -- state at selection time is readable — same trick the window
-        -- switcher uses. ⌘⏎ = the PATH, ⌥⏎ = the blur editor.
+        -- switcher uses. ⌘⏎ = the PATH, ⌥⏎ = the editor, ⌃⏎ = compress.
         local mods = {}
         pcall(function() mods = hs.eventtap.checkKeyboardModifiers() or {} end)
+        if mods.ctrl then
+            shots.compressFile(choice.path)
+            return
+        end
         if mods.cmd then
             local ok = false
             pcall(function() ok = hs.pasteboard.setContents(choice.path) end)
@@ -792,6 +872,29 @@ function M.setup(core)
         end)
     end
 
+    -- 6.88.0 — LL: "I can't tell if I can search the window." Typing now
+    -- ANSWERS that: the query filters the HISTORY (name + date + size all
+    -- match), and the seven action rows step aside while a query is live
+    -- so the matches are all you see. Empty query = actions + history.
+    function shots.filterChoices(query)
+        query = tostring(query or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+        local all = shots.allChoices or {}
+        if query == "" then return all end
+        local out = {}
+        for _, c in ipairs(all) do
+            if c.path then
+                local hay = (tostring(c.text or "") .. " "
+                             .. tostring(c.subText or "")):lower()
+                if hay:find(query, 1, true) then out[#out + 1] = c end
+            end
+        end
+        if #out == 0 then
+            out[1] = { text = "No screenshots match “" .. query .. "”",
+                       subText = "⌫ clears the search — the actions come back" }
+        end
+        return out
+    end
+
     function shots.show()
         if not shots.chooser then
             local ok = pcall(function()
@@ -805,7 +908,17 @@ function M.setup(core)
                 return
             end
             pcall(function()
-                shots.chooser:placeholderText("Capture action, or search screenshots…")
+                shots.chooser:placeholderText(
+                    "Type to search screenshots · ⌘1–⌘7 capture actions")
+            end)
+            pcall(function()
+                shots.chooser:queryChangedCallback(function(q)
+                    -- per-keystroke callback: guarded like an eventtap —
+                    -- an error in here would repeat on every character
+                    pcall(function()
+                        shots.chooser:choices(shots.filterChoices(q))
+                    end)
+                end)
             end)
         end
         local list = shots.list()
@@ -821,6 +934,15 @@ function M.setup(core)
                 if mt then c.image = thumbFor(mt) end
             end
         end
+        shots.allChoices = choices   -- what the search filter works over
+        -- 6.88.0 — LL: "I don't see the image history." The default
+        -- chooser height is 10 rows and the 7 actions ate 7 of them; the
+        -- history was there but below the fold. Tall enough now that the
+        -- actions AND a screenful of history are visible at once.
+        pcall(function()
+            local hist = math.max(1, math.min(#list, shots.historyRows))
+            shots.chooser:rows(7 + hist)
+        end)
         pcall(function() shots.chooser:choices(choices) end)
         if core.showPopup then
             core.showPopup(shots.chooser)

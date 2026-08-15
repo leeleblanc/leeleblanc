@@ -4,9 +4,16 @@
 -- =====================================================================
 -- 08-15-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.87.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.88.0
 -- =====================================================================
 
+-- NEW IN 6.88.0 — EDITOR TOOLS + PANEL SEARCH + COMPRESS:
+--   Editor: TEXT boxes (white text, white outline; drag to move) and
+--   ARROWS (drag an end = stretch/rotate) join the blur; ⌘⇧⏎ saves a
+--   small JPEG. Panel: history now visible UNDER the 7 actions, typing
+--   SEARCHES it, ⌃⏎ compresses a row to jpg via sips. hs.alert + one
+--   bare canvas show hardened against the Safari NSRemoteView throw.
+--
 -- NEW IN 6.87.0 — SCREENSHOT PANEL + BLUR EDITOR:
 --   ⇪⇧4 is now a PANEL: 7 capture actions (⌘1–⌘7 — area · scrolling
 --   [experimental] · text/QR · blur newest · repeat area · window ·
@@ -14,30 +21,23 @@
 --   BLUR EDITOR (drag boxes → blurred; ⌘Z undo; saves "… (edited)").
 --
 -- NEW IN 6.86.0 — TASK FORM + SCREENSHOTS:
---   ⇪T opens a labeled FORM (Title/Description/Assignee/Attachment —
---   labels never disappear; ⏎ sends, Esc keeps the draft). The pipe
---   picker became the past-task SEARCH on ⇪⇧S. New: ⇪4 captures to
---   OneDrive/2026 Screenshots AND the clipboard in one gesture; ⇪⇧4
+--   ⇪T opens a labeled FORM (Title/Description/Assignee/Attachment;
+--   ⏎ sends, Esc keeps the draft); past-task SEARCH moved to ⇪⇧S.
+--   ⇪4 captures to OneDrive/2026 Screenshots AND the clipboard; ⇪⇧4
 --   browses history with thumbnails (⏎ = image, ⌘⏎ = file path).
 --
 -- NEW IN 6.85.0 — KEY CASTER TEXT LABELS + RIGHT-SIDE VERTICAL PANEL:
---   Panel reverts to vertical stacking (one line per combo, newest at
---   bottom, older lines dimmed). Fixed 400×600, right-anchored, font
---   auto-computed to fill the box (lineH=93 → fontSize=68). Key labels
---   now use plain text joined with "+": cmd+x, shift+tab, hyper+x,
---   fn+F3 — no Unicode glyphs. Bare letters/numbers still suppressed.
+--   Vertical stacking (one line per combo, newest at bottom, older
+--   dimmed), fixed 400×600 right-anchored, font auto-fills the box;
+--   labels are plain text ("cmd+x", "hyper+x") — no Unicode glyphs.
 --
 -- NEW IN 6.84.0 — KEY CASTER HORIZONTAL LAYOUT:
 --   Panel now displays key combos in a single horizontal row (left to
 --   right). Box anchored left; grows right as combos accumulate. Font
 --   bumped 20→28pt. Hold time 2.5→7 s; fade 0.35→0.15 s.
 --
--- NEW IN 6.83.2 — KEY CASTER FIXED SIZE:
---   Panel is now fixed at 270×134 (kc.fixedW / kc.fixedH). Set either
---   to nil to revert to dynamic sizing.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.87.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.88.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -140,26 +140,21 @@
 --    text cleared deletes it.
 --
 -- ✅ ⇪T  ASANA TASK CREATOR (§4 / §5 + modules/task_form.lua)
---    Creates a task in your Asana project without opening a browser.
 --    6.86.0: ⇪T opens a FORM — Title / Description / Assignee /
---    Attachment, each label permanently on screen. ⏎ sends from any
---    field, ⇥ moves between fields, ⌥⏎ = newline in Description, Esc
---    keeps your draft for next time. The 📸 button (or ⌘L) drops the
---    newest ⇪4 screenshot into Attachment. Auto-comment + attachment
---    upload as always.
---    ⇪⇧S searches PAST tasks — the old pipe picker, search-only:
---    30-day history, filter by typing (title, description, assignee).
+--    Attachment, labels always on screen. ⏎ sends from any field,
+--    ⌥⏎ = newline in Description, Esc keeps the draft; 📸/⌘L drops
+--    the newest ⇪4 screenshot into Attachment. Auto-comment +
+--    attachment upload as always.
+--    ⇪⇧S searches PAST tasks (the old pipe picker, 30-day history).
 --
 -- 📸 ⇪4  SCREENSHOTS (modules/screenshots.lua + screenshot_editor.lua)
---    ⇪4 = the native crosshair capture (SPACE switches to window
---    capture, Esc cancels), saved as a timestamped PNG in OneDrive's
---    "2026 Screenshots" folder AND copied to the clipboard — macOS
---    only ever does one or the other. ⇪⇧4 = the PANEL: 7 capture
---    actions on ⌘1–⌘7 (area · scrolling [experimental] · text/QR ·
---    blur newest · repeat area · active window · 10s delay), history
---    with thumbnails below — ⏎ image on clipboard, ⌘⏎ file PATH,
---    ⌥⏎ the BLUR EDITOR: drag boxes over anything private, ⌘Z undo,
---    saves "… (edited).png" beside the original + clipboard.
+--    ⇪4 = native crosshair capture (SPACE = window, Esc cancels) to a
+--    timestamped PNG in OneDrive's "2026 Screenshots" AND the
+--    clipboard. ⇪⇧4 = the PANEL: 7 actions on ⌘1–⌘7, history with
+--    thumbnails below, and TYPING SEARCHES it. ⏎ image · ⌘⏎ path ·
+--    ⌥⏎ EDITOR (blur boxes, white-outline text, arrows; ⌘Z undo;
+--    ⌘⏎ saves "… (edited).png" + clipboard, ⌘⇧⏎ small JPEG) ·
+--    ⌃⏎ compress to "… (compressed).jpg" via sips.
 --
 -- 📅 ⌃⌥⌘L / ⌃⌥⌘C  ASANA DASHBOARD (§6)
 --    Fetches your incomplete Asana tasks and shows them in five
@@ -348,7 +343,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.87.0"
+_G.configVersion = "6.88.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -1146,6 +1141,17 @@ function _G.showCanvasSafely(canvas, label)
     while #_G.canvasShowTimers > 8 do table.remove(_G.canvasShowTimers, 1) end
     return false
 end
+
+-- 6.88.0 — hs.alert draws with hs.canvas underneath, so ITS show hits
+-- the same throw — LL's Console caught one killing a whole ⇪ handler.
+-- Wrapped ONCE, here: every alert everywhere is protected; a missed
+-- alert costs a Console line of feedback, never the handler around it.
+_G.rawAlertShow = _G.rawAlertShow or (hs.alert and hs.alert.show)
+if _G.rawAlertShow then hs.alert.show = function(...)
+    local okA, r = pcall(_G.rawAlertShow, ...)
+    if okA then return r end
+    print("⚠️ an alert could not draw — another app's popup was mid-transition")
+end end
 
 -- =====================================================================
 -- 🖐 DRAGGABLE CANVAS PANELS (6.67.0)
@@ -2552,11 +2558,9 @@ end
 -- =====================================================================
 -- TASK SUBMIT — shared by the chooser below AND the Task Form (6.86.0)
 -- =====================================================================
--- Moved UNCHANGED out of the chooser's isAction branch when the labeled
--- form (modules/task_form.lua) became a second front end — one submit
--- path, so the two cannot drift. _G., not a local (200-local ceiling,
--- §0.4). Returns TRUE = accepted for posting; FALSE = validation
--- failed, AFTER alerting — callers keep their draft on false.
+-- One submit path so the two front ends cannot drift. _G. (§0.4).
+-- Returns TRUE = accepted for posting; FALSE = validation failed,
+-- AFTER alerting — callers keep their draft on false.
 function _G.asanaSubmitTask(title, desc, assignee, attach)
     title, desc     = title or "", desc or ""
     assignee, attach = assignee or "", attach or ""
@@ -2793,9 +2797,8 @@ end)
 -- its Objective-C bridge, so table identity cannot survive the trip and
 -- only a NUMBER comes back intact).
 
--- The pipe chooser, openable by name — reopens with your unsent DRAFT
--- restored (6.10.1). _G., not a local (200-local ceiling, §0.4). Called
--- by ⇪⇧S below, ⇪T's fallback, and task_form's no-WKWebView fallback.
+-- The pipe chooser, openable by name — reopens with the unsent DRAFT
+-- (6.10.1). _G. (§0.4). Used by ⇪⇧S, ⇪T's and task_form's fallbacks.
 _G.asanaOpenTaskChooser = function()
     local draft = _G.taskDraft or ""
     _G.choosers.task:query(draft)
@@ -2807,18 +2810,16 @@ _G.asanaOpenTaskChooser = function()
     end
 end
 
--- Task creator — 6.86.0: ⇪T opens the labeled FORM (modules/
--- task_form.lua). The pipe chooser is NOT gone: it is the fallback when
--- the module didn't load, and the past-task SEARCH on ⇪⇧S below.
+-- Task creator — 6.86.0: ⇪T opens the labeled FORM (task_form.lua);
+-- the pipe chooser stays as its fallback and as ⇪⇧S's search below.
 hs.hotkey.bind(coreKeys.taskCreator[1], coreKeys.taskCreator[2], function()
     if not requireAsana() then return end
     if _G.taskFormShow then _G.taskFormShow() return end
     _G.asanaOpenTaskChooser()
 end)
 
--- 6.86.0: past-task SEARCH on its own key. ⇪⇧T was the natural spot but
--- the Text Expander holds it (6.68.0) — so ⇪⇧S: S for Search, free
--- since the Spaces module left (6.83.0).
+-- 6.86.0: past-task SEARCH. ⇪⇧T was taken (Text Expander, 6.68.0) —
+-- so ⇪⇧S: S for Search, free since the Spaces module left (6.83.0).
 _G.hyperAddShortcut({ "shift" }, "s", function()
     if not requireAsana() then return end
     _G.asanaOpenTaskChooser()

@@ -104,7 +104,9 @@ hs = {
         new = function(cb)
             local c = { cb = cb }
             function c:choices(t) CHOICES_SET = t; return self end
-            function c:placeholderText() return self end
+            function c:placeholderText(t) c.placeholder = t; return self end
+            function c:rows(n) c.nrows = n; return self end
+            function c:queryChangedCallback(f) c.qcb = f; return self end
             function c:show() c.shown = true; return self end
             return c
         end,
@@ -309,6 +311,30 @@ check("…with actions + history loaded", type(CHOICES_SET) == "table"
 check("…action rows carry no thumbnail", CHOICES_SET[1].image == nil)
 check("…and thumbnails attached to the history rows",
       CHOICES_SET[8].image ~= nil and CHOICES_SET[8].image.__path == shot1)
+-- 6.88.0 — LL: "I don't see the image history." The panel must be TALL
+-- enough that history rows are visible UNDER the seven actions.
+check("the panel sizes itself past the 7 actions (history above the fold)",
+      type(POPUPS[1].nrows) == "number" and POPUPS[1].nrows == 7 + 4,
+      POPUPS[1].nrows)
+
+-- 6.88.0 — LL: "I can't tell if I can search the window." Typing filters
+-- the HISTORY; the action rows step aside while a query is live.
+check("a query callback is installed", type(POPUPS[1].qcb) == "function")
+POPUPS[1].qcb("newest")
+check("typing filters to matching screenshots — no action rows",
+      #CHOICES_SET == 1 and CHOICES_SET[1].path == DIR .. "/newest.png"
+      and CHOICES_SET[1].act == nil,
+      #CHOICES_SET)
+POPUPS[1].qcb("jan")   -- the stub mtimes are 1970 — "Jan" in every subText
+check("…and the DATE text matches too", #CHOICES_SET == 4, #CHOICES_SET)
+POPUPS[1].qcb("zzz-nothing-here")
+check("…an unmatched query explains itself instead of going blank",
+      #CHOICES_SET == 1 and CHOICES_SET[1].path == nil
+      and (CHOICES_SET[1].text or ""):find("No screenshots match") ~= nil,
+      CHOICES_SET[1] and CHOICES_SET[1].text)
+POPUPS[1].qcb("")
+check("…and an empty query brings the actions back",
+      #CHOICES_SET == 7 + 4 and CHOICES_SET[1].act == "area", #CHOICES_SET)
 
 -- =====================================================================
 out("7. picking — ⏎ image, ⌘⏎ path\n")
@@ -329,6 +355,34 @@ MODS = {}
 local clipNow = CLIP
 S.onPick({ text = "No screenshots yet" })   -- the empty-folder row has no path
 check("the empty-folder row is a safe no-op", CLIP == clipNow)
+
+-- ⌃⏎ compress (6.88.0): sips re-encodes to a small jpg NEXT TO the png
+MODS = { ctrl = true }
+local tB = #TASKS
+S.onPick({ path = shot1 })
+check("⌃⏎ launches sips on that file", #TASKS == tB + 1
+      and TASKS[#TASKS].cmd == "/usr/bin/sips" and TASKS[#TASKS].started,
+      TASKS[#TASKS] and TASKS[#TASKS].cmd)
+local sa = TASKS[#TASKS].args
+check("…re-encoding as jpeg at the configured quality",
+      sa[1] == "-s" and sa[2] == "format" and sa[3] == "jpeg"
+      and sa[4] == "-s" and sa[5] == "formatOptions" and sa[6] == "70",
+      table.concat(sa, " "))
+local outJpg = shot1:gsub("%.png$", "") .. " (compressed).jpg"
+check("…into “… (compressed).jpg”, never over the original",
+      sa[7] == shot1 and sa[8] == "--out" and sa[9] == outJpg, sa[9])
+FILES[outJpg] = { size = 40000, modification = 1700 }   -- sips writes it
+TASKS[#TASKS].cb(0)
+check("the SMALL copy goes onto the clipboard", CLIP.kind == "image"
+      and CLIP.v.__path == outJpg, CLIP.kind)
+check("…with an alert naming both sizes",
+      (ALERTS[#ALERTS] or ""):find("→") ~= nil
+      and (ALERTS[#ALERTS] or ""):find("KB") ~= nil, ALERTS[#ALERTS])
+check("a second compress numbers itself instead of overwriting",
+      S.compressedPathFor(shot1):find("%(compressed 2%)%.jpg$") ~= nil,
+      S.compressedPathFor(shot1))
+FILES[outJpg] = nil   -- keep later sections' folder listings unchanged
+MODS = {}
 
 -- =====================================================================
 out("8. the empty folder & the missing folder\n")

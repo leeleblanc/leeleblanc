@@ -717,6 +717,9 @@ local ALLOWED_BINARIES = {
   -- run with -i to a file in the OneDrive folder, which is what lets one
   -- keystroke both SAVE and COPY where macOS natively only does one.
   ["/usr/sbin/screencapture"] = "⇪4 capture to OneDrive + clipboard (ships with macOS)",
+  -- 6.88.0 — ⌃⏎ on a panel history row: re-encode a PNG screenshot as a
+  -- small JPEG next to the original. sips is Apple's own image tool.
+  ["/usr/bin/sips"] = "⌃⏎ compress screenshot to jpg (ships with macOS)",
   ["/opt/homebrew/bin/brew"] = "OPTIONAL update checks, admin install",
   ["/usr/local/bin/brew"]    = "OPTIONAL update checks, admin install",
   -- the no-admin Homebrew prefixes, which are $HOME-relative in the source

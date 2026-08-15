@@ -4,6 +4,37 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.88.0 — EDITOR TOOLS + PANEL SEARCH + COMPRESS:
+  THE EDITOR GREW TOOLS (LL: "Can I draw text boxes… move them… white text
+  and white outline? Can I draw arrows that rotate and stretch?"): ▦ Blur /
+  🅣 Text / ➤ Arrow, as toolbar buttons or B/T/A. Text: click, type, ⏎ —
+  white text in a white outline box (a soft dark shadow keeps it readable
+  on white screenshots); drag to move, double-click to re-edit, size scales
+  with the image. Arrows: drag one out; drag either END to stretch AND
+  rotate in one motion (the head follows), drag the shaft to move. ⌫
+  deletes the selected note. Text and arrows stay LIVE OBJECTS on an
+  overlay canvas until save paints them into the pixels once — and one
+  undo stack covers everything: blurs, adds, moves, edits, deletes.
+  ⌘⇧⏎ (or the button) saves a SMALL JPEG instead of PNG.
+  THE PANEL ANSWERED LL'S TWO COMPLAINTS: "I don't see the image history"
+  — it was there but below the fold (7 actions ate the default 10 rows);
+  the chooser now sizes itself to actions + a screenful of history. "I
+  can't tell if I can search" — typing now filters the history (filename,
+  date, size all match) and the action rows step aside while a query is
+  live. And the compression request: ⌃⏎ on any history row re-encodes it
+  as "… (compressed).jpg" via /usr/bin/sips (ships with macOS) next to the
+  untouched original, small copy on the clipboard, alert names both sizes.
+  THE 13:56 CONSOLE ERROR (NSRemoteView assertion killing a hotkey
+  callback while Safari/WebKit autocomplete was open): hs.alert.show is
+  now wrapped once in init.lua — it draws with hs.canvas, so it could
+  throw the same collision showCanvasSafely already guards — and the
+  mouse grid's crosshair, the last bare canvas:show() in the config, now
+  routes through showCanvasSafely too.
+  Tests: 12 checks added to test_screenshots (rows, search filter, sips
+  args and numbering), 4 to test_editor (jpg saves), and the node stage
+  now drives the REAL page handlers through text/arrow create, move,
+  stretch, re-edit, delete, undo and both save formats (39 checks).
+
 NEW IN 6.87.0 — SCREENSHOT PANEL + BLUR EDITOR:
   ⇪⇧4 grew from a history picker into the SCREENSHOT PANEL: seven capture
   actions on top (⌘1–⌘7 jump straight to one), history below. The actions:

@@ -1,11 +1,12 @@
 // =====================================================================
-// test_editor_js.js — RUNS the Screenshot Editor's blur for real.
+// test_editor_js.js — RUNS the Screenshot Editor's page code for real.
 // =====================================================================
-// The blur is the module's whole reason to exist, and it lives entirely
-// in the page's JavaScript — the Lua suite can only grep for it. This
-// loads the real generated page, gives it a canvas whose ImageData is
-// backed by a real pixel buffer, and drives actual drags, undos and
-// saves through the actual handlers.
+// The blur, the text boxes and the arrows all live entirely in the
+// page's JavaScript — the Lua suite can only grep for them. This loads
+// the real generated page, gives it canvases whose ImageData is backed
+// by a real pixel buffer (cv) and a draw-call recorder (ov), and drives
+// actual drags, clicks, keystrokes, undos and saves through the actual
+// handlers.
 //
 //   lua5.4 dump_editor_html.lua ./modules > /tmp/editor.html
 //   node test_editor_js.js /tmp/editor.html
@@ -42,27 +43,68 @@ function makeCtx(store) {
   };
 }
 
+// the vector-drawing surface: no pixels, but every call is RECORDED so
+// the suite can assert what was drawn, with what style, in what color.
+function drawStubs(base, calls) {
+  const rec = (name) => function (...a) { calls.push([name, ...a]); };
+  base.clearRect = rec("clearRect");
+  base.save = rec("save"); base.restore = rec("restore");
+  base.beginPath = rec("beginPath"); base.closePath = rec("closePath");
+  base.moveTo = rec("moveTo"); base.lineTo = rec("lineTo");
+  base.arc = rec("arc"); base.setLineDash = function () {};
+  base.stroke = function () { calls.push(["stroke", this.strokeStyle]); };
+  base.fill = function () { calls.push(["fill", this.fillStyle]); };
+  base.strokeRect = function (x, y, w, h) {
+    calls.push(["strokeRect", x, y, w, h, this.strokeStyle]);
+  };
+  base.fillText = function (t, x, y) {
+    calls.push(["fillText", t, x, y, this.fillStyle]);
+  };
+  base.measureText = (t) => ({ width: String(t).length * 8 });
+  return base;
+}
+
 function makeEnv() {
   const sent = [];
   const store = new Uint8ClampedArray(W * H * 4);
-  const listeners = { window: {}, cv: {} };
+  const cvCalls = [], ovCalls = [];
+  const listeners = { window: {}, ov: {}, tin: {} };
+  const cvCtx = drawStubs(makeCtx(store), cvCalls);
+  const ovCtx = drawStubs({ getImageData() {}, putImageData() {} }, ovCalls);
   const cv = {
     width: W, height: H,
-    getContext: () => makeCtx(store),
-    toDataURL: () => "data:image/png;base64,RENDERED",
+    getContext: () => cvCtx,
+    toDataURL: (fmt) => (fmt === "image/jpeg" ? "data:image/jpeg;base64,RENDERED"
+                                              : "data:image/png;base64,RENDERED"),
     getBoundingClientRect: () => ({ left: 0, top: 0, width: W, height: H }),
-    addEventListener: (ev, fn) => { listeners.cv[ev] = fn; },
+    addEventListener: () => {},
+  };
+  const ov = {
+    width: W, height: H,
+    getContext: () => ovCtx,
+    addEventListener: (ev, fn) => { listeners.ov[ev] = fn; },
   };
   const band = { style: {} };
+  const tin = {
+    style: { display: "none" }, value: "",
+    focus() { this.focused = true; },
+    addEventListener: (ev, fn) => { listeners.tin[ev] = fn; },
+  };
+  const buttons = {
+    "tool-blur": { className: "tool on" },
+    "tool-text": { className: "tool" },
+    "tool-arrow": { className: "tool" },
+  };
+  const byId = { cv, ov, band, tin };
   const sandbox = {
-    document: { getElementById: (id) => (id === "cv" ? cv : id === "band" ? band : null) },
+    document: { getElementById: (id) => byId[id] || buttons[id] || null },
     window: {
       webkit: { messageHandlers: { shotEditor: { postMessage: (m) => sent.push(m) } } },
       addEventListener: (ev, fn) => { listeners.window[ev] = fn; },
     },
     Image: function () { return { set src(v) {}, onload: null }; },
   };
-  return { sandbox, sent, listeners, cv, band, store };
+  return { sandbox, sent, listeners, cv, ov, band, tin, buttons, store, cvCalls, ovCalls };
 }
 
 const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
@@ -120,7 +162,7 @@ console.log("── Screenshot Editor: page JavaScript, executed ──");
 }
 
 // =====================================================================
-// 2. drag → blur → undo, through the real handlers
+// 2. drag → blur → undo, through the real handlers (the Blur tool)
 // =====================================================================
 {
   const env = load();
@@ -135,7 +177,8 @@ console.log("── Screenshot Editor: page JavaScript, executed ──");
   const before = env.store.slice();
 
   // drag a box across the boundary — real mousedown/mousemove/mouseup
-  env.listeners.cv.mousedown(mouse(12, 8));
+  // (the mouse lands on the OVERLAY canvas now; blur is the default tool)
+  env.listeners.ov.mousedown(mouse(12, 8));
   env.listeners.window.mousemove(mouse(28, 22));
   check("the band is visible mid-drag", env.band.style.display === "block");
   env.listeners.window.mouseup(mouse(28, 22));
@@ -155,7 +198,7 @@ console.log("── Screenshot Editor: page JavaScript, executed ──");
   check("⌘Z restores the image byte-for-byte", restored);
 
   // a sub-2px drag must not push an undo entry or touch pixels
-  env.listeners.cv.mousedown(mouse(5, 5));
+  env.listeners.ov.mousedown(mouse(5, 5));
   env.listeners.window.mouseup(mouse(6, 6));
   env.listeners.window.keydown(key({ metaKey: true, key: "z" }));
   let still = true;
@@ -165,14 +208,145 @@ console.log("── Screenshot Editor: page JavaScript, executed ──");
 }
 
 // =====================================================================
-// 3. the messages that reach Lua
+// 3. the Text tool — click, type, ⏎; move; re-edit (6.88.0)
 // =====================================================================
 {
   const env = load();
+  env.call("setTool('text')");
+  check("the Text tool button lights up",
+        env.buttons["tool-text"].className.indexOf("on") >= 0,
+        env.buttons["tool-text"].className);
+  env.listeners.ov.mousedown(mouse(10, 20));
+  check("clicking an empty spot opens the floating input",
+        env.tin.style.display === "block");
+  env.tin.value = "Hello";
+  env.listeners.tin.keydown(key({ key: "Enter" }));
+  check("⏎ commits a text note with the typed words",
+        env.call("notes.length") === 1 && env.call("notes[0].kind") === "text"
+        && env.call("notes[0].text") === "Hello");
+  check("…drawn as WHITE text (LL's spec)",
+        env.ovCalls.some((c) => c[0] === "fillText" && c[1] === "Hello"
+                                && c[4] === "#ffffff"));
+  check("…inside a WHITE outline box",
+        env.ovCalls.some((c) => c[0] === "strokeRect" && c[5] === "#ffffff"));
+
+  // grab it and drag it somewhere else
+  env.listeners.ov.mousedown(mouse(11, 18));       // inside its box
+  env.listeners.window.mousemove(mouse(23, 27));   // +12, +9
+  env.listeners.window.mouseup(mouse(23, 27));
+  check("dragging a text note MOVES it",
+        env.call("notes[0].x") === 22 && env.call("notes[0].y") === 29,
+        env.call("notes[0].x") + "," + env.call("notes[0].y"));
+  env.listeners.window.keydown(key({ metaKey: true, key: "z" }));
+  check("⌘Z puts it back where it was",
+        env.call("notes[0].x") === 10 && env.call("notes[0].y") === 20);
+
+  // double-click re-opens the words for editing
+  env.listeners.ov.dblclick(mouse(11, 18));
+  check("double-click re-opens the words, pre-filled",
+        env.tin.style.display === "block" && env.tin.value === "Hello");
+  env.tin.value = "Renamed";
+  env.listeners.tin.keydown(key({ key: "Enter" }));
+  check("…and ⏎ applies the edit", env.call("notes[0].text") === "Renamed");
+  env.listeners.window.keydown(key({ metaKey: true, key: "z" }));
+  check("…undoably", env.call("notes[0].text") === "Hello");
+
+  // Escape while typing closes the INPUT, never the editor
+  env.sent.length = 0;
+  env.listeners.ov.mousedown(mouse(35, 29));       // empty spot → new input
+  env.listeners.tin.keydown(key({ key: "Escape" }));
+  check("Esc while typing closes the input, not the editor",
+        env.tin.style.display === "none" && env.sent.length === 0
+        && env.call("notes.length") === 1);
+}
+
+// =====================================================================
+// 4. the Arrow tool — draw, stretch+rotate by an end, move, delete
+// =====================================================================
+{
+  const env = load();
+  env.call("setTool('arrow')");
+  env.listeners.ov.mousedown(mouse(5, 5));
+  env.listeners.window.mousemove(mouse(30, 25));
+  env.listeners.window.mouseup(mouse(30, 25));
+  check("dragging draws an arrow from press to release",
+        env.call("notes.length") === 1 && env.call("notes[0].kind") === "arrow"
+        && env.call("notes[0].x1") === 5 && env.call("notes[0].y1") === 5
+        && env.call("notes[0].x2") === 30 && env.call("notes[0].y2") === 25);
+  check("…with a white filled HEAD at the tip",
+        env.ovCalls.some((c) => c[0] === "fill" && c[1] === "#ffffff"));
+
+  // grab the tip: one drag stretches AND rotates
+  env.listeners.ov.mousedown(mouse(30, 25));
+  env.listeners.window.mousemove(mouse(38, 3));
+  env.listeners.window.mouseup(mouse(38, 3));
+  check("dragging an END stretches/rotates — the tip follows, the tail stays",
+        env.call("notes[0].x2") === 38 && env.call("notes[0].y2") === 3
+        && env.call("notes[0].x1") === 5 && env.call("notes[0].y1") === 5);
+
+  // grab the shaft: the whole arrow moves
+  env.listeners.ov.mousedown(mouse(21, 4));        // on the line, far from ends
+  env.listeners.window.mousemove(mouse(26, 14));   // +5, +10
+  env.listeners.window.mouseup(mouse(26, 14));
+  check("dragging the SHAFT moves the whole arrow",
+        env.call("notes[0].x1") === 10 && env.call("notes[0].y1") === 15
+        && env.call("notes[0].x2") === 43 && env.call("notes[0].y2") === 13,
+        env.call("notes[0].x1") + "," + env.call("notes[0].y1"));
+
+  // the undo stack peels those back newest-first
+  env.listeners.window.keydown(key({ metaKey: true, key: "z" }));
+  check("⌘Z undoes the move", env.call("notes[0].x1") === 5);
+  env.listeners.window.keydown(key({ metaKey: true, key: "z" }));
+  check("⌘Z again undoes the stretch", env.call("notes[0].x2") === 30);
+  env.listeners.window.keydown(key({ metaKey: true, key: "z" }));
+  check("⌘Z a third time removes the arrow entirely",
+        env.call("notes.length") === 0);
+
+  // a click without a drag is not an arrow
+  env.listeners.ov.mousedown(mouse(9, 9));
+  env.listeners.window.mouseup(mouse(10, 10));
+  check("a click without a drag leaves no arrow", env.call("notes.length") === 0);
+
+  // ⌫ deletes the selected note, undoably
+  env.listeners.ov.mousedown(mouse(5, 5));
+  env.listeners.window.mousemove(mouse(30, 25));
+  env.listeners.window.mouseup(mouse(30, 25));
+  env.listeners.window.keydown(key({ key: "Backspace" }));
+  check("⌫ deletes the selected note", env.call("notes.length") === 0);
+  env.listeners.window.keydown(key({ metaKey: true, key: "z" }));
+  check("…and ⌘Z brings it back", env.call("notes.length") === 1);
+}
+
+// =====================================================================
+// 5. the messages that reach Lua — png, jpeg, cancel, buttons
+// =====================================================================
+{
+  const env = load();
+  // put a text note on so the save has something to composite
+  env.call("setTool('text')");
+  env.listeners.ov.mousedown(mouse(10, 20));
+  env.tin.value = "Note";
+  env.listeners.tin.keydown(key({ key: "Enter" }));
+
+  const beforeSave = env.store.slice();
+  env.cvCalls.length = 0;
   env.listeners.window.keydown(key({ metaKey: true, key: "Enter" }));
-  check("⌘⏎ sends the rendered png to Lua", env.sent.length === 1
-        && env.sent[0].a === "save"
+  check("⌘⏎ paints the notes INTO the saved pixels",
+        env.cvCalls.some((c) => c[0] === "fillText" && c[1] === "Note"));
+  check("…and sends the rendered png with ext png", env.sent.length === 1
+        && env.sent[0].a === "save" && env.sent[0].ext === "png"
         && env.sent[0].data === "data:image/png;base64,RENDERED",
+        JSON.stringify(env.sent[0]));
+  let clean = true;
+  for (let i = 0; i < env.store.length; i++)
+    if (env.store[i] !== beforeSave[i]) { clean = false; break; }
+  check("…then puts the CLEAN pixels back — notes stay live after save", clean);
+
+  env.sent.length = 0;
+  env.listeners.window.keydown(key({ metaKey: true, shiftKey: true, key: "Enter" }));
+  check("⌘⇧⏎ sends a small JPEG instead", env.sent[0]
+        && env.sent[0].ext === "jpg"
+        && env.sent[0].data === "data:image/jpeg;base64,RENDERED",
         JSON.stringify(env.sent[0]));
 
   env.sent.length = 0;
@@ -181,12 +355,14 @@ console.log("── Screenshot Editor: page JavaScript, executed ──");
 
   // the toolbar buttons drive the same paths — via their real onclicks
   const onclicks = [...html.matchAll(/onclick="([^"]+)"/g)].map((m) => m[1]);
-  check("the toolbar has onclick handlers to drive", onclicks.length >= 3, onclicks.length);
+  check("the toolbar has onclick handlers to drive", onclicks.length >= 7, onclicks.length);
   env.sent.length = 0;
   for (const expr of onclicks) env.call(expr.replace(/&quot;/g, '"').replace(/&amp;/g, "&"));
   const acts = env.sent.map((m) => m.a).sort().join(",");
-  check("…and between them they save and cancel", acts.indexOf("save") >= 0
-        && acts.indexOf("cancel") >= 0, acts);
+  const exts = env.sent.filter((m) => m.a === "save").map((m) => m.ext).sort().join(",");
+  check("…and between them they save (both formats) and cancel",
+        acts.indexOf("save") >= 0 && acts.indexOf("cancel") >= 0
+        && exts === "jpg,png", acts + " / " + exts);
 }
 
 // =====================================================================
