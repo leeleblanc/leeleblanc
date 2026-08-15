@@ -121,9 +121,11 @@ return function(core)
                 { "⇪L", "List tasks — Today / Week / Overdue" },
                 { "auto", "Color legend strip under the list" },
             }},
+            -- ⇪V/⇪⇧V are deliberately NOT here: clipboard history has owned
+            -- its own group since it became a module (6.55.0), and the same
+            -- keys documented in two sections read as a conflict — LL asked
+            -- exactly that from a screenshot of this sheet (6.90.1).
             { title = "📋 CLIPBOARD & OCR", order = 3, entries = {
-                { "⇪V", "Clipboard history" },
-                { "⇪⇧V", "Edit or delete a clipboard entry" },
                 { "⇪O", "OCR text search" },
                 { "⇪⇧O", "Edit or delete an OCR entry" },
                 { "⌘C files", "OCR image files → Finder comment tag" },

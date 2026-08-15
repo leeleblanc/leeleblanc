@@ -263,8 +263,7 @@ function M.setup(core)
     -- most apps implement it; AXShowMenu is the documented alternative; a
     -- synthetic click at the item's own coordinates is the last resort for
     -- an app that implements neither, and is why the position is read.
-    function mb.activate(entry)
-        if not entry or not entry.el then return false end
+    local function tryActions(entry)
         local el = entry.el
         for _, action in ipairs({ "AXPress", "AXShowMenu" }) do
             -- ⚠️ `return` INSIDE THE WRAPPER IS LOAD-BEARING. Without it the
@@ -278,8 +277,12 @@ function M.setup(core)
                 return true
             end
         end
-        local pos  = attr(el, "AXPosition")
-        local size = attr(el, "AXSize")
+        return false
+    end
+
+    local function tryClick(entry)
+        local pos  = attr(entry.el, "AXPosition")
+        local size = attr(entry.el, "AXSize")
         if type(pos) == "table" and type(size) == "table"
            and pos.x and size.w then
             local point = { x = pos.x + size.w / 2, y = pos.y + size.h / 2 }
@@ -292,9 +295,35 @@ function M.setup(core)
                 return true
             end
         end
-        hs.alert.show("📊 " .. entry.app .. " would not respond")
-        warn(entry.app .. ": AXPress, AXShowMenu and a click all failed")
         return false
+    end
+
+    -- 6.90.1 — PLURAL ON PURPOSE. A merged picker row (see mb.show) hands
+    -- several indistinguishable items here, and the row activates the FIRST
+    -- one that actually responds — Bartender's real icon answers AXPress,
+    -- its invisible spacers answer nothing. Actions across ALL of them
+    -- before any click: a synthetic click on a zero-width spacer is a
+    -- click on whatever happens to be drawn behind it.
+    function mb.activateFirst(entries)
+        local first = nil
+        for _, e in ipairs(entries or {}) do
+            if e and e.el then
+                first = first or e
+                if tryActions(e) then return true end
+            end
+        end
+        for _, e in ipairs(entries or {}) do
+            if e and e.el and tryClick(e) then return true end
+        end
+        if not first then return false end
+        hs.alert.show("📊 " .. first.app .. " would not respond")
+        warn(first.app .. ": AXPress, AXShowMenu and a click all failed")
+        return false
+    end
+
+    function mb.activate(entry)
+        if not entry or not entry.el then return false end
+        return mb.activateFirst({ entry })
     end
 
     -- ---- the picker ------------------------------------------------------
@@ -318,20 +347,37 @@ function M.setup(core)
             return
         end
 
+        -- 6.90.1 — rows the picker cannot tell apart become ONE row. An app
+        -- may own several unnamed status items (Bartender 6 shows up four
+        -- times: one real icon plus the invisible spacers it hides other
+        -- icons behind). The scan stays honest — ⇪⇧M still lists every
+        -- item — but four identical rows help nobody pick anything. The
+        -- list is sorted by (app, detail), so equal rows are adjacent.
         local choices = {}
         for i, e in ipairs(items) do
-            choices[#choices + 1] = {
-                text    = e.app,
-                subText = e.detail or "menu bar item",
-                idx     = i,
-            }
+            local prev = choices[#choices]
+            if prev and prev.text == e.app and prev.detail == e.detail then
+                table.insert(prev.idxs, i)
+                prev.subText = (e.detail or "menu bar item")
+                             .. " ×" .. #prev.idxs
+            else
+                choices[#choices + 1] = {
+                    text    = e.app,
+                    detail  = e.detail,
+                    subText = e.detail or "menu bar item",
+                    idxs    = { i },
+                }
+            end
         end
 
         if not mb.chooser then
             mb.chooser = hs.chooser.new(function(pick)
                 if not pick then return end
-                local e = (mb.cache or {})[pick.idx]
-                if e then mb.activate(e) end
+                local cached, picked = mb.cache or {}, {}
+                for _, i in ipairs(pick.idxs or {}) do
+                    picked[#picked + 1] = cached[i]
+                end
+                if #picked > 0 then mb.activateFirst(picked) end
             end)
             pcall(function()
                 mb.chooser:searchSubText(true)
@@ -339,7 +385,9 @@ function M.setup(core)
             end)
         end
         mb.chooser:choices(choices)
-        mb.chooser:placeholderText(#items .. " menu bar items — type to filter")
+        mb.chooser:placeholderText(#choices == #items
+            and (#items .. " menu bar items — type to filter")
+            or  (#items .. " items in " .. #choices .. " rows — type to filter"))
         -- Placed by the same rule as every other popup in this config, so it
         -- lands on the screen you are looking at rather than the main one.
         local okScr, scr = pcall(core.resolveBaseScreen)

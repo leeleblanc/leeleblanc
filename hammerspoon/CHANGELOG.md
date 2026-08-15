@@ -4,6 +4,33 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.90.1 — MENU BAR PICKER DEDUPE (⇪M):
+  LL, from a screenshot of ⇪M showing "Bartender 6" on ⌘2–⌘5: "why do I
+  see Bartender repeated?" Because the picker lists STATUS ITEMS, not
+  apps, and Bartender genuinely owns several — its real icon plus the
+  invisible spacer items it hides other apps' icons behind — and none of
+  them carry an AXDescription, so every row fell back to the same
+  "Bartender 6 / menu bar item" label. Honest, and useless.
+  NOW: rows the picker cannot tell apart — same app, same detail —
+  collapse into ONE row marked "×N". Picking it tries AXPress/AXShowMenu
+  on EVERY item in the group before any click fallback, and activates
+  the first that responds: the real icon answers, the spacers don't. The
+  click fallback fires once, at the first item that HAS a position — a
+  synthetic click on a zero-width spacer is a click on whatever sits
+  behind it. The placeholder owns the difference ("13 items in 10 rows")
+  and ⇪⇧M's inventory still lists every item, because the SCAN stays
+  honest — only the picker merges.
+  ALSO, from the same conversation ("And do those shortcuts conflict?"):
+  the cheat sheet listed ⇪V/⇪⇧V twice — once in the static CLIPBOARD &
+  OCR group, once in the CLIPBOARD HISTORY group the module has owned
+  since 6.55.0. The keys were never bound twice (the hyperBind sentry
+  would name it at boot); the SHEET was written twice. The static rows
+  are gone. Keys documented once cannot read as a conflict.
+  TESTS: test_menubar 56 → 66 — merge counts, ×N label, scan honesty
+  (all items still found), first-responder activation, single click at
+  the positioned item, one alert (not one per item) when nothing responds,
+  same-description merge, placeholder wording.
+
 NEW IN 6.90.0 — ONE SHARED LOOK (modules/ui_style.lua):
   LL, looking at the pomodoro FOCUS card: "How many of the windows could
   be in the GUI-style screenshot for the Pomodoro timer?" — then "Build

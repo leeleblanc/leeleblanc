@@ -111,9 +111,10 @@ hs = {
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
     chooser = { new = function(fn)
         local c = { fn = fn, shown = false }
-        for _, m in ipairs({ "searchSubText", "width", "placeholderText" }) do
+        for _, m in ipairs({ "searchSubText", "width" }) do
             c[m] = function(self) return self end
         end
+        function c:placeholderText(t) self.placeholder = t ; return self end
         function c:choices(x) self.rows = x ; return self end
         function c:show() self.shown = true ; return self end
         CHOOSERS[#CHOOSERS + 1] = c ; return c end },
@@ -379,6 +380,79 @@ boot() ; items = MB.scan(true)
 MB.activate(items[1])
 check("an item with no position either is reported, not silently ignored",
       #ALERTS > 0 and ALERTS[#ALERTS]:find("would not respond", 1, true) ~= nil)
+
+out("   -- 6.90.1: rows the picker cannot tell apart become ONE row --\n")
+-- The Bartender case, from LL's own screenshot: one app, four unnamed
+-- status items — its real icon plus the invisible spacers it hides other
+-- icons behind. Four identical "Bartender 6 / menu bar item" rows help
+-- nobody pick anything.
+APPS = { mkApp("Bartender 6", { { desc = nil, refuse = true }, { desc = nil },
+                                { desc = nil }, { desc = nil } }),
+         mkApp("Dropbox", { { desc = "Syncing" } }) }
+boot() ; HYPER["|m"]()
+check("🚨 the SCAN stays honest — all five items are still found, so ⇪⇧M "
+      .. "still shows the app's real footprint", #(MB.cache or {}) == 5,
+      MB.cache and #MB.cache)
+check("...but the PICKER collapses the four unnamed ones: two rows",
+      #CHOOSERS[1].rows == 2, #CHOOSERS[1].rows)
+check("...and the merged row says how many it stands for",
+      (function()
+    for _, row in ipairs(CHOOSERS[1].rows) do
+        if row.text == "Bartender 6" then
+            return row.subText:find("×4", 1, true) ~= nil, row.subText
+        end
+    end
+end)())
+check("...while the named Dropbox row is untouched", (function()
+    for _, row in ipairs(CHOOSERS[1].rows) do
+        if row.text == "Dropbox" then return row.subText == "Syncing" end
+    end
+end)())
+check("...and the placeholder owns the difference instead of miscounting",
+      CHOOSERS[1].placeholder ~= nil
+      and CHOOSERS[1].placeholder:find("5 items in 2 rows", 1, true) ~= nil,
+      CHOOSERS[1].placeholder)
+local merged
+for _, row in ipairs(CHOOSERS[1].rows) do
+    if row.text == "Bartender 6" then merged = row end
+end
+CHOOSERS[1].fn(merged)
+check("picking the merged row activates the FIRST item that responds — one "
+      .. "AXPress lands, the spacer that refused costs nothing",
+      #ACTIONS == 1 and ACTIONS[1].app == "Bartender 6"
+      and ACTIONS[1].action == "AXPress", #ACTIONS)
+
+out("   -- two items with the SAME description merge too --\n")
+APPS = { mkApp("Docker", { { desc = "Running" }, { desc = "Running" } }) }
+boot() ; HYPER["|m"]()
+check("identical (app, description) pairs are one row marked ×2",
+      #CHOOSERS[1].rows == 1
+      and CHOOSERS[1].rows[1].subText == "Running ×2",
+      CHOOSERS[1].rows[1] and CHOOSERS[1].rows[1].subText)
+
+out("   -- a merged row where EVERY item refuses --\n")
+-- Neither item answers an action; only the second has a position. The
+-- click fallback must land ONCE, on the item that has somewhere to click —
+-- not once per item, and not on the positionless one first.
+APPS = { mkApp("Stubborn 2", { { desc = nil, refuse = true },
+                               { desc = nil, refuse = true,
+                                 pos = { x = 200, y = 5 },
+                                 size = { w = 20, h = 22 } } }) }
+boot() ; HYPER["|m"]()
+CHOOSERS[1].fn(CHOOSERS[1].rows[1])
+check("the click fallback fires exactly once, at the item that HAS a "
+      .. "position", #CLICKS == 1 and CLICKS[1].x == 210,
+      #CLICKS .. " clicks")
+check("...and no 'would not respond' alert, because something did",
+      #ALERTS == 0, ALERTS[1])
+
+APPS = { mkApp("Dead App", { { desc = nil, refuse = true },
+                             { desc = nil, refuse = true } }) }
+boot() ; HYPER["|m"]()
+CHOOSERS[1].fn(CHOOSERS[1].rows[1])
+check("a merged row where nothing responds alerts ONCE, not once per item",
+      #ALERTS == 1
+      and ALERTS[1]:find("would not respond", 1, true) ~= nil, #ALERTS)
 
 -- =====================================================================
 out("\n=== 4. No Accessibility, no pretending ===\n")

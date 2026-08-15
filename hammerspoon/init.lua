@@ -4,9 +4,13 @@
 -- =====================================================================
 -- 08-15-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.90.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.90.1
 -- =====================================================================
 
+-- NEW IN 6.90.1 — MENU BAR PICKER DEDUPE (⇪M):
+--   Indistinguishable rows merge ("Bartender 6" ×4 → one row that
+--   presses the first item answering). Cheat sheet lists ⇪V once.
+--
 -- NEW IN 6.90.0 — ONE SHARED LOOK (modules/ui_style.lua):
 --   The pomodoro FOCUS card's style — background, white type, 12px
 --   corners, selection blues — now lives in ONE table that 11 panels
@@ -28,12 +32,8 @@
 --   text/QR · blur newest · repeat · window · delayed) with history
 --   below; ⌥⏎ opens the BLUR EDITOR (⌘Z undo; saves "… (edited)").
 --
--- NEW IN 6.86.0 — TASK FORM + SCREENSHOTS:
---   ⇪T = labeled FORM (⏎ sends, Esc keeps the draft); ⇪⇧S = past-task
---   search. ⇪4 captures to OneDrive + clipboard; ⇪⇧4 browses history.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.90.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.90.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -340,7 +340,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.90.0"
+_G.configVersion = "6.90.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
