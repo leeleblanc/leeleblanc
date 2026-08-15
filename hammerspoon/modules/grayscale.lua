@@ -26,23 +26,24 @@ local M = {
     },
 }
 
-local DOMAIN = "com.apple.accessibility"
-local KEY    = "GrayscaleEnabled"
+-- osascript talks directly to System Events, which sets the pref AND
+-- applies the filter immediately — no agent restart needed, works on
+-- every macOS version that Hammerspoon supports.
+local AS_GET   = "tell application \"System Events\" to tell appearance preferences to get use grayscale"
+local AS_SET   = "tell application \"System Events\" to tell appearance preferences to set use grayscale to "
 
 function M.setup(core)
     -- Read the current state ONCE at load so we never block a keypress.
-    -- hs.execute is synchronous; fine here because it runs at boot, not
-    -- in a callback, and the shell command takes ~5ms.
     local state = false
-    local out = hs.execute("defaults read " .. DOMAIN .. " " .. KEY .. " 2>/dev/null")
+    local out = hs.execute("osascript -e '" .. AS_GET .. "' 2>/dev/null")
     if type(out) == "string" then
-        state = out:match("^%s*1%s*$") ~= nil
+        state = out:match("true") ~= nil
     end
 
     local function toggle()
         state = not state
         hs.alert.show(state and "⬛️ Grayscale ON" or "🎨 Colour ON", 1.5)
-        hs.task.new("/bin/bash", function(code, _, err)
+        hs.task.new("/usr/bin/osascript", function(code, _, err)
             if code ~= 0 then
                 -- Roll back so the next press retries from the right side.
                 state = not state
@@ -52,13 +53,7 @@ function M.setup(core)
                 end
                 pcall(hs.alert.show, "⬛️ Grayscale toggle failed", 2)
             end
-        end, { "-c",
-            "defaults write " .. DOMAIN .. " " .. KEY
-            .. " -bool " .. (state and "true" or "false")
-            .. " && launchctl kickstart -k"
-            .. " gui/$(id -u)/com.apple.accessibility.AXVisualSupportAgent"
-            .. " 2>/dev/null; true"
-        }):start()
+        end, { "-e", AS_SET .. (state and "true" or "false") }):start()
     end
 
     -- Bare pad9: no hyper, no modifier, just the physical numpad key.
