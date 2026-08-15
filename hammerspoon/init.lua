@@ -4,9 +4,17 @@
 -- =====================================================================
 -- 08-15-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.80.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.81.0
 -- =====================================================================
 
+-- NEW IN 6.81.0 — GRAYSCALE TOGGLE (pad9):
+--   ⬛️ modules/grayscale.lua — press the bare numpad 9 key to toggle
+--      grayscale on/off instantly. No modifier, no hyper key, just pad9.
+--      Uses `defaults write com.apple.accessibility GrayscaleEnabled` +
+--      `launchctl kickstart` on the AXVisualSupportAgent so the display
+--      filter applies right away — no need to open System Settings.
+--      ⇪⇧ pad9 (window top-right) and ⇪ pad9 (free) are unchanged.
+--
 -- NEW IN 6.80.0 — VOLUME MODULE REMOVED:
 --   🗑 modules/volume.lua is gone. Use Vorssaint (vorssaint/vorssaint-utils)
 --      for volume — driverless, Core Audio Process Taps, real per-app mixing,
@@ -78,7 +86,7 @@
 --   🔊 modules/volume.lua — removed in 6.80.0. Use Vorssaint.
 --
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.80.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.81.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -379,7 +387,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.80.0"
+_G.configVersion = "6.81.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -3517,6 +3525,8 @@ local BASE = {
     "text_expander",      -- ⇪⇧T  Alfred snippets, typed anywhere
     -- 6.71.0
     "key_caster",         -- ⇪⇧K  show the shortcuts as you press them
+    -- 6.81.0
+    "grayscale",          -- pad9  toggle display grayscale
 }
 
 -- BASE minus `without`, plus `plus`. The list is COPIED, never shared: a
