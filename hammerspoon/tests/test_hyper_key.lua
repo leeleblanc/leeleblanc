@@ -64,6 +64,24 @@ assert(BLOCK_BIND,  "could not lift hyperCombo/hyperBind from init.lua")
 -- here would be the private-copy mistake this whole file exists to avoid.
 BLOCK_BIND = BLOCK_BIND .. "\n_G.hyperBindForTest = hyperBind"
 
+-- ---- §0.3's REAL hs.hotkey.bind wrapper ------------------------------
+-- The global fallback can only be as correct as the table it reads, and
+-- that table is filled by one wrapper in init.lua. Lifted and RUN for the
+-- same reason as the blocks above: a test that hand-fills _G.globalDispatch
+-- proves the dispatcher right about a table nothing produces.
+local BLOCK_NORM = INIT_SRC:match(
+  "(local function normalizeCombo%(mods, key%).-_G%.globalCombo = normalizeCombo)")
+local BLOCK_STUB = INIT_SRC:match("(_G%.hyperBindStub = function%(%).-\nend)")
+local BLOCK_WRAP = INIT_SRC:match(
+  "(local hsHotkeyBindOriginal = hs%.hotkey%.bind.-\n    return _G%.hyperBindStub%(%)\nend)")
+assert(BLOCK_NORM, "could not lift normalizeCombo/_G.globalCombo from init.lua")
+assert(BLOCK_STUB, "could not lift _G.hyperBindStub from init.lua")
+assert(BLOCK_WRAP, "could not lift the hs.hotkey.bind wrapper from init.lua")
+-- normalizeCombo is a chunk-local, so the wrapper has to be in the SAME
+-- chunk to see it. Concatenated in source order, exactly as init.lua has
+-- them.
+local BLOCK_GLOBALS = BLOCK_NORM .. "\n" .. BLOCK_STUB .. "\n" .. BLOCK_WRAP
+
 -- ---- the real injection guard, out of core/coexist.lua ---------------
 local BLOCK_GUARD = COEXIST_SRC:match("(_G%.injectDepth = 0.-\n    return ok, err\nend)")
 assert(BLOCK_GUARD, "could not lift the injection guard from core/coexist.lua")
@@ -81,7 +99,8 @@ local function comboOf(mods, key)
   return table.concat(m, "+") .. "+" .. tostring(key):lower()
 end
 
-local KEYCODES = { f18 = 79, f19 = 80, a = 0, d = 2, q = 12, x = 7 }
+local KEYCODES = { f18 = 79, f19 = 80, a = 0, d = 2, q = 12, x = 7,
+                   l = 37, g = 5, escape = 53 }
 
 local function newWorld(opts)
   opts = opts or {}
@@ -230,6 +249,13 @@ local function newWorld(opts)
   SB.hyperActive = false
   load(BLOCK_ENTER, "init-hyperEnter", "t", SB)()
   load(BLOCK_BIND,  "init-hyperBind",  "t", SB)()
+
+  -- §0.3's own state, then §0.3's own wrapper over hs.hotkey.bind.
+  SB.globalDispatch = {}
+  SB.hyperKeyMap, SB.hyperMigrations, SB.hyperMigrationsSeen = {}, {}, {}
+  SB.hotkeyRegistry, SB.knownSystemCombos = {}, {}
+  SB.hotkeyBoundCount, SB.hotkeyConflictCount = 0, 0
+  load(BLOCK_GLOBALS, "init-bindWrapper", "t", SB)()
 
   return w
 end
@@ -725,6 +751,245 @@ do
   w.now = 1000.5
   check("...and a shorter window never shortens a longer one already open",
         SB.typingInjection() == true)
+end
+
+
+-- =====================================================================
+section("11. THE PLAIN GLOBAL HOTKEYS RIDE THE SAME TAP")
+-- =====================================================================
+-- 🚨 6.76.0 rescued ⇪ and left everything else where it found it, with a
+-- line in the GUIDE admitting so. That was a report, not a fix — and it
+-- left a TRAP: ⇪/ opens a full-screen cheat sheet whose Escape is a
+-- Carbon hotkey. A panel you can open and cannot close is worse than one
+-- you cannot open.
+do
+  local w = world{ carbon = false, tapKeys = true }
+  local fired = {}
+  -- Through the REAL §0.3 wrapper, which is what fills _G.globalDispatch.
+  w.SB.hs.hotkey.bind({ "ctrl", "alt", "cmd" }, "L",
+      function() fired[#fired + 1] = "ctrl-alt-cmd-L" end,
+      function() fired[#fired + 1] = "L-up" end,
+      function() fired[#fired + 1] = "L-repeat" end)
+  w.SB.hs.hotkey.bind({ "cmd", "ctrl", "alt", "shift" }, "X",
+      function() fired[#fired + 1] = "VEIL ESCAPE" end)
+
+  loadHyperKey(w)
+  bindShortcuts(w)
+  runTimers(w)
+  timePasses(w)
+  local tap = w.taps[1]
+
+  check("a standalone hs.hotkey.bind is recorded where the tap can find it",
+        w.SB.globalDispatch["alt+cmd+ctrl+l"] ~= nil,
+        (function() local n = {} for k in pairs(w.SB.globalDispatch) do n[#n+1] = k end
+                    table.sort(n); return table.concat(n, " ") end)())
+  check("🚨 ...and a ⇪ MODAL binding is not, because a table consulted "
+     .. "while ⇪ is NOT held must never contain a bare letter",
+        w.SB.globalDispatch["+d"] == nil and w.SB.globalDispatch["d"] == nil)
+
+  fired = {}
+  check("⌃⌥⌘L runs on a Mac with no working hotkey layer",
+        tap.fn(w.mkEvent({ "ctrl", "alt", "cmd" }, "l", true)) == true
+        and fired[1] == "ctrl-alt-cmd-L", fired[1])
+  fired = {}
+  check("...and its release handler runs on the way up",
+        tap.fn(w.mkEvent({ "ctrl", "alt", "cmd" }, "l", false)) == true
+        and fired[1] == "L-up", fired[1])
+  fired = {}
+  check("...and a held key runs the repeat handler",
+        tap.fn(w.mkEvent({ "ctrl", "alt", "cmd" }, "l", true, true)) == true
+        and fired[1] == "L-repeat", fired[1])
+
+  fired = {}
+  check("an unbound chord is passed straight through",
+        tap.fn(w.mkEvent({ "ctrl", "cmd" }, "q", true)) == false and #fired == 0)
+
+  -- 🚨 RAIL 1. This branch runs while you are ordinarily typing.
+  w.SB.globalDispatch["+d"] = { pressed = function() fired[#fired + 1] = "BARE" end }
+  fired = {}
+  check("🚨 a bare key is NEVER dispatched from the global table — this "
+     .. "branch runs while you are typing, and a letter that ran a "
+     .. "shortcut instead of typing itself is the worst outcome here",
+        tap.fn(w.mkEvent({}, "d", true)) == false and #fired == 0, fired[1])
+  w.SB.globalDispatch["+d"] = nil
+
+  -- 🚨 RAIL 2. The forwarded chord echoes back through this same tap.
+  fired = {}
+  w.SB.hyperForwardChord("x")           -- stamps _G.hyperChordUntil
+  check("🔁 the echo of a forwarded ⌘⇧⌃⌥ chord is refused, so releasing ⇪ "
+     .. "mid-forward cannot fire the chord's global hotkey",
+        tap.fn(w.mkEvent({ "cmd", "ctrl", "alt", "shift" }, "x", true)) == false
+        and #fired == 0, fired[1])
+  timePasses(w, 1)
+  fired = {}
+  check("...and once the echo window has passed, the same chord pressed by "
+     .. "hand works normally",
+        tap.fn(w.mkEvent({ "cmd", "ctrl", "alt", "shift" }, "x", true)) == true
+        and fired[1] == "VEIL ESCAPE", fired[1])
+
+  -- the injection guard applies here too
+  fired = {}
+  w.SB.withInjection(function()
+    check("an injected chord never fires a global hotkey either",
+          tap.fn(w.mkEvent({ "ctrl", "alt", "cmd" }, "l", true)) == false
+          and #fired == 0, fired[1])
+  end)
+end
+
+do
+  local w = world{ carbon = true, tapKeys = true }
+  local fired = {}
+  w.SB.hs.hotkey.bind({ "ctrl", "alt", "cmd" }, "L",
+      function() fired[#fired + 1] = "L" end)
+  loadHyperKey(w)
+  bindShortcuts(w)
+  runTimers(w)
+  timePasses(w)
+  check("🚨 on a Mac where Carbon works the tap does NOT also run globals "
+     .. "— that would fire every one of them twice",
+        w.taps[1].fn(w.mkEvent({ "ctrl", "alt", "cmd" }, "l", true)) == false
+        and #fired == 0, fired[1])
+end
+
+-- =====================================================================
+section("12. ESCAPE IS RESCUED, so nothing can trap you")
+-- =====================================================================
+do
+  local w = world{ carbon = false, tapKeys = true }
+  loadHyperKey(w)
+  bindShortcuts(w)
+  runTimers(w)
+  timePasses(w)
+  local tap = w.taps[1]
+
+  check("Escape with no panel open is left alone — it belongs to the app",
+        tap.fn(w.mkEvent({}, "escape", true)) == false)
+
+  local closed = 0
+  w.SB.routeEscape = function() closed = closed + 1; return "cheatsheet" end
+  check("🚨 Escape reaches whichever panel claims it, so ⇪/ can never open "
+     .. "a sheet that Carbon is too dead to close",
+        tap.fn(w.mkEvent({}, "escape", true)) == true and closed == 1, closed)
+
+  closed = 0
+  w.SB.routeEscape = function() closed = closed + 1; return nil end
+  check("...and when nothing wants it, it is passed through rather than "
+     .. "eaten", tap.fn(w.mkEvent({}, "escape", true)) == false and closed == 1)
+
+  w.SB.routeEscape = function() error("router is broken", 0) end
+  check("🛟 a router that throws costs the Escape, not the keyboard",
+        tap.fn(w.mkEvent({}, "escape", true)) == false)
+
+  w.SB.routeEscape = function() return "cheatsheet" end
+  check("⇧Escape and ⌘Escape are not the panel Escape and stay untouched",
+        tap.fn(w.mkEvent({ "shift" }, "escape", true)) == false)
+end
+
+-- =====================================================================
+section("13. THE FORWARDED CHORD IS STAMPED BEFORE IT IS SENT")
+-- =====================================================================
+do
+  local w = world{ carbon = false, tapKeys = true }
+  loadHyperKey(w)
+  runTimers(w)
+  timePasses(w)
+  w.SB.hyperMods = { "cmd", "shift", "ctrl", "alt" }
+  w.SB.hyperChordUntil = 0
+  w.SB.hyperForwardChord("g")
+  check("forwarding writes down when it happened",
+        w.SB.hyperChordUntil > (w.now or 0), w.SB.hyperChordUntil)
+  check("...and the window is short enough to be over before you could "
+     .. "press the same chord by hand", w.SB.hyperChordGrace <= 0.5,
+        w.SB.hyperChordGrace)
+
+  local code = {}
+  for line in (INIT_SRC .. "\n"):gmatch("([^\n]*)\n") do
+    code[#code + 1] = line:match("^%s*%-%-") and "" or line
+  end
+  local initCode = table.concat(code, "\n")
+  check("🚨 §3.12 forwards THROUGH that helper rather than calling "
+     .. "keyStroke straight, or the stamp would never be written",
+        initCode:find("_G.hyperForwardChord(key)", 1, true) ~= nil)
+  check("...with a plain send still behind it, so forwarding never depends "
+     .. "on core/hyper_key.lua having loaded",
+        initCode:find("if _G.hyperForwardChord then", 1, true) ~= nil
+        and initCode:find("hs.eventtap.keyStroke(_G.hyperMods, key,", 1, true) ~= nil)
+end
+
+-- =====================================================================
+section("14. THE CHANGELOG CSV CANNOT GO STALE AGAIN")
+-- =====================================================================
+-- It sat on 6.63.0 for thirteen releases: version, date and the whole
+-- notes paragraph were hard-coded, so the file quietly stopped describing
+-- the config while continuing to look like it did.
+do
+  local dir = os.tmpname(); os.remove(dir); os.execute("mkdir -p '" .. dir .. "'")
+  local written = {}
+  local function runCsv(version, configdir)
+    local SB = {
+      hs = { configdir = configdir or HS }, io = io, os = os,
+      print = function(...)
+        local p2 = {}
+        for i = 1, select("#", ...) do p2[#p2 + 1] = tostring((select(i, ...))) end
+        written[#written + 1] = table.concat(p2, " ")
+      end,
+      tostring = tostring, pairs = pairs, ipairs = ipairs, type = type,
+      string = string, table = table,
+    }
+    SB._G = SB
+    SB.configVersion = version
+    local chunk = assert(loadfile(HS .. "/core/changelog_csv.lua", "t", SB))
+    chunk()({ logsDir = dir,
+              csvQuote = function(v) return '"' .. tostring(v):gsub('"', '""') .. '"' end })
+  end
+
+  runCsv("6.76.0")
+  local f = io.open(dir .. "/changelog.csv", "r")
+  local body = f and f:read("*a") or ""
+  if f then f:close() end
+  check("the row is written from CHANGELOG.md, not from a string somebody "
+     .. "has to remember to retype",
+        body:find("6.76.0", 1, true) ~= nil
+        and body:find("HYPER KEY", 1, true) ~= nil, body:sub(1, 120))
+  check("...with a header on a brand new file",
+        body:sub(1, 4) == "Date")
+  check("...and the notes are one CSV cell, newlines flattened",
+        select(2, body:gsub("\n", "")) == 2, select(2, body:gsub("\n", "")))
+
+  written = {}
+  runCsv("6.76.0")
+  local f2 = io.open(dir .. "/changelog.csv", "r")
+  local again = f2 and f2:read("*a") or ""
+  if f2 then f2:close() end
+  check("🚨 a second boot on the same version appends nothing",
+        again == body, #again .. " vs " .. #body)
+
+  written = {}
+  runCsv("9.99.0")
+  check("🚨 a version with NO CHANGELOG.md entry is REPORTED, not written "
+     .. "as a blank row — the exact silence that let it sit on 6.63.0",
+    (function()
+      for _, l in ipairs(written) do
+        if l:find("no CHANGELOG.md entry", 1, true) then return true end
+      end
+      return false
+    end)(), written[1])
+  local f3 = io.open(dir .. "/changelog.csv", "r")
+  local after = f3 and f3:read("*a") or ""
+  if f3 then f3:close() end
+  check("...and really writes nothing", after == body)
+
+  written = {}
+  runCsv("6.75.0", "/nonexistent")
+  check("🛟 an unreadable CHANGELOG.md degrades to a message, not a throw",
+    (function()
+      for _, l in ipairs(written) do
+        if l:find("no CHANGELOG.md entry", 1, true) then return true end
+      end
+      return false
+    end)())
+
+  os.execute("rm -rf '" .. dir .. "'")
 end
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))

@@ -41,7 +41,11 @@
 --   1. the event tap on F18 — the second way in
 --   2. _G.hyperTapDispatch — a complete, Carbon-free hyper keyboard,
 --      inert until the self-test proves it is needed
---   3. _G.hyperSelfTest — presses ⇪⇧F19 and reads the answer
+--   3. _G.globalTapDispatch — the same for the plain ⌃⌥⌘ chords §0.4
+--      never migrated, plus an Escape rescue so no panel can trap you
+--   4. _G.hyperForwardChord — the ⌘⇧⌃⌥ forward, stamped so its own echo
+--      cannot be mistaken for a keypress
+--   5. _G.hyperSelfTest — presses ⇪⇧F19 and reads the answer
 -- =====================================================================
 
 return function(core)
@@ -136,6 +140,112 @@ function _G.hyperTapDispatch(ev, t, code)
     return true
 end
 
+-- 🔁 FORWARDING A HYPER CHORD, stamped. §3.12 forwards ⌘⇧⌃⌥+key for every
+-- hyper key nothing has claimed, so hyper keeps working with apps that
+-- know nothing about Hammerspoon. That synthetic chord returns through
+-- the tap below a millisecond later — and if ⇪ happened to be released in
+-- that gap, the global branch would read it as a genuine ⌘⇧⌃⌥ hotkey
+-- press and fire whatever is bound there. So the send time is written
+-- down, and the global branch refuses the full chord until it expires.
+-- 0.25s is generous for a round trip and short enough that a chord you
+-- press by hand a moment later still works.
+_G.hyperChordUntil = 0
+_G.hyperChordGrace = 0.25
+function _G.hyperForwardChord(key, mods, delay)
+    _G.hyperChordUntil = hs.timer.secondsSinceEpoch() + _G.hyperChordGrace
+    hs.eventtap.keyStroke(mods or _G.hyperMods, key, delay or 0)
+end
+
+-- ---- and the PLAIN global hotkeys, for the same reason ---------------
+-- 🚨 6.77.0 — ⇪ WAS ONLY 107 OF THE SHORTCUTS. When 6.76.0 proved Carbon
+-- dead it rescued the hyper key and left everything else where it found
+-- it, with a line in the GUIDE admitting so. That was a report, not a
+-- fix, and it left one genuine TRAP: ⇪/ opens a full-screen cheat sheet
+-- whose Escape is a Carbon hotkey. A panel you can open and cannot close
+-- is worse than a panel you cannot open.
+--
+-- So the same tap also carries the standalone global hotkeys — the plain
+-- ⌃⌥⌘ chords §0.4 never migrated — out of _G.globalDispatch, which §0.3
+-- fills from the one wrapper every hs.hotkey.bind in this config goes
+-- through.
+--
+-- 🚨 THREE RAILS, and each one is load-bearing:
+--
+--   1. AT LEAST ONE MODIFIER. This runs when ⇪ is NOT held, so it is
+--      looking at ordinary typing. A bare-key entry here would mean the
+--      letter d runs a shortcut instead of typing a d — and bare keys
+--      are exactly what a modal registers. Modal bindings never reach
+--      hs.hotkey.bind, so none can be in this table; the rail is what
+--      makes that structural rather than something to remember.
+--
+--   2. THE FULL ⌘⇧⌃⌥ CHORD IS REFUSED WHILE ONE IS IN FLIGHT. Unclaimed
+--      hyper keys forward that chord, and it returns through this tap a
+--      millisecond later. Release ⇪ inside that gap and the returning
+--      chord looks like a real global hotkey — so ⇪G could fire the
+--      screen-veil escape. §3.12 stamps _G.hyperChordUntil before every
+--      forward and this refuses the chord until it expires.
+--
+--   3. EVERY ENTRY HERE IS PERMANENTLY ENABLED. Nothing that gets
+--      enabled and disabled at runtime is created with hs.hotkey.bind —
+--      the cheat sheet's keys and ⌥Tab's nav keys all use hs.hotkey.new,
+--      which this wrapper never sees. A new hs.hotkey.bind that is later
+--      :disable()d would be fired here while disabled, so hs-lint has a
+--      rule for it rather than a comment.
+--
+-- ⎋ AND ESCAPE IS RESCUED SEPARATELY, because it is the one key whose
+-- absence traps you. It is routed through coexist's escape router, so
+-- whichever panel currently claims Esc gets it — cheat sheet, pomodoro,
+-- or anything added later — without this file knowing any of their names.
+function _G.globalTapDispatch(ev, t, code)
+    if _G.typingInjection and _G.typingInjection()
+       and not _G.hyperSelfTestInFlight then
+        return false
+    end
+
+    local name = hs.keycodes.map[code]
+    if not name then return false end
+    local f = ev:getFlags() or {}
+
+    if name == "escape" and not (f.cmd or f.shift or f.ctrl or f.alt) then
+        if t ~= hs.eventtap.event.types.keyDown then return false end
+        local ok, taker = pcall(function()
+            return _G.routeEscape and _G.routeEscape() or nil
+        end)
+        return (ok and taker) and true or false
+    end
+
+    local mods = {}
+    if f.cmd   then mods[#mods + 1] = "cmd"   end
+    if f.shift then mods[#mods + 1] = "shift" end
+    if f.ctrl  then mods[#mods + 1] = "ctrl"  end
+    if f.alt   then mods[#mods + 1] = "alt"   end
+    if #mods == 0 then return false end                        -- rail 1
+    if #mods == 4 and hs.timer.secondsSinceEpoch()
+                      < (_G.hyperChordUntil or 0) then
+        return false                                           -- rail 2
+    end
+
+    local entry = _G.globalDispatch
+                  and _G.globalDispatch[_G.globalCombo(mods, name)]
+    if not entry then return false end
+
+    if t == hs.eventtap.event.types.keyUp then
+        if entry.released then pcall(entry.released) end
+        return true
+    end
+    local repeating = false
+    pcall(function()
+        repeating = ev:getProperty(
+            hs.eventtap.event.properties.keyboardEventAutorepeat) == 1
+    end)
+    if repeating then
+        if entry.repeated then pcall(entry.repeated) end
+    elseif entry.pressed then
+        pcall(entry.pressed)
+    end
+    return true
+end
+
 -- 🛟 GUARDED, COUNTED, AND IT STANDS DOWN RATHER THAN DEGRADE THE
 -- KEYBOARD. Every keystroke on this Mac goes through this callback. An
 -- error escaping it does not stop — it repeats forever, makes the whole
@@ -164,8 +274,8 @@ local function hyperTapCallback(ev)
             return false
         end
         if not _G.hyperDispatchEngaged then return false end
-        if not _G.hyperActive then return false end
-        return _G.hyperTapDispatch(ev, t, code)
+        if _G.hyperActive then return _G.hyperTapDispatch(ev, t, code) end
+        return _G.globalTapDispatch(ev, t, code)
     end)
     if ok then return err == true end
 
@@ -333,15 +443,22 @@ function _G.hyperSelfTest(stage)
                 or (carbon > 0 and tap > 0 and "carbon + tap")
                 or (carbon > 0 and "carbon" or "event tap")
             if stage == 2 then
+                local globals = 0
+                for _ in pairs(_G.globalDispatch or {}) do globals = globals + 1 end
                 alarm("🎹 ⇪ IS RUNNING WITHOUT CARBON on this Mac — and it works.",
                     { "This Mac's system hotkey layer (Carbon RegisterEventHotKey)",
                       "does not deliver, so the event-tap dispatcher has taken",
                       "over all " .. tostring(_G.hyperShortcutCount or 0)
                       .. " ⇪ shortcuts. Verified by pressing one.",
-                      "KNOWN COST: the few NON-hyper global hotkeys in §0.3 use",
-                      "Carbon directly and are still dead. ⇪ shortcuts are not." },
+                      "The " .. tostring(globals) .. " standalone global hotkeys ride the same tap,",
+                      "and Escape is routed to whichever panel claims it, so",
+                      "nothing can open a sheet you cannot close.",
+                      "WHAT IS STILL DEGRADED, and it is only this: the keys that",
+                      "arm and disarm at runtime — the cheat sheet's type-to-",
+                      "filter and ⌥Tab's arrow navigation — use hs.hotkey.new and",
+                      "stay on Carbon. Both still OPEN, and Escape still closes." },
                     "🎹 ⇪ switched to its fallback",
-                    "Carbon hotkeys are dead on this Mac; ⇪ works anyway")
+                    "Carbon hotkeys are dead on this Mac; your shortcuts work anyway")
             elseif carbon == 0 then
                 alarm("🎹 ⇪ works, but the Carbon hotkey for F18 never fired — "
                     .. "the event tap is carrying it.",

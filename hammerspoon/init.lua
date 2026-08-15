@@ -4,9 +4,31 @@
 -- =====================================================================
 -- 08-15-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.76.0-TWO-WAYS-IN
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.77.0-WHOLE-KEYBOARD
 -- =====================================================================
 
+-- NEW IN 6.77.0 — FIX IT ALL: THE REST OF THE KEYBOARD:
+--   🚨 6.76.0 RESCUED ⇪ AND LEFT EVERYTHING ELSE WHERE IT FOUND IT — a
+--      report, not a fix. Worse, it left a TRAP: ⇪/ opens a full-screen
+--      cheat sheet whose Escape is a Carbon hotkey, and a panel you can
+--      open and cannot close is worse than one you cannot open.
+--   🎹 The same tap now carries the standalone global hotkeys too, from
+--      the one wrapper every hs.hotkey.bind already passes through. Three
+--      rails, because this branch runs while you are ordinarily TYPING:
+--      at least one modifier (a bare letter must never run a shortcut),
+--      the forwarded ⌘⇧⌃⌥ echo refused while in flight, and every entry
+--      permanently enabled — the last one enforced by a new lint rule,
+--      bound-hotkey-later-disabled, rather than by a comment.
+--   ⎋ Escape is rescued through coexist's router, so whichever panel
+--      claims it gets it and nothing can trap you. Still degraded, and
+--      only this: the cheat sheet's type-to-filter and ⌥Tab's arrows.
+--   🚨 THE CHANGELOG CSV HAD SAT ON 6.63.0 FOR THIRTEEN RELEASES. Its
+--      notes were a hard-coded Lua string somebody had to retype; the
+--      moment that was forgotten it stopped describing the config while
+--      still looking like it did. core/changelog_csv.lua now lifts the
+--      entry out of CHANGELOG.md, and a MISSING one is reported.
+--   🧪 tests/test_hyper_key.lua — 98 checks, 33/33 mutations caught.
+--
 -- NEW IN 6.76.0 — THE HYPER KEY HAD ONE WAY IN, AND ON THE WORK MAC IT DIED:
 --   🚨 A GREEN BOOT ON A DEAD KEYBOARD. The work Mac printed "32 modules
 --      · 80 ⇪ shortcuts · All green" and nothing worked. Every number was
@@ -57,31 +79,8 @@
 --      return. The Outlook probe is waived with its reason: it binds no
 --      key and runs only when you type it.
 --
--- NEW IN 6.74.0 — THE SNIPPETS SHIP IN THE ZIP:
---   📦 LL: "wait... I still have to use the .alfredsnippets?" No — that
---      was an oversight. All 2,006 snippets from all five collections
---      are unpacked INSIDE the release zip at ~/.hammerspoon/snippets,
---      scanned in addition to the OneDrive folder. Unzipping is the whole
---      install: no import step, no files to keep track of.
---   🚨 SCANNED, NOT COPIED. A copy needs an "have I done this already"
---      flag, and that flag is a thing that can be wrong. Two directories,
---      no state — and yours WINS on a collision, so re-unzipping can
---      never clobber a snippet you imported or wrote.
---   🔒 And they are in the ZIP ONLY, never in git: textpanders holds real
---      email addresses, a phone number, an employee ID and out-of-office
---      text. That does not belong in a repository.
---
--- NEW IN 6.73.0 — READ BACKWARDS: THE BOOT LINE CANNOT SEE WARM-UP:
---   🚨 A warm() FAILURE WENT TO THE CONSOLE AND NOWHERE ELSE. No ledger
---      entry, no on-screen word — and the boot summary had already said
---      "All green", because it prints before the warm phase exists. That
---      is exactly how 6.69.0 shipped with not one snippet loaded.
---   ✅ Warm failures now reach the notices ledger and the screen, and the
---      warm phase reports its own result after the last module has had
---      its turn — silent when everything worked.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.76.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.77.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -382,7 +381,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.76.0"
+_G.configVersion = "6.77.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -743,6 +742,14 @@ adoptLegacyFile(csvFile, logsDir .. "/image_text.csv")
 local hotkeyRegistry = {}
 _G.hotkeyBoundCount, _G.hotkeyConflictCount = 0, 0
 
+-- 6.77.0 — the handlers themselves, kept a second time so that a Mac
+-- whose Carbon hotkey layer is dead can still run them from the event
+-- tap. See core/hyper_key.lua. Only STANDALONE binds land here: migrated
+-- ones return above this point, and modal bindings never come through
+-- hs.hotkey.bind at all — which is what keeps a bare ⇪-modal letter out
+-- of a table that is consulted when ⇪ is NOT held.
+_G.globalDispatch = {}
+
 local knownSystemCombos = {
     ["cmd+space"]        = "Spotlight search",
     ["alt+cmd+space"]    = "Finder search window",
@@ -767,6 +774,8 @@ local function normalizeCombo(mods, key)
     table.sort(m)
     return table.concat(m, "+") .. "+" .. tostring(key):lower()
 end
+-- The fallback dispatcher files a live keystroke under the same name.
+_G.globalCombo = normalizeCombo
 
 -- =====================================================================
 -- 0.4 HYPER MIGRATION MAP (6.19.0) — every shortcut moves to Caps Lock
@@ -906,7 +915,15 @@ hs.hotkey.bind = function(mods, key, fn, releasedFn, repeatFn)
     local okBind = pcall(function()
         bound = hsHotkeyBindOriginal(mods, key, fn, releasedFn, repeatFn)
     end)
-    if okBind and bound then return bound end
+    if okBind and bound then
+        -- Recorded only when the combo normalized cleanly, because that
+        -- string is the key the tap will look it up under.
+        if ok then
+            _G.globalDispatch[combo] = { pressed = fn, released = releasedFn,
+                                         repeated = repeatFn }
+        end
+        return bound
+    end
     err = tostring(key)
     _G.hotkeyRejectedCount = (_G.hotkeyRejectedCount or 0) + 1
     _G.hotkeyRejected = _G.hotkeyRejected or {}
@@ -2071,7 +2088,13 @@ function _G.hyperFinalize()
     local forwarded = 0
     for _, key in ipairs(hyperForwardKeys) do
         if _G.hyperBound[tostring(key):lower()] == nil then
+            -- 🔁 core/hyper_key.lua STAMPS the chord before sending it:
+            -- it returns through the fallback tap a millisecond later, and
+            -- if ⇪ were released in that gap it would look like a genuine
+            -- ⌘⇧⌃⌥ hotkey press. Falls back to a plain send if that file
+            -- did not load, so forwarding never depends on it.
             local send = function()
+                if _G.hyperForwardChord then return _G.hyperForwardChord(key) end
                 hs.eventtap.keyStroke(_G.hyperMods, key, HYPER_KEYSTROKE_DELAY)
             end
             -- pressed, released (nil), repeated — the repeat handler is
@@ -3870,45 +3893,21 @@ end
 
 print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 
--- ---- CHANGELOG CSV (6.30.1) -----------------------------------------
--- Verbose version notes go here instead of bloating the header forever.
--- Written once per version on first boot — the file is append-only and
--- lives in your OneDrive Logs folder (Excel-ready).
-;(function()
-    local changelogFile = logsDir .. "/changelog.csv"
-    local currentVersion = "6.63.0"
-    local currentDate    = "08-12-26"
-    -- One line. The full entry for every version lives in CHANGELOG.md
-    -- beside this file — which is also why prose no longer sits in a
-    -- Lua string here: the work-Mac safety scan reads string literals
-    -- as code, and a paragraph describing "no sudo, no launchctl"
-    -- failed the very check it was describing.
-    local currentNotes   = "Focus Mode was muting the microphone whenever Teams was merely OPEN. The Teams pattern list ended with a literal pipe pattern that matches every Teams window, because every Teams window title ends with that suffix and in a Lua pattern the pipe is an ordinary character rather than alternation. So a chat, a channel and a greeting card in a channel feed all counted as meetings and all muted the mic. Patterns are now anchored to what a real meeting window starts with, plus an exclusion list for the main window sections that is checked first and wins. This will sometimes miss a real meeting, which is the correct way round - a miss costs one keypress, a false positive mutes you mid-sentence and you find out from the silence. Also, turning Focus off by hand was being overruled by detection three seconds later, so a manual off now suppresses automatic re-engagement for fifteen minutes while pressing it on still engages instantly. Added focusWindows() to print the real window titles and what the rules make of them, so the patterns can be set from evidence rather than guessed at again. Previous 6.62.0 notes follow. Two bugs off LL's own Console. MOUSE GRID: on two screens, typing the first letter tore the grid down. typeChar filters cells by the typed prefix then redraws EVERY screen, and when a letter's matches all sit on one display the other was handed an empty element list - which hs.canvas reads not as draw-nothing but as one element with no key-value pairs, so it threw, and because typeChar runs inside a pcall that hides the grid on error, the grid vanished. Fixed with one setElements helper that substitutes a single skip element when the list is empty. The existing dead-end guard never covered this because it counts matches across ALL screens, so it stays non-zero while one screen has none. The real lesson is the test stub: it accepted anything, including the exact empty table the real API rejects, so 265 checks plus a 4000-layout fuzzer and a random-action explorer all ran green over a crash a real Mac hit in seconds. The stub now rejects what hs.canvas rejects, and the existing fuzzer then failed on its own before any new test was written. CAPTURE PAD: the queue and parked list were one table. The rawequal guard from 6.44.10 caught it and lost nothing, but a safety net firing on an ordinary boot is a bug report, so the cause is fixed too - load() was adopting the JSON decoder's own tables, and now takes its own copy. Previous 6.61.0 notes follow. Closed the last silent failure in App Monitor, the one outstanding against rule 7 since 6.59.0: a sound name that does not resolve is now reported by name instead of just going quiet. Two severities - SOME names bad writes a ledger line visible in the diagnostics report and does not interrupt, since the popup still makes noise; ALL names bad raises an on-screen alert, because a mute popup cannot draw you to itself and nothing else would tell you. The alert names the failing spellings and carries a dedupe key so it appears once an hour rather than on every app close. Resolution moved into warm() so a broken list surfaces a couple of seconds after login rather than on the night an app actually crashes, with the popup path still resolving on demand as a fallback. Cached, so ten lookups happen once. The mutation run found two faults in the tests themselves - mutations that broke the file rather than the behaviour were scoring as caught, and the repeat-reporting case was quitting an already-quit app so it measured nothing - both fixed, nine mutations caught afterwards. Previous 6.60.0 notes follow. App Monitor ping is now every ONE second with a DIFFERENT sound each time - ten of them (Hero, Glass, Sosumi, Submarine, Basso, Ping, Funk, Morse, Bottle, Blow), loudest first, which is ten seconds of varied alert. It then WRAPS rather than ending, because the popup waits indefinitely and a sequence that ran out would hand back the exact away-from-the-desk failure that removing the auto-dismiss existed to prevent. A misspelled name now costs one sound instead of all of them, since names are resolved once when the popup opens and failures are dropped. Names are resolved once rather than on every tick - a one-second timer running for hours would otherwise be thousands of system lookups for an answer that cannot change. New suite tests/test_app_watcher drives the real module and covers this path, which nothing had ever executed before: 27 checks, all six mutations caught. Previous 6.59.0 notes follow. App Monitor sounded Hero instead of Ping - the popup waits indefinitely and pings every two seconds until answered, so the sound has to carry from away-from-the-desk, and Ping does not always. One constant drives both the first alert and the repeating ping so they cannot drift apart. Noted in the file, and here: a misspelled sound name yields no sound and no error, because the lookup is pcall-wrapped; the fourteen valid names are now listed beside the setting. Also fixed hs-doctor calling a WORKING hyper key unexpected - it grepped the Caps Lock HID usage as hex, but hidutil returns decimal on a real Mac, so a correct remap never matched and the error branch dumped the raw property list once per HID device. Both forms match now, and a genuinely wrong mapping prints unique pairs instead of a hundred repeats. Fixture tested five ways. See CHANGELOG.md for the full entry."
-
-    -- Only append if this version isn't already in the file
-    local found = false
-    local f = io.open(changelogFile, "r")
-    if f then
-        local content = f:read("*a"); f:close()
-        found = content:find(currentVersion, 1, true) ~= nil
-    end
-    if not found then
-        -- 6.35.0: this used to be io.open(...) == nil, which opens the
-        -- file and drops the handle on the floor — a leak that only
-        -- closes when the garbage collector gets round to it.
-        local probe = io.open(changelogFile, "r")
-        local needsHeader = (probe == nil)
-        if probe then probe:close() end
-        local out = io.open(changelogFile, "a")
-        if out then
-            if needsHeader then out:write("Date,Version,Change notes\n") end
-            out:write(csvQuote(currentDate) .. "," .. csvQuote(currentVersion) .. ","
-                .. csvQuote(currentNotes) .. "\n")
-            out:close()
-            print("📝 Changelog: " .. currentVersion .. " → " .. changelogFile)
-        end
-    end
-end)()
+-- ---- CHANGELOG CSV --------------------------------------------------
+-- An Excel-ready copy of the release notes in your OneDrive Logs folder,
+-- appended once per version. Lifted into core/changelog_csv.lua in
+-- 6.77.0: it is a feature, not orchestration, and init.lua is the
+-- orchestrator. See that file for why it was stale for thirteen releases.
+local clOK, clErr = pcall(function()
+    local path = hs.configdir .. '/core/changelog_csv.lua'
+    local chunk, loadErr = loadfile(path)
+    if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
+    chunk()({ logsDir = logsDir, csvQuote = csvQuote })
+end)
+if not clOK then
+    print('⚠️ core/changelog_csv.lua failed — no changelog row this version. '
+          .. 'Nothing else is affected. ' .. tostring(clErr))
+end
 
 -- Seed earlier versions into the changelog if it was just created (so
 -- the CSV has a meaningful history even for someone installing fresh).

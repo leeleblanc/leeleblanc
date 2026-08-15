@@ -1,18 +1,20 @@
 # Release packages.
 #
 # The hammerspoonX.Y.Z.zip handed over for each release is a BUILD
-# ARTIFACT, not a source file: every byte in it is copied straight from
-# the tracked files under hammerspoon/. Committing it would put a ~500K
-# binary in the history for every release while adding nothing that
-# `git checkout` cannot already reproduce.
+# ARTIFACT, not a source file. Committing it would put a ~1.4M binary in
+# the history for every release while adding nothing `git checkout`
+# cannot already reproduce — with one deliberate exception: snippets/ is
+# gitignored (it holds real email addresses, a phone number and an
+# employee ID) and ships in the zip only. That folder is the one part of
+# a release the repository cannot rebuild.
 #
 # To rebuild any release from source:
 #   git checkout <the tag or commit for that version>
 #   mkdir -p /tmp/pkg/hammerspoonX.Y.Z
 #   cp -R hammerspoon/init.lua hammerspoon/core hammerspoon/modules \
-#         hammerspoon/tools hammerspoon/tests hammerspoon/GUIDE.md \
-#         hammerspoon/INSTALL.md hammerspoon/CHANGELOG.md \
-#         /tmp/pkg/hammerspoonX.Y.Z/
+#         hammerspoon/tools hammerspoon/tests hammerspoon/snippets \
+#         hammerspoon/GUIDE.md hammerspoon/INSTALL.md \
+#         hammerspoon/CHANGELOG.md /tmp/pkg/hammerspoonX.Y.Z/
 #   (cd /tmp/pkg && zip -qr ../hammerspoonX.Y.Z.zip hammerspoonX.Y.Z)
 #
 # Always run tools/run-tests.sh from INSIDE the unpacked package before

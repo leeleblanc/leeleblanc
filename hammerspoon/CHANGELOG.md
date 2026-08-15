@@ -4,6 +4,66 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.77.0 — FIX IT ALL: THE REST OF THE KEYBOARD, AND A RECORD THAT WENT STALE:
+  🚨 6.76.0 RESCUED ⇪ AND LEFT EVERYTHING ELSE WHERE IT FOUND IT. It
+     shipped with a line in the GUIDE admitting that the plain ⌃⌥⌘ chords
+     stayed dead on a Mac with no working Carbon layer. That was a report,
+     not a fix — and it left one genuine TRAP: ⇪/ opens a full-screen
+     cheat sheet whose Escape is a Carbon hotkey. A panel you can open and
+     cannot close is worse than a panel you cannot open at all.
+  🎹 SO THE SAME TAP CARRIES THE STANDALONE GLOBAL HOTKEYS TOO, out of
+     _G.globalDispatch, which §0.3 fills from the one wrapper every
+     hs.hotkey.bind in this config already passes through. No second list,
+     the same reasoning as the hyper dispatcher.
+     · THREE RAILS, each load-bearing, because this branch runs while you
+       are ORDINARILY TYPING rather than holding ⇪:
+       1. AT LEAST ONE MODIFIER. A bare-key entry here would mean the
+          letter d runs a shortcut instead of typing a d. Bare keys are
+          exactly what a modal registers — and modal bindings never reach
+          hs.hotkey.bind, so none can be in the table. The rail makes that
+          structural instead of something to remember.
+       2. THE FULL ⌘⇧⌃⌥ CHORD IS REFUSED WHILE ONE IS IN FLIGHT.
+          Unclaimed hyper keys forward that chord and it returns through
+          this same tap a millisecond later. Release ⇪ inside that gap and
+          the echo looks like a real hotkey press — ⇪G could have fired
+          the screen-veil escape. _G.hyperForwardChord() stamps the send
+          time; the rail refuses the chord until it expires.
+       3. EVERY ENTRY IS PERMANENTLY ENABLED. Everything that arms and
+          disarms at runtime — the cheat sheet's keys, ⌥Tab's nav keys —
+          is built with hs.hotkey.new, which the wrapper never sees. A
+          bound-then-disabled hotkey would be fired WHILE DISABLED, so
+          hs-lint has a rule for it rather than this paragraph having to
+          be read: bound-hotkey-later-disabled, ERROR.
+  ⎋ AND ESCAPE IS RESCUED SEPARATELY, because it is the one key whose
+     absence traps you. Routed through coexist's escape router, so
+     whichever panel currently claims Esc gets it — cheat sheet, pomodoro,
+     anything added later — without this file knowing their names. Nothing
+     wants it: passed through untouched, never eaten.
+  📊 HONEST ABOUT WHAT IS STILL DEGRADED, and it is now only this: the
+     cheat sheet's type-to-filter and ⌥Tab's arrow navigation stay on
+     Carbon. Both still OPEN, and Escape still closes them. The boot
+     message says so in those words rather than "some things".
+  🚨 AND THE CHANGELOG CSV HAD BEEN STUCK ON 6.63.0 FOR THIRTEEN RELEASES.
+     The version, the date and the entire notes paragraph were hard-coded
+     in init.lua, so keeping it honest meant remembering to retype a wall
+     of prose into a Lua string every release. The moment that was
+     forgotten the file quietly stopped describing the config while
+     continuing to look like it did — a rule 7 failure with no error to
+     notice: nothing throws, the boot line is green, and the record is
+     thirteen versions out of date.
+     · core/changelog_csv.lua now reads _G.configVersion and lifts that
+       version's entry straight out of CHANGELOG.md, which the suite
+       already forces to contain every entry inline in init.lua. Nothing
+       left to keep in step, so nothing left to forget.
+     · A MISSING entry is reported rather than written as a blank row.
+     · Lifted into core/ for the same reason: it is a feature, and
+       init.lua is the orchestrator.
+  🧪 tests/test_hyper_key.lua is now 98 checks, 33/33 mutations caught.
+     §0.3's REAL hs.hotkey.bind wrapper is lifted out of init.lua and run,
+     so what is tested is that the recording and the dispatcher agree —
+     a suite that hand-filled _G.globalDispatch would prove the dispatcher
+     right about a table nothing produces.
+
 NEW IN 6.76.0 — THE HYPER KEY HAD ONE WAY IN, AND ON THE WORK MAC IT DIED:
   🚨 THE SYMPTOM WAS A GREEN BOOT ON A DEAD KEYBOARD. LL's work Mac
      printed "32 modules · 80 ⇪ shortcuts · 1.03s / All green" and not one

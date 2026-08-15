@@ -250,6 +250,38 @@ rule{ id = "keyboard-tap-ignores-injection", sev = "ERROR", file = true,
       return { 1, "watches keyDown and never checks the guard" }
   end }
 
+-- 🚨 6.77.0 — RAIL 3 OF core/hyper_key.lua's GLOBAL FALLBACK, ENFORCED
+-- RATHER THAN REMEMBERED. On a Mac whose Carbon hotkey layer is dead, the
+-- event tap runs the handlers recorded from hs.hotkey.bind. That is only
+-- safe because every one of them is permanently enabled: everything that
+-- arms and disarms at runtime — the cheat sheet's keys, ⌥Tab's nav keys —
+-- is built with hs.hotkey.new, which the recording wrapper never sees.
+-- A bound-then-disabled hotkey would be fired by the tap WHILE DISABLED,
+-- which is the cheat sheet's bare alphabet typing into nothing.
+rule{ id = "bound-hotkey-later-disabled", sev = "ERROR", file = true,
+  why = "A hotkey created with hs.hotkey.bind and later :disable()d is "
+     .. "recorded in _G.globalDispatch and would still be fired by the "
+     .. "event-tap fallback while disabled. Use hs.hotkey.new + :enable() "
+     .. "for anything that arms and disarms — the wrapper never sees "
+     .. "those, which is exactly the point. See core/hyper_key.lua.",
+  check = function(code)
+      local n, boundAt = 0, nil
+      for line in (code .. "\n"):gmatch("([^\n]*)\n") do
+          n = n + 1
+          if line:match("^%s*%-%-") then goto continue end
+          -- `local x = hs.hotkey.bind(` — a RETAINED bind, i.e. one whose
+          -- object is kept, which is the only kind that can be disabled.
+          local var = line:match("local%s+([%w_]+)%s*=%s*hs%.hotkey%.bind")
+                   or line:match("([%w_%.%[%]\"']+)%s*=%s*hs%.hotkey%.bind")
+          if var then boundAt = boundAt or { n, var } end
+          if boundAt and line:find(":disable%(%)") then
+              return { n, "a bind()-created hotkey is disabled here" }
+          end
+          ::continue::
+      end
+      return false
+  end }
+
 -- 🚨 The same three taps, the other half of the lesson. A callback that
 -- throws does not stop — it raises into Hammerspoon's event machinery on
 -- EVERY KEYSTROKE, and macOS switches off taps that behave that way.
