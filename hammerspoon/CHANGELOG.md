@@ -4,6 +4,27 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.87.0 — SCREENSHOT PANEL + BLUR EDITOR:
+  ⇪⇧4 grew from a history picker into the SCREENSHOT PANEL: seven capture
+  actions on top (⌘1–⌘7 jump straight to one), history below. The actions:
+  area capture · scrolling capture (EXPERIMENTAL — pixel-exact scroll
+  events + slice stacking; seamless in browsers, seams possible in apps
+  that snap scrolling; scroll.cropTop crops sticky headers) · recognize
+  text/QR (text via the HS OCR Shortcut; QR via zbar when brew installed
+  it, tried first) · blur/edit newest · repeat last area (our own selector
+  remembers the rect; -R re-shoots it) · active window (-l, no clicking) ·
+  delayed 10s (-T). Panel-initiated captures open the editor when done
+  (shots.editAfterMenu); ⇪4 stays the instant path.
+  NEW MODULE screenshot_editor.lua — THE BLUR EDITOR: the screenshot opens
+  in a window, every box you drag is blurred in place (a box blur written
+  in the page's JS — Hammerspoon has no image filters, a WKWebView canvas
+  does), ⌘Z un-blurs, ⌘⏎ saves "… (edited).png" NEXT TO the original and
+  copies it; the original file is never touched. Reached from the panel
+  and ⌥⏎ on any history row; no hotkey of its own.
+  Tests: 25 checks added to test_screenshots, new test_editor (24), and a
+  new run-tests stage 3b that EXECUTES the editor page's JS under node —
+  the blur, the drag, the undo, on real pixel buffers (15 checks).
+
 NEW IN 6.86.0 — TASK FORM + SCREENSHOTS:
   ⇪T now opens a labeled FORM (modules/task_form.lua): Title / Description /
   Assignee / Attachment, each label permanently visible — the old one-line

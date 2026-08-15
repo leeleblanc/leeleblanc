@@ -4,9 +4,15 @@
 -- =====================================================================
 -- 08-15-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.86.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.87.0
 -- =====================================================================
 
+-- NEW IN 6.87.0 — SCREENSHOT PANEL + BLUR EDITOR:
+--   ⇪⇧4 is now a PANEL: 7 capture actions (⌘1–⌘7 — area · scrolling
+--   [experimental] · text/QR · blur newest · repeat area · window ·
+--   10s delay) with history below; ⌥⏎ on a history row opens the
+--   BLUR EDITOR (drag boxes → blurred; ⌘Z undo; saves "… (edited)").
+--
 -- NEW IN 6.86.0 — TASK FORM + SCREENSHOTS:
 --   ⇪T opens a labeled FORM (Title/Description/Assignee/Attachment —
 --   labels never disappear; ⏎ sends, Esc keeps the draft). The pipe
@@ -30,15 +36,8 @@
 --   Panel is now fixed at 270×134 (kc.fixedW / kc.fixedH). Set either
 --   to nil to revert to dynamic sizing.
 --
--- NEW IN 6.83.1 — KEY CASTER 20PT + EXPANDER DOUBLE-POST FIX:
---   Key caster font bumped 16→20pt, panel padding scaled up.
---   Text expander: fixed double-post when expansion text contains its
---   own trigger — hs.eventtap.keyStrokes() is async; kept injecting
---   guard active for 80ms after expansion so in-flight events are
---   discarded.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.86.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.87.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -143,23 +142,24 @@
 -- ✅ ⇪T  ASANA TASK CREATOR (§4 / §5 + modules/task_form.lua)
 --    Creates a task in your Asana project without opening a browser.
 --    6.86.0: ⇪T opens a FORM — Title / Description / Assignee /
---    Attachment, each label permanently on screen (the old one-line
---    picker's placeholder vanished the moment you typed). ⏎ sends
---    from any field, ⇥ moves between fields, ⌥⏎ makes a newline in
---    the Description, Esc keeps your draft for next time. The 📸
---    button (or ⌘L) drops the newest ⇪4 screenshot into Attachment.
---    Posts an auto-comment on every new task and uploads the
---    attachment if a path is given.
+--    Attachment, each label permanently on screen. ⏎ sends from any
+--    field, ⇥ moves between fields, ⌥⏎ = newline in Description, Esc
+--    keeps your draft for next time. The 📸 button (or ⌘L) drops the
+--    newest ⇪4 screenshot into Attachment. Auto-comment + attachment
+--    upload as always.
 --    ⇪⇧S searches PAST tasks — the old pipe picker, search-only:
---    30-day history (saved per-machine in OneDrive), filter by
---    typing; matches title, description and assignee.
+--    30-day history, filter by typing (title, description, assignee).
 --
--- 📸 ⇪4  SCREENSHOTS (modules/screenshots.lua)
+-- 📸 ⇪4  SCREENSHOTS (modules/screenshots.lua + screenshot_editor.lua)
 --    ⇪4 = the native crosshair capture (SPACE switches to window
 --    capture, Esc cancels), saved as a timestamped PNG in OneDrive's
 --    "2026 Screenshots" folder AND copied to the clipboard — macOS
---    only ever does one or the other. ⇪⇧4 browses past screenshots,
---    newest first with thumbnails: ⏎ image on clipboard, ⌘⏎ file PATH.
+--    only ever does one or the other. ⇪⇧4 = the PANEL: 7 capture
+--    actions on ⌘1–⌘7 (area · scrolling [experimental] · text/QR ·
+--    blur newest · repeat area · active window · 10s delay), history
+--    with thumbnails below — ⏎ image on clipboard, ⌘⏎ file PATH,
+--    ⌥⏎ the BLUR EDITOR: drag boxes over anything private, ⌘Z undo,
+--    saves "… (edited).png" beside the original + clipboard.
 --
 -- 📅 ⌃⌥⌘L / ⌃⌥⌘C  ASANA DASHBOARD (§6)
 --    Fetches your incomplete Asana tasks and shows them in five
@@ -348,7 +348,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.86.0"
+_G.configVersion = "6.87.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2553,12 +2553,10 @@ end
 -- TASK SUBMIT — shared by the chooser below AND the Task Form (6.86.0)
 -- =====================================================================
 -- Moved UNCHANGED out of the chooser's isAction branch when the labeled
--- form (modules/task_form.lua) became a second front end — both hand
--- their four strings to this one place, so the two entry paths cannot
--- drift apart. _G., not a local: the main chunk is at Lua's 200-local
--- ceiling (§0.4's note). Returns TRUE when accepted for posting; FALSE
--- on a validation failure, AFTER alerting — callers keep their draft on
--- false and clear it on true.
+-- form (modules/task_form.lua) became a second front end — one submit
+-- path, so the two cannot drift. _G., not a local (200-local ceiling,
+-- §0.4). Returns TRUE = accepted for posting; FALSE = validation
+-- failed, AFTER alerting — callers keep their draft on false.
 function _G.asanaSubmitTask(title, desc, assignee, attach)
     title, desc     = title or "", desc or ""
     assignee, attach = assignee or "", attach or ""
@@ -2796,9 +2794,8 @@ end)
 -- only a NUMBER comes back intact).
 
 -- The pipe chooser, openable by name — reopens with your unsent DRAFT
--- restored (6.10.1; wiping with query("") is how a stray click used to
--- eat your text). _G., not a local (200-local ceiling, §0.4). Its three
--- callers: ⇪⇧S below, ⇪T's fallback, task_form's no-WKWebView fallback.
+-- restored (6.10.1). _G., not a local (200-local ceiling, §0.4). Called
+-- by ⇪⇧S below, ⇪T's fallback, and task_form's no-WKWebView fallback.
 _G.asanaOpenTaskChooser = function()
     local draft = _G.taskDraft or ""
     _G.choosers.task:query(draft)
@@ -3524,8 +3521,10 @@ local BASE = {
     -- 6.71.0
     "key_caster",         -- ⇪⇧K  show the shortcuts as you press them
     -- 6.86.0
-    "screenshots",        -- ⇪4   capture → OneDrive + clipboard · ⇪⇧4 history
+    "screenshots",        -- ⇪4   capture → OneDrive + clipboard · ⇪⇧4 panel
     "task_form",          -- ⇪T   labeled Asana task entry (pipe search → ⇪⇧S)
+    -- 6.87.0
+    "screenshot_editor",  -- 🖌   blur boxes on a screenshot (via ⇪⇧4, no key)
 }
 
 -- BASE minus `without`, plus `plus`. The list is COPIED, never shared: a

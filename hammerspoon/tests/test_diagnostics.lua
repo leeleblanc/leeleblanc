@@ -755,11 +755,19 @@ end
 -- it is simply not installed, the config must lose one feature and say
 -- so — not fail, not retry forever, not nag.
 local ut = moduleText.update_tracker or ""
-check("brew is reached only from update_tracker, nowhere else", (function()
+-- 6.87.0 carve-out: the screenshots module LOOKS UNDER the brew prefixes
+-- for zbarimg (the optional QR decoder) — it checks file existence and
+-- runs zbarimg itself, never brew. Lines mentioning zbar are that lookup;
+-- any OTHER brew reference in it still fails here.
+check("brew is RUN only from update_tracker (screenshots may look under "
+      .. "the brew prefixes for zbarimg)", (function()
   for name, body in pairs(moduleText) do
     if name ~= "update_tracker" then
       for line in body:gmatch("[^\n]+") do
-        if not line:match("^%s*%-%-") and line:find("brew", 1, true) then return false, name end
+        if not line:match("^%s*%-%-") and line:find("brew", 1, true)
+           and not (name == "screenshots" and line:lower():find("zbar", 1, true)) then
+          return false, name
+        end
       end
     end
   end

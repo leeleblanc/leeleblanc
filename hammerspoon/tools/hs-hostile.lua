@@ -6,7 +6,7 @@
 -- screen list is empty, Accessibility is off, a file will not open and
 -- every API answers nil.
 --
--- This loads all 33 shipped modules for real and runs setup() and warm()
+-- This loads all 34 shipped modules for real and runs setup() and warm()
 -- against three progressively worse worlds:
 --
 --   1. EMPTY    every API answers nil / {} / "" — the shapes a real Mac
