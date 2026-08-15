@@ -302,13 +302,21 @@ end
 -- Called by whoever currently owns the Esc key. Returns the name of the
 -- claimant that handled it, or nil meaning "it's yours, carry on".
 function _G.routeEscape(caller)
-    local mine = 0
+    -- 🚨 6.79.2 — nil MEANS "NOBODY IS ASKING ON THEIR OWN BEHALF", and it
+    -- is not the same as priority zero. core/hyper_key.lua's Escape rescue
+    -- calls this with no caller, and with `mine = 0` that made the cheat
+    -- sheet — which sits at zero deliberately, so it closes last —
+    -- ineligible for its own Esc. On a Mac running the event-tap
+    -- dispatcher, where the sheet's own Carbon hotkey is dead, that left
+    -- it IMPOSSIBLE TO CLOSE with the key it tells you to use.
+    -- A caller outranks nothing; nil outranks nothing at all.
+    local mine = nil
     for _, c in ipairs(_G.escapeClaims) do
         if c.name == caller then mine = c.priority or 0 end
     end
     local best
     for _, c in ipairs(_G.escapeClaims) do
-        if c.name ~= caller and (c.priority or 0) > mine then
+        if c.name ~= caller and (mine == nil or (c.priority or 0) > mine) then
             local ok, live = pcall(c.active)
             if ok and live and (not best or c.priority > best.priority) then
                 best = c

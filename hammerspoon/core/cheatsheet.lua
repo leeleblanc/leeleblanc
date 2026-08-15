@@ -435,6 +435,10 @@ return function(core)
         -- that reopened still filtered by yesterday's search would look
         -- like most of your shortcuts had disappeared.
         cheatSheet.query = ""
+        -- The shadow poller belongs to an OPEN sheet. Stopped on the same
+        -- path that gives the keyboard back, so there is one exit and one
+        -- thing to check when a timer turns up still running.
+        if cheatSheet.watchOthers then cheatSheet.watchOthers(false) end
         if _G.cheatSheetWheelTap then
             pcall(function() _G.cheatSheetWheelTap:stop() end)
         end
@@ -655,6 +659,13 @@ return function(core)
     -- Esc CLEARS before it CLOSES. A mistyped search costing a
     -- close-and-reopen is the kind of small friction that stops people
     -- using a feature at all.
+    -- How long after another panel was last seen on screen an Escape is
+    -- still considered to belong to THAT panel rather than to the sheet.
+    -- Long enough to cover the dispatch gap between a chooser dismissing
+    -- itself and Carbon delivering our hotkey; short enough that a
+    -- deliberate second press always lands.
+    cheatSheet.escapeShadow = 0.5
+
     function cheatSheet.escape()
         -- ⎋ 6.68.0 — ASK FIRST. The sheet holds a bare-Esc hotkey the whole
         -- time it is open, so when the pomodoro is flashing "⏎ ⁄ esc" the
@@ -672,6 +683,33 @@ return function(core)
         -- neither what you pressed Esc for nor distinguishable from a bug.
         -- The sheet is the backdrop. Nothing else on screen, nothing here.
         if _G.escapeOthersActive and _G.escapeOthersActive("cheatsheet") then
+            return
+        end
+        -- 🚨 6.79.2 — AND IT REMEMBERS, because asking "is anything else up
+        -- RIGHT NOW" loses a race it cannot win.
+        --
+        -- LL: "When you hit escape any other Hammerspoon window closes
+        -- after. That means I have to open the shortcuts panel again each
+        -- time and lose my place."
+        --
+        -- One Escape reaches TWO things. An hs.chooser dismisses itself
+        -- natively the instant Esc arrives — nothing in this config is
+        -- consulted — while the sheet's own bare-Esc hotkey is dispatched
+        -- separately by Carbon. Whichever lands first decides the answer:
+        -- if the chooser has already gone by the time we ask, both
+        -- checks above say "nothing else is up" and the sheet closes on
+        -- the same keystroke that closed the chooser. That is the bug,
+        -- and it is a RACE, so no amount of asking more carefully fixes
+        -- it.
+        --
+        -- So while the sheet is open a light poller writes down the last
+        -- moment anything else was on screen, and one Escape inside that
+        -- shadow is treated as belonging to the panel that has just gone.
+        -- Press it again and the sheet closes. The cost is one extra
+        -- keypress in the half-second after dismissing something; the
+        -- thing it buys is never losing your place in a 313-row list.
+        local seen = _G.cheatSheetOtherSeenAt or 0
+        if (hs.timer.secondsSinceEpoch() - seen) < cheatSheet.escapeShadow then
             return
         end
         if cheatSheet.query ~= "" then
@@ -697,7 +735,26 @@ return function(core)
             function() cheatSheet.hide() end)
     end
 
+    -- HELD in _G and stopped in hide(): an unreferenced timer is
+    -- collected and a collected timer never fires, which would silently
+    -- take the shadow away and leave only the racy question behind.
+    function cheatSheet.watchOthers(on)
+        if _G.cheatSheetOtherWatch then
+            pcall(function() _G.cheatSheetOtherWatch:stop() end)
+            _G.cheatSheetOtherWatch = nil
+        end
+        if not on then return end
+        _G.cheatSheetOtherSeenAt = _G.cheatSheetOtherSeenAt or 0
+        local ok, t = pcall(hs.timer.doEvery, 0.25, function()
+            if _G.escapeOthersActive and _G.escapeOthersActive("cheatsheet") then
+                _G.cheatSheetOtherSeenAt = hs.timer.secondsSinceEpoch()
+            end
+        end)
+        if ok then _G.cheatSheetOtherWatch = t end
+    end
+
     function cheatSheet.enableInput()
+        cheatSheet.watchOthers(true)
         if not _G.cheatSheetEscHotkey then
             local ok, hk = pcall(hs.hotkey.new, {}, "escape", cheatSheet.escape)
             if ok then _G.cheatSheetEscHotkey = hk end

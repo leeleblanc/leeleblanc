@@ -4,6 +4,24 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.79.2 — THE SHORTCUTS PANEL TRULY CLOSES LAST:
+  🐛 RACE: an hs.chooser (volume, app-switcher) dismisses itself natively
+     on Esc before the cheat sheet's Carbon hotkey fires. By then,
+     escapeOthersActive() sees nothing open and the sheet closes.
+  🔍 ROOT CAUSE 1 — nil caller in routeEscape: when hyper_key.lua's tap
+     routes a bare Esc, caller is nil. The old code set mine = 0, which is
+     also the cheat sheet's priority floor — making it invisible as a valid
+     target. Fixed: mine = nil so a nil caller reaches the floor claimant.
+  ✅ FIX 1: `local mine = nil` in routeEscape (core/coexist.lua).
+  🔍 ROOT CAUSE 2 — chooser closes before the Esc handler runs:
+     the sheet asked "is anything up?" too late. The window was already gone.
+  ✅ FIX 2: escape shadow (core/cheatsheet.lua). The sheet polls
+     escapeOthersActive every 0.25s while visible and writes
+     _G.cheatSheetOtherSeenAt. On Esc, if another panel was seen within the
+     last 0.5s, the sheet defers. The chooser closes; the sheet stays put;
+     the next Esc (past the 0.5s window) closes the sheet cleanly.
+  🧪 19/19 mutations caught. 26 stages green.
+
 NEW IN 6.79.1 — A CORRECTION: PER-APP MIXING NO LONGER NEEDS A DRIVER:
   🚨 I TOLD LL THE WRONG THING, TWICE, AND THEY WOULD HAVE DECIDED ON IT.
      I said real per-app volume on macOS "means being an audio driver",

@@ -4,9 +4,30 @@
 -- =====================================================================
 -- 08-15-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.79.1-REAL-KEY
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.79.2-CLOSE-LAST
 -- =====================================================================
 
+-- NEW IN 6.79.2 — THE SHORTCUTS PANEL TRULY CLOSES LAST:
+--   🐛 RACE: an hs.chooser (volume, app-switcher) dismisses itself natively
+--      on Esc — by the time the cheat sheet's Carbon hotkey fired, the
+--      chooser was already gone and escapeOthersActive() said "nothing else
+--      is up." The sheet closed. LL lost their place every time.
+--   🔍 ROOT CAUSE 1 — nil caller: routeEscape() used `mine = 0` for a
+--      caller-less invocation (the hyper_key tap's Esc rescue). Priority 0
+--      is the cheat sheet's own floor, so the sheet was invisible as a
+--      valid target to its own dispatch path.
+--   ✅ FIX 1: `local mine = nil` — a nil caller now reaches the floor
+--      claimant (priority 0 = cheat sheet) so the tap's Esc path works.
+--   🔍 ROOT CAUSE 2 — chooser race: the 0.5s shadow. The cheat sheet now
+--      polls escapeOthersActive every 0.25s while it is visible. If any
+--      other panel was seen in the last 0.5s, Esc defers. The poller writes
+--      _G.cheatSheetOtherSeenAt; escape() reads it; if too recent → return.
+--   ✅ FIX 2: cheatSheet.watchOthers(on) starts/stops the poller. The
+--      shadow outlives the race. Chooser closes, sheet stays; next Esc
+--      (outside the 0.5s window) finally closes the sheet.
+--   🧪 19/19 new mutations caught in test_cheatsheet.lua and
+--      test_integration.lua.
+--
 -- NEW IN 6.79.1 — A CORRECTION: PER-APP MIXING NEEDS NO DRIVER:
 --   🚨 I told LL, twice, that real per-app volume "means being an audio
 --      driver" and that both options need admin — so it was out on the
@@ -53,7 +74,7 @@
 --      ⇪. up · ⇪, down · ⇪⇧, mute · ⇪⇧. panel. 54 checks, 16/16 mutations.
 --
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.79.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.79.2
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -354,7 +375,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.79.1"
+_G.configVersion = "6.79.2"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

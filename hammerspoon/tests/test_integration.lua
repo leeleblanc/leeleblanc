@@ -790,6 +790,50 @@ do
             check("...and one that cannot even say whether it wants Esc is "
                .. "skipped rather than taken at its word",
                   sandbox.routeEscape("cheatsheet") == nil)
+
+            -- 🚨 6.79.2 — nil IS NOT PRIORITY ZERO. core/hyper_key.lua's
+            -- Escape rescue calls routeEscape with no caller, and with
+            -- `mine = 0` the cheat sheet — which sits at zero on purpose,
+            -- so it closes last — was ineligible for its own Esc. On a Mac
+            -- running the event-tap dispatcher, where the sheet's Carbon
+            -- hotkey is dead, that left it IMPOSSIBLE TO CLOSE with the
+            -- key the panel itself tells you to press.
+            --
+            -- The claim list is SAVED AND PUT BACK: the checks after this
+            -- one are built on the set registered above, and a scenario
+            -- that quietly rewrites shared state passes while making its
+            -- neighbours fail for reasons that have nothing to do with
+            -- them.
+            do
+              local saved = sandbox.escapeClaims
+              sandbox.escapeClaims = {}
+              local closed = 0
+              sandbox.claimEscape("cheatsheet", nil,
+                  function() return true end,
+                  function() closed = closed + 1 end)
+              check("🚨 a caller-less Esc reaches the FLOOR claimant when it "
+                 .. "is the only one up, or the cheat sheet cannot be closed "
+                 .. "at all on a Mac using the event-tap dispatcher",
+                (function()
+                  local who = sandbox.routeEscape()
+                  return who == "cheatsheet" and closed == 1, tostring(who)
+                end)())
+
+              local took
+              sandbox.claimEscape("pomodoro", nil,
+                  function() return true end,
+                  function() took = "pomodoro" end)
+              check("...and a higher claimant still outranks it when both "
+                 .. "are up, so \"closes last\" survives the same path",
+                (function()
+                  local who = sandbox.routeEscape()
+                  return who == "pomodoro" and took == "pomodoro", tostring(who)
+                end)())
+              check("...while a NAMED caller only ever yields UPWARD, so "
+                 .. "the top panel asking finds nobody above it",
+                    sandbox.routeEscape("pomodoro") == nil)
+              sandbox.escapeClaims = saved
+            end
             -- 3, not 2: core/coexist.lua registers the central chooser
             -- claim itself, which is the point of it being central.
             check("core/coexist.lua registers the chooser claim ITSELF, so "

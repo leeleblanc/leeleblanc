@@ -112,8 +112,17 @@ hs = {
   dialog = { textPrompt = function() return "Cancel", "" end },
   pasteboard = { getContents = function() return "" end,
                  setContents = function() return true end },
+  -- ⏱ A CLOCK THE TEST DRIVES. The Escape shadow is a DEADLINE, so a
+  -- frozen clock would make "half a second later" and "immediately" the
+  -- same instant and every shadow assertion below would pass for free.
   timer = { doAfter = function() return { stop = function() end } end,
-            secondsSinceEpoch = function() return 1 end },
+            doEvery = function(_, fn)
+              local t = { fn = fn, live = true }
+              function t:stop() self.live = false; return self end
+              EVERY_TIMERS[#EVERY_TIMERS + 1] = t
+              return t
+            end,
+            secondsSinceEpoch = function() return NOW end },
   fs = { attributes = function() end, mkdir = function() end },
   configdir = "/tmp/hs-test",
 }
@@ -183,6 +192,8 @@ end
 -- the property under test is that the sheet defers to that ONE table, and
 -- a private copy here could agree with a literal the shipped file no
 -- longer uses.
+EVERY_TIMERS = {}
+NOW = 1000
 local ESC_CLAIMS = {}
 local ESC_PRIORITIES = (function()
   local f = io.open(HS .. "/core/coexist.lua", "r")
@@ -845,6 +856,91 @@ do
   _G.routeEscape = function() return nil end
   CS.escape()
   check("...and the sheet is free again afterwards", _G.cheatSheetCanvas == nil)
+end
+
+
+-- =====================================================================
+print("\n=== THE ESCAPE SHADOW (6.79.2) ===")
+-- =====================================================================
+-- LL: "When you hit escape any other Hammerspoon window closes after.
+-- That means I have to open the shortcuts panel again each time and lose
+-- my place."
+--
+-- 🚨 6.78.0 asked "is anything else on screen?" at the moment Esc
+-- arrived, and that question loses a race it cannot win. One Escape
+-- reaches TWO things: an hs.chooser dismisses itself natively the instant
+-- the key lands — nothing here is consulted — while the sheet's own
+-- bare-Esc hotkey is dispatched separately by Carbon. If the chooser has
+-- already gone by the time we ask, the sheet closes on the same keystroke
+-- that closed the chooser. So the sheet REMEMBERS instead of asking.
+do
+  local othersUp = false
+  _G.escapeOthersActive = function() return othersUp and "chooser" or nil end
+  _G.routeEscape = function() return nil end
+  _G.cheatSheetOtherSeenAt = 0
+  NOW = 1000
+
+  local function tickPoller()
+    for _, t in ipairs(EVERY_TIMERS) do if t.live then t.fn() end end
+  end
+
+  CS.show(false)
+  check("opening the sheet starts the shadow poller, HELD in _G",
+        _G.cheatSheetOtherWatch ~= nil)
+
+  othersUp = true
+  tickPoller()
+  check("...and it writes down when something else was last on screen",
+        _G.cheatSheetOtherSeenAt == 1000, _G.cheatSheetOtherSeenAt)
+
+  -- the chooser dismisses ITSELF, so by the time Esc reaches us it is gone
+  othersUp = false
+  NOW = 1000.1
+  CS.query = ""
+  CS.escape()
+  check("🚨 THE SHEET STAYS UP on the Escape that closed something else, "
+     .. "even though nothing is on screen by the time we are asked — this "
+     .. "is the race, and remembering is the only thing that survives it",
+        _G.cheatSheetCanvas ~= nil)
+
+  NOW = 1000.3
+  CS.escape()
+  check("...still up part-way through the shadow", _G.cheatSheetCanvas ~= nil)
+
+  NOW = 1001.0
+  CS.escape()
+  check("...and a deliberate Escape after the shadow closes it, so the key "
+     .. "still works and is never a mystery", _G.cheatSheetCanvas == nil)
+  check("closing the sheet stops the poller — a timer nobody stops is a "
+     .. "timer that outlives its panel",
+        _G.cheatSheetOtherWatch == nil)
+
+  -- the shadow must not swallow a plain Escape on a quiet desktop
+  _G.cheatSheetOtherSeenAt = 0
+  NOW = 2000
+  CS.show(false)
+  CS.query = ""
+  CS.escape()
+  check("🚨 with nothing else all session, ONE Escape still closes the "
+     .. "sheet — the shadow is a memory of other panels, not a delay",
+        _G.cheatSheetCanvas == nil)
+
+  -- and it never overrides the two checks that come first
+  CS.show(false)
+  CS.query = ""
+  othersUp = true
+  NOW = 3000
+  CS.escape()
+  check("something genuinely still on screen keeps the sheet up regardless",
+        _G.cheatSheetCanvas ~= nil)
+  othersUp = false
+  _G.routeEscape = function() return "pomodoro" end
+  NOW = 4000
+  _G.cheatSheetOtherSeenAt = 0
+  CS.escape()
+  check("...and a panel that HANDLED the Esc does too", _G.cheatSheetCanvas ~= nil)
+  _G.routeEscape = function() return nil end
+  CS.hide()
 end
 
 print(("\n%d passed, %d failed\n"):format(pass, fail))
