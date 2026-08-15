@@ -25,7 +25,7 @@ with no admin password. The two steps that *can* use admin are marked
 │   ├── hyper_key.lua         ⇪'s second way in, and the proof it works
 │   ├── changelog_csv.lua     one Excel-ready row per version
 │   └── notices.lua           the failure ledger — nothing fails silently
-├── modules/              32 files, loaded by the §1.12 loader
+├── modules/              33 files, loaded by the §1.12 loader
 ├── tools/                hs-doctor.sh · hs-install.sh · run-tests.sh
 └── logs/                 only if there is no OneDrive on this Mac
 ```

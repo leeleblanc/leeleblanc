@@ -128,7 +128,7 @@ local function newWorld(opts)
   -- fallback look like it works when it cannot, which is the exact
   -- direction of error that put a green boot line on a dead keyboard.
   local function deliver(ev)
-    w.posts[#w.posts + 1] = { key = ev.key, down = ev.down }
+    w.posts[#w.posts + 1] = { key = ev.key, down = ev.down, posted = ev.posted }
     if w.dropKeyUp and ev.key == "f18" and not ev.down then return end
     if w.tapKeys then
       for _, t in ipairs(w.taps) do
@@ -139,28 +139,46 @@ local function newWorld(opts)
         end
       end
     end
+    -- 🚨 A POSTED EVENT DOES NOT REACH CARBON. This one line is the whole
+    -- of 6.76.0's mistake: event taps see a synthesised keystroke exactly
+    -- like a real one, Carbon's RegisterEventHotKey dispatch does not, so
+    -- a probe built on hs.eventtap.event:post() read zero in the Carbon
+    -- column on EVERY Mac and 6.76.0 read that zero as "Carbon is dead".
+    -- The old stub delivered posted events to both layers, which is why
+    -- 33 mutations and 98 checks all passed over a bug that misdiagnosed
+    -- LL's Mac on the first boot.
+    if ev.posted then return end
     if not w.carbon then return end
-    local c = comboOf(ev.mods, ev.key)
-    local g = w.carbonBinds[c]
-    if g then
-      local fn = ev.down and g[1] or g[2]
-      if fn then fn() end
-      return
-    end
-    if modal.entered then
-      local b = modal.binds[c]
-      if b then
-        local fn = ev.down and b[1] or b[2]
+    -- 🚨 CARBON DISPATCHES ON THE RUN LOOP, NOT INSIDE THE TAP CALLBACK.
+    -- The tap runs in the event stream and returns; the hotkey handler
+    -- comes afterwards. Modelling it as a same-instant call would let a
+    -- verification that checks the Carbon counter IMMEDIATELY look
+    -- correct here and misdiagnose every Mac in the world — which is the
+    -- exact class of stub-is-kinder-than-reality bug this file exists
+    -- because of. 0.05 against the check's 0.25.
+    w.hs.timer.doAfter(0.05, function()
+      local c = comboOf(ev.mods, ev.key)
+      local g = w.carbonBinds[c]
+      if g then
+        local fn = ev.down and g[1] or g[2]
         if fn then fn() end
+        return
       end
-    end
+      if modal.entered then
+        local b = modal.binds[c]
+        if b then
+          local fn = ev.down and b[1] or b[2]
+          if fn then fn() end
+        end
+      end
+    end)
   end
   w.deliver = deliver
 
-  local function mkEvent(mods, key, down, autorepeat)
+  local function mkEvent(mods, key, down, autorepeat, posted)
     local flags = {}
     for _, m in ipairs(mods or {}) do flags[m] = true end
-    local e = { down = down, key = key, mods = mods or {} }
+    local e = { down = down, key = key, mods = mods or {}, posted = posted }
     e.getType     = function() return down and TYPES.keyDown or TYPES.keyUp end
     e.getKeyCode  = function() return KEYCODES[key] end
     e.getFlags    = function() return flags end
@@ -175,7 +193,10 @@ local function newWorld(opts)
       event = {
         types = TYPES,
         properties = { keyboardEventAutorepeat = 8 },
-        newKeyEvent = function(mods, key, down) return mkEvent(mods, key, down) end,
+        -- Everything built through the real API is POSTED, by definition.
+        newKeyEvent = function(mods, key, down)
+          return mkEvent(mods, key, down, false, true)
+        end,
       },
       new = function(types, fn)
         if w.tapNewThrows then error("Accessibility withheld", 0) end
@@ -271,6 +292,10 @@ local function runTimers(w, rounds)
     local due = w.timers
     w.timers = {}
     if #due == 0 then return end
+    -- In DELAY ORDER. A round that fires a 0.25s check before a 0.05s
+    -- dispatch is a round in which "wait for Carbon" and "do not wait for
+    -- Carbon" are the same program.
+    table.sort(due, function(x, y) return (x.secs or 0) < (y.secs or 0) end)
     for _, t in ipairs(due) do
       if t.live and not t.every then
         w.now = (w.now or 1000) + (t.secs or 0)
@@ -284,6 +309,17 @@ end
 -- you are actually in when you reach for ⇪.
 local function timePasses(w, secs)
   w.now = (w.now or 1000) + (secs or 5)
+end
+
+-- 🚨 A REAL CAPS LOCK PRESS, delivered the way the Mac delivers one: down
+-- the whole event chain, taps first and Carbon after. This is the ONLY
+-- thing that verifies ⇪ from 6.79.0 on, so it is the only thing the
+-- scenarios below use to trigger verification. Posting a synthetic key
+-- and watching for Carbon is exactly what got a healthy Mac misdiagnosed.
+local function pressCapsLock(w, runTimersFn)
+  w.mkEvent({}, "f18", true, false, false).post()
+  if runTimersFn then runTimersFn(w) end
+  w.mkEvent({}, "f18", false, false, false).post()
 end
 
 local function loadHyperKey(w)
@@ -335,28 +371,37 @@ do
   bindShortcuts(w)
   runTimers(w)
 
-  check("the self-test reports a hyper key that actually fires",
+  check("nothing is claimed before you have pressed the key",
+        w.SB.hyperVerified == nil, tostring(w.SB.hyperVerified))
+
+  pressCapsLock(w, runTimers)
+
+  check("one real Caps Lock press proves the hyper key",
         w.SB.hyperVerified == true, tostring(w.SB.hyperVerified))
-  check("...and names BOTH paths, because both delivered F18",
+  check("...and names both paths, because both delivered F18",
         w.SB.hyperPath == "carbon + tap", tostring(w.SB.hyperPath))
-  check("...having pressed ⇪⇧F19 exactly once",
-        (w.SB.hyperProbeFires or 0) == 1, w.SB.hyperProbeFires)
   check("🚨 the event tap does NOT swallow F18 — Carbon still sees it, or "
      .. "the fallback would break the very Mac it is meant to leave alone",
-        (w.SB.hyperSelfTestResult or {}).carbon == 1,
-        (w.SB.hyperSelfTestResult or {}).carbon)
-  check("...and the tap saw it too",
-        (w.SB.hyperSelfTestResult or {}).tap == 1,
-        (w.SB.hyperSelfTestResult or {}).tap)
-  check("the Carbon-free dispatcher stays OFF when Carbon works",
+        w.SB.hyperCarbonPresses == 1, w.SB.hyperCarbonPresses)
+  check("...and the tap saw it too", w.SB.hyperTapPresses == 1,
+        w.SB.hyperTapPresses)
+  check("🚨 the Carbon-free dispatcher stays OFF when Carbon works — this "
+     .. "is the regression 6.76.0 shipped, and it cost a working Mac the "
+     .. "cheat sheet's type-to-filter and ⌥Tab's arrows",
         w.SB.hyperDispatchEngaged == false)
   check("nothing is shouted at a Mac where everything is fine",
-        printedFinding(w, "🚨") == nil, printedFinding(w, "🚨"))
-  check("...and nothing reaches the screen",
-        #w.told == 0, w.told[1])
-  check("🚨 the probe never leaves ⇪ latched on",
-        w.SB.hyperActive == false and w.modal.entered == false,
-        tostring(w.SB.hyperActive) .. "/" .. tostring(w.modal.entered))
+        printedFinding(w, "🚨") == nil and printedFinding(w, "WITHOUT CARBON") == nil,
+        printedFinding(w, "🚨") or printedFinding(w, "WITHOUT CARBON"))
+  check("...and nothing reaches the screen", #w.told == 0, w.told[1])
+  check("⇪ is not left latched after the press",
+        w.SB.hyperActive == false)
+
+  -- Once answered, it must cost nothing: this runs inside a keystroke.
+  local timersBefore = #w.timers
+  for _ = 1, 5 do pressCapsLock(w, runTimers) end
+  check("🚨 ...and it never checks again — the check lives in a callback "
+     .. "every keystroke goes through",
+        w.SB.hyperRealChecks == 1, w.SB.hyperRealChecks)
 end
 
 -- =====================================================================
@@ -367,21 +412,20 @@ do
   loadHyperKey(w)
   bindShortcuts(w)
   runTimers(w)
+  pressCapsLock(w, runTimers)
 
-  check("🚨 the config NOTICES that its shortcuts do not work",
-        printedFinding(w, "did not fire") ~= nil)
-  check("...switches ⇪ to the Carbon-free dispatcher",
+  check("a real press with no Carbon behind it switches ⇪ to the "
+     .. "event-tap dispatcher",
         w.SB.hyperDispatchEngaged == true)
-  check("...re-tests rather than assuming the fix worked",
-        (w.SB.hyperSelfTestResult or {}).stage == 2,
-        (w.SB.hyperSelfTestResult or {}).stage)
-  check("...and ends up with a hyper key that is PROVEN, not counted",
+  check("...and the hyper key is PROVEN, not counted",
         w.SB.hyperVerified == true, tostring(w.SB.hyperVerified))
   check("...named for the path actually carrying it",
         w.SB.hyperPath == "event tap (dispatcher)", tostring(w.SB.hyperPath))
   check("🚨 and it SAYS SO — this is a real difference between two Macs "
      .. "and rule 7 does not allow it to be silent",
         printedFinding(w, "WITHOUT CARBON") ~= nil)
+  check("...naming the REAL press as the evidence, not a synthetic one",
+        printedFinding(w, "real Caps Lock press") ~= nil)
   check("...on screen as well as in the Console", #w.told > 0, #w.told)
   check("...and in the notices ledger", #w.recorded > 0, #w.recorded)
 
@@ -416,6 +460,7 @@ do
   loadHyperKey(w)
   bindShortcuts(w)
   runTimers(w)
+  pressCapsLock(w, runTimers)
   timePasses(w)
   local tap = w.taps[1]
   w.mkEvent({}, "f18", true).post()   -- ⇪ held
@@ -473,6 +518,7 @@ do
   loadHyperKey(w)
   bindShortcuts(w)
   runTimers(w)
+  pressCapsLock(w, runTimers)
   timePasses(w)
   local tap = w.taps[1]
   w.mkEvent({}, "f18", true).post()
@@ -504,58 +550,65 @@ do
 end
 
 -- =====================================================================
-section("5. WHEN NOTHING WORKS AT ALL")
+section("5. WHEN THE KEY NEVER ARRIVES AT ALL")
 -- =====================================================================
+-- There is no real press to measure, so there is nothing to conclude —
+-- and saying so is the honest answer. "Not yet known" is reported by the
+-- boot line and by ⇪⇧D; what must NEVER happen is a confident claim in
+-- either direction on no evidence.
 do
   local w = world{ carbon = false, tapKeys = false }
   loadHyperKey(w)
   bindShortcuts(w)
   runTimers(w)
+  pressCapsLock(w, runTimers)
 
-  check("a hyper key that cannot fire is reported as broken, not counted",
-        w.SB.hyperVerified == false, tostring(w.SB.hyperVerified))
-  check("🚨 ...loudly", printedFinding(w, "🚨") ~= nil)
-  check("...naming the fact that F18 never arrived at all, which is a "
-     .. "different repair from a shortcut that will not run",
-        printedFinding(w, "never reached the config") ~= nil)
-  check("...on screen, because the Console is not where you are looking",
-        #w.told > 0)
-  check("...and it does NOT leave the dispatcher engaged, which would "
-     .. "stop the modal being entered for no benefit",
+  check("🚨 no evidence produces no verdict, in either direction",
+        w.SB.hyperVerified == nil, tostring(w.SB.hyperVerified))
+  check("...and the dispatcher is NOT engaged on a guess",
         w.SB.hyperDispatchEngaged == false)
-end
-
-do
-  -- F18 gets through, but no shortcut runs on EITHER path.
-  local w = world{ carbon = false, tapKeys = true }
-  loadHyperKey(w)
-  bindShortcuts(w)
-  w.SB.hyperDispatch["shift+f19"] = nil   -- nothing left to answer the probe
-  w.modal.binds["shift+f19"] = nil
-  runTimers(w)
-
-  check("F18 arriving with nothing to answer it is also reported",
-        w.SB.hyperVerified == false, tostring(w.SB.hyperVerified))
-  check("...as the OTHER failure, with the other repair",
-        printedFinding(w, "on either path") ~= nil)
-  check("🚨 ...and the dispatcher is rolled back rather than left half-on",
-        w.SB.hyperDispatchEngaged == false)
+  check("...and nothing is claimed on screen", #w.told == 0, w.told[1])
+  check("the unproven state is the one the boot line and ⇪⇧D report",
+        w.SB.hyperSelfTestPending == true)
 end
 
 -- =====================================================================
-section("6. THE PROBE CANNOT MAKE THINGS WORSE")
+section("6. THE PROBE IS A DIAGNOSTIC NOW, NOT A DECISION")
 -- =====================================================================
+-- 🚨 6.76.0 posted a synthetic F18 and treated a silent Carbon as proof
+-- that Carbon was dead. It is not proof: a posted CGEvent does not
+-- reliably reach Carbon's hotkey dispatch, so the Carbon column read zero
+-- on EVERY Mac. LL's MacBook Air — where ⇪ has worked for sixty releases
+-- — was switched onto the fallback by it, losing the cheat sheet's
+-- type-to-filter and ⌥Tab's arrows in the process.
 do
-  -- The F18 keyUp goes missing — the one outcome that would latch ⇪ on
-  -- and turn every subsequent keystroke into a hyper chord.
-  local w = world{ carbon = true, tapKeys = true, dropKeyUp = true }
+  local w = world{ carbon = true, tapKeys = true }
   loadHyperKey(w)
   bindShortcuts(w)
   runTimers(w)
 
-  check("🚨 a lost keyUp does not leave the hyper key latched on",
-        w.SB.hyperActive == false, tostring(w.SB.hyperActive))
-  check("...and the modal is forced back out", w.modal.entered == false)
+  -- The world that caused the bug: Carbon works, but posted events do
+  -- not reach it, so the probe sees exactly what it saw on LL's Mac.
+  w.SB.hyperSelfTest()
+  runTimers(w)
+
+  check("the probe still reports what each layer saw",
+        (w.SB.hyperSelfTestResult or {}).tap == 1,
+        (w.SB.hyperSelfTestResult or {}).tap)
+  check("🚨 ...but it CHANGES NOTHING. A silent Carbon column here is not "
+     .. "evidence, and acting on it is what misdiagnosed a healthy Mac",
+        w.SB.hyperDispatchEngaged == false and w.SB.hyperVerified == nil,
+        tostring(w.SB.hyperDispatchEngaged) .. "/" .. tostring(w.SB.hyperVerified))
+  check("...and it says so in the output rather than leaving you to infer it",
+        printedFinding(w, "proves NOTHING") ~= nil)
+  check("🚨 the probe never leaves ⇪ latched on",
+        w.SB.hyperActive == false and w.modal.entered == false)
+
+  -- and the real press still decides, afterwards
+  pressCapsLock(w, runTimers)
+  check("the real press is what settles it, probe or no probe",
+        w.SB.hyperVerified == true and w.SB.hyperPath == "carbon + tap",
+        tostring(w.SB.hyperPath))
 end
 
 do
@@ -567,9 +620,9 @@ do
   check("a Mac that refuses the event tap still boots", w.SB.hyperKeyTap == nil)
   check("...and says the fallback is missing rather than dropping it quietly",
         printedFinding(w, "could not start") ~= nil)
-  check("...and Carbon alone is still enough, and is proven so",
-        w.SB.hyperVerified == true and w.SB.hyperPath == "carbon",
-        tostring(w.SB.hyperPath))
+  check("🚨 ...and admits ⇪ can no longer be VERIFIED either, because the "
+     .. "check lives inside that tap",
+        printedFinding(w, "no longer be verified") ~= nil)
 end
 
 -- =====================================================================
@@ -580,6 +633,7 @@ do
   loadHyperKey(w)
   bindShortcuts(w)
   runTimers(w)
+  pressCapsLock(w, runTimers)
   timePasses(w)
   local tap = w.taps[1]
   w.mkEvent({}, "f18", true).post()
@@ -700,12 +754,12 @@ do
      .. "nobody has tried — it says the proof is still coming",
         waiting:find("All green", 1, true) ~= nil
         and waiting:find("⇪", 1, true) ~= nil
-        and waiting:find("2s", 1, true) ~= nil, waiting)
+        and waiting:find("Caps Lock press", 1, true) ~= nil, waiting)
   check("...and does not promise a proof on a Mac with the hyper key off",
     (function()
       local off = bootLines(false)
       return off:find("All green", 1, true) ~= nil
-             and off:find("a failure will say so", 1, true) == nil
+             and off:find("Caps Lock press", 1, true) == nil
     end)())
 
   local diag = readAll(HS .. "/core/diagnostics.lua") or ""
@@ -776,6 +830,7 @@ do
   loadHyperKey(w)
   bindShortcuts(w)
   runTimers(w)
+  pressCapsLock(w, runTimers)
   timePasses(w)
   local tap = w.taps[1]
 
@@ -859,6 +914,7 @@ do
   loadHyperKey(w)
   bindShortcuts(w)
   runTimers(w)
+  pressCapsLock(w, runTimers)
   timePasses(w)
   local tap = w.taps[1]
 
@@ -892,6 +948,7 @@ do
   local w = world{ carbon = false, tapKeys = true }
   loadHyperKey(w)
   runTimers(w)
+  pressCapsLock(w, runTimers)
   timePasses(w)
   w.SB.hyperMods = { "cmd", "shift", "ctrl", "alt" }
   w.SB.hyperChordUntil = 0

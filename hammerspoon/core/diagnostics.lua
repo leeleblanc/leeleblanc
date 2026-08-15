@@ -203,7 +203,7 @@ return function(core)
             elseif _G.hyperVerified == false then
                 return "NO — ⇪ DOES NOT WORK ON THIS MAC (see the Console)"
             elseif _G.hyperSelfTestPending then
-                return "not yet — the self-test has not reported"
+                return "not yet — press Caps Lock once and ask again"
             end
             return "not tested (hyper disabled, or Accessibility withheld)"
         end)())

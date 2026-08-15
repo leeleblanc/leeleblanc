@@ -128,7 +128,7 @@ return function(core)
             -- reasoning as the warm-phase note above it — this summary
             -- prints before the things it would most like to promise.
             print("   All green." .. (_G.hyperSelfTestPending
-                    and "  ⇪ is pressed for real in 2s — a failure will say so."
+                    and "  ⇪ is proven on your next Caps Lock press."
                     or "")
                   .. "  ⇪⇧D diagnostic report  ·  _G.bootReport() for the full detail")
         else

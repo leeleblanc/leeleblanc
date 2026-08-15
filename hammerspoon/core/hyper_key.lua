@@ -268,6 +268,7 @@ local function hyperTapCallback(ev)
         if code == F18_CODE then
             if t == hs.eventtap.event.types.keyDown then
                 hyperEnter("tap")
+                if _G.hyperVerifyOnRealPress then _G.hyperVerifyOnRealPress() end
             elseif t == hs.eventtap.event.types.keyUp then
                 hyperExit()
             end
@@ -312,8 +313,10 @@ end)
 if not tapOK then
     _G.hyperKeyTap = nil
     print("⚠️ 🎹 The ⇪ event-tap fallback could not start: " .. tostring(tapErr)
-          .. " — Caps Lock now depends entirely on the Carbon hotkey. The "
-          .. "self-test will say whether that is enough on this Mac.")
+          .. " — Caps Lock now depends entirely on the Carbon hotkey, AND "
+          .. "⇪ can no longer be verified at all: the check runs inside "
+          .. "that tap. If your shortcuts work, nothing is wrong; if they "
+          .. "do not, this line is the reason there is no second opinion.")
     pcall(function() _G.diag.warn("hyper", "event-tap fallback: "
           .. tostring(tapErr)) end)
 end
@@ -327,52 +330,40 @@ end
 -- may fail silently — a count is exactly how a keyboard fails silently:
 -- every part reports success and the whole does nothing.
 --
--- So the config now PRESSES ITS OWN KEY and reads the answer, once, a
--- moment after boot.
+-- 🚨 6.79.0 — AND THE FIRST ANSWER TO THAT WAS WRONG, ON THE MAC WHERE
+-- EVERYTHING WORKS. 6.76.0 tested it by POSTING a synthetic F18 and
+-- watching for the Carbon handler. LL's MacBook Air — where ⇪ has worked
+-- for sixty releases — booted to:
+--        🎹 ⇪ did not fire: F18 reached the config (event tap) but the
+--           shortcut bound to it never ran.
+--        🎹 ⇪ IS RUNNING WITHOUT CARBON on this Mac — and it works.
+-- and switched a perfectly healthy Mac onto the fallback. Not a cosmetic
+-- error either: the fallback stops entering the modal, which really does
+-- cost the cheat sheet's type-to-filter and ⌥Tab's arrow keys on a
+-- machine that had them.
 --
--- WHAT IT PROVES AND WHAT IT DOES NOT. The chain has two links:
---        Caps Lock ──hidutil──► F18 ──this config──► your shortcut
--- hidutil's exit code proves the first and is already reported at §3.12.
--- This proves the second, by posting F18 itself. Nothing here can test
--- the physical key — that would need a finger — so if hidutil says the
--- remap took and this says the shortcut fires, the only thing left
--- between them is the keyboard.
+-- WHY IT WAS WRONG, and it is worth stating flatly because I assumed the
+-- opposite when I wrote it: a CGEvent posted by hs.eventtap does NOT
+-- reliably reach Carbon's RegisterEventHotKey dispatch. Event taps see
+-- it — that half was real, and it is why the tap path scored. So the
+-- probe could only ever measure "did the tap see it", and the Carbon
+-- half read zero on every Mac, healthy or not. A test whose negative
+-- result is the same on a working machine and a broken one is not a
+-- test, and this one had a side effect.
 --
--- ⚠️ IT POSTS FOUR SYNTHETIC KEYSTROKES: F18 down, ⇧F19 down, ⇧F19 up,
--- F18 up. All four are queued in one go and arrive in order, so the modal
--- is live for the few milliseconds between the first and the last. Three
--- deliberate choices make that safe: ⇧F19 is a key no Mac keyboard has
--- and nothing else binds, so in the worst case it lands in your document
--- as nothing at all; _G.suppressTypingFor() stands the three typing
--- watchers down for the window, so the Key Caster does not draw keys you
--- never pressed; and the evaluation below force-exits the modal if our
--- own keyUp went missing.
--- ⇪⇧F19 EXISTS FOR ONE REASON: to be pressed by the test below. ⇧F19 and
--- not a letter, because the probe posts a REAL keystroke and a real
--- keystroke lands in whatever you are typing if the binding does not
--- swallow it. F19 is on no Mac keyboard, macOS reserves nothing on it,
--- and nothing else in this config binds it.
+-- ✅ SO VERIFICATION MOVED ONTO THE KEY YOU ACTUALLY PRESS. No synthetic
+-- events, and nothing to be wrong about: the tap sees a REAL F18 keyDown
+-- before Carbon does, notes the Carbon counter, and looks again a quarter
+-- of a second later. Carbon fired → both paths work, verified, never
+-- checked again. Carbon did not → its F18 hotkey genuinely does not
+-- dispatch on this Mac, which is exactly the work Mac's symptom, measured
+-- exactly the way LL measured it by hand: hold Caps Lock, read the flag.
 --
--- Registered in BOTH tables by hand rather than through §3.12's
--- hyperBind: it has to exercise the same two paths a real shortcut does,
--- and it must NOT appear in the shortcut count or the cheat sheet, which
--- are for shortcuts you can actually press.
-_G.hyperProbeFires = 0
-local function probeFired() _G.hyperProbeFires = _G.hyperProbeFires + 1 end
-pcall(function() _G.hyperModal:bind({ "shift" }, "f19", probeFired) end)
-if _G.hyperDispatch then
-    _G.hyperDispatch["shift+f19"] = { pressed = probeFired, source = "self-test" }
-end
-
-local function selfTestPost()
-    local ev = hs.eventtap.event
-    _G.hyperSelfTestInFlight = true
-    if _G.suppressTypingFor then _G.suppressTypingFor(0.8) end
-    ev.newKeyEvent({}, "f18", true):post()
-    ev.newKeyEvent({ "shift" }, "f19", true):post()
-    ev.newKeyEvent({ "shift" }, "f19", false):post()
-    ev.newKeyEvent({}, "f18", false):post()
-end
+-- The cost is that ⇪ is proven on your first Caps Lock press instead of
+-- two seconds after boot. That is a better moment anyway — it is the real
+-- key, in the real conditions, rather than an imitation of it.
+_G.hyperVerified   = nil     -- nil = not yet observed
+_G.hyperRealChecks = 0
 
 local function alarm(headline, lines, screenTitle, screenBody)
     print(headline)
@@ -387,15 +378,96 @@ local function alarm(headline, lines, screenTitle, screenBody)
     end
 end
 
--- stage 1 = as configured.  stage 2 = after engaging the tap dispatcher.
-function _G.hyperSelfTest(stage)
-    stage = stage or 1
-    _G.hyperSelfTestPending = true
-    if not (_G.hyperModal and hs.eventtap and hs.eventtap.event) then
+-- Called from the tap on every real F18 keyDown, and does nothing at all
+-- after the first conclusive answer. One boolean and one timer: this runs
+-- inside a keystroke callback, so it has to cost nothing once it is done.
+function _G.hyperVerifyOnRealPress()
+    -- 🚨 A POSTED F18 IS NOT A PRESS, and this line is the whole reason
+    -- 6.76.0 went wrong wearing a different hat. The probe below posts an
+    -- F18; the tap sees it exactly like a real one and would call us; a
+    -- posted event does not reach Carbon; and we would conclude Carbon is
+    -- dead — the original bug, rebuilt through the new mechanism. The
+    -- flag the probe already sets is the fix.
+    if _G.hyperSelfTestInFlight then return end
+    if _G.hyperVerified ~= nil or _G.hyperVerifyPending then return end
+    _G.hyperVerifyPending = true
+    _G.hyperRealChecks = (_G.hyperRealChecks or 0) + 1
+    local before = _G.hyperCarbonPresses or 0
+
+    -- 0.25s: Carbon dispatches on the same run loop this tap is on, so
+    -- the handler has run long before then if it is going to. Generous
+    -- rather than tight, because the cost of waiting is nothing and the
+    -- cost of asking too early is switching a working Mac to a fallback.
+    _G.hyperVerifyTimer = hs.timer.doAfter(0.25, function()
+        _G.hyperVerifyPending = false
         _G.hyperSelfTestPending = false
+        local fired = (_G.hyperCarbonPresses or 0) > before
+
+        if fired then
+            _G.hyperVerified = true
+            _G.hyperPath = "carbon + tap"
+            if _G.diag then
+                pcall(_G.diag.say, "hyper",
+                      "verified on a real Caps Lock press: carbon + tap")
+            end
+            return
+        end
+
+        -- Carbon's F18 hotkey did not run for a key it definitely
+        -- received — the tap is what called us, so the key arrived. That
+        -- is the work Mac, measured the way LL measured it by hand.
+        --
+        -- 🚨 AND THE MODAL IS EXITED ON THE WAY IN. The press that proved
+        -- Carbon dead entered the modal a quarter-second ago, back when
+        -- the tap still did that — and hyperExit() will decline to leave
+        -- it now, because from here on the dispatcher owns ⇪. Without
+        -- this line the modal stays entered for the rest of the session
+        -- with all 107 of its hotkeys enabled: dead weight while Carbon
+        -- is dead, and a double dispatch the moment it is not.
+        _G.hyperDispatchEngaged = true
+        _G.hyperActive = false
+        pcall(function() _G.hyperModal:exit() end)
+        _G.hyperVerified = true
+        _G.hyperPath = "event tap (dispatcher)"
+        local globals = 0
+        for _ in pairs(_G.globalDispatch or {}) do globals = globals + 1 end
+        alarm("🎹 ⇪ IS RUNNING WITHOUT CARBON on this Mac — and it works.",
+            { "Measured on a real Caps Lock press: F18 arrived, and this",
+              "Mac's system hotkey layer (Carbon RegisterEventHotKey) did",
+              "not dispatch it. The event-tap dispatcher has taken over all "
+              .. tostring(_G.hyperShortcutCount or 0) .. " ⇪ shortcuts.",
+              "The " .. tostring(globals) .. " standalone global hotkeys ride the same tap,",
+              "and Escape is routed to whichever panel claims it, so",
+              "nothing can open a sheet you cannot close.",
+              "WHAT IS STILL DEGRADED, and it is only this: the keys that",
+              "arm and disarm at runtime — the cheat sheet's type-to-",
+              "filter and ⌥Tab's arrow navigation — use hs.hotkey.new and",
+              "stay on Carbon. Both still OPEN, and Escape still closes." },
+            "🎹 ⇪ switched to its fallback",
+            "Carbon hotkeys are dead on this Mac; your shortcuts work anyway")
+    end)
+end
+
+-- ---- the synthetic probe, kept as a DIAGNOSTIC only ------------------
+-- 🚨 IT NO LONGER DECIDES ANYTHING, and that is the whole point of the
+-- change above. Run it by hand when you want to see the two layers side
+-- by side; read a zero in the Carbon column as "this told us nothing",
+-- because a posted event is not guaranteed to reach Carbon at all.
+--
+-- ⇪⇧F19 exists for it to press: F19 is on no Mac keyboard, macOS reserves
+-- nothing on it, and nothing else here binds it, so in the worst case the
+-- keystroke lands in your document as nothing at all.
+_G.hyperProbeFires = 0
+local function probeFired() _G.hyperProbeFires = _G.hyperProbeFires + 1 end
+pcall(function() _G.hyperModal:bind({ "shift" }, "f19", probeFired) end)
+if _G.hyperDispatch then
+    _G.hyperDispatch["shift+f19"] = { pressed = probeFired, source = "self-test" }
+end
+
+function _G.hyperSelfTest()
+    if not (_G.hyperModal and hs.eventtap and hs.eventtap.event) then
         return false
     end
-
     local base = {
         carbon = _G.hyperCarbonPresses or 0,
         tap    = _G.hyperTapPresses or 0,
@@ -403,14 +475,19 @@ function _G.hyperSelfTest(stage)
     }
     local wasActive = _G.hyperActive
 
-    local okPost, postErr = pcall(selfTestPost)
+    local okPost, postErr = pcall(function()
+        local ev = hs.eventtap.event
+        _G.hyperSelfTestInFlight = true
+        if _G.suppressTypingFor then _G.suppressTypingFor(0.8) end
+        ev.newKeyEvent({}, "f18", true):post()
+        ev.newKeyEvent({ "shift" }, "f19", true):post()
+        ev.newKeyEvent({ "shift" }, "f19", false):post()
+        ev.newKeyEvent({}, "f18", false):post()
+    end)
     if not okPost then
         _G.hyperSelfTestInFlight = false
-        _G.hyperSelfTestPending = false
-        _G.hyperVerified = nil
-        alarm("⚠️ 🎹 The ⇪ self-test could not run: " .. tostring(postErr),
-              { "Posting a synthetic keystroke needs Accessibility. The hyper",
-                "key may well be fine — this only means it went unproven." })
+        print("⚠️ 🎹 The ⇪ probe could not run: " .. tostring(postErr)
+              .. " — posting a synthetic keystroke needs Accessibility.")
         return false
     end
 
@@ -422,117 +499,25 @@ function _G.hyperSelfTest(stage)
         local tap    = (_G.hyperTapPresses or 0) - base.tap
         local probe  = (_G.hyperProbeFires or 0) - base.probe
 
-        -- Our own probe must never leave ⇪ latched on. It posted an F18
+        -- The probe must never leave ⇪ latched on. It posted an F18
         -- keyUp, so a still-true flag here means that keyUp went missing —
-        -- and every subsequent keystroke would be treated as a hyper
-        -- chord, which is the worst thing this could possibly leave
-        -- behind.
+        -- and every subsequent keystroke would be read as a hyper chord,
+        -- which is the worst thing this could leave behind.
         if _G.hyperActive and not wasActive then
             _G.hyperActive = false
             pcall(function() _G.hyperModal:exit() end)
         end
 
-        _G.hyperSelfTestResult = { stage = stage, carbon = carbon,
-                                   tap = tap, probe = probe }
-
-        -- ── the shortcut fired: the chain works ──────────────────────
-        if probe > 0 then
-            _G.hyperSelfTestPending = false
-            _G.hyperVerified = true
-            _G.hyperPath = (stage == 2 and "event tap (dispatcher)")
-                or (carbon > 0 and tap > 0 and "carbon + tap")
-                or (carbon > 0 and "carbon" or "event tap")
-            if stage == 2 then
-                local globals = 0
-                for _ in pairs(_G.globalDispatch or {}) do globals = globals + 1 end
-                alarm("🎹 ⇪ IS RUNNING WITHOUT CARBON on this Mac — and it works.",
-                    { "This Mac's system hotkey layer (Carbon RegisterEventHotKey)",
-                      "does not deliver, so the event-tap dispatcher has taken",
-                      "over all " .. tostring(_G.hyperShortcutCount or 0)
-                      .. " ⇪ shortcuts. Verified by pressing one.",
-                      "The " .. tostring(globals) .. " standalone global hotkeys ride the same tap,",
-                      "and Escape is routed to whichever panel claims it, so",
-                      "nothing can open a sheet you cannot close.",
-                      "WHAT IS STILL DEGRADED, and it is only this: the keys that",
-                      "arm and disarm at runtime — the cheat sheet's type-to-",
-                      "filter and ⌥Tab's arrow navigation — use hs.hotkey.new and",
-                      "stay on Carbon. Both still OPEN, and Escape still closes." },
-                    "🎹 ⇪ switched to its fallback",
-                    "Carbon hotkeys are dead on this Mac; your shortcuts work anyway")
-            elseif carbon == 0 then
-                alarm("🎹 ⇪ works, but the Carbon hotkey for F18 never fired — "
-                    .. "the event tap is carrying it.",
-                    { "Worth knowing: it is a real difference between your two",
-                      "Macs, and it is the half that failed silently until",
-                      "6.76.0 gave it a second path." })
-            elseif _G.diag then
-                pcall(_G.diag.say, "hyper",
-                      "self-test: ⇪⇧F19 fired via " .. tostring(_G.hyperPath))
-            end
-            return
-        end
-
-        -- ── F18 arrived, the shortcut did not fire ───────────────────
-        -- Retry on the dispatcher only if the TAP saw F18: the dispatcher
-        -- lives inside that tap, so a tap that missed the key cannot
-        -- rescue it, and engaging it would stop the modal being entered
-        -- at all — trading a broken hyper key for a worse one.
-        if tap > 0 and stage == 1 and _G.hyperKeyTap then
-            pcall(function() _G.hyperModal:exit() end)
-            _G.hyperActive = false
-            _G.hyperDispatchEngaged = true
-            print("🎹 ⇪ did not fire: F18 reached the config ("
-                  .. (carbon > 0 and "Carbon" or "event tap")
-                  .. ") but the shortcut bound to it never ran. Switching ⇪ "
-                  .. "to the event-tap dispatcher and testing again…")
-            _G.hyperSelfTest(2)
-            return
-        end
-
-        _G.hyperSelfTestPending = false
-        _G.hyperVerified = false
-
-        if carbon > 0 or tap > 0 then
-            _G.hyperDispatchEngaged = false
-            alarm("🚨 🎹 THE HYPER KEY IS DEAD ON THIS MAC. F18 arrives and no "
-                .. "shortcut runs, on either path.",
-                { "Both ways in were tried: the Carbon hotkey and the event tap.",
-                  "All " .. tostring(_G.hyperShortcutCount or 0)
-                  .. " ⇪ shortcuts are unreachable. The menu bar and",
-                  "_G.bootReport() still work, and nothing else is affected.",
-                  "WHAT TO TRY, in order:",
-                  "  1. System Settings → Privacy & Security → Accessibility:",
-                  "     switch Hammerspoon off and on again, then reload.",
-                  "  2. Quit anything that grabs keys globally (Karabiner, BTT,",
-                  "     Keyboard Maestro, a corporate agent) and reload.",
-                  "  3. _G.hyperSelfTest() re-runs this test on demand." },
-                "🚨 ⇪ does not work on this Mac",
-                "F18 arrives, no shortcut runs — see the Console")
-        else
-            alarm("🚨 🎹 THE HYPER KEY IS DEAD ON THIS MAC. A synthetic F18 "
-                .. "never reached the config at all.",
-                { "The shortcuts are registered; nothing is delivering the key.",
-                  "This is upstream of every ⇪ binding, so all "
-                  .. tostring(_G.hyperShortcutCount or 0) .. " are unreachable.",
-                  "WHAT TO TRY, in order:",
-                  "  1. Accessibility for Hammerspoon — off, on, reload.",
-                  "  2. Check the 🎹 line above for what hidutil said about the",
-                  "     Caps Lock remap; if that failed, ⇪ cannot work.",
-                  "  3. _G.hyperSelfTest() re-runs this test on demand." },
-                "🚨 ⇪ does not work on this Mac",
-                "F18 never arrives — see the Console")
-        end
+        _G.hyperSelfTestResult = { carbon = carbon, tap = tap, probe = probe }
+        print(("🔬 ⇪ probe — event tap saw F18: %s · Carbon saw F18: %s · "
+               .. "⇪⇧F19 ran: %s"):format(tap, carbon, probe))
+        print("   Carbon at 0 here proves NOTHING: a posted event does not "
+              .. "reliably reach Carbon's hotkey dispatch. What decides it "
+              .. "is your next real Caps Lock press.")
+        print("   Verified: " .. tostring(_G.hyperVerified)
+              .. "  ·  path: " .. tostring(_G.hyperPath or "not yet observed"))
     end)
     return true
-end
-
--- Scheduled, never inline. Two seconds is after the boot line has printed
--- and after the module warm phase has started, so the answer arrives
--- where you are already looking rather than in the middle of the boot.
-if _G.hyperSelfTestPending then
-    _G.hyperSelfTestBootTimer = hs.timer.doAfter(2.0, function()
-        pcall(_G.hyperSelfTest, 1)
-    end)
 end
 
 end

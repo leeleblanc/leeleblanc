@@ -4,9 +4,35 @@
 -- =====================================================================
 -- 08-15-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.78.0-CLOSES-LAST
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.79.0-REAL-KEY
 -- =====================================================================
 
+-- NEW IN 6.79.0 — I MISDIAGNOSED YOUR MAC, AND PER-APP VOLUME:
+--   🚨 6.76.0's SELF-TEST WAS WRONG ON THE MAC WHERE EVERYTHING WORKS.
+--      The MacBook Air booted to "⇪ IS RUNNING WITHOUT CARBON" and
+--      switched a healthy Mac onto the fallback — which stops entering
+--      the modal, so it really did cost the cheat sheet's type-to-filter
+--      and ⌥Tab's arrows. I broke a working Mac while fixing a broken one.
+--   🔍 WHY: a CGEvent posted by hs.eventtap does NOT reliably reach
+--      Carbon's hotkey dispatch. Taps see it; Carbon does not. So the
+--      probe's Carbon column read zero on EVERY Mac, and a test whose
+--      negative is identical on a working machine and a failing one is
+--      not a test — this one had a side effect.
+--   ✅ Verification now uses the key you actually press: the tap sees a
+--      real F18, notes the Carbon counter, looks again 0.25s later. ⇪ is
+--      proven on your first Caps Lock press. The synthetic probe survives
+--      as _G.hyperSelfTest() and now says outright that a zero there
+--      proves nothing; it decides nothing.
+--   🐛 And it found a second bug: engaging the dispatcher left the modal
+--      ENTERED for the session, 107 hotkeys enabled — dead weight, and a
+--      double dispatch if Carbon ever recovered.
+--   🔊 modules/volume.lua — PER-APP VOLUME, HONESTLY LABELLED. macOS has
+--      none: volume belongs to a DEVICE. So 🎯 APP for Music and Spotify,
+--      which move their own mixer, and 🌐 SYSTEM for everything else —
+--      the system volume, remembered per app and restored when you switch
+--      back. The 🎯/🌐 in the alert is the entire safety story.
+--      ⇪. up · ⇪, down · ⇪⇧, mute · ⇪⇧. panel. 54 checks, 16/16 mutations.
+--
 -- NEW IN 6.78.0 — THE CHEAT SHEET CLOSES LAST:
 --   🚨 LL: "make the shortcut key cheat sheet stay up instead of it
 --      grabbing escape and closing. It should be the last window to close
@@ -36,30 +62,8 @@
 --      the panels never ask it, so the WIRING is tested where the real
 --      files already run.
 --
--- NEW IN 6.77.0 — FIX IT ALL: THE REST OF THE KEYBOARD:
---   🚨 6.76.0 RESCUED ⇪ AND LEFT EVERYTHING ELSE WHERE IT FOUND IT — a
---      report, not a fix. Worse, it left a TRAP: ⇪/ opens a full-screen
---      cheat sheet whose Escape is a Carbon hotkey, and a panel you can
---      open and cannot close is worse than one you cannot open.
---   🎹 The same tap now carries the standalone global hotkeys too, from
---      the one wrapper every hs.hotkey.bind already passes through. Three
---      rails, because this branch runs while you are ordinarily TYPING:
---      at least one modifier (a bare letter must never run a shortcut),
---      the forwarded ⌘⇧⌃⌥ echo refused while in flight, and every entry
---      permanently enabled — the last one enforced by a new lint rule,
---      bound-hotkey-later-disabled, rather than by a comment.
---   ⎋ Escape is rescued through coexist's router, so whichever panel
---      claims it gets it and nothing can trap you. Still degraded, and
---      only this: the cheat sheet's type-to-filter and ⌥Tab's arrows.
---   🚨 THE CHANGELOG CSV HAD SAT ON 6.63.0 FOR THIRTEEN RELEASES. Its
---      notes were a hard-coded Lua string somebody had to retype; the
---      moment that was forgotten it stopped describing the config while
---      still looking like it did. core/changelog_csv.lua now lifts the
---      entry out of CHANGELOG.md, and a MISSING one is reported.
---   🧪 tests/test_hyper_key.lua — 98 checks, 33/33 mutations caught.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.78.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.79.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -360,7 +364,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.78.0"
+_G.configVersion = "6.79.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -3498,6 +3502,7 @@ local BASE = {
     "text_expander",      -- ⇪⇧T  Alfred snippets, typed anywhere
     -- 6.71.0
     "key_caster",         -- ⇪⇧K  show the shortcuts as you press them
+    "volume",             -- ⇪. ⇪, per-app volume, honestly labelled
 }
 
 -- BASE minus `without`, plus `plus`. The list is COPIED, never shared: a

@@ -4,6 +4,76 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.79.0 — I MISDIAGNOSED YOUR MAC, AND PER-APP VOLUME:
+  🚨 6.76.0's SELF-TEST WAS WRONG ON THE MAC WHERE EVERYTHING WORKS. LL's
+     MacBook Air — where ⇪ has worked for sixty releases — booted to:
+         🎹 ⇪ did not fire: F18 reached the config (event tap) but the
+            shortcut bound to it never ran.
+         🎹 ⇪ IS RUNNING WITHOUT CARBON on this Mac — and it works.
+     and switched a perfectly healthy Mac onto the fallback. Not cosmetic
+     either: the fallback stops entering the modal, which really does cost
+     the cheat sheet's type-to-filter and ⌥Tab's arrows on a machine that
+     had them. I broke a working Mac while fixing a broken one.
+  🔍 WHY, stated flatly because I assumed the opposite when I wrote it: a
+     CGEvent posted by hs.eventtap does NOT reliably reach Carbon's
+     RegisterEventHotKey dispatch. Event taps see it — that half was real,
+     and it is why the tap column scored. So the probe could only ever
+     measure "did the tap see it", and the Carbon column read zero on
+     every Mac, healthy or broken. A test whose negative result is
+     identical on a working machine and a failing one is not a test, and
+     this one had a side effect.
+  ✅ VERIFICATION NOW USES THE KEY YOU ACTUALLY PRESS. No synthetic events
+     and nothing to be wrong about: the tap sees a real F18 keyDown before
+     Carbon does, notes the Carbon counter, and looks again a quarter of a
+     second later. Carbon fired → both paths work, verified, never checked
+     again. Carbon did not → its F18 hotkey genuinely does not dispatch
+     here, which is the work Mac's symptom measured exactly the way LL
+     measured it by hand: hold Caps Lock, read the flag.
+     · ⇪ is proven on your first Caps Lock press instead of two seconds
+       after boot. That is a better moment: the real key, real conditions.
+     · The probe survives as a DIAGNOSTIC — _G.hyperSelfTest() — and now
+       prints, in as many words, that a zero in its Carbon column proves
+       nothing. It no longer decides anything.
+     · And a posted F18 is explicitly not treated as a press, or the same
+       bug would have walked straight back in through the new door.
+  🐛 A SECOND BUG THE NEW TEST FOUND: engaging the dispatcher left the
+     modal ENTERED for the rest of the session, all 107 hotkeys enabled —
+     dead weight while Carbon is dead, and a double dispatch the moment
+     it is not. The press that proves Carbon dead had entered it a
+     quarter-second earlier, and hyperExit() declines to leave once the
+     dispatcher owns ⇪.
+  🧪 AND THE STUB NOW KNOWS THE DIFFERENCE THAT CAUSED ALL THIS. Posted
+     events reach taps and NOT Carbon, and Carbon dispatches on the run
+     loop rather than inside the tap callback. The old stub delivered
+     posted events to both layers, synchronously — which is why 98 checks
+     and 33 mutations all passed over a bug that misdiagnosed LL's Mac on
+     its first boot. 97 checks, 35/35 mutations caught.
+  🔊 modules/volume.lua — PER-APP VOLUME, HONESTLY LABELLED. LL: "Control
+     the volume on individual apps, how can I?"
+     · macOS has NO per-app output volume. CoreAudio volume belongs to a
+       DEVICE; every app is mixed by coreaudiod before it reaches one. To
+       turn one app down you must be an audio driver — BackgroundMusic and
+       SoundSource both install one, and both need admin rights the work
+       Mac does not give.
+     · So there are two mechanisms and the module never lets them be
+       confused. 🎯 APP: Music and Spotify are scriptable, so their own
+       mixer moves and nothing else changes — real per-app volume, two
+       apps at different levels at once. 🌐 SYSTEM: everything else moves
+       the system volume and REMEMBERS the level for that app, then
+       restores it when you switch back.
+     · The 🎯/🌐 in the alert is not decoration, it is the entire safety
+       story. A tool that sometimes moves one app and sometimes moves the
+       whole Mac, looking identical doing both, is worse than no tool.
+     · ⇪. up · ⇪, down · ⇪⇧, mute · ⇪⇧. the panel. Both arrows repeat when
+       held, which is how volume keys are actually used.
+     · An app we have never been told about is left COMPLETELY alone on
+       activation. A module that reset your volume on every window switch
+       would be unusable, and "helpful" is not a defence.
+     · AppleScript through hs.task with `with timeout of 3 seconds`, never
+       hs.osascript — 6.75.0 was a whole pass about synchronous calls
+       freezing the keyboard, and this one is on a key you hold down.
+     · 54 checks, 16/16 mutations caught.
+
 NEW IN 6.78.0 — THE CHEAT SHEET CLOSES LAST:
   🚨 LL: "make the shortcut key cheat sheet stay up instead of it grabbing
      escape and closing. It should be the last window to close after all
