@@ -2,11 +2,45 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 08-14-26 using Claude          ← EDITED date. Bumped with every release.
+-- 08-15-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.75.0-NO-BEACHBALLS
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.76.0-TWO-WAYS-IN
 -- =====================================================================
 
+-- NEW IN 6.76.0 — THE HYPER KEY HAD ONE WAY IN, AND ON THE WORK MAC IT DIED:
+--   🚨 A GREEN BOOT ON A DEAD KEYBOARD. The work Mac printed "32 modules
+--      · 80 ⇪ shortcuts · All green" and nothing worked. Every number was
+--      correct: registering a shortcut is not being able to FIRE one, and
+--      neither this config nor its tests could tell the two apart.
+--      Accessibility, the remap, Secure Input, conflicts and the taps
+--      were all ruled out; holding Caps Lock for five seconds gave
+--      _G.hyperActive = false where F18 demonstrably arrived.
+--   🎹 SO ⇪ HAS TWO WAYS IN NOW. hs.hotkey is Carbon's
+--      RegisterEventHotKey; hs.eventtap is a CGEventTap that sees the key
+--      BEFORE Carbon does, and a managed Mac can lose the first and keep
+--      the second. Both are idempotent: a Mac where Carbon works is
+--      untouched.
+--   🛟 AND A CARBON-FREE HYPER KEYBOARD BEHIND IT, inert unless the
+--      self-test proves the modal's hotkeys dead. It reads the same table
+--      hyperBind already fills — no second list to keep in step. It eats
+--      the keystroke it acts on, refuses the forwarded ⌘⇧⌃⌥ chord so it
+--      cannot feed itself, and honours the injection guard.
+--   🔬 THE CONFIG NOW PRESSES ITS OWN KEY. Two seconds after boot it
+--      posts F18 + ⇧F19 — a key no Mac keyboard has — and reads the
+--      answer. Working: silent. Modal dead: engage the dispatcher, RETEST
+--      rather than assume, say so on screen. Nothing: 🚨, with "F18 never
+--      arrived" kept apart from "F18 arrived, nothing ran" — different
+--      repairs. A lost keyUp can never latch ⇪ on.
+--   🚨 "All green" no longer implies a key nobody has tried: the boot
+--      line says the proof is seconds away, ⇪⇧D reports hyper PROVEN.
+--   🧪 tests/test_hyper_key.lua — 71 checks, 20/20 mutations caught. The
+--      work Mac is a test case now, not an anecdote: the stub has a switch
+--      per layer and the real delivery order. Three mutations survived the
+--      first run, one a boot-line check that was a source grep and stayed
+--      green under `false and <the flag>`.
+--   ⏳ _G.suppressTypingFor() — a deadline-based sibling to withInjection
+--      for POSTED events: a post returns before the keystroke arrives.
+--
 -- NEW IN 6.75.0 — NOTHING LEFT THAT CAN BEACHBALL YOUR MAC:
 --   🚨 THE BREW PROBE BLOCKED THE MAIN THREAD ON EVERY BOOT. Your log
 --      reads "no brew in the usual paths; asking your login shell
@@ -46,41 +80,8 @@
 --      warm phase reports its own result after the last module has had
 --      its turn — silent when everything worked.
 --
--- NEW IN 6.72.0 — A FULL DEBUG PASS, AND TWO REAL BUGS IN THE KEYBOARD:
---   🚨 A SPELLING FIX COULD FIRE A SNIPPET. The text expander never
---      checked the shared injection guard on the READ side. Its header
---      said it stood down; only the write half ever did. So every
---      character autocorrect typed arrived at the expander looking
---      exactly like you typing it — and if a corrected word happened to
---      end in a trigger, the snippet expanded. One line, missing.
---   🚨 AND A CORRECTION MOVED THE DOCUMENT UNDER THE EXPANDER. The
---      buffer reset was one-directional: an expansion told autocorrect to
---      drop its word, a correction told the expander nothing. Its rolling
---      buffer then described text no longer on screen, and its delete
---      count assumes those characters sit in front of the caret.
---   🛟 AND TWO OF THE THREE TAPS RAN UNGUARDED. The key caster was built
---      with a pcall'd callback; autocorrect (since 6.10.0) and the
---      expander were not. A throw in either escapes into Hammerspoon's
---      event machinery ON EVERY KEYSTROKE — it does not stop, it just
---      makes the keyboard louder, and macOS switches off taps that behave
---      that way. All three now absorb, count, and stand down at five.
---   🔬 FOUND BY RUNNING ALL THREE TAPS IN ONE PROCESS, which no test had
---      ever done — each suite proved one module right against its own
---      stubs. tests/test_keyboard_stack.lua is that missing test, and its
---      stub feeds synthetic keystrokes BACK through the taps the way a
---      real Mac does. Without that the injection guard was untestable
---      while looking tested.
---   🧪 tools/hs-hostile.lua — all 32 modules against a Mac that answers
---      nil to everything: no screens, empty pasteboard, no Accessibility,
---      missing folders. Every one degrades. It is a gate in run-tests now.
---   🔎 THREE NEW LINT RULES, one per class found: a keyboard tap that
---      ignores the injection guard, an eventtap callback that is not
---      pcall'd, and hs.fs.dir captured without its directory object.
---   🧹 document_watcher was the only module reaching for the
---      _G.hyperAddShortcut global instead of taking it from `core`.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.75.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.76.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -381,7 +382,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.75.0"
+_G.configVersion = "6.76.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -1874,19 +1875,62 @@ _G.hyperModal = hs.hotkey.modal.new({}, nil)
 
 -- F18 held = hyper active. Pressed enters the modal, released exits it,
 -- so bindings only fire while Caps Lock is actually held down.
+_G.hyperActive = false
+
+-- 🚨 6.76.0 — TWO INDEPENDENT WAYS IN, BECAUSE ON LL'S WORK MAC THE ONLY
+-- ONE IT HAD SILENTLY STOPPED WORKING. hs.hotkey is Carbon's
+-- RegisterEventHotKey; hs.eventtap is a CGEventTap that sees the key
+-- BEFORE Carbon does. A managed Mac can lose the first and keep the
+-- second. The tap, the Carbon-free dispatcher and the self-test that
+-- decides between them all live in core/hyper_key.lua — including the
+-- full account of what that Mac did and what was ruled out.
 --
 -- 🔦 _G.hyperActive IS PUBLISHED (6.71.0) because ⇪ IS INVISIBLE FROM THE
 -- OUTSIDE. Caps Lock is remapped to F18 at the HID level and turned into
 -- a modal here, so anything watching the keyboard sees either a bare F18
 -- or — for an unclaimed key — a synthetic ⌘⇧⌃⌥ chord. Neither of those
 -- is what you pressed. The Key Caster would have drawn "⌘⇧⌃⌥X" for a key
--- you experienced as "⇪X", which is a display that is technically
--- accurate and useless. One boolean, set in the two handlers that already
--- know, beats every consumer guessing.
-_G.hyperActive = false
+-- you experienced as "⇪X", which is technically accurate and useless. One
+-- boolean, set in the handlers that already know, beats every consumer
+-- guessing.
+--
+-- The counters exist so the self-test can tell the two paths apart AFTER
+-- the fact. Without them the only thing that could honestly be said about
+-- the hyper key is how many shortcuts REGISTERED — which is precisely the
+-- number that read "80" on a Mac where none of them worked.
+_G.hyperCarbonPresses = 0    -- F18 arrived via hs.hotkey (Carbon)
+_G.hyperTapPresses    = 0    -- F18 arrived via the event tap
+_G.hyperDispatchEngaged = false   -- true once the dispatcher takes over
+
+local function hyperEnter(via)
+    if via == "carbon" then
+        _G.hyperCarbonPresses = _G.hyperCarbonPresses + 1
+    else
+        _G.hyperTapPresses = _G.hyperTapPresses + 1
+    end
+    _G.hyperActive = true
+    -- When the tap is doing the dispatching, the modal is deliberately
+    -- NOT entered: its bindings have been proven dead, and entering it
+    -- would only re-register hotkeys that cannot fire.
+    if not _G.hyperDispatchEngaged then _G.hyperModal:enter() end
+end
+
+local function hyperExit()
+    _G.hyperActive = false
+    if not _G.hyperDispatchEngaged then _G.hyperModal:exit() end
+end
+
 hs.hotkey.bind({}, "F18",
-    function() _G.hyperActive = true;  _G.hyperModal:enter() end,
-    function() _G.hyperActive = false; _G.hyperModal:exit()  end)
+    function() hyperEnter("carbon") end,
+    function() hyperExit() end)
+
+-- ---- path two: the event tap ------------------------------------------
+-- Built in core/hyper_key.lua, along with the Carbon-free dispatcher and
+-- the self-test that decides whether it is needed. Loaded at the very END
+-- of this file: the dispatcher needs the complete shortcut table, and that
+-- does not exist until _G.hyperFinalize() has run. These two travel as
+-- globals because the main chunk is at Lua's 200-local ceiling.
+_G.hyperEnter, _G.hyperExit = hyperEnter, hyperExit
 
 -- ---- binding helper + conflict sentry for the hyper namespace --------
 -- The §0.3 sentry only sees hs.hotkey.bind, so once shortcuts moved into
@@ -1894,6 +1938,7 @@ hs.hotkey.bind({}, "F18",
 -- shortcut is exactly the failure this config exists to prevent. This is
 -- the same guard, for the hyper keyspace.
 _G.hyperBound = {}   -- normalized combo -> what claimed it
+_G.hyperDispatch = {}   -- normalized combo -> the functions themselves
 _G.hyperBoundCount, _G.hyperConflictCount = 0, 0
 
 local function hyperCombo(mods, key)
@@ -1915,7 +1960,21 @@ local function hyperBind(mods, key, pressedFn, releasedFn, repeatFn, source)
     _G.hyperBound[combo] = source or "?"
     _G.hyperBoundCount = _G.hyperBoundCount + 1
     _G.hyperModal:bind(mods, key, pressedFn, releasedFn, repeatFn)
+    -- 6.76.0 — the same three functions, kept a second time in a plain
+    -- table. This costs one table entry per shortcut and it is what makes
+    -- the Carbon-free fallback possible at all: every hyper shortcut in
+    -- the config already goes through this one function, so recording
+    -- them here cannot miss one the way a second registration list would.
+    _G.hyperDispatch[combo] = {
+        pressed = pressedFn, released = releasedFn, repeated = repeatFn,
+        source = source or "?",
+    }
 end
+
+-- Published for the Carbon-free dispatcher, which normalizes a live
+-- keystroke into the string hyperBind filed the shortcut under. One
+-- function, so the two can never disagree about what "⇪⇧D" is called.
+_G.hyperCombo = hyperCombo
 
 -- ---- the chord itself -------------------------------------------------
 -- Every remaining key forwards ⌘⇧⌃⌥+key. hs.hotkey.modal has no
@@ -2070,6 +2129,9 @@ end
 -- blocking call: §3.7's 11-second beachball was caused by slow work on
 -- the main thread at boot, and this must never become the next one.
 if hyperEnabled then
+    -- Read by the boot summary so its one healthy line can say that ⇪ has
+    -- not been proven YET rather than let "All green" imply it has.
+    _G.hyperSelfTestPending = true
     _G.hyperRemapTask = hs.task.new("/usr/bin/hidutil",
         function(exitCode, stdOut, stdErr)
             -- RECORDED, not just printed. This is THE most machine-dependent
@@ -3785,6 +3847,26 @@ end)
 
 if _G.hyperFinalize then _G.hyperFinalize() end
 if _G.diag then _G.diag.mark("§3.12 hyper wired") end
+
+-- 🔬 THE SECOND WAY INTO ⇪, AND THE PROOF THAT ONE OF THEM WORKS. Loaded
+-- HERE and nowhere earlier: the Carbon-free dispatcher inside it reads
+-- _G.hyperDispatch, which _G.hyperFinalize() above has only just finished
+-- filling. See core/hyper_key.lua for what LL's work Mac did and why a
+-- registered shortcut is not a working one.
+local hkOK, hkErr = pcall(function()
+    local path = hs.configdir .. '/core/hyper_key.lua'
+    local chunk, loadErr = loadfile(path)
+    if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
+    chunk()({ enter = _G.hyperEnter, exit = _G.hyperExit,
+              combo = _G.hyperCombo })
+end)
+if not hkOK then
+    _G.hyperSelfTestPending = false
+    print('⚠️ 🎹 core/hyper_key.lua failed to load — ⇪ has only its Carbon '
+          .. 'hotkey, and nothing will check that it works. Everything else '
+          .. 'is unaffected. ' .. tostring(hkErr))
+    pcall(function() _G.diag.warn('hyper', 'hyper_key.lua: ' .. tostring(hkErr)) end)
+end
 
 print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
 

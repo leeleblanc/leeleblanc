@@ -203,6 +203,8 @@ and `<logsDir>/diagnostics-<machine>.txt`.
 | brew errors on every app at once | Homebrew's cache, not your list: `rm -rf "$(brew --cache)/api" && brew update --force` |
 | `Homebrew not found` but brew works in Terminal | a no-admin install in your home dir; the Console lists every path tried. Pin it: `M.config.brewPath = "…"` in `modules/update_tracker.lua` (`which brew` gives the path) |
 | The screen veil will not go away | `⌃⌥⌘⇧G` — a plain chord, bound outside hyper on purpose |
+| **No ⇪ shortcut works at all** | The config tests this itself two seconds after boot and says so. `_G.hyperSelfTest()` re-runs it; ⇪⇧D shows **hyper PROVEN** and which path carried it. If it says F18 never arrived, the hidutil remap or Accessibility is the problem; if it says F18 arrived and nothing ran, the Mac's Carbon hotkey layer is dead and ⇪ has already switched to the event-tap dispatcher |
+| ⇪ works but a NON-hyper global hotkey does not | On a Mac where Carbon is dead, the handful of plain chords in §0.3 stay dead — the fallback covers ⇪ only |
 | ⇪ + number pad does nothing | Accessibility → Pointer Control → **Mouse Keys** eats the whole pad |
 | The Capture Pad queue is not emptying at 4 PM | `⇪⇧N` sends by hand; the Console names the HTTP status. Nothing is deleted before Asana returns a gid |
 | Capture Pad says a note was "parked" | it failed `maxRetries` sends. It is still in `<logs>/capture-pad/queue.json` |

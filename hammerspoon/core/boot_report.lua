@@ -119,7 +119,18 @@ return function(core)
             hostTag, tostring(_G.moduleLoaded or 0), tostring(_G.hyperShortcutCount or 0),
             hs.timer.secondsSinceEpoch() - (_G.diagBootStart or hs.timer.secondsSinceEpoch())))
         if #problems == 0 then
-            print("   All green.  ⇪⇧D diagnostic report  ·  _G.bootReport() for the full detail")
+            -- 🚨 6.76.0 — "All green" ONCE MEANT "nothing complained".
+            -- LL's work Mac printed this line under "80 ⇪ shortcuts" while
+            -- not one of them worked: every shortcut had registered, and
+            -- registering is not firing. §3.12 now presses one for real two
+            -- seconds from here, and this line says so rather than letting
+            -- the word "green" cover a key nobody has tried yet. Same
+            -- reasoning as the warm-phase note above it — this summary
+            -- prints before the things it would most like to promise.
+            print("   All green." .. (_G.hyperSelfTestPending
+                    and "  ⇪ is pressed for real in 2s — a failure will say so."
+                    or "")
+                  .. "  ⇪⇧D diagnostic report  ·  _G.bootReport() for the full detail")
         else
             for _, r in ipairs(problems) do
                 print(string.format("   ⚠️ %-11s %s", r[1] .. ":", r[2]))

@@ -193,6 +193,25 @@ return function(core)
         add("   hyper          : %s shortcuts + %s forwarded, %s conflicts",
             tostring(_G.hyperShortcutCount or 0), tostring(_G.hyperForwardCount or 0),
             tostring(_G.hyperConflictCount or 0))
+        -- 6.76.0 — the line above counts REGISTRATIONS. On LL's work Mac
+        -- it read 80 while the hyper key was completely dead, so the line
+        -- below reports the one thing that count cannot: whether a ⇪
+        -- shortcut was actually pressed and actually ran.
+        add("   hyper PROVEN   : %s", (function()
+            if _G.hyperVerified == true then
+                return "YES — ⇪⇧F19 fired via " .. tostring(_G.hyperPath or "?")
+            elseif _G.hyperVerified == false then
+                return "NO — ⇪ DOES NOT WORK ON THIS MAC (see the Console)"
+            elseif _G.hyperSelfTestPending then
+                return "not yet — the self-test has not reported"
+            end
+            return "not tested (hyper disabled, or Accessibility withheld)"
+        end)())
+        add("   hyper F18 seen : carbon %s / event tap %s", (function()
+            local r = _G.hyperSelfTestResult
+            if not r then return "?", "?" end
+            return tostring(r.carbon), tostring(r.tap)
+        end)())
 
         add("")
         add("── FEATURES ──────────────────────────────────────────")

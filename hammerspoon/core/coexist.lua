@@ -111,8 +111,45 @@ end
 _G.injectDepth = 0
 _G.injectStartedAt = nil
 
+-- ⏳ AND A SECOND SHAPE OF THE SAME IDEA (6.76.0): AN INJECTION THAT
+-- OUTLIVES THE CALL THAT STARTED IT.
+--
+-- withInjection() below is scoped to a function call, which is right for
+-- hs.eventtap.keyStrokes — that call has typed the characters by the time
+-- it returns. It is WRONG for hs.eventtap.event:post(), which only queues
+-- the event: the post returns immediately, the counter drops back to
+-- zero, and the synthetic keystroke reaches the taps milliseconds later
+-- looking exactly like a real one.
+--
+-- §3.12's hyper self-test posts four synthetic keys to find out whether
+-- the hyper key actually fires. Without this, the Key Caster would draw
+-- them on screen at every boot — a panel announcing keys you did not
+-- press, which is the sort of small lie that teaches you to distrust the
+-- whole display.
+--
+-- A DEADLINE, NOT A COUNTER, and deliberately so: this window is opened
+-- by code that will not be on the stack when it needs to close, so there
+-- is nobody left to decrement it. A deadline cannot leak — the worst a
+-- forgotten one can do is stand the typing watchers down for the
+-- fraction of a second it was given, and then it is over by itself.
+_G.injectUntil = 0
+
 function _G.typingInjection()
-    return (_G.injectDepth or 0) > 0
+    if (_G.injectDepth or 0) > 0 then return true end
+    return hs.timer.secondsSinceEpoch() < (_G.injectUntil or 0)
+end
+
+-- Stand the keystroke watchers down for the next `seconds`, for events
+-- that are POSTED rather than typed. Capped hard at two seconds: this is
+-- a window during which your real typing is ignored by autocorrect, the
+-- expander and the Key Caster, and no legitimate burst of synthetic keys
+-- takes anywhere near that long.
+function _G.suppressTypingFor(seconds)
+    local s = math.min(tonumber(seconds) or 0, 2.0)
+    if s <= 0 then return 0 end
+    local until_ = hs.timer.secondsSinceEpoch() + s
+    if until_ > (_G.injectUntil or 0) then _G.injectUntil = until_ end
+    return s
 end
 
 -- Run fn with every keystroke watcher standing down. Returns fn's own

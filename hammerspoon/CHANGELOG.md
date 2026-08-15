@@ -4,6 +4,84 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.76.0 — THE HYPER KEY HAD ONE WAY IN, AND ON THE WORK MAC IT DIED:
+  🚨 THE SYMPTOM WAS A GREEN BOOT ON A DEAD KEYBOARD. LL's work Mac
+     printed "32 modules · 80 ⇪ shortcuts · 1.03s / All green" and not one
+     shortcut worked: "All dead now. Nothing happens." Every number on
+     that line was correct. Registering a shortcut is not being able to
+     fire one, and nothing in this config — or in its test suite — could
+     tell the two apart.
+  🔬 WHAT WAS RULED OUT, one measurement each, so nobody repeats them:
+     Accessibility granted · the hidutil remap applied and read back
+     correct · Secure Input not held · zero hotkey conflicts · 107 modal
+     bindings registered · event taps alive · ⌥Tab still working. And the
+     one that decided it: holding Caps Lock for five seconds while a timer
+     printed _G.hyperActive gave FALSE, on a Mac where a probe logged
+     "KEY 79 f18" for every press. F18 was arriving. The hs.hotkey handler
+     bound to it was never called.
+     · Two of my own diagnostics were wrong on the way there and are
+       recorded so they are not repeated: ⌃⌥⌘/ had been RETIRED by the
+       §0.4 migration map, so testing it proved nothing; and _G.hyperActive
+       read inside an event tap always reads false, because taps fire
+       BEFORE Carbon dispatch even on a working Mac.
+  🎹 SO ⇪ HAS TWO INDEPENDENT WAYS IN NOW. hs.hotkey is Carbon's
+     RegisterEventHotKey, dispatched by the system; hs.eventtap is a
+     CGEventTap that sees the key BEFORE Carbon does. A managed Mac can
+     lose the first and keep the second — another process holding the F18
+     registration, an MDM shortcut payload, a security agent — none of
+     which this config can see or change. So it stopped trying to diagnose
+     the cause and stopped depending on a single path.
+     · Both paths are idempotent: enter() on an entered modal is a no-op,
+       so a Mac where Carbon works is completely unaffected. A double
+       enter costs nothing; a missing one costs 107 shortcuts.
+     · And the tap does NOT swallow F18, or the fallback would break the
+       very Mac it exists to leave alone.
+  🛟 AND A COMPLETE CARBON-FREE HYPER KEYBOARD BEHIND IT, inert unless the
+     self-test proves the modal's hotkeys dead. It reads the SAME table
+     hyperBind already fills, so there is no second list of shortcuts to
+     keep in step — every hyper shortcut in the config goes through that
+     one function, so the dispatcher cannot miss one.
+     · It eats the keystroke it acts on, or ⇪D would run the shortcut AND
+       type a d.
+     · It refuses the forwarded ⌘⇧⌃⌥ chord outright. Unclaimed hyper keys
+       re-send that chord, it comes back through the same tap, and an
+       infinite keyboard loop is not a bug you get to debug comfortably.
+     · It honours the shared injection guard, so a snippet expanding while
+       ⇪ is held cannot fire a shortcut — with ONE exception, the
+       self-test's own keystroke, which exists to reach it.
+  🔬 AND THE CONFIG NOW PRESSES ITS OWN KEY. Two seconds after boot it
+     posts F18 + ⇧F19 and reads the answer. ⇧F19 because no Mac keyboard
+     has it, macOS reserves nothing on it, and if every layer failed it
+     lands in your document as nothing at all.
+     · Fires → silent, and ⇪⇧D says which path carried it.
+     · Modal hotkeys dead → it engages the dispatcher, RE-TESTS rather
+       than assuming, and says so on screen.
+     · Nothing at all → 🚨 on screen, with the two failures kept apart
+       because they have different repairs: F18 never arrived, versus F18
+       arrived and no shortcut ran.
+     · The probe can never leave ⇪ latched: a lost keyUp is detected and
+       the modal forced back out.
+  🚨 "ALL GREEN" NO LONGER IMPLIES A KEY NOBODY HAS TRIED. The healthy
+     boot line now says the proof is two seconds away, and ⇪⇧D reports
+     "hyper PROVEN" beside the count that was not enough on its own.
+  🧪 tests/test_hyper_key.lua — 71 checks, and the work Mac is a TEST CASE
+     now rather than an anecdote: the stub has a switch for each layer and
+     the real delivery order (taps first, Carbon only if nothing consumed
+     it). Turn Carbon off and you have that machine. §3.12's
+     hyperEnter/hyperExit/hyperBind are lifted out of init.lua and RUN, so
+     what is tested is that the two files agree with each other.
+     · All 20 mutations caught. Three survived the first run and each was
+       a real weakness: a chord guard tested against a shortcut that could
+       never match it, a suppression test poisoned by an earlier line, and
+       a boot-line check that was a source grep — it stayed green under
+       `false and _G.hyperSelfTestPending`, which is the exact shape of
+       assertion this config has been bitten by three releases running.
+  ⏳ _G.suppressTypingFor() in core/coexist.lua — a deadline-based sibling
+     to withInjection, for events that are POSTED rather than typed. A
+     post returns before the keystroke arrives, so a call-scoped counter
+     is already back to zero by then. A deadline cannot leak: the worst a
+     forgotten one does is expire.
+
 NEW IN 6.75.0 — NOTHING LEFT THAT CAN BEACHBALL YOUR MAC:
   🧵 THE WHOLE RISK, IN ONE SENTENCE: Hammerspoon has ONE thread. Every
      synchronous call on it freezes your keyboard, your event taps and
