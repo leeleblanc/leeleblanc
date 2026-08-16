@@ -302,8 +302,14 @@ check("one search field, autofocused prefill",
 check("the rows are the 50%-larger kind — 19px titles, 84px thumbs",
       html:find("font-size:19px", 1, true) ~= nil
       and html:find("height:84px", 1, true) ~= nil)
-check("the placeholder teaches the @tags",
-      html:find("@clip @cmd @shots", 1, true) ~= nil)
+-- 6.92.0 — the tag list OUTGREW the input box ("I can't read all the
+-- tool tips"): the placeholder now teaches the RULE and each section
+-- header carries its own tag, where it can never be clipped.
+check("the placeholder teaches the @tag rule, short enough to read whole",
+      html:find("a @tag pins one source", 1, true) ~= nil
+      and html:find('placeholder="[^"]*@clip') == nil)
+check("...and every section header shows its own tag instead",
+      html:find("<span class=\"tag\">@' + esc(SRCS[s].tag)", 1, true) ~= nil)
 check("the header advertises drag · copy · path · Esc",
       html:find("drag here", 1, true) ~= nil
       and html:find("⌘⏎ path", 1, true) ~= nil)

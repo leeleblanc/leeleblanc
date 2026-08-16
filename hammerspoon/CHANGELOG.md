@@ -4,6 +4,89 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.92.0 — CHROME HISTORY (⇪Y) + BEGONE (typed) + ⇪space TAGS:
+  LL: "Chrome history saver with a powerful fuzzy search control over
+  the Chrome history. Saves 90 days of history in the best file format
+  to retrieve the most relevant data. Is searchable in the unified
+  clipboard." · "Unified clipboard: I can't read all the tool tips." ·
+  "Clear visible macOS notification banners via the begone keyword."
+
+  NEW MODULE chrome_history.lua (⇪Y): Chrome deletes history older
+  than 90 days, silently and by design, and keeps what remains locked
+  in a SQLite file nothing else reads. ⇪Y gets it out: every profile's
+  History database (Default, Profile N — the non-browsing "System
+  Profile"/"Guest Profile" folders are skipped) is COPIED to the temp
+  folder with its -wal/-shm companions and the copy is queried by
+  Apple's own /usr/bin/sqlite3 — out of process via hs.task, because a
+  100 MB history must never block the keyboard, and with every path a
+  POSITIONAL /bin/sh argument, never interpolated, which is what makes
+  "Application Support" and "Profile 1" safe unquoted. -json output
+  because page titles contain every delimiter anyone ever chose;
+  Chrome's hidden-redirect noise filtered (hidden = 0); timestamps
+  converted from Chrome's µs-since-1601 epoch.
+  THE FILE: chrome_history-<Mac>.csv in the Logs folder — "best
+  format" here has meant the same thing since image_text.csv: Excel
+  opens it by double-click, grep reads it, OneDrive syncs it, and it
+  outlives Chrome's 90-day guillotine. Rewritten whole on each export
+  (the newest 90 days IS the contract); warm() reads it back at boot
+  so ⇪Y answers seconds after login on yesterday's data while the
+  fresh export lands behind it. Re-exports when 6h stale or on ⇪⇧Y,
+  which alerts the count. No pathwatcher on purpose: Chrome writes
+  History on practically every page view.
+  THE FUZZY SEARCH: hs.chooser filters substring-only, so ⇪Y filters
+  for itself (queryChangedCallback, the ⇪F/⇪V pattern): every word
+  must match — substring first, then the word's characters as an
+  in-order Lua pattern ("gml" → g.-m.-l, still C-speed) — ranked
+  tight-over-scattered, title-over-URL, recency breaking ties. ⏎
+  reopens the page in Chrome by bundle id, default browser fallback.
+  KEY: bare ⇪Y was one of the two unclaimed letters — Y as in
+  "historY" — sitting beside the history shelf (⇪F files, ⇪⇧W docs,
+  ⇪H commands). ⇪⇧Y = refresh + count. _G.chromeHistoryReport() prints
+  per-profile counts and spans. Bare I is now the last free letter.
+
+  UNIFIED SEARCH (⇪space) — @web joins the stores: the same 90 days
+  searchable next to clipboard, commands, notes; there ⏎ COPIES the
+  URL (the clipboard picker's contract — ⇪Y is the reopen control).
+  And the readability fix: the placeholder had outgrown the input box
+  — nine @tags trailing off the right edge is why "I can't read all
+  the tool tips". The placeholder now teaches the RULE ("a @tag pins
+  one source") and each section header carries its own tag (📋
+  Clipboard — 400 @clip), where it can never be clipped.
+
+  NEW MODULE begone.lua: type `begone` anywhere and every notification
+  banner on screen closes. The word deletes itself — it fires through
+  the Text Expander, which gained ACTION TRIGGERS for it: a snippet
+  whose payload is a function (expander.addAction service; actions
+  live in their own table and survive exp.load() rebuilding snippets
+  from disk, checked). The sweep: /usr/bin/osascript as an hs.task
+  (out of process — the 6.65.1 lesson; a multi-pass sweep can take a
+  second and must not stall typing), asking System Events for each
+  banner's Close / Clear All accessibility action at all three
+  addresses Apple has used (Big Sur windows, Monterey/Ventura scroll
+  area, Sonoma+ one group deeper), repeating while progress is made.
+  The count comes back as an alert ("🔕 3 begone"); an Accessibility
+  refusal says "check Accessibility" and lands in the notices ledger.
+  _G.begone() runs it from the Console; _G.begoneProbe() prints the
+  banner window's whole accessibility tree — the map for when a macOS
+  update moves the furniture again. WHY A TYPED WORD: banners arrive
+  precisely while you are typing; the dismissal lives where your hands
+  already are. It is in ⇪⇧T too, and picking it there runs it.
+
+  TESTS: NEW test_chrome_history.lua (68) — profile discovery vs
+  Chrome's non-profile folders, positional-args export, a broken
+  profile costs a warning not the export, CSV quoting round-trip,
+  ranking probes (substring beats sequence, title beats URL, recency
+  ties), chooser reuse, staleness, no-Chrome Mac. NEW test_begone.lua
+  (33) — registration through the expander, the three addresses in
+  the script, counts/zero/Accessibility-refusal, the probe, and an
+  expander-less profile that reports instead of dying. test_expander
+  §18 (+15) — typing the word runs the fn, len-1 backspaces, nothing
+  typed, boundary rule holds, a throwing action is caught and
+  ledgered, the action SURVIVES a rescan, ⇪⇧T lists and runs it.
+  Suite: 35 stages; hostile world degrades 40 modules; sqlite3 and
+  /bin/sh join the reviewed-binaries list and hs-doctor's census.
+  Inline changelog: 6.88.0 rotated out (five entries stay five).
+
 NEW IN 6.91.0 — APP LAUNCHER (⇪D):
   LL: "I need an application launcher that will launch apps in the
   regular applications folder on my personal, and for my work and

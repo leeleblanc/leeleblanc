@@ -713,6 +713,14 @@ local ALLOWED_BINARIES = {
   ["/usr/bin/osascript"] = "Finder selection + Finder comment tags, OUT OF "
                         .. "PROCESS so an Apple Event cannot abort us (ships with macOS)",
   ["/bin/zsh"]           = "runs the rsync backup line (ships with macOS)",
+  -- 6.92.0 — ⇪Y reads Chrome's History database. Chrome keeps the live
+  -- file locked, so a COPY is queried — by Apple's own sqlite3, out of
+  -- process (hs.task), because a 100 MB history must never block the
+  -- keyboard. /bin/sh choreographs the copy-then-query; every path
+  -- reaches it as a POSITIONAL argument, never interpolated into the
+  -- script, which is what makes "Application Support" safe unquoted.
+  ["/usr/bin/sqlite3"]   = "⇪Y queries a COPY of Chrome's History (ships with macOS)",
+  ["/bin/sh"]            = "chrome_history's copy-then-query runner (ships with macOS)",
   -- 6.86.0 — the ⇪4 screenshot capture. The same binary ⌘⇧4 itself uses;
   -- run with -i to a file in the OneDrive folder, which is what lets one
   -- keystroke both SAVE and COPY where macOS natively only does one.

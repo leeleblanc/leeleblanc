@@ -304,6 +304,12 @@ function M.setup(core)
 
         exp.snippets    = into
         exp.chooserOnly = chooserOnly
+        -- ⚡ Action triggers survive every rescan. exp.snippets was just
+        -- rebuilt from disk, and actions do not live on disk — without
+        -- this merge, one _G.snippetsImport() would silently kill them.
+        for trigger, act in pairs(exp.actions or {}) do
+            exp.snippets[trigger] = act
+        end
         exp.count, exp.longest, exp.longestBytes = 0, 0, 0
         for trigger in pairs(into) do
             exp.count = exp.count + 1
@@ -435,6 +441,38 @@ function M.setup(core)
     -- us, which have to reappear after the snippet. Only the deferred
     -- path uses it — see the ⏳ note in the tap.
     function exp.inject(trigger, snip, deleteCount, tail)
+        -- ⚡ ACTION TRIGGER: the payload is a function, not text. Same
+        -- contract as an expansion — what was typed is removed and any
+        -- tail is retyped — but nothing is inserted; the function runs
+        -- once the keystrokes are settled. It runs even if the deletes
+        -- were refused: leaving the word on screen is cosmetic, skipping
+        -- the action the word exists for is not.
+        if snip.fn then
+            exp.injecting = true
+            local okDel = (_G.withInjection or pcall)(function()
+                for _ = 1, deleteCount do
+                    hs.eventtap.keyStroke({}, "delete", 0)
+                end
+                if tail then hs.eventtap.keyStrokes(tail) end
+            end)
+            hold(hs.timer.doAfter(0.08, function() exp.injecting = false end))
+            if not okDel then exp.injecting = false end
+            exp.lastFired = { name = snip.name, trigger = trigger,
+                              at = os.date("%H:%M:%S") }
+            if _G.autocorrectResetBuffer then pcall(_G.autocorrectResetBuffer) end
+            local okRun, err = pcall(snip.fn)
+            if okRun then
+                say("ran " .. tostring(snip.name))
+            else
+                print("✂️ Text expander: action '" .. tostring(snip.name)
+                      .. "' failed — " .. tostring(err))
+                if _G.notices then
+                    _G.notices.record("expander", "action failed",
+                                      tostring(snip.name) .. ": " .. tostring(err))
+                end
+            end
+            return okRun
+        end
         exp.injecting = true
         local body = exp.substitute(snip.text, exp.unknownSeen)
         local before, after = body, nil
@@ -587,6 +625,29 @@ function M.setup(core)
             end
         end
         return nodes
+    end
+
+    -- ---- ⚡ action triggers (6.92.0) --------------------------------------
+    -- A snippet whose payload is a FUNCTION: type the trigger, the typed
+    -- characters are removed, and the function runs — nothing is inserted.
+    -- This is how `begone` closes your notification banners. Registered by
+    -- other modules through core.provide("expander.addAction"); kept in
+    -- their own table because exp.load() rebuilds exp.snippets from disk
+    -- (see the merge there).
+    exp.actions = {}
+    function exp.addAction(trigger, fn, name)
+        if type(trigger) ~= "string" or trigger == ""
+           or type(fn) ~= "function" then return false end
+        local fresh = exp.snippets[trigger] == nil
+        exp.actions[trigger]  = { fn = fn, name = name or trigger,
+                                  source = "action" }
+        exp.snippets[trigger] = exp.actions[trigger]
+        if fresh then exp.count = exp.count + 1 end
+        local n = clen(trigger)
+        if n > exp.longest then exp.longest = n end
+        if #trigger > exp.longestBytes then exp.longestBytes = #trigger end
+        exp.buildIndex()
+        return true
     end
 
     -- boundaryOK: see the 🧨 note in the header. Only triggers that begin
@@ -1057,7 +1118,9 @@ function M.setup(core)
         for trigger, s in pairs(exp.snippets) do
             choices[#choices + 1] = {
                 text    = s.name or trigger,
-                subText = trigger .. "   ·   " .. (s.text:gsub("%s+", " "):sub(1, 70)),
+                subText = trigger .. "   ·   "
+                          .. (s.fn and "⚡ an action — picking it runs it"
+                              or  s.text:gsub("%s+", " "):sub(1, 70)),
                 trigger = trigger, snip = s,
             }
         end
@@ -1110,6 +1173,8 @@ function M.setup(core)
 
     core.provide("expander.show",   function() return exp.show() end)
     core.provide("expander.reload", function() return exp.load() end)
+    core.provide("expander.addAction",
+                 function(t, f, n) return exp.addAction(t, f, n) end)
     core.provide("expander.toggle", function()
         exp.enabled = not exp.enabled
         return exp.enabled

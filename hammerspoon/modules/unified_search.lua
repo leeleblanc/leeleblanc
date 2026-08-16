@@ -20,6 +20,7 @@
 --   📄 documents            (⇪⇧W's doc_wather.csv)
 --   📁 file moves           (⇪F's file_changes CSV)
 --   🗒 capture pad          (⇪N's queue + parked notes)
+--   🕘 chrome history       (⇪Y's 90-day export, every Chrome profile)
 -- Every source is read inside its OWN pcall at open time: a corrupt CSV
 -- costs that one source a console line, never the picker.
 --
@@ -55,10 +56,10 @@ local M = {
     cheatsheet = {
         title = "🔎 UNIFIED SEARCH (⇪space — everything, one search)",
         entries = {
-            { "⇪space",  "Search EVERY store: clipboard · commands · screenshots · notes · Asana · OCR · docs · file moves · pad" },
+            { "⇪space",  "Search EVERY store: clipboard · commands · screenshots · notes · Asana · OCR · docs · file moves · pad · Chrome" },
             { "⇪⇧space", "Same panel opened as the BIG-thumbnail screenshot browser (@shots)" },
-            { "type",    "Every word must match · a @tag word pins one source (@clip @cmd @shots @note @asana @ocr @doc @file @pad)" },
-            { "⏎",       "COPY the row — text rows their full text, screenshot rows the image" },
+            { "type",    "Every word must match · a @tag word pins one source — each section header shows its tag" },
+            { "⏎",       "COPY the row — text its full text, a screenshot the image, a Chrome page its URL (⇪Y reopens)" },
             { "⌘⏎",      "Copy the file PATH instead (rows that have one)" },
             { "↑↓ · click", "Move the selection · pick — 19px rows, 84px thumbnails" },
             { "drag",    "The header bar moves the panel (⌘-drag works anywhere on it)" },
@@ -79,7 +80,8 @@ function M.setup(core)
     uni.pageCap = 60         -- rows the page lists at once ("+N more" after)
     uni.groupCap = 8         -- rows per source in the nothing-typed view
     uni.maxPer  = { clip = 400, cmd = 400, shots = 30, note = 120,
-                    asana = 200, ocr = 200, doc = 200, file = 200, pad = 60 }
+                    asana = 200, ocr = 200, doc = 200, file = 200, pad = 60,
+                    web = 300 }
     -- ----------------------------------------------------------------------
 
     local function say(m)  if _G.diag then _G.diag.say("unified", m)  end end
@@ -378,6 +380,24 @@ function M.setup(core)
         if type(pad.parked) == "table" then batch(pad.parked, "parked") end
     end
 
+    local function srcWeb(add)
+        -- ⇪Y's 90-day Chrome export, already sorted newest first. ⏎ here
+        -- COPIES the URL — this is the clipboard picker's contract — and
+        -- ⇪Y is the control that reopens pages.
+        local hist = _G.chromeHistory
+        if not (hist and type(hist.entries) == "table") then return end
+        for i = 1, math.min(#hist.entries, uni.maxPer.web) do
+            local e = hist.entries[i]
+            if type(e) == "table" and type(e.url) == "string" then
+                add{ tag = "web", icon = "🕘", src = "Chrome",
+                     text = oneLine((e.title and e.title ~= "") and e.title
+                                    or e.url):sub(1, uni.preview),
+                     sub  = (e.when or "") .. " · " .. e.url:sub(1, 90),
+                     full = e.url }
+            end
+        end
+    end
+
     -- ---- gather -------------------------------------------------------------
     uni.sources = {
         { tag = "clip",  icon = "📋", label = "Clipboard",    fn = srcClipboard },
@@ -389,6 +409,7 @@ function M.setup(core)
         { tag = "doc",   icon = "📄", label = "Documents",    fn = srcDocs      },
         { tag = "file",  icon = "📁", label = "File moves",   fn = srcFiles     },
         { tag = "pad",   icon = "🗒", label = "Capture Pad",  fn = srcPad       },
+        { tag = "web",   icon = "🕘", label = "Chrome",       fn = srcWeb       },
     }
 
     function uni.gather()
@@ -474,6 +495,7 @@ function M.setup(core)
   #list{position:absolute;top:124px;bottom:0;left:0;right:0;overflow-y:auto}
   .sec{padding:12px 16px 4px;color:#9db4ff;font-size:13px;font-weight:700;
        letter-spacing:.4px}
+  .sec .tag{color:#8a8aa2;font-weight:400}
   .row{display:flex;gap:12px;align-items:center;padding:10px 16px;
        border-bottom:1px solid #1c1c29;cursor:pointer}
   .row.sel{background:#232338;box-shadow:inset 3px 0 0 #7a9bff}
@@ -491,7 +513,7 @@ function M.setup(core)
 </style></head><body>
 <div id="bar"><span class="ttl">🔎 Unified Search</span>
 <span class="hint">drag here · ⏎ copy · ⌘⏎ path · Esc</span></div>
-<input id="q" placeholder="Search everything — every word must match · @clip @cmd @shots @note @asana @ocr @doc @file @pad">
+<input id="q" placeholder="Search everything — every word must match · a @tag pins one source">
 <div id="count"></div>
 <div id="list"></div>
 <script>
@@ -547,7 +569,8 @@ function rebuild(){
     for (var s = 0; s < SRCS.length; s++) {
       if (!SRCS[s].n) continue;
       html += '<div class="sec">' + SRCS[s].icon + ' ' +
-              esc(SRCS[s].label) + ' — ' + SRCS[s].n + '</div>';
+              esc(SRCS[s].label) + ' — ' + SRCS[s].n +
+              ' <span class="tag">@' + esc(SRCS[s].tag) + '</span></div>';
       var shown = 0;
       for (var i = 0; i < ROWS.length && shown < GROUP; i++) {
         if (ROWS[i].tag !== SRCS[s].tag) continue;

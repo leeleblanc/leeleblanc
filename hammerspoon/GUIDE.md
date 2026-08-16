@@ -238,6 +238,8 @@ tests/test_url_cleaner.lua   ⇪K, over 8,000 generated URLs
 tests/test_health.lua        ⇪⇧H, over 600 generated timelines / 36,000 events
 tests/test_menubar.lua       ⇪M, over 500 generated Mac populations
 tests/test_app_launcher.lua  ⇪D, three roots walked one level deep, never inside a bundle
+tests/test_chrome_history.lua ⇪Y, the sqlite export, the fuzzy ranking, the CSV round-trip
+tests/test_begone.lua        the typed keyword, the osascript sweep, the expander action path
 tests/test_focus.lua         ⇪Q, over 500 generated meeting days — the mic is never stranded
 tests/test_rename.lua        ⇪R, over 400 generated messy folders — no file is ever lost
 tests/test_workspaces.lua    ⇪⇧S, 300 generated workspaces — the busy flag never sticks

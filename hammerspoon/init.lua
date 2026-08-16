@@ -4,17 +4,21 @@
 -- =====================================================================
 -- 08-16-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.91.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.92.0
 -- =====================================================================
 
+-- NEW IN 6.92.0 — CHROME HISTORY (⇪Y) + BEGONE (typed):
+--   ⇪Y fuzzy-searches 90 days of Chrome (every profile, both Macs),
+--   saved to chrome_history-<Mac>.csv; @web joins ⇪space, whose tags
+--   now sit in its section headers. Type `begone` — banners close.
+--
 -- NEW IN 6.91.0 — APP LAUNCHER (⇪D):
 --   Every installed app in one picker: /Applications, ~/Applications
 --   (the work Mac's folder), /System/Applications, one level deep.
 --   ⏎ launches — or focuses a copy already running. ⇪W still summons.
 --
 -- NEW IN 6.90.1 — MENU BAR PICKER DEDUPE (⇪M):
---   Indistinguishable rows merge ("Bartender 6" ×4 → one row that
---   presses the first item answering). Cheat sheet lists ⇪V once.
+--   "Bartender 6" ×4 → one ⇪M row (first that answers). ⇪V listed once.
 --
 -- NEW IN 6.90.0 — ONE SHARED LOOK (modules/ui_style.lua):
 --   The pomodoro FOCUS card's style — background, white type, 12px
@@ -22,17 +26,11 @@
 --   timer, calendar, caster, ⌥Tab, sheet, mirror, legend, webviews.
 --
 -- NEW IN 6.89.0 — EVERY WINDOW MOVABLE + UNIFIED SEARCH (⇪space):
---   ⌘-click-hold-drag moves ANY panel — pickers included — and drops
---   STICK (window_move.lua). ⇪space searches EVERY store at once;
---   ⏎ copies, ⌘⏎ the path. ⇪⇧space / panel ⌘8 = BIG shot browser.
---
--- NEW IN 6.88.0 — EDITOR TOOLS + PANEL SEARCH + COMPRESS:
---   Editor: TEXT boxes and ARROWS join the blur; ⌘⇧⏎ small JPEG.
---   Panel: history visible, typing SEARCHES it, ⌃⏎ compress via sips.
---   hs.alert + one canvas show hardened vs the NSRemoteView throw.
+--   ⌘-click-hold-drag moves ANY panel and drops STICK (window_move).
+--   ⇪space searches EVERY store; ⏎ copies, ⌘⏎ path. ⇪⇧space = shots.
 --
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.91.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.92.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -338,7 +336,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.91.0"
+_G.configVersion = "6.92.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -3524,8 +3522,9 @@ local BASE = {
     "screenshot_editor",  -- 🖌   blur boxes on a screenshot (via ⇪⇧4, no key)
     "window_move",        -- 🪟   6.89.0 ⌘-drag any panel or picker (no key)
     "unified_search",     -- ⇪space  one search over every store
-    -- 6.91.0
-    "app_launcher",       -- ⇪D   launch any installed app, both Macs
+    "app_launcher",       -- 6.91.0 ⇪D  launch any installed app, both Macs
+    "chrome_history",     -- 6.92.0 ⇪Y  90 days of Chrome, saved + searched
+    "begone",             -- type `begone` (AFTER text_expander: registers there)
 }
 
 -- BASE minus `without`, plus `plus`. The list is COPIED, never shared: a

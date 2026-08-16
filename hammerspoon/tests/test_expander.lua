@@ -1121,6 +1121,89 @@ check("a missing bundled folder is simply nothing, not an error",
    end)())
 exp.bundledDir = nil
 
+-- =====================================================================
+out("\n=== 18. ⚡ Action triggers — the machinery `begone` rides ===\n")
+-- =====================================================================
+-- 6.92.0: a snippet whose payload is a FUNCTION. Same removal contract
+-- as an expansion, nothing inserted, and — the part that would rot
+-- silently — the action must survive exp.load() rebuilding exp.snippets
+-- from disk, because _G.snippetsImport() calls that at any time.
+reset()
+local RAN, FAILME = 0, false
+check("addAction is published for other modules",
+  type(PROVIDED["expander.addAction"]) == "function")
+check("...and refuses garbage",
+  PROVIDED["expander.addAction"](nil, print) == false
+  and PROVIDED["expander.addAction"]("x", "not a function") == false)
+local countBefore = exp.count
+check("a word registers as an action",
+  PROVIDED["expander.addAction"]("begone",
+    function() RAN = RAN + 1 ; if FAILME then error("boom") end end,
+    "Begone test") == true)
+check("...and counts as one more trigger", exp.count == countBefore + 1,
+  exp.count)
+
+reset()
+typeStr("begone")
+drain()
+check("typing the word RUNS the function", RAN == 1, RAN)
+check("len-1 backspaces — the word deletes itself",
+  DELETES == 5, DELETES)
+check("and NOTHING is typed in its place", #KEYSTROKES == 0, KEYSTROKES[1])
+check("lastFired records the action for ⇪⇧D",
+  exp.lastFired and exp.lastFired.name == "Begone test",
+  exp.lastFired and exp.lastFired.name)
+
+reset()
+typeStr("xbegone")
+drain()
+check("the word-boundary rule still guards it — 'xbegone' does not fire",
+  RAN == 1, RAN)
+
+reset()
+FAILME = true
+typeStr("begone")
+drain()
+check("a throwing action is caught, not crashed through", RAN == 2)
+check("...and reported to the ledger", (function()
+    for _, l in ipairs(_G.notices.recorded) do
+      if l:find("action failed", 1, true) then return true end
+    end
+  end)())
+FAILME = false
+
+check("🚨 exp.load() keeps the action alive across a rescan",
+  (function()
+    exp.load()
+    return exp.snippets["begone"] ~= nil
+       and type(exp.snippets["begone"].fn) == "function"
+  end)())
+reset()
+typeStr("begone")
+drain()
+check("...and it still fires after that rescan", RAN == 3, RAN)
+
+check("the ⇪⇧T chooser lists it without touching .text",
+  (function()
+    local nC = #CHOOSERS
+    local okShow = exp.show()
+    if not (okShow and #CHOOSERS > nC) then return false end
+    for _, row in ipairs(CHOOSERS[#CHOOSERS].rows_ or {}) do
+      if row.trigger == "begone" then
+        return tostring(row.subText):find("action", 1, true) ~= nil
+      end
+    end
+    return false
+  end)())
+check("...and PICKING it runs it — no deletes, nothing typed",
+  (function()
+    reset()
+    local c = CHOOSERS[#CHOOSERS]
+    c.cb({ trigger = "begone", snip = exp.snippets["begone"] })
+    drain()
+    return RAN == 4 and DELETES == 0 and #KEYSTROKES == 0
+  end)(), RAN)
+
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.execute("rm -rf '" .. TMP .. "'")
 os.exit(fail == 0 and 0 or 1)
