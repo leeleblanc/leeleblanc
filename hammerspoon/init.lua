@@ -2,20 +2,24 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 08-15-26 using Claude          ← EDITED date. Bumped with every release.
+-- 08-16-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.90.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.91.0
 -- =====================================================================
 
+-- NEW IN 6.91.0 — APP LAUNCHER (⇪D):
+--   Every installed app in one picker: /Applications, ~/Applications
+--   (the work Mac's folder), /System/Applications, one level deep.
+--   ⏎ launches — or focuses a copy already running. ⇪W still summons.
+--
 -- NEW IN 6.90.1 — MENU BAR PICKER DEDUPE (⇪M):
 --   Indistinguishable rows merge ("Bartender 6" ×4 → one row that
 --   presses the first item answering). Cheat sheet lists ⇪V once.
 --
 -- NEW IN 6.90.0 — ONE SHARED LOOK (modules/ui_style.lua):
 --   The pomodoro FOCUS card's style — background, white type, 12px
---   corners, selection blues — now lives in ONE table that 11 panels
---   read: timer, calendar, key caster, ⌥Tab, cheat sheet, task
---   mirror, legend, all four webviews. Edit the ✏️ table, ⇪R applies.
+--   corners, selection blues — lives in ONE table read by 11 panels:
+--   timer, calendar, caster, ⌥Tab, sheet, mirror, legend, webviews.
 --
 -- NEW IN 6.89.0 — EVERY WINDOW MOVABLE + UNIFIED SEARCH (⇪space):
 --   ⌘-click-hold-drag moves ANY panel — pickers included — and drops
@@ -27,13 +31,8 @@
 --   Panel: history visible, typing SEARCHES it, ⌃⏎ compress via sips.
 --   hs.alert + one canvas show hardened vs the NSRemoteView throw.
 --
--- NEW IN 6.87.0 — SCREENSHOT PANEL + BLUR EDITOR:
---   ⇪⇧4 is now a PANEL: capture actions on ⌘1–⌘7 (area · scrolling ·
---   text/QR · blur newest · repeat · window · delayed) with history
---   below; ⌥⏎ opens the BLUR EDITOR (⌘Z undo; saves "… (edited)").
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.90.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.91.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -115,10 +114,9 @@
 --    ⌃⌥⌘[ ]   throw the window to the next monitor right or left
 --
 -- 🔎 ⇪space  UNIFIED SEARCH (modules/unified_search.lua) — 6.89.0
---    One typed search over EVERY store: clipboard, commands, shots
---    (84px thumbnails), notes, Asana, OCR, docs, moves, pad. @tag
---    pins one source; ⏎ copies the row, ⌘⏎ the file path. ⇪⇧space
---    (or ⌘8 in the ⇪⇧4 panel) = the big-thumbnail shot browser.
+--    One typed search over EVERY store: clipboard, commands, shots,
+--    notes, Asana, OCR, docs, moves, pad. @tag pins one source;
+--    ⏎ copies, ⌘⏎ the path. ⇪⇧space = big-thumbnail shot browser.
 --
 -- ⇪V  CLIPBOARD HISTORY (§2 / §3)
 --    Keeps your last 1,000 copied texts, saved per-machine to
@@ -340,7 +338,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.90.1"
+_G.configVersion = "6.91.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -3526,6 +3524,8 @@ local BASE = {
     "screenshot_editor",  -- 🖌   blur boxes on a screenshot (via ⇪⇧4, no key)
     "window_move",        -- 🪟   6.89.0 ⌘-drag any panel or picker (no key)
     "unified_search",     -- ⇪space  one search over every store
+    -- 6.91.0
+    "app_launcher",       -- ⇪D   launch any installed app, both Macs
 }
 
 -- BASE minus `without`, plus `plus`. The list is COPIED, never shared: a

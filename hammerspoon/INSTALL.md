@@ -25,7 +25,7 @@ with no admin password. The two steps that *can* use admin are marked
 │   ├── hyper_key.lua         ⇪'s second way in, and the proof it works
 │   ├── changelog_csv.lua     one Excel-ready row per version
 │   └── notices.lua           the failure ledger — nothing fails silently
-├── modules/              37 files, loaded by the §1.12 loader
+├── modules/              38 files, loaded by the §1.12 loader
 ├── tools/                hs-doctor.sh · hs-install.sh · run-tests.sh
 └── logs/                 only if there is no OneDrive on this Mac
 ```
@@ -209,6 +209,7 @@ run and whether it exists here, and every path it writes to. Read-only.
 | ⇪K | paste a link with `?utm_source=…` first — it should come back clean |
 | ⇪⇧H | the tool-health report |
 | ⇪M | menu bar icons by name — type to filter, ⏎ opens one |
+| ⇪D | every installed app — type its name, ⏎ launches (or focuses) it |
 | ⇪Q | focus mode (Quiet) — mutes the mic and dims everything but the meeting |
 | ⇪R | bulk rename the Finder selection · undo is the picker's first row |
 | ⇪⇧S | workspaces — pick one for this Space, it is remembered |
@@ -278,7 +279,7 @@ No OneDrive on that Mac is fine — logs fall back to
 sh ~/.hammerspoon/tools/run-tests.sh ~/.hammerspoon
 ```
 
-Syntax on `init.lua`, `core/` and all 37 modules, twenty-seven Lua suites, then the
+Syntax on `init.lua`, `core/` and all 38 modules, twenty-eight Lua suites, then the
 Capture Pad's page JavaScript **executed** against a DOM stub. One exit
 code. A skipped stage is reported as a skip, never as a pass.
 

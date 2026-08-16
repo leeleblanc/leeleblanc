@@ -4,6 +4,48 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.91.0 — APP LAUNCHER (⇪D):
+  LL: "I need an application launcher that will launch apps in the
+  regular applications folder on my personal, and for my work and
+  personal mac, be able to launch applications from the user directory."
+  NEW MODULE app_launcher.lua: ⇪D lists every installed app — type,
+  ⏎ launches it, or focuses it if it is already running (the key means
+  "get me this app", not "start another copy").
+  WHERE IT LOOKS: /Applications, ~/Applications and /System/Applications
+  (Safari and friends moved there in Catalina), each read ONE folder
+  deep — Utilities, vendor folders, Chrome Apps.localized — and never
+  inside an .app bundle. A folder that does not exist contributes
+  nothing and complains about nothing, which is the whole two-Mac
+  story: the personal Mac's apps live in /Applications, the work Mac's
+  (no admin rights) land in ~/Applications, and the SAME module serves
+  both with zero settings fork. launcher.extraDirs takes any additions.
+  THE ROWS know where they came from: the source folder prints under
+  each app's name, so the same app installed in two places shows twice,
+  labelled, and /Applications wins the tie for the top row. App icons
+  load under a 0.6s budget; rows past it just go without.
+  DEFENSIVE, same reasoning as ⇪M at smaller stakes: every filesystem
+  call is pcall'd, the walk is time-boxed (1s), results are cached long
+  (300s) because a pathwatcher on each folder drops the cache the
+  moment anything is installed or removed — so ⇪D right after an
+  install already knows. The first scan and the watchers start in
+  warm(), off the boot path. Launching tries launchOrFocus(full path)
+  then hs.open, and admits failure in one alert naming the app.
+  KEY CHOICE: bare ⇪D was one of only three unclaimed tier-1 keys
+  (D, I, Y) — D as in "the keyboard Dock". There is NO ⇪⇧D twin;
+  Diagnostics has owned ⇪⇧D since 6.19.0 and keeps it. The inventory
+  is _G.appLauncherReport(). ⇪W is the deliberate neighbour: ⇪W
+  summons a RUNNING app to this monitor, ⇪D launches installed ones,
+  and both keep their jobs. (macOS 26 retired Launchpad, so "see every
+  installed app" no longer had a system home.)
+  TESTS: NEW test_app_launcher.lua, 57 checks — bundle non-descent
+  (a Weird.app containing Helper.app must yield ONE app), depth cap
+  (TooDeep.app two levels down stays unlisted), work-Mac shape (missing
+  roots are Tuesday, not an error), cache TTL + watcher invalidation,
+  scan budget on a wedged folder, launch fallback chain with the full
+  path of the exact copy picked, one honest alert when both refuse.
+  Suite grows to 33 stages; hostile world now degrades 38 modules.
+  Inline changelog: 6.87.0 rotated out (five entries stay five).
+
 NEW IN 6.90.1 — MENU BAR PICKER DEDUPE (⇪M):
   LL, from a screenshot of ⇪M showing "Bartender 6" on ⌘2–⌘5: "why do I
   see Bartender repeated?" Because the picker lists STATUS ITEMS, not
