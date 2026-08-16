@@ -4,9 +4,13 @@
 -- =====================================================================
 -- 08-16-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.96.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.97.0
 -- =====================================================================
 
+-- NEW IN 6.97.0 — ☑️ PICK SEVERAL · A QUIETER OCR · THE FILE MAP:
+--   Every editor (⇪⇧V · ⇪⇧E · ⇪⇧O) can now pick several rows and
+--   delete (⇪⇧V: or copy) them together. OCR success prints nothing.
+--
 -- NEW IN 6.96.0 — NONBREAKING ERRORS · THE FILE INDEX · DOC TAGS:
 --   ⚠️ nonbreaking errors get their own banner (⛔ = broke, ⚠️ = ran on).
 --   ⇪D lists indexed FILES behind the apps; .docx saves tag themselves.
@@ -20,7 +24,7 @@
 --   pomodoro adds time · date · hours left in your 7:30–4:30 workday.
 --
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.96.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.97.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -232,6 +236,35 @@
 -- =====================================================================
 
 -- =====================================================================
+-- 🗺 FILE MAP — the sections below, in the order they actually RUN
+-- =====================================================================
+-- Lua reads this file once, top to bottom: a definition must exist
+-- before its first use, and that execution order is the only order that
+-- matters to Hammerspoon. Section NUMBERS are historical names — moving
+-- code to make them tidy is how definitions get lost (NEW IN 6.40.0) —
+-- so navigate by this map, not by the numbering:
+--
+--   §0     core environment · dock icon · EmmyLua
+--   §0.1   portability — every path and folder resolved, per Mac
+--   §0.2   credentials — secret.lua loader (no token lives here)
+--   §0.3   hotkey conflict sentry    §0.4   hyper migration map
+--   §1     global state              §1.5   popup positioning
+--   §1.6   cheat sheet (core/cheatsheet.lua) · safe canvas show ·
+--          draggable panels · shared arbitration (core/coexist.lua)
+--   §1.11  diagnostics (core/diagnostics.lua)
+--   §2     OCR engine — clipboard images, file tagging, history
+--   §3     background monitoring     §3.12  the hyper key itself
+--   (unnumbered) Asana task creator — history · uploads · pipe
+--          parser · renderer · draft mirror · submit · chooser
+--   §5     hotkey integrations — core pickers + ⇪⇧O OCR edit
+--   §6     Asana dashboard           §7     bootstrap report
+--   §1.4   shared text/CSV helpers (late on purpose — everything
+--          CALLS them after load; nothing above needs them sooner)
+--   §1.12  module loader → BASE list → machine profiles → safe
+--          mode → boot report. The 43 modules/*.lua load HERE, last.
+-- =====================================================================
+
+-- =====================================================================
 -- 0. CORE ENVIRONMENT & DEPENDENCIES
 -- =====================================================================
 local function safeRequire(mod)
@@ -253,46 +286,16 @@ safeRequire("hs.dockicon")
 -- =====================================================================
 -- 🖥 THE DOCK ICON, AND WHY HIDING IT IS A FEATURE (6.66.2)
 -- =====================================================================
--- LL: "some windows don't come forward but some do, like the shortcuts
--- panel." Exactly right, and the split is the diagnosis:
---
---   · THE ONES THAT WORK are hs.canvas — the cheat sheet, the Mouse
---     Grid, the pomodoro, the screen veil. A canvas can be told
---     `fullScreenAuxiliary`, and every one of ours is (6.66.1 fixed the
---     last two that were not).
---   · THE ONES THAT DO NOT are hs.chooser — the clipboard history (⇪V),
---     OCR search (⇪O), the Tool Picker (⇪⇧/), Universal Actions (⇪⇧A),
---     the menu bar picker (⇪M), every Asana list. A chooser is a native
---     NSPanel and exposes NO collection-behaviour API, so nothing in
---     Lua can grant it the same permission.
---
--- 🚨 THIS IS DOCUMENTED HAMMERSPOON BEHAVIOUR, not a bug in this config.
--- From the official hs.chooser docs:
---     "As of macOS Sierra and later, if you want an hs.chooser object to
---      appear above full-screen windows you must hide the Hammerspoon
---      Dock icon first, using hs.dockicon.hide()"
--- The reason is AppKit's, not ours: an app with a Dock icon is a REGULAR
--- application, and a regular app's panels cannot be drawn over another
--- app's full-screen Space without switching Spaces. An app without one
--- is an ACCESSORY application, and its panels can float anywhere.
---
--- ⚖️ WHAT YOU GIVE UP, stated plainly so this is a choice and not a
--- surprise:
---   · no Hammerspoon icon in the Dock
---   · Hammerspoon stops appearing in ⌘Tab
--- WHAT YOU KEEP: the menu bar icon, every hotkey, the Console (menu bar
--- icon → Console), and Preferences. Nothing becomes unreachable — this
--- config is driven entirely by ⇪ shortcuts and the menu bar, so the Dock
--- icon was never a route to anything.
---
--- ✏️ SET THIS TO false to keep the Dock icon. The pickers will then work
--- everywhere EXCEPT over full-screen apps, which is the behaviour you
--- have been living with.
---
--- ⚠️ THIS ALSO OVERRIDES the "Show dock icon" checkbox in Hammerspoon
--- Preferences on every load, deliberately: a setting that lives only in
--- a GUI checkbox does not travel to the other Mac, and this config's
--- whole design is that the file IS the configuration.
+-- 🚨 LOAD-BEARING: an hs.chooser can only open over a FULL-SCREEN app
+-- while Hammerspoon has NO Dock icon (documented hs.chooser behaviour —
+-- a Dock-less app is an ACCESSORY app whose panels float anywhere).
+-- Every picker in this config is an hs.chooser, so hiding the icon is
+-- what makes ⇪V/⇪O/⇪⇧/ work over full-screen Excel. The cost: no Dock
+-- icon, no ⌘Tab entry. The menu bar icon, Console and every hotkey
+-- remain. Full story: NEW IN 6.66.2.
+-- ✏️ SET false to keep the Dock icon (pickers then fail over
+-- full-screen apps). Deliberately overrides the Preferences checkbox on
+-- every load — the FILE is the configuration; a checkbox doesn't sync.
 local hideDockIcon = true
 
 if hideDockIcon then
@@ -308,17 +311,10 @@ if hideDockIcon then
     end
 end
 
--- 🔇 6.44.10 — QUIET THE CONSOLE SO IT IS WORTH READING. hs.hotkey logs
--- every enable and disable at info level. The ⌥Tab switcher binds 32 arrow
--- hotkeys when it opens and releases them when it closes (8 keys × 4
--- modifier masks, because hs.hotkey matches modifier flags EXACTLY, so a
--- bare-mask binding cannot fire while ⌥ is held). That is 64 console lines
--- per use of the switcher. Three switches in half a minute buried the only
--- lines that mattered — the boot report and the Capture Pad's send results
--- — under ~200 lines of bookkeeping, which is how a console stops being a
--- debugging tool. Warnings and errors still print; the routine chatter does
--- not. Set this to "info" if a hotkey ever fails to bind and you want the
--- play-by-play back.
+-- 🔇 6.44.10 — hs.hotkey logs every enable/disable at info level (the
+-- ⌥Tab switcher alone is 64 lines per use), which buries the lines that
+-- matter. Warnings and errors still print. Set "info" to debug a
+-- binding. Full story: NEW IN 6.44.10.
 pcall(function() hs.hotkey.setLogLevel("warning") end)
 
 -- DYNAMIC HOME DIRECTORY RESOLUTION
@@ -326,31 +322,16 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.96.0"
+_G.configVersion = "6.97.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
--- WHAT THIS ACTUALLY IS, in plain terms: it writes out a set of files
--- describing every Hammerspoon function — its name, what arguments it
--- takes, what it hands back. A code editor that speaks the Lua language
--- server protocol reads those files and can then finish `hs.pasteboard.`
--- for you and underline a call you got wrong WHILE YOU TYPE, instead of
--- you finding out after a reload when something quietly does nothing.
---
--- That last part is why it is here. Several real bugs in this file's
--- history were exactly that shape: hs.pasteboard.readURL returning a
--- different type than assumed, and a canvas replaceElements call whose
--- signature was in doubt. Both were "wrong API usage that parses fine"
--- — invisible to luac, visible to a language server.
---
--- IT COSTS NOTHING AT RUNTIME. It generates the files and stops. No
--- hotkey, no timer, no watcher, nothing on the main thread afterwards.
--- Not installed? One console line and the config carries on, so this
--- stays portable to a Mac that has never heard of it.
---
--- ⚠️ THE GENERATED FILES ALONE DO NOTHING. They are half the setup —
--- your EDITOR has to be pointed at them. See the README's EmmyLua
--- section for that half; CotEditor cannot use them at all.
+-- Writes annotation files describing every hs.* function so an
+-- LSP-capable editor can autocomplete and underline wrong API usage AS
+-- YOU TYPE — the exact shape of several past bugs here. Zero runtime
+-- cost: it generates files and stops. Not installed? One console line,
+-- and the config carries on. ⚠️ The files alone do nothing — your
+-- EDITOR must be pointed at them (CotEditor cannot use them).
 (function()
     local home = os.getenv("HOME") or ""
     local spoonPath = home .. "/.hammerspoon/Spoons/EmmyLua.spoon"
@@ -1080,33 +1061,14 @@ end)
 -- =====================================================================
 -- 🚨 SHOWING A CANVAS CAN THROW, AND IT IS NOT OUR BUG — 6.56.0
 -- =====================================================================
--- Seen in the wild, from a ⇪/ press while Safari's address-bar
--- autocomplete was open:
---
---   NSInternalInconsistencyException: '<NSRemoteView …
---   SPCompletionListServiceViewController> notified of <HSCanvasWindow>
---   but expected (null)' in -[NSRemoteView containingWindowWillOrderOnScreen:]
---
--- Ordering ANY window on screen makes AppKit post a notification that
--- every observer receives — including Safari's completion list, which
--- lives in ANOTHER PROCESS behind an NSRemoteView. If that view is
--- mid-transition when the notification lands, its assertion fires. The
--- throw comes from AppKit's ViewBridge, in Safari's observer, about a
--- window it does not own. Nothing we can pass to :show() prevents it.
---
--- WHAT WE CAN PREVENT IS THE DAMAGE, and the damage was the real
--- symptom. An unprotected canvas:show() that throws abandons the REST
--- of the open sequence — so the cheat sheet set _G.cheatSheetCanvas,
--- threw, and never reached enableInput(). The config then believed the
--- sheet was open while the canvas sat half-ordered on screen: a phantom
--- panel, and a ⇪/ that only ever called hide() from then on. That is
--- exactly the alternating "Disabled / Re-enabled previous hotkey" pairs
--- in the Console.
---
--- So: catch it, RETRY ONCE on the next run loop turn (by which point
--- the other process's view has settled — this is a timing collision,
--- not a permanent state), and if it still refuses, say so and let the
--- caller clean up rather than leaving a ghost behind.
+-- Ordering any window on screen notifies every AppKit observer —
+-- including ANOTHER app's popup (Safari's URL completion, Spotlight)
+-- living behind an NSRemoteView. Mid-transition, ITS assertion throws
+-- into OUR canvas:show(), and an unprotected throw abandons the rest of
+-- the open sequence, leaving a phantom half-open panel. So: catch it,
+-- retry once next run-loop turn (a timing collision, not a permanent
+-- state), and if it still refuses, say so and let the caller clean up.
+-- Full story: NEW IN 6.56.0.
 _G.canvasShowTimers = _G.canvasShowTimers or {}
 function _G.showCanvasSafely(canvas, label)
     if not canvas then return false end
@@ -1426,18 +1388,11 @@ local function processAutomaticImageOCR(img)
                         f:write(os.date("%Y-%m-%d %H:%M:%S") .. ',"' ..
                             extractedText:gsub('"', '""'):gsub('\r\n', '\\n'):gsub('\r', '\\n'):gsub('\n', '\\n') .. '"\n')
                         f:close()
-                        -- 6.65.0 — SUCCESS IS SILENT NOW. This fired on
-                        -- every image that touched the clipboard, which is
-                        -- a popup for the thing working exactly as it is
-                        -- supposed to. The rule this config runs on is
-                        -- "tell me when something FAILS" (rule 7), and the
-                        -- corollary has to be that success does not
-                        -- interrupt — an alert you see twenty times a day
-                        -- is one you stop reading, including on the day it
-                        -- says something else. The text is still indexed
-                        -- and still searchable with ⌃⌥⌘O; the console line
-                        -- below is the receipt if you want one.
-                        print("📋 OCR indexed " .. #extractedText .. " chars")
+                        -- 6.65.0 silenced the success ALERT; 6.97.0
+                        -- silences the console line too. LL: "Can't we
+                        -- reduce the OCR indexed to errors only?" — so a
+                        -- clean index prints NOTHING. The CSV is the
+                        -- record, ⇪O is the receipt; failures still print.
                     else
                         warnWriteFailed("OCR log")
                     end
@@ -1601,37 +1556,16 @@ local function ocrWriteFinderComment(path, text)
         .. 'return "skipped"\n'
         .. 'end if\n'
         .. 'end tell'
-    -- 🚨 6.65.1 — OUT OF PROCESS. THIS LINE CRASHED HAMMERSPOON.
-    --
-    -- This was hs.osascript.applescript, which runs NSAppleScript INSIDE
-    -- Hammerspoon and sends Apple Events on its main thread. When that
-    -- machinery raises an Objective-C exception the process ABORTS, and
-    -- LL's crash report is exactly that stack:
-    --        _NSAppleEventManagerGenericHandler
-    --        handleUncaughtException  →  reportException:  →  abort()
-    --
-    -- ⚠️ THE pcall BELOW WAS NEVER PROTECTION. Lua's pcall catches Lua
-    -- errors. An Objective-C exception is not one: it unwinds straight
-    -- past pcall into the uncaught handler and kills the app. The wrapper
-    -- made this look handled for four versions.
-    --
-    -- 🎯 AND THIS PATH IS THE WORST PLACE FOR IT, because nothing about it
-    -- requires you to press anything. It runs from the CLIPBOARD WATCHER —
-    -- copy image files in Finder and it fires on its own, including
-    -- seconds after login while the clipboard still holds whatever it held
-    -- yesterday. A crash you cannot connect to an action you took is the
-    -- hardest kind to report, and LL's console shows this exact path
-    -- running on file URLs at boot.
-    --
-    -- /usr/bin/osascript is the SAME script in a SEPARATE process: it can
-    -- throw, hang or die and all that happens is a child exits.
-    --
-    -- ⚠️ CONSEQUENCE, STATED PLAINLY: this can no longer return whether it
-    -- wrote. A separate process answers later, and this function had to
-    -- answer now. Every caller therefore treats the tag as best-effort,
-    -- and the RESULT is reported from the callback instead of the caller
-    -- guessing. That is a real reduction in what we know, traded for not
-    -- aborting the application.
+    -- 🚨 6.65.1 — OUT OF PROCESS, ALWAYS. The in-process version
+    -- (hs.osascript.applescript) CRASHED Hammerspoon: an Objective-C
+    -- exception in Apple Events unwinds straight PAST pcall — Lua's
+    -- pcall catches Lua errors only — and aborts the app, from a path
+    -- that fires on its own from the clipboard watcher. /usr/bin/osascript
+    -- is the same script in a SEPARATE process: it can throw, hang or
+    -- die and all that happens is a child exits. The trade, stated
+    -- plainly: this function now answers "started", never "wrote" — the
+    -- RESULT arrives later, in the task callback below.
+    -- Full story: NEW IN 6.65.1.
     local okNew, t = pcall(hs.task.new, "/usr/bin/osascript",
         function(exitCode, stdOut, stdErr)
             local result = tostring(stdOut or ""):gsub("%s+$", "")
@@ -2869,11 +2803,80 @@ local function saveOCRHistoryRaw(entries)
 end
 
 local ocrEditSnapshot = {}
+-- ☑️ 6.97.0 — SELECT MODE (the Document Watcher pattern): hs.chooser has
+-- no multi-select, so Enter TAGS rows (✓) and one action row deletes
+-- them all. Index-keyed tags are safe HERE because the snapshot is
+-- frozen while the picker is open — background OCRs append to the CSV,
+-- never to this table.
+local ocrEditSelect, ocrEditTagged = false, {}
+
+local function ocrEditRender()
+    local choices = {}
+    if ocrEditSelect then
+        local n = 0
+        for _ in pairs(ocrEditTagged) do n = n + 1 end
+        table.insert(choices, {
+            text    = (n == 0) and "☑️ Nothing picked yet"
+                      or ("🗑 Delete the " .. n .. " I picked"),
+            subText = (n == 0) and "Go down the list and press Enter on the rows you want"
+                      or "Press Enter HERE to delete them all",
+            action  = "deletetagged",
+        })
+        table.insert(choices, { text = "✖️ Never mind — go back",
+            subText = "Forget the picks and return to one-at-a-time editing",
+            action = "selectoff" })
+    else
+        table.insert(choices, { text = "☑️ Delete several at once…",
+            subText = "Pick rows with Enter, then delete them together",
+            action = "selecton" })
+    end
+    for i = #ocrEditSnapshot, 1, -1 do   -- newest first, matches the browse picker
+        local e = ocrEditSnapshot[i]
+        table.insert(choices, {
+            text    = (ocrEditTagged[i] and "✓ " or "") .. e.text:gsub("%s+", " "):sub(1, 100),
+            subText = "🕒 " .. e.timestamp .. "  ·  "
+                      .. (ocrEditSelect
+                          and (ocrEditTagged[i] and "PICKED — Enter unpicks it" or "Enter picks it")
+                          or "Enter to edit or delete"),
+            idx     = i,
+        })
+    end
+    _G.choosers.ocrEdit:choices(choices)
+end
 
 _G.choosers.ocrEdit = hs.chooser.new(function(choice)
-    if not (choice and choice.idx) then return end
+    if not choice then return end
+    local function reopen() ocrEditRender(); showPopup(_G.choosers.ocrEdit) end
+    if choice.action == "selecton" then
+        ocrEditSelect, ocrEditTagged = true, {}
+        reopen(); return
+    elseif choice.action == "selectoff" then
+        ocrEditSelect, ocrEditTagged = false, {}
+        reopen(); return
+    elseif choice.action == "deletetagged" then
+        local kept, removed = {}, 0
+        for i, e in ipairs(ocrEditSnapshot) do
+            if ocrEditTagged[i] then removed = removed + 1 else kept[#kept + 1] = e end
+        end
+        ocrEditSelect, ocrEditTagged = false, {}
+        if removed > 0 then
+            ocrEditSnapshot = kept
+            saveOCRHistoryRaw(ocrEditSnapshot)
+            hs.alert.show("🗑 Deleted " .. removed .. " OCR entr"
+                          .. ((removed == 1) and "y" or "ies"))
+        else
+            hs.alert.show("Nothing picked — press Enter on the rows you want first")
+        end
+        return
+    end
+    if not choice.idx then return end
     local entry = ocrEditSnapshot[choice.idx]
     if not entry then return end
+    if ocrEditSelect then
+        if ocrEditTagged[choice.idx] then ocrEditTagged[choice.idx] = nil
+        else ocrEditTagged[choice.idx] = true end
+        reopen(); return
+    end
 
     local button, text = hs.dialog.textPrompt(
         "✏️ Edit OCR entry (" .. entry.timestamp .. ")",
@@ -2899,16 +2902,8 @@ hs.hotkey.bind({"cmd", "ctrl", "alt", "shift"}, "O", function()
         hs.alert.show("📋 OCR history is empty")
         return
     end
-    local choices = {}
-    for i = #ocrEditSnapshot, 1, -1 do   -- newest first, matches the browse picker
-        local e = ocrEditSnapshot[i]
-        table.insert(choices, {
-            text    = e.text:gsub("%s+", " "):sub(1, 100),
-            subText = "🕒 " .. e.timestamp .. "  ·  Enter to edit or delete",
-            idx     = i,
-        })
-    end
-    _G.choosers.ocrEdit:choices(choices)
+    ocrEditSelect, ocrEditTagged = false, {}
+    ocrEditRender()
     showPopup(_G.choosers.ocrEdit)
 end)
 
@@ -3464,28 +3459,13 @@ _G.moduleWarmTimers  = {}    -- HELD: an unreferenced hs.timer is collected
 -- `settings` = per-module overrides applied to that module's `config`
 --              table after setup. Anything the module exposes there can
 --              differ per machine without touching the module file.
--- 🚨 6.66.3 — ONE LIST, NOT THREE COPIES. THIS IS A BUG FIX, and the bug
--- had been silently costing LL every new feature for four releases.
---
--- Each profile used to carry its own hand-typed `modules` list. Adding a
--- module meant editing THREE lists, and 6.65.0 through 6.66.2 edited only
--- `default` — so on "Lees-MacBook-Air", which has its own profile, the
--- Tool Picker, Universal Actions, the Pomodoro and the Outlook Probe were
--- NEVER LOADED. Every one of them was written, tested, documented,
--- shipped, and absent. The boot line read "26 modules" while thirty sat
--- on disk, and "All green" was perfectly true: nothing failed, because
--- nothing was asked to load.
---
--- ⚠️ AND THE SUITE AGREED WITH THE BUG. test_integration reads the module
--- list out of init.lua rather than retyping it, precisely so a hand-copied
--- list cannot drift — but it read only the `default` profile. It
--- validated the one list that was right and never looked at the two that
--- were wrong. A test that reads the same wrong source as the code
--- confirms the code instead of checking it.
---
--- So: BASE is the list. A profile declares only its DIFFERENCES. Adding a
--- module is one edit that reaches every Mac, and a module on disk that no
--- profile loads now fails the build.
+-- 🚨 6.66.3 — ONE LIST, NOT THREE COPIES. Profiles used to hand-type
+-- their own module lists; four releases of new modules were added only
+-- to `default`, so LL's own Mac silently never loaded them — and the
+-- boot report was green, because nothing was ASKED to load. Now BASE is
+-- the list, a profile declares only its differences, and a module on
+-- disk that no profile loads fails the build (test_integration reads
+-- BASE straight out of this file). Full story: NEW IN 6.66.3.
 local BASE = {
     "ui_style",           -- 🎨 6.90.0 the shared look — FIRST: panels read it
     "daily_backup", "app_peek", "window_switcher", "window_arranger",

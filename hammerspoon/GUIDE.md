@@ -267,6 +267,8 @@ tests/test_console.lua       the ⛔ ERRORS + ⚠️ NONBREAKING banners, the re
 tests/test_search_index.lua  the ⇪D file index: nice'd find, atomic publish, narrowing search
 tests/test_doc_keywords.lua  .docx → keywords → Finder comment; a human's comment survives
 tests/test_clipboard.lua     ⇪V, and the writes that must never destroy the history file
+tests/test_select_mode.lua   ☑️ pick-several in the ⇪⇧V/⇪⇧E/⇪⇧O editors — ⇪⇧O runs the
+                             real init.lua source, lifted the test_hyper_key way
 tests/test_integration.lua   🚨 all 26 modules loaded TOGETHER: shortcut, service and
                              cheat-sheet-slot collisions — the only suite that can
                              catch two modules quietly claiming the same key

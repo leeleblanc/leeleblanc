@@ -4,6 +4,59 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.97.0 — ☑️ PICK SEVERAL · A QUIETER OCR · THE FILE MAP:
+  Three requests, one release.
+
+  1) SELECT MODE IN EVERY EDITOR. LL: "When I use a history edit like
+  hyperkey+shift+v, I can only edit one entry at a time. But I remember
+  being able to do this with another editor. Am I wrong? And also, can
+  we make anything that has an editor, a multi-select tool?"
+  Not wrong — the Document Watcher LIST (⇪⇧W) has had exactly this
+  since it shipped: hs.chooser has no shift-click multi-select, so
+  Enter TAGS rows (✓) and one action row acts on all of them. That
+  proven pattern is now in all three entry EDITORS:
+     ⇪⇧V  clipboard edit — "☑️ Select several…", then 🗑 Delete the N
+          picked, or 📋 Copy them as ONE text (joined with line
+          breaks, in history order — the joined text becomes the top
+          history entry, because that is what a copy means).
+     ⇪⇧E  document watcher edit — pick rows, delete them together.
+     ⇪⇧O  OCR history edit — same, on the CSV.
+  Everywhere: "✖️ Never mind" backs out, a bulk action ENDS select
+  mode, and a fresh open always starts unpicked — reopening into
+  week-old ✓ marks is how the wrong rows get deleted. Clipboard tags
+  key on the ENTRY, not the index, so a copy arriving mid-pick shifts
+  nothing. One-at-a-time editing is untouched in all three.
+  Tests: test_clipboard grew to 57 (new §8); NEW test_select_mode.lua
+  (27 checks) covers ⇪⇧E and — lifted from init.lua source, the
+  test_hyper_key way — ⇪⇧O. The runner is now 40 stages.
+
+  2) OCR: ERRORS ONLY. LL: "Can't we reduce the OCR indexed to errors
+  only?" Done — "📋 OCR indexed N chars" is gone (6.65.0 had already
+  silenced the success alert; this silences the console line too). The
+  CSV is the record and ⇪O is the receipt. Failures still print, and
+  test_select_mode §3 proves the success line stays gone by searching
+  init.lua's CODE with comments stripped.
+
+  3) THE FILE MAP + COMMENT HYGIENE. LL: "Can you organize the init.lua
+  so that it is formatted with best practices? Rearrange anything that
+  will make the init.lua easier for Hammerspoon to read and run. Do
+  your best. Do what is safe."
+  Stated honestly: Lua reads init.lua ONCE, top to bottom, and section
+  order does not change its speed — the only order that matters is
+  "defined before used", and MOVING code to tidy the numbering is
+  exactly how 6.40.0 lost two function definitions. So nothing moved.
+  What changed: a 🗺 FILE MAP at the top lists every section in the
+  order it actually runs (the historical numbers are names, not
+  positions — §1.4 and §1.12 really do live at the bottom), and five
+  of the longest inline war stories (6.66.2 dock icon, 6.44.10 console
+  quiet, EmmyLua, 6.56.0 canvas throw, 6.65.1 osascript crash,
+  6.66.3 profile drift) were compressed to their load-bearing rule
+  plus a "Full story: NEW IN x.y.z" pointer into this file — which is
+  the trimming discipline test_integration has always encoded: safe
+  only because the CHANGELOG is the complete record. Net: init.lua
+  went from 3,999 to ~3,980 lines WITH the new ⇪⇧O select mode and
+  the map added, still under the 4,000 budget and 60% comment cap.
+
 NEW IN 6.96.0 — NONBREAKING ERRORS · THE ⇪D FILE INDEX · DOC KEYWORDS:
   Three requests, one release.
 

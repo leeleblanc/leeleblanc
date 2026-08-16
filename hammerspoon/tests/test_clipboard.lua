@@ -356,6 +356,114 @@ do
           .. "answer 'that entry is gone'", foundByIdentity == false)
 end
 
+-- =====================================================================
+out("\n=== 8. ☑️ Select mode — pick several rows, act on them ONCE ===\n")
+-- =====================================================================
+-- 6.97.0. hs.chooser has no shift-click multi-select, so Enter TAGS
+-- rows and an action row applies to all of them — the same pattern the
+-- Document Watcher list proved. Tags key on the ENTRY TABLE, so a copy
+-- arriving mid-pick shifts every index and loses nothing.
+boot() ; C.loaded = true
+C.add("third") ; C.add("second") ; C.add("first")
+C.renderEdit("")
+local rows = C.editChooser.rows
+check("the normal edit list leads with ONE action row: ☑️ Select several…",
+      rows[1] and rows[1].action == "selecton"
+      and rows[1].text:find("Select several", 1, true) ~= nil)
+check("...and entry rows still carry their index for one-at-a-time edits",
+      rows[2] and rows[2].idx == 1, tostring(rows[2] and rows[2].idx))
+
+C.editChooser.fn({ action = "selecton" })
+rows = C.editChooser.rows
+check("entering select mode re-renders with delete / copy / never-mind rows",
+      rows[1] and rows[1].action == "deletetagged"
+      and rows[2] and rows[2].action == "copytagged"
+      and rows[3] and rows[3].action == "selectoff")
+check("...saying honestly that nothing is picked yet",
+      rows[1].text:find("Nothing picked yet", 1, true) ~= nil)
+check("...and the picker was reopened for the next pick",
+      C.editChooser.shown == true)
+
+C.editChooser.fn({ idx = rows[4].idx })          -- pick "first"
+rows = C.editChooser.rows
+check("Enter on a row PICKS it — the row wears a ✓",
+      rows[4].text:find("✓ first", 1, true) == 1 and C.taggedCount() == 1,
+      rows[4].text)
+C.editChooser.fn({ idx = rows[4].idx })          -- unpick it again
+check("Enter on a picked row UNPICKS it", C.taggedCount() == 0)
+
+C.editChooser.fn({ idx = C.editChooser.rows[4].idx })   -- first
+C.editChooser.fn({ idx = C.editChooser.rows[6].idx })   -- third
+check("two picked, and the action row counts them",
+      C.taggedCount() == 2
+      and C.editChooser.rows[1].text:find("Delete the 2", 1, true) ~= nil,
+      C.editChooser.rows[1].text)
+
+FILES = {}
+C.editChooser.fn({ action = "deletetagged" })
+check("🗑 deleting the picked rows removes exactly those",
+      #_G.clipboardCache == 1 and _G.clipboardCache[1].text == "second",
+      #_G.clipboardCache)
+check("...saves the file", FILES[C.file] ~= nil)
+check("...announces the count", (function()
+    for _, a in ipairs(ALERTS) do
+        if a:find("Deleted 2", 1, true) then return true end
+    end
+end)(), ALERTS[#ALERTS])
+check("...and ends select mode — the job it existed for is done",
+      C.selectMode == false and C.taggedCount() == 0)
+
+-- Copy-as-one.
+boot() ; C.loaded = true
+C.add("gamma") ; C.add("beta") ; C.add("alpha")
+C.renderEdit("")
+C.editChooser.fn({ action = "selecton" })
+C.editChooser.fn({ idx = C.editChooser.rows[4].idx })   -- alpha
+C.editChooser.fn({ idx = C.editChooser.rows[6].idx })   -- gamma
+PASTEBOARD = nil
+C.editChooser.fn({ action = "copytagged" })
+check("📋 the picked rows are copied as ONE text, joined with line breaks, "
+      .. "in history order", PASTEBOARD == "alpha\ngamma", tostring(PASTEBOARD))
+check("...announced with the count", (function()
+    for _, a in ipairs(ALERTS) do
+        if a:find("Copied 2", 1, true) then return true end
+    end
+end)())
+check("...and select mode ends here too", C.selectMode == false)
+
+-- The empty-handed and reset paths.
+boot() ; C.loaded = true
+C.add("only")
+C.renderEdit("")
+C.editChooser.fn({ action = "selecton" })
+C.editChooser.fn({ action = "deletetagged" })
+check("deleting with NOTHING picked deletes nothing and says so",
+      #_G.clipboardCache == 1 and (function()
+    for _, a in ipairs(ALERTS) do
+        if a:find("Nothing picked", 1, true) then return true end
+    end
+end)())
+C.renderEdit("")
+C.editChooser.fn({ action = "selecton" })
+C.editChooser.fn({ idx = C.editChooser.rows[4].idx })
+C.editChooser.fn({ action = "selectoff" })
+check("✖️ never mind forgets the picks and returns to one-at-a-time",
+      C.selectMode == false and C.taggedCount() == 0
+      and C.editChooser.rows[1].action == "selecton")
+C.editChooser.fn({ action = "selecton" })
+C.editChooser.fn({ idx = C.editChooser.rows[4].idx })
+HYPER["shift|v"]()
+check("🚨 a fresh ⇪⇧V always starts UNPICKED — reopening into week-old "
+      .. "✓ marks is how the wrong rows get deleted",
+      C.selectMode == false and C.taggedCount() == 0)
+
+boot() ; C.loaded = true
+C.renderEdit("")
+check("an empty history offers no action rows — nothing to pick",
+      C.editChooser.rows[1]
+      and C.editChooser.rows[1].action == nil
+      and C.editChooser.rows[1].text:find("empty", 1, true) ~= nil)
+
 io.open = realIoOpen
 out("\n")
 if fail > 0 then

@@ -136,7 +136,7 @@ return function(core)
             -- exactly that from a screenshot of this sheet (6.90.1).
             { title = "📋 CLIPBOARD & OCR", order = 3, entries = {
                 { "⇪O", "OCR text search" },
-                { "⇪⇧O", "Edit or delete an OCR entry" },
+                { "⇪⇧O", "Edit or delete an OCR entry · ☑️ pick several" },
                 { "⌘C files", "OCR image files → Finder comment tag" },
                 { "⇪⇧C", "Toggle copy-on-select (off by default)" },
             }},

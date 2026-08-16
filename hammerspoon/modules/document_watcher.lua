@@ -45,6 +45,7 @@ local M = {
             { "Enter", "Copy the highlighted row" },
             { "☑️ row", "Copy several: pick rows with Enter, then copy together" },
             { "⇪⇧E", "Edit or delete an entry (clear the name = delete)" },
+            { "☑️ row", "Delete several: pick rows with Enter, then together" },
             { "auto", "Samples every 5s · stops when you are idle" },
             { "file", "Logs/doc_wather.csv — Date · Time · File · Working time" }
         },
@@ -438,18 +439,55 @@ function M.setup(core)
     end)
 
     -- ---- edit / delete (⇪⇧E) --------------------------------------------
+    -- ☑️ 6.97.0 — the same select mode the ⇪⇧W list has had since day
+    -- one, here for DELETING: pick rows with Enter, delete them together.
+    local docEditSelect = false
+    local docEditTagged = {}     -- "date|file" -> true
+
     local function docRenderEdit(query)
         local q = tostring(query or ""):lower():match("^%s*(.-)%s*$")
         local choices = {}
+        if #docRows == 0 then
+            -- An empty log gets no action rows — nothing to pick.
+        elseif docEditSelect then
+            local picked = 0
+            for _ in pairs(docEditTagged) do picked = picked + 1 end
+            table.insert(choices, {
+                text    = (picked == 0) and "☑️ Nothing picked yet"
+                          or ("🗑 Delete the " .. picked .. " entr"
+                              .. ((picked == 1) and "y" or "ies") .. " I picked"),
+                subText = (picked == 0)
+                          and "Go down the list and press Enter on the ones to delete"
+                          or "Press Enter HERE to delete them all",
+                action  = "deletetagged",
+            })
+            table.insert(choices, {
+                text = "✖️ Never mind — go back",
+                subText = "Forget the picks and return to one-at-a-time editing",
+                action = "editselectoff",
+            })
+        else
+            table.insert(choices, {
+                text    = "☑️ Delete several at once…",
+                subText = "Pick rows one at a time, then delete them together",
+                action  = "editselecton",
+            })
+        end
         local shown = 0
         for i = #docRows, 1, -1 do
             local r = docRows[i]
             local hay = (r.file .. " " .. r.date):lower()
             if q == "" or hay:find(q, 1, true) then
+                local key = docKey(r.date, r.file)
+                local isPicked = docEditTagged[key]
+                local hint
+                if not docEditSelect then hint = "Enter to rename or delete"
+                elseif isPicked then hint = "PICKED — Enter unpicks it"
+                else hint = "Enter adds this to the delete list" end
                 table.insert(choices, {
-                    text    = "✏️ " .. docRowText(r),
-                    subText = r.date .. "  " .. r.time .. "  ·  Enter to rename or delete",
-                    action  = "edit", key = docKey(r.date, r.file),
+                    text    = (isPicked and "✓ " or "✏️ ") .. docRowText(r),
+                    subText = r.date .. "  " .. r.time .. "  ·  " .. hint,
+                    action  = "edit", key = key,
                 })
                 shown = shown + 1
                 if shown >= docMaxRows then break end
@@ -461,10 +499,54 @@ function M.setup(core)
         _G.choosers.docWatcherEdit:choices(choices)
     end
 
+    _G.docRenderEditForTest = function(q)
+        docRenderEdit(q)
+        return _G.choosers.docWatcherEdit.lastChoices
+    end
+    _G.docEditSelectForTest = function(on) docEditSelect = on and true or false end
+    _G.docEditTaggedForTest = function() return docEditTagged end
+
     _G.choosers.docWatcherEdit = hs.chooser.new(function(c)
-        if not c or c.action ~= "edit" then return end
+        if not c or not c.action then return end
+        local function reopen()
+            docRenderEdit(""); _G.choosers.docWatcherEdit:query("")
+            core.showPopup(_G.choosers.docWatcherEdit)
+        end
+        if c.action == "editselecton" then
+            docEditSelect, docEditTagged = true, {}
+            reopen(); return
+        elseif c.action == "editselectoff" then
+            docEditSelect, docEditTagged = false, {}
+            reopen(); return
+        elseif c.action == "deletetagged" then
+            local removed = 0
+            for i = #docRows, 1, -1 do
+                local r = docRows[i]
+                local key = docKey(r.date, r.file)
+                if docEditTagged[key] then
+                    table.remove(docRows, i)
+                    docIndex[key] = nil
+                    removed = removed + 1
+                end
+            end
+            docEditSelect, docEditTagged = false, {}
+            if removed > 0 then
+                docDirty = true; docSave()
+                hs.alert.show("🗑 Deleted " .. removed .. " entr"
+                              .. ((removed == 1) and "y" or "ies"))
+            else
+                hs.alert.show("Nothing picked — press Enter on the rows you want first")
+            end
+            return
+        end
+        if c.action ~= "edit" then return end
         local row = docFindRow(c.key)
         if not row then return end
+        if docEditSelect then
+            if docEditTagged[c.key] then docEditTagged[c.key] = nil
+            else docEditTagged[c.key] = true end
+            reopen(); return
+        end
         local button, text = hs.dialog.textPrompt(
             "Edit document entry",
             "File name for this entry.\nClear the field and press OK to DELETE the row.\n\n"
@@ -503,6 +585,7 @@ function M.setup(core)
     end, "document watcher")
 
     core.hyperAddShortcut({"shift"}, "e", function()
+        docEditSelect, docEditTagged = false, {}
         docRenderEdit("")
         _G.choosers.docWatcherEdit:query("")
         core.showPopup(_G.choosers.docWatcherEdit)

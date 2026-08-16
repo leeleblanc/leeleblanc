@@ -51,6 +51,7 @@ local M = {
         entries = {
             { "⇪V",   "Search clipboard history — matches the FULL text" },
             { "⇪⇧V",  "Edit or delete an entry · an edit is re-copied" },
+            { "☑️ row","Pick several rows, then delete or copy them as ONE" },
             { "keeps","The last 1,000 copies, newest first" },
             { "skips","Anything over ~1 MB, so the file stays quick to write" },
             { "dedupe","Copying something again moves it up, not a second row" },
@@ -188,6 +189,50 @@ function M.setup(core)
     clip.chooser, clip.editChooser = nil, nil   -- HELD: else collected
     local editSnapshot = {}
 
+    -- ☑️ 6.97.0 — SELECT MODE, the same pattern the Document Watcher list
+    -- proved in 6.40.0: hs.chooser has no shift-click multi-select, so
+    -- Enter TAGS rows (✓) and an action row applies to all of them at
+    -- once. Tags key on the ENTRY TABLE, not the index — a copy made
+    -- while the picker is open shifts every index, but identity holds.
+    clip.selectMode = false
+    clip.tagged     = {}        -- entry table -> true
+
+    function clip.taggedCount()
+        local n = 0
+        for _ in pairs(clip.tagged) do n = n + 1 end
+        return n
+    end
+
+    -- Both bulk actions end select mode: the job the mode existed for is
+    -- done, and coming back to a stale pick-list is how mistakes happen.
+    function clip.deleteTagged()
+        local kept, removed = {}, 0
+        for _, item in ipairs(_G.clipboardCache) do
+            if clip.tagged[item] then removed = removed + 1
+            else kept[#kept + 1] = item end
+        end
+        if removed > 0 then
+            _G.clipboardCache = kept
+            clip.save()
+        end
+        clip.selectMode, clip.tagged = false, {}
+        return removed
+    end
+
+    function clip.copyTagged()
+        local parts = {}
+        for _, item in ipairs(_G.clipboardCache) do
+            if clip.tagged[item] then parts[#parts + 1] = item.text or "" end
+        end
+        if #parts > 0 then
+            -- One pasteboard write; the shared watcher files the joined
+            -- text as a NEW top entry, which is what a copy means here.
+            pcall(function() hs.pasteboard.setContents(table.concat(parts, "\n")) end)
+        end
+        clip.selectMode, clip.tagged = false, {}
+        return #parts
+    end
+
     local function oneLine(s) return (s:gsub("%s+", " ")) end
 
     function clip.render(query)
@@ -225,19 +270,57 @@ function M.setup(core)
         local q = (query or ""):lower():match("^%s*(.-)%s*$")
         editSnapshot = {}
         local choices = {}
+        if #_G.clipboardCache == 0 then
+            -- An empty history gets no action rows — nothing to pick.
+        elseif clip.selectMode then
+            local n = clip.taggedCount()
+            choices[#choices + 1] = {
+                text    = (n == 0) and "☑️ Nothing picked yet"
+                          or ("🗑 Delete the " .. n .. " I picked"),
+                subText = (n == 0)
+                          and "Go down the list and press Enter on the rows you want"
+                          or "Press Enter HERE to delete them all",
+                action  = "deletetagged",
+            }
+            choices[#choices + 1] = {
+                text    = "📋 Copy the picked rows as ONE text",
+                subText = (n == 0) and "Pick rows first"
+                          or (n .. " row" .. ((n == 1) and "" or "s")
+                              .. " joined with line breaks, then copied"),
+                action  = "copytagged",
+            }
+            choices[#choices + 1] = {
+                text    = "✖️ Never mind — go back",
+                subText = "Forget the picks and return to one-at-a-time editing",
+                action  = "selectoff",
+            }
+        else
+            choices[#choices + 1] = {
+                text    = "☑️ Select several…",
+                subText = "Pick rows with Enter, then delete them or copy them as one",
+                action  = "selecton",
+            }
+        end
+        local shown = 0
         for i, item in ipairs(_G.clipboardCache) do
             if q == "" or (item.text or ""):lower():find(q, 1, true) then
                 editSnapshot[i] = item
+                local hint
+                if not clip.selectMode then hint = "Enter to edit or delete"
+                elseif clip.tagged[item] then hint = "PICKED — Enter unpicks it"
+                else hint = "Enter picks it" end
                 choices[#choices + 1] = {
-                    text    = oneLine(item.text or ""):sub(1, clip.preview),
-                    subText = (item.date or "") .. "  ·  Enter to edit or delete",
+                    text    = (clip.tagged[item] and "✓ " or "")
+                              .. oneLine(item.text or ""):sub(1, clip.preview),
+                    subText = (item.date or "") .. "  ·  " .. hint,
                     idx     = i,
                 }
-                if #choices >= clip.rows then break end
+                shown = shown + 1
+                if shown >= clip.rows then break end
             end
         end
-        if #choices == 0 then
-            choices[1] = {
+        if shown == 0 then
+            choices[#choices + 1] = {
                 text = (q == "") and "Clipboard history is empty"
                        or ("No matches for \"" .. q .. "\""),
                 subText = "",
@@ -298,8 +381,45 @@ function M.setup(core)
             end
         end)
 
+        local function reopenEdit()
+            clip.renderEdit("")
+            pcall(function() clip.editChooser:query("") end)
+            if core.showPopup then core.showPopup(clip.editChooser)
+            else clip.editChooser:show() end
+        end
+
         clip.editChooser = hs.chooser.new(function(choice)
-            if not (choice and choice.idx) then return end
+            if not choice then return end
+            if choice.action == "selecton" then
+                clip.selectMode, clip.tagged = true, {}
+                reopenEdit(); return
+            elseif choice.action == "selectoff" then
+                clip.selectMode, clip.tagged = false, {}
+                reopenEdit(); return
+            elseif choice.action == "deletetagged" then
+                local n = clip.deleteTagged()
+                hs.alert.show((n > 0)
+                    and ("🗑 Deleted " .. n .. " clipboard entr"
+                         .. ((n == 1) and "y" or "ies"))
+                    or "Nothing picked — press Enter on the rows you want first")
+                return
+            elseif choice.action == "copytagged" then
+                local n = clip.copyTagged()
+                hs.alert.show((n > 0)
+                    and ("📋 Copied " .. n .. " entr" .. ((n == 1) and "y" or "ies")
+                         .. " as one")
+                    or "Nothing picked — press Enter on the rows you want first")
+                return
+            end
+            if not choice.idx then return end
+            if clip.selectMode then
+                local entry = editSnapshot[choice.idx]
+                if entry then
+                    if clip.tagged[entry] then clip.tagged[entry] = nil
+                    else clip.tagged[entry] = true end
+                end
+                reopenEdit(); return
+            end
             local b, text = hs.dialog.textPrompt(
                 "✏️ Edit clipboard entry",
                 "Edit the text below.\nSave with it EMPTY to delete this entry.",
@@ -340,6 +460,9 @@ function M.setup(core)
         end, "clipboard history")
 
         core.hyperAddShortcut({ "shift" }, clip.key, function()
+            -- A fresh ⇪⇧V always starts in one-at-a-time mode: reopening
+            -- into week-old ✓ marks is how the wrong rows get deleted.
+            clip.selectMode, clip.tagged = false, {}
             clip.renderEdit("")
             if core.showPopup then core.showPopup(clip.editChooser)
             else clip.editChooser:show() end
