@@ -456,6 +456,9 @@ function M.setup(core)
                 return false
             end
             ua.chooser = c
+            -- ⎋ 6.93.0: filed in _G.choosers so Esc closes it before the cheat sheet
+            _G.choosers = _G.choosers or {}
+            _G.choosers.universalActions = c
             pcall(function() c:rows(ua.rows); c:width(ua.width); c:searchSubText(true) end)
         end
 

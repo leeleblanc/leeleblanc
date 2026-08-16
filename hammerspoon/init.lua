@@ -4,9 +4,14 @@
 -- =====================================================================
 -- 08-16-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.92.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.93.0
 -- =====================================================================
 
+-- NEW IN 6.93.0 — RECENT DOCUMENTS (⇪I) + THE SHEET CLOSES LAST:
+--   ⇪I: the 9 last-opened documents (⌘1–9), then every type you use —
+--   types LEARN from what you open; ⇪F renames stay searchable. Esc
+--   closes EVERY window before the sheet; panels reopen where dragged.
+--
 -- NEW IN 6.92.0 — CHROME HISTORY (⇪Y) + BEGONE (typed):
 --   ⇪Y fuzzy-searches 90 days of Chrome (every profile, both Macs),
 --   saved to chrome_history-<Mac>.csv; @web joins ⇪space, whose tags
@@ -21,16 +26,11 @@
 --   "Bartender 6" ×4 → one ⇪M row (first that answers). ⇪V listed once.
 --
 -- NEW IN 6.90.0 — ONE SHARED LOOK (modules/ui_style.lua):
---   The pomodoro FOCUS card's style — background, white type, 12px
---   corners, selection blues — lives in ONE table read by 11 panels:
---   timer, calendar, caster, ⌥Tab, sheet, mirror, legend, webviews.
---
--- NEW IN 6.89.0 — EVERY WINDOW MOVABLE + UNIFIED SEARCH (⇪space):
---   ⌘-click-hold-drag moves ANY panel and drops STICK (window_move).
---   ⇪space searches EVERY store; ⏎ copies, ⌘⏎ path. ⇪⇧space = shots.
+--   The pomodoro FOCUS card's style lives in ONE table (background,
+--   white type, 12px corners, selection blues) read by 11 panels.
 --
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.92.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.93.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -336,7 +336,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.92.0"
+_G.configVersion = "6.93.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -3524,6 +3524,7 @@ local BASE = {
     "unified_search",     -- ⇪space  one search over every store
     "app_launcher",       -- 6.91.0 ⇪D  launch any installed app, both Macs
     "chrome_history",     -- 6.92.0 ⇪Y  90 days of Chrome, saved + searched
+    "recent_docs",        -- 6.93.0 ⇪I  the 9 last-opened, then every type you use
     "begone",             -- type `begone` (AFTER text_expander: registers there)
 }
 

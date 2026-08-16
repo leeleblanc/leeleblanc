@@ -211,6 +211,9 @@ function M.setup(core)
         chooser:rows(math.min(8, #choices))
         chooser:show()
         qa.chooser = chooser   -- held: a collected chooser closes itself
+        -- ⎋ 6.93.0: filed in _G.choosers so Esc closes it before the cheat sheet
+        _G.choosers = _G.choosers or {}
+        _G.choosers.quickAppend = chooser
     end
 
     if qa.enabled then

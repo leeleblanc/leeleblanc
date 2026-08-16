@@ -62,8 +62,8 @@ local M = {
             { "⏎",       "COPY the row — text its full text, a screenshot the image, a Chrome page its URL (⇪Y reopens)" },
             { "⌘⏎",      "Copy the file PATH instead (rows that have one)" },
             { "↑↓ · click", "Move the selection · pick — 19px rows, 84px thumbnails" },
-            { "drag",    "The header bar moves the panel (⌘-drag works anywhere on it)" },
-            { "Esc",     "Close" },
+            { "drag",    "The header bar moves it (⌘-drag anywhere) — and it REOPENS where you left it" },
+            { "Esc",     "Close (the cheat sheet always closes after it)" },
         },
     },
 }
@@ -696,6 +696,21 @@ if (q.focus) q.focus();
         end
     end
 
+    uni.pos = nil     -- where you dragged it, kept for the session
+    function uni.posStillOnScreen(pos)
+        local onIt = false
+        pcall(function()
+            for _, s in ipairs(hs.screen.allScreens() or {}) do
+                local f = s:frame()
+                if pos.x >= f.x - 40 and pos.x < f.x + f.w - 60
+                   and pos.y >= f.y and pos.y < f.y + f.h - 60 then
+                    onIt = true
+                end
+            end
+        end)
+        return onIt
+    end
+
     function uni.show(prefill)
         if not uni.enabled then return end
         uni.hide()
@@ -713,6 +728,13 @@ if (q.focus) q.focus();
         local h = math.min(uni.height, sf.h - 80)
         local rect = { x = sf.x + (sf.w - w) / 2,
                        y = sf.y + (sf.h - h) / 2.6, w = w, h = h }
+        -- 🖐 6.93.0 — A REMEMBERED POSITION WINS (the pomodoro's 6.67.0
+        -- rule, finally taught to this panel too): drag it once and it
+        -- reopens there — unless that screen was unplugged, in which case
+        -- re-centering beats opening somewhere you can't see.
+        if uni.pos and uni.posStillOnScreen(uni.pos) then
+            rect.x, rect.y = uni.pos.x, uni.pos.y
+        end
 
         local okUc, uc = pcall(hs.webview.usercontent.new, "unifiedSearch")
         if not (okUc and uc) then
@@ -773,6 +795,8 @@ if (q.focus) q.focus();
 
     -- Draggable like everything else — ⌘-drag anywhere on it, and the
     -- header's bare drag arrives through the dragStart message above.
+    -- move() is also where the remembered position is written down, so
+    -- BOTH grips remember (6.93.0).
     _G.movablePanels = _G.movablePanels or {}
     table.insert(_G.movablePanels, {
         name  = "unified search",
@@ -780,8 +804,17 @@ if (q.focus) q.focus();
         move  = function(x, y)
             local f = uni.webview and uni.webview:frame()
             if f then uni.webview:frame({ x = x, y = y, w = f.w, h = f.h }) end
+            uni.pos = { x = x, y = y }
         end,
     })
+
+    -- ⎋ 6.93.0 — in the escape router, so the cheat sheet closes AFTER
+    -- this panel instead of vanishing underneath it.
+    if _G.claimEscape then
+        _G.claimEscape("unified", nil,
+            function() return uni.webview ~= nil end,
+            function() uni.hide() end)
+    end
 
     core.provide("unified.show", function(prefill) return uni.show(prefill) end)
 

@@ -532,6 +532,10 @@ end timeout]]
         ch:placeholderText(string.format("%s — %d file%s, no collisions",
             (br.rules[ruleName].label or ruleName), #plan, #plan == 1 and "" or "s"))
         br.chooser = ch
+        -- ⎋ 6.93.0: built fresh per open, so the registry holds the CURRENT
+        -- one — that's what lets Esc close it before the cheat sheet
+        _G.choosers = _G.choosers or {}
+        _G.choosers.bulkRename = ch
         ch:show()
     end
 
@@ -604,6 +608,8 @@ end timeout]]
             sidecars > 0 and (", " .. sidecars .. " sidecar"
                               .. (sidecars == 1 and "" or "s") .. " will follow") or ""))
         br.chooser = ch
+        _G.choosers = _G.choosers or {}
+        _G.choosers.bulkRename = ch   -- ⎋ 6.93.0: same registry slot, current one wins
         ch:show()
     end
 

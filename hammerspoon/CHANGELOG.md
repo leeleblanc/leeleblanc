@@ -4,6 +4,93 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.93.0 — RECENT DOCUMENTS (⇪I) + THE SHEET CLOSES LAST:
+  LL: "find recent documents that I've opened … populate the first
+  nine documents that have been opened recently, and then after that
+  … start showing other documents … search in multiple ways by file
+  name by date by file extension … leave out files that I don't
+  actively use … I have thousands of P lists [plists] and I don't
+  want those to turn up." · "I thought of some other file types I
+  would need..txt. .lua, .csv so essentially if it's a file type, I
+  recently opened, it should display file types like the file type i
+  just opened. So I won't always know what file types I'm going to be
+  working on. And, you know how I have the file watcher. I'm watching
+  files. I'm also watching renamed files. Could we integrate that
+  here." · "I'd like the last thing to close is the cheat sheet.
+  Above any other hammer spoon window of any type, the cheat sheet
+  should close last even if it's in front of another hammer spoon
+  window." · "What kind of display window will it have? … When can I
+  drag it around the screen where I need to?"
+
+  NEW MODULE recent_docs.lua (⇪I — the last free bare letter): the
+  nine last-opened documents first, numbered, ⌘1–⌘9 opening them
+  directly; below, every document type you work in, grouped with the
+  ⇪space-style @tags. THE "OPENED" SIGNAL IS SPOTLIGHT'S
+  kMDItemLastUsedDate, and that choice IS the plist answer: macOS
+  stamps it only when an app opens a file FOR the user, never on a
+  background write — the thousands of system-churned plists carry no
+  stamp, the one opened while working in Outlook does. mdfind finds
+  the candidates, mdls reads each hit's opened/modified dates — both
+  out of process (hs.task, /bin/sh), every path and query a
+  POSITIONAL argument, results cached in recent_docs-<Mac>.csv so the
+  first ⇪I after login answers on yesterday's data while a fresh scan
+  lands behind it (10 min staleness; ⇪⇧I re-scans on demand). A
+  Spotlight-off Mac degrades to a Desktop/Documents/Downloads walk by
+  mtime, and says so, rather than showing an empty panel.
+  TYPES TEACH THEMSELVES: seed types (Word/Excel/PowerPoint/PDF/
+  images/mail plus LL's txt, lua, csv) also show files merely
+  MODIFIED — a just-received attachment appears before it's opened.
+  Any OTHER extension joins the moment ONE file of it is opened, but
+  a learned type only ever lists files with an opened-by-you stamp:
+  eager to learn, structurally incapable of flooding. Learned types
+  persist per-machine (recent_doc_types-<Mac>.csv, capped at 24),
+  _G.recentDocsReport() shows them, _G.recentDocs.unlearn() forgets.
+  THE ⇪F INTEGRATION: the tracker's log remembers what a file USED to
+  be called — Spotlight only knows what it's called now. Its rename
+  chains (A→B→C, walked oldest→newest, "Moved out" dropping the
+  trail) become invisible search ALIASES (type the old name, find the
+  renamed file), a story line on the row ("was Budget draft.xlsx"),
+  and activity for ranking — a file renamed by hand in Finder floats
+  up even though it was never "opened". Deliberate hand events
+  (renames/moves, never Created-noise) of known types even earn rows
+  of their own, existence-checked and hard-capped. Loose coupling:
+  reads _G.fileTrackerLog, never calls the module; tracker off means
+  no aliases and the report says exactly that.
+  THE WINDOW is the ⇪space webview style — a search field, 19px rows,
+  story sub-lines, section @tags — with both house drags (bare drag
+  on the header, ⌘-drag anywhere) and the pomodoro's 6.67.0 rule THE
+  ⇪space PANEL NEVER LEARNED: a remembered position wins. Drag either
+  panel once and it reopens there — unless that screen is gone, in
+  which case it re-centers instead of opening where you can't see.
+  ⏎ opens, ⌘⏎ reveals in Finder, ⌥⏎ copies the path; search matches
+  every word against name, folder, date, extension, @tag and old
+  names, substring first then in-order characters ("bgt" still finds
+  Budget.xlsx).
+
+  THE SHEET CLOSES LAST, UNIVERSALLY: 6.78.0 built the rule but its
+  roster had rotted — every window built since was invisible to the
+  escape router, so one Esc took it AND the sheet. Eleven choosers
+  are now filed in _G.choosers (⇪V clipboard + its ⇪⇧V editor, ⇪D
+  launcher, ⇪Y history, ⇪M menu bar, ⇪⇧T snippets, ⇪⇧J targets, ⇪R
+  rename, ⇪⇧/ tools, ⇪⇧A actions, screenshots, app monitor) and the
+  four webview panels claim Esc with declared priorities (⇪space 55,
+  ⇪I 58, ⇪N pad 72 — hiding it never loses the draft, ⇪T form 75,
+  ⇪⇧4 editor 80). The ⇪Q focus dim joins the veil and the Key Caster
+  in the deliberately-unclaimed list: the camera drives it, an Esc
+  would read as flicker. New drift sentry: any module that calls
+  hs.chooser.new without touching _G.choosers fails the build, so the
+  roster can never rot again.
+
+  TESTS: NEW test_recent_docs.lua — the scan-output parser (tabs,
+  NUL-marker dates, UTC), the learned-types opened-only rule (an
+  opened plist appears; the unopened thousands cannot), rename-chain
+  aliases end-to-end, the 9-shelf numbering, remembered-position
+  geometry, escape claim, hostile/no-Spotlight degradation.
+  test_unified: position memory + escape claim. test_integration:
+  the chooser-registry sweep. Suite: 36 stages; hostile world
+  degrades 41 modules; mdfind/mdls join the reviewed-binaries list
+  and hs-doctor's census. Inline changelog: 6.89.0 rotated out.
+
 NEW IN 6.92.0 — CHROME HISTORY (⇪Y) + BEGONE (typed) + ⇪space TAGS:
   LL: "Chrome history saver with a powerful fuzzy search control over
   the Chrome history. Saves 90 days of history in the best file format

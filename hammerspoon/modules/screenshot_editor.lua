@@ -703,6 +703,14 @@ function M.setup(core)
         end,
     })
 
+    -- ⎋ 6.93.0 — in the escape router, so the cheat sheet closes AFTER the
+    -- editor (its page keeps first claim on Esc for cancelling a text box).
+    if _G.claimEscape then
+        _G.claimEscape("shoteditor", nil,
+            function() return ed.webview ~= nil end,
+            function() ed.close() end)
+    end
+
     _G.screenshotEditor = ed
     M.editor = ed
     M.config = ed

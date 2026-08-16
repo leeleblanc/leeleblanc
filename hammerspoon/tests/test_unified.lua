@@ -97,9 +97,14 @@ hs = {
         end,
     },
     drawing = { windowLevels = { floating = 5 } },
-    screen = { mainScreen = function()
-        return { frame = function() return { x = 0, y = 0, w = 1440, h = 900 } end }
-    end },
+    screen = {
+        mainScreen = function()
+            return { frame = function() return { x = 0, y = 0, w = 1440, h = 900 } end }
+        end,
+        allScreens = function()
+            return { { frame = function() return { x = 0, y = 0, w = 1440, h = 900 } end } }
+        end,
+    },
     image = {
         imageFromPath = function(p)
             return {
@@ -123,6 +128,11 @@ hs = {
     fs = { attributes = function() return nil end },
 }
 _G.diag = { say = function() end, warn = function() end, err = function() end }
+local CLAIMS = {}
+_G.claimEscape = function(name, priority, active, handle)
+    CLAIMS[name] = { priority = priority, active = active, handle = handle }
+    return true
+end
 
 -- ---- the fixture stores ---------------------------------------------------
 _G.clipboardCache = {
@@ -389,6 +399,33 @@ check("the header grab is handed to Window Move by name",
 BRIDGE({ body = "not-a-table" })
 check("a malformed message is shrugged off", U.webview ~= nil)
 U.hide()
+
+-- =====================================================================
+out("5b. 6.93.0 — the remembered position, and the escape claim\n")
+-- =====================================================================
+U.pos = nil
+U.show()
+check("first open is centered", VIEW.rect.x == (1440 - U.width) / 2)
+local entry
+for _, e in ipairs(_G.movablePanels or {}) do
+    if e.name == "unified search" then entry = e end
+end
+entry.move(101, 77)
+check("dragging writes the remembered position",
+      U.pos and U.pos.x == 101 and U.pos.y == 77)
+U.hide() ; U.show()
+check("🖐 A REMEMBERED POSITION WINS — reopened where dragged",
+      VIEW.rect.x == 101 and VIEW.rect.y == 77)
+U.hide()
+U.pos = { x = 9999, y = 9999 }
+U.show()
+check("an unplugged screen's memory re-centers instead",
+      VIEW.rect.x == (1440 - U.width) / 2)
+check("the escape claim is 'unified' and live while open",
+      CLAIMS.unified ~= nil and CLAIMS.unified.active() == true)
+CLAIMS.unified.handle()
+check("…its handle closes the panel — the sheet closes after",
+      U.webview == nil and CLAIMS.unified.active() == false)
 
 -- =====================================================================
 out("6. a hostile Monday — stores missing, files gone\n")

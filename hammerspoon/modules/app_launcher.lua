@@ -265,6 +265,10 @@ function M.setup(core)
                 if not pick then return end
                 launcher.launch({ name = pick.text, path = pick.path })
             end)
+            -- ⎋ 6.93.0: filed in _G.choosers so Esc closes it BEFORE the
+            -- cheat sheet (the router only sees that registry)
+            _G.choosers = _G.choosers or {}
+            _G.choosers.appLauncher = launcher.chooser
             -- subText is a folder path; matching on it would make "app"
             -- hit every row, so the filter reads names only (the default,
             -- stated here so nobody "fixes" it to true without reading this)

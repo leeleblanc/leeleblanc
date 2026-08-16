@@ -1072,6 +1072,33 @@ do
        .. "it holds the bare Esc hotkey, so if it does not ask, no policy "
        .. "in init.lua can ever apply",
           code("core/cheatsheet.lua"):find('routeEscape("cheatsheet")', 1, true) ~= nil)
+
+    -- ⎋ 6.93.0 — THE ROSTER CANNOT ROT AGAIN. LL, for the second time:
+    -- "the cheat sheet should close last even if it's in front of another
+    -- hammerspoon window". 6.78.0 built that rule, and it decayed because
+    -- every chooser built afterwards forgot to file itself in _G.choosers
+    -- — the only registry the escape router reads — so one Esc took the
+    -- new picker AND the sheet. This sweep makes forgetting a build
+    -- failure: create a chooser, touch the registry (or claim Esc).
+    out("   -- every chooser is visible to the escape router --\n")
+    local pipe = io.popen('ls -1 "' .. HS .. '/modules"')
+    local modList = {}
+    if pipe then
+        for n in (pipe:read("*a") or ""):gmatch("[^\n]+") do
+            if n:match("%.lua$") then modList[#modList + 1] = n end
+        end
+        pipe:close()
+    end
+    check("the module folder was listed for the sweep", #modList > 30, #modList)
+    for _, n in ipairs(modList) do
+        local src = code("modules/" .. n)
+        if src:find("hs.chooser.new", 1, true) then
+            check("⎋ " .. n .. " files its chooser in _G.choosers "
+               .. "(or claims Esc itself)",
+                  src:find("_G.choosers", 1, true) ~= nil
+                  or src:find("claimEscape", 1, true) ~= nil)
+        end
+    end
 end
 
 -- =====================================================================

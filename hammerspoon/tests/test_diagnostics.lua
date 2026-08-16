@@ -721,6 +721,12 @@ local ALLOWED_BINARIES = {
   -- script, which is what makes "Application Support" safe unquoted.
   ["/usr/bin/sqlite3"]   = "⇪Y queries a COPY of Chrome's History (ships with macOS)",
   ["/bin/sh"]            = "chrome_history's copy-then-query runner (ships with macOS)",
+  -- 6.93.0 — ⇪I asks SPOTLIGHT which files were opened: mdfind finds
+  -- them (kMDItemLastUsedDate is stamped only when an app opens a file
+  -- FOR the user — the whole plist-exclusion design), mdls reads each
+  -- hit's opened/modified dates. Same /bin/sh positional-args runner.
+  ["/usr/bin/mdfind"]    = "⇪I finds recently opened/changed files (ships with macOS)",
+  ["/usr/bin/mdls"]      = "⇪I reads opened/modified dates per file (ships with macOS)",
   -- 6.86.0 — the ⇪4 screenshot capture. The same binary ⌘⇧4 itself uses;
   -- run with -i to a file in the OneDrive folder, which is what lets one
   -- keystroke both SAVE and COPY where macOS natively only does one.

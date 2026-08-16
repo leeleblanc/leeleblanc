@@ -1407,6 +1407,15 @@ function M.setup(core)
         end,
     })
 
+    -- ⎋ 6.93.0 — in the escape router, so the cheat sheet closes AFTER the
+    -- pad. Hiding never loses work: the draft lives in pad.draft, not the
+    -- window, which is what makes this claim safe where the veil's isn't.
+    if _G.claimEscape then
+        _G.claimEscape("capturepad", nil,
+            function() return pad.webview ~= nil end,
+            function() pad.hide() end)
+    end
+
     _G.capturePad = pad
     M.pad    = pad
     M.config = pad

@@ -241,6 +241,9 @@ function M.setup(core)
                 return false
             end
             tp.chooser = c
+            -- ⎋ 6.93.0: filed in _G.choosers so Esc closes it before the cheat sheet
+            _G.choosers = _G.choosers or {}
+            _G.choosers.toolPicker = c
             pcall(function()
                 c:placeholderText("Search every tool — try 'url', 'grid', 'rename'")
                 c:rows(tp.rows)

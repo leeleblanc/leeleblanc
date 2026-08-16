@@ -92,7 +92,7 @@ else
     [ "$n" = "init" ] && note="⚠️ STRAY init.lua — should NOT be in modules/"
     printf "   %-22s %7s  %-16s %s\n" "$n" "$b" "$m" "$note"
   done
-  echo "   count: $(ls -1 "$HS/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 40)"
+  echo "   count: $(ls -1 "$HS/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 41)"
 fi
 
 # ---- 4b. core ---------------------------------------------------------
@@ -143,6 +143,8 @@ check_bin /usr/bin/rsync     "the daily backup copy (macOS built-in)"
 check_bin /usr/bin/sqlite3   "reads Chrome's History database for ⇪Y (macOS built-in)"
 check_bin /bin/sh            "chrome_history's copy-then-query runner (macOS built-in)"
 check_bin /usr/bin/osascript "closes notification banners for begone (macOS built-in)"
+check_bin /usr/bin/mdfind    "Spotlight scan behind ⇪I recent documents (macOS built-in)"
+check_bin /usr/bin/mdls      "reads each file's opened/modified dates for ⇪I (macOS built-in)"
 echo "   none of the above needs admin, and none is installed by this config"
 
 echo

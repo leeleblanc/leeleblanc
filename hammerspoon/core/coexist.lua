@@ -249,10 +249,23 @@ _G.escapeClaims = {}
 --     panic chord (⌃⌥⌘⇧G) precisely so a stray Esc cannot lift it.
 --   · the Key Caster — it is a display, not a dialog. Esc is a keystroke
 --     it should be DRAWING, not obeying.
+--   · the ⇪Q focus dim — the camera turns it on and off; an Esc that
+--     lifted it would be undone by the next automation tick, which
+--     reads as flicker, not as control. ⇪Q is its off switch.
 _G.escapePriorities = {
     cheatsheet =   0,   -- THE FLOOR. Deliberately. It closes last.
     calendar   =  30,
     switcher   =  40,
+    -- ⎋ 6.93.0 — LL, again: "Above any other hammerspoon window of any
+    -- type, the cheat sheet should close last." The 6.78.0 rule was
+    -- right but its ROSTER had rotted: every window built since —
+    -- eleven choosers and four webview panels — was invisible to the
+    -- router, so one Esc took them AND the sheet. The panels claim now:
+    unified    =  55,   -- ⇪space search page
+    recentdocs =  58,   -- ⇪I documents page
+    capturepad =  72,   -- ⇪N pad — hiding it never loses the draft
+    taskform   =  75,   -- ⇪T form: real keyboard focus, like a chooser
+    shoteditor =  80,   -- ⇪⇧4's editor — mid-edit, most modal
     chooser    =  70,   -- has real keyboard focus, so it goes near the top
     pomodoro   = 100,
     mousegrid  = 900,   -- drawn at screenSaver level, above everything

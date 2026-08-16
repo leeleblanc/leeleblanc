@@ -355,6 +355,14 @@ function M.setup(core)
         end,
     })
 
+    -- ⎋ 6.93.0 — in the escape router, so the cheat sheet closes AFTER the
+    -- form; its own page already treats Escape as close when focused.
+    if _G.claimEscape then
+        _G.claimEscape("taskform", nil,
+            function() return form.webview ~= nil end,
+            function() form.hide() end)
+    end
+
     _G.taskForm = form
     M.form   = form
     M.config = form

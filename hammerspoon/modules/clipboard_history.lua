@@ -283,6 +283,9 @@ function M.setup(core)
                 hs.alert.show("📋 Copied")
             end
         end)
+        -- ⎋ 6.93.0: filed in _G.choosers so Esc closes ⇪V before the cheat sheet
+        _G.choosers = _G.choosers or {}
+        _G.choosers.clipboardHistory = clip.chooser
         pcall(function()
             clip.chooser:placeholderText("Search Clipboard History...")
         end)
@@ -312,6 +315,8 @@ function M.setup(core)
                 hs.alert.show("✏️ Clipboard entry updated — and copied")
             end
         end)
+        _G.choosers = _G.choosers or {}
+        _G.choosers.clipboardEdit = clip.editChooser   -- ⎋ 6.93.0: same rule for ⇪⇧V
         pcall(function()
             clip.editChooser:placeholderText(
                 "Search clipboard history to edit or delete — Enter opens a row")

@@ -207,6 +207,9 @@ function M.setup(core)
     _G.appMonitorChooser = hs.chooser.new(function(choice)
         appMonitorFinish(choice)
     end)
+    -- ⎋ 6.93.0: filed in _G.choosers so Esc closes it before the cheat sheet
+    _G.choosers = _G.choosers or {}
+    _G.choosers.appMonitor = _G.appMonitorChooser
     _G.appMonitorChooser:rows(2)
 
     -- White text on black background. bgDark gives the chooser macOS's

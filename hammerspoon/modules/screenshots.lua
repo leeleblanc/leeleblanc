@@ -920,6 +920,9 @@ function M.setup(core)
                 pcall(function() hs.alert.show("📸 panel unavailable", 3) end)
                 return
             end
+            -- ⎋ 6.93.0: filed in _G.choosers so Esc closes it before the cheat sheet
+            _G.choosers = _G.choosers or {}
+            _G.choosers.screenshots = shots.chooser
             pcall(function()
                 shots.chooser:placeholderText(
                     "Type to search screenshots · ⌘1–⌘8 actions")

@@ -449,6 +449,9 @@ done
                 return false
             end
             chrome.chooser = c
+            -- ⎋ 6.93.0: filed in _G.choosers so Esc closes it before the cheat sheet
+            _G.choosers = _G.choosers or {}
+            _G.choosers.chromeHistory = c
             pcall(function()
                 c:rows(12)
                 c:width(48)

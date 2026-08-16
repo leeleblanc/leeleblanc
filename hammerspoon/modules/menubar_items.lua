@@ -379,6 +379,9 @@ function M.setup(core)
                 end
                 if #picked > 0 then mb.activateFirst(picked) end
             end)
+            -- ⎋ 6.93.0: filed in _G.choosers so Esc closes it before the cheat sheet
+            _G.choosers = _G.choosers or {}
+            _G.choosers.menubarItems = mb.chooser
             pcall(function()
                 mb.chooser:searchSubText(true)
                 mb.chooser:width(30)
