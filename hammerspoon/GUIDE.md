@@ -213,14 +213,20 @@ and `<logsDir>/diagnostics-<machine>.txt`.
 | Calendar arrows do nothing | the panel has to be open — its keys are a modal, armed only while it is up |
 | Something silently wrong | `_G.diag.verbose = true` in the Console, no reload needed |
 
-**Reading the Console (6.95.0).** Errors print inside a
-`:::::::  ⛔ ERRORS  :::::::` banner so they cannot hide in the scroll,
-and a line that keeps repeating goes quiet after two showings — one ↻
-notice says so, and the copies are **counted, not lost**. Type
-`_G.errorsReport()` in the Console for every unique error this session
-with its ×count. Reports you ask for (⇪⇧D, `_G.bootReport()`,
-`_G.noticesReport()`) are never gated. Want the firehose back?
-`_G.consoleGate.enabled = false` in the Console — no reload needed.
+**Reading the Console (6.95.0, split in 6.96.0).** Errors print inside
+banners so they cannot hide in the scroll — **two** banners, because
+"error" was hiding two situations: `:::::::  ⛔ ERRORS  :::::::` is
+BREAKING (a traceback, a file that would not load — some tool is
+missing until it is fixed), and `-------  ⚠️ NONBREAKING  -------` is
+degraded-but-running (a folder not found, a source skipped, a
+permission not granted) — the pile to work through with Claude at
+leisure. A line that keeps repeating goes quiet after two showings —
+one ↻ notice says so, and the copies are **counted, not lost**. Type
+`_G.errorsReport()` in the Console for every unique error this session,
+breaking first, nonbreaking after, each with its ×count. Reports you
+ask for (⇪⇧D, `_G.bootReport()`, `_G.noticesReport()`) are never gated.
+Want the firehose back? `_G.consoleGate.enabled = false` — no reload
+needed.
 The grey `-- Loading extension:` lines are Hammerspoon itself loading
 an `hs.*` extension the first time something touches it (lazy loading);
 they print once per extension and cannot be gated from Lua.
@@ -257,7 +263,9 @@ tests/test_focus.lua         ⇪Q, over 500 generated meeting days — the mic i
 tests/test_rename.lua        ⇪R, over 400 generated messy folders — no file is ever lost
 tests/test_workspaces.lua    ⇪⇧S, 300 generated workspaces — the busy flag never sticks
 tests/test_notices.lua       the failure ledger — a notice is never lost, and never floods
-tests/test_console.lua       the ⛔ ERRORS banner, the repeat limiter, _G.errorsReport()
+tests/test_console.lua       the ⛔ ERRORS + ⚠️ NONBREAKING banners, the repeat limiter
+tests/test_search_index.lua  the ⇪D file index: nice'd find, atomic publish, narrowing search
+tests/test_doc_keywords.lua  .docx → keywords → Finder comment; a human's comment survives
 tests/test_clipboard.lua     ⇪V, and the writes that must never destroy the history file
 tests/test_integration.lua   🚨 all 26 modules loaded TOGETHER: shortcut, service and
                              cheat-sheet-slot collisions — the only suite that can

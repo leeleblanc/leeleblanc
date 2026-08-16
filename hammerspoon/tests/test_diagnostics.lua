@@ -720,7 +720,14 @@ local ALLOWED_BINARIES = {
   -- reaches it as a POSITIONAL argument, never interpolated into the
   -- script, which is what makes "Application Support" safe unquoted.
   ["/usr/bin/sqlite3"]   = "⇪Y queries a COPY of Chrome's History (ships with macOS)",
-  ["/bin/sh"]            = "chrome_history's copy-then-query runner (ships with macOS)",
+  ["/bin/sh"]            = "chrome_history's copy-then-query runner + the "
+                        .. "6.96.0 search-index build script (ships with macOS)",
+  -- 6.96.0 — Doc Keywords reads a .docx's text. A .docx IS a zip with
+  -- the text at word/document.xml; unzip -p streams that one member to
+  -- stdout in a child process — no Word automation, nothing installed,
+  -- and a corrupt file is a child exiting non-zero, never a hang here.
+  ["/usr/bin/unzip"]     = "doc_keywords reads word/document.xml from a "
+                        .. ".docx, OUT OF PROCESS (ships with macOS)",
   -- 6.93.0 — ⇪I asks SPOTLIGHT which files were opened: mdfind finds
   -- them (kMDItemLastUsedDate is stamped only when an app opens a file
   -- FOR the user — the whole plist-exclusion design), mdls reads each

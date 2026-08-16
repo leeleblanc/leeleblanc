@@ -4,9 +4,13 @@
 -- =====================================================================
 -- 08-16-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.95.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.96.0
 -- =====================================================================
 
+-- NEW IN 6.96.0 — NONBREAKING ERRORS · THE FILE INDEX · DOC TAGS:
+--   ⚠️ nonbreaking errors get their own banner (⛔ = broke, ⚠️ = ran on).
+--   ⇪D lists indexed FILES behind the apps; .docx saves tag themselves.
+--
 -- NEW IN 6.95.0 — THE CONSOLE GETS AN ⛔ ERRORS SECTION:
 --   Errors print inside a ::⛔:: banner; a repeating line collapses
 --   after two showings, counted — _G.errorsReport() has the totals.
@@ -15,12 +19,8 @@
 --   ⇪/ sizes itself to each monitor, every section boxed in black. The
 --   pomodoro adds time · date · hours left in your 7:30–4:30 workday.
 --
--- NEW IN 6.93.0 — RECENT DOCUMENTS (⇪I) + THE SHEET CLOSES LAST:
---   ⇪I: the 9 last-opened documents (⌘1–9), then every type you use.
---   Esc closes EVERY window before the sheet; panels reopen where put.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.95.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.96.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -326,7 +326,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.95.0"
+_G.configVersion = "6.96.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -462,8 +462,7 @@ if not notOK then
     end)
 end
 
--- 🖥 6.95.0 — THE CONSOLE GATE (core/console.lua): errors print in a
--- ::⛔:: banner, repeats collapse after two showings — _G.errorsReport().
+-- 🖥 THE CONSOLE GATE (core/console.lua): ⛔/⚠️ banners + repeat limiter — _G.errorsReport()
 do
     local ok, e = pcall(function()
         local chunk, le = loadfile(hs.configdir .. '/core/console.lua')
@@ -3526,6 +3525,7 @@ local BASE = {
     "chrome_history",     -- 6.92.0 ⇪Y  90 days of Chrome, saved + searched
     "recent_docs",        -- 6.93.0 ⇪I  the 9 last-opened, then every type you use
     "begone",             -- type `begone` (AFTER text_expander: registers there)
+    "search_index", "doc_keywords",  -- 6.96.0 🗂 files behind ⇪D · 🏷 docx tags
 }
 
 -- BASE minus `without`, plus `plus`. The list is COPIED, never shared: a

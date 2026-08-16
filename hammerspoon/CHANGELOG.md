@@ -4,6 +4,95 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.96.0 — NONBREAKING ERRORS · THE ⇪D FILE INDEX · DOC KEYWORDS:
+  Three requests, one release.
+
+  1) THE NONBREAKING SECTION (core/console.lua). LL: "Is there a way
+  that I can separate a type of error, errors that don't break hammer
+  spoon operations. I'm thinking nonbreakable errors and put that in
+  its own section that way I can work on errors with you and
+  continuously improve the code."  Yes — and worth it: "error" was
+  hiding two situations. The gate now classifies every line:
+     ⛔ ERRORS (::::: banner)    BREAKING — 💥/⛔ marks, tracebacks,
+        "uncaught", "failed to load"/"failed while loading", "syntax
+        error". Something STOPPED; a tool is missing until fixed.
+     ⚠️ NONBREAKING (----- banner)  ⚠️ 🚨 ❌ marks plus error/fail —
+        this config's house style for "degraded politely, still
+        running". The improvement pile, to work through with Claude.
+  Breaking is matched first (so "failed while loading" lands there
+  despite containing "fail"); both lists are editable tables at the
+  top of the file. Sections never interleave — a different kind, or
+  normal output, closes the open banner first. _G.errorsReport() now
+  groups: breaking first, nonbreaking after, each with ×count and
+  first–last times. The repeat limiter is unchanged and applies to
+  both. test_console.lua grew to 56 checks.
+
+  2) THE SEARCH INDEX (modules/search_index.lua) + ⇪D INTEGRATION.
+  LL: "it would build some kind of index ... a file sitting in
+  OneDrive, that helps with search results, and this would get
+  integrated into my app picker/document searcher. So the search has
+  to be light nimble fast doesn't use a lot of CPU cycles or GPU
+  cycles or RAM and instead is aggressively efficient. ... the
+  primary files it should search ... are my OneDrive folders, the
+  other main folder it should search is my user level folder ...
+  above all else, we don't want a heavy complicated burdensome
+  search."
+  THE FILE: <OneDrive>/Logs/search_index-<Mac>.txt — plain text, one
+  absolute path per line. Not JSON (parse before first match), not
+  XML (heavier still), not CSV (filenames contain commas): a path
+  per line needs NO decoder, and the filename is just the tail of
+  the line. Per-machine, like every other store.
+  THE BUILD: /usr/bin/find under nice -n 19 in a CHILD process —
+  zero main-thread cost — walking OneDrive to the bottom and ~ five
+  levels deep, pruning dot-folders/node_modules/Library/.app
+  bundles, capped per root, written to a temp file and RENAMED so a
+  half-built index never publishes. Cloud-only OneDrive files list
+  fine (find reads metadata, downloads nothing). Rebuilt when older
+  than 12h (warm + timer), or _G.indexNow() on demand;
+  _G.fileIndexReport() explains itself.
+  THE SEARCH: loaded lazily ONCE into memory, then a keystroke
+  touches no disk. Every word must match; filename hits outrank
+  folder hits; shorter paths outrank deeper. And each added letter
+  NARROWS the previous result set instead of rescanning — typing
+  gets cheaper as it gets longer.
+  ⇪D: with the index present, three or more typed letters list
+  matching FILES (📄 + folder) under the matching apps — apps always
+  first. ⏎ on a file row opens it in its default app. No index
+  module, or an empty index? ⇪D is exactly the 6.91.0 apps-only
+  picker, native fuzzy filter included.
+
+  3) DOC KEYWORDS (modules/doc_keywords.lua). LL: "when I create a
+  Word file and when I open one again, for hammer spoon to select
+  keywords in at into the details or comments section when you write
+  click on a file ... What I'm trying to accomplish is making files
+  more searchable."  Saving a .docx under OneDrive, ~/Documents or
+  ~/Desktop now writes "keywords: budget, revenue, …" — its 8 most
+  frequent real words, stopwords removed, ties to first appearance —
+  into the FINDER COMMENT, the one field Spotlight reliably indexes
+  (the same route ⇪O's OCR tagger proved). Save-flurries are
+  debounced to one read; one save tags once (mtime guard); the text
+  is read by /usr/bin/unzip -p and the comment written by
+  /usr/bin/osascript, both OUT of process (the 6.65.1 lesson). A
+  comment YOU typed is NEVER overwritten — only empty comments and
+  our own "keywords:" ones refresh. Honest limits, stated: .docx
+  only (.doc is a binary with no zip door), and opening without
+  saving touches nothing — the old keywords stand for unchanged
+  text. First use asks for Finder Automation permission; a locked-
+  down work Mac costs one ⚠️ line per attempt, nothing more.
+  _G.tagDoc("/path.docx") tags by hand; _G.docKeywordsReport() lists
+  the session's taggings.
+
+  TESTS: test_search_index.lua (51 checks — the nice'd/pruned/capped
+  build script, atomic publish, single-flight builds, lazy load,
+  ranking, the narrowing cache answering identically to a full scan,
+  staleness, hostile Macs) and test_doc_keywords.lua (46 checks —
+  file selection, keyword ranking, the out-of-process pipeline, the
+  never-clobber clause IN the AppleScript, debounce/mtime guards,
+  permission failure = one honest line). test_app_launcher.lua grew
+  a 14-check section: file rows join after 3 letters, apps stay
+  first, ⏎ opens, a throwing index costs the file rows never the
+  picker, no index = untouched native filter. Runner: 33 Lua suites.
+
 NEW IN 6.95.0 — THE CONSOLE GETS AN ⛔ ERRORS SECTION + A REPEAT LIMITER:
   LL: "when there is an error, it place it in a defined section in the
   output of the console so it would almost be like a header that said

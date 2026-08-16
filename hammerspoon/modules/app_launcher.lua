@@ -32,10 +32,21 @@
 -- WHY NOT ⌘space, AND WHY NOT ⇪W
 -- ---------------------------------------------------------------------
 -- Spotlight searches everything — files, mail, web — and what it ranks
--- first is its call, not yours. This list is apps, only apps, and all of
+-- first is its call, not yours. This list is apps first, and all of
 -- them, with the folder each one came from printed under its name (the
 -- same app installed twice shows twice, labelled). And macOS 26 retired
 -- Launchpad, so "see every installed app" no longer has a system home.
+--
+-- 🗂 6.96.0 — AND NOW YOUR FILES, BEHIND THE APPS. When the Search
+-- Index module (search_index.lua) is loaded, typing three or more
+-- letters also lists matching FILES from its OneDrive + home-folder
+-- index, 📄-labelled with their folder, under whatever apps match.
+-- Apps always outrank files; ⏎ on a file row opens it in its default
+-- app. The index is searched IN MEMORY (no disk on a keystroke), and
+-- when the module is absent or its index is empty, ⇪D is exactly the
+-- apps-only picker it was in 6.91.0 — including its native fuzzy
+-- filter. With files on, filtering is "every word is a substring",
+-- the same rule every other picker in this config uses.
 --
 -- ⇪W is the neighbour, not a rival: ⇪W summons an app that is already
 -- RUNNING to this monitor; ⇪D launches ones that are not. Reach for ⇪D,
@@ -65,6 +76,7 @@ local M = {
             { "⇪D",    "Type an app's name, ⏎ launches it (focuses if running)" },
             { "scope", "/Applications · ~/Applications · /System/Applications" },
             { "",      "…each one folder deep: Utilities, vendor folders" },
+            { "files", "3+ letters: indexed FILES list under the apps — ⏎ opens" },
             { "work",  "Same key both Macs — user-dir installs included" },
             { "⇪W",    "Neighbour key: summon an already-RUNNING app instead" },
         },
@@ -84,6 +96,8 @@ function M.setup(core)
     launcher.icons      = true     -- app icons in the picker rows
     launcher.iconBudget = 0.6      -- seconds of icon loading per build;
                                    -- rows past the budget simply get none
+    launcher.files      = true     -- 6.96.0: indexed files behind the apps
+    launcher.fileRows   = 12       -- at most this many file rows per keystroke
     -- Folders searched, in the order their rows should win ties. label is
     -- what the picker prints under each app's name. core.homeDir with a
     -- fallback, not bare: a harness core without it is a real shape.
@@ -231,6 +245,39 @@ function M.setup(core)
         return false
     end
 
+    -- ---- files behind the apps (6.96.0) ----------------------------------
+    -- One function answers "what rows does this query deserve": matching
+    -- app rows first (every word a substring of the name), then the
+    -- index's best files, 📄-labelled. Exposed on launcher for the test
+    -- suite, and only ever called when the index module is loaded — an
+    -- apps-only Mac keeps the chooser's native filter untouched.
+    function launcher.rowsFor(query)
+        local all = launcher.currentChoices or {}
+        local q = tostring(query or ""):gsub("^%s+", ""):gsub("%s+$", ""):lower()
+        if q == "" then return all end
+        local toks = {}
+        for w in q:gmatch("%S+") do toks[#toks + 1] = w end
+        local out = {}
+        for _, row in ipairs(all) do
+            local name, hit = row.text:lower(), true
+            for _, w in ipairs(toks) do
+                if not name:find(w, 1, true) then hit = false ; break end
+            end
+            if hit then out[#out + 1] = row end
+        end
+        local fi = _G.fileIndex
+        if launcher.files and fi and type(fi.search) == "function" then
+            local okS, hits = pcall(fi.search, q, launcher.fileRows)
+            if okS and type(hits) == "table" then
+                for _, h in ipairs(hits) do
+                    out[#out + 1] = { text = h.name, subText = "📄 " .. h.dir,
+                                      path = h.path, kind = "file" }
+                end
+            end
+        end
+        return out
+    end
+
     -- ---- the picker ------------------------------------------------------
     launcher.chooser = nil    -- HELD: an unreferenced hs.chooser is collected
     local iconCache = {}      -- path → hs.image, kept across shows
@@ -263,6 +310,16 @@ function M.setup(core)
         if not launcher.chooser then
             launcher.chooser = hs.chooser.new(function(pick)
                 if not pick then return end
+                if pick.kind == "file" then
+                    -- ⏎ on a file row: the Finder double-click, by path.
+                    local okO, res = pcall(function() return hs.open(pick.path) end)
+                    if not (okO and res) then
+                        hs.alert.show("📄 " .. (pick.text or "That file")
+                            .. " would not open")
+                        warn((pick.path or "?") .. ": hs.open refused")
+                    end
+                    return
+                end
                 launcher.launch({ name = pick.text, path = pick.path })
             end)
             -- ⎋ 6.93.0: filed in _G.choosers so Esc closes it BEFORE the
@@ -276,9 +333,33 @@ function M.setup(core)
                 launcher.chooser:searchSubText(false)
                 launcher.chooser:width(30)
             end)
+            -- 🗂 6.96.0: with the index module loaded, WE become the
+            -- filter (the chooser's own cannot append rows it was never
+            -- given). Installed once, only when there is an index to ask.
+            if launcher.files and type(_G.fileIndex) == "table" then
+                pcall(function()
+                    launcher.chooser:queryChangedCallback(function(q)
+                        local okR, rows = pcall(launcher.rowsFor, q)
+                        if okR and rows then launcher.chooser:choices(rows) end
+                    end)
+                end)
+            end
         end
+        launcher.currentChoices = choices
         launcher.chooser:choices(choices)
-        launcher.chooser:placeholderText(#apps .. " apps — type, ⏎ launches")
+        -- A query kept from last time must keep filtering: the native
+        -- filter would have; ours has to be re-asked once on reopen.
+        pcall(function()
+            local q = launcher.chooser:query()
+            if type(q) == "string" and q ~= ""
+               and launcher.files and type(_G.fileIndex) == "table" then
+                launcher.chooser:choices(launcher.rowsFor(q))
+            end
+        end)
+        local hint = (launcher.files and type(_G.fileIndex) == "table")
+                     and " apps + your files — type, ⏎ launches or opens"
+                     or  " apps — type, ⏎ launches"
+        launcher.chooser:placeholderText(#apps .. hint)
         launcher.chooser:show()
     end
 

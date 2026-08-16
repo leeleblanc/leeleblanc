@@ -153,7 +153,7 @@ fi
 echo ""
 
 # --------------------------------------------------------- 1c. hostile world
-# Every suite in tests/ stubs `hs` to behave WELL. This runs all 37
+# Every suite in tests/ stubs `hs` to behave WELL. This runs all 43
 # modules against a Mac that answers nil to everything — no screens, an
 # empty pasteboard, no Accessibility, a folder that is not there. Those
 # are real shapes, not hypotheticals, and a module that throws on them
@@ -179,7 +179,7 @@ if [ -z "$LUA" ]; then
     echo "   ⚠️  skipped — no lua interpreter on PATH"
     SKIPPED="$SKIPPED lua-suites"
 else
-    for t in test_features test_switcher test_modules test_cheatsheet test_diagnostics test_mouse_grid test_url_cleaner test_health test_menubar test_app_launcher test_chrome_history test_begone test_recent_docs test_focus test_rename test_notices test_console test_clipboard test_app_watcher test_integration test_tools test_expander test_autocorrect test_keycaster test_keyboard_stack test_hyper_key test_screenshots test_taskform test_editor test_window_move test_unified test_style; do
+    for t in test_features test_switcher test_modules test_cheatsheet test_diagnostics test_mouse_grid test_url_cleaner test_health test_menubar test_app_launcher test_chrome_history test_begone test_recent_docs test_focus test_rename test_notices test_console test_search_index test_doc_keywords test_clipboard test_app_watcher test_integration test_tools test_expander test_autocorrect test_keycaster test_keyboard_stack test_hyper_key test_screenshots test_taskform test_editor test_window_move test_unified test_style; do
         f="$HS/tests/$t.lua"
         if [ ! -f "$f" ]; then
             echo "   ⚠️  $t — missing"

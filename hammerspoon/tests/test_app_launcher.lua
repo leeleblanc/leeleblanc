@@ -81,13 +81,15 @@ hs = {
     image = { iconForFile = function(path) return { icon = path } end },
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
     chooser = { new = function(fn)
-        local c = { fn = fn, shown = false }
+        local c = { fn = fn, shown = false, q = "" }
         for _, m in ipairs({ "searchSubText", "width" }) do
             c[m] = function(self) return self end
         end
         function c:placeholderText(t) self.placeholder = t ; return self end
         function c:choices(x) self.rows = x ; return self end
         function c:show() self.shown = true ; return self end
+        function c:query() return self.q end
+        function c:queryChangedCallback(f) self.qcb = f ; return self end
         CHOOSERS[#CHOOSERS + 1] = c ; return c end },
 }
 _G.diag = { said = {},
@@ -136,6 +138,7 @@ local function boot(tree)
     LAUNCHES, OPENS, HYPER, PROVIDED = {}, {}, {}, {}
     LAUNCH_RESULT, OPEN_RESULT = {}, {}
     _G.diag.said = {} ; NOW = 1000
+    _G.fileIndex = nil            -- each section states its own index
     tree()
     M = dofile(HS .. "/modules/app_launcher.lua")
     M.setup(CORE)
@@ -296,8 +299,90 @@ check("both refused → exactly one alert", #ALERTS == 1, #ALERTS)
 check("…that names the app", ALERTS[1]:find("Weird", 1, true), ALERTS[1])
 check("…and the warning names both failures", warned("launchOrFocus and hs.open"))
 
--- ---- 8. the report --------------------------------------------------
-out("   8. the report: counts per folder, every app listed\n")
+-- ---- 8. files behind the apps (6.96.0) ------------------------------
+out("   8. the file index: rows join after 3 letters, apps stay first\n")
+boot(personalMac)
+local ASKED = {}
+_G.fileIndex = {
+    search = function(q, limit)
+        ASKED[#ASKED + 1] = { q = q, limit = limit }
+        if #q < 3 then return {} end
+        return {
+            { path = "/Users/lee/Documents/Firefox notes.txt",
+              name = "Firefox notes.txt", dir = "~/Documents" },
+            { path = "/Users/lee/Desktop/fire drill.pdf",
+              name = "fire drill.pdf", dir = "~/Desktop" },
+        }
+    end,
+}
+AL.show()
+local C = CHOOSERS[1]
+check("with an index present, the launcher takes over filtering",
+      type(C.qcb) == "function")
+check("…and the placeholder says files joined",
+      (C.placeholder or ""):find("your files", 1, true), C.placeholder)
+check("empty query: every app, no file rows", #C.rows == 8, #C.rows)
+C.qcb("fire")
+check("typing filters apps by every-word-substring", (function()
+    for _, r in ipairs(C.rows) do
+        if r.kind ~= "file" and not r.text:lower():find("fire", 1, true) then
+            return false, r.text
+        end
+    end
+    return true
+end)())
+check("app rows come FIRST, file rows after", (function()
+    local sawFile = false
+    for _, r in ipairs(C.rows) do
+        if r.kind == "file" then sawFile = true
+        elseif sawFile then return false end
+    end
+    return sawFile
+end)())
+check("file rows are 📄-labelled with their folder", (function()
+    for _, r in ipairs(C.rows) do
+        if r.kind == "file" then return (r.subText or ""):find("📄", 1, true) end
+    end
+end)())
+check("the index was asked with the query and the row cap",
+      ASKED[#ASKED] and ASKED[#ASKED].q == "fire"
+      and ASKED[#ASKED].limit == AL.fileRows)
+local fileRow
+for _, r in ipairs(C.rows) do
+    if r.kind == "file" and r.text == "fire drill.pdf" then fileRow = r end
+end
+C.fn(fileRow)
+check("⏎ on a file row OPENS it (hs.open), never launchOrFocus",
+      OPENS[1] == "/Users/lee/Desktop/fire drill.pdf" and #LAUNCHES == 0,
+      OPENS[1])
+OPEN_RESULT["/Users/lee/Desktop/fire drill.pdf"] = false
+C.fn(fileRow)
+check("a file that will not open gets one honest alert",
+      #ALERTS == 1 and ALERTS[1]:find("would not open", 1, true), ALERTS[1])
+C.qcb("fi")
+check("under 3 letters the index answers empty — apps only", (function()
+    for _, r in ipairs(C.rows) do if r.kind == "file" then return false end end
+    return true
+end)())
+_G.fileIndex.search = function() error("index exploded") end
+C.qcb("fire")
+check("an index that throws costs the file rows, never the picker", (function()
+    local apps2 = 0
+    for _, r in ipairs(C.rows or {}) do
+        if r.kind ~= "file" then apps2 = apps2 + 1 end
+    end
+    return apps2 > 0
+end)())
+boot(personalMac)                     -- _G.fileIndex nil again
+AL.show()
+check("no index module: no callback — the chooser's native filter rules",
+      CHOOSERS[1].qcb == nil)
+check("…and the placeholder promises apps only",
+      (CHOOSERS[1].placeholder or ""):find("apps — type", 1, true),
+      CHOOSERS[1].placeholder)
+
+-- ---- 9. the report --------------------------------------------------
+out("   9. the report: counts per folder, every app listed\n")
 boot(personalMac)
 local r = _G.appLauncherReport()
 check("report returns text", type(r) == "string")

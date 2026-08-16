@@ -24,9 +24,9 @@ with no admin password. The two steps that *can* use admin are marked
 │   ├── coexist.lua           who gets Esc, the screen, the keyboard
 │   ├── hyper_key.lua         ⇪'s second way in, and the proof it works
 │   ├── changelog_csv.lua     one Excel-ready row per version
-│   ├── console.lua           the ⛔ ERRORS section + the repeat limiter
+│   ├── console.lua           the ⛔ ERRORS + ⚠️ NONBREAKING sections + repeat limiter
 │   └── notices.lua           the failure ledger — nothing fails silently
-├── modules/              41 files, loaded by the §1.12 loader
+├── modules/              43 files, loaded by the §1.12 loader
 ├── tools/                hs-doctor.sh · hs-install.sh · run-tests.sh
 └── logs/                 only if there is no OneDrive on this Mac
 ```
@@ -283,7 +283,7 @@ No OneDrive on that Mac is fine — logs fall back to
 sh ~/.hammerspoon/tools/run-tests.sh ~/.hammerspoon
 ```
 
-Syntax on `init.lua`, `core/` and all 41 modules, thirty-one Lua suites, then the
+Syntax on `init.lua`, `core/` and all 43 modules, thirty-three Lua suites, then the
 Capture Pad's page JavaScript **executed** against a DOM stub. One exit
 code. A skipped stage is reported as a skip, never as a pass.
 
