@@ -677,8 +677,10 @@ say("   -- the panel --")
 CANVASES = {}
 check("start() draws", pom.start() == true and #CANVASES == 1)
 local panel = CANVASES[1]
-check("it is 170x99, the size asked for",
-      panel.frame.w == 170 and panel.frame.h == 99)
+check("it is 170 wide as asked, and taller since 6.94.0 — two lines now "
+      .. "live under the countdown",
+      panel.frame.w == 170 and panel.frame.h == 132,
+      panel.frame.w .. "x" .. panel.frame.h)
 check("it sits in the top-right, under the menu bar rather than over it",
       panel.frame.x > 1300 and panel.frame.y >= 25,
       panel.frame.x .. "," .. panel.frame.y)
@@ -688,6 +690,87 @@ check("it opens at 25:00, not at 00:00 counting up", (function()
         if e.type == "text" and e.text == "25:00" then return true end
     end
 end)())
+
+say("   -- 🕰 6.94.0: the wall clock and the workday, under the countdown --")
+-- LL: "below the countdown clock, can we also display the regular time
+-- and date and how many hours are left in the day if I'm working from
+-- 7:30 to 4:30 ... I don't take lunch."
+do
+    local function findText(pat)
+        for _, e in ipairs(panel.elements) do
+            if e.type == "text" and tostring(e.text):match(pat) then return e end
+        end
+    end
+    local clockEl = findText("^%d+:%d%d [AP]M · ")
+    check("the panel carries a time · date line under the countdown",
+          clockEl ~= nil)
+    check("...positioned BELOW the big clock, not over it",
+          clockEl ~= nil and clockEl.frame.y > 80, clockEl and clockEl.frame.y)
+    check("...and a workday line", findText("workday") ~= nil
+          or findText("no workday") ~= nil)
+
+    -- The formats, driven with KNOWN local epochs rather than NOW: the
+    -- workday is a local-clock fact, so the fixtures are built with
+    -- os.time{} which is also local.
+    local wed  = { year = 2026, month = 8, day = 12 }   -- a Wednesday
+    local function at(h, m, s)
+        return os.time({ year = wed.year, month = wed.month, day = wed.day,
+                         hour = h, min = m, sec = s or 0 })
+    end
+    check("midday Wednesday: 4h 30m of the 7:30–4:30 day left — nine hours "
+          .. "total, NO lunch subtracted, exactly as specified",
+          pom.workLine(at(12, 0)) == "workday: 4h 30m left",
+          pom.workLine(at(12, 0)))
+    check("one minute in: 8h 59m", pom.workLine(at(7, 31)) == "workday: 8h 59m left",
+          pom.workLine(at(7, 31)))
+    check("under an hour left drops the hours part",
+          pom.workLine(at(16, 0)) == "workday: 30m left", pom.workLine(at(16, 0)))
+    check("🚨 4:29:30 says 1m left — the minutes CEIL, so the line can "
+          .. "never read '0m left' while the day is not done",
+          pom.workLine(at(16, 29, 30)) == "workday: 1m left",
+          pom.workLine(at(16, 29, 30)))
+    check("4:30 exactly: done", pom.workLine(at(16, 30)) == "workday: done ✅",
+          pom.workLine(at(16, 30)))
+    check("before 7:30 it says when the day STARTS — a constant '9h 00m' "
+          .. "reads like a stuck countdown",
+          pom.workLine(at(6, 45)) == "workday starts 7:30",
+          pom.workLine(at(6, 45)))
+    local sat = os.time({ year = 2026, month = 8, day = 15, hour = 12, min = 0 })
+    check("Saturday is not a workday", pom.workLine(sat) == "no workday today",
+          pom.workLine(sat))
+    check("...unless weekendsOff is turned off", (function()
+        pom.weekendsOff = false
+        local line = pom.workLine(sat)
+        pom.weekendsOff = true
+        return line == "workday: 4h 30m left", line
+    end)())
+    check("✏️ the hours are EDITABLE, not baked in — workdayEnd '17:00' "
+          .. "moves the countdown", (function()
+        pom.workdayEnd = "17:00"
+        local line = pom.workLine(at(12, 0))
+        pom.workdayEnd = "16:30"
+        return line == "workday: 5h 00m left", line
+    end)())
+    check("clockLine reads 12-hour with AM/PM and the date",
+          pom.clockLine(at(14, 5)) == "2:05 PM · Wed Aug 12",
+          pom.clockLine(at(14, 5)))
+    check("...midnight is 12 AM, noon is 12 PM — the %12 edge",
+          pom.clockLine(at(0, 10)):match("^12:10 AM") ~= nil
+          and pom.clockLine(at(12, 10)):match("^12:10 PM") ~= nil)
+    check("🚨 a FRACTIONAL epoch does not throw — secondsSinceEpoch "
+          .. "returns floats on a real Mac, and os.date refuses them; the "
+          .. "6.70.0 lesson is that a throw here is swallowed by paint() "
+          .. "and the panel just quietly stops",
+          pcall(pom.clockLine, at(9, 0) + 0.73)
+          and pcall(pom.workLine, at(9, 0) + 0.73))
+    check("a mis-edited workdayEnd falls back instead of breaking the "
+          .. "panel", (function()
+        pom.workdayEnd = "garbage"
+        local line = pom.workLine(at(12, 0))
+        pom.workdayEnd = "16:30"
+        return line == "workday: 4h 30m left", line
+    end)())
+end
 
 say("   -- 🖐 dragging --")
 do

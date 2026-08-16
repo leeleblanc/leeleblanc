@@ -4,6 +4,56 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.94.0 — THE SHEET SCALES TO THE MONITOR + THE TIMER TELLS TIME:
+  LL: "Can we make the cheat sheet flexible and dynamic so that it
+  scales to the size of the monitor and in each section on the sheet
+  for each tool be outlined in Black? Also, on the Pomodoro timer,
+  below the countdown clock, can we also display the regular time and
+  date and how many hours are left in the day if I'm working from
+  7:30 to 4:30, and that is how many hours left in the workday. I
+  don't take lunch."
+
+  THE CHEAT SHEET (⇪/) SCALES: the fixed 1024x768 of 6.57.0 is gone.
+  The sheet now takes a FRACTION of whichever monitor it opens on —
+  cheatSheet.widthFrac (0.55) of the width, heightFrac (0.86, the old
+  ceiling, now the target) of the height — so a 4K display gets a
+  genuinely bigger sheet with more rows on screen, and a laptop gets
+  the same proportions scaled down. Still clamped to 90% of the
+  screen and floored at 360, so no fraction can hang it off a
+  display. The old behaviour is one ✏️ edit away: a NUMBER in
+  cheatSheet.width/height pins that dimension exactly as before.
+  EVERY SECTION IN A BLACK-OUTLINED BOX: each tool's group is drawn
+  inside a rounded rectangle — 2pt black stroke, a faint lift of fill
+  so the edge reads on the dark panel — computed from the rows
+  actually in view, so the cost stays flat however long the list
+  grows. Spacer rows carry no section and become the gaps between
+  boxes; a section half scrolled off is boxed to its visible half.
+
+  THE POMODORO (⇪⇧P) TELLS TIME: two dimmed lines under the
+  countdown, repainted every second with the ticker. Line one is the
+  wall clock and date ("2:47 PM · Sat Aug 16" — 12-hour built by
+  hand, because %p is locale-dependent and can be empty). Line two is
+  the workday: "workday: 3h 12m left" against pom.workdayStart 7:30 →
+  pom.workdayEnd 16:30, NO lunch subtracted, exactly as specified.
+  Before 7:30 it says "workday starts 7:30" (a constant 9h 00m reads
+  like a stuck countdown); at 4:30 it says done; Sat/Sun say "no
+  workday today" (pom.weekendsOff = false counts every day). The
+  minutes CEIL so 4:29:30 reads "1m left", never a premature "0m
+  left". Panel grows 99 → 132 tall to hold the lines; every epoch is
+  FLOORED before os.date — secondsSinceEpoch returns fractional
+  floats, os.date throws on them, and paint()'s pcall would swallow
+  that throw once a second forever (the 6.70.0 lesson, and the same
+  crash recent_docs hit twice in 6.93.0).
+
+  TESTS: test_cheatsheet gains a 6.94.0 section (scaling on 4K and
+  laptop stubs, one box per visible section, black + ≥2pt, boxes
+  under the text and clear of the scrollbar, boxes following the
+  scroll, the fixed-size override) and its three fixed-1024
+  assertions now assert the fraction; test_tools gains the wall-clock
+  block (formats at known local epochs, the 7:30/16:30/weekend/
+  garbage-config edges, the 12 AM/PM edge, fractional epochs not
+  throwing). 137 + 138 checks in those two suites, all green.
+
 NEW IN 6.93.0 — RECENT DOCUMENTS (⇪I) + THE SHEET CLOSES LAST:
   LL: "find recent documents that I've opened … populate the first
   nine documents that have been opened recently, and then after that

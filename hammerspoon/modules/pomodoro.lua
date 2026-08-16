@@ -60,6 +60,7 @@ local M = {
             { "⏎",       "Reset and go again — only while it is flashing" },
             { "esc",     "Stop and close — only while it is flashing" },
             { "where",   "Top-right, just under the clock" },
+            { "below",   "Time · date · hours left in your 7:30–4:30 workday" },
             { "note",    "Enter/esc are NOT captured during the countdown" },
             { "was",     "⇪pad+ in 6.65.0 — that key does not exist on this Mac" },
         },
@@ -75,10 +76,21 @@ function M.setup(core)
                                  -- in the header for why it is not a pad key.
     pom.workMins   = 25          -- the session
     pom.breakMins  = 5           -- stand up, stretch
-    pom.width      = 170         -- the size you asked for
-    pom.height     = 99
+    pom.width      = 170         -- the width you asked for
+    pom.height     = 132         -- was 99 — 6.94.0 adds two lines below
+                                 -- the countdown (time · date, workday left)
     pom.marginX    = 12          -- gap from the right edge of the screen
     pom.marginY    = 6           -- gap below the menu bar (under the clock)
+    -- 🕰 6.94.0 — THE WORKDAY, for the "hours left" line under the clock.
+    -- LL: "display the regular time and date and how many hours are left
+    -- in the day if I'm working from 7:30 to 4:30 ... I don't take lunch."
+    -- 24-hour "H:MM". No lunch is subtracted, exactly as specified — the
+    -- countdown is simply 4:30 PM minus now.
+    pom.workdayStart = "7:30"
+    pom.workdayEnd   = "16:30"   -- 4:30 PM
+    -- Sat/Sun show "no workday today" instead of counting a day that is
+    -- not one. Set false to count every day against the hours above.
+    pom.weekendsOff  = true
     -- 🚨 How long ⏎ / esc are captured after a phase ends. Every second
     -- here is a second Enter does not work in the app you are typing in,
     -- so it is deliberately short. It is not a comfort setting.
@@ -163,21 +175,97 @@ function M.setup(core)
         return string.format("%02d:%02d", math.floor(secs / 60), secs % 60)
     end
 
+    -- ---- the wall clock and the workday (6.94.0) -------------------------
+    -- ⚠️ EVERY EPOCH IS FLOORED AT THE DOOR. hs.timer.secondsSinceEpoch()
+    -- returns a FRACTIONAL float on a real Mac, and os.date refuses one
+    -- with "number has no integer representation" — the exact throw the
+    -- recent-docs module hit twice in 6.93.0. On the once-a-second paint
+    -- below, that throw would be swallowed by paint()'s pcall and the
+    -- panel would quietly stop updating, which is the quietest bug this
+    -- module can have (see the mmss() note above).
+    -- "H:MM" → minutes past midnight; the fallback covers a mis-edit.
+    local function dayMins(s, fallback)
+        local h, m = tostring(s or ""):match("^%s*(%d+):(%d+)%s*$")
+        if not h then return fallback end
+        return tonumber(h) * 60 + tonumber(m)
+    end
+
+    -- "2:47 PM · Sat Aug 16" — built by hand rather than with %I/%p,
+    -- because %p is locale-dependent and can be EMPTY, which would leave
+    -- a 12-hour number with nothing saying which half of the day it is.
+    function pom.clockLine(now)
+        now = math.floor(now or hs.timer.secondsSinceEpoch())
+        local t = os.date("*t", now)
+        local h12 = t.hour % 12
+        if h12 == 0 then h12 = 12 end
+        return string.format("%d:%02d %s · %s", h12, t.min,
+                             t.hour < 12 and "AM" or "PM",
+                             (os.date("%a %b %d", now):gsub(" 0(%d)$", " %1")))
+    end
+
+    -- Seconds until workdayEnd: positive mid-day, 0 or negative once it
+    -- is over, nil on a weekend (when weekendsOff). os.date("*t") is
+    -- LOCAL time, deliberately — the workday is a local-clock fact.
+    function pom.workLeft(now)
+        now = math.floor(now or hs.timer.secondsSinceEpoch())
+        local t = os.date("*t", now)
+        if pom.weekendsOff and (t.wday == 1 or t.wday == 7) then return nil end
+        local endM = dayMins(pom.workdayEnd, 16 * 60 + 30)
+        return (endM - (t.hour * 60 + t.min)) * 60 - t.sec
+    end
+
+    function pom.workLine(now)
+        now = math.floor(now or hs.timer.secondsSinceEpoch())
+        local left = pom.workLeft(now)
+        if left == nil then return "no workday today" end
+        if left <= 0 then return "workday: done ✅" end
+        local t = os.date("*t", now)
+        if (t.hour * 60 + t.min) < dayMins(pom.workdayStart, 7 * 60 + 30) then
+            -- Before 7:30 the honest answer is a constant 9h 00m, which
+            -- reads like a stuck countdown. Say when it begins instead.
+            return "workday starts " .. tostring(pom.workdayStart)
+        end
+        -- CEILING on the minutes, so 4:29:30 says "1m left", never a
+        -- premature "0m left" that contradicts the not-done line above.
+        local m = math.ceil(left / 60)
+        local h = math.floor(m / 60)
+        m = m - h * 60
+        if h > 0 then return string.format("workday: %dh %02dm left", h, m) end
+        return string.format("workday: %dm left", m)
+    end
+
     -- ---- drawing ---------------------------------------------------------
     local function elements(label, clock, bg, fg)
+        -- The two small lines are dimmed so the countdown stays the thing
+        -- the corner of your eye reads first. Copied, not mutated: fg is
+        -- shared with (or IS) _G.uiStyle.fg, and writing an alpha into
+        -- that table would dim every panel that reads the style.
+        local dim = { red = fg.red, green = fg.green, blue = fg.blue,
+                      white = fg.white, alpha = (fg.alpha or 1) * 0.78 }
+        local small = (st.font and st.font.label) or 12
         return {
             { type = "rectangle", action = "fill", fillColor = bg,
               roundedRectRadii = { xRadius = st.radius or 12,
                                    yRadius = st.radius or 12 },
               frame = { x = 0, y = 0, w = pom.width, h = pom.height } },
             { type = "text", text = label,
-              textSize = (st.font and st.font.label) or 12,
+              textSize = small,
               textColor = fg, textAlignment = "center",
               frame = { x = 0, y = 10, w = pom.width, h = 18 } },
             { type = "text", text = clock,
               textSize = (st.font and st.font.big) or 40,
               textColor = fg, textAlignment = "center",
               frame = { x = 0, y = 30, w = pom.width, h = 52 } },
+            -- 🕰 6.94.0 — under the countdown: the real time and date, and
+            -- what is left of the 7:30–4:30 workday. Rebuilt on every
+            -- paint, and the ticker paints once a second, so the wall
+            -- clock ticks along with the countdown.
+            { type = "text", text = pom.clockLine(),
+              textSize = small, textColor = dim, textAlignment = "center",
+              frame = { x = 0, y = 86, w = pom.width, h = 16 } },
+            { type = "text", text = pom.workLine(),
+              textSize = small, textColor = dim, textAlignment = "center",
+              frame = { x = 0, y = 104, w = pom.width, h = 16 } },
         }
     end
 

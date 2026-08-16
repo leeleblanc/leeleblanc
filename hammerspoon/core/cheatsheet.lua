@@ -65,18 +65,27 @@ return function(core)
     -- the section that added it. Everything §1.6 needs therefore hangs off
     -- one table. Do the same in any new section.
     local cheatSheet = {}
-    -- ✏️ PANEL SIZE. 6.57.0 — was a fixed 760 wide and up to 86% of the
-    -- screen tall. Both are now yours to set.
+    -- ✏️ PANEL SIZE. 6.94.0 — FRACTIONS OF THE MONITOR, not fixed points.
+    -- LL: "Can we make the cheat sheet flexible and dynamic so that it
+    -- scales to the size of the monitor". 6.57.0's fixed 1024x768 was
+    -- sized for one display and wrong on every other — a modest strip on
+    -- a 4K monitor, and on a small laptop it was really the 90% clamp
+    -- deciding, not the number. The sheet now takes a fraction of
+    -- whichever screen it opens on, so every monitor gets the same
+    -- PROPORTIONED sheet: bigger display, bigger sheet, more rows.
     --
-    -- ⚠️ THE TRADE-OFF IS REAL AND WORTH KNOWING. WIDTH is free: a wider
-    -- column means fewer entries have to wrap onto continuation lines, so
-    -- 1024 actually shows MORE shortcuts than 760 did, not fewer. HEIGHT
-    -- is not free: at 30pt per row, 768 shows about 22 rows where 1194
-    -- showed 36. If you would rather see more at once, raise this — it is
-    -- clamped to the screen either way, so it can never open a panel
-    -- taller than the display it lands on.
-    cheatSheet.width     = 1024
-    cheatSheet.height    = 768
+    -- ⚠️ THE TRADE-OFF IS STILL REAL AND WORTH KNOWING. WIDTH is free: a
+    -- wider column means fewer entries wrap onto continuation lines, so
+    -- 55% of a 27" shows more shortcuts than the old 1024 ever did.
+    -- HEIGHT is rows on screen, and 86% is the most a panel can take
+    -- while still reading as a panel (see the ceiling note in show()).
+    cheatSheet.widthFrac  = 0.55   -- of the screen's width
+    cheatSheet.heightFrac = 0.86   -- of the screen's height
+    -- ✏️ Prefer the old behaviour? Put a NUMBER (points) in either of
+    -- these and it pins that dimension exactly as 6.57.0 did — the
+    -- fractions only apply while these are nil.
+    cheatSheet.width     = nil
+    cheatSheet.height    = nil
     cheatSheet.key       = "/"   -- toggle key; same mods as everything above
     -- ✏️ SECTIONS PINNED ABOVE THE A–Z RUN. Empty = pure alphabetical,
     -- which is what LL asked for in 6.66.1. Add words from a group title
@@ -476,6 +485,42 @@ return function(core)
             roundedRectRadii = { xRadius = sty.radius or 16, yRadius = sty.radius or 16 },
         })
 
+        -- 🖤 6.94.0 — EVERY SECTION IN ITS OWN BLACK-OUTLINED BOX.
+        -- LL: "each section on the sheet for each tool be outlined in
+        -- Black". Boxes are computed from the rows actually IN VIEW, so
+        -- the cost stays flat however long the list grows — the same rule
+        -- the rows themselves follow. A section half scrolled off gets a
+        -- box around its visible half; the spacer rows between groups
+        -- carry no `sec`, which is what ends one box and starts the next.
+        -- Drawn BEFORE the text so the outline sits underneath it, with a
+        -- faint lift of fill so a black edge still reads on a dark panel.
+        local last = math.min(#st.lines, st.first + st.visible - 1)
+        do
+            local curSec, curEl, yy = nil, nil, st.contentTop
+            for i = st.first, last do
+                local sec = st.lines[i].sec
+                if sec then
+                    if curEl and curSec == sec then
+                        curEl.frame.h = (yy + st.lineH + 3) - curEl.frame.y
+                    else
+                        curSec = sec
+                        curEl = { type = "rectangle", action = "strokeAndFill",
+                                  fillColor   = { white = 1, alpha = 0.045 },
+                                  strokeColor = { white = 0, alpha = 0.90 },
+                                  strokeWidth = 2,
+                                  roundedRectRadii = { xRadius = 10, yRadius = 10 },
+                                  frame = { x = st.contentX - 10, y = yy - 3,
+                                            w = st.contentW + 20,
+                                            h = st.lineH + 6 } }
+                        table.insert(els, curEl)
+                    end
+                else
+                    curSec, curEl = nil, nil
+                end
+                yy = yy + st.lineH
+            end
+        end
+
         -- 🔎 The title doubles as the search box. A separate field would
         -- mean re-laying out the panel and a second thing that can be out
         -- of step with the rows below it; the title is already centred,
@@ -498,7 +543,6 @@ return function(core)
             frame = { x = 0, y = st.pad * 0.55, w = st.panelW, h = st.titleH },
         })
 
-        local last = math.min(#st.lines, st.first + st.visible - 1)
         local y = st.contentTop
         for i = st.first, last do
             local line = st.lines[i]
@@ -860,13 +904,15 @@ return function(core)
         local screen = resolveBaseScreen()
         local sf = screen:frame()
 
-        -- ONE COLUMN, ALWAYS. Wide enough to read comfortably, capped so it
-        -- stays a panel instead of a wall on a 4K monitor, and shrunk to fit
-        -- a laptop display. It never grows sideways — length goes downward
-        -- and you scroll it.
-        -- Clamped to the screen, never beyond it: a 1024-wide panel on a
-        -- 1280-wide laptop is fine, on a 900-wide one it would hang off.
-        local wantW    = cheatSheet.width  or 1024
+        -- ONE COLUMN, ALWAYS. It never grows sideways — length goes
+        -- downward and you scroll it.
+        -- 📐 6.94.0 — the width is a FRACTION of this screen (widthFrac),
+        -- so the sheet scales with the monitor it opens on; a number in
+        -- cheatSheet.width pins the old fixed size instead. Still clamped
+        -- to 90% of the screen and floored at 360, so neither a wild
+        -- fraction nor a wild number can hang it off the display.
+        local wantW    = cheatSheet.width
+                         or math.floor(sf.w * (cheatSheet.widthFrac or 0.55))
         local panelW   = math.max(360, math.min(wantW, sf.w * 0.90))
         local contentX = pad
         local contentW = panelW - pad * 2 - sbW - 10
@@ -951,12 +997,16 @@ return function(core)
             table.insert(lines, { kind = "entry",
                                   text = "      ⌫ to edit  ·  esc to clear" })
         end
+        -- `sec` ties every row to its group, which is what render() draws
+        -- the 6.94.0 section boxes from. Spacer rows deliberately carry
+        -- none: the gap between groups is what ends one box and starts
+        -- the next.
         for gi, g in ipairs(groupList) do
             if gi > 1 then table.insert(lines, { kind = "spacer", text = "" }) end
-            table.insert(lines, { kind = "header", text = g.title })
+            table.insert(lines, { kind = "header", text = g.title, sec = gi })
             for _, e in ipairs(g.entries) do
                 for _, seg in ipairs(wrapEntry(tostring(e[1]), tostring(e[2]))) do
-                    table.insert(lines, { kind = "entry", text = seg })
+                    table.insert(lines, { kind = "entry", text = seg, sec = gi })
                 end
             end
         end
@@ -970,10 +1020,12 @@ return function(core)
         -- version of this clamped to sf.h - 40, which on a 1280x800
         -- laptop produced a 760pt panel — 95% of the usable screen, a
         -- wall rather than a panel, pressed against both edges. The
-        -- suite caught it. On a big display 768 is well under the
-        -- ceiling and wins; on a small one the ceiling wins. Neither
-        -- ever exceeds the screen.
-        local wantH      = math.min(cheatSheet.height or 768, sf.h * 0.86)
+        -- suite caught it. 6.94.0's heightFrac makes the ceiling the
+        -- TARGET on every screen (scale to the monitor was the ask), and
+        -- the min() keeps a hand-set fraction or number under it anyway.
+        local wantH      = math.min(cheatSheet.height
+                             or math.floor(sf.h * (cheatSheet.heightFrac or 0.86)),
+                             sf.h * 0.86)
         local panelH     = math.min(wantH, chromeH + #lines * lineH)
         local visible    = math.max(1, math.floor((panelH - chromeH) / lineH))
         -- Snap to a whole number of rows so there is never a half-row strip

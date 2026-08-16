@@ -249,13 +249,20 @@ check("one column only (no colGap / no second x)", (function()
   local n = 0; for _ in pairs(xs) do n = n + 1 end
   return n <= 1
 end)(), "more than one text column x found")
--- 6.57.0 — the cap is now cheatSheet.width (1024 by default), not 760.
--- Width is the free dimension: a wider column means fewer entries wrap
--- onto continuation lines, so 1024 shows MORE shortcuts than 760 did.
-check("panel no wider than asked for, and never more than 90% of screen",
-      canvasRect.w <= 1024 + 0.01 and canvasRect.w <= SCR.w * 0.90 + 0.01,
+-- 📐 6.94.0 — the width is a FRACTION of the screen (widthFrac), so the
+-- sheet scales with the monitor. On this 4K stub that means WIDER than
+-- the old fixed 1024 — which is the point, and also the check that would
+-- have passed for free if the fraction quietly did nothing.
+check("panel scales with the monitor — widthFrac of a 4K display is wider "
+      .. "than the old fixed 1024, and never past 90% of the screen",
+      canvasRect.w == math.floor(SCR.w * (CS.widthFrac or 0))
+      and canvasRect.w > 1024
+      and canvasRect.w <= SCR.w * 0.90 + 0.01,
       canvasRect.w)
 check("panel height within 86% of screen", canvasRect.h <= SCR.h * 0.86 + 0.01, canvasRect.h)
+check("...and on a big display it USES that allowance rather than stopping "
+      .. "at the old fixed 768 — height scales too",
+      canvasRect.h >= SCR.h * 0.75, canvasRect.h)
 check("panel centred on the screen", math.abs((canvasRect.x + canvasRect.w/2) - (SCR.x + SCR.w/2)) < 0.01)
 check("content is long enough to need scrolling", S.maxFirst > 1, S.maxFirst)
 
@@ -356,15 +363,25 @@ check("thumb ends flush with the bottom of the track",
 check("thumb never leaves the track", bot.frame.y >= st().contentTop - 0.01)
 
 print("\n=== 8. Cost stays flat as the list grows ===")
-local baseEls = #drawn
+-- 6.94.0 — counted in TEXT elements now, not raw elements: the section
+-- boxes are rectangles whose count varies with which sections happen to
+-- be in view, so raw #drawn compares two different views, not two costs.
+-- The property under test is unchanged: rows painted stays view-sized.
+local function textEls()
+  local n = 0
+  for _, e in ipairs(drawn) do if e.type == "text" then n = n + 1 end end
+  return n
+end
+local baseTexts = textEls()
 for i = 1, 300 do
   table.insert(_G.customShortcuts, { keys = "⇪⇧" .. i, desc = "A deliberately long custom description " .. i, group = "BULK" })
 end
 CS.show()
 check("300 extra entries are all in the list", #st().lines > 300, #st().lines)
-check("but the canvas element count barely moves",
-  #drawn <= baseEls + 2, #drawn .. " vs " .. baseEls)
-check("still one column, still the same width", canvasRect.w <= 1024 + 0.01, canvasRect.w)
+check("but the painted row count barely moves",
+  textEls() <= baseTexts + 2, textEls() .. " vs " .. baseTexts)
+check("still one column, still the same monitor-scaled width",
+  canvasRect.w == math.floor(SCR.w * (CS.widthFrac or 0)), canvasRect.w)
 _G.customShortcuts = {}
 
 print("\n=== 9. Redraw keeps your place; a fresh open does not ===")
@@ -389,6 +406,9 @@ print("\n=== 10. Small laptop screen ===")
 SCR = { x = 0, y = 0, w = 1280, h = 800 }
 CS.show()
 check("panel still fits the screen", canvasRect.w <= 1280 and canvasRect.h <= 800 * 0.86 + 0.01)
+check("...and is proportionally SMALLER here — the same fraction of a "
+      .. "smaller monitor, which is what 'scales' means in both directions",
+      canvasRect.w == math.floor(1280 * (CS.widthFrac or 0)), canvasRect.w)
 check("still readable — at least 8 rows visible", st().visible >= 8, st().visible)
 local ok10 = true
 for _, e in ipairs(texts()) do
@@ -940,6 +960,91 @@ do
   CS.escape()
   check("...and a panel that HANDLED the Esc does too", _G.cheatSheetCanvas ~= nil)
   _G.routeEscape = function() return nil end
+  CS.hide()
+end
+
+-- =====================================================================
+print("\n=== SECTIONS BOXED IN BLACK, SIZED TO THE MONITOR (6.94.0) ===")
+-- =====================================================================
+-- LL: "Can we make the cheat sheet flexible and dynamic so that it
+-- scales to the size of the monitor and ... each section on the sheet
+-- for each tool be outlined in Black?"
+do
+  SCR = { x = 0, y = 0, w = 3840, h = 2160 }
+  CS.pos, CS.query = nil, ""
+  _G.customShortcuts = {}
+  CS.show()
+
+  local function boxes()
+    local out = {}
+    for _, e in ipairs(drawn) do
+      if e.type == "rectangle" and e.strokeColor
+         and e.strokeColor.white == 0 then
+        out[#out + 1] = e
+      end
+    end
+    return out
+  end
+  local bx = boxes()
+  check("every visible section sits in a black-outlined box", #bx >= 3, #bx)
+  check("...the outline is BLACK, as asked, and thick enough to see",
+        bx[1] and bx[1].strokeColor.white == 0
+        and (bx[1].strokeColor.alpha or 1) >= 0.8
+        and (bx[1].strokeWidth or 0) >= 2)
+
+  -- One box per visible SECTION — the spacer rows between groups are the
+  -- gaps between boxes, never boxed themselves. Counted from the state
+  -- the sheet itself laid out, so the check follows the real view.
+  local S9 = st()
+  local lastV = math.min(#S9.lines, S9.first + S9.visible - 1)
+  local seen, nsec = {}, 0
+  for i = S9.first, lastV do
+    local s = S9.lines[i].sec
+    if s and not seen[s] then seen[s] = true; nsec = nsec + 1 end
+  end
+  check("one box per visible section, spacers unboxed", #bx == nsec,
+        #bx .. " boxes vs " .. nsec .. " sections")
+
+  check("boxes stay clear of the scrollbar", (function()
+    for _, b in ipairs(bx) do
+      if b.frame.x + b.frame.w > S9.sbX - 1 then return false end
+    end
+    return true
+  end)())
+  check("boxes are drawn UNDER the text — outline behind every row, "
+        .. "never through it", (function()
+    local lastRect, firstText
+    for i, e in ipairs(drawn) do
+      if e.type == "rectangle" and e.strokeColor
+         and e.strokeColor.white == 0 then lastRect = i end
+      if e.type == "text" and not firstText then firstText = i end
+    end
+    return lastRect and firstText and lastRect < firstText
+  end)())
+  check("every content row sits INSIDE its section's horizontal bounds",
+        (function()
+    for _, e in ipairs(texts()) do
+      if e.frame.x > 0 and bx[1] and e.frame.x < bx[1].frame.x then
+        return false
+      end
+    end
+    return true
+  end)())
+
+  -- Scrolling to the end shows a different set of sections; the boxes
+  -- must follow the view rather than being laid out once for the top.
+  CS.scrollTo(math.maxinteger)
+  check("boxes follow the scroll — the bottom of the list is boxed too",
+        #boxes() >= 1, #boxes())
+
+  -- ✏️ The old fixed size is one edit away, not gone: a number pins it.
+  CS.width, CS.height = 900, 700
+  CS.show()
+  check("✏️ a NUMBER in cheatSheet.width still pins the old fixed size — "
+        .. "scaling is the default, not a mandate",
+        canvasRect.w == 900 and canvasRect.h <= 700 + 0.01,
+        canvasRect.w .. "x" .. canvasRect.h)
+  CS.width, CS.height = nil, nil
   CS.hide()
 end
 

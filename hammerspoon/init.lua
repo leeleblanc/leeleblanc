@@ -4,9 +4,13 @@
 -- =====================================================================
 -- 08-16-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.93.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.94.0
 -- =====================================================================
 
+-- NEW IN 6.94.0 — THE SHEET SCALES + THE TIMER TELLS TIME:
+--   ⇪/ sizes itself to each monitor, every section boxed in black. The
+--   pomodoro adds time · date · hours left in your 7:30–4:30 workday.
+--
 -- NEW IN 6.93.0 — RECENT DOCUMENTS (⇪I) + THE SHEET CLOSES LAST:
 --   ⇪I: the 9 last-opened documents (⌘1–9), then every type you use —
 --   types LEARN from what you open; ⇪F renames stay searchable. Esc
@@ -25,12 +29,8 @@
 -- NEW IN 6.90.1 — MENU BAR PICKER DEDUPE (⇪M):
 --   "Bartender 6" ×4 → one ⇪M row (first that answers). ⇪V listed once.
 --
--- NEW IN 6.90.0 — ONE SHARED LOOK (modules/ui_style.lua):
---   The pomodoro FOCUS card's style lives in ONE table (background,
---   white type, 12px corners, selection blues) read by 11 panels.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.93.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.94.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -336,7 +336,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.93.0"
+_G.configVersion = "6.94.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
