@@ -4,6 +4,64 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.95.0 — THE CONSOLE GETS AN ⛔ ERRORS SECTION + A REPEAT LIMITER:
+  LL: "when there is an error, it place it in a defined section in the
+  output of the console so it would almost be like a header that said
+  errors with some kind of OR double: characters that make it stand
+  out, and if the errors are repetitive, it limits the number of
+  repeating error errors that occur if they are all the same. If they
+  are not, it would report unique individual errors. Also, I see a lot
+  of key press announcement when I use my shortcut keys, are those
+  necessary? And can we reduce that number but still make the console
+  output useful"
+
+  THE GATE (core/console.lua, the ninth core file): one wrapper over
+  print that every line the config — and hs.logger — emits passes
+  through. A console is an append-only stream, so the "defined
+  section" is drawn inline: the first error after normal output opens
+  a  :::::::  ⛔ ERRORS  :::::::  banner (the double-colon characters,
+  as asked), consecutive errors share it, and the first normal line
+  closes it with an "end errors" rule. Errors are recognised by the
+  marks the config actually uses (⚠️ 🚨 💥 ❌ ⛔) plus the words
+  error/fail/uncaught/traceback — an editable list at the top.
+
+  THE REPEAT LIMITER: each distinct line prints twice
+  (consoleGate.repeatLimit), then ONE ↻ notice says it is repeating
+  and further copies are COUNTED, not printed. "Distinct" ignores
+  numbers — the same error with a new counter, size or timestamp in
+  it is the same error — which is what turns an error inside a
+  once-a-second timer, or a receipt printed on every key press, from
+  a wall of scroll into three lines and a total. A line quiet for
+  repeatWindow (120s) gets its hidden count summarised and may print
+  again: a problem that comes BACK deserves to be seen again. Unique
+  errors are untouched — suppression is per-line, never global.
+  _G.errorsReport() (type it in the Console) lists every unique error
+  this session with ×count, first and last time.
+
+  WHAT IS NEVER GATED, by shape not by caller: multi-line output and
+  lines over 200 bytes pass straight through — so ⇪⇧D's report,
+  _G.noticesReport() and _G.bootReport() can never be suppressed as
+  "a repeat of the report you asked for a minute ago". The gate is
+  held to the notices.lua standard: everything pcall'd, and a failure
+  inside the gate prints the line RAW — it can fail to tidy, it
+  cannot fail to deliver. Honest limit: Hammerspoon's C side writes a
+  few lines (the grey "-- Loading extension" ones) straight to the
+  Console window without touching Lua's print; those cannot be gated.
+
+  THE KEY-PRESS NOISE: the config itself prints no line per shortcut
+  press — the recurring per-press lines are Hammerspoon re-reporting
+  the same registration/hotkey complaints and modules repeating one
+  receipt, and both are exactly what the limiter collapses. Nothing
+  informative was deleted; it is counted instead of scrolled.
+
+  TESTS: tests/test_console.lua — 47 checks over the banner opening
+  once and closing, repeat suppression with totals kept, digit-
+  normalized keys, unique errors all printing, report-shaped output
+  passing through and closing an open banner, the broken-gate
+  fallback, the quiet-window comeback, the ×count report, the bound
+  on remembered lines, install/uninstall and the no-hs.timer Mac.
+  hs-install.sh and hs-doctor.sh now verify nine core files.
+
 NEW IN 6.94.0 — THE SHEET SCALES TO THE MONITOR + THE TIMER TELLS TIME:
   LL: "Can we make the cheat sheet flexible and dynamic so that it
   scales to the size of the monitor and in each section on the sheet

@@ -16,7 +16,7 @@ with no admin password. The two steps that *can* use admin are marked
 ~/.hammerspoon/
 ├── init.lua              the orchestrator — profiles, hyper key, pickers
 ├── secret.lua            YOUR Asana token. Per-machine. Never synced.
-├── core/                 8 files, loaded directly by init.lua
+├── core/                 9 files, loaded directly by init.lua
 │   ├── diagnostics.lua       ⇪⇧D
 │   ├── cheatsheet.lua        ⇪/
 │   ├── boot_report.lua       the Console's first two lines
@@ -24,6 +24,7 @@ with no admin password. The two steps that *can* use admin are marked
 │   ├── coexist.lua           who gets Esc, the screen, the keyboard
 │   ├── hyper_key.lua         ⇪'s second way in, and the proof it works
 │   ├── changelog_csv.lua     one Excel-ready row per version
+│   ├── console.lua           the ⛔ ERRORS section + the repeat limiter
 │   └── notices.lua           the failure ledger — nothing fails silently
 ├── modules/              41 files, loaded by the §1.12 loader
 ├── tools/                hs-doctor.sh · hs-install.sh · run-tests.sh

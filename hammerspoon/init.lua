@@ -4,33 +4,23 @@
 -- =====================================================================
 -- 08-16-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.94.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.95.0
 -- =====================================================================
 
+-- NEW IN 6.95.0 — THE CONSOLE GETS AN ⛔ ERRORS SECTION:
+--   Errors print inside a ::⛔:: banner; a repeating line collapses
+--   after two showings, counted — _G.errorsReport() has the totals.
+--
 -- NEW IN 6.94.0 — THE SHEET SCALES + THE TIMER TELLS TIME:
 --   ⇪/ sizes itself to each monitor, every section boxed in black. The
 --   pomodoro adds time · date · hours left in your 7:30–4:30 workday.
 --
 -- NEW IN 6.93.0 — RECENT DOCUMENTS (⇪I) + THE SHEET CLOSES LAST:
---   ⇪I: the 9 last-opened documents (⌘1–9), then every type you use —
---   types LEARN from what you open; ⇪F renames stay searchable. Esc
---   closes EVERY window before the sheet; panels reopen where dragged.
---
--- NEW IN 6.92.0 — CHROME HISTORY (⇪Y) + BEGONE (typed):
---   ⇪Y fuzzy-searches 90 days of Chrome (every profile, both Macs),
---   saved to chrome_history-<Mac>.csv; @web joins ⇪space, whose tags
---   now sit in its section headers. Type `begone` — banners close.
---
--- NEW IN 6.91.0 — APP LAUNCHER (⇪D):
---   Every installed app in one picker: /Applications, ~/Applications
---   (the work Mac's folder), /System/Applications, one level deep.
---   ⏎ launches — or focuses a copy already running. ⇪W still summons.
---
--- NEW IN 6.90.1 — MENU BAR PICKER DEDUPE (⇪M):
---   "Bartender 6" ×4 → one ⇪M row (first that answers). ⇪V listed once.
+--   ⇪I: the 9 last-opened documents (⌘1–9), then every type you use.
+--   Esc closes EVERY window before the sheet; panels reopen where put.
 --
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.94.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.95.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -336,7 +326,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.94.0"
+_G.configVersion = "6.95.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -368,8 +358,7 @@ _G.diagBootStart = hs.timer.secondsSinceEpoch();
     pcall(function() there = hs.fs.attributes(spoonPath) ~= nil end)
     if not there then
         print("💡 EmmyLua not installed — hs.* editor autocomplete is off.")
-        print("   Get it: https://www.hammerspoon.org/Spoons/EmmyLua.html")
-        print("   Then point your editor at Spoons/EmmyLua.spoon/annotations")
+        print("   Get it: https://www.hammerspoon.org/Spoons/EmmyLua.html — then point your editor at Spoons/EmmyLua.spoon/annotations")
         return
     end
     local ok, err = pcall(hs.loadSpoon, "EmmyLua")
@@ -471,6 +460,17 @@ if not notOK then
         hs.alert.show("⚠️ Hammerspoon: failure reporting is OFF\n"
                       .. "core/notices.lua did not load", 8)
     end)
+end
+
+-- 🖥 6.95.0 — THE CONSOLE GATE (core/console.lua): errors print in a
+-- ::⛔:: banner, repeats collapse after two showings — _G.errorsReport().
+do
+    local ok, e = pcall(function()
+        local chunk, le = loadfile(hs.configdir .. '/core/console.lua')
+        if not chunk then error(le or 'cannot read core/console.lua', 0) end
+        chunk()({})
+    end)
+    if not ok then print('⚠️ core/console.lua failed to load — the Console is unfiltered: ' .. tostring(e)) end
 end
 
 -- 6.42.0 — THE SERVICE REGISTRY, stubbed here so it is never nil.

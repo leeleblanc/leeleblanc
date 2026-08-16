@@ -11,14 +11,14 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 ~/.hammerspoon/
 ├── init.lua          the orchestrator (3,443 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
-├── core/             dofile'd at a fixed point, NOT loader-managed (5 files)
+├── core/             dofile'd at a fixed point, NOT loader-managed (9 files)
 ├── modules/          one file per feature (26 files, ~11,600 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
 └── tools/            hs-install.sh · hs-doctor.sh · run-tests.sh
 ```
 
 `core/` is the part that is easy to get wrong when updating by hand.
-Those five files are **not** modules — the loader never sees them;
+Those nine files are **not** modules — the loader never sees them;
 `init.lua` `dofile`s them at a fixed point during boot, so a missing or
 half-copied one takes the whole config down rather than costing you one
 feature. `cp init.lua ~/.hammerspoon/` on its own leaves an install
@@ -213,6 +213,18 @@ and `<logsDir>/diagnostics-<machine>.txt`.
 | Calendar arrows do nothing | the panel has to be open — its keys are a modal, armed only while it is up |
 | Something silently wrong | `_G.diag.verbose = true` in the Console, no reload needed |
 
+**Reading the Console (6.95.0).** Errors print inside a
+`:::::::  ⛔ ERRORS  :::::::` banner so they cannot hide in the scroll,
+and a line that keeps repeating goes quiet after two showings — one ↻
+notice says so, and the copies are **counted, not lost**. Type
+`_G.errorsReport()` in the Console for every unique error this session
+with its ×count. Reports you ask for (⇪⇧D, `_G.bootReport()`,
+`_G.noticesReport()`) are never gated. Want the firehose back?
+`_G.consoleGate.enabled = false` in the Console — no reload needed.
+The grey `-- Loading extension:` lines are Hammerspoon itself loading
+an `hs.*` extension the first time something touches it (lazy loading);
+they print once per extension and cannot be gated from Lua.
+
 **A broken module costs you that module only.** Everything else still
 loads. That is the main reason this structure exists.
 
@@ -245,6 +257,7 @@ tests/test_focus.lua         ⇪Q, over 500 generated meeting days — the mic i
 tests/test_rename.lua        ⇪R, over 400 generated messy folders — no file is ever lost
 tests/test_workspaces.lua    ⇪⇧S, 300 generated workspaces — the busy flag never sticks
 tests/test_notices.lua       the failure ledger — a notice is never lost, and never floods
+tests/test_console.lua       the ⛔ ERRORS banner, the repeat limiter, _G.errorsReport()
 tests/test_clipboard.lua     ⇪V, and the writes that must never destroy the history file
 tests/test_integration.lua   🚨 all 26 modules loaded TOGETHER: shortcut, service and
                              cheat-sheet-slot collisions — the only suite that can

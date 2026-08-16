@@ -98,10 +98,10 @@ grep -q "core/diagnostics.lua" "$SRC/init.lua" && NEEDS_CORE=1
 if [ "$NEEDS_CORE" = "1" ]; then
     [ -d "$SRC/core" ] || die "this init.lua needs a core/ folder and your download has none.
    Installing it alone would silently cost you ⇪/ and ⇪⇧D. Re-download the zip."
-    for n in diagnostics cheatsheet boot_report capabilities notices coexist hyper_key changelog_csv; do
+    for n in diagnostics cheatsheet boot_report capabilities notices coexist hyper_key changelog_csv console; do
         [ -f "$SRC/core/$n.lua" ] || die "core/$n.lua is missing from your download. Re-download."
     done
-    say "   core/    : 6 files ✅ present"
+    say "   core/    : 9 files ✅ present"
 else
     say "   core/    : not required by this version"
 fi
@@ -175,7 +175,7 @@ if [ "$NEEDS_CORE" = "1" ]; then
     # — which is precisely the half-installed state this script exists to
     # prevent, just with the file present. Each one must actually be the
     # initialiser init.lua is going to call.
-    for n in diagnostics cheatsheet boot_report capabilities notices coexist hyper_key changelog_csv; do
+    for n in diagnostics cheatsheet boot_report capabilities notices coexist hyper_key changelog_csv console; do
         f="$HS/core/$n.lua"
         if [ ! -s "$f" ]; then
             fail="$fail core/$n-empty"
@@ -198,7 +198,7 @@ fi
 
 say "   ✅ version    $INSTVER"
 say "   ✅ init.lua   complete"
-[ "$NEEDS_CORE" = "1" ] && say "   ✅ core/      all 8 present"
+[ "$NEEDS_CORE" = "1" ] && say "   ✅ core/      all 9 present"
 say ""
 say "── DONE ──"
 say "   Now: Hammerspoon menu bar → Reload Config"
