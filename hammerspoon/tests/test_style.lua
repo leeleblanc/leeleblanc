@@ -161,19 +161,14 @@ for _, m in ipairs({ "capture_pad", "task_form", "screenshot_editor",
 end
 check("the cheat sheet card takes bgWith(alpha)",
       wired("core/cheatsheet.lua", "bgWith"))
-check("the task mirror and Asana legend take bgWith(panelAlpha)", (function()
-  local f = io.open(HS .. "/init.lua", "r")
-  if not f then return false end
-  local src = f:read("*a"); f:close()
-  src = src:gsub("%-%-[^\n]*", "")
-  local n, at = 0, 1
-  while true do
-    local s, e = src:find("bgWith(panelAlpha)", at, true)
-    if not s then break end
-    n = n + 1; at = e + 1
-  end
-  return n == 2, n
-end)())
+-- 6.98.0: the task mirror moved to modules/task_creator.lua with the
+-- rest of the creator, so the two call sites now live in two files —
+-- the legend strip in init.lua (§6), the mirror in the module (where
+-- panelAlpha arrives via core).
+check("the Asana legend takes bgWith(panelAlpha)",
+      wired("init.lua", "bgWith(panelAlpha)"))
+check("the task mirror takes bgWith(core.panelAlpha)",
+      wired("modules/task_creator.lua", "bgWith(core.panelAlpha)"))
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

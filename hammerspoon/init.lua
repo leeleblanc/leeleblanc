@@ -2,11 +2,17 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 08-16-26 using Claude          ← EDITED date. Bumped with every release.
+-- 08-17-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.97.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.98.0
 -- =====================================================================
 
+-- NEW IN 6.98.0 — OCR SEES id= FILES · THE TASK CREATOR MOVES OUT:
+--   Images copied as "/.file/id=…" reference paths now resolve and OCR
+--   (the miss line is errors-only). The Asana task creator became
+--   modules/task_creator.lua — and its upload no longer shows the
+--   token to `ps`.
+--
 -- NEW IN 6.97.0 — ☑️ PICK SEVERAL · A QUIETER OCR · THE FILE MAP:
 --   Every editor (⇪⇧V · ⇪⇧E · ⇪⇧O) can now pick several rows and
 --   delete (⇪⇧V: or copy) them together. OCR success prints nothing.
@@ -19,12 +25,8 @@
 --   Errors print inside a ::⛔:: banner; a repeating line collapses
 --   after two showings, counted — _G.errorsReport() has the totals.
 --
--- NEW IN 6.94.0 — THE SHEET SCALES + THE TIMER TELLS TIME:
---   ⇪/ sizes itself to each monitor, every section boxed in black. The
---   pomodoro adds time · date · hours left in your 7:30–4:30 workday.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.97.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.98.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -254,14 +256,14 @@
 --   §1.11  diagnostics (core/diagnostics.lua)
 --   §2     OCR engine — clipboard images, file tagging, history
 --   §3     background monitoring     §3.12  the hyper key itself
---   (unnumbered) Asana task creator — history · uploads · pipe
---          parser · renderer · draft mirror · submit · chooser
+--   (the Asana task creator that sat between §3.12 and §5 moved to
+--          modules/task_creator.lua in 6.98.0)
 --   §5     hotkey integrations — core pickers + ⇪⇧O OCR edit
 --   §6     Asana dashboard           §7     bootstrap report
 --   §1.4   shared text/CSV helpers (late on purpose — everything
 --          CALLS them after load; nothing above needs them sooner)
 --   §1.12  module loader → BASE list → machine profiles → safe
---          mode → boot report. The 43 modules/*.lua load HERE, last.
+--          mode → boot report. The 44 modules/*.lua load HERE, last.
 -- =====================================================================
 
 -- =====================================================================
@@ -322,7 +324,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.97.0"
+_G.configVersion = "6.98.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -641,14 +643,9 @@ end
 
 -- 6.10.0: task history & clipboard history moved to the OneDrive Logs
 -- folder, machine-tagged (both Macs write these constantly — sharing
--- one file would mean OneDrive conflict copies). Existing files in
--- ~/.hammerspoon are adopted on first boot; originals left in place.
-local historyFile   = logsDir .. "/asana_history-" .. hostTag .. ".json"
-adoptLegacyFile(historyFile,   hs.configdir .. "/asana_history.json")
-
--- 💬 AUTO-COMMENT — this text is posted as a comment on every task you
--- create with the Task Creator (⌃⌥⌘T). Set it to "" to disable.
-local autoCommentText = "Sent by Hammerspoon Task Creator \"⌃⌥⌘T\", file init.lua"
+-- one file would mean OneDrive conflict copies). 6.98.0: the task
+-- history file (and the 💬 auto-comment knob, now a profile-overridable
+-- config) went to modules/task_creator.lua with the rest of the creator.
 
 -- OCR log + the Apple Shortcuts shortcut the OCR daemon runs. A Mac
 -- without that shortcut (checked at boot) just skips image OCR —
@@ -875,7 +872,7 @@ end
 -- =====================================================================
 _G.choosers = {}
 
-_G.asanaTaskHistory = {}  -- populated from disk below after historyFile is defined
+_G.asanaTaskHistory = {}  -- populated from disk by modules/task_creator.lua; stubbed so ⇪space search never sees nil
 
 -- =====================================================================
 -- 1.5 POPUP POSITIONING — EDIT YOUR HOTKEYS HERE
@@ -1429,17 +1426,39 @@ end
 -- Finder puts a public.file-url flavor on the pasteboard for every
 -- copied file. 6.11.1: read the RAW pasteboard items (readAllData) —
 -- the reliable route — with readURL and plain-text paths kept as
--- fallbacks for other tools. Every decision is narrated in the
--- Console so a miss is never a mystery again.
+-- fallbacks for other tools. 6.98.0: narration is errors-only, same
+-- rule the OCR indexer follows — a normal miss prints nothing.
 local function clipboardImageFilePaths()
     local paths, seen, sawFileURL = {}, {}, false
-    local firstMiss = nil  -- 6.11.2: first rejected candidate, for diagnosis
+    local firstMiss = nil  -- first GENUINE anomaly, for diagnosis (6.98.0)
     local function consider(candidate)
         if #paths >= ocrTagMaxFilesPerCopy then return end
         if type(candidate) ~= "string" or seen[candidate] then return end
         seen[candidate] = true
+        -- 6.98.0 — FILE-REFERENCE PATHS. Some apps put a copied file on
+        -- the pasteboard as "/.file/id=…" — macOS's name-independent way
+        -- of pointing at a file — which has no extension to judge, so
+        -- real images arrived here and were skipped as "no file
+        -- extension found" (LL hit exactly this). The filesystem itself
+        -- translates the id form (realpath), so resolve FIRST, then
+        -- judge the real name.
+        if candidate:find("/.file/", 1, true) == 1 then
+            local resolved
+            pcall(function()
+                resolved = hs.fs.pathToAbsolute((candidate:gsub("/+$", "")))
+            end)
+            if type(resolved) ~= "string" or resolved == "" then
+                if not firstMiss then
+                    firstMiss = "a file-reference path macOS would not resolve — raw value: \""
+                        .. stripToQwerty(candidate:sub(1, 160)) .. "\""
+                end
+                return
+            end
+            if seen[resolved] then return end   -- same file also came by name
+            seen[resolved] = true
+            candidate = resolved
+        end
         local ext = candidate:match("%.(%w+)$")
-        local preview = stripToQwerty(candidate:sub(1, 160))
         if ext and ocrImageExtensions[ext:lower()] then
             local mode = nil
             pcall(function() mode = hs.fs.attributes(candidate, "mode") end)
@@ -1447,12 +1466,12 @@ local function clipboardImageFilePaths()
                 table.insert(paths, candidate)
             elseif not firstMiss then
                 firstMiss = "ext ." .. ext .. " is supported, but not a readable local file (mode = "
-                    .. tostring(mode) .. ") — raw value: \"" .. preview .. "\""
+                    .. tostring(mode) .. ") — raw value: \"" .. stripToQwerty(candidate:sub(1, 160)) .. "\""
             end
-        elseif not firstMiss then
-            firstMiss = (ext and ("ext ." .. ext .. " isn't in the supported list") or "no file extension found")
-                .. " — raw value: \"" .. preview .. "\""
         end
+        -- No/unsupported extension on a path that DID resolve is the
+        -- everyday case — any non-image file ⌘C'd in Finder — and is
+        -- deliberately NOT a firstMiss: it prints nothing (6.98.0).
     end
 
     -- Method 1 (primary): raw pasteboard items, every flavor of every
@@ -1525,12 +1544,15 @@ local function clipboardImageFilePaths()
         end)
     end
 
-    -- Self-diagnosis: file URL(s) present but nothing usable came out
-    -- — non-image files land here too (normal), so only note it when
-    -- it looks like images were intended
-    if sawFileURL and #paths == 0 then
-        print("🏷 OCR tag: clipboard has file URL(s) but no image files matched (non-image files, unsupported extension, or unreadable path)")
-        if firstMiss then print("   ↳ first candidate: " .. firstMiss) end
+    -- Self-diagnosis, errors only (6.98.0). LL: "Isn't this
+    -- non-breaking? … do we even need to show that line or only show
+    -- when it errors?" Copying non-image files is NORMAL and now prints
+    -- nothing. A line appears only when something is actually wrong — a
+    -- supported image that isn't readable, or a file-reference path
+    -- that would not resolve — and the ⚠️ mark files it under the
+    -- Console's NONBREAKING section where it belongs.
+    if sawFileURL and #paths == 0 and firstMiss then
+        print("⚠️ OCR tag: clipboard file URL(s) matched no usable image — " .. firstMiss)
     end
     return paths
 end
@@ -2159,595 +2181,31 @@ end):placeholderText("Search OCR Logs...")
 -- just the 100 characters a row displays. Matches are newest first,
 -- capped at 250 rows for snappy typing (narrow the search for more).
 
--- =====================================================================
--- TASK HISTORY — Persistent 30-day store (OneDrive, machine-tagged)
--- =====================================================================
-local TASK_HISTORY_DAYS = 30
-
-local function loadTaskHistory()
-    local f = io.open(historyFile, "r")
-    if not f then return {} end
-    local content = f:read("*a"); f:close()
-    local ok, data = pcall(hs.json.decode, content)
-    if ok and type(data) == "table" then return data end
-    return {}
-end
-
-local function pruneTaskHistory(history)
-    local cutoff = os.time() - (TASK_HISTORY_DAYS * 86400)
-    local pruned = {}
-    for _, entry in ipairs(history) do
-        if type(entry.timestamp) == "number" and entry.timestamp >= cutoff then
-            table.insert(pruned, entry)
-        end
-    end
-    return pruned
-end
-
-local function saveTaskHistory(history)
-    local f = io.open(historyFile, "w")
-    if f then f:write(hs.json.encode(history)); f:close()
-    else warnWriteFailed("task history") end
-end
-
--- Boot: load from disk, prune old entries, sync into global
-local _diskHistory = pruneTaskHistory(loadTaskHistory())
-saveTaskHistory(_diskHistory)           -- persist the pruned version immediately
-_G.asanaTaskHistory = _diskHistory      -- override the empty table set earlier
-
--- =====================================================================
--- ATTACHMENT UPLOAD — multipart via curl (hs.http has no multipart support)
--- =====================================================================
-local function uploadAttachmentToTask(taskId, filePath, onDone)
-    -- Verify the file actually exists before attempting upload
-    local testF = io.open(filePath, "r")
-    if not testF then
-        hs.alert.show("⚠️ Attachment not found: " .. filePath)
-        if onDone then onDone(false) end
-        return
-    end
-    testF:close()
-
-    hs.alert.show("📎 Uploading attachment…")
-
-    hs.task.new("/usr/bin/curl", function(exitCode, stdOut, stdErr)
-        if exitCode == 0 then
-            hs.alert.show("📎 Attachment uploaded")
-            if onDone then onDone(true) end
-        else
-            hs.alert.show("❌ Attachment upload failed")
-            print("Attachment curl error: " .. tostring(stdErr))
-            if onDone then onDone(false) end
-        end
-    end, {
-        "-s", "-o", "/dev/null",
-        "-w", "%{http_code}",
-        "-X", "POST",
-        "https://app.asana.com/api/1.0/tasks/" .. taskId .. "/attachments",
-        "-H", "Authorization: Bearer " .. asanaToken,
-        "-F", "file=@" .. filePath
-    }):start()
-end
-
--- =====================================================================
--- PIPE PARSER — splits "Title | Desc | Assignee | /path/to/file"
---   • All fields after Title are optional
---   • Assignee can be a GID (numeric) or an email address
--- =====================================================================
-
--- Split on "|" while PRESERVING empty fields, so "time | | | /path" and
--- even "time|||/path" (no spaces) both land the path in field #4.
-local function splitPipes(raw)
-    local parts, start = {}, 1
-    while true do
-        local sep = raw:find("|", start, true)
-        if sep then
-            table.insert(parts, raw:sub(start, sep - 1):match("^%s*(.-)%s*$"))
-            start = sep + 1
-        else
-            table.insert(parts, raw:sub(start):match("^%s*(.-)%s*$"))
-            break
-        end
-    end
-    return parts
-end
-
--- Clean up a pasted attachment path so small slips still work:
---   • strips surrounding single/double quotes
---   • expands  ~  and  ~/…  to your home folder
---   • snaps to the first "/" so stray leading junk (e.g. "r /Users/…")
---     is dropped and the path starts where the real path starts
-local function normalizeAttachmentPath(raw)
-    if not raw or raw == "" then return "" end
-    local s = raw:match("^%s*(.-)%s*$")             -- trim ends
-    s = s:gsub("^[\"']", ""):gsub("[\"']$", "")     -- strip wrapping quotes
-    s = s:match("^%s*(.-)%s*$")                      -- trim again (quotes may have hidden spaces)
-
-    -- Expand ~ BEFORE looking for the first slash
-    if s == "~" then
-        s = homeDir
-    elseif s:sub(1, 2) == "~/" then
-        s = homeDir .. s:sub(2)
-    end
-
-    -- If anything precedes the first "/", drop it. Absolute paths start
-    -- at "/", so "r /Users/…" and "  /Users/…" both become "/Users/…".
-    local slashIdx = s:find("/", 1, true)
-    if slashIdx and slashIdx > 1 then
-        s = s:sub(slashIdx)
-    end
-
-    return s
-end
-
-local function parseTaskInput(raw)
-    local parts = splitPipes(raw)
-    return {
-        title      = parts[1] or "",
-        desc       = parts[2] or "",
-        assignee   = parts[3] or "",
-        attachment = normalizeAttachmentPath(parts[4] or ""),
-    }
-end
-
--- =====================================================================
--- CHOOSER RENDERER — live preview while typing
--- =====================================================================
-local function renderTaskChoices(query)
-    local choices = {}
-    local searchKey = ""
-
-    if query and #query > 0 then
-        local p = parseTaskInput(query)
-        searchKey = p.title:lower()
-
-        -- 6.16.13: INLINE ASSIGNEE AUTOCOMPLETE — while the cursor is
-        -- still IN the Assignee segment (title | desc | <here>, i.e.
-        -- exactly two pipes typed so far and no third one yet — a
-        -- completed 3rd pipe means you've moved on to the attachment
-        -- field), matching names from the ⌃⌥⌘B team roster show as
-        -- suggestions right here. Picking one splices the exact name
-        -- into the query and reopens (see the chooser callback below) —
-        -- no more leaving this picker, copying a name from a separate
-        -- window, and coming back to paste it.
-        local pipeCount = select(2, query:gsub("|", "|"))
-        if pipeCount == 2 and p.assignee ~= "" then
-            local partial = p.assignee:lower()
-            local shown = 0
-            for _, m in ipairs(_G.asanaTeamMembers) do
-                if m.name:lower():find(partial, 1, true) then
-                    table.insert(choices, {
-                        text                  = "👤 " .. m.name,
-                        subText               = (m.email or "") .. "  ·  Enter fills the Assignee field",
-                        isAssigneeSuggestion  = true,
-                        memberName            = m.name,
-                    })
-                    shown = shown + 1
-                    if shown >= 8 then break end
-                end
-            end
-            -- 6.16.14 FIX: zero matches showed NOTHING here — indistinguishable
-            -- from the feature not working at all. isHistory=true makes Enter
-            -- on this row a safe no-op (same pattern "No matching past tasks"
-            -- already uses below), so it can't get submitted as a fake assignee.
-            if shown == 0 then
-                table.insert(choices, {
-                    text      = "👤 No team member matches \"" .. p.assignee .. "\"",
-                    subText   = "Keep typing, or use their exact email instead",
-                    isHistory = true,
-                })
-            end
-        end
-
-        -- Build a compact summary line for the subText
-        local hints = {}
-        if p.desc      ~= "" then table.insert(hints, "📝 " .. p.desc:sub(1, 40)) end
-        if p.assignee  ~= "" then table.insert(hints, "👤 " .. p.assignee) end
-        if p.attachment~= "" then table.insert(hints, "📎 " .. (p.attachment:match("[^/]+$") or p.attachment)) end  -- folder paths (trailing /) have no basename → show the path itself
-        local subTextMsg = #hints > 0 and table.concat(hints, "  ·  ") or "Press Enter to create…"
-
-        table.insert(choices, {
-            text       = "➕ Create: " .. (p.title ~= "" and p.title or "…"),
-            subText    = subTextMsg,
-            isAction   = true,
-            rawTitle   = p.title,
-            rawDesc    = p.desc,
-            rawAssignee= p.assignee,
-            rawAttach  = p.attachment,
-        })
-    end
-
-    -- Append persisted history (newest first), FILTERED against searchKey.
-    -- Matches against title, description, and assignee so you can search
-    -- by any of those; empty searchKey (nothing typed) shows everything.
-    local matchCount = 0
-    if #_G.asanaTaskHistory > 0 then
-        for i = #_G.asanaTaskHistory, 1, -1 do
-            local e = _G.asanaTaskHistory[i]
-            local haystack = ((e.title or "") .. " " .. (e.desc or "") .. " " .. (e.assignee or "")):lower()
-            if searchKey == "" or haystack:find(searchKey, 1, true) then
-                matchCount = matchCount + 1
-                table.insert(choices, {
-                    text    = e.title or "(untitled)",
-                    subText = e.displaySub or "",
-                    -- mark as history so Enter on these is a no-op (they're read-only)
-                    isHistory = true,
-                })
-            end
-        end
-    end
-
-    if #_G.asanaTaskHistory == 0 and (not query or #query == 0) then
-        table.insert(choices, {
-            text    = "Type a task name…",
-            subText = "Format: Title | Description | Assignee | /path/to/attachment"
-        })
-    elseif searchKey ~= "" and matchCount == 0 then
-        table.insert(choices, {
-            text      = "No matching past tasks",
-            subText   = "Searched title, description & assignee for \"" .. searchKey .. "\"",
-            isHistory = true,
-        })
-    end
-
-    _G.choosers.task:choices(choices)
-end
-
--- =====================================================================
--- DRAFT MIRROR — full wrapped view of what you're typing (6.10.2)
--- =====================================================================
--- HONEST LIMIT this works around: hs.chooser's search field is a
--- native macOS single-line input — there is no API to make the field
--- itself wrap, so a long title scrolls out of view inside it. This
--- companion hs.canvas panel (same tech + placement as the dashboard's
--- legend strip, §6) sits just above the picker and mirrors the ENTIRE
--- text, word-wrapped, live with every keystroke. Up to 8 lines tall;
--- appears the moment the box has text, vanishes when it's empty or
--- the popup resolves, and rides along with ⌃⌥⌘-arrow nudges.
-_G.taskMirrorCanvas = nil
-
-local function taskMirrorHide()
-    if _G.taskMirrorCanvas then
-        pcall(function() _G.taskMirrorCanvas:delete() end)
-        _G.taskMirrorCanvas = nil
-    end
-end
-
-local function taskMirrorShow(text)
-    taskMirrorHide()
-    if not text or text == "" then return end
-    local chooser = _G.choosers.task
-    if not chooser then return end
-    local visible = false
-    pcall(function() visible = chooser:isVisible() end)
-    if not visible then return end
-
-    -- Reuse the exact placement showPopup recorded for the picker —
-    -- same reasoning as the legend strip (§6): resolving the screen
-    -- again could disagree and draw the mirror on the wrong monitor.
-    local place = _G.lastPopupPlacement
-    local screen = (place and place.screen) or resolveBaseScreen()
-    local sf = screen:frame()
-    local topLeft = (place and place.point) or chooserTopLeft(chooser, screen)
-    local pct = 40
-    local okW, w = pcall(function() return chooser:width() end)
-    if okW and type(w) == "number" and w > 0 and w <= 100 then pct = w end
-    local panelW = sf.w * (pct / 100)
-
-    -- Height: estimate wrapped line count from average glyph width.
-    -- The canvas wraps the text itself (textLineBreak below) — this
-    -- estimate only sizes the panel, so being a little off is fine.
-    local textSize, pad, maxLines = 16, 12, 8
-    local charsPerLine = math.max(10, math.floor((panelW - pad * 2) / (textSize * 0.55)))
-    local lines = math.min(maxLines, math.max(1, math.ceil(#text / charsPerLine)))
-    local lineH = textSize + 6
-    local panelH = pad * 2 + lines * lineH
-
-    -- Just above the picker's search field, clamped on-screen — the
-    -- same exact-placement trick the legend uses (§6): the picker's
-    -- top-left is a position we set ourselves, so no estimation.
-    local panelY = math.max(sf.y + 4, topLeft.y - panelH - 8)
-
-    local canvas = hs.canvas.new({ x = topLeft.x, y = panelY, w = panelW, h = panelH })
-    if not canvas then return end
-
-    local sty = _G.uiStyle or {}   -- 🎨 6.90.0 shared card look
-    canvas:appendElements({
-        {
-            type = "rectangle", action = "fill",
-            fillColor = (sty.bgWith and sty.bgWith(panelAlpha))
-                        or { red = 0.11, green = 0.11, blue = 0.13, alpha = panelAlpha },
-            roundedRectRadii = { xRadius = 12, yRadius = 12 },
-        },
-        {
-            type = "text", text = text,
-            textSize = textSize, textColor = sty.fg or { white = 0.95 },
-            textLineBreak = "wordWrap",
-            frame = { x = pad, y = pad, w = panelW - pad * 2, h = panelH - pad * 2 },
-        },
-    })
-    pcall(function() canvas:level(hs.canvas.windowLevels.overlay) end)
-    -- Same Spaces/full-screen visibility declarations as the legend
-    -- and cheat sheet — without them the mirror can't appear over
-    -- native full-screen apps
-    pcall(function() canvas:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" }) end)
-    _G.showCanvasSafely(canvas, "popup panel")
-    _G.taskMirrorCanvas = canvas
-end
-
--- Nudging (⌃⌥⌘ arrows) repositions the picker — §1.5 calls this so
--- the mirror rides along, exactly like the dashboard legend does.
-_G.taskMirrorSync = function()
-    if _G.taskMirrorCanvas then taskMirrorShow(_G.taskDraft or "") end
-end
-
--- =====================================================================
--- TASK SUBMIT — shared by the chooser below AND the Task Form (6.86.0)
--- =====================================================================
--- One submit path so the two front ends cannot drift. _G. (§0.4).
--- Returns TRUE = accepted for posting; FALSE = validation failed,
--- AFTER alerting — callers keep their draft on false.
-function _G.asanaSubmitTask(title, desc, assignee, attach)
-    title, desc     = title or "", desc or ""
-    assignee, attach = assignee or "", attach or ""
-
-    if title == "" then
-        hs.alert.show("⚠️ Task title cannot be empty")
-        return false
-    end
-
-    -- Build display summary for history subText
-    local subParts = {}
-    if desc     ~= "" then table.insert(subParts, "📝 " .. desc:sub(1, 35)) end
-    if assignee ~= "" then table.insert(subParts, "👤 " .. assignee) end
-    if attach   ~= "" then table.insert(subParts, "📎 " .. (attach:match("[^/]+$") or attach)) end
-
-    -- Asana's API rejects a display name outright (the actual bug:
-    -- "Not a valid actor ID: Lee") — assignee must be "me", a
-    -- numeric GID, or an email. Resolve a typed name against the
-    -- cached team roster (§3.5) before it ever reaches the API;
-    -- an unresolvable name ABORTS instead of sending a doomed
-    -- request, so the failure is a clear alert, not a Console error.
-    local function resolveAssignee(raw)
-        if raw == "" then return "" end
-        local lower = raw:lower()
-        if lower == "me" or lower == "myself" or lower == "i" then return "me" end
-        -- 6.16.14 FIX: real Asana GIDs are long (15+ digits, e.g. this
-        -- file's own asanaWorkspaceId/asanaProjectId) — a short digit
-        -- string like "1" isn't one, but ^%d+$ blindly accepted it
-        -- and sent it straight to the API unchecked, producing a raw
-        -- "Not a valid actor ID: 1" error instead of our own clear
-        -- "no match" alert. Require 6+ digits before trusting it.
-        if raw:match("^%d%d%d%d%d%d+$") then return raw end          -- already a GID
-        if raw:match("^[%w.+-]+@[%w.-]+%.%a+$") then return raw end  -- email
-        for _, m in ipairs(_G.asanaTeamMembers) do
-            if m.name:lower() == lower then return m.gid end
-        end
-        for _, m in ipairs(_G.asanaTeamMembers) do
-            if m.name:lower():find(lower, 1, true) then return m.gid end
-        end
-        return nil
-    end
-
-    local resolvedAssignee = resolveAssignee(assignee)
-    if assignee ~= "" and not resolvedAssignee then
-        hs.alert.show("⚠️ No team member matches \"" .. assignee
-            .. "\" — ⌃⌥⌘B to browse names, or use their email", 5)
-        return false
-    end
-
-    -- Create history entry (timestamp used for 30-day pruning)
-    local historyEntry = {
-        title      = title,
-        timestamp  = os.time(),
-        displaySub = "⏳ Posting…" .. (#subParts > 0 and "  ·  " .. table.concat(subParts, "  ·  ") or ""),
-        desc       = desc,
-        assignee   = assignee,
-        attachment = attach,
-    }
-    table.insert(_G.asanaTaskHistory, historyEntry)
-
-    -- Build Asana task payload
-    local payloadData = { name = title, projects = { asanaProjectId } }
-    if desc ~= "" then payloadData.notes = desc end
-    if resolvedAssignee ~= "" then payloadData.assignee = resolvedAssignee end
-    local body = hs.json.encode({ data = payloadData })
-
-    hs.http.asyncPost("https://app.asana.com/api/1.0/tasks", body, {
-        ["Authorization"] = "Bearer " .. asanaToken,
-        ["Content-Type"]  = "application/json"
-    }, function(status, responseBody)
-        if status == 200 or status == 201 then
-            hs.alert.show("✅ Task Created: " .. title)
-            historyEntry.displaySub = "✅ " .. os.date("%b %d %H:%M") ..
-                (#subParts > 0 and "  ·  " .. table.concat(subParts, "  ·  ") or "")
-
-            -- Parse the new task's GID once — used for comments & attachments
-            local parsed  = _G.safeJson(responseBody, "asana/newtask")
-            local taskGid = parsed and parsed.data and parsed.data.gid
-
-            if taskGid then
-                -- 💬 Auto-comment (configured at top of file; "" disables)
-                if autoCommentText ~= "" then
-                    _G.service.call("asana.addComment", taskGid, autoCommentText)
-                end
-
-                -- 📎 Attachment upload
-                if attach ~= "" then
-                    uploadAttachmentToTask(taskGid, attach, function(ok)
-                        if ok then
-                            historyEntry.displaySub = historyEntry.displaySub .. "  ·  📎 attached"
-                        else
-                            historyEntry.displaySub = historyEntry.displaySub .. "  ·  ⚠️ attach failed"
-                        end
-                        saveTaskHistory(_G.asanaTaskHistory)
-                    end)
-                end
-            elseif attach ~= "" then
-                hs.alert.show("⚠️ Could not parse task GID for attachment")
-            end
-        else
-            hs.alert.show("❌ Error: " .. tostring(status))
-            print("Asana API Error: ", responseBody)
-            historyEntry.displaySub = "❌ Failed (HTTP " .. tostring(status) .. ")" ..
-                (#subParts > 0 and "  ·  " .. table.concat(subParts, "  ·  ") or "")
-        end
-
-        -- Always persist history after any outcome (including non-attachment path)
-        if attach == "" then saveTaskHistory(_G.asanaTaskHistory) end
-    end)
-
-    return true
-end
-
--- Published for task_form.lua: its Attachment field gets the same path
--- cleanup the pipe picker's 4th segment gets (quotes, ~, leading junk).
-_G.asanaNormalizePath = normalizeAttachmentPath
-
--- =====================================================================
--- TASK CHOOSER
--- =====================================================================
-_G.choosers.task = hs.chooser.new(function(choice)
-    -- History rows are read-only; ignore selection
-    if not choice or choice.isHistory then taskMirrorHide(); return end
-
-    -- Picking an inline assignee suggestion is an AUTOCOMPLETE, not a
-    -- submit: splice the exact name into the Assignee segment and
-    -- reopen with it, same as the draft-restore reopen below — Enter
-    -- here should never create the task.
-    if choice.isAssigneeSuggestion then
-        local parts = splitPipes(_G.taskDraft or "")
-        parts[3] = choice.memberName
-        local rebuilt = (parts[1] or "") .. " | " .. (parts[2] or "") .. " | " .. parts[3]
-            .. (parts[4] and (" | " .. parts[4]) or " | ")
-        _G.taskDraft = rebuilt
-        _G.choosers.task:query(rebuilt)
-        renderTaskChoices(rebuilt)  -- explicit: programmatic query() doesn't re-fire the callback
-        showPopup(_G.choosers.task)
-        pcall(taskMirrorShow, rebuilt)
-        return
-    end
-
-    taskMirrorHide()   -- popup resolved (pick / Esc / click away)
-
-    if choice.isAction then
-        -- 6.86.0: the ~110 lines here moved WHOLE into _G.asanaSubmitTask
-        -- above. Unchanged behavior: false = validation failed (already
-        -- alerted), draft survives; true = posted, draft's job is done.
-        if _G.asanaSubmitTask(choice.rawTitle, choice.rawDesc,
-                              choice.rawAssignee, choice.rawAttach) then
-            _G.taskDraft = ""
-            _G.choosers.task:query("")
-        end
-    end
-end):placeholderText("Title | Description | Assignee | /path/to/attachment")
-
--- 6.10.2: wider box — 60% of the screen instead of hs.chooser's 40%
--- default, so much more of a long title stays visible before the
--- field starts scrolling. Edit the number freely (10–100); the
--- draft mirror and centering adapt automatically.
-pcall(function() _G.choosers.task:width(60) end)
-
--- DRAFT PERSISTENCE (6.10.1): every keystroke in the box is mirrored
--- into _G.taskDraft, so the text survives the popup being dismissed
--- ANY way (click away, Esc, accidental Enter on a read-only history
--- row) — the ⌃⌥⌘T binding in §5 restores it on reopen. Cleared only
--- on successful task creation, or by deleting the text yourself.
--- In-memory (like window prior-positions): a config reload starts fresh.
-_G.taskDraft = ""
-
--- Armored: if rendering ever errors again, show the error IN the
--- chooser instead of a silent blank window (which is what an error
--- inside a queryChangedCallback otherwise produces).
-_G.choosers.task:queryChangedCallback(function(query)
-    _G.taskDraft = query or ""
-    pcall(taskMirrorShow, _G.taskDraft)   -- live wrapped mirror (6.10.2)
-    local ok, err = pcall(renderTaskChoices, query)
-    if not ok then
-        print("🚨 Task chooser render error: " .. tostring(err))
-        _G.choosers.task:choices({
-            { text = "⚠️ Display error — details in Hammerspoon Console", subText = tostring(err), isHistory = true },
-        })
-    end
-end)
+-- 📌 THE TASK CREATOR MOVED OUT in 6.98.0, to modules/task_creator.lua —
+-- the 30-day history, the attachment upload, the pipe parser, the draft
+-- mirror, the shared submit path (_G.asanaSubmitTask) and its three keys
+-- (⌃⌥⌘T · ⇪⇧S · ⌃⌥⌘A) travel together. The dashboard (§6) stayed here.
 
 -- =====================================================================
 -- 5. HOTKEY INTEGRATIONS
 -- =====================================================================
--- ✏️ EDIT YOUR KEYS HERE — the five core pickers, one line each.
--- Change the letter (or the mods) and reload; nothing else to touch.
--- The Hotkey Sentry (§0.3) will warn at boot if an edit collides with
--- another combo in this file or a known macOS default.
+-- ✏️ EDIT YOUR KEYS HERE — the core pickers still bound in THIS file,
+-- one line each. Change the letter (or the mods) and reload; nothing
+-- else to touch. The Hotkey Sentry (§0.3) will warn at boot if an edit
+-- collides with another combo in this file or a known macOS default.
+-- (⌃⌥⌘A and ⌃⌥⌘T moved to modules/task_creator.lua in 6.98.0; the dead
+-- clipboardHistory row went with them — ⌃⌥⌘V has been bound by
+-- modules/clipboard_history.lua since 6.55.0.)
 local coreKeys = {
-    formatAsanaURL   = { {"cmd", "ctrl", "alt"},  "A" },  -- format Asana URL from clipboard
-    clipboardHistory = { {"ctrl", "alt", "cmd"},  "V" },  -- searchable clipboard history
-    taskCreator      = { {"ctrl", "alt", "cmd"},  "T" },  -- Asana task creator
     activityTracker  = { {"cmd", "alt", "shift"}, "0" },  -- activity tracker picker
     ocrSearch        = { {"cmd", "ctrl", "alt"},  "O" },  -- OCR log search
 }
-
--- Format Asana URL from clipboard
-hs.hotkey.bind(coreKeys.formatAsanaURL[1], coreKeys.formatAsanaURL[2], function()
-    if not requireAsana() then return end
-    local url = hs.pasteboard.readString()
-    if url and url:match("asana%.com") then
-        local id = url:match(".*/(%d+)")
-        if id then
-            hs.http.asyncGet("https://app.asana.com/api/1.0/tasks/" .. id,
-                { ["Authorization"] = "Bearer " .. asanaToken },
-                function(s, b)
-                    if s == 200 then
-                        local taskData = _G.safeJson(b, "asana/task")
-                        if taskData and taskData.data and taskData.data.name then
-                            hs.pasteboard.setContents(taskData.data.name .. " | " .. url)
-                            hs.alert.show("✅ Formatted")
-                        else
-                            hs.alert.show("❌ Failed to parse task name")
-                        end
-                    else
-                        hs.alert.show("❌ API Error: " .. tostring(s))
-                    end
-                end)
-        else
-            hs.alert.show("❌ No Task ID found in URL")
-        end
-    else
-        hs.alert.show("❌ Clipboard does not contain an Asana URL")
-    end
-end)
-
 
 -- 📋 THE CLIPBOARD EDIT PICKER MOVED OUT in 6.55.0, to
 -- modules/clipboard_history.lua — including the snapshot+index pattern
 -- that makes it work at all (hs.chooser rebuilds every choice through
 -- its Objective-C bridge, so table identity cannot survive the trip and
 -- only a NUMBER comes back intact).
-
--- The pipe chooser, openable by name — reopens with the unsent DRAFT
--- (6.10.1). _G. (§0.4). Used by ⇪⇧S, ⇪T's and task_form's fallbacks.
-_G.asanaOpenTaskChooser = function()
-    local draft = _G.taskDraft or ""
-    _G.choosers.task:query(draft)
-    renderTaskChoices(draft)  -- render explicitly; programmatic query() alone isn't guaranteed to re-fire the callback
-    showPopup(_G.choosers.task)
-    if draft ~= "" then
-        hs.alert.show("📝 Draft restored — keep typing, or delete it to start fresh")
-        pcall(taskMirrorShow, draft)   -- mirror needs the popup visible, so after showPopup
-    end
-end
-
--- Task creator — 6.86.0: ⇪T = the labeled FORM; pipe chooser = fallback.
-hs.hotkey.bind(coreKeys.taskCreator[1], coreKeys.taskCreator[2], function()
-    if not requireAsana() then return end
-    if _G.taskFormShow then _G.taskFormShow() return end
-    _G.asanaOpenTaskChooser()
-end)
-
--- 6.86.0: past-task SEARCH on ⇪⇧S (⇪⇧T was the Text Expander's).
-_G.hyperAddShortcut({ "shift" }, "s", function()
-    if not requireAsana() then return end
-    _G.asanaOpenTaskChooser()
-end, "task search — past Asana tasks")
 
 -- App tracker (today's activity; type 'week'/'month'/search once open)
 hs.hotkey.bind(coreKeys.activityTracker[1], coreKeys.activityTracker[2], function()
@@ -3506,6 +2964,8 @@ local BASE = {
     "recent_docs",        -- 6.93.0 ⇪I  the 9 last-opened, then every type you use
     "begone",             -- type `begone` (AFTER text_expander: registers there)
     "search_index", "doc_keywords",  -- 6.96.0 🗂 files behind ⇪D · 🏷 docx tags
+    -- 6.98.0
+    "task_creator",       -- ⌃⌥⌘T create · ⇪⇧S search past · ⌃⌥⌘A format URL
 }
 
 -- BASE minus `without`, plus `plus`. The list is COPIED, never shared: a
@@ -3574,6 +3034,7 @@ local core = {
     popupMods        = popupScreenKeys.mods,
     showPopup        = showPopup,
     resolveBaseScreen = resolveBaseScreen,
+    chooserTopLeft   = chooserTopLeft,   -- 6.98.0: the draft mirror places by it
     panelAlpha       = panelAlpha,
     -- hyper keyspace (§3.12) — the supported way for a module to claim a
     -- ⇪ shortcut. Wrapped rather than captured, so it resolves at call
@@ -3581,6 +3042,9 @@ local core = {
     hyperAddShortcut = function(...) return _G.hyperAddShortcut(...) end,
     -- credentials (§0.2) — nil when secret.lua is absent, by design
     asanaEnabled     = asanaEnabled,
+    -- the press-time gate every Asana hotkey uses: true, or an alert
+    -- explaining that this Mac has no secret.lua (6.98.0, for modules)
+    requireAsana     = requireAsana,
     asanaToken       = asanaToken,
     asanaWorkspaceId = asanaWorkspaceId,
     -- 6.44.0: the Capture Pad files its 4 PM tasks into this project.

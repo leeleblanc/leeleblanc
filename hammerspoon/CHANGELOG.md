@@ -4,6 +4,75 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.98.0 — OCR SEES id= FILES · THE TASK CREATOR MOVES OUT:
+  Two things, both starting from LL's Console questions.
+
+  1) FILE-REFERENCE PATHS RESOLVE NOW. LL pasted:
+     "🏷 OCR tag: clipboard has file URL(s) but no image files matched
+         ↳ first candidate: no file extension found — raw value:
+           \"/.file/id=6571367.18736568/\""
+  and asked: "Isn't this non-breaking? If not, do we even need to show
+  that line or only show when it errors?"
+  Non-breaking, yes — nothing was failing. But the line had caught
+  something real: "/.file/id=…" is a macOS FILE-REFERENCE path (a file
+  named by id instead of by name — some apps put files on the clipboard
+  that way), and the extension check can't see through it, so a REAL
+  IMAGE copied like that was silently skipped. Fixed properly: the
+  filesystem itself translates id paths (realpath), so the candidate is
+  resolved FIRST and judged by its real name — that image OCRs and tags
+  now. And the reporting followed 6.97.0's errors-only rule: ⌘C on
+  ordinary non-image files prints NOTHING (that was most of what this
+  line said), while genuine anomalies — a supported image that isn't
+  readable, a reference path macOS refuses to resolve — print ONE line
+  carrying the ⚠️ mark, which core/console.lua files under NONBREAKING.
+  tests/test_ocr_tag.lua (21 checks) proves all of it on the REAL
+  init.lua source, lifted the way test_hyper_key does.
+
+  2) THE TASK CREATOR IS A MODULE. LL said yes to continuing the
+  migration ("the OCR engine and Asana task creator are the two big
+  blocks left"). The creator was the cleaner, safer cut — the OCR
+  engine shares one clipboard watcher with the history module and was
+  reworked twice in the last two releases, so it goes next, separately.
+  Everything between §3.12 and §5 — the 30-day history, the attachment
+  upload, the pipe parser, the assignee autocomplete, the draft mirror,
+  the one shared submit path, the pipe chooser, and its three keys
+  (⌃⌥⌘T · ⇪⇧S · ⌃⌥⌘A) — now lives in modules/task_creator.lua (module
+  #44), taking shared services from `core` exactly like asana_comments
+  did in 6.40.0. Nothing outside needed changing: every consumer
+  (task_form, unified_search, window_move, §1.5 nudging) already went
+  through guarded _G names, which is what made the cut safe. init.lua
+  drops ~530 lines to ~3,510. core gained two entries for it:
+  requireAsana (the press-time "no secret.lua" gate) and chooserTopLeft
+  (the mirror places by it). The 💬 auto-comment text moved from an
+  init.lua local to M.config.autoComment, so a machine profile can
+  override or disable it per Mac.
+
+  Two real fixes rode along, both stated in the module header:
+  a) 🔐 THE TOKEN LEFT curl's ARGUMENT LIST. The attachment upload ran
+     `curl -H "Authorization: Bearer <token>"` — argv is visible to
+     `ps` for the whole upload, and this was the LAST place the token
+     appeared there (the Capture Pad fixed its own copy in 6.44.2).
+     Same cure: the header goes in a chmod-600 file under
+     ~/.hammerspoon/.tmp — LOCAL disk on purpose, never a OneDrive
+     folder — curl reads `-H @file`, the file dies when curl answers,
+     and warm() sweeps leftovers after a crash.
+  b) UPLOAD SUCCESS IS JUDGED BY HTTP STATUS. curl exits 0 on a 401
+     just as readily as on a 201, so the old check could say
+     "📎 Attachment uploaded" for an upload Asana refused. Now
+     `-w "%{http_code}"` answers and only 200/201 counts; a bounded
+     --max-time keeps a hung upload from holding its history row at
+     "⏳ Posting…" forever.
+
+  tests/test_task_creator.lua (51 checks) boots the real module:
+  history prune/save on real disk, the pipe parser's forgiveness,
+  autocomplete without the roster, submit validation, and C5's
+  security property — NO curl argument contains the token, the header
+  file carries exactly the auth line and is deleted on success AND
+  failure. Counting sentries did their job during the move:
+  test_diagnostics/test_mouse_grid (module count 43→44 in hs-doctor +
+  INSTALL.md) and test_style (the bgWith(panelAlpha) pair now spans
+  two files) all had to be updated to let this ship.
+
 NEW IN 6.97.0 — ☑️ PICK SEVERAL · A QUIETER OCR · THE FILE MAP:
   Three requests, one release.
 

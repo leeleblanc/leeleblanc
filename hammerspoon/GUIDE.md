@@ -9,10 +9,10 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,443 lines)
+├── init.lua          the orchestrator (3,442 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (9 files)
-├── modules/          one file per feature (26 files, ~11,600 lines)
+├── modules/          one file per feature (44 files, ~23,500 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
 └── tools/            hs-install.sh · hs-doctor.sh · run-tests.sh
 ```
@@ -269,14 +269,18 @@ tests/test_doc_keywords.lua  .docx → keywords → Finder comment; a human's co
 tests/test_clipboard.lua     ⇪V, and the writes that must never destroy the history file
 tests/test_select_mode.lua   ☑️ pick-several in the ⇪⇧V/⇪⇧E/⇪⇧O editors — ⇪⇧O runs the
                              real init.lua source, lifted the test_hyper_key way
-tests/test_integration.lua   🚨 all 26 modules loaded TOGETHER: shortcut, service and
+tests/test_ocr_tag.lua       🏷 which files the clipboard points at: /.file/id= paths
+                             resolve, normal misses are silent, anomalies say so
+tests/test_task_creator.lua  ⌃⌥⌘T as a module: history, pipe parser, submit — and the
+                             token NEVER appears in curl's argument list
+tests/test_integration.lua   🚨 all 44 modules loaded TOGETHER: shortcut, service and
                              cheat-sheet-slot collisions — the only suite that can
                              catch two modules quietly claiming the same key
 tests/test_pad_js.js         the Capture Pad's in-page JavaScript, actually executed
 ```
 
 **Run them with `tools/run-tests.sh`, not by hand.** It compiles every
-file first, runs all sixteen suites in order, and is the thing to trust
+file first, runs every suite in order, and is the thing to trust
 before copying anything to a Mac:
 
 ```bash
