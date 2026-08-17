@@ -19,14 +19,23 @@
 -- accessibility window owned by the NotificationCenter process, and
 -- each banner carries a "Close" action — stacks carry "Clear All".
 -- Performing those actions IS the dismissal, exactly as if the pointer
--- had hovered and clicked. System Events is asked politely, in three
+-- had hovered and clicked. System Events is asked politely, in FOUR
 -- dialects, because Apple rearranges this furniture: Big Sur gave each
 -- banner its own window, Monterey/Ventura kept the groups in a scroll
--- area, Sonoma and later nest them one group deeper. All three
--- addresses are tried, and the pass repeats until nothing more closes,
--- because dismissing a stack can reveal the banners underneath it.
--- When Apple moves the furniture again, _G.begoneProbe() prints what
--- the window ACTUALLY contains — the map needed to add the new address.
+-- area, Sonoma nested them one group deeper — and macOS 26 moved them
+-- again, which is why 6.99.0 added the fourth address: when no fixed
+-- path answers, the ENTIRE CONTENTS of every NotificationCenter window
+-- is walked and anything carrying a Clear All or Close action is
+-- pressed, wherever Apple parked it. The pass repeats until nothing
+-- more closes, because dismissing a stack reveals the banners under it.
+-- When even the deep walk finds nothing actionable, the alert says so
+-- and points at _G.begoneProbe() — the map needed for the NEXT address.
+--
+-- 🗂 THIS ALSO CLEARS NOTIFICATION CENTER'S HISTORY — the list behind
+-- the clock — but ONLY while that list is open on screen. A closed
+-- drawer has no UI elements to press; open it (click the clock), type
+-- the word, watch it empty. The alert tells you exactly that when it
+-- finds nothing else to do.
 --
 -- OFF THE MAIN THREAD. The script runs through /usr/bin/osascript as an
 -- hs.task, not hs.osascript — the multi-pass sweep can take a second or
@@ -46,6 +55,7 @@ local M = {
         entries = {
             { "begone",  "Type it anywhere — every notification banner closes" },
             { "typed",   "The word deletes itself; nothing lands in your document" },
+            { "history", "Open Notification Center (click the clock) first and it empties that too" },
             { "⇪⇧T",     "It is in the snippet chooser too — pick it to run it" },
             { "console", "_G.begone() runs it · _G.begoneProbe() maps the banner window" },
             { "needs",   "Accessibility — the same permission the window tools use" },
@@ -71,18 +81,33 @@ function M.setup(core)
     bg.running  = false
 
     -- ---- the sweep -------------------------------------------------------
-    -- One script, three addresses, many passes. Each pass walks whatever
+    -- One script, four addresses, many passes. Each pass walks whatever
     -- container answered, performs the first Clear All or Close action on
     -- every element that has one, and goes around again while progress is
     -- being made — `delay` gives the dismiss animation time to land, and
     -- the pass cap keeps a misbehaving banner from looping forever.
-    -- Returns the number of actions performed, as text on stdout.
+    --
+    -- The fourth address (6.99.0) is the one that survives Apple moving
+    -- the furniture: `entire contents` flattens EVERY element in every
+    -- NotificationCenter window, wherever the groups are nested this
+    -- year, and the try blocks skip everything that has no Close/Clear
+    -- All to press. Slower than a fixed path — which is why the fixed
+    -- paths are still tried first, and why this runs off the main thread.
+    --
+    -- Returns TWO numbers on stdout, "closed seen": how many actions
+    -- were performed, and how many elements were examined at all. The
+    -- difference matters at zero — zero-closed with zero-seen means
+    -- nothing was on screen; zero-closed with plenty seen means Apple
+    -- moved the furniture AGAIN and the probe is the next step. One
+    -- number cannot say which, and 6.92.0–6.98.0 proved a bare zero
+    -- reads as "broken" from the outside.
     bg.script = [[
 on run
 	tell application "System Events"
-		if not (exists application process "NotificationCenter") then return "0"
+		if not (exists application process "NotificationCenter") then return "0 0"
 		tell application process "NotificationCenter"
 			set closed to 0
+			set seen to 0
 			repeat @PASSES@ times
 				set els to {}
 				try
@@ -97,9 +122,19 @@ on run
 				end if
 				if (count of els) = 0 then
 					try
+						repeat with w in windows
+							try
+								set els to els & (entire contents of w)
+							end try
+						end repeat
+					end try
+				end if
+				if (count of els) = 0 then
+					try
 						set els to windows
 					end try
 				end if
+				set seen to seen + (count of els)
 				set did to false
 				repeat with el in els
 					try
@@ -117,7 +152,7 @@ on run
 				if not did then exit repeat
 				delay 0.2
 			end repeat
-			return closed as text
+			return (closed as text) & " " & (seen as text)
 		end tell
 	end tell
 end run
@@ -143,13 +178,35 @@ end run
                     end
                     return
                 end
-                local n = tonumber((sout or ""):match("%d+")) or 0
-                bg.lastRun = { at = os.date("%H:%M:%S"), closed = n, how = how }
-                say(n .. " dismissed (" .. tostring(how) .. ")")
-                pcall(function()
-                    hs.alert.show(n > 0 and ("🔕 " .. n .. " begone")
-                                         or  "🔕 nothing to dismiss")
-                end)
+                -- "closed seen" — see the note above bg.script for why
+                -- zero needs the second number to mean anything.
+                local nums = {}
+                for d in (sout or ""):gmatch("%d+") do nums[#nums + 1] = tonumber(d) end
+                local n, seen = nums[1] or 0, nums[2] or 0
+                bg.lastRun = { at = os.date("%H:%M:%S"), closed = n,
+                               seen = seen, how = how }
+                say(n .. " dismissed, " .. seen .. " examined ("
+                    .. tostring(how) .. ")")
+                local msg
+                if n > 0 then
+                    msg = "🔕 " .. n .. " begone"
+                elseif seen == 0 then
+                    msg = "🔕 nothing to dismiss — no banners on screen.\n"
+                          .. "(To also empty Notification Center's history, "
+                          .. "open it from the clock first, then run again.)"
+                else
+                    -- The furniture moved: things were THERE, none offered
+                    -- a Close. Silence here would be the 6.66.0 sin.
+                    msg = "🔕 saw " .. seen .. " element(s) but macOS offered "
+                          .. "no Close action — run _G.begoneProbe() in the "
+                          .. "Console and send me its output"
+                    if _G.notices then
+                        _G.notices.record("begone", "layout unrecognised",
+                            seen .. " elements, no Close/Clear All action — "
+                            .. "_G.begoneProbe() maps the new layout")
+                    end
+                end
+                pcall(function() hs.alert.show(msg, n > 0 and 2 or 4) end)
             end, { "-e", script })
         end)
         if not (okNew and t) then

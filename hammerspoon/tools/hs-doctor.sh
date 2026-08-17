@@ -92,7 +92,7 @@ else
     [ "$n" = "init" ] && note="⚠️ STRAY init.lua — should NOT be in modules/"
     printf "   %-22s %7s  %-16s %s\n" "$n" "$b" "$m" "$note"
   done
-  echo "   count: $(ls -1 "$HS/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 44)"
+  echo "   count: $(ls -1 "$HS/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 45)"
 fi
 
 # ---- 4b. core ---------------------------------------------------------

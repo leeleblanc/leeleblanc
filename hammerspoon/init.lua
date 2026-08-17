@@ -4,9 +4,17 @@
 -- =====================================================================
 -- 08-17-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.98.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.99.0
 -- =====================================================================
 
+-- NEW IN 6.99.0 — THE NUMBER PAD CAPTURES · THE NOTE PAD · BEGONE 26:
+--   ⇪pad1/2/3 put the clipboard into your notes files (instantly /
+--   via the new Note Pad editor / into a picked file), ⇪pad* and
+--   ⇪pad- type a note straight to Ideas & Scratch or Logs, ⇪pad4
+--   splits windows (⇪\'s move, on an easier key). Every append also
+--   lands as a row in the searchable notes.csv. Begone learned the
+--   macOS 26 notification layout and now says WHY when it closes nothing.
+--
 -- NEW IN 6.98.0 — OCR SEES id= FILES · THE TASK CREATOR MOVES OUT:
 --   Images copied as "/.file/id=…" reference paths now resolve and OCR
 --   (the miss line is errors-only). The Asana task creator became
@@ -21,12 +29,8 @@
 --   ⚠️ nonbreaking errors get their own banner (⛔ = broke, ⚠️ = ran on).
 --   ⇪D lists indexed FILES behind the apps; .docx saves tag themselves.
 --
--- NEW IN 6.95.0 — THE CONSOLE GETS AN ⛔ ERRORS SECTION:
---   Errors print inside a ::⛔:: banner; a repeating line collapses
---   after two showings, counted — _G.errorsReport() has the totals.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.98.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.99.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -263,7 +267,7 @@
 --   §1.4   shared text/CSV helpers (late on purpose — everything
 --          CALLS them after load; nothing above needs them sooner)
 --   §1.12  module loader → BASE list → machine profiles → safe
---          mode → boot report. The 44 modules/*.lua load HERE, last.
+--          mode → boot report. The 45 modules/*.lua load HERE, last.
 -- =====================================================================
 
 -- =====================================================================
@@ -324,7 +328,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.98.0"
+_G.configVersion = "6.99.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2966,6 +2970,9 @@ local BASE = {
     "search_index", "doc_keywords",  -- 6.96.0 🗂 files behind ⇪D · 🏷 docx tags
     -- 6.98.0
     "task_creator",       -- ⌃⌥⌘T create · ⇪⇧S search past · ⌃⌥⌘A format URL
+    -- 6.99.0
+    "note_pad",           -- ⇪pad2 edit clipboard · ⇪pad*/- type a note
+                          -- (AFTER quick_append: it files through its service)
 }
 
 -- BASE minus `without`, plus `plus`. The list is COPIED, never shared: a

@@ -1194,10 +1194,34 @@ check("a bare filename lands in qa.dir",
 
 check("notes.append is published", _G.service.has("notes.append"))
 check("...and routes to a named target",
-      _G.service.call("notes.append", "via service", "Ideas") == true
+      _G.service.call("notes.append", "via service", "Ideas & Scratch") == true
       and io.open(qa.dir .. "/ideas.txt", "r") ~= nil)
+check("notes.appendClipboard is published for ⇪pad1",
+      _G.service.has("notes.appendClipboard"))
+check("notes.pickTarget is published for ⇪pad3",
+      _G.service.has("notes.pickTarget"))
 check("⇪J is claimed", hyperFor({}, "j") ~= nil)
 check("⇪⇧J is claimed", hyperFor({ "shift" }, "j") ~= nil)
+
+-- 6.99.0 — the CSV index: one row per append, quoted like chrome_history
+local csvF = io.open(qa.csvPath(), "r")
+local csvBody = csvF and csvF:read("a") or ""
+if csvF then csvF:close() end
+check("every append also landed one row in notes.csv",
+      csvBody:find("via service", 1, true) ~= nil
+      and csvBody:find("first line", 1, true) ~= nil)
+check("...with the header written exactly once",
+      select(2, csvBody:gsub("date,time,category,note", "")) == 1)
+check("...and the category column carries the target's name",
+      csvBody:find(",Ideas & Scratch,", 1, true) ~= nil)
+local okComma = qa.append("a, note with commas\nand a second line")
+check("a note with commas and newlines appends fine",
+      okComma == true)
+local csvF2 = io.open(qa.csvPath(), "r")
+local csvBody2 = csvF2 and csvF2:read("a") or ""
+if csvF2 then csvF2:close() end
+check("...and its CSV field is quoted whole",
+      csvBody2:find('"a, note with commas\nand a second line"', 1, true) ~= nil)
 
 qa.chooseTarget()
 check("the picker lists every target plus a type-it row",
@@ -1648,37 +1672,54 @@ liveMod.setup(core)
 local live = liveMod.numpad
 live.bound = {}
 local boundCount = live.bindAll()
--- 6.66.0 — THE TOOL LAYER IS EMPTY ON PURPOSE, on LL's instruction, and
--- the count dropped from 30 to 17. Every entry it used to hold was a
--- SECOND way to press a key that already existed (pad7→⇪Q, pad4→⇪R,
--- pad5→⇪X …). Ten keys spent on duplicates is ten keys unavailable for
--- anything new. The window layer stays: its 3×3 map is the only way to do
--- what it does, and it is not duplicated by any letter.
-check("only the WINDOW layer claims keys now — 17, and the tool layer is "
-      .. "deliberately empty", boundCount == 17, boundCount)
+-- 6.66.0 cleared the tool layer (every entry duplicated a letter key);
+-- 6.99.0 claims six of its keys back, on LL's instruction, for things
+-- that exist NOWHERE else on the keyboard: the capture row (pad1 pad2
+-- pad3 pad* pad- → quick append and the Note Pad) plus pad4 → split.
+-- 17 window keys + 6 capture keys = 23.
+check("the WINDOW layer's 17 keys plus the 6.99.0 capture row's 6 — "
+      .. "23 bindings, nothing else", boundCount == 23, boundCount)
 check("...including all ten digits, on the SHIFTED layer", (function()
     for i = 0, 9 do if not hyperFor({ "shift" }, "pad" .. i) then return false end end
     return true
 end)())
-check("🆓 and NO bare ⇪ + pad key is claimed at all — the whole layer is "
-      .. "free for whatever comes next", (function()
-    for i = 0, 9 do if hyperFor({}, "pad" .. i) then return false, i end end
-    for _, k in ipairs({ "pad+", "pad-", "pad*", "pad/", "pad.",
-                         "padenter", "padclear" }) do
-        if hyperFor({}, k) then return false, k end
+check("🚨 the capture row claims EXACTLY its six keys — pad1–4, pad*, "
+      .. "pad- — and nothing has crept onto the keys still promised free",
+      (function()
+    for _, k in ipairs({ "pad1", "pad2", "pad3", "pad4", "pad*", "pad-" }) do
+        if not hyperFor({}, k) then return false, k .. " unclaimed" end
+    end
+    for _, k in ipairs({ "pad0", "pad5", "pad6", "pad7", "pad8", "pad9",
+                         "pad+", "pad/", "pad.", "padenter", "padclear" }) do
+        if hyperFor({}, k) then return false, k .. " claimed" end
     end
     return true
 end)())
 check("...and the arithmetic keys, which live on the WINDOW layer",
       hyperFor({ "shift" }, "pad+") and hyperFor({ "shift" }, "pad-")
       and hyperFor({ "shift" }, "pad*") and hyperFor({ "shift" }, "pad/"))
--- 6.65.0 — pad+ and pad* were spent, deliberately and on the record.
--- The remaining four are still the room set aside for what comes next,
--- and this check is what stops that room being taken by accident.
-check("🆓 EVERY tool-layer key is unclaimed — the table is empty, not "
-      .. "merely short", (function()
-    for _ in pairs(live.actions) do return false end
-    return true
+-- 6.99.0 — the tool layer holds the capture row and ONLY the capture
+-- row, every value a published SERVICE NAME (test_integration resolves
+-- each against the live registry — a function here would dodge that
+-- sentry, which is why this check forbids them).
+check("🚨 the tool layer is EXACTLY the six capture entries, every one "
+      .. "a service-name string", (function()
+    local expect = {
+        pad1     = "notes.appendClipboard",
+        pad2     = "notes.editClipboard",
+        pad3     = "notes.pickTarget",
+        pad4     = "windows.splitTwo",
+        ["pad*"] = "notes.typeIdeas",
+        ["pad-"] = "notes.typeLog",
+    }
+    local n = 0
+    for k, v in pairs(live.actions) do
+        n = n + 1
+        if expect[k] ~= v then
+            return false, k .. " = " .. tostring(v)
+        end
+    end
+    return n == 6, n .. " entries"
 end)())
 -- 🚨 THE ⇪pad+ STORY, pinned so it cannot repeat. That key was assigned
 -- to the pomodoro in 6.65.0, documented, cheat-sheeted and TESTED — and on

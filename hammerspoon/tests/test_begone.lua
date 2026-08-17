@@ -5,10 +5,12 @@
 --
 -- The claims under test: the keyword registers through the expander's
 -- action service (and reports, not warns, when that module is off), the
--- sweep runs osascript OFF the main thread with the three container
--- addresses and the multi-pass loop in its script, the count comes back
--- as an alert, and a Mac that has not granted Accessibility hears about
--- Accessibility — not silence.
+-- sweep runs osascript OFF the main thread with the FOUR container
+-- addresses (6.99.0 added the macOS-26 deep walk) and the multi-pass
+-- loop in its script, the closed/seen pair comes back as an alert that
+-- can tell "nothing there" from "Apple moved the furniture", and a Mac
+-- that has not granted Accessibility hears about Accessibility — not
+-- silence.
 
 local HS = (arg and arg[1]) or os.getenv("HAMMERSPOON_DIR")
            or ((os.getenv("HOME") or ".") .. "/.hammerspoon")
@@ -125,37 +127,59 @@ check("Monterey/Ventura address present",
       script:find("UI elements of scroll area 1 of group 1", 1, true) ~= nil)
 check("Big Sur address present (each banner its own window)",
       script:find("set els to windows", 1, true) ~= nil)
+check("macOS 26 deep walk present — entire contents of every window, "
+      .. "for whenever Apple moves the furniture",
+      script:find("entire contents of w", 1, true) ~= nil)
+check("…and the deep walk is tried BEFORE the bare-windows fallback",
+      (script:find("entire contents of w", 1, true) or math.huge)
+      < (script:find("set els to windows", 1, true) or 0))
 check("Clear All is preferred, Close is the fallback",
       (script:find('"Clear All"', 1, true) or 0)
       < (script:find('action of el whose name is "Close"', 1, true) or 0))
 check("the sweep is multi-pass with the configured cap",
       script:find("repeat 6 times", 1, true) ~= nil
       and script:find("@PASSES@", 1, true) == nil)
-check("no NotificationCenter process short-circuits to zero",
-      script:find('if not (exists application process "NotificationCenter") then return "0"',
+check("no NotificationCenter process short-circuits to zero-zero",
+      script:find('if not (exists application process "NotificationCenter") then return "0 0"',
                   1, true) ~= nil)
+check("the script reports closed AND seen — zero alone cannot say "
+      .. "'nothing there' from 'layout unrecognised'",
+      script:find("(closed as text)", 1, true) ~= nil
+      and script:find("(seen as text)", 1, true) ~= nil)
 check("a second run while one is sweeping is refused",
       bg.run("again") == false and #TASKS == 1)
 
 -- =======================================================================
 out("3) what comes back — counts, zero, and the Accessibility failure\n")
 -- =======================================================================
-T.cb(0, "3\n", "")
+T.cb(0, "3 12\n", "")
 check("the count becomes the alert", ALERTS[1] == "🔕 3 begone", ALERTS[1])
 check("lastRun records the sweep for ⇪⇧D",
       bg.lastRun and bg.lastRun.closed == 3 and bg.lastRun.how == "typed",
       bg.lastRun and bg.lastRun.how)
+check("…and how many elements were examined", bg.lastRun and bg.lastRun.seen == 12)
 check("the flag is back down", bg.running == false)
 
 bg.run("console")
-TASKS[#TASKS].cb(0, "0", "")
-check("zero banners says so honestly", ALERTS[2] == "🔕 nothing to dismiss",
+TASKS[#TASKS].cb(0, "0 0", "")
+check("zero banners says so honestly",
+      ALERTS[2] and ALERTS[2]:find("nothing to dismiss", 1, true) ~= nil,
       ALERTS[2])
+check("…and teaches the history move — open Notification Center, run again",
+      ALERTS[2] and ALERTS[2]:find("Notification Center", 1, true) ~= nil
+      and ALERTS[2]:find("clock", 1, true) ~= nil, ALERTS[2])
+
+bg.run("console")
+TASKS[#TASKS].cb(0, "0 25", "")
+check("zero closed with 25 SEEN is a different message — the furniture moved",
+      ALERTS[3] and ALERTS[3]:find("begoneProbe", 1, true) ~= nil, ALERTS[3])
+check("…and the ledger records the unrecognised layout",
+      noticed("layout unrecognised"))
 
 bg.run("console")
 TASKS[#TASKS].cb(1, "", "osascript is not allowed assistive access")
 check("a refused sweep points at Accessibility",
-      ALERTS[3] and ALERTS[3]:find("Accessibility", 1, true) ~= nil, ALERTS[3])
+      ALERTS[4] and ALERTS[4]:find("Accessibility", 1, true) ~= nil, ALERTS[4])
 check("…and lands in the notices ledger", noticed("sweep failed"))
 check("…and the flag still comes down", bg.running == false)
 

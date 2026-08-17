@@ -87,10 +87,16 @@ local M = {
     name  = "Numpad Layer",
     order = 13.5,
     cheatsheet = {
-        title = "🔢 NUMPAD LAYER (⇪ pad FREE · ⇪⇧ pad windows · ⌘⇧ pad FREE)",
+        title = "🔢 NUMPAD LAYER (⇪ pad capture row · ⇪⇧ pad windows · ⌘⇧ pad FREE)",
         entries = {
-            { "⇪ pad ALL",   "🆓 every key free — cleared 6.66.0, yours to assign" },
-            { "⌘⇧ pad ALL",  "🆓 also free — a REAL modifier, works outside ⇪ too" },
+            { "⇪ pad1",      "Clipboard → default notes file, instantly" },
+            { "⇪ pad2",      "Clipboard → the Note Pad — edit first, ⌘⏎ files it" },
+            { "⇪ pad3",      "Clipboard → pick which file (the ⇪⇧J picker)" },
+            { "⇪ pad4",      "Split the two most recent windows (same as ⇪\\)" },
+            { "⇪ pad*",      "Type a note → Ideas & Scratch" },
+            { "⇪ pad-",      "Type a note → Logs" },
+            { "⇪ pad rest",  "🆓 free — pad0 5 6 7 8 9 . / enter clear, yours to assign" },
+            { "⌘⇧ pad ALL",  "🆓 all free — a REAL modifier, works outside ⇪ too" },
             { "how",         "Add padN = \"some.service\" in numpad_layer.lua —" },
             { "",            "numpad.actions (⇪) or numpad.cmdShiftActions (⌘⇧)" },
             { "first",       "_G.padProbe() — which pad keys this Mac can send" },
@@ -158,17 +164,22 @@ function M.setup(core)
     --
     -- Grouped by ROW, because unlike the window layer there is no spatial
     -- truth to appeal to and pretending otherwise is a mnemonic that lies:
-    --      top row    (7 8 9) — meetings and machine health
-    --      middle row (4 5 6) — the three pickers
     --      bottom row (1 2 3) — clipboard and capture
-    -- 🧹 6.66.0 — CLEARED, ON REQUEST. Every entry that used to be here
-    -- was a SECOND way to press a key you already had:
-    --      pad7 pad8 → ⇪Q ⇪⇧Q      pad4 → ⇪R       pad5 → ⇪X
-    --      pad9 pad0 → ⇪⇧H         pad6 → ⇪M       pad1 → ⇪K
-    --      pad2 → the Capture Pad  pad3 → ⇪⇧0      pad. → ⇪⇧R
-    -- Ten keys spent on duplicates is ten keys not available for anything
-    -- new, and none of them was reachable more easily than the letter it
-    -- shadowed. The whole ⇪ + pad layer is now FREE.
+    -- 🧹 6.66.0 CLEARED the whole layer: every entry was a second way to
+    -- press a key you already had, and ten keys spent on duplicates were
+    -- ten keys unavailable for anything new.
+    -- ✍️ 6.99.0 CLAIMS SIX, ON REQUEST — and none is a duplicate this
+    -- time; each is a NEW capture path that exists nowhere else on the
+    -- keyboard (pad4's split is the one echo, kept deliberately: ⇪\ still
+    -- works, the pad key is just easier to find):
+    --      pad1  clipboard → the default notes file, no questions
+    --      pad2  clipboard → the Note Pad editor — read it, fix it, file it
+    --      pad3  clipboard → the pick-a-file chooser
+    --      pad4  split the two most recent windows side-by-side
+    --      pad*  an empty Note Pad aimed at Ideas & Scratch
+    --      pad-  an empty Note Pad aimed at Logs
+    -- The rest of the layer stays free: pad0 pad5–pad9 pad. pad/
+    -- padenter padclear.
     --
     -- ✏️ TO CLAIM ONE: add `padN = "some.service"` here and reload. The
     -- value may be a published service name, a zone name, or a function.
@@ -183,9 +194,16 @@ function M.setup(core)
     -- is that the key simply does nothing and only a console line says so.
     -- That is exactly how ⇪pad+ came to be documented, tested, shipped and
     -- dead on LL's Mac. padProbe() prints every pad key and whether this
-    -- Mac can actually send it.
+    -- Mac can actually send it. (pad* and pad- below have codes on LL's
+    -- Mac — pad+ is the one his keyboard cannot send, which is why the
+    -- note keys avoid it.)
     numpad.actions = {
-        -- 🆓 EVERY ⇪ + pad KEY IS FREE. See the note above.
+        pad1     = "notes.appendClipboard",   -- quick_append
+        pad2     = "notes.editClipboard",     -- note_pad
+        pad3     = "notes.pickTarget",        -- quick_append
+        pad4     = "windows.splitTwo",        -- window_arranger
+        ["pad*"] = "notes.typeIdeas",         -- note_pad
+        ["pad-"] = "notes.typeLog",           -- note_pad
     }
 
     -- ---- LAYER 2: ⇪⇧ + pad → WINDOWS ------------------------------------

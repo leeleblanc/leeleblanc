@@ -26,7 +26,7 @@ with no admin password. The two steps that *can* use admin are marked
 │   ├── changelog_csv.lua     one Excel-ready row per version
 │   ├── console.lua           the ⛔ ERRORS + ⚠️ NONBREAKING sections + repeat limiter
 │   └── notices.lua           the failure ledger — nothing fails silently
-├── modules/              44 files, loaded by the §1.12 loader
+├── modules/              45 files, loaded by the §1.12 loader
 ├── tools/                hs-doctor.sh · hs-install.sh · run-tests.sh
 └── logs/                 only if there is no OneDrive on this Mac
 ```
@@ -67,12 +67,13 @@ this and tells you.
 
 ## Step 3 — Put the files in place
 
-Download the latest release zip, then:
+Download the latest release zip, then (the zip has `init.lua` at its
+root — no wrapper folder — so the unzip folder IS the source folder):
 
 ```sh
 unzip ~/Downloads/hammerspoon-*.zip -d ~/Downloads/hs-new
-sh ~/Downloads/hs-new/*/tools/hs-install.sh ~/Downloads/hs-new/*  --dry-run
-sh ~/Downloads/hs-new/*/tools/hs-install.sh ~/Downloads/hs-new/*
+sh ~/Downloads/hs-new/tools/hs-install.sh ~/Downloads/hs-new  --dry-run
+sh ~/Downloads/hs-new/tools/hs-install.sh ~/Downloads/hs-new
 ```
 
 `--dry-run` shows what it would do and changes nothing. The real run backs
@@ -217,8 +218,10 @@ run and whether it exists here, and every path it writes to. Read-only.
 | ⇪Q | focus mode (Quiet) — mutes the mic and dims everything but the meeting |
 | ⇪R | bulk rename the Finder selection · undo is the picker's first row |
 | ⇪⇧S | workspaces — pick one for this Space, it is remembered |
-| ⇪ pad7 | number pad → focus mode. ⇪ pad = TOOLS, the primary layer |
-| ⇪⇧ pad7 | same key, shifted → window to the top-left quarter |
+| ⇪ pad1 | clipboard → your default notes file, confirmed with a preview |
+| ⇪ pad2 | clipboard → the Note Pad — edit it first, ⌘⏎ files it |
+| ⇪ pad* | an empty Note Pad aimed at Ideas & Scratch (⇪ pad- → Logs) |
+| ⇪⇧ pad7 | number pad, shifted → window to the top-left quarter |
 | ⌃⌥⌘V | clipboard history |
 
 If **⇪ does nothing at all**, the Caps Lock remap was refused — check
@@ -283,7 +286,7 @@ No OneDrive on that Mac is fine — logs fall back to
 sh ~/.hammerspoon/tools/run-tests.sh ~/.hammerspoon
 ```
 
-Syntax on `init.lua`, `core/` and all 44 modules, thirty-six Lua suites, then the
+Syntax on `init.lua`, `core/` and all 45 modules, thirty-seven Lua suites, then the
 Capture Pad's page JavaScript **executed** against a DOM stub. One exit
 code. A skipped stage is reported as a skip, never as a pass.
 

@@ -266,6 +266,12 @@ function M.setup(core)
     hs.hotkey.bind(windowKeys.halfMods, windowKeys.restore,   restorePriorFrame)
     hs.hotkey.bind(windowKeys.monitorMods, windowKeys.monitorRight, function() moveFocusedToMonitor("east") end)
     hs.hotkey.bind(windowKeys.monitorMods, windowKeys.monitorLeft,  function() moveFocusedToMonitor("west") end)
+
+    -- 6.99.0 — published so the numpad layer can put the split on ⇪pad4.
+    -- LL asked after ⇪\ (the backslash/pipe key, awkward to reach): the
+    -- key STAYS bound, this just gives the same move a second, easier
+    -- address by service name.
+    core.provide("windows.splitTwo", function() splitTopTwo() return true end)
 end
 
 return M

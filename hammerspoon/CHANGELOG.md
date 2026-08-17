@@ -4,6 +4,86 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.99.0 — THE NUMBER PAD CAPTURES · THE NOTE PAD · BEGONE ON 26:
+  Three asks in one message, plus a bug report with a screenshot.
+
+  1) THE ⇪ + pad CAPTURE ROW. LL: "Can we use the
+  hyper+shift+numpad+{number} for quick append …" — with the ⇪⇧pad
+  layer already spent on the window grid (and worth keeping: it is the
+  spatial map), the requests landed on the PLAIN ⇪pad layer, which
+  6.66.0 cleared for exactly this day. Six keys are claimed, all by
+  published service name, none a duplicate of a letter key:
+     ⇪pad1  clipboard → the default notes file, instantly, confirmed
+            with the file, the line count and a preview
+     ⇪pad2  clipboard → the NEW Note Pad — read what you copied, fix
+            it, ⌘⏎ files it (the "quick edit with an editor" ask)
+     ⇪pad3  clipboard → the pick-a-file chooser (⇪⇧J's picker)
+     ⇪pad4  split the two most recent windows side-by-side. LL asked
+            after "hyper+cmd+|": that key is ⇪\ — the backslash/pipe
+            key — carrying the split. ⇪\ still works; pad4 is the
+            easier address. window_arranger publishes windows.splitTwo.
+     ⇪pad*  an empty Note Pad aimed at Ideas & Scratch
+     ⇪pad-  an empty Note Pad aimed at Logs
+  pad+ was deliberately avoided — hs.keycodes.map["pad+"] is nil on
+  LL's Mac (the 6.65.0 lesson padProbe() exists to teach). The rest of
+  the layer stays free: pad0 pad5–9 pad. pad/ padenter padclear.
+
+  2) THE NOTE PAD (modules/note_pad.lua, module #45). "On open, use a
+  window like 'Capture Pad'" — so it IS that window: same dark card,
+  same drag header, same ⌘⏎, non-activating panel, over-full-screen
+  behaviour and the say()-carries-the-text rule all inherited from the
+  Capture Pad's hard-won history. But where ⇪N queues for ASANA, this
+  files to the QUICK APPEND TEXT FILES and closes. The target row
+  (⌘1/⌘2/⌘3 or a click) re-aims a note without losing a character;
+  ⌘⇧C copies the edited text back to the clipboard, counted; a failed
+  save keeps the pad OPEN, because closing would discard the only copy.
+  No webview? The plain prompt files through the same service. And on
+  request the targets slimmed: "Ideas" and "Scratch" are ONE line now —
+  Ideas & Scratch (ideas.txt; an old scratch.txt keeps its text, it
+  just isn't offered) — and "Log" reads "Logs".
+
+  3) notes.csv — THE SEARCHABLE INDEX. "Build a searchable .csv file
+  that I can draw on with entries for 'Idea & Scratch' and 'Logs'."
+  Every append — ⇪J, ⇪⇧J, every pad key, the Note Pad, the
+  notes.append service — now also writes ONE CSV row next to the text
+  files: date, time, category (the target's name), note. Quoted the
+  chrome_history way, so Excel opens it by double-click and a
+  multi-line note stays one row. The text file remains the thing you
+  READ; the CSV is the thing you SEARCH. If the row fails while the
+  text write succeeded, the alert says so — two stores that drift
+  silently are worse than one.
+
+  4) BEGONE LEARNED THE macOS 26 LAYOUT. LL: "Begone doesn't seem to
+  be working. See screenshot." The screenshot showed WHY: the sweep
+  knew three fixed addresses (Big Sur / Monterey–Ventura / Sonoma),
+  macOS 26 moved the furniture again, and the last-resort fallback
+  pressed Close on WINDOWS — which carry no such action — so it
+  reported "nothing to dismiss" at a screen full of notifications.
+  Two changes:
+  a) A FOURTH ADDRESS: when no fixed path answers, the entire contents
+     of every NotificationCenter window is walked and anything with a
+     Clear All or Close action is pressed, wherever Apple nested it
+     this year. Clear All still outranks Close; still multi-pass;
+     still off the main thread.
+  b) ZERO IS TWO DIFFERENT ANSWERS NOW. The script returns "closed
+     seen", and the alert can finally tell the truth apart: zero seen
+     → "no banners on screen — open Notification Center from the
+     clock first to also empty its history" (the drawer's list is only
+     reachable while it is OPEN); plenty seen but zero closed → "run
+     _G.begoneProbe()", plus a notices-ledger entry, because that is
+     the furniture moving again and the probe maps the new address.
+
+  Docs rode along: INSTALL.md Step 3 no longer globs for a wrapper
+  folder the zip does not contain (init.lua sits at the zip ROOT — the
+  old commands died safely at the installer's completeness check, but
+  died), Step 9 and GUIDE §8 describe the capture row, and the module
+  count sentries moved 44→45 (hs-doctor, INSTALL.md, the loader map).
+  NEW tests/test_note_pad.lua (39 checks); test_begone grew the
+  macOS 26 checks (deep walk present and ordered before the bare-
+  windows fallback, closed/seen contract, the three zero messages);
+  test_features covers the merged targets and the CSV (header once,
+  commas and newlines quoted whole). The runner is 43 stages.
+
 NEW IN 6.98.0 — OCR SEES id= FILES · THE TASK CREATOR MOVES OUT:
   Two things, both starting from LL's Console questions.
 

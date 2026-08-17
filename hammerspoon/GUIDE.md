@@ -361,7 +361,7 @@ entire config down rather than one feature.
 ## 8. The number pad, as a second keyboard
 
 Yes — the pad is a **separate key path**, and it is **live on two
-layers**: `⇪ + pad` drives tools (the primary layer), `⇪⇧ + pad`
+layers**: `⇪ + pad` is the capture row (6.99.0 — see below), `⇪⇧ + pad`
 drives windows. It
 sends its own key codes, so `⇪7`, `⇪pad7` and `⇪⇧pad7` are three
 different shortcuts and all three are free:
@@ -389,6 +389,22 @@ looks like.
    0              maximise        pad.  put it back
    + -            grow / shrink   / *   previous / next monitor
 ```
+
+The plain `⇪ + pad` layer is the **capture row** (6.99.0):
+
+```
+   ⇪pad1   clipboard → default notes file, instantly
+   ⇪pad2   clipboard → the Note Pad — edit first, ⌘⏎ files it
+   ⇪pad3   clipboard → pick which file (the ⇪⇧J picker)
+   ⇪pad4   split the two most recent windows (same move as ⇪\)
+   ⇪pad*   empty Note Pad → Ideas & Scratch
+   ⇪pad-   empty Note Pad → Logs
+```
+
+Everything a pad key files also lands as one row in
+`<logs>/notes/notes.csv` — date, time, category, note — which Excel
+opens by double-click. The rest of the layer (`pad0`, `pad5`–`pad9`,
+`pad.`, `pad/`, `padenter`, `padclear`) stays free.
 
 To use the pad for something else, edit `numpad.actions` at the top of
 `setup()`. A value may be a zone name, a function, or the name of a

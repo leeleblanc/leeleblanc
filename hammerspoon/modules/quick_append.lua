@@ -19,18 +19,33 @@
 -- SILENTLY unless you look. Every path here checks, and reports through
 -- core.warnWriteFailed so a missing folder says so once rather than
 -- once per keystroke.
+--
+-- 🧾 6.99.0 — EVERY APPEND ALSO LANDS AS ONE CSV ROW in notes.csv, next
+-- to the text files: date, time, category, note. The text file stays the
+-- thing you read; the CSV is the thing you SEARCH and sort — Excel opens
+-- it by double-click, exactly like chrome_history's archive. A note that
+-- reaches its text file but misses the CSV says so in the alert instead
+-- of letting the two files drift apart silently.
+--
+-- 🔢 ALSO 6.99.0 — the number pad's bottom row drives this module:
+-- ⇪pad1 appends the clipboard, ⇪pad2 opens it in the Note Pad editor
+-- first, ⇪pad3 asks which file. The bindings live in numpad_layer.lua
+-- (by service name); the services live here.
 
 local M = {
     name  = "Quick Append",
     order = 13.3,
     cheatsheet = {
-        title = "📝 QUICK APPEND (⇪J — clipboard into a file, no editor)",
+        title = "📝 QUICK APPEND (⇪J / ⇪pad1 — clipboard into a file, no editor)",
         entries = {
             { "⇪J",  "Append the clipboard to the default notes file" },
+            { "⇪pad1", "The same, from the number pad" },
             { "⇪⇧J", "Pick which file — or type a line instead of pasting" },
+            { "⇪pad3", "The same picker, from the number pad" },
             { "adds", "A timestamp line, then your text, then a blank line" },
             { "shows", "The file, the line count, and the first words it wrote" },
             { "files", "Live in <logs>/notes/ — edit quickAppend.targets to change" },
+            { "csv",  "Every append is also one row in notes.csv — date, time, category, note" },
             { "safe", "Append mode: never truncates, never holds the file open" },
         },
     },
@@ -44,11 +59,14 @@ function M.setup(core)
     -- Where a bare filename below resolves to. An absolute path or one
     -- starting with ~ is used exactly as written and ignores this.
     qa.dir = (core.logsDir or core.homeDir) .. "/notes"
+    -- 6.99.0 — Ideas and Scratch are ONE line now, on request. Both were
+    -- empty when they merged; an old scratch.txt on disk keeps its text,
+    -- it simply stops being offered. "Log" reads "Logs" for the same
+    -- reason: it is the name the CSV category column carries.
     qa.targets = {
-        { name = "Inbox",   file = "inbox.txt",   note = "anything, sorted later" },
-        { name = "Ideas",   file = "ideas.txt",   note = "half-formed thoughts" },
-        { name = "Scratch", file = "scratch.txt", note = "throwaway" },
-        { name = "Log",     file = "log.txt",     note = "what happened today" },
+        { name = "Inbox",           file = "inbox.txt", note = "anything, sorted later" },
+        { name = "Ideas & Scratch", file = "ideas.txt", note = "half-formed and throwaway alike" },
+        { name = "Logs",            file = "log.txt",   note = "what happened today" },
     }
     qa.defaultTarget = 1        -- index into qa.targets, used by ⇪J
     qa.stamp         = true     -- write a "── 2026-08-07 20:41 ──" line first
@@ -56,6 +74,8 @@ function M.setup(core)
     qa.trailingBlank = true     -- blank line after each entry
     qa.maxPreview    = 60       -- characters of the entry shown in the alert
     qa.key           = "j"
+    qa.csv           = true     -- one row per append in <qa.dir>/notes.csv
+    qa.csvName       = "notes.csv"
     -- ----------------------------------------------------------------------
 
     local function expand(path)
@@ -92,6 +112,42 @@ function M.setup(core)
         -- A final line with no newline after it still counts.
         if #text > 0 and text:sub(-1) ~= "\n" then n = n + 1 end
         return n
+    end
+
+    -- Standard CSV quoting, the same convention chrome_history uses: a
+    -- field is wrapped only when it needs to be, and a quote inside it
+    -- is doubled. Newlines stay real newlines inside the quotes — that
+    -- IS valid CSV, and Excel reads a quoted multi-line note correctly.
+    local function csvField(s)
+        s = tostring(s or "")
+        if s:find('[",\n]') then s = '"' .. s:gsub('"', '""') .. '"' end
+        return s
+    end
+
+    function qa.csvPath() return qa.dir .. "/" .. qa.csvName end
+
+    -- One row per append: date, time, category (the target's name), note.
+    -- Called only AFTER the text file took the entry — the CSV is an
+    -- index of what was written, so it must never say more than the
+    -- files do. Returns false rather than raising; the caller folds the
+    -- failure into the alert, because a CSV that quietly stops growing
+    -- is a search that quietly starts lying.
+    local function csvRecord(target, text)
+        if not qa.csv then return true end
+        local path = qa.csvPath()
+        local fresh = hs.fs.attributes(path) == nil
+        local f = io.open(path, "a")
+        if not f then
+            if core.warnWriteFailed then core.warnWriteFailed("notes csv " .. path) end
+            return false
+        end
+        local okWrite = pcall(function()
+            if fresh then f:write("date,time,category,note\n") end
+            f:write(os.date("%Y-%m-%d") .. "," .. os.date("%H:%M:%S") .. ","
+                    .. csvField(target.name) .. "," .. csvField(text) .. "\n")
+        end)
+        local okClose = pcall(function() return f:close() end)
+        return okWrite and okClose
     end
 
     -- The one function that writes. Returns ok, message — never throws and
@@ -132,10 +188,19 @@ function M.setup(core)
             return false, "write failed — " .. tostring(writeErr)
         end
 
+        local csvOk = csvRecord(target, text)
+        if not csvOk and _G.notices then
+            _G.notices.record("quickAppend", "csv row failed",
+                qa.csvPath() .. " — the note IS in " .. target.name
+                .. "'s text file; only the searchable index missed it")
+        end
+
         _G.diag.say("quickAppend", string.format("wrote %d chars to %s", #chunk, path))
-        return true, string.format("📝 %s ← %d line%s: %s",
+        local msg = string.format("📝 %s ← %d line%s: %s",
             target.name, countLines(text), countLines(text) == 1 and "" or "s",
             firstWords(text, qa.maxPreview))
+        if not csvOk then msg = msg .. " (⚠️ the notes.csv row was not written)" end
+        return true, msg
     end
 
     -- ---- the two keys ----------------------------------------------------
@@ -231,6 +296,12 @@ function M.setup(core)
         end
         return qa.append(text, target)
     end)
+    -- 6.99.0 — the two keyed entry points, published for the numpad
+    -- layer: ⇪pad1 → the clipboard into the default file, ⇪pad3 → the
+    -- clipboard into a PICKED file. The pad binds by service name so a
+    -- profile without this module gets "no provider", not a dead key.
+    core.provide("notes.appendClipboard", function() return qa.appendClipboard() end)
+    core.provide("notes.pickTarget",      function() return qa.chooseTarget() end)
 
     _G.quickAppend = qa
     M.qa     = qa
