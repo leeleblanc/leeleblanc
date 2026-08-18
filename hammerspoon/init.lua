@@ -4,9 +4,20 @@
 -- =====================================================================
 -- 08-18-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.102.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.103.0
 -- =====================================================================
 
+-- NEW IN 6.103.0 — DOCK BACK IN, WINDOWS GO BACK:
+--   "Windows scattering when I plug into the dock" — fixed, natively.
+--   The new Window Return module quietly remembers where your windows
+--   sit for EACH monitor setup (every 30s, per screen-UUID signature),
+--   and when a setup returns it puts the scattered windows back —
+--   matching by window id, then exact app+title, guarded so nothing is
+--   ever flung off-screen or guessed at. Frames only, the visible
+--   Space only: the SpaceSaver Spoon was assessed and deliberately NOT
+--   adopted (synthetic mouse drags, Space cycling, yq — see the
+--   module header). _G.windowsBack() runs it by hand. No new key.
+--
 -- NEW IN 6.102.0 — PICKERS DRAG BY THEIR SEARCH BAND:
 --   "I should be able to click and hold then move the window" finally
 --   holds for the grey pickers too: a bare click-hold on the SEARCH
@@ -42,18 +53,8 @@
 --   canvases) and retries the alert one run-loop turn later —
 --   _G.phantom() in the Console runs the same sweep by hand.
 --
--- NEW IN 6.100.0 — ONE BOX, FOUR DESTINATIONS · BEGONE READS DESCRIPTIONS:
---   The Quick Append Pad (⇪pad2) combines the Capture Pad and Quick
---   Append: each line routes by prefix — * Idea, + Log, ! Asana task,
---   ? Asana note, plain = Log — and CLOSING FILES EVERYTHING. Targets
---   are exactly Logs (default) and Ideas; notes.csv is | Date | Note
---   Type | Note entry |. At 16:01 daily the pad opens with today's
---   notes asking which become tasks. Begone now matches Close/Clear All
---   by action DESCRIPTION too (macOS 26 renamed the names) and presses
---   close buttons directly.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.102.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.103.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -290,7 +291,7 @@
 --   §1.4   shared text/CSV helpers (late on purpose — everything
 --          CALLS them after load; nothing above needs them sooner)
 --   §1.12  module loader → BASE list → machine profiles → safe
---          mode → boot report. The 45 modules/*.lua load HERE, last.
+--          mode → boot report. The 46 modules/*.lua load HERE, last.
 -- =====================================================================
 
 -- =====================================================================
@@ -351,7 +352,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.102.0"
+_G.configVersion = "6.103.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -3065,6 +3066,8 @@ local BASE = {
     "note_pad",           -- ⇪pad2 one box: * idea + log ! task ? note
                           -- (AFTER quick_append AND capture_pad: it files
                           --  through both of their services)
+    -- 6.103.0
+    "window_return",      -- 🔁 dock back in, windows go back (no key)
 }
 
 -- BASE minus `without`, plus `plus`. The list is COPIED, never shared: a

@@ -4,6 +4,47 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.103.0 — DOCK BACK IN, WINDOWS GO BACK:
+  LL: "Windows scattering when I plug into the dock. Yup." The story
+  behind this one: LL brought in two community Spoons to evaluate.
+  WinPin (pin a note to a window) was judged worth adapting and is
+  still on the backlog. SpaceSaver — 1,600 lines that save and restore
+  macOS Spaces layouts per monitor configuration — was judged the
+  right pain but the wrong tool for this config: because
+  hs.spaces.moveWindowToSpace silently fails on macOS 15+, it moves
+  windows by SYNTHESIZING REAL MOUSE DRAGS and cycling through every
+  Space on capture, which fights Window Move's click tap and
+  coexist.lua head-on, depends on an external yq binary against the
+  work-Mac constraint, and none of it is testable in the stubbed
+  suites. The 80% of the value is dock/undock recovery, and that
+  needs none of the above.
+
+  So: modules/window_return.lua (the 46th module, Windows family, no
+  key). Every 30s it quietly remembers where your visible windows sit,
+  filed under a SIGNATURE of the connected screens (sorted UUIDs) —
+  the laptop alone is one setup, laptop+dock another, each with its
+  own memory. When a monitor change settles into a setup it knows
+  (the settle wait is SpaceSaver's hardest-won lesson, kept: monitors
+  arrive one at a time, DisplayLink ones change resolution late, and
+  restoring early gets undone), the scattered windows are put back —
+  matched by window id first (ids outlive reloads and dock cycles;
+  they die only with the app), then by exact bundle+title, each side
+  consumed as it matches so two "Untitled" windows get one frame
+  each. A frame whose center lands on no current screen is skipped,
+  never flung; a window within 4px is left alone; an unmatched window
+  is never guessed at. Snapshots pause while a change is in flight so
+  a mid-transition mess is never saved over a good layout. Layouts
+  persist in hs.settings. _G.windowsBack() is the by-hand version,
+  and it answers honestly when there is nothing to do. Without
+  Accessibility the module stands down and says so instead of polling
+  windows it cannot move. Scope stated plainly: frames only, the
+  visible Space only — hs.spaces is never touched.
+
+  Also: INSTALL.md's Step 9 still promised "⇪⇧S workspaces", a
+  feature that stopped existing when 6.86.0 gave ⇪⇧S to past-task
+  search. The row now tells the truth, and Step 9 gained the
+  unplug/replug check.
+
 NEW IN 6.102.0 — PICKERS DRAG BY THEIR SEARCH BAND:
   LL, with a screenshot of the Activity Report: "I can't move gray
   window and you say I could move them all." The gray windows are the
