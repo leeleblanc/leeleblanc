@@ -4,6 +4,45 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.100.2 — THE CHEAT SHEET STOPS SHOUTING:
+  LL: "soften the black boxes around each tool to a similar gray of
+  each shortcut box."
+
+  6.94.0 put every tool's section on ⇪/ inside a black-outlined box,
+  which was the ask at the time and read well at three or four
+  sections. There are forty-two. At that count a 2px black stroke
+  around each one stops being a frame and becomes a GRID ruled over
+  the sheet — the eye lands on the lines instead of the words, and the
+  black is the one colour on the panel that nothing else uses.
+
+  So the section edge is now the SHARED hairline: modules/ui_style.lua's
+  `stroke`, the same grey at the same width as the cheat sheet panel's
+  own border and every other card in the config. The grouping that the
+  black was carrying moves to the fill — each box lifts off the panel a
+  little more (0.045 → 0.07) so a tool still reads as its own card
+  rather than a run of rows. Same boxes, same one-per-section rule,
+  same scrolling behaviour; only the shouting is gone.
+
+  ONE HAIRLINE, NAMED ONCE. The panel's edge and the section boxes now
+  draw from a single `edge` local, so "the boxes match the panel" is
+  true by construction. They were two literals that happened to agree —
+  and in the fallback path (no ui_style loaded) they did NOT agree,
+  0.22 against 0.18, which is exactly the drift this removes.
+  ✏️ Both knobs are named and commented at the draw site: put a colour
+  of your own in sectionEdge for a stronger outline (the old black was
+  { white = 0, alpha = 0.90 } at strokeWidth 2), or raise sectionFill
+  to stand the cards further off the panel.
+
+  🚨 AND THE TEST THAT WAS NOT TESTING. test_cheatsheet found section
+  boxes by `strokeColor.white == 0` — it was really asking "is it
+  black?", so the moment the colour changed, five structural checks
+  (one box per section, clear of the scrollbar, drawn under the text,
+  rows inside their bounds, boxes follow the scroll) would have gone on
+  passing while matching NOTHING. Boxes are now identified by shape —
+  a stroked rectangle with a frame of its own — and the colour ask is
+  asserted as a RELATIONSHIP: each box wears the same stroke as the
+  panel's own edge, whatever that is. 140 checks, 4 of them new.
+
 NEW IN 6.100.1 — THE PHANTOM PILL GETS SWEPT:
   LL, with a screenshot of an empty black pill with a white border,
   parked on screen and taking no clicks: "I don't know how to fix this

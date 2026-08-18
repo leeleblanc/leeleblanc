@@ -964,11 +964,19 @@ do
 end
 
 -- =====================================================================
-print("\n=== SECTIONS BOXED IN BLACK, SIZED TO THE MONITOR (6.94.0) ===")
+print("\n=== SECTIONS BOXED, SIZED TO THE MONITOR (6.94.0 · softened 6.100.2) ===")
 -- =====================================================================
 -- LL: "Can we make the cheat sheet flexible and dynamic so that it
 -- scales to the size of the monitor and ... each section on the sheet
--- for each tool be outlined in Black?"
+-- for each tool be outlined in Black?" — then, 6.100.2: "soften the
+-- black boxes around each tool to a similar gray of each shortcut box".
+-- 🚨 THE BOXES ARE FOUND BY SHAPE, NOT BY COLOUR. The first version of
+-- this harness matched strokeColor.white == 0, so it was really asking
+-- "is it black?" — and every structural check below (one per section,
+-- clear of the scrollbar, under the text) silently stopped testing
+-- anything the moment the colour changed. A section box is now
+-- identified the way it actually differs from the panel and the
+-- scrollbar: a stroked rectangle WITH a frame of its own.
 do
   SCR = { x = 0, y = 0, w = 3840, h = 2160 }
   CS.pos, CS.query = nil, ""
@@ -978,19 +986,39 @@ do
   local function boxes()
     local out = {}
     for _, e in ipairs(drawn) do
-      if e.type == "rectangle" and e.strokeColor
-         and e.strokeColor.white == 0 then
+      if e.type == "rectangle" and e.action == "strokeAndFill" and e.frame then
         out[#out + 1] = e
       end
     end
     return out
   end
   local bx = boxes()
-  check("every visible section sits in a black-outlined box", #bx >= 3, #bx)
-  check("...the outline is BLACK, as asked, and thick enough to see",
-        bx[1] and bx[1].strokeColor.white == 0
-        and (bx[1].strokeColor.alpha or 1) >= 0.8
-        and (bx[1].strokeWidth or 0) >= 2)
+  check("every visible section sits in its own outlined box", #bx >= 3, #bx)
+  -- The ask, asserted as a RELATIONSHIP rather than a hard-coded colour:
+  -- the section edge is the same hairline the panel itself is drawn with.
+  local panelEdge
+  for _, e in ipairs(drawn) do
+    if e.type == "rectangle" and e.action == "strokeAndFill" and not e.frame then
+      panelEdge = panelEdge or e
+    end
+  end
+  check("the panel's own edge is findable, to compare against", panelEdge ~= nil)
+  check("...and each tool's box wears the SAME grey hairline as the panel "
+        .. "— siblings, not a black grid ruled over the sheet",
+        bx[1] and panelEdge
+        and bx[1].strokeColor.white == panelEdge.strokeColor.white
+        and bx[1].strokeColor.alpha == panelEdge.strokeColor.alpha
+        and bx[1].strokeWidth == panelEdge.strokeWidth,
+        bx[1] and bx[1].strokeColor and
+          ("white=" .. tostring(bx[1].strokeColor.white)
+           .. " alpha=" .. tostring(bx[1].strokeColor.alpha)))
+  check("...it is GREY, never black again — black is what was softened",
+        bx[1] and (bx[1].strokeColor.white or 0) > 0.5
+        and (bx[1].strokeColor.alpha or 1) < 0.5)
+  check("...and the grouping survives the softer edge: each box still "
+        .. "lifts off the panel with a fill of its own",
+        bx[1] and bx[1].fillColor and (bx[1].fillColor.alpha or 0) >= 0.05,
+        bx[1] and bx[1].fillColor and bx[1].fillColor.alpha)
 
   -- One box per visible SECTION — the spacer rows between groups are the
   -- gaps between boxes, never boxed themselves. Counted from the state
@@ -1015,8 +1043,9 @@ do
         .. "never through it", (function()
     local lastRect, firstText
     for i, e in ipairs(drawn) do
-      if e.type == "rectangle" and e.strokeColor
-         and e.strokeColor.white == 0 then lastRect = i end
+      if e.type == "rectangle" and e.action == "strokeAndFill" and e.frame then
+        lastRect = i
+      end
       if e.type == "text" and not firstText then firstText = i end
     end
     return lastRect and firstText and lastRect < firstText

@@ -4,9 +4,16 @@
 -- =====================================================================
 -- 08-18-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.100.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.100.2
 -- =====================================================================
 
+-- NEW IN 6.100.2 — THE CHEAT SHEET STOPS SHOUTING:
+--   Each tool's box on ⇪/ was outlined in hard black — fine at three
+--   sections, a heavy grid at forty-two. The outline is now the same
+--   grey hairline every other card in the config wears, and each box
+--   lifts off the panel with a little more fill instead. Same boxes,
+--   same grouping, the words back in front.
+--
 -- NEW IN 6.100.1 — THE PHANTOM PILL GETS SWEPT:
 --   When another app's popup made hs.alert.show throw MID-draw, the
 --   6.88.0 catch kept the config alive but left the wreckage on
@@ -39,12 +46,8 @@
 --   modules/task_creator.lua — and its upload no longer shows the
 --   token to `ps`.
 --
--- NEW IN 6.97.0 — ☑️ PICK SEVERAL · A QUIETER OCR · THE FILE MAP:
---   Every editor (⇪⇧V · ⇪⇧E · ⇪⇧O) can now pick several rows and
---   delete (⇪⇧V: or copy) them together. OCR success prints nothing.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.100.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.100.2
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -342,7 +345,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.100.1"
+_G.configVersion = "6.100.2"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

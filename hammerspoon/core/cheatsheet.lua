@@ -476,24 +476,43 @@ return function(core)
         -- 🎨 6.90.0 — the shared card look (modules/ui_style.lua):
         -- shared HUE, but cheatSheet.alpha keeps ruling the see-through.
         local sty = _G.uiStyle or {}
+        -- ONE hairline, named once. The panel's edge and every section box
+        -- below draw with THIS — so "the boxes match the panel" is true by
+        -- construction rather than by two literals agreeing.
+        local edge = sty.stroke or { white = 1, alpha = 0.22 }
         table.insert(els, {
             type = "rectangle", action = "strokeAndFill",
             fillColor   = (sty.bgWith and sty.bgWith(cheatSheet.alpha))
                           or { red = 0.06, green = 0.06, blue = 0.08, alpha = cheatSheet.alpha },
-            strokeColor = sty.stroke or { white = 1, alpha = 0.22 },
+            strokeColor = edge,
             strokeWidth = 1,
             roundedRectRadii = { xRadius = sty.radius or 16, yRadius = sty.radius or 16 },
         })
 
-        -- 🖤 6.94.0 — EVERY SECTION IN ITS OWN BLACK-OUTLINED BOX.
+        -- 🩶 6.94.0 — EVERY SECTION IN ITS OWN BOX · SOFTENED IN 6.100.2.
         -- LL: "each section on the sheet for each tool be outlined in
-        -- Black". Boxes are computed from the rows actually IN VIEW, so
+        -- Black" — then, once 42 of them were on one sheet: "soften the
+        -- black boxes around each tool to a similar gray of each shortcut
+        -- box". At two or three sections a hard black edge frames them; at
+        -- forty-two it draws a heavy grid over the thing you are trying to
+        -- read, and the eye lands on the lines instead of the words. So the
+        -- edge is now the SHARED hairline every other card in the config
+        -- uses (modules/ui_style.lua → stroke) at the same width as the
+        -- panel's own edge, and the grouping is carried by a slightly
+        -- stronger lift of fill instead — a card standing off the panel
+        -- rather than a box ruled onto it.
+        -- ✏️ TUNE THEM HERE. sectionEdge is the shared hairline above; put
+        -- a colour of your own here for a more visible outline (the old
+        -- black was { white = 0, alpha = 0.90 } at strokeWidth 2).
+        -- sectionFill: higher = each tool's card stands further off panel.
+        local sectionEdge = edge
+        local sectionFill = { white = 1, alpha = 0.07 }
+        -- Boxes are computed from the rows actually IN VIEW, so
         -- the cost stays flat however long the list grows — the same rule
         -- the rows themselves follow. A section half scrolled off gets a
         -- box around its visible half; the spacer rows between groups
         -- carry no `sec`, which is what ends one box and starts the next.
-        -- Drawn BEFORE the text so the outline sits underneath it, with a
-        -- faint lift of fill so a black edge still reads on a dark panel.
+        -- Drawn BEFORE the text so the outline sits underneath it.
         local last = math.min(#st.lines, st.first + st.visible - 1)
         do
             local curSec, curEl, yy = nil, nil, st.contentTop
@@ -505,9 +524,9 @@ return function(core)
                     else
                         curSec = sec
                         curEl = { type = "rectangle", action = "strokeAndFill",
-                                  fillColor   = { white = 1, alpha = 0.045 },
-                                  strokeColor = { white = 0, alpha = 0.90 },
-                                  strokeWidth = 2,
+                                  fillColor   = sectionFill,
+                                  strokeColor = sectionEdge,
+                                  strokeWidth = 1,
                                   roundedRectRadii = { xRadius = 10, yRadius = 10 },
                                   frame = { x = st.contentX - 10, y = yy - 3,
                                             w = st.contentW + 20,
