@@ -249,6 +249,12 @@ Restores the previous version. Then reload.
 `_G.capabilityReport()` in the Console. Most dead shortcuts are one of:
 Accessibility not granted, the hyper remap refused, or no `secret.lua`.
 
+**An empty rounded window is stuck on screen**
+A half-drawn alert: another app's popup made macOS throw mid-draw ("an
+alert could not draw" in the Console). The config sweeps and retries
+these itself; for one that got through, run `_G.phantom()` in the
+Console — and Reload Config clears it for certain.
+
 **I want the old fourteen-line boot report back**
 ```lua
 _G.bootVerbose(true)     -- persists across reloads

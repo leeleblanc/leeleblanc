@@ -4,6 +4,53 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.100.1 — THE PHANTOM PILL GETS SWEPT:
+  LL, with a screenshot of an empty black pill with a white border,
+  parked on screen and taking no clicks: "I don't know how to fix this
+  phantom Hammerspoon window. Can you?" The Console's last line named
+  the culprit ten hours earlier: "an alert could not draw — another
+  app's popup was mid-transition".
+
+  THE DIAGNOSIS. That pill is hs.alert's own frame — black fill, white
+  stroke, capsule corners — with no text in it. The 6.56.0 story again:
+  ordering any window on screen notifies every AppKit observer, and
+  another app's popup mid-transition throws its assertion back through
+  OUR draw call. The 6.88.0 wrapper pcall'd hs.alert.show so the throw
+  could not kill the config — but the throw lands MID-draw, after the
+  alert's frame is already on screen and before the text is drawn or
+  the fade-out timer armed. The pcall kept the config alive and kept
+  the wreckage: an alert with no timer never fades, and an alert is
+  not a window anything can close. It sits there until Hammerspoon
+  reloads. Surviving was not enough.
+
+  THE FIX, THE showCanvasSafely WAY. The catch now cleans up and
+  retries: one run-loop turn later it sweeps — hs.alert.closeAll(0)
+  reaches a wreck hs.alert registered before the throw; a double
+  collectgarbage reaches one it did NOT, because a canvas nobody
+  references is torn down by its __gc — then shows the SAME alert
+  again with its original arguments. A retry that also fails says so
+  in the Console and gives the manual way out. The sweep's cost is
+  honest and accepted: a healthy alert sharing the screen at that
+  exact instant is closed too — alerts live two seconds, phantoms
+  live forever. The retry timer is HELD in _G.canvasShowTimers, same
+  shelf as the canvas retries, because an unreferenced timer is
+  collected and never fires.
+
+  _G.phantom() IS YOURS. The same sweep, run by hand from the Console,
+  for any pill that got there before this release (or survives the
+  automatic path). Still on screen after that? Reload Config resets
+  the Lua state, which clears it for certain. GUIDE §5 and INSTALL's
+  troubleshooting both carry the row.
+
+  THE PROOF RUNS. test_diagnostics grew §7b (11 checks): the wrapper
+  block is lifted out of the shipped init.lua and EXECUTED against an
+  hs.alert.show that throws — asserting the throw is contained, the
+  retry is scheduled and HELD, the sweep runs BEFORE the retry, the
+  original arguments arrive intact, a double failure names _G.phantom()
+  without scheduling a third attempt, and the manual sweep stands
+  alone. A grep can prove a string exists; it cannot prove a retry
+  retries.
+
 NEW IN 6.100.0 — ONE BOX, FOUR DESTINATIONS · BEGONE READS DESCRIPTIONS:
   LL's follow-up landed while 6.99.0 was still warm: "Can you combine
   the Capture Pad features & the Quick Append" — with a prefix outline,

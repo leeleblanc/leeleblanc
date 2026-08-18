@@ -4,9 +4,17 @@
 -- =====================================================================
 -- 08-18-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.100.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.100.1
 -- =====================================================================
 
+-- NEW IN 6.100.1 — THE PHANTOM PILL GETS SWEPT:
+--   When another app's popup made hs.alert.show throw MID-draw, the
+--   6.88.0 catch kept the config alive but left the wreckage on
+--   screen: an empty bordered pill that never fades and takes no
+--   clicks. The catch now sweeps (closeAll + collect stranded
+--   canvases) and retries the alert one run-loop turn later —
+--   _G.phantom() in the Console runs the same sweep by hand.
+--
 -- NEW IN 6.100.0 — ONE BOX, FOUR DESTINATIONS · BEGONE READS DESCRIPTIONS:
 --   The Quick Append Pad (⇪pad2) combines the Capture Pad and Quick
 --   Append: each line routes by prefix — * Idea, + Log, ! Asana task,
@@ -36,7 +44,7 @@
 --   delete (⇪⇧V: or copy) them together. OCR success prints nothing.
 --
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.100.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.100.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -334,7 +342,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.100.0"
+_G.configVersion = "6.100.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -1105,12 +1113,63 @@ end
 
 -- 6.88.0 — hs.alert draws with hs.canvas underneath, so ITS show hits
 -- the same throw. Wrapped ONCE, here: every alert everywhere survives.
+--
+-- 🚨 6.100.1 — SURVIVING WAS NOT ENOUGH: THE PHANTOM PILL. The throw
+-- lands MID-draw — hs.alert has already ordered its rounded frame on
+-- screen when the other app's assertion throws back through it, before
+-- the text is drawn and before the fade-out timer is armed. The pcall
+-- saved the config and kept the wreckage: an empty black pill with a
+-- white border that never fades and takes no clicks, because an alert
+-- is not a window anything can close. LL met one on 08-18-26, hours
+-- after "an alert could not draw" hit the Console. So the catch now
+-- cleans up and retries, the showCanvasSafely way: one run-loop turn
+-- later, sweep (below), then show the same alert again.
+-- ⚖️ THE SWEEP'S COST IS REAL: hs.alert.closeAll also closes a healthy
+-- alert sharing the screen at that instant. Accepted — alerts live two
+-- seconds, phantoms live forever.
 _G.rawAlertShow = _G.rawAlertShow or (hs.alert and hs.alert.show)
+
+-- The sweep, also yours to run by hand: _G.phantom() in the Console
+-- clears a stuck pill any time one survives the automatic path.
+-- closeAll(0) reaches a wreck hs.alert managed to register before the
+-- throw; the double collectgarbage reaches one it did NOT — a canvas
+-- nobody references is torn down by its __gc, which is usually the
+-- gotcha that makes panels vanish and here is the cleanup crew. Still
+-- there after both? Reload Config resets the Lua state, which clears
+-- it for certain.
+function _G.phantom(quiet)
+    pcall(function() hs.alert.closeAll(0) end)
+    collectgarbage("collect"); collectgarbage("collect")
+    if not quiet then
+        hs.alert.show("🧹 swept — tracked alerts closed, stranded canvases"
+                      .. " collected. Still on screen? Menu bar hammer →"
+                      .. " Reload Config.")
+    end
+end
+
 if _G.rawAlertShow then hs.alert.show = function(...)
     local okA, r = pcall(_G.rawAlertShow, ...)
     if okA then return r end
-    print("⚠️ an alert could not draw — another app's popup was mid-transition")
-end end
+    print("⚠️ an alert could not draw — another app's popup was"
+          .. " mid-transition. Sweeping the half-drawn frame and retrying…")
+    local args = table.pack(...)
+    -- pcall'd: in a world where even hs.timer is broken, this wrapper
+    -- still must never throw into whoever asked for an alert.
+    pcall(function()
+        local t = hs.timer.doAfter(0.05, function()
+            _G.phantom(true)
+            local ok2 = pcall(_G.rawAlertShow, table.unpack(args, 1, args.n))
+            if not ok2 then
+                print("⚠️ …the retry failed too. If an empty pill is stuck"
+                      .. " on screen: _G.phantom() — and Reload Config if"
+                      .. " it survives that.")
+            end
+        end)
+        -- HELD, same shelf and same reason as the canvas retries above.
+        _G.canvasShowTimers[#_G.canvasShowTimers + 1] = t
+        while #_G.canvasShowTimers > 8 do table.remove(_G.canvasShowTimers, 1) end
+    end)
+end end -- alert wrap (6.88.0, sweep-and-retry 6.100.1)
 
 -- =====================================================================
 -- 🖐 DRAGGABLE CANVAS PANELS (6.67.0)

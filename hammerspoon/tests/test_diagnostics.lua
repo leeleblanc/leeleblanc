@@ -562,6 +562,101 @@ check("...and names the actual repair rather than blaming the cask token",
 
 
 -- =====================================================================
+-- 7b. THE ALERT WRAPPER SWEEPS ITS OWN WRECKAGE (6.100.1)
+-- =====================================================================
+-- LL's phantom window, 08-18-26: hs.alert.show threw mid-draw (the
+-- 6.56.0 NSRemoteView collision), the 6.88.0 pcall caught it, and an
+-- empty bordered pill sat on screen for hours because nothing cleaned
+-- up the half-drawn frame. The fix sweeps and retries — and a grep
+-- cannot prove a retry retries, so the block is lifted out of the
+-- shipped source and RUN against an hs.alert that throws.
+out("\n=== 7b. The alert wrapper, executed (6.100.1) ===\n")
+do
+  local s  = initText:find("_G.rawAlertShow = _G.rawAlertShow", 1, true)
+  local em = "end end -- alert wrap"
+  local e  = initText:find(em, 1, true)
+  check("the alert-wrap block is findable (both anchors present)",
+        s ~= nil and e ~= nil and e > s)
+  if s and e then
+    local block = initText:sub(s, e + #em - 1)
+    local shows, closed, timers, said = {}, 0, {}, {}
+    local throwsLeft = 0
+    local SB
+    SB = {
+      table = table, pcall = pcall, select = select, tostring = tostring,
+      collectgarbage = function() end,
+      print = function(m) said[#said + 1] = tostring(m) end,
+      hs = {
+        alert = {
+          show = function(...)
+            if throwsLeft > 0 then
+              throwsLeft = throwsLeft - 1
+              error("NSInternalInconsistencyException -[NSRemoteView "
+                    .. "containingWindowWillOrderOnScreen:]")
+            end
+            shows[#shows + 1] = table.pack(...)
+            return "uuid"
+          end,
+          closeAll = function() closed = closed + 1 end,
+        },
+        timer = {
+          doAfter = function(delay, fn)
+            local t = { delay = delay, fn = fn, stop = function() end }
+            timers[#timers + 1] = t
+            return t
+          end,
+        },
+      },
+    }
+    SB._G = SB
+    SB.canvasShowTimers = {}   -- init.lua defines this ABOVE the block
+    local fn, lerr = load(block, "init-alert-wrap", "t", SB)
+    check("the block compiles standalone", fn ~= nil, lerr)
+    if fn then
+      fn()
+      check("_G.phantom is defined by the block", type(SB.phantom) == "function")
+
+      -- 1) a throw is caught, and a retry is scheduled AND HELD
+      throwsLeft = 1
+      SB.hs.alert.show("💾 saved", 2)
+      check("the throw did not escape, and nothing drew yet", #shows == 0)
+      check("a retry was scheduled one run-loop turn later",
+            #timers == 1 and timers[1].delay < 0.5,
+            timers[1] and timers[1].delay)
+      check("...and the timer object is HELD — an unreferenced timer is "
+            .. "collected and never fires", SB.canvasShowTimers[1] == timers[1])
+
+      -- 2) the retry sweeps FIRST, then re-shows the ORIGINAL arguments
+      timers[1].fn()
+      check("the sweep closed tracked alerts before retrying", closed >= 1, closed)
+      check("the alert was shown on retry, arguments intact",
+            #shows == 1 and shows[1][1] == "💾 saved" and shows[1][2] == 2,
+            shows[1] and shows[1][1])
+
+      -- 3) both attempts failing gives up LOUDLY and names the manual sweep
+      throwsLeft = 2
+      SB.hs.alert.show("again")
+      timers[#timers].fn()
+      check("a double failure prints the manual way out (_G.phantom)",
+            (function()
+              for _, m in ipairs(said) do
+                if m:find("_G.phantom", 1, true) then return true end
+              end
+            end)() == true, said[#said])
+      check("...and does not loop — the retry schedules no third timer",
+            #timers == 2, #timers)
+
+      -- 4) the manual sweep stands alone
+      closed = 0
+      SB.phantom(true)
+      check("_G.phantom(true) sweeps quietly — closeAll, no new alert",
+            closed == 1 and #shows == 1)
+    end
+  end
+end
+
+
+-- =====================================================================
 -- 8. THE BOOT REPORT, EXECUTED (6.44.11)
 -- =====================================================================
 -- Section 7 greps the shipped text. That proves a string exists. It
