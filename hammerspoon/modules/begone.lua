@@ -87,6 +87,16 @@ function M.setup(core)
     -- being made — `delay` gives the dismiss animation time to land, and
     -- the pass cap keeps a misbehaving banner from looping forever.
     --
+    -- 🚨 6.100.0 — MATCH THE DESCRIPTION TOO, NOT ONLY THE NAME. An AX
+    -- action has BOTH: on the macOS builds where the old script worked,
+    -- the action's NAME read "Close"/"Clear All"; on LL's macOS 26 the
+    -- name is the AX-style identifier and "Close"/"Clear All" live in
+    -- the action's DESCRIPTION — so `whose name is "Close"` matched
+    -- nothing and the sweep closed zero while seeing plenty. Every
+    -- action is now checked by name OR description; and as a third way
+    -- in, an AXButton whose own description says Clear/Close (the
+    -- hover-revealed ✕ the deep walk surfaces) is pressed directly.
+    --
     -- The fourth address (6.99.0) is the one that survives Apple moving
     -- the furniture: `entire contents` flattens EVERY element in every
     -- NotificationCenter window, wherever the groups are nested this
@@ -137,17 +147,61 @@ on run
 				set seen to seen + (count of els)
 				set did to false
 				repeat with el in els
+					set pressed to false
 					try
-						perform (first action of el whose name is "Clear All")
+						repeat with a in (actions of el)
+							set an to ""
+							set ad to ""
+							try
+								set an to name of a as text
+							end try
+							try
+								set ad to description of a as text
+							end try
+							if an is "Clear All" or ad is "Clear All" then
+								perform a
+								set pressed to true
+								exit repeat
+							end if
+						end repeat
+					end try
+					if not pressed then
+						try
+							repeat with a in (actions of el)
+								set an to ""
+								set ad to ""
+								try
+									set an to name of a as text
+								end try
+								try
+									set ad to description of a as text
+								end try
+								if an is "Close" or ad is "Close" then
+									perform a
+									set pressed to true
+									exit repeat
+								end if
+							end repeat
+						end try
+					end if
+					if not pressed then
+						try
+							if (role of el as text) is "AXButton" then
+								set bd to ""
+								try
+									set bd to description of el as text
+								end try
+								if bd contains "Clear" or bd contains "Close" then
+									perform action "AXPress" of el
+									set pressed to true
+								end if
+							end if
+						end try
+					end if
+					if pressed then
 						set closed to closed + 1
 						set did to true
-					on error
-						try
-							perform (first action of el whose name is "Close")
-							set closed to closed + 1
-							set did to true
-						end try
-					end try
+					end if
 				end repeat
 				if not did then exit repeat
 				delay 0.2

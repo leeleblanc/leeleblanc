@@ -1161,8 +1161,9 @@ local body1 = qf and qf:read("a") or ""
 if qf then qf:close() end
 check("...the text is in the file", body1:find("first line", 1, true) ~= nil)
 check("...with a timestamp above it", body1:find("── ", 1, true) ~= nil)
-check("...and the alert names the file and a preview",
-      tostring(msgQ):find("Inbox", 1, true) and tostring(msgQ):find("first line", 1, true))
+check("...and the alert names the target and a preview — Logs is the "
+      .. "default now ('if you can't tell, make it a Log entry')",
+      tostring(msgQ):find("Logs", 1, true) and tostring(msgQ):find("first line", 1, true))
 
 qa.append("second line")
 local qf2 = io.open(qa.pathFor(qa.targets[1]), "r")
@@ -1194,8 +1195,12 @@ check("a bare filename lands in qa.dir",
 
 check("notes.append is published", _G.service.has("notes.append"))
 check("...and routes to a named target",
-      _G.service.call("notes.append", "via service", "Ideas & Scratch") == true
+      _G.service.call("notes.append", "via service", "Ideas") == true
       and io.open(qa.dir .. "/ideas.txt", "r") ~= nil)
+check("6.100.0 — the targets are EXACTLY Logs and Ideas, Logs first "
+      .. "(the default); Scratch and Inbox are gone",
+      #qa.targets == 2 and qa.targets[1].name == "Logs"
+      and qa.targets[2].name == "Ideas" and qa.defaultTarget == 1)
 check("notes.appendClipboard is published for ⇪pad1",
       _G.service.has("notes.appendClipboard"))
 check("notes.pickTarget is published for ⇪pad3",
@@ -1203,17 +1208,23 @@ check("notes.pickTarget is published for ⇪pad3",
 check("⇪J is claimed", hyperFor({}, "j") ~= nil)
 check("⇪⇧J is claimed", hyperFor({ "shift" }, "j") ~= nil)
 
--- 6.99.0 — the CSV index: one row per append, quoted like chrome_history
+-- 6.100.0 — the CSV index: LL's three columns, quoted like chrome_history
 local csvF = io.open(qa.csvPath(), "r")
 local csvBody = csvF and csvF:read("a") or ""
 if csvF then csvF:close() end
 check("every append also landed one row in notes.csv",
       csvBody:find("via service", 1, true) ~= nil
       and csvBody:find("first line", 1, true) ~= nil)
-check("...with the header written exactly once",
-      select(2, csvBody:gsub("date,time,category,note", "")) == 1)
-check("...and the category column carries the target's name",
-      csvBody:find(",Ideas & Scratch,", 1, true) ~= nil)
+check("...with the | Date | Note Type | Note entry | header, exactly once",
+      select(2, csvBody:gsub("Date,Note Type,Note entry", "")) == 1)
+check("...and the Note Type column carries the target's name",
+      csvBody:find(",Ideas,", 1, true) ~= nil
+      and csvBody:find(",Logs,", 1, true) ~= nil)
+check("...and the Date column is dated to the minute",
+      csvBody:find(os.date("%Y-%m-%d"), 1, true) ~= nil)
+check("a target the spec doesn't know records as Logs — 'if you can't "
+      .. "tell, make it a Log entry'", qa.noteType("Mystery") == "Logs"
+      and qa.noteType("Ideas") == "Ideas" and qa.noteType("Logs") == "Logs")
 local okComma = qa.append("a, note with commas\nand a second line")
 check("a note with commas and newlines appends fine",
       okComma == true)
@@ -1222,6 +1233,30 @@ local csvBody2 = csvF2 and csvF2:read("a") or ""
 if csvF2 then csvF2:close() end
 check("...and its CSV field is quoted whole",
       csvBody2:find('"a, note with commas\nand a second line"', 1, true) ~= nil)
+
+-- 6.100.0 — a notes.csv left in 6.99.0's four-column format is rotated
+-- to notes-v1.csv on the first append, never appended to misaligned.
+check("an old four-column notes.csv is moved aside, not misaligned", (function()
+    local quick2 = load("quick_append")
+    quick2.setup(core)
+    local qa2 = quick2.qa
+    qa2.dir = TMP .. "/notes-rotate"
+    os.execute('mkdir -p "' .. qa2.dir .. '"')
+    local old = io.open(qa2.csvPath(), "w")
+    old:write("date,time,category,note\n2026-08-17,12:00:00,Inbox,legacy row\n")
+    old:close()
+    local ok = qa2.append("fresh row")
+    if not ok then return false, "append failed" end
+    local v1 = io.open(qa2.dir .. "/notes-v1.csv", "r")
+    if not v1 then return false, "notes-v1.csv missing" end
+    local v1body = v1:read("a"); v1:close()
+    local fresh = io.open(qa2.csvPath(), "r")
+    if not fresh then return false, "new notes.csv missing" end
+    local freshBody = fresh:read("a"); fresh:close()
+    return v1body:find("legacy row", 1, true) ~= nil
+       and freshBody:sub(1, 26) == "Date,Note Type,Note entry\n"
+       and freshBody:find("fresh row", 1, true) ~= nil
+end)())
 
 qa.chooseTarget()
 check("the picker lists every target plus a type-it row",
@@ -1706,7 +1741,7 @@ check("🚨 the tool layer is EXACTLY the six capture entries, every one "
       .. "a service-name string", (function()
     local expect = {
         pad1     = "notes.appendClipboard",
-        pad2     = "notes.editClipboard",
+        pad2     = "notes.openPad",
         pad3     = "notes.pickTarget",
         pad4     = "windows.splitTwo",
         ["pad*"] = "notes.typeIdeas",

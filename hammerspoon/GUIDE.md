@@ -390,19 +390,26 @@ looks like.
    + -            grow / shrink   / *   previous / next monitor
 ```
 
-The plain `⇪ + pad` layer is the **capture row** (6.99.0):
+The plain `⇪ + pad` layer is the **capture row** (6.99.0, re-cut
+6.100.0):
 
 ```
-   ⇪pad1   clipboard → default notes file, instantly
-   ⇪pad2   clipboard → the Note Pad — edit first, ⌘⏎ files it
-   ⇪pad3   clipboard → pick which file (the ⇪⇧J picker)
+   ⇪pad1   clipboard → log.txt as a Log note, instantly
+   ⇪pad2   the Quick Append Pad — one box, four destinations
+   ⇪pad3   clipboard → pick Logs or Ideas (the ⇪⇧J picker)
    ⇪pad4   split the two most recent windows (same move as ⇪\)
-   ⇪pad*   empty Note Pad → Ideas & Scratch
-   ⇪pad-   empty Note Pad → Logs
+   ⇪pad*   the pad, pre-typed with "* " — an Idea
+   ⇪pad-   the pad, pre-typed with "+ " — a Log
 ```
 
-Everything a pad key files also lands as one row in
-`<logs>/notes/notes.csv` — date, time, category, note — which Excel
+In the pad, every **line** routes by its prefix — `*` Idea, `+` Log,
+`!` Asana task, `?` Asana note (the last two go into the Capture Pad
+queue and ride its 16:00 send) — and a plain line is a Log. **Closing
+the pad files everything in it**; at **16:01** daily it opens itself
+with today's notes and asks which should become tasks.
+
+Everything filed as an Idea or Log also lands as one row in
+`<logs>/notes/notes.csv` — `Date, Note Type, Note entry` — which Excel
 opens by double-click. The rest of the layer (`pad0`, `pad5`–`pad9`,
 `pad.`, `pad/`, `padenter`, `padclear`) stays free.
 

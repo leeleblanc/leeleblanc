@@ -134,8 +134,15 @@ check("…and the deep walk is tried BEFORE the bare-windows fallback",
       (script:find("entire contents of w", 1, true) or math.huge)
       < (script:find("set els to windows", 1, true) or 0))
 check("Clear All is preferred, Close is the fallback",
-      (script:find('"Clear All"', 1, true) or 0)
-      < (script:find('action of el whose name is "Close"', 1, true) or 0))
+      (script:find('"Clear All"', 1, true) or math.huge)
+      < (script:find('an is "Close"', 1, true) or 0))
+check("🚨 actions match by DESCRIPTION as well as name — on macOS 26 the "
+      .. "name is the AX identifier and the words live in the description",
+      script:find('ad is "Clear All"', 1, true) ~= nil
+      and script:find('ad is "Close"', 1, true) ~= nil)
+check("…and a Close/Clear BUTTON is pressed directly when no action matched",
+      script:find('"AXButton"', 1, true) ~= nil
+      and script:find('perform action "AXPress" of el', 1, true) ~= nil)
 check("the sweep is multi-pass with the configured cap",
       script:find("repeat 6 times", 1, true) ~= nil
       and script:find("@PASSES@", 1, true) == nil)

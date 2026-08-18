@@ -1,32 +1,45 @@
 -- =====================================================================
--- MODULE: NOTE PAD (⇪pad2 · ⇪pad* · ⇪pad-) — a Capture-Pad-style window
---                                             for notes that go to FILES
+-- MODULE: QUICK APPEND PAD (⇪pad2) — one box, four destinations
 -- =====================================================================
--- LL: "On open, use a window like 'Capture Pad'." So this IS that window
--- — the same dark card, the same drag header, the same ⌘⏎ — but where
--- the Capture Pad queues notes for ASANA, this one writes them straight
--- into the Quick Append text files (and their notes.csv index) and
--- closes. Three doors in:
+-- LL: "Can you combine the Capture Pad features & the Quick Append" —
+-- so this window is the COMBINATION: it looks and feels like the
+-- Capture Pad (same dark card, drag header, ⌘⏎), but every LINE you
+-- type is routed by its PREFIX, and the two systems meet in one box:
 --
---      ⇪pad2   the CLIPBOARD, opened for editing first — read what you
---              copied, fix it, THEN file it. The confirmation shows
---              exactly what was written, same as every quick append.
---      ⇪pad*   an empty pad aimed at Ideas & Scratch
---      ⇪pad-   an empty pad aimed at Logs
+--      * idea text     →  an Idea    (ideas.txt + a notes.csv row)
+--      + log text      →  a Log      (log.txt   + a notes.csv row)
+--      ! task text     →  an Asana TASK, via the Capture Pad queue
+--      ? note text     →  an Asana note, same queue
+--      no prefix       →  a Log — "if you can't tell, make it a Log"
 --
--- The target row across the top is live: ⌘1/⌘2/⌘3 (or a click) re-aims
--- the note without losing a character of it. ⌘⇧C copies the edited text
--- back to the clipboard — the "edit and copy" half of the request — and
--- says how much it copied. Esc closes; an open draft survives in
--- np.draft, not in the window, so closing loses nothing.
+-- ! and ? are the Capture Pad's OWN prefixes; lines carrying them are
+-- handed to its queue verbatim, so its title rules, 16:00 send, retry
+-- and parking all apply unchanged. This module never grows a second
+-- Asana path — ⇪N still exists for image attachments and the queue UI.
+--
+-- A line that starts a prefix starts a NEW entry; lines without one
+-- CONTINUE the entry above (so a two-line idea stays one idea). One
+-- box can therefore hold a day's worth of entries at once.
+--
+-- 🚪 CLOSING FILES EVERYTHING. LL: "On each close of the Quick Append
+-- Pad, the entries are written into the file." Esc, ⌘⏎, even the pad
+-- being reopened by another key — every close routes whatever is in
+-- the box. There is no way to lose a note by putting the window away;
+-- the only entries not written are the ones that failed, and those
+-- say so and stay in the draft.
+--
+-- ⏰ 16:01 REVIEW. Every day, one minute after the Capture Pad's 16:00
+-- Asana send, this pad opens itself with TODAY'S notes.csv entries
+-- listed and asks the question LL asked for: should any of these be
+-- turned into a task? One click sends an entry into the Capture Pad
+-- queue (prefixed !), where the normal machinery takes it from there.
+-- Days with no entries get a two-second alert instead of a window.
 --
 -- WHY A SEPARATE MODULE AND NOT MORE quick_append. quick_append's whole
 -- identity is "nothing opens, nothing takes focus" — the fast path. An
--- editor window is the deliberate path. Keeping them apart keeps both
--- honest: this file knows nothing about io.open, it hands finished text
--- to the published notes.append service and relays THAT verdict; a Mac
--- whose profile drops quick_append gets a pad that says so instead of a
--- pad that half-works.
+-- editor window is the deliberate path. This file knows nothing about
+-- io.open: finished entries go to the published notes.append and
+-- capturePad.add services, and each service's verdict is relayed.
 --
 -- THE WINDOW RULES ARE ALL INHERITED FROM THE CAPTURE PAD, deliberately:
 -- non-activating panel (typing must not drag Hammerspoon forward),
@@ -39,20 +52,22 @@
 -- code; the full histories live in capture_pad.lua.
 
 local M = {
-    name  = "Note Pad",
+    name  = "Quick Append Pad",
     order = 13.35,       -- between Quick Append (13.3), whose files it
                          -- writes, and the numpad layer (13.5) that keys it
     cheatsheet = {
-        title = "🗒 NOTE PAD (⇪pad2 — edit the clipboard, then file it)",
+        title = "🗒 QUICK APPEND PAD (⇪pad2 — one box, four destinations)",
         entries = {
-            { "⇪pad2", "Clipboard opens in the pad — edit it, ⌘⏎ files it" },
-            { "⇪pad*", "Empty pad → Ideas & Scratch" },
-            { "⇪pad-", "Empty pad → Logs" },
-            { "⌘1 2 3", "Re-aim the note at another file — the text stays put" },
-            { "⌘⏎",    "File it — appends to the target file + one notes.csv row" },
-            { "⌘⇧C",   "Copy the edited text back to the clipboard" },
-            { "drag",   "The header moves the pad · ⌘-drag anywhere works too" },
-            { "Esc",    "Close (the draft is kept until the pad next opens)" },
+            { "⇪pad2", "Open the pad — type entries, one per line" },
+            { "* …",   "The line is an IDEA → ideas.txt + the CSV" },
+            { "+ …",   "The line is a LOG → log.txt + the CSV" },
+            { "! …",   "The line is an Asana TASK → the Capture Pad queue" },
+            { "? …",   "The line is an Asana note → the same queue" },
+            { "plain",  "No prefix = a Log. A line without a prefix continues the entry above" },
+            { "close",  "⌘⏎ or Esc — CLOSING FILES EVERYTHING; failures stay in the box" },
+            { "⌘⇧V",   "Insert the clipboard into the box" },
+            { "16:01",  "The pad opens with today's notes — one click turns one into a task" },
+            { "⇪pad*",  "Open pre-typed with * (an Idea) · ⇪pad- with + (a Log)" },
         },
     },
 }
@@ -62,19 +77,25 @@ function M.setup(core)
 
     -- ✏️ EDIT HERE ---------------------------------------------------------
     np.enabled       = true
-    np.width, np.height = 640, 360
+    np.width, np.height = 640, 380
     np.focusOnOpen   = true    -- take the keyboard on open, so typing starts
     np.nonActivating = true    -- ask for the panel that types WITHOUT
                                -- pulling Hammerspoon's other windows forward
+    np.reviewAt      = "16:01" -- the daily "anything become a task?" open;
+                               -- one minute AFTER the Capture Pad's send,
+                               -- so today's queue has already gone out
+    np.reviewEnabled = true
     -- ----------------------------------------------------------------------
 
-    np.draft      = ""      -- survives close/reopen, lives here not in the DOM
-    np.draftCaret = 0
-    np.target     = nil     -- the target NAME currently aimed at (nil = default)
-    np.webview    = nil     -- HELD
-    np.uc         = nil     -- HELD: the JS→Lua message port
+    np.draft       = ""     -- survives close/reopen, lives here not in the DOM
+    np.draftCaret  = 0
+    np.webview     = nil    -- HELD
+    np.uc          = nil    -- HELD: the JS→Lua message port
+    np.reviewMode  = false
+    np.reviewList  = {}     -- today's CSV entries while reviewing
+    np.reviewTimer = nil    -- HELD in warm(): a collected timer never fires
 
-    local function say(m) if _G.diag then _G.diag.say("notePad", m) end end
+    local function say(m) if _G.diag then _G.diag.say("quickAppendPad", m) end end
 
     local function escapeHtml(s)
         return (tostring(s or "")
@@ -82,93 +103,189 @@ function M.setup(core)
             :gsub('"', "&quot;"))
     end
 
-    -- The targets belong to Quick Append; this pad only points at them.
-    -- Read LIVE on every call, not captured at setup: a machine profile
-    -- rewrites quickAppend.targets after setup runs, and a pad holding
-    -- yesterday's table would file notes into files that no longer exist.
-    local function targets()
+    local function hasService(n)
+        return _G.service and _G.service.has and _G.service.has(n)
+    end
+
+    -- ---- the router ------------------------------------------------------
+    -- One box, many entries. A line whose first non-space character is a
+    -- prefix STARTS an entry; every following unprefixed line belongs to
+    -- it. The first lines of the box, before any prefix appears, are one
+    -- unprefixed entry of their own — a Log, per the "can't tell" rule.
+    local PREFIX = { ["*"] = "Ideas", ["+"] = "Logs",
+                     ["!"] = "task",  ["?"] = "note" }
+
+    function np.parseEntries(text)
+        local entries, cur = {}, nil
+        for line in (tostring(text or "") .. "\n"):gmatch("([^\n]*)\n") do
+            local mark, rest = line:match("^%s*([%*%+!%?])%s?(.*)$")
+            if mark then
+                cur = { kind = PREFIX[mark], text = rest, mark = mark }
+                table.insert(entries, cur)
+            elseif cur then
+                cur.text = cur.text .. "\n" .. line
+            elseif line:gsub("%s+", "") ~= "" then
+                cur = { kind = "Logs", text = line, mark = nil }
+                table.insert(entries, cur)
+            end
+        end
+        -- An entry that is nothing but whitespace is a prefix key pressed
+        -- and abandoned, not a note.
+        local kept = {}
+        for _, e in ipairs(entries) do
+            e.text = e.text:gsub("^%s+", ""):gsub("%s+$", "")
+            if e.text ~= "" then table.insert(kept, e) end
+        end
+        return kept
+    end
+
+    -- Routes every entry, returns ok, summary. Failures are collected and
+    -- LEFT IN THE DRAFT by the caller, because an entry that failed to
+    -- save exists nowhere else.
+    function np.fileAll(text)
+        local entries = np.parseEntries(text)
+        if #entries == 0 then return true, nil, "" end
+
+        local counts = { Ideas = 0, Logs = 0, queued = 0 }
+        local failed, failedLines = {}, {}
+        for _, e in ipairs(entries) do
+            if e.kind == "task" or e.kind == "note" then
+                -- The Capture Pad's own prefix rides along verbatim, so
+                -- ITS title rules decide task-vs-note exactly as if the
+                -- line had been typed into ⇪N.
+                local raw = e.mark .. e.text
+                if hasService("capturePad.add") then
+                    local ok, res = _G.service.call("capturePad.add", raw)
+                    if ok then counts.queued = counts.queued + 1
+                    else
+                        table.insert(failed, tostring(res))
+                        table.insert(failedLines, raw)
+                    end
+                else
+                    -- No Capture Pad on this profile: the entry is kept
+                    -- as a Log rather than dropped, and the alert says
+                    -- the intent was lost — a task silently demoted to a
+                    -- note would be worse than a loud one.
+                    local ok = hasService("notes.append")
+                              and _G.service.call("notes.append", e.text, "Logs")
+                    if ok then
+                        counts.Logs = counts.Logs + 1
+                        table.insert(failed,
+                            "Capture Pad not loaded — '" .. e.text:sub(1, 30)
+                            .. "…' saved as a Log instead of a task")
+                    else
+                        table.insert(failed, "Capture Pad not loaded and Logs unavailable")
+                        table.insert(failedLines, raw)
+                    end
+                end
+            else
+                if hasService("notes.append") then
+                    local ok, msg = _G.service.call("notes.append", e.text, e.kind)
+                    if ok then counts[e.kind] = counts[e.kind] + 1
+                    else
+                        table.insert(failed, tostring(msg))
+                        table.insert(failedLines, (e.mark or "") .. e.text)
+                    end
+                else
+                    table.insert(failed, "Quick Append is not loaded on this Mac")
+                    table.insert(failedLines, (e.mark or "") .. e.text)
+                end
+            end
+        end
+
+        local bits = {}
+        if counts.Logs   > 0 then table.insert(bits, counts.Logs .. " Log" .. (counts.Logs == 1 and "" or "s")) end
+        if counts.Ideas  > 0 then table.insert(bits, counts.Ideas .. " Idea" .. (counts.Ideas == 1 and "" or "s")) end
+        if counts.queued > 0 then table.insert(bits, counts.queued .. " → Asana queue") end
+        local summary = "📝 " .. (#bits > 0 and table.concat(bits, " · ") or "nothing written")
+        if #failed > 0 then
+            summary = summary .. "\n⚠️ " .. failed[1]
+                      .. (#failed > 1 and (" (+" .. (#failed - 1) .. " more)") or "")
+        end
+        return #failed == 0, summary, table.concat(failedLines, "\n")
+    end
+
+    -- ---- today's entries, for the 16:01 review ---------------------------
+    -- notes.csv quotes commas AND newlines, so this is a real CSV record
+    -- reader (a tiny state machine), not a line splitter — a multi-line
+    -- note is one record and must review as one.
+    function np.csvRecords(text)
+        local recs, cur, buf, inQ = {}, {}, {}, false
+        local i, n = 1, #tostring(text or "")
+        text = tostring(text or "")
+        while i <= n do
+            local c = text:sub(i, i)
+            if inQ then
+                if c == '"' then
+                    if text:sub(i + 1, i + 1) == '"' then
+                        buf[#buf + 1] = '"'; i = i + 1
+                    else inQ = false end
+                else buf[#buf + 1] = c end
+            else
+                if c == '"' then inQ = true
+                elseif c == "," then
+                    cur[#cur + 1] = table.concat(buf); buf = {}
+                elseif c == "\n" then
+                    cur[#cur + 1] = table.concat(buf); buf = {}
+                    if #cur > 1 or cur[1] ~= "" then recs[#recs + 1] = cur end
+                    cur = {}
+                elseif c ~= "\r" then buf[#buf + 1] = c end
+            end
+            i = i + 1
+        end
+        if #buf > 0 or #cur > 0 then
+            cur[#cur + 1] = table.concat(buf)
+            recs[#recs + 1] = cur
+        end
+        return recs
+    end
+
+    function np.todayEntries()
         local qa = _G.quickAppend
-        if qa and type(qa.targets) == "table" and #qa.targets > 0 then
-            return qa.targets, qa.targets[qa.defaultTarget or 1] or qa.targets[1]
+        if not (qa and type(qa.csvPath) == "function") then return {} end
+        local f = io.open(qa.csvPath(), "r")
+        if not f then return {} end
+        local blob = f:read("a") or ""
+        f:close()
+        local today, out = os.date("%Y-%m-%d"), {}
+        for _, r in ipairs(np.csvRecords(blob)) do
+            -- r = { Date, Note Type, Note entry }; skip the header and
+            -- anything not from today.
+            if r[1] and r[1]:sub(1, #today) == today and r[1] ~= "Date" then
+                table.insert(out, { at = r[1], kind = r[2] or "Logs",
+                                    text = r[3] or "" })
+            end
         end
-        return nil, nil
-    end
-
-    local function targetOrDefault()
-        local list, default = targets()
-        if not list then return nil end
-        for _, t in ipairs(list) do
-            if t.name == np.target then return t end
-        end
-        return default
-    end
-
-    -- ---- filing ----------------------------------------------------------
-    -- All writing goes through the PUBLISHED service, never io.open here:
-    -- the verdict (and the alert text, with its line count and preview —
-    -- the confirmation LL asked for) belongs to quick_append, and this
-    -- module must not grow a second, slightly different writer.
-    function np.fileIt(text)
-        text = tostring(text or "")
-        local t = targetOrDefault()
-        if not t then
-            pcall(function()
-                hs.alert.show("🗒 Note Pad: Quick Append is not loaded on "
-                              .. "this Mac — nowhere to file the note")
-            end)
-            return false
-        end
-        if not (_G.service and _G.service.has and _G.service.has("notes.append")) then
-            pcall(function()
-                hs.alert.show("🗒 Note Pad: the notes.append service is missing")
-            end)
-            return false
-        end
-        local ok, msg = _G.service.call("notes.append", text, t.name)
-        if ok then
-            np.draft, np.draftCaret = "", 0
-            np.hide()
-            pcall(function() hs.alert.show(msg, 2) end)
-            say("filed to " .. t.name)
-        else
-            -- The pad STAYS OPEN on a failure — closing it would throw
-            -- away the one copy of a note that just failed to save.
-            pcall(function() hs.alert.show("⚠️ " .. tostring(msg), 5) end)
-        end
-        return ok == true
-    end
-
-    function np.copyBack(text)
-        text = tostring(text or "")
-        local ok = pcall(function() hs.pasteboard.setContents(text) end)
-        pcall(function()
-            hs.alert.show(ok and ("📋 copied — " .. #text .. " chars")
-                             or  "⚠️ the clipboard refused the text")
-        end)
-        return ok
+        return out
     end
 
     -- ---- the page --------------------------------------------------------
+    local function firstWords(text, n)
+        text = (tostring(text or ""):gsub("%s+", " "):gsub("^%s*", ""))
+        if #text <= n then return text end
+        return text:sub(1, n - 1) .. "…"
+    end
+
     local function buildHtml()
-        local list, _ = targets()
-        local aimed = targetOrDefault()
-        -- The name reaches the page twice: as VISIBLE TEXT (HTML-escaped)
-        -- and inside a single-quoted JS string in an onclick attribute —
-        -- which needs JS escaping FIRST, then HTML escaping, because the
-        -- attribute parser decodes entities before JS ever runs.
-        local function jsName(s)
-            return escapeHtml((tostring(s):gsub("\\", "\\\\"):gsub("'", "\\'")))
-        end
-        local rows = {}
-        for i, t in ipairs(list or {}) do
-            local on = aimed and t.name == aimed.name
-            table.insert(rows, string.format(
-                '<button type="button" class="tgt%s" onclick="aim(\'%s\')">%s'
-                .. '<span class="kk">⌘%d</span></button>',
-                on and " on" or "", jsName(t.name), escapeHtml(t.name), i))
-        end
         local themeCss = (_G.uiStyle and _G.uiStyle.cssOverride
                           and _G.uiStyle.cssOverride()) or ""
+        local review = ""
+        if np.reviewMode then
+            local rows = {}
+            for i, e in ipairs(np.reviewList) do
+                local kindClass = e.kind == "Ideas" and "idea" or "log"
+                table.insert(rows, '<li class="' .. kindClass .. '">'
+                    .. '<span class="k">' .. escapeHtml(e.kind) .. '</span>'
+                    .. '<span class="t">' .. escapeHtml(firstWords(e.text, 90)) .. '</span>'
+                    .. (e.sent
+                        and '<span class="sent">→ queued ✓</span>'
+                        or ('<button type="button" class="totask" onclick="say({a:\'toTask\', idx:' .. i .. '})">→ Task</button>'))
+                    .. '</li>')
+            end
+            review = '<h2>Today — anything worth turning into a task?</h2>'
+                .. (#rows > 0 and ('<ul>' .. table.concat(rows) .. '</ul>')
+                               or '<p class="empty">No notes today.</p>')
+        end
         return [[
 <meta charset="utf-8">
 <style>
@@ -185,14 +302,9 @@ function M.setup(core)
   .grip { color:#4a4a56; margin-right:8px; letter-spacing:2px; }
   .hint { color:#8a8a96; font-size:13px; }
   #wrap { padding:12px 18px 16px; }
-  #tgts { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
-  button { background:#2a2a34; color:#e8e8ec; border:1px solid #3b3b47;
-           border-radius:7px; padding:7px 13px; font-size:14px; cursor:pointer; }
-  button:hover { filter:brightness(1.18); }
-  button.go { background:#3566cc; border-color:#4a7fe0; }
-  .tgt .kk { margin-left:8px; font-size:10px; color:#8a8a96; }
-  .tgt.on { background:#2f5d3a; border-color:#3f7d4e; color:#d9f2e0; }
-  .tgt.on .kk { color:#9de8b0; }
+  #legend { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:8px;
+            font-size:13px; color:#8a8a96; }
+  #legend b { color:#c8c8d2; font-weight:600; }
   /* Longhand font rules on purpose — the shorthand+keyword mix is the
      invalid combination WebKit drops whole (the 6.44.1 textarea bug). */
   textarea { width:100%; box-sizing:border-box; height:150px; resize:vertical;
@@ -203,21 +315,43 @@ function M.setup(core)
   textarea:focus { outline:none; border-color:#4a7fe0; }
   textarea::placeholder { color:#5c5c68; }
   .bar { margin-top:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  button { background:#2a2a34; color:#e8e8ec; border:1px solid #3b3b47;
+           border-radius:7px; padding:7px 13px; font-size:14px; cursor:pointer; }
+  button:hover { filter:brightness(1.18); }
+  button.go { background:#3566cc; border-color:#4a7fe0; }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em;
+       color:#7c7c88; margin:20px 0 8px; }
+  ul { list-style:none; margin:0; padding:0; }
+  li { display:flex; gap:10px; align-items:baseline; padding:8px 10px;
+       border-radius:7px; background:#1b1b22; margin-bottom:5px; font-size:14px; }
+  .k { font-size:10px; font-weight:700; letter-spacing:.06em; padding:2px 6px;
+       border-radius:4px; flex:none; }
+  li.idea .k { background:#3a3550; color:#c3b6ee; }
+  li.log  .k { background:#2f5d3a; color:#9de8b0; }
+  .t { flex:1; }
+  .sent { color:#9de8b0; font-size:12px; flex:none; }
+  button.totask { padding:3px 10px; font-size:12px; flex:none; }
+  .empty { color:#6d6d78; font-style:italic; }
   ]] .. themeCss .. [[
 </style>
 <header id="bar">
-  <h1><span class="grip">⠿</span>🗒 Note Pad</h1>
-  <span class="hint">drag here · ⌘⏎ file · ⌘⇧C copy · ⎋ close</span>
+  <h1><span class="grip">⠿</span>🗒 Quick Append</h1>
+  <span class="hint">drag here · ⌘⏎ file &amp; close · ⌘⇧V clipboard · ⎋ close (files too)</span>
 </header>
 <div id="wrap">
-  <div id="tgts">]] .. table.concat(rows) .. [[</div>
-  <textarea id="t" placeholder="Type a note — or this is your clipboard, edit away."
+  <div id="legend">
+    <span><b>*</b> Idea</span><span><b>+</b> Log</span>
+    <span><b>!</b> task</span><span><b>?</b> note</span>
+    <span>no prefix = Log · closing files everything</span>
+  </div>
+  <textarea id="t" placeholder="One entry per line. * idea · + log · ! task · ? note — plain lines are Logs."
             autofocus>]] .. escapeHtml(np.draft) .. [[</textarea>
   <div class="bar">
-    <button class="go" onclick="fileIt()">File it &nbsp;⌘⏎</button>
-    <button onclick="say({a:'copy'})">Copy &nbsp;⌘⇧C</button>
-    <span class="hint">appends to the highlighted file + one row in notes.csv</span>
+    <button class="go" onclick="fileIt()">File it all &nbsp;⌘⏎</button>
+    <button onclick="say({a:'insertClip'})">Insert clipboard &nbsp;⌘⇧V</button>
+    <span class="hint">* + lines → notes files + CSV · ! ? lines → the Capture Pad queue</span>
   </div>
+  ]] .. review .. [[
 </div>
 <script>
   var t = document.getElementById('t');
@@ -230,8 +364,7 @@ function M.setup(core)
     m.sel  = t.selectionStart;
     window.webkit.messageHandlers.notePad.postMessage(m);
   }
-  function fileIt(){ say({a:'file'}); }
-  function aim(name){ say({a:'aim', target:name}); }
+  function fileIt(){ say({a:'close'}); }
   var bar = document.getElementById('bar');
   bar.addEventListener('mousedown', function(e){
     if (e.button !== 0) return;
@@ -240,22 +373,10 @@ function M.setup(core)
     say({a:'dragStart'});
   });
   window.addEventListener('mouseup', function(){ bar.classList.remove('dragging'); });
-  var names = ]] .. (function()
-        local out = {}
-        for _, t in ipairs(list or {}) do
-            table.insert(out, '"' .. tostring(t.name)
-                :gsub("\\", "\\\\"):gsub('"', '\\"') .. '"')
-        end
-        return "[" .. table.concat(out, ",") .. "]"
-    end)() .. [[;
   window.addEventListener('keydown', function(e){
     if (e.metaKey && e.key === 'Enter') { e.preventDefault(); fileIt(); }
-    else if (e.metaKey && e.shiftKey && (e.key === 'c' || e.key === 'C')) {
-      e.preventDefault(); say({a:'copy'});
-    }
-    else if (e.metaKey && e.key >= '1' && e.key <= '9') {
-      var i = parseInt(e.key, 10) - 1;
-      if (i < names.length) { e.preventDefault(); aim(names[i]); }
+    else if (e.metaKey && e.shiftKey && (e.key === 'v' || e.key === 'V')) {
+      e.preventDefault(); say({a:'insertClip'});
     }
     else if (e.key === 'Escape') { e.preventDefault(); say({a:'close'}); }
   });
@@ -278,17 +399,49 @@ function M.setup(core)
         if body.text ~= nil then np.draft = tostring(body.text) end
         if body.sel  ~= nil then np.draftCaret = tonumber(body.sel) or 0 end
 
-        if body.a == "file" then
-            np.fileIt(body.text or np.draft)
-        elseif body.a == "copy" then
-            np.copyBack(body.text or np.draft)
-        elseif body.a == "aim" then
-            np.target = tostring(body.target or "")
-            np.render()   -- the draft rode in on this message; nothing is lost
+        if body.a == "close" then
+            np.hide()   -- hide() files — closing IS filing
+        elseif body.a == "insertClip" then
+            local clip
+            pcall(function() clip = hs.pasteboard.getContents() end)
+            if clip == nil or clip == "" then
+                pcall(function()
+                    hs.alert.show("🗒 The clipboard holds no text")
+                end)
+            else
+                if np.draft ~= "" and np.draft:sub(-1) ~= "\n" then
+                    np.draft = np.draft .. "\n"
+                end
+                np.draft = np.draft .. clip
+                np.draftCaret = #np.draft
+                np.render()
+            end
+        elseif body.a == "toTask" then
+            local e = np.reviewList[tonumber(body.idx) or 0]
+            if e and not e.sent then
+                if hasService("capturePad.add") then
+                    -- ! forces a task — the review's question is "should
+                    -- this BECOME a task", so the answer is never a note.
+                    local ok, res = _G.service.call("capturePad.add", "!" .. e.text)
+                    if ok then
+                        e.sent = true
+                        pcall(function()
+                            hs.alert.show("🗒 Queued for Asana — " .. tostring(res), 2)
+                        end)
+                    else
+                        pcall(function()
+                            hs.alert.show("⚠️ " .. tostring(res), 4)
+                        end)
+                    end
+                else
+                    pcall(function()
+                        hs.alert.show("🗒 The Capture Pad is not loaded on this Mac")
+                    end)
+                end
+                np.render()
+            end
         elseif body.a == "dragStart" then
             np.beginDrag()
-        elseif body.a == "close" then
-            np.hide()
         end
     end
 
@@ -378,40 +531,65 @@ function M.setup(core)
         return true, "applied"
     end
 
-    function np.hide()
+    -- 🚪 CLOSING FILES EVERYTHING — this is the one close path, and the
+    -- filing lives IN it so no close can forget. Entries that fail stay
+    -- in np.draft (they exist nowhere else); everything that filed is
+    -- confirmed in one alert. opts.discard skips the filing — used by
+    -- nothing today, kept so a deliberate "throw this away" is possible
+    -- from the Console (_G.notePad.hide({discard=true})).
+    function np.hide(opts)
         np.endDrag()
+        if not (opts and opts.discard) then
+            if (np.draft or ""):gsub("%s+", "") ~= "" then
+                local allOk, summary, leftover = np.fileAll(np.draft)
+                np.draft, np.draftCaret = leftover or "", 0
+                if summary then
+                    pcall(function()
+                        hs.alert.show(summary, allOk and 2 or 5)
+                    end)
+                end
+                if not allOk then
+                    say("some entries failed — kept in the draft")
+                end
+            end
+        end
+        np.reviewMode, np.reviewList = false, {}
         if np.webview then
             pcall(function() np.webview:delete() end)
             np.webview = nil
         end
     end
 
-    -- No webview must not mean no note: the plain text box files to the
-    -- same service, it just cannot re-aim or copy back.
+    -- No webview must not mean no capture: the plain text box routes
+    -- through the same prefix parser and the same services.
     local function promptFallback()
-        local t = targetOrDefault()
-        if not t then
-            pcall(function()
-                hs.alert.show("🗒 Note Pad: Quick Append is not loaded — "
-                              .. "nowhere to file a note")
-            end)
-            return
-        end
-        local okP, button, typed = pcall(hs.dialog.textPrompt, "Note Pad",
-            "This is appended to " .. t.name .. " (and one row in notes.csv).",
+        local okP, button, typed = pcall(hs.dialog.textPrompt, "Quick Append",
+            "One entry per line. * idea · + log · ! task · ? note — "
+            .. "plain lines are Logs.",
             np.draft or "", "File it", "Cancel")
         if not okP or button ~= "File it" then return end
-        np.fileIt(typed)
+        local allOk, summary, leftover = np.fileAll(typed)
+        np.draft = leftover or ""
+        if summary then
+            pcall(function() hs.alert.show(summary, allOk and 2 or 5) end)
+        end
     end
 
-    -- opts.text   = prefill (nil keeps the surviving draft)
-    -- opts.target = target NAME to aim at (nil keeps the last aim)
+    -- opts.prefix = seed the box with a routing prefix ("* " / "+ ")
+    -- opts.text   = replace the draft outright (the clipboard door)
     function np.show(opts)
         if not np.enabled then return end
         opts = opts or {}
-        if opts.text   ~= nil then np.draft, np.draftCaret = tostring(opts.text), #tostring(opts.text) end
-        if opts.target ~= nil then np.target = tostring(opts.target) end
-        if np.webview then np.hide() end   -- reopen fresh, re-aimed
+        -- A pad that is already open is CLOSED FIRST — which files it,
+        -- per the close rule — before the new draft is seeded. Order
+        -- matters: seeding first would file the NEW text, not the old.
+        if np.webview then np.hide() end
+        if opts.text ~= nil then
+            np.draft, np.draftCaret = tostring(opts.text), #tostring(opts.text)
+        end
+        if opts.prefix ~= nil and np.draft == "" then
+            np.draft, np.draftCaret = tostring(opts.prefix), #tostring(opts.prefix)
+        end
         if not (hs.webview and hs.webview.usercontent) then
             promptFallback()
             return
@@ -430,7 +608,7 @@ function M.setup(core)
         pcall(function()
             uc:setCallback(function(msg)
                 local ok, err = pcall(handleMessage, msg and msg.body)
-                if not ok then print("🗒 Note Pad: message handler — " .. tostring(err)) end
+                if not ok then print("🗒 Quick Append Pad: message handler — " .. tostring(err)) end
             end)
         end)
 
@@ -441,7 +619,7 @@ function M.setup(core)
             return
         end
         np.webview = view
-        pcall(function() view:windowTitle("Note Pad") end)
+        pcall(function() view:windowTitle("Quick Append") end)
         -- allowTextEntry sets canBecomeKeyWindow — without it the pad
         -- draws perfectly and swallows every keystroke.
         pcall(function() view:allowTextEntry(true) end)
@@ -456,7 +634,7 @@ function M.setup(core)
         if np.nonActivating then
             np.nonActivatingApplied, np.nonActivatingWhy = np.applyNonActivating(view)
             if not np.nonActivatingApplied then
-                print("🗒 Note Pad: non-activating panel unavailable — "
+                print("🗒 Quick Append Pad: non-activating panel unavailable — "
                       .. tostring(np.nonActivatingWhy)
                       .. "; opening the pad will bring Hammerspoon forward.")
             end
@@ -466,15 +644,43 @@ function M.setup(core)
         if np.focusOnOpen then
             pcall(function() view:bringToFront(true) end)
         end
-        say("pad opened, aimed at "
-            .. ((targetOrDefault() or {}).name or "nothing"))
+        say("pad opened" .. (np.reviewMode and " (review)" or ""))
     end
 
-    -- ---- the three doors in ---------------------------------------------
-    -- ⇪pad2: the clipboard, opened for EDITING. An empty clipboard still
-    -- opens the pad — you pressed the key to write something — it just
-    -- says why the box is empty instead of leaving you to wonder.
-    function np.editClipboard()
+    -- ---- the 16:01 review ------------------------------------------------
+    function np.review()
+        -- Collected BEFORE show(): show() closes any open pad first, and
+        -- that close (correctly) clears review state — so the list must
+        -- be re-attached after the window exists, not before.
+        local list = np.todayEntries()
+        if #list == 0 then
+            pcall(function()
+                hs.alert.show("🗒 " .. np.reviewAt .. " review — no notes today", 2)
+            end)
+            say("review skipped — no entries today")
+            return false
+        end
+        np.show({})
+        np.reviewMode, np.reviewList = true, list
+        np.render()
+        say("review opened — " .. #list .. " entr"
+            .. (#list == 1 and "y" or "ies"))
+        return true
+    end
+
+    -- ---- the doors in ----------------------------------------------------
+    core.provide("notes.openPad", function() np.show({}) return true end)
+    core.provide("notes.typeIdeas", function()
+        np.show({ prefix = "* " })
+        return true
+    end)
+    core.provide("notes.typeLog", function()
+        np.show({ prefix = "+ " })
+        return true
+    end)
+    -- The clipboard, opened for EDITING — no key of its own since ⇪pad1
+    -- files it directly, but published for choosers and the Console.
+    core.provide("notes.editClipboard", function()
         local text
         pcall(function() text = hs.pasteboard.getContents() end)
         if text == nil or text == "" then
@@ -485,23 +691,14 @@ function M.setup(core)
         end
         np.show({ text = text })
         return true
-    end
-
-    core.provide("notes.editClipboard", function() return np.editClipboard() end)
-    core.provide("notes.typeIdeas", function()
-        np.show({ target = "Ideas & Scratch" })
-        return true
     end)
-    core.provide("notes.typeLog", function()
-        np.show({ target = "Logs" })
-        return true
-    end)
+    core.provide("notes.review", function() return np.review() end)
     core.provide("notePad.show", function(opts) np.show(opts) return true end)
 
     -- ⌘-drag anywhere on the pad, via the shared drag layer.
     _G.movablePanels = _G.movablePanels or {}
     table.insert(_G.movablePanels, {
-        name  = "note pad",
+        name  = "quick append pad",
         frame = function() return np.webview and np.webview:frame() end,
         move  = function(x, y)
             local f = np.webview and np.webview:frame()
@@ -510,7 +707,7 @@ function M.setup(core)
     })
 
     -- ⎋ in the escape router, so the cheat sheet closes AFTER the pad.
-    -- Safe to claim: the draft lives in np.draft, not the window.
+    -- Closing FILES the draft (the close rule), so Esc never loses work.
     if _G.claimEscape then
         _G.claimEscape("notepad", nil,
             function() return np.webview ~= nil end,
@@ -520,6 +717,27 @@ function M.setup(core)
     _G.notePad = np
     M.np     = np
     M.config = np
+end
+
+-- The daily review is armed in warm(), not setup() — boot is measured,
+-- and a timer is not needed to answer a keypress.
+function M.warm(core)
+    local np = M.np
+    if not (np and np.reviewEnabled) then return end
+    -- HELD in np.reviewTimer: an unreferenced hs.timer is collected, and
+    -- a collected timer simply never fires — no error anywhere to see.
+    local ok, t = pcall(hs.timer.doAt, np.reviewAt, "1d", function()
+        pcall(function() np.review() end)
+    end)
+    if ok and t then
+        np.reviewTimer = t
+        if _G.diag then
+            _G.diag.say("quickAppendPad", "daily review armed for " .. np.reviewAt)
+        end
+    else
+        print("🗒 Quick Append Pad: could not arm the " .. tostring(np.reviewAt)
+              .. " review — _G.notePad.review() runs it by hand")
+    end
 end
 
 return M

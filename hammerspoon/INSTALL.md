@@ -218,9 +218,9 @@ run and whether it exists here, and every path it writes to. Read-only.
 | ⇪Q | focus mode (Quiet) — mutes the mic and dims everything but the meeting |
 | ⇪R | bulk rename the Finder selection · undo is the picker's first row |
 | ⇪⇧S | workspaces — pick one for this Space, it is remembered |
-| ⇪ pad1 | clipboard → your default notes file, confirmed with a preview |
-| ⇪ pad2 | clipboard → the Note Pad — edit it first, ⌘⏎ files it |
-| ⇪ pad* | an empty Note Pad aimed at Ideas & Scratch (⇪ pad- → Logs) |
+| ⇪ pad1 | clipboard → log.txt as a Log note, confirmed with a preview |
+| ⇪ pad2 | the Quick Append Pad — lines route by prefix: * idea + log ! task ? note |
+| ⇪ pad* | the pad pre-typed with * (an Idea) · ⇪ pad- with + (a Log) |
 | ⇪⇧ pad7 | number pad, shifted → window to the top-left quarter |
 | ⌃⌥⌘V | clipboard history |
 

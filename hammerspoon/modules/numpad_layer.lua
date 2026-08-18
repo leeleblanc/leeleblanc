@@ -89,12 +89,12 @@ local M = {
     cheatsheet = {
         title = "🔢 NUMPAD LAYER (⇪ pad capture row · ⇪⇧ pad windows · ⌘⇧ pad FREE)",
         entries = {
-            { "⇪ pad1",      "Clipboard → default notes file, instantly" },
-            { "⇪ pad2",      "Clipboard → the Note Pad — edit first, ⌘⏎ files it" },
-            { "⇪ pad3",      "Clipboard → pick which file (the ⇪⇧J picker)" },
+            { "⇪ pad1",      "Clipboard → log.txt as a Log note, instantly" },
+            { "⇪ pad2",      "The Quick Append Pad — * idea · + log · ! task · ? note" },
+            { "⇪ pad3",      "Clipboard → pick Logs or Ideas (the ⇪⇧J picker)" },
             { "⇪ pad4",      "Split the two most recent windows (same as ⇪\\)" },
-            { "⇪ pad*",      "Type a note → Ideas & Scratch" },
-            { "⇪ pad-",      "Type a note → Logs" },
+            { "⇪ pad*",      "The pad, pre-typed with * — an Idea" },
+            { "⇪ pad-",      "The pad, pre-typed with + — a Log" },
             { "⇪ pad rest",  "🆓 free — pad0 5 6 7 8 9 . / enter clear, yours to assign" },
             { "⌘⇧ pad ALL",  "🆓 all free — a REAL modifier, works outside ⇪ too" },
             { "how",         "Add padN = \"some.service\" in numpad_layer.lua —" },
@@ -172,12 +172,12 @@ function M.setup(core)
     -- time; each is a NEW capture path that exists nowhere else on the
     -- keyboard (pad4's split is the one echo, kept deliberately: ⇪\ still
     -- works, the pad key is just easier to find):
-    --      pad1  clipboard → the default notes file, no questions
-    --      pad2  clipboard → the Note Pad editor — read it, fix it, file it
-    --      pad3  clipboard → the pick-a-file chooser
+    --      pad1  clipboard → log.txt as a Log note, no questions
+    --      pad2  the Quick Append Pad — one box, lines routed by prefix
+    --      pad3  clipboard → the pick-a-file chooser (Logs or Ideas)
     --      pad4  split the two most recent windows side-by-side
-    --      pad*  an empty Note Pad aimed at Ideas & Scratch
-    --      pad-  an empty Note Pad aimed at Logs
+    --      pad*  the pad pre-typed with "* " (an Idea)
+    --      pad-  the pad pre-typed with "+ " (a Log)
     -- The rest of the layer stays free: pad0 pad5–pad9 pad. pad/
     -- padenter padclear.
     --
@@ -198,12 +198,12 @@ function M.setup(core)
     -- Mac — pad+ is the one his keyboard cannot send, which is why the
     -- note keys avoid it.)
     numpad.actions = {
-        pad1     = "notes.appendClipboard",   -- quick_append
-        pad2     = "notes.editClipboard",     -- note_pad
-        pad3     = "notes.pickTarget",        -- quick_append
+        pad1     = "notes.appendClipboard",   -- quick_append: clipboard → Log
+        pad2     = "notes.openPad",           -- note_pad: the Quick Append Pad
+        pad3     = "notes.pickTarget",        -- quick_append: Logs or Ideas
         pad4     = "windows.splitTwo",        -- window_arranger
-        ["pad*"] = "notes.typeIdeas",         -- note_pad
-        ["pad-"] = "notes.typeLog",           -- note_pad
+        ["pad*"] = "notes.typeIdeas",         -- note_pad, pre-typed "* "
+        ["pad-"] = "notes.typeLog",           -- note_pad, pre-typed "+ "
     }
 
     -- ---- LAYER 2: ⇪⇧ + pad → WINDOWS ------------------------------------

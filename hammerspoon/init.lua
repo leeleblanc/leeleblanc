@@ -2,11 +2,21 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 08-17-26 using Claude          ← EDITED date. Bumped with every release.
+-- 08-18-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.99.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.100.0
 -- =====================================================================
 
+-- NEW IN 6.100.0 — ONE BOX, FOUR DESTINATIONS · BEGONE READS DESCRIPTIONS:
+--   The Quick Append Pad (⇪pad2) combines the Capture Pad and Quick
+--   Append: each line routes by prefix — * Idea, + Log, ! Asana task,
+--   ? Asana note, plain = Log — and CLOSING FILES EVERYTHING. Targets
+--   are exactly Logs (default) and Ideas; notes.csv is | Date | Note
+--   Type | Note entry |. At 16:01 daily the pad opens with today's
+--   notes asking which become tasks. Begone now matches Close/Clear All
+--   by action DESCRIPTION too (macOS 26 renamed the names) and presses
+--   close buttons directly.
+--
 -- NEW IN 6.99.0 — THE NUMBER PAD CAPTURES · THE NOTE PAD · BEGONE 26:
 --   ⇪pad1/2/3 put the clipboard into your notes files (instantly /
 --   via the new Note Pad editor / into a picked file), ⇪pad* and
@@ -25,12 +35,8 @@
 --   Every editor (⇪⇧V · ⇪⇧E · ⇪⇧O) can now pick several rows and
 --   delete (⇪⇧V: or copy) them together. OCR success prints nothing.
 --
--- NEW IN 6.96.0 — NONBREAKING ERRORS · THE FILE INDEX · DOC TAGS:
---   ⚠️ nonbreaking errors get their own banner (⛔ = broke, ⚠️ = ran on).
---   ⇪D lists indexed FILES behind the apps; .docx saves tag themselves.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.99.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.100.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -328,7 +334,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.99.0"
+_G.configVersion = "6.100.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2970,9 +2976,10 @@ local BASE = {
     "search_index", "doc_keywords",  -- 6.96.0 🗂 files behind ⇪D · 🏷 docx tags
     -- 6.98.0
     "task_creator",       -- ⌃⌥⌘T create · ⇪⇧S search past · ⌃⌥⌘A format URL
-    -- 6.99.0
-    "note_pad",           -- ⇪pad2 edit clipboard · ⇪pad*/- type a note
-                          -- (AFTER quick_append: it files through its service)
+    -- 6.99.0 (rebuilt 6.100.0 as the combined Quick Append Pad)
+    "note_pad",           -- ⇪pad2 one box: * idea + log ! task ? note
+                          -- (AFTER quick_append AND capture_pad: it files
+                          --  through both of their services)
 }
 
 -- BASE minus `without`, plus `plus`. The list is COPIED, never shared: a

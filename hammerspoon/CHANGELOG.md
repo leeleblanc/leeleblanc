@@ -4,6 +4,88 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.100.0 — ONE BOX, FOUR DESTINATIONS · BEGONE READS DESCRIPTIONS:
+  LL's follow-up landed while 6.99.0 was still warm: "Can you combine
+  the Capture Pad features & the Quick Append" — with a prefix outline,
+  a re-cut CSV, a 4:01 review, and two bug reports. All of it is here.
+
+  1) THE QUICK APPEND PAD IS THE COMBINATION. ⇪pad2 opens the one box
+  (same Capture-Pad card, drag header, ⌘⏎). Every LINE routes by its
+  prefix, exactly as outlined:
+      * …   an IDEA  → ideas.txt + a notes.csv row
+      + …   a LOG    → log.txt   + a notes.csv row
+      ! …   an Asana TASK → handed to the Capture Pad queue verbatim
+      ? …   an Asana note → same queue
+      plain a LOG — "if you can't tell, make it a 'Log' entry"
+  A line with a prefix STARTS an entry; unprefixed lines CONTINUE the
+  entry above them, so a two-line idea stays one idea and one box can
+  hold a day's worth. ! and ? are the Capture Pad's own prefixes — its
+  title rules, 16:00 send, retry and parking all apply unchanged, and
+  ⇪N remains for images and the queue UI. On a profile without the
+  Capture Pad a ! line is saved as a Log and the alert SAYS the intent
+  was lost — demoted loudly, never dropped silently.
+
+  2) CLOSING FILES EVERYTHING. "On each close of the Quick Append Pad,
+  the entries are written into the file." There is now exactly ONE
+  close path and the filing lives inside it: Esc, ⌘⏎, and even the pad
+  being reopened by another capture key all route the box first. The
+  only entries not written are failures — they stay in the draft
+  (they exist nowhere else) and the summary alert names them. The
+  summary counts destinations: "📝 2 Logs · 1 Idea · 1 → Asana queue".
+  ⌘⇧V inserts the clipboard into the box; ⇪pad* / ⇪pad- open the pad
+  pre-typed with "* " / "+ "; ⇪pad1 still files the clipboard with no
+  window at all — now as a LOG, the new default.
+
+  3) THE CSV IS | Date | Note Type | Note entry |. Three columns,
+  verbatim; Date carries the minute ("2026-08-18 14:32") so it still
+  sorts. Note Type is ONLY Ideas or Logs — an unknown target records
+  as Logs, per the can't-tell rule. Targets slimmed to match: Logs
+  (default) and Ideas; Scratch REMOVED, Inbox no longer offered (both
+  files keep their text on disk). A notes.csv left in 6.99.0's
+  four-column format is rotated whole to notes-v1.csv on first append
+  — appending new rows to old columns would misalign silently, and a
+  CSV that lies is worse than none.
+
+  4) THE 16:01 REVIEW. Every day, one minute after the Capture Pad's
+  16:00 Asana send, the pad opens itself with TODAY'S notes.csv
+  entries and asks LL's question: anything worth turning into a task?
+  One click sends an entry to the Capture Pad queue forced as a task
+  (!), the row flips to "queued ✓", a second click cannot double-send.
+  (LL's sentence ended mid-air — "…turned into" — so task-promotion is
+  the assumption, it being the only "turn into" this config has.) Days
+  with no entries get a two-second alert, not a window. The reader is
+  a real CSV state machine, so a quoted multi-line note reviews as one
+  record. Armed in warm(), timer HELD.
+
+  5) BEGONE, ROUND TWO: THE NAMES MOVED, NOT JUST THE FURNITURE.
+  "Doesn't seem to be working. I still see banners when I do a two
+  finger swipe." The 6.99.0 deep walk was reaching the right elements
+  and still closing zero, and the reason is finally specific: an AX
+  action has a NAME and a DESCRIPTION, and on macOS 26 "Close"/"Clear
+  All" moved from the name to the description — `whose name is
+  "Close"` matched nothing. Every action is now checked by name OR
+  description, and as a third way in, an AXButton whose own
+  description says Clear/Close (the hover ✕ the deep walk surfaces) is
+  pressed directly. Still Clear-All-first, multi-pass, off the main
+  thread, closed/seen reporting. The two-finger-swipe list clears
+  while it is OPEN on screen; if a sweep ever again sees plenty and
+  closes none, the alert points at _G.begoneProbe() — that output is
+  the map for the next address.
+
+  6) AND THE PIPE, SETTLED: the key LL was asking about is ⇪\ — the
+  backslash/pipe key, NO ⌘ in it — carrying "split the two most recent
+  windows", which is why it sat under "Recent documents" in his notes.
+  Pressing it WITH ⌘ does nothing, which is the likely "not working".
+  The split has lived on ⇪pad4 since 6.99.0; ⇪⇧pad3 stays the
+  bottom-right window and ⇪pad3 the file picker, so pad4 it remains.
+
+  tests/test_note_pad.lua rewritten for the combination (54 checks:
+  parser, routing, close-files-everything, failure-stays-in-draft,
+  review with quoted multi-line records, no-webview prompt, loud
+  demotion); test_features pins the two-target spec, the three-column
+  header, the Logs coercion and the v1 rotation; test_begone pins
+  description matching and the button press. Runner still 43 stages.
+
 NEW IN 6.99.0 — THE NUMBER PAD CAPTURES · THE NOTE PAD · BEGONE ON 26:
   Three asks in one message, plus a bug report with a screenshot.
 

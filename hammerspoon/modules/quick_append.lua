@@ -20,16 +20,19 @@
 -- core.warnWriteFailed so a missing folder says so once rather than
 -- once per keystroke.
 --
--- 🧾 6.99.0 — EVERY APPEND ALSO LANDS AS ONE CSV ROW in notes.csv, next
--- to the text files: date, time, category, note. The text file stays the
--- thing you read; the CSV is the thing you SEARCH and sort — Excel opens
--- it by double-click, exactly like chrome_history's archive. A note that
--- reaches its text file but misses the CSV says so in the alert instead
--- of letting the two files drift apart silently.
+-- 🧾 6.99.0 (columns re-cut 6.100.0) — EVERY APPEND ALSO LANDS AS ONE
+-- CSV ROW in notes.csv, next to the text files, in LL's three columns:
+-- | Date | Note Type | Note entry |. Note Type is Ideas or Logs, never
+-- anything else — a target the spec doesn't know is recorded as Logs
+-- ("if you can't tell, make it a Log entry"). The text file stays the
+-- thing you read; the CSV is the thing you SEARCH and sort — Excel
+-- opens it by double-click, exactly like chrome_history's archive. A
+-- note that reaches its text file but misses the CSV says so in the
+-- alert instead of letting the two files drift apart silently.
 --
 -- 🔢 ALSO 6.99.0 — the number pad's bottom row drives this module:
--- ⇪pad1 appends the clipboard, ⇪pad2 opens it in the Note Pad editor
--- first, ⇪pad3 asks which file. The bindings live in numpad_layer.lua
+-- ⇪pad1 appends the clipboard as a Log, ⇪pad2 opens the Quick Append
+-- Pad, ⇪pad3 asks which file. The bindings live in numpad_layer.lua
 -- (by service name); the services live here.
 
 local M = {
@@ -38,14 +41,14 @@ local M = {
     cheatsheet = {
         title = "📝 QUICK APPEND (⇪J / ⇪pad1 — clipboard into a file, no editor)",
         entries = {
-            { "⇪J",  "Append the clipboard to the default notes file" },
+            { "⇪J",  "Append the clipboard to log.txt — a Log note, instantly" },
             { "⇪pad1", "The same, from the number pad" },
-            { "⇪⇧J", "Pick which file — or type a line instead of pasting" },
+            { "⇪⇧J", "Pick Logs or Ideas — or type a line instead of pasting" },
             { "⇪pad3", "The same picker, from the number pad" },
             { "adds", "A timestamp line, then your text, then a blank line" },
             { "shows", "The file, the line count, and the first words it wrote" },
             { "files", "Live in <logs>/notes/ — edit quickAppend.targets to change" },
-            { "csv",  "Every append is also one row in notes.csv — date, time, category, note" },
+            { "csv",  "Every append is one notes.csv row — Date · Note Type · Note entry" },
             { "safe", "Append mode: never truncates, never holds the file open" },
         },
     },
@@ -59,16 +62,17 @@ function M.setup(core)
     -- Where a bare filename below resolves to. An absolute path or one
     -- starting with ~ is used exactly as written and ignores this.
     qa.dir = (core.logsDir or core.homeDir) .. "/notes"
-    -- 6.99.0 — Ideas and Scratch are ONE line now, on request. Both were
-    -- empty when they merged; an old scratch.txt on disk keeps its text,
-    -- it simply stops being offered. "Log" reads "Logs" for the same
-    -- reason: it is the name the CSV category column carries.
+    -- 6.100.0 — TWO note types, on request: "Note type would be either
+    -- 'Ideas' or 'Logs'. If you can't tell, make it a 'Log' entry." So
+    -- Logs is FIRST and DEFAULT — ⇪J and ⇪pad1 file the clipboard as a
+    -- Log — and Ideas is the other. Scratch is REMOVED (6.99.0 had
+    -- already folded it into Ideas) and Inbox stops being offered; an
+    -- old inbox.txt or scratch.txt on disk keeps its text untouched.
     qa.targets = {
-        { name = "Inbox",           file = "inbox.txt", note = "anything, sorted later" },
-        { name = "Ideas & Scratch", file = "ideas.txt", note = "half-formed and throwaway alike" },
-        { name = "Logs",            file = "log.txt",   note = "what happened today" },
+        { name = "Logs",  file = "log.txt",   note = "what happened — the default" },
+        { name = "Ideas", file = "ideas.txt", note = "half-formed thoughts" },
     }
-    qa.defaultTarget = 1        -- index into qa.targets, used by ⇪J
+    qa.defaultTarget = 1        -- index into qa.targets, used by ⇪J/⇪pad1
     qa.stamp         = true     -- write a "── 2026-08-07 20:41 ──" line first
     qa.stampFormat   = "%Y-%m-%d %H:%M"
     qa.trailingBlank = true     -- blank line after each entry
@@ -126,7 +130,41 @@ function M.setup(core)
 
     function qa.csvPath() return qa.dir .. "/" .. qa.csvName end
 
-    -- One row per append: date, time, category (the target's name), note.
+    -- The Note Type column holds EXACTLY two values, per the spec: Ideas
+    -- or Logs — "If you can't tell, make it a 'Log' entry." Any target
+    -- whose name is neither (a custom target added by hand, say) is
+    -- therefore recorded as Logs rather than inventing a third type the
+    -- spec forbids; its text still goes to its own file.
+    function qa.noteType(name)
+        if name == "Ideas" or name == "Logs" then return name end
+        return "Logs"
+    end
+
+    -- 6.99.0 shipped a four-column format (date,time,category,note) that
+    -- lived exactly one release. Appending three-column rows to such a
+    -- file would misalign silently — every read after that lies — so an
+    -- old-format file is moved whole to notes-v1.csv, once, and said so.
+    -- Checked on the first append per boot, not per row.
+    local csvFormatChecked = false
+    local function csvEnsureFormat(path)
+        if csvFormatChecked then return end
+        csvFormatChecked = true
+        local f = io.open(path, "r")
+        if not f then return end
+        local first = f:read("l") or ""
+        f:close()
+        if first == "date,time,category,note" then
+            local moved = path:gsub("%.csv$", "") .. "-v1.csv"
+            pcall(os.rename, path, moved)
+            print("📝 Quick Append: notes.csv was in the one-release 6.99.0 "
+                  .. "format — moved to " .. moved
+                  .. "; starting fresh as Date / Note Type / Note entry")
+        end
+    end
+
+    -- One row per append: | Date | Note Type | Note entry | — LL's
+    -- columns, verbatim. Date carries the time too ("2026-08-18 14:32"):
+    -- still ONE dated column, still sorts chronologically as text.
     -- Called only AFTER the text file took the entry — the CSV is an
     -- index of what was written, so it must never say more than the
     -- files do. Returns false rather than raising; the caller folds the
@@ -135,6 +173,7 @@ function M.setup(core)
     local function csvRecord(target, text)
         if not qa.csv then return true end
         local path = qa.csvPath()
+        csvEnsureFormat(path)
         local fresh = hs.fs.attributes(path) == nil
         local f = io.open(path, "a")
         if not f then
@@ -142,9 +181,10 @@ function M.setup(core)
             return false
         end
         local okWrite = pcall(function()
-            if fresh then f:write("date,time,category,note\n") end
-            f:write(os.date("%Y-%m-%d") .. "," .. os.date("%H:%M:%S") .. ","
-                    .. csvField(target.name) .. "," .. csvField(text) .. "\n")
+            if fresh then f:write("Date,Note Type,Note entry\n") end
+            f:write(os.date("%Y-%m-%d %H:%M") .. ","
+                    .. csvField(qa.noteType(target.name)) .. ","
+                    .. csvField(text) .. "\n")
         end)
         local okClose = pcall(function() return f:close() end)
         return okWrite and okClose
