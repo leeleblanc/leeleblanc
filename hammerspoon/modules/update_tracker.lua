@@ -43,6 +43,8 @@
 local M = {
     name  = "App Update Tracker",
     order = 9,
+    family = "auto",
+    summary = "Checks Homebrew for app updates (⌃⌥⇧U to see them)",
     cheatsheet = {
         title = "📦 APP UPDATES",
         entries = {

@@ -26,6 +26,8 @@
 local M = {
     name  = "App Watcher",
     order = 1,
+    family = "auto",
+    summary = "Notices apps starting and quitting, for the trackers",
     cheatsheet = {
         title = "👁 APP MONITOR (automatic)",
         entries = {

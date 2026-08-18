@@ -36,6 +36,7 @@
 local M = {
     name  = "Command History",
     order = 12,
+    family = "find",
     cheatsheet = {
         title = "⌨️ COMMAND HISTORY",
         entries = {

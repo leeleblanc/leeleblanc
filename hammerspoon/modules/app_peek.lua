@@ -18,6 +18,7 @@
 local M = {
     name  = "App Peek",
     order = 7,
+    family = "windows",
     cheatsheet = {
         title = "👀 APP PEEK",
         entries = {

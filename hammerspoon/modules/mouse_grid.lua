@@ -122,6 +122,7 @@
 local M = {
     name  = "Mouse Grid",
     order = 13.6,
+    family = "windows",
     cheatsheet = {
         title = "🎯 MOUSE GRID (⇪X — type 3 letters, the pointer goes there)",
         entries = {

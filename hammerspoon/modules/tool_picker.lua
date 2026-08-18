@@ -37,7 +37,8 @@
 
 local M = {
     name  = "Tool Picker",
-    order = 13.55,          -- next to the numpad layer and the grid
+    order = 13.55,
+    family = "config",          -- next to the numpad layer and the grid
     cheatsheet = {
         title = "🔎 TOOL PICKER (⇪⇧/ — search every shortcut)",
         entries = {

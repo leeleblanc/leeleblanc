@@ -69,7 +69,8 @@
 
 local M = {
     name  = "App Launcher",
-    order = 7.5,               -- with App Peek (7) and the ⌥Tab switcher (8)
+    order = 7.5,
+    family = "find",               -- with App Peek (7) and the ⌥Tab switcher (8)
     cheatsheet = {
         title = "🚀 APP LAUNCHER (⇪D — every installed app, by name)",
         entries = {

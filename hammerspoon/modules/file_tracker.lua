@@ -53,6 +53,7 @@
 local M = {
     name  = "File Tracker",
     order = 10,
+    family = "files",
     cheatsheet = {
         title = "📁 FILE TRACKER",
         entries = {

@@ -52,6 +52,7 @@
 local M = {
     name  = "Pomodoro",
     order = 13.65,
+    family = "time",
     cheatsheet = {
         title = "🍅 POMODORO (⇪⇧P — 25 on, 5 off)",
         entries = {

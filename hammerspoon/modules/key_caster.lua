@@ -69,7 +69,8 @@
 
 local M = {
     name  = "Key Caster",
-    order = 13.57,          -- with the other keyboard tools
+    order = 13.57,
+    family = "config",          -- with the other keyboard tools
     cheatsheet = {
         title = "⌨️ KEY CASTER (⇪⇧B — show the keys you press)",
         entries = {

@@ -48,7 +48,8 @@
 
 local M = {
     name  = "Begone",
-    order = 13.59,        -- beside the Text Expander (13.58), whose
+    order = 13.59,
+    family = "time",        -- beside the Text Expander (13.58), whose
                           -- machinery fires the keyword
     cheatsheet = {
         title = "🔕 BEGONE (type it — banners vanish)",

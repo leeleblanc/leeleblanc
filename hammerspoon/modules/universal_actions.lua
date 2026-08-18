@@ -37,6 +37,7 @@
 local M = {
     name  = "Universal Actions",
     order = 13.75,
+    family = "text",
     cheatsheet = {
         title = "⚡ UNIVERSAL ACTIONS (⇪⇧A — act on the selection)",
         entries = {

@@ -1545,19 +1545,46 @@ check("🚨 THE TWO LAYERS ARE STILL DISTINCT KEYS — ⇪pad7 and ⇪⇧pad7 ar
 -- a third layer crowded the word out of it — which the check caught,
 -- correctly. But a title is a header; the promise being made is that the
 -- SHEET tells you the layer is free, so both halves are asserted now.
-check("the cheat sheet TITLE still says FREE rather than listing tools "
-      .. "that are no longer there",
-      numMod.cheatsheet.title:lower():find("free", 1, true) ~= nil,
-      numMod.cheatsheet.title)
+-- 🔄 6.101.0 — the module now registers TWO groups (its ⇪ pad row captures
+-- text, its ⇪⇧ pad row moves windows, and those are different families on
+-- the sheet), so these read across ALL of them rather than the one table
+-- that used to be there. The promise is unchanged: SOMEWHERE on the sheet,
+-- in a title and in an entry, the free layers say they are free.
+local numGroups = numMod.cheatsheet.title and { numMod.cheatsheet } or numMod.cheatsheet
+check("the module registers its groups in a shape the loader accepts",
+      #numGroups >= 1 and numGroups[1].title ~= nil, #numGroups)
+check("a cheat sheet TITLE still says FREE rather than listing tools "
+      .. "that are no longer there", (function()
+    local titles = {}
+    for _, g in ipairs(numGroups) do
+        titles[#titles + 1] = g.title
+        if tostring(g.title):lower():find("free", 1, true) then return true end
+    end
+    return false, table.concat(titles, " | ")
+end)())
 check("...and an ENTRY says it for EACH free layer, which is where "
       .. "someone reading the sheet actually looks", (function()
     local sawHyper, sawCmd = false, false
-    for _, e in ipairs(numMod.cheatsheet.entries) do
-        local k, v = tostring(e[1]), tostring(e[2]):lower()
-        if k:find("⇪ pad", 1, true) and v:find("free", 1, true) then sawHyper = true end
-        if k:find("⌘⇧ pad", 1, true) and v:find("free", 1, true) then sawCmd = true end
+    for _, g in ipairs(numGroups) do
+        for _, e in ipairs(g.entries or {}) do
+            local k, v = tostring(e[1]), tostring(e[2]):lower()
+            if k:find("⇪ pad", 1, true) and v:find("free", 1, true) then sawHyper = true end
+            if k:find("⌘⇧ pad", 1, true) and v:find("free", 1, true) then sawCmd = true end
+        end
     end
     return sawHyper and sawCmd, tostring(sawHyper) .. "/" .. tostring(sawCmd)
+end)())
+-- 🚨 AND THE SPLIT ITSELF, asserted rather than assumed: the two groups
+-- must land in DIFFERENT families, because filing all twenty-four rows
+-- under either one is a lie about half of them — which is the whole
+-- reason the loader learned to take a list.
+check("🗂 the ⇪ pad capture row and the ⇪⇧ pad window map are filed in "
+      .. "different families", (function()
+    local fams = {}
+    for _, g in ipairs(numGroups) do fams[#fams + 1] = tostring(g.family) end
+    if #numGroups < 2 then return false, "only one group" end
+    return fams[1] ~= fams[2] and fams[1] ~= "nil" and fams[2] ~= "nil",
+           table.concat(fams, " / ")
 end)())
 
 -- ---- LAYER 3: ⌘⇧ + pad, added 6.70.0 --------------------------------
@@ -1601,8 +1628,10 @@ check("...and it skips a key this Mac has no code for, like the others — "
       end)())
 check("the cheat sheet tells you the ⌘⇧ layer exists — a free layer "
       .. "nobody knows about is not a feature", (function()
-        for _, e in ipairs(numMod.cheatsheet.entries) do
-            if tostring(e[1]):find("⌘⇧", 1, true) then return true end
+        for _, g in ipairs(numGroups) do
+            for _, e in ipairs(g.entries or {}) do
+                if tostring(e[1]):find("⌘⇧", 1, true) then return true end
+            end
         end
       end)())
 

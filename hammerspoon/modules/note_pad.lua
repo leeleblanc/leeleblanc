@@ -53,7 +53,8 @@
 
 local M = {
     name  = "Quick Append Pad",
-    order = 13.35,       -- between Quick Append (13.3), whose files it
+    order = 13.35,
+    family = "capture",       -- between Quick Append (13.3), whose files it
                          -- writes, and the numpad layer (13.5) that keys it
     cheatsheet = {
         title = "🗒 QUICK APPEND PAD (⇪pad2 — one box, four destinations)",

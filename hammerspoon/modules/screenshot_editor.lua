@@ -48,6 +48,7 @@
 local M = {
     name  = "Screenshot Editor",
     order = 23.5,
+    family = "screen",
     cheatsheet = {
         title = "🖌 SCREENSHOT EDITOR (blur · text · arrows — via ⇪⇧4)",
         entries = {

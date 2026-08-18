@@ -62,6 +62,7 @@
 local M = {
     name  = "Health Monitor",
     order = 13.8,
+    family = "config",
     cheatsheet = {
         title = "🩺 HEALTH MONITOR (watches the other tools, tells you when one dies)",
         entries = {

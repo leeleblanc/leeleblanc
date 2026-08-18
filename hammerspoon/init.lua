@@ -4,15 +4,24 @@
 -- =====================================================================
 -- 08-18-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.100.2
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.101.0
 -- =====================================================================
 
+-- NEW IN 6.101.0 — THE CHEAT SHEET BECOMES A MAP:
+--   ⇪/ sorted forty-seven sections A–Z, which is an index: you had to
+--   know the split-windows key lived under W before you could find it.
+--   Sections now sit in EIGHT FAMILIES — windows & pointer, capture &
+--   tasks, find & open, files, text & clipboard, screen capture, time
+--   & attention, the config itself — each under its own band, with A–Z
+--   inside. Seven automatic tools (backup, watchers, updates) collapse
+--   into one "⚙️ RUNS ITSELF" box, a line each. Each module declares
+--   its own family, so nothing can go missing. No key changed.
+--
 -- NEW IN 6.100.2 — THE CHEAT SHEET STOPS SHOUTING:
 --   Each tool's box on ⇪/ was outlined in hard black — fine at three
 --   sections, a heavy grid at forty-two. The outline is now the same
 --   grey hairline every other card in the config wears, and each box
---   lifts off the panel with a little more fill instead. Same boxes,
---   same grouping, the words back in front.
+--   lifts off the panel with a little more fill instead.
 --
 -- NEW IN 6.100.1 — THE PHANTOM PILL GETS SWEPT:
 --   When another app's popup made hs.alert.show throw MID-draw, the
@@ -40,14 +49,8 @@
 --   lands as a row in the searchable notes.csv. Begone learned the
 --   macOS 26 notification layout and now says WHY when it closes nothing.
 --
--- NEW IN 6.98.0 — OCR SEES id= FILES · THE TASK CREATOR MOVES OUT:
---   Images copied as "/.file/id=…" reference paths now resolve and OCR
---   (the miss line is errors-only). The Asana task creator became
---   modules/task_creator.lua — and its upload no longer shows the
---   token to `ps`.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.100.2
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.101.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -345,7 +348,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.100.2"
+_G.configVersion = "6.101.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2934,8 +2937,18 @@ end
 -- THE MODULE CONTRACT, in full:
 --
 --   return {
---     name  = "App Peek",            -- shown in the boot report
---     order = 7,                     -- its slot in the cheat sheet
+--     name   = "App Peek",           -- shown in the boot report
+--     order  = 7,                    -- LOAD order (and the A–Z tie-break)
+--     family = "windows",            -- 6.101.0: which band of the cheat
+--                                    -- sheet it sits under. The ids are
+--                                    -- listed in core/cheatsheet.lua →
+--                                    -- cheatSheet.families. Declare it
+--                                    -- HERE, never in a list over there:
+--                                    -- a membership list somewhere else
+--                                    -- drifts the moment a module is
+--                                    -- added. No family = the visible
+--                                    -- "NOT YET FILED" band, and a test
+--                                    -- fails until you pick one.
 --     cheatsheet = {                 -- travels WITH the module
 --       title = "👀 APP PEEK",
 --       entries = { { "⇪P", "Hide the frontmost app" } },
@@ -2944,6 +2957,13 @@ end
 --                                    -- profile may override
 --     setup = function(core) ... end,-- REQUIRED: binds keys, cheap work
 --   }
+--
+-- 🗂 TWO SPECIAL FAMILY CASES (6.101.0):
+--   family = "auto"  — no keys, runs by itself. It collapses into the one
+--     "⚙️ RUNS ITSELF" box as a single line, taken from `summary = "…"`.
+--     Such a module is listed even with NO cheatsheet at all.
+--   cheatsheet may be a LIST of groups, each with its own `family`, for a
+--     module whose keys genuinely serve two bands — see numpad_layer.
 --
 -- setup() may also assign M.warm = function(core) ... end before it
 -- returns. See the two-phase note below.
@@ -3201,12 +3221,41 @@ local function loadOneModule(name, settings)
     rec.module  = mod
     -- The cheat sheet group is registered only after setup SUCCEEDS, so
     -- the sheet can never advertise a shortcut that was never bound.
-    if type(mod.cheatsheet) == "table" and mod.cheatsheet.title then
-        table.insert(_G.moduleCheatsheets, {
-            title   = mod.cheatsheet.title,
-            entries = mod.cheatsheet.entries or {},
-            order   = mod.order or 500,
-        })
+    -- 🗂 6.101.0 — THREE THINGS CHANGED HERE, all so the sheet can group by
+    -- family without any list of who-belongs-where living outside the
+    -- modules themselves:
+    --   1. the group carries `family` (from the group, else the module);
+    --   2. a module may register SEVERAL groups — `cheatsheet` can be a
+    --      LIST — because numpad_layer's keys genuinely serve two families
+    --      (⇪pad captures, ⇪⇧pad moves windows) and filing all 24 rows
+    --      under either one is a lie about half of them;
+    --   3. a module with family = "auto" registers EVEN WITH NO CHEATSHEET,
+    --      so the "runs itself" box can list it by name. copy_on_select has
+    --      never had a cheat sheet group and would otherwise be the one
+    --      automatic tool the sheet never mentions.
+    local cs     = mod.cheatsheet
+    local groups = nil
+    if type(cs) == "table" then groups = cs.title and { cs } or cs end
+    if (not groups or #groups == 0) and mod.family == "auto" then
+        groups = { { title = mod.name or name, entries = {} } }
+    end
+    for gi, g in ipairs(groups or {}) do
+        if type(g) == "table" and g.title then
+            table.insert(_G.moduleCheatsheets, {
+                title   = g.title,
+                entries = g.entries or {},
+                -- ⚠️ A SLOT PER GROUP, NOT PER MODULE. Two groups sharing
+                -- one order number is a real bug and not a cosmetic one:
+                -- Lua's table.sort is not stable, so they would swap
+                -- places at random between reloads and the sheet would
+                -- never look the same twice. The thousandth keeps a
+                -- multi-group module inside its own slot.
+                order   = (mod.order or 500) + (gi - 1) / 1000,
+                family  = g.family  or mod.family,
+                summary = g.summary or mod.summary,
+                source  = mod.name  or name,
+            })
+        end
     end
     return rec
 end

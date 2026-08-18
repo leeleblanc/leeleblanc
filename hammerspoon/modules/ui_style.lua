@@ -44,6 +44,7 @@
 local M = {
     name  = "UI Style",
     order = 0.5,
+    family = "config",
     cheatsheet = {
         title = "🎨 UI STYLE (no key — the shared panel look)",
         entries = {

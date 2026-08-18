@@ -66,7 +66,8 @@
 
 local M = {
     name  = "Search Index",
-    order = 7.6,               -- right behind the App Launcher (7.5) it feeds
+    order = 7.6,
+    family = "files",               -- right behind the App Launcher (7.5) it feeds
     cheatsheet = {
         title = "🗂 FILE INDEX (feeds ⇪D — your files behind the apps)",
         entries = {

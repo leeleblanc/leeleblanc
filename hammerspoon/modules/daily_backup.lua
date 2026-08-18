@@ -24,7 +24,9 @@
 -- which is the whole difference between a section and a module.
 local M = {
     name  = "Daily Backup",
-    order = 15,                    -- slot in the cheat sheet
+    order = 15,
+    family = "auto",
+    summary = "Copies this config to OneDrive once a day",                    -- slot in the cheat sheet
     cheatsheet = {
         title = "☁️ BACKUP (automatic)",
         entries = {

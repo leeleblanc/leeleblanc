@@ -246,11 +246,19 @@ for _, name in ipairs({ "switcher", "calendar" }) do
 end
 
 out("\n=== 3. Cheat sheet groups travel WITH the module ===\n")
--- 16, not 18: Copy-on-Select and Asana Comments each declare no group,
--- because their entries belong to groups (CLIPBOARD & OCR, ASANA) that
--- are still owned by sections inside init.lua.
-check("sixteen groups registered; two modules deliberately declare none",
-      #_G.moduleCheatsheets == 16, #_G.moduleCheatsheets)
+-- 🔄 WAS 16, IS 18 SINCE 6.101.0, and the two extra are the point of that
+-- release rather than drift:
+--   · numpad_layer registers TWO groups — its ⇪ pad row captures text and
+--     its ⇪⇧ pad row moves windows, and those are different families on
+--     the sheet. The loader takes a LIST for exactly this;
+--   · copy_on_select registers WITHOUT a cheatsheet, because family =
+--     "auto" modules are listed by name in the RUNS ITSELF box, and it
+--     was the one automatic tool the sheet never mentioned.
+-- Asana Comments still declares none: its entries belong to the ASANA
+-- group that init.lua still owns.
+check("eighteen groups registered — one module contributes two, one has "
+      .. "no cheat sheet at all, and Asana Comments declares none",
+      #_G.moduleCheatsheets == 18, #_G.moduleCheatsheets)
 local byOrder = {}
 for _, g in ipairs(_G.moduleCheatsheets) do byOrder[g.order] = g.title end
 -- ⚠️ A DUPLICATE ORDER NUMBER IS A REAL BUG, NOT A COSMETIC ONE: Lua's
@@ -268,7 +276,10 @@ check("the five new 6.44.0 groups sit between Autocorrect and the ⇪ reference"
       (function()
         local wanted = { [13.1] = "CAPTURE PAD", [13.2] = "MINI CALENDAR",
                          [13.3] = "QUICK APPEND", [13.4] = "SCREEN VEIL",
-                         [13.5] = "NUMPAD LAYER" }
+                         -- 6.101.0 — the numpad's FIRST group holds its
+                         -- own slot; the second sits a thousandth above
+                         -- it, which is what keeps the sort total.
+                         [13.5] = "NUMPAD", [13.501] = "NUMPAD" }
         for slot, needle in pairs(wanted) do
           if not (byOrder[slot] or ""):find(needle, 1, true) then return false end
         end
@@ -285,9 +296,21 @@ check("Autocorrect claims slot 13", (byOrder[13] or ""):find("AUTOCORRECT", 1, t
 check("Activity Tracker claims slot 4", (byOrder[4] or ""):find("ACTIVITY", 1, true))
 check("Update Tracker claims slot 9", (byOrder[9] or ""):find("APP UPDATES", 1, true))
 check("Document Watcher claims slot 11", (byOrder[11] or ""):find("DOCUMENT WATCHER", 1, true))
-check("every registered group carries entries", (function()
+-- Every group that gets a SECTION on the sheet must have rows in it — an
+-- empty section is a heading over nothing. The exception is deliberate and
+-- narrow: a family = "auto" module contributes a one-LINE entry to the
+-- shared RUNS ITSELF box rather than a section, so its own entry list is
+-- empty by design and its `summary` is what actually prints.
+check("every registered group carries entries, or is an automatic tool "
+      .. "whose one line comes from its summary", (function()
   for _, g in ipairs(_G.moduleCheatsheets) do
-    if type(g.entries) ~= "table" or #g.entries == 0 then return false end
+    if type(g.entries) ~= "table" then return false, g.title end
+    if #g.entries == 0 then
+      if g.family ~= "auto" then return false, g.title .. " (empty, not auto)" end
+      if type(g.summary) ~= "string" or g.summary == "" then
+        return false, g.title .. " (auto, but no summary to print)"
+      end
+    end
   end
   return true
 end)())

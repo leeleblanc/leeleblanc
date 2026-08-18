@@ -123,8 +123,9 @@ rsync -av "$ONEDRIVE/Logs/ToolConfig/hammerspoon/modules/" ~/.hammerspoon/module
 
 ```lua
 local M = {}                      -- declare FIRST, then fill it in.
-M.name  = "My Feature"            -- (`local M = { setup = function() M.x = 1 end }`
-M.order = 20                      --  leaves M nil inside the closure.)
+M.name   = "My Feature"           -- (`local M = { setup = function() M.x = 1 end }`
+M.order  = 20                     --  leaves M nil inside the closure.)
+M.family = "windows"              -- REQUIRED: its band on the cheat sheet
 
 M.cheatsheet = {                  -- optional; travels with the module
     title   = "🔧 MY FEATURE",
@@ -145,6 +146,40 @@ return M                          -- forget this and the loader says so
 ```
 
 Then add `"my_feature"` to each profile's `modules` list.
+
+### `family` — where it lands on ⇪/ (6.101.0)
+
+The cheat sheet groups its sections into **families**, each under a band,
+with A–Z running inside a family rather than across the whole page. Pick
+one of these ids:
+
+| id | band |
+|---|---|
+| `windows` | 🪟 windows & pointer — arranging, switching, aiming |
+| `capture` | 🗒 capture & tasks — anything that takes something in |
+| `find` | 🔎 find & open — search anything, open anything |
+| `files` | 📁 files & documents |
+| `text` | ✂️ text & clipboard — what happens to text as it moves |
+| `screen` | 📸 screen capture |
+| `time` | ⏱ time & attention — the day, and what interrupts it |
+| `config` | 🩺 the config itself |
+| `auto` | ⚙️ no keys, runs by itself — see below |
+
+The list lives in `core/cheatsheet.lua` → `cheatSheet.families`; reorder
+the page by reordering it. **Declare the family in the module, never in a
+list over there** — a membership list somewhere else drifts the moment a
+module is added. A module that declares nothing shows up under a visible
+**🧩 NOT YET FILED** band, and `test_diagnostics` fails until it picks one.
+
+**`family = "auto"`** is for a module with no keys at all. It does not get
+a section; it contributes one line to the shared **⚙️ RUNS ITSELF** box,
+and that line comes from `M.summary = "…"`, which is then required. Such a
+module is listed even with no `cheatsheet` at all.
+
+**Two families in one module?** `M.cheatsheet` may be a **list** of groups,
+each with its own `family` — `modules/numpad_layer.lua` does this because
+`⇪ pad` captures text while `⇪⇧ pad` moves windows. Each group gets its own
+slot automatically.
 
 ### What `core` gives you
 

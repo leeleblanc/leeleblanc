@@ -66,6 +66,7 @@ local M = {
     -- silent tie, and a tie makes the cheat sheet's running order depend
     -- on table iteration. The integration suite caught exactly this.
     order = 14.0,
+    family = "time",
     cheatsheet = {
         title = "🎯 FOCUS MODE (⇪Q — Quiet: the Mac steps back when you join)",
         entries = {

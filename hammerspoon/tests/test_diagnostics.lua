@@ -560,6 +560,55 @@ check("a broken Homebrew is reported ONCE, not once per app",
 check("...and names the actual repair rather than blaming the cask token",
       (moduleText.update_tracker or ""):find("brew update --force", 1, true) ~= nil)
 
+-- 🗂 6.101.0 — EVERY MODULE DECLARES ITS CHEAT SHEET FAMILY. The families
+-- exist so ⇪/ reads as a map instead of an index, and the membership is
+-- declared BY EACH MODULE rather than in a list inside cheatsheet.lua —
+-- because a list over there drifts the moment a module is added, which is
+-- the same trap this file's MODS list was rescued from in 6.66.3. The
+-- fallback is honest (an unfiled module shows up under "NOT YET FILED"
+-- rather than vanishing) but it is a safety net, not a destination: a new
+-- module must not be able to reach a release without picking a family.
+do
+  local families, unfiled, unknown = {}, {}, {}
+  do
+    local cf = realopen(HS .. "/core/cheatsheet.lua", "r")
+    local src = cf and cf:read("*a") or ""
+    if cf then cf:close() end
+    local block = src:match("cheatSheet%.families%s*=%s*{(.-)\n%s*}")
+    for id in (block or ""):gmatch('id%s*=%s*"([%w_]+)"') do families[id] = true end
+  end
+  -- "auto" is a real family that lives in the loader rather than the list:
+  -- those modules collapse into the RUNS ITSELF box instead of getting a
+  -- band of their own.
+  families.auto = true
+  check("core/cheatsheet.lua declares a family list the audit can read",
+        next(families) ~= nil and families.windows == true)
+  for _, m in ipairs(MODS) do
+    local fam = (moduleText[m] or ""):match("\n%s*family%s*=%s*\"([%w_]+)\"")
+    if not fam then unfiled[#unfiled + 1] = m
+    elseif not families[fam] then unknown[#unknown + 1] = m .. "=" .. fam end
+  end
+  check("🗂 every shipped module declares a cheat sheet family — a new one "
+        .. "cannot reach a release unfiled", #unfiled == 0,
+        table.concat(unfiled, ", "))
+  check("...and every family it names actually exists in cheatSheet.families",
+        #unknown == 0, table.concat(unknown, ", "))
+  -- The automatic tools are the ones with no keys at all. Their one line
+  -- in the RUNS ITSELF box IS their whole entry on the sheet, so a missing
+  -- summary is a tool the sheet lists by name and cannot describe.
+  local noSummary = {}
+  for _, m in ipairs(MODS) do
+    local body = moduleText[m] or ""
+    if body:match("\n%s*family%s*=%s*\"auto\"")
+       and not body:match("\n%s*summary%s*=%s*\"") then
+      noSummary[#noSummary + 1] = m
+    end
+  end
+  check("...and every family = \"auto\" module carries the one-line summary "
+        .. "the RUNS ITSELF box prints for it", #noSummary == 0,
+        table.concat(noSummary, ", "))
+end
+
 
 -- =====================================================================
 -- 7b. THE ALERT WRAPPER SWEEPS ITS OWN WRECKAGE (6.100.1)

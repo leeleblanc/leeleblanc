@@ -53,6 +53,7 @@
 local M = {
     name  = "Recent Documents",
     order = 11.5,
+    family = "files",
     cheatsheet = {
         title = "📂 RECENT DOCUMENTS (⇪I)",
         entries = {

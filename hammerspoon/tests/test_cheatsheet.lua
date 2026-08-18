@@ -621,24 +621,86 @@ for _, g in ipairs(CS.groups()) do table.insert(got, g.title) end
 local function sortKey(t)
   return (tostring(t):gsub("^[^%a]*", ""):gsub("%s*%b()%s*$", ""):upper())
 end
-check("every group is in alphabetical order by title, ignoring the "
-      .. "leading emoji and the trailing (key) parenthetical", (function()
-  for i = 2, #got do
-    if sortKey(got[i - 1]) > sortKey(got[i]) then
-      return false, sortKey(got[i - 1]) .. " > " .. sortKey(got[i])
+-- 🔄 CHANGED IN 6.101.0, AND THE OLD RULE WAS RIGHT TO GO. Until now the
+-- whole page was one A–Z run, which is an INDEX: to find the split-windows
+-- key you had to already know it lives under W for Window Arranger. Groups
+-- now sort into FAMILIES first (LL: "Can we combine certain single tools of
+-- similar types?"), and A–Z runs INSIDE a family. What is asserted is that
+-- rule — families in the declared order, alphabetical within each — not a
+-- transcript of today's list.
+check("groups sort into families, in the order the families are declared",
+      (function()
+  local idx = {}
+  for i, f in ipairs(CS.families) do idx[f.id] = i end
+  local seen = -1
+  for _, g in ipairs(CS.groups()) do
+    if g.famIdx then
+      if g.famIdx < seen then
+        return false, "family " .. tostring(g.family) .. " came after a later one"
+      end
+      seen = g.famIdx
     end
   end
   return true
 end)())
-check("the emoji does NOT decide position — ✅ ASANA sorts under A, "
-      .. "not under whatever ✅ happens to be", (function()
-  for i, t in ipairs(got) do
-    if t:find("ASANA", 1, true) then
-      -- ACTIVITY TRACKER, APP MONITOR, APP PEEK, APP UPDATES all precede it.
-      return i > 1 and sortKey(got[i - 1]) < "ASANA"
+check("...and A–Z still runs INSIDE each family, ignoring the leading "
+      .. "emoji and the trailing (key) parenthetical", (function()
+  local list = CS.groups()
+  for i = 2, #list do
+    local a, b = list[i - 1], list[i]
+    if a.famIdx and b.famIdx and a.famIdx == b.famIdx
+       and sortKey(a.title) > sortKey(b.title) then
+      return false, sortKey(a.title) .. " > " .. sortKey(b.title)
+        .. " inside " .. tostring(b.family)
+    end
+  end
+  return true
+end)())
+check("the emoji does NOT decide position — ✅ ASANA sorts under A among "
+      .. "its own family, not under whatever ✅ happens to be", (function()
+  local list = CS.groups()
+  for i, g in ipairs(list) do
+    if g.title:find("ASANA", 1, true) then
+      local prev = list[i - 1]
+      -- Either it opens its family, or the group above it sorts before A.
+      return (not prev) or prev.famIdx ~= g.famIdx
+             or sortKey(prev.title) < "ASANA"
     end
   end
   return false
+end)())
+-- 🚨 A GROUP WITH NO FAMILY IS FILED VISIBLY, NEVER DROPPED AND NEVER
+-- ABSORBED. This harness stubs the module list, so what it can prove is
+-- the FALLBACK: an unfiled group still reaches the sheet, in the band
+-- whose name admits what happened. That every SHIPPED module declares a
+-- real family is a different question, asked of the files on disk in
+-- test_diagnostics §7 — the fixture here could never answer it.
+check("a group with NO family still reaches the sheet, in misc", (function()
+  local saved = _G.moduleCheatsheets
+  _G.moduleCheatsheets = {
+    { title = "🧪 UNFILED", entries = { { "⇪Z", "z" } }, order = 5 },
+  }
+  local found
+  for _, g in ipairs(CS.groups()) do
+    if g.title:find("UNFILED", 1, true) then found = g.family end
+  end
+  _G.moduleCheatsheets = saved
+  return found == "misc", "landed in: " .. tostring(found)
+end)())
+check("...and an UNKNOWN family is caught rather than dropped — a group "
+      .. "claiming a family that does not exist still appears, in misc",
+      (function()
+  local saved = _G.moduleCheatsheets
+  _G.moduleCheatsheets = {
+    { title = "🧪 INVENTED", entries = { { "⇪Z", "z" } }, order = 5,
+      family = "no_such_family" },
+  }
+  local found
+  for _, g in ipairs(CS.groups()) do
+    if g.title:find("INVENTED", 1, true) then found = g.family end
+  end
+  _G.moduleCheatsheets = saved
+  return found == "misc", "landed in: " .. tostring(found)
 end)())
 check("a title's trailing parenthetical does not decide position either — "
       .. "WINDOW SWITCHER (⌥Tab …) files under W", (function()
@@ -665,10 +727,12 @@ end)())
 -- the case that would pass by accident if the pin did nothing.
 do
   local saved = _G.moduleCheatsheets
+  -- All three in ONE family, so the A–Z rule inside it is what decides —
+  -- this fixture is about ordering, not about family membership.
   _G.moduleCheatsheets = {
-    { title = "🎯 MOUSE GRID (⇪X — type 3 letters)", entries = { { "⇪X", "grid" } }, order = 13.6 },
-    { title = "🔎 TOOL PICKER (⇪⇧/ — search)",       entries = { { "⇪⇧/", "find" } }, order = 13.55 },
-    { title = "🅰️ AAA FIRST ALPHABETICALLY",         entries = { { "⇪Z", "z" } },    order = 2 },
+    { title = "🎯 MOUSE GRID (⇪X — type 3 letters)", entries = { { "⇪X", "grid" } }, order = 13.6, family = "windows" },
+    { title = "🔎 TOOL PICKER (⇪⇧/ — search)",       entries = { { "⇪⇧/", "find" } }, order = 13.55, family = "windows" },
+    { title = "🅰️ AAA FIRST ALPHABETICALLY",         entries = { { "⇪Z", "z" } },    order = 2, family = "windows" },
   }
   local pinned = {}
   for _, g in ipairs(CS.groups()) do table.insert(pinned, g.title) end
@@ -1075,6 +1139,134 @@ do
         canvasRect.w .. "x" .. canvasRect.h)
   CS.width, CS.height = nil, nil
   CS.hide()
+end
+
+-- =====================================================================
+print("\n=== 🗂 FAMILY BANDS ON THE PAGE (6.101.0) ===")
+-- =====================================================================
+-- LL: "Can we combine certain single tools of similar types?" The sort is
+-- checked in §13; what is checked HERE is the page it produces — that a
+-- band appears once above its tools, that it is not mistaken for a
+-- section, and that a search does not leave a heading standing over
+-- nothing.
+do
+  local saved = _G.moduleCheatsheets
+  _G.moduleCheatsheets = {
+    { title = "🪟 WINDOW ARRANGER",  entries = { { "⇪←", "left half" } },  order = 6,  family = "windows" },
+    { title = "🎯 MOUSE GRID",       entries = { { "⇪X", "point" } },      order = 13, family = "windows" },
+    { title = "🗒 CAPTURE PAD",      entries = { { "⇪N", "collect" } },    order = 13, family = "capture" },
+    { title = "☁️ BACKUP",           entries = {},                         order = 15,
+      family = "auto", summary = "Copies this config to OneDrive once a day", source = "Daily Backup" },
+    { title = "👁 APP MONITOR",      entries = {},                         order = 1,
+      family = "auto", summary = "Notices apps starting and quitting",     source = "App Watcher" },
+  }
+  _G.customShortcuts = {}
+  CS.pos, CS.query = nil, ""
+  CS.show()
+
+  local function rowsOfKind(k)
+    local out = {}
+    for _, l in ipairs(st().lines) do
+      if l.kind == k then out[#out + 1] = l.text end
+    end
+    return out
+  end
+
+  local bands = rowsOfKind("family")
+  check("a band is drawn for each family present", #bands >= 3, #bands)
+  check("...each family announces itself EXACTLY ONCE, however many tools "
+        .. "it holds — WINDOWS has two here", (function()
+    local seen = {}
+    for _, b in ipairs(bands) do
+      if seen[b] then return false, "repeated: " .. b end
+      seen[b] = true
+    end
+    return true
+  end)())
+  check("...and the band sits ABOVE its first tool, not among the rows",
+        (function()
+    local lines = st().lines
+    for i, l in ipairs(lines) do
+      if l.kind == "family" then
+        local nxt = lines[i + 1]
+        if not (nxt and nxt.kind == "header") then
+          return false, "row after a band was: " .. tostring(nxt and nxt.kind)
+        end
+      end
+    end
+    return true
+  end)())
+  -- 🚨 A BAND IS NOT A SECTION. Bands carry no `sec`, so the 6.94.0 boxes
+  -- close around the tools and leave the heading outside — the whole point
+  -- of a band being a different KIND of row.
+  check("🚨 a band carries no section tag, so no box is drawn around it",
+        (function()
+    for _, l in ipairs(st().lines) do
+      if l.kind == "family" and l.sec ~= nil then return false, l.text end
+    end
+    return true
+  end)())
+  check("...and it is drawn in the accent colour, not the blue a section "
+        .. "header uses — a family must not read as one more tool",
+        (function()
+    local famText, hdrText
+    for _, l in ipairs(st().lines) do
+      if l.kind == "family" and not famText then famText = l.text end
+      if l.kind == "header" and not hdrText then hdrText = l.text end
+    end
+    local famEl, hdrEl
+    for _, e in ipairs(drawn) do
+      if e.type == "text" and e.text == famText then famEl = e end
+      if e.type == "text" and e.text == hdrText then hdrEl = e end
+    end
+    if not (famEl and hdrEl) then return false, "rows not drawn" end
+    return famEl.textColor.red ~= hdrEl.textColor.red
+           and famEl.textSize > hdrEl.textSize
+  end)())
+
+  -- ⚙️ The automatic tools collapse into ONE box, one line each.
+  check("⚙️ the automatic tools collapse into a single RUNS ITSELF box",
+        (function()
+    local n = 0
+    for _, g in ipairs(CS.groups()) do
+      if g.title:find("RUNS ITSELF", 1, true) then n = n + 1 end
+    end
+    return n == 1, n .. " such boxes"
+  end)())
+  check("...listing each by NAME with its one-line summary, so a tool you "
+        .. "cannot press is still a tool you know you have", (function()
+    for _, g in ipairs(CS.groups()) do
+      if g.title:find("RUNS ITSELF", 1, true) then
+        local byName = {}
+        for _, e in ipairs(g.entries) do byName[e[1]] = e[2] end
+        return byName["Daily Backup"] == "Copies this config to OneDrive once a day"
+               and byName["App Watcher"] == "Notices apps starting and quitting",
+               "got: " .. tostring(byName["Daily Backup"])
+      end
+    end
+    return false, "no RUNS ITSELF box"
+  end)())
+  check("...and they no longer hold sections of their own — that is the "
+        .. "~25 rows of unpressable keys this removes", (function()
+    for _, g in ipairs(CS.groups()) do
+      if g.title:find("BACKUP", 1, true) or g.title:find("APP MONITOR", 1, true) then
+        return false, "still its own section: " .. g.title
+      end
+    end
+    return true
+  end)())
+
+  -- 🔎 A SEARCH MUST NOT LEAVE A HEADING OVER AN EMPTY FAMILY. The bands
+  -- are emitted from the FILTERED list for exactly this reason.
+  CS.query = "collect"
+  CS.show()
+  local filteredBands = rowsOfKind("family")
+  check("🔎 filtering to one tool leaves ONLY that tool's family band",
+        #filteredBands == 1 and filteredBands[1]:find("CAPTURE", 1, true) ~= nil,
+        table.concat(filteredBands, " | "))
+  CS.query = ""
+  CS.hide()
+  _G.moduleCheatsheets = saved
 end
 
 print(("\n%d passed, %d failed\n"):format(pass, fail))

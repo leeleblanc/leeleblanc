@@ -37,6 +37,8 @@
 local M = {
     name  = "Copy-on-Select",
     order = 350,
+    family = "auto",
+    summary = "Selecting text copies it — off by default (⇪⇧C)",
     -- no cheatsheet group — see the note above
 }
 

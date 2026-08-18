@@ -203,7 +203,7 @@ run and whether it exists here, and every path it writes to. Read-only.
 
 | Press | Expect |
 |---|---|
-| ⇪/ | the cheat sheet panel |
+| ⇪/ | the cheat sheet — eight family bands, tools A–Z inside each |
 | ⇪⇧D | a diagnostic report, also copied to your clipboard |
 | ⌥Tab | the window switcher |
 | ⇪N | the Capture Pad |

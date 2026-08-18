@@ -38,6 +38,8 @@
 local M = {
     name  = "Document Watcher",
     order = 11,
+    family = "auto",
+    summary = "Watches your document folders for changes (experimental)",
     cheatsheet = {
         title = "📄 DOCUMENT WATCHER (experimental)",
         entries = {

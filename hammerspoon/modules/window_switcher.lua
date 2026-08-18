@@ -52,6 +52,7 @@
 local M = {
     name  = "Window Switcher",
     order = 8,
+    family = "windows",
     cheatsheet = {
         title = "🔄 WINDOW SWITCHER (⌥Tab — Windows-style)",
         entries = {

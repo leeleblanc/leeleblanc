@@ -11,6 +11,7 @@
 local M = {
     name  = "Window Arranger",
     order = 6,
+    family = "windows",
     cheatsheet = {
         title = "🪟 WINDOW ARRANGER",
         entries = {

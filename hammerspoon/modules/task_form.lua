@@ -55,6 +55,7 @@
 local M = {
     name  = "Task Form",
     order = 24,
+    family = "capture",
     cheatsheet = {
         title = "✅ TASK FORM (⇪T — labeled Asana task entry)",
         entries = {

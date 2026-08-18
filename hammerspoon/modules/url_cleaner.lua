@@ -61,6 +61,7 @@
 local M = {
     name  = "URL Cleaner",
     order = 13.7,
+    family = "text",
     cheatsheet = {
         title = "🔗 URL CLEANER (⇪K — the real link, no marketing cruft)",
         entries = {

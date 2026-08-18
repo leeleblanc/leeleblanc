@@ -37,6 +37,7 @@
 local M = {
     name  = "Autocorrect",
     order = 13,
+    family = "text",
     cheatsheet = {
         title = "✏️ AUTOCORRECT",
         entries = {

@@ -38,6 +38,7 @@
 local M = {
     name  = "Quick Append",
     order = 13.3,
+    family = "capture",
     cheatsheet = {
         title = "📝 QUICK APPEND (⇪J / ⇪pad1 — clipboard into a file, no editor)",
         entries = {

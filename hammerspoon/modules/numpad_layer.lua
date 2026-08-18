@@ -83,11 +83,19 @@
 -- thirty modules together and can therefore resolve them at all. A typo
 -- here fails the build rather than failing silently at your fingertips,
 -- which is a stronger guarantee than a runtime has() check would give.
+-- 🗂 6.101.0 — TWO GROUPS, NOT ONE, because this module is genuinely two
+-- tools sharing a keyboard: ⇪ + pad CAPTURES text, ⇪⇧ + pad MOVES
+-- WINDOWS. On the family-grouped cheat sheet, filing all twenty-four rows
+-- under either band would be a lie about half of them — so the module
+-- registers a group in each. The loader accepts a LIST here for exactly
+-- this case; everything else still ships one table.
 local M = {
     name  = "Numpad Layer",
     order = 13.5,
     cheatsheet = {
-        title = "🔢 NUMPAD LAYER (⇪ pad capture row · ⇪⇧ pad windows · ⌘⇧ pad FREE)",
+        {
+        family = "capture",
+        title = "🔢 NUMPAD — ⇪ pad, THE CAPTURE ROW (⌘⇧ pad is all free)",
         entries = {
             { "⇪ pad1",      "Clipboard → log.txt as a Log note, instantly" },
             { "⇪ pad2",      "The Quick Append Pad — * idea · + log · ! task · ? note" },
@@ -100,7 +108,15 @@ local M = {
             { "how",         "Add padN = \"some.service\" in numpad_layer.lua —" },
             { "",            "numpad.actions (⇪) or numpad.cmdShiftActions (⌘⇧)" },
             { "first",       "_G.padProbe() — which pad keys this Mac can send" },
-            { "—",           "———— hold shift for windows ————" },
+            { "⇪ vs ⌘⇧",     "⇪ is ours (Caps Lock remapped). ⌘⇧ is real macOS —" },
+            { "",            "so a ⌘⇧pad shortcut also works in Raycast, KM, etc." },
+            { "if dead",    "Accessibility → Pointer Control → Mouse Keys steals the pad" },
+        },
+        },
+        {
+        family = "windows",
+        title = "🔢 NUMPAD — ⇪⇧ pad, THE WINDOW MAP (the pad IS the screen)",
+        entries = {
             { "⇪⇧ pad7 8 9", "Top-left quarter · top half · top-right quarter" },
             { "⇪⇧ pad4 5 6", "Left half · centre 70% · right half" },
             { "⇪⇧ pad1 2 3", "Bottom-left qtr · bottom half · bottom-right qtr" },
@@ -110,9 +126,8 @@ local M = {
             { "⇪⇧ pad/ *",   "Previous monitor / next monitor" },
             { "⇪⇧ padenter", "Centre without resizing" },
             { "why",         "The pad sends its OWN key codes — pad7 ≠ 7, both free" },
-            { "⇪ vs ⌘⇧",     "⇪ is ours (Caps Lock remapped). ⌘⇧ is real macOS —" },
-            { "",            "so a ⌘⇧pad shortcut also works in Raycast, KM, etc." },
             { "if dead",    "Accessibility → Pointer Control → Mouse Keys steals the pad" },
+        },
         },
     },
 }
@@ -501,14 +516,20 @@ function M.setup(core)
 
     if not numpad.enabled then
         -- The loader reads M.cheatsheet AFTER setup() returns, so rewriting
-        -- it here is what puts the parked banner on the sheet.
-        M.cheatsheet.title = "🅿️ NUMPAD LAYER — PARKED (a plan, not live shortcuts)"
-        table.insert(M.cheatsheet.entries, 1, {
-            "status", "NOTHING IS BOUND — every ⇪ + pad key is still free",
-        })
-        table.insert(M.cheatsheet.entries, 2, {
-            "to use it", "numpad.enabled = true in modules/numpad_layer.lua, then reload",
-        })
+        -- it here is what puts the parked banner on the sheet. 6.101.0 —
+        -- it is a LIST of groups now, and BOTH must say so: a sheet where
+        -- the capture row admits it is parked while the window map still
+        -- advertises live keys is worse than either alone.
+        for _, g in ipairs(M.cheatsheet) do
+            g.title = "🅿️ " .. g.title:gsub("^🔢 ", "")
+                      .. " — PARKED (a plan, not live shortcuts)"
+            table.insert(g.entries, 1, {
+                "status", "NOTHING IS BOUND — every ⇪ + pad key is still free",
+            })
+            table.insert(g.entries, 2, {
+                "to use it", "numpad.enabled = true in modules/numpad_layer.lua, then reload",
+            })
+        end
         _G.diag.say("numpad", "parked — no keys bound, layout kept for reference")
         _G.numpadLayer = numpad
         M.numpad = numpad

@@ -50,7 +50,8 @@
 
 local M = {
     name  = "Bulk Rename",
-    order = 14.1,        -- see the note on focus_mode's order: 13.11 would
+    order = 14.1,
+    family = "files",        -- see the note on focus_mode's order: 13.11 would
                          -- have been fine, but 14.x keeps the new block
                          -- clear of the 13.1-vs-13.10 trap entirely.
     cheatsheet = {

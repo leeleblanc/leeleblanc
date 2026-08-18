@@ -38,6 +38,8 @@
 local M = {
     name  = "Outlook Probe",
     order = 13.85,
+    family = "auto",
+    summary = "Diagnostic — reports what Outlook will and will not answer",
     cheatsheet = {
         title = "📧 OUTLOOK PROBE (diagnostic — no key)",
         entries = {

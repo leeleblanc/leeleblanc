@@ -45,6 +45,7 @@
 local M = {
     name  = "Screen Veil",
     order = 13.4,
+    family = "windows",
     cheatsheet = {
         title = "🌗 SCREEN VEIL (⇪G — dim every display)",
         entries = {

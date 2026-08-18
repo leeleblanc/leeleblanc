@@ -40,6 +40,7 @@
 local M = {
     name  = "Activity Tracker",
     order = 4,
+    family = "time",
     cheatsheet = {
         title = "📊 ACTIVITY TRACKER",
         entries = {

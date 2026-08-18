@@ -7,6 +7,7 @@
 local M = {
     name  = "Asana Comments",
     order = 2,
+    family = "capture",
     -- no cheatsheet group of its own
 }
 

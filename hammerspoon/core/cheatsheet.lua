@@ -93,6 +93,38 @@ return function(core)
     -- sections keep the order listed here rather than sorting among
     -- themselves. A module that FAILED to load still outranks any pin.
     cheatSheet.pinned    = { }
+    -- 🗂 6.101.0 — FAMILIES. LL: "Can we combine certain single tools of
+    -- similar types?" Forty-seven sections sorted A–Z is an index, not a
+    -- map: to find the split-two-windows key you had to already know it
+    -- lives under W for Window Arranger. Sections now sort into these
+    -- FAMILIES, each with a band across the sheet, and A–Z runs INSIDE a
+    -- family rather than across the whole page.
+    --
+    -- Nothing here changes a key, a binding or a module's behaviour — this
+    -- is the order and the headings of one panel.
+    --
+    -- ✏️ REORDER THE PAGE by reordering this list. RENAME a band by editing
+    -- its title. A module says which family it belongs to with `family =
+    -- "windows"` in its own file, so this list never has to know the
+    -- membership — see modules/window_arranger.lua for the shape.
+    -- 🚨 `misc` IS DELIBERATELY LAST-BUT-ONE AND DELIBERATELY UGLY. A
+    -- module that declares no family lands there IN PLAIN SIGHT rather
+    -- than being absorbed into a plausible-looking neighbour; a test
+    -- fails on it too. Silence is how a shortcut goes missing for months.
+    cheatSheet.families = {
+        { id = "windows", title = "🪟 WINDOWS & POINTER — where things sit on screen" },
+        { id = "capture", title = "🗒 CAPTURE & TASKS — anything that takes something in" },
+        { id = "find",    title = "🔎 FIND & OPEN — search anything, open anything" },
+        { id = "files",   title = "📁 FILES & DOCUMENTS" },
+        { id = "text",    title = "✂️ TEXT & CLIPBOARD — what happens to text as it moves" },
+        { id = "screen",  title = "📸 SCREEN CAPTURE" },
+        { id = "time",    title = "⏱ TIME & ATTENTION — the day, and what interrupts it" },
+        { id = "misc",    title = "🧩 NOT YET FILED — these modules declare no family" },
+        { id = "config",  title = "🩺 THE CONFIG ITSELF" },
+    }
+    -- The one-line-each box the automatic tools collapse into. They have no
+    -- keys, so a full section each was ~25 rows of things you cannot press.
+    cheatSheet.autoTitle = "⚙️ RUNS ITSELF — nothing to press, listed so you know it is there"
     -- Where you dragged the sheet to, this session. Reset with ⇪R, or
     -- cheatSheet.pos = nil from the Console.
     cheatSheet.pos       = nil
@@ -121,7 +153,7 @@ return function(core)
     -- Built-ins + custom entries, as ordered groups of {keys, description}.
     function cheatSheet.groups()
         local groups = {
-            { title = "✅ ASANA — TASKS & DASHBOARD", order = 2, entries = {
+            { title = "✅ ASANA — TASKS & DASHBOARD", order = 2, family = "capture", entries = {
                 { "⇪A", "Format Asana URL from clipboard" },
                 { "⇪B", "Browse Asana Teams — Enter copies a name for Assignee" },
                 { "⇪C", "Comment on a task" },
@@ -134,17 +166,17 @@ return function(core)
             -- its own group since it became a module (6.55.0), and the same
             -- keys documented in two sections read as a conflict — LL asked
             -- exactly that from a screenshot of this sheet (6.90.1).
-            { title = "📋 CLIPBOARD & OCR", order = 3, entries = {
+            { title = "📋 CLIPBOARD & OCR", order = 3, family = "text", entries = {
                 { "⇪O", "OCR text search" },
                 { "⇪⇧O", "Edit or delete an OCR entry · ☑️ pick several" },
                 { "⌘C files", "OCR image files → Finder comment tag" },
                 { "⇪⇧C", "Toggle copy-on-select (off by default)" },
             }},
-            { title = "🕹 POPUP POSITION", order = 5, entries = {
+            { title = "🕹 POPUP POSITION", order = 5, family = "windows", entries = {
                 { "⇪⇧ ↑↓←→", "Nudge popup (hold to repeat)" },
                 { "⇪⇧R", "Reset nudge offset" },
             }},
-            { title = "⌨️ ⇪ = CAPS LOCK (hold it, tap a key)", order = 14, entries = {
+            { title = "⌨️ ⇪ = CAPS LOCK (hold it, tap a key)", order = 14, family = "config", entries = {
                 { "⇪ + key", "Every shortcut on this sheet — hold Caps Lock" },
                 { "⇪⇧ + key", "The few second-level ones (edit/delete, nudging)" },
                 { "unassigned key", "Sends ⌘⇧⌃⌥+that key to the front app" },
@@ -152,7 +184,7 @@ return function(core)
                 { "Caps Lock alone", "No longer toggles capitals (§3.12 reverts)" },
                 { "F1–F12", "Not forwarded — macOS reserves some (see 6.18.1)" },
             }},
-            { title = "❓ HELP", order = 16, entries = {
+            { title = "❓ HELP", order = 16, family = "config", entries = {
                 { "⇪/", "Toggle this cheat sheet" },
                 { "↑ ↓", "Scroll it a row at a time — hold to keep going" },
                 { "PgUp / PgDn", "Scroll a screenful  ·  Home / End jump to the ends" },
@@ -172,8 +204,28 @@ return function(core)
         -- the sheet advertising a shortcut that nothing binds any more —
         -- exactly the drift the "hand-written snapshot" warning at the top
         -- of this section has been apologising for since 6.10.
+        -- 6.101.0 — the FAMILY travels with the group, and an `auto` one is
+        -- held back: those collapse into a single box below.
+        local autoRows = {}
         for _, g in ipairs(_G.moduleCheatsheets or {}) do
-            table.insert(groups, { title = g.title, entries = g.entries, order = g.order })
+            if g.family == "auto" then
+                autoRows[#autoRows + 1] = { tostring(g.source or g.title),
+                                            tostring(g.summary or "runs by itself") }
+            else
+                table.insert(groups, { title = g.title, entries = g.entries,
+                                       order = g.order, family = g.family })
+            end
+        end
+        -- ⚙️ THE AUTOMATIC TOOLS, ONE LINE EACH. LL: "Any single items that
+        -- are just one type and tools that are just automated like back-ups"
+        -- — seven modules with no key between them were taking ~25 rows of
+        -- the sheet to say things you cannot press. They are still LISTED,
+        -- because a tool you forgot exists is a tool you cannot trust; they
+        -- are just no longer competing with the keys.
+        if #autoRows > 0 then
+            table.sort(autoRows, function(a, b) return a[1] < b[1] end)
+            table.insert(groups, { title = cheatSheet.autoTitle, entries = autoRows,
+                                   order = 800, family = "config" })
         end
 
         -- A module that FAILED to load is announced AT THE TOP, not quietly
@@ -254,6 +306,17 @@ return function(core)
                 :upper())
         end
 
+        -- 🗂 6.101.0 — THE FAMILY IS NOW THE PRIMARY KEY, and A–Z runs
+        -- INSIDE it. The bands above are unchanged and still outrank it:
+        -- broken modules first, pins next, ⭐ custom last. Only band 2 —
+        -- which is everything ordinary — is sub-sorted by family.
+        local famIndex, famTitle = {}, {}
+        for i, f in ipairs(cheatSheet.families) do
+            famIndex[f.id], famTitle[f.id] = i, f.title
+        end
+        cheatSheet.familyTitle = famTitle
+        local miscIndex = famIndex.misc or #cheatSheet.families
+
         for _, g in ipairs(groups) do
             if (g.order or 500) == 0 then
                 g.band, g.key = 0, ""                    -- broken modules
@@ -261,13 +324,18 @@ return function(core)
                 g.band, g.key = 3, sortKey(g.title)      -- ⭐ custom
             else
                 g.band, g.key = 2, sortKey(g.title)
+                -- An unknown or absent family lands in `misc`, VISIBLY.
+                g.famIdx = famIndex[g.family or ""] or miscIndex
+                g.family = cheatSheet.families[g.famIdx].id
                 local up = tostring(g.title or ""):upper()
                 for i, p in ipairs(pinned) do
                     if up:find(p, 1, true) then
                         -- The pin's own index is the sort key, so pinned
                         -- sections keep the order they are listed in above
-                        -- rather than falling back to alphabetical.
-                        g.band, g.key = 1, string.format("%03d", i)
+                        -- rather than falling back to alphabetical. A pin
+                        -- deliberately lifts a section OUT of its family —
+                        -- that is what pinning is for.
+                        g.band, g.key, g.famIdx = 1, string.format("%03d", i), nil
                         break
                     end
                 end
@@ -281,6 +349,9 @@ return function(core)
         -- order is unique.
         table.sort(groups, function(a, b)
             if a.band ~= b.band then return a.band < b.band end
+            if (a.famIdx or 0) ~= (b.famIdx or 0) then
+                return (a.famIdx or 0) < (b.famIdx or 0)
+            end
             if a.key  ~= b.key  then return a.key  <  b.key  end
             return (a.order or 500) < (b.order or 500)
         end)
@@ -360,7 +431,15 @@ return function(core)
                     end
                 end
                 if #keep > 0 then
-                    out[#out + 1] = { title = title, entries = keep, order = g.order }
+                    -- 🚨 6.101.0 — CARRY THE FAMILY ACROSS. A partially
+                    -- matched group is rebuilt rather than passed through,
+                    -- and the first version of that rebuild dropped
+                    -- `family`/`famIdx` — so searching made every band on
+                    -- the page disappear while the sections stayed. Copy
+                    -- anything the page groups BY, not just what it prints.
+                    out[#out + 1] = { title = title, entries = keep,
+                                      order = g.order, family = g.family,
+                                      famIdx = g.famIdx }
                     shown = shown + #keep
                 end
             end
@@ -565,7 +644,21 @@ return function(core)
         local y = st.contentTop
         for i = st.first, last do
             local line = st.lines[i]
-            if line.kind == "header" then
+            if line.kind == "family" then
+                -- The band. Amber, and the only amber on the sheet that is
+                -- not the search caret — a family is a different KIND of
+                -- thing from a tool, so it must not read as one more
+                -- blue header a size larger.
+                table.insert(els, {
+                    type = "text", text = line.text,
+                    textSize = st.headerSize + 2,
+                    textColor = sty.accent or { red = 1.00, green = 0.84, blue = 0.00 },
+                    -- Same x as every other row: the sheet is ONE column,
+                    -- and a test holds it to that. Size and colour carry
+                    -- the hierarchy; indenting would only cost alignment.
+                    frame = { x = st.contentX, y = y, w = st.contentW, h = st.lineH },
+                })
+            elseif line.kind == "header" then
                 table.insert(els, {
                     type = "text", text = line.text,
                     textSize = st.headerSize,
@@ -1020,8 +1113,24 @@ return function(core)
         -- the 6.94.0 section boxes from. Spacer rows deliberately carry
         -- none: the gap between groups is what ends one box and starts
         -- the next.
+        -- 🗂 6.101.0 — A FAMILY BAND is emitted when the family CHANGES, so
+        -- it appears exactly once above its tools and — because this runs on
+        -- the FILTERED list — a family with nothing left after a search
+        -- prints no heading at all. Bands carry no `sec`: they sit above the
+        -- boxes rather than inside one. Groups outside the families
+        -- (broken modules, pins, ⭐ custom) clear the marker so the next
+        -- real family still announces itself.
+        local curFam
         for gi, g in ipairs(groupList) do
             if gi > 1 then table.insert(lines, { kind = "spacer", text = "" }) end
+            local fam = g.famIdx and g.family or nil
+            if not fam then
+                curFam = nil
+            elseif fam ~= curFam then
+                curFam = fam
+                local ft = (cheatSheet.familyTitle or {})[fam]
+                if ft then table.insert(lines, { kind = "family", text = ft }) end
+            end
             table.insert(lines, { kind = "header", text = g.title, sec = gi })
             for _, e in ipairs(g.entries) do
                 for _, seg in ipairs(wrapEntry(tostring(e[1]), tostring(e[2]))) do

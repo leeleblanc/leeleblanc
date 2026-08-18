@@ -57,7 +57,9 @@
 
 local M = {
     name  = "Doc Keywords",
-    order = 11.2,              -- beside the Document Watcher (11)
+    order = 11.2,
+    family = "auto",
+    summary = "Word files get Spotlight keywords as you save them",              -- beside the Document Watcher (11)
     cheatsheet = {
         title = "🏷 DOC KEYWORDS (automatic — Word files tag themselves)",
         entries = {

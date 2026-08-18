@@ -57,6 +57,7 @@
 local M = {
     name  = "Window Move",
     order = 6.5,
+    family = "windows",
     cheatsheet = {
         title = "🪟 WINDOW MOVE (⌘-drag — every panel, pickers included)",
         entries = {

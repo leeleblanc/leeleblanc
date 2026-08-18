@@ -4,6 +4,79 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.101.0 — THE CHEAT SHEET BECOMES A MAP:
+  LL: "Can we combine certain single tools of similar types? Examples:
+  anything that moves or changes or adjusts application windows, mouse
+  grid… anything that takes input like the Quick append note or
+  Asana… any single items that are just one type and tools that are
+  just automated like back-ups… and the other groupings you find and
+  suggest."
+
+  THE NUMBERS BEHIND THE ASK. Forty-seven sections, 293 shortcut rows,
+  ~335 lines — sorted A–Z. Alphabetical is the only order you can
+  PREDICT without having read the file, which is why 6.66.1 chose it,
+  and it is also an INDEX rather than a MAP: to find the split-windows
+  key you had to already know it lives under W for Window Arranger.
+  Worse, twenty of the forty-five modules sat at order = 13, the
+  default nobody set, so what looked like a considered sequence was
+  alphabetical-by-accident.
+
+  EIGHT FAMILIES, EACH WITH A BAND. Sections now sort into families
+  first and A–Z INSIDE the family, under a heading across the sheet:
+      🪟 WINDOWS & POINTER    arranger · switcher · ⌘-drag · mouse grid ·
+                             app peek · screen veil · ⇪⇧pad window map
+      🗒 CAPTURE & TASKS      Capture Pad · Quick Append Pad · ⇪J ·
+                             Task Form · Asana · the ⇪pad capture row
+      🔎 FIND & OPEN          ⇪space · ⇪D · ⇪M · ⇪Y · command history
+      📁 FILES & DOCUMENTS    ⇪I · ⇪R · the file index · file tracker
+      ✂️ TEXT & CLIPBOARD     ⇪V · snippets · ⇪K · ⇪⇧A · autocorrect
+      📸 SCREEN CAPTURE       ⇪4 · the editor
+      ⏱ TIME & ATTENTION     ⇪Q · ⇪⇧P · ⇪⇧0 · activity · begone
+      🩺 THE CONFIG ITSELF    health · key caster · tool picker · help
+  A band is drawn from the FILTERED list, so searching never leaves a
+  heading standing over nothing. Bands carry no section tag: the 6.94.0
+  boxes close around the tools and leave the heading outside.
+
+  ⚙️ THE AUTOMATIC TOOLS COLLAPSE. Seven modules with no keys between
+  them — backup, app watcher, update tracker, doc keywords, document
+  watcher, the Outlook probe, copy-on-select — were spending ~25 rows
+  of the sheet on things you cannot press. They are now ONE box, one
+  line each, still listed by name: a tool you have forgotten exists is
+  a tool you cannot trust. copy_on_select appears there for the first
+  time, having never had a cheat sheet group at all.
+
+  🗂 EACH MODULE DECLARES ITS OWN FAMILY, in its own file, next to its
+  name and order. The alternative — a membership list inside
+  cheatsheet.lua — drifts the moment a module is added, which is the
+  exact trap test_diagnostics' module list was rescued from in 6.66.3.
+  A module that declares nothing lands in a visible "🧩 NOT YET FILED"
+  band rather than being absorbed into a plausible neighbour, and
+  test_diagnostics fails until it picks one. Same for a family that
+  does not exist.
+
+  🔢 THE NUMPAD IS TWO TOOLS, so it now registers TWO groups. ⇪ + pad
+  captures text; ⇪⇧ + pad moves windows. Filing all twenty-four rows
+  under either family would be a lie about half of them, so the loader
+  learned to accept a LIST of groups from one module — each with its
+  own family, and each with its own slot a thousandth apart, because
+  two groups sharing an order number is not cosmetic: Lua's table.sort
+  is not stable, so they would swap places at random between reloads.
+
+  NOTHING ELSE MOVED. No key changed, no binding moved, no module file
+  merged. This release is the order and the headings of one panel.
+
+  THE BUG THIS FOUND. cheatSheet.filtered() rebuilds a partially
+  matched group rather than passing it through — and the first version
+  of that rebuild copied title, entries and order but not the family.
+  Every band on the page vanished the moment you typed a letter, while
+  the sections stayed. Copy everything the page GROUPS BY, not just
+  what it prints. A test now types into the sheet and counts the bands.
+
+  Tests: 152 in test_cheatsheet (13 new, covering bands, the collapse,
+  the misc fallback and the search case), plus 4 in test_diagnostics
+  auditing every module on disk for a family it recognises and every
+  automatic one for the summary line the box prints.
+
 NEW IN 6.100.2 — THE CHEAT SHEET STOPS SHOUTING:
   LL: "soften the black boxes around each tool to a similar gray of
   each shortcut box."

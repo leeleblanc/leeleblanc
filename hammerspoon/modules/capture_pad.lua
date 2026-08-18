@@ -82,6 +82,7 @@
 local M = {
     name  = "Capture Pad",
     order = 13.1,
+    family = "capture",
     cheatsheet = {
         title = "🗒 CAPTURE PAD (⇪N — collect now, Asana at 4 PM)",
         entries = {

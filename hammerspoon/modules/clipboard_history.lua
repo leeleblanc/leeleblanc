@@ -46,6 +46,7 @@
 local M = {
     name  = "Clipboard History",
     order = 14.3,
+    family = "text",
     cheatsheet = {
         title = "📋 CLIPBOARD HISTORY (⇪V — every copy, searchable)",
         entries = {

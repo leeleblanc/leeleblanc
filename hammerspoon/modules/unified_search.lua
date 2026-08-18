@@ -53,6 +53,7 @@
 local M = {
     name  = "Unified Search",
     order = 14.4,
+    family = "find",
     cheatsheet = {
         title = "🔎 UNIFIED SEARCH (⇪space — everything, one search)",
         entries = {

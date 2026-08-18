@@ -82,6 +82,7 @@
 local M = {
     name  = "Screenshots",
     order = 23,
+    family = "screen",
     cheatsheet = {
         title = "📸 SCREENSHOTS (⇪4 capture · ⇪⇧4 panel)",
         entries = {

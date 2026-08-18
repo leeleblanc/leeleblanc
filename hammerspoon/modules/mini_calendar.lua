@@ -29,6 +29,7 @@
 local M = {
     name  = "Mini Calendar",
     order = 13.2,
+    family = "time",
     cheatsheet = {
         title = "🗓 MINI CALENDAR (⇪⇧0 — three months)",
         entries = {

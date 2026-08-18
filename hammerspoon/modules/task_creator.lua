@@ -44,6 +44,7 @@
 local M = {
     name  = "Task Creator",
     order = 3,
+    family = "capture",
     -- No cheatsheet group of its own: the static ✅ ASANA group in
     -- core/cheatsheet.lua tells the whole Asana story in one place
     -- (⇪A · ⇪B · ⇪C · ⇪T · ⇪⇧S · ⇪L), same arrangement as asana_comments.

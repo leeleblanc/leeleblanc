@@ -67,7 +67,8 @@
 
 local M = {
     name  = "Text Expander",
-    order = 13.58,         -- beside the tool picker; autocorrect shares its machinery
+    order = 13.58,
+    family = "text",         -- beside the tool picker; autocorrect shares its machinery
     cheatsheet = {
         title = "✂️ TEXT EXPANDER (Alfred snippets)",
         entries = {

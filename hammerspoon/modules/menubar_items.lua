@@ -60,6 +60,7 @@
 local M = {
     name  = "Menu Bar Items",
     order = 13.9,
+    family = "find",
     cheatsheet = {
         title = "📊 MENU BAR ITEMS (⇪M — status icons by name, from the keyboard)",
         entries = {

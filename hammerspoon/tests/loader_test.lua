@@ -244,12 +244,28 @@ local function loadOneModule(name, settings)
     rec.module  = mod
     -- The cheat sheet group is registered only after setup SUCCEEDS, so
     -- the sheet can never advertise a shortcut that was never bound.
-    if type(mod.cheatsheet) == "table" and mod.cheatsheet.title then
-        table.insert(_G.moduleCheatsheets, {
-            title   = mod.cheatsheet.title,
-            entries = mod.cheatsheet.entries or {},
-            order   = mod.order or 500,
-        })
+    -- ⚠️ KEEP IN LOCKSTEP WITH init.lua §1.12. This file is a copy of the
+    -- real loader so the module system can be driven from `lua` with no
+    -- Hammerspoon; a copy that drifts tests a loader nobody ships. 6.101.0
+    -- changed three things here — families, several groups per module, and
+    -- a slot per GROUP — and test_tools asserts the two blocks agree.
+    local cs     = mod.cheatsheet
+    local groups = nil
+    if type(cs) == "table" then groups = cs.title and { cs } or cs end
+    if (not groups or #groups == 0) and mod.family == "auto" then
+        groups = { { title = mod.name or name, entries = {} } }
+    end
+    for gi, g in ipairs(groups or {}) do
+        if type(g) == "table" and g.title then
+            table.insert(_G.moduleCheatsheets, {
+                title   = g.title,
+                entries = g.entries or {},
+                order   = (mod.order or 500) + (gi - 1) / 1000,
+                family  = g.family  or mod.family,
+                summary = g.summary or mod.summary,
+                source  = mod.name  or name,
+            })
+        end
     end
     return rec
 end

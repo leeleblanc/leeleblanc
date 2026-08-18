@@ -58,7 +58,8 @@
 
 local M = {
     name  = "Chrome History",
-    order = 12.5,     -- the history shelf: files 10 · docs 11 · commands
+    order = 12.5,
+    family = "find",     -- the history shelf: files 10 · docs 11 · commands
                       -- 12 · the web 12.5
     cheatsheet = {
         title = "🕘 CHROME HISTORY (⇪Y — 90 days, every profile)",
