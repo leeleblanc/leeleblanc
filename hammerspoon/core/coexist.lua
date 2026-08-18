@@ -264,6 +264,10 @@ _G.escapePriorities = {
     unified    =  55,   -- ⇪space search page
     recentdocs =  58,   -- ⇪I documents page
     capturepad =  72,   -- ⇪N pad — hiding it never loses the draft
+    notepad    =  73,   -- ⇪pad2 pad — same shape; CLOSING FILES EVERYTHING,
+                        -- so Esc here is always safe (6.102.0 — it ran on
+                        -- the fallback 50 from 6.99.0 until the boot line
+                        -- "'notepad' is not in _G.escapePriorities" told us)
     taskform   =  75,   -- ⇪T form: real keyboard focus, like a chooser
     shoteditor =  80,   -- ⇪⇧4's editor — mid-edit, most modal
     chooser    =  70,   -- has real keyboard focus, so it goes near the top

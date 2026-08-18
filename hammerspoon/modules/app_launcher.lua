@@ -79,7 +79,7 @@ local M = {
             { "",      "…each one folder deep: Utilities, vendor folders" },
             { "files", "3+ letters: indexed FILES list under the apps — ⏎ opens" },
             { "work",  "Same key both Macs — user-dir installs included" },
-            { "⇪W",    "Neighbour key: summon an already-RUNNING app instead" },
+            { "vs ⇪W", "Summons an already-RUNNING app instead — Window Arranger's key" },
         },
     },
 }

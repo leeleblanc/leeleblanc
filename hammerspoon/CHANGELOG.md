@@ -4,6 +4,38 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.102.0 — PICKERS DRAG BY THEIR SEARCH BAND:
+  LL, with a screenshot of the Activity Report: "I can't move gray
+  window and you say I could move them all." The gray windows are the
+  hs.chooser pickers, and since 6.89.0 they moved only with ⌘ held —
+  but LL's original spec was "click and hold then move the mouse
+  cursor", no modifier. The pickers now follow the same header rule
+  the Capture Pad and the editor shipped with: the SEARCH BAND across
+  the top drags with a bare click-hold (the band is the one strip of
+  a picker where a bare click did nothing you will miss — the rows
+  below still mean "pick this one", so they keep needing ⌘). Where
+  you drop it is committed to the shared popup offset, exactly like a
+  ⌘ drag: the next picker opens there. The accepted cost, stated
+  honestly: the mouse no longer places the text caret in the query
+  field — type, ⌫, or ⌘A there instead. A ⌘-click the module DECLINES
+  (outside its computed box) now records where it thought the picker
+  was to the ⇪⇧D trail, so the next "I can't move it" report comes
+  with evidence.
+
+  Two housekeeping fixes riding along. The Quick Append Pad's Esc row:
+  every boot printed "'notepad' is not in _G.escapePriorities — using
+  50", which ranked the pad BELOW Unified Search, so one Esc with both
+  open closed the search page first. It now sits at 73, between the
+  Capture Pad (72, its template) and the Task Form (75); closing the
+  pad is always safe because CLOSING FILES EVERYTHING. And one owner
+  per ⇪ key on the cheat sheet: ⇪W rendered under both Find & Open
+  (App Launcher's neighbour-key hint) and Windows & Pointer (Window
+  Arranger, its real owner) — with the sheet grouped by family the
+  same key read as two different tools. Cross-reference rows now say
+  "vs ⇪W" / "via ⇪⇧T" / "in ⇪D" instead of claiming the key, and a
+  disk audit in test_diagnostics holds the rule: a single-letter ⇪ or
+  ⇪⇧ key may appear in exactly one module's key column.
+
 NEW IN 6.101.0 — THE CHEAT SHEET BECOMES A MAP:
   LL: "Can we combine certain single tools of similar types? Examples:
   anything that moves or changes or adjusts application windows, mouse

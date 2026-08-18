@@ -231,6 +231,59 @@ check("…after which ⌘-clicks pass through again",
       press(400, 300, { cmd = true }) == false)
 
 -- =====================================================================
+out("4b. the search band — a picker drags with a BARE click-hold (6.102.0)\n")
+-- =====================================================================
+-- Geometry used throughout: placement point (300,200), width 40% of a
+-- 1000-wide screen → the TIGHT strip is x 300..700, y 200..256. The box
+-- around it keeps its 24px margin; the strip must not.
+hs.chooser.globalCallback(CH, "willOpen")
+_G.popupOffset        = { x = 0, y = 0 }
+_G.lastPopupPlacement = {
+    point  = { x = 300, y = 200 },
+    screen = { frame = function() return { x = 0, y = 0, w = 1000, h = 800 } end },
+}
+local shownBefore = #CH.shownAt
+
+check("a bare click-hold ON the search band is consumed — no ⌘ needed",
+      press(450, 210) == true)
+MOUSE.x, MOUSE.y = 480, 230
+tick()
+check("…and the picker follows, same engine, offset held",
+      #CH.shownAt == shownBefore + 1
+      and CH.shownAt[#CH.shownAt].x == 330
+      and CH.shownAt[#CH.shownAt].y == 220,
+      CH.shownAt[#CH.shownAt]
+      and (CH.shownAt[#CH.shownAt].x .. "," .. CH.shownAt[#CH.shownAt].y))
+releaseAndTick()
+check("…and the drop commits to popupOffset, exactly like a ⌘ drag",
+      _G.popupOffset.x == 30 and _G.popupOffset.y == 20,
+      _G.popupOffset.x .. "," .. _G.popupOffset.y)
+
+check("a bare click on the ROWS below the band still means 'pick this one'",
+      press(450, 300) == false)
+check("a bare click in the box's margin (outside the tight strip) passes through",
+      press(450, 190) == false)
+
+-- A declined ⌘-click must leave evidence in the diag trail — that line
+-- is how the NEXT "I can't move this" report gets diagnosed.
+local SAID = {}
+_G.diag = { say  = function(_, m) SAID[#SAID + 1] = tostring(m) end,
+            warn = function() end, err = function() end }
+check("a ⌘-click outside the box is declined…",
+      press(50, 700, { cmd = true }) == false)
+check("…and says so in the diag trail, box included", (function()
+    for _, m in ipairs(SAID) do
+        if m:find("declined", 1, true) and m:find("box", 1, true) then
+            return true
+        end
+    end
+    return false
+end)(), table.concat(SAID, " | "))
+_G.diag = { say = function() end, warn = function() end, err = function() end }
+hs.chooser.globalCallback(CH, "didClose")
+check("the band is dead once the picker is closed", press(450, 210) == false)
+
+-- =====================================================================
 out("5. the header hook — _G.beginPanelDrag(name)\n")
 -- =====================================================================
 MOUSE.x, MOUSE.y = 150, 120

@@ -609,6 +609,38 @@ do
         table.concat(noSummary, ", "))
 end
 
+-- 🔑 6.102.0 — ONE OWNER PER ⇪ KEY on the cheat sheet. Cross-references
+-- are welcome — App Launcher pointing at ⇪W, Begone at ⇪⇧T — but a row
+-- that puts the bare key in its KEY CELL claims it, and with the sheet
+-- grouped by family the same key then renders as two different tools in
+-- two different bands. The convention: the owner writes "⇪W"; everyone
+-- else writes "vs ⇪W" / "via ⇪W" / "in ⇪W" so the reference reads as
+-- one. Single letters only, on purpose: pad keys and named keys are
+-- documented from two angles by design (numpad's map next to each
+-- tool's own rows), and policing those would outlaw the good kind.
+do
+  local owner, dupes = {}, {}
+  for _, m in ipairs(MODS) do
+    local body = moduleText[m] or ""
+    for _, pat in ipairs({ '{%s*"(⇪[A-Z])"%s*,', '{%s*"(⇪⇧[A-Z])"%s*,' }) do
+      for key in body:gmatch(pat) do
+        if owner[key] and owner[key] ~= m then
+          dupes[#dupes + 1] = key .. " (" .. owner[key] .. " + " .. m .. ")"
+        end
+        owner[key] = owner[key] or m
+      end
+    end
+  end
+  -- The probes are MODULE-owned keys (mouse grid, chrome history) on
+  -- purpose: ⇪⇧D and friends live in core/ and init.lua's builtin
+  -- groups, which this audit deliberately does not read.
+  check("🔑 the audit sees the single-letter ⇪ keys at all",
+        owner["⇪X"] ~= nil and owner["⇪Y"] ~= nil)
+  check("every single-letter ⇪/⇪⇧ key is claimed by exactly ONE module's "
+        .. "cheat entries — cross-references say 'vs/via/in' instead",
+        #dupes == 0, table.concat(dupes, ", "))
+end
+
 
 -- =====================================================================
 -- 7b. THE ALERT WRAPPER SWEEPS ITS OWN WRECKAGE (6.100.1)

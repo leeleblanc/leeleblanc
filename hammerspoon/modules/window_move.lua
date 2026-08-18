@@ -33,6 +33,12 @@
 --      is COMPUTED (top-left is recorded by every showPopup; width and
 --      row count come from the chooser itself) with a small margin — a
 --      ⌘-click clearly outside a picker still belongs to your app.
+--      6.102.0: the SEARCH BAND across the top drags with a BARE
+--      click-hold as well — it is the picker's header, and the header
+--      rule ("safe by construction") already shipped for the pad and
+--      the editor. The band is the one strip of a picker where a bare
+--      click did nothing you will miss; the rows below still need ⌘,
+--      because a bare click on a row means "pick this one".
 --
 --   3. FULL-SCREEN OVERLAYS — the cheat sheet, the mouse grid, the
 --      screen veil. Moving a window that covers the screen means
@@ -62,6 +68,7 @@ local M = {
         title = "🪟 WINDOW MOVE (⌘-drag — every panel, pickers included)",
         entries = {
             { "⌘ drag", "Hold ⌘, click and hold ON any panel or picker, move the mouse" },
+            { "band",   "A PICKER drags by its search band — bare click-hold, no ⌘" },
             { "drag",   "Display-only panels (pomodoro, key caster) need no ⌘ — just grab" },
             { "sticks", "A dragged PICKER position is kept for the next picker you open" },
             { "⌃⌥⌘R",   "Back to automatic placement (same reset as the ⇪⇧-arrow nudge)" },
@@ -79,6 +86,10 @@ function M.setup(core)
     wm.chooserPad  = 24      -- grab margin (px) around a picker's computed box
     wm.chooserRowH = 44      -- a chooser row is ~44 px; used only to SIZE the
                              -- grab area, never to draw anything
+    wm.chooserHeadH = 56     -- the search band across a picker's top; a BARE
+                             -- click-hold there drags (6.102.0) — same rule
+                             -- as the pad header, so keep it TIGHT: too tall
+                             -- and bare clicks on the first row start drags
     -- ----------------------------------------------------------------------
 
     local function warn(m) if _G.diag then _G.diag.warn("windowMove", m) end end
@@ -212,7 +223,7 @@ function M.setup(core)
         return { x = placed.point.x - pad,
                  y = placed.point.y - pad,
                  w = w + pad * 2,
-                 h = rows * wm.chooserRowH + 56 + pad * 2 }
+                 h = rows * wm.chooserRowH + wm.chooserHeadH + pad * 2 }
     end
 
     function wm.dragChooser(ch)
@@ -270,12 +281,37 @@ function M.setup(core)
             end
         end
 
-        if f.cmd and wm.openChooser then
+        if wm.openChooser then
             local box = wm.chooserBox()
-            -- No box on record still grabs: better a jump-to-hand than a
-            -- picker that cannot be moved at all.
-            if (not box) or contains(box, p) then
-                return wm.dragChooser(wm.openChooser)
+            if f.cmd then
+                -- No box on record still grabs: better a jump-to-hand than
+                -- a picker that cannot be moved at all.
+                if (not box) or contains(box, p) then
+                    return wm.dragChooser(wm.openChooser)
+                end
+                -- A declined ⌘-click leaves EVIDENCE. LL reported "I can't
+                -- move" on a picker once (6.102.0); whether the box or the
+                -- hand is wrong is unknowable without this line. Trail only
+                -- — a wrong box must not also make the Console noisy.
+                say(("⌘-click at %d,%d declined — picker box is %d,%d %dx%d")
+                    :format(p.x, p.y, box.x, box.y, box.w, box.h))
+            elseif box then
+                -- 6.102.0 — LL's original spec, finally honoured for the
+                -- pickers: "click and hold then move". The SEARCH BAND is
+                -- the picker's header, and a header is safe by construction
+                -- (the same rule the pad and the editor shipped with). Kept
+                -- TIGHT — the box's pad margin is stripped — because a bare
+                -- click consumed by mistake belongs to somebody's app. The
+                -- known cost, accepted: the mouse no longer places the text
+                -- caret in the query field. Type, ⌫, or ⌘A there instead —
+                -- it is a filter box holding one or two words.
+                local strip = { x = box.x + wm.chooserPad,
+                                y = box.y + wm.chooserPad,
+                                w = box.w - wm.chooserPad * 2,
+                                h = wm.chooserHeadH }
+                if contains(strip, p) then
+                    return wm.dragChooser(wm.openChooser)
+                end
             end
         end
         return false

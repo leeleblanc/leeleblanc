@@ -4,9 +4,20 @@
 -- =====================================================================
 -- 08-18-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.101.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.102.0
 -- =====================================================================
 
+-- NEW IN 6.102.0 — PICKERS DRAG BY THEIR SEARCH BAND:
+--   "I should be able to click and hold then move the window" finally
+--   holds for the grey pickers too: a bare click-hold on the SEARCH
+--   BAND across a picker's top drags it — no ⌘ — and where you drop it
+--   is where the next picker opens. ⌘-drag still grabs one anywhere,
+--   and a declined ⌘-grab now leaves a line in the ⇪⇧D trail saying
+--   where it thought the picker was. Also: the Quick Append Pad got
+--   its missing Esc-order row (the "'notepad' is not in
+--   _G.escapePriorities" boot line), and each ⇪ key now has exactly
+--   one owner on the cheat sheet — cross-references say "vs/via/in".
+--
 -- NEW IN 6.101.0 — THE CHEAT SHEET BECOMES A MAP:
 --   ⇪/ sorted forty-seven sections A–Z, which is an index: you had to
 --   know the split-windows key lived under W before you could find it.
@@ -41,16 +52,8 @@
 --   by action DESCRIPTION too (macOS 26 renamed the names) and presses
 --   close buttons directly.
 --
--- NEW IN 6.99.0 — THE NUMBER PAD CAPTURES · THE NOTE PAD · BEGONE 26:
---   ⇪pad1/2/3 put the clipboard into your notes files (instantly /
---   via the new Note Pad editor / into a picked file), ⇪pad* and
---   ⇪pad- type a note straight to Ideas & Scratch or Logs, ⇪pad4
---   splits windows (⇪\'s move, on an easier key). Every append also
---   lands as a row in the searchable notes.csv. Begone learned the
---   macOS 26 notification layout and now says WHY when it closes nothing.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.101.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.102.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -348,7 +351,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.101.0"
+_G.configVersion = "6.102.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

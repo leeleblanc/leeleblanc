@@ -57,7 +57,7 @@ local M = {
             { "begone",  "Type it anywhere — every notification banner closes" },
             { "typed",   "The word deletes itself; nothing lands in your document" },
             { "history", "Open Notification Center (click the clock) first and it empties that too" },
-            { "⇪⇧T",     "It is in the snippet chooser too — pick it to run it" },
+            { "via ⇪⇧T", "It is in the snippet chooser too — pick it to run it" },
             { "console", "_G.begone() runs it · _G.begoneProbe() maps the banner window" },
             { "needs",   "Accessibility — the same permission the window tools use" },
         },

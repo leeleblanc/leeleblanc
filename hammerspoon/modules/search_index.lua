@@ -71,7 +71,7 @@ local M = {
     cheatsheet = {
         title = "🗂 FILE INDEX (feeds ⇪D — your files behind the apps)",
         entries = {
-            { "⇪D",    "Type 3+ letters: matching FILES list under the apps" },
+            { "in ⇪D", "Type 3+ letters there: matching FILES list under the apps" },
             { "scope", "OneDrive (all of it) · your home folder · extraRoots" },
             { "file",  "<OneDrive>/Logs/search_index-<Mac>.txt — one path per line" },
             { "auto",  "Rebuilt off-thread at idle priority, twice a day" },

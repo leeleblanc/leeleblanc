@@ -177,9 +177,12 @@ Menu bar hammer → **Reload Config**.
 A healthy boot is two lines:
 
 ```
-🧭 Lees-MacBook-Air · 18 modules · 34 ⇪ shortcuts · 0.27s
-   All green.  ⇪⇧D diagnostic report · _G.bootReport() for the full detail
+🧭 Lees-MacBook-Air  ·  45 modules  ·  95 ⇪ shortcuts  ·  0.43s
+   All green.  ⇪⇧D diagnostic report  ·  _G.bootReport() for the full detail
 ```
+
+(The counts track the config, so yours may read higher — what matters is
+the machine name, "All green", and a boot under a second.)
 
 Anything wrong prints its own line instead. Then run the two checks:
 
@@ -206,6 +209,7 @@ run and whether it exists here, and every path it writes to. Read-only.
 | ⇪/ | the cheat sheet — eight family bands, tools A–Z inside each |
 | ⇪⇧D | a diagnostic report, also copied to your clipboard |
 | ⌥Tab | the window switcher |
+| drag any picker's search band | the picker moves — the next one opens where you dropped it (⌘-drag grabs it anywhere) |
 | ⇪N | the Capture Pad |
 | ⇪X | the mouse grid — type a cell's 3 letters, the pointer jumps there |
 | ⇪K | paste a link with `?utm_source=…` first — it should come back clean |
