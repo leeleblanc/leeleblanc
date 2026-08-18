@@ -64,6 +64,12 @@ end
 
 -- ---- the stub Mac -------------------------------------------------------
 local ALERTS, PB, CLIPOBJ = {}, nil, nil
+local TIMERS = {}
+local function drain()
+    local list = TIMERS
+    TIMERS = {}
+    for _, t in ipairs(list) do if not t.stopped then t.fn() end end
+end
 local LAST_HTML, BRIDGE, VIEW = nil, nil, nil
 local DRAGGED = {}
 _G.beginPanelDrag = function(name) DRAGGED[#DRAGGED + 1] = name return true end
@@ -124,7 +130,17 @@ hs = {
         writeObjects = function(o) CLIPOBJ = o return true end,
     },
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
-    timer = { secondsSinceEpoch = function() return 1000 end },
+    timer = {
+        secondsSinceEpoch = function() return 1000 end,
+        -- runTool defers by one run-loop turn so the panel is gone before
+        -- the tool opens; the suite fires the queue by hand.
+        doAfter = function(secs, fn)
+            local t = { secs = secs, fn = fn }
+            function t:stop() self.stopped = true end
+            TIMERS[#TIMERS + 1] = t
+            return t
+        end,
+    },
     fs = { attributes = function() return nil end },
 }
 _G.diag = { say = function() end, warn = function() end, err = function() end }
@@ -178,6 +194,32 @@ _G.capturePad = {
     applyNonActivating = function(v) v.nonActivating = true return true end,
 }
 
+-- 🔧 the tools source reads the ASSEMBLED cheat sheet, exactly as the
+-- standalone Tool Picker did before 6.104.0 folded it in here.
+_G.cheatSheet = { groups = function()
+    return {
+        { title = "🎯 MOUSE GRID (⇪X — type 3 letters)", entries = {
+            { "⇪X", "Jump the pointer anywhere" } } },
+        { title = "🔗 URL CLEANER (⇪K)", entries = {
+            { "⇪K",  "Clean the copied link of trackers" },
+            { "⇪⇧K", "Undo the last clean" } } },
+        { title = "❓ HELP", entries = {
+            { "⇪/", "Toggle this cheat sheet" },
+            { "⇪=", "Add your own entry" } } },
+    }
+end }
+
+local RAN, REGISTRY = {}, {}
+_G.service = {
+    has  = function(n) return REGISTRY[n] ~= nil end,
+    call = function(n, ...) 
+        if REGISTRY[n] then return REGISTRY[n](...) end
+        return nil                      -- PRINTS and returns in the real one
+    end,
+}
+local function publish(n, fn) REGISTRY[n] = fn end
+publish("mouseGrid.show", function() RAN[#RAN + 1] = "grid" return true end)
+
 local PROVIDED, HYPER = {}, {}
 local CORE = {
     logsDir = "/logs", hostTag = "TestMac",
@@ -213,6 +255,8 @@ check("module table exported", type(U) == "table")
 check("⇪space is claimed", type(HYPER["|space"]) == "function")
 check("…and ⇪⇧space (the screenshot view)",
       type(HYPER["shift|space"]) == "function")
+check("…and ⇪⇧/ — the Tool Picker's key still works, and lands where its "
+      .. "content moved to (6.104.0)", type(HYPER["shift|/"]) == "function")
 check("unified.show is provided", type(PROVIDED["unified.show"]) == "function")
 check("listed for Window Move", (function()
     for _, e in ipairs(_G.movablePanels or {}) do
@@ -222,11 +266,11 @@ check("listed for Window Move", (function()
 end)())
 
 -- =====================================================================
-out("2. gather — all nine stores, read like their own pickers\n")
+out("2. gather — every store, read like its own picker\n")
 -- =====================================================================
 U.gather()
 local rows = U.rows
-local byTag = {}
+byTag = {}
 for _, r in ipairs(rows) do
     byTag[r.tag] = byTag[r.tag] or {}
     table.insert(byTag[r.tag], r)
@@ -291,6 +335,116 @@ check("caps hold — a 400-row store cannot drown the page", (function()
     U.gather()
     return n == 2
 end)())
+
+-- =====================================================================
+out("2b. 🔧 the tools source — the Tool Picker, folded in (6.104.0)\n")
+-- =====================================================================
+U.gather()
+byTag = {}
+for _, r in ipairs(U.rows) do
+    byTag[r.tag] = byTag[r.tag] or {}
+    table.insert(byTag[r.tag], r)
+end
+local tools = byTag.tool or {}
+check("every cheat sheet entry in every group became a tool row",
+      #tools == 5, #tools)
+check("🔧 tools come LAST, so what you SAVED stays above what is always "
+      .. "there", U.rows[#U.rows].tag == "tool" and U.rows[1].tag ~= "tool")
+check("a tool row carries its key, its description and its group",
+      (function()
+    for _, r in ipairs(tools) do
+        if r.keys == "⇪K" then
+            return r.text:find("trackers", 1, true) ~= nil
+               and r.sub == "⇪K"
+               and r.src:find("URL CLEANER", 1, true) ~= nil
+        end
+    end
+end)())
+check("…and the group has lost its emoji and its (key) parenthetical — it "
+      .. "is a label, not a title", (function()
+    for _, r in ipairs(tools) do
+        if r.keys == "⇪X" then
+            return r.src == "MOUSE GRID" 
+        end
+    end
+end)(), (function()
+    for _, r in ipairs(tools) do if r.keys == "⇪X" then return r.src end end
+end)())
+check("the @tool tag rides in the haystack, so ⇪⇧/ can pin the source",
+      U.rowsJson():find("@tool", 1, true) ~= nil)
+check("a runnable key is joined to its service, an ordinary row is not",
+      (function()
+    local grid, help
+    for _, r in ipairs(tools) do
+        if r.keys == "⇪X" then grid = r end
+        if r.keys == "⇪=" then help = r end
+    end
+    return grid and grid.service == "mouseGrid.show"
+           and help and help.service == nil
+end)())
+
+out("   -- ⏎ on a 🔧 row RUNS it, or hands back the key --\n")
+local gridRow, helpRow
+for _, r in ipairs(tools) do
+    if r.keys == "⇪X" then gridRow = r end
+    if r.keys == "⇪=" then helpRow = r end
+end
+U.show()
+ALERTS = {}
+BRIDGE({ body = { a = "pick", id = gridRow.id } })
+check("the panel is put away BEFORE the tool runs — two panels racing for "
+      .. "the keyboard is how the first keystroke gets eaten",
+      U.webview == nil and #RAN == 0)
+drain()
+check("…and then it runs", RAN[1] == "grid", RAN[1])
+
+U.show()
+PB = nil
+BRIDGE({ body = { a = "pick", id = helpRow.id } })
+check("a row with no runnable service copies its key instead — being told "
+      .. "the key is the FALLBACK, not the failure",
+      PB == "⇪=" and U.webview == nil, tostring(PB))
+
+check("🚨 a row naming a service nothing publishes copies the key rather "
+      .. "than reporting a run — service.call does not throw on a missing "
+      .. "provider, so a pcall alone would call it a success", (function()
+    PB = nil
+    RAN = {}
+    U.show()
+    U.runTool({ keys = "⇪Z", service = "nope.missing" })
+    drain()
+    return PB == "⇪Z" and #RAN == 0 and U.webview == nil
+end)(), tostring(PB))
+check("a service that IS published but THROWS is reported as the real "
+      .. "failure it is, not quietly downgraded to 'here is the key'",
+      (function()
+    publish("boom.now", function() error("kaboom") end)
+    ALERTS, PB = {}, nil
+    U.show()
+    U.runTool({ keys = "⇪B", service = "boom.now" })
+    drain()
+    for _, a in ipairs(ALERTS) do
+        if a:find("failed", 1, true) then return PB == nil end
+    end
+    return false
+end)())
+
+out("   -- the run map is checked against BOTH tables it joins --\n")
+local recorded = {}
+_G.notices = { record = function(_, _, c) recorded[#recorded + 1] = tostring(c) end }
+U.toolsVerified = false
+U.gather()
+check("a run-map entry naming a service nothing publishes is REPORTED, "
+      .. "not left to be found the day you rely on it",
+      #recorded == 1 and recorded[1]:find("url.cleanClipboard", 1, true) ~= nil,
+      recorded[1])
+check("…and an entry whose KEY no cheat sheet row uses is reported too — "
+      .. "checking one side of a join catches half the drift",
+      recorded[1]:find("no cheat sheet entry uses that key", 1, true) ~= nil)
+check("…once, not on every open", (function()
+    U.gather(); return #recorded == 1
+end)())
+_G.notices = nil
 
 -- =====================================================================
 out("3. the page — JSON survives hostile content, rows are BIG\n")
@@ -435,10 +589,19 @@ _G.asanaTaskHistory, _G.capturePad = nil, nil
 for p in pairs(FILES) do FILES[p] = nil end
 CORE.call = function() return nil end
 U.gather()
-check("no store at all still means an empty list, not an error",
-      #U.rows == 0)
+check("with every SAVED store gone, the tools are still listed — they are "
+      .. "read from the live cheat sheet, not from disk", (function()
+    for _, r in ipairs(U.rows) do if r.tag ~= "tool" then return false end end
+    return #U.rows > 0
+end)(), #U.rows)
+local savedSheet = _G.cheatSheet
+_G.cheatSheet = nil
+U.gather()
+check("no store and no cheat sheet at all still means an empty list, not "
+      .. "an error", #U.rows == 0, #U.rows)
 check("…and the panel still opens over it", U.show() == true and U.webview ~= nil)
 U.hide()
+_G.cheatSheet = savedSheet
 
 -- =====================================================================
 io.write(("\n%d passed, %d failed\n"):format(pass, fail))

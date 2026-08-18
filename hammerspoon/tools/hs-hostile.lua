@@ -265,10 +265,12 @@ _G.hyperBound, _G.hyperBoundCount, _G.hyperConflictCount = {}, 0, 0
 -- directly. Provided here so the harness reproduces the real environment
 -- rather than inventing a stricter one.
 _G.choosers = {}
--- §3.12 publishes this before modules load. document_watcher is the only
--- module that reaches for the GLOBAL rather than taking it from `core` —
--- noted as an inconsistency, provided here so the harness reproduces the
--- real world instead of inventing a stricter one.
+-- §3.12 publishes this before modules load. Provided here so the harness
+-- reproduces the real environment rather than inventing a stricter one.
+-- (Until 6.104.0 document_watcher was the only module reaching for this
+-- GLOBAL rather than taking it from `core`; that module is gone, but a
+-- module written the same way tomorrow must still be caught by the
+-- harness rather than by a Mac.)
 _G.hyperAddShortcut = function() end
 _G.cheatSheet = { groups = function() return {} end, custom = {} }
 _G.moduleLoaded, _G.moduleFailed = 0, 0

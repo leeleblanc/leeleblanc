@@ -12,7 +12,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 ├── init.lua          the orchestrator (3,442 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (9 files)
-├── modules/          one file per feature (44 files, ~23,500 lines)
+├── modules/          one file per feature (45 files, ~25,000 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
 └── tools/            hs-install.sh · hs-doctor.sh · run-tests.sh
 ```
@@ -303,6 +303,8 @@ tests/test_console.lua       the ⛔ ERRORS + ⚠️ NONBREAKING banners, the re
 tests/test_search_index.lua  the ⇪D file index: nice'd find, atomic publish, narrowing search
 tests/test_doc_keywords.lua  .docx → keywords → Finder comment; a human's comment survives
 tests/test_clipboard.lua     ⇪V, and the writes that must never destroy the history file
+tests/test_win_pin.lua       📌 ⇪⇧U notes that follow one window — anchors, the
+                             adaptive follow timer, dead-vs-stale, rebind
 tests/test_select_mode.lua   ☑️ pick-several in the ⇪⇧V/⇪⇧E/⇪⇧O editors — ⇪⇧O runs the
                              real init.lua source, lifted the test_hyper_key way
 tests/test_ocr_tag.lua       🏷 which files the clipboard points at: /.file/id= paths

@@ -4,9 +4,25 @@
 -- =====================================================================
 -- 08-18-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.103.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.104.0
 -- =====================================================================
 
+-- NEW IN 6.104.0 — TWO TOOLS RETIRED, ONE ADDED, 46 → 45 MODULES:
+--   Three things LL asked for after the redundancy review.
+--   📌 WINDOW PIN (⇪⇧U, the last free ⇪⇧ letter) — a note stuck to ONE
+--   window that follows it as it moves and hides with it. Terminal
+--   tabs each keep their own. Adapted from WinPin.spoon (MIT, credited
+--   in the module) with an ADAPTIVE follow timer: the original polled
+--   at 33Hz forever, this one only while a note is on screen.
+--   ⚰️ THE DOCUMENT WATCHER IS GONE. It and the Activity Tracker
+--   polled the same window every 5 seconds into two CSVs; the tracker
+--   stores strictly more, so ⇪⇧W and ⇪⇧E now live there and the
+--   documents are DERIVED from the sessions. doc_wather.csv is still
+--   read by ⇪space, never written again.
+--   🔧 THE TOOL PICKER IS GONE TOO, folded into ⇪space as a 🔧 source.
+--   ⇪⇧/ still works and opens that box on "@tool " — one search over
+--   what you saved AND what the config can do. ⏎ on a 🔧 row runs it.
+--
 -- NEW IN 6.103.0 — DOCK BACK IN, WINDOWS GO BACK:
 --   "Windows scattering when I plug into the dock" — fixed, natively.
 --   The new Window Return module quietly remembers where your windows
@@ -45,16 +61,8 @@
 --   grey hairline every other card in the config wears, and each box
 --   lifts off the panel with a little more fill instead.
 --
--- NEW IN 6.100.1 — THE PHANTOM PILL GETS SWEPT:
---   When another app's popup made hs.alert.show throw MID-draw, the
---   6.88.0 catch kept the config alive but left the wreckage on
---   screen: an empty bordered pill that never fades and takes no
---   clicks. The catch now sweeps (closeAll + collect stranded
---   canvases) and retries the alert one run-loop turn later —
---   _G.phantom() in the Console runs the same sweep by hand.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.103.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.104.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -291,7 +299,7 @@
 --   §1.4   shared text/CSV helpers (late on purpose — everything
 --          CALLS them after load; nothing above needs them sooner)
 --   §1.12  module loader → BASE list → machine profiles → safe
---          mode → boot report. The 46 modules/*.lua load HERE, last.
+--          mode → boot report. The 45 modules/*.lua load HERE, last.
 -- =====================================================================
 
 -- =====================================================================
@@ -352,7 +360,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.103.0"
+_G.configVersion = "6.104.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -792,7 +800,9 @@ _G.hyperKeyMap = {
     ["alt+ctrl+m"]           = { {},        "down"  },  -- restore prior frame
     ["alt+ctrl+v"]           = { {},        "\\"    },  -- split two windows
     -- 6.31.0: swapped back — bare ⇪W is the app summon (the one reached
-    -- for constantly), and the Document Watcher moved to ⇪⇧W.
+    -- for constantly), and the documents list moved to ⇪⇧W. (That list
+    -- belonged to document_watcher until 6.104.0 and now belongs to
+    -- activity_tracker; the KEY never moved, which is what matters here.)
     ["alt+ctrl+w"]           = { {},        "w"     },  -- summon-an-app picker
     ["alt+cmd+ctrl+["]       = { {},        "["     },  -- monitor left
     ["alt+cmd+ctrl+]"]       = { {},        "]"     },  -- monitor right
@@ -1349,9 +1359,10 @@ local csOK, csErr = pcall(function()
     if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
     -- 6.65.0 — THE RETURNED TABLE IS NOW PUBLISHED. It used to be dropped
     -- on the floor here (the file returns it so tests can drive the real
-    -- namespace). The Tool Picker (⇪⇧/) searches the SAME assembled groups
-    -- this sheet draws, which is the only way the two can never disagree
-    -- about what exists — and it cannot reach them without this line.
+    -- namespace). Unified Search's 🔧 tools source (⇪⇧/, the Tool Picker's
+    -- old key) searches the SAME assembled groups this sheet draws, which
+    -- is the only way the two can never disagree about what exists — and it
+    -- cannot reach them without this line.
     -- Assigned, not merged: nothing else owns this name.
     _G.cheatSheet = chunk()({
         logsDir           = logsDir,
@@ -2851,8 +2862,8 @@ end -- do...end (⌃⌥⌘B team member picker locals)
 -- 1.4 SHARED TEXT & CSV HELPERS
 -- =====================================================================
 -- 6.40.0 — these two lived inside §3.6 Activity Tracker, which has now
--- moved into a module. Four other features (File Tracker, Update
--- Tracker, Document Watcher) and the changelog writer at the bottom of
+-- moved into a module. Other features (File Tracker, Update Tracker)
+-- and the changelog writer at the bottom of
 -- this file all borrow them, so leaving them inside a module would have
 -- meant everything depending on that module loading first — the exact
 -- coupling this migration exists to remove. They live here, and reach
@@ -3025,7 +3036,13 @@ local BASE = {
     "daily_backup", "app_peek", "window_switcher", "window_arranger",
     "copy_on_select", "command_history", "app_watcher", "file_tracker",
     "autocorrect", "activity_tracker", "update_tracker",
-    "asana_comments", "document_watcher",
+    -- 6.104.0 retired document_watcher from this list — ⇪⇧W and ⇪⇧E moved
+    -- into activity_tracker, which derives the same documents from the
+    -- sessions it already records instead of polling for them again.
+    -- 🚨 NO QUOTED MODULE NAMES IN THIS BLOCK'S COMMENTS: the test suites
+    -- read BASE by matching every quoted word between its braces, so a
+    -- name mentioned in passing reads as a module that must exist on disk.
+    "asana_comments",
     -- 6.44.0
     "screen_veil", "mini_calendar", "quick_append", "capture_pad",
     "numpad_layer",
@@ -3039,8 +3056,8 @@ local BASE = {
     "focus_mode", "bulk_rename",
     -- 6.55.0
     "clipboard_history",
-    -- 6.65.0
-    "tool_picker",        -- ⇪⇧/  search every shortcut
+    -- 6.65.0 (tool_picker was retired from here in 6.104.0 — ⇪⇧/ now opens
+    --  unified search on the tool tag, one source in the one search box)
     "universal_actions",  -- ⇪⇧A  act on the Finder selection
     "pomodoro",           -- ⇪⇧P  25 on, 5 off
     "outlook_probe",      -- diagnostic only, binds no key
@@ -3068,6 +3085,8 @@ local BASE = {
                           --  through both of their services)
     -- 6.103.0
     "window_return",      -- 🔁 dock back in, windows go back (no key)
+    -- 6.104.0
+    "win_pin",            -- 📌 ⇪⇧U a note stuck to ONE window, following it
 }
 
 -- BASE minus `without`, plus `plus`. The list is COPIED, never shared: a

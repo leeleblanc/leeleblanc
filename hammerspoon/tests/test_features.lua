@@ -1859,7 +1859,7 @@ local names = {
     "daily_backup", "app_peek", "window_switcher", "window_arranger",
     "copy_on_select", "command_history", "app_watcher", "file_tracker",
     "autocorrect", "activity_tracker", "update_tracker", "asana_comments",
-    "document_watcher", "screen_veil", "mini_calendar", "quick_append",
+    "screen_veil", "mini_calendar", "quick_append",
     "capture_pad", "numpad_layer",
 }
 local orders, dupes, missing = {}, {}, {}

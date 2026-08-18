@@ -4,6 +4,82 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.104.0 — TWO TOOLS RETIRED, ONE ADDED, 46 → 45 MODULES:
+  Three things from LL's redundancy review, shipped together:
+  "WinPin: adapt it, on ⇪⇧U, the last free ⇪⇧ letter. Retire
+  document_watcher, and merging ⇪space with ⇪⇧/."
+
+  📌 WINDOW PIN — modules/win_pin.lua, ⇪⇧U, Windows family. A note
+  stuck to ONE window: it follows that window as it moves, hides when
+  the window is behind something else or its app is not frontmost, and
+  comes back when it does. Terminal tabs each keep their own note,
+  free, because apps like Ghostty and iTerm expose every tab as its
+  own accessibility window with a stable id; Chrome and Safari do not,
+  so those get one note per window — stated as the limit it is. One
+  key, three outcomes, because there was no second key to spend: ⇪⇧U
+  on an unpinned window prompts, on a pinned one edits, and clearing
+  the box removes. _G.pins() prints the ledger and names the calls for
+  moving, pruning and clearing notes.
+
+  Adapted from Blackman99/WinPin.spoon (MIT, credited in the module
+  header), with five changes coming in, each recorded there: (1) THE
+  FOLLOW TIMER IS ADAPTIVE — the original polls window geometry every
+  0.03s for as long as any note exists, 33 wake-ups a second forever
+  including while every note is hidden; here it runs fast only while a
+  note is ON SCREEN and drops to 0.5s otherwise. (2) Canvases go up
+  through _G.showCanvasSafely, because this one shows inside a LOOP and
+  one 6.56.0-style throw would abandon every note after it. (3) Colours
+  come from ui_style. (4) Accessibility is a gate, not a crash. (5)
+  hs.settings values are validated on the way back in.
+  And one bug found by writing the tests: the original's
+  `winId and hs.window.get(winId) or hs.window.focusedWindow()` reads
+  as "that window, else the focused one" and actually means "that
+  window, and if it has GONE, silently pin to whatever is in front" —
+  which rebind() could have used to move a note onto the wrong window
+  and report success. Asked for an id, this answers about that id.
+
+  ⚰️ THE DOCUMENT WATCHER IS RETIRED into the Activity Tracker.
+  Both polled the frontmost window every 5 seconds and both
+  accumulated time from it — one into activity_history.csv keyed by
+  app+title, one into doc_wather.csv keyed by a filename pulled out of
+  that same title. Two timers, two CSVs, two sets of rounding, one
+  signal, and no way to say which was right when they disagreed. The
+  tracker survives because it stores strictly MORE: a window title
+  contains the filename, a filename does not contain the title. So
+  ⇪⇧W (the documents you worked in) and ⇪⇧E (edit or delete one) now
+  live in activity_tracker.lua and are DERIVED from the sessions it
+  already records — the two can no longer disagree because there is
+  only one of them. Select mode is unchanged in both. What the merge
+  costs, stated in the module and here: doc_wather.csv stops being
+  written (it is still READ by ⇪space, so everything logged before the
+  merge stays searchable, and it is not deleted); its rows do not
+  migrate, because they are per-day totals and these are sessions, and
+  adding them would double-count every day both modules ran; and
+  deleting a document now removes its SESSIONS, so that time leaves
+  the app totals too — the prompt says so before you confirm.
+
+  🔧 THE TOOL PICKER IS RETIRED into Unified Search. ⇪⇧/ still works
+  and now opens the ⇪space panel on "@tool ", exactly as ⇪⇧space opens
+  it on "@shots". The tools are one more source in the one box, listed
+  LAST so what you saved stays above what is always there, and typing
+  "url" finds both the link cleaner and the URLs you copied. ⏎ on a 🔧
+  row RUNS the tool — the one row kind whose Enter is not a copy — and
+  a row with no runnable service copies its key instead. The run map
+  and its two-sided verify (the service must exist AND the key must
+  still appear on the cheat sheet) came across intact; its Lua-pattern
+  hazard did not need to, because that panel filters in JavaScript with
+  indexOf, literal by construction rather than by remembering a fourth
+  argument.
+
+  Counts moved 46 → 45 in all five sentries, plus three new hs-doctor
+  markers. tests/test_win_pin.lua is new (64 checks); the Tool Picker's
+  coverage moved into test_unified.lua §2b and the Document Watcher's
+  into test_select_mode.lua §1, both pointed at the surviving code so a
+  behaviour lost in either merge fails a test rather than a Monday.
+  The suite is 39 Lua suites, 45 stages.
+```
+
+```text
 NEW IN 6.103.0 — DOCK BACK IN, WINDOWS GO BACK:
   LL: "Windows scattering when I plug into the dock. Yup." The story
   behind this one: LL brought in two community Spoons to evaluate.

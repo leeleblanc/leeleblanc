@@ -89,7 +89,7 @@ _G.moduleProfiles = {
             "daily_backup", "app_peek", "window_switcher", "window_arranger",
             "copy_on_select", "command_history", "app_watcher", "file_tracker",
             "autocorrect", "activity_tracker", "update_tracker",
-            "asana_comments", "document_watcher",
+            "asana_comments",
             -- 6.44.0
             "screen_veil", "mini_calendar", "quick_append", "capture_pad",
             "numpad_layer",
@@ -108,7 +108,7 @@ _G.moduleProfiles = {
             "daily_backup", "app_peek", "window_switcher", "window_arranger",
             "copy_on_select", "command_history", "app_watcher", "file_tracker",
             "autocorrect", "activity_tracker", "update_tracker",
-            "asana_comments", "document_watcher",
+            "asana_comments",
             -- 6.44.0
             "screen_veil", "mini_calendar", "quick_append", "capture_pad",
             "numpad_layer",
@@ -131,7 +131,7 @@ _G.moduleProfiles = {
             "daily_backup", "app_peek", "window_switcher", "window_arranger",
             "copy_on_select", "command_history", "app_watcher", "file_tracker",
             "autocorrect", "activity_tracker", "update_tracker",
-            "asana_comments", "document_watcher",
+            "asana_comments",
             -- 6.44.0
             "screen_veil", "mini_calendar", "quick_append", "capture_pad",
             "numpad_layer",

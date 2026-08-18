@@ -21,6 +21,7 @@
 --   📁 file moves           (⇪F's file_changes CSV)
 --   🗒 capture pad          (⇪N's queue + parked notes)
 --   🕘 chrome history       (⇪Y's 90-day export, every Chrome profile)
+--   🔧 every TOOL           (⇪/'s own entries — 6.104.0, see below)
 -- Every source is read inside its OWN pcall at open time: a corrupt CSV
 -- costs that one source a console line, never the picker.
 --
@@ -43,7 +44,15 @@
 --
 -- 🔎 EVERY WORD MUST MATCH ("aug receipt" finds August receipts), and a
 -- @tag word pins the source: @clip @cmd @shots @note @asana @ocr @doc
--- @file @pad. Tags ride in each row's haystack, so they cost nothing.
+-- @file @pad @web @tool. Tags ride in each row's haystack, so they cost
+-- nothing.
+--
+-- 🔧 6.104.0 — THE TOOL PICKER (⇪⇧/) MOVED IN HERE AND WAS DELETED.
+-- LL: "merging ⇪space with ⇪⇧/". It was a second search box over a
+-- second kind of thing, and the cost was not the code — it was having to
+-- decide WHICH box before you could start typing. ⇪⇧/ still works and
+-- opens this panel on "@tool ", exactly as ⇪⇧space opens it on "@shots".
+-- ⏎ on a 🔧 row RUNS the tool; every other row still copies.
 --
 -- The JSON for the page is built BY HAND here rather than with
 -- hs.json.encode: the encoder escapes `</` as well (a raw "</script>"
@@ -57,10 +66,12 @@ local M = {
     cheatsheet = {
         title = "🔎 UNIFIED SEARCH (⇪space — everything, one search)",
         entries = {
-            { "⇪space",  "Search EVERY store: clipboard · commands · screenshots · notes · Asana · OCR · docs · file moves · pad · Chrome" },
+            { "⇪space",  "Search EVERY store: clipboard · commands · screenshots · notes · Asana · OCR · docs · file moves · pad · Chrome · every TOOL" },
             { "⇪⇧space", "Same panel opened as the BIG-thumbnail screenshot browser (@shots)" },
+            { "⇪⇧/",     "Same panel opened on the TOOLS (@tool) — every shortcut, searchable" },
             { "type",    "Every word must match · a @tag word pins one source — each section header shows its tag" },
             { "⏎",       "COPY the row — text its full text, a screenshot the image, a Chrome page its URL (⇪Y reopens)" },
+            { "⏎ on 🔧", "RUNS the tool instead — the one row kind that acts (else copies its key)" },
             { "⌘⏎",      "Copy the file PATH instead (rows that have one)" },
             { "↑↓ · click", "Move the selection · pick — 19px rows, 84px thumbnails" },
             { "drag",    "The header bar moves it (⌘-drag anywhere) — and it REOPENS where you left it" },
@@ -75,6 +86,7 @@ function M.setup(core)
     -- ✏️ EDIT HERE ---------------------------------------------------------
     uni.enabled = true
     uni.key     = "space"    -- ⇪space search · ⇪⇧space = screenshots view
+    uni.toolKey = "/"        -- ⇪⇧/ opens the same box pinned to @tool
     uni.width, uni.height = 840, 700
     uni.thumbH  = 84         -- px — a chooser row renders ≈40; this is >2×
     uni.preview = 240        -- characters of each row shown / searched
@@ -302,7 +314,35 @@ function M.setup(core)
         end
     end
 
+    -- 📄 6.104.0 — TWO PLACES, ON PURPOSE, AND ONLY ONE OF THEM GROWS.
+    -- The live documents now come from the Activity Tracker, which derives
+    -- them from the sessions it already records (document_watcher and its
+    -- doc_wather.csv were retired into it). The old CSV is still READ, so
+    -- everything logged before the merge stays searchable here — it is
+    -- simply never written again. Live rows go first and claim their
+    -- date|file, so a day both modules saw is listed once, not twice.
     local function srcDocs(add)
+        local seen, added = {}, 0
+
+        local live
+        pcall(function()
+            if _G.service and _G.service.has and _G.service.has("activity.docs") then
+                live = _G.service.call("activity.docs")
+            end
+        end)
+        for _, r in ipairs(live or {}) do
+            if added >= uni.maxPer.doc then break end
+            if type(r) == "table" and r.file and r.date then
+                seen[r.date .. "|" .. r.file] = true
+                add{ tag = "doc", icon = "📄", src = "Document",
+                     text = oneLine(r.file):sub(1, uni.preview),
+                     sub  = r.date .. "  ·  " .. tostring(r.app or "?")
+                            .. "  ·  worked " .. core.formatDuration(r.secs or 0),
+                     full = r.file }
+                added = added + 1
+            end
+        end
+
         local content = tailRead((core.logsDir or "") .. "/doc_wather.csv",
                                  128 * 1024)
         if not content then return end
@@ -313,16 +353,18 @@ function M.setup(core)
                 collected[#collected + 1] = c
             end
         end
-        local added = 0
         for i = #collected, 1, -1 do
-            local c = collected[i]
-            add{ tag = "doc", icon = "📄", src = "Document",
-                 text = oneLine(c[3]):sub(1, uni.preview),
-                 sub  = c[1] .. " " .. (c[2] or "")
-                        .. ((c[4] and c[4] ~= "") and (" · worked " .. c[4]) or ""),
-                 full = c[3] }
-            added = added + 1
             if added >= uni.maxPer.doc then break end
+            local c = collected[i]
+            if not seen[c[1] .. "|" .. c[3]] then
+                add{ tag = "doc", icon = "📄", src = "Document",
+                     text = oneLine(c[3]):sub(1, uni.preview),
+                     sub  = c[1] .. " " .. (c[2] or "")
+                            .. ((c[4] and c[4] ~= "") and (" · worked " .. c[4]) or "")
+                            .. "  ·  archived",
+                     full = c[3] }
+                added = added + 1
+            end
         end
     end
 
@@ -399,6 +441,117 @@ function M.setup(core)
         end
     end
 
+    -- ---- 🔧 THE TOOLS THEMSELVES (6.104.0 — absorbed from tool_picker) ------
+    -- LL: "merging ⇪space with ⇪⇧/". They were two search boxes over two
+    -- kinds of thing you look for the same way — "where did I put that"
+    -- and "what was that key again" — and keeping them apart meant
+    -- remembering WHICH box before you could search at all. Now the tools
+    -- are just another source: @tool pins them, ⇪⇧/ opens straight into
+    -- that, and typing "url" in the one box finds both the link cleaner
+    -- and the URLs you copied.
+    --
+    -- ⏎ ON A TOOL ROW RUNS IT. That is the one row kind whose Enter is not
+    -- a copy, and it is deliberate: being told "⇪K" and left to press it
+    -- yourself is the least useful of the three outcomes, so it is the
+    -- FALLBACK — a tool with no runnable service copies its key instead.
+    --
+    -- ⚠️ EVERY VALUE HERE MUST BE A REAL SERVICE NAME. _G.service.call does
+    -- NOT throw on a missing provider — it prints and returns — so a typo
+    -- would make this report "ran it" while doing nothing. Names are
+    -- checked against the live registry AND against the live cheat sheet
+    -- at first use (uni.verifyTools), because a run map is a join between
+    -- two tables that both change and checking one side catches half the
+    -- drift. Written by hand on purpose: inferring a service name from a
+    -- description works for twenty entries and silently runs the wrong
+    -- tool on the twenty-first.
+    uni.runnable = {
+        ["⇪X"]    = "mouseGrid.show",
+        ["⇪K"]    = "url.cleanClipboard",
+        ["⇪⇧K"]   = "url.undo",
+        ["⇪R"]    = "rename.show",
+        ["⇪⇧R"]   = "rename.undo",
+        ["⇪M"]    = "menuBar.show",
+        ["⇪Q"]    = "focus.toggle",
+        ["⇪⇧Q"]   = "focus.report",
+        ["⇪⇧H"]   = "health.report",
+        ["⇪⇧A"]   = "universalActions.show",
+        ["⇪⇧P"]   = "pomodoro.toggle",
+        ["⇪⇧L"]   = "mouseGrid.locate",
+        ["⇪⇧T"]   = "expander.show",
+        ["⇪⇧U"]   = "winPin.pin",
+    }
+
+    uni.toolsVerified = false
+    function uni.verifyTools(rows)
+        if uni.toolsVerified then return end
+        if not (_G.service and _G.service.has) then return end
+        uni.toolsVerified = true
+        local missing = {}
+        for keys, svc in pairs(uni.runnable) do
+            if not _G.service.has(svc) then
+                missing[#missing + 1] = keys .. " → " .. svc .. " (no such service)"
+            end
+        end
+        -- …and that the KEY still exists. ⇪pad+ sat in this map for three
+        -- versions after the pomodoro moved to ⇪⇧P: the service resolved
+        -- perfectly, the key matched nothing the cheat sheet draws, and the
+        -- row was simply never runnable. Nothing said a word.
+        local live = {}
+        for _, r in ipairs(rows or {}) do
+            if r.tag == "tool" then live[r.keys] = true end
+        end
+        if next(live) then
+            for keys in pairs(uni.runnable) do
+                if not live[keys] then
+                    missing[#missing + 1] = keys .. " (no cheat sheet entry uses that key)"
+                end
+            end
+        end
+        if #missing > 0 then
+            table.sort(missing)      -- pairs() has no order; the report needs one
+            local msg = table.concat(missing, ", ")
+            warn("run map entries that cannot fire: " .. msg)
+            if _G.notices then
+                _G.notices.record("unified", "stale entries in the tool run map", msg)
+            end
+        end
+    end
+
+    -- Rebuilt on every open rather than cached at boot, exactly as the
+    -- standalone picker did: the cheat sheet is assembled from whichever
+    -- modules actually LOADED, and a module can fail to load — a cached
+    -- list would keep offering a tool that is not there this session.
+    local function srcTools(add)
+        local groups
+        local ok = pcall(function()
+            groups = _G.cheatSheet and _G.cheatSheet.groups and _G.cheatSheet.groups()
+        end)
+        if not (ok and groups) then
+            warn("cheat sheet groups unavailable — no tools to list")
+            return
+        end
+        for _, g in ipairs(groups) do
+            -- Strip the leading emoji and any trailing parenthetical so the
+            -- group reads as a plain name.
+            local gname = tostring(g.title or "")
+                :gsub("^[^%w]*", "")
+                :gsub("%s*%b()%s*$", "")
+            for _, e in ipairs(g.entries or {}) do
+                local keys = tostring(e[1] or "")
+                local desc = tostring(e[2] or "")
+                if keys ~= "" or desc ~= "" then
+                    add{ tag = "tool", icon = "🔧", src = gname ~= "" and gname or "Tools",
+                         text = desc ~= "" and desc or keys,
+                         sub  = keys,
+                         full = keys,
+                         kind = "tool",
+                         keys = keys,
+                         service = uni.runnable[keys] }
+                end
+            end
+        end
+    end
+
     -- ---- gather -------------------------------------------------------------
     uni.sources = {
         { tag = "clip",  icon = "📋", label = "Clipboard",    fn = srcClipboard },
@@ -411,6 +564,10 @@ function M.setup(core)
         { tag = "file",  icon = "📁", label = "File moves",   fn = srcFiles     },
         { tag = "pad",   icon = "🗒", label = "Capture Pad",  fn = srcPad       },
         { tag = "web",   icon = "🕘", label = "Chrome",       fn = srcWeb       },
+        -- 🔧 LAST ON PURPOSE. Rows are gathered in this order and the page
+        -- lists them in it, so the things you SAVED stay above the tools
+        -- that are always there. @tool (or ⇪⇧/) puts them on top instead.
+        { tag = "tool",  icon = "🔧", label = "Tools",        fn = srcTools     },
     }
 
     function uni.gather()
@@ -428,6 +585,10 @@ function M.setup(core)
                       .. " source failed and was skipped — " .. tostring(err))
             end
         end
+        -- Run map checked on the first gather, not at setup(): modules load
+        -- in order and half the service registry does not exist yet while
+        -- this one is being set up.
+        pcall(uni.verifyTools, uni.rows)
         return uni.rows
     end
 
@@ -647,6 +808,57 @@ if (q.focus) q.focus();
 </script></body></html>]]
     end
 
+    -- 🔧 ⏎ on a tool row. Run it if we can; otherwise put the key where you
+    -- can use it.
+    --
+    -- 🚨 THE PANEL GOES AWAY FIRST, AND THE RUN IS ONE RUN-LOOP TURN LATER.
+    -- Most of these tools open a picker of their own, and this webview
+    -- holds keyboard focus — running while it is still up means two panels
+    -- racing for the keyboard, and the one that loses eats your first
+    -- keystroke. Hiding first is not cosmetic.
+    uni.runTimers = uni.runTimers or {}
+    function uni.runTool(row)
+        local keys = tostring(row.keys or "")
+        local svc  = row.service
+        uni.hide()
+
+        local runnable = svc and _G.service and _G.service.has
+                         and _G.service.has(svc)
+        if not runnable then
+            -- Being handed the key is the fallback, not a failure: plenty of
+            -- entries are descriptions of behaviour, not commands.
+            if keys ~= "" then
+                pcall(function() hs.pasteboard.setContents(keys) end)
+                hs.alert.show("🔧 " .. keys .. "  (copied — press it)", 1.5)
+            end
+            return false
+        end
+
+        -- HELD: an unreferenced hs.timer is collected, and a collected timer
+        -- never fires — this one carries the whole action.
+        local t = hs.timer.doAfter(0.05, function()
+            -- has() BEFORE call(): _G.service.call does NOT throw on a
+            -- missing provider, so a pcall around it succeeds whether the
+            -- service ran or never existed at all.
+            local ok = pcall(function() _G.service.call(svc) end)
+            if ok then
+                say("ran " .. svc .. " (" .. keys .. ")")
+                return
+            end
+            -- A service that IS registered and throws is a real failure and
+            -- is reported as one. Falling back to "here is the key" would
+            -- look like the picker simply chose not to run it.
+            warn("service '" .. svc .. "' failed when run from ⇪space")
+            hs.alert.show("⚠️ " .. keys .. " failed — see the Console", 3)
+            if _G.notices then
+                _G.notices.record("unified", "tool failed when run", svc)
+            end
+        end)
+        uni.runTimers[#uni.runTimers + 1] = t
+        while #uni.runTimers > 8 do table.remove(uni.runTimers, 1) end
+        return true
+    end
+
     -- ---- the Lua side of the bridge ----------------------------------------
     local function handleMessage(body)
         if type(body) ~= "table" then return end
@@ -659,6 +871,10 @@ if (q.focus) q.focus();
         end
         local row = uni.rows and uni.rows[tonumber(body.id or 0)]
         if not row then return end
+        -- 🔧 A TOOL ROW RUNS. Everything else on this panel copies; this one
+        -- kind acts, which is why it is checked before the copy paths and
+        -- not folded into them.
+        if row.kind == "tool" then uni.runTool(row) return end
         if a == "path" and row.path then
             pcall(function() hs.pasteboard.setContents(row.path) end)
             hs.alert.show("📋 Path copied — " .. (row.path:match("[^/]+$") or row.path))
@@ -792,6 +1008,12 @@ if (q.focus) q.focus();
         core.hyperAddShortcut({ "shift" }, uni.key,
                               function() uni.toggle("@shots ") end,
                               "unified search — screenshots")
+        -- ⇪⇧/ KEPT AS A DOOR, NOT A SECOND BOX (6.104.0). The standalone
+        -- Tool Picker is gone; the key it taught your fingers still works
+        -- and lands where its content moved to. Same shape as ⇪⇧space.
+        core.hyperAddShortcut({ "shift" }, uni.toolKey,
+                              function() uni.toggle("@tool ") end,
+                              "unified search — tools")
     end
 
     -- Draggable like everything else — ⌘-drag anywhere on it, and the

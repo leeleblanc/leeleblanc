@@ -26,7 +26,7 @@ with no admin password. The two steps that *can* use admin are marked
 │   ├── changelog_csv.lua     one Excel-ready row per version
 │   ├── console.lua           the ⛔ ERRORS + ⚠️ NONBREAKING sections + repeat limiter
 │   └── notices.lua           the failure ledger — nothing fails silently
-├── modules/              46 files, loaded by the §1.12 loader
+├── modules/              45 files, loaded by the §1.12 loader
 ├── tools/                hs-doctor.sh · hs-install.sh · run-tests.sh
 └── logs/                 only if there is no OneDrive on this Mac
 ```
@@ -60,7 +60,7 @@ Menu bar hammer → *Preferences* → it will prompt, or:
 
 **If IT blocks this, keep going.** You lose only the features that move or
 hide *other apps'* windows — Window Arranger, App Peek, app summon, Window
-Return. Every hotkey, picker, tracker and Asana feature still works. The
+Return, Window Pin. Every hotkey, picker, tracker and Asana feature still works. The
 config detects this and tells you.
 
 ---
@@ -177,7 +177,7 @@ Menu bar hammer → **Reload Config**.
 A healthy boot is two lines:
 
 ```
-🧭 Lees-MacBook-Air  ·  46 modules  ·  95 ⇪ shortcuts  ·  0.43s
+🧭 Lees-MacBook-Air  ·  45 modules  ·  95 ⇪ shortcuts  ·  0.43s
    All green.  ⇪⇧D diagnostic report  ·  _G.bootReport() for the full detail
 ```
 
@@ -222,6 +222,9 @@ run and whether it exists here, and every path it writes to. Read-only.
 | ⇪Q | focus mode (Quiet) — mutes the mic and dims everything but the meeting |
 | ⇪R | bulk rename the Finder selection · undo is the picker's first row |
 | ⇪⇧S | search your past Asana tasks — 30 days, ⏎ reopens one |
+| ⇪⇧U | pin a note to the window in front — it follows that window |
+| ⇪⇧/ | the same ⇪space box, opened on the tools — ⏎ runs one |
+| ⇪⇧W | the documents you worked in · ⇪⇧E edits or deletes an entry |
 | unplug the dock, replug it | scattered windows return to their docked positions within seconds |
 | ⇪ pad1 | clipboard → log.txt as a Log note, confirmed with a preview |
 | ⇪ pad2 | the Quick Append Pad — lines route by prefix: * idea + log ! task ? note |
@@ -297,7 +300,7 @@ No OneDrive on that Mac is fine — logs fall back to
 sh ~/.hammerspoon/tools/run-tests.sh ~/.hammerspoon
 ```
 
-Syntax on `init.lua`, `core/` and all 46 modules, thirty-eight Lua suites, then the
+Syntax on `init.lua`, `core/` and all 45 modules, thirty-nine Lua suites, then the
 Capture Pad's page JavaScript **executed** against a DOM stub. One exit
 code. A skipped stage is reported as a skip, never as a pass.
 

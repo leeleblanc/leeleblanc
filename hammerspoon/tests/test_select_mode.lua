@@ -7,7 +7,8 @@
 -- The config has three entry editors. ⇪⇧V (clipboard) is covered in
 -- test_clipboard §8; this suite holds the other two:
 --
---   E1  ⇪⇧E (Document Watcher): pick rows with Enter, delete them
+--   E1  ⇪⇧E (documents — the Activity Tracker's since 6.104.0, the
+--       Document Watcher's before it): pick rows with Enter, delete them
 --       TOGETHER, and the deletion is saved — not just displayed.
 --   E2  ⇪⇧O (OCR history, init.lua §5): the same pattern, proven on the
 --       REAL source lifted out of init.lua the way test_hyper_key does,
@@ -73,7 +74,13 @@ hs = {
     dialog = { textPrompt = function() return PROMPT[1], PROMPT[2] end },
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
     timer = { doEvery = function() return { stop = function() end } end,
+              doAt    = function() return { stop = function() end } end,
               secondsSinceEpoch = function() return 1000 end },
+    json = { decode = function() return nil end },
+    caffeinate = { watcher = {
+        screensDidLock = "lock", systemWillSleep = "sleep",
+        new = function() return { start = function(self) return self end } end,
+    } },
     pasteboard = { setContents = function(t) PASTEBOARD = t ; return true end },
     application = { frontmostApplication = function() return nil end },
     host = { idleTime = function() return 0 end },
@@ -84,12 +91,43 @@ hs = {
         BOUND[table.concat(ms, "+") .. "|" .. key] = fn
     end },
 }
+hs.configdir = "/config"
 _G.choosers = {}
 _G.diag = { say = function() end, warn = function() end }
 
 local HYPER = {}
 local CORE = {
     logsDir = "/logs",
+    hostTag = "Test",
+    adoptLegacyFile = function() end,
+    warnWriteFailed = function() end,
+    formatDuration = function(s)
+        if s < 60 then return s .. "s" end
+        local m = math.floor(s / 60)
+        if m < 60 then return m .. "m " .. (s % 60) .. "s" end
+        return math.floor(m / 60) .. "h " .. (m % 60) .. "m"
+    end,
+    -- Quote-aware, because one of the fixture titles below carries a comma
+    -- of its own — a splitter that ignores quotes would file half a title
+    -- as the seconds column and the row would silently vanish.
+    splitCSVLine = function(line)
+        local outF, field, i, inQ = {}, {}, 1, false
+        while i <= #line do
+            local ch = line:sub(i, i)
+            if inQ then
+                if ch == '"' then
+                    if line:sub(i + 1, i + 1) == '"' then
+                        field[#field + 1] = '"'; i = i + 1
+                    else inQ = false end
+                else field[#field + 1] = ch end
+            elseif ch == '"' then inQ = true
+            elseif ch == "," then outF[#outF + 1] = table.concat(field); field = {}
+            else field[#field + 1] = ch end
+            i = i + 1
+        end
+        outF[#outF + 1] = table.concat(field)
+        return outF
+    end,
     showPopup = function(c) c.shown = true end,
     csvQuote = function(s)
         if s:find('[,"]') then return '"' .. s:gsub('"', '""') .. '"' end
@@ -107,25 +145,41 @@ local CORE = {
 -- =====================================================================
 out("── test_select_mode (config at " .. HS .. ")\n")
 
--- ---- 1. ⇪⇧E — the Document Watcher editor (E1) ----------------------
+-- ---- 1. ⇪⇧E — the document editor, now the Activity Tracker's (E1) ---
+-- 6.104.0: this used to drive modules/document_watcher.lua, which was
+-- retired into activity_tracker — the SAME select-mode contract, now over
+-- rows DERIVED from the sessions the tracker already records rather than
+-- a second CSV. Everything below is the old suite's expectations, pointed
+-- at the surviving module: if the merge lost a behaviour, this fails.
 out("   1. ⇪⇧E: pick several document rows, delete them together\n")
-local DOCFILE = "/logs/doc_wather.csv"
-FILES[DOCFILE] = "Date,Time of day,File name,Working time\n"
-    .. "2026-08-14,09:10,Budget.xlsx,0:12:00\n"
-    .. "2026-08-15,10:20,Report Q3.docx,1:05:30\n"
-    .. "2026-08-15,14:40,Notes.md,0:03:10\n"
-local M = dofile(HS .. "/modules/document_watcher.lua")
+local ACTFILE = "/logs/activity_history-Test.csv"
+FILES[ACTFILE] = "date,app,title,seconds\n"
+    .. "2026-08-14,Excel,Budget.xlsx — Excel,720\n"
+    .. "2026-08-15,Word,Report Q3.docx — Word,3930\n"
+    .. '2026-08-15,Sublime Text,"Notes.md - Sublime Text",190\n'
+    .. "2026-08-15,Slack,#general,600\n"
+local M = dofile(HS .. "/modules/activity_tracker.lua")
 M.setup(CORE)
-local ed = _G.choosers.docWatcherEdit
-check("the module loaded its three rows", #_G.docRowsForTest() == 3,
-      #_G.docRowsForTest())
+local ed = _G.choosers.activityDocsEdit
+local docs = _G.activityDocsForTest
+check("three documents are derived from the sessions", #docs() == 3, #docs())
+check("...and a window title that is not a filename is NOT one of them — "
+      .. "a wrong entry is worse than a missing one", (function()
+          for _, r in ipairs(docs()) do
+              if r.file:find("general", 1, true) then return false end
+          end
+          return true
+      end)())
 
 HYPER["shift|e"]()
 check("a fresh ⇪⇧E leads with ONE action row: ☑️ Delete several at once…",
       ed.rows[1] and ed.rows[1].action == "editselecton"
       and ed.rows[1].text:find("Delete several", 1, true) ~= nil)
-check("...rows are newest first and keep their one-at-a-time hint",
-      ed.rows[2] and ed.rows[2].text:find("Notes.md", 1, true) ~= nil
+check("...rows are newest first, longest first inside a day, and keep "
+      .. "their one-at-a-time hint",
+      ed.rows[2] and ed.rows[2].text:find("Report Q3.docx", 1, true) ~= nil
+      and ed.rows[3].text:find("Notes.md", 1, true) ~= nil
+      and ed.rows[4].text:find("Budget.xlsx", 1, true) ~= nil
       and ed.rows[2].subText:find("rename or delete", 1, true) ~= nil,
       ed.rows[2] and ed.rows[2].text)
 
@@ -136,36 +190,37 @@ check("select mode re-renders: delete row + never-mind row, nothing picked",
       and ed.rows[2].action == "editselectoff"
       and ed.shown == true)
 
-ed.fn({ action = "edit", key = ed.rows[3].key })      -- Notes.md
+ed.fn({ action = "edit", key = ed.rows[4].key })      -- Notes.md
 ed.fn({ action = "edit", key = ed.rows[5].key })      -- Budget.xlsx
 check("two picked: rows wear ✓ and the action row counts them",
       ed.rows[1].text:find("Delete the 2", 1, true) ~= nil
-      and ed.rows[3].text:find("✓ ", 1, true) == 1
+      and ed.rows[4].text:find("✓ ", 1, true) == 1
       and ed.rows[5].text:find("✓ ", 1, true) == 1,
       ed.rows[1].text)
-ed.fn({ action = "edit", key = ed.rows[3].key })      -- unpick Notes.md
+ed.fn({ action = "edit", key = ed.rows[4].key })      -- unpick Notes.md
 check("Enter on a picked row UNPICKS it",
       ed.rows[1].text:find("Delete the 1", 1, true) ~= nil)
 
-ed.fn({ action = "edit", key = ed.rows[3].key })      -- pick it again
-FILES[DOCFILE] = nil
+ed.fn({ action = "edit", key = ed.rows[4].key })      -- pick it again
+FILES[ACTFILE] = nil
 ed.fn({ action = "deletetagged" })
-check("🗑 deleting the picked rows removes exactly those from the log",
-      #_G.docRowsForTest() == 1
-      and _G.docRowsForTest()[1].file == "Report Q3.docx",
-      #_G.docRowsForTest())
+check("🗑 deleting the picked rows removes exactly those documents",
+      #docs() == 1 and docs()[1].file == "Report Q3.docx", #docs())
 check("...and the deletion is SAVED, not just displayed",
-      FILES[DOCFILE] ~= nil
-      and FILES[DOCFILE]:find("Report Q3.docx", 1, true) ~= nil
-      and FILES[DOCFILE]:find("Notes.md", 1, true) == nil
-      and FILES[DOCFILE]:find("Budget.xlsx", 1, true) == nil)
+      FILES[ACTFILE] ~= nil
+      and FILES[ACTFILE]:find("Report Q3.docx", 1, true) ~= nil
+      and FILES[ACTFILE]:find("Notes.md", 1, true) == nil
+      and FILES[ACTFILE]:find("Budget.xlsx", 1, true) == nil)
+check("...and a NON-document session is left completely alone by it — "
+      .. "deleting a document must not quietly eat unrelated app time",
+      FILES[ACTFILE]:find("#general", 1, true) ~= nil)
 check("...announced with the count", alerted("Deleted 2"))
 
 HYPER["shift|e"]()
 ed.fn({ action = "editselecton" })
 ed.fn({ action = "deletetagged" })
 check("deleting with NOTHING picked deletes nothing and says so",
-      #_G.docRowsForTest() == 1 and alerted("Nothing picked"))
+      #docs() == 1 and alerted("Nothing picked"))
 ed.fn({ action = "editselecton" })
 ed.fn({ action = "edit", key = ed.rows[3].key })
 ed.fn({ action = "editselectoff" })
@@ -182,7 +237,25 @@ check("🚨 a fresh ⇪⇧E always starts UNPICKED (E3)",
 PROMPT = { "OK", "Renamed.docx" }
 ed.fn({ action = "edit", key = ed.rows[2].key })
 check("one-at-a-time renaming still works (E3)",
-      _G.docRowsForTest()[1].file == "Renamed.docx" and alerted("Renamed"))
+      docs()[1].file == "Renamed.docx" and alerted("Renamed"), docs()[1].file)
+check("...by rewriting the underlying session, so it survives a reload",
+      FILES[ACTFILE]:find("Renamed.docx", 1, true) ~= nil)
+
+-- ---- 1b. ⇪⇧W — the same rows, read-only, with COPY select mode ------
+out("   1b. ⇪⇧W: the documents list, copying several together\n")
+local lst = _G.choosers.activityDocs
+HYPER["shift|w"]()
+check("⇪⇧W leads with a tally, then the copy-several action row",
+      lst.rows[1] and lst.rows[1].text:find("document", 1, true) ~= nil
+      and lst.rows[2].action == "selecton", lst.rows[1] and lst.rows[1].text)
+lst.fn({ action = "selecton" })
+lst.fn({ action = "row", key = lst.rows[4].key })
+check("picking a row counts it", lst.rows[2].text:find("Copy the 1", 1, true) ~= nil,
+      lst.rows[2].text)
+lst.fn({ action = "copytagged" })
+check("copying the picked rows puts them on the clipboard, one per line",
+      PASTEBOARD and PASTEBOARD:find("Renamed.docx", 1, true) ~= nil
+      and alerted("Copied 1"), PASTEBOARD)
 
 -- ---- 2. ⇪⇧O — the OCR editor, lifted from init.lua (E2) -------------
 out("   2. ⇪⇧O: the OCR editor runs the REAL init.lua source\n")

@@ -191,12 +191,14 @@ local function statusOf(n)
 end
 
 out("\n=== 1. The three real modules load ===\n")
-check("all eighteen loaded", _G.moduleLoaded == 18 and _G.moduleFailed == 0,
+-- 6.104.0: seventeen, not eighteen — document_watcher was retired into
+-- activity_tracker, which now owns ⇪⇧W and ⇪⇧E.
+check("all seventeen loaded", _G.moduleLoaded == 17 and _G.moduleFailed == 0,
       tostring(_G.moduleLoaded) .. "/" .. tostring(_G.moduleFailed))
 for _, n in ipairs({ "daily_backup", "app_peek", "window_switcher", "window_arranger",
                      "copy_on_select", "command_history", "app_watcher", "file_tracker",
                      "autocorrect", "activity_tracker", "update_tracker",
-                     "asana_comments", "document_watcher",
+                     "asana_comments",
                      "screen_veil", "mini_calendar", "quick_append",
                      "capture_pad", "numpad_layer" }) do
   local r = statusOf(n)
@@ -256,9 +258,9 @@ out("\n=== 3. Cheat sheet groups travel WITH the module ===\n")
 --     was the one automatic tool the sheet never mentioned.
 -- Asana Comments still declares none: its entries belong to the ASANA
 -- group that init.lua still owns.
-check("eighteen groups registered — one module contributes two, one has "
+check("seventeen groups registered — one module contributes two, one has "
       .. "no cheat sheet at all, and Asana Comments declares none",
-      #_G.moduleCheatsheets == 18, #_G.moduleCheatsheets)
+      #_G.moduleCheatsheets == 17, #_G.moduleCheatsheets)
 local byOrder = {}
 for _, g in ipairs(_G.moduleCheatsheets) do byOrder[g.order] = g.title end
 -- ⚠️ A DUPLICATE ORDER NUMBER IS A REAL BUG, NOT A COSMETIC ONE: Lua's
@@ -295,7 +297,11 @@ check("File Tracker claims slot 10", (byOrder[10] or ""):find("FILE TRACKER", 1,
 check("Autocorrect claims slot 13", (byOrder[13] or ""):find("AUTOCORRECT", 1, true))
 check("Activity Tracker claims slot 4", (byOrder[4] or ""):find("ACTIVITY", 1, true))
 check("Update Tracker claims slot 9", (byOrder[9] or ""):find("APP UPDATES", 1, true))
-check("Document Watcher claims slot 11", (byOrder[11] or ""):find("DOCUMENT WATCHER", 1, true))
+-- Slot 11 was the Document Watcher's until 6.104.0. It is deliberately
+-- left EMPTY rather than reused: a slot number that shifts is a cheat
+-- sheet whose order changes under you for no reason you can see.
+check("slot 11 is free — the Document Watcher's old place, not reassigned",
+      byOrder[11] == nil, byOrder[11])
 -- Every group that gets a SECTION on the sheet must have rows in it — an
 -- empty section is a heading over nothing. The exception is deliberate and
 -- narrow: a family = "auto" module contributes a one-LINE entry to the

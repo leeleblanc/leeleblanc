@@ -92,7 +92,7 @@ else
     [ "$n" = "init" ] && note="⚠️ STRAY init.lua — should NOT be in modules/"
     printf "   %-22s %7s  %-16s %s\n" "$n" "$b" "$m" "$note"
   done
-  echo "   count: $(ls -1 "$HS/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 46)"
+  echo "   count: $(ls -1 "$HS/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 45)"
 fi
 
 # ---- 4b. core ---------------------------------------------------------
@@ -253,14 +253,23 @@ check_marker app_watcher     "appMonitorResolveSounds" 6.61.0
 # just never narrows visibly, so you would assume the feature was never
 # delivered rather than that the file is stale.
 check_marker mouse_grid      "dropLattice"        6.65.0
-# The four tools added in 6.65.0. A MISSING FILE here is the likeliest
-# outcome of a hand-copied install — init.lua's profile names them, so
-# init.lua landing without them means four modules that fail to load and
-# announce themselves at the top of the cheat sheet.
-check_marker tool_picker       "tp.runnable"      6.65.0
+# The tools added in 6.65.0. A MISSING FILE here is the likeliest outcome
+# of a hand-copied install — init.lua's profile names them, so init.lua
+# landing without them means modules that fail to load and announce
+# themselves at the top of the cheat sheet.
+# (tool_picker was the fourth until 6.104.0 folded it into unified_search;
+#  its run map is checked below, under the file that now owns it.)
 check_marker universal_actions "ua.ordered"       6.65.0
 check_marker pomodoro          "pom.answerSecs"   6.65.0
 check_marker outlook_probe     "outlookProbe"     6.65.0
+# 6.104.0 — the two merges. A unified_search.lua without uni.runnable is
+# the pre-6.104.0 file, which means ⇪⇧/ opens a box with no tools in it;
+# an activity_tracker.lua without docFileFromTitle is the pre-6.104.0 file,
+# which means ⇪⇧W and ⇪⇧E are bound to nothing at all now that
+# document_watcher.lua is gone.
+check_marker unified_search    "uni.runnable"     6.104.0
+check_marker activity_tracker  "docFileFromTitle" 6.104.0
+check_marker win_pin           "winPin.notes"     6.104.0
 
 # ---- 6. the hyper key remap ------------------------------------------
 # 🚨 6.59.0 — hidutil PRINTS THE MAPPING IN DECIMAL, NOT HEX. The check

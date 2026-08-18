@@ -34,6 +34,13 @@
 -- so a switch can take up to that long to be noticed, and only
 -- recorded if they last at least activityMinSessionSeconds (filters
 -- out quick accidental switches — same idea as the old 10s threshold).
+--
+-- 📄 6.104.0 — THE DOCUMENT WATCHER WAS MERGED IN HERE AND DELETED.
+-- ⇪⇧W (the documents you worked in) and ⇪⇧E (edit or delete one) now
+-- live at the bottom of this file, DERIVED from the sessions above
+-- instead of recorded a second time by a second 5-second timer into a
+-- second CSV. The full reasoning, and what the merge costs, is in the
+-- ⚰️ block down there rather than repeated here.
 
 -- Moved out of init.lua in 6.40.0. The code is unchanged apart from
 -- taking its shared services from `core` instead of init.lua's locals.
@@ -49,6 +56,9 @@ local M = {
             { "type: month", "Top apps & documents this month" },
             { "type: anything", "Search all saved history" },
             { "Enter", "Copy row to clipboard" },
+            { "⇪⇧W", "DOCUMENTS you worked in — name · time · day, searchable" },
+            { "☑️ row", "Copy several: pick rows with Enter, then copy together" },
+            { "⇪⇧E", "Edit or delete a document entry (clear the name = delete)" },
             { "auto 4:00 PM", "Daily report pops up" },
             { "auto Mon 7:30 AM", "Weekly recap pops up" }
         },
@@ -553,6 +563,409 @@ function M.setup(core)
     -- that left with this module, turning ⇪0 into a nil-global crash the
     -- moment it was pressed.
     core.provide("activity.renderChoices", renderActivityChoices)
+
+    -- =====================================================================
+    -- 📄 DOCUMENTS — ⇪⇧W the list · ⇪⇧E edit or delete   (6.104.0)
+    -- =====================================================================
+    -- ⚰️ THIS REPLACES modules/document_watcher.lua, WHICH IS DELETED.
+    -- Both modules polled the frontmost window every 5 seconds and both
+    -- accumulated time from it — one into activity_history.csv keyed by
+    -- app+title, one into doc_wather.csv keyed by a filename pulled out of
+    -- that same title. Two timers, two CSVs, two sets of rounding, one
+    -- signal. When they disagreed there was no way to say which was right.
+    --
+    -- 🔑 WHY THIS FILE IS THE SURVIVOR: it stores strictly MORE. A window
+    -- title contains the filename; a filename does not contain the title.
+    -- So the documents view is DERIVED here rather than recorded twice —
+    -- the two can no longer disagree, because there is only one of them.
+    --
+    -- ⚖️ WHAT THE MERGE COSTS, stated plainly:
+    --   • doc_wather.csv stops being written. It is not deleted — old rows
+    --     stay readable in Numbers, and ⇪space still reads the file if it
+    --     is there. Nothing new lands in it.
+    --   • Its rows do not migrate. They are one-per-document-per-day
+    --     totals; these are sessions. Adding them would double-count every
+    --     day both modules ran, which is worse than a clean cut-over.
+    --   • Deleting a document here removes its SESSIONS, so that time also
+    --     leaves the app totals. That is the honest meaning of "this
+    --     should not have been recorded", and the prompt says so before
+    --     you confirm.
+    --
+    -- Its own function so this section gets a fresh Lua local budget —
+    -- setup() above is already near the 200-local ceiling (see the note at
+    -- activityIdleThreshold). Same shape document_watcher used.
+    ;(function()
+
+    local docMaxRows = 500      -- rows the pickers show at once
+
+    -- Window titles look like "Report.docx — Word", "notes.md - Sublime",
+    -- "Untitled.txt — Edited". Take the part before the separator and insist
+    -- it looks like a real filename. Anything else is dumped: a wrong entry
+    -- is worse than a missing one in a log you are going to trust.
+    -- (Ported unchanged from document_watcher — it was the good part.)
+    local docSeparators = { " — ", " – ", " - " }
+
+    local function docFileFromTitle(title, appName)
+        if type(title) ~= "string" then return nil end
+        local head = title
+        for _, sep in ipairs(docSeparators) do
+            local cut = head:find(sep, 1, true)
+            if cut then head = head:sub(1, cut - 1) end
+        end
+        head = head:gsub("^%s+", ""):gsub("%s+$", "")
+        if head == "" then return nil end
+        if appName and head == appName then return nil end
+        -- Must end in a plausible extension.
+        local base, ext = head:match("^(.+)%.([%a%d]+)$")
+        if not base or not ext then return nil end
+        if #ext < 1 or #ext > 6 then return nil end
+        if base:match("^%s*$") then return nil end
+        return head
+    end
+
+    -- One row per document per day, newest day first, longest first inside
+    -- a day — the shape ⇪⇧W has always had, now computed from the sessions
+    -- instead of kept alongside them.
+    local function docRows()
+        local index, order = {}, {}
+        for _, e in ipairs(_G.activityLog or {}) do
+            local file = docFileFromTitle(e.title, e.app)
+            if file then
+                local key = e.date .. "|" .. file
+                local row = index[key]
+                if not row then
+                    row = { date = e.date, file = file, app = e.app, secs = 0, key = key }
+                    index[key] = row
+                    order[#order + 1] = row
+                end
+                row.secs = row.secs + (tonumber(e.seconds) or 0)
+            end
+        end
+        table.sort(order, function(a, b)
+            if a.date ~= b.date then return a.date > b.date end
+            if a.secs ~= b.secs then return a.secs > b.secs end
+            return a.file < b.file
+        end)
+        return order
+    end
+
+    local function docRowText(r)
+        return r.file .. "   ·   " .. core.formatDuration(r.secs)
+    end
+
+    -- Every session that feeds one document row. The join is recomputed
+    -- rather than stored, so an edit can never act on a stale index.
+    local function docSessionsFor(row)
+        local hits = {}
+        for i, e in ipairs(_G.activityLog or {}) do
+            if e.date == row.date and docFileFromTitle(e.title, e.app) == row.file then
+                hits[#hits + 1] = i
+            end
+        end
+        return hits
+    end
+
+    local function docFindRow(key)
+        for _, r in ipairs(docRows()) do
+            if r.key == key then return r end
+        end
+        return nil
+    end
+
+    -- ---- the list (⇪⇧W) --------------------------------------------------
+    -- ☑️ Select mode, same as it always was: hs.chooser is single-select
+    -- with no modifier reporting, so Enter TAGS rows and one action row
+    -- copies them together. Supported API, same outcome.
+    local docSelect, docTagged = false, {}
+
+    local function docCount(t)
+        local n = 0
+        for _ in pairs(t) do n = n + 1 end
+        return n
+    end
+
+    local function docTodayTally(rows)
+        -- os.date() with no time argument reads the WALL CLOCK, while every
+        -- row is stamped from os.time(). The same thing on a real Mac right
+        -- up until they aren't — across midnight, or under a test clock —
+        -- and then "documents today" silently reports zero. Same source for
+        -- both, always.
+        local today, count, secs = os.date("%Y-%m-%d", os.time()), 0, 0
+        for _, r in ipairs(rows) do
+            if r.date == today then count = count + 1; secs = secs + r.secs end
+        end
+        return count, secs
+    end
+
+    local function docCopyRows(rows)
+        local lines = {}
+        for _, r in ipairs(rows) do
+            lines[#lines + 1] = r.date .. "  " .. r.file .. "  "
+                                .. core.formatDuration(r.secs)
+        end
+        hs.pasteboard.setContents(table.concat(lines, "\n"))
+        hs.alert.show("📋 Copied " .. #lines .. " row"
+                      .. ((#lines == 1) and "" or "s"))
+    end
+
+    local function renderDocList(query)
+        local q = tostring(query or ""):lower():match("^%s*(.-)%s*$")
+        local rows, choices = docRows(), {}
+        local n, secs = docTodayTally(rows)
+        table.insert(choices, {
+            text    = "📄 " .. n .. " document" .. ((n == 1) and "" or "s")
+                      .. " today   ·   " .. core.formatDuration(secs),
+            subText = "Derived from the sessions this tracker already records"
+                      .. " — ⇪⇧E edits or deletes one",
+        })
+        if docSelect then
+            local picked = docCount(docTagged)
+            table.insert(choices, {
+                text    = (picked == 0) and "☑️ Nothing picked yet"
+                          or ("📋 Copy the " .. picked .. " row"
+                              .. ((picked == 1) and "" or "s") .. " I picked"),
+                subText = (picked == 0)
+                          and "Go down the list and press Enter on the ones you want"
+                          or "Press Enter HERE to copy them all",
+                action  = "copytagged",
+            })
+            table.insert(choices, { text = "✖️ Never mind — go back",
+                                    subText = "Forget the picks",
+                                    action = "selectoff" })
+        else
+            table.insert(choices, { text = "☑️ Copy several at once…",
+                                    subText = "Pick rows one at a time, then copy them together",
+                                    action = "selecton" })
+        end
+        local shown = 0
+        for _, r in ipairs(rows) do
+            local hay = (r.file .. " " .. r.date .. " " .. (r.app or "")):lower()
+            if q == "" or hay:find(q, 1, true) then
+                local picked = docTagged[r.key]
+                table.insert(choices, {
+                    text    = (picked and "✓ " or "") .. docRowText(r),
+                    subText = r.date .. "  ·  " .. (r.app or "?")
+                              .. (docSelect
+                                  and (picked and "  ·  PICKED — Enter unpicks it"
+                                              or "  ·  Enter adds it to the copy list")
+                                  or "  ·  Enter copies this row"),
+                    action  = "row", key = r.key,
+                })
+                shown = shown + 1
+                if shown >= docMaxRows then break end
+            end
+        end
+        if shown == 0 then
+            table.insert(choices, { text = "No documents match",
+                                    subText = "Titles only count when they look like a filename" })
+        end
+        _G.choosers.activityDocs:choices(choices)
+    end
+
+    _G.choosers.activityDocs = hs.chooser.new(function(c)
+        if not (c and c.action) then return end
+        local function reopen()
+            renderDocList(""); _G.choosers.activityDocs:query("")
+            core.showPopup(_G.choosers.activityDocs)
+        end
+        if c.action == "selecton"  then docSelect, docTagged = true,  {} reopen() return end
+        if c.action == "selectoff" then docSelect, docTagged = false, {} reopen() return end
+        if c.action == "copytagged" then
+            local picked = {}
+            for _, r in ipairs(docRows()) do
+                if docTagged[r.key] then picked[#picked + 1] = r end
+            end
+            docSelect, docTagged = false, {}
+            if #picked > 0 then docCopyRows(picked)
+            else hs.alert.show("Nothing picked — press Enter on the rows you want first") end
+            return
+        end
+        if c.action ~= "row" or not c.key then return end
+        if docSelect then
+            docTagged[c.key] = (not docTagged[c.key]) or nil
+            reopen(); return
+        end
+        local row = docFindRow(c.key)
+        if row then docCopyRows({ row }) end
+    end)
+    _G.choosers.activityDocs:placeholderText("Documents you worked in — search name, date or app")
+    _G.choosers.activityDocs:queryChangedCallback(function(q)
+        pcall(renderDocList, q)
+    end)
+
+    -- ---- edit / delete (⇪⇧E) ---------------------------------------------
+    local docEditSelect, docEditTagged = false, {}
+
+    local function renderDocEdit(query)
+        local q = tostring(query or ""):lower():match("^%s*(.-)%s*$")
+        local rows, choices = docRows(), {}
+        if #rows == 0 then
+            -- An empty log gets no action rows — there is nothing to pick.
+        elseif docEditSelect then
+            local picked = docCount(docEditTagged)
+            table.insert(choices, {
+                text    = (picked == 0) and "☑️ Nothing picked yet"
+                          or ("🗑 Delete the " .. picked .. " entr"
+                              .. ((picked == 1) and "y" or "ies") .. " I picked"),
+                subText = (picked == 0)
+                          and "Go down the list and press Enter on the ones to delete"
+                          or "Press Enter HERE to delete them all — their time leaves the app totals too",
+                action  = "deletetagged",
+            })
+            table.insert(choices, { text = "✖️ Never mind — go back",
+                                    subText = "Forget the picks and return to one-at-a-time editing",
+                                    action = "editselectoff" })
+        else
+            table.insert(choices, { text = "☑️ Delete several at once…",
+                                    subText = "Pick rows one at a time, then delete them together",
+                                    action = "editselecton" })
+        end
+        local shown = 0
+        for _, r in ipairs(rows) do
+            local hay = (r.file .. " " .. r.date):lower()
+            if q == "" or hay:find(q, 1, true) then
+                local picked = docEditTagged[r.key]
+                local hint
+                if not docEditSelect then hint = "Enter to rename or delete"
+                elseif picked then hint = "PICKED — Enter unpicks it"
+                else hint = "Enter adds this to the delete list" end
+                table.insert(choices, {
+                    text    = (picked and "✓ " or "✏️ ") .. docRowText(r),
+                    subText = r.date .. "  ·  " .. hint,
+                    action  = "edit", key = r.key,
+                })
+                shown = shown + 1
+                if shown >= docMaxRows then break end
+            end
+        end
+        if shown == 0 then
+            table.insert(choices, { text = "Nothing to edit", subText = "No matching rows" })
+        end
+        _G.choosers.activityDocsEdit:choices(choices)
+    end
+
+    -- Delete every session behind one document row, newest index first so
+    -- the earlier indices stay valid while removing.
+    local function docDelete(row)
+        local hits = docSessionsFor(row)
+        for i = #hits, 1, -1 do table.remove(_G.activityLog, hits[i]) end
+        return #hits
+    end
+
+    _G.choosers.activityDocsEdit = hs.chooser.new(function(c)
+        if not (c and c.action) then return end
+        local function reopen()
+            renderDocEdit(""); _G.choosers.activityDocsEdit:query("")
+            core.showPopup(_G.choosers.activityDocsEdit)
+        end
+        if c.action == "editselecton"  then docEditSelect, docEditTagged = true,  {} reopen() return end
+        if c.action == "editselectoff" then docEditSelect, docEditTagged = false, {} reopen() return end
+        if c.action == "deletetagged" then
+            local picked = {}
+            for _, r in ipairs(docRows()) do
+                if docEditTagged[r.key] then picked[#picked + 1] = r end
+            end
+            docEditSelect, docEditTagged = false, {}
+            local removed = 0
+            for _, r in ipairs(picked) do removed = removed + docDelete(r) end
+            if removed > 0 then
+                if not rewriteActivityLog(_G.activityLog) then
+                    hs.alert.show("⚠️ Could not write activity_history.csv — the deletion "
+                                  .. "will come back on reload", 6)
+                else
+                    hs.alert.show("🗑 Deleted " .. #picked .. " document entr"
+                                  .. ((#picked == 1) and "y" or "ies")
+                                  .. " (" .. removed .. " sessions)")
+                end
+            else
+                hs.alert.show("Nothing picked — press Enter on the rows you want first")
+            end
+            return
+        end
+        if c.action ~= "edit" or not c.key then return end
+        local row = docFindRow(c.key)
+        if not row then return end
+        if docEditSelect then
+            docEditTagged[c.key] = (not docEditTagged[c.key]) or nil
+            reopen(); return
+        end
+
+        local hits = docSessionsFor(row)
+        local button, text = hs.dialog.textPrompt(
+            "Edit document entry",
+            "File name for this entry.\nClear the field and press OK to DELETE it — "
+                .. "that removes its " .. #hits .. " session"
+                .. ((#hits == 1) and "" or "s")
+                .. ", so the time leaves the app totals too.\n\n"
+                .. row.date .. "  ·  " .. (row.app or "?") .. "  ·  "
+                .. core.formatDuration(row.secs),
+            row.file, "OK", "Cancel")
+        if button ~= "OK" then return end
+        text = tostring(text or ""):gsub("^%s+", ""):gsub("%s+$", "")
+
+        if text == "" then
+            local removed = docDelete(row)
+            if rewriteActivityLog(_G.activityLog) then
+                hs.alert.show("🗑 Deleted " .. row.file .. " (" .. removed .. " sessions)")
+            else
+                hs.alert.show("⚠️ Could not write activity_history.csv", 6)
+            end
+        elseif text ~= row.file then
+            -- The filename IS the title for these rows once the app suffix
+            -- is stripped, so writing the new name straight into the title
+            -- is what makes it come back as the new name.
+            for _, i in ipairs(hits) do _G.activityLog[i].title = text end
+            if rewriteActivityLog(_G.activityLog) then
+                hs.alert.show("✏️ Renamed to " .. text)
+            else
+                hs.alert.show("⚠️ Could not write activity_history.csv", 6)
+            end
+        end
+    end)
+    _G.choosers.activityDocsEdit:placeholderText("Edit or delete a document entry")
+    _G.choosers.activityDocsEdit:queryChangedCallback(function(q)
+        pcall(renderDocEdit, q)
+    end)
+
+    -- ---- wiring ----------------------------------------------------------
+    core.hyperAddShortcut({ "shift" }, "w", function()
+        docSelect, docTagged = false, {}
+        renderDocList(""); _G.choosers.activityDocs:query("")
+        core.showPopup(_G.choosers.activityDocs)
+    end, "activity — documents")
+
+    core.hyperAddShortcut({ "shift" }, "e", function()
+        docEditSelect, docEditTagged = false, {}
+        renderDocEdit(""); _G.choosers.activityDocsEdit:query("")
+        core.showPopup(_G.choosers.activityDocsEdit)
+    end, "activity — document edit")
+
+    core.provide("activity.docs",     function() return docRows() end)
+    core.provide("activity.docList",  function() renderDocList("") end)
+
+    -- Exposed for the suite, which drives the real renderers and the real
+    -- delete path rather than a copy of them.
+    _G.activityDocsForTest      = docRows
+    _G.activityDocFileForTest   = docFileFromTitle
+    _G.activityRenderDocsForTest = function(q)
+        renderDocList(q); return _G.choosers.activityDocs.lastChoices
+    end
+    _G.activityRenderDocEditForTest = function(q)
+        renderDocEdit(q); return _G.choosers.activityDocsEdit.lastChoices
+    end
+    _G.activityDocSelectForTest  = function(on) docSelect = on and true or false end
+    _G.activityDocTaggedForTest  = function() return docTagged end
+    _G.activityDocEditSelectForTest = function(on) docEditSelect = on and true or false end
+    _G.activityDocEditTaggedForTest = function() return docEditTagged end
+    _G.activityDocDeleteForTest  = function(key)
+        local r = docFindRow(key)
+        if not r then return 0 end
+        local n = docDelete(r)
+        rewriteActivityLog(_G.activityLog)
+        return n
+    end
+
+    end)()
 end
 
 return M
