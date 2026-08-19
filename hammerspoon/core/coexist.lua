@@ -270,6 +270,14 @@ _G.escapePriorities = {
                         -- "'notepad' is not in _G.escapePriorities" told us)
     taskform   =  75,   -- ⇪T form: real keyboard focus, like a chooser
     shoteditor =  80,   -- ⇪⇧4's editor — mid-edit, most modal
+    ocredit    =  82,   -- ⇪⇧O's OCR text editor (6.116.0 — it shipped in
+                        -- 6.115.0 claiming Esc with no declared priority
+                        -- and ran on the fallback 50 until the boot line
+                        -- named it, exactly as notepad did in 6.102.0).
+                        -- ABOVE the chooser at 70 because it is opened FROM
+                        -- that chooser, and above shoteditor because both
+                        -- are unsaved-text windows and the one you are
+                        -- typing into is the one Esc should cancel.
     chooser    =  70,   -- has real keyboard focus, so it goes near the top
     pomodoro   = 100,
     mousegrid  = 900,   -- drawn at screenSaver level, above everything

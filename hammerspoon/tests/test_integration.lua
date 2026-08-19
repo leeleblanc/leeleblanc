@@ -1119,6 +1119,49 @@ do
               end)())
             sandbox.print = realPrint
 
+            -- ⎋ 6.116.0 — THE ROSTER, CHECKED AGAINST THE CALLERS. The
+            -- warning above is a good backstop and a poor guard: it only
+            -- fires on a Mac, at boot, in a console line that scrolls
+            -- away. It has now been missed twice — notepad ran on the
+            -- fallback 50 from 6.99.0 to 6.102.0, and ocredit shipped the
+            -- same way in 6.115.0 and was caught only because LL pasted
+            -- his boot log in for an unrelated reason. Every claimEscape
+            -- that omits its priority is asking this table for one, so
+            -- the table can be checked against the callers HERE, before
+            -- the code ever reaches a Mac.
+            do
+              local missing, found = {}, 0
+              local dirs = { "modules", "core" }
+              for _, d in ipairs(dirs) do
+                local p = io.popen('ls "' .. HS .. '/' .. d .. '" 2>/dev/null')
+                for name in (p and p:lines() or function() end) do
+                  if name:match("%.lua$") then
+                    local f = io.open(HS .. "/" .. d .. "/" .. name, "r")
+                    local src = f and f:read("*a") or ""
+                    if f then f:close() end
+                    -- Only the nil-priority form consults the table; a
+                    -- call that passes its own number is deciding for
+                    -- itself and is not this check's business.
+                    for who in src:gmatch('claimEscape%s*%(%s*"([^"]+)"%s*,%s*nil') do
+                      found = found + 1
+                      if sandbox.escapePriorities[who] == nil then
+                        missing[#missing + 1] = who .. " (" .. d .. "/" .. name .. ")"
+                      end
+                    end
+                  end
+                end
+                if p then p:close() end
+              end
+              check("🚨 every claimEscape that omits a priority has one "
+                 .. "declared in core/coexist.lua — the boot warning is a "
+                 .. "backstop, not the guard",
+                #missing == 0, table.concat(missing, ", "))
+              -- Without this the loop above could silently match nothing
+              -- and report success forever.
+              check("...and the scan actually found claims to check",
+                found >= 3, "found " .. found)
+            end
+
             out("   -- and it stays up even when the other panel FAILS --\n")
             local calOpen = false
             for _, c in ipairs(sandbox.escapeClaims) do
