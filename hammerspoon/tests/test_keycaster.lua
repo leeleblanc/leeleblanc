@@ -301,7 +301,7 @@ local c = CANVASES[#CANVASES]
 check("it drew", c ~= nil and c.shown == true)
 check("📍 RIGHT-JUSTIFIED — its right edge is near the screen's right, not "
    .. "in the middle", (function()
-    return c.frame_.x > SCREEN.w - kc.fixedW - 100, c.frame_.x
+    return c.frame_.x > SCREEN.w - kc.maxW - 100, c.frame_.x
   end)(), c and c.frame_.x)
 check("📍 VERTICALLY CENTRED", (function()
     local mid = c.frame_.y + c.frame_.h / 2
@@ -330,10 +330,14 @@ check("🚨 THE CANVAS IS BIGGER THAN THE BOX, or the shadow is clipped to "
    rect and rect.frame.x > 0 and rect.frame.y > 0
    and (rect.frame.x + rect.frame.w) < c.frame_.w,
    rect and (rect.frame.x .. "/" .. c.frame_.w))
+-- 6.116.0: the LAST text element is the newest key line. The first one may
+-- now be the app-name header, which is deliberately smaller and dimmer.
 local txt = (function()
-    for _, e in ipairs(c.elements) do if e.type == "text" then return e end end
+    local found
+    for _, e in ipairs(c.elements) do if e.type == "text" then found = e end end
+    return found
   end)()
-check("the font fills the box — auto-sized to lineH", txt and txt.textSize == kc.fontSize, txt and txt.textSize)
+check("the keys are drawn at the key size", txt and txt.textSize == kc.fontSize, txt and txt.textSize)
 check("...in a sans-serif face", txt and txt.textFont == "Helvetica Neue",
       txt and txt.textFont)
 check("...right-aligned inside the box", txt and txt.textAlignment == "right")
@@ -567,7 +571,232 @@ check("...and says why on screen", #ALERTS > 0
 AXOK = true
 
 -- =====================================================================
-out("\n=== 10. 6.90.0 — it wears the shared style when one is published ===\n")
+out("\n=== 11. 6.116.0 — IT IS THE SIZE OF WHAT IS IN IT ===\n")
+-- =====================================================================
+-- LL: "I need the keycaster grow in size as keys are sent", and "can the
+-- keycaster be bigger". Those are one fix: the box was a fixed 400×600,
+-- so one keystroke drew one line at the top of a rectangle six lines
+-- tall and mostly air.
+check("🚨 the fixed 400×600 box is gone — nothing may reintroduce it",
+      kc.fixedW == nil and kc.fixedH == nil)
+check("there is a floor and a ceiling on the width instead",
+      type(kc.minW) == "number" and type(kc.maxW) == "number"
+      and kc.minW < kc.maxW)
+
+reset(); kc.showApp = false
+key("escape", {})
+local oneLine = CANVASES[#CANVASES]
+local h1 = oneLine.frame_.h
+local w1 = oneLine.frame_.w
+key("tab", {}); key("f3", {}); key("home", {})
+local fourLines = CANVASES[#CANVASES]
+check("📏 four lines draw a TALLER panel than one",
+      fourLines.frame_.h > h1, h1 .. " → " .. fourLines.frame_.h)
+check("...and the growth is about one lineH per line",
+      math.abs((fourLines.frame_.h - h1) - 3 * kc.lineH) < 2,
+      fourLines.frame_.h - h1)
+
+-- 🚨 GROWTH MUST NOT SHOVE THE PANEL SIDEWAYS OR UPWARDS UNDER YOUR EYE.
+-- The two anchors are the right edge and the vertical centre; both are
+-- computed from the screen, so both survive the box changing size.
+check("📍 the right edge stays put as it grows",
+      math.abs((oneLine.frame_.x + oneLine.frame_.w)
+               - (fourLines.frame_.x + fourLines.frame_.w)) < 2,
+      (oneLine.frame_.x + w1) .. " vs "
+      .. (fourLines.frame_.x + fourLines.frame_.w))
+check("📍 and it stays vertically centred while growing", (function()
+    local mid = fourLines.frame_.y + fourLines.frame_.h / 2
+    return math.abs(mid - (SCREEN.y + SCREEN.h / 2)) < 4, mid
+  end)())
+
+reset(); kc.showApp = false
+kc.push("cmd+a")
+local narrow = CANVASES[#CANVASES].frame_.w
+reset(); kc.showApp = false
+kc.push("hyper+shift+ctrl+opt+cmd+page-down")
+local wide = CANVASES[#CANVASES].frame_.w
+check("📏 a long label draws a WIDER panel than a short one",
+      wide > narrow, narrow .. " → " .. wide)
+check("...but never past maxW", wide <= kc.maxW + (kc.shadowBlur + 6) * 2 + 1,
+      wide)
+reset(); kc.showApp = false
+kc.push("a")
+check("...and never below minW",
+      CANVASES[#CANVASES].frame_.w >= kc.minW, CANVASES[#CANVASES].frame_.w)
+
+-- =====================================================================
+out("\n=== 12. 6.116.0 — WHICH APP THE KEYS ARE LANDING IN ===\n")
+-- =====================================================================
+-- LL: "I need the application it is in while it is capturing keys? It's
+-- great for displaying but it's not that useful."
+local APPNAME, APPCALLS = "Google Chrome", 0
+hs.application = { frontmostApplication = function()
+    APPCALLS = APPCALLS + 1
+    return { name = function() return APPNAME end }
+end }
+
+reset(); kc.showApp = true; kc.appName, kc.appNameAt = nil, 0
+key("escape", {})
+local withApp = CANVASES[#CANVASES]
+local texts = {}
+for _, e in ipairs(withApp.elements) do
+    if e.type == "text" then texts[#texts + 1] = e end
+end
+check("the app's name is drawn", (function()
+    for _, t in ipairs(texts) do if t.text == "Google Chrome" then return true end end
+    return false
+  end)(), (texts[1] or {}).text)
+check("...above the keys, in reading order", texts[1] and texts[1].text == "Google Chrome",
+      texts[1] and texts[1].text)
+check("...smaller than the keys, because it is context not content",
+      texts[1] and texts[1].textSize == kc.headerSize
+      and kc.headerSize < kc.fontSize, texts[1] and texts[1].textSize)
+check("...and dimmer, for the same reason",
+      texts[1] and texts[1].textColor == kc.fgDim)
+check("the header makes the panel taller, not the keys shorter", (function()
+    local keyLine
+    for _, t in ipairs(texts) do if t.textSize == kc.fontSize then keyLine = t end end
+    return keyLine ~= nil and keyLine.frame.y > texts[1].frame.y
+  end)())
+
+-- ⏱ THE CACHE. hs.application.frontmostApplication() is a call into the
+-- Accessibility API from inside an event tap; asking it on every single
+-- keystroke is the one cost in this module that would actually be felt.
+-- ⚠️ SIX DIFFERENT KEYS, NOT THE SAME ONE SIX TIMES. The first draft of
+-- this check pressed escape six times and passed with the cache deleted
+-- — because the double-event dedupe window swallowed presses two to six
+-- before they ever reached a redraw, so only one lookup happened either
+-- way. A check that cannot fail is not a check.
+reset(); kc.showApp = true; kc.appName, kc.appNameAt = nil, 0
+APPCALLS = 0
+for _, k in ipairs({ "escape", "tab", "home", "end", "pageup", "pagedown" }) do
+    key(k, {}) ; NOW = NOW + 0.01
+end
+check("all six keys really did draw", #kc.lines == 6, #kc.lines)
+check("🚨 six keystrokes in a burst do NOT mean six Accessibility calls",
+      APPCALLS <= 2, APPCALLS)
+NOW = NOW + kc.appCacheSecs + 0.1
+APPNAME = "Slack"
+key("tab", {})
+check("...but the name refreshes once the cache is stale",
+      kc.frontApp() == "Slack", kc.frontApp())
+
+reset(); kc.showApp = false
+key("escape", {})
+check("with showApp off, no header is drawn", (function()
+    local n = 0
+    for _, e in ipairs(CANVASES[#CANVASES].elements) do
+      if e.type == "text" then n = n + 1 end
+    end
+    return n == 1
+  end)())
+
+hs.application = { frontmostApplication = function() error("no app") end }
+reset(); kc.showApp = true; kc.appName, kc.appNameAt = nil, 0
+local okDraw = key("escape", {})
+check("an app lookup that throws costs the header, not the keys",
+      okDraw == false and #kc.lines == 1, #kc.lines)
+hs.application = { frontmostApplication = function()
+    return { name = function() return APPNAME end }
+end }
+
+-- =====================================================================
+out("\n=== 13. 6.116.0 — TEXT EXPANSIONS GET A LINE ===\n")
+-- =====================================================================
+-- LL: "Can the keycaster be bigger and show text expansion key?"
+--
+-- 🚨 THE CASTER CANNOT SEE AN EXPANSION FOR ITSELF. A snippet is a burst
+-- of synthetic keystrokes and this module stands down for the shared
+-- injection guard the whole time they arrive — correctly, since they are
+-- not keys anybody pressed. So the expander has to say so, and these
+-- checks are as much about that contract as about the drawing.
+reset(); kc.showApp = false
+check("the hook is a plain global the expander can call",
+      type(_G.keyCastExpansion) == "function"
+      and type(_G.keyCastNote) == "function")
+_G.keyCastExpansion("hte", "the", "shorthand")
+check("the expansion drew a line", #kc.lines == 1, #kc.lines)
+check("...naming the TRIGGER, which is the 'expansion key' he asked for",
+      (kc.lines[1] or {}).text:find("hte", 1, true) ~= nil,
+      (kc.lines[1] or {}).text)
+check("...marked so it does not read as a keystroke you pressed",
+      (kc.lines[1] or {}).text:find("⌨", 1, true) ~= nil,
+      (kc.lines[1] or {}).text)
+
+-- 🔒 THE SNIPPET TEXT IS NOT PAINTED ON THE SCREEN BY DEFAULT. LL's
+-- snippets hold real email addresses, a phone number and an employee ID
+-- — that is why snippets/ is in .gitignore — and a panel that shows them
+-- is one screen-share away from being the wrong tool.
+reset(); kc.showApp = false
+_G.keyCastExpansion("oooo", "I am out of the office until 3 September. "
+                    .. "For urgent matters contact lee@example.edu", "out of office")
+check("🔒 the expansion TEXT is not drawn",
+      (kc.lines[1] or {}).text:find("out of the office", 1, true) == nil,
+      (kc.lines[1] or {}).text)
+check("🔒 …and neither is the address inside it",
+      (kc.lines[1] or {}).text:find("@", 1, true) == nil,
+      (kc.lines[1] or {}).text)
+check("...the snippet's NAME stands in for it",
+      (kc.lines[1] or {}).text:find("out of office", 1, true) ~= nil,
+      (kc.lines[1] or {}).text)
+
+reset(); kc.showApp = false; kc.showExpansionText = true
+_G.keyCastExpansion("hte", "the", "shorthand")
+check("...unless you turn it on for a demo",
+      (kc.lines[1] or {}).text:find("→ the", 1, true) ~= nil,
+      (kc.lines[1] or {}).text)
+kc.showExpansionText = false
+
+reset(); kc.showApp = false
+_G.keyCastExpansion("sig", "Lee LeBlanc", nil)
+check("with no snippet name it says how much was typed, not what",
+      (kc.lines[1] or {}).text:find("11 chars", 1, true) ~= nil,
+      (kc.lines[1] or {}).text)
+
+-- Two identical expansions in a row are two events, not one press seen
+-- twice — so notes must bypass the double-event dedupe window.
+reset(); kc.showApp = false
+_G.keyCastExpansion("hte", "the", "shorthand")
+_G.keyCastExpansion("hte", "the", "shorthand")
+check("two identical expansions in a row both register",
+      #kc.lines == 1 and kc.lines[1].count == 2,
+      #kc.lines .. "/" .. tostring((kc.lines[1] or {}).count))
+
+kc.on = false
+check("🚨 with the caster OFF, a note draws nothing at all",
+      _G.keyCastNote("⌨ x → y") == false)
+kc.on = true
+kc.showExpansions = false
+check("...and the same when expansions are switched off",
+      _G.keyCastExpansion("hte", "the", "shorthand") == false)
+kc.showExpansions = true
+check("a nil or empty label is refused rather than drawn",
+      _G.keyCastNote(nil) == false and _G.keyCastNote("") == false)
+
+-- 🚨 AND THE EXPANDER ACTUALLY CALLS IT — from BOTH paths through
+-- inject(). There are two (an action and an expansion) and they used to
+-- carry two copies of the same assignment, which is exactly how a hook
+-- ends up in one of them and missing from the other.
+local expSrc = (function()
+    local f = io.open(HS .. "/modules/text_expander.lua", "rb")
+    local s = f:read("*a") ; f:close() ; return s
+  end)()
+check("the expander calls the hook", expSrc:find("keyCastExpansion", 1, true) ~= nil)
+check("🚨 …from ONE shared place, so neither path can lose it",
+      select(2, expSrc:gsub("fired%(trigger, snip%)", "")) == 3,
+      select(2, expSrc:gsub("fired%(trigger, snip%)", "")))
+check("…and it is guarded, so an absent caster is not an error",
+      expSrc:find("if _G.keyCastExpansion then", 1, true) ~= nil)
+
+-- =====================================================================
+out("\n=== 14. 6.90.0 — it wears the shared style when one is published ===\n")
+-- 🚨 LAST ON PURPOSE. This section loads a SECOND copy of the module,
+-- and setup() re-points every global it publishes — _G.keyCaster,
+-- _G.keyCastNote, _G.keyCastExpansion — at that second copy. Any section
+-- placed after it that drove the module through those globals would be
+-- talking to a caster that is switched off, and would fail for a reason
+-- that has nothing to do with what it is testing. (It did, once.)
+--
 -- The run above proved the FALLBACK look (no _G.uiStyle → the module's
 -- own literals). This one proves ADOPTION: publish a style table the way
 -- modules/ui_style.lua does, reload, and the panel must take it — the

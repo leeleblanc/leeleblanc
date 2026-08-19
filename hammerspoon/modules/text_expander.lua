@@ -558,6 +558,30 @@ function M.setup(core)
         return true
     end
 
+    -- 📣 6.116.0 — ONE PLACE THAT SAYS "A SNIPPET JUST FIRED", because
+    -- there are two paths through inject() — an action and an expansion —
+    -- and there were two copies of this assignment. The Key Caster hook
+    -- would have gone into one of them and been missing from the other,
+    -- which is the quietest kind of half-built feature.
+    --
+    -- 🚨 THE CASTER CANNOT SEE THIS FOR ITSELF, AND MUST NOT. A snippet is
+    -- a burst of synthetic keystrokes, and the caster stands down for the
+    -- shared injection guard the whole time they arrive — correctly, since
+    -- they are not keys anybody pressed. So the module that performed the
+    -- expansion is the only thing that can honestly report it.
+    --
+    -- Guarded on the global rather than on a service, so this file needs
+    -- to know nothing about whether the caster is loaded, enabled or
+    -- switched on: all three are checked on its side, and it is OFF by
+    -- default.
+    local function fired(trigger, snip)
+        exp.lastFired = { name = snip.name, trigger = trigger,
+                          at = os.date("%H:%M:%S") }
+        if _G.keyCastExpansion then
+            pcall(_G.keyCastExpansion, trigger, snip.text, snip.name)
+        end
+    end
+
     -- tail: characters that were typed AFTER the trigger and consumed by
     -- us, which have to reappear after the snippet. Only the deferred
     -- path uses it — see the ⏳ note in the tap.
@@ -578,8 +602,7 @@ function M.setup(core)
             end)
             hold(hs.timer.doAfter(0.08, function() exp.injecting = false end))
             if not okDel then exp.injecting = false end
-            exp.lastFired = { name = snip.name, trigger = trigger,
-                              at = os.date("%H:%M:%S") }
+            fired(trigger, snip)
             if _G.autocorrectResetBuffer then pcall(_G.autocorrectResetBuffer) end
             local okRun, err = pcall(snip.fn)
             if okRun then
@@ -632,8 +655,7 @@ function M.setup(core)
         end)
         err = pasteErr or err
         if ok then
-            exp.lastFired = { name = snip.name, trigger = trigger,
-                              at = os.date("%H:%M:%S") }
+            fired(trigger, snip)
             -- Autocorrect watched us eat the trigger's last character and
             -- is now holding the front of a word that no longer exists on
             -- screen. Tell it to let go — see the 🚨 above its tap.

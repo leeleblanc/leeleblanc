@@ -1,13 +1,25 @@
 -- =====================================================================
--- MODULE: KEY CASTER (⇪⇧K) — show the shortcuts as you press them
+-- MODULE: KEY CASTER (⇪⇧B) — show the shortcuts as you press them
 -- =====================================================================
 -- A near-black rounded panel, floating on a shadow, right-hand edge of
 -- whichever screen you are working on, vertically centred. Every shortcut
--- you press appears in it. It stays up while you are still pressing and
+-- you press appears in it, under the name of the app it landed in. It
+-- stays up while you are still pressing, GROWS as more keys arrive, and
 -- fades a moment after you stop.
 --
 --        ⇪⇧B        turn it on and off
 --        drag it    it stays where you put it for the session
+--
+-- ---- 📏 6.116.0 — IT IS THE SIZE OF WHAT IS IN IT -------------------
+-- Until now it was a fixed 400×600 box, so one keystroke drew one line
+-- at the top of a rectangle six lines tall and mostly air. LL: "I need
+-- the keycaster grow in size as keys are sent", and "can the keycaster
+-- be bigger". Those are the same fix: the panel is now exactly as tall
+-- as the lines it holds and as wide as the widest of them, which is
+-- what lets the type inside be large without the box owning the screen.
+-- It grows DOWNWARD and LEFTWARD, keeping the anchors that matter — the
+-- right edge and the vertical centre — so a new keystroke never shoves
+-- the panel sideways under your eye.
 --
 -- ---- WHAT IT SHOWS, AND WHAT IT DELIBERATELY DOES NOT ---------------
 -- LL: "would not display when only typing words -- unless I want to
@@ -76,9 +88,11 @@ local M = {
         entries = {
             { "⇪⇧B",     "Turn the panel on / off (it starts OFF)" },
             { "shows",   "Shortcuts only — ⌘⌃⌥fn⇪ combos, ⎋ ⇥ ⏎ arrows, F-keys" },
+            { "app",     "The frontmost app's name sits above the keys" },
+            { "expands", "A text-expander snippet shows as ⌨ trigger → what it did" },
             { "hides",   "Plain typing, and ⇧+letter (that is a capital)" },
             { "all keys", "_G.keyCastTyping(true) — show typing too, for a demo" },
-            { "where",   "Right edge, vertically centred, fixed 400×600, font fills" },
+            { "where",   "Right edge, vertically centred — it GROWS as keys arrive" },
             { "drag",    "Move it anywhere; it stays there for the session" },
             { "stays",   "Up while you keep pressing, fades after you stop" },
             { "never",   "Nothing you type is logged anywhere — see the header" },
@@ -105,18 +119,54 @@ function M.setup(core)
     kc.startEnabled = false     -- 🔒 OFF at boot. Turn it on when you want it.
     kc.showTyping   = false     -- true = plain letters appear too
     kc.showBareModifiers = false -- true = a lone ⇧ or ⌘ press gets a line
-    kc.maxLines     = 6         -- how many key combos are visible at once
+    kc.maxLines     = 8         -- how many key combos are visible at once
     kc.holdSecs     = 7.0       -- fade this long after the LAST keystroke
     kc.fadeSecs     = 0.15      -- fast fade
     kc.repeatWindow = 0.9       -- same combo inside this becomes "×2"
     kc.dedupeWindow = 0.06      -- one press, two events (see the ⇪ note)
-    -- Type. Sans serif, auto-sized to fill the fixed panel.
+    -- 📱 6.116.0 — WHICH APP THE KEYS ARE LANDING IN. LL: "I need the
+    -- application it is in while it is capturing keys? It's great for
+    -- displaying but it's not that useful." A header line, dimmer and
+    -- smaller than the keys, naming the frontmost app.
+    kc.showApp      = true
+    -- ⏱ …and the app name is CACHED. hs.application.frontmostApplication()
+    -- on every keystroke is a call into the Accessibility API from inside
+    -- an event tap, which is the one place in this config where a few
+    -- milliseconds per key actually adds up. Half a second is far shorter
+    -- than the time it takes to switch apps and far longer than the gap
+    -- between two keys in a burst.
+    kc.appCacheSecs = 0.5
+    -- ⌨️ 6.116.0 — TEXT EXPANSIONS GET A LINE. LL: "Can the keycaster be
+    -- bigger and show text expansion key?" The expander calls
+    -- _G.keyCastNote() when it fires; the caster cannot see the expansion
+    -- itself because it stands down for the shared injection guard, which
+    -- is exactly right — those synthetic keys are not keys you pressed.
+    kc.showExpansions = true
+    -- 🔒 AND IT SHOWS THE TRIGGER, NOT THE TEXT, BY DEFAULT. LL's snippets
+    -- hold real email addresses, a phone number and an employee ID —
+    -- that is why snippets/ is in .gitignore — and a panel that paints
+    -- them across the screen is one screen-share away from being the
+    -- wrong tool. The trigger is what he asked for anyway ("show text
+    -- expansion key"). Set this true when recording a demo of the
+    -- expander itself.
+    kc.showExpansionText = false
+    -- Type. Sans serif.
     kc.font         = "Helvetica Neue"
-    kc.fixedW       = 400       -- fixed panel width
-    kc.fixedH       = 600       -- fixed panel height
-    kc.padX, kc.padY = 20, 20
-    kc.lineH        = math.floor((kc.fixedH - kc.padY * 2) / kc.maxLines)
-    kc.fontSize     = math.floor(kc.lineH * 0.74)
+    -- 📏 6.116.0 — THE PANEL IS SIZED BY WHAT IS IN IT. LL: "I need the
+    -- keycaster grow in size as keys are sent." It was a fixed 400×600
+    -- box, which meant one keystroke drew one line at the top of a
+    -- half-empty rectangle six lines tall — and made "can the keycaster
+    -- be bigger" a strange request to receive about a panel that was
+    -- mostly air. Now the height is the number of lines actually held and
+    -- the width is the widest of them, so the box is always snug and the
+    -- type inside it can be large without the panel dominating the
+    -- screen.
+    kc.lineH        = 58        -- one row of keys
+    kc.fontSize     = 40        -- the keys themselves
+    kc.headerSize   = 20        -- the app name above them
+    kc.minW         = 240       -- never narrower than this
+    kc.maxW         = 660       -- never wider; long labels are clipped, not wrapped
+    kc.padX, kc.padY = 22, 16
     kc.marginRight  = 28        -- gap from the right edge of the screen
     -- 🎨 6.90.0 — the shared card look (modules/ui_style.lua); the old
     -- literals stay as fallbacks so a boot without it draws unchanged.
@@ -239,7 +289,74 @@ function M.setup(core)
         return table.concat(out, "+")
     end
 
+    -- ---- 📱 which app the keys are landing in -----------------------------
+    -- Cached: see kc.appCacheSecs. A failure here costs the header line and
+    -- nothing else — the keys are what the panel is for.
+    kc.appName    = nil
+    kc.appNameAt  = 0
+    function kc.frontApp()
+        if not kc.showApp then return nil end
+        local now = hs.timer.secondsSinceEpoch()
+        if kc.appName and (now - kc.appNameAt) < kc.appCacheSecs then
+            return kc.appName
+        end
+        local name
+        pcall(function()
+            local app = hs.application.frontmostApplication()
+            if app then name = app:name() end
+        end)
+        kc.appName, kc.appNameAt = name, now
+        return name
+    end
+
+    -- ---- 📏 how wide does this text need to be? ---------------------------
+    -- An ESTIMATE, deliberately, and deliberately a generous one: too wide
+    -- is a slightly roomy panel, too narrow is a clipped shortcut, and only
+    -- one of those is a bug.
+    --
+    -- The exact answer would mean hs.drawing.getTextDrawingSize — which is
+    -- deprecated, and hs-lint fails the build for reaching into hs.drawing
+    -- at all, correctly: mixing it with hs.canvas means two coordinate and
+    -- level systems in one config. Measuring through a throwaway canvas is
+    -- the modern route and is not worth it here, because everything on this
+    -- panel is a short label of the shape "hyper+shift+page-down".
+    --
+    -- 🚨 CHARACTERS, NOT BYTES. "⌨ hte → 12 chars" is 20 characters and 26
+    -- bytes; counting bytes would draw a panel a third wider than it needs
+    -- to be, and the glyph-heavy lines are exactly the ones this panel
+    -- exists to show.
+    local function textWidth(text, size)
+        local s = tostring(text)
+        local n
+        pcall(function() n = utf8.len(s) end)
+        return (n or #s) * size * 0.62
+    end
+
     -- ---- the panel -------------------------------------------------------
+    -- 📐 THE SIZE IS THE CONTENT. Height is however many lines are actually
+    -- held (plus the app header when there is one); width is the widest
+    -- line, floored at minW and capped at maxW.
+    function kc.contentSize()
+        local header = kc.frontApp()
+        local rows   = #kc.lines
+        local h = kc.padY * 2 + rows * kc.lineH
+        if header then h = h + kc.headerSize + 8 end
+
+        local widest = kc.minW - kc.padX * 2
+        for _, l in ipairs(kc.lines) do
+            local text = l.text
+            if l.count > 1 then text = text .. "  ×" .. l.count end
+            local tw = textWidth(text, kc.fontSize)
+            if tw > widest then widest = tw end
+        end
+        if header then
+            local hw = textWidth(header, kc.headerSize)
+            if hw > widest then widest = hw end
+        end
+        local w = math.min(kc.maxW, math.max(kc.minW, widest + kc.padX * 2))
+        return math.floor(w), math.floor(h), header
+    end
+
     local function panelFrame()
         local scr
         pcall(function() scr = core.resolveBaseScreen and core.resolveBaseScreen() end)
@@ -249,29 +366,39 @@ function M.setup(core)
         pcall(function() f = scr:frame() end)
         if not f then return nil end
 
-        local w, h = kc.fixedW, kc.fixedH
+        local w, h, header = kc.contentSize()
 
         -- The canvas is bigger than the box so the SHADOW is not clipped.
         -- A shadow drawn to the edge of its own canvas is a grey stripe.
         local pad = kc.shadowBlur + 6
         if kc.pos then
-            local p = _G.clampToScreen
-                      and _G.clampToScreen(kc.pos, w + pad * 2, h + pad * 2)
-                      or kc.pos
+            -- 🚨 A GROWING PANEL KEEPS ITS RIGHT EDGE. The text is right
+            -- aligned and the panel lives on the right of the screen, so
+            -- growth has to go LEFTWARD — anchoring the left edge instead
+            -- would make every new keystroke shove the whole panel
+            -- sideways under your eye. The drag remembers both, and the
+            -- right edge wins when it is known (a hand-set kc.pos with
+            -- only x still works, which is what the tests set).
+            local x = kc.pos.right and (kc.pos.right - (w + pad * 2)) or kc.pos.x
+            local p = { x = x, y = kc.pos.y }
+            if _G.clampToScreen then
+                p = _G.clampToScreen(p, w + pad * 2, h + pad * 2) or p
+            end
             return { x = p.x, y = p.y, w = w + pad * 2, h = h + pad * 2 },
-                   w, h, pad
+                   w, h, pad, header
         end
-        -- 📍 RIGHT EDGE, VERTICALLY CENTRED — fixed 400×600 panel, on the
-        -- screen holding the front window, so it follows you between
-        -- monitors and Spaces.
+        -- 📍 RIGHT EDGE, VERTICALLY CENTRED, on the screen holding the
+        -- front window, so it follows you between monitors and Spaces.
+        -- Both anchors are edges the growth does not move: the box gets
+        -- taller around its own middle and wider to the left.
         return {
             x = f.x + f.w - w - kc.marginRight - pad,
             y = f.y + (f.h - h) / 2 - pad,
             w = w + pad * 2, h = h + pad * 2,
-        }, w, h, pad
+        }, w, h, pad, header
     end
 
-    local function elements(w, h, pad)
+    local function elements(w, h, pad, header)
         local els = {
             {
                 type = "rectangle", action = "fill",
@@ -289,6 +416,21 @@ function M.setup(core)
                 },
             },
         }
+        -- 📱 The app header, above the keys and deliberately quieter than
+        -- them: it is context, not content. Drawn first so the keys sit
+        -- under it in reading order.
+        local top = pad + kc.padY
+        if header then
+            els[#els + 1] = {
+                type = "text", text = header,
+                textFont = kc.font, textSize = kc.headerSize,
+                textColor = kc.fgDim,
+                textAlignment = "right",
+                frame = { x = pad + kc.padX * 0.5, y = top,
+                          w = w - kc.padX, h = kc.headerSize + 4 },
+            }
+            top = top + kc.headerSize + 8
+        end
         for i, l in ipairs(kc.lines) do
             local text = l.text
             if l.count > 1 then text = text .. "  ×" .. l.count end
@@ -301,7 +443,7 @@ function M.setup(core)
                 textColor = newest and kc.fg or kc.fgDim,
                 textAlignment = "right",
                 frame = { x = pad + kc.padX * 0.5,
-                          y = pad + kc.padY + (i - 1) * kc.lineH,
+                          y = top + (i - 1) * kc.lineH,
                           w = w - kc.padX, h = kc.lineH },
             }
         end
@@ -347,7 +489,7 @@ function M.setup(core)
 
     function kc.render()
         if #kc.lines == 0 then kc.hide() return false end
-        local rect, w, h, pad = panelFrame()
+        local rect, w, h, pad, header = panelFrame()
         if not rect then
             warn("no screen to draw on")
             return false
@@ -369,7 +511,10 @@ function M.setup(core)
             end)
             if _G.makeCanvasDraggable then
                 _G.makeCanvasDraggable(c, "key caster", function(fr)
-                    kc.pos = { x = fr.x, y = fr.y }
+                    -- Both anchors are kept: `right` is what a growing
+                    -- panel holds on to, `x` is the fallback for a
+                    -- position set by hand.
+                    kc.pos = { x = fr.x, y = fr.y, right = fr.x + (fr.w or 0) }
                     say("moved to " .. math.floor(fr.x) .. "," .. math.floor(fr.y))
                 end)
             end
@@ -380,7 +525,7 @@ function M.setup(core)
         -- back to full opacity rather than letting it vanish under you.
         if kc.fadeTimer then pcall(function() kc.fadeTimer:stop() end) end
         pcall(function() kc.canvas:alpha(1.0) end)
-        pcall(function() kc.canvas:replaceElements(elements(w, h, pad)) end)
+        pcall(function() kc.canvas:replaceElements(elements(w, h, pad, header)) end)
         if _G.showCanvasSafely then _G.showCanvasSafely(kc.canvas, "key caster")
         else pcall(function() kc.canvas:show() end) end
         armHide()
@@ -582,6 +727,55 @@ function M.setup(core)
               .. (kc.showTyping and "SHOWN" or "hidden"))
         return kc.showTyping
     end
+
+    -- ---- ⌨️ 6.116.0 — SOMETHING ELSE HAPPENED, PUT IT ON THE PANEL --------
+    -- LL: "Can the keycaster be bigger and show text expansion key?"
+    --
+    -- 🚨 THE EXPANDER HAS TO TELL US, because the caster cannot see this
+    -- for itself and MUST NOT. A snippet firing is a burst of synthetic
+    -- keystrokes, and this module stands down for the shared injection
+    -- guard the whole time they arrive — correctly, because they are not
+    -- keys anybody pressed. So the only honest way to show an expansion
+    -- is for the module that performed it to say so.
+    --
+    -- The hook is a bare global rather than a service call so the expander
+    -- can fire it with `if _G.keyCastNote then` and needs to know nothing
+    -- else about this module — including whether it is loaded, enabled, or
+    -- switched on. Every one of those is checked HERE.
+    function kc.note(label)
+        if not (kc.on and kc.showExpansions) then return false end
+        if type(label) ~= "string" or label == "" then return false end
+        -- Notes bypass the dedupe window: two identical expansions in
+        -- quick succession are two real events, not one press seen twice.
+        return kc.push(label, true)
+    end
+
+    -- expansion(trigger, expandedText, name) — the shape the expander calls.
+    -- 🔒 THE TEXT IS SUMMARISED, NOT SHOWN, unless kc.showExpansionText is
+    -- on: LL's snippets hold real email addresses, a phone number and an
+    -- employee ID. "Show text expansion key" is answered by the trigger.
+    function kc.expansion(trigger, text, name)
+        if not kc.showExpansions then return false end
+        local t = tostring(trigger or "?")
+        local body
+        if kc.showExpansionText and type(text) == "string" then
+            body = text:gsub("%s+", " ")
+            if #body > 28 then body = body:sub(1, 27) .. "…" end
+        elseif type(name) == "string" and name ~= "" then
+            body = name
+        else
+            body = (type(text) == "string" and #text or 0) .. " chars"
+        end
+        return kc.note("⌨ " .. t .. " → " .. body)
+    end
+
+    _G.keyCastNote = function(label) return kc.note(label) end
+    _G.keyCastExpansion = function(trigger, text, name)
+        return kc.expansion(trigger, text, name)
+    end
+    core.provide("keyCaster.note",      function(l) return kc.note(l) end)
+    core.provide("keyCaster.expansion",
+                 function(t, x, n) return kc.expansion(t, x, n) end)
     -- 6.89.0 — listed for Window Move with plain = true: the caster is
     -- pure display (clicks mean nothing on it), so a BARE click-hold
     -- drags it, exactly as LL asked. ⌘-drag works too.
