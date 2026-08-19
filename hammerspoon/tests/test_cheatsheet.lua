@@ -212,10 +212,20 @@ function _G.claimEscape(name, priority, active, handle)
   return true
 end
 
+-- 🖐 6.106.0 — hs.settings, which is where the dragged position now
+-- survives a reload. A plain table stands in for the plist: the point
+-- under test is that the sheet writes one key and validates whatever
+-- comes back, not that macOS can store a dictionary.
+local SETTINGS = {}
+hs.settings = {
+  set = function(k, v) SETTINGS[k] = v end,
+  get = function(k) return SETTINGS[k] end,
+}
+
 local CS_PATH = HS .. "/core/cheatsheet.lua"
 local csChunk = assert(loadfile(CS_PATH),
                        "cannot load the shipped cheat sheet: " .. CS_PATH)
-local CS = csChunk()({
+local CORE_ARGS = {
   logsDir           = logsDir,
   panelAlpha        = 0.90,
   popupScreenKeys   = { mods = { "cmd", "alt", "ctrl" } },
@@ -223,7 +233,12 @@ local CS = csChunk()({
   showPopup         = function(c) if c and c.show then c:show() end end,
   warnWriteFailed   = warnWriteFailed,
   adoptLegacyFile   = adoptLegacyFile,
-})
+}
+-- Reloading the config means running this chunk again with the same core.
+-- That is exactly what a "does the position survive a reload" check needs,
+-- so the arguments are kept rather than inlined.
+local function loadSheet() return csChunk()(CORE_ARGS) end
+local CS = loadSheet()
 
 -- ---------------------------------------------------------------- utils
 local pass, fail = 0, 0
@@ -1267,6 +1282,94 @@ do
   CS.query = ""
   CS.hide()
   _G.moduleCheatsheets = saved
+end
+
+-- =====================================================================
+print("\n=== 🖐 WHERE YOU LEFT IT — the position survives a reload (6.106.0) ===")
+-- LL: "Can we make the cheat sheet remember where it was before it was
+-- closed?" It already survived a redraw and a reopen, because the
+-- position lives on the namespace table. It did NOT survive a reload,
+-- which rebuilds that table — so every reload put the sheet back in the
+-- middle and you moved it again.
+do
+  SETTINGS = {}
+  CS.pos = nil
+  CS.show()
+  local drop = DRAGGABLE[#DRAGGABLE]
+  check("the sheet still registers for dragging", drop ~= nil and drop.onDrop ~= nil)
+  drop.onDrop({ x = 310, y = 205, w = 100, h = 100 })
+  check("dropping it records the position for this session",
+        CS.pos and CS.pos.x == 310 and CS.pos.y == 205, CS.pos and CS.pos.x)
+  check("...and writes it to exactly ONE settings key",
+        SETTINGS["cheatSheet.pos"] ~= nil and next(SETTINGS, next(SETTINGS)) == nil,
+        (next(SETTINGS)))
+  CS.hide()
+
+  -- The whole point: a fresh chunk is what a reload is.
+  local reloaded = loadSheet()
+  check("🚨 a RELOAD picks the position back up",
+        reloaded.pos and reloaded.pos.x == 310 and reloaded.pos.y == 205,
+        reloaded.pos and reloaded.pos.x)
+
+  -- 🚨 VALIDATED ON THE WAY IN. hs.settings is a plist on disk: editable,
+  -- writable by another version, and perfectly capable of handing back a
+  -- string or a NaN. A NaN reaches the canvas and the sheet is drawn
+  -- nowhere at all, with no way back except editing settings by hand.
+  local junk = {
+    { "a string",        "220,140" },
+    { "a number",        42 },
+    { "a table with no coordinates", { w = 10 } },
+    { "a NaN",           { x = 0/0, y = 10 } },
+    { "an infinity",     { x = math.huge, y = 10 } },
+    { "coordinates as text", { x = "left", y = "top" } },
+  }
+  for _, j in ipairs(junk) do
+    SETTINGS["cheatSheet.pos"] = j[2]
+    local r = loadSheet()
+    check("junk in settings — " .. j[1] .. " — reads as NO position",
+          r.pos == nil, r.pos and (tostring(r.pos.x) .. "," .. tostring(r.pos.y)))
+  end
+
+  -- Numbers that arrive as strings ARE coordinates; tonumber is the rule,
+  -- not type(). A plist round-trip is exactly where that happens.
+  SETTINGS["cheatSheet.pos"] = { x = "310", y = "205" }
+  local coerced = loadSheet()
+  check("numeric strings still count as a position",
+        coerced.pos and coerced.pos.x == 310, coerced.pos and coerced.pos.x)
+
+  -- The way out, for a position clamping cannot rescue.
+  SETTINGS["cheatSheet.pos"] = { x = 310, y = 205 }
+  local r2 = loadSheet()
+  _G.cheatSheetCenter()
+  check("_G.cheatSheetCenter() forgets the stored position",
+        SETTINGS["cheatSheet.pos"] == nil)
+  check("...and the sheet re-centres on the next open",
+        r2.pos == nil, r2.pos)
+
+  -- And the off switch does what it says, in both directions.
+  SETTINGS["cheatSheet.pos"] = { x = 310, y = 205 }
+  local off = loadSheet()
+  off.rememberPos = false
+  off.pos = nil
+  check("rememberPos = false stops it being SAVED",
+        (function()
+           SETTINGS["cheatSheet.pos"] = nil
+           off.savePos({ x = 1, y = 2 })
+           return SETTINGS["cheatSheet.pos"] == nil
+         end)())
+  check("...and stops it being READ", off.loadPos() == nil)
+
+  -- A remembered position outlives the display it was set on. The clamp
+  -- was already here; this is the check that it still runs on the value
+  -- that came from disk rather than only on a live drag.
+  SETTINGS["cheatSheet.pos"] = { x = 99999, y = 99999 }
+  local far = loadSheet()
+  CLAMPED = {}
+  far.show()
+  check("a position from a monitor you no longer have is CLAMPED, not obeyed",
+        #CLAMPED > 0 and canvasRect.x <= SCR.x + SCR.w, canvasRect and canvasRect.x)
+  far.hide()
+  SETTINGS = {}
 end
 
 print(("\n%d passed, %d failed\n"):format(pass, fail))

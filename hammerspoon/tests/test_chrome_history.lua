@@ -37,6 +37,7 @@ end
 -- ---- a controllable world --------------------------------------------
 local NOW = 1000
 local FS, FILES = {}, {}
+local CLIPBOARD = nil
 local TASKS, ALERTS, CHOOSERS, HYPER, PROVIDED = {}, {}, {}, {}, {}
 local URL_BUNDLE, URL_PLAIN = {}, {}
 local BUNDLE_RESULT = true
@@ -67,9 +68,28 @@ hs = {
             local i = 0
             return function() i = i + 1 ; return list[i] end
         end,
+        -- size and modification are here for 6.106.0's report, which tells
+        -- you how big the saved CSV is and how old. A stub that answered
+        -- only `mode` would let the report read those as nil and print
+        -- nothing, and the check would pass on an empty line.
         attributes = function(path)
             if FS[path] then return { mode = "directory" } end
-            if FILES[path] then return { mode = "file" } end
+            if FILES[path] then
+                return { mode = "file",
+                         size = #tostring(FILES[path]),
+                         modification = NOW - 60 }
+            end
+            -- 🚨 AND THE REAL DISK, for paths this table does not model.
+            -- The CSV in this suite is an actual os.tmpname() file that the
+            -- module actually writes; a stub that answered nil for it would
+            -- have 6.106.0's report say "not written yet" about a file
+            -- sitting right there, and the check would agree with the bug.
+            local fh = io.open(path, "r")
+            if fh then
+                local bytes = fh:seek("end") or 0
+                fh:close()
+                return { mode = "file", size = bytes, modification = NOW - 60 }
+            end
             return nil
         end,
         temporaryDirectory = function() return "/tmp/test-tmp/" end,
@@ -83,6 +103,7 @@ hs = {
         TASKS[#TASKS + 1] = t
         return t end },
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
+    pasteboard = { setContents = function(t) CLIPBOARD = t ; return true end },
     urlevent = {
         openURLWithBundle = function(url, bundle)
             URL_BUNDLE[#URL_BUNDLE + 1] = { url = url, bundle = bundle }
@@ -433,9 +454,63 @@ check("…then refreshes in the background", #TASKS == tasksB4 + 1)
 TASKS[#TASKS].cb(0, table.concat(corpus, "\n"), "")
 
 printed = {}
+FILES[chrome.sqlite] = "#!/bin/sqlite3"   -- present on a healthy Mac
 local rep = chrome.report()
 check("the report names the file", rep:find(CSV, 1, true) ~= nil)
 check("…and counts per profile", rep:find("Default%s+6 pages") ~= nil, rep)
+
+-- ---- 6.106.0: the report has to ANSWER "is it working?" --------------
+-- LL: "Chrome fuzzy history might not be working, how can I tell?" The
+-- old report printed a status line and a table, which reads the same
+-- whether sqlite3 is missing, Full Disk Access is off, or you genuinely
+-- browsed nothing. Every distinct cause now gets its own line and the
+-- whole thing ends in a verdict.
+check("it checks sqlite3 is actually there",
+      rep:find("✅ sqlite3", 1, true) ~= nil, rep)
+check("…and that Chrome's folder is",
+      rep:find("✅ Chrome", 1, true) ~= nil)
+check("…and how many profiles it can read RIGHT NOW",
+      rep:find("✅ profiles", 1, true) ~= nil)
+check("it prints the timings the cheat sheet has always promised",
+      rep:find("last export:", 1, true) ~= nil, rep)
+check("it says how big the saved CSV is and how old",
+      rep:find("KB, written", 1, true) ~= nil, rep)
+check("it proves the MATCHER works, not just that the file parsed",
+      rep:find("search test:", 1, true) ~= nil, rep)
+check("a healthy Mac ends in one word: WORKING",
+      rep:find("✅ WORKING", 1, true) ~= nil, rep:sub(-200))
+check("…and the whole report is on the clipboard, ready to paste back",
+      CLIPBOARD == rep, CLIPBOARD and #CLIPBOARD)
+
+-- Each fault reports ITSELF, with the fix for that fault and no other.
+FILES[chrome.sqlite] = nil
+local noSql = chrome.report()
+check("no sqlite3 → said plainly, and it is not called WORKING",
+      noSql:find("❌ sqlite3", 1, true) and not noSql:find("✅ WORKING", 1, true))
+check("…with the fix named", noSql:find("set chrome.sqlite", 1, true) ~= nil)
+FILES[chrome.sqlite] = "#!/bin/sqlite3"
+
+-- 🚨 THE ONE THAT ACTUALLY BITES. Chrome's History file lives behind Full
+-- Disk Access; without it, hs.fs.attributes answers nil for a file that
+-- is plainly there and every symptom looks like "no history".
+local keptFiles = {}
+for k, v in pairs(FILES) do keptFiles[k] = v end
+for k in pairs(FILES) do
+    if tostring(k):find("/History", 1, true) then FILES[k] = nil end
+end
+local noProf = chrome.report()
+check("Chrome present but no readable profile → Full Disk Access is named",
+      noProf:find("Full Disk Access", 1, true) ~= nil, noProf)
+check("…and it is filed as a numbered thing to fix",
+      noProf:find("⚠️", 1, true) ~= nil and noProf:find("      1%. ") ~= nil)
+for k, v in pairs(keptFiles) do FILES[k] = v end
+
+-- The CSV here is a real file, so a real removal is what "never written"
+-- looks like. It is restored by the export below.
+os.remove(CSV)
+local noCsv = chrome.report()
+check("no CSV yet → says so, and points at ⇪⇧Y",
+      noCsv:find("not written yet", 1, true) and noCsv:find("⇪⇧Y", 1, true), noCsv)
 
 FS = {} ; FILES = {}
 local ok2 = chrome.export()

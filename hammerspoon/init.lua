@@ -4,9 +4,33 @@
 -- =====================================================================
 -- 08-19-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.105.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.106.0
 -- =====================================================================
 
+-- NEW IN 6.106.0 — THE SHEET STAYS WHERE YOU PUT IT, AND ⇪Y CAN BE
+-- ASKED WHAT IS WRONG:
+--   Two answers to two questions from LL.
+--   🖐 THE CHEAT SHEET REMEMBERS ITS POSITION ACROSS RELOADS. Dragging
+--   it has worked since 6.67.0 and the position survived a redraw and a
+--   reopen — but not a reload, which rebuilds the table it lived on. So
+--   every reload put it back in the middle and you moved it again. It
+--   is one hs.settings key now, validated on the way back in (a plist
+--   can hand back a string or a NaN, and a NaN draws the sheet nowhere
+--   at all) and still clamped to a real screen, because a remembered
+--   position outlives the monitor it was set on.
+--   _G.cheatSheetCenter() puts it back and forgets the stored value —
+--   the way out when a position is wrong in a way clamping cannot fix.
+--   🕘 _G.chromeHistoryReport() NOW ANSWERS "IS ⇪Y WORKING?". It used
+--   to print a status line and a per-profile table, which reads exactly
+--   the same whether sqlite3 is missing, Chrome has never run here,
+--   Full Disk Access is off, or you genuinely browsed nothing — four
+--   different fixes behind one silence. It now checks each of those
+--   separately, prints the CSV's size and age and the export timings
+--   the cheat sheet had promised since 6.92.0, runs a live search to
+--   prove the matcher and not just the parser, and ends either in
+--   "✅ WORKING" or a numbered list of what to fix. It copies itself to
+--   the clipboard so it can be pasted straight back.
+--
 -- NEW IN 6.105.0 — 700 KB OFF THE DOWNLOAD, THE ROOT FILE SHRINKS,
 -- 45 → 46 MODULES:
 --   The four LL cleared off the queue in one go.
@@ -75,18 +99,8 @@
 --   _G.escapePriorities" boot line), and each ⇪ key now has exactly
 --   one owner on the cheat sheet — cross-references say "vs/via/in".
 --
--- NEW IN 6.101.0 — THE CHEAT SHEET BECOMES A MAP:
---   ⇪/ sorted forty-seven sections A–Z, which is an index: you had to
---   know the split-windows key lived under W before you could find it.
---   Sections now sit in EIGHT FAMILIES — windows & pointer, capture &
---   tasks, find & open, files, text & clipboard, screen capture, time
---   & attention, the config itself — each under its own band, with A–Z
---   inside. Seven automatic tools (backup, watchers, updates) collapse
---   into one "⚙️ RUNS ITSELF" box, a line each. Each module declares
---   its own family, so nothing can go missing. No key changed.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.105.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.106.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -385,7 +399,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.105.0"
+_G.configVersion = "6.106.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

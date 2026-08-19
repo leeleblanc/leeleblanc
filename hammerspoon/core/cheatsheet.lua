@@ -87,6 +87,18 @@ return function(core)
     cheatSheet.width     = nil
     cheatSheet.height    = nil
     cheatSheet.key       = "/"   -- toggle key; same mods as everything above
+    -- 🖐 6.106.0 — WHERE YOU LEFT IT, ACROSS RELOADS. Dragging the sheet
+    -- has moved it since 6.67.0, and the position survived a redraw and a
+    -- reopen because it lives on this table. What it did NOT survive was a
+    -- reload: this table is rebuilt every boot, so every reload put the
+    -- sheet back in the middle of the screen and you moved it again.
+    --
+    -- Set false to go back to always-centred.
+    cheatSheet.rememberPos = true
+    -- ✏️ The one hs.settings key this file owns. Nothing else is stored:
+    -- the sheet's CONTENT is rebuilt from the modules every boot, and only
+    -- the place you put the panel is yours to keep.
+    local POS_KEY = "cheatSheet.pos"
     -- ✏️ SECTIONS PINNED ABOVE THE A–Z RUN. Empty = pure alphabetical,
     -- which is what LL asked for in 6.66.1. Add words from a group title
     -- to pin it; matching is case-insensitive substring, and pinned
@@ -125,10 +137,66 @@ return function(core)
     -- The one-line-each box the automatic tools collapse into. They have no
     -- keys, so a full section each was ~25 rows of things you cannot press.
     cheatSheet.autoTitle = "⚙️ RUNS ITSELF — nothing to press, listed so you know it is there"
-    -- Where you dragged the sheet to, this session. Reset with ⇪R, or
-    -- cheatSheet.pos = nil from the Console.
+    -- Where you dragged the sheet to. Since 6.106.0 this is restored from
+    -- hs.settings at boot as well as kept for the session. Re-centre it
+    -- with _G.cheatSheetCenter(), which also forgets the stored value.
     cheatSheet.pos       = nil
     cheatSheet.addKey    = "="   -- add-a-custom-entry key ("+" without shift)
+
+    -- ---- the remembered position (6.106.0) -------------------------------
+    -- 🚨 VALIDATED ON THE WAY BACK IN, the same rule win_pin's notes follow.
+    -- hs.settings is a plist on disk: it can be edited, it can be written by
+    -- an older or newer version of this file, and it can come back holding a
+    -- string, a nil, or a NaN. A position is two finite numbers or it is not
+    -- a position, and anything else must read as "no stored position" rather
+    -- than as coordinates — a NaN reaches the canvas and the sheet is drawn
+    -- nowhere at all, with no way to get it back except editing settings.
+    local function validPos(p)
+        if type(p) ~= "table" then return nil end
+        local x, y = tonumber(p.x), tonumber(p.y)
+        -- x ~= x is true only for NaN. Infinity fails the range test.
+        if not x or not y then return nil end
+        if x ~= x or y ~= y then return nil end
+        if math.abs(x) > 100000 or math.abs(y) > 100000 then return nil end
+        return { x = x, y = y }
+    end
+
+    function cheatSheet.savePos(p)
+        if not cheatSheet.rememberPos then return false end
+        local ok = validPos(p)
+        if not ok then return false end
+        local wrote = pcall(function() hs.settings.set(POS_KEY, ok) end)
+        return wrote and true or false
+    end
+
+    function cheatSheet.loadPos()
+        if not cheatSheet.rememberPos then return nil end
+        local saved
+        pcall(function() saved = hs.settings.get(POS_KEY) end)
+        return validPos(saved)
+    end
+
+    -- The way out. A remembered position can be wrong in ways clamping
+    -- cannot fix — a monitor arrangement you no longer use, a sheet nudged
+    -- half off the top — and "drag it back" is not much help if you cannot
+    -- see the part you would grab.
+    _G.cheatSheetCenter = function()
+        cheatSheet.pos = nil
+        pcall(function() hs.settings.set(POS_KEY, nil) end)
+        -- Redraw in place if it is open, so the answer is visible rather
+        -- than promised for next time. Same call every other in-place
+        -- refresh in this file makes.
+        if _G.cheatSheetCanvas and cheatSheet.show then
+            pcall(cheatSheet.show, true)
+        end
+        print("🧭 Cheat sheet re-centred, and the stored position forgotten")
+        return true
+    end
+
+    -- Restored HERE, at load, rather than at first show: show() runs on a
+    -- keypress and reads cheatSheet.pos directly, so a lazy restore would
+    -- have to be threaded through every caller.
+    cheatSheet.pos = cheatSheet.loadPos()
 
     cheatSheet.customFile = logsDir .. "/custom_shortcuts.json"
     adoptLegacyFile(cheatSheet.customFile, hs.configdir .. "/custom_shortcuts.json")
@@ -193,6 +261,8 @@ return function(core)
                 { "⇪E", "Edit a custom entry (picker)" },
                 { "⇪-", "Remove a custom entry (picker)" },
                 { "⇪⇧D", "Diagnostic report — Console + clipboard + Logs file" },
+                { "drag it", "Grab anywhere — it reopens where you left it, always" },
+                { "re-centre", "_G.cheatSheetCenter() puts it back in the middle" },
                 { "Esc", "Closes this sheet — a click does not" },
             }},
         }
@@ -1196,6 +1266,7 @@ return function(core)
         if _G.makeCanvasDraggable then
             _G.makeCanvasDraggable(canvas, "cheat sheet", function(f)
                 cheatSheet.pos = { x = f.x, y = f.y }
+                cheatSheet.savePos(cheatSheet.pos)
             end)
         end
 

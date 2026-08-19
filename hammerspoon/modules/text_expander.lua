@@ -300,7 +300,7 @@ function M.setup(core)
     -- there — scanning both would re-read every trigger, hand every one
     -- of them a "already used by … the later one wins" line, and turn a
     -- clean console into 2,006 warnings about a conflict with itself.
-    -- Stale packs are simply ignored; _G.snippets() says so.
+    -- Stale packs are simply ignored; _G.snippetsList() says so.
     -- 🚨 RESOLVED AT LOAD TIME, NOT HERE. exp.bundledDir is a tunable, and
     -- anything that reads it must read it when it runs — a path computed
     -- once in setup() goes on pointing at the old directory after someone

@@ -69,7 +69,8 @@ local M = {
             { "⇪⇧Y",     "Re-read Chrome now and re-save the CSV, with a count" },
             { "file",    "chrome_history-<Mac>.csv in the Logs folder — Excel opens it" },
             { "@web",    "The same pages inside ⇪space — there ⏎ copies the URL" },
-            { "console", "_G.chromeHistoryReport() — per profile, span, file, timings" },
+            { "not working?", "_G.chromeHistoryReport() — ends in ✅ or a numbered" },
+            { "",        "list of what to fix · also copies itself to the clipboard" },
         },
     },
 }
@@ -487,11 +488,125 @@ done
     end
 
     -- ---- the report ------------------------------------------------------
+    -- 🚨 THIS ANSWERS "IS ⇪Y WORKING?", NOT "WHAT DID IT LOAD". 6.106.0.
+    -- LL: "Chrome fuzzy history might not be working, how can I tell?" —
+    -- and the honest answer was that you could not, from here. The old
+    -- report printed the status line and a per-profile table, which is
+    -- useful once things work and says nothing at all when they do not: an
+    -- empty list looks identical whether sqlite3 is missing, Chrome has
+    -- never run on this Mac, Full Disk Access is not granted, or you
+    -- genuinely have no history in the window.
+    --
+    -- Every one of those is a different fix, so every one gets its own
+    -- line, and the whole thing ends in a verdict rather than leaving you
+    -- to infer one. The cheat sheet has promised "per profile, span, file,
+    -- timings" since 6.92.0; the timings were never actually printed.
     function chrome.report()
         local lines = {}
         local function outLine(s) lines[#lines + 1] = s; print(s) end
-        outLine("🕘 Chrome history — " .. tostring(chrome.status))
+        local problems = {}
+
+        local function ageWords(secs)
+            if secs < 90 then return string.format("%ds ago", math.floor(secs)) end
+            if secs < 5400 then return string.format("%dm ago", math.floor(secs / 60)) end
+            if secs < 172800 then return string.format("%.1fh ago", secs / 3600) end
+            return string.format("%.1f days ago", secs / 86400)
+        end
+
+        outLine("🕘 CHROME HISTORY (⇪Y) — " .. tostring(chrome.status))
+
+        -- 1. the two things that must exist before anything can work
+        local sqlOk
+        pcall(function()
+            local a = hs.fs.attributes(chrome.sqlite)
+            sqlOk = a and a.mode == "file" or false
+        end)
+        if sqlOk then
+            outLine("   ✅ sqlite3   " .. chrome.sqlite)
+        else
+            outLine("   ❌ sqlite3   NOT at " .. chrome.sqlite)
+            problems[#problems + 1] =
+                "sqlite3 is missing — it ships with macOS, so this is unusual; "
+                .. "set chrome.sqlite to wherever yours lives"
+        end
+
+        local dirOk
+        pcall(function()
+            local a = hs.fs.attributes(chrome.chromeDir)
+            dirOk = a and a.mode == "directory" or false
+        end)
+        if dirOk then
+            outLine("   ✅ Chrome    " .. chrome.chromeDir)
+        else
+            outLine("   ❌ Chrome    no folder at " .. chrome.chromeDir)
+            problems[#problems + 1] =
+                "Chrome's support folder is not there — either Chrome has never "
+                .. "run as this user, or it is installed somewhere else"
+        end
+
+        -- 2. the profiles it can actually see RIGHT NOW, not at boot
+        local dbs = {}
+        pcall(function() dbs = chrome.findDbs() or {} end)
+        if #dbs > 0 then
+            outLine(string.format("   ✅ profiles  %d History database%s readable",
+                                  #dbs, #dbs == 1 and "" or "s"))
+            for _, d in ipairs(dbs) do
+                local sz = 0
+                pcall(function()
+                    local a = hs.fs.attributes(d.path)
+                    sz = (a and a.size) or 0
+                end)
+                outLine(string.format("        %-12s %s KB", d.label,
+                                      math.floor(sz / 1024)))
+            end
+        elseif dirOk then
+            outLine("   ❌ profiles  none found under " .. chrome.chromeDir)
+            -- 🚨 THE LIKELIEST CAUSE, AND IT IS NOT OBVIOUS. Chrome's
+            -- History file sits in a location macOS puts behind Full Disk
+            -- Access. Without it hs.fs.attributes answers nil for a file
+            -- that is plainly there, and every symptom looks like "no
+            -- history" rather than "not allowed to look".
+            problems[#problems + 1] =
+                "no readable profile — if Chrome IS installed and you have "
+                .. "browsed, this is almost always Full Disk Access: System "
+                .. "Settings → Privacy & Security → Full Disk Access → add "
+                .. "Hammerspoon, then reload"
+        end
+
+        -- 3. the saved CSV: is there one, how big, how old
+        local size, mtime
+        pcall(function()
+            local a = hs.fs.attributes(chrome.csvFile)
+            if a then size, mtime = a.size, a.modification end
+        end)
         outLine("   file: " .. chrome.csvFile)
+        if size then
+            outLine(string.format("        %d KB, written %s",
+                                  math.floor(size / 1024),
+                                  mtime and ageWords(os.time() - mtime) or "at an unknown time"))
+        else
+            outLine("        (not written yet)")
+            problems[#problems + 1] =
+                "the CSV has never been written — press ⇪⇧Y to force an export "
+                .. "and watch this report again"
+        end
+
+        -- 4. timings, which the cheat sheet has promised all along
+        if chrome.lastMs then
+            outLine(string.format("   last export: %.0fms", chrome.lastMs))
+        else
+            outLine("   last export: not run yet this session")
+        end
+        if chrome.loadedAt and chrome.loadedAt > 0 then
+            outLine("   loaded:      " .. ageWords(epoch() - chrome.loadedAt)
+                    .. string.format("  (goes stale after %.0fh)",
+                                     chrome.staleSecs / 3600))
+        end
+        if chrome.exporting then
+            outLine("   ⏳ an export is running right now — re-run this in a moment")
+        end
+
+        -- 5. what is in memory, per profile
         local per, order = {}, {}
         for _, e in ipairs(chrome.entries) do
             if not per[e.profile] then
@@ -510,8 +625,47 @@ done
                                   os.date("%Y-%m-%d", p.oldest),
                                   os.date("%Y-%m-%d", p.newest)))
         end
-        if #order == 0 then outLine("   (no entries loaded)") end
-        return table.concat(lines, "\n")
+        if #order == 0 then
+            outLine("   (no entries loaded)")
+            if #problems == 0 then
+                problems[#problems + 1] =
+                    "everything above looks right but nothing loaded — press ⇪⇧Y "
+                    .. "to re-read Chrome now, and check the Console for a "
+                    .. "chrome export line"
+            end
+        end
+
+        -- 6. a live search, so the answer covers the part you actually
+        --    press. Counting rows for a common substring proves the index
+        --    and the matcher work, not just that the file parsed.
+        if #chrome.entries > 0 then
+            local hits = 0
+            pcall(function() hits = #(chrome.search("http") or {}) end)
+            outLine(string.format("   search test: 'http' matches %d row%s",
+                                  hits, hits == 1 and "" or "s"))
+            if hits == 0 then
+                problems[#problems + 1] =
+                    "rows are loaded but a search for 'http' matched none — that "
+                    .. "is the matcher, not the data; send this report back"
+            end
+        end
+
+        -- 7. the verdict, in words
+        outLine("")
+        if #problems == 0 then
+            outLine("   ✅ WORKING. ⇪Y should open with " .. #chrome.entries
+                    .. " pages to search.")
+        else
+            outLine("   ⚠️ " .. #problems .. " thing"
+                    .. (#problems == 1 and "" or "s") .. " to fix:")
+            for i, p in ipairs(problems) do
+                outLine("      " .. i .. ". " .. p)
+            end
+        end
+
+        local text = table.concat(lines, "\n")
+        pcall(function() hs.pasteboard.setContents(text) end)
+        return text
     end
 
     -- ---- wiring ----------------------------------------------------------

@@ -4,6 +4,68 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.106.0 — THE SHEET STAYS WHERE YOU PUT IT, AND ⇪Y CAN BE ASKED
+WHAT IS WRONG:
+  Two questions from LL, answered in code.
+
+  🖐 THE CHEAT SHEET REMEMBERS ITS POSITION ACROSS RELOADS —
+  core/cheatsheet.lua. "Can we make the cheat sheet remember where it was
+  before it was closed?" It already did, within a session: 6.67.0 made it
+  draggable and the position lives on the namespace table, so it survived
+  a redraw (the panel is rebuilt on every character you type into the
+  search box) and a reopen. What it did not survive was a RELOAD, which
+  rebuilds that table — so every reload put the sheet back in the middle
+  of the screen and you moved it again.
+  It is one hs.settings key now, "cheatSheet.pos", written when you drop
+  the panel and read back at load.
+  VALIDATED ON THE WAY IN, the rule win_pin's notes already follow.
+  hs.settings is a plist on disk: it can be hand-edited, written by an
+  older or newer build, and can hand back a string, a nil or a NaN. A
+  position is two finite numbers or it is not a position — and a NaN
+  reaching the canvas draws the sheet nowhere at all, with no way back
+  except editing settings. Junk reads as "no stored position" and the
+  sheet centres.
+  STILL CLAMPED. A remembered position outlives the display it was set
+  on; the existing clamp now runs on the value that came off disk, not
+  only on a live drag.
+  _G.cheatSheetCenter() re-centres it AND forgets the stored value — the
+  way out when a position is wrong in a way clamping cannot fix, and the
+  sheet redraws immediately rather than promising to next time.
+  cheatSheet.rememberPos = false restores always-centred.
+  (The old comment claimed "Reset with ⇪R". There was no such binding —
+  it was stale. The sheet's own HELP card now names the real one.)
+
+  🕘 _G.chromeHistoryReport() ANSWERS "IS ⇪Y WORKING?" —
+  modules/chrome_history.lua. LL: "Chrome fuzzy history might not be
+  working, how can I tell?" The honest answer was that you could not, not
+  from this report: it printed the status line and a per-profile table,
+  which is useful once things work and says nothing when they do not. An
+  empty list looked identical whether sqlite3 was missing, Chrome had
+  never run as this user, Full Disk Access was off, or there genuinely
+  was nothing in the ninety-day window — four different fixes behind one
+  silence.
+  Each is now its own line: sqlite3 present, Chrome's support folder
+  present, how many History databases are readable RIGHT NOW (and their
+  sizes), the CSV's size and age, and the export timings the cheat sheet
+  has promised since 6.92.0 and never actually printed. It then runs a
+  live search for a common substring, so the report covers the MATCHER
+  and not merely that a file parsed.
+  It ends in a verdict: "✅ WORKING" with the row count, or a numbered
+  list of what to fix, each item carrying its own remedy. The Full Disk
+  Access case is called out by name because it is both the likeliest and
+  the least guessable — without it hs.fs.attributes answers nil for a
+  file that is plainly there, and every symptom reads as "no history"
+  rather than "not allowed to look".
+  The whole report goes to the clipboard, so it can be pasted straight
+  back.
+
+  The cheat sheet card changed with it: "console — _G.chromeHistoryReport()
+  — per profile, span, file, timings" became "not working? …", which is
+  the question you would actually be asking when you go looking.
+
+  Also corrected: text_expander's comment pointed at _G.snippets(), which
+  does not exist. The command is _G.snippetsList().
+
 NEW IN 6.105.0 — 700 KB OFF THE DOWNLOAD, THE ROOT FILE SHRINKS,
 45 → 46 MODULES:
   Four items off the queue, in the order LL cleared them.
