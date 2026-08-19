@@ -4,6 +4,91 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.112.0 — ⇪⇧U GETS A REAL BOX, AND ITS NOTES STOP VANISHING:
+  LL, with two screenshots of the pin prompt showing the same ~25
+  visible characters scrolling out of a one-line field: "That note
+  window is tiny. And after I added one it's either not working or the
+  window is there I can't see it. Also that box is way too small."
+
+  Two separate faults. The one that was NOT reported as the main
+  complaint is the serious one.
+
+  📐 FAULT ONE — THE NOTE WAS BEING DRAWN OFF THE SCREEN.
+  buildCanvas sized the canvas to whatever ONE UNWRAPPED LINE of the
+  text measured, so its width grew without limit as the note got
+  longer. With the default topRight anchor the note's x is
+      winFrame.x + winFrame.w - noteWidth - offsetX
+  so once the note is wider than its window that goes NEGATIVE, and a
+  window near the left of the display puts the note off the edge of it.
+  Measured against the shipped file with Menlo's real metrics
+  (0.602 em advance at 13pt), on an 800pt window at x=100:
+
+      chars   note w   note x    on screen?
+      20      176      712       ok
+      60      488      400       ok
+      100     800      88        ok
+      200     1580     -692      OFF — runs off the LEFT edge
+      400     3140     -2252     OFF — runs off the LEFT edge
+
+  So the note was pinned, saved, followed, and invisible — which is
+  exactly "it's either not working or I can't see it". wp.maxChars = 400
+  did not save it, and the comment on that line — "a longer note is
+  refused rather than drawn off-screen" — was the opposite of true: 400
+  characters is 3,140pt, off-screen on every display ever sold.
+  Notes now WRAP at wp.maxWidth (360pt): the newlines you typed are
+  kept, a word too long to fit is broken rather than allowed to widen
+  the note, and the width is hard-capped afterwards in case a
+  proportional font or a measurement quirk gets past the wrap. The
+  final frame is then clamped to a real screen. A note can now be badly
+  placed. It can no longer be invisible.
+  🚨 THE OLD TEST STUB RETURNED w = 120 FOR ANY TEXT, which is precisely
+  why 64 green checks never caught this. The new one measures.
+
+  ✍️ FAULT TWO — THE BOX WAS NEVER GOING TO BE BIG ENOUGH.
+  It was hs.dialog.textPrompt: a fixed-size NSAlert around a ONE-LINE
+  NSTextField. It cannot be resized, it cannot scroll, and it cannot
+  accept a Return — Return presses the default button. The prompt's own
+  message said "Newlines are fine", which you could not act on in that
+  control at all. No amount of tuning fixes a box that is the wrong
+  kind of box.
+  ⇪⇧U now opens the Capture Pad's window instead:
+    • multi-line, and MONOSPACE AT THE NOTE'S OWN WRAP WIDTH — what
+      wraps in the box is what wraps on screen
+    • a live character count against wp.maxChars, because the limit
+      REFUSES the pin and finding that out from an alert after typing
+      400 characters is the worst possible moment to learn it. Over the
+      limit, the Pin button disables itself.
+    • ⌘⏎ pins · Esc cancels · an explicit "Remove note" button, which
+      the old flow could only express as "clear the box and press OK"
+    • draggable by its header, opened OVER the window it belongs to
+      (on three monitors, "where did the box go" is a real cost)
+    • non-activating, and this one earns its keep: wp.isShowing() hides
+      a note unless its app is frontmost, so an editor that dragged
+      Hammerspoon forward would pin the note and then immediately hide
+      it — the same "did that even work?" this version exists to fix.
+      When macOS refuses the mask, the Console says so and says what it
+      will look like.
+  🚨 THE WINDOW IS CAPTURED WHEN YOU PRESS THE KEY, not when you save.
+  The editor can take focus; clicking another window mid-edit must not
+  move the note onto it.
+  A Mac with no hs.webview still gets the small prompt. Same meaning —
+  one function, wp.applyEdit, decides what a finished edit means, so the
+  two boxes cannot drift into disagreeing about it.
+
+  THE TESTS (27 new, test_win_pin 64 → 91). Section 6 now explicitly
+  covers the no-webview fallback, and it passes UNCHANGED — which is the
+  evidence that the old contract survived the rewrite. Each new guard
+  was broken separately to prove it bites:
+    • no wrapping + no width cap → "a 400-character note is at most
+      maxWidth wide" fails, as does "it got TALLER instead"
+    • no screen clamp → "a note too wide for its window is clamped ONTO
+      the screen" fails
+    • pin to whatever is focused at SAVE time → "clicking another window
+      mid-edit does NOT move the note onto it" fails
+    • no HTML escaping → "a note containing HTML is escaped into the
+      box, not executed" fails (a note is arbitrary text a person typed,
+      and it goes into a WebKit page)
+
 NEW IN 6.111.0 — ⇪/ REOPENS WHERE YOU WERE READING:
   LL: "The cheat sheet still isn't remembering where I am when I close
   it. How can we fix this?"

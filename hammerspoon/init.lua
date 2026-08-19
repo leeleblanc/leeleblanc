@@ -4,9 +4,38 @@
 -- =====================================================================
 -- 08-19-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.111.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.112.0
 -- =====================================================================
 
+-- NEW IN 6.112.0 — ⇪⇧U GETS A REAL BOX, AND ITS NOTES STOP VANISHING:
+--   LL sent two screenshots of the pin prompt with the same ~25 visible
+--   characters scrolling out of it: "That note window is tiny… that box
+--   is way too small. And after I added one it's either not working or
+--   the window is there I can't see it."
+--   Two separate faults, and the second one is the serious one.
+--   📐 THE NOTE WAS DRAWN OFF THE SCREEN. The canvas was sized to what
+--   ONE UNWRAPPED LINE of text measured, so its width grew forever with
+--   the note. Past roughly 110 characters on an 800pt window the
+--   topRight anchor pushed it clean off the LEFT edge of the display —
+--   pinned, saved, followed, and invisible. maxChars = 400 could not
+--   save it: 400 characters is 3,140pt wide, off-screen on every display
+--   sold, and the comment on that line claimed the opposite. Notes now
+--   WRAP at wp.maxWidth (keeping the newlines you typed, breaking a URL
+--   too long to fit rather than widening), and the final frame is
+--   clamped to a real screen. Badly placed is now the worst case.
+--   ✍️ THE BOX IS A WINDOW NOW. It was hs.dialog.textPrompt, whose
+--   NSTextField cannot be resized, cannot scroll and cannot take a
+--   Return — so the prompt's own promise that "newlines are fine" was
+--   impossible to act on. ⇪⇧U opens the Capture Pad's window instead:
+--   multi-line, monospace at the note's own wrap width so what wraps in
+--   the box is what wraps on screen, a live character count against the
+--   limit that used to refuse the pin only AFTER you typed 400
+--   characters, ⌘⏎ to pin, Esc to cancel, an explicit Remove, draggable
+--   by its header, and opened over the window it belongs to.
+--   🚨 THE WINDOW IS CAPTURED WHEN YOU PRESS THE KEY, not when you save
+--   — clicking another window mid-edit must not move the note onto it.
+--   A Mac with no hs.webview still gets the small prompt, same meaning.
+--
 -- NEW IN 6.111.0 — ⇪/ REOPENS WHERE YOU WERE READING:
 --   LL: "the cheat sheet still isn't remembering where I am when I close
 --   it." Three things could have meant, so all three were measured
@@ -75,20 +104,8 @@
 --   whose machinery fires it. No key, binding or behaviour changed;
 --   this is the position of one card on one panel.
 --
--- NEW IN 6.107.0 — ⇪space STAYS WHERE YOU PUT IT TOO:
---   The other half of 6.106.0. ⇪space has reopened where you dragged it
---   since 6.93.0, but only within a session — the module is rebuilt on
---   every reload and the position went with it. It is one hs.settings
---   key now, validated the same way the cheat sheet's is.
---   🚨 THE WRITE IS DEBOUNCED, and that is not a nicety. The drag layer
---   calls move() from a repeating timer for the WHOLE drag, not once
---   when you let go, so saving inline would write to the settings plist
---   tens of times a second for as long as the mouse is down. The panel
---   still tracks the pointer every tick; only the write waits 0.4s for
---   you to settle. _G.unifiedCenter() puts it back and forgets.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.111.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.112.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -387,7 +404,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.111.0"
+_G.configVersion = "6.112.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

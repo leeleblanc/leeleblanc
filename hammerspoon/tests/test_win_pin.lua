@@ -240,7 +240,8 @@ wp.tick()
 check("…and it is not churned when the rate has not changed", wp.timer == held)
 
 -- =====================================================================
-out("6. editing and removing through ⇪⇧U\n")
+out("6. editing and removing through ⇪⇧U — on a Mac with NO hs.webview,\n")
+out("   which is the small-prompt fallback and must keep the old meaning\n")
 -- =====================================================================
 PROMPT = { button = "OK", text = "PROD — do not deploy" }
 wp.pin()
@@ -369,6 +370,225 @@ check("…and pressing it says what is wrong",
       lastAlert():find("Accessibility", 1, true) ~= nil, lastAlert())
 check("set() refuses outright with Accessibility off",
       wp3.set("x", 501):find("Accessibility", 1, true) ~= nil)
+
+-- =====================================================================
+out("📐 6.112.0 — a note WRAPS, and can never be drawn off the screen\n")
+-- =====================================================================
+-- LL: "after I added one it's either not working or the window is there
+-- I can't see it." It was the second one. The canvas was sized to one
+-- unwrapped line, so its width grew without limit and the topRight
+-- anchor pushed a long note clean off the LEFT edge of the display.
+do
+    -- Section 10 left _G.winPin as the Accessibility-OFF instance, which
+    -- refuses everything by design. Boot a working one.
+    AX = true
+    SETTINGS["winPin.notes"] = nil
+    dofile(HS .. "/modules/win_pin.lua").setup(CORE)
+    local wpw = _G.winPin
+    wpw.maxWidth, wpw.fontSize, wpw.padding = 360, 13, 10
+
+    local cols = wpw.wrapCols()
+    check("the wrap width comes from maxWidth, not from the text",
+          cols > 20 and cols < 80, cols)
+
+    local long = string.rep("x", 400)          -- the maxChars limit exactly
+    local wrapped = wpw.wrapText(long, cols)
+    check("🚨 an unbreakable 400-character run is BROKEN, not left one line",
+          select(2, wrapped:gsub("\n", "")) >= 8,
+          select(2, wrapped:gsub("\n", "")) .. " newlines")
+    local widest = 0
+    for line in (wrapped .. "\n"):gmatch("(.-)\n") do
+        widest = math.max(widest, #line)
+    end
+    check("…and no wrapped line is wider than the column count",
+          widest <= cols, widest .. " > " .. cols)
+
+    check("the newlines you typed are KEPT — the prompt has promised this "
+          .. "since 6.104.0", (function()
+        local w = wpw.wrapText("one\ntwo\nthree", cols)
+        return w == "one\ntwo\nthree"
+    end)(), wpw.wrapText("one\ntwo\nthree", cols))
+    check("blank lines survive as blank lines",
+          wpw.wrapText("a\n\nb", cols) == "a\n\nb")
+    check("words break at spaces, not mid-word", (function()
+        local w = wpw.wrapText(string.rep("alpha ", 40), cols)
+        for line in (w .. "\n"):gmatch("(.-)\n") do
+            if line ~= "" and not line:match("^alpha[ alph]*a?$") then return false, line end
+        end
+        return true
+    end)())
+
+    -- The canvas that actually gets drawn, measured with realistic metrics.
+    local savedNew = hs.canvas.new
+    hs.canvas.new = function(f)
+        local o = { _f = f, shown = false, deleted = false, hides = 0, shows = 0 }
+        o.frame = function(self, nf) if nf then self._f = nf return self end return self._f end
+        -- Menlo is monospace: 0.602 em advance. The OLD stub returned a
+        -- fixed w = 120 for any text, which is precisely why the suite
+        -- could not have caught this bug.
+        o.minimumTextSize = function(_, _, text)
+            local widest2, lines = 0, 0
+            for line in (tostring(text) .. "\n"):gmatch("(.-)\n") do
+                widest2 = math.max(widest2, #line) ; lines = lines + 1
+            end
+            return { w = math.ceil(widest2 * 13 * 0.602), h = lines * 17 }
+        end
+        o.level = function() end
+        o.clickActivating = function() end
+        o.canvasMouseEvents = function() end
+        o.show = function(self) self.shown = true end
+        o.hide = function(self) self.shown = false end
+        o.delete = function(self) self.deleted = true end
+        return o
+    end
+
+    local c400 = wpw.buildCanvas(long)
+    check("🚨 a 400-character note is at most maxWidth wide (it used to be "
+          .. "3,140pt — off every display sold)",
+          c400:frame().w <= wpw.maxWidth, c400:frame().w)
+    check("…and it got TALLER instead, which is what wrapping means",
+          c400:frame().h > 60, c400:frame().h)
+
+    -- The clamp is the guarantee that does not depend on the measuring.
+    local CLAMPED = false
+    _G.clampToScreen = function(pt, w2, h2)
+        CLAMPED = true
+        return { x = math.max(0, math.min(pt.x, 1440 - w2)),
+                 y = math.max(0, math.min(pt.y, 900 - h2)) }
+    end
+    wpw.anchor, wpw.offsetX, wpw.offsetY = "topRight", 12, 44
+    local off = wpw.overlayFrame({ x = 0, y = 100, w = 400, h = 300 }, 900, 60)
+    check("🚨 a note too wide for its window is clamped ONTO the screen, "
+          .. "never off the left edge", CLAMPED and off.x >= 0, off.x)
+    _G.clampToScreen = nil
+    hs.canvas.new = savedNew
+end
+
+-- =====================================================================
+out("✍️ 6.112.0 — ⇪⇧U opens a real editor, not a one-line alert\n")
+-- =====================================================================
+do
+    local VIEWS, UC = {}, {}
+    hs.drawing = { windowLevels = { floating = 5 } }
+    hs.webview = {
+        windowMasks = { nonactivating = 128 },
+        usercontent = { new = function(name)
+            local u = { name = name }
+            u.setCallback = function(self, fn) self.cb = fn end
+            UC[#UC + 1] = u
+            return u
+        end },
+        new = function(rect, _, uc)
+            local v = { rect = rect, uc = uc, shown = false, deleted = false,
+                        style = 0 }
+            v.windowTitle      = function(self) return self end
+            v.allowTextEntry   = function(self) return self end
+            v.level            = function(self) return self end
+            v.behaviorAsLabels = function(self, b) self.behaviors = b return self end
+            v.windowStyle      = function(self, n)
+                if n then self.style = n return self end
+                return self.style
+            end
+            v.html             = function(self, h) self.htmlText = h return self end
+            v.show             = function(self) self.shown = true return self end
+            v.bringToFront     = function(self) return self end
+            v.frame            = function(self, f) if f then self.rect = f end return self.rect end
+            v.delete           = function(self) self.deleted = true end
+            VIEWS[#VIEWS + 1] = v
+            return v
+        end,
+    }
+    AX = true
+    SETTINGS["winPin.notes"] = nil
+    BOUND = {}
+    dofile(HS .. "/modules/win_pin.lua").setup(CORE)
+    local wpe = _G.winPin
+    local target = win(901, "Ghostty", 1901, "staging", 40, 60, 800, 600)
+    WINDOWS[901] = target
+    FOCUSED = target
+    wpe.pins = {}
+
+    ALERTS = {}
+    wpe.pin()
+    local view = VIEWS[#VIEWS]
+    check("⇪⇧U opens a webview, not a dialog", view ~= nil and view.shown)
+    check("…and it is a real box, not a one-line field",
+          view.rect.w >= 400 and view.rect.h >= 240,
+          view.rect.w .. "x" .. view.rect.h)
+    check("…opened over the window it belongs to, not the middle of screen 1",
+          view.rect.x > 40 and view.rect.x < 840, view.rect.x)
+    check("the page carries a multi-line textarea", (view.htmlText or ""):find("<textarea", 1, true) ~= nil)
+    check("…a live count against the limit that would refuse the pin",
+          (view.htmlText or ""):find(tostring(wpe.maxChars), 1, true) ~= nil)
+    check("…and ⌘⏎ / Esc are both offered in the page",
+          (view.htmlText or ""):find("⌘⏎", 1, true) ~= nil
+          and (view.htmlText or ""):find("Esc", 1, true) ~= nil)
+    check("🚨 the non-activating mask is applied — an editor that pulled "
+          .. "Hammerspoon forward would pin the note and then HIDE it",
+          view.style == 128, view.style)
+
+    -- The save path, with a note the old one-line field could not hold.
+    local multi = "PROD — do not deploy\nsecond line\nthird line"
+    UC[#UC].cb({ body = { a = "save", text = multi } })
+    check("saving pins exactly what was typed, newlines and all",
+          wpe.pins[901] and wpe.pins[901].text == multi,
+          wpe.pins[901] and wpe.pins[901].text)
+    check("…and the editor closed itself", view.deleted == true)
+    check("…and the note that gets DRAWN is the wrapped form",
+          wpe.pins[901].canvas ~= nil)
+
+    -- 🚨 The guard that matters: the window is captured when the key is
+    -- pressed, so focus moving while the box is open cannot misfile it.
+    wpe.pin()
+    local other = win(902, "Slack", 1902, "#general", 0, 0, 500, 400)
+    WINDOWS[902] = other
+    FOCUSED = other                      -- you clicked away mid-edit
+    UC[#UC].cb({ body = { a = "save", text = "belongs to Ghostty" } })
+    check("🚨 clicking another window mid-edit does NOT move the note onto it",
+          wpe.pins[901].text == "belongs to Ghostty" and wpe.pins[902] == nil,
+          wpe.pins[902] and "landed on Slack" or "ok")
+    FOCUSED = target
+
+    -- Cancel.
+    wpe.pin()
+    local v2 = VIEWS[#VIEWS]
+    UC[#UC].cb({ body = { a = "cancel" } })
+    check("Cancel changes nothing and closes the box",
+          wpe.pins[901].text == "belongs to Ghostty" and v2.deleted == true)
+
+    -- Remove, which the old flow could only express as "empty the box".
+    wpe.pin()
+    check("an existing note pre-fills the box",
+          (VIEWS[#VIEWS].htmlText or ""):find("belongs to Ghostty", 1, true) ~= nil)
+    check("…and offers an explicit Remove",
+          (VIEWS[#VIEWS].htmlText or ""):find("Remove note", 1, true) ~= nil)
+    UC[#UC].cb({ body = { a = "remove" } })
+    check("Remove takes the note off that window", wpe.pins[901] == nil)
+
+    -- An empty save still removes: that contract predates the window.
+    wpe.set("temporary", 901)
+    wpe.pin()
+    UC[#UC].cb({ body = { a = "save", text = "   " } })
+    check("emptying the box still removes, as the cheat sheet teaches",
+          wpe.pins[901] == nil)
+
+    -- ⇪⇧U twice is a toggle, not two stacked boxes.
+    wpe.pin()
+    local openCount = #VIEWS
+    wpe.pin()
+    check("⇪⇧U with the editor open closes it instead of stacking a second",
+          #VIEWS == openCount and VIEWS[openCount].deleted == true)
+
+    -- HTML escaping: a note is arbitrary text a person typed.
+    wpe.set('</textarea><script>bad()</script>', 901)
+    wpe.pin()
+    check("🚨 a note containing HTML is escaped into the box, not executed",
+          (VIEWS[#VIEWS].htmlText or ""):find("&lt;/textarea&gt;", 1, true) ~= nil
+          and (VIEWS[#VIEWS].htmlText or ""):find("<script>bad()", 1, true) == nil)
+    UC[#UC].cb({ body = { a = "cancel" } })
+
+    hs.webview, hs.drawing = nil, nil
+end
 
 -- =====================================================================
 out(string.format("\n%d passed, %d failed\n", pass, fail))

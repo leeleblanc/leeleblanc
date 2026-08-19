@@ -41,9 +41,24 @@
 -- key, a numpad key, or a row inside an existing picker.
 --
 -- ONE KEY, THREE OUTCOMES, because there is no second key to spend:
---   ⇪⇧U on a window with no note   → prompts, pins what you type
---   ⇪⇧U on a window that HAS one   → prompts pre-filled, edits it
---   ⇪⇧U, then clear the box, OK    → removes that window's note
+--   ⇪⇧U on a window with no note   → opens the editor, pins what you type
+--   ⇪⇧U on a window that HAS one   → opens it pre-filled, edits it
+--   ⇪⇧U, then empty the box, ⌘⏎    → removes that window's note
+--
+-- ✍️ 6.112.0 — THE BOX IS A WINDOW, NOT AN ALERT. LL: "that box is way
+-- too small", with two screenshots of the same ~25 visible characters
+-- scrolling out of a one-line field. It WAS hs.dialog.textPrompt, whose
+-- NSTextField cannot be resized, cannot scroll and cannot take a Return
+-- — so the prompt's own promise that "newlines are fine" was impossible
+-- to act on. It is now the Capture Pad's window: multi-line, monospace
+-- at the note's own wrap width, a live character count against the
+-- limit that would otherwise refuse the pin only AFTER you typed it,
+-- ⌘⏎ to pin, Esc to cancel, draggable by its header. A Mac without
+-- hs.webview still gets the small prompt — same meaning, smaller box.
+--
+-- 📐 AND THE NOTE ITSELF NOW WRAPS. See wp.maxWidth: an unwrapped note
+-- grew wider than the screen and was drawn off the edge of it, which is
+-- what "I added one and I can't see it" turned out to be.
 -- Everything rarer lives in the Console: _G.pins() prints the ledger,
 -- and it names the calls for removing, moving and pruning notes.
 --
@@ -70,7 +85,9 @@ local M = {
         title = "📌 WINDOW PIN (⇪⇧U — a note stuck to one window)",
         entries = {
             { "⇪⇧U",  "Pin a note to the window in front — again to edit it" },
-            { "clear", "Empty the box and OK — that window's note is removed" },
+            { "⌘⏎",   "Pin it · Esc cancels · drag the box by its header" },
+            { "clear", "Empty the box (or Remove note) — that window's note goes" },
+            { "wrap",  "Long notes wrap into a block and stay on screen" },
             { "follow", "The note tracks the window as it moves, and hides with it" },
             { "tabs",  "Terminal tabs each keep their OWN note (Ghostty, iTerm)" },
             { "_G.pins()", "Console: every note, where it is, and what to call next" },
@@ -90,13 +107,33 @@ function M.setup(core)
     wp.fontName     = "Menlo"
     wp.fontSize     = 13
     wp.padding      = 10
-    wp.maxChars     = 400       -- a longer note is refused rather than drawn off-screen
+    wp.maxChars     = 400       -- a longer note is refused (see 📐 below)
+    -- 📐 6.112.0 — THE NOTE IS A BLOCK, NOT A STRIP. Until now the canvas
+    -- was sized to whatever one unwrapped line of text measured, so its
+    -- width grew forever with the note: past roughly 110 characters on an
+    -- 800pt window the topRight anchor pushed it clean off the LEFT edge
+    -- of the screen and the note became invisible. maxChars = 400 could
+    -- not save it — 400 characters is 3,140pt wide, which is off-screen
+    -- on every display sold. The note now wraps at maxWidth and the final
+    -- frame is clamped to a real screen, so a note can be badly placed
+    -- but never invisible.
+    wp.maxWidth     = 360       -- widest the note may draw; text wraps to fit
     -- Hide a note unless its app is frontmost. Leave this ON: the canvas
     -- floats above every window, so a note left visible while its window
     -- sits behind another app looks pinned to the WRONG one.
     wp.onlyWhenAppFocused = true
     wp.followFast   = 0.05      -- seconds between checks while a note is VISIBLE
     wp.followIdle   = 0.5       -- …and while every note is hidden (see ⚖️ 1)
+    -- ✍️ 6.112.0 — THE EDITOR. hs.dialog.textPrompt is a fixed-size NSAlert
+    -- with a ONE-LINE NSTextField: it cannot be resized, cannot scroll, and
+    -- cannot accept a newline (Return presses the default button). LL sent
+    -- two screenshots of the same 25 visible characters and said "that box
+    -- is way too small" — correctly, and it was never going to be fixable
+    -- while it was that control. This is the Capture Pad's window instead.
+    wp.editorW      = 560
+    wp.editorH      = 340
+    wp.editorFont   = 15        -- the BOX's size; the note still draws at fontSize
+    wp.nonActivating = true     -- type without dragging Hammerspoon forward
     -- ----------------------------------------------------------------------
 
     local SETTINGS_KEY = "winPin.notes"
@@ -132,6 +169,69 @@ function M.setup(core)
         }
     end
 
+    -- ---- wrapping (6.112.0) ----------------------------------------------
+    -- Bytes are not characters, and a note can hold anything you typed.
+    -- Wrapping by BYTES would work — it only ever wraps early, so it can
+    -- never widen the note — but "early" on accented or emoji text means
+    -- absurdly narrow, so measure properly and fall back to bytes only
+    -- when the string is not valid UTF-8 at all.
+    local function ulen(s)
+        return (utf8 and utf8.len and utf8.len(s)) or #s
+    end
+    local function usub(s, i, j)
+        if not (utf8 and utf8.offset and utf8.len(s)) then return s:sub(i, j) end
+        local from = utf8.offset(s, i)
+        if not from then return "" end
+        local to = utf8.offset(s, j + 1)
+        return s:sub(from, to and (to - 1) or #s)
+    end
+
+    -- How many characters fit across the note. Menlo's advance is 602/1000
+    -- of the em, and the font is monospace, so this is exact for the
+    -- shipped font. A proportional wp.fontName makes it an ESTIMATE — which
+    -- is why the width cap and the screen clamp below are the real
+    -- guarantees, and this is only what makes the wrap look right.
+    function wp.wrapCols()
+        local inner = (wp.maxWidth or 360) - wp.padding * 2
+        return math.max(8, math.floor(inner / ((wp.fontSize or 13) * 0.602)))
+    end
+
+    -- 📑 THE NEWLINES YOU TYPED ARE KEPT. The prompt has promised "newlines
+    -- are fine" since 6.104.0 and, in a one-line NSTextField, you could not
+    -- type one — the editor of 6.112.0 is the other half of making that
+    -- sentence true.
+    function wp.wrapText(text, cols)
+        cols = math.max(8, math.floor(cols or wp.wrapCols()))
+        local out = {}
+        for line in (tostring(text or "") .. "\n"):gmatch("(.-)\n") do
+            if line:match("^%s*$") then
+                out[#out + 1] = ""
+            else
+                local cur = ""
+                local function flushLong()
+                    -- One word longer than the whole line is BROKEN rather
+                    -- than allowed to widen the note past its cap. A URL is
+                    -- the ordinary case, not a corner one.
+                    while ulen(cur) > cols do
+                        out[#out + 1] = usub(cur, 1, cols)
+                        cur = usub(cur, cols + 1, ulen(cur))
+                    end
+                end
+                for word in line:gmatch("%S+") do
+                    if cur == "" then cur = word
+                    elseif ulen(cur) + 1 + ulen(word) <= cols then
+                        cur = cur .. " " .. word
+                    else
+                        out[#out + 1] = cur ; cur = word
+                    end
+                    flushLong()
+                end
+                if cur ~= "" then out[#out + 1] = cur end
+            end
+        end
+        return table.concat(out, "\n")
+    end
+
     -- Build at a placeholder size, ask the canvas how much room the text
     -- actually needs, then shrink to fit.
     -- 🚨 minimumTextSize, NOT hs.drawing.getTextDrawingSize: the latter is
@@ -157,9 +257,11 @@ function M.setup(core)
             strokeWidth      = 1,
             roundedRectRadii = { xRadius = st.radius, yRadius = st.radius },
         }
+        -- What gets DRAWN is the wrapped form; p.text keeps what you typed.
+        local shown = wp.wrapText(text)
         c[2] = {
             type      = "text",
-            text      = text,
+            text      = shown,
             textFont  = wp.fontName,
             textSize  = wp.fontSize,
             textColor = st.fg,
@@ -168,12 +270,17 @@ function M.setup(core)
 
         local w, h = 220, 60
         pcall(function()
-            local size = c:minimumTextSize(2, text)
+            local size = c:minimumTextSize(2, shown)
             if size and size.w and size.h then
                 w = math.ceil(size.w) + wp.padding * 2
                 h = math.ceil(size.h) + wp.padding * 2
             end
         end)
+        -- 🚨 THE CAP IS NOT A SUGGESTION. Wrapping should already have kept
+        -- the width down, but a proportional font, a measurement quirk or a
+        -- single unbreakable glyph run must not be able to produce a
+        -- mile-wide canvas — that is the bug this whole section exists for.
+        w = math.min(w, wp.maxWidth or 360)
 
         pcall(function()
             c:frame({ x = 0, y = 0, w = w, h = h })
@@ -203,7 +310,17 @@ function M.setup(core)
         else -- topRight, the default
             x, y = winFrame.x + winFrame.w - w - wp.offsetX, winFrame.y + wp.offsetY
         end
-        return { x = x, y = y, w = w, h = h }
+        -- 🚨 CLAMPED LAST, ALWAYS. A note anchored to a corner of a window
+        -- that is itself near a screen edge — or a note wider than its own
+        -- window — lands outside the display, and an invisible note reads
+        -- as "the pin did nothing" with no way to tell the difference.
+        -- Better badly placed and visible than perfectly placed and gone.
+        local f = { x = x, y = y, w = w, h = h }
+        if _G.clampToScreen then
+            local p = _G.clampToScreen({ x = f.x, y = f.y }, f.w, f.h)
+            if p and p.x and p.y then f.x, f.y = p.x, p.y end
+        end
+        return f
     end
 
     -- Is this window actually the one you are looking at? A background
@@ -350,6 +467,339 @@ function M.setup(core)
         return true
     end
 
+    -- ---- ✍️ the editor (6.112.0) ------------------------------------------
+    -- One place decides what a finished edit MEANS, so the big editor and
+    -- the small fallback below cannot drift into disagreeing about it.
+    -- Empty still removes — that contract predates the window and the cheat
+    -- sheet still teaches it.
+    function wp.applyEdit(winId, text, label)
+        text = tostring(text or "")
+        if text:gsub("%s+", "") == "" then
+            if wp.remove(winId, true) then hs.alert.show("📌 Note removed")
+            else hs.alert.show("📌 Nothing to remove on this window") end
+            return true
+        end
+        local result = wp.set(text, winId)
+        if result:find("bound to window", 1, true) then
+            hs.alert.show("📌 Pinned to " .. (label or "this window"))
+            return true
+        end
+        hs.alert.show(result, 3)      -- over maxChars, or the window went away
+        return false
+    end
+
+    -- Read back and verified, never assumed — AppKit silently drops style
+    -- bits it will not honour. Same shape as the Capture Pad's; the
+    -- arithmetic rather than 5.3's `&` because this runs on whatever Lua
+    -- the installed Hammerspoon was built with.
+    function wp.applyNonActivating(view)
+        if not view then return false, "there is no window" end
+        local masks = hs.webview and hs.webview.windowMasks
+        local bit   = type(masks) == "table" and masks.nonactivating or nil
+        if type(bit) ~= "number" or bit < 1 then
+            return false, "this Hammerspoon has no nonactivating window mask"
+        end
+        local function isSet(v) return (math.floor(v / bit) % 2) == 1 end
+        local okGet, cur = pcall(function() return view:windowStyle() end)
+        if not (okGet and type(cur) == "number") then
+            return false, "the window style could not be read"
+        end
+        if not isSet(cur) then
+            if not pcall(function() view:windowStyle(cur + bit) end) then
+                return false, "the window style was rejected"
+            end
+        end
+        local okRe, now = pcall(function() return view:windowStyle() end)
+        if not (okRe and type(now) == "number") then
+            return false, "the window style could not be read back"
+        end
+        if not isSet(now) then return false, "macOS dropped the mask" end
+        return true, "applied"
+    end
+
+    local function esc(s)
+        return (tostring(s or ""):gsub("&", "&amp;"):gsub("<", "&lt;")
+                                 :gsub(">", "&gt;"):gsub('"', "&quot;"))
+    end
+
+    -- 🚨 THE BOX IS MONOSPACE AT THE NOTE'S OWN WRAP WIDTH. What you see
+    -- wrapping in the editor is what the note will do on screen — the
+    -- whole complaint was not being able to see what you were typing.
+    function wp.editorHtml(opts)
+        local st = style()
+        return table.concat({
+[[<meta charset="utf-8"><style>
+  :root { color-scheme: dark; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+         font-size:14px; background:#141418; color:#e8e8ec; }
+  header { padding:12px 18px 8px; border-bottom:1px solid #2a2a32;
+           cursor:grab; user-select:none; -webkit-user-select:none; }
+  header:active, header.dragging { cursor:grabbing; }
+  h1 { font-size:15px; margin:0 0 2px; font-weight:600; }
+  .grip { color:#4a4a56; margin-right:8px; letter-spacing:2px; }
+  .sub { color:#8a8a96; font-size:12px; }
+  #wrap { padding:12px 18px 14px; }
+  /* Longhand font rules on purpose — the shorthand+keyword mix is the
+     invalid combination WebKit drops whole (the 6.44.1 textarea bug). */
+  textarea { width:100%; box-sizing:border-box; resize:none;
+             background:#1d1d24; color:#f2f2f6; border:1px solid #33333e;
+             border-radius:8px; padding:11px;
+             font-family:Menlo,ui-monospace,monospace;
+             line-height:1.45; }
+  textarea:focus { outline:none; border-color:#4a7fe0; }
+  .bar { margin-top:11px; display:flex; gap:9px; align-items:center; }
+  .count { color:#8a8a96; font-size:12px; margin-right:auto;
+           font-variant-numeric:tabular-nums; }
+  .count.over { color:#ff8f8f; font-weight:600; }
+  button { background:#2a2a34; color:#e8e8ec; border:1px solid #3b3b47;
+           border-radius:7px; padding:7px 13px; font-size:13px; cursor:pointer; }
+  button:hover { filter:brightness(1.18); }
+  button.go { background:#3566cc; border-color:#4a7fe0; }
+  button.rm { background:#4a2530; border-color:#6b3542; }
+  button:disabled { opacity:.45; cursor:default; }
+</style>
+<header id="hdr"><h1><span class="grip">⠿</span>]],
+            esc(opts.title),
+[[</h1><div class="sub">]], esc(opts.sub), [[</div></header>
+<div id="wrap">
+  <textarea id="t" rows="]], tostring(opts.rows or 8),
+            [[" spellcheck="false" placeholder="Type the note. Newlines are fine.">]],
+            esc(opts.text), [[</textarea>
+  <div class="bar">
+    <span class="count" id="c"></span>]],
+            opts.hasNote
+              and [[<button type="button" class="rm" onclick="say({a:'remove'})">Remove note</button>]]
+              or  "",
+[[    <button type="button" onclick="say({a:'cancel'})">Cancel (Esc)</button>
+    <button type="button" class="go" id="ok" onclick="save()">Pin it (⌘⏎)</button>
+  </div>
+</div>
+<script>
+  var MAX = ]], tostring(opts.maxChars or 400), [[;
+  var COLS = ]], tostring(opts.cols or 43), [[;
+  var t = document.getElementById('t'), c = document.getElementById('c'),
+      ok = document.getElementById('ok');
+  function say(m) {
+    try { webkit.messageHandlers.winPin.postMessage(m); } catch (e) {}
+  }
+  /* The count is the point of the box: maxChars REFUSES the pin, and
+     finding that out from an alert after typing 400 characters is the
+     worst possible time to learn it. */
+  function tally() {
+    var n = Array.from(t.value).length;
+    c.textContent = n + ' / ' + MAX + ' characters';
+    c.className = n > MAX ? 'count over' : 'count';
+    ok.disabled = n > MAX;
+  }
+  function save() {
+    if (Array.from(t.value).length > MAX) return;
+    say({ a: 'save', text: t.value });
+  }
+  t.addEventListener('input', tally);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { say({ a: 'cancel' }); return; }
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(); }
+  });
+  /* The header is the title bar: hs.webview windows are borderless, and a
+     WKWebView loses the mouse the moment the pointer leaves it, so the
+     drag is finished on the Lua side. */
+  document.getElementById('hdr').addEventListener('mousedown', function () {
+    say({ a: 'drag' });
+  });
+  t.style.fontSize = ']], tostring(opts.font or 15), [[px';
+  /* Sized so the box is exactly as wide as the note wraps. */
+  t.setAttribute('cols', COLS);
+  t.focus();
+  t.setSelectionRange(t.value.length, t.value.length);
+  tally();
+</script>]],
+        })
+    end
+
+    -- ---- dragging the editor by its header --------------------------------
+    -- A WKWebView loses the mouse the moment the pointer leaves it, so the
+    -- page only says "a drag started" and the move is driven from here.
+    -- Same shape as the Capture Pad's and the Quick Append Pad's; there is
+    -- no shared helper to call, and a header wearing a ⠿ grip that did
+    -- nothing would be worse than a header without one.
+    local function mousePosition()
+        local fns = {}
+        if hs.mouse then
+            if type(hs.mouse.absolutePosition) == "function" then
+                fns[#fns + 1] = hs.mouse.absolutePosition
+            end
+            if type(hs.mouse.getAbsolutePosition) == "function" then
+                fns[#fns + 1] = hs.mouse.getAbsolutePosition
+            end
+        end
+        for _, fn in ipairs(fns) do
+            local ok, p = pcall(fn)
+            if ok and type(p) == "table" and p.x and p.y then return p end
+        end
+        return nil
+    end
+
+    local function leftButtonDown()
+        local ok, btns = pcall(hs.eventtap.checkMouseButtons)
+        if not ok or type(btns) ~= "table" then return false end
+        return btns.left == true or btns[1] == true
+    end
+
+    function wp.endDrag()
+        if wp.dragTimer then pcall(function() wp.dragTimer:stop() end) end
+        wp.dragTimer, wp.dragOffset = nil, nil
+    end
+
+    function wp.beginDrag()
+        if not wp.editorView then return false end
+        local okF, f = pcall(function() return wp.editorView:frame() end)
+        if not (okF and type(f) == "table") then return false end
+        local m = mousePosition()
+        if not m then return false end
+        wp.endDrag()                    -- BEFORE the offset: endDrag clears it
+        wp.dragOffset = { x = m.x - f.x, y = m.y - f.y }
+        local okT = pcall(function()
+            wp.dragTimer = hs.timer.doEvery(0.016, function()
+                if not (wp.editorView and wp.dragOffset) then wp.endDrag() return end
+                if not leftButtonDown() then wp.endDrag() return end
+                local p = mousePosition()
+                if not p then wp.endDrag() return end
+                pcall(function()
+                    local cur = wp.editorView:frame()
+                    wp.editorView:frame({ x = p.x - wp.dragOffset.x,
+                                          y = p.y - wp.dragOffset.y,
+                                          w = cur.w, h = cur.h })
+                end)
+            end)
+        end)
+        if not (okT and wp.dragTimer) then wp.endDrag() return false end
+        return true
+    end
+
+    function wp.closeEditor()
+        wp.endDrag()
+        if wp.editorView then
+            pcall(function() wp.editorView:delete() end)
+        end
+        wp.editorView, wp.editorUc, wp.editorFor = nil, nil, nil
+    end
+
+    -- A Mac with no webview must still be able to pin. Smaller box, same
+    -- meaning — wp.applyEdit decides both.
+    local function promptFallback(winId, existing, label)
+        local okDlg, button, input = pcall(hs.dialog.textPrompt,
+            existing and "Edit this window's note" or "Pin a note to this window",
+            "It follows this window only. Clear the box to remove it.",
+            existing or "", "OK", "Cancel")
+        if not okDlg then
+            warn("hs.dialog.textPrompt failed")
+            hs.alert.show("📌 Window Pin: the prompt would not open — see the Console")
+            return false
+        end
+        if button ~= "OK" then return false end
+        return wp.applyEdit(winId, input, label)
+    end
+
+    function wp.openEditor(winId, existing, label)
+        if not (hs.webview and hs.webview.usercontent) then
+            return promptFallback(winId, existing, label)
+        end
+        wp.closeEditor()                       -- never two at once
+
+        -- Opened over the window it belongs to, not the middle of the main
+        -- screen: on three monitors "where did the box go" is a real cost.
+        local rect
+        pcall(function()
+            local win = hs.window.get(winId)
+            local wf  = win and win:frame()
+            local sf  = win and win:screen() and win:screen():frame()
+            local w, h = wp.editorW, wp.editorH
+            if wf then
+                rect = { x = wf.x + (wf.w - w) / 2, y = wf.y + (wf.h - h) / 2,
+                         w = w, h = h }
+            elseif sf then
+                rect = { x = sf.x + (sf.w - w) / 2, y = sf.y + (sf.h - h) / 2,
+                         w = w, h = h }
+            end
+            if rect and _G.clampToScreen then
+                local p = _G.clampToScreen({ x = rect.x, y = rect.y }, w, h)
+                if p then rect.x, rect.y = p.x, p.y end
+            end
+        end)
+        rect = rect or { x = 200, y = 200, w = wp.editorW, h = wp.editorH }
+
+        local okUc, uc = pcall(hs.webview.usercontent.new, "winPin")
+        if not (okUc and uc) then return promptFallback(winId, existing, label) end
+        pcall(function()
+            uc:setCallback(function(msg)
+                local ok, err = pcall(wp.handleMessage, msg and msg.body)
+                if not ok then
+                    print("📌 Window Pin: message handler — " .. tostring(err))
+                end
+            end)
+        end)
+
+        local okV, view = pcall(hs.webview.new, rect, {}, uc)
+        if not (okV and view) then return promptFallback(winId, existing, label) end
+        wp.editorUc, wp.editorView, wp.editorFor = uc, view, { id = winId, label = label }
+
+        pcall(function() view:windowTitle("Window Pin") end)
+        -- allowTextEntry sets canBecomeKeyWindow — without it the box draws
+        -- perfectly and swallows every keystroke.
+        pcall(function() view:allowTextEntry(true) end)
+        pcall(function() view:level(hs.drawing.windowLevels.floating) end)
+        pcall(function()
+            view:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" })
+        end)
+        if wp.nonActivating then
+            -- 🚨 THIS ONE EARNS ITS KEEP HERE. wp.isShowing() hides a note
+            -- unless its app is frontmost, so an editor that dragged
+            -- Hammerspoon forward would pin the note and then hide it —
+            -- which is exactly the "did that work?" this version is fixing.
+            local okNA, why = wp.applyNonActivating(view)
+            if not okNA then
+                print("📌 Window Pin: non-activating panel unavailable — "
+                      .. tostring(why) .. "; the note may not appear until you "
+                      .. "click back into the window.")
+            end
+        end
+        pcall(function()
+            view:html(wp.editorHtml({
+                title    = existing and "Edit this window's note"
+                                    or "Pin a note to this window",
+                sub      = "It follows " .. (label or "this window")
+                           .. " only  ·  empty the box to remove it",
+                text     = existing or "",
+                hasNote  = existing ~= nil and existing ~= "",
+                maxChars = wp.maxChars,
+                cols     = wp.wrapCols(),
+                font     = wp.editorFont,
+                rows     = 8,
+            }))
+        end)
+        pcall(function() view:show() end)
+        pcall(function() view:bringToFront(true) end)
+        say("editor opened for window " .. tostring(winId))
+        return true
+    end
+
+    function wp.handleMessage(body)
+        if type(body) ~= "table" then return end
+        local target = wp.editorFor
+        if body.a == "drag" then pcall(wp.beginDrag) return end
+        if body.a == "cancel" then wp.closeEditor() return end
+        if not target then return end
+        if body.a == "remove" then
+            wp.closeEditor()
+            wp.applyEdit(target.id, "", target.label)
+            return
+        end
+        if body.a == "save" then
+            wp.closeEditor()
+            wp.applyEdit(target.id, body.text, target.label)
+        end
+    end
+
     -- ⇪⇧U. One key, three outcomes — see the header.
     function wp.pin()
         if not wp.enabled then return false end
@@ -357,6 +807,9 @@ function M.setup(core)
             hs.alert.show("📌 Window Pin needs Accessibility — see _G.capabilityReport()", 4)
             return false
         end
+        -- Already open on this key? Treat ⇪⇧U as a toggle rather than
+        -- stacking a second box over the first.
+        if wp.editorView then wp.closeEditor() return true end
         local win
         pcall(function() win = hs.window.focusedWindow() end)
         if not win then
@@ -370,38 +823,18 @@ function M.setup(core)
             return false
         end
 
+        -- 🚨 THE ID AND THE LABEL ARE TAKEN NOW, while the window is still
+        -- the focused one. The editor may take focus (on a Hammerspoon with
+        -- no nonactivating mask), and wp.set is given the id either way, so
+        -- the note can never land on whatever ended up in front instead.
+        local label
+        pcall(function()
+            local t = win:title()
+            label = (t and t ~= "") and t:sub(1, 24)
+                    or (win:application() and win:application():name())
+        end)
         local existing = wp.pins[winId]
-        local okDlg, button, input = pcall(hs.dialog.textPrompt,
-            existing and "Edit this window's note" or "Pin a note to this window",
-            "It follows this window only. Clear the box to remove it. Newlines are fine.",
-            existing and existing.text or "",
-            "OK", "Cancel")
-        if not okDlg then
-            warn("hs.dialog.textPrompt failed")
-            hs.alert.show("📌 Window Pin: the prompt would not open — see the Console")
-            return false
-        end
-        if button ~= "OK" then return false end
-
-        if input == nil or input == "" then
-            if wp.remove(winId, true) then hs.alert.show("📌 Note removed")
-            else hs.alert.show("📌 Nothing to remove on this window") end
-            return true
-        end
-
-        local result = wp.set(input, winId)
-        if result:find("bound to window", 1, true) then
-            local label
-            pcall(function()
-                local t = win:title()
-                label = (t and t ~= "") and t:sub(1, 24)
-                        or (win:application() and win:application():name())
-            end)
-            hs.alert.show("📌 Pinned to " .. (label or "this window"))
-            return true
-        end
-        hs.alert.show(result, 3)
-        return false
+        return wp.openEditor(winId, existing and existing.text or nil, label)
     end
 
     -- Split "no window found" into its two meanings, because they need
