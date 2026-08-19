@@ -4,9 +4,50 @@
 -- =====================================================================
 -- 08-19-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.114.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.115.0
 -- =====================================================================
 
+-- NEW IN 6.115.0 — FOUR THINGS LL ASKED FOR, AND THE FILE THAT WAS
+-- LYING TO HIM:
+--   📅 THE FILE CHANGES CSV LEADS WITH ITS DATE, IN ISO. LL: "On the {X}
+--      file, the date should be first? Can we do that & fix the current
+--      file?" It was the FIFTH column, in a log about when files moved,
+--      and written DD/MM/YY — which Excel on a US locale reads as
+--      MM/DD/YY and imports as TEXT, so sorting it clumps every row
+--      beginning "11/" together regardless of month. That is very
+--      probably the "only shows July 11th" he reported: a sort artefact,
+--      not missing data. Your existing file is migrated in place at the
+--      first boot, and 🚨 THE OLD DATE TEXT IS NEVER PARSED — every row
+--      already carries an epoch, so the new timestamp is rebuilt from a
+--      number that has exactly one meaning. The pre-migration file is
+--      kept beside it.
+--   🚨 THREE FILES SHARED A NAME AND TWO WERE FROZEN. This is what LL
+--      was actually looking at. adoptLegacyFile copied the old file
+--      forward and left the original in place FOREVER, unmarked — so
+--      ~/.hammerspoon/activity_history.csv and <Logs>/activity_history
+--      .csv both sit frozen on upgrade day beside the live machine-
+--      tagged one, and nothing on disk says which is which. The old
+--      comment said "delete it yourself whenever you're confident",
+--      which asks you to be confident about the exact thing the naming
+--      hid. Adopted originals are renamed .superseded now — renamed, not
+--      deleted, and still readable as an adoption source so retiring one
+--      on the home Mac cannot strand the work Mac.
+--   ⏱ HOLD AN ARROW IN THE MOUSE GRID AND IT KEEPS MOVING. LL: "right
+--      now you have to rapidly hit the key to move." Every landed-mode
+--      arrow passed one function, which modal:bind takes as pressedfn
+--      and nothing else — so a 1-point fine nudge meant forty taps.
+--      init.lua's own popup nudge keys have done this correctly since
+--      they were written; the grid never got it.
+--   ✍️ ⇪⇧O EDITS IN A WINDOW, NOT AN ALERT. LL: "Edit OCR is too small —
+--      give me a window like notepad", and "it doesn't come to the front
+--      for an immediately editable window, I have to click on it." It
+--      was hs.dialog.textPrompt: a fixed one-LINE field that cannot
+--      scroll and cannot take a Return, wrapped around text that is
+--      multi-line by nature. Now the Capture Pad's window, focused on
+--      open, ⌘⏎ to save, Esc to cancel, with a Delete button so the
+--      empty-to-delete rule is visible instead of remembered. A Mac
+--      without hs.webview still gets the small prompt.
+--
 -- NEW IN 6.114.0 — EVERY SHORTCUT WORKS WITH NO EXTERNAL KEYBOARD:
 --   LL: "Sometimes I will not have an external keyboard on my work
 --   MacBook... how do I handle shortcut keys when I don't have one?"
@@ -122,28 +163,8 @@
 --   a stale index would put you confidently in the wrong place.
 --   cheatSheet.rememberScroll = false goes back to always-from-the-top.
 --
--- NEW IN 6.110.0 — DOC KEYWORDS STOPS SHOUTING:
---   The other half of what LL's Console log showed. The four LuaSkin
---   errors of 6.109.0 were buried in SEVERAL HUNDRED 🏷 Doc Keywords
---   lines — a first OneDrive sync, tagged one console line at a time
---   between 04:58 and 05:13. The module treated a sync exactly like a
---   save, so hundreds of files each started their own unzip the instant
---   they settled, each started its own osascript, and each said so.
---   A settled batch is a RUN now, bounded twice: 🚨 THREE FILES ARE
---   READ AT A TIME and the rest wait in a queue, so a thousand-file
---   sync costs time instead of a thousand child processes on a work
---   Mac — and a run bigger than three reports ONE total when it
---   finishes instead of a line per file. Nothing is dropped and nothing
---   is hidden: every file is still tagged, still recorded, and still
---   listed by _G.docKeywordsReport(). Saving one document still names
---   it, _G.tagDoc() always names the file you asked for even mid-run,
---   and a Mac that refuses every write now says so once instead of
---   three hundred times.
---   The Console is where errors are supposed to be visible. A module
---   that fills it with routine success is hiding them.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.114.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.115.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -442,7 +463,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.114.0"
+_G.configVersion = "6.115.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -688,19 +709,110 @@ pcall(function() hs.fs.mkdir(logsDir) end)
 
 -- One-time adoption: if this machine's new-location file doesn't exist
 -- yet but the old one does, copy its contents in — so nothing already
--- recorded is ever lost by a path change. The legacy file is left in
--- place untouched (delete it yourself whenever you're confident).
+-- recorded is ever lost by a path change.
+--
+-- 🚨 6.115.0 — AND THE ORIGINAL IS RENAMED, WHICH IT NEVER USED TO BE.
+-- The old comment here said the legacy file was "left in place untouched
+-- (delete it yourself whenever you're confident)", and that sentence was
+-- the bug. What it actually produced was three files with nearly the same
+-- name, only one of them live, and NOTHING ON DISK saying which:
+--
+--     ~/.hammerspoon/activity_history.csv        frozen on upgrade day
+--     <Logs>/activity_history.csv                frozen on upgrade day
+--     <Logs>/activity_history-<Mac>.csv          the live one
+--
+-- LL opened one of the first two and reported his history had stopped
+-- months ago. It had not; he was reading a snapshot, and the config had
+-- given him no way to tell. "Delete it yourself whenever you're
+-- confident" asks the user to be confident about precisely the thing the
+-- naming has hidden from them.
+--
+-- So an adopted original is renamed to <name>.superseded. Renamed, not
+-- deleted — this config does not destroy your data to tidy up — but
+-- renamed to something Excel will not open on a double-click and no
+-- human will mistake for live.
+--
+-- 🔗 AND A RETIRED FILE IS STILL A VALID ADOPTION SOURCE. This matters
+-- because <Logs> is inside OneDrive and therefore SHARED BY BOTH MACS.
+-- Retiring on the home Mac would otherwise pull the adoption source out
+-- from under the work Mac's first boot, which is exactly the two-machine
+-- regression this config exists to avoid. Reading .superseded as a
+-- fallback source costs four lines and makes retirement lossless.
 local function adoptLegacyFile(newPath, legacyPath)
-    local nf = io.open(newPath, "r")
-    if nf then nf:close(); return end
-    local lf = io.open(legacyPath, "r")
-    if not lf then return end
-    local content = lf:read("*a"); lf:close()
-    local out = io.open(newPath, "w")
-    if out then
-        out:write(content); out:close()
-        print("📦 Adopted legacy " .. legacyPath .. " → " .. newPath)
+    -- Nested rather than a sibling local ON PURPOSE: the main chunk is at
+    -- Lua's hard ceiling of 200 locals, and one more at this level fails
+    -- to compile outright. Same reason _G.hyperBindStub is a global.
+    local function retire(path)
+        local check = io.open(path, "r")
+        if not check then return end
+        check:close()
+        local retired = path .. ".superseded"
+        -- Never clobber an earlier retirement — that would destroy the one
+        -- copy of something, which is the opposite of the point.
+        local n = 0
+        while true do
+            local taken = io.open(retired, "r")
+            if not taken then break end
+            taken:close()                      -- close it: this loop can run
+            n = n + 1                          -- more than once
+            if n > 50 then return end          -- give up quietly, keep both
+            retired = path .. ".superseded-" .. n
+        end
+        if os.rename(path, retired) then
+            print("📦 Retired superseded " .. path .. " → " .. retired
+                  .. "  (live file: " .. newPath .. ")")
+        else
+            print("⚠️ Could not rename superseded " .. path
+                  .. " — it is NOT the live file; the live one is " .. newPath)
+        end
     end
+
+    local nf = io.open(newPath, "r")
+    if nf then
+        nf:close()
+        -- THE PATH THAT FIXES MACHINES THAT ALREADY ADOPTED. Adoption
+        -- happened releases ago on both of LL's Macs, so a fix that only
+        -- ran on a fresh adoption would have fixed nobody. Every boot from
+        -- here on retires whatever stale twin is still lying around, and
+        -- once it is renamed this is a single failed io.open forever after.
+        retire(legacyPath)
+        return
+    end
+
+    local source = legacyPath
+    local lf = io.open(source, "r")
+    if not lf then
+        source = legacyPath .. ".superseded"   -- retired by the other Mac
+        lf = io.open(source, "r")
+        if not lf then return end
+    end
+    local content = lf:read("*a"); lf:close()
+
+    local out = io.open(newPath, "w")
+    if not out then
+        print("⚠️ Could not adopt legacy " .. source .. " → " .. newPath
+              .. " (is the OneDrive Logs folder available?)")
+        return
+    end
+    out:write(content); out:close()
+
+    -- 🚨 VERIFY BEFORE RETIRING, and in this order. io.write returning
+    -- without error is not proof the bytes landed — a full disk or an
+    -- online-only OneDrive folder can take the write and lose it. Renaming
+    -- the original on that assumption would leave the only good copy under
+    -- a name nothing reads. Read the new file back and compare it to what
+    -- we meant to write; retire only on a match.
+    local back = io.open(newPath, "r")
+    local written = back and back:read("*a") or nil
+    if back then back:close() end
+    if written ~= content then
+        print("⚠️ Adopted " .. source .. " → " .. newPath
+              .. " but it did not read back intact — keeping the original")
+        return
+    end
+
+    print("📦 Adopted legacy " .. source .. " → " .. newPath)
+    if source == legacyPath then retire(legacyPath) end
 end
 
 -- WRITE-FAILURE WARNINGS: every data file now lives in the OneDrive

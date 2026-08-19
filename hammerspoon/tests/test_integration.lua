@@ -1330,6 +1330,141 @@ do
        src:find("if #bad == 0 then return end") ~= nil)
 end
 
+-- =====================================================================
+out("\n=== 9. LEGACY ADOPTION — the stale twin must be renamed (6.115.0) ===\n")
+-- =====================================================================
+-- 📦 THE BUG THIS SECTION EXISTS FOR. adoptLegacyFile copied the old file
+-- forward and left the original sitting there under a nearly identical
+-- name, forever, with nothing marking it dead. LL ended up with
+--
+--     ~/.hammerspoon/activity_history.csv     ← frozen on upgrade day
+--     <Logs>/activity_history.csv             ← frozen on upgrade day
+--     <Logs>/activity_history-<Mac>.csv       ← the only live one
+--
+-- opened one of the frozen ones, and reported that his history had
+-- stopped months earlier. Nothing was broken; he was reading a snapshot.
+--
+-- 🚨 AND THIS RUNS THE REAL FUNCTION, not a copy of it. The whole class
+-- of bug here is "the shipped code does one thing and the test believes
+-- another", so the function is EXTRACTED FROM init.lua's source and
+-- loaded. A hand-copied reimplementation in this file would have passed
+-- against the broken original just as happily.
+do
+    local f = io.open(HS .. "/init.lua", "r")
+    local src = f and f:read("*a") or "" ; if f then f:close() end
+    local block = src:match("(local function adoptLegacyFile.-\nend)\n\n%-%- WRITE%-FAILURE")
+    check("adoptLegacyFile was found in init.lua and extracted whole",
+          block ~= nil and #(block or "") > 400, block and #block or 0)
+
+    local adopt = nil
+    if block then
+        local chunk = load(block .. "\nreturn adoptLegacyFile")
+        if chunk then adopt = chunk() end
+    end
+    check("...and it loads as Lua", type(adopt) == "function")
+
+    local DIR = (os.getenv("TMPDIR") or "/tmp"):gsub("/$", "")
+                .. "/hs-adopt-" .. tostring(os.time()) .. "-" .. tostring(math.random(9999))
+    os.execute("mkdir -p '" .. DIR .. "'")
+    local function put(name, body)
+        local h = io.open(DIR .. "/" .. name, "w")
+        if h then h:write(body); h:close() end
+    end
+    local function get(name)
+        local h = io.open(DIR .. "/" .. name, "r")
+        if not h then return nil end
+        local s = h:read("*a"); h:close(); return s
+    end
+    local function gone(name) return get(name) == nil end
+
+    if adopt then
+        -- 1. THE CASE ON LL'S TWO MACS RIGHT NOW: adoption already
+        -- happened releases ago, so the new file exists and the old one is
+        -- still lying beside it. A fix that only ran on a FRESH adoption
+        -- would have fixed nobody — every machine that has the problem is
+        -- already past that branch.
+        put("live-A.csv",   "new,rows\n1,2\n")
+        put("legacy-A.csv", "old,rows\n9,9\n")
+        adopt(DIR .. "/live-A.csv", DIR .. "/legacy-A.csv")
+        check("🚨 an ALREADY-ADOPTED machine still gets its stale twin "
+              .. "renamed — this is the branch every affected Mac takes",
+              gone("legacy-A.csv") and get("legacy-A.csv.superseded") == "old,rows\n9,9\n")
+        check("...and the LIVE file is not touched while that happens",
+              get("live-A.csv") == "new,rows\n1,2\n")
+
+        -- 2. A genuinely fresh adoption still copies, and now also retires.
+        put("legacy-B.csv", "carried,forward\n")
+        adopt(DIR .. "/live-B.csv", DIR .. "/legacy-B.csv")
+        check("a fresh adoption copies the contents across",
+              get("live-B.csv") == "carried,forward\n")
+        check("...and retires the original in the same pass",
+              gone("legacy-B.csv") and get("legacy-B.csv.superseded") == "carried,forward\n")
+
+        -- 3. 🔗 THE TWO-MACHINE RULE, and the reason retirement renames
+        -- instead of deleting. <Logs> lives in OneDrive and is SHARED. If
+        -- the home Mac retired the shared legacy file and the work Mac had
+        -- not booted yet, the work Mac's adoption source would have
+        -- vanished — this fix would have caused precisely the kind of
+        -- cross-machine data loss it was written to prevent.
+        put("legacy-C.csv.superseded", "retired,by,the,other,mac\n")
+        adopt(DIR .. "/live-C.csv", DIR .. "/legacy-C.csv")
+        check("🚨 a RETIRED file is still a valid adoption source — the "
+              .. "second Mac must not lose its history because the first "
+              .. "Mac tidied up",
+              get("live-C.csv") == "retired,by,the,other,mac\n")
+        check("...and adopting FROM a retired file does not re-retire it, "
+              .. "so a third machine can still find it",
+              get("legacy-C.csv.superseded") == "retired,by,the,other,mac\n")
+
+        -- 4. Retiring twice must never overwrite the first retirement —
+        -- that would destroy the only copy of something to tidy up.
+        put("live-D.csv",             "live\n")
+        put("legacy-D.csv",           "second\n")
+        put("legacy-D.csv.superseded", "first\n")
+        adopt(DIR .. "/live-D.csv", DIR .. "/legacy-D.csv")
+        check("🚨 an existing .superseded is never clobbered",
+              get("legacy-D.csv.superseded") == "first\n"
+              and get("legacy-D.csv.superseded-1") == "second\n")
+
+        -- 5. A write that cannot land must NOT retire the original. The
+        -- destination here is inside a directory that does not exist, so
+        -- io.open(w) fails outright — the same shape as an offline
+        -- OneDrive folder, which is the realistic version of this.
+        put("legacy-E.csv", "must,survive\n")
+        adopt(DIR .. "/no-such-dir/live-E.csv", DIR .. "/legacy-E.csv")
+        check("🚨 a FAILED adoption keeps the original — retiring a file "
+              .. "whose copy never landed would destroy the only copy",
+              get("legacy-E.csv") == "must,survive\n"
+              and gone("legacy-E.csv.superseded"))
+
+        -- 6. Nothing to do at all is silent and harmless.
+        local before = #printed
+        adopt(DIR .. "/live-F.csv", DIR .. "/legacy-F.csv")
+        check("no legacy file and no live file is a quiet no-op",
+              gone("live-F.csv") and #printed == before)
+
+        check("the retirement is announced, naming the live file so the "
+              .. "Console says which one to actually open", (function()
+            local sawRetire, sawLive = false, false
+            for _, line in ipairs(printed) do
+                if line:find("Retired superseded", 1, true) then sawRetire = true end
+                if line:find("live file:", 1, true)         then sawLive   = true end
+            end
+            return sawRetire and sawLive
+        end)())
+    end
+
+    -- The read-back check cannot be provoked with real files — a write
+    -- that reports success and loses the bytes needs an offline OneDrive
+    -- folder, not a temp directory. Pinned by source instead, because the
+    -- ORDER is the whole protection: verify, then retire.
+    check("🚨 the copy is read back and compared BEFORE the original is "
+          .. "retired — io.write returning is not proof the bytes landed",
+          block ~= nil and block:find("written ~= content") ~= nil)
+
+    os.execute("rm -rf '" .. DIR .. "'")
+end
+
 realPrint(table.concat(printed, "\n"))
 out("\n")
 if fail > 0 then

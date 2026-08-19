@@ -193,10 +193,16 @@ FILES["/logs/doc_wather.csv"] =
     "Date,Time of day,File name,Working time\n"
     .. '2026-08-14,09:12,"Report.docx",1h 05m\n'
     .. '2026-08-15,10:00,"notes.md",12m\n'
+-- 📅 6.115.0 — DELIBERATELY MIXED. The file tracker's CSV moved its date
+-- to the first column, and this reader gets only the TAIL of the file
+-- (256 KB), so it can never see a header to tell it which layout it is
+-- holding. Row one is the new layout, row two is the pre-6.115.0 one, and
+-- both must come out right — a real file genuinely contains both when the
+-- upgrade lands mid-session.
 FILES["/logs/file_changes-TestMac.csv"] =
-    "File Name,New Name,Present Location,Moved Location,Timestamp,Event\n"
-    .. '"old.txt","new.txt","/a","/b","2026-08-15 11:00","renamed"\n'
-    .. '"solo.png","","/c","","2026-08-15 12:00","created"\n'
+    "timestamp,file_name,new_name,present_location,moved_location,event,epoch\n"
+    .. '"2026-08-15 11:00","old.txt","new.txt","/a","/b","renamed",1000\n'
+    .. '"solo.png","","/c","","2026-08-15 12:00","created",1001\n'
 _G.capturePad = {
     queue  = { { text = "queued pad note", createdAt = 300 } },
     parked = { { text = "parked pad note", createdAt = 200 } },
@@ -298,6 +304,41 @@ check("clipboard rows keep their FULL text for ⏎",
       byTag.clip[3].full:len())
 check("commands arrive through the ⇪H service",
       byTag.cmd[1].text == "git status" and byTag.cmd[2].full == "grep receipt log.txt")
+-- 📅 6.115.0 — BOTH CSV LAYOUTS, READ FROM THE SAME FILE.
+-- Getting this wrong does not raise: every field is a string, so a
+-- 6.114.0 row read with 6.115.0 indices lists the folder as the file's
+-- name and the word "renamed" as its date. Wrong, plausible, and silent
+-- — which is exactly the kind of thing that needs asserting by value.
+do
+    local function fileRow(name)
+        for _, r in ipairs(byTag.file or {}) do
+            if (r.text or ""):find(name, 1, true) then return r end
+        end
+        return nil
+    end
+    local newRow, oldRow = fileRow("old.txt"), fileRow("solo.png")
+
+    check("a NEW-layout row (date first) is read correctly",
+          newRow ~= nil and newRow.text == "old.txt → new.txt"
+          and newRow.path == "/b/new.txt",
+          newRow and newRow.text)
+    check("…with its event and date on the sub line, in that order",
+          newRow ~= nil and newRow.sub == "renamed · 2026-08-15 11:00",
+          newRow and newRow.sub)
+    check("🚨 an OLD-layout row in the SAME file is still read correctly — "
+          .. "this reader only ever sees the tail of the file, so it can "
+          .. "never check a header to find out which layout it holds",
+          oldRow ~= nil and oldRow.text == "solo.png"
+          and oldRow.path == "/c/solo.png",
+          oldRow and oldRow.text)
+    check("🚨 …and its DATE is the date, not the word 'created' — reading "
+          .. "an old row with new indices produces exactly that, without "
+          .. "raising",
+          oldRow ~= nil and oldRow.sub == "created · 2026-08-15 12:00",
+          oldRow and oldRow.sub)
+    check("neither CSV header row became a search result",
+          fileRow("file_name") == nil and fileRow("File Name") == nil)
+end
 check("screenshots carry kind=image, a path and a thumbnail",
       byTag.shots[1].kind == "image"
       and byTag.shots[1].path == "/od/shots/Screenshot A.png"
@@ -323,12 +364,14 @@ check("OCR rows un-escape the CSV (quotes and newlines), newest first",
 check("documents newest first, worked time in the sub line",
       byTag.doc[1].text == "notes.md"
       and (byTag.doc[1].sub or ""):find("worked 12m") ~= nil, byTag.doc[1].sub)
-check("a rename reads old → new and points at the NEW path",
-      byTag.file[2].text == "old.txt → new.txt"
-      and byTag.file[2].path == "/b/new.txt", byTag.file[2].path)
-check("…a created file resolves its path too, newest event first",
-      byTag.file[1].path == "/c/solo.png"
-      and (byTag.file[1].sub or ""):find("created") ~= nil)
+-- (The rename / created rows these two checks used to assert by INDEX are
+--  now asserted by name in section 2, alongside the layout they arrived
+--  in. Indexing byTag.file[2] CRASHED the whole suite the moment a reader
+--  change dropped a row, which reports a bug as "attempt to index a nil
+--  value" three hundred lines away from the cause.)
+check("…and the two file rows are the only ones — a reader that accepted "
+      .. "a CSV header row would silently add a third",
+      #(byTag.file or {}) == 2, #(byTag.file or {}))
 check("the CSV header rows were never mistaken for data",
       #byTag.doc == 2 and #byTag.file == 2)
 check("pad queue AND parked notes are searchable",

@@ -112,14 +112,25 @@ end
 -- The modal stub is the important one: it records bindings by chord so a
 -- test can PRESS a key, and tracks entered/exited so the invariant is
 -- observable rather than assumed.
+--
+-- ⏱ 6.115.0 — IT RECORDS THE REPEAT FUNCTION SEPARATELY, and it has to.
+-- A stub that swallowed every argument after `fn` would have reported the
+-- arrows as bound and correct all the way through 6.114.0, which is
+-- exactly what happened: "all four arrows nudge, coarse and fine" passed
+-- for releases while holding an arrow did nothing at all. The stub could
+-- not see the difference because it never looked at the slot the
+-- difference lives in.
 local MODALS = {}
 local function mkModal()
-    local m = { binds = {}, entered = false }
-    function m:bind(mods, key, fn)
+    local m = { binds = {}, repeats = {}, released = {}, entered = false }
+    function m:bind(mods, key, fn, releasedFn, repeatFn)
         local ms = {}
         for _, x in ipairs(mods or {}) do ms[#ms + 1] = x end
         table.sort(ms)
-        self.binds[table.concat(ms, "+") .. "|" .. tostring(key)] = fn
+        local chord = table.concat(ms, "+") .. "|" .. tostring(key)
+        self.binds[chord]    = fn
+        self.released[chord] = releasedFn
+        self.repeats[chord]  = repeatFn
         return self
     end
     function m:enter() self.entered = true;  return self end
@@ -358,6 +369,59 @@ check("all four arrows nudge, coarse and fine", (function()
     end
     return true
 end)())
+
+-- ⏱ 6.115.0 — HOLDING AN ARROW MUST KEEP MOVING THE POINTER.
+-- The check above says the arrows are BOUND. It said so while holding one
+-- did nothing, because "bound" and "repeats while held" are two different
+-- facts and only one of them was ever asserted. This is the other one.
+check("🚨 every arrow REPEATS while held — a bound arrow that only fires "
+      .. "once means tapping forty times to move forty points", (function()
+    for _, k in ipairs({ "up", "down", "left", "right" }) do
+        if grid.landModal.repeats["|" .. k] == nil then return false, k end
+        if grid.landModal.repeats["shift|" .. k] == nil then return false, "shift " .. k end
+    end
+    return true
+end)())
+check("...and the repeat is the SAME move as the press — a repeat wired to "
+      .. "the other step size would drift under your hand", (function()
+    for _, k in ipairs({ "up", "down", "left", "right" }) do
+        if grid.landModal.repeats["|" .. k] ~= grid.landModal.binds["|" .. k] then
+            return false, k
+        end
+        if grid.landModal.repeats["shift|" .. k] ~= grid.landModal.binds["shift|" .. k] then
+            return false, "shift " .. k
+        end
+    end
+    return true
+end)())
+-- 🚨 THE ARGUMENT-ORDER TRAP, asserted directly. modal:bind's signature is
+-- (mods, key, message, pressedfn, releasedfn, repeatfn) and it only shifts
+-- when the 3rd argument is a function — so the natural-looking
+-- bind(mods, key, fn, fn) puts the second fn in RELEASEDFN. That nudges
+-- again when you LET GO and still never repeats: a bug that looks like
+-- "the pointer overshoots by one step" and would survive both checks
+-- above. Nothing here wants a released handler, so requiring it to be
+-- absent pins the argument order in place.
+check("🚨 no arrow fires on RELEASE — that slot being filled means the "
+      .. "repeat function landed one argument short", (function()
+    for _, k in ipairs({ "up", "down", "left", "right" }) do
+        if grid.landModal.released["|" .. k] ~= nil then return false, k end
+        if grid.landModal.released["shift|" .. k] ~= nil then return false, "shift " .. k end
+    end
+    return true
+end)())
+-- Clicking is NOT a repeating action, and this is the line that says so.
+-- A hold-to-repeat pass that swept every landed binding would turn a held
+-- space into a click storm on whatever you just landed on.
+check("clicks do NOT repeat — space, return and 2 fire once per press",
+      grid.landModal.repeats["|space"] == nil
+      and grid.landModal.repeats["|return"] == nil
+      and grid.landModal.repeats["|2"] == nil
+      and grid.landModal.repeats["shift|space"] == nil)
+check("...and neither does escape — a held Esc must close once, not fight "
+      .. "whatever opens next", grid.landModal.repeats["|escape"] == nil
+      and grid.pickModal.repeats["|escape"] == nil)
+
 check("⌘Q is NOT claimed by either modal — an overlay you can always quit "
       .. "out of cannot lock you out",
       grid.pickModal.binds["cmd|q"] == nil and grid.landModal.binds["cmd|q"] == nil)

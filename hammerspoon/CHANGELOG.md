@@ -4,6 +4,200 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.115.0 — FOUR THINGS LL ASKED FOR, AND THE FILE THAT WAS LYING
+TO HIM:
+
+  📅 THE FILE CHANGES CSV LEADS WITH ITS DATE, IN ISO 8601.
+  LL: "On the {X} file, the date should be first? Can we do that & fix
+  the current file?" — attaching a screenshot of
+  file_changes-Lees-MacBook-Air.csv.
+
+  Both halves of that were a real defect rather than a preference.
+  The timestamp was the FIFTH column, in a log whose entire purpose is
+  when-did-this-file-move: four columns of names and paths to scroll
+  past before reaching the one fact you opened it for. And it was
+  written DD/MM/YY HH:MM, which Excel on a US locale reads as MM/DD/YY
+  — "11/07/26" is the 11th of July here and November 7th there, and
+  nothing in the file says which. Worse, Excel imports that column as
+  TEXT, so sorting it sorts alphabetically and every row beginning
+  "11/" clumps together regardless of month or year.
+
+  🔍 THAT IS PROBABLY THE "ONLY SHOWS JULY 11TH" REPORT. Not missing
+  data — a sort artefact of an ambiguous format. (See the frozen-file
+  entry below for the other half of the answer.)
+
+  The columns are now
+      timestamp,file_name,new_name,present_location,moved_location,event,epoch
+  with an ISO 8601 timestamp: unambiguous to a human, unambiguous to
+  Excel, and correct when sorted as plain text. Only the timestamp
+  moved; everything else kept its order, so a spreadsheet built on this
+  file needs one column re-pointed, not six.
+
+  🔧 YOUR EXISTING FILE IS MIGRATED IN PLACE at the first boot on this
+  version, and 🚨 THE OLD DATE TEXT IS NEVER PARSED. Every row already
+  carries an `epoch` column, so the new timestamp is REGENERATED from
+  that number. There is no day/month ambiguity to get wrong because the
+  ambiguous field is discarded rather than interpreted — a migration
+  that "helpfully" read 11/07/26 would silently move a third of the
+  history to the wrong month and look perfectly plausible doing it. A
+  test feeds in rows whose text says 1999 while their epoch says 2026
+  and insists the epoch wins.
+
+  The pre-migration file is kept as file_changes-<Mac>.csv.before-iso-dates.
+  The migration is lossless by construction, but that is a claim about
+  the code, not about the disk it just ran on.
+
+  DETECTION IS PER ROW, NOT PER FILE. This CSV is appended to by a
+  long-running process, so upgrading mid-session leaves 6.114.0 rows
+  above and 6.115.0 rows below. A loader that read the header once and
+  trusted it for the whole file would mis-read half of them — silently,
+  since every field is a string and none of them would raise. ⇪space's
+  file-move source has the same mapper for the same reason, and cannot
+  even see a header: it reads only the last 256 KB of the file.
+
+  🚨 THREE FILES SHARED A NAME AND TWO OF THEM WERE FROZEN.
+  This is the other half of the "only July 11th" answer, and LL could
+  not have found it: adoptLegacyFile copied the old file forward when
+  the logs moved into OneDrive and left the original in place FOREVER,
+  under a nearly identical name, with nothing marking it dead:
+
+      ~/.hammerspoon/activity_history.csv     frozen on upgrade day
+      <Logs>/activity_history.csv             frozen on upgrade day
+      <Logs>/activity_history-<Mac>.csv       the only live one
+
+  Open either of the first two and you are reading a snapshot. The old
+  comment in init.lua said the legacy file was "left in place untouched
+  (delete it yourself whenever you're confident)" — which asks you to be
+  confident about precisely the thing the naming has hidden. The same
+  pattern applied to file_changes.csv, custom_shortcuts.json,
+  autocorrect.csv, image_text.csv, the clipboard store and
+  asana_history.json: seven adoptions, seven stale twins.
+
+  An adopted original is now RENAMED to <name>.superseded. Renamed, not
+  deleted — this config does not destroy your data to tidy up — but
+  renamed to something Excel will not open on a double-click and no
+  human will mistake for live.
+
+  🔗 AND A RETIRED FILE IS STILL A VALID ADOPTION SOURCE, which matters
+  because <Logs> is inside OneDrive and therefore SHARED BY BOTH MACS.
+  Retiring on the home Mac would otherwise pull the adoption source out
+  from under the work Mac's first boot — the exact two-machine data loss
+  this fix exists to prevent. Reading .superseded as a fallback costs
+  four lines and makes retirement lossless.
+
+  🚨 AND IT RETIRES ON EVERY BOOT, not only on a fresh adoption. Both of
+  LL's Macs adopted these files releases ago, so a fix that only ran in
+  the adoption branch would have fixed nobody — every machine that has
+  the problem is already past it. Once renamed it is one failed io.open
+  forever after.
+
+  The copy is also READ BACK AND COMPARED before the original is
+  retired. io.write returning without error is not proof the bytes
+  landed: a full disk or an online-only OneDrive folder can take the
+  write and lose it, and renaming the original on that assumption would
+  leave the only good copy under a name nothing reads.
+
+  ⏱ HOLD AN ARROW IN THE MOUSE GRID AND IT KEEPS MOVING.
+  LL: "Can you make it so that hyper+X allows the arrows to be pressed
+  and held down? Right now you have to rapidly hit the key to move."
+
+  The cause was the shape of the call, not the nudge. Every landed-mode
+  arrow was bound with one function, which hs.hotkey.modal:bind takes as
+  pressedfn and nothing else — so one keypress was one nudge forever,
+  and the 1-point fine nudge meant forty taps to cross an icon. Passing
+  the same function as both pressedfn and repeatfn is the fix, and it is
+  not a new idea here: init.lua's popup nudge keys (bindNudge, §1.5)
+  have done exactly this since they were written, with a comment
+  explaining that a tap nudges once and a hold repeats at the OS rate.
+  The mouse grid simply never got it.
+
+  🚨 THE ARGUMENT LIST IS LOAD-BEARING: (mods, key, fn, nil, fn).
+  modal:bind's signature is (mods, key, message, pressedfn, releasedfn,
+  repeatfn) and it only shifts those along when the third argument is a
+  function — so the natural-looking bind(mods, key, fn, fn) lands the
+  second fn in RELEASEDFN, which fires the nudge again when you let go
+  and still never repeats. There is a check for that specific mistake,
+  because it presents as "the pointer overshoots by one step" rather
+  than as a repeat bug. Clicks are asserted NOT to repeat: a held space
+  turning into a click storm on whatever you just landed on would be a
+  worse bug than the one being fixed.
+
+  WHY NO SUITE CAUGHT IT: the modal stub recorded bindings as
+  bind(mods, key, fn) and swallowed every argument after the third. "All
+  four arrows nudge, coarse and fine" passed for releases while holding
+  an arrow did nothing, because the stub could not see the slot the
+  difference lives in.
+
+  ✍️ ⇪⇧O EDITS IN A WINDOW, NOT AN ALERT.
+  LL: "Edit OCR is too small — give me a window like notepad", with a
+  screenshot of one line of "All Snippets" in a box that could not show
+  the rest. And separately: "it doesn't come to the front for an
+  immediately editable window, I have to click on it."
+
+  It was hs.dialog.textPrompt — a fixed-size NSAlert wrapped around a
+  ONE-LINE NSTextField. It cannot be resized, it cannot scroll, and
+  Return presses the default button instead of inserting a newline,
+  while the thing being edited is OCR output, which is multi-line by
+  definition. A page of scanned text went into a control that could show
+  about 25 characters of it. win_pin hit exactly this in 6.112.0 and got
+  the Capture Pad's window; this is that window, sized for a page:
+  760×520, sixteen rows, monospace, a character and line count, ⌘⏎ to
+  save, Esc to cancel, draggable by its header, and listed for ⇪⇧W like
+  every other panel.
+
+  🎯 IT TAKES FOCUS ON OPEN — allowTextEntry(true) plus bringToFront,
+  the same pair the Quick Append Pad uses. That is the "I have to click
+  on it" report, and it is two calls. It activates deliberately, unlike
+  Window Pin's editor, which must not pull Hammerspoon forward because
+  it hides its note when the app loses focus; this box has no such rule
+  and one job.
+
+  THERE IS A DELETE BUTTON NOW. "Save it empty to delete this entry" is
+  a fine rule and a terrible thing to have to discover from a sentence
+  you did not read. Emptying the box still deletes — the rule did not
+  change, it just stopped being the only way.
+
+  🚨 AND ⇪⇧O NOW CLOSES AN OPEN EDITOR FIRST, which the modal alert
+  never needed to. ocr.edit() re-reads the CSV into a fresh snapshot,
+  and a box left open from a previous press still holds an INDEX into
+  the old one — saving it would overwrite whichever entry now happens to
+  sit at that position. Reachable simply by pressing ⇪⇧O twice.
+
+  A Mac without hs.webview still gets the small prompt, pre-filled, with
+  the same delete-on-empty rule: the managed work Mac is where webview
+  is most likely to be missing, and a rewrite that turned ⇪⇧O into a
+  dead key there would be a worse outcome than the small box ever was.
+  The fallback is tested as hard as the window.
+
+  ── WHAT BREAKS IF YOU UNDO ANY OF IT ──────────────────────────────
+  the fix removed                            the check that fails
+  ──────────────────────────────────────────────────────────────────
+  arrows bound with one fn again             every arrow REPEATS while held
+  bind(mods, key, fn, fn) instead            no arrow fires on RELEASE
+  repeat swept onto clicks too               clicks do NOT repeat
+  adoptLegacyFile leaves the original        an ALREADY-ADOPTED machine
+                                             still gets its twin renamed
+  .superseded not read as a source           a RETIRED file is still a
+                                             valid adoption source
+  retire before the read-back                the copy is read back and
+                                             compared BEFORE retiring
+  migration parses the DD/MM/YY text         a row whose old text says
+                                             1999 migrates to its EPOCH
+  layout decided once from the header        the old row beneath it is
+                                             converted, not mis-read
+  ⇪space keeps the old column indices        an OLD-layout row in the
+                                             SAME file is read correctly
+  no bringToFront on the OCR editor          it comes to the FRONT on open
+  no allowTextEntry                          the box takes keystrokes
+  ⇪⇧O leaves the old editor open             pressing ⇪⇧O again CLOSES it
+  editor text not HTML-escaped               the text is HTML-ESCAPED
+  ──────────────────────────────────────────────────────────────────
+
+  Counts: test_mouse_grid 290 → 296 · test_ocr_tag 21 → 51 ·
+  test_integration 147 → 160 · test_unified 81 → 85 · a new
+  test_file_tracker at 35. 46 → 47 stages. Hostile: 46 modules, 0 that
+  did not degrade. Lint: 0 error, 1 pre-existing warning.
+
 NEW IN 6.114.0 — EVERY SHORTCUT WORKS WITH NO EXTERNAL KEYBOARD, AND
 FOUR THINGS THAT WERE ALREADY WRONG:
   LL: "Sometimes I will not have an external keyboard on my work

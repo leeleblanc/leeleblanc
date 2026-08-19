@@ -373,21 +373,47 @@ function M.setup(core)
         local content = tailRead((core.logsDir or "") .. "/file_changes-"
                                  .. tostring(core.hostTag) .. ".csv", 256 * 1024)
         if not content then return end
+        -- 📅 6.115.0 — TWO LAYOUTS, TOLD APART PER ROW.
+        --   6.115.0+ : timestamp,file_name,new_name,present,moved,event,epoch
+        --   earlier  : file_name,new_name,present,moved,timestamp,event,epoch
+        --
+        -- 🚨 IT CANNOT READ THE HEADER TO DECIDE, and that is not laziness:
+        -- tailRead deliberately reads only the LAST 256 KB of the file, so
+        -- on any history worth searching the header is not in what we were
+        -- handed. Sniffing the first field is the only thing available —
+        -- and it is exact, because an ISO date in column one is a shape a
+        -- file name cannot accidentally take while ALSO leaving an integer
+        -- epoch in column seven.
+        --
+        -- Reading a 6.114.0 row with 6.115.0 indices would not error. It
+        -- would list the file's OLD FOLDER as its name and the word
+        -- "Renamed" as its date — wrong, plausible-looking, and silent.
+        -- That is the whole reason this is a mapper and not a re-index.
+        local function ftFields(c)
+            if (c[1] or ""):match("^%d%d%d%d%-%d%d%-%d%d") then
+                return { when = c[1], name = c[2] or "", newName = c[3] or "",
+                         present = c[4] or "", moved = c[5] or "", event = c[6] or "" }
+            end
+            return { when = c[5] or "", name = c[1] or "", newName = c[2] or "",
+                     present = c[3] or "", moved = c[4] or "", event = c[6] or "" }
+        end
+
         local collected = {}
         for line in content:gmatch("[^\r\n]+") do
             local c = csvSplit(line)
-            -- fileName,newName,presentLoc,movedLoc,timestamp,event — the
-            -- header row and any half-written line fail this shape check.
-            if c[6] and c[6] ~= "" and c[1] and c[1] ~= ""
-               and c[5] and c[5]:match("%d") then
-                collected[#collected + 1] = c
+            -- Either header row and any half-written line fail this shape
+            -- check: an event, a name, and a date carrying at least one
+            -- digit, wherever those three currently live.
+            local r = ftFields(c)
+            if r.event ~= "" and r.name ~= "" and r.when:match("%d") then
+                collected[#collected + 1] = r
             end
         end
         local added = 0
         for i = #collected, 1, -1 do
-            local c = collected[i]
-            local fileName, newName = c[1], c[2] or ""
-            local loc = (c[4] and c[4] ~= "") and c[4] or (c[3] or "")
+            local r = collected[i]
+            local fileName, newName = r.name, r.newName
+            local loc = (r.moved ~= "") and r.moved or r.present
             local label = (newName ~= "" and newName ~= fileName)
                           and (fileName .. " → " .. newName) or fileName
             local path = loc ~= ""
@@ -395,7 +421,7 @@ function M.setup(core)
                          or nil
             add{ tag = "file", icon = "📁", src = "File move",
                  text = oneLine(label):sub(1, uni.preview),
-                 sub  = (c[6] or "") .. " · " .. (c[5] or ""),
+                 sub  = r.event .. " · " .. r.when,
                  full = path or label, path = path }
             added = added + 1
             if added >= uni.maxPer.file then break end

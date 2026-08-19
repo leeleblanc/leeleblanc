@@ -1135,14 +1135,44 @@ function M.setup(core)
     -- for double" would have cost that rule for one mnemonic; "2" for two
     -- clicks is as memorable and keeps the rule absolute and testable.
     grid.landModal:bind({}, "2",      function() landedClick("double") end)
+    -- ⏱ 6.115.0 — HOLD AN ARROW AND IT KEEPS MOVING. LL: "Can you make it
+    -- so that hyper+X allows the arrows to be pressed and held down? Right
+    -- now you have to rapidly hit the key to move."
+    --
+    -- The cause was the SHAPE OF THE CALL, not the nudge. Every bind here
+    -- passed one function, which hs.hotkey.modal:bind takes as pressedfn
+    -- and nothing else — so one keypress was one nudge forever, and a
+    -- 1-point fine nudge meant forty taps to cross an icon.
+    --
+    -- Passing the same function as BOTH pressedfn and repeatfn is the fix,
+    -- and it is not a new idea in this config: init.lua's popup nudge keys
+    -- (bindNudge, §1.5) have done exactly this since they were written,
+    -- with a comment explaining that a tap nudges once and a hold repeats
+    -- at the OS key-repeat rate. The mouse grid simply never got it.
+    --
+    -- 🚨 THE ARGUMENT LIST IS LOAD-BEARING: (mods, key, fn, nil, fn).
+    -- modal:bind's signature is (mods, key, message, pressedfn, releasedfn,
+    -- repeatfn), and it only shifts those along when the third argument is
+    -- a function. Passing (mods, key, fn, fn) — the obvious-looking
+    -- "pressed and repeat" — actually lands the second fn in RELEASEDFN,
+    -- which fires the nudge a second time when you let go and still never
+    -- repeats. The nil is what puts the repeat in the right slot.
+    --
+    -- Safe to repeat because nudge() is idempotent per call and cheap: it
+    -- moves the pointer, redraws the crosshair, and re-arms the watchdog.
+    -- If the badge can't be redrawn it tears the overlay down rather than
+    -- capturing keys invisibly — which holds on the hundredth repeat
+    -- exactly as it does on the first.
     local dirs = { up = { 0, -1 }, down = { 0, 1 }, left = { -1, 0 }, right = { 1, 0 } }
     for key, d in pairs(dirs) do
-        grid.landModal:bind({}, key, function()
+        local coarse = function()
             nudge(d[1] * grid.nudgeStep, d[2] * grid.nudgeStep)
-        end)
-        grid.landModal:bind({ "shift" }, key, function()
+        end
+        local fine = function()
             nudge(d[1] * grid.nudgeFine, d[2] * grid.nudgeFine)
-        end)
+        end
+        grid.landModal:bind({}, key, coarse, nil, coarse)
+        grid.landModal:bind({ "shift" }, key, fine, nil, fine)
     end
 
     if grid.enabled then

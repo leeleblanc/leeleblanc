@@ -199,6 +199,17 @@ own slot automatically.
 **A module never reaches into `init.lua`'s locals.** That rule is what
 makes it movable, and a test enforces it.
 
+**`adoptLegacyFile` retires what it adopts** (6.115.0). When a data file
+moves to a new path, call `core.adoptLegacyFile(newPath, legacyPath)` and
+the old file is copied forward *and then renamed to* `<name>.superseded`
+— but only after the copy has been read back and compared. Before this,
+the original was left in place forever under a nearly identical name,
+which is how `activity_history.csv` ended up existing three times with
+only one of them live and nothing on disk saying which. A `.superseded`
+file is still read as an adoption source, so retiring one on the machine
+that boots first cannot strand the machine that boots second — which
+matters because `<Logs>` is inside OneDrive and shared.
+
 **And nothing reaches into a module either.** If code outside a module
 needs one of its functions, the module publishes it:
 
@@ -313,7 +324,10 @@ tests/test_rollup.lua        📊 the 16:01 card: derived from services, silent 
 tests/test_select_mode.lua   ☑️ pick-several in the ⇪⇧V/⇪⇧E/⇪⇧O editors — ⇪⇧O drives
                              the real modules/ocr_engine.lua through setup(core)
 tests/test_ocr_tag.lua       🏷 which files the clipboard points at: /.file/id= paths
-                             resolve, normal misses are silent, anomalies say so
+                             resolve, normal misses are silent, anomalies say so —
+                             plus ✍️ the ⇪⇧O editor window, and its no-webview fallback
+tests/test_file_tracker.lua  📅 the file_changes CSV schema and the migration onto it,
+                             against REAL files: the old date text is never parsed
 tests/test_task_creator.lua  ⌃⌥⌘T as a module: history, pipe parser, submit — and the
                              token NEVER appears in curl's argument list
 tests/test_integration.lua   🚨 all 46 modules loaded TOGETHER: shortcut, service and

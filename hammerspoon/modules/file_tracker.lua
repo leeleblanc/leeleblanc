@@ -20,9 +20,36 @@
 -- gone; your existing ~/.hammerspoon/file_changes.csv was adopted on
 -- first boot.
 --
--- CSV columns: file_name, new_name, present_location, moved_location,
--- timestamp (DD/MM/YY HH:MM), event, epoch (epoch = plain seconds
+-- CSV columns: timestamp (YYYY-MM-DD HH:MM), file_name, new_name,
+-- present_location, moved_location, event, epoch (epoch = plain seconds
 -- number used only for the 90-day pruning; harmless in Excel).
+--
+-- 📅 6.115.0 — THE DATE MOVED TO THE FRONT AND CHANGED FORMAT, and both
+-- halves of that were a real bug rather than a preference. LL: "On the
+-- {X} file, the date should be first? Can we do that & fix the current
+-- file?"
+--
+--   · IT WAS THE FIFTH COLUMN. You had to scroll past four columns of
+--     names and paths to find out WHEN anything happened, in a log whose
+--     entire purpose is when-did-this-file-move.
+--   · IT WAS WRITTEN DD/MM/YY, WHICH EXCEL READS AS MM/DD/YY on a US
+--     locale. "11/07/26" is the 11th of July here and November 7th
+--     there, and nothing in the file says which. Worse, Excel imports
+--     the column as TEXT, so sorting it sorts alphabetically: every
+--     row that starts "11/" clumps together regardless of month or
+--     year. That is very probably what LL was looking at when he
+--     reported the log "only shows July 11th" — not missing data, a
+--     sort artefact of an ambiguous format.
+--
+-- ISO 8601 fixes both at once: unambiguous to a human, unambiguous to
+-- Excel, and correct when sorted as plain text.
+--
+-- 🔧 YOUR EXISTING FILE IS MIGRATED IN PLACE, once, at the first boot on
+-- this version — see the migration block below. Nothing is re-parsed
+-- from the old date text: every row already carries an `epoch` column,
+-- so the new timestamp is REGENERATED from that. There is no
+-- day/month ambiguity to get wrong because the ambiguous field is
+-- discarded rather than interpreted.
 --
 -- HOW RENAME/MOVE DETECTION WORKS (and its honest limits): FSEvents
 -- announces a rename/move as TWO events — old path and new path —
@@ -180,41 +207,116 @@ function M.setup(core)
 
     -- ---- storage (same quote-safe CSV helpers as the activity tracker) --
 
+    -- 📅 6.115.0 — ONE PLACE THAT SAYS WHAT A ROW LOOKS LIKE. The header
+    -- and both writers used to spell the column order out separately,
+    -- three times, which is how a schema change becomes a corrupted file:
+    -- change two of the three and every row after the change is silently
+    -- shifted by one field.
+    local FT_HEADER = "timestamp,file_name,new_name,present_location," ..
+                      "moved_location,event,epoch"
+
+    local function fileTrackerRow(e)
+        return core.csvQuote(e.timestamp) .. "," .. core.csvQuote(e.fileName) .. ","
+            .. core.csvQuote(e.newName) .. "," .. core.csvQuote(e.presentLoc) .. ","
+            .. core.csvQuote(e.movedLoc) .. "," .. core.csvQuote(e.event) .. ","
+            .. tostring(e.epoch) .. "\n"
+    end
+
     local function fileTrackerRewrite(log)
         local f = io.open(fileTrackerFile, "w")
         if not f then return false end
-        f:write("file_name,new_name,present_location,moved_location,timestamp,event,epoch\n")
-        for _, e in ipairs(log) do
-            f:write(core.csvQuote(e.fileName) .. "," .. core.csvQuote(e.newName) .. ","
-                .. core.csvQuote(e.presentLoc) .. "," .. core.csvQuote(e.movedLoc) .. ","
-                .. core.csvQuote(e.timestamp) .. "," .. core.csvQuote(e.event) .. ","
-                .. tostring(e.epoch) .. "\n")
-        end
+        f:write(FT_HEADER .. "\n")
+        for _, e in ipairs(log) do f:write(fileTrackerRow(e)) end
         f:close()
         return true
     end
 
+    -- Set by the loader when it meets a row (or a header) in the pre-6.115.0
+    -- layout, so boot knows the file on disk needs rewriting rather than
+    -- guessing from a version number that says nothing about this Mac's data.
+    local ftNeedsMigration = false
+
+    -- 🚨 READS BOTH LAYOUTS, AND DECIDES PER ROW RATHER THAN PER FILE.
+    -- Per-file would have been simpler and wrong: this CSV is appended to
+    -- by a long-running process, so a file can genuinely contain old rows
+    -- written before an upgrade and new rows written after it. A header
+    -- read once at the top cannot describe both halves.
+    --
+    -- The discriminator is the FIRST FIELD, and it cannot collide: in the
+    -- new layout it is an ISO date, in the old one it is a file name, and
+    -- a file name that begins "2026-08-19" still has no second field
+    -- shaped like a bare integer epoch — the row is rejected either way
+    -- rather than mis-read.
     local function fileTrackerLoad()
         local f = io.open(fileTrackerFile, "r")
         if not f then return {} end
         local content = f:read("*a"); f:close()
         local log, isFirst = {}, true
         for line in content:gmatch("([^\r\n]+)") do
-            if not (isFirst and line:match("^file_name,")) then
+            local skip = false
+            if isFirst then
+                if line:match("^file_name,") then
+                    ftNeedsMigration = true        -- 6.114.0 and earlier
+                    skip = true
+                elseif line:match("^timestamp,") then
+                    skip = true
+                end
+            end
+            if not skip then
                 local c = core.splitCSVLine(line)
                 local epoch = tonumber(c[7])
-                if c[1] and epoch then
-                    table.insert(log, {
-                        fileName = c[1], newName = c[2] or "",
-                        presentLoc = c[3] or "", movedLoc = c[4] or "",
-                        timestamp = c[5] or "", event = c[6] or "",
-                        epoch = epoch,
-                    })
+                local first = c[1] or ""
+                if epoch and first ~= "" then
+                    if first:match("^%d%d%d%d%-%d%d%-%d%d") then
+                        table.insert(log, {
+                            timestamp = first,      fileName   = c[2] or "",
+                            newName   = c[3] or "", presentLoc = c[4] or "",
+                            movedLoc  = c[5] or "", event      = c[6] or "",
+                            epoch     = epoch,
+                        })
+                    else
+                        -- OLD LAYOUT. The old fifth column held the
+                        -- DD/MM/YY text and is deliberately DROPPED, not
+                        -- parsed: the same string means two different days
+                        -- depending on who reads it, and this row already
+                        -- carries the moment it happened as an epoch. The
+                        -- unambiguous field wins.
+                        ftNeedsMigration = true
+                        table.insert(log, {
+                            timestamp  = os.date("%Y-%m-%d %H:%M", epoch),
+                            fileName   = first,     newName  = c[2] or "",
+                            presentLoc = c[3] or "", movedLoc = c[4] or "",
+                            event      = c[6] or "", epoch    = epoch,
+                        })
+                    end
                 end
             end
             isFirst = false
         end
         return log
+    end
+
+    -- One-time safety copy of the pre-migration file. The migration is
+    -- lossless by construction — every field is carried across and the
+    -- timestamp is rebuilt from a number, not re-parsed from text — but
+    -- this is 90 days of LL's file history being rewritten in place on a
+    -- Mac nobody is watching, and "lossless by construction" is a claim
+    -- about the code rather than about the disk it just ran on.
+    local function fileTrackerBackupOnce()
+        local backup = fileTrackerFile .. ".before-iso-dates"
+        local exists = io.open(backup, "r")
+        if exists then exists:close(); return end   -- already kept one
+        local src = io.open(fileTrackerFile, "r")
+        if not src then return end
+        local body = src:read("*a"); src:close()
+        local dst = io.open(backup, "w")
+        if not dst then
+            print("⚠️ File tracker: could not write " .. backup
+                  .. " — migrating anyway, the data is rebuilt from the epoch column")
+            return
+        end
+        dst:write(body); dst:close()
+        print("📦 File tracker: kept the pre-6.115.0 CSV at " .. backup)
     end
 
     -- How many recorded rows between in-session prunes. A prune is O(n), so
@@ -236,19 +338,23 @@ function M.setup(core)
 
     local _ftLoaded = fileTrackerLoad()
     _G.fileTrackerLog = fileTrackerPrune(_ftLoaded)
-    if #_G.fileTrackerLog ~= #_ftLoaded or #_ftLoaded == 0 then
+    -- 📅 THE MIGRATION, and note the ORDER: back up, then rewrite. A
+    -- backup taken after the rewrite would be a backup of the new file,
+    -- which is not a backup of anything.
+    if ftNeedsMigration then fileTrackerBackupOnce() end
+    if ftNeedsMigration or #_G.fileTrackerLog ~= #_ftLoaded or #_ftLoaded == 0 then
         if not fileTrackerRewrite(_G.fileTrackerLog) then
             core.warnWriteFailed("file tracker CSV")
+        elseif ftNeedsMigration then
+            print(("📅 File tracker: migrated %d rows to date-first ISO "
+                   .. "timestamps (%s)"):format(#_G.fileTrackerLog, fileTrackerFile))
         end
     end
 
     local function fileTrackerAppendRow(e)
         local f = io.open(fileTrackerFile, "a")
         if f then
-            f:write(core.csvQuote(e.fileName) .. "," .. core.csvQuote(e.newName) .. ","
-                .. core.csvQuote(e.presentLoc) .. "," .. core.csvQuote(e.movedLoc) .. ","
-                .. core.csvQuote(e.timestamp) .. "," .. core.csvQuote(e.event) .. ","
-                .. tostring(e.epoch) .. "\n")
+            f:write(fileTrackerRow(e))
             f:close()
         else
             core.warnWriteFailed("file tracker CSV")
@@ -262,7 +368,9 @@ function M.setup(core)
             newName    = newName or "",
             presentLoc = fileTrackerPretty(presentLoc or ""),
             movedLoc   = fileTrackerPretty(movedLoc or ""),
-            timestamp  = os.date("%d/%m/%y %H:%M"),
+            -- 📅 ISO, not DD/MM/YY — see the header. Sorts correctly as
+            -- text and means the same day to every reader.
+            timestamp  = os.date("%Y-%m-%d %H:%M"),
             epoch      = os.time(),
         }
         table.insert(_G.fileTrackerLog, entry)

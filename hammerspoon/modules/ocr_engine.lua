@@ -48,7 +48,8 @@ local M = {
         title = "🔍 OCR ENGINE (copy an image — the words in it become searchable)",
         entries = {
             { "⇪O",      "Search everything ever OCR'd · Enter copies the text" },
-            { "⇪⇧O",     "Edit or delete an entry · empty the box = delete" },
+            { "⇪⇧O",     "Edit an entry in a real window — ⌘⏎ saves, Esc cancels" },
+            { "empty it", "Clear the box (or press Delete entry) to remove it" },
             { "☑️ row",   "Delete several at once — Enter picks, one row deletes" },
             { "automatic","Every copied image is read and indexed, silently" },
             { "🏷 files", "⌘C image files in Finder → text into Finder comments" },
@@ -66,6 +67,27 @@ function M.setup(core)
     ocr.key              = "o"     -- ⇪O search · ⇪⇧O edit
     ocr.shortcutName     = "HS OCR"
     ocr.tagMaxChars      = 500     -- Finder-comment length cap
+    -- ✍️ 6.115.0 — THE EDITOR IS A WINDOW NOW. LL: "Edit OCR is too small
+    -- — give me a window like notepad", with a screenshot of one line of
+    -- "All Snippets" in a box that could not show the rest.
+    --
+    -- It was hs.dialog.textPrompt, and that control was never going to be
+    -- adequate here: a fixed-size NSAlert around a ONE-LINE NSTextField.
+    -- It cannot be resized, it cannot scroll, and Return presses the
+    -- default button instead of inserting a newline — while the thing
+    -- being edited is OCR output, which is MULTI-LINE BY NATURE. A page of
+    -- scanned text went into a control that could show about 25
+    -- characters of it. win_pin hit exactly this in 6.112.0 and got the
+    -- Capture Pad's window; this is that window, sized for a page.
+    --
+    -- 🎯 AND IT TAKES FOCUS ON OPEN, which is LL's other report: "it
+    -- doesn't come to the front for an immediately editable window, I have
+    -- to click on it". allowTextEntry + bringToFront, the same pair the
+    -- Quick Append Pad uses.
+    ocr.editorW          = 760
+    ocr.editorH          = 520
+    ocr.editorFont       = 14      -- the BOX's size, not the stored text's
+    ocr.editorRows       = 16
     ocr.tagMaxFilesPerCopy = 15    -- safety cap per ⌘C (floods ignored)
     ocr.imageExtensions  = { png = true, jpg = true, jpeg = true, gif = true,
         tif = true, tiff = true, heic = true, heif = true, webp = true, bmp = true }
@@ -543,6 +565,287 @@ function M.setup(core)
         _G.choosers.ocrEdit:choices(choices)
     end
 
+    -- =====================================================================
+    -- ✍️ 6.115.0 — THE ENTRY EDITOR, AS A WINDOW
+    -- =====================================================================
+    -- What this replaces and why it could not be tuned instead: see the
+    -- ✏️ EDIT HERE block at the top. Short version — the old control was a
+    -- one-line NSTextField that cannot scroll and cannot take a Return,
+    -- and OCR text is multi-line by definition.
+    --
+    -- 🚨 THE FALLBACK IS NOT DECORATION. This has to work on the managed
+    -- work Mac, and hs.webview is the piece most likely to be missing or
+    -- restricted there. Every path below that can fail falls back to the
+    -- small prompt rather than leaving ⇪⇧O doing nothing: a worse box
+    -- still edits the entry, and a dead key does not.
+    local function esc(s)
+        return (tostring(s or ""):gsub("&", "&amp;"):gsub("<", "&lt;")
+                                 :gsub(">", "&gt;"):gsub('"', "&quot;"))
+    end
+
+    -- The one place that decides what saving means, so the window and the
+    -- fallback prompt cannot drift apart on the rule that matters most:
+    -- an emptied box DELETES. (Now also reachable as a button — "save it
+    -- empty to delete" is a fine rule and a terrible thing to have to
+    -- discover from a sentence you did not read.)
+    function ocr.applyEdit(idx, text)
+        local entry = ocrEditSnapshot[idx]
+        if not entry then return false end
+        if not text or text:match("^%s*$") then
+            table.remove(ocrEditSnapshot, idx)
+            saveOCRHistoryRaw(ocrEditSnapshot)
+            hs.alert.show("🗑 OCR entry deleted")
+        else
+            entry.text = text
+            saveOCRHistoryRaw(ocrEditSnapshot)
+            hs.alert.show("✏️ OCR entry updated")
+        end
+        return true
+    end
+
+    function ocr.editorHtml(opts)
+        return table.concat({
+[[<meta charset="utf-8"><style>
+  :root { color-scheme: dark; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+         font-size:14px; background:#141418; color:#e8e8ec; }
+  header { padding:12px 18px 8px; border-bottom:1px solid #2a2a32;
+           cursor:grab; user-select:none; -webkit-user-select:none; }
+  header:active, header.dragging { cursor:grabbing; }
+  h1 { font-size:15px; margin:0 0 2px; font-weight:600; }
+  .grip { color:#4a4a56; margin-right:8px; letter-spacing:2px; }
+  .sub { color:#8a8a96; font-size:12px; }
+  #wrap { padding:12px 18px 14px; }
+  /* Longhand font rules on purpose — the shorthand+keyword mix is the
+     invalid combination WebKit drops whole (the 6.44.1 textarea bug). */
+  textarea { width:100%; box-sizing:border-box; resize:none;
+             background:#1d1d24; color:#f2f2f6; border:1px solid #33333e;
+             border-radius:8px; padding:11px;
+             font-family:Menlo,ui-monospace,monospace;
+             line-height:1.45; }
+  textarea:focus { outline:none; border-color:#4a7fe0; }
+  .bar { margin-top:11px; display:flex; gap:9px; align-items:center; }
+  .count { color:#8a8a96; font-size:12px; margin-right:auto;
+           font-variant-numeric:tabular-nums; }
+  button { background:#2a2a34; color:#e8e8ec; border:1px solid #3b3b47;
+           border-radius:7px; padding:7px 13px; font-size:13px; cursor:pointer; }
+  button:hover { filter:brightness(1.18); }
+  button.go { background:#3566cc; border-color:#4a7fe0; }
+  button.rm { background:#4a2530; border-color:#6b3542; }
+</style>
+<header id="hdr"><h1><span class="grip">⠿</span>]],
+            esc(opts.title),
+[[</h1><div class="sub">]], esc(opts.sub), [[</div></header>
+<div id="wrap">
+  <textarea id="t" rows="]], tostring(opts.rows or 16),
+            [[" spellcheck="false" placeholder="The extracted text. Empty it to delete this entry.">]],
+            esc(opts.text), [[</textarea>
+  <div class="bar">
+    <span class="count" id="c"></span>
+    <button type="button" class="rm" onclick="say({a:'delete'})">Delete entry</button>
+    <button type="button" onclick="say({a:'cancel'})">Cancel (Esc)</button>
+    <button type="button" class="go" onclick="save()">Save (⌘⏎)</button>
+  </div>
+</div>
+<script>
+  var t = document.getElementById('t'), c = document.getElementById('c');
+  function say(m) {
+    try { webkit.messageHandlers.ocrEdit.postMessage(m); } catch (e) {}
+  }
+  /* No cap to warn about — an OCR entry is as long as the page was — so
+     the count is orientation rather than a limit: it is how you tell a
+     truncated capture from a short one. */
+  function tally() {
+    var n = Array.from(t.value).length,
+        l = t.value === '' ? 0 : t.value.split('\n').length;
+    c.textContent = n + ' characters · ' + l + (l === 1 ? ' line' : ' lines');
+  }
+  function save() { say({ a: 'save', text: t.value }); }
+  t.addEventListener('input', tally);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { say({ a: 'cancel' }); return; }
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(); }
+  });
+  /* The header is the title bar: hs.webview windows are borderless, and a
+     WKWebView loses the mouse the moment the pointer leaves it, so the
+     drag is finished on the Lua side. */
+  document.getElementById('hdr').addEventListener('mousedown', function () {
+    say({ a: 'drag' });
+  });
+  t.style.fontSize = ']], tostring(opts.font or 14), [[px';
+  /* 🎯 Focused and caret-placed on open. This is the "I have to click on
+     it" complaint: a box you must click before typing is a box that
+     interrupted you twice. */
+  t.focus();
+  t.setSelectionRange(t.value.length, t.value.length);
+  tally();
+</script>]],
+        })
+    end
+
+    -- ---- dragging the editor by its header --------------------------------
+    -- ⚠️ THE FOURTH COPY OF THIS LOOP in the config (Capture Pad, Quick
+    -- Append Pad, Window Pin, here). A WKWebView loses the mouse the
+    -- moment the pointer leaves it, so the page only reports that a drag
+    -- STARTED and the move is driven from Lua. It is copied rather than
+    -- shared because there is no shared helper yet — and at four copies
+    -- there should be. Extracting one is the right next move; doing it
+    -- inside a release about something else is how three working windows
+    -- get broken at once.
+    local function mousePosition()
+        local fns = {}
+        if hs.mouse then
+            if type(hs.mouse.absolutePosition) == "function" then
+                fns[#fns + 1] = hs.mouse.absolutePosition
+            end
+            if type(hs.mouse.getAbsolutePosition) == "function" then
+                fns[#fns + 1] = hs.mouse.getAbsolutePosition
+            end
+        end
+        for _, fn in ipairs(fns) do
+            local ok, p = pcall(fn)
+            if ok and type(p) == "table" and p.x and p.y then return p end
+        end
+        return nil
+    end
+
+    local function leftButtonDown()
+        local ok, down = pcall(function()
+            return hs.eventtap.checkMouseButtons().left == true
+        end)
+        return ok and down
+    end
+
+    function ocr.endDrag()
+        if ocr.dragTimer then pcall(function() ocr.dragTimer:stop() end) end
+        ocr.dragTimer, ocr.dragOffset = nil, nil
+    end
+
+    function ocr.beginDrag()
+        ocr.endDrag()
+        if not ocr.editorView then return false end
+        local okF, f = pcall(function() return ocr.editorView:frame() end)
+        if not (okF and f) then return false end
+        local m = mousePosition()
+        if not m then return false end
+        ocr.dragOffset = { x = m.x - f.x, y = m.y - f.y }
+        local okT = pcall(function()
+            ocr.dragTimer = hs.timer.doEvery(0.016, function()
+                if not (ocr.editorView and ocr.dragOffset) then ocr.endDrag() return end
+                if not leftButtonDown() then ocr.endDrag() return end
+                local p = mousePosition()
+                if not p then ocr.endDrag() return end
+                pcall(function()
+                    local cur = ocr.editorView:frame()
+                    ocr.editorView:frame({ x = p.x - ocr.dragOffset.x,
+                                           y = p.y - ocr.dragOffset.y,
+                                           w = cur.w, h = cur.h })
+                end)
+            end)
+        end)
+        if not (okT and ocr.dragTimer) then ocr.endDrag() return false end
+        return true
+    end
+
+    function ocr.closeEditor()
+        ocr.endDrag()
+        if ocr.editorView then
+            pcall(function() ocr.editorView:delete() end)
+        end
+        ocr.editorView, ocr.editorUc, ocr.editorIdx = nil, nil, nil
+    end
+
+    function ocr.handleEditorMessage(body)
+        if type(body) ~= "table" then return end
+        if body.a == "drag" then pcall(ocr.beginDrag) return end
+        local idx = ocr.editorIdx
+        if body.a == "cancel" then ocr.closeEditor() return end
+        if not idx then return end
+        if body.a == "delete" then
+            ocr.closeEditor()
+            ocr.applyEdit(idx, "")
+            return
+        end
+        if body.a == "save" then
+            ocr.closeEditor()
+            ocr.applyEdit(idx, body.text)
+        end
+    end
+
+    -- A Mac with no webview must still be able to edit. Smaller box, same
+    -- meaning, same delete-on-empty rule — ocr.applyEdit decides both.
+    local function editorPromptFallback(idx)
+        local entry = ocrEditSnapshot[idx]
+        if not entry then return false end
+        local okDlg, button, text = pcall(hs.dialog.textPrompt,
+            "✏️ Edit OCR entry (" .. entry.timestamp .. ")",
+            "Edit the extracted text below.\nSave with it EMPTY to delete this entry.",
+            entry.text, "Save", "Cancel")
+        if not okDlg then
+            hs.alert.show("📋 OCR: the editor would not open — see the Console")
+            print("📋 OCR edit: hs.dialog.textPrompt failed — " .. tostring(button))
+            return false
+        end
+        if button ~= "Save" then return false end
+        return ocr.applyEdit(idx, text)
+    end
+
+    function ocr.openEditor(idx)
+        local entry = ocrEditSnapshot[idx]
+        if not entry then return false end
+        if not (hs.webview and hs.webview.usercontent) then
+            return editorPromptFallback(idx)
+        end
+        ocr.closeEditor()                      -- never two at once
+
+        local screen = (core.resolveBaseScreen and core.resolveBaseScreen())
+                       or hs.screen.mainScreen()
+        local sf = (screen and screen:frame()) or { x = 0, y = 0, w = 1440, h = 900 }
+        local w = math.min(ocr.editorW, sf.w - 40)
+        local h = math.min(ocr.editorH, sf.h - 40)
+        local rect = { x = sf.x + (sf.w - w) / 2, y = sf.y + (sf.h - h) / 3,
+                       w = w, h = h }
+
+        local okUc, uc = pcall(hs.webview.usercontent.new, "ocrEdit")
+        if not (okUc and uc) then return editorPromptFallback(idx) end
+        pcall(function()
+            uc:setCallback(function(msg)
+                local ok, err = pcall(ocr.handleEditorMessage, msg and msg.body)
+                if not ok then print("📋 OCR edit: message handler — " .. tostring(err)) end
+            end)
+        end)
+
+        local okV, view = pcall(hs.webview.new, rect, {}, uc)
+        if not (okV and view) then return editorPromptFallback(idx) end
+        ocr.editorUc, ocr.editorView, ocr.editorIdx = uc, view, idx
+
+        pcall(function() view:windowTitle("Edit OCR entry") end)
+        -- allowTextEntry sets canBecomeKeyWindow — without it the box
+        -- draws perfectly and swallows every keystroke.
+        pcall(function() view:allowTextEntry(true) end)
+        pcall(function() view:level(hs.drawing.windowLevels.floating) end)
+        pcall(function()
+            view:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" })
+        end)
+        pcall(function()
+            view:html(ocr.editorHtml({
+                title = "✏️ Edit OCR entry",
+                sub   = "🕒 " .. tostring(entry.timestamp)
+                        .. "  ·  ⌘⏎ saves · Esc cancels · empty the box to delete",
+                text  = entry.text,
+                rows  = ocr.editorRows,
+                font  = ocr.editorFont,
+            }))
+        end)
+        pcall(function() view:show() end)
+        -- 🎯 DELIBERATELY ACTIVATING, unlike Window Pin's editor. That one
+        -- must not pull Hammerspoon forward because it hides its note when
+        -- the app loses focus. This box has no such rule and one job —
+        -- being typed into — so it comes to the front and takes the caret.
+        pcall(function() view:bringToFront(true) end)
+        return true
+    end
+
     _G.choosers.ocrEdit = hs.chooser.new(function(choice)
         if not choice then return end
         local function reopen() ocrEditRender(); showPopup(_G.choosers.ocrEdit) end
@@ -577,25 +880,18 @@ function M.setup(core)
             reopen(); return
         end
 
-        local button, text = hs.dialog.textPrompt(
-            "✏️ Edit OCR entry (" .. entry.timestamp .. ")",
-            "Edit the extracted text below.\nSave with it EMPTY to delete this entry.",
-            entry.text, "Save", "Cancel")
-        if button ~= "Save" then return end
-
-        if not text or text:match("^%s*$") then
-            table.remove(ocrEditSnapshot, choice.idx)
-            saveOCRHistoryRaw(ocrEditSnapshot)
-            hs.alert.show("🗑 OCR entry deleted")
-        else
-            entry.text = text
-            saveOCRHistoryRaw(ocrEditSnapshot)
-            hs.alert.show("✏️ OCR entry updated")
-        end
+        ocr.openEditor(choice.idx)
     end)
     _G.choosers.ocrEdit:placeholderText("Select an OCR entry — Enter opens it to edit or delete")
 
     function ocr.edit()
+        -- 🚨 CLOSE ANY OPEN BOX FIRST. ocr.edit RE-READS the CSV into
+        -- ocrEditSnapshot, and an editor left open from a previous ⇪⇧O
+        -- still holds an INDEX into the old snapshot — saving it would
+        -- write over whichever entry now happens to sit at that position.
+        -- The window is not modal any more, so this is reachable simply by
+        -- pressing ⇪⇧O twice.
+        ocr.closeEditor()
         ocrEditSnapshot = loadOCRHistoryRaw()
         if #ocrEditSnapshot == 0 then
             hs.alert.show("📋 OCR history is empty")
@@ -605,6 +901,29 @@ function M.setup(core)
         ocrEditRender()
         showPopup(_G.choosers.ocrEdit)
         return true
+    end
+
+    -- 🪟 The editor joins the panels ⇪⇧W can move, like every other window
+    -- this config opens — a box that lands on the wrong monitor and cannot
+    -- be moved by the tool built for moving them is a box you close.
+    _G.movablePanels = _G.movablePanels or {}
+    table.insert(_G.movablePanels, {
+        name  = "OCR entry editor",
+        frame = function() return ocr.editorView and ocr.editorView:frame() end,
+        move  = function(x, y)
+            local f = ocr.editorView and ocr.editorView:frame()
+            if f then ocr.editorView:frame({ x = x, y = y, w = f.w, h = f.h }) end
+        end,
+    })
+
+    -- ⎋ through the shared router, so the cheat sheet still closes LAST.
+    -- The page handles Escape itself while it has the keyboard; this is
+    -- for the case where it does not — the box is up but focus went
+    -- somewhere else, which is exactly when an un-closable window is worst.
+    if _G.claimEscape then
+        _G.claimEscape("ocredit", nil,
+            function() return ocr.editorView ~= nil end,
+            function() ocr.closeEditor() end)
     end
 
     -- ---- the keys --------------------------------------------------------
