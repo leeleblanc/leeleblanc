@@ -141,6 +141,23 @@ return function(core)
     -- hs.settings at boot as well as kept for the session. Re-centre it
     -- with _G.cheatSheetCenter(), which also forgets the stored value.
     cheatSheet.pos       = nil
+    -- 📜 6.111.0 — WHERE YOU HAD SCROLLED TO. LL: "the cheat sheet still
+    -- isn't remembering where I am when I close it." The PANEL's position
+    -- survived a close (6.67.0) and a reload (6.106.0); the place you had
+    -- scrolled to did not. hide() dropped _G.cheatSheetState, show() began
+    -- at row 1, and a 300-row list you had walked halfway down started
+    -- again from the top every single time.
+    --
+    -- 🚨 SESSION-SCOPED ON PURPOSE, and this is the difference between it
+    -- and cheatSheet.pos. A position is a pair of screen coordinates and
+    -- means the same thing tomorrow. A scroll position is an INDEX INTO A
+    -- LIST that is rebuilt from the modules at every boot — a module that
+    -- fails to load, a custom entry you added, a new family, and row 40 is
+    -- somewhere else entirely. Restoring a stale index would put you
+    -- confidently in the wrong place, which is worse than the top.
+    -- Set false to always open at the top.
+    cheatSheet.rememberScroll = true
+    cheatSheet.scroll    = nil   -- the row we were on at the last real close
     cheatSheet.addKey    = "="   -- add-a-custom-entry key ("+" without shift)
 
     -- ---- the remembered position (6.106.0) -------------------------------
@@ -577,6 +594,17 @@ return function(core)
             end
             _G.cheatSheetState = nil
             return
+        end
+        -- 📜 REMEMBER THE ROW — before the query is cleared below, because
+        -- whether to remember it depends on the query.
+        -- 🚨 ONLY FROM AN UNFILTERED LIST. Row 12 of "what matched 'win'"
+        -- is not row 12 of the full sheet, so storing it would reopen you
+        -- at a place you were never at. Closing while filtered keeps the
+        -- last row you were on BEFORE you searched, which is where you
+        -- actually were reading.
+        if cheatSheet.rememberScroll and cheatSheet.query == ""
+           and _G.cheatSheetState then
+            cheatSheet.scroll = _G.cheatSheetState.first
         end
         if _G.cheatSheetEscHotkey then
             pcall(function() _G.cheatSheetEscHotkey:disable() end)
@@ -1059,11 +1087,28 @@ return function(core)
         end
     end
 
-    -- preserveScroll: redraws triggered by adding/editing/deleting an entry
-    -- keep your place in the list. A fresh ⇪/ always starts at the top.
+    -- preserveScroll has THREE states, and 6.111.0 is the reason nil and
+    -- false are no longer the same thing:
+    --   true  — an in-place redraw (an entry was added, edited, deleted).
+    --           Keep the row we are on; the list barely changed.
+    --   false — a FILTER keystroke. Go to the top, deliberately: you are
+    --           looking at a different, shorter list and row 40 of the old
+    --           one would be blank space that reads as "found nothing".
+    --   nil   — a fresh ⇪/. Reopen where you last closed it.
+    -- 🚨 nil and false used to behave identically, which is exactly why
+    -- restoring the remembered row here cannot be written as `or`: the
+    -- filter path passes false and MUST NOT get the remembered row back.
     function cheatSheet.show(preserveScroll)
-        local keepFirst = (preserveScroll and _G.cheatSheetState
-                           and _G.cheatSheetState.first) or 1
+        local keepFirst
+        if preserveScroll == true then
+            keepFirst = (_G.cheatSheetState and _G.cheatSheetState.first) or 1
+        elseif preserveScroll == false then
+            keepFirst = 1
+        else
+            -- Clamped to the current list further down, so a remembered row
+            -- from a longer sheet lands on the last full view, never past it.
+            keepFirst = (cheatSheet.rememberScroll and cheatSheet.scroll) or 1
+        end
         -- 🚨 SAVE THE QUERY ACROSS OUR OWN hide(). hide() clears it — which
         -- is right for closing the sheet and wrong for redrawing it, and
         -- show() begins by calling hide() so it can never stack two panels.

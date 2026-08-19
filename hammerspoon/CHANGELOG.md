@@ -4,6 +4,65 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.111.0 — ⇪/ REOPENS WHERE YOU WERE READING:
+  LL: "The cheat sheet still isn't remembering where I am when I close
+  it. How can we fix this?"
+
+  WHICH "WHERE" — MEASURED, NOT GUESSED. Three things that sentence
+  could have meant, each checked against the shipped file by driving it
+  with the test suite's stubs before writing a line:
+      panel position across a close ....... ✅ worked (reopened at 111,222)
+      scroll position across a close ...... ❌ row 20 → back to row 1
+      the search filter you had typed ..... ❌ cleared, deliberately
+  So the panel half (6.67.0 for a close, 6.106.0 for a reload) was
+  already doing its job, and the thing actually being lost was the ROW.
+  hide() set _G.cheatSheetState = nil and show() started at keepFirst =
+  1, so a 300-row sheet you had walked halfway down began again from the
+  top every single time you reopened it.
+
+  THE FIX IS A THREE-WAY DISTINCTION, and that is the whole subtlety.
+  show()'s preserveScroll argument had two meaningful states and needed
+  three:
+      show(true)  — an in-place redraw (an entry added, edited, deleted).
+                    Keep the CURRENT row; the list barely changed.
+      show(false) — a FILTER keystroke. Go to the top, deliberately: you
+                    are looking at a different, shorter list, and row 40
+                    of the old one is blank space that reads as "the
+                    search found nothing".
+      show(nil)   — a fresh ⇪/. Reopen where you last closed it.
+  🚨 nil and false used to behave identically, which is precisely why
+  this could not be written as `or cheatSheet.scroll`: the filter path
+  passes false and must never get the remembered row back.
+
+  TWO GUARDS THAT MATTER MORE THAN THE FEATURE:
+    • CLOSING WHILE FILTERED DOES NOT STORE THE FILTERED ROW. Row 12 of
+      "what matched win" is not row 12 of the sheet, and storing it
+      would reopen you somewhere you had never been. The row from before
+      you searched is kept instead — which is where you were reading.
+    • A REMEMBERED ROW OUTLIVES THE LIST IT CAME FROM. It is clamped to
+      the current last-full-view on the way back in, so a sheet that got
+      shorter reopens on real content rather than on blank space.
+
+  SESSION-SCOPED ON PURPOSE — the one place this differs from the panel
+  position, which does persist to hs.settings. A position is a pair of
+  screen coordinates and means the same thing tomorrow. A scroll row is
+  an INDEX INTO A LIST rebuilt from the modules at every boot: a module
+  that fails to load, a custom entry, a new family, and row 40 is
+  somewhere else entirely. Restoring a stale index would put you
+  confidently in the wrong place, which is worse than the top.
+  cheatSheet.rememberScroll = false returns to always-from-the-top.
+
+  THE TESTS (8 new, test_cheatsheet 168 → 176). Each confirmed failing
+  against the old behaviour first, and each half of the change was
+  broken separately to prove the guards are independent: removing the
+  restore fails "reopening puts you back where you were reading" (1 vs
+  12 — the reported bug exactly), removing the capture fails it at "nil
+  vs 12", and dropping just the unfiltered-list condition fails "closing
+  while FILTERED does not store a filtered row". One existing check,
+  "⇪/ opens at the top", was rewritten rather than deleted: it stated a
+  contract that no longer holds and would have gone on passing by
+  accident whenever the remembered row happened to be nil.
+
 NEW IN 6.110.0 — DOC KEYWORDS STOPS SHOUTING:
   The other half of the log that produced 6.109.0. LL: "Fix the Docs
   Keywords."

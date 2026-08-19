@@ -408,8 +408,14 @@ CS.scrollTo(target)
 CS.show(true)
 check("add/edit/delete redraw preserves the scroll position", st().first == target,
       st().first .. " vs " .. target)
+-- 6.111.0 — this used to read "⇪/ opens at the top" full stop. It now
+-- opens where you LEFT it, so the top is what you get when there is
+-- nothing to remember. Stated explicitly, because the old check would
+-- go on passing by accident whenever CS.scroll happened to be nil.
+CS.scroll = nil
 CS.show()
-check("⇪/ opens at the top", st().first == 1, st().first)
+check("⇪/ opens at the top when nothing has been remembered yet",
+      st().first == 1, st().first)
 CS.scrollTo(st().maxFirst)
 local wasAt = st().first
 _G.customShortcuts = {}
@@ -1370,6 +1376,65 @@ do
         #CLAMPED > 0 and canvasRect.x <= SCR.x + SCR.w, canvasRect and canvasRect.x)
   far.hide()
   SETTINGS = {}
+end
+
+-- =====================================================================
+print("\n=== 📜 WHERE YOU HAD SCROLLED TO — survives a close (6.111.0) ===")
+-- LL: "the cheat sheet still isn't remembering where I am when I close
+-- it." The PANEL's position already survived a close and a reload; the
+-- ROW you had scrolled to did not — hide() dropped the state and show()
+-- began at 1. These checks hold the three-way contract that makes the
+-- difference: nil reopens where you were, false (a filter keystroke)
+-- goes to the top, true (a redraw) stays put.
+do
+  CS.rememberScroll = true
+  CS.scroll = nil
+  CS.show()
+  local row = math.min(12, st().maxFirst)
+  CS.scrollTo(row)
+  CS.hide()                       -- a REAL close, the way Esc closes it
+  check("the row is remembered at the moment of a real close",
+        CS.scroll == row, tostring(CS.scroll) .. " vs " .. row)
+  CS.show()
+  check("🚨 reopening puts you back where you were reading",
+        st().first == row, st().first .. " vs " .. row)
+
+  -- The filter path must NOT get the remembered row back: it passes
+  -- false, and false and nil used to be the same thing.
+  CS.typeChar("w")
+  check("typing a filter still snaps to the top of the shorter list",
+        st().first == 1, st().first)
+  CS.hide()
+  check("…and closing while FILTERED does not store a filtered row",
+        CS.scroll == row, tostring(CS.scroll) .. " vs " .. row)
+  CS.show()
+  check("…so you reopen at the row you were on BEFORE you searched",
+        st().first == row, st().first .. " vs " .. row)
+
+  -- An in-place redraw is a third case again.
+  local moved = math.min(7, st().maxFirst)
+  CS.scrollTo(moved)
+  CS.show(true)
+  check("an add/edit/delete redraw still keeps the CURRENT row, not the "
+        .. "remembered one", st().first == moved, st().first .. " vs " .. moved)
+
+  -- A remembered row outlives the list it came from.
+  CS.hide()
+  CS.scroll = 9999
+  CS.show()
+  check("🚨 a row past the end of a shorter sheet clamps to the last full "
+        .. "view — never blank space", st().first == st().maxFirst,
+        st().first .. " vs " .. st().maxFirst)
+
+  CS.hide()
+  CS.rememberScroll = false
+  CS.scroll = 12
+  CS.show()
+  check("rememberScroll = false goes back to always opening at the top",
+        st().first == 1, st().first)
+  CS.rememberScroll = true
+  CS.scroll = nil
+  CS.hide()
 end
 
 print(("\n%d passed, %d failed\n"):format(pass, fail))

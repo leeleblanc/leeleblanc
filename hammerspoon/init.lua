@@ -4,9 +4,35 @@
 -- =====================================================================
 -- 08-19-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.110.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.111.0
 -- =====================================================================
 
+-- NEW IN 6.111.0 — ⇪/ REOPENS WHERE YOU WERE READING:
+--   LL: "the cheat sheet still isn't remembering where I am when I close
+--   it." Three things could have meant, so all three were measured
+--   against the shipped file first. The PANEL's position survived a
+--   close (6.67.0) and a reload (6.106.0) — that half was working. What
+--   did not survive was THE ROW YOU HAD SCROLLED TO: hide() dropped the
+--   state table and show() always began at row 1, so a 300-row sheet you
+--   had walked halfway down started again from the top every time.
+--   The row is now kept at the moment of a real close and restored on
+--   the next ⇪/.
+--   🚨 THE FIX IS A THREE-WAY DISTINCTION, and it is the whole subtlety:
+--   show(nil) is a fresh open and reopens where you were; show(false) is
+--   a FILTER keystroke and must still snap to the top, because you are
+--   looking at a shorter list and row 40 of the old one is blank space
+--   that reads as "found nothing"; show(true) is an in-place redraw and
+--   stays put. nil and false used to be the same thing, which is why
+--   this could not be written as a one-line `or`.
+--   Closing while a search is active does NOT store the filtered row —
+--   row 12 of "what matched win" is not row 12 of the sheet — so you
+--   reopen at the row you were on BEFORE you searched. A remembered row
+--   past the end of a shorter sheet clamps to the last full view.
+--   SESSION-SCOPED on purpose, unlike the panel position: a row is an
+--   index into a list rebuilt from the modules every boot, and restoring
+--   a stale index would put you confidently in the wrong place.
+--   cheatSheet.rememberScroll = false goes back to always-from-the-top.
+--
 -- NEW IN 6.110.0 — DOC KEYWORDS STOPS SHOUTING:
 --   The other half of what LL's Console log showed. The four LuaSkin
 --   errors of 6.109.0 were buried in SEVERAL HUNDRED 🏷 Doc Keywords
@@ -61,32 +87,8 @@
 --   still tracks the pointer every tick; only the write waits 0.4s for
 --   you to settle. _G.unifiedCenter() puts it back and forgets.
 --
--- NEW IN 6.106.0 — THE SHEET STAYS WHERE YOU PUT IT, AND ⇪Y CAN BE
--- ASKED WHAT IS WRONG:
---   Two answers to two questions from LL.
---   🖐 THE CHEAT SHEET REMEMBERS ITS POSITION ACROSS RELOADS. Dragging
---   it has worked since 6.67.0 and the position survived a redraw and a
---   reopen — but not a reload, which rebuilds the table it lived on. So
---   every reload put it back in the middle and you moved it again. It
---   is one hs.settings key now, validated on the way back in (a plist
---   can hand back a string or a NaN, and a NaN draws the sheet nowhere
---   at all) and still clamped to a real screen, because a remembered
---   position outlives the monitor it was set on.
---   _G.cheatSheetCenter() puts it back and forgets the stored value —
---   the way out when a position is wrong in a way clamping cannot fix.
---   🕘 _G.chromeHistoryReport() NOW ANSWERS "IS ⇪Y WORKING?". It used
---   to print a status line and a per-profile table, which reads exactly
---   the same whether sqlite3 is missing, Chrome has never run here,
---   Full Disk Access is off, or you genuinely browsed nothing — four
---   different fixes behind one silence. It now checks each of those
---   separately, prints the CSV's size and age and the export timings
---   the cheat sheet had promised since 6.92.0, runs a live search to
---   prove the matcher and not just the parser, and ends either in
---   "✅ WORKING" or a numbered list of what to fix. It copies itself to
---   the clipboard so it can be pasted straight back.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.110.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.111.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -385,7 +387,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.110.0"
+_G.configVersion = "6.111.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
