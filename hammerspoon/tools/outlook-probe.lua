@@ -293,6 +293,47 @@ do
                     return out
                 end tell
             end timeout]] },
+        -- 🚨 6.116.1 — THE PROBE THAT SETTLES IT, ADDED BECAUSE THE HOME
+        -- MAC RAN AND THE REPORT STILL COULD NOT ANSWER THE QUESTION.
+        -- Calendar.app was reachable and listed seven real calendars, and
+        -- then said "no events today in any calendar" — which is produced
+        -- IDENTICALLY by two opposite situations:
+        --
+        --   · a genuinely clear day, and
+        --   · an Exchange account that is not syncing into Calendar.app
+        --     at all, so every calendar it can see is one that was never
+        --     going to hold a work meeting.
+        --
+        -- One day of nothing distinguishes neither. A fortnight, counted
+        -- PER CALENDAR, distinguishes both: if every calendar reports 0
+        -- across fourteen days there is no data here to build on, and if
+        -- Home has events while Work has none then the account is the
+        -- problem rather than the API. Counting rather than listing is
+        -- deliberate — a count cannot spill fourteen days of meeting
+        -- titles into a paste-back.
+        { "B · Calendar.app: events per calendar, ±7 days",
+          [[with timeout of 45 seconds
+                tell application "Calendar"
+                    set d to current date
+                    set hours of d to 0
+                    set minutes of d to 0
+                    set seconds of d to 0
+                    set d1 to d - (7 * days)
+                    set d2 to d + (7 * days)
+                    set out to ""
+                    repeat with c in calendars
+                        try
+                            set n to name of c
+                        on error
+                            set n to title of c
+                        end try
+                        set k to count of (every event of c whose start date ≥ d1 and start date < d2)
+                        set out to out & n & "=" & k & " ; "
+                    end repeat
+                    if out is "" then return "(no calendars)"
+                    return out
+                end tell
+            end timeout]] },
     }
 
     -- 🚨 6.65.1 — OUT OF PROCESS, and in THIS file it matters most of all.
@@ -335,8 +376,15 @@ do
     -- so the script's timeout never begins. Without a Lua-side timer, a
     -- prompt left unanswered means a task that never exits and a report
     -- that never prints. op.hardTimeout kills it and records the fact,
-    -- because "no answer in 45s" is itself a finding about this Mac.
-    op.hardTimeout = 45
+    -- because "no answer in that long" is itself a finding about this Mac.
+    --
+    -- ⚠️ INVARIANT: this must EXCEED the longest `with timeout of N` in
+    -- any probe below, or the watchdog kills a script that was still
+    -- legitimately working and reports a timeout that says more about
+    -- this number than about the Mac. The ±7-day calendar probe asks for
+    -- 45s; a one-day query already measured 5.7s on the home Mac, so the
+    -- headroom is not theoretical.
+    op.hardTimeout = 75
 
     local function ask(src, cb)
         local done = false
@@ -416,28 +464,84 @@ do
         end, function() done(worked, failed, vals) end)
     end
 
-    -- Split out of the runner below so the verdict is written from a
-    -- final callback rather than from a loop that no longer exists.
-    local function calendarVerdict(out, routeA, routeB)
+    -- 🚨 6.116.1 — THIS VERDICT USED TO COUNT REPLIES, AND IT WAS WRONG ON
+    -- THE FIRST MAC IT EVER SAW. The home Mac answered all three route-A
+    -- probes — "has a calendar" 1, "can count its events" 0, "today's
+    -- events" (none) — and the old rule, routeA >= 3, declared route A the
+    -- winner. Outlook holds ZERO events. It is the same hollow dictionary
+    -- the mail section had just been taught to catch one screen above,
+    -- and the calendar section fell for it because it was counting how
+    -- many probes replied instead of reading what they said.
+    --
+    -- A DIAGNOSTIC THAT MISREADS ITS OWN EVIDENCE IS WORSE THAN NO
+    -- DIAGNOSTIC: it is a confident wrong answer, and the whole reason
+    -- this file exists is to stop a build resting on one. So the verdict
+    -- now looks at VALUES, and a route counts as alive only if it can
+    -- produce an actual event.
+    local function calendarVerdict(out, vals)
+        local function num(s)
+            return tonumber((tostring(s or ""):match("^%s*(%-?%d+)")))
+        end
+        local aCals  = num(vals["A · Outlook: has a calendar at all"])
+        local aCount = num(vals["A · Outlook: can count its events"])
+        local bCals  = num(vals["B · Calendar.app: is reachable"])
+        local window = vals["B · Calendar.app: events per calendar, ±7 days"]
+
+        -- Parse "Work=0 ; Home=12 ; " into a total and the names that
+        -- actually carry events, which is the line worth printing.
+        local total, withEvents = nil, {}
+        if window then
+            total = 0
+            for name, k in tostring(window):gmatch("([^;=]+)=(%d+)") do
+                local n = tonumber(k) or 0
+                total = total + n
+                if n > 0 then
+                    withEvents[#withEvents + 1] = (name:gsub("^%s+", ""):gsub("%s+$", ""))
+                        .. " (" .. n .. ")"
+                end
+            end
+        end
+
+        local aAlive = (aCount or 0) > 0
+        local bAlive = (bCals or 0) > 0 and (total or 0) > 0
+
         out[#out + 1] = ""
-        if routeA >= 3 then
+        if aCals and aCals > 0 and aCount == 0 then
+            out[#out + 1] = "   🕳 Outlook reports " .. aCals .. " calendar(s) holding 0"
+            out[#out + 1] = "      events. Same hollow shape as the mail section:"
+            out[#out + 1] = "      the call answers, and answers nothing."
+        end
+        if total then
+            out[#out + 1] = "   📅 Calendar.app, ±7 days: " .. total .. " event(s) total"
+            if #withEvents > 0 then
+                out[#out + 1] = "      carried by: " .. table.concat(withEvents, ", ")
+            end
+        end
+
+        out[#out + 1] = ""
+        if aAlive then
             out[#out + 1] = "   ✅ VERDICT: ROUTE A — Outlook answers about its own"
-            out[#out + 1] = "      calendar. Build on this; no extra setup, and it is"
-            out[#out + 1] = "      the source of truth rather than a copy of it."
-        elseif routeB >= 3 then
-            out[#out + 1] = "   ✅ VERDICT: ROUTE B — Outlook will not talk, but"
-            out[#out + 1] = "      Calendar.app has the same meetings and a stable"
+            out[#out + 1] = "      calendar AND actually holds events (" .. aCount .. ")."
+            out[#out + 1] = "      Build on this; no extra setup, and it is the"
+            out[#out + 1] = "      source of truth rather than a copy of it."
+        elseif bAlive then
+            out[#out + 1] = "   ✅ VERDICT: ROUTE B — Outlook's own calendar is empty,"
+            out[#out + 1] = "      but Calendar.app has real events and a stable"
             out[#out + 1] = "      dictionary. This is the good outcome on New"
             out[#out + 1] = "      Outlook: it works, it survives Outlook updates,"
-            out[#out + 1] = "      and it needs no admin — just the Exchange account"
-            out[#out + 1] = "      present in System Settings → Internet Accounts."
-        elseif routeB >= 1 then
-            out[#out + 1] = "   ⚠️ VERDICT: Calendar.app answers, but TODAY'S EVENTS"
-            out[#out + 1] = "      did not come back. Most likely the Exchange account"
-            out[#out + 1] = "      is not added to Calendar.app — check System"
-            out[#out + 1] = "      Settings → Internet Accounts, then re-run. If the"
-            out[#out + 1] = "      calendar list above shows only 'Home'/'Birthdays',"
-            out[#out + 1] = "      that is exactly what happened."
+            out[#out + 1] = "      and it needs no admin. NOTE the timing above —"
+            out[#out + 1] = "      whatever is built must poll on a timer and cache,"
+            out[#out + 1] = "      never read the calendar on the keypress."
+        elseif (bCals or 0) > 0 then
+            out[#out + 1] = "   ⚠️ VERDICT: Calendar.app WORKS but has no events in a"
+            out[#out + 1] = "      fourteen-day window — so there is nothing here to"
+            out[#out + 1] = "      build on yet. The permission and the dictionary"
+            out[#out + 1] = "      are fine; the DATA is missing. Most likely the"
+            out[#out + 1] = "      Exchange account is not syncing into Calendar.app:"
+            out[#out + 1] = "      System Settings → Internet Accounts, add it, tick"
+            out[#out + 1] = "      Calendars, then re-run this probe. If the list"
+            out[#out + 1] = "      above is all personal calendars, that is exactly"
+            out[#out + 1] = "      what happened."
         else
             out[#out + 1] = "   ❌ VERDICT: neither route answered. Before concluding"
             out[#out + 1] = "      Graph is the only way, check whether the macOS"
@@ -445,6 +549,7 @@ do
             out[#out + 1] = "      same result and is undone in System Settings →"
             out[#out + 1] = "      Privacy & Security → Calendars."
         end
+        return
     end
 
     -- Same runner as scriptProbes, but it TIMES each answer. How long a
@@ -459,7 +564,7 @@ do
     -- everything. secondsSinceEpoch answers the question actually being
     -- asked: how long does this Mac make you wait?
     local function calendarProbes(out, done)
-        local routeA, routeB = 0, 0
+        local vals = {}
         local t0 = hs.timer.secondsSinceEpoch()
         runQueue(CAL_PROBES, function(p, ok, res)
             local now = hs.timer.secondsSinceEpoch()
@@ -469,15 +574,15 @@ do
             -- row is noise that hides the one row that said 4,200.
             local took = (ms >= 400) and string.format("  [%dms]", ms) or ""
             if ok then
-                if p[1]:sub(1, 1) == "A" then routeA = routeA + 1 else routeB = routeB + 1 end
+                vals[p[1]] = res
                 out[#out + 1] = string.format("   ✅ %-42s %s%s", p[1], trunc(res), took)
             else
                 out[#out + 1] = string.format("   ❌ %-42s %s%s", p[1],
                     trunc(tostring(res):gsub("^.*error[^:]*:%s*", ""), 80), took)
             end
         end, function()
-            calendarVerdict(out, routeA, routeB)
-            done(routeA, routeB)
+            calendarVerdict(out, vals)
+            done(vals)
         end)
     end
 
