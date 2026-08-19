@@ -42,10 +42,15 @@ local M = {
     cheatsheet = {
         title = "📝 QUICK APPEND (⇪J / ⇪pad1 — clipboard into a file, no editor)",
         entries = {
+            -- 🔤 6.114.0 — THE TWO PAD ROWS LOST THEIR KEY CELLS. They read
+            -- "⇪pad1" and "⇪pad3" here and "⇪ pad1"/"⇪ pad3" in the numpad
+            -- layer's group, so one shortcut appeared on the sheet twice
+            -- under two spellings and ⇪space listed it twice. numpad_layer
+            -- BINDS those keys, so under the 6.102.0 one-owner rule its
+            -- group keeps them. Nothing about the keys changed.
             { "⇪J",  "Append the clipboard to log.txt — a Log note, instantly" },
-            { "⇪pad1", "The same, from the number pad" },
             { "⇪⇧J", "Pick Logs or Ideas — or type a line instead of pasting" },
-            { "⇪pad3", "The same picker, from the number pad" },
+            { "on a pad", "⇪pad1 does ⇪J · ⇪pad3 does ⇪⇧J — see the numpad group" },
             { "adds", "A timestamp line, then your text, then a blank line" },
             { "shows", "The file, the line count, and the first words it wrote" },
             { "files", "Live in <logs>/notes/ — edit quickAppend.targets to change" },

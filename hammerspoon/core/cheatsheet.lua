@@ -242,8 +242,12 @@ return function(core)
                 { "⇪A", "Format Asana URL from clipboard" },
                 { "⇪B", "Browse Asana Teams — Enter copies a name for Assignee" },
                 { "⇪C", "Comment on a task" },
-                { "⇪T", "Create a task — labeled form, ⏎ sends, Esc keeps the draft" },
-                { "⇪⇧S", "Search PAST tasks (30-day history — the old pipe picker)" },
+                -- 🔤 6.114.0 — ⇪T AND ⇪⇧S WERE REMOVED FROM THIS GROUP. Both
+                -- belong to modules/task_form.lua, which has documented them
+                -- in its own group since 6.86.0; leaving them here too put
+                -- one key on the sheet twice, which is the exact complaint
+                -- LL raised about ⇪V from a screenshot in 6.90.1 and the
+                -- reason the ⇪V note below exists. Same fix, same reason.
                 { "⇪L", "List tasks — Today / Week / Overdue" },
                 { "auto", "Color legend strip under the list" },
             }},
@@ -251,11 +255,18 @@ return function(core)
             -- its own group since it became a module (6.55.0), and the same
             -- keys documented in two sections read as a conflict — LL asked
             -- exactly that from a screenshot of this sheet (6.90.1).
+            -- 🔤 6.114.0 — ⇪O AND ⇪⇧O CAME OUT OF THIS GROUP for the same
+            -- reason ⇪V never entered it. The OCR engine moved into
+            -- modules/ocr_engine.lua in 6.105.0 and brought its own cheat
+            -- sheet group with it; these two rows stayed behind, so the
+            -- sheet showed each OCR key twice with different wording and
+            -- ⇪space offered two rows for one tool. What is left here is
+            -- what no module owns: the Finder-comment tagger and the
+            -- copy-on-select toggle.
             { title = "📋 CLIPBOARD & OCR", order = 3, family = "text", entries = {
-                { "⇪O", "OCR text search" },
-                { "⇪⇧O", "Edit or delete an OCR entry · ☑️ pick several" },
                 { "⌘C files", "OCR image files → Finder comment tag" },
                 { "⇪⇧C", "Toggle copy-on-select (off by default)" },
+                { "⇪O / ⇪⇧O", "OCR search and edit — see the OCR group below" },
             }},
             { title = "🕹 POPUP POSITION", order = 5, family = "windows", entries = {
                 { "⇪⇧ ↑↓←→", "Nudge popup (hold to repeat)" },

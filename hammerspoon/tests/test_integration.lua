@@ -264,7 +264,17 @@ hs = setmetatable({
 
 _G.diag = { say = noop, warn = noop, err = noop, mark = noop, verbose = false }
 _G.safeJson = function() return nil end
-_G.service = { provide = function(n) SERVICES[n] = (SERVICES[n] or 0) + 1 end,
+-- 🔌 6.114.0 — the stub records an OWNER per service, exactly as the real
+-- registry in init.lua §0.1 does, reading the same _G.moduleLoading the
+-- §1.12 loader sets around each setup(). Without it the run-map ownership
+-- check below would have nothing to compare against, and a stub that
+-- quietly answers nil would make that check pass on air.
+SERVICE_OWNER = {}
+_G.service = { provide = function(n)
+                   SERVICES[n] = (SERVICES[n] or 0) + 1
+                   SERVICE_OWNER[n] = _G.moduleLoading or "init.lua"
+               end,
+               owner = SERVICE_OWNER,
                call = noop, providers = {} }
 _G.hyperPending = {}
 _G.hyperAddShortcut = function(mods, key, fn, src)
@@ -445,6 +455,24 @@ check("NO SERVICE NAME IS PUBLISHED TWICE", (function()
     return true
 end)())
 check("mouse_grid's services are published", SERVICES["mouseGrid.show"] == 1)
+-- 🔗 6.114.0 — THE CROSS-MODULE LINK BEHIND ⇪↓. numpad_layer calls
+-- windows.rememberFrame on every placement so the pad and laptop layers
+-- write into the SAME "put it back" memory ⇪↓ reads. That call is guarded
+-- by service.has(), which is correct and means a vanished provider fails
+-- SILENTLY — the placement still works, the restore just quietly stops
+-- knowing about it. Exactly the shape of the bug this replaced, so it is
+-- asserted here rather than left to be noticed.
+check("🔗 windows.rememberFrame is published — the shared prior-frame "
+      .. "memory the numpad and laptop layers write through to reach ⇪↓",
+      SERVICES["windows.rememberFrame"] == 1,
+      tostring(SERVICES["windows.rememberFrame"]))
+check("…and numpad_layer really calls it, rather than keeping a private "
+      .. "table again", (function()
+    local f = io.open(HS .. "/modules/numpad_layer.lua", "r")
+    local src = f and f:read("*a")
+    if f then f:close() end
+    return src ~= nil and src:find("windows.rememberFrame", 1, true) ~= nil
+end)())
 
 -- 🚨 THE NUMBER-PAD TYPO TEST, AND WHY IT CAN ONLY LIVE HERE.
 -- Since 6.49.0 the ⇪⇧ + pad layer binds by SERVICE NAME, resolved at
@@ -534,6 +562,173 @@ check("every cheat sheet entry is a {key, description} pair — a malformed "
         end
     end
     return true
+end)())
+
+-- =====================================================================
+-- 🔤 6.114.0 — ONE KEY, ONE ROW, ACROSS THE WHOLE SHEET
+-- =====================================================================
+-- WHY THIS BELONGS HERE AND NOWHERE ELSE. Every duplicate below was
+-- invisible to every existing check, and for a structural reason: the
+-- sheet is assembled from TWO sources that no single suite could see at
+-- once. core/cheatsheet.lua carries hand-written groups; each module
+-- carries its own. test_cheatsheet.lua exercises the first against
+-- STUBBED module groups. The per-module suites exercise the second and
+-- have never heard of the first. So a key documented in both was checked
+-- twice and questioned never.
+--
+-- 🚨 WHAT THAT COST, all four found the day this check was written:
+--   · ⇪O and ⇪⇧O appeared twice. OCR moved into modules/ocr_engine.lua
+--     in 6.105.0 and brought its group along; the old core rows stayed.
+--   · ⇪T and ⇪⇧S appeared twice, same shape — task_form owns them now,
+--     the ASANA group still listed them.
+--   · ⇪pad1–4, ⇪pad* and ⇪pad- appeared twice AND UNDER TWO SPELLINGS —
+--     "⇪ pad1" in the numpad layer, "⇪pad1" in quick_append. That one
+--     was not cosmetic: uni.runnable joins a service to a row BY ITS KEY
+--     CELL, so a shortcut spelled two ways can only ever be runnable one
+--     way, and ⇪space listed the same tool twice with one of them dead.
+--
+-- The identical complaint was raised by hand from a screenshot in 6.90.1
+-- ("⇪V is on the sheet twice"), fixed by hand, and written up in a
+-- comment in core/cheatsheet.lua — and then recurred four more times,
+-- because a comment asking people to remember is not a sentry.
+--
+-- ⚠️ ONLY ⇪ CELLS ARE CHECKED. "undo", "how", "if dead", "first" are
+-- labels in the key column, not keys, and they repeat across groups on
+-- purpose. A key cell is one that starts with ⇪.
+out("   -- one key, one row --\n")
+local sheetCells = {}      -- normalized key -> { "group: ⇪X — desc", ... }
+local cellOwner  = {}      -- normalized key -> the MODULE whose group holds it
+local function noteCell(keys, desc, where, owner)
+    if type(keys) ~= "string" or keys:sub(1, 3) ~= "⇪" then return end
+    local norm = keys:gsub("%s+", ""):lower()
+    sheetCells[norm] = sheetCells[norm] or {}
+    table.insert(sheetCells[norm], where .. ": " .. keys .. " — " .. tostring(desc))
+    cellOwner[norm] = owner        -- nil for the hand-written core groups
+end
+for _, cs in ipairs(_G.moduleCheatsheets or {}) do
+    for _, e in ipairs(cs.entries or {}) do
+        noteCell(e[1], e[2], tostring(cs.title):sub(1, 28), cs.source)
+    end
+end
+-- The hand-written core groups are read from SOURCE. They live inside
+-- cheatSheet.groups(), which needs the whole core sandbox to call, and
+-- the thing being checked is a table literal — reading the literal is
+-- reading exactly what ships.
+do
+    local f = io.open(HS .. "/core/cheatsheet.lua", "r")
+    local src = f and f:read("*a")
+    if f then f:close() end
+    check("core/cheatsheet.lua is readable — this check is worthless if the "
+          .. "hand-written groups are silently skipped", src ~= nil)
+    for keys, desc in tostring(src or ""):gmatch("{%s*\"(⇪[^\"]*)\"%s*,%s*\"([^\"]*)\"%s*}") do
+        noteCell(keys, desc, "core/cheatsheet")
+    end
+end
+check("🚨 NO ⇪ KEY IS DOCUMENTED IN TWO GROUPS — one shortcut on the sheet "
+      .. "twice reads as a conflict, and ⇪space lists it twice with only "
+      .. "one of the two runnable", (function()
+    local dupes = {}
+    for norm, list in pairs(sheetCells) do
+        if #list > 1 then
+            dupes[#dupes + 1] = norm .. " ×" .. #list
+                                .. " [" .. table.concat(list, " | ") .. "]"
+        end
+    end
+    if #dupes > 0 then
+        table.sort(dupes)   -- pairs() has no order and a report needs one
+        return false, table.concat(dupes, "  ;;  ")
+    end
+    return true
+end)())
+check("…and the sheet actually had ⇪ rows to check — a scan that matched "
+      .. "nothing would pass this silently, which is the failure mode a "
+      .. "uniqueness test is most prone to",
+      (function()
+    local n = 0
+    for _ in pairs(sheetCells) do n = n + 1 end
+    return n >= 50, n
+end)())
+
+-- 🔧 THE OTHER HALF OF THE JOIN. uni.verifyTools already checks that a run
+-- map entry names a real service AND that its key matches SOME live row.
+-- Neither catches a key that matches the WRONG row — which is how
+-- ["⇪⇧R"] = "rename.undo" came to sit on the row labelled "Reset nudge
+-- offset", so that ⏎ on a row about popup placement ran a bulk rename undo
+-- and moved files on disk. Both halves of that join passed. What nobody
+-- checked was that the two halves were about the same thing.
+check("🚨 every run-map key matches EXACTLY ONE cheat sheet row — zero "
+      .. "means ⏎ hands back a key string, two means it is ambiguous which "
+      .. "tool ⏎ runs", (function()
+    local uni = _G.unifiedSearch
+    if not (uni and uni.runnable) then return false, "unified_search did not load" end
+    local bad = {}
+    for keys in pairs(uni.runnable) do
+        local norm = tostring(keys):gsub("%s+", ""):lower()
+        local n = #(sheetCells[norm] or {})
+        -- 📊 has no ⇪ and so is not in sheetCells by design; verifyTools
+        -- covers it. Anything that starts with ⇪ must be here.
+        if tostring(keys):sub(1, 3) == "⇪" and n ~= 1 then
+            bad[#bad + 1] = keys .. " matches " .. n .. " rows"
+        end
+    end
+    if #bad > 0 then table.sort(bad) return false, table.concat(bad, ", ") end
+    return true
+end)())
+
+-- 🚨 AND THE CHECK THAT ACTUALLY CATCHES ⇪⇧R. The one above does not:
+-- ⇪⇧R matched exactly one row, and that row was real. What was wrong is
+-- WHICH row — the POPUP POSITION group, which is one of the hand-written
+-- groups in core/cheatsheet.lua describing keys init.lua itself owns
+-- (nudging choosers around, the help block, the Asana keys still living
+-- in init.lua). A run map entry is by definition a MODULE'S tool: the
+-- service comes from a module's core.provide, and the module carries its
+-- own cheat sheet group. So a runnable key whose only row is hand-written
+-- is a key and a service that came from two different places.
+--
+-- ⚠️ THE STRICTER RULE — "the row's module must be the service's module"
+-- — WAS TRIED FIRST AND IS WRONG, which the suite said immediately. The
+-- numpad layer BINDS ⇪pad1 and publishes nothing; the service it runs
+-- belongs to Quick Append. That indirection is the layer's entire design
+-- (every value in numpad.actions is another module's service name), so a
+-- rule forbidding it would forbid the feature. Row-owner and
+-- service-owner differing is normal. Having no row-owner at all is not.
+check("🚨 every runnable row belongs to a MODULE's cheat sheet group — a "
+      .. "run map entry landing on one of init.lua's hand-written rows "
+      .. "means the key and the service came from different features, "
+      .. "which is how ⏎ on 'Reset nudge offset' came to run a rename undo "
+      .. "and move files on disk", (function()
+    local uni = _G.unifiedSearch
+    if not (uni and uni.runnable) then return false, "unified_search did not load" end
+    local bad = {}
+    for keys, svc in pairs(uni.runnable) do
+        local norm = tostring(keys):gsub("%s+", ""):lower()
+        if tostring(keys):sub(1, 3) == "⇪"
+           and #(sheetCells[norm] or {}) == 1 and cellOwner[norm] == nil then
+            bad[#bad + 1] = keys .. " → " .. svc
+                .. " (its only row is hand-written, not a module's)"
+        end
+    end
+    if #bad > 0 then table.sort(bad) return false, table.concat(bad, "; ") end
+    return true
+end)())
+check("…and the sheet really did tell us which module owns which row — "
+      .. "a group list with no `source` would make the check above pass "
+      .. "by comparing nil to nil", (function()
+    local n = 0
+    for _, owner in pairs(cellOwner) do if owner ~= nil then n = n + 1 end end
+    return n >= 40, n .. " module-owned key cells"
+end)())
+-- 🔌 The service registry learned who publishes what in 6.114.0 (§0.1).
+-- Nothing depends on it yet beyond diagnostics, so this asserts the field
+-- is real rather than an empty table nobody fills — an unused field that
+-- silently answers nil is worse than no field, because the next check
+-- written against it passes on air.
+check("_G.service.owner names the module behind each service", (function()
+    local n = 0
+    for _ in pairs(SERVICE_OWNER) do n = n + 1 end
+    return n >= 20 and SERVICE_OWNER["mouseGrid.show"] == "Mouse Grid"
+           and SERVICE_OWNER["rename.undo"] == "Bulk Rename",
+           n .. " owners, mouseGrid.show = " .. tostring(SERVICE_OWNER["mouseGrid.show"])
 end)())
 
 out("   -- boot cost --\n")

@@ -1,5 +1,5 @@
 -- =====================================================================
--- MODULE: QUICK APPEND PAD (⇪pad2) — one box, four destinations
+-- MODULE: QUICK APPEND PAD (⇪2 · ⇪pad2) — one box, four destinations
 -- =====================================================================
 -- LL: "Can you combine the Capture Pad features & the Quick Append" —
 -- so this window is the COMBINATION: it looks and feels like the
@@ -57,9 +57,15 @@ local M = {
     family = "capture",       -- between Quick Append (13.3), whose files it
                          -- writes, and the numpad layer (13.5) that keys it
     cheatsheet = {
-        title = "🗒 QUICK APPEND PAD (⇪pad2 — one box, four destinations)",
+        title = "🗒 QUICK APPEND PAD (⇪2 or ⇪pad2 — one box, four destinations)",
         entries = {
-            { "⇪pad2", "Open the pad — type entries, one per line" },
+            -- 🔤 6.114.0 — ⇪pad2 AND ⇪pad* NO LONGER APPEAR AS KEY CELLS HERE.
+            -- numpad_layer BINDS every pad key, so under the 6.102.0 rule
+            -- (one owner per ⇪ key) its layer map is where those rows live;
+            -- having them in both groups put one shortcut on the sheet twice
+            -- and gave ⇪space two rows for one tool. The keys are unchanged
+            -- and still documented — one group over.
+            { "⇪2",    "Open the pad — type entries, one per line" },
             { "* …",   "The line is an IDEA → ideas.txt + the CSV" },
             { "+ …",   "The line is a LOG → log.txt + the CSV" },
             { "! …",   "The line is an Asana TASK → the Capture Pad queue" },
@@ -68,7 +74,8 @@ local M = {
             { "close",  "⌘⏎ or Esc — CLOSING FILES EVERYTHING; failures stay in the box" },
             { "⌘⇧V",   "Insert the clipboard into the box" },
             { "16:01",  "The pad opens with today's notes — one click turns one into a task" },
-            { "⇪pad*",  "Open pre-typed with * (an Idea) · ⇪pad- with + (a Log)" },
+            { "pre-typed", "⇪pad* opens it with * (an Idea) · ⇪pad- with + (a Log)" },
+            { "no pad?",   "⇪2 opens it · ⇪space finds both pre-typed doors too" },
         },
     },
 }
@@ -670,6 +677,27 @@ function M.setup(core)
     end
 
     -- ---- the doors in ----------------------------------------------------
+    -- 💻 6.114.0 — ⇪2, BECAUSE THIS PAD HAD NO KEY ON A LAPTOP AT ALL.
+    -- Every other capture path has a letter: ⇪J files the clipboard, ⇪⇧J
+    -- picks the file, ⇪N is the Capture Pad. This window's only addresses
+    -- were ⇪pad2, ⇪pad* and ⇪pad-, so on a MacBook with no external
+    -- keyboard the most-used capture tool in the config was unreachable.
+    --
+    -- 🔑 WHY A DIGIT AND NOT A LETTER: there is no free ⇪ letter left.
+    -- All twenty-six are claimed on the plain layer, and ⇪⇧ has only F and
+    -- Z free — neither of which says "note pad" to anyone. ⇪1–⇪9 are
+    -- untouched, and 2 is not an arbitrary digit: it is THE SAME DIGIT as
+    -- ⇪pad2, which is what makes it one fact to remember instead of two.
+    --
+    -- ⚠️ AND THE CLAIM STOPS THERE. This is not "the number row mirrors
+    -- the pad row" — ⇪4 is Screenshots and would break that promise on the
+    -- fourth key. One key, one true statement about it. The pre-typed
+    -- variants (⇪pad* / ⇪pad-) stay pad-only and are reachable from ⇪space
+    -- instead, where they now appear as runnable tools.
+    np.laptopKey = "2"
+    core.hyperAddShortcut({}, np.laptopKey, function() np.show({}) end,
+                          "quick append pad")
+
     core.provide("notes.openPad", function() np.show({}) return true end)
     core.provide("notes.typeIdeas", function()
         np.show({ prefix = "* " })

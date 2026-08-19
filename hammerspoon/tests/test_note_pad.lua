@@ -139,7 +139,18 @@ _G.claimEscape = function(name, _, present, close)
 end
 _G.movablePanels = {}
 
-local CORE = { provide = function(n, f) PROVIDED[n] = f end }
+-- 💻 6.114.0 — the pad claims ⇪2, its first key of its own. Recorded here
+-- rather than swallowed, so the assertion below is about a real claim.
+local HYPER = {}
+local CORE = {
+    provide = function(n, f) PROVIDED[n] = f end,
+    hyperAddShortcut = function(mods, key, fn, src)
+        local ms = {}
+        for _, x in ipairs(mods or {}) do ms[#ms + 1] = x end
+        table.sort(ms)
+        HYPER[table.concat(ms, "+") .. "|" .. tostring(key)] = { fn = fn, src = src }
+    end,
+}
 
 local mod = dofile(HS .. "/modules/note_pad.lua")
 mod.setup(CORE)
@@ -154,6 +165,24 @@ check("notes.typeLog is published (⇪pad-)",   PROVIDED["notes.typeLog"] ~= nil
 check("notes.editClipboard stays published for choosers and the Console",
       PROVIDED["notes.editClipboard"] ~= nil)
 check("notes.review is published",            PROVIDED["notes.review"] ~= nil)
+-- 💻 6.114.0 — THE PAD'S FIRST KEY OF ITS OWN. Until now it had none:
+-- ⇪pad2, ⇪pad* and ⇪pad- are all bound by numpad_layer, so on a MacBook
+-- with no external keyboard the most-used capture window in the config
+-- could not be opened at all. 2 is the same digit as ⇪pad2, which is the
+-- entire mnemonic and the reason it is not an arbitrary free key.
+check("💻 the pad claims ⇪2 — the one door that works with no number pad",
+      HYPER["|2"] ~= nil, table.concat((function()
+          local t = {} for k in pairs(HYPER) do t[#t + 1] = k end
+          table.sort(t) return t
+      end)(), ","))
+check("…and pressing it opens the pad", (function()
+    if not HYPER["|2"] then return false end
+    np.draft = ""
+    local before = np.webview
+    HYPER["|2"].fn()
+    return np.webview ~= nil and before == nil
+end)())
+np.hide()
 check("the pad claims Esc through the router", CLAIMED_ESC["notepad"] ~= nil)
 check("…and registers with the ⌘-drag layer",
       #_G.movablePanels == 1 and _G.movablePanels[1].name == "quick append pad")

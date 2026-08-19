@@ -58,11 +58,52 @@
 --   • ACCESSIBILITY → POINTER CONTROL → MOUSE KEYS. When that is on,
 --     macOS eats the whole number pad to drive the cursor and no app
 --     ever sees those keys. If ⇪ + pad5 does nothing, check there first.
---   • A KEYBOARD WITHOUT A NUMBER PAD. A laptop or a Magic Keyboard
---     with no pad simply never sends these codes, so the bindings sit
---     there doing nothing. They cost nothing and they are still correct
---     the moment you plug the full-size keyboard back in — which is why
---     this module is safe to load on both Macs.
+--   • A KEYBOARD WITHOUT A NUMBER PAD. See the next block — that answer
+--     used to be "the bindings sit there doing nothing", and 6.114.0
+--     stopped accepting it.
+--
+-- ---------------------------------------------------------------------
+-- 💻 6.114.0 — LAYER 4: ⇪⇧ + THE NUMBER ROW, FOR A KEYBOARD WITH NO PAD
+-- ---------------------------------------------------------------------
+-- LL, undocked: "Sometimes I will not have an external keyboard on my
+-- work MacBook, well and my home, and sometimes I will not."
+--
+-- The old answer was that the pad bindings cost nothing when the pad is
+-- absent and come back the moment it returns. That is true, and it is
+-- not an answer: it means a documented chunk of this config is simply
+-- NOT THERE half the week, and nothing on screen says so. ⇪ itself is
+-- safe on a laptop — Caps Lock is on every MacBook and the hidutil
+-- remap is per-user, not per-device — so the hole was never the hyper
+-- key. It was these seventeen window keys and three capture keys.
+--
+-- Taking inventory made the fix small. MOST of the pad already had a
+-- laptop route: ⇪pad1≈⇪J, ⇪pad3≈⇪⇧J, ⇪pad4≈⇪\, ⇪⇧pad4/6≈⇪←/⇪→,
+-- ⇪⇧pad0≈⇪↑, ⇪⇧pad./padclear≈⇪↓, ⇪⇧pad//pad*≈⇪[/⇪]. What had NO route
+-- at all was the Quick Append Pad (note_pad binds no letter — the pad
+-- was its only key) and nine window placements: the four quarters, top
+-- and bottom half, centre 70%, centre-without-resizing, grow, shrink.
+--
+-- So: the SAME DIGITS, one row up. ⇪⇧7 does what ⇪⇧pad7 does. There is
+-- no second map to learn and no second table to keep in step — both
+-- layers call the same numpad.run() over the same numpad.zones.
+--
+--   ⚠️ THE MNEMONIC IS HONESTLY WEAKER AND THE FILE SAYS SO. The pad's
+--   3×3 block IS the screen; the number row is a straight line, so the
+--   spatial claim would be a lie up here. What survives is the digit:
+--   whatever ⇪⇧pad7 does, ⇪⇧7 does. That is a real mnemonic and it is
+--   the only one being claimed.
+--
+--   ⚠️ 0 IS NOT HERE. ⇪⇧0 is the mini calendar, and stealing a live key
+--   to complete a pattern is how you get two features fighting over one
+--   press. Maximise is ⇪↑, which works on every keyboard already.
+--
+--   ⚠️ AUTO-DETECTING THE KEYBOARD AND SWAPPING LAYERS WAS CONSIDERED
+--   AND REJECTED. hs.usb.watcher could tell us the pad had arrived, and
+--   a config where one key does different things depending on what is
+--   plugged in is a config you hesitate before pressing. Both layers are
+--   always live; the pad is just the faster path to the same nine zones.
+--
+-- ✏️ The table is numpad.rowActions, next to the other two.
 --
 -- ✏️ To change what a pad key does, edit numpad.actions (the ⇪ layer) or
 -- numpad.shiftActions (the ⇪⇧ layer) at the top of setup(). A value may
@@ -97,12 +138,18 @@ local M = {
         family = "capture",
         title = "🔢 NUMPAD — ⇪ pad, THE CAPTURE ROW (⌘⇧ pad is all free)",
         entries = {
-            { "⇪ pad1",      "Clipboard → log.txt as a Log note, instantly" },
-            { "⇪ pad2",      "The Quick Append Pad — * idea · + log · ! task · ? note" },
-            { "⇪ pad3",      "Clipboard → pick Logs or Ideas (the ⇪⇧J picker)" },
-            { "⇪ pad4",      "Split the two most recent windows (same as ⇪\\)" },
-            { "⇪ pad*",      "The pad, pre-typed with * — an Idea" },
-            { "⇪ pad-",      "The pad, pre-typed with + — a Log" },
+            -- 🔤 6.114.0 — THE SPACE CAME OUT OF EVERY KEY CELL. These read
+            -- "⇪ pad1" until now, while quick_append and note_pad spelled the
+            -- SAME keys "⇪pad1"; ⇪space lists one row per key cell, so one
+            -- shortcut appeared twice under two spellings and the run map
+            -- could only ever reach one of them. One key, one spelling.
+            { "⇪pad1",      "Clipboard → log.txt as a Log note, instantly" },
+            { "⇪pad2",      "The Quick Append Pad — * idea · + log · ! task · ? note" },
+            { "⇪pad3",      "Clipboard → pick Logs or Ideas (the ⇪⇧J picker)" },
+            { "⇪pad4",      "Split the two most recent windows (same as ⇪\\)" },
+            { "⇪pad*",      "The pad, pre-typed with * — an Idea" },
+            { "⇪pad-",      "The pad, pre-typed with + — a Log" },
+            { "no pad?",     "⇪2 opens the pad · every row here runs from ⇪space" },
             { "⇪ pad rest",  "🆓 free — pad0 5 6 7 8 9 . / enter clear, yours to assign" },
             { "⌘⇧ pad ALL",  "🆓 all free — a REAL modifier, works outside ⇪ too" },
             { "how",         "Add padN = \"some.service\" in numpad_layer.lua —" },
@@ -126,7 +173,27 @@ local M = {
             { "⇪⇧ pad/ *",   "Previous monitor / next monitor" },
             { "⇪⇧ padenter", "Centre without resizing" },
             { "why",         "The pad sends its OWN key codes — pad7 ≠ 7, both free" },
+            { "no pad?",     "The same nine zones live on ⇪⇧ + the NUMBER ROW" },
             { "if dead",    "Accessibility → Pointer Control → Mouse Keys steals the pad" },
+        },
+        },
+        {
+        family = "windows",
+        title = "💻 NO NUMBER PAD — ⇪⇧ + THE NUMBER ROW, the same nine zones",
+        entries = {
+            { "⇪⇧7 8 9",  "Top-left quarter · top half · top-right quarter" },
+            { "⇪⇧5",      "Centre 70%" },
+            { "⇪⇧1 2 3",  "Bottom-left qtr · bottom half · bottom-right qtr" },
+            { "⇪⇧,",      "Shrink around the centre  (think <)" },
+            { "⇪⇧.",      "Grow around the centre    (think >)" },
+            { "⇪⇧⏎",      "Centre without resizing (⇪⇧padenter on a full board)" },
+            { "same digit", "⇪⇧7 does what ⇪⇧pad7 does. The digit IS the map" },
+            { "halves",   "⇪← and ⇪→ — which is why 4 and 6 are not here" },
+            { "maximise", "⇪↑ — and ⇪⇧0 is the mini calendar, so 0 is not either" },
+            { "put back", "⇪↓ — one memory now, shared with ⇪← ⇪→ ⇪↑" },
+            { "monitors", "⇪[ and ⇪] — no pad needed for those either" },
+            { "why a row", "A row is not a 3×3 block, so the SHAPE mnemonic is" },
+            { "",          "gone and the DIGIT one is kept. Same numbers, flat" },
         },
         },
     },
@@ -252,6 +319,53 @@ function M.setup(core)
         padclear  = "restore",
     }
 
+    -- ---- LAYER 4: ⇪⇧ + NUMBER ROW → THE SAME ZONES, NO PAD (6.114.0) ----
+    -- The laptop layer. Full reasoning in the 💻 block at the top of the
+    -- file; the short version is that a MacBook with no external keyboard
+    -- had no route at all to nine of these zones, and "the bindings are
+    -- still correct when you plug the pad back in" is not a route.
+    --
+    -- 🚨 THE VALUES ARE THE SAME STRINGS AS numpad.shiftActions, NOT A
+    -- COPY OF ITS LOGIC. Both layers hand their string to numpad.run(),
+    -- which owns the geometry — so there is exactly one definition of
+    -- "top-left quarter" and the two layers cannot drift apart. A test
+    -- asserts digit-for-digit agreement, because a table that LOOKS like
+    -- a mirror is not a mirror.
+    --
+    -- ⚠️ THREE DIGITS ARE DELIBERATELY ABSENT, and every one of them is
+    -- absent because the zone ALREADY HAS a laptop key that is better:
+    --      0  maximise      → ⇪↑   (and ⇪⇧0 is the mini calendar)
+    --      4  left half     → ⇪←   (and ⇪⇧4 is the Screenshots panel)
+    --      6  right half    → ⇪→
+    -- 🚨 THE ⇪⇧4 COLLISION WAS FOUND BY THE NEW SENTRY IN
+    -- tests/test_integration.lua, ON ITS FIRST RUN, in this very table. It
+    -- was written into the draft of this layer because ⇪⇧1–9 LOOKED free
+    -- — a grep for shifted digits finds mini_calendar's ⇪⇧0 and nothing
+    -- else, because screenshots.lua spells its key `shots.key = "4"` and
+    -- the grep never saw it. That is the whole argument for a sentry over
+    -- a careful read: the careful read had already happened.
+    --
+    -- Completing the 3×3 pattern would have meant taking ⇪⇧4 off the
+    -- Screenshots panel to duplicate a key (⇪←) that works on every
+    -- keyboard already. A documented hole beats a stolen key.
+    -- ⚠️ prevScreen/nextScreen have no entry either, for the same reason:
+    -- ⇪[ and ⇪] already do it and need no pad.
+    numpad.rowActions = {
+        ["7"] = "topLeft",    ["8"] = "topHalf",    ["9"] = "topRight",
+                              ["5"] = "centre",
+        ["1"] = "bottomLeft", ["2"] = "bottomHalf", ["3"] = "bottomRight",
+        -- The three that are NOT digits on the pad either. < and > carry
+        -- the shrink/grow mnemonic on their own, and Return is the exact
+        -- same key as padenter one keyboard over.
+        [","]      = "shrink",
+        ["."]      = "grow",
+        ["return"] = "centreOnly",
+    }
+    -- ⇧ is the modifier for both window layers, deliberately: the 6.50.0
+    -- rule is "⇪ is tools, ⇪⇧ is windows", and a laptop layer that broke
+    -- that rule to save one modifier would cost more than it saved.
+    numpad.rowMods = { "shift" }
+
     -- ---- LAYER 3: ⌘⇧ + pad → FREE, AND NOT ON THE HYPER KEY (6.70.0) ----
     -- LL: "We set-up my number pad to work with Hammerspoon key presses.
     -- Therefore, if i press cmd+shift+{number pad 3} it should be
@@ -302,6 +416,18 @@ function M.setup(core)
             end
         end
         numpad.prior[id] = f
+        -- 🔗 6.114.0 — WRITE THROUGH TO THE SHARED MEMORY as well, so ⇪↓
+        -- can put back a window this layer moved. Until now these two
+        -- tables did not know about each other: ⇪⇧pad7 then ⇪↓ answered
+        -- "No prior position remembered for this window", about a window
+        -- it had just watched move. has() first because service.call does
+        -- NOT throw on a missing provider — it prints — and a keypress
+        -- that logs a warning on a Mac where window_arranger is switched
+        -- off is noise, not news.
+        if _G.service and _G.service.has
+           and _G.service.has("windows.rememberFrame") then
+            pcall(_G.service.call, "windows.rememberFrame", win)
+        end
     end
 
     local function frontWindow()
@@ -372,7 +498,12 @@ function M.setup(core)
 
     local function restore(win)
         local okId, id = pcall(function() return win:id() end)
-        local f = okId and id and numpad.prior[id]
+        -- Own table first, then the shared one (6.114.0). The fallback is
+        -- not belt-and-braces: numpad.prior is capped at 40 and the window
+        -- you want back may have aged out of it while the shared memory,
+        -- capped higher and written by ⇪← ⇪→ ⇪↑ as well, still has it.
+        local f = okId and id and (numpad.prior[id]
+                                   or (_G.windowPriorFrames or {})[id])
         if not f then
             hs.alert.show("🔢 No earlier size remembered for this window")
             return
@@ -479,6 +610,21 @@ function M.setup(core)
                 table.insert(numpad.skipped, "⇧" .. key)
             end
         end
+        -- The LAPTOP layer (6.114.0) — ⇪⇧ + the number row, same zones.
+        -- The nil-key guard is kept even though "7" and "," exist on every
+        -- keyboard macOS supports: the guard is what makes adding a key
+        -- here safe, and dropping it "because these ones are fine" is how
+        -- the next addition takes the layer down.
+        for key, what in pairs(numpad.rowActions or {}) do
+            if hs.keycodes.map[key] ~= nil then
+                core.hyperAddShortcut(numpad.rowMods, key,
+                                      function() numpad.run(what) end,
+                                      "numpad row " .. key)
+                table.insert(numpad.bound, "⇧row " .. key)
+            else
+                table.insert(numpad.skipped, "⇧row " .. key)
+            end
+        end
         -- The ⌘⇧ layer (6.70.0). Same nil-key guard as the other two, and
         -- the same reason: a key this macOS has no code for must be
         -- skipped and REPORTED, not bound as nil.
@@ -577,6 +723,22 @@ function M.setup(core)
         end
         out[#out + 1] = ""
         out[#out + 1] = string.format("   %d of %d pad keys exist on this Mac", usable, #names)
+        -- 💻 6.114.0 — THE LAPTOP ANSWER, PRINTED BY THE TOOL YOU RUN WHEN
+        -- THE PAD IS NOT WORKING. Someone reading this output has just
+        -- discovered their pad keys do nothing; telling them the same nine
+        -- zones are one row up is the single most useful line here.
+        out[#out + 1] = ""
+        out[#out + 1] = "   💻 NO PAD? The same zones are on ⇪⇧ + the NUMBER ROW:"
+        local rowKeys = { "1","2","3","4","5","6","7","8","9",",",".","return" }
+        for _, n in ipairs(rowKeys) do
+            local what = (numpad.rowActions or {})[n]
+            if what then
+                out[#out + 1] = string.format("   %-10s %-9s %s",
+                    "⇪⇧" .. n, hs.keycodes.map[n] and tostring(hs.keycodes.map[n])
+                                or "no code", tostring(what))
+            end
+        end
+        out[#out + 1] = "   ⇪2 opens the Quick Append Pad · ⇪↑ maximise · ⇪↓ put back"
         if #dead > 0 then
             out[#out + 1] = "   ❌ UNUSABLE HERE: " .. table.concat(dead, ", ")
             out[#out + 1] = "      Assigning any of those is assigning a key that"

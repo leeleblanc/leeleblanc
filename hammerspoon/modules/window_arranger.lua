@@ -62,16 +62,41 @@ function M.setup(core)
 
     -- PRIOR-POSITION MEMORY: every arrangement action below saves the
     -- window's frame (position + size + monitor, since frames are absolute
-    -- screen coordinates) BEFORE moving it. ⌃⌥M restores it — and saves
-    -- where the window is now, so pressing ⌃⌥M again toggles back. One
+    -- screen coordinates) BEFORE moving it. ⇪↓ restores it — and saves
+    -- where the window is now, so pressing ⇪↓ again toggles back. One
     -- memory slot per window, in-memory only (cleared on config reload).
+    --
+    -- 🔗 6.114.0 — THIS IS NOW THE CONFIG'S ONE "PUT IT BACK" MEMORY, and
+    -- until this release it was one of two. numpad_layer kept its own
+    -- private table, so placing a window with ⇪⇧pad7 and then pressing ⇪↓
+    -- answered "No prior position remembered for this window" — the
+    -- window HAD been moved, by a key on the next keyboard over, and the
+    -- restore key could not see it. Two memories for one idea. The pad
+    -- layer writes through windows.rememberFrame now and both keys read
+    -- the same table.
+    --
+    -- 🚨 AND IT IS BOUNDED, which it was not. Windows come and go all day
+    -- and every arrangement added an entry that nothing ever removed — a
+    -- slow leak of exactly the kind numpad_layer's own comment warns
+    -- about while this table, four times busier, had no cap at all.
     _G.windowPriorFrames = {}
+    _G.windowPriorOrder  = {}
+    _G.windowPriorMax    = 60
 
     local function rememberFrame(win)
         local id, f = nil, nil
         pcall(function() id = win:id() end)
         pcall(function() f = win:frame() end)
-        if id and f then _G.windowPriorFrames[id] = f end
+        if not (id and f) then return false end
+        if _G.windowPriorFrames[id] == nil then
+            table.insert(_G.windowPriorOrder, id)
+            if #_G.windowPriorOrder > (_G.windowPriorMax or 60) then
+                local oldest = table.remove(_G.windowPriorOrder, 1)
+                _G.windowPriorFrames[oldest] = nil
+            end
+        end
+        _G.windowPriorFrames[id] = f
+        return true
     end
 
     -- ⌃⌥M — return the focused window to its remembered prior position
@@ -273,6 +298,19 @@ function M.setup(core)
     -- key STAYS bound, this just gives the same move a second, easier
     -- address by service name.
     core.provide("windows.splitTwo", function() splitTopTwo() return true end)
+
+    -- 🔗 6.114.0 — published so the numpad and laptop layers write into the
+    -- SAME "put it back" memory ⇪↓ reads. They used to keep their own, and
+    -- a window placed with ⇪⇧pad7 then answered "No prior position
+    -- remembered" to the one key whose whole job is remembering. Going
+    -- through a service rather than reaching into _G.windowPriorFrames
+    -- keeps the LRU cap in the one file that owns the table — a second
+    -- writer with its own idea of the cap is how a bounded table quietly
+    -- stops being bounded.
+    core.provide("windows.rememberFrame", function(win)
+        if not win then return false end
+        return rememberFrame(win)
+    end)
 end
 
 return M

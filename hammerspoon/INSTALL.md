@@ -228,10 +228,11 @@ run and whether it exists here, and every path it writes to. Read-only.
 | ⇪O | search everything ever OCR'd · ⇪⇧O edits or deletes an entry |
 | 16:01 | a card appears in the corner with the day on it, then fades |
 | unplug the dock, replug it | scattered windows return to their docked positions within seconds |
-| ⇪ pad1 | clipboard → log.txt as a Log note, confirmed with a preview |
-| ⇪ pad2 | the Quick Append Pad — lines route by prefix: * idea + log ! task ? note |
-| ⇪ pad* | the pad pre-typed with * (an Idea) · ⇪ pad- with + (a Log) |
-| ⇪⇧ pad7 | number pad, shifted → window to the top-left quarter |
+| ⇪pad1 | clipboard → log.txt as a Log note, confirmed with a preview |
+| ⇪2 or ⇪pad2 | the Quick Append Pad — lines route by prefix: * idea + log ! task ? note |
+| ⇪pad* | the pad pre-typed with * (an Idea) · ⇪pad- with + (a Log) |
+| ⇪⇧pad7 | number pad, shifted → window to the top-left quarter |
+| ⇪⇧7 | **no number pad?** same zone, number row — 4, 6 and 0 are ⇪← ⇪→ ⇪↑ |
 | ⌃⌥⌘V | clipboard history |
 
 If **⇪ does nothing at all**, the Caps Lock remap was refused — check

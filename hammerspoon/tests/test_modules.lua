@@ -258,9 +258,14 @@ out("\n=== 3. Cheat sheet groups travel WITH the module ===\n")
 --     was the one automatic tool the sheet never mentioned.
 -- Asana Comments still declares none: its entries belong to the ASANA
 -- group that init.lua still owns.
-check("seventeen groups registered — one module contributes two, one has "
+-- 🔄 WAS 17, IS 18 SINCE 6.114.0: numpad_layer contributes a THIRD group,
+-- the laptop layer (⇪⇧ + the number row). It is a separate group rather
+-- than more rows in the ⇪⇧pad one because a reader with no number pad
+-- needs to find it as its own heading, not three lines down inside a
+-- block whose title says "the pad IS the screen".
+check("eighteen groups registered — one module contributes three, one has "
       .. "no cheat sheet at all, and Asana Comments declares none",
-      #_G.moduleCheatsheets == 17, #_G.moduleCheatsheets)
+      #_G.moduleCheatsheets == 18, #_G.moduleCheatsheets)
 local byOrder = {}
 for _, g in ipairs(_G.moduleCheatsheets) do byOrder[g.order] = g.title end
 -- ⚠️ A DUPLICATE ORDER NUMBER IS A REAL BUG, NOT A COSMETIC ONE: Lua's
@@ -281,7 +286,12 @@ check("the five new 6.44.0 groups sit between Autocorrect and the ⇪ reference"
                          -- 6.101.0 — the numpad's FIRST group holds its
                          -- own slot; the second sits a thousandth above
                          -- it, which is what keeps the sort total.
-                         [13.5] = "NUMPAD", [13.501] = "NUMPAD" }
+                         -- 6.114.0 — and a third at 13.502, the laptop
+                         -- layer. Its title says NO NUMBER PAD rather than
+                         -- NUMPAD, deliberately: it is the group you go
+                         -- looking for when you HAVEN'T got one.
+                         [13.5] = "NUMPAD", [13.501] = "NUMPAD",
+                         [13.502] = "NO NUMBER PAD" }
         for slot, needle in pairs(wanted) do
           if not (byOrder[slot] or ""):find(needle, 1, true) then return false end
         end

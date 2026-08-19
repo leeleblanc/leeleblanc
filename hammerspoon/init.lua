@@ -4,9 +4,51 @@
 -- =====================================================================
 -- 08-19-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.113.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.114.0
 -- =====================================================================
 
+-- NEW IN 6.114.0 — EVERY SHORTCUT WORKS WITH NO EXTERNAL KEYBOARD:
+--   LL: "Sometimes I will not have an external keyboard on my work
+--   MacBook... how do I handle shortcut keys when I don't have one?"
+--   ⇪ itself was never the problem — Caps Lock is on every MacBook and
+--   the hidutil remap is per-user, not per-device. The number pad was.
+--   Most of it already had a laptop route (⇪pad1≈⇪J, ⇪pad4≈⇪\,
+--   ⇪⇧pad4/6≈⇪←/⇪→); what had NO route at all was the Quick Append Pad
+--   — note_pad bound no letter, so ⇪pad2 was its only door — and nine
+--   window placements.
+--     💻 ⇪⇧ + THE NUMBER ROW is the same map one row up. ⇪⇧7 does what
+--        ⇪⇧pad7 does; both call one numpad.run() over one zone table, so
+--        they cannot drift, and a test asserts them digit for digit.
+--        4, 6 and 0 are deliberately absent: ⇪← ⇪→ ⇪↑ already do those
+--        and need no pad, and ⇪⇧4 belongs to the Screenshots panel.
+--     💻 ⇪2 OPENS THE QUICK APPEND PAD — the same digit as ⇪pad2. There
+--        is no free ⇪ letter left; all twenty-six are claimed.
+--     💻 THE SIX ⇪pad TOOLS ARE NOW RUNNABLE FROM ⇪space. They were
+--        already LISTED there and ⏎ copied the key string, because the
+--        run map had no entry — so it showed you a tool you could name
+--        and not use.
+--   🚨 AND THE SENTRY FOUND THE ⇪⇧4 CLASH IN THE FIRST DRAFT OF THIS
+--   VERY LAYER, which a careful read had already missed.
+--
+-- ALSO IN 6.114.0 — FOUR THINGS THAT WERE ALREADY WRONG:
+--   🚨 ⏎ ON "RESET NUDGE OFFSET" IN ⇪space RAN A BULK RENAME UNDO. The
+--      run map joined ⇪⇧R to rename.undo, and the only row with that key
+--      cell is the popup nudge reset. Both existing checks passed: the
+--      service was real, the key matched a live row. Nothing could ask
+--      whether they were the same feature. _G.service.owner records who
+--      publishes each name now, and a test asks.
+--   🚨 BULK RENAME TOLD YOU TO PRESS A KEY IT DOES NOT OWN, in four
+--      places including the alert that fires the instant files move.
+--      ⇪⇧R is the nudge reset; the undo is the first row of ⇪R.
+--   🚨 FOUR SHORTCUTS WERE ON THE CHEAT SHEET TWICE — ⇪O, ⇪⇧O, ⇪T, ⇪⇧S
+--      — left behind when OCR and the task form became modules. The
+--      identical complaint was raised by hand in 6.90.1 about ⇪V. A
+--      comment asking people to remember is not a sentry; there is one
+--      now, over the module groups AND the hand-written ones.
+--   🔗 ⇪↓ COULD NOT PUT BACK A WINDOW THE PAD HAD MOVED. Two "prior
+--      frame" memories, neither aware of the other. One now — and it is
+--      bounded, which it never was.
+--
 -- NEW IN 6.113.0 — A PINNED NOTE CAN MOVE TO ANOTHER WINDOW:
 --   LL: "can I move and pin it if I need to set it to another window?"
 --   It could not, and not obviously so — _G.winPin.rebind() read like
@@ -100,22 +142,8 @@
 --   The Console is where errors are supposed to be visible. A module
 --   that fills it with routine success is hiding them.
 --
--- NEW IN 6.109.0 — ⇪⇧T GETS ITS ROWS BACK:
---   LL sent a Console log with four LuaSkin errors in it. They were real,
---   and they were not new — the snippet chooser has been handing the
---   snippet TABLE to hs.chooser:choices() since 6.68.0. A chooser row
---   crosses into Objective-C, so a function (.fn on an action) or a
---   nested table cannot make the trip; LuaSkin rejects the key, then the
---   row, then the whole list, and says so:
---     LuaSkin: hs.chooser:choices() table could not be parsed correctly.
---   🚨 IT LOGS, IT DOES NOT THROW — which is why the pcall around the
---   call never caught it and ⇪⇧T failed in silence for 41 versions.
---   The payload stays in Lua now and the row carries a plain integer
---   into it. A test walks every row and fails on any value that is not
---   a string, number or boolean, so this cannot come back quietly.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.113.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.114.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -414,7 +442,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.113.0"
+_G.configVersion = "6.114.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -556,7 +584,26 @@ end
 -- of throwing. §1.12 replaces this stub with the real thing.
 _G.service = {
     registry = {},
-    provide  = function(name, fn) _G.service.registry[name] = fn end,
+    -- 🔌 6.114.0 — WHO ANSWERS THIS NAME. The registry has always been a
+    -- flat name → function table, which is all a CALLER needs and not
+    -- enough for anything that has to reason about the wiring. It cost
+    -- one real bug: modules/unified_search.lua's run map joined
+    -- "rename.undo" to the cheat-sheet row whose key cell says ⇪⇧R, which
+    -- is the POPUP NUDGE RESET — so ⏎ on a row about where popups appear
+    -- ran a bulk rename undo and moved files on disk. Both existing
+    -- checks passed: the service was real, the key matched a live row.
+    -- Nothing could ask the only question that mattered — does the row
+    -- belong to the module that answers? — because nothing recorded who
+    -- answers. Now something does, and a test in test_integration.lua
+    -- asks it of every entry in that map.
+    owner    = {},
+    provide  = function(name, fn)
+        _G.service.registry[name] = fn
+        -- _G.moduleLoading is set by the §1.12 loader around each setup()
+        -- and is nil for anything init.lua publishes directly, which is
+        -- the honest answer for those.
+        _G.service.owner[name] = _G.moduleLoading or "init.lua"
+    end,
     has      = function(name) return _G.service.registry[name] ~= nil end,
     call     = function(name, ...)
         local fn = _G.service.registry[name]
@@ -2808,7 +2855,17 @@ local function loadOneModule(name, settings)
         return rec
     end
 
+    -- 🔌 6.114.0 — NAME THE MODULE WHILE IT IS PUBLISHING. _G.service.provide
+    -- reads this to record an owner per service. A global rather than a
+    -- per-module `core` table on purpose: `core` is built ONCE and shared by
+    -- every module, and cloning it per module to carry one string would
+    -- copy a large table thirty times at boot for a field only the registry
+    -- reads. Cleared straight after, so anything publishing outside a
+    -- setup() is honestly recorded as init.lua rather than blamed on
+    -- whichever module happened to load last.
+    _G.moduleLoading = mod.name or name
     local okSetup, setupErr = pcall(mod.setup, core)
+    _G.moduleLoading = nil
     rec.ms = (hs.timer.secondsSinceEpoch() - t0) * 1000
     if not okSetup then
         rec.err = "setup() failed — " .. tostring(setupErr)

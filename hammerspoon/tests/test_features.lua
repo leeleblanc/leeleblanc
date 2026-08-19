@@ -282,6 +282,14 @@ hs = {
         ["pad."] = 65, ["pad+"] = 69, ["pad-"] = 78, ["pad*"] = 67, ["pad/"] = 75,
         padenter = 76, padclear = 71,
         ["0"] = 29, ["7"] = 26, g = 5, j = 38, n = 45,
+        -- 💻 6.114.0 — THE REAL NUMBER-ROW AND PUNCTUATION CODES, from a
+        -- live Mac. The laptop layer binds these, and bindAll SKIPS any key
+        -- hs.keycodes.map has no code for — so a stub missing them would
+        -- make the layer look correctly bound while binding one key in ten,
+        -- and the count assertion would be measuring the stub.
+        ["1"] = 18, ["2"] = 19, ["3"] = 20, ["4"] = 21, ["5"] = 23,
+        ["6"] = 22, ["8"] = 28, ["9"] = 25,
+        [","] = 43, ["."] = 47, ["return"] = 36,
     } },
 }
 
@@ -1741,8 +1749,12 @@ local boundCount = live.bindAll()
 -- that exist NOWHERE else on the keyboard: the capture row (pad1 pad2
 -- pad3 pad* pad- → quick append and the Note Pad) plus pad4 → split.
 -- 17 window keys + 6 capture keys = 23.
-check("the WINDOW layer's 17 keys plus the 6.99.0 capture row's 6 — "
-      .. "23 bindings, nothing else", boundCount == 23, boundCount)
+-- 💻 6.114.0 adds the LAPTOP layer: ⇪⇧ + the number row, ten more (seven
+-- digits — 4, 6 and 0 are deliberately absent — plus , . and Return).
+-- 17 + 6 + 10 = 33.
+check("the WINDOW layer's 17 keys, the 6.99.0 capture row's 6 and the "
+      .. "6.114.0 laptop row's 10 — 33 bindings, nothing else",
+      boundCount == 33, boundCount)
 check("...including all ten digits, on the SHIFTED layer", (function()
     for i = 0, 9 do if not hyperFor({ "shift" }, "pad" .. i) then return false end end
     return true
@@ -1806,8 +1818,10 @@ check("an unmapped key name is SKIPPED, not bound to nil", (function()
     local n2 = m2.numpad
     n2.actions = { padnonsense = "focus.toggle", pad1 = "focus.toggle" }
     -- Cleared so this checks the unshifted map alone; the shifted layer
-    -- gets the same guard and its own assertion below.
+    -- gets the same guard and its own assertion below. (6.114.0: the
+    -- laptop row is cleared here too, for the same reason.)
     n2.shiftActions = {}
+    n2.rowActions   = {}
     -- ⚠️ RESET THE COUNTERS. Since 6.49.0 the layer is live, so setup()
     -- has ALREADY run bindAll and filled these — and bindAll is
     -- idempotent, so without this it returns the previous 28 and the
@@ -1830,6 +1844,7 @@ check("the SHIFTED layer gets the same nil-key guard — a key macOS has no "
     m3.setup(core)
     local n3 = m3.numpad
     n3.actions      = {}
+    n3.rowActions   = {}
     n3.shiftActions = { padnonsense2 = "full", pad1 = "bottomLeft" }
     n3.bound, n3.skipped = {}, {}
     hs.keycodes.map.padnonsense2 = nil
@@ -1837,6 +1852,88 @@ check("the SHIFTED layer gets the same nil-key guard — a key macOS has no "
     n3.bindAll()
     return #n3.bound == 1 and n3.bound[1] == "⇧pad1"
            and #n3.skipped == 1 and n3.skipped[1] == "⇧padnonsense2"
+end)())
+
+-- =====================================================================
+-- 💻 6.114.0 — THE LAPTOP LAYER: ⇪⇧ + THE NUMBER ROW
+-- =====================================================================
+-- LL, undocked: "Sometimes I will not have an external keyboard on my
+-- work MacBook." Until now the answer was that the pad bindings cost
+-- nothing when the pad is absent — true, and not an answer, because nine
+-- window placements and the Quick Append Pad then had NO key at all.
+--
+-- What is asserted here is the part a reader cannot verify by eye: that
+-- the second layer is a MIRROR and not a second implementation. Two
+-- tables that happen to agree today are two tables that disagree after
+-- the next edit, and the failure would be silent — ⇪⇧7 would simply put
+-- the window somewhere ⇪⇧pad7 does not.
+check("💻 the laptop layer is bound on ⇪⇧ + the number row", (function()
+    for _, k in ipairs({ "1", "2", "3", "5", "7", "8", "9", ",", ".", "return" }) do
+        if not hyperFor({ "shift" }, k) then return false, k end
+    end
+    return true
+end)())
+check("🚨 every laptop digit does EXACTLY what the same pad digit does — "
+      .. "a mirror that drifts sends the window somewhere else and says "
+      .. "nothing", (function()
+    for _, d in ipairs({ "1", "2", "3", "5", "7", "8", "9" }) do
+        local row = live.rowActions[d]
+        local pad = live.shiftActions["pad" .. d]
+        if row ~= pad then
+            return false, d .. ": row=" .. tostring(row) .. " pad=" .. tostring(pad)
+        end
+    end
+    return true
+end)())
+check("🚨 4, 6 and 0 are ABSENT from the laptop layer — ⇪⇧4 is the "
+      .. "Screenshots panel and ⇪⇧0 the mini calendar, and completing a "
+      .. "pattern by taking a live key is worse than a documented hole",
+      live.rowActions["4"] == nil and live.rowActions["6"] == nil
+      and live.rowActions["0"] == nil,
+      tostring(live.rowActions["4"]) .. "/" .. tostring(live.rowActions["6"])
+      .. "/" .. tostring(live.rowActions["0"]))
+check("…and their zones are still reachable, which is WHY they are absent "
+      .. "— left half, right half and maximise are ⇪← ⇪→ ⇪↑, on every "
+      .. "keyboard ever made",
+      live.zones.leftHalf ~= nil and live.zones.rightHalf ~= nil
+      and live.zones.full ~= nil)
+check("the three non-digit keys carry the actions the pad puts on its own "
+      .. "non-digits — < shrinks, > grows, Return centres without resizing",
+      live.rowActions[","] == "shrink" and live.rowActions["."] == "grow"
+      and live.rowActions["return"] == "centreOnly"
+      and live.shiftActions["pad+"] == "grow"
+      and live.shiftActions.padenter == "centreOnly")
+check("the laptop row gets the same nil-key guard as the other three — a "
+      .. "key macOS has no code for is skipped and NAMED, not handed to "
+      .. "hs.hotkey as nil", (function()
+    local m4 = load("numpad_layer")
+    m4.setup(core)
+    local n4 = m4.numpad
+    n4.actions, n4.shiftActions = {}, {}
+    n4.rowActions = { rownonsense = "full", ["7"] = "topLeft" }
+    n4.bound, n4.skipped = {}, {}
+    hs.keycodes.map.rownonsense = nil
+    n4.enabled = true
+    n4.bindAll()
+    return #n4.bound == 1 and n4.bound[1] == "⇧row 7"
+           and #n4.skipped == 1 and n4.skipped[1] == "⇧row rownonsense",
+           table.concat(n4.bound, ",") .. " / " .. table.concat(n4.skipped, ",")
+end)())
+-- 🔗 THE SHARED "PUT IT BACK" MEMORY. Before 6.114.0 this layer kept its
+-- own table, so ⇪⇧pad7 then ⇪↓ answered "No prior position remembered for
+-- this window" about a window it had just watched move. The write-through
+-- is what makes one restore key work for both keyboards.
+check("🔗 placing a window writes into the SHARED prior-frame memory, so "
+      .. "⇪↓ can put back something the pad or laptop layer moved",
+      (function()
+    local seen = nil
+    local realHas, realCall = _G.service.has, _G.service.call
+    _G.service.has  = function(n) return n == "windows.rememberFrame" end
+    _G.service.call = function(n, w) if n == "windows.rememberFrame" then seen = w end end
+    FOCUSED = FOCUSED or {}
+    live.run("topLeft")
+    _G.service.has, _G.service.call = realHas, realCall
+    return seen ~= nil
 end)())
 
 printed = {}

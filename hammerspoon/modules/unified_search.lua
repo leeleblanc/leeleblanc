@@ -470,7 +470,17 @@ function M.setup(core)
         ["⇪K"]    = "url.cleanClipboard",
         ["⇪⇧K"]   = "url.undo",
         ["⇪R"]    = "rename.show",
-        ["⇪⇧R"]   = "rename.undo",
+        -- 🚨 6.114.0 — ["⇪⇧R"] = "rename.undo" WAS REMOVED FROM HERE, and
+        -- it was not a dead entry, it was a WRONG one. ⇪⇧R belongs to the
+        -- popup nudge reset (§0.4 maps ⌥⌘⌃R onto it), so the only cheat
+        -- sheet row whose key cell says ⇪⇧R is "Reset nudge offset" — and
+        -- srcTools attaches a service to a row BY ITS KEY CELL. Pressing ⏎
+        -- on a row about where popups appear therefore ran a bulk rename
+        -- undo, which MOVES FILES ON DISK. verifyTools could not see it:
+        -- the service existed and the key matched a live row, so both
+        -- halves of the join passed while joining the wrong two things.
+        -- The undo has no key of its own by design — it is the first row
+        -- of ⇪R whenever there is a batch to undo (see bulk_rename.lua).
         ["⇪M"]    = "menuBar.show",
         ["⇪Q"]    = "focus.toggle",
         ["⇪⇧Q"]   = "focus.report",
@@ -487,6 +497,25 @@ function M.setup(core)
         -- makes this row the only way to open it by hand short of the
         -- Console, which is exactly what a tool list is for.
         ["📊"]    = "rollup.show",
+        -- 💻 6.114.0 — THE NUMBER PAD ROW, RUNNABLE WITHOUT A NUMBER PAD.
+        -- These six were already listed here — srcTools lists EVERY cheat
+        -- sheet row — and ⏎ on one of them copied the key string instead
+        -- of running it, because uni.runnable had no entry. So ⇪space
+        -- showed a MacBook user a tool they could see, name, and not use.
+        -- The actions were already published service names; this is the
+        -- join that was missing, and it costs six lines and no key.
+        --
+        -- ⚠️ THE KEY CELLS MUST MATCH numpad_layer.lua EXACTLY. They read
+        -- "⇪ pad1" with a space there until 6.114.0 and "⇪pad1" without
+        -- one in quick_append — the same shortcut, twice, and a run map
+        -- can only ever point at one spelling. verifyTools fails the join
+        -- if either side drifts again.
+        ["⇪pad1"] = "notes.appendClipboard",
+        ["⇪pad2"] = "notes.openPad",
+        ["⇪pad3"] = "notes.pickTarget",
+        ["⇪pad4"] = "windows.splitTwo",
+        ["⇪pad*"] = "notes.typeIdeas",
+        ["⇪pad-"] = "notes.typeLog",
     }
 
     uni.toolsVerified = false

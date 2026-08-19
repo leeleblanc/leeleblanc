@@ -4,6 +4,145 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.114.0 — EVERY SHORTCUT WORKS WITH NO EXTERNAL KEYBOARD, AND
+FOUR THINGS THAT WERE ALREADY WRONG:
+  LL: "Sometimes I will not have an external keyboard on my work
+  MacBook, well and my home, and sometimes I will not. How do I handle
+  shortcut keys when I don't have an external keyboard?"
+
+  ⇪ ITSELF WAS NEVER THE PROBLEM. Caps Lock is on every MacBook and the
+  hidutil remap that turns it into F18 is per-USER, not per-device, so
+  the hyper key works on a bare laptop exactly as it does docked. (It is
+  re-applied at every Hammerspoon launch because a reboot wipes it, and
+  it can need elevated rights on Sonoma and later — the 🎹 line in the
+  boot report says which.) The number pad was the problem.
+
+  TAKING INVENTORY MADE THE FIX SMALL. Most of the pad already had a
+  laptop route and had had one for versions:
+        ⇪pad1 ≈ ⇪J        ⇪pad3 ≈ ⇪⇧J       ⇪pad4 ≈ ⇪\
+        ⇪⇧pad4/6 ≈ ⇪←/⇪→  ⇪⇧pad0 ≈ ⇪↑       ⇪⇧pad. ≈ ⇪↓
+        ⇪⇧pad/ ≈ ⇪[       ⇪⇧pad* ≈ ⇪]
+  What had NO route at all was the Quick Append Pad — note_pad.lua binds
+  no letter, so ⇪pad2, ⇪pad* and ⇪pad- were its only doors — and nine
+  window placements: the four quarters, top and bottom half, centre 70%,
+  centre-without-resizing, grow and shrink. So on a MacBook with nothing
+  plugged in, the most-used capture window in the config could not be
+  opened, and a documented chunk of the window map simply was not there.
+  Nothing on screen said so. "The bindings sit there doing nothing and
+  are still correct when you plug the pad back in" is true, and it is
+  not an answer.
+
+  💻 ⇪⇧ + THE NUMBER ROW — THE SAME NINE ZONES, ONE ROW UP. ⇪⇧7 does what
+     ⇪⇧pad7 does. It is not a copy: both layers hand the same string to
+     numpad.run() over the same numpad.zones, so there is one definition
+     of "top-left quarter" and the two cannot drift. A test asserts them
+     digit for digit, because a table that LOOKS like a mirror is not a
+     mirror and the drift would be silent — the window would just land
+     somewhere else.
+       · The mnemonic is honestly weaker and the file says so. The pad's
+         3×3 block IS the screen; a row is a straight line. What survives
+         is the digit, and that is the only claim being made.
+       · 4, 6 and 0 ARE DELIBERATELY ABSENT, each because the zone
+         already has a better laptop key: ⇪← ⇪→ ⇪↑. Completing the
+         pattern would have meant taking ⇪⇧4 off the Screenshots panel
+         to duplicate a key that works everywhere already.
+       · ⇪⇧, shrinks and ⇪⇧. grows (think < and >), and ⇪⇧⏎ centres
+         without resizing — the same key as ⇪⇧padenter, one keyboard
+         over.
+       · AUTO-DETECTING THE KEYBOARD AND SWAPPING LAYERS WAS CONSIDERED
+         AND REJECTED. hs.usb.watcher could do it. A config where one key
+         does different things depending on what is plugged in is a
+         config you hesitate before pressing, which is worse than a
+         missing key. Both layers are always live.
+
+  💻 ⇪2 OPENS THE QUICK APPEND PAD. A digit and not a letter because
+     there is no free ⇪ letter left — all twenty-six are claimed on the
+     plain layer, and ⇪⇧ has only F and Z, neither of which says "note
+     pad" to anyone. 2 is not an arbitrary free key: it is THE SAME DIGIT
+     as ⇪pad2, which makes it one fact to remember instead of two. The
+     claim stops there — this is not "the number row mirrors the pad
+     row", which would break at ⇪4 (Screenshots).
+
+  💻 THE SIX ⇪pad TOOLS ARE RUNNABLE FROM ⇪space NOW. They were already
+     LISTED there — the tool source lists every cheat sheet row — and ⏎
+     on one copied the key string instead of running it, because
+     uni.runnable had no entry for it. So ⇪space showed a MacBook user a
+     tool they could see, name, and not use. The actions were already
+     published service names; this was six lines of join.
+
+  🚨 AND THE NEW SENTRY CAUGHT THE FIRST DRAFT OF THIS VERY LAYER. ⇪⇧1–9
+     LOOKED free — a grep for shifted digits finds mini_calendar's ⇪⇧0
+     and nothing else, because screenshots.lua spells its key
+     `shots.key = "4"` and the grep never saw it. The suite named it on
+     the first run: "⇪⇧4 (numpad row 4 vs screenshot panel)". That is the
+     whole argument for a sentry over a careful read — the careful read
+     had already happened.
+
+  ---------------------------------------------------------------------
+  AND FOUR THINGS THAT WERE ALREADY WRONG, found while auditing the
+  keyboard for the above. None of them was reported; all of them were
+  reachable by hand.
+
+  🚨 ⏎ ON "RESET NUDGE OFFSET" IN ⇪space RAN A BULK RENAME UNDO — which
+     MOVES FILES ON DISK. uni.runnable had ["⇪⇧R"] = "rename.undo", and
+     the tool list attaches a service to a row BY ITS KEY CELL. The only
+     row whose key cell says ⇪⇧R is the popup nudge reset (§0.4 maps
+     ⌥⌘⌃R onto it). Both existing checks passed: verifyTools confirms the
+     service exists and confirms the key matches a live row, and it did
+     both — while joining two different features. The entry is gone, and
+     _G.service.owner now records which module published each service so
+     a test can ask the question nothing could ask before.
+
+  🚨 BULK RENAME TOLD YOU TO PRESS A KEY IT DOES NOT OWN, in four places
+     including `hs.alert.show(msg .. "\n⇪⇧R to undo")` — the alert that
+     fires the instant files have moved, when you most need the way back.
+     ⇪⇧R is the nudge reset. The module's own wiring note has said so,
+     correctly, since it was written ("🚨 NO ⇪⇧R BINDING"); the code
+     refused to claim a key it did not own while the prose told you to
+     press it. The undo route is unchanged and always was: the FIRST ROW
+     of ⇪R, offered whenever there is a batch to undo.
+
+  🚨 FOUR SHORTCUTS WERE ON THE CHEAT SHEET TWICE. ⇪O and ⇪⇧O were left
+     in core/cheatsheet.lua's hand-written CLIPBOARD & OCR group when the
+     OCR engine became a module in 6.105.0 and brought its own group;
+     ⇪T and ⇪⇧S were left in the ASANA group when the task form did the
+     same. Six more were duplicated across two SPELLINGS — "⇪ pad1" in
+     the numpad layer, "⇪pad1" in quick_append — which is worse than
+     cosmetic, since a run map can only point at one spelling. The
+     identical complaint was raised by hand from a screenshot in 6.90.1
+     about ⇪V, fixed by hand, and written up in a comment asking that it
+     not happen again. It happened four more times. There is a sentry now
+     and it reads BOTH sources — the module groups and the hand-written
+     ones — which is why it saw what four years of per-module suites
+     could not: no single suite had ever looked at both halves of the
+     sheet at once.
+
+  🔗 ⇪↓ COULD NOT PUT BACK A WINDOW THE PAD HAD MOVED. numpad_layer kept
+     its own prior-frame table and window_arranger kept another, so
+     placing a window with ⇪⇧pad7 and then pressing ⇪↓ answered "No prior
+     position remembered for this window" — about a window it had just
+     watched move. One memory now: the pad and laptop layers write
+     through windows.rememberFrame, and both restore keys read the same
+     table. It is also BOUNDED for the first time; numpad's private table
+     was capped at 40 with a comment calling an uncapped one "a slow leak
+     that nothing ever notices, which is the worst kind", while the
+     shared table it should have been using had no cap at all.
+
+  TEST EVIDENCE. Nine new guards, each confirmed FAILING against a
+  deliberately broken variant before being kept:
+      · run map pointed back at ⇪⇧R          → the ownership check names it
+      · a duplicated ⇪O row put back         → 2 failures, dupe + ambiguity
+      · service owner tracking removed       → "mouseGrid.show = init.lua"
+      · ⇪⇧4 put back in the laptop layer     → the ⇪ collision sentry
+      · ⇪2 binding removed                   → 2 failures in test_note_pad
+      · laptop 2 changed to topHalf          → the mirror check
+      · the shared-memory write-through cut  → the ⇪↓ link check
+      · windows.rememberFrame unpublished    → the cross-module link check
+  Counts: test_features 404 → 411, test_integration 138 → 147,
+  test_note_pad 54 → 56, test_modules unchanged at 118.
+  46 stages green · hostile 46 modules, 0 that did not degrade ·
+  lint 0 error, 1 pre-existing warning, 3 note.
+
 NEW IN 6.113.0 — A PINNED NOTE CAN MOVE TO ANOTHER WINDOW:
   LL, reviewing 6.112.0 on the work MacBook: "Long note work. But can I
   move and pin it if I need to set it to another window?"

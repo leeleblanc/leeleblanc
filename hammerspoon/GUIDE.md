@@ -180,8 +180,9 @@ module is listed even with no `cheatsheet` at all.
 
 **Two families in one module?** `M.cheatsheet` may be a **list** of groups,
 each with its own `family` — `modules/numpad_layer.lua` does this because
-`⇪ pad` captures text while `⇪⇧ pad` moves windows. Each group gets its own
-slot automatically.
+`⇪ pad` captures text while `⇪⇧ pad` moves windows (and since 6.114.0 a third
+group, `⇪⇧` + the number row, for a keyboard with no pad). Each group gets its
+own slot automatically.
 
 ### What `core` gives you
 
@@ -443,6 +444,14 @@ The plain `⇪ + pad` layer is the **capture row** (6.99.0, re-cut
    ⇪pad*   the pad, pre-typed with "* " — an Idea
    ⇪pad-   the pad, pre-typed with "+ " — a Log
 ```
+
+**No number pad?** (6.114.0) `⇪2` opens the Quick Append Pad — the same digit
+as `⇪pad2`, and the pad's only door until this release, since `note_pad.lua`
+binds no letter. The other five are runnable from `⇪space`: they were always
+listed there, and ⏎ handed you the key string instead of running them, because
+`uni.runnable` had no entry. The window map has a laptop layer too — `⇪⇧` + the
+number row, the same digits as `⇪⇧pad`, with 4, 6 and 0 deliberately absent
+because `⇪←` `⇪→` `⇪↑` already do those and need no pad.
 
 In the pad, every **line** routes by its prefix — `*` Idea, `+` Log,
 `!` Asana task, `?` Asana note (the last two go into the Capture Pad

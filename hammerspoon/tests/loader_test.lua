@@ -218,7 +218,17 @@ local function loadOneModule(name, settings)
         return rec
     end
 
+    -- 🔌 6.114.0 — NAME THE MODULE WHILE IT IS PUBLISHING. _G.service.provide
+    -- reads this to record an owner per service. A global rather than a
+    -- per-module `core` table on purpose: `core` is built ONCE and shared by
+    -- every module, and cloning it per module to carry one string would
+    -- copy a large table thirty times at boot for a field only the registry
+    -- reads. Cleared straight after, so anything publishing outside a
+    -- setup() is honestly recorded as init.lua rather than blamed on
+    -- whichever module happened to load last.
+    _G.moduleLoading = mod.name or name
     local okSetup, setupErr = pcall(mod.setup, core)
+    _G.moduleLoading = nil
     rec.ms = (hs.timer.secondsSinceEpoch() - t0) * 1000
     if not okSetup then
         rec.err = "setup() failed — " .. tostring(setupErr)

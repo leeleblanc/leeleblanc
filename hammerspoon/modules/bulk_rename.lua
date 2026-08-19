@@ -2,9 +2,19 @@
 -- MODULE: BULK RENAME (⇪R) — 2 files or 1,000, in about four keystrokes
 -- =====================================================================
 -- Select files in Finder, press ⇪R, pick a rule, look at the preview,
--- press ⏎. ⇪⇧R undoes the whole batch. Nothing is renamed until the
--- preview has been shown, and nothing is renamed at all if any two files
--- would collide.
+-- press ⏎. Press ⇪R again and the FIRST ROW undoes the whole batch.
+-- Nothing is renamed until the preview has been shown, and nothing is
+-- renamed at all if any two files would collide.
+--
+-- 🚨 6.114.0 — THIS FILE SAID "⇪⇧R UNDOES THE WHOLE BATCH" IN FOUR
+-- PLACES, INCLUDING THE ALERT THAT FIRES RIGHT AFTER A RENAME. ⇪⇧R has
+-- never been this module's key: §0.4 maps ⌥⌘⌃R onto it for the popup
+-- nudge reset, and the wiring note at the bottom of this file has said
+-- so, correctly, since the module was written. What it did NOT do was
+-- fix the prose — so the code refused to claim a key it did not own
+-- while the words told you to press it, and pressing it moved a popup.
+-- The undo route is unchanged and always has been: it is the first row
+-- of ⇪R, offered whenever there is a batch to undo.
 --
 -- ---------------------------------------------------------------------
 -- 🚨 THE THING THAT MAKES THIS DIFFERENT: SIDECARS TRAVEL WITH THE FILM
@@ -45,8 +55,8 @@
 --   · Renaming happens in TWO PHASES through temporary names, so a
 --     cycle (a→b, b→a) works instead of destroying a file. A one-pass
 --     rename cannot do this and will eat `b`.
---   · Every batch writes an undo log to disk BEFORE it runs, so ⇪⇧R
---     works even if Hammerspoon restarts in between.
+--   · Every batch writes an undo log to disk BEFORE it runs, so the undo
+--     row works even if Hammerspoon restarts in between.
 
 local M = {
     name  = "Bulk Rename",
@@ -73,7 +83,9 @@ function M.setup(core)
 
     -- ✏️ EDIT HERE ---------------------------------------------------------
     br.enabled     = true
-    br.key         = "r"          -- ⇪R rename · ⇪⇧R undo
+    br.key         = "r"          -- ⇪R rename. NO shifted twin: ⇪⇧R is the
+                                  -- popup nudge reset, so the undo is the
+                                  -- first row of ⇪R. See the 🚨 note above.
     br.maxFiles    = 2000         -- refuse absurd batches rather than hang
     br.previewRows = 60           -- how many rows the preview lists at once
     br.undoFile    = (core.logsDir or "/tmp") .. "/rename_undo.json"
@@ -496,7 +508,7 @@ end timeout]]
         local choices = { {
             text    = string.format("✅ APPLY — rename %d file%s", #plan,
                                     #plan == 1 and "" or "s"),
-            subText = "⏎ to run · Esc to cancel · ⇪⇧R undoes it afterwards",
+            subText = "⏎ to run · Esc to cancel · ⇪R again, first row, undoes it",
             apply   = true,
         } }
         for i, it in ipairs(plan) do
@@ -524,7 +536,11 @@ end timeout]]
             local msg = string.format("✏️ Renamed %d file%s", done,
                                       done == 1 and "" or "s")
             if #errs > 0 then msg = msg .. "\n⚠️ " .. #errs .. " failed" end
-            hs.alert.show(msg .. "\n⇪⇧R to undo", 3)
+            -- 🚨 6.114.0 — WAS "⇪⇧R to undo". This alert is the single most
+            -- load-bearing sentence in the module: it appears the instant
+            -- files have moved, when you most need the way back, and it
+            -- named a key belonging to the popup nudge reset.
+            hs.alert.show(msg .. "\n⇪R again — first row undoes it", 3)
             say(string.format("applied %s to %d files (%d errors)",
                               ruleName, done, #errs))
         end)
