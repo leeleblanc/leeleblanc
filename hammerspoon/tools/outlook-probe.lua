@@ -74,26 +74,49 @@ do
     end
 
     -- ---- 1. which Outlook is this ---------------------------------------
-    local function appInfo(out)
+    -- 🚨 6.116.0 — THE VERSION LINE USED TO SAY "?" ON EVERY MAC. It read
+    -- the plist with hs.task.new(bin, nil, args) — a nil callback — then
+    -- waitUntilExit() and standardOutput(). With no callback there is
+    -- nothing collecting the pipe, so standardOutput() comes back empty
+    -- and the probe reported "?" for a value sitting in a plain text file
+    -- it had just read successfully. It looked like a scripting failure
+    -- and was not. A real callback fixes it, and it also removes the last
+    -- waitUntilExit() in this file — see the 🧊 note on ask().
+    local function appInfo(out, done)
         local app
         pcall(function() app = hs.application.get("Microsoft Outlook") end)
         if not app then
             out[#out + 1] = "   ❌ Outlook is not running — start it and run this again"
-            return nil
+            return done(nil)
         end
-        local bundle, path, ver = "?", "?", "?"
+        local bundle, path = "?", "?"
         pcall(function() bundle = app:bundleID() or "?" end)
         pcall(function() path   = app:path() or "?" end)
-        pcall(function()
-            local t = hs.task.new("/usr/bin/defaults", nil,
-                { "read", path .. "/Contents/Info.plist", "CFBundleShortVersionString" })
-            t:start(); t:waitUntilExit()
-            ver = (t:standardOutput() or "?"):gsub("%s+$", "")
-        end)
+
         out[#out + 1] = "   bundle : " .. bundle
-        out[#out + 1] = "   version: " .. ver
+        -- Reserved now, filled in by the callback, so the three lines keep
+        -- their order however late the version arrives.
+        local vLine = #out + 1
+        out[vLine] = "   version: ?"
         out[#out + 1] = "   path   : " .. path
-        return app
+
+        local settled = false
+        local function got(v)
+            if settled then return end
+            settled = true
+            out[vLine] = "   version: " .. (v and v ~= "" and v or "? (could not read the plist)")
+            done(app)
+        end
+        local ok = pcall(function()
+            local t = hs.task.new("/usr/bin/defaults",
+                function(code, stdout)
+                    local v = tostring(stdout or ""):gsub("%s+$", "")
+                    got(code == 0 and v or nil)
+                end,
+                { "read", path .. "/Contents/Info.plist", "CFBundleShortVersionString" })
+            if not t or not t:start() then got(nil) end
+        end)
+        if not ok then got(nil) end
     end
 
     -- ---- 2. does AppleScript still answer -------------------------------
@@ -107,6 +130,13 @@ do
           [[tell application "Microsoft Outlook" to return count of exchange accounts]] },
         { "can reach the inbox",
           [[tell application "Microsoft Outlook" to return count of messages of inbox]] },
+        -- 🕳 6.116.0 — ADDED AFTER THE FIRST REAL RUN. Every message-level
+        -- probe came back "Can't get item 1 of {}", which is an error
+        -- ABOUT AN EMPTY LIST, not a refusal — and the difference decides
+        -- everything. This asks the question directly so the report states
+        -- the count instead of leaving it to be inferred from six errors.
+        { "how many messages are SELECTED",
+          [[tell application "Microsoft Outlook" to return count of (get current messages)]] },
         { "can read the SELECTED message's subject",
           [[tell application "Microsoft Outlook"
                 set m to item 1 of (get current messages)
@@ -277,62 +307,118 @@ do
     -- Mac we know nothing about, which is exactly the situation most
     -- likely to raise one. Every probe is a separate osascript process:
     -- the worst any of them can do is exit non-zero, which is a result.
-    -- hs-lint: allow blocking-main-thread — this file runs ONLY when you
-    -- type _G.outlookProbe(). No key, no timer, no watcher. Synchronous is
-    -- also correct here: nine probes whose results are compared against
-    -- each other must all be answered before the verdict is written.
-    local function ask(src)
-        local quoted = "'" .. src:gsub("'", [['\'']]) .. "'"
-        local okExec, out, ok = pcall(hs.execute, "/usr/bin/osascript -e " .. quoted .. " 2>&1")
-        if not okExec then return false, "osascript could not be started" end
-        return ok == true, tostring(out or ""):gsub("%s+$", "")
+    --
+    -- 🧊 6.116.0 — AND IT NO LONGER BLOCKS. This used to be hs.execute,
+    -- with a comment arguing that synchronous was fine because the file
+    -- only runs when you type its name. That argument was wrong, and the
+    -- first work-Mac run proved it: the very first probe raised the macOS
+    -- "allow Hammerspoon to control Outlook?" prompt, which is MODAL and
+    -- blocks the osascript process until a human answers — so hs.execute
+    -- never returned, and Hammerspoon beachballed with the dialog on top
+    -- of it. A permission prompt is not an edge case in this file; it is
+    -- the single most likely thing to happen on a Mac we have never
+    -- probed, which is the only kind of Mac worth probing.
+    --
+    -- A DIAGNOSTIC MUST NOT FREEZE THE THING IT IS DIAGNOSING, any more
+    -- than it may crash it. So each probe is an hs.task and the report is
+    -- assembled in a callback chain. Two properties are preserved from the
+    -- old code on purpose:
+    --   · SEQUENTIAL, not parallel. Nine osascript processes asking a
+    --     mail client nine questions at once is a worse experiment than
+    --     one at a time, and it would stack nine permission dialogs.
+    --   · ALL ANSWERED BEFORE THE VERDICT. The verdicts compare probes
+    --     against each other, so the report is written in the final
+    --     callback, not incrementally.
+    --
+    -- 🚨 AND A WATCHDOG. AppleScript's own `with timeout` does NOT cover
+    -- this case: the TCC prompt blocks BEFORE the script starts running,
+    -- so the script's timeout never begins. Without a Lua-side timer, a
+    -- prompt left unanswered means a task that never exits and a report
+    -- that never prints. op.hardTimeout kills it and records the fact,
+    -- because "no answer in 45s" is itself a finding about this Mac.
+    op.hardTimeout = 45
+
+    local function ask(src, cb)
+        local done = false
+        local task, guard
+        local function finish(ok, text)
+            if done then return end
+            done = true
+            if guard then pcall(function() guard:stop() end) end
+            cb(ok, tostring(text or ""):gsub("%s+$", ""))
+        end
+
+        local started = pcall(function()
+            task = hs.task.new("/usr/bin/osascript",
+                function(code, stdout, stderr)
+                    -- stderr carries the useful half: "can't get sender"
+                    -- and "not authorised" are different problems with
+                    -- different fixes. The old code got this with 2>&1.
+                    local body = (stdout or "")
+                    if body:gsub("%s+", "") == "" then body = stderr or "" end
+                    finish(code == 0, body)
+                end,
+                { "-e", src })
+            if not task or not task:start() then
+                finish(false, "osascript could not be started")
+            end
+        end)
+        if not started then
+            finish(false, "osascript could not be started")
+            return
+        end
+
+        guard = hs.timer.doAfter(op.hardTimeout, function()
+            if done then return end
+            pcall(function() if task then task:terminate() end end)
+            finish(false, string.format(
+                "no answer in %ds — if a permission dialog is showing, "
+                .. "answer it and run the probe again", op.hardTimeout))
+        end)
     end
 
-    local function scriptProbes(out)
+    -- Runs `list` one at a time, calling step(item, ok, result) for each
+    -- answer, then done(). The sequential chain lives here so both probe
+    -- sections share it rather than each growing their own.
+    local function runQueue(list, step, done)
+        local i = 0
+        local function next()
+            i = i + 1
+            local item = list[i]
+            if not item then return done() end
+            ask(item[2], function(ok, res)
+                step(item, ok, res)
+                next()
+            end)
+        end
+        next()
+    end
+
+    local function scriptProbes(out, done)
         local worked, failed = 0, 0
-        for _, p in ipairs(PROBES) do
-            local label, src = p[1], p[2]
-            local ok, res = ask(src)
+        local vals = {}          -- label → answer, for the verdict below
+        runQueue(PROBES, function(p, ok, res)
+            if ok then vals[p[1]] = res end
             if ok then
                 worked = worked + 1
-                out[#out + 1] = string.format("   ✅ %-46s %s", label, trunc(res))
+                out[#out + 1] = string.format("   ✅ %-46s %s", p[1], trunc(res))
             else
                 failed = failed + 1
                 -- The error text is the useful part: "can't get sender" and
                 -- "not authorised" are different problems with different
-                -- fixes, and collapsing both to ❌ throws that away. 2>&1
-                -- on the command is what keeps it — osascript writes its
-                -- errors to stderr, which we would otherwise discard and
-                -- report every failure as a bare ❌.
-                out[#out + 1] = string.format("   ❌ %-46s %s", label,
+                -- fixes, and collapsing both to ❌ throws that away. This
+                -- is why ask() falls back to stderr when stdout is empty —
+                -- osascript writes its errors there, and discarding them
+                -- would report every failure as a bare ❌.
+                out[#out + 1] = string.format("   ❌ %-46s %s", p[1],
                     trunc(tostring(res):gsub("^.*error[^:]*:%s*", ""), 90))
             end
-        end
-        return worked, failed
+        end, function() done(worked, failed, vals) end)
     end
 
-    -- Same runner as scriptProbes, but it TIMES each answer. See the ⏱
-    -- note above: how long a route takes is part of what is being
-    -- measured, not incidental to it.
-    local function calendarProbes(out)
-        local routeA, routeB = 0, 0
-        for _, p in ipairs(CAL_PROBES) do
-            local label, src = p[1], p[2]
-            local t0 = os.clock()
-            local ok, res = ask(src)
-            local ms = math.floor((os.clock() - t0) * 1000)
-            -- Only the slow ones get a time. A column of "3ms" on every
-            -- row is noise that hides the one row that said 4,200.
-            local took = (ms >= 400) and string.format("  [%dms]", ms) or ""
-            if ok then
-                if label:sub(1, 1) == "A" then routeA = routeA + 1 else routeB = routeB + 1 end
-                out[#out + 1] = string.format("   ✅ %-42s %s%s", label, trunc(res), took)
-            else
-                out[#out + 1] = string.format("   ❌ %-42s %s%s", label,
-                    trunc(tostring(res):gsub("^.*error[^:]*:%s*", ""), 80), took)
-            end
-        end
-
+    -- Split out of the runner below so the verdict is written from a
+    -- final callback rather than from a loop that no longer exists.
+    local function calendarVerdict(out, routeA, routeB)
         out[#out + 1] = ""
         if routeA >= 3 then
             out[#out + 1] = "   ✅ VERDICT: ROUTE A — Outlook answers about its own"
@@ -359,7 +445,40 @@ do
             out[#out + 1] = "      same result and is undone in System Settings →"
             out[#out + 1] = "      Privacy & Security → Calendars."
         end
-        return routeA, routeB
+    end
+
+    -- Same runner as scriptProbes, but it TIMES each answer. How long a
+    -- route takes is part of what is being measured, not incidental to it:
+    -- a calendar read that costs four seconds cannot sit on a keypress.
+    --
+    -- ⏱ WALL CLOCK, NOT os.clock(). This measured os.clock() until
+    -- 6.116.0, which is CPU time burned by Hammerspoon itself — and the
+    -- work being timed happens in a SEPARATE osascript process that
+    -- contributes none of it. It under-reported from the day it was
+    -- written, and now that the probes are async it would report ~0 for
+    -- everything. secondsSinceEpoch answers the question actually being
+    -- asked: how long does this Mac make you wait?
+    local function calendarProbes(out, done)
+        local routeA, routeB = 0, 0
+        local t0 = hs.timer.secondsSinceEpoch()
+        runQueue(CAL_PROBES, function(p, ok, res)
+            local now = hs.timer.secondsSinceEpoch()
+            local ms = math.floor((now - t0) * 1000)
+            t0 = now
+            -- Only the slow ones get a time. A column of "3ms" on every
+            -- row is noise that hides the one row that said 4,200.
+            local took = (ms >= 400) and string.format("  [%dms]", ms) or ""
+            if ok then
+                if p[1]:sub(1, 1) == "A" then routeA = routeA + 1 else routeB = routeB + 1 end
+                out[#out + 1] = string.format("   ✅ %-42s %s%s", p[1], trunc(res), took)
+            else
+                out[#out + 1] = string.format("   ❌ %-42s %s%s", p[1],
+                    trunc(tostring(res):gsub("^.*error[^:]*:%s*", ""), 80), took)
+            end
+        end, function()
+            calendarVerdict(out, routeA, routeB)
+            done(routeA, routeB)
+        end)
     end
 
     -- ---- 3. what Accessibility can see ----------------------------------
@@ -428,7 +547,13 @@ do
     end
 
     -- ---- the report ------------------------------------------------------
-    function _G.outlookProbe()
+    -- 🧊 ASYNC SINCE 6.116.0 — this returns immediately and PRINTS LATER.
+    -- The old version returned the finished report, which read better in
+    -- the Console but froze the app to do it (see the 🧊 note on ask()).
+    -- The one line printed up front is not decoration: it is what tells
+    -- you the probe is alive while a permission dialog is covering it.
+    -- Pass a callback if something ever wants the text programmatically.
+    function _G.outlookProbe(cb)
         local out = {
             "════════════════════════════════════════════════════════════",
             " OUTLOOK PROBE   " .. os.date("%Y-%m-%d %H:%M"),
@@ -437,14 +562,94 @@ do
             "",
             "── 1. WHICH OUTLOOK ──",
         }
-        local app = appInfo(out)
-        if app then
+
+        print(string.format(
+            "📧 Outlook probe running — %d probes, one at a time. The report "
+            .. "prints below when they are all in.\n"
+            .. "   If macOS asks whether Hammerspoon may control Outlook or "
+            .. "read Calendars, click Allow —\n"
+            .. "   the probe waits for you, and answering DON'T ALLOW is "
+            .. "remembered and reported as a refusal.",
+            #PROBES + #CAL_PROBES))
+
+        local function finish()
             out[#out + 1] = ""
-            out[#out + 1] = "── 2. APPLESCRIPT (the full-featured path) ──"
-            local worked, failed = scriptProbes(out)
+            out[#out + 1] = "── NEXT ──"
+            out[#out + 1] = "   Paste all of the above back. Nothing here was sent"
+            out[#out + 1] = "   anywhere — it is on your Console and your clipboard."
+            out[#out + 1] = "   Run it on BOTH Macs: the work one is the one that can"
+            out[#out + 1] = "   say no, and it is the one the answer has to fit."
+            out[#out + 1] = "════════════════════════════════════════════════════════════"
+
+            local text = table.concat(out, "\n")
+            print(text)
+            pcall(function() hs.pasteboard.setContents(text) end)
+            hs.alert.show("📧 Outlook probe copied — paste it back", 3)
+            if cb then pcall(cb, text) end
+        end
+
+        -- 📅 OUTSIDE the `if app` branch, deliberately. Route B does not
+        -- involve Outlook at all: Calendar.app holds the same meetings via
+        -- the Exchange account and answers whether Outlook is running,
+        -- installed, or scriptable. Skipping this when Outlook is absent
+        -- would report "cannot read your calendar" on a Mac that can.
+        local function calendarSection()
+            out[#out + 1] = ""
+            out[#out + 1] = "── 2b. THE CALENDAR (a different question — see the header) ──"
+            calendarProbes(out, finish)
+        end
+
+        appInfo(out, function(app)
+        if not app then return calendarSection() end
+
+        out[#out + 1] = ""
+        out[#out + 1] = "── 2. APPLESCRIPT (the full-featured path) ──"
+        scriptProbes(out, function(worked, failed, vals)
             out[#out + 1] = ""
             out[#out + 1] = string.format("   %d of %d probes answered", worked, worked + failed)
-            if worked >= 6 then
+
+            -- 🕳 THE HOLLOW-DICTIONARY SIGNATURE, and the reason this
+            -- section needs more than a pass/fail count. New Outlook keeps
+            -- the old AppleScript vocabulary and stops backing it with
+            -- data: the calls SUCCEED and return nothing. An inbox that
+            -- answers 0 while section 3 walks rows in that same inbox is
+            -- the proof, and it is emphatically NOT a permission problem —
+            -- a Mac that refused would ERROR, not answer zero. Called out
+            -- on its own line because "3 of 10 answered" reads like
+            -- partial access when what is actually there is an empty
+            -- shell, and those two lead to completely different builds.
+            local inbox    = vals["can reach the inbox"]
+            local selected = vals["how many messages are SELECTED"]
+            local hollow   = (inbox == "0") or (selected == "0")
+            if hollow then
+                out[#out + 1] = ""
+                out[#out + 1] = "   🕳 HOLLOW DICTIONARY: the calls below answered, but"
+                out[#out + 1] = "      answered with NOTHING —"
+                if inbox then
+                    out[#out + 1] = "        inbox message count ....... " .. inbox
+                end
+                if selected then
+                    out[#out + 1] = "        selected message count .... " .. selected
+                end
+                out[#out + 1] = "      If section 3 finds AXRows in that same window, the"
+                out[#out + 1] = "      messages exist and scripting simply cannot see"
+                out[#out + 1] = "      them. This is New Outlook's shape, not a denied"
+                out[#out + 1] = "      permission — a refusal errors, it does not say 0."
+                out[#out + 1] = "      One confound worth ruling out: if NO message was"
+                out[#out + 1] = "      clicked in the reading pane, a selected count of 0"
+                out[#out + 1] = "      is honest. The inbox count is the one that cannot"
+                out[#out + 1] = "      be explained that way."
+            end
+
+            out[#out + 1] = ""
+            if hollow then
+                out[#out + 1] = "   ❌ VERDICT: the dictionary is present but EMPTY."
+                out[#out + 1] = "      Treat this as scripting being closed. Building on"
+                out[#out + 1] = "      calls that succeed and return nothing is worse"
+                out[#out + 1] = "      than building on calls that fail, because nothing"
+                out[#out + 1] = "      errors and the tracker just silently logs zero"
+                out[#out + 1] = "      messages forever. Section 3 decides what is left."
+            elseif worked >= 6 then
                 out[#out + 1] = "   ✅ VERDICT: legacy-style scripting is alive here."
                 out[#out + 1] = "      The tracker you asked for is buildable in full —"
                 out[#out + 1] = "      sender, recipients, keywords, attachments, dates."
@@ -460,30 +665,9 @@ do
             out[#out + 1] = ""
             out[#out + 1] = "── 3. ACCESSIBILITY (the fallback path) ──"
             axProbe(app, out)
-        end
-
-        -- 📅 OUTSIDE the `if app` block, deliberately. Route B does not
-        -- involve Outlook at all: Calendar.app holds the same meetings via
-        -- the Exchange account and answers whether Outlook is running,
-        -- installed, or scriptable. Nesting this under "is Outlook there"
-        -- would report "cannot read your calendar" on a Mac that can.
-        out[#out + 1] = ""
-        out[#out + 1] = "── 2b. THE CALENDAR (a different question — see the header) ──"
-        calendarProbes(out)
-
-        out[#out + 1] = ""
-        out[#out + 1] = "── NEXT ──"
-        out[#out + 1] = "   Paste all of the above back. Nothing here was sent"
-        out[#out + 1] = "   anywhere — it is on your Console and your clipboard."
-        out[#out + 1] = "   Run it on BOTH Macs: the work one is the one that can"
-        out[#out + 1] = "   say no, and it is the one the answer has to fit."
-        out[#out + 1] = "════════════════════════════════════════════════════════════"
-
-        local text = table.concat(out, "\n")
-        print(text)
-        pcall(function() hs.pasteboard.setContents(text) end)
-        hs.alert.show("📧 Outlook probe copied — paste it back", 3)
-        return text
+            calendarSection()
+        end)
+        end)
     end
 
     -- Registered as a service when the registry is there, so ⇪space's 🔧
