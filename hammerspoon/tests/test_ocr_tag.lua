@@ -76,25 +76,40 @@ hs = {
     },
 }
 
--- ---- lift the REAL block out of init.lua ------------------------------
-local initFile = assert(io.open(HS .. "/init.lua", "r"), "init.lua not found at " .. HS)
-local INIT_SRC = initFile:read("*a"); initFile:close()
+-- ---- load the REAL module ---------------------------------------------
+-- 6.105.0: this used to cut the block out of init.lua by string search
+-- and compile it with stripToQwerty injected. The engine is a module now,
+-- so it loads the way Hammerspoon loads it and the real function is
+-- called by name — no marker strings, nothing a reformat can break.
+-- The rest of the module needs stubs it does not get here (hs.chooser,
+-- hs.task); every one of those calls is inside a pcall in the module, on
+-- purpose, so setup() completes and the pasteboard reader is reachable.
+hs.chooser = { new = function()
+    local c = {}
+    setmetatable(c, { __index = function() return function(self) return self end end })
+    return c
+end }
+_G.choosers = {}
 
-local s = INIT_SRC:find("local ocrTagMaxChars", 1, true)
-check("the OCR tag block was found in init.lua", s ~= nil)
-local e = INIT_SRC:find("return paths\nend", s, true)
-check("...and its end was found", e ~= nil)
-local block = INIT_SRC:sub(s, e + #("return paths\nend") - 1)
+local CORE = {
+    logsDir = "/logs",
+    hostTag = "Test",
+    adoptLegacyFile  = function() end,
+    warnWriteFailed  = function() end,
+    showPopup        = function() end,
+    hyperAddShortcut = function() end,
+    provide          = function() end,
+}
 
--- stripToQwerty is an init.lua local defined far above the block; for
--- these paths it only trims previews, so identity is a faithful stand-in.
-local chunk, err = load(
-    "local stripToQwerty = ...\n" .. block .. "\nreturn clipboardImageFilePaths",
-    "ocr-tag-block")
-check("the lifted block compiles", chunk ~= nil, err)
-local clipboardImageFilePaths = chunk(function(s2) return s2 end)
-check("...and hands back clipboardImageFilePaths",
+local OCRM = dofile(HS .. "/modules/ocr_engine.lua")
+check("the OCR engine module loads", type(OCRM) == "table"
+      and type(OCRM.setup) == "function")
+local okSetup, setupErr = pcall(OCRM.setup, CORE)
+check("...and its setup() completes without a real hs", okSetup, setupErr)
+local clipboardImageFilePaths = _G.ocrEngine and _G.ocrEngine.clipboardFiles
+check("...and exposes the clipboard reader",
       type(clipboardImageFilePaths) == "function")
+printed = {}   -- setup() may print; the checks below count lines
 
 local function reset()
     printed, CLIPBOARD_ITEMS, RESOLVED_ARGS = {}, {}, {}
@@ -170,10 +185,13 @@ paths = clipboardImageFilePaths()
 check("percent-encoded names still decode (unchanged 6.11.x behaviour)",
       #paths == 1 and paths[1] == "/Users/lee/two words.png", paths[1])
 
-out("\n=== T3. The old chatty lines are really gone from init.lua ===\n")
+out("\n=== T3. The old chatty lines are really gone from the engine ===\n")
 
 -- comments stripped, so a remembering comment can't fake a match
-local CODE = ("\n" .. INIT_SRC):gsub("\n%s*%-%-[^\n]*", "\n")
+local msrc = io.open(HS .. "/modules/ocr_engine.lua", "r")
+local OCR_SRC = msrc and msrc:read("*a") or "" ; if msrc then msrc:close() end
+local CODE = ("\n" .. OCR_SRC):gsub("\n%s*%-%-[^\n]*", "\n")
+check("the engine source was found", #OCR_SRC > 2000, #OCR_SRC)
 check("the 'clipboard has file URL(s) but no image files matched' line is gone",
       CODE:find("no image files matched", 1, true) == nil)
 check("the '↳ first candidate' companion line is gone",

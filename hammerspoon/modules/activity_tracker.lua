@@ -551,7 +551,29 @@ function M.setup(core)
 
     -- hs.timer.doAt(time, "1d", fn) fires at that clock time every day.
     -- Held in _G so Lua garbage collection can't silently kill them.
-    _G.activityDailyReportTimer = hs.timer.doAt(activityDailyReportTime, "1d", showDailyActivityReport)
+    --
+    -- 📊 6.105.0 — THE 16:00 POPUP IS OFF BY DEFAULT. It opened a chooser
+    -- that takes the keyboard, one minute before the Quick Append Pad's
+    -- 16:01 review opens another one. Two panels a minute apart, both
+    -- arriving mid-sentence, is how a useful summary becomes a thing you
+    -- dismiss without reading. modules/daily_rollup.lua now shows the same
+    -- numbers on a card that takes no focus at all, and folds the
+    -- documents and notes in beside them.
+    --
+    -- Nothing was deleted: set this true for the old behaviour, and the
+    -- report is on ⇪space's 🔧 rows and _G.activityDailyReport() either
+    -- way.
+    --
+    -- 🚨 THE ASSIGNMENT STAYS ON ONE LINE. test_diagnostics greps every
+    -- shipped file for a line that STARTS with hs.timer.do — a timer
+    -- created and thrown away, which is collected and then never fires.
+    -- Wrapping this at the `=` put `hs.timer.doAt(` at the head of its own
+    -- line and tripped that check, which was right to complain: it cannot
+    -- tell my line break from the bug it is looking for.
+    local activityDailyReportPopup = false
+    if activityDailyReportPopup then
+        _G.activityDailyReportTimer = hs.timer.doAt(activityDailyReportTime, "1d", showDailyActivityReport)
+    end
     _G.activityWeeklyReportTimer = hs.timer.doAt(activityWeeklyReportTime, "1d", function()
         local wd = tonumber(os.date("%w"))
         if wd == activityWeeklyReportWeekday or wd == 5 then   -- 5 = Friday
@@ -563,6 +585,23 @@ function M.setup(core)
     -- that left with this module, turning ⇪0 into a nil-global crash the
     -- moment it was pressed.
     core.provide("activity.renderChoices", renderActivityChoices)
+
+    -- 📊 6.105.0 — the numbers, without the panel. daily_rollup reads this
+    -- rather than _G.activityLog directly: the log's shape is this
+    -- module's business, and a second module walking it is a second place
+    -- that has to be right about what a session record looks like.
+    core.provide("activity.dayTotals", function(dateStr)
+        dateStr = dateStr or todayStr()
+        local list  = appTotalsInRange(dateStr, dateStr)
+        local total = 0
+        for _, e in ipairs(list) do total = total + e.seconds end
+        return { date = dateStr, total = total, apps = list }
+    end)
+    core.provide("activity.dailyReport", function()
+        showDailyActivityReport()
+        return true
+    end)
+    _G.activityDailyReport = showDailyActivityReport
 
     -- =====================================================================
     -- 📄 DOCUMENTS — ⇪⇧W the list · ⇪⇧E edit or delete   (6.104.0)

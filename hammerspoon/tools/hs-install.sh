@@ -67,6 +67,17 @@ if [ "$ROLLBACK" = "1" ]; then
             rm -rf "$HS/$d" && cp -R "$B/$d" "$HS/$d" || die "could not restore $d/"
         fi
     done
+    # 🚨 THE SNIPPETS FOLDER IS RESTORED FILE-BY-FILE, NOT WIPED. core/ and
+    # modules/ are ours entirely, so replacing them wholesale is right;
+    # snippets/ may also hold packs somebody unzipped there by hand, and
+    # `rm -rf` would take those with it to undo an install.
+    if [ -f "$B/snippets-bundled.lua" ]; then
+        mkdir -p "$HS/snippets"
+        cp "$B/snippets-bundled.lua" "$HS/snippets/bundled.lua" \
+            || die "could not restore snippets/bundled.lua"
+    elif [ -f "$B/snippets-absent" ]; then
+        rm -f "$HS/snippets/bundled.lua"
+    fi
     say "   ✅ restored. Reload Hammerspoon (menu bar → Reload Config)."
     say "   version now: $(grep -m1 '_G.configVersion' "$HS/init.lua" | sed 's/.*"\(.*\)".*/\1/')"
     exit 0
@@ -112,6 +123,23 @@ else
     say "   modules/ : not in this download — your existing ones are kept"
 fi
 
+# 📦 SHIPPED SNIPPETS (6.105.0). This script did not copy snippets/ for
+# four versions, so the packs the zip carried never reached
+# ~/.hammerspoon and the text expander only ever saw the OneDrive folder.
+# Nobody noticed because that folder had everything in it anyway. Now
+# that the packs ship as ONE generated bundled.lua, "the zip carries
+# them" has to actually be true.
+#
+# Your OWN snippets are NOT here. They live in the Logs folder alongside
+# autocorrect.csv, which this script has never touched and still doesn't.
+if [ -f "$SRC/snippets/bundled.lua" ]; then
+    say "   snippets/: bundled.lua ($(wc -c < "$SRC/snippets/bundled.lua" | tr -d ' ') bytes)"
+elif [ -d "$SRC/snippets" ]; then
+    say "   snippets/: $(find "$SRC/snippets" -name '*.json' 2>/dev/null | wc -l | tr -d ' ') files (unbundled)"
+else
+    say "   snippets/: not in this download — your existing ones are kept"
+fi
+
 CURVER="none"
 [ -f "$HS/init.lua" ] && CURVER=$(grep -m1 '_G.configVersion' "$HS/init.lua" | sed 's/.*"\(.*\)".*/\1/')
 say ""
@@ -134,6 +162,15 @@ mkdir -p "$B" || die "could not create $B"
 for d in core modules; do
     [ -d "$HS/$d" ] && cp -R "$HS/$d" "$B/$d"
 done
+# Only the generated file, flattened to one name so the rollback above
+# cannot be confused by a snippets/ directory that also holds packs. A
+# marker records "there wasn't one", so rolling back to a version before
+# 6.105.0 removes it rather than leaving a table that version cannot read.
+if [ -f "$HS/snippets/bundled.lua" ]; then
+    cp "$HS/snippets/bundled.lua" "$B/snippets-bundled.lua"
+else
+    : > "$B/snippets-absent"
+fi
 say "   saved: $B"
 say "   (secret.lua and logs/ are deliberately NOT copied — your token stays put)"
 
@@ -154,7 +191,31 @@ if [ -d "$SRC/modules" ]; then
 fi
 if [ -d "$SRC/tools" ]; then
     mkdir -p "$HS/tools"
-    cp "$SRC/tools"/*.sh "$HS/tools/" 2>/dev/null && say "   tools/   ✅"
+    cp "$SRC/tools"/*.sh "$HS/tools/" 2>/dev/null
+    # 6.105.0 — the .lua tools travel too. outlook-probe.lua is meant to be
+    # dofile()d from the Console by its installed path, so shipping it in
+    # the zip and then not copying it would make that instruction a lie.
+    cp "$SRC/tools"/*.lua "$HS/tools/" 2>/dev/null
+    say "   tools/   ✅ $(ls -1 "$HS/tools"/*.sh "$HS/tools"/*.lua 2>/dev/null | wc -l | tr -d ' ') files"
+fi
+if [ -d "$SRC/snippets" ]; then
+    mkdir -p "$HS/snippets"
+    cp -R "$SRC/snippets"/. "$HS/snippets/" || die "could not write snippets/"
+    # 🚨 THE OLD PACKS ARE LEFT WHERE THEY ARE. A previous unzip may have
+    # put 2,006 .json files here; the expander ignores them once
+    # bundled.lua loads, and deleting somebody's snippets folder to save
+    # 8 MB is not a trade this script gets to make on its own. It says
+    # where they are and lets you decide.
+    if [ -f "$HS/snippets/bundled.lua" ]; then
+        say "   snippets/ ✅ bundled.lua"
+        OLDJSON=$(find "$HS/snippets" -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
+        if [ "${OLDJSON:-0}" -gt 0 ]; then
+            say "      ($OLDJSON older .json snippet files are still in $HS/snippets"
+            say "       and are now ignored — safe to delete if you want the space)"
+        fi
+    else
+        say "   snippets/ ✅ $(find "$HS/snippets" -name '*.json' 2>/dev/null | wc -l | tr -d ' ') files"
+    fi
 fi
 
 # ------------------------------------------------------------ 4. verify

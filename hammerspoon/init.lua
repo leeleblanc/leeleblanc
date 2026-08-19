@@ -2,11 +2,41 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 08-18-26 using Claude          ← EDITED date. Bumped with every release.
+-- 08-19-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.104.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.105.0
 -- =====================================================================
 
+-- NEW IN 6.105.0 — 700 KB OFF THE DOWNLOAD, THE ROOT FILE SHRINKS,
+-- 45 → 46 MODULES:
+--   The four LL cleared off the queue in one go.
+--   📦 THE 2,006 SHIPPED SNIPPETS ARE NOW ONE FILE. They were tiny
+--   JSONs whose FILENAMES cost more in a zip than their contents —
+--   714 KB of a 1.79 MB download to carry 130 KB of snippets. Folded
+--   into snippets/bundled.lua by tools/build-snippets.lua they cost
+--   30 KB, and the expander opens ONE file at reload instead of two
+--   thousand and six. The packs stay in the repo as the source; a test
+--   rebuilds and compares, so the two cannot drift. Every way the
+--   table can be wrong falls back to reading the files, and says why.
+--   (Also: the installer never actually copied snippets/ at all. It
+--   does now — that promise had been untrue for four versions.)
+--   🔍 THE OCR ENGINE LEFT init.lua, to modules/ocr_engine.lua — the
+--   last large feature still above the module loader, and the one that
+--   talks to Finder over Apple Events. 464 lines out of the root file.
+--   ⇪O and ⇪⇧O are unchanged; the clipboard watcher stayed behind and
+--   calls in through the registry.
+--   📊 A DAILY ROLLUP AT 16:01 — one card in the corner with the day
+--   on it: time and top apps, the documents you were actually in, what
+--   you captured. It stores NOTHING; every line is read from a store
+--   another module already keeps. It replaced a popup rather than
+--   adding one — the 16:00 activity chooser is off, because a card
+--   that cannot take the keyboard is the right shape for this. Silent
+--   on an empty day.
+--   📧 THE OUTLOOK PROBE IS NOT A MODULE ANY MORE. It answered its
+--   question in 6.65.0 and still loaded at every boot. It is now
+--   tools/outlook-probe.lua — one dofile line when the work Mac needs
+--   asking, nothing at all the rest of the time.
+--
 -- NEW IN 6.104.0 — TWO TOOLS RETIRED, ONE ADDED, 46 → 45 MODULES:
 --   Three things LL asked for after the redundancy review.
 --   📌 WINDOW PIN (⇪⇧U, the last free ⇪⇧ letter) — a note stuck to ONE
@@ -55,14 +85,8 @@
 --   into one "⚙️ RUNS ITSELF" box, a line each. Each module declares
 --   its own family, so nothing can go missing. No key changed.
 --
--- NEW IN 6.100.2 — THE CHEAT SHEET STOPS SHOUTING:
---   Each tool's box on ⇪/ was outlined in hard black — fine at three
---   sections, a heavy grid at forty-two. The outline is now the same
---   grey hairline every other card in the config wears, and each box
---   lifts off the panel with a little more fill instead.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.104.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.105.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -158,14 +182,14 @@
 --    ⌘⌃⌥⇧V opens the same history to EDIT or DELETE an entry instead —
 --    Save with the text cleared deletes it.
 --
--- ⇪O  OCR LOG SEARCH (§2)
+-- ⇪O  OCR LOG SEARCH (modules/ocr_engine.lua — was §2 until 6.105.0)
 --    When an image lands on the clipboard, Hammerspoon runs your
 --    "HS OCR" Apple Shortcut automatically and indexes the extracted
---    text. ⌃⌥⌘O searches everything ever OCR'd; selecting a row
+--    text. ⇪O searches everything ever OCR'd; selecting a row
 --    copies the text. NEW: copy image FILES in Finder (⌘C) and the
 --    OCR text is also written into each file's Finder comment —
 --    Spotlight-searchable, so meaningless filenames stop mattering.
---    ⌘⌃⌥⇧O opens the same history to EDIT or DELETE an entry instead —
+--    ⇪⇧O opens the same history to EDIT or DELETE an entry instead —
 --    fixes a bad OCR read in place, or clears out junk. Save with the
 --    text cleared deletes it.
 --
@@ -290,16 +314,17 @@
 --   §1.6   cheat sheet (core/cheatsheet.lua) · safe canvas show ·
 --          draggable panels · shared arbitration (core/coexist.lua)
 --   §1.11  diagnostics (core/diagnostics.lua)
---   §2     OCR engine — clipboard images, file tagging, history
+--   §2     shared helpers (the OCR engine that was here moved to
+--          modules/ocr_engine.lua in 6.105.0)
 --   §3     background monitoring     §3.12  the hyper key itself
 --   (the Asana task creator that sat between §3.12 and §5 moved to
 --          modules/task_creator.lua in 6.98.0)
---   §5     hotkey integrations — core pickers + ⇪⇧O OCR edit
+--   §5     hotkey integrations — the core pickers still bound here
 --   §6     Asana dashboard           §7     bootstrap report
 --   §1.4   shared text/CSV helpers (late on purpose — everything
 --          CALLS them after load; nothing above needs them sooner)
 --   §1.12  module loader → BASE list → machine profiles → safe
---          mode → boot report. The 45 modules/*.lua load HERE, last.
+--          mode → boot report. The 46 modules/*.lua load HERE, last.
 -- =====================================================================
 
 -- =====================================================================
@@ -360,7 +385,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.104.0"
+_G.configVersion = "6.105.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -683,13 +708,11 @@ end
 -- history file (and the 💬 auto-comment knob, now a profile-overridable
 -- config) went to modules/task_creator.lua with the rest of the creator.
 
--- OCR log + the Apple Shortcuts shortcut the OCR daemon runs. A Mac
--- without that shortcut (checked at boot) just skips image OCR —
--- recreate the shortcut there, or rename yours here. The CSV is
--- per-machine (see hostTag above); existing shared-name data adopted.
-local csvFile         = logsDir .. "/image_text-" .. hostTag .. ".csv"
-local ocrShortcutName = "HS OCR"
-adoptLegacyFile(csvFile, logsDir .. "/image_text.csv")
+-- 🔍 THE OCR LOG AND ITS SHORTCUT NAME MOVED OUT in 6.105.0, to
+-- modules/ocr_engine.lua — the CSV path, the "HS OCR" Apple Shortcut, the
+-- per-machine adoption, the two pickers and the Finder tagging travel
+-- together. Only the clipboard watcher stayed (§3), because it is shared
+-- with clipboard history; it calls the module through the registry.
 
 -- =====================================================================
 -- 0.3 HOTKEY CONFLICT SENTRY — warns in the Console at boot
@@ -781,8 +804,12 @@ _G.hyperKeyMap = {
     -- SAME feature — a HYPER CONFLICT warning about a conflict that was
     -- not real, which is its own kind of harm: it teaches you to ignore
     -- the warnings that are.
-    ["alt+cmd+ctrl+o"]       = { {},        "o"     },  -- OCR search
-    ["alt+cmd+ctrl+shift+o"] = { {"shift"}, "o"     },  -- OCR EDIT
+    -- 6.105.0 — THE TWO OCR ENTRIES WERE REMOVED HERE, for exactly the
+    -- reason the clipboard pair above was removed in 6.57.0. The engine
+    -- is modules/ocr_engine.lua now and claims ⇪O and ⇪⇧O directly.
+    -- Leaving the map entries behind would mean two claims on one key for
+    -- the SAME feature — a HYPER CONFLICT warning about a conflict that
+    -- is not real, which teaches you to ignore the warnings that are.
     ["alt+cmd+ctrl+shift+c"] = { {"shift"}, "c"     },  -- copy-on-select toggle
     ["alt+cmd+shift+0"]      = { {},        "0"     },  -- activity tracker
     -- ---- Trackers ----
@@ -1408,7 +1435,7 @@ end
 
 
 -- =====================================================================
--- 2. UTILITY & OCR ENGINE
+-- 2. UTILITY
 -- =====================================================================
 local function formatDuration(seconds)
     if seconds < 60 then return seconds .. "s" end
@@ -1425,355 +1452,20 @@ end
 -- module loader, where an error took the whole config down instead of
 -- costing one feature.
 
--- OCR Daemon (Apple Shortcut Integrated)
--- Boot check: does THIS Mac's Shortcuts app have the OCR shortcut?
--- (nil = still checking → optimistic; false = confirmed missing →
--- image OCR skips quietly on this machine; text clipboard unaffected)
-_G.ocrShortcutAvailable = nil
-pcall(function()
-    hs.task.new("/usr/bin/shortcuts", function(exitCode, stdOut)
-        if exitCode == 0 and type(stdOut) == "string" then
-            _G.ocrShortcutAvailable = (stdOut:find(ocrShortcutName, 1, true) ~= nil)
-            if not _G.ocrShortcutAvailable then
-                print("ℹ️ Shortcuts app has no '" .. ocrShortcutName .. "' — image OCR off on this Mac (recreate the shortcut to enable)")
-            end
-        end
-    end, { "list" }):start()
-end)
-
--- Strips anything not producible by a standard US QWERTY keyboard (the
--- full printable ASCII range, 0x20-0x7E, plus tab/CR/LF) — OCR output
--- routinely contains stray Unicode glyphs (smart quotes, box-drawing
--- artifacts, emoji, mis-decoded bytes) that don't belong in a CSV row
--- or a Finder comment. Characters outside that set are REMOVED, not
--- replaced — no placeholder is inserted in their place.
-local function stripToQwerty(s)
-    if type(s) ~= "string" then return "" end
-    return (s:gsub("[^\9\13\10\32-\126]", ""))
-end
-
-local function processAutomaticImageOCR(img)
-    if _G.ocrShortcutAvailable == false then return end
-    if not img then return end
-    local imgPath = "/tmp/hs_auto_ocr.png"
-
-    if img:saveToFile(imgPath) then
-        hs.task.new("/usr/bin/shortcuts", function(exitCode, stdOut, stdErr)
-            os.remove(imgPath)
-
-            local extractedText = stdOut
-            if not extractedText or #extractedText == 0 then
-                extractedText = hs.pasteboard.readString()
-            end
-
-            if extractedText and #extractedText > 0 then
-                extractedText = stripToQwerty(extractedText:gsub("%z", ""):gsub("\x1A", ""))
-
-                if #extractedText > 0 then
-                    local f = io.open(csvFile, "a")
-                    if f then
-                        f:write(os.date("%Y-%m-%d %H:%M:%S") .. ',"' ..
-                            extractedText:gsub('"', '""'):gsub('\r\n', '\\n'):gsub('\r', '\\n'):gsub('\n', '\\n') .. '"\n')
-                        f:close()
-                        -- 6.65.0 silenced the success ALERT; 6.97.0
-                        -- silences the console line too. LL: "Can't we
-                        -- reduce the OCR indexed to errors only?" — so a
-                        -- clean index prints NOTHING. The CSV is the
-                        -- record, ⇪O is the receipt; failures still print.
-                    else
-                        warnWriteFailed("OCR log")
-                    end
-                end
-            end
-        end, {"run", ocrShortcutName, "-i", imgPath}):start()
-    end
-end
-
--- ---- FILE-TAGGING OCR (6.11.0) --------------------------------------
--- Copy image FILES in Finder (⌘C) → each is OCR'd and the text is
--- written into the file's Finder comment (Get Info → Comments), which
--- Spotlight & Finder search index — so a folder full of meaningless
--- filenames becomes searchable by what's written IN the images. The
--- text also goes to the ⌃⌥⌘O history like any other OCR.
--- Rules & limits (see the 6.11.0 changelog note): existing comments
--- are never overwritten; needs one-time Automation permission for
--- Finder; comments are local metadata (OneDrive doesn't sync them);
--- raw clipboard images have no file to tag and behave as before.
-local ocrTagMaxChars        = 500  -- Finder-comment length cap
-local ocrTagMaxFilesPerCopy = 15   -- safety cap per ⌘C (floods ignored)
-local ocrImageExtensions = { png = true, jpg = true, jpeg = true, gif = true,
-    tif = true, tiff = true, heic = true, heif = true, webp = true, bmp = true }
-
-local function ocrUrlToPath(u)
-    if type(u) ~= "string" then return nil end
-    if not u:match("^file://") then return nil end
-    local p = u:gsub("^file://", "")
-    p = p:gsub("%%(%x%x)", function(h) return string.char(tonumber(h, 16)) end)
-    return p
-end
-
--- Which image files (if any) does the clipboard point at right now?
--- Finder puts a public.file-url flavor on the pasteboard for every
--- copied file. 6.11.1: read the RAW pasteboard items (readAllData) —
--- the reliable route — with readURL and plain-text paths kept as
--- fallbacks for other tools. 6.98.0: narration is errors-only, same
--- rule the OCR indexer follows — a normal miss prints nothing.
-local function clipboardImageFilePaths()
-    local paths, seen, sawFileURL = {}, {}, false
-    local firstMiss = nil  -- first GENUINE anomaly, for diagnosis (6.98.0)
-    local function consider(candidate)
-        if #paths >= ocrTagMaxFilesPerCopy then return end
-        if type(candidate) ~= "string" or seen[candidate] then return end
-        seen[candidate] = true
-        -- 6.98.0 — FILE-REFERENCE PATHS. Some apps put a copied file on
-        -- the pasteboard as "/.file/id=…" — macOS's name-independent way
-        -- of pointing at a file — which has no extension to judge, so
-        -- real images arrived here and were skipped as "no file
-        -- extension found" (LL hit exactly this). The filesystem itself
-        -- translates the id form (realpath), so resolve FIRST, then
-        -- judge the real name.
-        if candidate:find("/.file/", 1, true) == 1 then
-            local resolved
-            pcall(function()
-                resolved = hs.fs.pathToAbsolute((candidate:gsub("/+$", "")))
-            end)
-            if type(resolved) ~= "string" or resolved == "" then
-                if not firstMiss then
-                    firstMiss = "a file-reference path macOS would not resolve — raw value: \""
-                        .. stripToQwerty(candidate:sub(1, 160)) .. "\""
-                end
-                return
-            end
-            if seen[resolved] then return end   -- same file also came by name
-            seen[resolved] = true
-            candidate = resolved
-        end
-        local ext = candidate:match("%.(%w+)$")
-        if ext and ocrImageExtensions[ext:lower()] then
-            local mode = nil
-            pcall(function() mode = hs.fs.attributes(candidate, "mode") end)
-            if mode == "file" then
-                table.insert(paths, candidate)
-            elseif not firstMiss then
-                firstMiss = "ext ." .. ext .. " is supported, but not a readable local file (mode = "
-                    .. tostring(mode) .. ") — raw value: \"" .. stripToQwerty(candidate:sub(1, 160)) .. "\""
-            end
-        end
-        -- No/unsupported extension on a path that DID resolve is the
-        -- everyday case — any non-image file ⌘C'd in Finder — and is
-        -- deliberately NOT a firstMiss: it prints nothing (6.98.0).
-    end
-
-    -- Method 1 (primary): raw pasteboard items, every flavor of every
-    -- copied item keyed by its UTI — Finder always includes
-    -- public.file-url here, one per file.
-    -- Hammerspoon's readAllData() shape has drifted across versions:
-    -- normally an array of {UTI = data} tables, but a single copied
-    -- item has been seen returned as one bare {UTI = data} table
-    -- instead of a one-element array (handled below), and some builds
-    -- nest each representation as {uti = ..., data = ...} rather than
-    -- keying by UTI directly (also handled below) — a shape change
-    -- degrades to methods 2/3 instead of going silent.
-    pcall(function()
-        local items = hs.pasteboard.readAllData()
-        if items ~= nil and type(items) ~= "table" then
-            print("🏷 OCR tag: hs.pasteboard.readAllData() returned a " .. type(items)
-                .. " instead of a table — Hammerspoon version mismatch, falling back to older readers")
-            return
-        end
-        if type(items) ~= "table" then return end
-        if #items == 0 and next(items) ~= nil then items = { items } end
-        for _, item in ipairs(items) do
-            if type(item) == "table" then
-                for k, v in pairs(item) do
-                    if type(k) == "string" and k:lower():find("file%-url", 1, false) then
-                        sawFileURL = true
-                        if type(v) == "string" then consider(ocrUrlToPath(v) or v) end
-                    elseif type(v) == "table" then
-                        -- alternate shape seen on some builds: an array of
-                        -- {uti = "...", data = "..."} entries instead of a
-                        -- UTI-keyed dictionary
-                        local uti  = v.uti or v.UTI or v.type
-                        local data = v.data or v.value or v.contents
-                        if type(uti) == "string" and uti:lower():find("file%-url", 1, false) then
-                            sawFileURL = true
-                            if type(data) == "string" then consider(ocrUrlToPath(data) or data) end
-                        end
-                    end
-                end
-            end
-        end
-    end)
-
-    -- Method 2 (fallback): the older readURL API — shape varies by
-    -- Hammerspoon version, which is why it is no longer primary
-    if #paths == 0 then
-        pcall(function()
-            local urls = hs.pasteboard.readURL(nil, true)
-            if type(urls) ~= "table" then return end
-            if urls.url or urls.filePath then urls = { urls } end
-            for _, item in ipairs(urls) do
-                local u = (type(item) == "table" and (item.url or item.filePath)) or item
-                if type(u) == "string" and u:match("^file://") then sawFileURL = true end
-                consider(ocrUrlToPath(u) or u)
-            end
-        end)
-    end
-
-    -- Method 3 (fallback): plain text that is already a POSIX path
-    -- (some tools copy full paths as text; Finder copies only NAMES
-    -- as text, which rightly never match here)
-    if #paths == 0 then
-        pcall(function()
-            local s = hs.pasteboard.readString()
-            if type(s) == "string" and #s < 4000 then
-                for line in s:gmatch("[^\r\n]+") do
-                    if line:sub(1, 1) == "/" then consider(line) end
-                end
-            end
-        end)
-    end
-
-    -- Self-diagnosis, errors only (6.98.0). LL: "Isn't this
-    -- non-breaking? … do we even need to show that line or only show
-    -- when it errors?" Copying non-image files is NORMAL and now prints
-    -- nothing. A line appears only when something is actually wrong — a
-    -- supported image that isn't readable, or a file-reference path
-    -- that would not resolve — and the ⚠️ mark files it under the
-    -- Console's NONBREAKING section where it belongs.
-    if sawFileURL and #paths == 0 and firstMiss then
-        print("⚠️ OCR tag: clipboard file URL(s) matched no usable image — " .. firstMiss)
-    end
-    return paths
-end
-
-local function ocrEscapeAS(s)
-    return (s:gsub("\\", "\\\\"):gsub('"', '\\"'))
-end
-
--- Write the OCR text as the file's Finder comment — via Finder
--- scripting, the only route macOS reliably Spotlight-indexes (writing
--- the xattr directly is NOT dependably picked up by Spotlight).
--- Never clobbers: only writes when the current comment is empty.
--- Returns true only when a comment was actually written.
-local function ocrWriteFinderComment(path, text)
-    local snippet = text:gsub("%s+", " "):match("^%s*(.-)%s*$"):sub(1, ocrTagMaxChars)
-    if snippet == "" then return false end
-    local script = 'tell application "Finder"\n'
-        .. 'set theFile to (POSIX file "' .. ocrEscapeAS(path) .. '") as alias\n'
-        .. 'if (comment of theFile) is "" then\n'
-        .. 'set comment of theFile to "' .. ocrEscapeAS(snippet) .. '"\n'
-        .. 'return "written"\n'
-        .. 'else\n'
-        .. 'return "skipped"\n'
-        .. 'end if\n'
-        .. 'end tell'
-    -- 🚨 6.65.1 — OUT OF PROCESS, ALWAYS. The in-process version
-    -- (hs.osascript.applescript) CRASHED Hammerspoon: an Objective-C
-    -- exception in Apple Events unwinds straight PAST pcall — Lua's
-    -- pcall catches Lua errors only — and aborts the app, from a path
-    -- that fires on its own from the clipboard watcher. /usr/bin/osascript
-    -- is the same script in a SEPARATE process: it can throw, hang or
-    -- die and all that happens is a child exits. The trade, stated
-    -- plainly: this function now answers "started", never "wrote" — the
-    -- RESULT arrives later, in the task callback below.
-    -- Full story: NEW IN 6.65.1.
-    local okNew, t = pcall(hs.task.new, "/usr/bin/osascript",
-        function(exitCode, stdOut, stdErr)
-            local result = tostring(stdOut or ""):gsub("%s+$", "")
-            if exitCode == 0 and result == "written" then
-                print("🏷 OCR → Finder comment: " .. (path:match("[^/]+$") or path))
-            elseif exitCode == 0 then
-                -- "skipped" — the file already had a comment, and keeping
-                -- what you wrote by hand is the correct behaviour.
-                print("ℹ️ OCR tag: existing Finder comment kept for "
-                    .. (path:match("[^/]+$") or path))
-            else
-                print("⚠️ OCR tag: Finder scripting failed for " .. path
-                    .. " — grant Hammerspoon Automation permission for Finder "
-                    .. "(System Settings → Privacy & Security → Automation)")
-                if _G.notices then
-                    _G.notices.record("ocr", "finder comment not written",
-                        (path:match("[^/]+$") or path)
-                        .. " — indexed for ⌃⌥⌘O, but Finder search will not match it")
-                end
-            end
-        end,
-        { "-e", script })
-    if not (okNew and t) then
-        print("⚠️ OCR tag: could not start osascript for " .. path)
-        return false
-    end
-    -- HELD: an unreferenced hs.task is collected mid-run, which shows up
-    -- as "it works sometimes" and is miserable to chase.
-    _G.ocrTagTasks = _G.ocrTagTasks or {}
-    _G.ocrTagTasks[#_G.ocrTagTasks + 1] = t
-    while #_G.ocrTagTasks > 20 do table.remove(_G.ocrTagTasks, 1) end
-    pcall(function() t:start() end)
-    return true          -- "started", not "wrote" — see the ⚠️ above
-end
-
--- One copied batch: OCR each file with the same "HS OCR" shortcut the
--- clipboard-image path uses, then log to history + tag the file.
--- (No pasteboard fallback for the text here — for file OCR the
--- clipboard holds the file reference, not the extracted text.)
-local function processClipboardFileOCR(paths)
-    if _G.ocrShortcutAvailable == false then
-        print("🏷 OCR tag: skipped — Shortcuts app has no '" .. ocrShortcutName .. "' on this Mac")
-        return
-    end
-    for _, p in ipairs(paths) do
-        hs.task.new("/usr/bin/shortcuts", function(exitCode, stdOut, stdErr)
-            local textOut = stdOut
-            if not textOut or #textOut == 0 then return end
-            textOut = stripToQwerty(textOut:gsub("%z", ""):gsub("\x1A", ""))
-            if #textOut == 0 then return end
-
-            local f = io.open(csvFile, "a")
-            if f then
-                f:write(os.date("%Y-%m-%d %H:%M:%S") .. ',"' ..
-                    textOut:gsub('"', '""'):gsub('\r\n', '\\n'):gsub('\r', '\\n'):gsub('\n', '\\n') .. '"\n')
-                f:close()
-            else
-                warnWriteFailed("OCR log")
-            end
-
-            -- 6.65.1 — the tag is now written by a SEPARATE PROCESS (see
-            -- the 🚨 on ocrWriteFinderComment: the in-process version was
-            -- aborting Hammerspoon). It answers later, so the outcome is
-            -- reported from ITS callback and there is nothing to branch on
-            -- here. What this call still tells us is whether the attempt
-            -- could be STARTED at all.
-            local name = p:match("[^/]+$") or p
-            if not ocrWriteFinderComment(p, textOut) then
-                print("ℹ️ OCR tag not attempted for " .. name
-                      .. " — text is in the ⌃⌥⌘O history either way")
-            end
-        end, {"run", ocrShortcutName, "-i", p}):start()
-    end
-end
-
-local function loadOCRHistory()
-    local f = io.open(csvFile, "rb")
-    local items = {}
-    if f then
-        local content = f:read("*a")
-        f:close()
-
-        if content then
-            content = content:gsub("%z", "")
-            for line in content:gmatch("([^\r\n]+)") do
-                local timestamp, rawText = line:match("^([^,]+),(.*)$")
-                if timestamp and rawText then
-                    local cleanText = rawText:gsub('^"', ''):gsub('"$', ''):gsub('""', '"'):gsub('\\n', '\n')
-                    local shortTitle = cleanText:gsub("%s+", " "):sub(1, 65)
-                    table.insert(items, 1, { text = shortTitle, subText = "🕒 " .. timestamp, rawText = cleanText })
-                end
-            end
-        end
-    end
-    return items
-end
+-- 🔍 THE OCR ENGINE MOVED OUT in 6.105.0, to modules/ocr_engine.lua —
+-- the boot check for the "HS OCR" Apple Shortcut, the QWERTY strip, the
+-- clipboard-image path, the whole file-tagging route (pasteboard shape
+-- guessing, /.file/ resolution, the out-of-process Finder scripting) and
+-- the two pickers, about five hundred lines of it. It was the last large
+-- feature still ABOVE the module loader, where an error in it takes the
+-- entire config down rather than costing one feature — and it is the
+-- code that talks to Finder over Apple Events, which is the one thing
+-- here with a history of aborting the app (see 6.65.1).
+--
+-- What did NOT move is the clipboard watcher in §3: one timer, one
+-- changeCount, choosing between copied image files, a raw image and
+-- text. It calls ocr.clipboardFiles / ocr.tagFiles / ocr.image through
+-- the service registry now.
 
 -- =====================================================================
 -- 3. BACKGROUND MONITORING
@@ -1805,14 +1497,25 @@ _G.clipboardTimer = hs.timer.doEvery(0.5, function()
         -- one, and skip the image/text handling for this clipboard
         -- change (a Finder file-copy would otherwise just deposit the
         -- file's pathname into text history).
-        local copiedImageFiles = clipboardImageFilePaths()
+        -- 6.105.0 — through the registry, because the engine is a module
+        -- now. has() before call() on the FIRST of the three: if the
+        -- module did not load there is nothing to ask about copied image
+        -- files, and the text path below must still run. A clipboard that
+        -- stops remembering what you copied because an OCR module failed
+        -- would be a bad trade.
+        local copiedImageFiles = {}
+        if _G.service.has("ocr.clipboardFiles") then
+            copiedImageFiles = _G.service.call("ocr.clipboardFiles") or {}
+        end
         if #copiedImageFiles > 0 then
             print("🏷 OCR tag: " .. #copiedImageFiles .. " copied image file(s) detected — running OCR on each")
-            processClipboardFileOCR(copiedImageFiles)
+            _G.service.call("ocr.tagFiles", copiedImageFiles)
         else
         local img = hs.pasteboard.readImage()
         if img then
-            processAutomaticImageOCR(img)
+            if _G.service.has("ocr.image") then
+                _G.service.call("ocr.image", img)
+            end
         else
             local text = hs.pasteboard.readString()
             if text and #text > 0 then
@@ -2259,13 +1962,9 @@ end
 
 end -- do...end (§3.12 Hyper Key locals)
 
--- OCR chooser
-_G.choosers.ocr = hs.chooser.new(function(c)
-    if c and c.rawText then
-        hs.pasteboard.setContents(c.rawText)
-        hs.alert.show("📋 Copied")
-    end
-end):placeholderText("Search OCR Logs...")
+-- (The OCR chooser was here until 6.105.0. It is built by
+--  modules/ocr_engine.lua now, under the same _G.choosers.ocr name, so
+--  anything that reaches for it still finds it.)
 
 -- Clipboard chooser — searches the FULL text of every saved item, not
 -- just the 100 characters a row displays. Matches are newest first,
@@ -2286,9 +1985,10 @@ end):placeholderText("Search OCR Logs...")
 -- (⌃⌥⌘A and ⌃⌥⌘T moved to modules/task_creator.lua in 6.98.0; the dead
 -- clipboardHistory row went with them — ⌃⌥⌘V has been bound by
 -- modules/clipboard_history.lua since 6.55.0.)
+-- (ocrSearch left this table in 6.105.0 with the rest of the engine —
+--  modules/ocr_engine.lua claims ⇪O and ⇪⇧O itself.)
 local coreKeys = {
     activityTracker  = { {"cmd", "alt", "shift"}, "0" },  -- activity tracker picker
-    ocrSearch        = { {"cmd", "ctrl", "alt"},  "O" },  -- OCR log search
 }
 
 -- 📋 THE CLIPBOARD EDIT PICKER MOVED OUT in 6.55.0, to
@@ -2303,159 +2003,11 @@ hs.hotkey.bind(coreKeys.activityTracker[1], coreKeys.activityTracker[2], functio
     showPopup(_G.choosers.appTracker)
 end)
 
--- OCR log search
-hs.hotkey.bind(coreKeys.ocrSearch[1], coreKeys.ocrSearch[2], function()
-    _G.choosers.ocr:choices(loadOCRHistory())
-    showPopup(_G.choosers.ocr)
-end)
-
--- ⌘⌃⌥⇧O — EDIT or DELETE an OCR history entry. A snapshot of the CSV
--- (ocrEditSnapshot) is taken the moment the picker opens and reused by
--- the completion callback, so a selection always maps to the row you
--- actually saw, even if a background OCR appends a new row in between.
--- Save with the text field emptied DELETES the entry — stated plainly
--- in the dialog itself rather than needing a separate delete hotkey.
--- Wrapped in do...end: this file's main chunk is near Lua's 200-local
--- ceiling, and loadOCRHistoryRaw/saveOCRHistoryRaw are needed nowhere
--- else — scoping them here frees their slots for the rest of the file,
--- same reasoning as §0.2's secret.lua block and §3.10's do...end.
-do
-
-local function loadOCRHistoryRaw()
-    local f = io.open(csvFile, "rb")
-    local items = {}
-    if f then
-        local content = f:read("*a"); f:close()
-        if content then
-            content = content:gsub("%z", "")
-            for line in content:gmatch("([^\r\n]+)") do
-                local timestamp, rawText = line:match("^([^,]+),(.*)$")
-                if timestamp and rawText then
-                    local cleanText = rawText:gsub('^"', ''):gsub('"$', ''):gsub('""', '"'):gsub('\\n', '\n')
-                    table.insert(items, { timestamp = timestamp, text = cleanText })
-                end
-            end
-        end
-    end
-    return items
-end
-
-local function saveOCRHistoryRaw(entries)
-    local f = io.open(csvFile, "w")
-    if not f then warnWriteFailed("OCR log"); return end
-    for _, e in ipairs(entries) do
-        local escaped = e.text:gsub('"', '""'):gsub('\r\n', '\\n'):gsub('\r', '\\n'):gsub('\n', '\\n')
-        f:write(e.timestamp .. ',"' .. escaped .. '"\n')
-    end
-    f:close()
-end
-
-local ocrEditSnapshot = {}
--- ☑️ 6.97.0 — SELECT MODE (the Document Watcher pattern): hs.chooser has
--- no multi-select, so Enter TAGS rows (✓) and one action row deletes
--- them all. Index-keyed tags are safe HERE because the snapshot is
--- frozen while the picker is open — background OCRs append to the CSV,
--- never to this table.
-local ocrEditSelect, ocrEditTagged = false, {}
-
-local function ocrEditRender()
-    local choices = {}
-    if ocrEditSelect then
-        local n = 0
-        for _ in pairs(ocrEditTagged) do n = n + 1 end
-        table.insert(choices, {
-            text    = (n == 0) and "☑️ Nothing picked yet"
-                      or ("🗑 Delete the " .. n .. " I picked"),
-            subText = (n == 0) and "Go down the list and press Enter on the rows you want"
-                      or "Press Enter HERE to delete them all",
-            action  = "deletetagged",
-        })
-        table.insert(choices, { text = "✖️ Never mind — go back",
-            subText = "Forget the picks and return to one-at-a-time editing",
-            action = "selectoff" })
-    else
-        table.insert(choices, { text = "☑️ Delete several at once…",
-            subText = "Pick rows with Enter, then delete them together",
-            action = "selecton" })
-    end
-    for i = #ocrEditSnapshot, 1, -1 do   -- newest first, matches the browse picker
-        local e = ocrEditSnapshot[i]
-        table.insert(choices, {
-            text    = (ocrEditTagged[i] and "✓ " or "") .. e.text:gsub("%s+", " "):sub(1, 100),
-            subText = "🕒 " .. e.timestamp .. "  ·  "
-                      .. (ocrEditSelect
-                          and (ocrEditTagged[i] and "PICKED — Enter unpicks it" or "Enter picks it")
-                          or "Enter to edit or delete"),
-            idx     = i,
-        })
-    end
-    _G.choosers.ocrEdit:choices(choices)
-end
-
-_G.choosers.ocrEdit = hs.chooser.new(function(choice)
-    if not choice then return end
-    local function reopen() ocrEditRender(); showPopup(_G.choosers.ocrEdit) end
-    if choice.action == "selecton" then
-        ocrEditSelect, ocrEditTagged = true, {}
-        reopen(); return
-    elseif choice.action == "selectoff" then
-        ocrEditSelect, ocrEditTagged = false, {}
-        reopen(); return
-    elseif choice.action == "deletetagged" then
-        local kept, removed = {}, 0
-        for i, e in ipairs(ocrEditSnapshot) do
-            if ocrEditTagged[i] then removed = removed + 1 else kept[#kept + 1] = e end
-        end
-        ocrEditSelect, ocrEditTagged = false, {}
-        if removed > 0 then
-            ocrEditSnapshot = kept
-            saveOCRHistoryRaw(ocrEditSnapshot)
-            hs.alert.show("🗑 Deleted " .. removed .. " OCR entr"
-                          .. ((removed == 1) and "y" or "ies"))
-        else
-            hs.alert.show("Nothing picked — press Enter on the rows you want first")
-        end
-        return
-    end
-    if not choice.idx then return end
-    local entry = ocrEditSnapshot[choice.idx]
-    if not entry then return end
-    if ocrEditSelect then
-        if ocrEditTagged[choice.idx] then ocrEditTagged[choice.idx] = nil
-        else ocrEditTagged[choice.idx] = true end
-        reopen(); return
-    end
-
-    local button, text = hs.dialog.textPrompt(
-        "✏️ Edit OCR entry (" .. entry.timestamp .. ")",
-        "Edit the extracted text below.\nSave with it EMPTY to delete this entry.",
-        entry.text, "Save", "Cancel")
-    if button ~= "Save" then return end
-
-    if not text or text:match("^%s*$") then
-        table.remove(ocrEditSnapshot, choice.idx)
-        saveOCRHistoryRaw(ocrEditSnapshot)
-        hs.alert.show("🗑 OCR entry deleted")
-    else
-        entry.text = text
-        saveOCRHistoryRaw(ocrEditSnapshot)
-        hs.alert.show("✏️ OCR entry updated")
-    end
-end)
-_G.choosers.ocrEdit:placeholderText("Select an OCR entry — Enter opens it to edit or delete")
-
-hs.hotkey.bind({"cmd", "ctrl", "alt", "shift"}, "O", function()
-    ocrEditSnapshot = loadOCRHistoryRaw()
-    if #ocrEditSnapshot == 0 then
-        hs.alert.show("📋 OCR history is empty")
-        return
-    end
-    ocrEditSelect, ocrEditTagged = false, {}
-    ocrEditRender()
-    showPopup(_G.choosers.ocrEdit)
-end)
-
-end -- do...end (⌘⌃⌥⇧O OCR edit/delete picker locals)
+-- (⇪⇧O's EDIT/DELETE picker was here until 6.105.0 — the CSV snapshot,
+--  select mode, and the empty-the-box-to-delete dialog all moved to
+--  modules/ocr_engine.lua with the rest of the engine. It is still built
+--  as _G.choosers.ocrEdit, and tests/test_select_mode.lua still drives
+--  that exact chooser.)
 
 -- =====================================================================
 -- 6. ASANA TASK DASHBOARD — ⌃⌥⌘L open · ⌃⌥⌘C comment
@@ -3060,7 +2612,10 @@ local BASE = {
     --  unified search on the tool tag, one source in the one search box)
     "universal_actions",  -- ⇪⇧A  act on the Finder selection
     "pomodoro",           -- ⇪⇧P  25 on, 5 off
-    "outlook_probe",      -- diagnostic only, binds no key
+    -- 6.105.0 the Outlook diagnostic left this list for tools/. It bound
+    -- no key and answered its question in 6.65.0, but still loaded at
+    -- every boot and sat on the cheat sheet. Run it by hand when the work
+    -- Mac needs asking:  dofile(hs.configdir .. "/tools/outlook-probe.lua")
     -- 6.68.0
     "text_expander",      -- ⇪⇧T  Alfred snippets, typed anywhere
     -- 6.71.0
@@ -3087,6 +2642,10 @@ local BASE = {
     "window_return",      -- 🔁 dock back in, windows go back (no key)
     -- 6.104.0
     "win_pin",            -- 📌 ⇪⇧U a note stuck to ONE window, following it
+    -- 6.105.0
+    "ocr_engine",         -- 🔍 ⇪O search · ⇪⇧O edit (was §2 of this file)
+    "daily_rollup",       -- 📊 16:01 card over the tracker and the pad
+                          -- (AFTER both: it reads their services, no key)
 }
 
 -- BASE minus `without`, plus `plus`. The list is COPIED, never shared: a
@@ -3403,8 +2962,11 @@ end
 --     in safe mode none of them is running.
 --
 -- 🚨 SPECIFICALLY EXCLUDED, and named so this is not a mystery:
---   · everything AppleScript-adjacent (bulk_rename, universal_actions,
---     outlook_probe) — see the 🚨 on ocrWriteFinderComment above.
+--   · everything AppleScript-adjacent (bulk_rename, universal_actions)
+--     — see the 🚨 on writeFinderComment in modules/ocr_engine.lua,
+--     which is where that crash story now lives. The Outlook probe was
+--     the third until 6.105.0 moved it to tools/, where safe mode does
+--     not have to exclude it because nothing loads it.
 --   · copy_on_select, menubar_items, app_watcher, file_tracker — all
 --     Accessibility watchers or timers against other apps.
 local safeMode = false

@@ -73,6 +73,12 @@ local M = {
             { "no alarms", "Sleep does not count · quiet hours do not count ·" },
             { "",          "one notice per tool per day · grace period after boot" },
             { "why",       "Boot report = what LOADED. This = what still WORKS." },
+            -- 📧 6.105.0. The Outlook probe stopped being a module and this
+            -- is the one place a diagnostic-you-run-by-hand belongs. Left
+            -- out of the cheat sheet entirely, it would be a file nobody
+            -- knows exists until they read a CHANGELOG entry from 2026.
+            { "on demand", "dofile(hs.configdir..\"/tools/outlook-probe.lua\")" },
+            { "",          "— asks Outlook what it will answer, on THIS Mac" },
         },
     },
 }

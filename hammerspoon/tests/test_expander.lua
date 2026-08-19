@@ -1122,6 +1122,161 @@ check("a missing bundled folder is simply nothing, not an error",
 exp.bundledDir = nil
 
 -- =====================================================================
+out("\n=== 17b. 📦 THE BUNDLED TABLE — 2,006 files folded into one ===\n")
+-- 6.105.0 ships snippets/bundled.lua instead of the packs. These files
+-- are REAL and loaded with the REAL loadfile, for the same reason §15's
+-- corpus is real: a stubbed loader would only confirm my idea of what
+-- loadfile does with an empty environment.
+local BDIR = TMP .. "/bundledlua"
+mkdirp(BDIR)
+local function writeBundle(body)
+  write(BDIR .. "/bundled.lua", body)
+end
+exp.dir        = TMP .. "/snippets"
+exp.bundledDir = BDIR
+
+writeBundle([[
+return {
+  version = 1,
+  packs = { { "Mac_symbols", 2 }, { "textpanders", 1 } },
+  triggers = {
+    ["tbl1"] = { "from the table", "Table one", 1 },
+    ["tbl2"] = { "second", "Table two", 2 },
+    ["dup1"] = { "BUNDLED-TABLE", "Bundled dup", 1 },
+  },
+  chooserOnly = { { "no keyword here", "Keywordless", 1 } },
+  collisions = { "Mac_symbols: trigger x already used by y — the later one wins" },
+  problems   = { "Mac_symbols/broken.json: empty snippet" },
+}
+]])
+exp.load()
+check("a trigger from the table expands like any other",
+  exp.snippets["tbl1"] and exp.snippets["tbl1"].text == "from the table",
+  exp.snippets["tbl1"])
+check("the pack index becomes the pack NAME, not a number",
+  exp.snippets["tbl2"] and exp.snippets["tbl2"].source == "textpanders",
+  exp.snippets["tbl2"] and exp.snippets["tbl2"].source)
+check("...and the OneDrive folder is still read alongside it",
+  exp.snippets["gg1"] ~= nil and exp.snippets[";bd"] ~= nil)
+check("🚨 YOURS STILL WINS — the table cannot clobber your own snippet",
+  exp.snippets["dup1"].text == "MINE", exp.snippets["dup1"].text)
+check("a keyword-less entry lands in the chooser-only list",
+  (function()
+     for _, c in ipairs(exp.chooserOnly or {}) do
+       if c.text == "no keyword here" then return c.name == "Keywordless" end
+     end
+   end)())
+check("build-time problems are reported here, not swallowed",
+  (function()
+     local sawProblem, sawCollision = false, false
+     for _, p in ipairs(exp.problems or {}) do
+       if p:find("broken.json", 1, true)  then sawProblem   = true end
+       if p:find("Mac_symbols: trigger x", 1, true) then sawCollision = true end
+     end
+     return sawProblem and sawCollision
+   end)(), table.concat(exp.problems or {}, " | "))
+check("exp.bundledFrom says which door they came through",
+  exp.bundledFrom == "table" and exp.bundledCount == 3,
+  tostring(exp.bundledFrom) .. "/" .. tostring(exp.bundledCount))
+
+-- 🚨 THE POINT OF THE WHOLE DESIGN. Unzipping 6.105.0 over an older
+-- install leaves 2,006 .json files next to the new table. Scanning both
+-- would report every single trigger as colliding with itself.
+mkdirp(BDIR .. "/Leftover")
+snippetFile(BDIR .. "/Leftover", "old.json", "Stale pack copy", "tbl1", "STALE")
+exp.load()
+check("stale packs beside a good table are IGNORED, not scanned",
+  exp.snippets["tbl1"].text == "from the table", exp.snippets["tbl1"].text)
+check("...and no self-collision is reported for them",
+  (function()
+     for _, p in ipairs(exp.problems or {}) do
+       if p:find("bundled: trigger", 1, true) then return false end
+     end
+     return true
+   end)(), exp.problems)
+
+-- Every way the table can be wrong falls through to the packs, which are
+-- sitting right there in BDIR/Leftover.
+local function fallsBack(label, body)
+  writeBundle(body)
+  exp.load()
+  check(label .. " → falls back to reading the packs",
+    exp.bundledFrom == "packs" and exp.snippets["tbl1"]
+      and exp.snippets["tbl1"].text == "STALE",
+    tostring(exp.bundledFrom))
+  check("...and says so, rather than going quiet",
+    (function()
+       for _, p in ipairs(exp.problems or {}) do
+         if p:find("bundled.lua:", 1, true) then return true end
+       end
+     end)(), exp.problems)
+end
+fallsBack("a syntax error",        "return { version = 1, triggers = ")
+fallsBack("a file that throws",    "error('boom')")
+fallsBack("not returning a table", "return 42")
+fallsBack("a version from the future",
+          "return { version = 99, triggers = { a = { 'x', 'y', 1 } } }")
+fallsBack("no triggers table",     "return { version = 1 }")
+fallsBack("triggers, but all junk",
+          "return { version = 1, triggers = { [1] = 'no', b = {}, c = { '' } } }")
+
+check("🔒 the table is DATA — it cannot reach hs, io or os",
+  (function()
+     -- Written WITHOUT calling anything: the environment is empty, so even
+     -- tostring and type are absent, and a probe that called one would
+     -- prove the point by throwing rather than by answering. A bare
+     -- comparison is the only thing this file is allowed to do.
+     writeBundle("return { version = 1, triggers = { z = {"
+                 .. " (os == nil and io == nil and hs == nil)"
+                 .. " and 'sealed' or 'open', 'x', 1 } } }")
+     exp.load()
+     return exp.snippets["z"] and exp.snippets["z"].text == "sealed"
+   end)(), exp.snippets["z"] and exp.snippets["z"].text)
+
+check("a bad pack index degrades to a label, never to nil",
+  (function()
+     writeBundle("return { version = 1, packs = { { 'One', 1 } },"
+                 .. " triggers = { q = { 'text', 'Name', 77 } } }")
+     exp.load()
+     return exp.snippets["q"] and exp.snippets["q"].source == "bundled"
+   end)(), exp.snippets["q"] and exp.snippets["q"].source)
+
+check("no table at all is the old world, unchanged",
+  (function()
+     os.remove(BDIR .. "/bundled.lua")
+     exp.load()
+     return exp.bundledFrom == "packs" and exp.snippets["tbl1"].text == "STALE"
+   end)(), tostring(exp.bundledFrom))
+
+exp.bundledDir, exp.bundledPath, exp.bundledFrom = nil, nil, nil
+exp.load()
+
+-- =====================================================================
+out("\n=== 17c. 📦 THE SHIPPED TABLE MATCHES THE SHIPPED PACKS ===\n")
+-- 🚨 THE DRIFT SENTRY. snippets/bundled.lua is generated, and it can go
+-- stale the moment a pack changes — nothing would say so until a trigger
+-- did nothing on LL's Mac. The builder's --check mode rebuilds from the
+-- packs and compares byte for byte.
+--
+-- BOTH the packs and the table are gitignored (textpanders holds real
+-- addresses and phone numbers), so a clone has neither and --check
+-- reports a SKIP. That is a pass here, and the line below says which of
+-- the two happened rather than quietly accepting either.
+check("snippets/bundled.lua is current for the packs on this machine",
+  (function()
+     local h = io.popen("cd '" .. HS .. "' && lua tools/build-snippets.lua . "
+                        .. "--check 2>&1")
+     local outp = h:read("*a") or ""
+     local ok = h:close()
+     if ok then
+       out("      " .. (outp:gsub("%s+$", "")) .. "\n")
+     else
+       out("      " .. outp .. "\n")
+     end
+     return ok and true or false
+   end)())
+
+-- =====================================================================
 out("\n=== 18. ⚡ Action triggers — the machinery `begone` rides ===\n")
 -- =====================================================================
 -- 6.92.0: a snippet whose payload is a FUNCTION. Same removal contract

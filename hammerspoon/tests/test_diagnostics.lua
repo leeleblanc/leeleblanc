@@ -1328,9 +1328,14 @@ for _, needed in ipairs({
 }) do
   check("INSTALL.md tells you about: " .. needed, guide:find(needed, 1, true) ~= nil)
 end
+-- 6.105.0: the name moved to modules/ocr_engine.lua with the engine. The
+-- point of the check is unchanged — INSTALL.md tells you to create an
+-- Apple Shortcut by name, and if the code looks for a different string
+-- you get a Mac where image OCR silently never runs.
 check("INSTALL.md names the OCR shortcut EXACTLY as the code looks for it",
       guide:find("HS OCR", 1, true) ~= nil
-      and initText:find('ocrShortcutName = "HS OCR"', 1, true) ~= nil)
+      and (moduleText["ocr_engine"] or ""):find('shortcutName     = "HS OCR"',
+                                                1, true) ~= nil)
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

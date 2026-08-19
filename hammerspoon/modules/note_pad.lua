@@ -694,6 +694,9 @@ function M.setup(core)
         return true
     end)
     core.provide("notes.review", function() return np.review() end)
+    -- 🗒 6.105.0 — what was captured today, for the rollup card. Reading,
+    -- not opening: the card counts them, the review still owns the pad.
+    core.provide("notes.today", function() return np.todayEntries() end)
     core.provide("notePad.show", function(opts) np.show(opts) return true end)
 
     -- ⌘-drag anywhere on the pad, via the shared drag layer.

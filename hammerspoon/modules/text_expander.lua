@@ -93,12 +93,17 @@ function M.setup(core)
     exp.enabled       = true
     exp.key           = "t"       -- ⇪⇧T — the snippet chooser
     exp.dir           = core.logsDir .. "/snippets"
-    -- 📦 SHIPPED SNIPPETS. The zip carries LL's five collections already
-    -- unpacked to ~/.hammerspoon/snippets, so unzipping IS the install —
-    -- no import step, no .alfredsnippets files to keep track of. This
-    -- folder is scanned IN ADDITION to exp.dir above, rather than copied
-    -- into it: a copy needs an "have I done this already" flag, and that
-    -- flag is a thing that can be wrong. Two directories, no state.
+    -- 📦 SHIPPED SNIPPETS. The zip carries LL's five collections into
+    -- ~/.hammerspoon/snippets, so unzipping IS the install — no import
+    -- step, no .alfredsnippets files to keep track of. Since 6.105.0 they
+    -- arrive as ONE generated bundled.lua rather than 2,006 .json files;
+    -- see the 📦 block at loadBundledTable for why, and for the several
+    -- ways that can fail back to reading the files.
+    --
+    -- Either way this folder is used IN ADDITION to exp.dir above, rather
+    -- than copied into it: a copy needs an "have I done this already"
+    -- flag, and that flag is a thing that can be wrong. Two places, no
+    -- state.
     --
     -- exp.dir still wins on a collision, so anything you import or write
     -- later overrides what shipped, and re-unzipping never clobbers your
@@ -274,6 +279,113 @@ function M.setup(core)
         return loaded + subLoaded
     end
 
+    -- 📦 THE BUNDLED PACKS, AS ONE TABLE (6.105.0) ------------------------
+    -- The shipped collections are 2,006 files of roughly 150 bytes each.
+    -- Opening two thousand files to read 130 KB is the slowest way to do
+    -- it, and in a zip those filenames cost more than their contents —
+    -- 714 KB of a 1.79 MB download. tools/build-snippets.lua folds them
+    -- into snippets/bundled.lua, which is 30 KB in the zip and ONE read
+    -- here.
+    --
+    -- 🚨 IT IS A PREFERENCE, NOT A REQUIREMENT. Every failure below falls
+    -- through to the directory scan and says why. A build with the packs
+    -- and no table works; a build with the table and no packs works; a
+    -- build with a table that is corrupt, truncated, from a future
+    -- version, or somehow not a table at all, works — slowly, and with a
+    -- line in the console. The one thing that must never happen is a Mac
+    -- where nothing expands and the reason is a file format.
+    --
+    -- 🚨 AND IF THE TABLE LOADS, THE PACKS ARE NOT SCANNED. Unzipping
+    -- 6.105.0 over an older install leaves the old .json files sitting
+    -- there — scanning both would re-read every trigger, hand every one
+    -- of them a "already used by … the later one wins" line, and turn a
+    -- clean console into 2,006 warnings about a conflict with itself.
+    -- Stale packs are simply ignored; _G.snippets() says so.
+    -- 🚨 RESOLVED AT LOAD TIME, NOT HERE. exp.bundledDir is a tunable, and
+    -- anything that reads it must read it when it runs — a path computed
+    -- once in setup() goes on pointing at the old directory after someone
+    -- (a test, a second Mac, a line in secret.lua) moves it, and then the
+    -- table and the packs come from two different places.
+    exp.bundledName = "bundled.lua"
+    exp.bundledFrom = nil          -- "table" | "packs" | nil, for ⇪⇧T and doctor
+    exp.bundledPath = nil          -- the file actually read, once one is
+
+    local function bundledFilePath()
+        if not exp.bundledDir then return nil end
+        return exp.bundledDir .. "/" .. exp.bundledName
+    end
+
+    local function loadBundledTable(into, problems, chooserOnly)
+        local path = bundledFilePath()
+        if not path then return nil end
+        if not hs.fs.attributes(path) then return nil end
+
+        local function give(reason)
+            problems[#problems + 1] = "bundled.lua: " .. reason
+                                      .. " — reading the packs instead"
+            return nil
+        end
+
+        -- Loaded with an EMPTY environment. The file is data that happens
+        -- to be written in Lua, so it has no business reaching hs, io, or
+        -- os, and this way it cannot — a generated file that grew a
+        -- surprise stays a bad table rather than becoming a program.
+        local okLoad, chunk, why = pcall(loadfile, path, "t", {})
+        if not okLoad then return give("could not be read (" .. tostring(chunk) .. ")") end
+        if not chunk  then return give(tostring(why)) end
+
+        local okRun, t = pcall(chunk)
+        if not okRun then return give("errored while loading: " .. tostring(t)) end
+        if type(t) ~= "table" then return give("did not return a table") end
+        if t.version ~= 1 then
+            return give("is version " .. tostring(t.version) .. ", this expects 1")
+        end
+        if type(t.triggers) ~= "table" then return give("has no triggers table") end
+
+        -- Pack names are stored once and referenced by index, so a broken
+        -- index must not become the string "nil" in the chooser's source
+        -- column. Unknown index → the honest generic label.
+        local packs = {}
+        for i, p in ipairs(type(t.packs) == "table" and t.packs or {}) do
+            packs[i] = type(p) == "table" and type(p[1]) == "string" and p[1] or nil
+        end
+        local function srcOf(i) return packs[i] or "bundled" end
+
+        local loaded = 0
+        for trigger, v in pairs(t.triggers) do
+            if type(trigger) == "string" and type(v) == "table"
+               and type(v[1]) == "string" and v[1] ~= "" then
+                into[trigger] = { text = v[1],
+                                  name = type(v[2]) == "string" and v[2] or trigger,
+                                  source = srcOf(v[3]) }
+                loaded = loaded + 1
+            end
+        end
+        for _, c in ipairs(type(t.chooserOnly) == "table" and t.chooserOnly or {}) do
+            if type(c) == "table" and type(c[1]) == "string" and c[1] ~= "" then
+                chooserOnly[#chooserOnly + 1] =
+                    { text = c[1],
+                      name = type(c[2]) == "string" and c[2] or "(unnamed)",
+                      source = srcOf(c[3]) }
+            end
+        end
+
+        -- The build already found these; they are reported here because a
+        -- snippet that did not load is a trigger you will type and watch
+        -- do nothing, and that stays true when the loading happened on my
+        -- machine instead of yours.
+        for _, p in ipairs(type(t.problems) == "table" and t.problems or {}) do
+            if type(p) == "string" then problems[#problems + 1] = p end
+        end
+        for _, c in ipairs(type(t.collisions) == "table" and t.collisions or {}) do
+            if type(c) == "string" then problems[#problems + 1] = c end
+        end
+
+        if loaded == 0 then return give("contained no usable triggers") end
+        exp.bundledPath = path
+        return loaded
+    end
+
     -- 🚨 EVERY PROBLEM IS REPORTED. A snippet that did not load is a
     -- trigger you will type and watch do nothing, and "it just didn't
     -- work" is the single least debuggable sentence in this config.
@@ -298,8 +410,15 @@ function M.setup(core)
         -- Bundled FIRST so that a trigger you import or write yourself
         -- into exp.dir overwrites the shipped one rather than the other
         -- way round.
-        if exp.bundledDir and hs.fs.attributes(exp.bundledDir) then
-            scanDir(exp.bundledDir, "bundled", into, problems, chooserOnly)
+        exp.bundledFrom, exp.bundledPath = nil, nil
+        local fromTable = loadBundledTable(into, problems, chooserOnly)
+        if fromTable then
+            exp.bundledFrom  = "table"
+            exp.bundledCount = fromTable
+        elseif exp.bundledDir and hs.fs.attributes(exp.bundledDir) then
+            exp.bundledFrom  = "packs"
+            exp.bundledCount = scanDir(exp.bundledDir, "bundled", into,
+                                       problems, chooserOnly)
         end
         scanDir(exp.dir, "snippets", into, problems, chooserOnly)
 
@@ -332,10 +451,11 @@ function M.setup(core)
         end
         exp.loadSecs = hs.timer.secondsSinceEpoch() - t0
         say(string.format("loaded %d triggers in %.0fms (longest %d chars, %d "
-                          .. "trie nodes, %d waiting), %d chooser-only, %d problems",
+                          .. "trie nodes, %d waiting), %d chooser-only, %d "
+                          .. "problems, bundled from %s",
                           exp.count, exp.loadSecs * 1000, exp.longest,
                           exp.indexNodes or 0, exp.ambiguousCount or 0,
-                          #chooserOnly, #problems))
+                          #chooserOnly, #problems, exp.bundledFrom or "nothing"))
         -- 🚨 A SLOW SCAN IS REPORTED WITH ITS NUMBER, not left to be felt.
         -- The snippets live in the OneDrive Logs folder, shared with the
         -- other Mac like autocorrect.csv — and two thousand tiny files in
@@ -1093,6 +1213,18 @@ function M.setup(core)
         end
         table.sort(rows)
         print("✂️ " .. #rows .. " snippet triggers in " .. exp.dir .. ":")
+        -- Which door the shipped packs came through. Worth one line: it is
+        -- the difference between "the table loaded" and "the table did not
+        -- and you are reading two thousand files every reload".
+        if exp.bundledFrom == "table" then
+            print(string.format("  📦 %d of them from %s (the packs on disk, "
+                                .. "if any, are ignored)",
+                                exp.bundledCount or 0,
+                                exp.bundledPath or exp.bundledName))
+        elseif exp.bundledFrom == "packs" then
+            print(string.format("  📂 %d of them scanned file-by-file from %s",
+                                exp.bundledCount or 0, exp.bundledDir))
+        end
         if #rows == 0 then
             print("  (none — run _G.snippetsImport() to find your "
                   .. ".alfredsnippets files, or _G.snippetAdd(\"gg1\", \"text\"))")

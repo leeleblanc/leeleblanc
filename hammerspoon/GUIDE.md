@@ -9,12 +9,14 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,442 lines)
+├── init.lua          the orchestrator (3,128 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (9 files)
-├── modules/          one file per feature (45 files, ~25,000 lines)
+├── modules/          one file per feature (46 files, ~25,000 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
-└── tools/            hs-install.sh · hs-doctor.sh · run-tests.sh
+├── snippets/         bundled.lua — 2,006 shipped snippets in one table
+└── tools/            hs-install.sh · hs-doctor.sh · run-tests.sh ·
+                      build-snippets.lua · outlook-probe.lua
 ```
 
 `core/` is the part that is easy to get wrong when updating by hand.
@@ -305,13 +307,15 @@ tests/test_doc_keywords.lua  .docx → keywords → Finder comment; a human's co
 tests/test_clipboard.lua     ⇪V, and the writes that must never destroy the history file
 tests/test_win_pin.lua       📌 ⇪⇧U notes that follow one window — anchors, the
                              adaptive follow timer, dead-vs-stale, rebind
-tests/test_select_mode.lua   ☑️ pick-several in the ⇪⇧V/⇪⇧E/⇪⇧O editors — ⇪⇧O runs the
-                             real init.lua source, lifted the test_hyper_key way
+tests/test_rollup.lua        📊 the 16:01 card: derived from services, silent on an
+                             empty day, and it must never take the keyboard
+tests/test_select_mode.lua   ☑️ pick-several in the ⇪⇧V/⇪⇧E/⇪⇧O editors — ⇪⇧O drives
+                             the real modules/ocr_engine.lua through setup(core)
 tests/test_ocr_tag.lua       🏷 which files the clipboard points at: /.file/id= paths
                              resolve, normal misses are silent, anomalies say so
 tests/test_task_creator.lua  ⌃⌥⌘T as a module: history, pipe parser, submit — and the
                              token NEVER appears in curl's argument list
-tests/test_integration.lua   🚨 all 44 modules loaded TOGETHER: shortcut, service and
+tests/test_integration.lua   🚨 all 46 modules loaded TOGETHER: shortcut, service and
                              cheat-sheet-slot collisions — the only suite that can
                              catch two modules quietly claiming the same key
 tests/test_pad_js.js         the Capture Pad's in-page JavaScript, actually executed

@@ -1,5 +1,11 @@
-
 # LL's own snippet collections. Shipped in the release zip, NEVER in
 # git: textpanders holds real email addresses, phone numbers, an
 # employee ID and out-of-office text.
+#
+# 🚨 AND THAT COVERS snippets/bundled.lua TOO (6.105.0), which is the
+# whole point of naming it here. The generated table is the SAME data in
+# one file — every trigger, every expansion, textpanders included — so
+# committing it because "it is only build output" would put the phone
+# numbers in git by a side door. It is built at packaging time by
+# tools/build-snippets.lua and travels in the zip, like the packs.
 snippets/

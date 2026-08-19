@@ -92,7 +92,7 @@ else
     [ "$n" = "init" ] && note="⚠️ STRAY init.lua — should NOT be in modules/"
     printf "   %-22s %7s  %-16s %s\n" "$n" "$b" "$m" "$note"
   done
-  echo "   count: $(ls -1 "$HS/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 45)"
+  echo "   count: $(ls -1 "$HS/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 46)"
 fi
 
 # ---- 4b. core ---------------------------------------------------------
@@ -119,6 +119,32 @@ else
     fi
   done
   echo "   count: $(ls -1 "$HS/core"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 9)"
+fi
+
+# ---- 4b2. bundled snippets --------------------------------------------
+# 6.105.0. The shipped packs are one generated file now. This is the
+# check that would have caught the four versions in which hs-install.sh
+# never copied snippets/ at all — the expander degraded silently to
+# "only the OneDrive folder", which looks exactly like working.
+echo
+echo "── 4b2. BUNDLED SNIPPETS ──"
+if [ -f "$HS/snippets/bundled.lua" ]; then
+  b=$(wc -c < "$HS/snippets/bundled.lua" | tr -d ' ')
+  n=$(grep -c '^        \[' "$HS/snippets/bundled.lua" 2>/dev/null || echo 0)
+  echo "   ✅ bundled.lua  $b bytes, ~$n entries"
+  echo "      (modified $(mtime "$HS/snippets/bundled.lua" '%Y-%m-%d %H:%M'))"
+elif [ -d "$HS/snippets" ]; then
+  j=$(find "$HS/snippets" -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
+  echo "   ⚠️  no bundled.lua — $j .json files will be scanned one by one"
+  echo "      Works, but slowly. Re-run the installer from a 6.105.0+ zip."
+else
+  echo "   ⚠️  no snippets/ folder — only ~/.hammerspoon/Logs/snippets is read"
+  echo "      (your own imports still work; the shipped packs are absent)"
+fi
+stale=$(find "$HS/snippets" -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
+if [ -f "$HS/snippets/bundled.lua" ] && [ "${stale:-0}" -gt 0 ]; then
+  echo "   ℹ️  $stale older .json snippet files are also here and are IGNORED"
+  echo "      (safe to delete — the table is what loads)"
 fi
 
 # ---- 4c. what this config will actually run ---------------------------
@@ -261,7 +287,9 @@ check_marker mouse_grid      "dropLattice"        6.65.0
 #  its run map is checked below, under the file that now owns it.)
 check_marker universal_actions "ua.ordered"       6.65.0
 check_marker pomodoro          "pom.answerSecs"   6.65.0
-check_marker outlook_probe     "outlookProbe"     6.65.0
+# (outlook_probe was the third until 6.105.0 moved it to
+#  tools/outlook-probe.lua — a console tool now, not a loaded module, so
+#  a missing one costs nothing at boot and there is nothing to check.)
 # 6.104.0 — the two merges. A unified_search.lua without uni.runnable is
 # the pre-6.104.0 file, which means ⇪⇧/ opens a box with no tools in it;
 # an activity_tracker.lua without docFileFromTitle is the pre-6.104.0 file,

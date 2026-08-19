@@ -4,6 +4,126 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.105.0 — 700 KB OFF THE DOWNLOAD, THE ROOT FILE SHRINKS,
+45 → 46 MODULES:
+  Four items off the queue, in the order LL cleared them.
+
+  📦 THE SHIPPED SNIPPETS BECOME ONE FILE — modules/text_expander.lua,
+  tools/build-snippets.lua, snippets/bundled.lua. This came straight
+  out of LL's question: "Can you compress zip file without breaking or
+  have we moved what we can to .lua files we call?" The answer,
+  measured rather than guessed: the compression was already maxed (-9
+  is the highest deflate level and was already in use), so there was
+  nothing left to turn up — but 714 KB of a 1.79 MB download was 2,006
+  tiny Alfred JSONs whose FILENAMES cost more in the zip's central
+  directory than their contents did. Folded into one generated Lua
+  table they are 130 KB raw and 30 KB compressed. The whole zip drops
+  from about 1.81 MB to about 1.11 MB.
+  The bigger win is not the download. text_expander used to open and
+  parse 2,006 files on every reload to build the trigger table; it
+  opens one now.
+  THE PACKS REMAIN THE SOURCE, and NEITHER goes into git. .gitignore
+  has excluded snippets/ all along because textpanders holds real email
+  addresses, phone numbers, an employee ID and out-of-office text — and
+  bundled.lua is that same data in one file, so "it is only build
+  output" is not a reason to commit it. Both live in the working tree
+  and travel in the release zip; the builder runs before packaging.
+  tests/test_expander.lua §17c re-runs the builder in --check mode and
+  fails if the two have drifted, so a pack edited without a rebuild
+  cannot ship quietly — and reports a SKIP where there are no packs to
+  check against, because a fresh clone has none and must still go
+  green.
+  AND IT IS A PREFERENCE, NOT A REQUIREMENT. A syntax error, a file
+  that throws, a table from a future version, no triggers table, all
+  junk triggers, or no table at all — every one of those falls back to
+  walking the .json files and prints why. The table is loaded with an
+  EMPTY environment, so it is data that cannot reach hs, io or os even
+  if something got into it. And when the table loads, the packs beside
+  it are NOT scanned: unzipping over an older install leaves 2,006
+  stale files there, and reading both would report every trigger as
+  colliding with itself.
+  Your own snippets are untouched. ~/.hammerspoon/Logs/snippets is
+  still scanned as JSON and still wins on a collision, so Alfred
+  exports keep dropping straight in.
+  🚨 AND THE INSTALLER NEVER ACTUALLY COPIED snippets/ AT ALL. Four
+  versions of "the zip carries the packs, unzipping IS the install"
+  and hs-install.sh copied init.lua, core/, modules/ and tools/*.sh —
+  never the snippets. Nobody noticed because the OneDrive folder had
+  everything in it anyway. It copies them now, backs up the generated
+  file, restores it on --rollback, and says how many stale .json files
+  are still sitting there (it does not delete them: removing somebody's
+  snippets folder to save 8 MB is not a trade a script gets to make).
+  tools/*.lua travel too, which is what makes the next item work.
+
+  🔍 THE OCR ENGINE LEFT init.lua — modules/ocr_engine.lua. 464 lines
+  out of the root file: the "HS OCR" boot check, the QWERTY strip, the
+  clipboard-image path, the whole file-tagging route (pasteboard
+  shape-guessing, /.file/ reference resolution, the out-of-process
+  Finder scripting) and both pickers. It was the last large feature
+  still living ABOVE the module loader, where an error takes the entire
+  config down instead of costing one feature — and it is the code that
+  talks to Finder over Apple Events, which is the one thing here with a
+  documented history of aborting the whole app (6.65.1).
+  Nothing about the behaviour changed. ⇪O searches, ⇪⇧O edits, select
+  mode still deletes several at once, and the globals other files read
+  — _G.ocrShortcutAvailable, _G.choosers.ocr, _G.choosers.ocrEdit — are
+  set under the same names. The two chord entries left _G.hyperKeyMap
+  because the module claims ⇪O and ⇪⇧O directly, exactly as
+  clipboard_history had to in 6.57.0.
+  The clipboard watcher STAYED in init.lua, deliberately: one timer
+  reads one pasteboard changeCount and chooses between copied image
+  files, a raw image, and text, and clipboard history is the other half
+  of that choice. It calls ocr.clipboardFiles / ocr.tagFiles / ocr.image
+  through the registry, and a missing provider leaves the text path
+  running.
+  Two suites stopped doing string surgery on init.lua as a result.
+  test_select_mode used to cut a do...end block out by marker comment
+  and compile it with upvalues injected; test_ocr_tag did the same with
+  a "return paths\nend" search. Both load the module now.
+
+  📊 A DAILY ROLLUP AT 16:01 — modules/daily_rollup.lua. One card in
+  the corner with the day on it: how long the Mac was in use and where,
+  which documents you were actually in, and what you captured to the
+  pad. It fades after 25 seconds; click it to dismiss it early.
+  IT STORES NOTHING. No new file, not one byte written. Every number is
+  read at the moment of drawing from a store another module already
+  keeps — activity.dayTotals, activity.docs, notes.today. A rollup with
+  its own daily totals would be a fourth thing that can disagree with
+  the other three, which is what retired the Document Watcher in
+  6.104.0.
+  IT REPLACED A POPUP RATHER THAN ADDING ONE. The activity tracker
+  opened a chooser at 16:00 and the Quick Append Pad opens its review
+  at 16:01 — two panels a minute apart, both taking the keyboard, both
+  arriving mid-sentence. The 16:00 chooser is now off (the flag is
+  still in activity_tracker, and ⇪0 and the 🔧 rows still reach the full
+  report). A canvas cannot take focus, so the card can appear while you
+  are typing and the sentence keeps going where it was.
+  AND IT STAYS AWAY ON AN EMPTY DAY. If every section is empty the
+  timer draws nothing — a card that says "nothing to report" is one you
+  learn to dismiss unread, and then you dismiss the one that mattered.
+  On demand it always draws and says the day was quiet.
+  A section whose store is MISSING says so rather than reporting zero.
+  "You did no work today" and "the module that counts your work did not
+  load" must never look the same.
+  No key: every ⇪⇧ letter is taken. _G.rollup() from the Console, or
+  the 📊 row in ⇪space's 🔧 tools.
+
+  📧 THE OUTLOOK PROBE IS NO LONGER A MODULE — tools/outlook-probe.lua.
+  It binds no key, watches nothing, and answered its question on the
+  home Mac in 6.65.0, but it still loaded at every boot, held a module
+  slot and printed itself onto the cheat sheet. It is a console tool
+  now:
+      dofile(hs.configdir .. "/tools/outlook-probe.lua")
+  It was moved rather than deleted because the WORK Mac is a different
+  Mac — a different Outlook build, possibly a different answer. The
+  Health Monitor's cheat sheet card carries the one line that says it
+  exists.
+
+  SENTRIES AND COUNTS: 45 → 46 modules across all six places, the test
+  runner gained test_rollup (forty-one Lua suites), hs-doctor dropped
+  its outlook_probe marker, and INSTALL.md's OCR-shortcut check now
+  reads the module instead of init.lua. init.lua: 3,592 → 3,128 lines.
+
 NEW IN 6.104.0 — TWO TOOLS RETIRED, ONE ADDED, 46 → 45 MODULES:
   Three things from LL's redundancy review, shipped together:
   "WinPin: adapt it, on ⇪⇧U, the last free ⇪⇧ letter. Retire

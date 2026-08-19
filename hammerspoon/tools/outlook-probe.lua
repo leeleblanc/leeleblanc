@@ -1,12 +1,23 @@
 -- =====================================================================
--- MODULE: OUTLOOK PROBE — find out what we can actually read, before
+-- TOOL: OUTLOOK PROBE — find out what we can actually read, before
 -- building a tracker on top of a guess
 -- =====================================================================
--- ⚠️ THIS IS A DIAGNOSTIC, NOT A FEATURE. It binds no key, watches
--- nothing, and runs only when you call it by name. It exists to answer
--- ONE question with evidence instead of assumption:
+-- ⚠️ THIS IS A DIAGNOSTIC, NOT A FEATURE — and since 6.105.0 it is not a
+-- module either. Paste this into the Hammerspoon Console to run it:
 --
---        _G.outlookProbe()      ← run this with Outlook open, on a message
+--        dofile(hs.configdir .. "/tools/outlook-probe.lua")
+--
+-- 📦 WHY IT MOVED. It bound no key, watched nothing, and answered its one
+-- question on the home Mac in 6.65.0 — but it still loaded on every boot,
+-- held a module slot, and printed itself onto the cheat sheet forever. A
+-- question that has been answered does not need to be asked at every
+-- login. It lives here instead of being deleted because the WORK Mac is a
+-- different Mac: a different Outlook build, a different security posture,
+-- possibly a different answer. One line brings it back when that matters.
+--
+-- Everything below is unchanged from the module, minus the module
+-- wrapper. It exists to answer ONE question with evidence instead of
+-- assumption:
 --
 -- WHY IT EXISTS. The email tracker LL asked for — every message read or
 -- sent, searchable by sender, keyword, attachment type, month, weekday —
@@ -35,22 +46,11 @@
 -- goes to the Console and the clipboard, and message text is truncated
 -- to a short sample so a paste-back cannot spill a whole email.
 
-local M = {
-    name  = "Outlook Probe",
-    order = 13.85,
-    family = "auto",
-    summary = "Diagnostic — reports what Outlook will and will not answer",
-    cheatsheet = {
-        title = "📧 OUTLOOK PROBE (diagnostic — no key)",
-        entries = {
-            { "console", "_G.outlookProbe() — run it with a message open" },
-            { "why",     "Decides whether the email tracker is buildable here" },
-            { "safe",    "Reads only · truncates samples · nothing is sent" },
-        },
-    },
-}
-
-function M.setup(core)
+-- Wrapped in a do-block so dofile()ing this twice in one session is
+-- harmless: the locals are fresh each time and _G.outlookProbe is simply
+-- redefined. A console tool that punishes you for running it twice is a
+-- console tool you will hesitate to run at all.
+do
     local op = {}
 
     op.sampleChars = 120     -- how much of any string the report may show
@@ -296,10 +296,17 @@ function M.setup(core)
         return text
     end
 
-    core.provide("outlook.probe", function() return _G.outlookProbe() end)
+    -- Registered as a service when the registry is there, so ⇪space's 🔧
+    -- rows can still reach it once it has been loaded — but never
+    -- required, because this file has to work when it is the only thing
+    -- you have typed into a Console on a Mac that is misbehaving.
+    if _G.service and _G.service.provide then
+        pcall(_G.service.provide, "outlook.probe",
+              function() return _G.outlookProbe() end)
+    end
 
     _G.outlookProbeConfig = op
-    M.config = op
 end
 
-return M
+print("📧 Outlook probe loaded — run  _G.outlookProbe()  with a message open")
+return _G.outlookProbe

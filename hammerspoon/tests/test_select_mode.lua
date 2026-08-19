@@ -10,9 +10,10 @@
 --   E1  ⇪⇧E (documents — the Activity Tracker's since 6.104.0, the
 --       Document Watcher's before it): pick rows with Enter, delete them
 --       TOGETHER, and the deletion is saved — not just displayed.
---   E2  ⇪⇧O (OCR history, init.lua §5): the same pattern, proven on the
---       REAL source lifted out of init.lua the way test_hyper_key does,
---       so init.lua and this suite cannot drift apart.
+--   E2  ⇪⇧O (OCR history — modules/ocr_engine.lua since 6.105.0, init.lua
+--       §5 before that): the same pattern, proven against the REAL
+--       module through the real setup(core), so the shipped file and this
+--       suite cannot drift apart.
 --   E3  ONE-AT-A-TIME STILL WORKS in both: select mode is an extra
 --       gear, not a replacement, and a fresh open always starts
 --       unpicked — stale ✓ marks delete the wrong rows.
@@ -257,42 +258,43 @@ check("copying the picked rows puts them on the clipboard, one per line",
       PASTEBOARD and PASTEBOARD:find("Renamed.docx", 1, true) ~= nil
       and alerted("Copied 1"), PASTEBOARD)
 
--- ---- 2. ⇪⇧O — the OCR editor, lifted from init.lua (E2) -------------
-out("   2. ⇪⇧O: the OCR editor runs the REAL init.lua source\n")
-local f = realIoOpen(HS .. "/init.lua", "r")
-local INIT_SRC = f and f:read("*a") or "" ; if f then f:close() end
-local marker = "end -- do...end (⌘⌃⌥⇧O OCR edit/delete picker locals)"
-local head = INIT_SRC:find("EDIT or DELETE an OCR history entry", 1, true)
-local tail = INIT_SRC:find(marker, 1, true)
-check("the ⇪⇧O block can be lifted out of init.lua", head and tail and head < tail)
+-- ---- 2. ⇪⇧O — the OCR editor, now its own module (E2) ---------------
+-- 6.105.0: this used to LIFT a do...end block out of init.lua and compile
+-- it with csvFile/warnWriteFailed/showPopup injected as upvalues, because
+-- that block had no other way in. The engine is modules/ocr_engine.lua
+-- now, so the suite loads the module the way Hammerspoon does and drives
+-- the real setup(core). Same picker, same contract, no text surgery —
+-- and no marker comment in init.lua that a tidy-up could silently break.
+out("   2. ⇪⇧O: the OCR editor runs the REAL module\n")
 
-local CSV = "/logs/image_text.csv"
-if head and tail then
-    local s = INIT_SRC:find("\ndo\n", head, true)
-    local block = INIT_SRC:sub(s, tail + #marker)
-    local chunk, err = load(
-        "local csvFile, warnWriteFailed, showPopup = ...\n" .. block,
-        "ocr-edit-block")
-    check("...and it compiles as a chunk", chunk ~= nil, err)
-    if chunk then
-        chunk(CSV, function() printed[#printed + 1] = "writeFailed" end,
-              function(c) c.shown = true end)
-    end
-end
+local CSV = "/logs/image_text-Test.csv"
+local OCRM = dofile(HS .. "/modules/ocr_engine.lua")
+check("the OCR engine is a module with the standard contract",
+      type(OCRM) == "table" and OCRM.name and OCRM.order
+      and type(OCRM.setup) == "function" and OCRM.cheatsheet, OCRM and OCRM.name)
+OCRM.setup(CORE)
+check("...and it built its log path from logsDir + hostTag",
+      _G.ocrEngine and _G.ocrEngine.csvFile == CSV,
+      _G.ocrEngine and _G.ocrEngine.csvFile)
+
 local oc = _G.choosers.ocrEdit
-check("the lifted block built the picker and bound ⌘⌃⌥⇧O",
-      oc ~= nil and BOUND["alt+cmd+ctrl+shift|O"] ~= nil)
+-- ⇪⇧O, claimed DIRECTLY now rather than through the chord map — the
+-- same move clipboard_history made in 6.57.0.
+local ocrEdit = HYPER["shift|o"]
+check("the module built the picker and claimed ⇪⇧O",
+      oc ~= nil and ocrEdit ~= nil)
+check("...and ⇪O, the search, alongside it", HYPER["|o"] ~= nil)
 
 ALERTS = {}
 FILES[CSV] = nil
-BOUND["alt+cmd+ctrl+shift|O"]()
+ocrEdit()
 check("an empty history says so instead of opening an empty picker",
       alerted("OCR history is empty") and oc.rows == nil)
 
 FILES[CSV] = '2026-08-14 09:00:00,"oldest text"\n'
           .. '2026-08-15 10:00:00,"middle text"\n'
           .. '2026-08-15 11:00:00,"newest text"\n'
-BOUND["alt+cmd+ctrl+shift|O"]()
+ocrEdit()
 check("⇪⇧O leads with the select-mode offer, then rows NEWEST FIRST",
       oc.rows[1].action == "selecton"
       and oc.rows[2].text:find("newest", 1, true) ~= nil
@@ -318,7 +320,7 @@ check("🗑 the bulk delete REWRITES the CSV without the picked rows",
       and FILES[CSV]:find("oldest text", 1, true) == nil, FILES[CSV])
 check("...announced with the count", alerted("Deleted 2 OCR entries"))
 
-BOUND["alt+cmd+ctrl+shift|O"]()
+ocrEdit()
 check("a fresh ⇪⇧O starts UNPICKED with the remaining row (E3)",
       oc.rows[1].action == "selecton"
       and oc.rows[2].text:find("middle", 1, true) ~= nil)
@@ -328,7 +330,7 @@ check("one-at-a-time editing still works on the lifted source (E3)",
       FILES[CSV]:find("middle text, corrected", 1, true) ~= nil
       and alerted("OCR entry updated"))
 PROMPT = { "Save", "" }
-BOUND["alt+cmd+ctrl+shift|O"]()
+ocrEdit()
 oc.fn({ idx = oc.rows[2].idx })
 check("...and save-empty still deletes",
       FILES[CSV]:find("corrected", 1, true) == nil and alerted("OCR entry deleted"))
@@ -338,12 +340,31 @@ out("   3. OCR success prints NOTHING — errors only\n")
 -- LL: "Can't we reduce the OCR indexed to errors only?" A search of the
 -- CODE (comments stripped — a comment quoting the old line must not
 -- satisfy this) proves the success print is gone and the failure
--- warning is not.
-local code = INIT_SRC:gsub("\n%s*%-%-[^\n]*", "\n")
-check("the 'OCR indexed N chars' success line is gone from init.lua",
+-- warning is not. 6.105.0: read from the module, which is where that
+-- code lives now.
+local osrc = realIoOpen(HS .. "/modules/ocr_engine.lua", "r")
+local OCR_SRC = osrc and osrc:read("*a") or "" ; if osrc then osrc:close() end
+local code = OCR_SRC:gsub("\n%s*%-%-[^\n]*", "\n")
+check("the OCR engine source was found at all", #OCR_SRC > 2000, #OCR_SRC)
+check("the 'OCR indexed N chars' success line is gone",
       code:find("OCR indexed", 1, true) == nil)
 check("...while a failed OCR-log write still warns",
       code:find('warnWriteFailed%("OCR log"%)') ~= nil)
+-- 🚨 AND init.lua NO LONGER CARRIES ANY OF IT. A migration that leaves a
+-- copy behind is two copies that drift, which is the failure 6.104.0's
+-- Document Watcher merge existed to end.
+local isrc = realIoOpen(HS .. "/init.lua", "r")
+local INIT_SRC = isrc and isrc:read("*a") or "" ; if isrc then isrc:close() end
+local iCode = INIT_SRC:gsub("\n%s*%-%-[^\n]*", "\n")
+check("init.lua kept no OCR engine code — only the service calls",
+      iCode:find("ocrWriteFinderComment", 1, true) == nil
+      and iCode:find("clipboardImageFilePaths", 1, true) == nil
+      and iCode:find("processAutomaticImageOCR", 1, true) == nil
+      and iCode:find("loadOCRHistory", 1, true) == nil)
+check("...and it reaches the engine through the registry instead",
+      iCode:find('ocr%.clipboardFiles') ~= nil
+      and iCode:find('ocr%.tagFiles') ~= nil
+      and iCode:find('ocr%.image') ~= nil)
 
 -- =====================================================================
 io.open = realIoOpen
