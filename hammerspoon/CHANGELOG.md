@@ -4,6 +4,17 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.108.0 — BEGONE IS FILED UNDER TEXT:
+  LL flagged the placement: Begone sat in ⏱ TIME & ATTENTION. That band
+  was defensible — Begone kills the things that interrupt the day — but
+  a family is where the HAND goes looking, not where the taxonomy is
+  cleverest, and the hand goes looking for a typed keyword next to the
+  other typed things. It now sits in ✂️ TEXT & CLIPBOARD, directly under
+  the Text Expander (13.58 → 13.59), the module whose machinery fires
+  it and swallows the word.
+  One word changed in modules/begone.lua. No key, no binding, no
+  behaviour — the position of one card on one panel.
+
 NEW IN 6.107.0 — ⇪space STAYS WHERE YOU PUT IT TOO:
   LL: "yes do hyperkey+space too". The other half of 6.106.0, and the
   same gap: modules/unified_search.lua has reopened the panel where you

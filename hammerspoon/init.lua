@@ -4,9 +4,17 @@
 -- =====================================================================
 -- 08-19-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.107.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.108.0
 -- =====================================================================
 
+-- NEW IN 6.108.0 — BEGONE IS FILED UNDER TEXT:
+--   One word in one file. LL flagged Begone's cheat-sheet placement;
+--   Time ("the day, and what interrupts it") was defensible but not
+--   where a hand goes looking for a typed keyword. It now sits in
+--   ✂️ TEXT & CLIPBOARD directly under the Text Expander — the module
+--   whose machinery fires it. No key, binding or behaviour changed;
+--   this is the position of one card on one panel.
+--
 -- NEW IN 6.107.0 — ⇪space STAYS WHERE YOU PUT IT TOO:
 --   The other half of 6.106.0. ⇪space has reopened where you dragged it
 --   since 6.93.0, but only within a session — the module is rebuilt on
@@ -89,19 +97,8 @@
 --   ⇪⇧/ still works and opens that box on "@tool " — one search over
 --   what you saved AND what the config can do. ⏎ on a 🔧 row runs it.
 --
--- NEW IN 6.103.0 — DOCK BACK IN, WINDOWS GO BACK:
---   "Windows scattering when I plug into the dock" — fixed, natively.
---   The new Window Return module quietly remembers where your windows
---   sit for EACH monitor setup (every 30s, per screen-UUID signature),
---   and when a setup returns it puts the scattered windows back —
---   matching by window id, then exact app+title, guarded so nothing is
---   ever flung off-screen or guessed at. Frames only, the visible
---   Space only: the SpaceSaver Spoon was assessed and deliberately NOT
---   adopted (synthetic mouse drags, Space cycling, yq — see the
---   module header). _G.windowsBack() runs it by hand. No new key.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.107.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.108.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -400,7 +397,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.107.0"
+_G.configVersion = "6.108.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

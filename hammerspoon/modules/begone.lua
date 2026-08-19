@@ -49,8 +49,12 @@
 local M = {
     name  = "Begone",
     order = 13.59,
-    family = "time",        -- beside the Text Expander (13.58), whose
-                          -- machinery fires the keyword
+    family = "text",        -- 6.108.0: moved from "time". It sits beside
+                            -- the Text Expander (13.58), whose machinery
+                            -- fires the keyword — file it where it FIRES,
+                            -- not under Config (it says nothing about the
+                            -- config) nor Time (it kills banners, but you
+                            -- reach for it as a TYPED word).
     cheatsheet = {
         title = "🔕 BEGONE (type it — banners vanish)",
         entries = {
