@@ -4,9 +4,21 @@
 -- =====================================================================
 -- 08-19-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.106.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.107.0
 -- =====================================================================
 
+-- NEW IN 6.107.0 — ⇪space STAYS WHERE YOU PUT IT TOO:
+--   The other half of 6.106.0. ⇪space has reopened where you dragged it
+--   since 6.93.0, but only within a session — the module is rebuilt on
+--   every reload and the position went with it. It is one hs.settings
+--   key now, validated the same way the cheat sheet's is.
+--   🚨 THE WRITE IS DEBOUNCED, and that is not a nicety. The drag layer
+--   calls move() from a repeating timer for the WHOLE drag, not once
+--   when you let go, so saving inline would write to the settings plist
+--   tens of times a second for as long as the mouse is down. The panel
+--   still tracks the pointer every tick; only the write waits 0.4s for
+--   you to settle. _G.unifiedCenter() puts it back and forgets.
+--
 -- NEW IN 6.106.0 — THE SHEET STAYS WHERE YOU PUT IT, AND ⇪Y CAN BE
 -- ASKED WHAT IS WRONG:
 --   Two answers to two questions from LL.
@@ -88,19 +100,8 @@
 --   adopted (synthetic mouse drags, Space cycling, yq — see the
 --   module header). _G.windowsBack() runs it by hand. No new key.
 --
--- NEW IN 6.102.0 — PICKERS DRAG BY THEIR SEARCH BAND:
---   "I should be able to click and hold then move the window" finally
---   holds for the grey pickers too: a bare click-hold on the SEARCH
---   BAND across a picker's top drags it — no ⌘ — and where you drop it
---   is where the next picker opens. ⌘-drag still grabs one anywhere,
---   and a declined ⌘-grab now leaves a line in the ⇪⇧D trail saying
---   where it thought the picker was. Also: the Quick Append Pad got
---   its missing Esc-order row (the "'notepad' is not in
---   _G.escapePriorities" boot line), and each ⇪ key now has exactly
---   one owner on the cheat sheet — cross-references say "vs/via/in".
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.106.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.107.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -399,7 +400,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.106.0"
+_G.configVersion = "6.107.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

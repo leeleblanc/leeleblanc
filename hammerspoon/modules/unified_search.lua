@@ -74,7 +74,8 @@ local M = {
             { "⏎ on 🔧", "RUNS the tool instead — the one row kind that acts (else copies its key)" },
             { "⌘⏎",      "Copy the file PATH instead (rows that have one)" },
             { "↑↓ · click", "Move the selection · pick — 19px rows, 84px thumbnails" },
-            { "drag",    "The header bar moves it (⌘-drag anywhere) — and it REOPENS where you left it" },
+            { "drag",    "The header bar moves it (⌘-drag anywhere) — and it REOPENS where you left it, across reloads too" },
+            { "re-centre", "_G.unifiedCenter() puts it back in the middle" },
             { "Esc",     "Close (the cheat sheet always closes after it)" },
         },
     },
@@ -920,7 +921,78 @@ if (q.focus) q.focus();
         end
     end
 
-    uni.pos = nil     -- where you dragged it, kept for the session
+    -- 🖐 WHERE YOU LEFT IT, ACROSS RELOADS (6.107.0) ----------------------
+    -- 6.93.0 taught this panel to reopen where you dragged it, for the
+    -- session. Same gap the cheat sheet had in 6.106.0: uni is rebuilt on
+    -- every reload, so the position went with it and the box came back in
+    -- the middle. One hs.settings key fixes it.
+    local POS_KEY = "unifiedSearch.pos"
+    uni.rememberPos = true        -- ✏️ false = always centred, as before
+    -- 🚨 HOW LONG AFTER YOU STOP MOVING IT THE POSITION IS WRITTEN. This
+    -- is not a nicety. The drag layer calls move() from a repeating timer
+    -- for the WHOLE drag (window_move's beginDrag), not once when you let
+    -- go — so saving inside move() would write to the settings plist tens
+    -- of times a second for as long as you hold the mouse down. The live
+    -- uni.pos still updates on every tick, so the panel tracks the pointer
+    -- exactly as before; only the WRITE waits for you to settle.
+    uni.posSaveDelay = 0.4
+
+    uni.pos = nil     -- where you dragged it; restored below at load
+
+    -- Validated on the way in, the same rule win_pin's notes and the cheat
+    -- sheet follow: hs.settings is a plist on disk and can hand back a
+    -- string, a nil or a NaN. Two finite numbers or it is not a position.
+    local function validPos(p)
+        if type(p) ~= "table" then return nil end
+        local x, y = tonumber(p.x), tonumber(p.y)
+        if not x or not y then return nil end
+        if x ~= x or y ~= y then return nil end          -- NaN
+        if math.abs(x) > 100000 or math.abs(y) > 100000 then return nil end
+        return { x = x, y = y }
+    end
+
+    function uni.loadPos()
+        if not uni.rememberPos then return nil end
+        local saved
+        pcall(function() saved = hs.settings.get(POS_KEY) end)
+        return validPos(saved)
+    end
+
+    -- HELD in uni.posTimer: an unreferenced hs.timer is collected, and a
+    -- collected timer never fires — which here means the last thing you
+    -- did with the panel is the one thing that never gets saved.
+    function uni.savePos(p)
+        if not uni.rememberPos then return false end
+        local ok = validPos(p)
+        if not ok then return false end
+        if uni.posTimer then pcall(function() uni.posTimer:stop() end) end
+        local okT, t = pcall(hs.timer.doAfter, uni.posSaveDelay, function()
+            uni.posTimer = nil
+            pcall(function() hs.settings.set(POS_KEY, ok) end)
+        end)
+        uni.posTimer = okT and t or nil
+        -- No timer available (a harness, a stripped build): write it now
+        -- rather than lose it. Debouncing is an optimisation, not a rule.
+        if not uni.posTimer then
+            pcall(function() hs.settings.set(POS_KEY, ok) end)
+        end
+        return true
+    end
+
+    -- The way out, when a remembered position is somewhere you cannot get
+    -- at it. posStillOnScreen already refuses an unplugged monitor; this
+    -- handles the rest.
+    _G.unifiedCenter = function()
+        uni.pos = nil
+        if uni.posTimer then
+            pcall(function() uni.posTimer:stop() end)
+            uni.posTimer = nil
+        end
+        pcall(function() hs.settings.set(POS_KEY, nil) end)
+        print("🔎 ⇪space re-centred, and the stored position forgotten")
+        return true
+    end
+
     function uni.posStillOnScreen(pos)
         local onIt = false
         pcall(function()
@@ -1035,8 +1107,16 @@ if (q.focus) q.focus();
             local f = uni.webview and uni.webview:frame()
             if f then uni.webview:frame({ x = x, y = y, w = f.w, h = f.h }) end
             uni.pos = { x = x, y = y }
+            -- Debounced — see uni.posSaveDelay. This runs on every tick of
+            -- the drag timer, not once when you drop.
+            uni.savePos(uni.pos)
         end,
     })
+
+    -- Restored at load, not at first show: uni.show() reads uni.pos
+    -- directly and a lazy restore would have to be threaded through every
+    -- caller of it.
+    uni.pos = uni.loadPos()
 
     -- ⎋ 6.93.0 — in the escape router, so the cheat sheet closes AFTER
     -- this panel instead of vanishing underneath it.

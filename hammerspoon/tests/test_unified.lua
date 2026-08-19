@@ -143,6 +143,15 @@ hs = {
     },
     fs = { attributes = function() return nil end },
 }
+-- 🖐 6.107.0 — hs.settings, where the dragged position now survives a
+-- reload. A plain table stands in for the plist; what is under test is
+-- that the panel writes ONE key, debounces the write, and validates
+-- whatever comes back.
+local SETTINGS = {}
+hs.settings = {
+    set = function(k, v) SETTINGS[k] = v end,
+    get = function(k) return SETTINGS[k] end,
+}
 _G.diag = { say = function() end, warn = function() end, err = function() end }
 local CLAIMS = {}
 _G.claimEscape = function(name, priority, active, handle)
@@ -575,6 +584,84 @@ U.pos = { x = 9999, y = 9999 }
 U.show()
 check("an unplugged screen's memory re-centers instead",
       VIEW.rect.x == (1440 - U.width) / 2)
+-- ---- 6.107.0: and it survives a RELOAD, not just a reopen ------------
+-- Same gap the cheat sheet had in 6.106.0: uni is rebuilt every reload,
+-- so the position went with it and the box came back centred.
+U.hide()
+SETTINGS = {}
+U.pos = nil
+local function drainTimers()
+    local queued = TIMERS ; TIMERS = {}
+    for _, t in ipairs(queued) do
+        if not t.stopped then pcall(t.fn) end
+    end
+end
+
+entry.move(101, 77)
+check("🚨 the write is DEBOUNCED — a drag tick does not touch settings yet",
+      SETTINGS["unifiedSearch.pos"] == nil, SETTINGS["unifiedSearch.pos"])
+-- The drag layer calls move() from a repeating timer for the whole drag,
+-- so saving inline would write tens of times a second for as long as the
+-- mouse is down. Only the last one should land.
+entry.move(150, 90)
+entry.move(202, 120)
+drainTimers()
+check("...and after you settle, exactly one key holds the LAST position",
+      SETTINGS["unifiedSearch.pos"]
+      and SETTINGS["unifiedSearch.pos"].x == 202
+      and SETTINGS["unifiedSearch.pos"].y == 120
+      and next(SETTINGS, next(SETTINGS)) == nil,
+      SETTINGS["unifiedSearch.pos"] and SETTINGS["unifiedSearch.pos"].x)
+
+-- A fresh setup() is what a reload is.
+local function reload()
+    _G.movablePanels = {}
+    local M2 = dofile(HS .. "/modules/unified_search.lua")
+    M2.setup(CORE)
+    return _G.unifiedSearch
+end
+local R = reload()
+check("🚨 a RELOAD picks the position back up",
+      R.pos and R.pos.x == 202 and R.pos.y == 120, R.pos and R.pos.x)
+
+-- Validated on the way in: a plist can hand back anything.
+for _, j in ipairs({
+    { "a string",            "202,120" },
+    { "a number",            42 },
+    { "no coordinates",      { w = 10 } },
+    { "a NaN",               { x = 0/0, y = 10 } },
+    { "an infinity",         { x = math.huge, y = 10 } },
+    { "coordinates as text", { x = "left", y = "top" } },
+}) do
+    SETTINGS["unifiedSearch.pos"] = j[2]
+    local r = reload()
+    check("junk in settings — " .. j[1] .. " — reads as NO position",
+          r.pos == nil, r.pos and tostring(r.pos.x))
+end
+
+SETTINGS["unifiedSearch.pos"] = { x = "202", y = "120" }
+check("numeric strings still count as a position",
+      (function() local r = reload() return r.pos and r.pos.x == 202 end)())
+
+SETTINGS["unifiedSearch.pos"] = { x = 202, y = 120 }
+local R2 = reload()
+_G.unifiedCenter()
+check("_G.unifiedCenter() forgets the stored position",
+      SETTINGS["unifiedSearch.pos"] == nil and R2.pos == nil)
+
+R2.rememberPos = false
+SETTINGS["unifiedSearch.pos"] = nil
+R2.savePos({ x = 1, y = 2 })
+drainTimers()
+check("rememberPos = false stops it being saved",
+      SETTINGS["unifiedSearch.pos"] == nil)
+check("...and stops it being read", R2.loadPos() == nil)
+
+-- Back to the live module for the rest of the suite.
+SETTINGS = {}
+U = reload()
+U.show()
+
 check("the escape claim is 'unified' and live while open",
       CLAIMS.unified ~= nil and CLAIMS.unified.active() == true)
 CLAIMS.unified.handle()

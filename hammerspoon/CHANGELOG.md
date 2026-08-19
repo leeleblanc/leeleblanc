@@ -4,6 +4,35 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.107.0 — ⇪space STAYS WHERE YOU PUT IT TOO:
+  LL: "yes do hyperkey+space too". The other half of 6.106.0, and the
+  same gap: modules/unified_search.lua has reopened the panel where you
+  dragged it since 6.93.0, but the position lived on the module's own
+  table, and that table is rebuilt on every reload. Within a session it
+  remembered; across a reload it centred.
+  One hs.settings key now, "unifiedSearch.pos", validated on the way back
+  in exactly as the cheat sheet's is — two finite numbers or it is not a
+  position, so a string, a nil, a NaN or an infinity from the plist reads
+  as "no stored position" rather than as coordinates. The existing
+  posStillOnScreen guard still runs on top, so a position from a monitor
+  you have since unplugged re-centres instead of opening somewhere you
+  cannot see.
+
+  🚨 THE WRITE IS DEBOUNCED, and that is the one real difference from the
+  cheat sheet. The sheet saves from an onDrop callback that fires once.
+  This panel has no drop callback: window_move's beginDrag calls move()
+  from a repeating timer for the WHOLE drag, so a save inside move()
+  would hit the settings plist tens of times a second for as long as the
+  mouse button is down. uni.pos still updates on every tick — the panel
+  tracks the pointer exactly as before — and only the WRITE waits
+  uni.posSaveDelay (0.4s) for you to settle. If no timer is available at
+  all (a harness, a stripped build) it writes immediately instead:
+  debouncing is an optimisation, not a rule, and losing the position is
+  worse than writing twice.
+
+  _G.unifiedCenter() re-centres and forgets the stored value.
+  uni.rememberPos = false restores always-centred.
+
 NEW IN 6.106.0 — THE SHEET STAYS WHERE YOU PUT IT, AND ⇪Y CAN BE ASKED
 WHAT IS WRONG:
   Two questions from LL, answered in code.
