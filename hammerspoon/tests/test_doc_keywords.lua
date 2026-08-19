@@ -51,6 +51,7 @@ hs = {
     end },
     timer = { doAfter = function(secs, fn)
         local t = { secs = secs, fn = fn }
+        function t:stop() self.stopped = true ; return self end
         TIMERS[#TIMERS + 1] = t
         return t
     end },
@@ -254,6 +255,120 @@ realDoc(DOC, 44000, 555)
 local okHostile = pcall(DK.process, DOC, true)
 check("no hs.task: no throw", okHostile)
 hs.task = savedTask
+
+-- ---- 7. a sync burst is a RUN, not a flood (K6) ----------------------
+-- 6.110.0. LL's Console log had several hundred 🏷 lines in it and four
+-- real errors buried inside them. These checks are the reason that
+-- cannot happen again: the readers are capped, the narration is capped,
+-- and NOTHING is dropped to achieve either.
+out("   7. a sync burst: capped readers, one summary, nothing lost\n")
+
+-- Drive every outstanding task to completion, watching the cap hold.
+-- Returns the highest number of readers that ever ran at once.
+local function drain(writeResult, writeCode)
+    local peak, i, guard = 0, 0, 0
+    while i < #TASKS and guard < 4000 do
+        i, guard = i + 1, guard + 1
+        local t = TASKS[i]
+        if not t.drained_ then
+            t.drained_ = true
+            if t.cmd == "/usr/bin/unzip" then t.cb(0, XML, "")
+            else t.cb(writeCode or 0, writeResult or "written\n", "") end
+        end
+        if DK.inFlight > peak then peak = DK.inFlight end
+    end
+    return peak
+end
+
+local function bulkBoot(n)
+    boot()
+    ATTR[CLOUD] = { mode = "directory" }
+    M.warm()
+    local paths = {}
+    for i = 1, n do
+        local p = string.format("%s/bulk %02d.docx", CLOUD, i)
+        realDoc(p, 40000, 900 + i)
+        paths[#paths + 1] = p
+    end
+    printed = {}
+    WATCHERS[1].fn(paths)
+    TIMERS[#TIMERS].fn()               -- the flurry settles: the run starts
+    return paths
+end
+
+bulkBoot(25)
+check("only maxInFlight files are read at once — the rest wait in line",
+      #TASKS == DK.maxInFlight and #DK.queue == 25 - DK.maxInFlight,
+      #TASKS .. " reading, " .. #DK.queue .. " queued")
+check("the run knows its own size", DK.batch and DK.batch.total == 25,
+      DK.batch and DK.batch.total)
+check("…and that it is far too big to narrate", DK.batch and DK.batch.quiet == true)
+local peak = drain()
+check("🚨 the reader cap held for the whole run — never a process storm",
+      peak <= DK.maxInFlight, "peak " .. peak)
+check("all 25 were read AND written — a cap delays, it never drops",
+      #TASKS == 50, #TASKS)
+check("🚨 not one per-file line for 25 files", (function()
+    for _, l in ipairs(printed) do
+        if l:find("Doc Keywords → ", 1, true) then return false, l end
+    end
+    return true
+end)())
+check("…but the session log kept every one of them", #DK.log == 25, #DK.log)
+check("nothing is said until the run has been quiet for a settle",
+      #printed == 0, printed[1])
+
+-- A first sync dribbles in over minutes. That is ONE run, not thirty.
+local late = CLOUD .. "/late.docx"
+realDoc(late, 40000, 990)
+WATCHERS[1].fn({ late })
+TIMERS[#TIMERS].fn()
+check("a later wave joins the run in progress — no summary in between",
+      #printed == 0 and DK.batch and DK.batch.total == 26,
+      DK.batch and DK.batch.total)
+drain()
+TIMERS[#TIMERS].fn()               -- the run finally goes quiet
+check("ONE line closes the run, counting every file in it",
+      #printed == 1 and printed[1]:find("26 tagged", 1, true) ~= nil,
+      printed[1] or "(silence)")
+check("…and it points at where the detail lives",
+      (printed[1] or ""):find("_G.docKeywordsReport", 1, true) ~= nil)
+check("the run is closed out clean",
+      DK.batch == nil and DK.inFlight == 0 and #DK.queue == 0)
+
+-- Small is still chatty: saving a document must still show its keywords.
+bulkBoot(2)
+drain()
+check("a run of 2 still names every file — the feature, not the flood",
+      saidLine("bulk 01.docx") and saidLine("bulk 02.docx"))
+check("…and prints no summary over the top of them", not saidLine("in 0s"))
+
+-- Asked for by name = answered by name, however loud the room is.
+bulkBoot(25)
+local byHand = CLOUD .. "/by hand.docx"
+realDoc(byHand, 40000, 991)
+printed = {}
+_G.tagDoc(byHand)
+TASKS[#TASKS].cb(0, XML, "")
+TASKS[#TASKS].cb(0, "written\n", "")
+check("_G.tagDoc names ITS file even while a quiet run is going",
+      saidLine("🏷 Doc Keywords → by hand.docx"))
+check("…and the quiet run around it stayed quiet", (function()
+    for _, l in ipairs(printed) do
+        if l:find("Doc Keywords → ", 1, true)
+           and not l:find("by hand.docx", 1, true) then return false, l end
+    end
+    return true
+end)())
+
+-- One cause, one line. Not one line per file for the same locked-down Mac.
+bulkBoot(10)
+drain("", 1)
+TIMERS[#TIMERS].fn()
+check("🚨 a Mac that refuses every write says so ONCE, naming the fix",
+      #printed == 1 and printed[1]:find("refused all 10", 1, true) ~= nil
+      and printed[1]:find("Automation permission", 1, true) ~= nil,
+      printed[1] or "(silence)")
 
 -- =====================================================================
 out(string.format("\n── test_doc_keywords: %d passed, %d failed\n", pass, fail))

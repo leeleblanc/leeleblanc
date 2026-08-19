@@ -4,6 +4,71 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.110.0 — DOC KEYWORDS STOPS SHOUTING:
+  The other half of the log that produced 6.109.0. LL: "Fix the Docs
+  Keywords."
+
+  WHAT THE LOG SHOWED. Between 04:58 and 05:13 the Console carried
+  several hundred lines of:
+      🏷 Doc Keywords → <file>.docx — <eight words>
+  and the four LuaSkin errors that turned out to be a real bug sat in
+  the middle of them, unread. That is a first OneDrive sync being
+  tagged, and it is working as designed — which was the problem. The
+  design was wrong in two ways at once.
+
+  ONE: A SYNC WAS TREATED LIKE A SAVE. dk.flush() walked every settled
+  path and called dk.process on each one immediately. Three hundred
+  settled files started three hundred unzip child processes in the same
+  tick, and every one that succeeded started an osascript on top of it.
+  Nothing bounded it. On a work Mac with other work to do that is a
+  process storm caused by a background nicety.
+  A settled batch is a RUN now. Paths go into a FIFO queue and
+  dk.maxInFlight (3) are read at a time; a slot frees when a file's
+  Finder comment is written, not when its text is read, so one file is
+  one slot end to end. A thousand-file sync now costs TIME. Nothing is
+  dropped to achieve that — the queue drains completely.
+
+  TWO: EVERY FILE NARRATED ITSELF. One line per file is right when you
+  saved one document and want to see its keywords. It is wrong three
+  hundred times, because a Console full of routine success is a Console
+  where errors are invisible — demonstrably so, since that is exactly
+  what happened to the LuaSkin errors.
+  A run bigger than dk.chatty (3) now reports a total when it finishes:
+      🏷 Doc Keywords: 312 tagged, 4 left alone (your comment) in 41s
+        — _G.docKeywordsReport() names them
+  Below that threshold every file still names itself, unchanged.
+
+  WHAT IS DELIBERATELY NOT QUIETER:
+    • _G.tagDoc("/path") always names ITS file, even while a quiet run
+      is going on around it. You asked by name, you get answered by
+      name.
+    • The session log records every file either way, and now keeps 200
+      of them rather than 40, so a big run is still fully inspectable
+      after the fact.
+    • _G.docKeywordsReport() adds a live line mid-run ("42 of 312 done ·
+      3 reading · 267 queued") so a quiet Console never reads as a
+      stalled one.
+    • A Mac with no Automation permission used to print one ⚠️ per file
+      — the loudest possible way to say ONE thing. A run where every
+      write is refused now says it once and names the fix.
+
+  A run stays open across waves. A first sync does not arrive at once,
+  it dribbles in over minutes, so the run closes only after the queue
+  has been empty for a settle (dk.quietSecs). Thirty waves are one run
+  and one summary, not thirty summaries — the same flood with extra
+  steps.
+
+  THE TESTS (17 new, test_doc_keywords 46 → 63). A throttle nobody has
+  watched throttle is a guess, so each was confirmed failing against
+  the old behaviour before being kept: raising dk.maxInFlight to 9999
+  fails "only maxInFlight files are read at once" (25 reading, 0
+  queued), and raising dk.chatty to 9999 fails seven checks including
+  "not one per-file line for 25 files" and "a Mac that refuses every
+  write says so ONCE" — both reproducing LL's log exactly. The run also
+  proves the cap held at every step, that all 25 files were read AND
+  written, and that the session log kept all 25 while the Console
+  showed none.
+
 NEW IN 6.109.0 — ⇪⇧T GETS ITS ROWS BACK:
   LL sent a Console log. Buried in a wall of Doc Keywords lines were
   four LuaSkin errors:

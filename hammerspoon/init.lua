@@ -4,9 +4,29 @@
 -- =====================================================================
 -- 08-19-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.109.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.110.0
 -- =====================================================================
 
+-- NEW IN 6.110.0 — DOC KEYWORDS STOPS SHOUTING:
+--   The other half of what LL's Console log showed. The four LuaSkin
+--   errors of 6.109.0 were buried in SEVERAL HUNDRED 🏷 Doc Keywords
+--   lines — a first OneDrive sync, tagged one console line at a time
+--   between 04:58 and 05:13. The module treated a sync exactly like a
+--   save, so hundreds of files each started their own unzip the instant
+--   they settled, each started its own osascript, and each said so.
+--   A settled batch is a RUN now, bounded twice: 🚨 THREE FILES ARE
+--   READ AT A TIME and the rest wait in a queue, so a thousand-file
+--   sync costs time instead of a thousand child processes on a work
+--   Mac — and a run bigger than three reports ONE total when it
+--   finishes instead of a line per file. Nothing is dropped and nothing
+--   is hidden: every file is still tagged, still recorded, and still
+--   listed by _G.docKeywordsReport(). Saving one document still names
+--   it, _G.tagDoc() always names the file you asked for even mid-run,
+--   and a Mac that refuses every write now says so once instead of
+--   three hundred times.
+--   The Console is where errors are supposed to be visible. A module
+--   that fills it with routine success is hiding them.
+--
 -- NEW IN 6.109.0 — ⇪⇧T GETS ITS ROWS BACK:
 --   LL sent a Console log with four LuaSkin errors in it. They were real,
 --   and they were not new — the snippet chooser has been handing the
@@ -65,38 +85,8 @@
 --   "✅ WORKING" or a numbered list of what to fix. It copies itself to
 --   the clipboard so it can be pasted straight back.
 --
--- NEW IN 6.105.0 — 700 KB OFF THE DOWNLOAD, THE ROOT FILE SHRINKS,
--- 45 → 46 MODULES:
---   The four LL cleared off the queue in one go.
---   📦 THE 2,006 SHIPPED SNIPPETS ARE NOW ONE FILE. They were tiny
---   JSONs whose FILENAMES cost more in a zip than their contents —
---   714 KB of a 1.79 MB download to carry 130 KB of snippets. Folded
---   into snippets/bundled.lua by tools/build-snippets.lua they cost
---   30 KB, and the expander opens ONE file at reload instead of two
---   thousand and six. The packs stay in the repo as the source; a test
---   rebuilds and compares, so the two cannot drift. Every way the
---   table can be wrong falls back to reading the files, and says why.
---   (Also: the installer never actually copied snippets/ at all. It
---   does now — that promise had been untrue for four versions.)
---   🔍 THE OCR ENGINE LEFT init.lua, to modules/ocr_engine.lua — the
---   last large feature still above the module loader, and the one that
---   talks to Finder over Apple Events. 464 lines out of the root file.
---   ⇪O and ⇪⇧O are unchanged; the clipboard watcher stayed behind and
---   calls in through the registry.
---   📊 A DAILY ROLLUP AT 16:01 — one card in the corner with the day
---   on it: time and top apps, the documents you were actually in, what
---   you captured. It stores NOTHING; every line is read from a store
---   another module already keeps. It replaced a popup rather than
---   adding one — the 16:00 activity chooser is off, because a card
---   that cannot take the keyboard is the right shape for this. Silent
---   on an empty day.
---   📧 THE OUTLOOK PROBE IS NOT A MODULE ANY MORE. It answered its
---   question in 6.65.0 and still loaded at every boot. It is now
---   tools/outlook-probe.lua — one dofile line when the work Mac needs
---   asking, nothing at all the rest of the time.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.109.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.110.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -395,7 +385,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.109.0"
+_G.configVersion = "6.110.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
