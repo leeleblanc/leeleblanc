@@ -9,10 +9,10 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,128 lines)
+├── init.lua          the orchestrator (3,411 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (9 files)
-├── modules/          one file per feature (46 files, ~25,000 lines)
+├── modules/          one file per feature (49 files, ~27,000 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
 ├── snippets/         bundled.lua — 2,006 shipped snippets in one table
 └── tools/            hs-install.sh · hs-doctor.sh · run-tests.sh ·
@@ -210,6 +210,26 @@ file is still read as an adoption source, so retiring one on the machine
 that boots first cannot strand the machine that boots second — which
 matters because `<Logs>` is inside OneDrive and shared.
 
+**Shared registries: a module fills them, another module reads them**
+(6.116.0). There are now four, and they all work the same way — created
+with `_G.x = _G.x or {}` so nothing depends on load order, and inserted
+into directly so the reader names no writer:
+
+| Registry | Filled by | Read by |
+|---|---|---|
+| `_G.movablePanels` | every panel and picker | `window_move` — ⌘-drag |
+| `_G.escapeClaims` | every panel that Esc closes | `core/coexist` — the Esc router |
+| `_G.choosers` | every `hs.chooser` | the Esc router, so pickers close first |
+| `_G.editors` | every text surface | `editor_picker` — ⌘⌘ |
+
+🚨 **A registry rots silently.** Nothing errors when a module stops
+registering; the feature just quietly has one fewer row, and you find out
+by not finding what you were looking for. The escape roster rotted twice
+before anyone noticed (`notepad` in 6.99.0, `ocredit` in 6.115.0), so
+both it and `_G.editors` now have tests that read `modules/` and fail the
+build when an expected registration is missing. Add a registry, add the
+scan with it.
+
 **And nothing reaches into a module either.** If code outside a module
 needs one of its functions, the module publishes it:
 
@@ -291,9 +311,10 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Sixteen Lua suites, 1,663 checks, plus 35 more that run the Capture Pad's
-page JavaScript under `node`. All of it runs with `lua5.4` on any
-machine — no Mac required, they stub the `hs` API:
+Forty-nine Lua suites, 4,187 checks, plus three more that run the Capture
+Pad's, the screenshot editor's and unified search's page JavaScript under
+`node`. All of it runs with `lua5.4` on any machine — no Mac required,
+they stub the `hs` API:
 
 ```
 tests/test_modules.lua       loader, profiles, warm phase, failure isolation, slot uniqueness
@@ -330,7 +351,17 @@ tests/test_file_tracker.lua  📅 the file_changes CSV schema and the migration 
                              against REAL files: the old date text is never parsed
 tests/test_task_creator.lua  ⌃⌥⌘T as a module: history, pipe parser, submit — and the
                              token NEVER appears in curl's argument list
-tests/test_integration.lua   🚨 all 46 modules loaded TOGETHER: shortcut, service and
+tests/test_editor_picker.lua 🗂 ⌘⌘: the state machine that must NOT fire on ⌘C then
+                             ⌘V, and the rule that ⏎ on an open editor never
+                             calls show() — both pads toggle, and one of them files
+tests/test_right_click.lua   🖱 ⇪⇧F: the events it posts, and the wait for ⇧ to come
+                             up before it posts them — a menu reads the modifiers
+                             held when it opens
+tests/test_write_ledger.lua  💾 _G.saved() against REAL files in a temp tree: the
+                             round trip, the twin detector, and the silence
+tests/test_keycaster.lua     ⌨️ ⇪⇧B: what earns a line, the panel that grows to fit,
+                             the app header and its cache, and the expansion hook
+tests/test_integration.lua   🚨 all 49 modules loaded TOGETHER: shortcut, service and
                              cheat-sheet-slot collisions — the only suite that can
                              catch two modules quietly claiming the same key
 tests/test_pad_js.js         the Capture Pad's in-page JavaScript, actually executed

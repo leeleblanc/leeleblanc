@@ -4,8 +4,63 @@
 -- =====================================================================
 -- 08-19-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.115.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.116.0
 -- =====================================================================
+
+-- NEW IN 6.116.0 — FIVE THINGS LL ASKED FOR, IN THE ORDER HE ASKED:
+--   🗂 ⌘⌘ OPENS EVERY EDITOR AT ONCE. LL: "Right now a double-click of
+--      the cmd+cmd key pressed quickly. Could I bring up all my editor
+--      windows up and then let me select the one I need to copy from or
+--      edit from?" Tap ⌘ twice, touching nothing else, and a picker
+--      lists the Capture Pad, Note Pad, OCR text, clipboard, window pins
+--      and the screenshot editor — sorted with whatever is open first
+--      and whatever has text in it next. ⏎ opens it, ⌥⏎ copies its text
+--      and opens nothing. ⇪⇧Z is the same picker for when the tap is not
+--      running.
+--      🚨 THE TAP WATCHES keyDown AS WELL AS THE MODIFIERS, and that is
+--      the whole design. A flagsChanged-only watcher cannot tell ⌘C-then
+--      -⌘V from ⌘ tapped twice — the two are byte-identical to it — so
+--      copy-then-paste would have opened the picker over whatever you
+--      were doing, forty times a day.
+--      🚨 AND ⏎ ON AN OPEN EDITOR NEVER CALLS show(). Both pads TOGGLE,
+--      and closing the Note Pad FILES the draft, so picking an open pad
+--      in order to go and READ it would have been the keystroke that
+--      filed it.
+--   🖱 ⇪⇧F RIGHT-CLICKS WHEREVER THE POINTER IS. LL: "I need a right key
+--      tool that works to generate a right-click for files, chrome, etc."
+--      The mouse grid has right-clicked since 6.45.0, but only as the
+--      last step of aiming; this is the one key for when the pointer is
+--      already on the file.
+--      ⏳ IT WAITS FOR THE MODIFIERS TO COME UP FIRST. A context menu
+--      reads the modifiers held when it OPENS: ⇧ makes Chrome show its
+--      own menu instead of the page's, ⌥ rewrites half of Finder's. ⇪⇧F
+--      means ⇧ is down, so posting on the keypress opens the wrong menu
+--      every time.
+--   💾 _G.saved() PROVES YOUR LOGS ARE SAVING. LL: "How do I know all my
+--      logs and other tracking files are actually saving?" Every log
+--      file with its size, rows, when it was last written and how much
+--      it has grown since boot — plus a probe file written into the Logs
+--      folder and read back, because "the folder exists" and "the folder
+--      will take a write right now" are different claims. Also inside
+--      ⇪⇧D. It watches the FILES, not the writes, because in 6.115.0
+--      three files shared a name and two were frozen: every write
+--      succeeded, and a write-logger would have said so cheerfully.
+--      🔇 The background check runs every 30 minutes and prints only
+--      when a file vanishes, shrinks, or has a stale same-named twin —
+--      each said ONCE per session. On a healthy Mac it is silent.
+--   ⌨️ THE KEY CASTER GROWS, NAMES THE APP, AND SHOWS EXPANSIONS. LL: "I
+--      need the application it is in while it is capturing keys", "can
+--      the keycaster be bigger and show text expansion key", and "I need
+--      the keycaster grow in size as keys are sent". The last two were
+--      one fix: it was a fixed 400×600 box, so one keystroke drew one
+--      line at the top of a rectangle six lines tall and mostly air. It
+--      is now the size of what is in it, growing downward and leftward
+--      so a new key never shoves the panel under your eye. The frontmost
+--      app's name sits above the keys, cached for half a second because
+--      asking Accessibility on every keystroke is the one cost here that
+--      would be felt. A snippet firing shows as ⌨ hte → shorthand — the
+--      TRIGGER, not the text, because those snippets hold an employee ID
+--      and two real addresses.
 
 -- NEW IN 6.115.0 — FOUR THINGS LL ASKED FOR, AND THE FILE THAT WAS
 -- LYING TO HIM:
@@ -144,34 +199,8 @@
 --   — clicking another window mid-edit must not move the note onto it.
 --   A Mac with no hs.webview still gets the small prompt, same meaning.
 --
--- NEW IN 6.111.0 — ⇪/ REOPENS WHERE YOU WERE READING:
---   LL: "the cheat sheet still isn't remembering where I am when I close
---   it." Three things could have meant, so all three were measured
---   against the shipped file first. The PANEL's position survived a
---   close (6.67.0) and a reload (6.106.0) — that half was working. What
---   did not survive was THE ROW YOU HAD SCROLLED TO: hide() dropped the
---   state table and show() always began at row 1, so a 300-row sheet you
---   had walked halfway down started again from the top every time.
---   The row is now kept at the moment of a real close and restored on
---   the next ⇪/.
---   🚨 THE FIX IS A THREE-WAY DISTINCTION, and it is the whole subtlety:
---   show(nil) is a fresh open and reopens where you were; show(false) is
---   a FILTER keystroke and must still snap to the top, because you are
---   looking at a shorter list and row 40 of the old one is blank space
---   that reads as "found nothing"; show(true) is an in-place redraw and
---   stays put. nil and false used to be the same thing, which is why
---   this could not be written as a one-line `or`.
---   Closing while a search is active does NOT store the filtered row —
---   row 12 of "what matched win" is not row 12 of the sheet — so you
---   reopen at the row you were on BEFORE you searched. A remembered row
---   past the end of a shorter sheet clamps to the last full view.
---   SESSION-SCOPED on purpose, unlike the panel position: a row is an
---   index into a list rebuilt from the modules every boot, and restoring
---   a stale index would put you confidently in the wrong place.
---   cheatSheet.rememberScroll = false goes back to always-from-the-top.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.115.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.116.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -470,7 +499,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.115.0"
+_G.configVersion = "6.116.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

@@ -4,6 +4,176 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.116.0 — FIVE THINGS LL ASKED FOR, IN THE ORDER HE ASKED FOR
+THEM (#16, #15, #11, #14, #17):
+
+  🗂 ⌘⌘ OPENS EVERY EDITOR AT ONCE.
+  LL: "Right now a double-click of the cmd+cmd key pressed quickly.
+  Could I bring up all my editor windows up and then let me select the
+  one I need to copy from or edit from?"
+
+  Tap ⌘ twice, quickly, touching nothing else. A picker lists every
+  editor this config owns — the Capture Pad, the Note Pad, the OCR text
+  store, clipboard history, window pins, the screenshot editor — sorted
+  with whatever is open at the top and whatever has text in it next, and
+  with how much is in each one. ⏎ opens the one you chose, or brings it
+  to the front if it is already up. ⌥⏎ copies its text WITHOUT opening
+  anything, which is the "copy from" half of the ask. ⇪⇧Z opens the same
+  picker for when the tap is not running.
+
+  🚨 THE TAP WATCHES keyDown AS WELL AS THE MODIFIERS, and that is the
+  whole design rather than an implementation detail. A flagsChanged-only
+  watcher cannot tell these two apart:
+
+      ⌘C then ⌘V     cmd↓ · c · cmd↑ · cmd↓ · v · cmd↑
+      ⌘ tapped twice cmd↓ ·   · cmd↑ · cmd↓ ·   · cmd↑
+
+  It cannot see the middle column. Copy-then-paste — which everybody
+  does forty times a day — would have opened the picker over whatever
+  you were doing, and timing does not separate them because copy-paste
+  is fast on purpose. So this is the FOURTH global keyboard tap in this
+  config, held to every rule the other three follow: one return
+  statement and it returns false, it reads no keycodes, it stands down
+  for the shared injection guard, and five consecutive throws switch it
+  off while ⇪⇧Z keeps working.
+
+  🚨 AND ⏎ ON AN OPEN EDITOR NEVER CALLS show(). pad.show() and
+  np.show() TOGGLE — right for their own keys, exactly wrong here — and
+  closing the Note Pad FILES the draft. Picking an open pad out of a
+  list of editors in order to go and READ it must never be the keystroke
+  that files it, so the registry keeps `view` and `show` as separate
+  fields and the picker only ever calls `show` on a surface that is
+  closed.
+
+  Editors register themselves into _G.editors the way they already
+  register into _G.movablePanels, so this module names no other module
+  and one that is not loaded contributes no dead row. A source scan
+  fails the suite if any of the six stops registering — the escape-
+  router roster rotted twice before anyone noticed, and this is the same
+  shape of registry.
+
+  🖱 ⇪⇧F RIGHT-CLICKS WHEREVER THE POINTER IS.
+  LL: "I need a right key tool that works to generate a right-click for
+  files, chrome, etc. If it is anything that has a right-click, I want
+  to be able to access it."
+
+  The mouse grid (⇪X) has right-clicked since 6.45.0, but only as the
+  last step of aiming: ⇪X, type the cell letters, ⇧space. That is the
+  right tool when the pointer has to get somewhere first and the wrong
+  one when it is already sitting on the file.
+
+  ⏳ IT WAITS A FEW MILLISECONDS FOR THE MODIFIERS TO COME UP, and that
+  is not fussiness. A context menu reads the modifiers held when it
+  OPENS: ⇧ makes Chrome deliberately bypass a page's own menu and show
+  its own, and ⌥ swaps half of Finder's menu for its alternates. ⇪⇧F
+  means ⇧ is held at the moment you press it, so a click posted on the
+  keypress opens the WRONG MENU every single time — which reads as the
+  feature being half-built rather than as a modifier leak. It polls for
+  the keys to clear, fires the moment they do, RE-READS the pointer (the
+  trackpad is under your other hand) and fires anyway after 300ms rather
+  than swallowing the press. The posted events also carry explicitly
+  empty flags, which is why they are built by hand instead of through
+  hs.eventtap.rightClick.
+
+  It asks Accessibility nothing about what is under the pointer — no
+  focused element, no selected file, no window tree. A test reads the
+  source and fails if that changes, because that promise is the reason
+  "anything that has a right-click" is true.
+
+  💾 _G.saved() PROVES THE LOGS ARE ACTUALLY SAVING.
+  LL: "How do I know all my logs and other tracking files/editing files
+  like OCR edits are actually saving? Should we build in a Hammerspoon
+  console that captures if it does, but not floor the console like
+  messages in the past?"
+
+  🚨 IT WATCHES THE FILES, NOT THE WRITES. The obvious build wraps every
+  write and logs the bytes. It answers the wrong question, and it
+  answered it wrong on this very Mac one version ago: in 6.115.0 THREE
+  FILES SHARED A NAME AND TWO OF THEM WERE FROZEN. Every write
+  succeeded. Every write went to the right file. A write-logger would
+  have printed a cheerful line each time while LL sat looking at a file
+  that had not changed since July, because the file he opened was not
+  the file being written.
+
+  So it reads the disk: every log file with its size, its row count,
+  when it was last written and how much it has grown since this config
+  booted — plus a round trip that writes a probe file into the Logs
+  folder, reads it back, compares it and deletes it, because "the folder
+  exists" and "the folder will take a write right now" are different
+  claims and only the second one is the question when OneDrive has gone
+  offline.
+
+  🔇 AND IT DOES NOT FLOOD THE CONSOLE. The background check runs every
+  30 minutes and prints on exactly three conditions — a file that has
+  vanished, a file that has shrunk, two files that look like the same
+  log with one of them stale — and says each ONE TIME per session. On a
+  healthy Mac it is silent all day.
+
+  🚨 ONLY THIS MAC'S TAG IS STRIPPED WHEN COMPARING NAMES. The Logs
+  folder is in OneDrive, so the work Mac's file sits right beside the
+  home Mac's and is SUPPOSED to be untouched for days. A rule that
+  stripped any machine tag would have cried wolf every session on the
+  two-Mac setup this config is built around.
+
+  It binds no hotkey: every single-letter ⇪ and ⇪⇧ key was already
+  taken, and a module that quietly grabbed one would have shadowed a
+  tool that works. It is _G.saved() in the Console and a WHAT IS SAVING
+  block inside ⇪⇧D, which is the key you already press when something is
+  wrong. warnWriteFailed also counts its failures now, before its
+  once-only alert gate rather than after: one failure and forty failures
+  used to look identical.
+
+  ⌨️ THE KEY CASTER GROWS, NAMES THE APP, AND SHOWS EXPANSIONS.
+  LL: "I need the application it is in while it is capturing keys? It's
+  great for displaying but it's not that useful", "Can the keycaster be
+  bigger and show text expansion key?", and "I need the keycaster grow
+  in size as keys are sent."
+
+  📏 The last two were one fix. It was a fixed 400×600 box, so one
+  keystroke drew one line at the top of a rectangle six lines tall and
+  mostly air — which is what made "can it be bigger" a strange request
+  to receive about a panel already using 68pt type. It is now exactly as
+  tall as the lines it holds and as wide as the widest of them, which is
+  what lets the type be large without the box owning the screen. It
+  grows DOWNWARD and LEFTWARD, keeping the right edge and the vertical
+  centre, because anchoring the left edge would make every new keystroke
+  shove the panel sideways under your eye while you are reading it.
+
+  📱 The frontmost app's name sits above the keys, smaller and dimmer,
+  because it is context rather than content — and it is cached for half
+  a second, since hs.application.frontmostApplication() is a call into
+  the Accessibility API from inside an event tap.
+
+  ⌨️ A snippet firing gets a line: ⌨ hte → shorthand. 🚨 The expander
+  has to tell us, because the caster cannot see this for itself and must
+  not: a snippet is a burst of synthetic keystrokes and the caster
+  stands down for the shared injection guard the whole time they arrive.
+  🔒 It shows the TRIGGER, not the text: those snippets hold real email
+  addresses, a phone number and an employee ID, and a panel that paints
+  them across the screen is one screen-share away from being the wrong
+  tool. kc.showExpansionText = true for a demo.
+
+  🧹 AND FOUR OF MY OWN CHECKS PROVED NOTHING UNTIL THEY WERE FIXED —
+  each found by deliberately breaking the code they guard and watching
+  them pass anyway:
+    · the .superseded exclusion in the write ledger was dead code,
+      because the identity function stripped only one extension so a
+      retired copy never grouped with its live original;
+    · the key caster's app-name cache check pressed the same key six
+      times, and the double-event dedupe window swallowed five of them
+      before they reached a redraw;
+    · the key caster's new sections ran after a section that loads a
+      SECOND copy of the module and re-points every published global at
+      it, so they were driving a caster that was switched off;
+    · and the right-click test took the whole file down on a nil timer
+      instead of reporting the failure it had found.
+
+  Sentries: modules 46 → 49 (editor_picker, right_click, write_ledger),
+  test stages 48 → 51, hs-doctor and INSTALL.md counts moved with them.
+  The hotkey sentry caught ⇪E on the first run (§0.4 has held it for the
+  cheat sheet's entry editor since long before this release) and the
+  one-owner-per-key audit caught a cross-reference row that claimed ⇪X.
+
 NEW IN 6.115.0 — FOUR THINGS LL ASKED FOR, AND THE FILE THAT WAS LYING
 TO HIM:
 
