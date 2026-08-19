@@ -47,6 +47,13 @@
 --      open, ⌘⏎ to save, Esc to cancel, with a Delete button so the
 --      empty-to-delete rule is visible instead of remembered. A Mac
 --      without hs.webview still gets the small prompt.
+--   📦 AND THE ZIP STOPPED FAILING ITS OWN TEST SUITE. The release ships
+--      snippets/bundled.lua without the source packs on purpose, so in
+--      the installed tree snippets/ exists but is empty — and the drift
+--      sentry built an empty table from nothing and called the real one
+--      STALE. "Do not ship this", on a correct tree, since 6.105.0.
+--      Found by running the suite against the UNZIPPED tree rather than
+--      the repo, which is the only place it shows.
 --
 -- NEW IN 6.114.0 — EVERY SHORTCUT WORKS WITH NO EXTERNAL KEYBOARD:
 --   LL: "Sometimes I will not have an external keyboard on my work

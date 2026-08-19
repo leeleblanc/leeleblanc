@@ -329,6 +329,35 @@ if not isDir(SRC) then
 end
 scanDir(SRC, "bundled")
 
+-- 🚨 6.115.0 — AND A snippets/ THAT HOLDS ONLY THE TABLE IS ALSO A SKIP.
+-- The branch above catches a fresh clone, where snippets/ does not exist
+-- at all. It does NOT catch THE SHIPPED ZIP, which is the tree LL
+-- actually installs from: the release packages snippets/bundled.lua and
+-- deliberately leaves the source packs out, because textpanders holds
+-- real email addresses, a phone number and an employee ID. So the
+-- directory exists, scanDir finds nothing in it, an EMPTY table is
+-- generated, and comparing that to the real one reports STALE.
+--
+-- Found by running the suite against the unzipped tree rather than the
+-- repo — which is the only place it shows, and is why it survived from
+-- 6.105.0 to here. The symptom is the worst possible one for a release:
+-- "❌ 1 stage(s) failed. Do not ship this." on a tree that is correct.
+--
+-- ⚖️ THIS DOES NOT WEAKEN THE SENTRY. With no packs on disk there is
+-- nothing to have drifted FROM; the check is unverifiable, not passed,
+-- and it says so in those words. Any machine that has the packs — the
+-- one place drift can actually happen, since that is where a pack gets
+-- edited — still compares byte for byte.
+if check and fileCount == 0 then
+    local existing = read(OUT)
+    if existing and #existing > 0 then
+        print("⏭  snippets/ has the table but no source packs — nothing to "
+              .. "check it against (this is the shipped zip; the packs are "
+              .. "deliberately not distributed)")
+        os.exit(0)
+    end
+end
+
 -- ---------------------------------------------------------------------
 -- the output
 -- ---------------------------------------------------------------------

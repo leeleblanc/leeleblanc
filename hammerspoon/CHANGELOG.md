@@ -169,6 +169,32 @@ TO HIM:
   dead key there would be a worse outcome than the small box ever was.
   The fallback is tested as hard as the window.
 
+  📦 AND THE ZIP STOPPED FAILING ITS OWN TEST SUITE.
+  Found by running the suite against the UNZIPPED tree rather than the
+  repo, as part of verifying this release — which is the only place it
+  shows, and is why it survived from 6.105.0 to here.
+
+  The release deliberately packages snippets/bundled.lua and leaves the
+  source packs out, because textpanders holds real email addresses, a
+  phone number and an employee ID. So in the shipped tree snippets/
+  EXISTS but has no packs in it: the drift sentry generated an empty
+  table from nothing, compared it to the real one, and reported
+  "❌ snippets/bundled.lua is STALE". The builder's skip branch only ever
+  covered a snippets/ directory that was MISSING ENTIRELY, which is the
+  fresh-clone case, not the shipped-zip case.
+
+  The symptom is the worst possible one for a release: run-tests.sh on a
+  correct install tree printing "❌ 1 stage(s) failed. Do not ship this."
+
+  ⚖️ THE FIX DOES NOT WEAKEN THE SENTRY, and there is a test that says
+  so. With no packs on disk there is nothing to have drifted FROM, so
+  --check reports a skip and says in words that it could not check. On
+  any machine that HAS the packs — the only place a pack can actually be
+  edited, and therefore the only place drift can happen — it still
+  compares byte for byte. Asked to BUILD from nothing it is still a hard
+  error: a skip is about having nothing to compare, not permission to
+  write an empty table over a good one.
+
   ── WHAT BREAKS IF YOU UNDO ANY OF IT ──────────────────────────────
   the fix removed                            the check that fails
   ──────────────────────────────────────────────────────────────────
@@ -191,12 +217,17 @@ TO HIM:
   no allowTextEntry                          the box takes keystrokes
   ⇪⇧O leaves the old editor open             pressing ⇪⇧O again CLOSES it
   editor text not HTML-escaped               the text is HTML-ESCAPED
+  --check with no packs fails again          the table WITHOUT its packs
+                                             is a skip, not a failure
+  the skip swallows real drift too           a pack edited after the
+                                             build still reports STALE
   ──────────────────────────────────────────────────────────────────
 
   Counts: test_mouse_grid 290 → 296 · test_ocr_tag 21 → 51 ·
-  test_integration 147 → 160 · test_unified 81 → 85 · a new
-  test_file_tracker at 35. 46 → 47 stages. Hostile: 46 modules, 0 that
-  did not degrade. Lint: 0 error, 1 pre-existing warning.
+  test_integration 147 → 160 · test_unified 81 → 85 · test_expander
+  208 → 215 · a new test_file_tracker at 35. 46 → 47 stages. Hostile:
+  46 modules, 0 that did not degrade. Lint: 0 error, 1 pre-existing
+  warning.
 
 NEW IN 6.114.0 — EVERY SHORTCUT WORKS WITH NO EXTERNAL KEYBOARD, AND
 FOUR THINGS THAT WERE ALREADY WRONG:

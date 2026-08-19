@@ -1277,6 +1277,91 @@ check("snippets/bundled.lua is current for the packs on this machine",
    end)())
 
 -- =====================================================================
+out("\n=== 17d. 📦 …AND THE SENTRY KNOWS WHAT IT CANNOT CHECK (6.115.0) ===\n")
+-- =====================================================================
+-- 🚨 THE CHECK ABOVE REPORTED A FALSE STALE ON THE SHIPPED ZIP, which is
+-- the tree LL actually installs from. The release packages
+-- snippets/bundled.lua and deliberately leaves the source packs out
+-- (textpanders holds real email addresses, a phone number and an
+-- employee ID), so snippets/ EXISTS but is empty of packs: the builder
+-- generated an empty table, compared it to the real one, and said STALE.
+-- The skip branch only ever covered a missing snippets/ directory.
+--
+-- It survived from 6.105.0 because the suite was only ever run against
+-- the repo, where the packs are present. The symptom is the worst kind
+-- for a release — "❌ Do not ship this" on a tree that is correct.
+--
+-- ⚖️ SO THE POINT OF THIS SECTION IS THE OTHER HALF: proving the fix did
+-- not blanket-disable the sentry. Real drift, on a tree that HAS packs,
+-- must still fail. Everything below runs the real builder against
+-- throwaway trees rather than this repo's snippets/.
+do
+    local function sh(cmd)
+        local h = io.popen(cmd .. " 2>&1")
+        local o = h:read("*a") or ""
+        local ok, _, code = h:close()
+        return o, (ok and 0 or (code or 1))
+    end
+    local TROOT = (os.getenv("TMPDIR") or "/tmp"):gsub("/$", "")
+                  .. "/hs-snip-" .. tostring(os.time()) .. "-" .. tostring(math.random(9999))
+    local BUILD = "lua5.4 '" .. HS .. "/tools/build-snippets.lua'"
+    os.execute("mkdir -p '" .. TROOT .. "/snippets/Pack'")
+
+    local pk = io.open(TROOT .. "/snippets/Pack/one.json", "w")
+    if pk then
+        -- Alfred's shape: the builder reads obj.alfredsnippet, and a
+        -- fixture in any other shape yields an empty table that matches
+        -- the empty table --check builds — which passes for the wrong
+        -- reason and proves nothing.
+        pk:write('{"alfredsnippet":{"snippet":"hello there",'
+                 .. '"keyword":"hhh","name":"greeting"}}')
+        pk:close()
+    end
+
+    local _, buildCode = sh(BUILD .. " '" .. TROOT .. "'")
+    check("the builder makes a table from a pack", buildCode == 0
+          and io.open(TROOT .. "/snippets/bundled.lua", "r") ~= nil)
+
+    local o, c = sh(BUILD .. " '" .. TROOT .. "' --check")
+    check("…and --check calls it current", c == 0 and o:find("current", 1, true) ~= nil, o)
+
+    -- 🚨 REAL DRIFT, ON A TREE THAT HAS PACKS. This is the case the sentry
+    -- exists for, and the one the skip must never swallow.
+    local pk2 = io.open(TROOT .. "/snippets/Pack/one.json", "w")
+    if pk2 then
+        pk2:write('{"alfredsnippet":{"snippet":"changed underneath it",'
+                  .. '"keyword":"hhh","name":"greeting"}}')
+        pk2:close()
+    end
+    o, c = sh(BUILD .. " '" .. TROOT .. "' --check")
+    check("🚨 a pack edited after the build still reports STALE — the "
+          .. "skip added in 6.115.0 must not cover the one case drift can "
+          .. "actually happen in", c ~= 0 and o:find("STALE", 1, true) ~= nil, o)
+
+    -- The shipped-zip shape: the table, and no packs beside it.
+    os.execute("rm -rf '" .. TROOT .. "/snippets/Pack'")
+    o, c = sh(BUILD .. " '" .. TROOT .. "' --check")
+    check("🚨 the table WITHOUT its packs is a skip, not a failure — this "
+          .. "is the shipped zip, and it was reporting STALE", c == 0, o)
+    check("…and it says so in words, rather than passing silently",
+          o:find("no source packs", 1, true) ~= nil, o)
+
+    -- The older skip: no snippets/ at all, as in a fresh clone.
+    os.execute("rm -rf '" .. TROOT .. "/snippets'")
+    o, c = sh(BUILD .. " '" .. TROOT .. "' --check")
+    check("a fresh clone with no snippets/ at all is still a skip", c == 0, o)
+
+    -- 🚨 AND ASKED TO BUILD, NOTHING IS STILL AN ERROR. A skip is about
+    -- having nothing to COMPARE; generating an empty table over a good
+    -- one is a different act, and it must keep failing loudly.
+    o, c = sh(BUILD .. " '" .. TROOT .. "'")
+    check("🚨 building from nothing is still a hard error — a skip must "
+          .. "never become permission to write an empty table", c ~= 0, o)
+
+    os.execute("rm -rf '" .. TROOT .. "'")
+end
+
+-- =====================================================================
 out("\n=== 18. ⚡ Action triggers — the machinery `begone` rides ===\n")
 -- =====================================================================
 -- 6.92.0: a snippet whose payload is a FUNCTION. Same removal contract
