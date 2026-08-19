@@ -4,9 +4,23 @@
 -- =====================================================================
 -- 08-19-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.108.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.109.0
 -- =====================================================================
 
+-- NEW IN 6.109.0 — ⇪⇧T GETS ITS ROWS BACK:
+--   LL sent a Console log with four LuaSkin errors in it. They were real,
+--   and they were not new — the snippet chooser has been handing the
+--   snippet TABLE to hs.chooser:choices() since 6.68.0. A chooser row
+--   crosses into Objective-C, so a function (.fn on an action) or a
+--   nested table cannot make the trip; LuaSkin rejects the key, then the
+--   row, then the whole list, and says so:
+--     LuaSkin: hs.chooser:choices() table could not be parsed correctly.
+--   🚨 IT LOGS, IT DOES NOT THROW — which is why the pcall around the
+--   call never caught it and ⇪⇧T failed in silence for 41 versions.
+--   The payload stays in Lua now and the row carries a plain integer
+--   into it. A test walks every row and fails on any value that is not
+--   a string, number or boolean, so this cannot come back quietly.
+--
 -- NEW IN 6.108.0 — BEGONE IS FILED UNDER TEXT:
 --   One word in one file. LL flagged Begone's cheat-sheet placement;
 --   Time ("the day, and what interrupts it") was defensible but not
@@ -81,24 +95,8 @@
 --   tools/outlook-probe.lua — one dofile line when the work Mac needs
 --   asking, nothing at all the rest of the time.
 --
--- NEW IN 6.104.0 — TWO TOOLS RETIRED, ONE ADDED, 46 → 45 MODULES:
---   Three things LL asked for after the redundancy review.
---   📌 WINDOW PIN (⇪⇧U, the last free ⇪⇧ letter) — a note stuck to ONE
---   window that follows it as it moves and hides with it. Terminal
---   tabs each keep their own. Adapted from WinPin.spoon (MIT, credited
---   in the module) with an ADAPTIVE follow timer: the original polled
---   at 33Hz forever, this one only while a note is on screen.
---   ⚰️ THE DOCUMENT WATCHER IS GONE. It and the Activity Tracker
---   polled the same window every 5 seconds into two CSVs; the tracker
---   stores strictly more, so ⇪⇧W and ⇪⇧E now live there and the
---   documents are DERIVED from the sessions. doc_wather.csv is still
---   read by ⇪space, never written again.
---   🔧 THE TOOL PICKER IS GONE TOO, folded into ⇪space as a 🔧 source.
---   ⇪⇧/ still works and opens that box on "@tool " — one search over
---   what you saved AND what the config can do. ⏎ on a 🔧 row runs it.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.108.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.109.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -397,7 +395,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.108.0"
+_G.configVersion = "6.109.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

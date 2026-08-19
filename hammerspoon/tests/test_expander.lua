@@ -1354,10 +1354,50 @@ check("...and PICKING it runs it — no deletes, nothing typed",
   (function()
     reset()
     local c = CHOOSERS[#CHOOSERS]
-    c.cb({ trigger = "begone", snip = exp.snippets["begone"] })
+    -- Hand back the row VERBATIM, exactly as the real chooser would. A
+    -- hand-built row would pass even if show() stopped emitting the field
+    -- the callback looks up.
+    local row
+    for _, r in ipairs(c.rows_ or {}) do
+      if r.trigger == "begone" then row = r end
+    end
+    if not row then return false end
+    c.cb(row)
     drain()
     return RAN == 4 and DELETES == 0 and #KEYSTROKES == 0
   end)(), RAN)
+
+-- 🚨 6.109.0 REGRESSION GUARD. Every value in a chooser row is converted to
+-- an NSObject. Functions and nested tables cannot be, and LuaSkin does not
+-- throw — it logs and discards THE ENTIRE LIST, so ⇪⇧T opens empty and the
+-- keyboard gives no sign. This is the check that catches it in the repo
+-- instead of in the Console.
+check("🚨 every ⇪⇧T row survives the Objective-C bridge",
+  (function()
+    exp.show()
+    local rows = CHOOSERS[#CHOOSERS].rows_ or {}
+    if #rows == 0 then return false end
+    for _, row in ipairs(rows) do
+      for k, v in pairs(row) do
+        local t = type(v)
+        if t ~= "string" and t ~= "number" and t ~= "boolean" then
+          return false, ("row field %s is a %s"):format(tostring(k), t)
+        end
+      end
+    end
+    return true
+  end)())
+
+check("...and the pick index still resolves to a real snippet",
+  (function()
+    exp.show()
+    local rows, seen = CHOOSERS[#CHOOSERS].rows_ or {}, 0
+    for _, row in ipairs(rows) do
+      if row.pick then seen = seen + 1 end
+    end
+    -- Every row but the ON/OFF toggle carries one.
+    return seen == #rows - 1 and seen > 0
+  end)())
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.execute("rm -rf '" .. TMP .. "'")

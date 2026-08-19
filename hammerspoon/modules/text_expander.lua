@@ -1239,7 +1239,20 @@ function M.setup(core)
     -- built to be typed into. Insert-by-search covers the snippet you know
     -- you have and cannot remember the trigger for, which is most of them
     -- until the trigger is in your fingers.
+    -- ⚠️ 6.109.0 — WHY THE PAYLOAD STAYS IN LUA:
+    -- A chooser row crosses into Objective-C, so every value in it has to
+    -- survive the bridge. A function does not, and neither does a nested
+    -- table. Putting the snippet itself in the row made LuaSkin reject the
+    -- key, then the row, then the WHOLE list —
+    --     LuaSkin: dictionary key (fn) cannot be converted into a proper NSObject
+    --     LuaSkin: hs.chooser:choices() table could not be parsed correctly.
+    -- — and ⇪⇧T opened an empty panel. The errors land in the Console, the
+    -- pcall around :choices() never sees them (LuaSkin logs, it does not
+    -- throw), so the failure is silent from the keyboard.
+    -- The row now carries a plain integer into a table that stays here.
+    -- Strings are fine, which is why .trigger can stay as it was.
     function exp.show()
+        local picks   = {}      -- [n] = { trigger = ..., snip = ... }, Lua-side
         local choices = {}
         choices[#choices + 1] = {
             text    = exp.enabled and "⏸  Turn expansion OFF" or "▶️  Turn expansion ON",
@@ -1249,19 +1262,21 @@ function M.setup(core)
             toggle  = true,
         }
         for trigger, s in pairs(exp.snippets) do
+            picks[#picks + 1] = { trigger = trigger, snip = s }
             choices[#choices + 1] = {
                 text    = s.name or trigger,
                 subText = trigger .. "   ·   "
                           .. (s.fn and "⚡ an action — picking it runs it"
                               or  s.text:gsub("%s+", " "):sub(1, 70)),
-                trigger = trigger, snip = s,
+                trigger = trigger, pick = #picks,
             }
         end
         for _, s in ipairs(exp.chooserOnly or {}) do
+            picks[#picks + 1] = { trigger = "", snip = s }
             choices[#choices + 1] = {
                 text    = s.name,
                 subText = "(no trigger)   ·   " .. (s.text:gsub("%s+", " "):sub(1, 70)),
-                snip    = s,
+                pick    = #picks,
             }
         end
         table.sort(choices, function(a, b)
@@ -1277,9 +1292,13 @@ function M.setup(core)
                 hs.alert.show(exp.enabled and "✂️ Expansion ON" or "✂️ Expansion OFF")
                 return
             end
-            if not choice.snip then return end
+            -- The bridge hands the number back as a float; Lua normalises
+            -- picks[3.0] to picks[3], but tonumber costs nothing and covers
+            -- the case where it arrives as a string.
+            local row = picks[tonumber(choice.pick) or 0]
+            if not (row and row.snip) then return end
             -- Nothing to delete: this is an insert, not a replacement.
-            exp.inject(choice.trigger or "", choice.snip, 0)
+            exp.inject(row.trigger or "", row.snip, 0)
         end)
         if not (okC and chooser) then
             warn("could not open the snippet chooser")

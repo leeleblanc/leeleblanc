@@ -4,6 +4,36 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.109.0 — ⇪⇧T GETS ITS ROWS BACK:
+  LL sent a Console log. Buried in a wall of Doc Keywords lines were
+  four LuaSkin errors:
+      LuaSkin: dictionary key (fn) cannot be converted into a proper NSObject
+      LuaSkin: dictionary key (snip) cannot be converted into a proper NSObject
+      LuaSkin: array element (table: 0x…) cannot be converted into a proper NSObject
+      LuaSkin: hs.chooser:choices() table could not be parsed correctly.
+  Those are real, and they are old. A chooser row is handed across to
+  Objective-C, so every value in it has to be convertible — a string, a
+  number, a boolean. exp.show() was putting the snippet TABLE in the row
+  (.snip), and on an action snippet that table holds a FUNCTION (.fn).
+  Neither survives the bridge. LuaSkin threw out the key, then the row,
+  then the whole list, and the panel never got its rows.
+
+  🚨 The reason it went unnoticed: LuaSkin LOGS this, it does not raise.
+  The pcall wrapped around :choices() had nothing to catch, :show() ran
+  regardless, and the only evidence was four lines in a Console nobody
+  reads during a working day. Introduced in 6.68.0.
+
+  The fix is small: the snippet stays in a Lua table inside show(), and
+  the row carries a plain integer index into it. The callback resolves
+  the index instead of unpacking the row. .trigger stays exactly as it
+  was — a string was never the problem.
+
+  Two tests were added. One walks every row ⇪⇧T emits and fails on any
+  value that is not a string, number or boolean. The other checks the
+  index still resolves. Both were confirmed to FAIL against the old
+  code before the fix went in — a guard nobody has watched fail is a
+  guard you are only guessing about.
+
 NEW IN 6.108.0 — BEGONE IS FILED UNDER TEXT:
   LL flagged the placement: Begone sat in ⏱ TIME & ATTENTION. That band
   was defensible — Begone kills the things that interrupt the day — but
