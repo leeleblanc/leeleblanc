@@ -316,6 +316,27 @@ return function(core)
             add("   core/capabilities.lua is not loaded on this Mac")
         end
 
+        -- 💾 6.116.0 — WHAT IS ACTUALLY SAVING. LL: "How do I know all my
+        -- logs and other tracking files are actually saving?" The PATHS
+        -- block below says where the files should be; this one says
+        -- whether they are growing, and whether two of them share a name
+        -- with only one being written. Optional and pcall'd for the same
+        -- reason the capability block is: a report that dies because one
+        -- module did not load is worse than a report without that block.
+        add("")
+        if type(_G.writeLedgerReport) == "function" then
+            local okLedger, block = pcall(_G.writeLedgerReport)
+            if okLedger and type(block) == "string" then
+                add("── %s", block)
+            else
+                add("── WHAT IS SAVING ────────────────────────────────────")
+                add("   report failed: %s", tostring(block))
+            end
+        else
+            add("── WHAT IS SAVING ────────────────────────────────────")
+            add("   modules/write_ledger.lua is not loaded on this Mac")
+        end
+
         add("")
         add("── PATHS ─────────────────────────────────────────────")
         add("   logs dir       : %s", _G.diag.fileInfo(logsDir))

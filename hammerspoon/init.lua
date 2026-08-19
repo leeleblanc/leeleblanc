@@ -830,10 +830,22 @@ end
 -- Fix: keep the Logs folder "Always keep on this device" in OneDrive.
 local writeWarned = {}
 local function warnWriteFailed(label)
+    -- 💾 6.116.0 — COUNTED BEFORE THE ONCE-ONLY GATE, not after. The alert
+    -- is deliberately shown once per label, because six identical alerts
+    -- for one offline OneDrive is worse than one. But the COUNT is the
+    -- answer to "how do I know my logs are saving" — a label that failed
+    -- forty times and a label that failed once are very different
+    -- situations, and the old code could not tell them apart because it
+    -- returned before recording anything. _G.saved() prints this.
+    _G.writeFailures = _G.writeFailures or {}
+    _G.writeFailures[label] = (_G.writeFailures[label] or 0) + 1
     if writeWarned[label] then return end
     writeWarned[label] = true
     hs.alert.show("⚠️ Can't write " .. label .. " — is the OneDrive Logs folder available?", 6)
     print("🚨 Write failed: " .. label .. " (OneDrive quit, or Logs folder online-only?)")
+    if _G.notices then
+        pcall(_G.notices.record, "runtime", "write failed", label)
+    end
 end
 
 -- =====================================================================
@@ -2842,6 +2854,7 @@ local BASE = {
     "daily_rollup",       -- 📊 16:01 card over the tracker and the pad
                           -- (AFTER both: it reads their services, no key)
     -- 6.116.0
+    "write_ledger",       -- 💾 _G.saved() — proof the logs are saving (no key)
     "right_click",        -- 🖱 ⇪⇧F a real right-click at the pointer
     "editor_picker",      -- 🗂 ⌘⌘ (or ⇪⇧Z) every editor at once, sorted by
                           -- what is open and what has something in it.
