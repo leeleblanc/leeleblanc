@@ -481,6 +481,35 @@ function M.setup(core)
         end, "clipboard edit")
     end
 
+    -- 🗂 6.116.0 — listed for the ⌘⌘ editor picker. There is no `view`: a
+    -- chooser is not a window this config can bring forward, so ⏎ always
+    -- opens a fresh one, which for a picker is the same thing.
+    --
+    -- 🚨 INSIDE the enabled check. clip.chooser is only built when this
+    -- module is enabled, so registering unconditionally would put a row in
+    -- the picker whose ⏎ calls a method on nil — a dead row is worse than
+    -- an absent one, because you only find out by pressing it.
+    if clip.enabled then
+        _G.editors = _G.editors or {}
+        table.insert(_G.editors, {
+            name  = "Clipboard",
+            key   = "⇪V",
+            what  = "everything you have copied",
+            order = 40,
+            unit  = "items",
+            show  = function()
+                clip.render("")
+                if core.showPopup then core.showPopup(clip.chooser)
+                else clip.chooser:show() end
+            end,
+            size  = function() return #(_G.clipboardCache or {}) end,
+            text  = function()
+                local top = (_G.clipboardCache or {})[1]
+                return top and top.text or nil
+            end,
+        })
+    end
+
     core.provide("clipboard.add",   function(t) return clip.add(t)   end)
     core.provide("clipboard.save",  function()  return clip.save()   end)
     core.provide("clipboard.count", function()  return #_G.clipboardCache end)

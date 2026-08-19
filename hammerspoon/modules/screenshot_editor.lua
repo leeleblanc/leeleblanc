@@ -704,6 +704,23 @@ function M.setup(core)
         end,
     })
 
+    -- 🗂 6.116.0 — listed for the ⌘⌘ editor picker, and DELIBERATELY WITH
+    -- NO `show`. This editor edits an image you have to have taken first;
+    -- there is no cold-open of it, so the row exists to bring an editor
+    -- that is already up back to the front — which is exactly the case
+    -- where it is hardest to find, buried under whatever you took a
+    -- screenshot OF. With the window closed the row says so and does
+    -- nothing, which is honest; a `show` that opened an empty editor
+    -- would not be.
+    _G.editors = _G.editors or {}
+    table.insert(_G.editors, {
+        name  = "Screenshot Editor",
+        key   = "⇪⇧4",
+        what  = "only listed while one is open",
+        order = 60,
+        view  = function() return ed.webview end,
+    })
+
     -- ⎋ 6.93.0 — in the escape router, so the cheat sheet closes AFTER the
     -- editor (its page keeps first claim on Esc for cancelling a text box).
     if _G.claimEscape then

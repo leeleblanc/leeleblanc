@@ -1176,6 +1176,27 @@ function M.setup(core)
 
     core.hyperAddShortcut({ "shift" }, wp.key, function() wp.pin() end, "window pin")
 
+    -- 🗂 6.116.0 — listed for the ⌘⌘ editor picker. `show` is wp.pin(),
+    -- which edits the note on whatever window is in front — so this row
+    -- means "pin/edit a note HERE", not "reopen the last note". There is
+    -- deliberately no `text`: the notes belong to windows, one each, and
+    -- there is no single one of them that ⌥⏎ could honestly copy.
+    _G.editors = _G.editors or {}
+    table.insert(_G.editors, {
+        name  = "Window Pins",
+        key   = "⇪⇧U",
+        what  = "notes stuck to individual windows",
+        order = 50,
+        unit  = "notes",
+        view  = function() return wp.editorView end,
+        show  = function() wp.pin() end,
+        size  = function()
+            local n = 0
+            for _ in pairs(wp.pins or {}) do n = n + 1 end
+            return n
+        end,
+    })
+
     core.provide("winPin.pin",      function() return wp.pin() end)
     core.provide("winPin.unpinAll", function() return wp.unpinAll() end)
 

@@ -1408,6 +1408,22 @@ function M.setup(core)
         end,
     })
 
+    -- 🗂 6.116.0 — listed for the ⌘⌘ editor picker. `view` and `show` are
+    -- separate on purpose: pad.show() TOGGLES, so calling it on an open pad
+    -- would hide it, and picking "Capture Pad" out of a list of editors in
+    -- order to go and read it must never be the keystroke that closes it.
+    _G.editors = _G.editors or {}
+    table.insert(_G.editors, {
+        name  = "Capture Pad",
+        key   = "⇪N",
+        what  = "queued for the 4 PM send",
+        order = 20,
+        view  = function() return pad.webview end,
+        show  = function() pad.show() end,
+        size  = function() return #(pad.draft or "") end,
+        text  = function() return pad.draft end,
+    })
+
     -- ⎋ 6.93.0 — in the escape router, so the cheat sheet closes AFTER the
     -- pad. Hiding never loses work: the draft lives in pad.draft, not the
     -- window, which is what makes this claim safe where the veil's isn't.

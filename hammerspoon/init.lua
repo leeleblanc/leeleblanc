@@ -2841,6 +2841,15 @@ local BASE = {
     "ocr_engine",         -- 🔍 ⇪O search · ⇪⇧O edit (was §2 of this file)
     "daily_rollup",       -- 📊 16:01 card over the tracker and the pad
                           -- (AFTER both: it reads their services, no key)
+    -- 6.116.0
+    "right_click",        -- 🖱 ⇪⇧F a real right-click at the pointer
+    "editor_picker",      -- 🗂 ⌘⌘ (or ⇪⇧Z) every editor at once, sorted by
+                          -- what is open and what has something in it.
+                          -- LAST on purpose: it only READS the registry the
+                          -- editors above fill, so loading it after all of
+                          -- them means its own boot never sees a half-built
+                          -- roster. It is order-independent by construction
+                          -- either way — the registry is created with `or`.
 }
 
 -- BASE minus `without`, plus `plus`. The list is COPIED, never shared: a

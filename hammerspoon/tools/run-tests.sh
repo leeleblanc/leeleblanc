@@ -179,7 +179,7 @@ if [ -z "$LUA" ]; then
     echo "   ⚠️  skipped — no lua interpreter on PATH"
     SKIPPED="$SKIPPED lua-suites"
 else
-    for t in test_features test_window_return test_win_pin test_rollup test_switcher test_modules test_cheatsheet test_diagnostics test_mouse_grid test_url_cleaner test_health test_menubar test_app_launcher test_chrome_history test_begone test_recent_docs test_focus test_rename test_notices test_console test_search_index test_doc_keywords test_clipboard test_select_mode test_ocr_tag test_file_tracker test_outlook_probe test_app_watcher test_integration test_tools test_expander test_autocorrect test_keycaster test_keyboard_stack test_hyper_key test_screenshots test_taskform test_task_creator test_note_pad test_editor test_window_move test_unified test_style; do
+    for t in test_features test_window_return test_win_pin test_rollup test_switcher test_modules test_cheatsheet test_diagnostics test_mouse_grid test_url_cleaner test_health test_menubar test_app_launcher test_chrome_history test_begone test_recent_docs test_focus test_rename test_notices test_console test_search_index test_doc_keywords test_clipboard test_select_mode test_ocr_tag test_file_tracker test_outlook_probe test_app_watcher test_integration test_tools test_expander test_autocorrect test_keycaster test_keyboard_stack test_hyper_key test_screenshots test_taskform test_task_creator test_note_pad test_editor test_editor_picker test_right_click test_window_move test_unified test_style; do
         f="$HS/tests/$t.lua"
         if [ ! -f "$f" ]; then
             echo "   ⚠️  $t — missing"

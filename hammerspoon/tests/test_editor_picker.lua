@@ -1,0 +1,485 @@
+-- =====================================================================
+-- test_editor_picker.lua — ⌘⌘ opens the editors, and ⌘C⌘V does not
+-- =====================================================================
+--     lua5.4 test_editor_picker.lua [/path/to/hammerspoon]
+--
+-- Executes modules/editor_picker.lua against a stubbed hs and drives the
+-- REAL event-tap callback with synthetic modifier and key events.
+--
+-- The section that matters most is 2. A double-tap watcher that reads
+-- only flagsChanged cannot tell ⌘C-then-⌘V from ⌘ tapped twice, and
+-- copy-then-paste is one of the most common things anybody does at a
+-- keyboard — so a picker that opened on it would be unusable, and it
+-- would be unusable in a way that looks like a haunting rather than a
+-- bug. Every one of those checks fails if the keyDown branch is removed.
+
+local HS = (arg and arg[1]) or os.getenv("HAMMERSPOON_DIR")
+           or ((os.getenv("HOME") or ".") .. "/.hammerspoon")
+
+local pass, fail, failures = 0, 0, {}
+local function check(label, cond, extra)
+    if cond then pass = pass + 1
+    else fail = fail + 1
+         failures[#failures + 1] = label
+             .. (extra ~= nil and ("\n        got: " .. tostring(extra)) or "") end
+end
+local function out(s) io.write(s) end
+
+local printed = {}
+print = function(...)
+    local p = {}
+    for i = 1, select("#", ...) do p[#p + 1] = tostring((select(i, ...))) end
+    printed[#printed + 1] = table.concat(p, " ")
+end
+
+-- ---- the stub Mac ------------------------------------------------------
+local NOW      = 1000.0          -- wall clock, moved by hand
+local TAP      = nil             -- the one keyboard tap the module makes
+local ALERTS   = {}
+local CLIP     = nil             -- what reached the pasteboard
+local MODS     = {}              -- what checkKeyboardModifiers reports
+local CHOOSERS = {}
+local SHOWN    = {}              -- chooser:show() / core.showPopup calls
+
+local TYPES = { keyDown = 10, flagsChanged = 12 }
+
+hs = {
+    timer = {
+        secondsSinceEpoch = function() return NOW end,
+        doAfter = function(_, fn) return { stop = function() end, fn = fn } end,
+    },
+    eventtap = {
+        event = { types = TYPES },
+        new = function(types, cb)
+            TAP = { types = types, cb = cb, started = false }
+            function TAP:start() self.started = true return self end
+            function TAP:stop()  self.started = false end
+            return TAP
+        end,
+        checkKeyboardModifiers = function() return MODS end,
+    },
+    alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
+    pasteboard = { setContents = function(t) CLIP = t return true end },
+    chooser = {
+        new = function(cb)
+            local c = { cb = cb, rows = nil, placeholder = nil }
+            function c:choices(r) self.rows = r return self end
+            function c:placeholderText(t) self.placeholder = t return self end
+            function c:searchSubText() return self end
+            function c:width() return self end
+            function c:show() SHOWN[#SHOWN + 1] = self return self end
+            CHOOSERS[#CHOOSERS + 1] = c
+            return c
+        end,
+    },
+}
+_G.diag = { say = function() end, warn = function() end, err = function() end }
+
+local BOUND, PROVIDED = {}, {}
+local CORE = {
+    hyperAddShortcut = function(mods, key, fn, src)
+        BOUND[(mods and mods[1] or "") .. "+" .. key] = { fn = fn, src = src }
+    end,
+    provide   = function(n, f) PROVIDED[n] = f end,
+    showPopup = function(c) SHOWN[#SHOWN + 1] = c end,
+}
+
+-- ---- synthetic events --------------------------------------------------
+local function flagsEvent(flags)
+    return { getType = function() return TYPES.flagsChanged end,
+             getFlags = function() return flags or {} end }
+end
+local function keyEvent()
+    return { getType = function() return TYPES.keyDown end,
+             getFlags = function() return {} end }
+end
+
+-- ---- load it -----------------------------------------------------------
+local chunk = assert(loadfile(HS .. "/modules/editor_picker.lua"))
+local M = chunk()
+_G.editors = {}
+M.setup(CORE)
+local ep = _G.editorPicker
+M.warm(CORE)
+
+out("\n=== 1. it loads, binds and starts ===\n")
+check("the module returns a table with a name", M.name == "Editor Picker")
+check("it declares a family", M.family == "text")
+check("it publishes _G.editorPicker", type(ep) == "table")
+check("⇪⇧Z is bound as the tap-free way in", BOUND["shift+z"] ~= nil)
+check("the binding is attributed to this module",
+      BOUND["shift+z"] and BOUND["shift+z"].src == "editor picker")
+check("warm() started the tap", TAP ~= nil and TAP.started == true)
+check("the tap watches flagsChanged AND keyDown", (function()
+    if not TAP then return false end
+    local wantsFlags, wantsKeys = false, false
+    for _, t in ipairs(TAP.types) do
+        if t == TYPES.flagsChanged then wantsFlags = true end
+        if t == TYPES.keyDown      then wantsKeys  = true end
+    end
+    return wantsFlags and wantsKeys
+end)())
+check("three services are published",
+      PROVIDED["editors.show"] and PROVIDED["editors.list"]
+      and PROVIDED["editors.report"])
+
+-- =====================================================================
+out("\n=== 2. 🚨 ⌘C THEN ⌘V DOES NOT OPEN THE PICKER ===\n")
+-- =====================================================================
+-- The whole reason this tap subscribes to keyDown. Delete the keyDown
+-- branch of the callback and every check in this section fails.
+local function feed(e) return TAP.cb(e) end
+local function tick(dt) NOW = NOW + dt end
+
+local function reset()
+    ep.resetTapState()
+    SHOWN = {}
+    ep.fires = 0
+end
+
+-- ⌘ down · c · ⌘ up · ⌘ down · v · ⌘ up, all of it fast
+reset()
+feed(flagsEvent({ cmd = true })); tick(0.04)
+feed(keyEvent());                 tick(0.02)
+feed(flagsEvent({}));             tick(0.05)
+feed(flagsEvent({ cmd = true })); tick(0.04)
+feed(keyEvent());                 tick(0.02)
+feed(flagsEvent({}))
+check("⌘C then ⌘V did NOT fire", ep.fires == 0, ep.fires)
+check("…and opened nothing", #SHOWN == 0, #SHOWN)
+
+-- A key pressed BETWEEN two otherwise-clean taps also cancels: ⌘-tap,
+-- type a letter, ⌘-tap is two gestures with a sentence between them.
+reset()
+feed(flagsEvent({ cmd = true })); tick(0.05); feed(flagsEvent({})); tick(0.05)
+feed(keyEvent());                 tick(0.05)
+feed(flagsEvent({ cmd = true })); tick(0.05); feed(flagsEvent({}))
+check("a keystroke between the taps cancels the gesture", ep.fires == 0, ep.fires)
+
+-- ⌘⇧ is a chord, not a tap, even with no key in it (⌘⇧4 arrives that way
+-- when the screenshot is taken by the system before the key reaches us).
+reset()
+feed(flagsEvent({ cmd = true, shift = true })); tick(0.05)
+feed(flagsEvent({})); tick(0.05)
+feed(flagsEvent({ cmd = true, shift = true })); tick(0.05)
+feed(flagsEvent({}))
+check("⌘⇧ tapped twice does not fire", ep.fires == 0, ep.fires)
+
+-- ⇧ joining a ⌘ that is already down dirties it too.
+reset()
+feed(flagsEvent({ cmd = true })); tick(0.03)
+feed(flagsEvent({ cmd = true, shift = true })); tick(0.03)
+feed(flagsEvent({})); tick(0.05)
+feed(flagsEvent({ cmd = true })); tick(0.05); feed(flagsEvent({}))
+check("⇧ joining a held ⌘ dirties that tap", ep.fires == 0, ep.fires)
+
+-- Holding ⌘ (reading a menu) is not a tap however clean it is.
+reset()
+feed(flagsEvent({ cmd = true })); tick(1.2); feed(flagsEvent({})); tick(0.05)
+feed(flagsEvent({ cmd = true })); tick(0.05); feed(flagsEvent({}))
+check("a HELD ⌘ then a tap does not fire", ep.fires == 0, ep.fires)
+
+-- Two clean taps too far apart are two taps, not a gesture.
+reset()
+feed(flagsEvent({ cmd = true })); tick(0.05); feed(flagsEvent({})); tick(2.0)
+feed(flagsEvent({ cmd = true })); tick(0.05); feed(flagsEvent({}))
+check("two taps a second apart do not fire", ep.fires == 0, ep.fires)
+
+out("\n=== 2b. …and two clean taps DO ===\n")
+reset()
+feed(flagsEvent({ cmd = true })); tick(0.05); feed(flagsEvent({})); tick(0.10)
+feed(flagsEvent({ cmd = true })); tick(0.05); feed(flagsEvent({}))
+check("⌘⌘ fired exactly once", ep.fires == 1, ep.fires)
+check("…and the picker was shown", #SHOWN == 1, #SHOWN)
+
+-- A third tap must not fire again off the back of the second: the pair
+-- is consumed, so ⌘⌘⌘ is one picker, not two.
+reset()
+for _ = 1, 3 do
+    feed(flagsEvent({ cmd = true })); tick(0.05)
+    feed(flagsEvent({})); tick(0.10)
+end
+check("⌘⌘⌘ fires once, not twice", ep.fires == 1, ep.fires)
+
+out("\n=== 2c. it never eats a keystroke, on any path ===\n")
+local returns = {}
+reset()
+returns[#returns + 1] = feed(flagsEvent({ cmd = true }))
+returns[#returns + 1] = feed(keyEvent())
+returns[#returns + 1] = feed(flagsEvent({}))
+returns[#returns + 1] = feed(flagsEvent({ cmd = true }))
+returns[#returns + 1] = feed(flagsEvent({}))
+returns[#returns + 1] = feed({ getType = function() error("boom") end })
+local allFalse = true
+for _, r in ipairs(returns) do if r ~= false then allFalse = false end end
+check("every path returns false, including the throwing one", allFalse)
+check("a throw was counted rather than swallowed", ep.tapFailures >= 1,
+      ep.tapFailures)
+
+out("\n=== 2d. it stands down for injection and for ⇪ ===\n")
+reset()
+_G.typingInjection = function() return true end
+feed(flagsEvent({ cmd = true })); tick(0.05); feed(flagsEvent({})); tick(0.10)
+feed(flagsEvent({ cmd = true })); tick(0.05); feed(flagsEvent({}))
+check("synthetic keys cannot assemble the gesture", ep.fires == 0, ep.fires)
+_G.typingInjection = function() return false end
+
+reset()
+_G.hyperActive = true
+feed(flagsEvent({ cmd = true })); tick(0.05); feed(flagsEvent({})); tick(0.10)
+feed(flagsEvent({ cmd = true })); tick(0.05); feed(flagsEvent({}))
+check("⇪'s synthetic ⌘⇧⌃⌥ cannot assemble it either", ep.fires == 0, ep.fires)
+_G.hyperActive = nil
+
+out("\n=== 2e. repeated throws switch the tap off, not the keyboard ===\n")
+ep.tapFailures = 0
+local bad = { getType = function() error("boom") end }
+local lastReturn
+for _ = 1, ep.failLimit do lastReturn = feed(bad) end
+check("the tap stopped itself", ep.tapRunning == false)
+check("…and still passed that keystroke through", lastReturn == false)
+check("it said so in the Console", (function()
+    for _, l in ipairs(printed) do
+        if l:find("switched off", 1, true) then return true end
+    end
+    return false
+end)())
+check("…and named ⇪⇧Z as the way in", (function()
+    for _, l in ipairs(printed) do
+        if l:find("⇪⇧Z still opens", 1, true) then return true end
+    end
+    return false
+end)())
+TAP.started = true ; ep.tapRunning = true ; ep.tapFailures = 0
+
+-- =====================================================================
+out("\n=== 3. the roster, sorted ===\n")
+-- =====================================================================
+local OPENED, SHOWED = {}, {}
+local fakeView = { bringToFront = function() end, hswindow = function() return nil end }
+
+_G.editors = {
+    { name = "Empty One", key = "⇪1", order = 10,
+      show = function() SHOWED[#SHOWED + 1] = "Empty One" end,
+      size = function() return 0 end },
+    { name = "Has Text",  key = "⇪2", order = 20, what = "a draft",
+      show = function() SHOWED[#SHOWED + 1] = "Has Text" end,
+      size = function() return 412 end,
+      text = function() return "the draft text" end },
+    { name = "Is Open",   key = "⇪3", order = 30,
+      view = function() return fakeView end,
+      show = function() SHOWED[#SHOWED + 1] = "Is Open" end,
+      size = function() return 3 end },
+    { name = "No Size",   key = "⇪4", order = 5,
+      show = function() SHOWED[#SHOWED + 1] = "No Size" end },
+}
+
+local states = ep.states()
+check("all four are listed", #states == 4, #states)
+check("the OPEN one sorts first", states[1].name == "Is Open", states[1].name)
+check("then the one with text", states[2].name == "Has Text", states[2].name)
+check("the empty ones come last", (states[3].name == "Empty One"
+      or states[3].name == "No Size") and (states[4].name == "Empty One"
+      or states[4].name == "No Size"), states[3].name .. "/" .. states[4].name)
+check("declared order breaks ties inside a band", states[3].name == "No Size",
+      states[3].name)
+
+local rows = ep.rows()
+local function rowFor(name)
+    for _, r in ipairs(rows) do if r.edName == name then return r end end
+end
+check("the open row is marked in its title",
+      rowFor("Is Open").text:find("●", 1, true) ~= nil, rowFor("Is Open").text)
+check("…and says OPEN NOW in its subtitle",
+      rowFor("Is Open").subText:find("OPEN NOW", 1, true) ~= nil)
+check("a sized row prints its size",
+      rowFor("Has Text").subText:find("412 characters", 1, true) ~= nil,
+      rowFor("Has Text").subText)
+check("a row carries its own description",
+      rowFor("Has Text").subText:find("a draft", 1, true) ~= nil)
+check("an empty row says empty",
+      rowFor("Empty One").subText:find("empty", 1, true) ~= nil,
+      rowFor("Empty One").subText)
+-- 🚨 A missing size function is NOT an empty editor, and saying "empty"
+-- for it would be a small lie about somebody else's data.
+check("a row with no size function does NOT claim to be empty",
+      rowFor("No Size").subText:find("empty", 1, true) == nil,
+      rowFor("No Size").subText)
+
+_G.editors = {}
+check("with nothing registered it says so, rather than showing a blank list",
+      ep.rows()[1].text:find("No editors", 1, true) ~= nil)
+
+-- =====================================================================
+out("\n=== 4. 🚨 ⏎ ON AN OPEN EDITOR NEVER CALLS show() ===\n")
+-- =====================================================================
+-- pad.show() and np.show() TOGGLE, and for the Note Pad closing FILES
+-- the draft. Picking an open pad out of this list in order to go and
+-- READ it must not be the keystroke that files it.
+local fronted = 0
+local toggler = { bringToFront = function() fronted = fronted + 1 end,
+                  hswindow = function() return nil end }
+SHOWED = {}
+_G.editors = {
+    { name = "Open Pad", key = "⇪N",
+      view = function() return toggler end,
+      show = function() SHOWED[#SHOWED + 1] = "Open Pad" end },
+    { name = "Shut Pad", key = "⇪M",
+      view = function() return nil end,
+      show = function() SHOWED[#SHOWED + 1] = "Shut Pad" end },
+}
+ep.open("Open Pad")
+check("an OPEN editor was brought to the front", fronted == 1, fronted)
+check("…and show() was never called on it", #SHOWED == 0,
+      table.concat(SHOWED, ","))
+ep.open("Shut Pad")
+check("a CLOSED editor is opened with show()",
+      SHOWED[1] == "Shut Pad", table.concat(SHOWED, ","))
+
+-- A registration whose view() throws must cost one row, not the picker.
+_G.editors[#_G.editors + 1] = {
+    name = "Broken", view = function() error("nope") end,
+    show = function() SHOWED[#SHOWED + 1] = "Broken" end }
+local okStates = pcall(ep.states)
+check("a throwing view() does not take the roster down", okStates)
+ep.open("Broken")
+check("…and its row falls back to opening it", SHOWED[#SHOWED] == "Broken")
+
+ALERTS = {}
+check("an unknown name is refused rather than guessed", ep.open("Nope") == false)
+local noOpen = { name = "No Way In" }
+_G.editors = { noOpen }
+ALERTS = {}
+check("an editor with no way to open says so", ep.open("No Way In") == false)
+check("…out loud", #ALERTS == 1 and ALERTS[1]:find("no way to open", 1, true))
+
+-- =====================================================================
+out("\n=== 5. ⌥⏎ copies without opening ===\n")
+-- =====================================================================
+SHOWED, ALERTS, CLIP = {}, {}, nil
+_G.editors = {
+    { name = "Full",  text = function() return "carry me" end,
+      show = function() SHOWED[#SHOWED + 1] = "Full" end },
+    { name = "Blank", text = function() return "" end,
+      show = function() SHOWED[#SHOWED + 1] = "Blank" end },
+    { name = "Mute",  show = function() SHOWED[#SHOWED + 1] = "Mute" end },
+}
+check("copying returns true", ep.copy("Full") == true)
+check("the text reached the clipboard", CLIP == "carry me", CLIP)
+check("🚨 and NOTHING was opened", #SHOWED == 0, table.concat(SHOWED, ","))
+check("it says what it copied and how much",
+      ALERTS[#ALERTS]:find("Copied Full", 1, true)
+      and ALERTS[#ALERTS]:find("8", 1, true), ALERTS[#ALERTS])
+
+CLIP = "PRECIOUS"
+check("an empty editor is refused", ep.copy("Blank") == false)
+check("🚨 …and the clipboard is left ALONE, not blanked", CLIP == "PRECIOUS", CLIP)
+check("it says the editor was empty",
+      ALERTS[#ALERTS]:find("empty", 1, true), ALERTS[#ALERTS])
+check("an editor with no text function is refused", ep.copy("Mute") == false)
+check("…and says so", ALERTS[#ALERTS]:find("no text to copy", 1, true))
+
+-- The completion callback reads ⌥ at the moment of the press.
+SHOWED, CLIP = {}, nil
+_G.editors = {
+    { name = "Full", text = function() return "carry me" end,
+      show = function() SHOWED[#SHOWED + 1] = "Full" end },
+}
+ep.show()
+local pickerChooser = ep.chooser
+MODS = { alt = true }
+pickerChooser.cb({ edName = "Full" })
+check("⌥⏎ copies", CLIP == "carry me", CLIP)
+check("…without opening", #SHOWED == 0, table.concat(SHOWED, ","))
+MODS = {}
+pickerChooser.cb({ edName = "Full" })
+check("plain ⏎ opens", SHOWED[1] == "Full", table.concat(SHOWED, ","))
+check("a dismissed picker (nil pick) does nothing", (function()
+    local before = #SHOWED
+    pickerChooser.cb(nil)
+    return #SHOWED == before
+end)())
+check("the picker is filed in _G.choosers so Esc reaches it",
+      _G.choosers and _G.choosers.editorPicker == pickerChooser)
+
+-- =====================================================================
+out("\n=== 6. the report ===\n")
+-- =====================================================================
+_G.editors = {
+    { name = "One", key = "⇪1", size = function() return 5 end },
+}
+local rep = _G.editorPickerReport()
+check("it names the tap's state", rep:find("⌘⌘ watcher", 1, true) ~= nil)
+check("it names the fallback key", rep:find("⇪⇧Z", 1, true) ~= nil)
+check("it counts the roster", rep:find("registered : 1", 1, true) ~= nil, rep)
+check("it lists each editor", rep:find("One", 1, true) ~= nil)
+_G.editors = {}
+rep = _G.editorPickerReport()
+check("an empty roster is explained, not just zero",
+      rep:find("Nothing registered", 1, true) ~= nil)
+
+-- =====================================================================
+out("\n=== 7. 🚨 THE ROSTER CANNOT ROT ===\n")
+-- =====================================================================
+-- The same shape of guard as the escape-router roster check in
+-- test_integration, and for the same reason: this registry is filled by
+-- OTHER files, so a module that grows an editor window — or loses its
+-- registration in a refactor — would silently shrink the picker, and the
+-- only symptom is a row that is not there. A comment asking people to
+-- remember is not a sentry.
+local function slurp(p)
+    local f = io.open(p, "rb"); if not f then return nil end
+    local s = f:read("*a"); f:close(); return s
+end
+local MUST_REGISTER = {
+    "capture_pad", "note_pad", "ocr_engine",
+    "clipboard_history", "win_pin", "screenshot_editor",
+}
+local missing = {}
+for _, name in ipairs(MUST_REGISTER) do
+    local src = slurp(HS .. "/modules/" .. name .. ".lua")
+    if not src or not src:find("table.insert(_G.editors", 1, true) then
+        missing[#missing + 1] = name
+    end
+end
+check("every editor-owning module registers into _G.editors",
+      #missing == 0, table.concat(missing, ", "))
+
+-- And the module list must actually load it, or none of the above ships.
+local initSrc = slurp(HS .. "/init.lua") or ""
+check("editor_picker is in init.lua's BASE list",
+      initSrc:find('"editor_picker"', 1, true) ~= nil)
+
+-- 🚨 THE INVARIANT THE TWO WINDOWS DEPEND ON. maxHold is how long a ⌘
+-- may be down and still count as a tap; tapGap is how long the pair may
+-- take. Either one at or above the human double-tap rhythm makes chords
+-- indistinguishable from gestures, which is section 2 all over again.
+check("maxHold is tight enough to exclude a held ⌘", ep.maxHold <= 0.5,
+      ep.maxHold)
+check("tapGap is tight enough to exclude two separate taps", ep.tapGap <= 0.5,
+      ep.tapGap)
+
+-- =====================================================================
+out("\n=== 8. it survives a Mac with no event tap at all ===\n")
+-- =====================================================================
+local realNew = hs.eventtap.new
+hs.eventtap.new = function() error("no accessibility") end
+ep.stopTap()
+local started = ep.startTap()
+check("startTap reports failure rather than throwing", started == false)
+check("…and the fallback key is still bound", BOUND["shift+z"] ~= nil)
+check("…and the picker still opens", (function()
+    _G.editors = { { name = "One", show = function() end } }
+    local before = #SHOWN
+    ep.show()
+    return #SHOWN == before + 1
+end)())
+hs.eventtap.new = realNew
+
+-- ---- result ------------------------------------------------------------
+out(string.format("\n%d passed, %d failed\n", pass, fail))
+if fail > 0 then
+    out("\nFAILURES:\n")
+    for _, f in ipairs(failures) do out("   ❌ " .. f .. "\n") end
+end
+os.exit(fail == 0 and 0 or 1)

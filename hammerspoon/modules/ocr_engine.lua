@@ -916,6 +916,26 @@ function M.setup(core)
         end,
     })
 
+    -- 🗂 6.116.0 — listed for the ⌘⌘ editor picker. `size` reads the CSV,
+    -- which is a disk read — acceptable because the picker only ever opens
+    -- on a deliberate gesture, exactly like ⇪O itself. ⌥⏎ copies the most
+    -- recent capture, which is the thing you nearly always want back.
+    _G.editors = _G.editors or {}
+    table.insert(_G.editors, {
+        name  = "OCR text",
+        key   = "⇪⇧O",
+        what  = "text lifted off screenshots",
+        order = 30,
+        unit  = "captures",
+        view  = function() return ocr.editorView end,
+        show  = function() ocr.edit() end,
+        size  = function() return #ocr.history() end,
+        text  = function()
+            local h = ocr.history()
+            return h[1] and h[1].rawText or nil
+        end,
+    })
+
     -- ⎋ through the shared router, so the cheat sheet still closes LAST.
     -- The page handles Escape itself while it has the keyboard; this is
     -- for the case where it does not — the box is up but focus went

@@ -738,6 +738,21 @@ function M.setup(core)
         end,
     })
 
+    -- 🗂 6.116.0 — listed for the ⌘⌘ editor picker. `show` is NOT called on
+    -- an open pad: np.show() closes the one that is up, and closing FILES
+    -- the draft. Picking this row to go and read the pad must not file it.
+    _G.editors = _G.editors or {}
+    table.insert(_G.editors, {
+        name  = "Note Pad",
+        key   = "⇪2 / ⇪pad2",
+        what  = "closing it files the note",
+        order = 10,
+        view  = function() return np.webview end,
+        show  = function() np.show() end,
+        size  = function() return #(np.draft or "") end,
+        text  = function() return np.draft end,
+    })
+
     -- ⎋ in the escape router, so the cheat sheet closes AFTER the pad.
     -- Closing FILES the draft (the close rule), so Esc never loses work.
     if _G.claimEscape then
