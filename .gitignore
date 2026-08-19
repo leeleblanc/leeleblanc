@@ -8,14 +8,20 @@
 # employee ID) and ships in the zip only. That folder is the one part of
 # a release the repository cannot rebuild.
 #
+# 🚨 THE ZIP HAS init.lua AT ITS ROOT, WITH NO WRAPPER FOLDER. This
+# recipe used to build one and contradicted INSTALL.md Step 3, which
+# tells you to unzip into a folder and then run
+# `<that folder>/tools/hs-install.sh <that folder>` — a wrapper puts
+# everything one level down and both halves of that instruction miss.
+#
 # To rebuild any release from source:
 #   git checkout <the tag or commit for that version>
-#   mkdir -p /tmp/pkg/hammerspoonX.Y.Z
+#   mkdir -p /tmp/pkg
 #   cp -R hammerspoon/init.lua hammerspoon/core hammerspoon/modules \
 #         hammerspoon/tools hammerspoon/tests hammerspoon/snippets \
 #         hammerspoon/GUIDE.md hammerspoon/INSTALL.md \
-#         hammerspoon/CHANGELOG.md /tmp/pkg/hammerspoonX.Y.Z/
-#   (cd /tmp/pkg && zip -qr ../hammerspoonX.Y.Z.zip hammerspoonX.Y.Z)
+#         hammerspoon/CHANGELOG.md /tmp/pkg/
+#   (cd /tmp/pkg && zip -qr ../hammerspoonX.Y.Z.zip .)
 #
 # Always run tools/run-tests.sh from INSIDE the unpacked package before
 # handing it over — that checks what actually ships, not what happens to
