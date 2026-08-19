@@ -46,7 +46,18 @@
 local M = {
     name  = "Clipboard History",
     order = 14.3,
-    family = "text",
+    -- 🗂 6.113.0 — MOVED FROM "text" TO "capture", ON REQUEST. The families
+    -- are about what a tool is FOR, not what it operates on, and a store
+    -- that catches everything you copy so you can go back for it later is
+    -- the same shape as the Capture Pad and Quick Append: it takes
+    -- something in and keeps it. "text" is where things that TRANSFORM
+    -- text live — Text Expander, Autocorrect, Begone, OCR, URL Cleaner.
+    -- ⚠️ NOTHING FOLLOWS IT AUTOMATICALLY. ⇪H (Command History) reads a
+    -- shell's history file rather than catching anything, and was already
+    -- filed under FIND & OPEN; the hand-written CLIPBOARD & OCR group in
+    -- core/cheatsheet.lua is ⇪O/⇪⇧O/⇪⇧C, which is OCR and copy-on-select,
+    -- so it stays in "text" too. Say the word if either should move.
+    family = "capture",
     cheatsheet = {
         title = "📋 CLIPBOARD HISTORY (⇪V — every copy, searchable)",
         entries = {

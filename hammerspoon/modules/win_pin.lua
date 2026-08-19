@@ -40,10 +40,12 @@
 -- is no ⇪⇧ letter left after this one — the next tool needs a symbol
 -- key, a numpad key, or a row inside an existing picker.
 --
--- ONE KEY, THREE OUTCOMES, because there is no second key to spend:
+-- ONE KEY, FOUR OUTCOMES, because there is no second key to spend:
 --   ⇪⇧U on a window with no note   → opens the editor, pins what you type
 --   ⇪⇧U on a window that HAS one   → opens it pre-filled, edits it
 --   ⇪⇧U, then empty the box, ⌘⏎    → removes that window's note
+--   ⇪⇧U, then click a note in the  → moves THAT note onto this window
+--        "move a note here" row       (6.113.0 — see the 🔀 block below)
 --
 -- ✍️ 6.112.0 — THE BOX IS A WINDOW, NOT AN ALERT. LL: "that box is way
 -- too small", with two screenshots of the same ~25 visible characters
@@ -68,6 +70,16 @@
 -- TAB. Apps that do not (Chrome, Safari: one window, many tabs) get one
 -- note for the whole window, which is the honest limit, not a bug.
 --
+-- 🔀 6.113.0 — A NOTE CAN MOVE TO ANOTHER WINDOW. LL: "can I move and
+-- pin it if I need to set it to another window?" It could not, and not
+-- obviously so — rebind() read like the call for it but only ever
+-- offered notes whose window had stopped resolving, so a note on a
+-- healthy window got "not a movable note" and retyping was the only
+-- route. Now: focus the window you WANT it on, press ⇪⇧U, and the
+-- editor lists every other note as a button. You drive from the
+-- destination, which is why this needs no window picker — the hard half
+-- of "move X to Y" is naming Y, and Y is the window you are looking at.
+--
 -- 🚨 A NOTE IS NEVER AUTO-DELETED. When a window id stops resolving,
 -- that is either "the tab went to the background" or "it closed", and
 -- NOTHING in the accessibility API separates the two (the original
@@ -87,6 +99,7 @@ local M = {
             { "⇪⇧U",  "Pin a note to the window in front — again to edit it" },
             { "⌘⏎",   "Pin it · Esc cancels · drag the box by its header" },
             { "clear", "Empty the box (or Remove note) — that window's note goes" },
+            { "move",  "Wrong window? ⇪⇧U on the RIGHT one lists it — click to move" },
             { "wrap",  "Long notes wrap into a block and stay on screen" },
             { "follow", "The note tracks the window as it moves, and hides with it" },
             { "tabs",  "Terminal tabs each keep their OWN note (Ghostty, iTerm)" },
@@ -118,6 +131,8 @@ function M.setup(core)
     -- frame is clamped to a real screen, so a note can be badly placed
     -- but never invisible.
     wp.maxWidth     = 360       -- widest the note may draw; text wraps to fit
+    wp.moveRows     = 8         -- "move a note here" buttons before the list
+                                -- defers to _G.pins() — see 🔀 6.113.0 below
     -- Hide a note unless its app is frontmost. Leave this ON: the canvas
     -- floats above every window, so a note left visible while its window
     -- sits behind another app looks pinned to the WRONG one.
@@ -527,6 +542,43 @@ function M.setup(core)
     -- whole complaint was not being able to see what you were typing.
     function wp.editorHtml(opts)
         local st = style()
+
+        -- 🔀 6.113.0 — the "move a note here" rows, built in Lua because
+        -- the page must not be told anything it does not need: each button
+        -- carries an id and nothing else, and the module decides what that
+        -- id means when the message comes back.
+        local rows, listed = {}, opts.moves or {}
+        for i = 1, math.min(#listed, wp.moveRows or 8) do
+            local o = listed[i]
+            local one = (o.text or ""):gsub("%s+", " ")
+            if ulen(one) > 26 then one = usub(one, 1, 26) .. "…" end
+            rows[#rows + 1] = table.concat({
+                [[<button type="button" onclick="say({a:'move',id:]],
+                tostring(o.id), [[})">]],
+                esc(o.appName or ("window " .. tostring(o.id))), " · ", esc(one),
+                o.state ~= "live"
+                    and ([[<span class="st">]] .. esc(o.state) .. [[</span>]])
+                    or "",
+                [[</button>]],
+            })
+        end
+        -- More notes than rows is not a reason to show a wall of buttons in
+        -- a box you are trying to type in. The Console lists all of them.
+        if #listed > #rows then
+            rows[#rows + 1] = [[<span class="st">+]]
+                .. tostring(#listed - #rows) .. [[ more — _G.pins()</span>]]
+        end
+        local moveBlock = ""
+        if #rows > 0 then
+            moveBlock = table.concat({
+                [[<div class="move"><h2>]],
+                opts.hasNote and "Move a note here — replaces the note above"
+                             or  "Move a note here",
+                [[</h2><div class="rows">]], table.concat(rows),
+                [[</div></div>]],
+            })
+        end
+
         return table.concat({
 [[<meta charset="utf-8"><style>
   :root { color-scheme: dark; }
@@ -557,6 +609,13 @@ function M.setup(core)
   button.go { background:#3566cc; border-color:#4a7fe0; }
   button.rm { background:#4a2530; border-color:#6b3542; }
   button:disabled { opacity:.45; cursor:default; }
+  .move { margin-top:13px; padding-top:11px; border-top:1px solid #2a2a32; }
+  .move h2 { font-size:11px; margin:0 0 7px; color:#8a8a96; font-weight:600;
+             text-transform:uppercase; letter-spacing:.6px; }
+  .move .rows { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .move button { font-size:12px; padding:5px 10px; max-width:100%;
+                 overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .st { color:#c9a227; font-size:11px; margin-left:6px; }
 </style>
 <header id="hdr"><h1><span class="grip">⠿</span>]],
             esc(opts.title),
@@ -573,6 +632,7 @@ function M.setup(core)
 [[    <button type="button" onclick="say({a:'cancel'})">Cancel (Esc)</button>
     <button type="button" class="go" id="ok" onclick="save()">Pin it (⌘⏎)</button>
   </div>
+]], moveBlock, [[
 </div>
 <script>
   var MAX = ]], tostring(opts.maxChars or 400), [[;
@@ -771,6 +831,10 @@ function M.setup(core)
                            .. " only  ·  empty the box to remove it",
                 text     = existing or "",
                 hasNote  = existing ~= nil and existing ~= "",
+                -- Every OTHER window's note, offered for moving here. Built
+                -- at open time rather than passed in, so both callers of
+                -- openEditor get the list without having to remember to.
+                moves    = wp.movable(winId),
                 maxChars = wp.maxChars,
                 cols     = wp.wrapCols(),
                 font     = wp.editorFont,
@@ -797,6 +861,20 @@ function M.setup(core)
         if body.a == "save" then
             wp.closeEditor()
             wp.applyEdit(target.id, body.text, target.label)
+            return
+        end
+        if body.a == "move" then
+            -- tonumber, not a trusted number: everything here arrived from a
+            -- WKWebView, and wp.pins is keyed by real window ids.
+            local from = tonumber(body.id)
+            wp.closeEditor()
+            if not from then return end
+            local result = wp.moveTo(from, target.id)
+            if result:find("bound to window", 1, true) then
+                hs.alert.show("📌 Note moved to " .. (target.label or "this window"))
+            else
+                hs.alert.show(result, 3)
+            end
         end
     end
 
@@ -837,68 +915,154 @@ function M.setup(core)
         return wp.openEditor(winId, existing and existing.text or nil, label)
     end
 
+    -- ---- 🔀 6.113.0 — PUTTING A NOTE ON A DIFFERENT WINDOW ----------------
+    -- LL: "can I move and pin it if I need to set it to another window?"
+    -- The honest answer until now was NO, and not obviously so: rebind()
+    -- looked like the call for it, but it only ever offered notes whose
+    -- window no longer RESOLVED. A note on a perfectly healthy window was
+    -- in neither list, so rebind(id) answered "not a movable note" and the
+    -- only way to move one was to retype it somewhere else.
+    --
+    -- 🧭 YOU ALWAYS DRIVE FROM THE DESTINATION. Focus the window you want
+    -- the note ON, press ⇪⇧U, and pick it out of the list in the editor.
+    -- That is what lets this exist without a window picker: the hard half
+    -- of "move X to Y" is naming Y, and the window you are looking at is
+    -- the one thing that is never ambiguous.
+    --
+    -- Every note except the one on `exceptId`, with why it is offered:
+    --   live  — its window is right there; you pinned it to the wrong one
+    --   stale — the app is alive, the window will not resolve. A background
+    --           tab (coming back) or a closed one (never is) — indistinguishable
+    --   dead  — the owning application exited, so it can never re-apply
+    function wp.movable(exceptId)
+        local out = {}
+        for winId, p in pairs(wp.pins) do
+            if winId ~= exceptId then
+                local win
+                pcall(function() win = hs.window.get(winId) end)
+                local state = "live"
+                if not win then
+                    local alive = false
+                    pcall(function()
+                        alive = p.appPid ~= nil
+                                and hs.application.applicationForPID(p.appPid) ~= nil
+                    end)
+                    state = alive and "stale" or "dead"
+                end
+                out[#out + 1] = { id = winId, pin = p, state = state,
+                                  text = p.text or "", appName = p.appName }
+            end
+        end
+        -- Sorted so the list in the editor and the list in the Console are
+        -- in the same order every time. pairs() over window ids is not.
+        table.sort(out, function(a, b) return a.id < b.id end)
+        return out
+    end
+
+    -- The one mover. Every path — the editor's list, rebind(), a Console
+    -- call — comes through here, so there is one answer to "what does
+    -- moving a note mean" rather than three that can drift.
+    --
+    -- 🚨 THE NOTE IS PUT BACK IF THE MOVE FAILS, which the old rebind did
+    -- not do: it removed the source and then called wp.set, and if set
+    -- refused — the destination window went away between those two lines,
+    -- or it had no id — the text was gone with nothing to recover it from.
+    -- This is somebody's typing and there is no undo for it anywhere else
+    -- in the module, so a move that cannot finish leaves things exactly as
+    -- they were and says so.
+    function wp.moveTo(fromWinId, toWinId)
+        if not toWinId then
+            local win
+            pcall(function() win = hs.window.focusedWindow() end)
+            pcall(function() toWinId = win and win:id() end)
+        end
+        if not toWinId then
+            return "📌 Window Pin: no window to move it to"
+        end
+        local src = wp.pins[fromWinId]
+        if not src then
+            return "📌 Window Pin: id " .. tostring(fromWinId) .. " has no note"
+        end
+        if fromWinId == toWinId then
+            return "📌 Window Pin: that note is already on this window"
+        end
+
+        local keep = { text = src.text, appPid = src.appPid,
+                       appName = src.appName, title = src.title }
+        wp.remove(fromWinId, true)
+        local result = wp.set(keep.text, toWinId)
+        if result:find("bound to window", 1, true) then return result end
+
+        wp.pins[fromWinId] = {
+            id     = fromWinId,           text   = keep.text,
+            canvas = wp.buildCanvas(keep.text),
+            appPid = keep.appPid,         appName = keep.appName,
+            title  = keep.title,
+        }
+        wp.save()
+        wp.tick()
+        return "📌 Window Pin: the move did not happen (" .. result
+               .. ") — the note is still on window " .. tostring(fromWinId)
+    end
+
     -- Split "no window found" into its two meanings, because they need
-    -- opposite handling:
-    --   dead  — the owning APPLICATION exited, so the note can never apply
-    --   stale — the app is alive but the window will not resolve. Could be
-    --           a background tab (comes back) or a closed one (never does)
+    -- opposite handling. Derived from wp.movable rather than walking
+    -- wp.pins a second time: two copies of this rule is how they end up
+    -- disagreeing about what "stale" means.
     function wp.classify()
         local dead, stale = {}, {}
-        for winId, p in pairs(wp.pins) do
-            local win
-            pcall(function() win = hs.window.get(winId) end)
-            if not win then
-                local alive = false
-                pcall(function()
-                    alive = p.appPid ~= nil
-                            and hs.application.applicationForPID(p.appPid) ~= nil
-                end)
-                table.insert(alive and stale or dead, { id = winId, pin = p })
+        for _, o in ipairs(wp.movable(nil)) do
+            if o.state == "dead" then
+                table.insert(dead, { id = o.id, pin = o.pin })
+            elseif o.state == "stale" then
+                table.insert(stale, { id = o.id, pin = o.pin })
             end
         end
         return dead, stale
     end
 
-    -- Move a note from a window that no longer resolves onto the window in
-    -- front of you. Closing and reopening a tab gives it a NEW id, which
-    -- strands the old note; this reattaches the text instead of making you
-    -- retype it. With no argument it only picks automatically when exactly
-    -- one note is definitely dead — anything stale is listed rather than
-    -- chosen, because a stale note may belong to a tab that is coming back.
+    -- Move a note onto the window in front of you. Kept under the name it
+    -- has always had — a reopened tab comes back with a NEW id, which
+    -- strands the old note, and reattaching the text beats retyping it —
+    -- but since 6.113.0 that turns out to be one case of the general "put
+    -- this note on that window instead", so a LIVE note can be named here
+    -- too and the refusal it used to get is gone.
+    --
+    -- With no argument it still only picks for you when there is exactly
+    -- one note and it is certainly dead. Anything else is listed: a stale
+    -- note may belong to a tab that is coming back, and a live one belongs
+    -- to a window you can still see, so neither is a safe guess.
     function wp.rebind(fromWinId)
         local win
         pcall(function() win = hs.window.focusedWindow() end)
         if not win then return "📌 Window Pin: no focused window" end
+        local here
+        pcall(function() here = win:id() end)
 
-        local dead, stale = wp.classify()
-        local src
         if fromWinId then
-            for _, o in ipairs(dead)  do if o.id == fromWinId then src = o end end
-            for _, o in ipairs(stale) do if o.id == fromWinId then src = o end end
-            if not src then
+            if not wp.pins[fromWinId] then
                 return "📌 Window Pin: id " .. tostring(fromWinId)
                        .. " is not a movable note"
             end
-        elseif #dead == 1 and #stale == 0 then
-            src = dead[1]
-        else
-            local lines = { "📌 Window Pin — pick an id to move here"
-                            .. " (stale ones may just be background tabs):" }
-            for _, o in ipairs(dead) do
-                lines[#lines + 1] = string.format("  _G.winPin.rebind(%d)  -- dead   %s",
-                    o.id, o.pin.text:gsub("\n", "\\n"):sub(1, 24))
-            end
-            for _, o in ipairs(stale) do
-                lines[#lines + 1] = string.format("  _G.winPin.rebind(%d)  -- stale  %s",
-                    o.id, o.pin.text:gsub("\n", "\\n"):sub(1, 24))
-            end
-            if #lines == 1 then return "📌 Window Pin: nothing to move" end
-            return table.concat(lines, "\n")
+            return wp.moveTo(fromWinId, here)
         end
 
-        local text = src.pin.text
-        wp.remove(src.id, true)
-        return wp.set(text)
+        local movable = wp.movable(here)
+        if #movable == 0 then return "📌 Window Pin: nothing to move" end
+        if #movable == 1 and movable[1].state == "dead" then
+            return wp.moveTo(movable[1].id, here)
+        end
+
+        local lines = { "📌 Window Pin — pick an id to move here:" }
+        for _, o in ipairs(movable) do
+            lines[#lines + 1] = string.format("  _G.winPin.rebind(%d)  -- %-5s %s",
+                o.id, o.state, o.text:gsub("\n", "\\n"):sub(1, 24))
+        end
+        lines[#lines + 1] =
+            "  (or just ⇪⇧U on the window you want it on and pick it there;"
+        lines[#lines + 1] =
+            "   a stale one may simply be a background tab coming back)"
+        return table.concat(lines, "\n")
     end
 
     -- Drop notes whose APPLICATION exited. Notes whose window merely will
@@ -941,7 +1105,9 @@ function M.setup(core)
         end
         table.sort(out)
         table.insert(out, 1, "📌 Window Pin — " .. #out .. " note(s):")
-        out[#out + 1] = "  _G.winPin.rebind()   move a stranded note onto this window"
+        out[#out + 1] = "  ⇪⇧U on the window you want a note on lists them all to move"
+        out[#out + 1] = "  _G.winPin.rebind(id) move that note onto the window in front"
+        out[#out + 1] = "  _G.winPin.moveTo(from, to)  move one note between two ids"
         out[#out + 1] = "  _G.winPin.prune()    forget notes whose app has quit"
         out[#out + 1] = "  _G.winPin.unpinAll() remove every note"
         return table.concat(out, "\n")

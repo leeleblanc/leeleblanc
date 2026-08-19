@@ -137,6 +137,11 @@ check("the module returns name, order and a cheatsheet",
 check("it claims ⇪V and ⇪⇧V", HYPER["|v"] ~= nil and HYPER["shift|v"] ~= nil)
 check("its order collides with none of focus_mode/bulk_rename/workspaces",
       M.order ~= 14.0 and M.order ~= 14.1 and M.order ~= 14.2)
+-- 🗂 6.113.0, on request: filed under CAPTURE, not TEXT. Asserted rather
+-- than left to the file, because a family is one word in a table that a
+-- later edit can revert without anything noticing until the sheet is open.
+check("filed under the capture family — it takes something IN and keeps it",
+      M.family == "capture", M.family)
 check("the watcher in init.lua can reach it by service",
       PROVIDED["clipboard.add"] ~= nil)
 check("the file is read in warm(), not on the boot path",

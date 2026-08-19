@@ -591,6 +591,204 @@ do
 end
 
 -- =====================================================================
+out("🔀 6.113.0 — a note can be MOVED onto a different window\n")
+-- =====================================================================
+-- LL: "can I move and pin it if I need to set it to another window?"
+-- Before this version the answer was no, and rebind() was the trap: it
+-- looked like the call for it and refused every note whose window was
+-- alive. What is asserted here is the whole contract — that a live note
+-- moves, that you drive from the DESTINATION, and above all that a move
+-- which cannot finish puts the text back rather than losing it.
+do
+    local VIEWS, UC = {}, {}
+    hs.drawing = { windowLevels = { floating = 5 } }
+    hs.webview = {
+        windowMasks = { nonactivating = 128 },
+        usercontent = { new = function(name)
+            local u = { name = name }
+            u.setCallback = function(self, fn) self.cb = fn end
+            UC[#UC + 1] = u
+            return u
+        end },
+        new = function(rect, _, uc)
+            local v = { rect = rect, uc = uc, shown = false, deleted = false,
+                        style = 0 }
+            v.windowTitle      = function(self) return self end
+            v.allowTextEntry   = function(self) return self end
+            v.level            = function(self) return self end
+            v.behaviorAsLabels = function(self) return self end
+            v.windowStyle      = function(self, n)
+                if n then self.style = n return self end
+                return self.style
+            end
+            v.html         = function(self, h) self.htmlText = h return self end
+            v.show         = function(self) self.shown = true return self end
+            v.bringToFront = function(self) return self end
+            v.frame        = function(self, f) if f then self.rect = f end return self.rect end
+            v.delete       = function(self) self.deleted = true end
+            VIEWS[#VIEWS + 1] = v
+            return v
+        end,
+    }
+    AX = true
+    SETTINGS["winPin.notes"] = nil
+    BOUND = {}
+    dofile(HS .. "/modules/win_pin.lua").setup(CORE)
+    local wpm = _G.winPin
+    wpm.pins = {}
+    -- Read every note through this. When a guard here breaks the note is
+    -- GONE, and a test that indexes nil crashes instead of naming the check
+    -- that caught it — which is the one moment you need it to.
+    local function textAt(id) return wpm.pins[id] and wpm.pins[id].text end
+
+    local term  = win(901, "Ghostty", 1901, "staging",  40, 60, 800, 600)
+    local slack = win(902, "Slack",   1902, "#general", 40, 60, 800, 600)
+    local code  = win(903, "Code",    1903, "init.lua", 40, 60, 800, 600)
+    WINDOWS[901], WINDOWS[902], WINDOWS[903] = term, slack, code
+    PIDS[1901], PIDS[1902], PIDS[1903] = true, true, true
+
+    FOCUSED = term;  wpm.set("PROD — do not deploy", 901)
+    FOCUSED = slack; wpm.set("mute me", 902)
+
+    -- ---- what is offered, and to whom -----------------------------------
+    FOCUSED = code
+    local offered = wpm.movable(903)
+    check("every other window's note is offered for moving", #offered == 2,
+          #offered)
+    check("…a note on a LIVE window is offered too — that was the whole gap",
+          offered[1].state == "live" and offered[2].state == "live",
+          offered[1].state .. "/" .. offered[2].state)
+    check("…and the destination's own note is never in its own list",
+          #wpm.movable(901) == 1 and wpm.movable(901)[1].id == 902)
+
+    -- ---- the old refusal is gone ----------------------------------------
+    local movedLive = wpm.rebind(902)
+    check("🚨 rebind now moves a LIVE note — it used to answer 'not a "
+          .. "movable note' and leave retyping as the only route",
+          movedLive:find("bound to window 903", 1, true) ~= nil, movedLive)
+    check("…the source window is released", wpm.pins[902] == nil)
+    check("…and the text arrived intact", textAt(903) == "mute me", textAt(903))
+    wpm.rebind(903) ; FOCUSED = slack ; wpm.rebind(903) ; FOCUSED = code
+    check("…moving it back puts it back",
+          textAt(902) == "mute me" and wpm.pins[903] == nil, textAt(902))
+
+    -- ---- the keyboard path: you drive from the DESTINATION ---------------
+    ALERTS = {}
+    wpm.pin()                              -- ⇪⇧U on Code, which has no note
+    local box = VIEWS[#VIEWS]
+    check("⇪⇧U on a note-less window still offers to move one here",
+          (box.htmlText or ""):find("Move a note here", 1, true) ~= nil)
+    check("…with a button per note, carrying the id and nothing else",
+          (box.htmlText or ""):find("a:'move',id:901", 1, true) ~= nil
+          and (box.htmlText or ""):find("a:'move',id:902", 1, true) ~= nil)
+    check("…labelled by app and a snippet, so you can tell them apart",
+          (box.htmlText or ""):find("Ghostty", 1, true) ~= nil
+          and (box.htmlText or ""):find("PROD", 1, true) ~= nil)
+
+    UC[#UC].cb({ body = { a = "move", id = 901 } })
+    check("🚨 clicking one moves that note onto the window you pressed ⇪⇧U on",
+          textAt(903) == "PROD — do not deploy", textAt(903))
+    check("…the window it came from is released", wpm.pins[901] == nil)
+    check("…the editor closed itself", box.deleted == true)
+    check("…and it says where the note went", lastAlert():find("moved", 1, true))
+
+    -- ---- moving ONTO a window that already has one -----------------------
+    wpm.pin()                              -- Code now HAS a note
+    check("the list warns that moving here replaces the note in the box",
+          (VIEWS[#VIEWS].htmlText or ""):find("replaces the note above", 1, true)
+          ~= nil)
+    UC[#UC].cb({ body = { a = "move", id = 902 } })
+    check("…and it does exactly that, rather than silently merging",
+          textAt(903) == "mute me" and wpm.pins[902] == nil, textAt(903))
+
+    -- ---- 🚨 the guard that decides whether this is safe to ship ----------
+    -- The old rebind removed the source and THEN called wp.set. If set
+    -- refused, the text was gone with nothing to recover it from.
+    local before = textAt(903)
+    local failed = wpm.moveTo(903, 4242)   -- 4242 is not a window
+    check("🚨 a move to a window that will not take it LEAVES THE NOTE ALONE "
+          .. "— this is somebody's typing and there is no undo",
+          textAt(903) == before, textAt(903) or "LOST")
+    check("…and says so rather than reporting a move that did not happen",
+          failed:find("did not happen", 1, true) ~= nil, failed)
+    check("…and the note is still DRAWN, not left as a text-only record",
+          wpm.pins[903] ~= nil and wpm.pins[903].canvas ~= nil)
+
+    if not wpm.pins[903] then wpm.set(before, 903) end   -- keep going either way
+    check("moving a note onto its own window is refused, not re-pinned",
+          wpm.moveTo(903, 903):find("already on this window", 1, true) ~= nil
+          and textAt(903) == before)
+    check("an id with no note is refused before anything is removed",
+          wpm.moveTo(555, 903):find("has no note", 1, true) ~= nil
+          and textAt(903) == before)
+
+    -- ---- a stale note is still offered, and labelled --------------------
+    FOCUSED = term ; wpm.set("staging box", 901)
+    WINDOWS[901] = nil                     -- background tab, app still alive
+    FOCUSED = code
+    local withStale = wpm.movable(903)
+    check("a note whose window will not resolve is offered too, marked stale",
+          #withStale == 1 and withStale[1].state == "stale",
+          withStale[1] and withStale[1].state)
+    wpm.pin()
+    check("…and the box says stale rather than pretending it is a live window",
+          (VIEWS[#VIEWS].htmlText or ""):find("stale", 1, true) ~= nil)
+    UC[#UC].cb({ body = { a = "cancel" } })
+
+    -- ---- what comes back from the page is text, not a number -------------
+    -- wp.pins is keyed by REAL window ids, and a WKWebView hands back
+    -- whatever JSON says. Both halves matter: "902" has to work, and
+    -- anything that is not a number at all has to do nothing quietly.
+    WINDOWS[901] = term
+    FOCUSED = code ; wpm.set("destination", 903)
+    wpm.pin()
+    UC[#UC].cb({ body = { a = "move", id = "901" } })
+    check("an id that arrives as a STRING still finds the note — the page "
+          .. "hands back JSON, and wp.pins is keyed by real window ids",
+          textAt(903) == "staging box" and wpm.pins[901] == nil, textAt(903))
+
+    -- Snapshotted rather than asserted against one id, so this says what it
+    -- means on its own instead of inheriting the state the check above left.
+    local snapshot, same = {}, true
+    for id, p in pairs(wpm.pins) do snapshot[id] = p.text end
+    wpm.pin()
+    UC[#UC].cb({ body = { a = "move", id = "'; drop" } })
+    for id, t in pairs(snapshot) do
+        if not (wpm.pins[id] and wpm.pins[id].text == t) then same = false end
+    end
+    for id in pairs(wpm.pins) do if snapshot[id] == nil then same = false end end
+    check("…and an id that is not a number at all moves nothing at all", same)
+
+    FOCUSED = term ; wpm.set("staging box", 901)
+    FOCUSED = code ; wpm.remove(903, true)
+
+    -- ---- a long list defers to the Console ------------------------------
+    for i = 910, 925 do
+        local w2 = win(i, "App" .. i, 1900 + i, "t" .. i, 0, 0, 400, 300)
+        WINDOWS[i], PIDS[1900 + i] = w2, true
+        FOCUSED = w2 ; wpm.set("note " .. i, i)
+    end
+    FOCUSED = code
+    wpm.pin()
+    local many = VIEWS[#VIEWS].htmlText or ""
+    local buttons = select(2, many:gsub("a:'move',id:", ""))
+    check("the box shows at most moveRows buttons, not a wall of them",
+          buttons == wpm.moveRows, buttons)
+    check("…and says how many it did not show, naming the call that lists all",
+          many:find("more — _G.pins()", 1, true) ~= nil)
+    UC[#UC].cb({ body = { a = "cancel" } })
+
+    check("_G.pins() names moveTo alongside the calls it already named",
+          (function()
+              local s = wpm.status()
+              return s:find("moveTo", 1, true) and s:find("rebind", 1, true)
+                     and s:find("prune", 1, true) and s:find("unpinAll", 1, true)
+          end)())
+
+    hs.webview, hs.drawing = nil, nil
+end
+
+-- =====================================================================
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 for _, f2 in ipairs(failures) do out("  ✗ " .. f2 .. "\n") end
 os.exit(fail == 0 and 0 or 1)

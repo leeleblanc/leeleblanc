@@ -4,9 +4,27 @@
 -- =====================================================================
 -- 08-19-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.112.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.113.0
 -- =====================================================================
 
+-- NEW IN 6.113.0 — A PINNED NOTE CAN MOVE TO ANOTHER WINDOW:
+--   LL: "can I move and pin it if I need to set it to another window?"
+--   It could not, and not obviously so — _G.winPin.rebind() read like
+--   the call for it and only ever offered notes whose window had stopped
+--   RESOLVING, so a note on a healthy window got "not a movable note"
+--   and retyping it somewhere else was the only route.
+--   Now: focus the window you WANT it on, press ⇪⇧U, and the editor
+--   lists every other note as a button — click one and it moves. You
+--   drive from the destination, which is why this needs no window
+--   picker: the hard half of "move X to Y" is naming Y, and Y is the
+--   window you are looking at. rebind(id) takes live notes too.
+--   🚨 AND THE MOVE PUTS THE NOTE BACK IF IT CANNOT FINISH. The old
+--   rebind removed the source and THEN called set — if set refused, the
+--   text was gone with nothing to recover it from. That is somebody's
+--   typing and there is no undo for it anywhere in the module.
+--   Clipboard History also moves from ✂️ TEXT to 🗒 CAPTURE on the cheat
+--   sheet, on request. One word in one file; no key changed.
+--
 -- NEW IN 6.112.0 — ⇪⇧U GETS A REAL BOX, AND ITS NOTES STOP VANISHING:
 --   LL sent two screenshots of the pin prompt with the same ~25 visible
 --   characters scrolling out of it: "That note window is tiny… that box
@@ -96,16 +114,8 @@
 --   into it. A test walks every row and fails on any value that is not
 --   a string, number or boolean, so this cannot come back quietly.
 --
--- NEW IN 6.108.0 — BEGONE IS FILED UNDER TEXT:
---   One word in one file. LL flagged Begone's cheat-sheet placement;
---   Time ("the day, and what interrupts it") was defensible but not
---   where a hand goes looking for a typed keyword. It now sits in
---   ✂️ TEXT & CLIPBOARD directly under the Text Expander — the module
---   whose machinery fires it. No key, binding or behaviour changed;
---   this is the position of one card on one panel.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.112.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.113.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -404,7 +414,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.112.0"
+_G.configVersion = "6.113.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

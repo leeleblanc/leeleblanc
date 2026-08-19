@@ -4,6 +4,86 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.113.0 — A PINNED NOTE CAN MOVE TO ANOTHER WINDOW:
+  LL, reviewing 6.112.0 on the work MacBook: "Long note work. But can I
+  move and pin it if I need to set it to another window?"
+
+  THE ANSWER WAS NO, AND THE MODULE LOOKED LIKE IT SAID YES. _G.pins()
+  printed "_G.winPin.rebind()   move a stranded note onto this window",
+  which reads like the call for exactly this. It was not. rebind()
+  worked off wp.classify(), and classify only ever returned notes whose
+  window NO LONGER RESOLVED — dead (the app exited) or stale (the app is
+  alive, the window is not there). A note on a window you can see was in
+  neither list, so rebind(id) answered "id N is not a movable note" and
+  the only way to move a note was to open it, copy the text, empty the
+  box to remove it, focus the other window and paste it back.
+
+  🧭 YOU NOW DRIVE FROM THE DESTINATION. Focus the window you WANT the
+  note on, press ⇪⇧U, and the editor lists every other note as a button:
+  app name, a snippet of the text, and a chip if its window is stale or
+  dead. Click one and it moves. That direction is the whole design —
+  the hard half of "move X to Y" is naming Y, and Y is the window you
+  are looking at, so this needs no window picker and cannot pick wrong.
+  The list is capped at wp.moveRows (8) with "+N more — _G.pins()", so a
+  Mac with twenty notes does not get a wall of buttons in a box it is
+  trying to let you type in.
+
+  Moving onto a window that already has a note REPLACES it, and the
+  heading says so before you click ("Move a note here — replaces the
+  note above") rather than after.
+
+  🚨 AND THE MOVE PUTS THE NOTE BACK IF IT CANNOT FINISH. This is the
+  part worth reading. The old rebind did:
+        wp.remove(src.id, true)
+        return wp.set(text)
+  — remove first, then re-pin. If wp.set refused (the destination went
+  away between those two lines, or it had no id) the text was gone, and
+  nothing anywhere else in the module could recover it. Notes are typed
+  by a person and there is no undo for them. wp.moveTo() now restores
+  the source note, canvas and all, and returns "the move did not happen
+  (...) — the note is still on window N". A test moves a note to id 4242
+  and asserts the text is still where it started; with the restore
+  removed that check reports "got: LOST".
+
+  ONE MOVER, THREE DOORS. wp.moveTo(from, to) is the only thing that
+  moves a note; the editor's buttons, rebind(id) and a Console call all
+  go through it, so there is one answer to what moving means rather than
+  three that can drift. rebind() keeps its name and its no-argument
+  behaviour (it still only auto-picks when there is exactly one note and
+  it is certainly dead) and now accepts live ids. wp.classify() is
+  derived from the new wp.movable() rather than walking wp.pins a second
+  time — two copies of the dead/stale rule is how they end up
+  disagreeing about what stale means.
+
+  What comes back from the page is not trusted: the id is tonumber'd, so
+  "902" works (a WKWebView hands back JSON) and anything that is not a
+  number moves nothing.
+
+  🗂 CLIPBOARD HISTORY MOVES FROM ✂️ TEXT TO 🗒 CAPTURE, on request. The
+  families are about what a tool is FOR, not what it operates on, and a
+  store that catches everything you copy so you can go back for it is
+  the same shape as the Capture Pad and Quick Append. "text" keeps the
+  things that TRANSFORM text — Text Expander, Autocorrect, Begone, OCR,
+  URL Cleaner. Nothing followed it automatically: ⇪H (Command History)
+  reads a shell's history file rather than catching anything and was
+  already under FIND & OPEN, and the hand-written CLIPBOARD & OCR group
+  is ⇪O/⇪⇧O/⇪⇧C, which is OCR and copy-on-select. No key, binding or
+  behaviour changed — this is the position of one card on one panel, and
+  it is now asserted in test_clipboard.lua so a later edit cannot revert
+  it quietly.
+
+  TESTS: test_win_pin 91 → 119, test_clipboard 57 → 58. Every new guard
+  was confirmed FAILING against a broken variant before being kept —
+  restore removed → the note reads LOST; rebind restricted to non-live
+  notes again → three checks; the move list withheld → seven; the
+  moveRows cap removed → two; the tonumber dropped → two; the self-move
+  refusal removed → one. Two of the new checks were rewritten after
+  first being written badly: one crashed the run instead of naming the
+  guard that caught it (it indexed a note the breakage had deleted), and
+  one passed under every variant because a non-numeric id and a missing
+  note produce the same refusal — it now asserts the whole pin table is
+  unchanged, and that a numeric STRING id still works.
+
 NEW IN 6.112.0 — ⇪⇧U GETS A REAL BOX, AND ITS NOTES STOP VANISHING:
   LL, with two screenshots of the pin prompt showing the same ~25
   visible characters scrolling out of a one-line field: "That note
