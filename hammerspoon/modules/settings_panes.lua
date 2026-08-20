@@ -830,7 +830,12 @@ function M.setup(core)
         sp.chooser:placeholderText(#sp.panes .. " panes · " .. #sp.terms
             .. " settings — type anything, ⏎ takes you there")
         sp.chooser:query("")
-        sp.chooser:show()
+        -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the
+        -- LAST picker's coordinates standing in _G.lastPopupPlacement,
+        -- and window_move computes its grab box from that record. It
+        -- could not be dragged at all until 6.127.0.
+        if core.showPopup then core.showPopup(sp.chooser)
+        else sp.chooser:show() end
     end
 
     -- ---- the probe -------------------------------------------------------

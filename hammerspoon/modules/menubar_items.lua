@@ -396,7 +396,12 @@ function M.setup(core)
         -- lands on the screen you are looking at rather than the main one.
         local okScr, scr = pcall(core.resolveBaseScreen)
         if okScr and scr then pcall(function() _G.popupScreenOverride = nil end) end
-        mb.chooser:show()
+        -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the
+        -- LAST picker's coordinates standing in _G.lastPopupPlacement,
+        -- and window_move computes its grab box from that record. It
+        -- could not be dragged at all until 6.127.0.
+        if core.showPopup then core.showPopup(mb.chooser)
+        else mb.chooser:show() end
     end
 
     function _G.menuBarReport()

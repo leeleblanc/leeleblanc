@@ -359,6 +359,138 @@ do
           .. "make it pass by finding nothing", #onDisk >= 25, #onDisk)
 end
 
+-- 🚨 EVERY PICKER IS PLACED BY THE ONE PLACEMENT FUNCTION (6.127.0).
+--
+-- LL: "The screenshot is a picker window I can't grab and move. Why?"
+--
+-- Because fourteen modules built an hs.chooser and opened it with a bare
+-- chooser:show(). That is not merely "unplaced" — _G.lastPopupPlacement
+-- is a SINGLE global record, and window_move computes a picker's grab box
+-- from it, because macOS gives hs.chooser no frame getter to ask. A
+-- picker that records nothing leaves the LAST picker's coordinates
+-- standing, the ⌘-click on the real one falls outside that box, and the
+-- drag is DECLINED. Those pickers could not be moved at all, and the
+-- decline is silent by design — a mouse tap cannot make a noise about a
+-- click that belongs to somebody else's app.
+--
+-- It also cost them the rest of the position system: the ⇪⇧-arrow nudge,
+-- the remembered offset, ⌃⌥⌘R, and placement on the screen you are
+-- actually looking at.
+--
+-- So: a module that makes a chooser must name showPopup. This is a source
+-- scan and not a runtime check on purpose — the failure is a call that is
+-- NOT made, and there is no way to observe an absence at runtime.
+do
+    local missing, scanned, withChooser = {}, 0, 0
+    local p = io.popen('ls "' .. HS .. '"/modules/*.lua "' .. HS
+                       .. '"/core/*.lua 2>/dev/null')
+    if p then
+        for path in p:lines() do
+            local f = io.open(path, "r")
+            if f then
+                local src = f:read("*a") or ""
+                f:close()
+                scanned = scanned + 1
+                -- 🚨 COMMENTS STRIPPED, the same lesson as the module-mention
+                -- check above: the comment explaining WHY showPopup is used
+                -- satisfies a naive substring search, so reverting the call
+                -- and leaving the comment behind would pass. Proved by a
+                -- break test that did exactly that.
+                local live = src:gsub("%-%-[^\n]*", "")
+                -- 🚨 AND IT COUNTS PICKERS, NOT FILES — the second lesson
+                -- from the same break test. net_tools builds THREE choosers;
+                -- a file-level "does showPopup appear anywhere" passes while
+                -- two of the three are still opening unplaced. One placement
+                -- call per picker is the actual contract.
+                -- The [(,] anchor is what separates hs.chooser.new( and
+                -- pcall(hs.chooser.new, …) from the words "hs.chooser.new"
+                -- inside a warning message.
+                local made = select(2, live:gsub("hs%.chooser%.new[%(,]", ""))
+                if made > 0 then
+                    withChooser = withChooser + made
+                    local placed = select(2, live:gsub("showPopup%s*%(", ""))
+                    if placed < made then
+                        missing[#missing + 1] = (path:match("([%w_]+%.lua)$")
+                            or path) .. (" (%d picker(s), %d placed)")
+                            :format(made, placed)
+                    end
+                end
+            end
+        end
+        p:close()
+    end
+    check("🚨 EVERY PICKER IN THE CONFIG IS PLACED THROUGH showPopup — a "
+          .. "bare chooser:show() leaves another picker's coordinates on "
+          .. "the record, and window_move declines the ⌘-drag against them",
+          #missing == 0, table.concat(missing, ", "))
+    check("...and the scan actually read the tree, so a broken glob "
+          .. "cannot make it pass by finding nothing",
+          scanned >= 40 and withChooser >= 30,
+          scanned .. " files, " .. withChooser .. " pickers")
+end
+
+-- 🚨 AND THE REAL showPopup IS EXTRACTED FROM init.lua AND EXECUTED.
+-- Routing every picker through showPopup only helps if showPopup writes
+-- down WHICH picker it placed. That field is the whole repair: without it
+-- the record is still just "some picker opened here", which is the lie
+-- window_move was believing. Retyping the function here would test the
+-- copy, so the shipped text is what runs.
+do
+    local fh = io.open(HS .. "/init.lua", "r")
+    local init = fh and fh:read("*a") or ""
+    if fh then fh:close() end
+
+    local block = init:match("\n(local function showPopup%(.-\nend\n)")
+    check("the showPopup block was found in init.lua", block ~= nil)
+
+    if block then
+        local SHOWN = {}
+        local env = {
+            resolveBaseScreen = function()
+                return { frame = function()
+                    return { x = 0, y = 0, w = 1000, h = 800 }
+                end }
+            end,
+            chooserTopLeft = function() return { x = 300, y = 200 } end,
+            _G = _G, pcall = pcall, type = type,
+        }
+        local fn = load(block .. "\nreturn showPopup", "showPopup", "t", env)
+        check("...and it loads on its own", fn ~= nil)
+        if fn then
+            local ok, showPopup = pcall(fn)
+            check("...and yields the function", ok and type(showPopup) == "function")
+            if ok and type(showPopup) == "function" then
+                local picker = { show = function(_, pt) SHOWN[#SHOWN + 1] = pt end }
+                _G.lastPopupPlacement = nil
+                showPopup(picker)
+                check("🚨 THE PLACEMENT RECORD NAMES THE PICKER IT BELONGS "
+                      .. "TO — window_move cannot tell a live box from a "
+                      .. "departed picker's without it, and declines the "
+                      .. "⌘-drag either way",
+                      _G.lastPopupPlacement ~= nil
+                      and _G.lastPopupPlacement.chooser == picker)
+                check("...and still records the point, as it always did",
+                      _G.lastPopupPlacement
+                      and _G.lastPopupPlacement.point.x == 300)
+                check("...and still shows the picker AT that point",
+                      #SHOWN == 1 and SHOWN[1].x == 300 and SHOWN[1].y == 200)
+
+                -- The panels that place themselves deliberately (the app
+                -- monitor alert) must ALSO land on the record — an
+                -- unrecorded picker is the stale-box bug wearing a hat.
+                local own = { show = function(_, pt) SHOWN[#SHOWN + 1] = pt end }
+                showPopup(own, { x = 42, y = 84 })
+                check("🚨 a caller-supplied point is honoured AND recorded",
+                      _G.lastPopupPlacement.chooser == own
+                      and _G.lastPopupPlacement.point.x == 42
+                      and SHOWN[#SHOWN].x == 42,
+                      _G.lastPopupPlacement.point.x)
+                _G.lastPopupPlacement = nil
+            end
+        end
+    end
+end
+
 -- 🚨 AND EVERY PROFILE GETS THEM. The bug was not a short list; it was
 -- THREE lists that could disagree. profileFrom() makes that structurally
 -- impossible, and this proves the structure is actually used rather than

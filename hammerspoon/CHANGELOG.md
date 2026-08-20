@@ -4,6 +4,70 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.127.0 — THE PICKERS THAT COULD NOT BE MOVED:
+
+  🪟 LL: "The screenshot is a picker window I can't grab and move. Why?"
+
+  Because fourteen modules opened their picker with a bare
+  chooser:show(). ⇪; ⇪, ⇪. ⇪D ⇪Y ⇪⇧; ⇪⇧' ⇪⇧. and several more could not
+  be dragged at all — not by ⌘-drag, not by the search band — and
+  nothing anywhere said why.
+
+  🚨 THE PLACEMENT RECORD WAS GLOBAL AND DID NOT SAY WHOSE.
+  This is the part worth keeping, because the shape will come back.
+
+  macOS gives hs.chooser no frame getter. There is no way to ask a picker
+  where it is or how big it is, so window_move COMPUTES its grab box from
+  _G.lastPopupPlacement — the record core.showPopup writes when it places
+  a popup. That record held a screen and a point, and nothing else. It
+  said "a picker opened here", not WHICH picker.
+
+  A picker opened with a bare chooser:show() records nothing at all. So
+  while it was on screen, the record still described whichever picker had
+  last gone through showPopup — possibly one closed an hour ago, possibly
+  one on another monitor. The box was computed at those coordinates. The
+  ⌘-click on the picker actually in front of you fell outside it.
+
+  And here is the bit that made it a dead end rather than a rough edge:
+  window_move already handles "no box" gracefully — it grabs the panel by
+  the hand, deliberately, with a comment saying a jump-to-hand beats a
+  picker that cannot be moved at all. But a WRONG box is not a missing
+  one. It went down the other branch and DECLINED the click.
+
+  ✅ TWO CHANGES, BOTH SMALL.
+  Every picker in the config now opens through core.showPopup. And the
+  record names the chooser it belongs to, so a record for somebody else
+  reads as no record — which drops through to the grab that always
+  worked.
+
+  ↕️ THEY ALSO REJOIN THE POSITION SYSTEM THEY WERE MISSING.
+  The same absent call cost those pickers everything else placement does:
+  the ⇪⇧-arrow nudge, the remembered offset, ⌃⌥⌘R, and opening on the
+  screen you are looking at rather than the main one. They had been
+  landing wherever macOS put them since the day each was written.
+
+  🩺 _G.windowMoveReport() — NEW, AND THE ACTUAL LESSON.
+  window_move was the only module in this config without a report, and it
+  is the one that fails SILENTLY BY DESIGN. A mouse tap cannot announce
+  that it refused a click: the click belongs to whatever app is
+  underneath, and a tap that talks about other people's clicks is a tap
+  you turn off. So there was no Console line, no pill, no trace — the
+  panel simply did not move, and the only thing to do about it was
+  report it in words, which is what happened.
+
+  The report prints the tap's state and error count, every registered
+  panel and whether it is open, the placement on record, WHO it belongs
+  to, the computed box, the band strip, and the last refused ⌘-click with
+  its coordinates and the box it was measured against.
+
+  🧪 THE SENTRY COUNTS PICKERS, NOT FILES.
+  A module that builds three choosers must place three — net_tools does,
+  and a file-level check would have passed while two of its three were
+  still opening unplaced. Comments are stripped before the scan, because
+  the comment explaining why showPopup is used satisfies a substring
+  search on its own. Both of those were found by break tests that were
+  supposed to fail and did not.
+
 NEW IN 6.126.0 — ⇪' NOW ACTUALLY PAUSES VLC:
 
   ⏸ LL: "⇪' does not pause VLC."

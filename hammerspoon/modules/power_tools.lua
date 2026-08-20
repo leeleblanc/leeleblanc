@@ -676,7 +676,12 @@ end tell]]
         pt.metaChooser:placeholderText((path:match("([^/]+)$") or path)
             .. " — " .. #rows .. " attributes, ⏎ copies the value")
         pt.metaChooser:query("")
-        pt.metaChooser:show()
+        -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the
+        -- LAST picker's coordinates standing in _G.lastPopupPlacement,
+        -- and window_move computes its grab box from that record. It
+        -- could not be dragged at all until 6.127.0.
+        if core.showPopup then core.showPopup(pt.metaChooser)
+        else pt.metaChooser:show() end
     end
 
     -- =====================================================================
@@ -1265,7 +1270,12 @@ end tell]]
         pt.chooser:choices(choices)
         pt.chooser:placeholderText(#choices .. " power tools — type to filter")
         pt.chooser:query("")
-        pt.chooser:show()
+        -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the
+        -- LAST picker's coordinates standing in _G.lastPopupPlacement,
+        -- and window_move computes its grab box from that record. It
+        -- could not be dragged at all until 6.127.0.
+        if core.showPopup then core.showPopup(pt.chooser)
+        else pt.chooser:show() end
     end
 
     -- ---- the report ------------------------------------------------------

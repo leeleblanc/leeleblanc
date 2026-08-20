@@ -236,7 +236,12 @@ function M.setup(core)
         nt.outChooser:placeholderText(title .. " — " .. #rows
             .. " lines, all of it already copied · ⏎ copies one line")
         nt.outChooser:query("")
-        nt.outChooser:show()
+        -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the
+        -- LAST picker's coordinates standing in _G.lastPopupPlacement,
+        -- and window_move computes its grab box from that record. It
+        -- could not be dragged at all until 6.127.0.
+        if core.showPopup then core.showPopup(nt.outChooser)
+        else nt.outChooser:show() end
     end
 
     -- ---- the four tools --------------------------------------------------
@@ -414,7 +419,12 @@ function M.setup(core)
         nt.hostChooser:placeholderText(tool.title
             .. " — type a hostname or IP, ⏎ runs it")
         nt.hostChooser:query(prefill or "")
-        nt.hostChooser:show()
+        -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the
+        -- LAST picker's coordinates standing in _G.lastPopupPlacement,
+        -- and window_move computes its grab box from that record. It
+        -- could not be dragged at all until 6.127.0.
+        if core.showPopup then core.showPopup(nt.hostChooser)
+        else nt.hostChooser:show() end
     end
 
     function nt.show()
@@ -445,7 +455,12 @@ function M.setup(core)
         nt.chooser:choices(choices)
         nt.chooser:placeholderText("network tools — ⏎ runs one")
         nt.chooser:query("")
-        nt.chooser:show()
+        -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the
+        -- LAST picker's coordinates standing in _G.lastPopupPlacement,
+        -- and window_move computes its grab box from that record. It
+        -- could not be dragged at all until 6.127.0.
+        if core.showPopup then core.showPopup(nt.chooser)
+        else nt.chooser:show() end
     end
 
     -- ---- the report ------------------------------------------------------

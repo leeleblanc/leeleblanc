@@ -553,7 +553,12 @@ end timeout]]
         -- one — that's what lets Esc close it before the cheat sheet
         _G.choosers = _G.choosers or {}
         _G.choosers.bulkRename = ch
-        ch:show()
+        -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the
+        -- LAST picker's coordinates standing in _G.lastPopupPlacement,
+        -- and window_move computes its grab box from that record. It
+        -- could not be dragged at all until 6.127.0.
+        if core.showPopup then core.showPopup(ch)
+        else ch:show() end
     end
 
     -- Rules that need typed input ask for it, then preview.
@@ -627,7 +632,12 @@ end timeout]]
         br.chooser = ch
         _G.choosers = _G.choosers or {}
         _G.choosers.bulkRename = ch   -- ⎋ 6.93.0: same registry slot, current one wins
-        ch:show()
+        -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the
+        -- LAST picker's coordinates standing in _G.lastPopupPlacement,
+        -- and window_move computes its grab box from that record. It
+        -- could not be dragged at all until 6.127.0.
+        if core.showPopup then core.showPopup(ch)
+        else ch:show() end
     end
 
     function _G.renameReport()

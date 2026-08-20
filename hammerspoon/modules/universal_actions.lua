@@ -472,7 +472,12 @@ function M.setup(core)
             ua.chooser:placeholderText("⚡ " .. what)
             ua.chooser:query("")
             ua.chooser:choices(choices)
-            ua.chooser:show()
+            -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the
+            -- LAST picker's coordinates standing in _G.lastPopupPlacement,
+            -- and window_move computes its grab box from that record. It
+            -- could not be dragged at all until 6.127.0.
+            if core.showPopup then core.showPopup(ua.chooser)
+            else ua.chooser:show() end
         end)
         say("opened on " .. what .. " with " .. #choices .. " actions")
         return true

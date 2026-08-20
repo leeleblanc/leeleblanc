@@ -44,6 +44,28 @@
 --      screen veil. Moving a window that covers the screen means
 --      nothing; they are left alone on purpose.
 --
+-- 🚨 6.127.0 — THE PICKERS IN GROUP 2 WERE NOT ALL REACHABLE, and the
+-- reason is worth keeping because it is a shape that will come back.
+-- _G.lastPopupPlacement is ONE global record, and it said only "a picker
+-- opened here" — not WHICH. Fourteen modules opened their picker with a
+-- bare chooser:show(), which records nothing at all, so the record still
+-- described whichever picker had last gone through core.showPopup. The
+-- box below was computed at those departed coordinates, the ⌘-click on
+-- the picker actually in front of you fell outside it, and the drag was
+-- DECLINED — for ⇪; ⇪, ⇪. ⇪D ⇪Y ⇪⇧; ⇪⇧' ⇪⇧. and more.
+--
+-- Two things changed. Every picker now goes through core.showPopup (a
+-- sentry in test_integration fails if a new one does not), and the record
+-- names its chooser, so a record for somebody else reads as NO record —
+-- which drops through to the jump-to-hand grab that always worked.
+--
+-- ⚠️ AND THE DECLINE IS SILENT BY DESIGN, which is why this went unseen.
+-- A mouse tap cannot announce that it refused a click; the click belongs
+-- to whatever app is underneath, and a tap that talks about other
+-- people's clicks is a tap you turn off. _G.windowMoveReport() is the
+-- answer instead: it prints the box, the record, who it belongs to, and
+-- the last refusal with its coordinates.
+--
 -- 🚨 THE DRAG IS DRIVEN FROM LUA, NOT FROM EVENTS, copied deliberately
 -- from the Capture Pad's 6.44.2 drag: a drag tracked by mouse-move
 -- events dies the moment events stop arriving (and for a WKWebView they
@@ -73,6 +95,7 @@ local M = {
             { "sticks", "A dragged PICKER position is kept for the next picker you open" },
             { "⌃⌥⌘R",   "Back to automatic placement (same reset as the ⇪⇧-arrow nudge)" },
             { "headers","The pad / editor / search bars drag with a bare click-hold too" },
+            { "check",  "_G.windowMoveReport() — why a panel refused to be grabbed" },
         },
     },
 }
@@ -199,9 +222,33 @@ function M.setup(core)
     -- getters vary across Hammerspoon builds. Deliberately generous — the
     -- cost of a margin too wide is a ⌘-click near a picker starting a
     -- drag; the cost of one too narrow is "movable" feeling broken.
+    -- Why the box came out nil or wrong, in words — read by the report so
+    -- "I cannot move this one" is answerable without guessing.
+    wm.boxWhy = "nothing open"
+
     function wm.chooserBox()
         local placed = _G.lastPopupPlacement
-        if not (placed and placed.point) then return nil end
+        if not (placed and placed.point) then
+            wm.boxWhy = "no placement on record — the picker was shown "
+                        .. "without core.showPopup"
+            return nil
+        end
+        -- 🚨 A RECORD FOR A DIFFERENT PICKER IS WORSE THAN NO RECORD, and
+        -- this is the bug that made whole modules undraggable (6.127.0).
+        -- The record is global and the box is computed from it, so a picker
+        -- that opened without showPopup left the LAST picker's coordinates
+        -- standing. The ⌘-click on the picker actually on screen then fell
+        -- outside that box and was DECLINED — while the code below is
+        -- written to fall back to a jump-to-hand grab whenever there is no
+        -- box at all. Refusing to trust a mismatched record puts those
+        -- pickers back on the working path.
+        if placed.chooser ~= nil and wm.openChooser ~= nil
+           and placed.chooser ~= wm.openChooser then
+            wm.boxWhy = "the placement on record belongs to a different "
+                        .. "picker — ⌘-drag grabs by hand instead"
+            return nil
+        end
+        wm.boxWhy = "computed from the placement on record"
         local w, rows = nil, 10
         pcall(function()
             local pct = wm.openChooser:width()
@@ -293,6 +340,10 @@ function M.setup(core)
                 -- move" on a picker once (6.102.0); whether the box or the
                 -- hand is wrong is unknowable without this line. Trail only
                 -- — a wrong box must not also make the Console noisy.
+                -- 6.127.0: kept on wm as well, because a trail line scrolls
+                -- away and _G.windowMoveReport() is read after the fact.
+                wm.lastDeclined = { x = p.x, y = p.y, box = box,
+                                    when = os.date("%H:%M:%S") }
                 say(("⌘-click at %d,%d declined — picker box is %d,%d %dx%d")
                     :format(p.x, p.y, box.x, box.y, box.w, box.h))
             elseif box then
@@ -359,6 +410,71 @@ function M.setup(core)
         end
     end
 
+    -- ---- the report ------------------------------------------------------
+    -- 🚨 THIS MODULE WAS THE ONLY ONE IN THE CONFIG WITHOUT ONE, and it is
+    -- the one that fails SILENTLY BY DESIGN: a declined ⌘-click cannot make
+    -- a noise, because the click belongs to whatever app is underneath. So
+    -- "I can't move this one" had no answer anywhere — not in the Console,
+    -- not on screen. Everything the decision is made from is printed here.
+    function _G.windowMoveReport()
+        local L = {}
+        local function line(s) L[#L + 1] = s end
+        line("")
+        line("🪟 WINDOW MOVE")
+        line("   enabled    : " .. tostring(wm.enabled))
+        line("   tap        : " .. (wm.tap and "up" or "NOT RUNNING — nothing drags")
+             .. "  (errors " .. tostring(wm.tapFailures) .. "/5)")
+        line("   panels     : " .. tostring(#(_G.movablePanels or {}))
+             .. " registered (webviews and canvases)")
+        for _, e in ipairs(_G.movablePanels or {}) do
+            local okF, f = pcall(e.frame)
+            line(("      %-16s %s%s"):format(tostring(e.name),
+                 (okF and type(f) == "table" and f.x)
+                     and ("open at %d,%d %dx%d"):format(f.x, f.y, f.w, f.h)
+                     or  "not open",
+                 e.plain and "   (bare click drags)" or ""))
+        end
+
+        line("   picker open: " .. (wm.openChooser and "yes" or "no"))
+        local placed = _G.lastPopupPlacement
+        if placed and placed.point then
+            line(("   placement  : %d,%d%s"):format(placed.point.x, placed.point.y,
+                 placed.chooser == nil and "   ⚠️ no chooser named — pre-6.127.0 caller"
+                 or (placed.chooser == wm.openChooser and "   (this picker)"
+                     or "   ⚠️ ANOTHER picker's — this one was shown without core.showPopup")))
+        else
+            line("   placement  : none on record")
+        end
+        local box = wm.chooserBox()
+        line("   grab box   : " .. (box
+             and ("%d,%d %dx%d"):format(box.x, box.y, box.w, box.h)
+             or  "none"))
+        line("   why        : " .. tostring(wm.boxWhy))
+        if box then
+            line(("   band strip : %d,%d %dx%d  (bare click-hold drags here)")
+                 :format(box.x + wm.chooserPad, box.y + wm.chooserPad,
+                         box.w - wm.chooserPad * 2, wm.chooserHeadH))
+        elseif wm.openChooser then
+            line("   band strip : none — with no box the SEARCH BAND cannot be")
+            line("                found, so ⌘-drag is the only way to move this one")
+        end
+        if wm.lastDeclined then
+            local d = wm.lastDeclined
+            line(("   last refusal: ⌘-click %d,%d at %s — box was %d,%d %dx%d")
+                 :format(d.x, d.y, d.when, d.box.x, d.box.y, d.box.w, d.box.h))
+        else
+            line("   last refusal: none this session")
+        end
+        line("   drag now   : " .. (wm.dragTimer and "IN PROGRESS" or "idle"))
+        line("")
+        line("   ⌘-drag anywhere on a panel or picker · a picker's SEARCH BAND")
+        line("   drags with a bare click-hold · ⌃⌥⌘R resets picker placement")
+        local s = table.concat(L, "\n")
+        print(s)
+        return s
+    end
+
+    core.provide("windowMove.report", function() return _G.windowMoveReport() end)
     core.provide("windowMove.drag", function(name) return _G.beginPanelDrag(name) end)
 
     _G.windowMove = wm

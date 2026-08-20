@@ -387,7 +387,12 @@ end run]]
             ts.chooser:placeholderText(#rows .. " tabs — "
                 .. table.concat(names, "  ·  "))
             ts.chooser:query("")
-            ts.chooser:show()
+            -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the
+            -- LAST picker's coordinates standing in _G.lastPopupPlacement,
+            -- and window_move computes its grab box from that record. It
+            -- could not be dragged at all until 6.127.0.
+            if core.showPopup then core.showPopup(ts.chooser)
+            else ts.chooser:show() end
         end)
     end
 

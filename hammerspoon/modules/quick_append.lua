@@ -320,7 +320,12 @@ function M.setup(core)
         chooser:placeholderText("Append the clipboard to…")
         chooser:searchSubText(true)
         chooser:rows(math.min(8, #choices))
-        chooser:show()
+        -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the
+        -- LAST picker's coordinates standing in _G.lastPopupPlacement,
+        -- and window_move computes its grab box from that record. It
+        -- could not be dragged at all until 6.127.0.
+        if core.showPopup then core.showPopup(chooser)
+        else chooser:show() end
         qa.chooser = chooser   -- held: a collected chooser closes itself
         -- ⎋ 6.93.0: filed in _G.choosers so Esc closes it before the cheat sheet
         _G.choosers = _G.choosers or {}

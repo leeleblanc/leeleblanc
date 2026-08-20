@@ -361,7 +361,12 @@ function M.setup(core)
                      and " apps + your files — type, ⏎ launches or opens"
                      or  " apps — type, ⏎ launches"
         launcher.chooser:placeholderText(#apps .. hint)
-        launcher.chooser:show()
+        -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the
+        -- LAST picker's coordinates standing in _G.lastPopupPlacement,
+        -- and window_move computes its grab box from that record. It
+        -- could not be dragged at all until 6.127.0.
+        if core.showPopup then core.showPopup(launcher.chooser)
+        else launcher.chooser:show() end
     end
 
     function _G.appLauncherReport()

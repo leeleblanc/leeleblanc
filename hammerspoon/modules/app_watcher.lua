@@ -247,7 +247,16 @@ function M.setup(core)
         local okW, w = pcall(function() return _G.appMonitorChooser:width() end)
         if okW and type(w) == "number" and w > 0 and w <= 100 then pct = w end
         local width = f.w * (pct / 100)
-        _G.appMonitorChooser:show(hs.geometry.point(f.x + (f.w - width) / 2, f.y + f.h * 0.35))
+        -- 6.127.0 — shown through core.showPopup WITH ITS OWN POINT, so it
+        -- keeps the placement above and still lands in _G.lastPopupPlacement.
+        -- Being absent from that record is not neutral: window_move computes
+        -- a picker's grab box from it, so an unrecorded panel is dragged
+        -- against the LAST picker's coordinates and cannot be moved at all.
+        -- Recording it is unrelated to the nudge keys, which walk _G.choosers
+        -- — this one is still deliberately absent from there.
+        local at = hs.geometry.point(f.x + (f.w - width) / 2, f.y + f.h * 0.35)
+        if core.showPopup then core.showPopup(_G.appMonitorChooser, at)
+        else _G.appMonitorChooser:show(at) end
 
         -- Audible ping now, then again every appMonitorPingInterval seconds
         -- INDEFINITELY — no auto-dismiss anymore, so this keeps sounding

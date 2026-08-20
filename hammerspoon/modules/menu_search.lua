@@ -313,7 +313,12 @@ function M.setup(core)
         ms.chooser:placeholderText(("%s — %d menu items, type to filter")
                                    :format(app:name(), #choices))
         ms.chooser:query("")
-        ms.chooser:show()
+        -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the
+        -- LAST picker's coordinates standing in _G.lastPopupPlacement,
+        -- and window_move computes its grab box from that record. It
+        -- could not be dragged at all until 6.127.0.
+        if core.showPopup then core.showPopup(ms.chooser)
+        else ms.chooser:show() end
     end
 
     function ms.show()

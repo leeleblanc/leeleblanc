@@ -4,8 +4,37 @@
 -- =====================================================================
 -- 08-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.126.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.127.0
 -- =====================================================================
+
+-- NEW IN 6.127.0 — THE PICKERS THAT COULD NOT BE MOVED:
+--   🪟 LL: "The screenshot is a picker window I can't grab and move. Why?"
+--      Because fourteen modules opened their picker with a bare
+--      chooser:show(). ⇪; ⇪, ⇪. ⇪D ⇪Y ⇪⇧; ⇪⇧' ⇪⇧. and more could not be
+--      dragged AT ALL, and nothing anywhere said why.
+--   🚨 THE RECORD WAS GLOBAL AND DID NOT SAY WHOSE. macOS gives
+--      hs.chooser no frame getter, so window_move COMPUTES a picker's
+--      grab box from _G.lastPopupPlacement. A picker that records nothing
+--      leaves the LAST picker's coordinates standing — so the box was
+--      drawn where some departed picker used to be, the ⌘-click on the
+--      real one fell outside it, and the drag was DECLINED. Not "no box,
+--      grab it by hand", which is the path that works: declined.
+--   ✅ EVERY PICKER NOW GOES THROUGH core.showPopup, and the record names
+--      its chooser. A record belonging to somebody else reads as NO
+--      record, which drops through to the grab that always worked.
+--   ↕️ AND THEY JOIN THE POSITION SYSTEM THEY WERE MISSING. Those pickers
+--      were also ignoring the ⇪⇧-arrow nudge, the remembered offset and
+--      ⌃⌥⌘R, and opened on the main screen rather than the one you are
+--      looking at. That was the same missing call.
+--   🩺 _G.windowMoveReport() — NEW, AND THE REAL LESSON. This was the one
+--      module in the config without a report, and the one that fails
+--      SILENTLY BY DESIGN: a mouse tap cannot announce a refused click,
+--      because the click belongs to the app underneath. So there was no
+--      way to see any of this. The report prints the box, the placement,
+--      who it belongs to, and the last refusal with coordinates.
+--   🧪 A sentry now counts pickers, not files: a module that builds three
+--      choosers must place three. Stripped of comments, so the comment
+--      explaining showPopup cannot stand in for calling it.
 
 -- NEW IN 6.126.0 — ⇪' NOW ACTUALLY PAUSES VLC:
 --   ⏸ LL: "⇪' does not pause VLC." It did not, and it never had. The
@@ -141,67 +170,10 @@
 --      screen's own left edge, so an app that refuses to shrink grows
 --      inward where you can still see it.
 
--- NEW IN 6.122.0 — TWO SEARCHES THAT WERE ONLY LOOKING AT HALF THE ROOM:
---   ✋ THE EDITOR PICKER IS ON right ⌥⌥ NOW, AND ⌘ IS FREE. 6.121.0
---      offered LL the right ⌘ with the left one left to Alfred; what he
---      did instead was better than what was offered —
---          Alfred      → right ⌃⌃
---          this picker → right ⌥⌥
---      Two keys neither program has to share, so nothing depends any
---      more on whether Alfred can tell its ⌘ keys apart, which was the
---      one thing this config could not find out from in here. The side
---      machinery still earns its keep: it is what makes right ⌥⌥ mean
---      the RIGHT ⌥. "cmd"/"either" restores 6.116.0 in one line.
---
---   ⚙️ ⇪, SEARCHES THE SETTINGS, NOT JUST THE PANES. LL: "What does this
---      mean? I wanted to be able to search all Settings app." A fair
---      complaint: 6.119.0 searched the ~58 destinations in the sidebar,
---      so it could find "Displays" and could not find "Night Shift",
---      which is a switch inside it. Nobody thinks "I need the Displays
---      pane". Two answers now, and the file is clear about which is
---      which:
---        · ~190 NAMED SETTINGS, hand-written, each pointing at the pane
---          that holds it and saying where in that pane to look. Type
---          "hot corners" and you land in Desktop & Dock knowing it is at
---          the very bottom. Exactly as complete as somebody made it.
---        · THE LAST ROW IS ALWAYS "🔎 Search System Settings for …",
---          which hands your words to Apple's OWN search field — the
---          complete index, maintained by the people who move the
---          settings. The hand-written half is never a ceiling.
---      🚨 IT TYPES RATHER THAN POKING A VALUE IN: setting AXValue on a
---      SwiftUI search field updates the text and runs no search. So it
---      focuses the field and types, inside _G.withInjection like every
---      other typing tool here. It POLLS for that field rather than
---      sleeping a fixed time, and if it never finds one it SAYS SO —
---      blind keystrokes are how a query ends up in a document.
---
---   📸 ⇪⇧4's SEARCH READS THE WHOLE FOLDER, AND THE TEXT INSIDE THE
---      IMAGES. LL: "How do I search and bring up an image that is stored
---      in the screenshots folder?" You could, and it was two things
---      short: it filtered the newest THIRTY files (the thumbnail cap was
---      being applied to the search as well), and it matched on
---      filenames, which are timestamps — the one thing you never
---      remember about a screenshot.
---      Now: the cap applies to the idle view only, and typing also runs
---      mdfind inside that folder. That reaches the OCR text ⇪O has been
---      writing into each screenshot's Finder comment since 6.98.0 —
---      searchable all along, with nothing reading it back — plus
---      whatever macOS indexed itself. Rows say which half found them.
---      ⏳ Debounced and asynchronous: the name matches appear as you
---      type, Spotlight's fold in a moment later, and an answer to a
---      query you have finished typing is discarded rather than shown.
---      ☁️ And it can honestly find nothing: a cloud-evicted OneDrive
---      file may not be indexed, so "no text matches" is not proof.
---
---   🩹 AND ONE REAL BUG, FOUND BY A BREAK TEST THAT CRASHED WHERE IT
---      SHOULD HAVE REPORTED. sp.open guarded with `not row.url`, which
---      an empty string walks straight past in Lua — into openURL("")
---      and then into a concatenation of a name such a row does not have.
-
--- (6.121.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.122.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.126.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.127.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -512,7 +484,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.126.0"
+_G.configVersion = "6.127.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -1288,11 +1260,28 @@ end
 -- position themselves from the SAME placement — resolving the screen
 -- twice can disagree when focus shifts as the popup opens, which put
 -- the legend on a different monitor than its picker.
-local function showPopup(chooser)
+--
+-- 🚨 THE RECORD NAMES THE CHOOSER IT BELONGS TO (6.127.0), and the whole
+-- drag layer depends on it. window_move cannot ask a picker where it is —
+-- macOS gives hs.chooser no frame getter — so it COMPUTES the grab box
+-- from this record. Until now the record said only "some picker opened
+-- here", which is a lie the moment a DIFFERENT picker is the one on
+-- screen: the box lands on the departed picker's coordinates, the ⌘-click
+-- on the real one falls outside it, and the drag is declined. A picker
+-- that cannot be moved at all is what that looks like from the outside.
+-- With the chooser named, a record that does not match the open picker
+-- reads as NO record, which is the case window_move already handles well.
+--
+-- atPoint is for the panels that place themselves deliberately (the app
+-- monitor alert sits lower on purpose). They still get a record, because
+-- an unrecorded picker is exactly the stale-box problem above.
+local function showPopup(chooser, atPoint)
     local screen = resolveBaseScreen()
-    if screen then
-        local pt = chooserTopLeft(chooser, screen)
-        _G.lastPopupPlacement = { screen = screen, point = pt }
+    local pt = atPoint
+    if not pt and screen then pt = chooserTopLeft(chooser, screen) end
+    if pt then
+        _G.lastPopupPlacement = { screen = screen, point = pt,
+                                  chooser = chooser }
         chooser:show(pt)
     else
         _G.lastPopupPlacement = nil

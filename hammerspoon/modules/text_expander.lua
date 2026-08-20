@@ -1443,7 +1443,12 @@ function M.setup(core)
             chooser:placeholderText(exp.count > 0
                 and ("search " .. exp.count .. " snippets")
                 or  "no snippets yet — run _G.snippetsImport() in the Console")
-            chooser:show()
+            -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the
+            -- LAST picker's coordinates standing in _G.lastPopupPlacement,
+            -- and window_move computes its grab box from that record. It
+            -- could not be dragged at all until 6.127.0.
+            if core.showPopup then core.showPopup(chooser)
+            else chooser:show() end
         end)
         return true
     end

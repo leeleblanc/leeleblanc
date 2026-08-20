@@ -284,6 +284,129 @@ hs.chooser.globalCallback(CH, "didClose")
 check("the band is dead once the picker is closed", press(450, 210) == false)
 
 -- =====================================================================
+out("4c. 🚨 A RECORD FOR ANOTHER PICKER IS NOT A BOX (6.127.0)\n")
+-- =====================================================================
+-- LL: "The screenshot is a picker window I can't grab and move. Why?"
+--
+-- Because _G.lastPopupPlacement is ONE global record and the grab box is
+-- computed from it. Fourteen modules opened their picker with a bare
+-- chooser:show(), which records nothing — so the record still described
+-- whichever picker ran showPopup LAST. The ⌘-click on the picker actually
+-- on screen fell outside that stale box and was DECLINED, even though the
+-- code is written to fall back to a jump-to-hand grab when there is NO
+-- box. Those pickers could not be moved at all, in silence.
+--
+-- The record now names its chooser, and one that does not match the open
+-- picker is treated as no record — which is the path that works.
+local OTHER = { shownAt = {} }
+function OTHER:show(pt) self.shownAt[#self.shownAt + 1] = pt end
+function OTHER:width() return 40 end
+function OTHER:rows() return 10 end
+
+hs.chooser.globalCallback(CH, "willOpen")
+_G.popupOffset        = { x = 0, y = 0 }
+_G.lastPopupPlacement = {
+    point   = { x = 300, y = 200 },
+    screen  = { frame = function() return { x = 0, y = 0, w = 1000, h = 800 } end },
+    chooser = OTHER,                     -- a DIFFERENT picker's placement
+}
+check("🚨 a placement belonging to another picker yields NO box",
+      wm.chooserBox() == nil)
+check("…and the reason is on the record, in words",
+      type(wm.boxWhy) == "string"
+      and wm.boxWhy:find("different picker", 1, true) ~= nil, wm.boxWhy)
+
+local shownCH = #CH.shownAt
+check("🚨 …so the ⌘-drag GRABS BY HAND instead of being declined",
+      press(400, 300, { cmd = true }) == true)
+MOUSE.x, MOUSE.y = 420, 320
+tick()
+check("…and the picker that is actually open is the one that moves",
+      #CH.shownAt == shownCH + 1 and #OTHER.shownAt == 0)
+releaseAndTick()
+
+check("⚠️ the band strip is NOT offered against a stale record — a bare"
+      .. " click there would have moved nothing", press(450, 210) == false)
+
+-- The matching case still works exactly as before.
+_G.lastPopupPlacement = {
+    point   = { x = 300, y = 200 },
+    screen  = { frame = function() return { x = 0, y = 0, w = 1000, h = 800 } end },
+    chooser = CH,
+}
+check("a placement naming the OPEN picker computes a box as usual",
+      (function()
+    local b = wm.chooserBox()
+    return b ~= nil and b.x == 300 - wm.chooserPad and b.y == 200 - wm.chooserPad,
+           b and (b.x .. "," .. b.y)
+end)())
+check("…and the band drags again", press(450, 210) == true)
+releaseAndTick()
+
+-- ⚠️ A record with NO chooser named is a pre-6.127.0 caller. It is
+-- trusted, because refusing it would break every picker that has not been
+-- converted yet — the guard fires only on a POSITIVE mismatch.
+_G.lastPopupPlacement = {
+    point  = { x = 300, y = 200 },
+    screen = { frame = function() return { x = 0, y = 0, w = 1000, h = 800 } end },
+}
+check("a record with no chooser named is still trusted (older caller)",
+      wm.chooserBox() ~= nil)
+
+-- =====================================================================
+out("4d. the report that did not exist\n")
+-- =====================================================================
+-- 🚨 THIS MODULE FAILS SILENTLY BY DESIGN — a declined ⌘-click cannot
+-- make a noise, because the click belongs to the app underneath. It was
+-- the only module in the config with no report, which is why "I can't
+-- move this one" had no answer anywhere.
+check("_G.windowMoveReport is published", type(_G.windowMoveReport) == "function")
+check("…and through the service registry too",
+      type(PROVIDED["windowMove.report"]) == "function")
+
+_G.lastPopupPlacement = {
+    point   = { x = 300, y = 200 },
+    screen  = { frame = function() return { x = 0, y = 0, w = 1000, h = 800 } end },
+    chooser = OTHER,
+}
+-- ⚠️ CALLED THROUGH pcall AND DEFAULTED TO "". A missing report must fail
+-- the checks below, not explode the suite — a crash here would take
+-- sections 5 and 6 down with it and hide whatever they had to say.
+local rep = ""
+if type(_G.windowMoveReport) == "function" then
+    local okR, r = pcall(_G.windowMoveReport)
+    rep = (okR and type(r) == "string") and r or ""
+end
+check("the report is text and names the module", type(rep) == "string"
+      and rep:find("WINDOW MOVE", 1, true) ~= nil)
+check("🚨 it says the placement belongs to ANOTHER picker — the whole"
+      .. " point of the report", rep:find("ANOTHER picker", 1, true) ~= nil, rep)
+check("…and that showPopup is the missing call",
+      rep:find("core.showPopup", 1, true) ~= nil)
+check("it says whether the tap is up", rep:find("tap", 1, true) ~= nil)
+check("…and counts the registered panels",
+      rep:find("panels", 1, true) ~= nil)
+check("it names the last refusal, with coordinates", (function()
+    -- section 4b declined a ⌘-click at 50,700
+    return rep:find("last refusal", 1, true) ~= nil
+       and rep:find("50,700", 1, true) ~= nil
+end)(), rep)
+check("…and when there is no box it says the band cannot be found",
+      rep:find("SEARCH BAND cannot be", 1, true) ~= nil)
+
+check("the report survives an empty world", (function()
+    if type(_G.windowMoveReport) ~= "function" then return false, "no report" end
+    local savedPanels, savedPlace = _G.movablePanels, _G.lastPopupPlacement
+    _G.movablePanels, _G.lastPopupPlacement = {}, nil
+    hs.chooser.globalCallback(CH, "didClose")
+    local ok, r = pcall(_G.windowMoveReport)
+    _G.movablePanels, _G.lastPopupPlacement = savedPanels, savedPlace
+    return ok and type(r) == "string" and r:find("none on record", 1, true) ~= nil,
+           ok and r or r
+end)())
+hs.chooser.globalCallback(CH, "didClose")
+
+-- =====================================================================
 out("5. the header hook — _G.beginPanelDrag(name)\n")
 -- =====================================================================
 MOUSE.x, MOUSE.y = 150, 120
