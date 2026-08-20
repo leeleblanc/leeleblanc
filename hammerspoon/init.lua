@@ -4,9 +4,73 @@
 -- =====================================================================
 -- 08-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.118.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.119.0
 -- =====================================================================
 
+-- NEW IN 6.119.0 — TWELVE TOOLS ASKED FOR, THE FIRST FOUR OF THEM, AND
+-- THE KEYBOARD RUNNING OUT OF LETTERS:
+--   🔑 EVERY ⇪ LETTER AND EVERY ⇪⇧ LETTER IS NOW CLAIMED. win_pin called
+--      ⇪⇧U "the last free ⇪⇧ letter" in 6.104.0 and it was right; there
+--      have been fifty-two letter combos and fifty-two owners ever since.
+--      So these four land on PUNCTUATION, which is not a workaround —
+--      ⇪, sits exactly where ⌘, sits in every other Mac application.
+--      All four are ALSO runnable from ⇪⇧/ with no key at all, the way
+--      the daily rollup is, because a key nobody can guess is a key
+--      nobody presses.
+--     🔎 ⇪.  MENU SEARCH — every menu item of the FRONT app, flattened
+--        into one list you type into. "pdf" finds File ▸ Export As ▸
+--        PDF… without knowing it was under Export. Shows each item's
+--        keyboard shortcut, lists greyed-out items rather than hiding
+--        them, and refuses to run one while explaining that the app is
+--        the thing saying no. The scan is ASYNCHRONOUS: the blocking
+--        form of getMenuItems() can hold the keyboard for seconds on an
+--        app with deep menus, and a keyboard that stops answering is
+--        indistinguishable from a crash.
+--     ⚙️ ⇪,  SETTINGS PANES — System Settings by name. The five Privacy
+--        destinations this config sends you to in nine different alerts
+--        (Accessibility, Screen Recording, Automation, Input Monitoring,
+--        Full Disk Access) are each ONE row, so ⇪, "access" ⏎ replaces
+--        opening Settings and scrolling two sidebars.
+--     💀 ⇪⇧; APP KILL — LL sent the Alfred Ruby workflow he had been
+--        using; this is that, with the ps output in a chooser. ⏎ asks
+--        it to quit, ⌥⏎ forces, and picking a process that ignored the
+--        quit forces it too. launchd, kernel_task, WindowServer and
+--        loginwindow are refused OUTRIGHT — under ⌥ as well, because
+--        kill -9 on WindowServer logs you out with no save prompt.
+--     🧰 ⇪;  POWER TOOLS — the four small ones in one list:
+--        ⌨️ TYPE THE CLIPBOARD, for fields that refuse ⌘V ("confirm
+--           your email address"). This is the tool LL asked whether he
+--           already had. He did not — nothing in this config typed the
+--           clipboard rather than pasting it.
+--        🔢 COUNT THE SELECTION — words, characters and ~sentences. The
+--           ~ is on the sentence figure because it IS an estimate:
+--           "Dr. Smith went to the U.S. yesterday." is three by any
+--           twenty-line rule and one by yours.
+--        📋 STRIP CLIPBOARD FORMATTING, and say how many flavours went.
+--        ℹ️ FILE METADATA — every mdls attribute of the Finder
+--           selection as a searchable list; ⏎ copies one value.
+--   🚨 SECURE INPUT IS CHECKED BEFORE A SINGLE CHARACTER IS TYPED. Under
+--      secure event input macOS drops synthetic keystrokes at the window
+--      server: nothing arrives, nothing complains, the field stays
+--      empty. Typing anyway and reporting success is the worst outcome
+--      available, so the check comes first and names the reason.
+--
+-- ALSO IN 6.119.0 — THREE THINGS CAUGHT BEFORE THEY SHIPPED:
+--   🚨 hs-lint FOUND A DEAD SCAN IN THE FIRST DRAFT. settings_panes
+--      captured one return value from hs.fs.dir; the iterator needs the
+--      second, and `for e in iter do` throws at RUNTIME, never at load.
+--      The .prefPane scan would have been silently dead. Its test stub
+--      now REFUSES to iterate without the directory object.
+--   🚨 THE FIRST whenClear USED TWO TIMERS and both could reach the
+--      callback — which would have typed the clipboard TWICE into a text
+--      field, with no undo. One timer, one callback, and a test that
+--      reassembles what was typed and asserts exactly one copy.
+--   🔢 THE SUITE COUNTS IN GUIDE.md WERE WRONG A SECOND TIME. 6.118.0
+--      fixed the "forty-eight Lua suites" label and left the STAGE count
+--      at forty-eight, which was also wrong — the gate reported fifty.
+--      All three figures are measured off the gate now, and GUIDE.md
+--      says to read them from it rather than from the paragraph.
+--
 -- NEW IN 6.118.0 — TWO LISTS THAT LOSE YOUR PLACE, AND NO LONGER DO:
 --   🔎 SEARCHING THE CHEAT SHEET NO LONGER COSTS YOUR PLACE IN IT. LL:
 --      "The cheat sheet remembers its position when I scroll. But loses
@@ -167,50 +231,10 @@
 --      Found by running the suite against the UNZIPPED tree rather than
 --      the repo, which is the only place it shows.
 --
--- NEW IN 6.114.0 — EVERY SHORTCUT WORKS WITH NO EXTERNAL KEYBOARD:
---   LL: "Sometimes I will not have an external keyboard on my work
---   MacBook... how do I handle shortcut keys when I don't have one?"
---   ⇪ itself was never the problem — Caps Lock is on every MacBook and
---   the hidutil remap is per-user, not per-device. The number pad was.
---   Most of it already had a laptop route (⇪pad1≈⇪J, ⇪pad4≈⇪\,
---   ⇪⇧pad4/6≈⇪←/⇪→); what had NO route at all was the Quick Append Pad
---   — note_pad bound no letter, so ⇪pad2 was its only door — and nine
---   window placements.
---     💻 ⇪⇧ + THE NUMBER ROW is the same map one row up. ⇪⇧7 does what
---        ⇪⇧pad7 does; both call one numpad.run() over one zone table, so
---        they cannot drift, and a test asserts them digit for digit.
---        4, 6 and 0 are deliberately absent: ⇪← ⇪→ ⇪↑ already do those
---        and need no pad, and ⇪⇧4 belongs to the Screenshots panel.
---     💻 ⇪2 OPENS THE QUICK APPEND PAD — the same digit as ⇪pad2. There
---        is no free ⇪ letter left; all twenty-six are claimed.
---     💻 THE SIX ⇪pad TOOLS ARE NOW RUNNABLE FROM ⇪space. They were
---        already LISTED there and ⏎ copied the key string, because the
---        run map had no entry — so it showed you a tool you could name
---        and not use.
---   🚨 AND THE SENTRY FOUND THE ⇪⇧4 CLASH IN THE FIRST DRAFT OF THIS
---   VERY LAYER, which a careful read had already missed.
---
--- ALSO IN 6.114.0 — FOUR THINGS THAT WERE ALREADY WRONG:
---   🚨 ⏎ ON "RESET NUDGE OFFSET" IN ⇪space RAN A BULK RENAME UNDO. The
---      run map joined ⇪⇧R to rename.undo, and the only row with that key
---      cell is the popup nudge reset. Both existing checks passed: the
---      service was real, the key matched a live row. Nothing could ask
---      whether they were the same feature. _G.service.owner records who
---      publishes each name now, and a test asks.
---   🚨 BULK RENAME TOLD YOU TO PRESS A KEY IT DOES NOT OWN, in four
---      places including the alert that fires the instant files move.
---      ⇪⇧R is the nudge reset; the undo is the first row of ⇪R.
---   🚨 FOUR SHORTCUTS WERE ON THE CHEAT SHEET TWICE — ⇪O, ⇪⇧O, ⇪T, ⇪⇧S
---      — left behind when OCR and the task form became modules. The
---      identical complaint was raised by hand in 6.90.1 about ⇪V. A
---      comment asking people to remember is not a sentry; there is one
---      now, over the module groups AND the hand-written ones.
---   🔗 ⇪↓ COULD NOT PUT BACK A WINDOW THE PAD HAD MOVED. Two "prior
---      frame" memories, neither aware of the other. One now — and it is
---      bounded, which it never was.
---
+-- (6.114.0 and earlier: see CHANGELOG.md. Only the five most recent
+--  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.118.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.119.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -509,7 +533,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.118.0"
+_G.configVersion = "6.119.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2895,6 +2919,16 @@ local BASE = {
     -- 6.116.0
     "write_ledger",       -- 💾 _G.saved() — proof the logs are saving (no key)
     "right_click",        -- 🖱 ⇪⇧F a real right-click at the pointer
+    -- 6.119.0 — THE PUNCTUATION TIER. Every ⇪ letter and every ⇪⇧ letter
+    -- was already claimed (win_pin took the last one in 6.104.0), so these
+    -- four land on punctuation instead. That is not a workaround: ⇪, sits
+    -- exactly where ⌘, does in every other Mac app, and the rest are one
+    -- reach from the home row. All four are also runnable from ⇪⇧/ with
+    -- no key at all, the way the rollup is.
+    "menu_search",        -- 🔎 ⇪.  the front app's menus, flattened
+    "settings_panes",     -- ⚙️ ⇪,  System Settings, by name
+    "app_kill",           -- 💀 ⇪⇧; end a process, politely then not
+    "power_tools",        -- 🧰 ⇪;  type the clipboard · count · strip · mdls
     "editor_picker",      -- 🗂 ⌘⌘ (or ⇪⇧Z) every editor at once, sorted by
                           -- what is open and what has something in it.
                           -- LAST on purpose: it only READS the registry the

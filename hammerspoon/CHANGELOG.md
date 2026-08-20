@@ -4,6 +4,219 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.119.0 — TWELVE TOOLS ASKED FOR, THE FIRST FOUR OF THEM, AND
+THE KEYBOARD RUNNING OUT OF LETTERS:
+
+  LL asked for twelve things in one message. Four are here; the rest are
+  named at the bottom of this entry with what each one needs, so nothing
+  in that list quietly becomes something nobody wrote down.
+
+  🔑 FIRST, THE CONSTRAINT THAT SHAPED ALL OF IT: EVERY ⇪ LETTER AND
+  EVERY ⇪⇧ LETTER IS CLAIMED. win_pin called ⇪⇧U "the last free ⇪⇧
+  letter" in 6.104.0 and it was right. Fifty-two letter combos,
+  fifty-two owners, and that has been true for fifteen versions without
+  anybody stating it as a fact about the config rather than a remark in
+  one module's header.
+
+  So these four land on PUNCTUATION. That is not a workaround and not a
+  consolation prize: ⇪, sits exactly where ⌘, sits in every Mac
+  application ever written, and the other three are one reach from the
+  home row. All four are ALSO runnable from ⇪⇧/ with no key at all, the
+  way the daily rollup has been since 6.105.0 — and that matters more
+  for these than for anything above them, because a key nobody can guess
+  is a key nobody presses. ⇪⇧/ then "kill" is how ⇪⇧; will actually be
+  reached until the punctuation is in the fingers.
+
+  🔎 ⇪.  MENU SEARCH — the front app's menus, by typing.
+  LL: "For the focused application, can you create something to search
+  through menu options for front-most application"
+
+  Every menu item the frontmost app publishes, flattened into one list.
+  "pdf" finds File ▸ Export As ▸ PDF… without knowing it was under
+  Export. Each row shows the item's own keyboard shortcut where it has
+  one, and the path it came from, and both are searchable.
+
+  Greyed-out items are LISTED rather than hidden. Hiding them answers
+  "where is Paste Special?" with an empty list, which reads as "this app
+  has no Paste Special" rather than "not right now". They are marked,
+  and picking one says the app is refusing it — not the list.
+
+  🚨 THE SCAN IS ASYNCHRONOUS AND THAT IS NOT OPTIONAL. The blocking
+  form of getMenuItems() is documented by Hammerspoon itself as able to
+  "take a very long time", and on an app with deep menus it holds the
+  main thread — the thread that reads your keyboard. A keyboard that
+  stops answering is indistinguishable from a crash. The callback form
+  runs; a timeout turns a slow app into a named refusal rather than a
+  key that sometimes does nothing.
+
+  ⚙️ ⇪,  SETTINGS PANES — System Settings, by name.
+  LL: "Can you create a tool that lets me search then open macOS
+  settings pane?"
+
+  The reason this earns a key: THIS CONFIG TELLS YOU TO VISIT
+  "System Settings → Privacy & Security → Accessibility" IN NINE
+  DIFFERENT ALERTS, and that trip is open Settings, scroll a sidebar of
+  thirty, find Privacy & Security, scroll ITS list of twenty. All five
+  of those destinations — Accessibility, Screen Recording, Automation,
+  Input Monitoring, Full Disk Access — are one row each now.
+
+  ⚠️ AND THE HONEST LIMIT, STATED IN THE MODULE AND IN THE REPORT:
+  macOS does not refuse a pane identifier it no longer recognises.
+  System Settings opens at whatever page it likes and `open` still exits
+  0, so there is no return code this module can check and no way for it
+  to verify a destination. It can only report that it asked.
+  _G.settingsProbe() opens each entry in turn, slowly enough to watch,
+  because that is the only test of somebody else's URL scheme that tells
+  the truth.
+
+  💀 ⇪⇧; APP KILL — find the process, end the process.
+  LL: "I need power tool to Kill an Application?" — and sent the Alfred
+  Ruby workflow he had been using, built around
+      ps -A -o pid -o %cpu -o comm | grep -i …
+
+  This is that, with the ps output in a chooser. ⏎ asks it to quit, ⌥⏎
+  forces, and picking a process that ignored the quit forces it too.
+
+  The Ruby version let you type "chrome:renderer" to filter by a command
+  line ARGUMENT, because a Mac running eleven Chrome helpers needs some
+  way to tell them apart. An hs.chooser gives no hook to reinterpret the
+  query mid-type, so that syntax cannot be reproduced faithfully. What
+  replaced it reaches the same place by a shorter road: the FULL command
+  line rides in each row's subtitle and the chooser searches subtitles,
+  so typing "renderer" filters on it — no colon, no special form, and it
+  composes with the name.
+
+  🚨 FOUR NAMES ARE REFUSED OUTRIGHT, INCLUDING UNDER ⌥. launchd,
+  kernel_task, WindowServer and loginwindow. kill -9 on WindowServer is
+  not an inconvenience — it logs you out, every app, no save prompt. ⌥
+  is the "I mean it" modifier and this is the one place where meaning it
+  is not enough. Hammerspoon refuses itself too, not to protect itself
+  but because quitting it from inside itself leaves you with no ⇪ and no
+  sign that it worked.
+
+  🧰 ⇪;  POWER TOOLS — four things too small for a key each.
+
+  ⌨️ TYPE THE CLIPBOARD.
+  LL: "Did you create my tool that allows me to paste into fields that I
+  cannot? These would be confirmations like typing your email twice."
+
+  🚨 THE ANSWER IS NO, AND IT IS WORTH SAYING PLAINLY: nothing anywhere
+  in this config typed the clipboard rather than pasting it. "Copy as
+  Plain Text" in ⇪⇧A strips formatting, which is a different problem
+  with a similar shape, and is probably what was being half-remembered.
+
+  A "confirm your email address" field that refuses ⌘V is not protecting
+  anything — the page has an onpaste handler returning false, believing
+  that retyping proves you read it. Synthetic keystrokes are
+  indistinguishable from fingers, so the field takes them, and the typo
+  the exercise exists to prevent cannot happen.
+
+  🚨 SECURE INPUT IS CHECKED BEFORE A SINGLE CHARACTER GOES OUT. When a
+  password field has secure event input on, macOS drops synthetic
+  keystrokes at the window server: nothing arrives, no error is raised,
+  the field stays empty. Typing into that and reporting success would be
+  the worst outcome available. And the text waits for ⌘⇧⌃⌥ to come up
+  first — you reached this row through ⇪, and a keystroke posted under a
+  live ⌘ is a menu command in somebody else's app.
+
+  🔢 COUNT THE SELECTION.
+  LL: "1) total word count, 2) total character count, and 3) total
+  sentence count"
+
+  All three, plus lines and paragraphs. The selection is read through
+  accessibility first, which costs nothing and disturbs nothing; apps
+  that do not answer that fall back to a ⌘C with the clipboard SAVED
+  FIRST AND PUT BACK AFTER, and the pasteboard watcher suppressed across
+  the round trip so ⇪V's history does not fill with things you never
+  copied.
+
+  ⚠️ THE SENTENCE FIGURE CARRIES A ~ AND THE OTHERS DO NOT. It counts
+  runs of . ! or ? followed by whitespace or the end of the text.
+  "Dr. Smith went to the U.S. yesterday." is three by that rule and one
+  by yours. Doing better needs a tokenizer with an abbreviation list,
+  which is a real library rather than twenty lines — so it is presented
+  as an estimate instead of being quietly wrong. Words and characters
+  have no such problem, and characters are counted in CHARACTERS: a
+  curly apostrophe is three bytes and one character, and # would have
+  reported every em-dash-heavy paragraph as longer than it is.
+
+  📋 STRIP CLIPBOARD FORMATTING — and say how many flavours went away.
+  "Stripped" with nothing visibly different is indistinguishable from
+  "did nothing", and this is a tool you reach for precisely when you
+  cannot see whether it worked.
+
+  ℹ️ FILE METADATA — every mdls attribute of the Finder selection, as a
+  list you type into rather than a window you scroll, because what you
+  usually want from metadata is ONE value in the clipboard. ⏎ copies it.
+
+  ---------------------------------------------------------------------
+  🚨 THREE THINGS CAUGHT BEFORE THEY SHIPPED
+  ---------------------------------------------------------------------
+
+  🚨 hs-lint FOUND A SCAN THAT WOULD HAVE BEEN DEAD ON ARRIVAL.
+  settings_panes captured one return value from hs.fs.dir. The iterator
+  needs the second one; `for e in iter do` throws "directory metatable
+  expected, got nil" at RUNTIME and never at load, so the .prefPane scan
+  would have found nothing, said nothing, and looked exactly like a Mac
+  with no third-party panes installed. The suite's hs.fs.dir stub now
+  REFUSES to iterate without its directory object, so it cannot return.
+  The walk is also pcall'd per directory now: one unreadable folder must
+  cost that folder, not the whole picker.
+
+  🚨 THE FIRST whenClear USED TWO TIMERS AND BOTH COULD FIRE. A doWhile
+  to wait plus a doAfter to decide what happened next — and "the
+  clipboard was typed twice" cannot be undone out of a text field. It is
+  one timer with one callback now, and the test reassembles everything
+  that was typed and asserts exactly one copy of it. Reintroducing the
+  two-timer shape fails that check, which is how it was confirmed to
+  have teeth rather than assumed to.
+
+  🔢 THE SUITE COUNTS IN GUIDE.md WERE WRONG A SECOND TIME. 6.118.0
+  corrected "forty-eight Lua suites" — the stage count wearing the wrong
+  label — and left the stage figure at forty-eight, which was ALSO
+  wrong: the gate reported fifty at the time. Two wrong numbers in one
+  paragraph, one of them introduced by the fix for the other. All three
+  figures are measured off the gate now (forty-nine Lua suites, 4,456
+  checks, fifty-four stages) and GUIDE.md tells you to read them from
+  the gate rather than from the paragraph.
+
+  ---------------------------------------------------------------------
+  📋 THE EIGHT NOT IN THIS VERSION, AND WHAT EACH NEEDS
+  ---------------------------------------------------------------------
+  Written down so none of them quietly becomes something nobody
+  recorded. All eight are next.
+
+    🗂 SEARCH OPEN BROWSER TABS AND JUMP TO ONE, from anywhere.
+       Chrome and Safari both enumerate their tabs over AppleScript and
+       both can raise one. Needs a separate osascript process, for the
+       reason universal_actions documents at length.
+    ⏸ ONE KEY THAT PAUSES ALL AUDIO AND VIDEO. The media key reaches
+       whichever app macOS considers "now playing" — one app, not all —
+       so this is a media key PLUS named pauses for the players that
+       accept one. That limit will be stated on the key, not discovered.
+    🖥 ABOUT THIS MAC AS A PANEL, in the Pomodoro's shape.
+    🌐 NETWORK TOOLS — flush DNS, ping, nslookup, traceroute, with the
+       output somewhere you can read and copy it.
+    👻 GHOSTTY ↔ FINDER, both directions.
+    🔳 AN ON-SCREEN QR READER. Half of this already exists: screenshots
+       finds zbarimg when Homebrew has it, and ⇪⇧4's "recognize
+       text/QR" uses it. What is missing is a key that grabs a region
+       and decodes without going through the screenshot panel.
+
+    And two answers rather than tools:
+    📄 "A while back I asked for a tool that would save any and all URLs
+       and Window titles to a .csv file. Did we get around to that?"
+       HALF. Window titles yes — activity_history CSV has recorded
+       app + window title per interval since long before the rename, and
+       ⇪⇧W searches it. URLs no: ⇪Y archives Chrome's own history
+       database, which is a different thing from "every URL that passed
+       through a window". A combined one was never built.
+    📋 STRIP CLIPBOARD FORMATTING already half-existed as ⇪⇧A's "Copy as
+       Plain Text". ⇪; now has it as a first-class row, which is where
+       it should have been.
+```
+
+```text
 NEW IN 6.118.0 — TWO LISTS THAT LOSE YOUR PLACE, AND NO LONGER DO:
 
   🔎 SEARCHING THE CHEAT SHEET NO LONGER COSTS YOUR PLACE IN IT.

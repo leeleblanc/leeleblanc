@@ -316,12 +316,20 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Forty-five Lua suites, 4,054 checks, plus three more that run the Capture
+Forty-nine Lua suites, 4,456 checks, plus three more that run the Capture
 Pad's, the screenshot editor's and unified search's page JavaScript under
-`node` — forty-eight stages in all. (That count said "forty-eight Lua
-suites" until 6.118.0, which was the STAGE count wearing the wrong label:
-the three JavaScript suites are `.js` files run by `node`, not Lua.) All of it runs with `lua5.4` on any machine — no Mac required,
-they stub the `hs` API:
+`node` — fifty-four stages in all. All of it runs with `lua5.4` on any
+machine — no Mac required, they stub the `hs` API:
+
+> 🚨 **These three numbers have been wrong twice, in two different ways,
+> so they are now MEASURED rather than remembered.** Until 6.118.0 the
+> suite count said "forty-eight Lua suites", which was the STAGE count
+> wearing the wrong label — the three JavaScript suites are `.js` files
+> run by `node`, not Lua. 6.118.0 fixed the label and left the stage
+> figure at forty-eight, which was *also* wrong: the gate reported fifty
+> at the time. The gate prints all three on every run, so read them off
+> it rather than off this paragraph:
+> `sh tools/run-tests.sh . | tail -3`
 
 ```
 tests/test_modules.lua       loader, profiles, warm phase, failure isolation, slot uniqueness
@@ -368,7 +376,19 @@ tests/test_write_ledger.lua  💾 _G.saved() against REAL files in a temp tree: 
                              round trip, the twin detector, and the silence
 tests/test_keycaster.lua     ⌨️ ⇪⇧B: what earns a line, the panel that grows to fit,
                              the app header and its cache, and the expansion hook
-tests/test_integration.lua   🚨 all 49 modules loaded TOGETHER: shortcut, service and
+tests/test_menu_search.lua   🔎 ⇪.: the AXMenuItemCmdModifiers bitmask, whose ZERO
+                             means ⌘ and whose bit 3 means "no ⌘" — and the extra
+                             AXChildren level that makes a naive walk find nothing
+tests/test_settings_panes.lua ⚙️ ⇪,: which values get the x-apple.systempreferences:
+                             prefix, and an hs.fs.dir stub that REFUSES to iterate
+                             without its directory object
+tests/test_app_kill.lua      💀 ⇪⇧;: the two-ps join over paths with spaces in them,
+                             a comma decimal separator, and the four names that
+                             stay refused even under ⌥
+tests/test_power_tools.lua   🧰 ⇪;: secure input checked BEFORE a character is typed,
+                             the clipboard typed exactly ONCE, and the borrowed
+                             clipboard put back on every path
+tests/test_integration.lua   🚨 all 53 modules loaded TOGETHER: shortcut, service and
                              cheat-sheet-slot collisions — the only suite that can
                              catch two modules quietly claiming the same key
 tests/test_pad_js.js         the Capture Pad's in-page JavaScript, actually executed

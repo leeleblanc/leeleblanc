@@ -536,6 +536,16 @@ function M.setup(core)
         -- one in quick_append — the same shortcut, twice, and a run map
         -- can only ever point at one spelling. verifyTools fails the join
         -- if either side drifts again.
+        -- 6.119.0 — THE PUNCTUATION TIER. Four tools whose keys are ⇪. ⇪,
+        -- ⇪; and ⇪⇧;, because every ⇪ letter and every ⇪⇧ letter was gone
+        -- before they were written. A key nobody can guess is a key nobody
+        -- presses, so the join matters more for these four than for any
+        -- row above: ⇪⇧/ then "kill" is how they will actually be reached
+        -- until the punctuation is in the fingers.
+        ["⇪."]    = "menuSearch.show",
+        ["⇪,"]    = "settings.show",
+        ["⇪;"]    = "power.show",
+        ["⇪⇧;"]   = "kill.show",
         ["⇪pad1"] = "notes.appendClipboard",
         ["⇪pad2"] = "notes.openPad",
         ["⇪pad3"] = "notes.pickTarget",
