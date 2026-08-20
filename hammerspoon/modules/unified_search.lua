@@ -523,6 +523,16 @@ function M.setup(core)
         -- makes this row the only way to open it by hand short of the
         -- Console, which is exactly what a tool list is for.
         ["📊"]    = "rollup.show",
+        -- 🗂 6.125.0 — AND NOW THE EDITOR PICKER, for the same reason and
+        -- one more. It had ⇪⇧Z, LL asked for the key back, and there was
+        -- no letter left to move it to. But the picker is not the rollup:
+        -- its main way in is a DOUBLE TAP OF ⌃, an hs.eventtap, and taps
+        -- die when macOS revokes Accessibility. Its own header forbids the
+        -- tap being the only way in. So this row is not a convenience
+        -- here, it is the second route the picker is required to have —
+        -- and ⇪ is Caps Lock through hs.hotkey, which fails for entirely
+        -- different reasons than an event tap does.
+        ["🗂"]    = "editors.show",
         -- 💻 6.114.0 — THE NUMBER PAD ROW, RUNNABLE WITHOUT A NUMBER PAD.
         -- These six were already listed here — srcTools lists EVERY cheat
         -- sheet row — and ⏎ on one of them copied the key string instead

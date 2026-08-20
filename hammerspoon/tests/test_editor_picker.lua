@@ -149,9 +149,47 @@ out("\n=== 1. it loads, binds and starts ===\n")
 check("the module returns a table with a name", M.name == "Editor Picker")
 check("it declares a family", M.family == "text")
 check("it publishes _G.editorPicker", type(ep) == "table")
-check("⇪⇧Z is bound as the tap-free way in", BOUND["shift+z"] ~= nil)
-check("the binding is attributed to this module",
-      BOUND["shift+z"] and BOUND["shift+z"].src == "editor picker")
+-- ⌨️ 6.125.0 — THE PICKER BINDS NO ⇪ KEY AT ALL, and this is the check
+-- that says so. LL asked for ⇪⇧Z back for something else; a suite that
+-- merely stopped naming the old key would let a stray binding come back
+-- and take it again without a word.
+check("🚨 the picker binds NO ⇪ key — ⇪⇧Z is free and stays free",
+      BOUND["shift+z"] == nil)
+check("…and no other ⇪ key either — the tap-free way in is ⇪space, so a "
+      .. "binding appearing here means a key was quietly spent", (function()
+    local bound = {}
+    for combo, rec in pairs(BOUND) do
+        if rec and rec.src == "editor picker" then bound[#bound + 1] = combo end
+    end
+    if #bound > 0 then
+        table.sort(bound)
+        return false, table.concat(bound, ", ")
+    end
+    return true
+end)())
+check("ep.key is nil, which is what the guard at the binding reads",
+      ep.key == nil)
+-- 🚨 THE ROW AND THE RUN MAP KEY ARE TWO HALVES OF ONE JOIN.
+-- unified_search attaches a service to a row BY ITS KEY CELL, so ["🗂"]
+-- is runnable only while a row spells it exactly that way. verifyTools
+-- catches the drift at runtime; this catches it before it ships.
+check("the sheet carries a 🗂 row for the keyless route",
+      M.cheatsheet.entries[2] ~= nil
+      and M.cheatsheet.entries[2][1] == "🗂",
+      M.cheatsheet.entries[2] and M.cheatsheet.entries[2][1])
+-- ⌨️ AND THE KEY CAN COME BACK IN ONE LINE, which is what the header
+-- promises. A setting nobody exercises is a setting that has quietly
+-- stopped working — ep.tapSide's side machinery is kept honest the same
+-- way in section 2f.
+check("with no key, wayIn() names ⇪space",
+      ep.wayIn() == "⇪space → \"editor\"", ep.wayIn())
+check("…and setting ep.key names a real ⇪ chord again", (function()
+    local saved = ep.key
+    ep.key = "z"
+    local s = ep.wayIn()
+    ep.key = saved
+    return s == "⇪⇧Z", s
+end)())
 check("warm() started the tap", TAP ~= nil and TAP.started == true)
 check("the tap watches flagsChanged AND keyDown", (function()
     if not TAP then return false end
@@ -329,11 +367,22 @@ check("it said so in the Console", (function()
     end
     return false
 end)())
-check("…and named ⇪⇧Z as the way in", (function()
+-- 🚨 THE WAY-IN SENTENCE IS THE POINT OF THE MESSAGE, not decoration.
+-- It prints at the one moment the reader has just lost the gesture, so it
+-- has to name a route that actually exists — which is why ep.wayIn()
+-- builds it from ep.key instead of four hard-coded copies of a key that
+-- went away in 6.125.0.
+check("…and named ⇪space as the way in", (function()
     for _, l in ipairs(printed) do
-        if l:find("⇪⇧Z still opens", 1, true) then return true end
+        if l:find("⇪space → \"editor\" still opens", 1, true) then return true end
     end
     return false
+end)())
+check("…and did NOT name the key it gave back", (function()
+    for _, l in ipairs(printed) do
+        if l:find("⇪⇧Z", 1, true) then return false, l end
+    end
+    return true
 end)())
 TAP.started = true ; ep.tapRunning = true ; ep.tapFailures = 0
 
@@ -429,10 +478,10 @@ check("…and it names the setting that fixes it", (function()
     end
     return false
 end)())
-check("…and it names ⇪⇧Z", (function()
+check("…and it names the tap-free way in", (function()
     for _, l in ipairs(printed) do
         if l:find("could not be attributed", 1, true) then
-            return l:find("⇪⇧Z", 1, true) ~= nil
+            return l:find("⇪space → \"editor\" opens", 1, true) ~= nil, l
         end
     end
     return false
@@ -794,7 +843,14 @@ check("it names the gesture and both settings it is made of",
       rep:find("⌃⌃", 1, true) ~= nil
       and rep:find("tapMod = ctrl", 1, true) ~= nil
       and rep:find("tapSide = either", 1, true) ~= nil, rep)
-check("it names the fallback key", rep:find("⇪⇧Z", 1, true) ~= nil)
+check("it names the keyless way in rather than a key it no longer holds",
+      rep:find("fallback   : ⇪space", 1, true) ~= nil
+      and rep:find("no key of its own", 1, true) ~= nil, rep)
+-- 🚨 THE REPORT MUST NOT THROW WHEN ep.key IS nil, and nil is what ships.
+-- The old line was ep.key:upper(), which would have errored inside the one
+-- function you run to find out why the picker is not working.
+check("…and the report survives ep.key being nil at all",
+      rep:find("⇪⇧Z", 1, true) == nil, rep)
 check("it counts the roster", rep:find("registered : 1", 1, true) ~= nil, rep)
 check("it lists each editor", rep:find("One", 1, true) ~= nil)
 -- 🚨 AND IT SAYS NOTHING IS MISSING, which is what proves the pointer
@@ -888,7 +944,23 @@ hs.eventtap.new = function() error("no accessibility") end
 ep.stopTap()
 local started = ep.startTap()
 check("startTap reports failure rather than throwing", started == false)
-check("…and the fallback key is still bound", BOUND["shift+z"] ~= nil)
+-- 🚨 THIS IS THE CHECK THE WHOLE SECTION EXISTS FOR, and 6.125.0 changed
+-- what it has to look at. Until now the answer was "⇪⇧Z is still bound".
+-- With the key given back, the second way in is the ⇪space run-map row —
+-- so what must survive a dead event tap is the SERVICE that row calls.
+-- If this ever goes nil, the picker has exactly one way in and the header
+-- forbids that.
+check("…and the service ⇪space runs is still published",
+      type(PROVIDED["editors.show"]) == "function")
+check("…and unified_search's run map still points at it — the row and the "
+      .. "service are two halves of one route and half of it is nothing",
+      (function()
+    local f = io.open(HS .. "/modules/unified_search.lua", "r")
+    local src = f and f:read("*a")
+    if f then f:close() end
+    if not src then return false, "unified_search.lua unreadable" end
+    return src:find('%["🗂"%]%s*=%s*"editors%.show"') ~= nil
+end)())
 check("…and the picker still opens", (function()
     _G.editors = { { name = "One", show = function() end } }
     local before = #SHOWN

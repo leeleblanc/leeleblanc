@@ -1,5 +1,5 @@
 -- =====================================================================
--- MODULE: EDITOR PICKER (⌃⌃, or ⇪⇧Z) — every text surface this
+-- MODULE: EDITOR PICKER (⌃⌃, or ⇪space) — every text surface this
 -- config owns
 -- =====================================================================
 -- LL: "Right now a double-click of the cmd+cmd key pressed quickly.
@@ -14,7 +14,8 @@
 -- its text WITHOUT opening anything, the "copy from" half of the ask.
 --
 --        ⌃⌃         the picker
---        ⇪⇧Z        the same picker, for when the tap is unavailable
+--        ⇪space     the same picker, for when the tap is unavailable —
+--                   type "editor", press ⏎. It has no key of its own.
 --        ⏎          open it / bring it forward
 --        ⌥⏎         copy its text and stay where you are
 --
@@ -73,12 +74,35 @@
 -- prints the count, so a Mac where that reading does not work says so out
 -- loud instead of quietly losing the gesture. See ep.sideUnknownLimit.
 --
--- ⌨️ AND ⇪⇧Z IS THE LAST FREE LETTER, not a mnemonic. ⇪E was the obvious
--- one and §0.4's migration map has held it since long before this module
--- existed (it edits a custom cheat sheet entry) — the hotkey sentry said
--- so on the first run of the suite, which is the whole reason that sentry
--- is there. Z is what was left. The gesture you are meant to learn is the
--- double tap; this key is the handrail for the days it is not running.
+-- ---- ⌨️ AND IT HAS NO KEY OF ITS OWN (6.125.0) ----------------------
+-- ⇪⇧Z was the last free letter, and this module held it from 6.116.0 to
+-- 6.124.0. LL asked for it back:
+--
+--        LL: "This key should be free for future use: ⇪⇧Z"
+--
+-- 🚨 AND THERE WAS NOWHERE TO MOVE IT TO. ⇪E was the obvious mnemonic and
+-- §0.4's migration map has held it since long before this module existed
+-- (it edits a custom cheat sheet entry) — the hotkey sentry said so on the
+-- first run of the suite, which is the whole reason that sentry is there.
+-- Every other ⇪ letter and every other ⇪⇧ letter is spoken for as well.
+-- What is genuinely free is ⇪⇧6 and the three brackets: keys nobody can
+-- guess, spent on a handrail nobody touches on a day when the tap works.
+--
+-- 🗂 SO IT TOOK THE ROUTE THE ROLLUP ALREADY TOOK. unified_search's run
+-- map carries ["📊"] = "rollup.show" for precisely this case, written when
+-- the rollup found every ⇪⇧ letter gone: a tool with no key, reached by
+-- ⇪space → "editor" → ⏎. This module already publishes "editors.show", so
+-- the entry costs one line and no key:
+--
+--        ["🗂"] = "editors.show"
+--
+-- ⚠️ AND THAT ROUTE DOES NOT DEPEND ON THE TAP. ⇪ is Caps Lock remapped
+-- to F18 and bound with hs.hotkey; the double tap is an hs.eventtap. The
+-- two fail for different reasons and on different days, which is the
+-- entire reason for having a second way in — see the block below.
+--
+-- ep.key IS STILL READ. Set it to a letter and the ⇪ binding comes back
+-- on the next reload, for whenever a letter frees up.
 --
 -- ---- 🚨 WHY THE TAP WATCHES keyDown AS WELL AS THE MODIFIERS ---------
 -- The obvious build watches flagsChanged only: ⌘ goes down, ⌘ comes up,
@@ -105,9 +129,10 @@
 -- see the 🛟 block at the tap itself.
 --
 -- ⚠️ AND IT IS NOT ALLOWED TO BE THE ONLY WAY IN. An event tap needs
--- Accessibility, and macOS switches taps off when it feels like it. ⇪⇧Z
--- opens the same picker through the ordinary hotkey path, so the feature
--- survives the tap being dead — and ⇪⇧D says which of the two you have.
+-- Accessibility, and macOS switches taps off when it feels like it.
+-- ⇪space → "editor" → ⏎ opens the same picker through the ordinary hotkey
+-- path, so the feature survives the tap being dead — and ⇪⇧D says which
+-- of the two you have.
 --
 -- ---- WHAT COUNTS AS AN EDITOR ---------------------------------------
 -- Whatever registers itself. Modules insert into _G.editors the same way
@@ -146,7 +171,7 @@ local M = {
         title = "🗂 EDITOR PICKER (⌃⌃ — every editor at once)",
         entries = {
             { "⌃⌃", "Tap it twice, touching nothing else — the picker opens" },
-            { "⇪⇧Z", "The same picker, when the double tap is unavailable" },
+            { "🗂", "The same picker with no key — ⇪space, then \"editor\"" },
             { "⏎",   "Open it — or bring it forward if it is already up" },
             { "⌥⏎",  "Copy that editor's text and leave everything closed" },
             { "lists", "Capture Pad · Note Pad · OCR text · clipboard · pins" },
@@ -164,9 +189,13 @@ function M.setup(core)
 
     -- ✏️ EDIT HERE ---------------------------------------------------------
     ep.enabled     = true    -- false = no tap, no key, nothing bound
-    ep.tapEnabled  = true    -- false = ⇪⇧Z only; the tap is never created
-    ep.key         = "z"     -- ⇪⇧Z, the tap-free way in (see the header)
-    ep.keyMods     = { "shift" }
+    ep.tapEnabled  = true    -- false = ⇪space only; the tap is never created
+    -- ⌨️ nil = NO ⇪ KEY, and ⇪space is the tap-free way in. This held
+    -- ⇪⇧Z until 6.125.0 and gave it back on request; there was no letter
+    -- to move to, so it took the rollup's keyless run-map route instead.
+    -- See the header. Set this to a letter and the binding returns.
+    ep.key         = nil
+    ep.keyMods     = { "shift" }   -- only read when ep.key is set
     -- 🎹 WHICH MODIFIER, AND WHICH ONE OF IT:
     --   tapMod  "cmd" · "alt" · "ctrl" · "shift"
     --   tapSide "right" · "left" · "either"
@@ -313,6 +342,20 @@ function M.setup(core)
         if ep.tapSide == "left"  then return "left "  .. g end
         if ep.tapSide == "right" then return "right " .. g end
         return g
+    end
+
+    -- 🚨 THE TAP-FREE WAY IN, NAMED IN ONE PLACE. Four separate warnings
+    -- tell you how to open the picker while the tap is down, and until
+    -- 6.125.0 all four had "⇪⇧Z" typed into them. The key then went away
+    -- and every one of those sentences became a lie printed at exactly the
+    -- moment the reader most needs the truth. ep.gesture() already
+    -- existed for the same reason on the other half of the gesture.
+    function ep.wayIn()
+        if type(ep.key) == "string" and ep.key ~= "" then
+            return "⇪" .. ((ep.keyMods and ep.keyMods[1] == "shift") and "⇧" or "")
+                   .. ep.key:upper()
+        end
+        return "⇪space → \"editor\""
     end
 
     -- The registry. Created with `or` on purpose — modules insert into it
@@ -536,8 +579,9 @@ function M.setup(core)
     --     self-test, which posts four of them — cannot assemble a
     --     gesture you did not make.
     --   · IT DISABLES ITSELF RATHER THAN DEGRADING YOUR KEYBOARD.
-    --     failLimit consecutive throws and it stops and reports, and ⇪⇧Z
-    --     still works, because the feature never depended on it.
+    --     failLimit consecutive throws and it stops and reports, and
+    --     ⇪space still opens the picker, because the feature never
+    --     depended on the tap.
     ep.tapFailures = 0
     ep.tapRunning  = false
     ep.fires       = 0
@@ -617,7 +661,7 @@ function M.setup(core)
               .. " presses could not be attributed to a left or right key, "
               .. "so " .. ep.gesture() .. " is being refused. Set "
               .. "_G.editorPicker.tapSide = \"either\" to take the side out "
-              .. "of it. ⇪⇧Z opens the picker meanwhile.")
+              .. "of it. " .. ep.wayIn() .. " opens the picker meanwhile.")
         if _G.notices then
             pcall(_G.notices.record, "runtime", "editor picker",
                   ep.gesture() .. " refused — no side on the keycode")
@@ -702,7 +746,7 @@ function M.setup(core)
             ep.stopTap()
             print("🗂 Editor picker: the " .. ep.gesture() .. " watcher threw "
                   .. ep.failLimit .. " times in a row and has been "
-                  .. "switched off. ⇪⇧Z still opens the picker. "
+                  .. "switched off. " .. ep.wayIn() .. " still opens the picker. "
                   .. "Last error: " .. tostring(err))
             if _G.notices then
                 pcall(_G.notices.record, "runtime", "editor picker",
@@ -718,7 +762,7 @@ function M.setup(core)
                                  function(ev) return ep.handler(ev) end)
         if not (okNew and tap) then
             warn("could not create the " .. ep.gesture()
-                 .. " watcher — ⇪⇧Z still works")
+                 .. " watcher — " .. ep.wayIn() .. " still works")
             return false
         end
         ep.tap = tap
@@ -756,9 +800,16 @@ function M.setup(core)
         end
         L[#L + 1] = string.format("   fired      : %d time%s this session",
             ep.fires, ep.fires == 1 and "" or "s")
-        L[#L + 1] = string.format("   fallback   : ⇪%s%s",
-            (ep.keyMods and ep.keyMods[1] == "shift") and "⇧" or "",
-            ep.key:upper())
+        -- 🚨 THE FALLBACK LINE MUST SURVIVE ep.key BEING nil, which is the
+        -- SHIPPED state since 6.125.0 — ep.key:upper() on a nil is a throw
+        -- inside the one function you would run to find out what is wrong.
+        if type(ep.key) == "string" and ep.key ~= "" then
+            L[#L + 1] = string.format("   fallback   : ⇪%s%s",
+                (ep.keyMods and ep.keyMods[1] == "shift") and "⇧" or "",
+                ep.key:upper())
+        else
+            L[#L + 1] = "   fallback   : ⇪space → \"editor\" → ⏎  (no key of its own)"
+        end
         -- 🚨 THE THREE NUMBERS THAT SAY WHETHER THE SPLIT IS WORKING, and
         -- the reason this report exists at all now. Nought on the side you
         -- chose means the gesture cannot fire, and this is the only place
@@ -843,7 +894,11 @@ function M.setup(core)
     end
     ep.describe()
 
-    if ep.enabled then
+    -- ⌨️ NO KEY IS THE SHIPPED STATE, so this is a guard and not a
+    -- formality: hyperAddShortcut with a nil key would bind ⇪ itself to
+    -- the picker on some builds and throw on others, and both of those are
+    -- worse than the keyless route working exactly as designed.
+    if ep.enabled and type(ep.key) == "string" and ep.key ~= "" then
         core.hyperAddShortcut(ep.keyMods, ep.key, function() ep.show() end,
                               "editor picker")
     end

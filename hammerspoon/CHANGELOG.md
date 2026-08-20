@@ -4,6 +4,70 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.125.0 — ⇪⇧Z IS YOURS AGAIN, AND THE PICKER GOES KEYLESS:
+
+  ⌨️ THE EDITOR PICKER HAS NO ⇪ KEY AT ALL NOW.
+  LL: "This key should be free for future use: ⇪⇧Z"
+
+  It is free. Nothing in this config binds ⇪⇧Z, and a test now fails if
+  anything starts to — including the picker quietly taking some other key
+  instead, which is the way a giveback like this usually gets undone.
+
+  🚨 AND THERE WAS NOWHERE TO MOVE IT TO.
+  This is the part worth knowing, because it is why the answer is a
+  keyless route rather than a different letter. Every ⇪ letter and every
+  ⇪⇧ letter is spoken for. ⇪E was the obvious mnemonic and §0.4's
+  migration map has held it since long before the picker existed — the
+  hotkey sentry said so the first time the suite ran, which is the whole
+  reason that sentry is there. ⇪⇧Z was what was left in 6.116.0, and it
+  was described in the module header at the time as "the last free
+  letter", not as a mnemonic.
+
+  What is genuinely unclaimed today is ⇪⇧6 and the three brackets. Those
+  are keys nobody can guess, and spending one on a handrail nobody
+  touches on a day when the double tap works is a bad trade — it takes a
+  key you might want later to buy a shortcut you will never press.
+
+  🗂 SO IT TOOK THE ROUTE THE ROLLUP ALREADY TOOK.
+  unified_search's run map has carried ["📊"] = "rollup.show" since
+  6.105.0 for precisely this case, written when the daily rollup found
+  every ⇪⇧ letter gone: a tool with no key, reached from ⇪space. The
+  picker now sits beside it as ["🗂"] = "editors.show". ⇪space, type
+  "editor", press ⏎. It costs one line and no key.
+
+  ⚠️ AND IT IS STILL TWO INDEPENDENT WAYS IN.
+  That matters more here than it did for the rollup, and it is the reason
+  this was not simply deleted. The picker's main way in is a double tap
+  of ⌃ — an hs.eventtap, and macOS switches taps off when it revokes
+  Accessibility. The module's own header forbids the tap being the only
+  way in. ⇪ is Caps Lock remapped to F18 and bound with hs.hotkey, which
+  fails for entirely different reasons and on entirely different days. So
+  the ⇪space row is not a convenience for this module, it is the second
+  route it is required to have, and a test asserts both halves of it —
+  the published service and the run-map row that calls it.
+
+  🩺 THE FOUR "the tap is down, use X instead" MESSAGES NOW BUILD THE
+     ROUTE FROM THE SETTING.
+  All four had "⇪⇧Z" typed straight into them. The moment the key went
+  away, every one of them became a false sentence printed at exactly the
+  moment the reader has just lost the gesture and most needs the truth.
+  ep.wayIn() is now the single place that answers "how do I open this
+  without the tap", the same way ep.gesture() has answered "what is the
+  gesture" since 6.121.0. The report's fallback line comes from it too —
+  and that line used to be ep.key:upper(), which on a nil key would have
+  thrown inside the one function you would run to find out what is wrong.
+
+  ⌨️ ep.key IS STILL READ, so the key is one line from coming back.
+  Set it to a letter and the ⇪ binding returns on the next reload, for
+  whenever a letter frees up. A test exercises that path rather than
+  trusting it, because a setting nobody ever runs is a setting that has
+  quietly stopped working.
+
+  WHAT WAS DELIBERATELY NOT TOUCHED
+  The ⌃⌃ gesture, the pointer-cancel machinery and the side machinery are
+  all byte-identical to 6.124.0. This release moves one thing: where the
+  tap-free way in lives.
+
 NEW IN 6.124.0 — THE PICKER MOVES TO ⌃⌃, AND THE MOUSE GETS A VOTE:
 
   ✋ THE EDITOR PICKER IS ON ⌃⌃ NOW, EITHER CONTROL KEY.

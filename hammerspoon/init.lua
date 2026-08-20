@@ -4,9 +4,37 @@
 -- =====================================================================
 -- 08-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.124.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.125.0
 -- =====================================================================
 
+-- NEW IN 6.125.0 — ⇪⇧Z IS YOURS AGAIN, AND THE PICKER GOES KEYLESS:
+--   ⌨️ THE EDITOR PICKER HAS NO ⇪ KEY AT ALL NOW.
+--          LL: "This key should be free for future use: ⇪⇧Z"
+--      It is free. Nothing in this config binds it.
+--   🚨 AND THERE WAS NOWHERE TO MOVE IT TO, which is the part worth
+--      knowing. Every ⇪ letter and every ⇪⇧ letter is spoken for — ⇪E was
+--      the obvious mnemonic and §0.4's migration map has held it since
+--      before the picker existed. What is genuinely free is ⇪⇧6 and the
+--      brackets: keys nobody can guess, spent on a handrail nobody
+--      touches on a day when the double tap works.
+--   🗂 SO IT TOOK THE ROLLUP'S ROUTE. unified_search's run map has carried
+--      ["📊"] = "rollup.show" since 6.105.0 for exactly this — a tool with
+--      no key, opened from ⇪space. The picker now has ["🗂"] =
+--      "editors.show" beside it: ⇪space, type "editor", ⏎.
+--   ⚠️ AND THAT IS STILL TWO INDEPENDENT WAYS IN, which the picker's
+--      header requires and a keyless tool would otherwise quietly lose.
+--      ⌃⌃ is an hs.eventtap and dies when macOS revokes Accessibility;
+--      ⇪ is Caps Lock through hs.hotkey and does not. Different failures,
+--      different days — that was always the reason for the second route,
+--      not the convenience.
+--   🩺 THE FOUR "the tap is down, use X instead" MESSAGES NOW BUILD THE
+--      ROUTE FROM THE SETTING. All four had "⇪⇧Z" typed into them; the
+--      moment the key went away every one became a lie printed at exactly
+--      the moment the reader most needs the truth. ep.wayIn() is the one
+--      place that answers it, the way ep.gesture() already did for ⌃⌃.
+--      ep.key is still read — set it to a letter and the ⇪ binding is back
+--      on the next reload, for whenever a letter frees up.
+--
 -- NEW IN 6.124.0 — THE PICKER MOVES TO ⌃⌃, AND THE MOUSE GETS A VOTE:
 --   ✋ THE EDITOR PICKER IS ON ⌃⌃ NOW, EITHER CONTROL KEY. LL asked for a
 --      double Control, and then settled the question this config had been
@@ -180,61 +208,10 @@
 --      setting rather than saying ⌘⌘ from memory, so ⇪/ cannot advertise
 --      a key the tap is not watching.
 
--- NEW IN 6.120.0 — THE OTHER EIGHT, AND THE KEY THAT WAS ALREADY TAKEN:
---   6.119.0 shipped four of the twelve LL asked for. These are the rest.
---     🗂 ⇪⇧' TAB SEARCH — every open tab in every RUNNING browser, from
---        anywhere: Finder, Word, the desktop, a terminal. Chrome, Safari,
---        Edge, Brave and Arc, each row naming its own browser. ⏎ raises
---        the window and switches to the tab.
---     🌐 ⇪6  NETWORK TOOLS — flush · ping · nslookup · traceroute. Pick
---        one and a second box opens where whatever you type IS the host;
---        your clipboard prefills it, stripped of scheme and path. Output
---        comes back as a searchable list and is on the clipboard already.
---     🖥 ⇪7  MAC PANEL — About This Mac in the Pomodoro's shape, plus the
---        four things Apple's does not put on the front page: uptime, free
---        disk, battery health, and this Mac's IP.
---     ⏸ ⇪'  PAUSE ALL AUDIO AND VIDEO.
---     👻 ⇪`  Ghostty at the front Finder folder · ⇪⇧` Finder at the front
---        Ghostty folder.
---     🔳 ⇪5  READ A QR CODE off the screen — next to ⇪4 because both read
---        the screen. Needs zbar; without it the refusal says exactly that.
---   🚨 ⇪⇧, AND ⇪⇧. WERE ALREADY TAKEN, and the first draft of this
---      release pointed two of these at them. numpad_layer's laptop window
---      row has owned both since 6.114.0 (shrink and grow) — the hyper
---      sentry would have printed a conflict at boot and one of those
---      window keys would have gone quietly dead. Caught by reading the
---      map rather than by the boot; a test asserts it now.
---   ⚠️ THREE HONEST LIMITS, STATED ON THE KEY RATHER THAN DISCOVERED:
---      ⏸ macOS routes the media key to ONE app — whichever it considers
---        "now playing". So the key posts the media key AND tells every
---        scriptable player that is ALREADY RUNNING to pause, and says how
---        many it reached. Already running matters: naming an app in
---        AppleScript LAUNCHES it, and a pause key that opens Music is
---        worse than no pause key.
---      👻 A terminal's directory belongs to the SHELL, not the window.
---        The front window's TITLE is tried first because it is the only
---        route that knows which window is in front; lsof on Ghostty's
---        child shells is the fallback, and it cannot tell two windows
---        apart. When that route is used, the alert says so.
---      🗂 A tab is addressed as "tab 4 of window 2" — a POSITION, which
---        moves. The list is never cached, and the jump verifies the URL
---        it landed on, so "that tab moved" is something you are told.
---
--- ALSO IN 6.120.0 — WHAT THE GATE CAUGHT:
---   🚨 THE EXTERNAL-BINARY REVIEW FOUND SIXTEEN UNDECLARED COMMANDS, and
---      the interesting half was the ones it could NOT see: a binary
---      written inside a longer shell string is invisible to that scan.
---      Every one is a named constant now, so the review is real rather
---      than accidentally bypassed, and all sixteen are declared with what
---      they are for.
---   🚨 THE TAB JUMP COUNTED A WRONG LANDING AS A SUCCESS. The counter
---      incremented before the URL comparison, so a report agreed with you
---      about a jump that went to the wrong page. Found by its own test.
---
--- (6.119.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.120.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.124.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.125.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -545,7 +522,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.124.0"
+_G.configVersion = "6.125.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2948,7 +2925,7 @@ local BASE = {
     "net_tools",          -- 🌐 ⇪6  flush · ping · nslookup · traceroute
     "mac_panel",          -- 🖥 ⇪7  About This Mac, as a card
     "tab_search",         -- 🗂 ⇪⇧' every open tab in every running browser
-    "editor_picker",      -- 🗂 right ⌘⌘ (or ⇪⇧Z) every editor at once, by
+    "editor_picker",      -- 🗂 ⌃⌃ (or ⇪space) every editor at once, by
                           -- what is open and what has something in it.
                           -- LAST on purpose: it only READS the registry the
                           -- editors above fill, so loading it after all of
