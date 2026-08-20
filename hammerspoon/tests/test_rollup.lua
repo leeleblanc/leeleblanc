@@ -181,7 +181,7 @@ check("_G.rollup() is reachable from the Console",
 
 -- =====================================================================
 out("\n=== R1. Every line is derived — and a missing store SAYS SO ===\n")
-local text, anything = roll.text()
+local text, anything = roll.text(TODAY)
 check("the day's total appears", text:find("2h", 1, true) ~= nil, text)
 check("the top apps appear, biggest first",
       text:find("Microsoft Word") < text:find("Google Chrome"), text)
@@ -194,9 +194,30 @@ check("...and the most recent one is quoted",
       text:find("fold the snippets", 1, true) ~= nil)
 check("the day is not empty", anything == true)
 
+-- 🚨 6.117.0 — EVERY CALL ABOVE PASSES TODAY EXPLICITLY, AND THAT IS THE
+-- FIX, not a tidy-up. These calls used to pass no argument, so the module
+-- fell back to os.date() — the REAL clock — while the fixtures above are
+-- pinned to NOW (2026-08-19). The two agreed on exactly one calendar day.
+-- On 2026-08-20 "today's documents appear" failed, and worse, "YESTERDAY's
+-- do not" had been passing vacuously the whole time: once the real date
+-- matches neither fixture, NOTHING appears and an exclusion check that
+-- proves nothing still goes green. A suite that only passes on the day it
+-- was written is not a suite.
+--
+-- The default itself still needs covering, because 16:01 in production
+-- calls it with no argument. That is what this does — and it is the ONE
+-- check here allowed to read the real clock.
+local REAL_TODAY = os.date("%Y-%m-%d")
+PROVIDERS["activity.docs"] = function()
+    return { { date = REAL_TODAY, file = "Clock Default.docx", secs = 120 } }
+end
+check("🕰 no argument means the REAL today — the 16:01 path",
+      (roll.text()):find("Clock Default.docx", 1, true) ~= nil, roll.text())
+fullDay()
+
 -- The distinction the whole design turns on.
 PROVIDERS["activity.dayTotals"] = nil
-local missingText, missingAnything = roll.text()
+local missingText, missingAnything = roll.text(TODAY)
 check("a MISSING store says it is not answering",
       missingText:find("not answering", 1, true) ~= nil, missingText)
 check("...and is NOT treated as an empty day, because it is not one",
@@ -206,14 +227,14 @@ fullDay()
 PROVIDERS["activity.dayTotals"] = function()
     return { date = TODAY, total = 0, apps = {} }
 end
-local zeroText = roll.text()
+local zeroText = roll.text(TODAY)
 check("a store that answers ZERO reads as nothing tracked, not as broken",
       zeroText:find("nothing tracked", 1, true) ~= nil
       and zeroText:find("not answering", 1, true) == nil, zeroText)
 
 -- A provider that throws is a third case again: it exists, and it failed.
 PROVIDERS["activity.docs"] = function() error("the CSV is a directory") end
-local throwText = roll.text()
+local throwText = roll.text(TODAY)
 check("a provider that THROWS is caught and reported, not crashed through",
       throwText:find("not answering", 1, true) ~= nil, throwText)
 
@@ -225,7 +246,7 @@ end
 PROVIDERS["activity.docs"]  = function() return {} end
 PROVIDERS["notes.today"]    = function() return {} end
 
-local _, emptyAnything = roll.gather()
+local _, emptyAnything = roll.gather(TODAY)
 check("gather() reports the day as empty", emptyAnything == false)
 
 CANVASES, SHOWN, SAFE_SHOWN = {}, {}, 0
@@ -234,7 +255,7 @@ check("...and really drew nothing", #CANVASES == 0 and #SHOWN == 0)
 
 check("_G.rollup() on the same empty day DOES draw", roll.show() == true)
 check("...and says so in plain words",
-      (roll.text()):find("A quiet one", 1, true) ~= nil, roll.text())
+      (roll.text(TODAY)):find("A quiet one", 1, true) ~= nil, roll.text(TODAY))
 
 -- =====================================================================
 out("\n=== R3. It cannot take the keyboard ===\n")
