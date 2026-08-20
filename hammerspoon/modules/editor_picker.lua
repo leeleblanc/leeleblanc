@@ -1,24 +1,24 @@
 -- =====================================================================
--- MODULE: EDITOR PICKER (right ⌥⌥, or ⇪⇧Z) — every text surface this
+-- MODULE: EDITOR PICKER (⌃⌃, or ⇪⇧Z) — every text surface this
 -- config owns
 -- =====================================================================
 -- LL: "Right now a double-click of the cmd+cmd key pressed quickly.
 -- Could I bring up all my editor windows up and then let me select the
 -- one I need to copy from or edit from?"
 --
--- Tap the right ⌥ twice, quickly, touching nothing else. A picker opens
--- listing every editor this config owns — the Capture Pad, the Note Pad,
--- the OCR text store, clipboard history, window pins, the screenshot
--- editor — with how much is in each one. ⏎ opens the one you chose (or
--- brings it to the front if it is already up). ⌥⏎ copies its text WITHOUT
--- opening anything, which is the "copy from" half of the ask.
+-- Tap ⌃ twice, quickly, touching nothing else — either Control key does
+-- it. A picker opens listing every editor this config owns — the Capture
+-- Pad, the Note Pad, the OCR text store, clipboard history, window pins,
+-- the screenshot editor — with how much is in each one. ⏎ opens the one
+-- you chose (or brings it to the front if it is already up). ⌥⏎ copies
+-- its text WITHOUT opening anything, the "copy from" half of the ask.
 --
---        right ⌥⌥   the picker
+--        ⌃⌃         the picker
 --        ⇪⇧Z        the same picker, for when the tap is unavailable
 --        ⏎          open it / bring it forward
 --        ⌥⏎         copy its text and stay where you are
 --
--- ---- ✋ WHY A SIDE AT ALL, AND WHY ⌥ (6.121.0, settled in 6.122.0) ----
+-- ---- ✋ WHY A SIDE AT ALL (6.121.0 · 6.122.0 · answered in 6.124.0) ---
 -- LL: "Right now I use the cmd+cmd so technically it's a conflict with
 -- Hammerspoon. Can I use left cmd twice for Alfred and right cmd for
 -- Hammerspoon?"
@@ -31,21 +31,40 @@
 --        left ⌃  59        right ⌃  62
 --        left ⇧  56        right ⇧  60
 --
--- So the tap can be told to care about ONE key, and it is. ep.tapSide =
--- "right" means a left-hand tap is not merely ignored, it CANCELS any
--- sequence in flight, so reaching for another program's double tap can
--- never leave half a gesture armed here.
+-- So the tap CAN be told to care about ONE key. ep.tapSide = "right"
+-- means a left-hand tap is not merely ignored, it CANCELS any sequence
+-- in flight, so reaching for another program's double tap can never
+-- leave half a gesture armed here.
 --
--- 🚨 WHAT 6.121.0 COULD NOT ANSWER, AND DID NOT PRETEND TO. Splitting ⌘
--- needs BOTH programs to distinguish the sides, and whether Alfred does
--- is Alfred's business — unreadable from in here. So the modifier was
--- made a setting alongside the side, and LL settled it the better way:
+-- 🚨 WHAT 6.121.0 COULD NOT ANSWER — AND 6.124.0 WENT AND MEASURED.
+-- Splitting a modifier needs BOTH programs to distinguish the sides,
+-- and whether Alfred does was called "Alfred's business, unreadable
+-- from in here". That was honest but it was not the end of it, because
+-- the question is answerable from OUTSIDE: put the picker on one side
+-- and press the other, and watch what opens. LL ran it.
 --
---        Alfred      → right ⌃⌃
---        this picker → right ⌥⌥
+--        LL: "Alfred fires on either Control"
 --
--- Two keys neither program has to share. Nothing now depends on the one
--- fact this file could not check.
+-- ⚠️ SO THE SPLIT WITH ALFRED IS IMPOSSIBLE, not merely unproven. A
+-- side-blind program cannot be given half a key. 6.122.0's ⌥⌥ was the
+-- right call on what was known then — two modifiers, nothing shared —
+-- and 6.124.0 replaces it only because LL moved Alfred off ⌃⌃ entirely,
+-- which removes the conflict instead of dividing it.
+--
+--        Alfred      → wherever LL has put it, NOT ⌃⌃
+--        this picker → ⌃⌃, either side
+--
+-- ⌨️ AND THE HARDWARE WAS CHECKED TOO, because "right ⌃" is not a key
+-- every Mac keyboard has — no Apple-built one does. A flagsChanged probe
+-- on LL's board printed keycode 62, so a right ⌃ is really there. The
+-- shipped default does not depend on that (tapSide is "either"), but the
+-- setting below is only offerable because the key exists.
+--
+-- 🚨 THE SIDE MACHINERY STAYS, and is not dead code. It is what makes
+-- tapSide = "left"/"right" work for the NEXT program that turns out to
+-- be side-aware, it is still covered by its own tests, and it is the
+-- reason this file can answer "which ⌃ did that come from" at all.
+-- "either" is a setting, not a removal.
 --
 -- ⚠️ AND THE SIDE IS ONLY HONOURED WHEN IT CAN BE READ. A flagsChanged
 -- event with no readable keycode cannot be attributed to a side, and this
@@ -121,19 +140,20 @@ local M = {
     family = "text",
     -- 🗂 THE FIRST TWO ROWS AND THE TITLE ARE REWRITTEN BY setup(), because
     -- the gesture is a setting now and a cheat sheet that says ⌘⌘ while the
-    -- tap is watching right ⌥⌥ is worse than no cheat sheet at all. These
+    -- tap is watching ⌃⌃ is worse than no cheat sheet at all. These
     -- are the defaults, and they are what shows if setup never runs.
     cheatsheet = {
-        title = "🗂 EDITOR PICKER (right ⌥⌥ — every editor at once)",
+        title = "🗂 EDITOR PICKER (⌃⌃ — every editor at once)",
         entries = {
-            { "right ⌥⌥", "Tap it twice, touching nothing else — the picker opens" },
+            { "⌃⌃", "Tap it twice, touching nothing else — the picker opens" },
             { "⇪⇧Z", "The same picker, when the double tap is unavailable" },
             { "⏎",   "Open it — or bring it forward if it is already up" },
             { "⌥⏎",  "Copy that editor's text and leave everything closed" },
             { "lists", "Capture Pad · Note Pad · OCR text · clipboard · pins" },
             { "sorted", "Open windows first, then whatever has something in it" },
             { "never", "⌘C then ⌘V does NOT open it — see the header" },
-            { "left ⌥⌥", "Not this one — the left ⌥ is free. See ep.tapSide" },
+            { "either ⌃", "Both Control keys fire it — ep.tapSide narrows it" },
+            { "safe", "⌃-click and ⌃-scroll do NOT open it — they cancel it" },
             { "check", "_G.editorPickerReport() — the roster and the tap's health" },
         },
     },
@@ -151,20 +171,22 @@ function M.setup(core)
     --   tapMod  "cmd" · "alt" · "ctrl" · "shift"
     --   tapSide "right" · "left" · "either"
     --
-    -- ✋ 6.122.0 — THE ARGUMENT WITH ALFRED IS OVER, AND NOT BY SPLITTING
-    -- ⌘ AFTER ALL. 6.121.0 offered LL the right ⌘ with left ⌘ left to
-    -- Alfred; what he did instead was better than what was offered:
-    --        Alfred      → right ⌃⌃
-    --        this picker → right ⌥⌥
-    -- Two keys neither program has to share, so nothing depends any more
-    -- on whether Alfred can tell its ⌘ keys apart — which was the one
-    -- thing 6.121.0 could not find out from in here. The side machinery
-    -- still earns its place: it is what makes right ⌥⌥ mean the RIGHT ⌥,
-    -- leaving the left one free for whatever comes next.
+    -- ✋ 6.124.0 — ⌃⌃, AND NO SIDE. LL asked for a double Control and then
+    -- answered the question that had been open since 6.121.0 by testing
+    -- it: "Alfred fires on either Control". Alfred is side-blind, so it
+    -- cannot be handed half a key — and LL moved it off ⌃⌃ rather than
+    -- try. With the conflict gone there is nothing left to divide, so the
+    -- side is switched off and BOTH ⌃ keys open the picker.
     --
-    -- "cmd" + "either" is the 6.116.0 behaviour, one line away.
-    ep.tapMod      = "alt"
-    ep.tapSide     = "right"
+    -- ⚠️ tapSide = "either" IS DELIBERATE, NOT A SHRUG. Restricting to
+    -- "right" would work on LL's board (keycode 62 is really there) and
+    -- break silently on any Apple keyboard, none of which have a right ⌃.
+    -- A gesture that dies when he opens the laptop lid is not the ask.
+    --
+    -- "alt" + "right" is 6.122.0's ⌥⌥, and "cmd" + "either" is 6.116.0.
+    -- Both are one line away.
+    ep.tapMod      = "ctrl"
+    ep.tapSide     = "either"
     -- ⏱ Two windows, and they are different questions. maxHold is "was
     -- that ⌘ a TAP or a HOLD" — a modifier you are holding down to use is
     -- down for as long as you are reading the menu. tapGap is "were those
@@ -197,6 +219,43 @@ function M.setup(core)
         shift = { glyph = "⇧", left = "shift", right = "rightshift", codes = { 56, 60 } },
     }
     ep.ALL_MODS = { "cmd", "alt", "ctrl", "shift" }
+
+    -- 🖱 WHAT THE TAP WATCHES, AND WHAT CANCELS A GESTURE (6.124.0).
+    -- flagsChanged is the gesture itself. Everything in INTRUDER_NAMES is
+    -- something that can happen BETWEEN the two halves of a press and
+    -- prove it was a chord — see ep.onIntruder for why the mouse ones
+    -- became mandatory the moment tapMod became "ctrl".
+    --
+    -- 🚨 BUILT BY LOOKUP, NOT WRITTEN OUT, and any name this Hammerspoon
+    -- does not have is SKIPPED rather than stored as nil. Same guard as
+    -- the keycode table above and numpad_layer's missing-pad-key check: a
+    -- nil in a watched-types list is not a smaller feature, it is an
+    -- eventtap that fails to construct and takes the gesture with it.
+    ep.INTRUDER_NAMES = {
+        "keyDown",
+        "leftMouseDown",   -- ⌃-click is the Mac right-click
+        "rightMouseDown",
+        "otherMouseDown",
+        "scrollWheel",     -- ⌃-scroll is screen zoom
+    }
+    ep.INTRUDER_TYPES = {}
+    ep.WATCHED_TYPES  = {}
+    ep.MISSING_TYPES  = {}
+    do
+        local T = (hs.eventtap and hs.eventtap.event and hs.eventtap.event.types) or {}
+        for _, name in ipairs(ep.INTRUDER_NAMES) do
+            local t = T[name]
+            if t ~= nil then
+                ep.INTRUDER_TYPES[t] = true
+                ep.WATCHED_TYPES[#ep.WATCHED_TYPES + 1] = t
+            else
+                ep.MISSING_TYPES[#ep.MISSING_TYPES + 1] = name
+            end
+        end
+        if T.flagsChanged ~= nil then
+            ep.WATCHED_TYPES[#ep.WATCHED_TYPES + 1] = T.flagsChanged
+        end
+    end
 
     function ep.modSpec()
         return ep.MOD_KEYS[ep.tapMod] or ep.MOD_KEYS.cmd
@@ -565,9 +624,28 @@ function M.setup(core)
         end
     end
 
-    -- Any real key press means the ⌘ around it was a chord, not a tap —
-    -- and it cancels a sequence already half-made.
-    function ep.onKeyDown()
+    -- Any real key press means the modifier around it was a chord, not a
+    -- tap — and it cancels a sequence already half-made.
+    --
+    -- 🚨 6.124.0 — A MOUSE CLICK COUNTS AS A KEY PRESS, and moving to ⌃
+    -- is what made that mandatory rather than tidy. ⌃-click IS the Mac
+    -- right-click and ⌃-scroll IS screen zoom, so with tapMod = "ctrl"
+    -- the two commonest ⌃ gestures on the machine are:
+    --
+    --        ⌃-click        ctrl↓ · (click) · ctrl↑
+    --        ⌃ tapped once  ctrl↓ ·         · ctrl↑
+    --
+    -- which is the SAME argument the ⌘C/⌘V block at the top of this file
+    -- makes, arriving through a different device. A keyDown-only tap
+    -- cannot see the middle column here either, so two right-clicks
+    -- inside ep.tapGap would have opened the picker over whatever you
+    -- were clicking on. ⌥ never had this problem; ⌃ has it constantly.
+    function ep.onIntruder()
+        -- Nothing armed, nothing to cancel. This is the scroll-wheel hot
+        -- path — one comparison, then out — and it is why watching scroll
+        -- costs nothing measurable. `dirty` set while no modifier is down
+        -- would be overwritten by the next press anyway.
+        if modDownAt == nil and lastTapAt == 0 then return end
         dirty     = true
         lastTapAt = 0
     end
@@ -591,8 +669,10 @@ function M.setup(core)
         -- implementation cannot quietly make ⇪ look like a bare ⌘ tap.
         if _G.hyperActive then ep.resetTapState() return end
         local t = ev:getType()
-        if t == hs.eventtap.event.types.keyDown then
-            ep.onKeyDown()
+        -- keyDown and every pointer event that can happen mid-press mean
+        -- the modifier around them was a chord. See ep.onIntruder.
+        if ep.INTRUDER_TYPES[t] then
+            ep.onIntruder()
             return
         end
         local flags = ev:getFlags() or {}
@@ -634,10 +714,8 @@ function M.setup(core)
 
     function ep.startTap()
         if not (ep.enabled and ep.tapEnabled) then return false end
-        local okNew, tap = pcall(hs.eventtap.new, {
-            hs.eventtap.event.types.keyDown,
-            hs.eventtap.event.types.flagsChanged,
-        }, function(ev) return ep.handler(ev) end)
+        local okNew, tap = pcall(hs.eventtap.new, ep.WATCHED_TYPES,
+                                 function(ev) return ep.handler(ev) end)
         if not (okNew and tap) then
             warn("could not create the " .. ep.gesture()
                  .. " watcher — ⇪⇧Z still works")
@@ -668,6 +746,14 @@ function M.setup(core)
         L[#L + 1] = string.format("   watcher    : %s%s",
             ep.tapRunning and "running" or "NOT running",
             ep.tapEnabled and "" or " (tapEnabled = false)")
+        -- 🚨 A SKIPPED EVENT TYPE IS SAID OUT LOUD, not left to be found by
+        -- the picker opening on a right-click. Rule 7: the silent version
+        -- of this is a gesture that misfires and never explains itself.
+        if #ep.MISSING_TYPES > 0 then
+            L[#L + 1] = "   ⚠️ this Hammerspoon has no event type for "
+                        .. table.concat(ep.MISSING_TYPES, ", ") .. " —"
+            L[#L + 1] = "      those cannot cancel a half-made gesture."
+        end
         L[#L + 1] = string.format("   fired      : %d time%s this session",
             ep.fires, ep.fires == 1 and "" or "s")
         L[#L + 1] = string.format("   fallback   : ⇪%s%s",
@@ -719,8 +805,8 @@ function M.setup(core)
     ep.resolveCodes()
 
     -- 🗂 THE SHEET IS TOLD WHAT THE TAP ACTUALLY WATCHES, because a cheat
-    -- sheet that says ⌘⌘ while the tap watches right ⌥⌥ is worse than no
-    -- cheat sheet: it is a wrong answer given confidently.
+    -- sheet that says ⌘⌘ while the tap watches ⌃⌃ is worse than no cheat
+    -- sheet: it is a wrong answer given confidently.
     --
     -- ⚠️ CALLED TWICE, AND THE SECOND TIME IS THE ONE THAT MATTERS ON A
     -- MACHINE WITH A PROFILE. init.lua applies profile overrides to
@@ -742,9 +828,13 @@ function M.setup(core)
             M.cheatsheet.entries[8] = { otherSide .. " " .. glyph .. glyph,
                 "Not this one — yours to give to Alfred. See ep.tapSide" }
         else
-            M.cheatsheet.entries[8] = { "either side", "Both " .. ep.tapMod
+            M.cheatsheet.entries[8] = { "either " .. glyph, "Both " .. glyph
                 .. " keys fire it — ep.tapSide = \"right\" narrows it" }
         end
+        -- The mouse row names the modifier in force, because "⌃-click does
+        -- not open it" is a lie the moment someone sets tapMod = "cmd".
+        M.cheatsheet.entries[9] = { "safe", glyph .. "-click and " .. glyph
+            .. "-scroll do NOT open it — they cancel it" }
         for _, g in ipairs(_G.moduleCheatsheets or {}) do
             if type(g) == "table" and g.source == M.name then
                 g.title = M.cheatsheet.title

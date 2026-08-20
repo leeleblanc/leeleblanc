@@ -4,9 +4,36 @@
 -- =====================================================================
 -- 08-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.123.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.124.0
 -- =====================================================================
 
+-- NEW IN 6.124.0 — THE PICKER MOVES TO ⌃⌃, AND THE MOUSE GETS A VOTE:
+--   ✋ THE EDITOR PICKER IS ON ⌃⌃ NOW, EITHER CONTROL KEY. LL asked for a
+--      double Control, and then settled the question this config had been
+--      calling unanswerable since 6.121.0 by going and testing it:
+--          LL: "Alfred fires on either Control"
+--      Alfred is side-blind, so it cannot be handed half a key — there
+--      was no split to be had. LL moved Alfred off ⌃⌃ instead, which
+--      removes the conflict rather than dividing it, and the picker took
+--      the key whole. "alt"/"right" is 6.122.0's ⌥⌥ and "cmd"/"either"
+--      is 6.116.0's ⌘⌘; both are still one line away.
+--      ⚠️ NO SIDE IS DEMANDED, DELIBERATELY. A flagsChanged probe on LL's
+--      external keyboard printed keycode 62, so a right ⌃ really is
+--      there — but Apple builds no keyboard that has one, so tapSide =
+--      "right" would have worked at the desk and died silently the
+--      moment he opened the laptop.
+--   🖱 AND ⌃-CLICK NO LONGER OPENS IT, which is what made ⌃ usable at
+--      all. ⌃-click IS the Mac right-click and ⌃-scroll IS screen zoom,
+--      so on ⌃ the two commonest gestures on the machine look like this:
+--          ⌃-click        ctrl↓ · (click) · ctrl↑
+--          ⌃ tapped once  ctrl↓ ·         · ctrl↑
+--      — identical to a tap that only watches the keyboard. Two right-
+--      clicks in quick succession would have opened the picker over
+--      whatever was being clicked. That is the same argument the ⌘C/⌘V
+--      block has always made, arriving through a different device, so
+--      the tap now watches the pointer as well and a click CANCELS a
+--      half-made gesture. ⌥ never had this problem; ⌃ has it constantly.
+--
 -- NEW IN 6.123.0 — THE COLUMN THAT WAS PROMISED, AND THE WINDOW THAT
 -- ONLY HALF-MOVED:
 --   🌐 activity_history.csv HAS A url COLUMN. LL asked twice for "a tool
@@ -135,6 +162,8 @@
 --          _G.editorPicker.tapSide = "right" | "left" | "either"
 --      tapMod = "alt" puts the picker on right ⌥⌥, which Alfred is not
 --      watching at all. "either" is the 6.116.0 behaviour, unchanged.
+--      (6.124.0 answered the question above out loud: Alfred DOES fire
+--      on both keys, so the split was never available. See the top.)
 --      🚨 THE SIDE CHECK DOES NOT REPLACE THE keyDown WATCH. Somebody who
 --      copies and pastes with the right ⌘ produces right-⌘C then
 --      right-⌘V, which passes the side check perfectly. Narrowing the
@@ -202,74 +231,10 @@
 --      incremented before the URL comparison, so a report agreed with you
 --      about a jump that went to the wrong page. Found by its own test.
 --
--- NEW IN 6.119.0 — TWELVE TOOLS ASKED FOR, THE FIRST FOUR OF THEM, AND
--- THE KEYBOARD RUNNING OUT OF LETTERS:
---   🔑 EVERY ⇪ LETTER AND EVERY ⇪⇧ LETTER IS NOW CLAIMED. win_pin called
---      ⇪⇧U "the last free ⇪⇧ letter" in 6.104.0 and it was right; there
---      have been fifty-two letter combos and fifty-two owners ever since.
---      So these four land on PUNCTUATION, which is not a workaround —
---      ⇪, sits exactly where ⌘, sits in every other Mac application.
---      All four are ALSO runnable from ⇪⇧/ with no key at all, the way
---      the daily rollup is, because a key nobody can guess is a key
---      nobody presses.
---     🔎 ⇪.  MENU SEARCH — every menu item of the FRONT app, flattened
---        into one list you type into. "pdf" finds File ▸ Export As ▸
---        PDF… without knowing it was under Export. Shows each item's
---        keyboard shortcut, lists greyed-out items rather than hiding
---        them, and refuses to run one while explaining that the app is
---        the thing saying no. The scan is ASYNCHRONOUS: the blocking
---        form of getMenuItems() can hold the keyboard for seconds on an
---        app with deep menus, and a keyboard that stops answering is
---        indistinguishable from a crash.
---     ⚙️ ⇪,  SETTINGS PANES — System Settings by name. The five Privacy
---        destinations this config sends you to in nine different alerts
---        (Accessibility, Screen Recording, Automation, Input Monitoring,
---        Full Disk Access) are each ONE row, so ⇪, "access" ⏎ replaces
---        opening Settings and scrolling two sidebars.
---     💀 ⇪⇧; APP KILL — LL sent the Alfred Ruby workflow he had been
---        using; this is that, with the ps output in a chooser. ⏎ asks
---        it to quit, ⌥⏎ forces, and picking a process that ignored the
---        quit forces it too. launchd, kernel_task, WindowServer and
---        loginwindow are refused OUTRIGHT — under ⌥ as well, because
---        kill -9 on WindowServer logs you out with no save prompt.
---     🧰 ⇪;  POWER TOOLS — the four small ones in one list:
---        ⌨️ TYPE THE CLIPBOARD, for fields that refuse ⌘V ("confirm
---           your email address"). This is the tool LL asked whether he
---           already had. He did not — nothing in this config typed the
---           clipboard rather than pasting it.
---        🔢 COUNT THE SELECTION — words, characters and ~sentences. The
---           ~ is on the sentence figure because it IS an estimate:
---           "Dr. Smith went to the U.S. yesterday." is three by any
---           twenty-line rule and one by yours.
---        📋 STRIP CLIPBOARD FORMATTING, and say how many flavours went.
---        ℹ️ FILE METADATA — every mdls attribute of the Finder
---           selection as a searchable list; ⏎ copies one value.
---   🚨 SECURE INPUT IS CHECKED BEFORE A SINGLE CHARACTER IS TYPED. Under
---      secure event input macOS drops synthetic keystrokes at the window
---      server: nothing arrives, nothing complains, the field stays
---      empty. Typing anyway and reporting success is the worst outcome
---      available, so the check comes first and names the reason.
---
--- ALSO IN 6.119.0 — THREE THINGS CAUGHT BEFORE THEY SHIPPED:
---   🚨 hs-lint FOUND A DEAD SCAN IN THE FIRST DRAFT. settings_panes
---      captured one return value from hs.fs.dir; the iterator needs the
---      second, and `for e in iter do` throws at RUNTIME, never at load.
---      The .prefPane scan would have been silently dead. Its test stub
---      now REFUSES to iterate without the directory object.
---   🚨 THE FIRST whenClear USED TWO TIMERS and both could reach the
---      callback — which would have typed the clipboard TWICE into a text
---      field, with no undo. One timer, one callback, and a test that
---      reassembles what was typed and asserts exactly one copy.
---   🔢 THE SUITE COUNTS IN GUIDE.md WERE WRONG A SECOND TIME. 6.118.0
---      fixed the "forty-eight Lua suites" label and left the STAGE count
---      at forty-eight, which was also wrong — the gate reported fifty.
---      All three figures are measured off the gate now, and GUIDE.md
---      says to read them from it rather than from the paragraph.
---
--- (6.118.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.119.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.123.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.124.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -580,7 +545,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.123.0"
+_G.configVersion = "6.124.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

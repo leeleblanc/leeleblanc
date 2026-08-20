@@ -4,6 +4,72 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.124.0 — THE PICKER MOVES TO ⌃⌃, AND THE MOUSE GETS A VOTE:
+
+  ✋ THE EDITOR PICKER IS ON ⌃⌃ NOW, EITHER CONTROL KEY.
+  LL: "please fix only the shortcut keys first for a double ctrl+ctrl."
+
+  The obvious objection was raised first, because this config's own notes
+  had recorded the deal as "Alfred → right ⌃⌃, this picker → right ⌥⌥",
+  and moving onto ⌃ walks into Alfred. The offered way out was a side
+  split: give Alfred the right ⌃ and take the left. That offer was wrong,
+  and it was wrong for a reason 6.121.0 had already written down and
+  6.122.0 had already designed around — splitting a modifier needs BOTH
+  programs to tell the sides apart, and whether Alfred does was called
+  "Alfred's business, unreadable from in here".
+
+  Unreadable from in here is not the same as unanswerable. LL tested it:
+
+      LL: "Alfred fires on either Control"
+
+  So Alfred is side-blind and the split was never available — not merely
+  unproven, impossible. LL moved Alfred off ⌃⌃ instead, which removes the
+  conflict rather than dividing it, and the picker took the key whole.
+
+  ⌨️ THE HARDWARE WAS MEASURED TOO, NOT ASSUMED.
+  Apple builds no keyboard with a right Control key, so before offering a
+  side at all this needed to know whether LL's board has one. A
+  flagsChanged probe printed keycode 62, so it does. The shipped setting
+  still does not use it: tapSide is "either", because "right" would work
+  at the desk and die silently the moment the laptop lid opens. The same
+  probe printed 61 for right ⌥ — the 6.122.0 gesture was never broken by
+  hardware, it was simply never installed — and printed nothing at all
+  for keycode 57, which is Caps Lock correctly remapped to F18.
+
+  🖱 AND ⌃-CLICK NO LONGER OPENS IT, which is what made ⌃ usable at all.
+  ⌃-click IS the Mac right-click and ⌃-scroll IS screen zoom, so on ⌃ the
+  two commonest gestures on the machine are:
+
+      ⌃-click        ctrl↓ · (click) · ctrl↑
+      ⌃ tapped once  ctrl↓ ·         · ctrl↑
+
+  — indistinguishable to a tap that watches only the keyboard. Two right-
+  clicks inside ep.tapGap would have opened the picker over whatever was
+  being clicked on. That is the identical argument the ⌘C/⌘V block at the
+  top of editor_picker.lua has always made, arriving through a different
+  device, and ⌥ never had it: nobody ⌥-clicks, everybody ⌃-clicks.
+
+  The tap now also watches leftMouseDown, rightMouseDown, otherMouseDown
+  and scrollWheel, and treats every one of them exactly as it treats a
+  keyDown — as proof the modifier around it was a chord, cancelling any
+  half-made gesture rather than merely failing to count it. The watched
+  types are resolved by lookup and anything this Hammerspoon does not
+  have is SKIPPED and named in _G.editorPickerReport(), because a nil in
+  a watched-types list is not a smaller feature, it is an eventtap that
+  fails to construct and takes the gesture down with it.
+
+  ⚙️ THE SIDE MACHINERY STAYS, AND IS NOT DEAD CODE. tapSide = "left" or
+  "right" still works and is still covered by its own tests — it is what
+  the next side-aware program will need, and it is the reason the report
+  can answer "which ⌃ did that come from" at all. "either" is a setting,
+  not a removal. "alt"/"right" is 6.122.0's ⌥⌥ and "cmd"/"either" is
+  6.116.0's ⌘⌘; both remain one line away.
+
+  ⚠️ WHAT THIS RELEASE DELIBERATELY DOES NOT TOUCH. LL: "Only fix the
+  other stuff if will not absolutely interfere with the work we are
+  doing." ⇪⇧Z is still the fallback key and the VLC pause script is
+  untouched, both of which have open work of their own.
+
 NEW IN 6.123.0 — THE COLUMN THAT WAS PROMISED, AND THE WINDOW THAT ONLY
 HALF-MOVED:
 

@@ -49,7 +49,16 @@ local MODS     = {}              -- what checkKeyboardModifiers reports
 local CHOOSERS = {}
 local SHOWN    = {}              -- chooser:show() / core.showPopup calls
 
-local TYPES = { keyDown = 10, flagsChanged = 12 }
+-- 🖱 THE MOUSE TYPES ARE REAL STUB ENTRIES, not decoration. 6.124.0 put
+-- the gesture on ⌃, where ⌃-click is the Mac right-click and ⌃-scroll is
+-- screen zoom, so the module watches them to CANCEL a half-made gesture.
+-- A stub missing them would silently drop those types from WATCHED_TYPES
+-- and section 2i would be testing nothing.
+local TYPES = {
+    keyDown = 10, flagsChanged = 12,
+    leftMouseDown = 1, rightMouseDown = 3, otherMouseDown = 25,
+    scrollWheel = 22,
+}
 
 -- The real macOS keycodes. The module reads hs.keycodes.map and falls
 -- back to these same numbers, so the stub carries the map to prove the
@@ -121,6 +130,12 @@ local function keyEvent()
     return { getType = function() return TYPES.keyDown end,
              getFlags = function() return {} end }
 end
+-- A pointer event carries no keycode at all, which is the point: it can
+-- only ever be an intruder, never half a gesture.
+local function mouseEvent(name)
+    return { getType = function() return TYPES[name] end,
+             getFlags = function() return {} end }
+end
 
 -- ---- load it -----------------------------------------------------------
 local chunk = assert(loadfile(HS .. "/modules/editor_picker.lua"))
@@ -147,19 +162,42 @@ check("the tap watches flagsChanged AND keyDown", (function()
     end
     return wantsFlags and wantsKeys
 end)())
+-- 🚨 AND THE POINTER TYPES, which is what makes ⌃ survivable as a
+-- gesture. Drop any one of these from the module and a right-click stops
+-- cancelling — see section 2i for what that costs.
+check("…and every pointer event that can land mid-press", (function()
+    if not TAP then return false end
+    local seen = {}
+    for _, t in ipairs(TAP.types) do seen[t] = true end
+    for _, name in ipairs({ "leftMouseDown", "rightMouseDown",
+                            "otherMouseDown", "scrollWheel" }) do
+        if not seen[TYPES[name]] then return false, name end
+    end
+    return true
+end)())
+check("no event name was silently dropped", #ep.MISSING_TYPES == 0,
+      table.concat(ep.MISSING_TYPES, ","))
 check("three services are published",
       PROVIDED["editors.show"] and PROVIDED["editors.list"]
       and PROVIDED["editors.report"])
--- 🚨 THE SHIPPED GESTURE, PINNED. LL runs Alfred on right ⌃⌃ and this on
--- right ⌥⌥; a release that quietly moved this back onto ⌘ would put it
--- under Alfred again, and nothing else in the file would notice.
-check("the shipped gesture is the RIGHT ⌥, tapped twice",
-      ep.tapMod == "alt" and ep.tapSide == "right",
+-- 🚨 THE SHIPPED GESTURE, PINNED (6.124.0). LL asked for a double
+-- Control and moved Alfred off ⌃⌃ to make room, having established by
+-- test that "Alfred fires on either Control" — so no side split was
+-- available and none is attempted. A release that quietly moved this
+-- back onto ⌘ or ⌥ would break a gesture he has retrained onto, and
+-- nothing else in the file would notice.
+check("the shipped gesture is ⌃, tapped twice, either side",
+      ep.tapMod == "ctrl" and ep.tapSide == "either",
       tostring(ep.tapMod) .. "/" .. tostring(ep.tapSide))
-check("…and it names itself that way", ep.gesture() == "right ⌥⌥", ep.gesture())
+check("…and it names itself that way", ep.gesture() == "⌃⌃", ep.gesture())
 check("…and the cheat sheet says so too",
-      M.cheatsheet.title:find("right ⌥⌥", 1, true) ~= nil
-      and M.cheatsheet.entries[1][1] == "right ⌥⌥", M.cheatsheet.title)
+      M.cheatsheet.title:find("⌃⌃", 1, true) ~= nil
+      and M.cheatsheet.entries[1][1] == "⌃⌃", M.cheatsheet.title)
+-- ⚠️ AND IT MUST NOT BE SIDE-RESTRICTED, on purpose. Apple builds no
+-- keyboard with a right ⌃, so tapSide = "right" here would work on LL's
+-- external board and die silently the moment he opens the laptop.
+check("…and no side is demanded of a key Apple does not ship",
+      ep.tapSide == "either", ep.tapSide)
 
 -- =====================================================================
 out("\n=== 2. 🚨 ⌘C THEN ⌘V DOES NOT OPEN THE PICKER ===\n")
@@ -302,7 +340,13 @@ TAP.started = true ; ep.tapRunning = true ; ep.tapFailures = 0
 -- =====================================================================
 out("\n=== 2f. 🚨 ONE KEY, AND IT IS THE RIGHT ONE ===\n")
 -- =====================================================================
--- Back to the shipped gesture for the rest of the file.
+-- ⚠️ RUN ON right ⌥ DELIBERATELY, AND IT IS NO LONGER WHAT SHIPS. The
+-- side machinery survived 6.124.0 as a setting — the shipped gesture
+-- just does not use it, because Alfred turned out to be side-blind and
+-- ⌃⌃ was taken whole instead. Exercising it on ⌥ is exercising the same
+-- code the moment anyone sets tapSide, and ⌥ is the modifier with a real
+-- left and right on every keyboard, which ⌃ is not. Section 1 pins what
+-- actually ships; this section proves the machinery under it still works.
 ep.tapMod, ep.tapSide = "alt", "right"
 ep.resolveCodes()
 ep.describe()
@@ -395,9 +439,10 @@ check("…and it names ⇪⇧Z", (function()
 end)())
 
 out("\n=== 2g. the side is a setting, and so is the modifier ===\n")
--- 🚨 ⌘ MUST NOW DO NOTHING AT ALL. This is the check that says the move
--- off ⌘ actually happened: Alfred is on right ⌃⌃ and ⌘⌘ belongs to
--- neither of them any more.
+-- 🚨 A MODIFIER THAT IS NOT tapMod MUST DO NOTHING AT ALL. With the tap
+-- set to ⌥ above, neither ⌘⌘ nor ⌃⌃ may open anything — and ⌃ is the
+-- interesting one now that ⌃⌃ is what ships, because it proves the
+-- gesture follows the SETTING and is not hard-coded anywhere.
 reset()
 feed(flagsEvent({ cmd = true }, R_CMD)); tick(0.05); feed(flagsEvent({}, R_CMD))
 tick(0.10)
@@ -408,7 +453,7 @@ feed(flagsEvent({ ctrl = true }, KC.rightctrl)); tick(0.05)
 feed(flagsEvent({}, KC.rightctrl)); tick(0.10)
 feed(flagsEvent({ ctrl = true }, KC.rightctrl)); tick(0.05)
 feed(flagsEvent({}, KC.rightctrl))
-check("…nor does right ⌃⌃, which is Alfred's", ep.fires == 0, ep.fires)
+check("…nor does ⌃⌃ while the tap is set to ⌥", ep.fires == 0, ep.fires)
 
 -- 🚨 THE INTRUDER TEST FOLLOWS THE SETTING. With tapMod = "alt", ⌥ is the
 -- gesture and must not count as a foreign modifier in its own press —
@@ -480,25 +525,99 @@ check("…and the gesture still works rather than dying quietly",
 KC.alt = 58
 
 -- Back to the shipped settings for everything below.
-ep.tapMod, ep.tapSide = "alt", "right"
+ep.tapMod, ep.tapSide = "ctrl", "either"
 ep.resolveCodes()
 ep.describe()
 ep.sidesSeen, ep.sideUnknown, ep.saidUnknown = { left = 0, right = 0 }, 0, false
 reset()
 
-out("\n=== 2h. nothing may name the gesture from memory ===\n")
+-- =====================================================================
+out("\n=== 2h. 🚨 ⌃-CLICK AND ⌃-SCROLL DO NOT OPEN THE PICKER ===\n")
+-- =====================================================================
+-- The reason 6.124.0 could move the gesture onto ⌃ at all. ⌃-click IS
+-- the Mac right-click and ⌃-scroll IS screen zoom, so on the shipped
+-- gesture these are the two commonest ⌃ events on the machine:
+--
+--        ⌃-click        ctrl↓ · (click) · ctrl↑
+--        ⌃ tapped once  ctrl↓ ·         · ctrl↑
+--
+-- identical to a keyDown-and-flagsChanged tap. Two right-clicks inside
+-- ep.tapGap would have opened the picker over whatever was being
+-- clicked. Delete any pointer type from ep.INTRUDER_NAMES and this
+-- section fails — which is the whole job of this section.
+ep.tapMod, ep.tapSide = "ctrl", "either"
+ep.resolveCodes()
+ep.describe()
+
+local L_CTRL, R_CTRL = KC.ctrl, KC.rightctrl
+
+-- ⌃ down · click · ⌃ up, twice over, fast — a double right-click.
+local function ctrlClick(name, code)
+    feed(flagsEvent({ ctrl = true }, code)); tick(0.02)
+    feed(mouseEvent(name));                  tick(0.02)
+    feed(flagsEvent({}, code));              tick(0.05)
+end
+
+for _, name in ipairs({ "leftMouseDown", "rightMouseDown",
+                        "otherMouseDown", "scrollWheel" }) do
+    reset()
+    ctrlClick(name, L_CTRL); ctrlClick(name, L_CTRL)
+    check("two ⌃ presses around a " .. name .. " do NOT open the picker",
+          ep.fires == 0, ep.fires)
+end
+
+-- 🚨 AND IT CANCELS RATHER THAN MERELY FAILING TO COUNT. A click that
+-- only failed to register would leave the first tap armed, and the next
+-- bare ⌃ tap a beat later would open the picker unasked — which is the
+-- same argument the wrong-side check in 2f makes.
+reset()
+tapWith(L_CTRL)                    -- one clean tap, armed
+feed(mouseEvent("rightMouseDown")) -- a right-click lands
+tick(0.05)
+tapWith(L_CTRL)                    -- and a clean tap right after
+check("a click between two ⌃ taps cancels the gesture", ep.fires == 0,
+      ep.fires)
+
+-- The gesture still has to WORK, on both keys, with the mouse quiet.
+reset() ; tapWith(L_CTRL) ; tapWith(L_CTRL)
+check("a clean left ⌃⌃ still opens it", ep.fires == 1, ep.fires)
+reset() ; tapWith(R_CTRL) ; tapWith(R_CTRL)
+check("…and so does a clean right ⌃⌃", ep.fires == 1, ep.fires)
+
+-- A pointer event with nothing armed must be free, not an error: this is
+-- the scroll-wheel hot path and it runs on every scroll event forever.
+reset()
+for _ = 1, 200 do feed(mouseEvent("scrollWheel")) end
+check("scrolling with no gesture in flight is inert", ep.fires == 0, ep.fires)
+check("…and never consumes the event",
+      feed(mouseEvent("scrollWheel")) == false)
+
+-- =====================================================================
+out("\n=== 2i. nothing may name the gesture from memory ===\n")
 check("the cheat sheet title names the live gesture",
-      M.cheatsheet.title:find("right ⌥⌥", 1, true) ~= nil,
+      M.cheatsheet.title:find("⌃⌃", 1, true) ~= nil,
       M.cheatsheet.title)
 check("…and so does its first row",
-      M.cheatsheet.entries[1][1] == "right ⌥⌥", M.cheatsheet.entries[1][1])
-check("…and a row names the key this is NOT",
-      M.cheatsheet.entries[8][1] == "left ⌥⌥", M.cheatsheet.entries[8][1])
-ep.tapMod = "ctrl" ; ep.resolveCodes() ; ep.describe()
+      M.cheatsheet.entries[1][1] == "⌃⌃", M.cheatsheet.entries[1][1])
+check("…and the side row says both keys fire it",
+      M.cheatsheet.entries[8][1] == "either ⌃", M.cheatsheet.entries[8][1])
+-- 🚨 THE MOUSE ROW NAMES THE LIVE MODIFIER TOO. "⌃-click does not open
+-- it" becomes a lie the moment tapMod moves, and a cheat sheet that lies
+-- confidently is the thing this whole section exists to prevent.
+check("…and the mouse row names the live modifier",
+      M.cheatsheet.entries[9][2]:find("⌃-click", 1, true) ~= nil,
+      M.cheatsheet.entries[9][2])
+ep.tapMod, ep.tapSide = "alt", "right"
+ep.resolveCodes() ; ep.describe()
 check("changing the modifier rewrites the sheet rather than leaving it stale",
-      M.cheatsheet.title:find("right ⌃⌃", 1, true) ~= nil
-      and M.cheatsheet.entries[1][1] == "right ⌃⌃",
+      M.cheatsheet.title:find("right ⌥⌥", 1, true) ~= nil
+      and M.cheatsheet.entries[1][1] == "right ⌥⌥",
       M.cheatsheet.title)
+check("…the mouse row followed it",
+      M.cheatsheet.entries[9][2]:find("⌥-click", 1, true) ~= nil,
+      M.cheatsheet.entries[9][2])
+check("…and so did the side row",
+      M.cheatsheet.entries[8][1] == "left ⌥⌥", M.cheatsheet.entries[8][1])
 -- The harvested group holds the SAME entries table by reference but its
 -- own copy of the title string, so describe() has to go and fix that too.
 _G.moduleCheatsheets = { { source = M.name, title = "stale", entries = M.cheatsheet.entries } }
@@ -509,7 +628,8 @@ check("a title already harvested by init.lua is corrected in place",
 _G.moduleCheatsheets = nil
 -- Back to the shipped gesture, and it stays there to the end of the file:
 -- section 6 reads the report and the report must describe what ships.
-ep.tapMod = "alt" ; ep.resolveCodes() ; ep.describe()
+ep.tapMod, ep.tapSide = "ctrl", "either"
+ep.resolveCodes() ; ep.describe()
 
 -- =====================================================================
 out("\n=== 3. the roster, sorted ===\n")
@@ -671,16 +791,26 @@ local rep = _G.editorPickerReport()
 check("it names the tap's state", rep:find("watcher    : running", 1, true) ~= nil,
       rep)
 check("it names the gesture and both settings it is made of",
-      rep:find("right ⌥⌥", 1, true) ~= nil
-      and rep:find("tapMod = alt", 1, true) ~= nil
-      and rep:find("tapSide = right", 1, true) ~= nil, rep)
+      rep:find("⌃⌃", 1, true) ~= nil
+      and rep:find("tapMod = ctrl", 1, true) ~= nil
+      and rep:find("tapSide = either", 1, true) ~= nil, rep)
 check("it names the fallback key", rep:find("⇪⇧Z", 1, true) ~= nil)
 check("it counts the roster", rep:find("registered : 1", 1, true) ~= nil, rep)
 check("it lists each editor", rep:find("One", 1, true) ~= nil)
+-- 🚨 AND IT SAYS NOTHING IS MISSING, which is what proves the pointer
+-- types actually resolved on this Hammerspoon rather than being skipped.
+check("it does not warn about missing event types",
+      rep:find("no event type for", 1, true) == nil, rep)
 
--- 🚨 THE PART THAT DIAGNOSES A KEYBOARD WITH NO RIGHT ⌥. Zero presses on
--- the side you chose means the gesture cannot fire, and this report is the
--- only place that would ever say why.
+-- 🚨 THE PART THAT DIAGNOSES A KEYBOARD WITH NO RIGHT KEY. Zero presses
+-- on the side you chose means the gesture cannot fire, and this report is
+-- the only place that would ever say why.
+--
+-- ⚠️ EXERCISED ON A SIDE-RESTRICTED SETTING ON PURPOSE. The shipped
+-- gesture is "either", which cannot produce this warning by design — but
+-- the warning is exactly what saves anyone who sets tapSide = "right" on
+-- an Apple keyboard that has no right ⌃, so it is still tested.
+ep.tapSide = "right"
 ep.sidesSeen, ep.sideUnknown = { left = 3, right = 0 }, 0
 rep = _G.editorPickerReport()
 check("it prints how many times each key has been pressed",
@@ -688,6 +818,14 @@ check("it prints how many times each key has been pressed",
 check("…and warns when the chosen side has never been seen",
       rep:find("has not been pressed once", 1, true) ~= nil
       and rep:find("tapSide = \"either\"", 1, true) ~= nil, rep)
+-- 🚨 AND THE SHIPPED SETTING MUST NOT PRODUCE IT. A gesture that fires on
+-- either key has no "chosen side" to be missing, and a report that nagged
+-- about one anyway would be the confident wrong answer again.
+ep.tapSide = "either"
+rep = _G.editorPickerReport()
+check("…and never warns about a side when none was chosen",
+      rep:find("has not been pressed once", 1, true) == nil, rep)
+ep.tapSide = "right"
 ep.sidesSeen, ep.sideUnknown = { left = 3, right = 9 }, 4
 rep = _G.editorPickerReport()
 check("no such warning once the chosen side has been used",
@@ -695,6 +833,7 @@ check("no such warning once the chosen side has been used",
 check("…but refused presses are still reported",
       rep:find("4 presses named no side", 1, true) ~= nil, rep)
 ep.sidesSeen, ep.sideUnknown = { left = 0, right = 1 }, 0
+ep.tapSide = "either"          -- back to what ships
 _G.editors = {}
 rep = _G.editorPickerReport()
 check("an empty roster is explained, not just zero",

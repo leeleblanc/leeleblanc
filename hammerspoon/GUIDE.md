@@ -225,7 +225,7 @@ into directly so the reader names no writer:
 | `_G.movablePanels` | every panel and picker | `window_move` — ⌘-drag |
 | `_G.escapeClaims` | every panel that Esc closes | `core/coexist` — the Esc router |
 | `_G.choosers` | every `hs.chooser` | the Esc router, so pickers close first |
-| `_G.editors` | every text surface | `editor_picker` — right ⌥⌥ |
+| `_G.editors` | every text surface | `editor_picker` — ⌃⌃ |
 
 🚨 **A registry rots silently.** Nothing errors when a module stops
 registering; the feature just quietly has one fewer row, and you find out
@@ -375,8 +375,9 @@ tests/test_file_tracker.lua  📅 the file_changes CSV schema and the migration 
                              against REAL files: the old date text is never parsed
 tests/test_task_creator.lua  ⌃⌥⌘T as a module: history, pipe parser, submit — and the
                              token NEVER appears in curl's argument list
-tests/test_editor_picker.lua 🗂 right ⌥⌥: the state machine that must NOT fire on
-                             ⌘C then ⌘V, the wrong-side key that must CANCEL rather
+tests/test_editor_picker.lua 🗂 ⌃⌃: the state machine that must NOT fire on
+                             ⌘C then ⌘V, nor on a ⌃-click or a ⌃-scroll, the
+                             wrong-side key that must CANCEL rather
                              than be ignored, the press whose side cannot be read
                              and is refused rather than guessed, and the rule that
                              ⏎ on an open editor never calls show() — both pads
