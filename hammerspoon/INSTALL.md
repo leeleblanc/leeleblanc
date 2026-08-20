@@ -300,10 +300,15 @@ No OneDrive on that Mac is fine — logs fall back to
 ## Before you ship a change
 
 ```sh
-sh ~/.hammerspoon/tools/run-tests.sh ~/.hammerspoon
+sh <the unzipped folder>/tools/run-tests.sh <the unzipped folder>
 ```
 
-Syntax on `init.lua`, `core/` and all 49 modules, forty-nine Lua suites, then the
+Run it from the **unpacked zip, before Step 3**, not from `~/.hammerspoon`
+— `hs-install.sh` does not copy `tests/`, so pointed at the installed
+copy it reports forty-eight missing stages. That is a skip, not a pass,
+but it is also not a check.
+
+Syntax on `init.lua`, `core/` and all 49 modules, forty-eight Lua suites, then the
 Capture Pad's page JavaScript **executed** against a DOM stub. One exit
 code. A skipped stage is reported as a skip, never as a pass.
 

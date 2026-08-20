@@ -192,9 +192,9 @@ fi
 if [ -d "$SRC/tools" ]; then
     mkdir -p "$HS/tools"
     cp "$SRC/tools"/*.sh "$HS/tools/" 2>/dev/null
-    # 6.105.0 — the .lua tools travel too. outlook-probe.lua is meant to be
-    # dofile()d from the Console by its installed path, so shipping it in
-    # the zip and then not copying it would make that instruction a lie.
+    # 6.105.0 — the .lua tools travel too. build-snippets.lua regenerates
+    # snippets/bundled.lua from the .json packs already on this Mac, and it
+    # can only do that from its installed path next to them.
     cp "$SRC/tools"/*.lua "$HS/tools/" 2>/dev/null
     say "   tools/   ✅ $(ls -1 "$HS/tools"/*.sh "$HS/tools"/*.lua 2>/dev/null | wc -l | tr -d ' ') files"
 fi

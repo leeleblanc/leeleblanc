@@ -4,6 +4,77 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.117.0 — TWO DELETIONS. NOTHING GAINED A FEATURE:
+
+  📧 THE OUTLOOK PROBE IS DELETED, NOT SHELVED.
+  LL: "IT won't approve it… remove the outlook probe and the test
+  stage."
+
+  6.105.0 took the probe out of the module list and left the file in
+  tools/, on the reasoning that a diagnostic costing nothing at boot
+  costs nothing at all. That was wrong, and the previous release proved
+  it: the probe was still 41 KB of every zip, still held a row on the
+  health monitor's cheat sheet pointing at a dofile() nobody was ever
+  going to type, and still ran a 46-check suite on every release for a
+  question that has been answered. Route A came back hollow and route B
+  is blocked by tenant policy. There is no third route to keep a probe
+  warm for.
+
+  Gone: tools/outlook-probe.lua, tests/test_outlook_probe.lua, the
+  health monitor's cheat sheet row, the runner stage. Fifty stages now,
+  not fifty-one. init.lua's module list and safe-mode notes say the
+  probe was deleted and why, so that this is not re-litigated in six
+  months by someone reading a gap between two version numbers.
+
+  🚨 THIS IS NOT AN OUTLOOK PURGE, and the difference matters. Safe
+  Links unwrapping (⇪⇧L) still unwraps safelinks.protection.outlook.com,
+  focus mode still reads the reminder popup for a Teams join link —
+  which is the one calendar signal New Outlook did not take away —
+  update_tracker still carries the cask and app_watcher still carries
+  the app. Those work, they are used daily, and none of them was part of
+  the automation question the tenant policy closed.
+
+  📦 THE ZIP IS 40% SMALLER, AND NOTHING WAS LEFT OUT OF IT.
+  LL: "can you reduce the file size at all: it's now 2.1 mb."
+
+  2,006 .json snippet packs were 797 KB of that 2.1 MB — and
+  text_expander.lua does not read them. It reads snippets/bundled.lua,
+  and its own comment has said so since 6.105.0: "IF THE TABLE LOADS,
+  THE PACKS ARE NOT SCANNED." Every release since has shipped 2,006
+  files that the config opens and deliberately ignores, most of the cost
+  being the filenames rather than the ~150 bytes inside each one.
+
+  All 2,006 snippets still ship, in the 128 KB table that was already
+  doing the work. Nothing you can type changed. The packs stay in the
+  working tree because tools/build-snippets.lua rebuilds the table from
+  them; they simply stop travelling.
+
+  🚨 YOUR OWN IMPORTS ARE IN A DIFFERENT FOLDER AND ARE UNTOUCHED. Those
+  live under the OneDrive logs folder (exp.dir), not in the config, and
+  are scanned on every load exactly as before — that scan is why the
+  directory code stays. And hs-install.sh has never deleted the old
+  packs out of ~/.hammerspoon/snippets, so the ones already on your Mac
+  stay where they are; they were being ignored in favour of the table
+  anyway.
+
+  🕰 A SUITE THAT ONLY PASSED ON THE DAY IT WAS WRITTEN.
+  Found while gating this release, and not something LL reported.
+
+  test_rollup pinned its fixtures to a hardcoded 2026-08-19 and then
+  called roll.text() with NO ARGUMENT, so the module fell back to the
+  real clock. The two agreed on exactly one calendar day. On 2026-08-20
+  "today's documents appear" failed — and the check under it, "🚨 and
+  YESTERDAY's do not", turned out to have been passing vacuously: once
+  the real date matches neither fixture, nothing appears at all and an
+  exclusion check that proves nothing still goes green. That is the same
+  dead-guard shape as the .superseded exclusion caught in 6.116.0.
+
+  Every call now passes the day explicitly, and ONE new check covers the
+  no-argument default against the real clock, because that is the path
+  16:01 actually takes in production. Both were confirmed failing
+  against a deliberately broken daily_rollup.lua before being kept.
+  daily_rollup.lua itself was correct and is unchanged.
+
 NEW IN 6.116.0 — FIVE THINGS LL ASKED FOR, IN THE ORDER HE ASKED FOR
 THEM (#16, #15, #11, #14, #17):
 
