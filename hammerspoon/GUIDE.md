@@ -316,9 +316,9 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Fifty-two Lua suites, 4,734 checks, plus three more that run the Capture
+Fifty-four Lua suites, 4,864 checks, plus three more that run the Capture
 Pad's, the screenshot editor's and unified search's page JavaScript under
-`node` for a further 105 — **4,839 checks over fifty-seven stages** in
+`node` for a further 105 — **4,969 checks over fifty-nine stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 
@@ -409,6 +409,14 @@ tests/test_net_tools.lua     🌐 ⇪6: the host never touches a shell, every co
 tests/test_mac_panel.lua     🖥 ⇪7: df's kilobytes become bytes exactly once, and
                              the card draws on the keypress rather than waiting
                              three seconds for system_profiler
+tests/test_arranger.lua      🎬 ⇪[ / ⇪]: a stub window that accepts origins and
+                             refuses sizes — a VLC in miniature — proving the
+                             frame is read BACK and the alert never claims a
+                             move that did not happen
+tests/test_activity_url.lua  🌐 the url column: the AppleScript's exact-match
+                             allow-list, incognito failing closed, secrets cut
+                             from the query AND the fragment, and the tab-switch
+                             race driven through the real poller
 tests/test_integration.lua   🚨 all 56 modules loaded TOGETHER: shortcut, service and
                              cheat-sheet-slot collisions — the only suite that can
                              catch two modules quietly claiming the same key

@@ -22,8 +22,8 @@
 --   • empty box     → today's per-app totals
 --   • type "week"   → this calendar week's per-app totals
 --   • type "month"  → this month's top apps AND top documents/windows
---   • type anything else → searches app names & window titles across
---     ALL saved history (not just today)
+--   • type anything else → searches app names, window titles AND URLs
+--     across ALL saved history (not just today)
 --   • selecting any row copies its name + time to the clipboard
 --
 -- AUTOMATIC REPORTS (times/day editable below):
@@ -34,6 +34,15 @@
 -- so a switch can take up to that long to be noticed, and only
 -- recorded if they last at least activityMinSessionSeconds (filters
 -- out quick accidental switches — same idea as the old 10s threshold).
+--
+-- 🌐 6.123.0 — AND A url COLUMN. When the window in front is Chrome, the
+-- row records which page — so the CSV is finally the "any and all URLs and
+-- window titles" file LL asked for three releases ago and was told, twice
+-- and correctly, did not exist. Columns: date,app,title,seconds,url. Rows
+-- written before this release read back with an empty url and are not
+-- disturbed. Chrome only, incognito never, secrets stripped; the long
+-- version of all three is at the 🌐 block inside setup(), and
+-- _G.urlReport() says why the column is empty if it is.
 --
 -- 📄 6.104.0 — THE DOCUMENT WATCHER WAS MERGED IN HERE AND DELETED.
 -- ⇪⇧W (the documents you worked in) and ⇪⇧E (edit or delete one) now
@@ -54,8 +63,10 @@ local M = {
             { "⇪0", "Open — today's totals" },
             { "type: week", "This week's totals" },
             { "type: month", "Top apps & documents this month" },
-            { "type: anything", "Search all saved history" },
+            { "type: anything", "Search all history — app, window title AND URL" },
             { "Enter", "Copy row to clipboard" },
+            { "url column", "Chrome's page, per row, in activity_history.csv" },
+            { "empty column?", "_G.urlReport() — ends in ✅ or what to fix" },
             { "⇪⇧W", "DOCUMENTS you worked in — name · time · day, searchable" },
             { "☑️ row", "Copy several: pick rows with Enter, then copy together" },
             { "⇪⇧E", "Edit or delete a document entry (clear the name = delete)" },
@@ -96,6 +107,281 @@ function M.setup(core)
         -- "Hammerspoon",
     }
 
+    -- =====================================================================
+    -- 🌐 6.123.0 — THE URL COLUMN: THE OTHER HALF OF A THREE-RELEASE ASK
+    -- =====================================================================
+    -- LL, twice: "a tool that would save any and all URLs and Window titles
+    -- would be posted to a .csv file." 6.120.0 answered honestly that only
+    -- half of it existed — window titles yes, URLs no — and that nothing in
+    -- that release was building the other half either. This is the other
+    -- half. It arrives now because LL supplied the one fact that unlocks
+    -- it: "I use Chrome exclusively."
+    --
+    -- That matters more than it sounds. There is no macOS API for "the URL
+    -- in the frontmost window" — a browser is just an app with a window
+    -- title, and the address is private to it. The only way to ask is to
+    -- ask the browser, in its own scripting language, and every browser
+    -- answers differently or not at all. One browser is a build. Every
+    -- browser is a maintenance treadmill with Safari's sandbox at the end
+    -- of it. So this asks Chrome, and says so everywhere.
+    --
+    -- 🔗 WHY IT LIVES HERE AND NOT IN A MODULE OF ITS OWN. The obvious
+    -- shape was url_tracker.lua with its own poller. That is precisely the
+    -- design 6.104.0 DELETED: document_watcher was a second five-second
+    -- timer writing a second CSV about the same window switches this file
+    -- was already watching. Rebuilding it with URLs in it would be the same
+    -- mistake with a new column. The tracker already knows when a window
+    -- comes forward, already knows when it goes away, and already writes
+    -- the row. The URL is a column on that row, not a second observer.
+    --
+    -- WHAT A ROW MEANS. The poller opens a session when the app or window
+    -- title changes; a Chrome tab switch changes the title, so it opens a
+    -- session too. One row per page you actually looked at, with how long
+    -- you looked at it. That is the difference between this and ⇪Y: ⇪Y is
+    -- Chrome's own history database, a list of what you navigated to. This
+    -- is an observation of what was in front of you, and for how long.
+    --
+    -- ⚠️ FOUR HONEST LIMITS, none of them fixable from here:
+    --   • Automation permission. macOS requires you to allow Hammerspoon to
+    --     control Google Chrome, once, in System Settings → Privacy &
+    --     Security → Automation. Until you do, every ask is refused and the
+    --     url column stays empty. _G.urlReport() names this specifically
+    --     rather than leaving you with a blank column and no reason.
+    --   • Sessions under activityMinSessionSeconds are discarded, so a tab
+    --     you flicked past never gets a row — URL or not.
+    --   • A single-page app that changes the URL without changing the
+    --     window title does not open a new session, so the row keeps the
+    --     URL captured when the session began.
+    --   • The answer arrives asynchronously. It is asked for the moment a
+    --     session opens and a row is only written after ten seconds, so it
+    --     lands in time in every ordinary case — but a row whose answer had
+    --     not arrived is written with an empty url rather than delayed.
+    local au = {}
+    _G.activityURL = au    -- inspectable from the Console, like every engine here
+
+    au.enabled = true       -- ✏️ false = never ask Chrome anything, url stays empty
+
+    -- 🔒 AN EXACT ALLOW-LIST, NOT A PATTERN, AND THAT IS A SECURITY
+    -- DECISION. The app name below is interpolated into an AppleScript
+    -- source string. Application names come from macOS and an app is free
+    -- to call itself anything at all, quotation marks included — so a name
+    -- that reached the script unchecked could close the tell block and run
+    -- its own AppleScript as you. Matching against exact literals means the
+    -- text that reaches the script is always one of these five known
+    -- strings, whatever the frontmost app is named. Add a browser here only
+    -- if you are prepared to write its script too.
+    au.CHROMES = {
+        ["Google Chrome"]        = true,
+        ["Google Chrome Beta"]   = true,
+        ["Google Chrome Canary"] = true,
+        ["Google Chrome Dev"]    = true,
+        ["Chromium"]             = true,
+    }
+
+    au.OSASCRIPT = "/usr/bin/osascript"
+
+    -- 🕵️ INCOGNITO IS SKIPPED, AND IT FAILS CLOSED. An incognito window is
+    -- a statement that this page should not be written down; writing it
+    -- into a CSV that syncs to OneDrive would be a straightforward betrayal
+    -- of that. Note the default in the script below is "incognito", not
+    -- "normal": if the mode cannot be read at all — an odd Chromium build,
+    -- a window type without the property — the answer is to skip, not to
+    -- guess and record. The safe direction is the silent one.
+    function au.scriptFor(appName)
+        if not au.CHROMES[appName] then return nil end
+        return table.concat({
+            'tell application "', appName, '"\n',
+            '  if (count of windows) is 0 then return "<<none>>"\n',
+            '  set w to front window\n',
+            '  set m to "incognito"\n',
+            '  try\n',
+            '    set m to (mode of w) as text\n',
+            '  end try\n',
+            '  if m is not "normal" then return "<<private>>"\n',
+            '  return URL of active tab of w\n',
+            'end tell\n',
+        })
+    end
+
+    -- ---- what gets written down, and what does not ----------------------
+    --
+    -- 🔐 A URL IS NOT ALWAYS JUST AN ADDRESS. Query strings carry password
+    -- reset links, OAuth codes, API keys and session tokens, and this file
+    -- lands in a synced folder that outlives the login it belonged to. So
+    -- named secrets are cut out before anything is written. Everything else
+    -- is kept, deliberately: ?v= is what makes a YouTube row mean
+    -- something, and a search you ran is a thing you might want to find
+    -- again. ✏️ Add a parameter name here to have it stripped too.
+    au.SECRET_PARAMS = {
+        access_token = true, api_key = true, apikey = true, auth = true,
+        code = true, id_token = true, key = true, otp = true,
+        password = true, passwd = true, pwd = true, refresh_token = true,
+        reset = true, secret = true, session = true, sessionid = true,
+        session_id = true, sig = true, signature = true, token = true,
+        verification = true, verify = true,
+    }
+
+    -- ✏️ HOSTS NEVER RECORDED AT ALL — banking, health, anything you would
+    -- rather not have in a file that syncs. Suffix match, so "chase.com"
+    -- also covers "secure.chase.com". Empty by default because guessing
+    -- which sites someone considers private is not mine to do.
+    au.skipHosts = {
+        -- "chase.com",
+        -- "myhealth.example.org",
+    }
+
+    function au.hostOf(url)
+        if type(url) ~= "string" then return "" end
+        local host = url:match("^https?://([^/?#]+)") or ""
+        host = host:lower():gsub(":%d+$", "")
+        return (host:gsub("^www%.", ""))
+    end
+
+    function au.blocked(url)
+        local host = au.hostOf(url)
+        if host == "" then return false end
+        for _, raw in ipairs(au.skipHosts) do
+            local h = tostring(raw):lower()
+            if h ~= "" and (host == h or host:sub(-(#h + 1)) == "." .. h) then
+                return true
+            end
+        end
+        return false
+    end
+
+    -- Filter one k=v&k=v run. Used on the query string AND on a fragment
+    -- that looks like one — OAuth's implicit flow returns #access_token=…,
+    -- so a stripper that only reads the query misses the single most
+    -- sensitive thing a browser address bar ever holds.
+    local function filterPairs(s)
+        local kept = {}
+        for pair in s:gmatch("[^&]+") do
+            local name = pair:match("^([^=]*)") or ""
+            if not au.SECRET_PARAMS[name:lower()] then kept[#kept + 1] = pair end
+        end
+        return table.concat(kept, "&")
+    end
+
+    function au.stripSecrets(url)
+        if type(url) ~= "string" or url == "" then return "" end
+        local head, frag = url:match("^([^#]*)#(.*)$")
+        if not head then head, frag = url, nil end
+
+        local base, query = head:match("^([^?]*)%?(.*)$")
+        if base then
+            query = filterPairs(query)
+            head  = (query ~= "") and (base .. "?" .. query) or base
+        end
+
+        if frag then
+            if frag:find("=", 1, true) then
+                frag = filterPairs(frag)
+                return (frag ~= "") and (head .. "#" .. frag) or head
+            end
+            return head .. "#" .. frag
+        end
+        return head
+    end
+
+    -- The full pipeline from "what Chrome said" to "what goes in the file".
+    -- Returns "" for anything that should not be recorded, so every caller
+    -- has one thing to test.
+    function au.sanitise(raw)
+        if type(raw) ~= "string" then return "" end
+        local url = raw:match("^%s*(.-)%s*$")
+        if url == "" then return "" end
+        -- Only real pages. chrome://newtab, about:blank and friends are not
+        -- somewhere you went, and a column full of them is a column nobody
+        -- reads.
+        if not url:match("^https?://") then return "" end
+        if au.blocked(url) then
+            au.skipped = (au.skipped or 0) + 1
+            return ""
+        end
+        -- 🔗 The URL cleaner already knows every tracking parameter this
+        -- config has ever catalogued. Reusing it means the CSV and ⇪⇧K
+        -- agree about what a clean URL is, and there is one list to keep up
+        -- to date rather than two that drift.
+        -- has() before call(): call() PRINTS when a provider is missing, and
+        -- this runs once per page you look at. A Mac without url_cleaner
+        -- loaded would otherwise narrate that fact into the Console all day.
+        local cleaned = url
+        pcall(function()
+            if not (_G.service and _G.service.has and _G.service.has("url.clean")) then return end
+            local out = _G.service.call("url.clean", url)
+            if type(out) == "string" and out ~= "" then cleaned = out end
+        end)
+        -- Secrets last: nothing after this step can put one back.
+        return au.stripSecrets(cleaned)
+    end
+
+    -- ---- asking Chrome ---------------------------------------------------
+    au.asked, au.answered, au.privateSkipped, au.skipped = 0, 0, 0, 0
+    au.refused, au.lastError, au.lastURL = 0, nil, nil
+    au.warnedAboutPermission = false
+
+    -- ⚡ ASYNC, ALWAYS, NO EXCEPTIONS. hs.osascript.applescript would be
+    -- three lines shorter and runs on the main thread — and the main thread
+    -- is the one your keyboard is on. A Chrome that is beachballing does
+    -- not answer Apple events promptly, and a synchronous ask would freeze
+    -- every hotkey in this config until it did. One task, replaced rather
+    -- than queued: if you switch tabs again before the last answer lands,
+    -- the stale question is abandoned, because its answer is about a page
+    -- you already left.
+    function au.fetch(appName, stamp, onDone)
+        if not au.enabled then return false end
+        local script = au.scriptFor(appName)
+        if not script then return false end
+
+        if au.task then
+            pcall(function() au.task:terminate() end)
+            au.task = nil
+        end
+
+        local started = pcall(function()
+            au.task = hs.task.new(au.OSASCRIPT, function(code, sout, serr)
+                au.task = nil
+                au.handleAnswer(code, sout, serr, stamp, onDone)
+            end, { "-e", script })
+            if au.task then au.task:start() end
+        end)
+        if not started then au.task = nil return false end
+        au.asked = au.asked + 1
+        return au.task ~= nil
+    end
+
+    function au.handleAnswer(code, sout, serr, stamp, onDone)
+        local text = tostring(sout or ""):match("^%s*(.-)%s*$")
+        if code ~= 0 or text == "" then
+            au.refused   = au.refused + 1
+            au.lastError = tostring(serr or ""):match("^%s*(.-)%s*$")
+            -- -1743 is macOS saying "you have not been allowed to control
+            -- that app". It is the one failure with a fix, so it is the one
+            -- failure that gets said out loud — once per load, because a
+            -- five-second poller could say it seven hundred times a day.
+            if au.lastError and au.lastError:find("-1743", 1, true)
+               and not au.warnedAboutPermission then
+                au.warnedAboutPermission = true
+                hs.alert.show("🌐 Allow Hammerspoon to control Chrome — System Settings → "
+                              .. "Privacy & Security → Automation (URLs are not being recorded)", 8)
+            end
+            return false
+        end
+
+        if text == "<<none>>" then return false end
+        if text == "<<private>>" then
+            au.privateSkipped = au.privateSkipped + 1
+            return false
+        end
+
+        local url = au.sanitise(text)
+        if url == "" then return false end
+        au.answered = au.answered + 1
+        au.lastURL  = url
+        if onDone then pcall(onDone, url, stamp) end
+        return true
+    end
+
 
 
     local function activityFileExists()
@@ -104,24 +390,32 @@ function M.setup(core)
         return false
     end
 
+    -- 6.123.0: returns the log AND whether the file still carries the
+    -- pre-url header. Old rows have four fields and read back with an empty
+    -- url — nothing recorded before today is lost or misread — but a file
+    -- with a four-column header and five-column rows appended after it is
+    -- a ragged CSV, and Excel is entitled to complain. The second return
+    -- value is what lets boot rewrite it once, into one uniform shape.
     local function loadActivityCSV(path)
         local f = io.open(path, "r")
-        if not f then return {} end
+        if not f then return {}, false end
         local content = f:read("*a"); f:close()
-        local log, isFirstLine = {}, true
+        local log, isFirstLine, oldHeader = {}, true, false
         for line in content:gmatch("([^\r\n]+)") do
             if isFirstLine and line:match("^date,app,title,seconds") then
                 -- skip header row
+                if not line:find("url", 1, true) then oldHeader = true end
             else
                 local fields = core.splitCSVLine(line)
                 local seconds = tonumber(fields[4])
                 if fields[1] and fields[2] and fields[3] and seconds then
-                    table.insert(log, { date = fields[1], app = fields[2], title = fields[3], seconds = seconds })
+                    table.insert(log, { date = fields[1], app = fields[2], title = fields[3],
+                                        seconds = seconds, url = fields[5] or "" })
                 end
             end
             isFirstLine = false
         end
-        return log
+        return log, oldHeader
     end
 
     -- One-time upgrade path, tried only when the OneDrive CSV doesn't
@@ -148,9 +442,10 @@ function M.setup(core)
     local function rewriteActivityLog(log)
         local f = io.open(activityHistoryFile, "w")
         if not f then return false end
-        f:write("date,app,title,seconds\n")
+        f:write("date,app,title,seconds,url\n")
         for _, e in ipairs(log) do
-            f:write(e.date .. "," .. core.csvQuote(e.app) .. "," .. core.csvQuote(e.title) .. "," .. e.seconds .. "\n")
+            f:write(e.date .. "," .. core.csvQuote(e.app) .. "," .. core.csvQuote(e.title)
+                    .. "," .. e.seconds .. "," .. core.csvQuote(e.url or "") .. "\n")
         end
         f:close()
         return true
@@ -161,7 +456,8 @@ function M.setup(core)
     local function appendActivityRow(entry)
         local f = io.open(activityHistoryFile, "a")
         if f then
-            f:write(entry.date .. "," .. core.csvQuote(entry.app) .. "," .. core.csvQuote(entry.title) .. "," .. entry.seconds .. "\n")
+            f:write(entry.date .. "," .. core.csvQuote(entry.app) .. "," .. core.csvQuote(entry.title)
+                    .. "," .. entry.seconds .. "," .. core.csvQuote(entry.url or "") .. "\n")
             f:close()
         else
             core.warnWriteFailed("activity history")
@@ -201,11 +497,19 @@ function M.setup(core)
     -- and rewrite the file (with header) if it's brand new or cleanup
     -- removed something.
     local _existedBefore = activityFileExists()
-    local _loaded = _existedBefore and loadActivityCSV(activityHistoryFile) or migrateOldDataIfAny()
+    local _loaded, _oldHeader
+    if _existedBefore then
+        _loaded, _oldHeader = loadActivityCSV(activityHistoryFile)
+    else
+        _loaded, _oldHeader = migrateOldDataIfAny(), false
+    end
     local _purged = purgeJunkApps(_loaded)
     local _pruned = pruneActivityLog(_purged)
     _G.activityLog = _pruned
-    if not _existedBefore or #_pruned ~= #_loaded then
+    -- 6.123.0: _oldHeader forces exactly one rewrite on the first load after
+    -- upgrading, so the url column exists in the header rather than only in
+    -- the rows written from now on.
+    if not _existedBefore or #_pruned ~= #_loaded or _oldHeader then
         if not rewriteActivityLog(_pruned) then
             hs.alert.show("⚠️ Can't write activity_history.csv — is the OneDrive Logs folder available?", 6)
         end
@@ -214,7 +518,7 @@ function M.setup(core)
     -- The session currently being tracked (app + window title + when it
     -- started). Closed out and recorded whenever the poller notices either
     -- one has changed.
-    _G.activitySession = { app = nil, title = nil, startTime = nil }
+    _G.activitySession = { app = nil, title = nil, startTime = nil, url = nil }
 
     -- Best-effort read of "what's frontmost right now, and what does its
     -- focused window's title bar say". Wrapped defensively since a window
@@ -248,6 +552,34 @@ function M.setup(core)
         return name, title
     end
 
+    -- 6.123.0: open a session and, if it is a browser this config knows how
+    -- to ask, ask it. A stamp is carried through and checked on the way
+    -- back — by the time Chrome answers you may already be three tabs away,
+    -- and writing that answer onto the session it is no longer about would
+    -- be worse than an empty column. A late answer for a session that has
+    -- ended is dropped.
+    --
+    -- ⚠️ THE STAMP IS A COUNTER, NOT THE START TIME, and the difference is
+    -- a real bug rather than a stylistic one. os.time() has one-second
+    -- resolution: two sessions opening inside the same second share a
+    -- startTime, and a stale answer for the first would pass a startTime
+    -- check and be written onto the second. The poller's five-second
+    -- interval makes that rare rather than impossible — and "rare" is not
+    -- a property worth relying on when a counter is exact.
+    au.seq = 0
+    local function openActivitySession(appName, title)
+        au.seq = au.seq + 1
+        local stamp = au.seq
+        _G.activitySession = { app = appName, title = title,
+                               startTime = os.time(), url = nil, seq = stamp }
+        if au.CHROMES[appName] then
+            au.fetch(appName, stamp, function(url, answeredFor)
+                local s = _G.activitySession
+                if s and s.seq == answeredFor then s.url = url end
+            end)
+        end
+    end
+
     local function closeActivitySession(endTime)
         local s = _G.activitySession
         if not (s.app and s.startTime) then return end
@@ -260,6 +592,7 @@ function M.setup(core)
                 app     = s.app,
                 title   = s.title or "",
                 seconds = duration,
+                url     = s.url or "",
             }
             table.insert(_G.activityLog, entry)
             appendActivityRow(entry)
@@ -283,7 +616,7 @@ function M.setup(core)
         local s = _G.activitySession
         if s.app ~= appName or s.title ~= title then
             closeActivitySession()
-            _G.activitySession = { app = appName, title = title, startTime = os.time() }
+            openActivitySession(appName, title)
         end
     end)
 
@@ -444,25 +777,32 @@ function M.setup(core)
             -- string per row. The field is prefixed with _ and every writer
             -- in this file lists its columns explicitly, so it never reaches
             -- the CSV.
-            local matchTotals = {}
+            local matchTotals, matchURL = {}, {}
             for _, e in ipairs(_G.activityLog) do
                 local haystack = e._hay
                 if not haystack then
-                    haystack = (e.app .. " " .. (e.title or "")):lower()
+                    -- 6.123.0: the url joins the haystack, so typing a domain
+                    -- finds the time you spent on it. The cache is still
+                    -- built once per row — a url is one more string in the
+                    -- same concatenation, not a second pass.
+                    haystack = (e.app .. " " .. (e.title or "") .. " " .. (e.url or "")):lower()
                     e._hay = haystack
                 end
                 if haystack:find(qLower, 1, true) then
                     local key = e.app .. ((e.title and e.title ~= "") and (" — " .. e.title) or "")
                     matchTotals[key] = (matchTotals[key] or 0) + e.seconds
+                    if e.url and e.url ~= "" and not matchURL[key] then matchURL[key] = e.url end
                 end
             end
             local list = sortedDescending(matchTotals)
             if #list == 0 then
-                table.insert(choices, { text = "No matches for \"" .. q .. "\"", subText = "Searches app names & window titles, all-time" })
+                table.insert(choices, { text = "No matches for \"" .. q .. "\"", subText = "Searches app names, window titles & URLs, all-time" })
             else
                 table.insert(choices, { text = "🔎 Matches for \"" .. q .. "\" — all time", subText = "" })
                 for _, e in ipairs(list) do
-                    table.insert(choices, { text = e.name, subText = core.formatDuration(e.seconds) })
+                    local sub = core.formatDuration(e.seconds)
+                    if matchURL[e.name] then sub = sub .. "  ·  " .. matchURL[e.name] end
+                    table.insert(choices, { text = e.name, subText = sub })
                 end
             end
         end
@@ -602,6 +942,76 @@ function M.setup(core)
         return true
     end)
     _G.activityDailyReport = showDailyActivityReport
+
+    -- 🌐 6.123.0 — _G.urlReport(): why the url column is empty
+    -- ---------------------------------------------------------------------
+    -- An empty column has too many possible causes to guess between — you
+    -- have not used Chrome yet, Chrome is not on the allow-list, macOS is
+    -- refusing the Apple event, or every page so far was incognito. Same
+    -- contract as _G.chromeHistoryReport(): it ends in ✅ or a numbered list
+    -- of what to fix, and copies itself to the clipboard so it can be
+    -- pasted back rather than retyped.
+    function _G.urlReport()
+        local L, problems = {}, {}
+        local function line(s) L[#L + 1] = s end
+
+        line("🌐 URL COLUMN — activity_history CSV")
+        line("File: " .. activityHistoryFile)
+        line("")
+
+        if not au.enabled then
+            problems[#problems + 1] = "Recording is OFF. Turn it on with: "
+                                      .. "_G.activityURL.enabled = true"
+        end
+
+        local rows, withURL = 0, 0
+        for _, e in ipairs(_G.activityLog) do
+            rows = rows + 1
+            if type(e.url) == "string" and e.url ~= "" then withURL = withURL + 1 end
+        end
+        line("Rows on file: " .. rows .. "  ·  carrying a URL: " .. withURL)
+        line("Asked Chrome: " .. (au.asked or 0)
+             .. "  ·  answered: " .. (au.answered or 0)
+             .. "  ·  refused: " .. (au.refused or 0))
+        line("Skipped — incognito: " .. (au.privateSkipped or 0)
+             .. "  ·  on your skip list: " .. (au.skipped or 0))
+        if au.lastURL then line("Last recorded: " .. au.lastURL) end
+
+        if (au.refused or 0) > 0 and au.lastError and au.lastError ~= "" then
+            line("")
+            line("Last refusal from macOS: " .. au.lastError)
+            if au.lastError:find("-1743", 1, true) then
+                problems[#problems + 1] = "macOS has NOT allowed Hammerspoon to control "
+                    .. "Chrome. System Settings → Privacy & Security → Automation → "
+                    .. "Hammerspoon → switch on Google Chrome, then reload this config."
+            end
+        end
+
+        if (au.asked or 0) == 0 then
+            problems[#problems + 1] = "Chrome has not been asked once yet. The ask happens "
+                .. "when a Chrome window comes forward and stays there — browse for a "
+                .. "minute, then run this again."
+        elseif (au.answered or 0) == 0 and (au.refused or 0) == 0 then
+            problems[#problems + 1] = "Chrome was asked and gave nothing usable. A window "
+                .. "with no tab, or every page so far was incognito or on your skip list."
+        end
+
+        line("")
+        if #problems == 0 then
+            line("✅ Working — URLs are being recorded.")
+        else
+            line("Fix these, in order:")
+            for i, p in ipairs(problems) do line("  " .. i .. ". " .. p) end
+        end
+
+        local text = table.concat(L, "\n")
+        print(text)
+        pcall(function() hs.pasteboard.setContents(text) end)
+        hs.alert.show(#problems == 0 and "🌐 URL column ✅ — report copied"
+                                    or  ("🌐 " .. #problems .. " to fix — report copied"), 4)
+        return text
+    end
+    core.provide("activity.urlReport", function() return _G.urlReport() end)
 
     -- =====================================================================
     -- 📄 DOCUMENTS — ⇪⇧W the list · ⇪⇧E edit or delete   (6.104.0)

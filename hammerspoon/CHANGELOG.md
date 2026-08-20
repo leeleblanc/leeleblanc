@@ -4,6 +4,135 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.123.0 — THE COLUMN THAT WAS PROMISED, AND THE WINDOW THAT ONLY
+HALF-MOVED:
+
+  🌐 activity_history.csv HAS A url COLUMN.
+  LL, twice: "a tool that would save any and all URLs and Window titles
+  would be posted to a .csv file." 6.120.0 answered honestly that only
+  half of it existed — window titles yes, URLs no — and that nothing in
+  that release was building the other half either. This builds it, and it
+  arrives now because LL supplied the fact that unlocks it: "I use Chrome
+  exclusively."
+
+  That fact matters more than it sounds. There is no macOS API for "the
+  URL in the frontmost window" — a browser is just an app with a window
+  title, and the address is private to it. The only way to ask is to ask
+  the browser, in its own scripting language, and every browser answers
+  differently or not at all. One browser is a build. Every browser is a
+  maintenance treadmill with Safari's sandbox at the end of it.
+
+  Columns are now date,app,title,seconds,url. A row is written when the
+  window in front changes — and a Chrome tab switch changes the window
+  title, so it is one row per page you actually looked at, with how long
+  you looked at it. That is the difference between this and ⇪Y: ⇪Y is
+  Chrome's own history database, a list of what you navigated to. This is
+  an observation of what was in front of you.
+
+  ⚡ IT LIVES IN THE ACTIVITY TRACKER, NOT IN A MODULE OF ITS OWN.
+  The obvious shape was url_tracker.lua with its own poller. That is
+  precisely the design 6.104.0 DELETED: document_watcher was a second
+  five-second timer writing a second CSV about the same window switches
+  the tracker was already watching. Rebuilding it with URLs in it would
+  be the same mistake with a new column. The tracker already knows when a
+  window comes forward and already writes the row. The URL is a column on
+  that row, not a second observer.
+
+  🕵️ INCOGNITO IS NEVER RECORDED, AND IT FAILS CLOSED.
+  Chrome is asked for the window's mode before it is asked for the URL,
+  so the address of an incognito page never crosses into Lua at all. The
+  default in that script is "incognito", not "normal" — a window whose
+  mode cannot be read is skipped rather than guessed at. An incognito
+  window is a statement that this page should not be written down, and
+  writing it into a file that syncs to OneDrive would be a plain betrayal
+  of that.
+
+  🔐 AND NAMED SECRETS ARE CUT OUT BEFORE ANYTHING IS WRITTEN.
+  Query strings carry password reset links, OAuth codes, API keys and
+  session tokens, and this file outlives the login it belonged to. Named
+  secrets are stripped — including from the FRAGMENT, which is where
+  OAuth's implicit flow actually puts an access token, and which a
+  stripper that only reads the query string would miss entirely. What is
+  kept is deliberate: ?v= is what makes a YouTube row mean anything, and
+  a search you ran is a thing you might want to find again. There is also
+  an empty au.skipHosts list for sites that should never be recorded at
+  all — empty by default, because guessing which sites someone considers
+  private is not mine to do.
+
+  🔒 THE ALLOW-LIST IS EXACT-MATCH, AND THAT IS A SECURITY DECISION.
+  The app's name is interpolated into AppleScript source. Application
+  names come from macOS and an app may call itself anything at all,
+  quotation marks included — so a name that reached that string unchecked
+  could close the tell block and run its own AppleScript as you. Matching
+  against five exact literals means the text that reaches the script is
+  always one of five known strings, whatever the frontmost app is called.
+
+  ⚡ AND THE ASK IS ASYNCHRONOUS, ALWAYS. hs.osascript.applescript would
+  have been three lines shorter and runs on the main thread — the one
+  your keyboard is on. A Chrome that is beachballing does not answer
+  Apple events promptly, and a synchronous ask would freeze every hotkey
+  in this config until it did.
+
+  🏁 THE STAMP IS A COUNTER, NOT THE START TIME. An answer that arrives
+  after you have already switched tabs must not be written onto the row
+  you are on now. The first draft matched on the session's startTime —
+  and os.time() has one-second resolution, so two sessions opening inside
+  the same second share one, and the stale answer would have passed. The
+  poller's five-second interval makes that rare rather than impossible,
+  and "rare" is not a property worth relying on when a counter is exact.
+
+  ⚠️ FOUR HONEST LIMITS. macOS must be told to allow Hammerspoon to
+  control Chrome (System Settings → Privacy & Security → Automation);
+  until then the column stays empty and _G.urlReport() says so by name
+  rather than leaving a blank column with no reason. Sessions under ten
+  seconds are discarded, so a tab you flicked past never gets a row. A
+  single-page app that changes the URL without changing the window title
+  keeps the URL captured when the session opened. And a row whose answer
+  had not arrived yet is written with an empty url rather than delayed.
+
+  🎬 ⇪[ AND ⇪] NO LONGER LEAVE A WINDOW HANGING OFF THE MONITOR.
+  LL: "I'm trying to show that VLC doesn't display correct. Using
+  hyper+[/] doesn't all the way work. But hyper+any arrow is fine." Both
+  halves of that were exactly right, and the second half is what
+  identified the bug.
+
+  Every arrangement in window_arranger COMPUTES a rectangle and asks for
+  it. An app is free to answer with a different one, and some do: VLC's
+  video window is aspect-locked with a minimum size, so asked to become
+  the proportional version of itself on another monitor it keeps the
+  width it wants — and accepts the origin it was handed. The result is a
+  window hanging off the edge with its playlist sidebar sliced away,
+  which is what LL's screenshot showed. moveToScreen's own
+  ensureInScreenBounds does not catch this: it clamps the rectangle being
+  REQUESTED, and the app resizes afterwards.
+
+  So the frame is now READ BACK after the move and nudged in with
+  setTopLeft — which moves without resizing, because resizing is the
+  argument that window has just won. Trying to resize it again only
+  restarts the fight. Right and bottom are clamped first and left and top
+  second, so for a window WIDER THAN THE SCREEN the far edge is what
+  overhangs and never the title bar or the left-hand controls. And when a
+  window still does not fit, or refused to change monitor at all, the
+  alert now SAYS SO — the old one showed "🪟 → monitor" unconditionally,
+  so the one case worth knowing about looked exactly like success.
+
+  Why the arrows were fine: a left-half snap starts at the screen's own
+  left edge, so an app that refuses to shrink grows inward, where you can
+  still see it. The same settle is applied to the halves, the split and
+  the ⇪W summon anyway; a window that complied is never moved by it.
+
+  🧪 TWO NEW SUITES, 130 CHECKS, EIGHT BREAK TESTS. tests/test_arranger
+  drives the real bindings against a stub window that accepts origins and
+  refuses sizes — a VLC in miniature — and tests/test_activity_url drives
+  the real URL engine, including the tab-switch race, through the real
+  poller. Two checks were rewritten after a break test failed to bite:
+  one that claimed to prove the incognito guard and in fact proved only
+  that the http-only backstop existed, and a migration test that
+  re-implemented the CSV parser instead of running it.
+
+```
+
+```text
 NEW IN 6.122.0 — TWO SEARCHES THAT WERE ONLY LOOKING AT HALF THE ROOM:
 
   ✋ THE EDITOR PICKER IS ON right ⌥⌥ NOW, AND ⌘ IS FREE AGAIN.

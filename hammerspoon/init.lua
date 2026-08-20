@@ -4,8 +4,57 @@
 -- =====================================================================
 -- 08-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.122.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.123.0
 -- =====================================================================
+
+-- NEW IN 6.123.0 — THE COLUMN THAT WAS PROMISED, AND THE WINDOW THAT
+-- ONLY HALF-MOVED:
+--   🌐 activity_history.csv HAS A url COLUMN. LL asked twice for "a tool
+--      that would save any and all URLs and Window titles ... to a .csv
+--      file". 6.120.0 answered honestly: window titles yes, URLs no, and
+--      nothing was building the other half. This builds it. When the
+--      window in front is Chrome, the row records the page — so one file
+--      now says what you were looking at, what it was called, and for how
+--      long. Columns: date,app,title,seconds,url. Rows written before
+--      today read back with an empty url and are left alone; the file is
+--      rewritten ONCE so the header is not left four columns wide over
+--      five-column rows.
+--      ⚡ IT LIVES IN THE ACTIVITY TRACKER, NOT IN A MODULE OF ITS OWN,
+--      and that was the one real design decision. The obvious shape was
+--      url_tracker.lua with its own poller — which is exactly what
+--      6.104.0 DELETED when document_watcher turned out to be a second
+--      five-second timer writing a second CSV about the same window
+--      switches. The tracker already knows when a window comes forward.
+--      The URL is a column on that row, not a second observer.
+--      🕵️ INCOGNITO IS NEVER RECORDED, and it fails closed: Chrome is
+--      asked for the window's mode first, and a mode that cannot be read
+--      counts as private. An incognito window is a statement that the
+--      page should not be written down.
+--      🔐 AND SECRETS ARE CUT OUT. Query strings carry reset links,
+--      OAuth codes and session tokens, and this file syncs to OneDrive.
+--      Named secrets are stripped — from the fragment too, which is where
+--      OAuth actually puts an access token. ?v= and your searches are
+--      kept, because those are what make a row mean something.
+--      ✔️ Chrome only, and it says so everywhere: there is no macOS API
+--      for "the URL in the front window", only asking the browser in its
+--      own language. _G.urlReport() says why the column is empty when it
+--      is — usually System Settings → Privacy & Security → Automation.
+--   🎬 ⇪[ AND ⇪] NO LONGER LEAVE A WINDOW HANGING OFF THE MONITOR. LL:
+--      "Using hyper+[/] doesn't all the way work. But hyper+any arrow is
+--      fine." Both halves of that were exactly right. The monitor jump
+--      COMPUTES a rectangle and asks for it; VLC's video window is
+--      aspect-locked, keeps the width it wants, accepts the origin it was
+--      given, and lands with its playlist sidebar sliced off the edge.
+--      moveToScreen's own ensureInScreenBounds cannot catch that — it
+--      clamps the rectangle being REQUESTED, and the app resizes after.
+--      Now the frame is READ BACK and nudged in with setTopLeft, which
+--      moves without resizing; resizing is the argument that window just
+--      won. A window too big for the monitor keeps its top-left corner on
+--      screen, so the far edge overhangs and never the controls — and the
+--      alert SAYS SO instead of showing the same success it always did.
+--      The arrows were fine because a left-half snap starts at the
+--      screen's own left edge, so an app that refuses to shrink grows
+--      inward where you can still see it.
 
 -- NEW IN 6.122.0 — TWO SEARCHES THAT WERE ONLY LOOKING AT HALF THE ROOM:
 --   ✋ THE EDITOR PICKER IS ON right ⌥⌥ NOW, AND ⌘ IS FREE. 6.121.0
@@ -217,40 +266,10 @@
 --      All three figures are measured off the gate now, and GUIDE.md
 --      says to read them from it rather than from the paragraph.
 --
--- NEW IN 6.118.0 — TWO LISTS THAT LOSE YOUR PLACE, AND NO LONGER DO:
---   🔎 SEARCHING THE CHEAT SHEET NO LONGER COSTS YOUR PLACE IN IT. LL:
---      "The cheat sheet remembers its position when I scroll. But loses
---      it when I search." Both halves of that were true and only one was
---      deliberate. Typing still goes to the top — a filtered sheet is a
---      different, shorter list, and row 40 of the old one is blank space
---      that reads as "found nothing". What was missing was the way BACK:
---      clearing the query rebuilt the FULL list at row 1, so the cheapest
---      way to look something up was the one that threw away where you
---      were. The sheet now remembers the row a search took you from, and
---      returns you to it whether you clear with ⌫ or with Esc.
---      🚨 AND hide() HAS BEEN CLAIMING THIS SINCE 6.111.0. Its comment
---      said closing mid-search "keeps the last row you were on BEFORE you
---      searched"; it kept whatever was stored at the PREVIOUS close,
---      which is that row only if you had not scrolled since. True now.
---   🗂 ⇪⇧T IS SECTIONED BY COLLECTION, WITH YOURS AT THE TOP. LL: "Can
---      you separate the snippets into sections with my textpanders
---      first?" One flat A–Z list of 2,006 rows put the 80 snippets LL
---      wrote among 1,349 emoji and 548 compose-key sequences — and
---      ComposeKey and Emoji_Pack both sort before textpanders, so they
---      were buried by the alphabet, not by accident. Each collection now
---      gets a heading; textpanders is pinned first (exp.sectionOrder),
---      then anything from your own snippets folder, then the shipped
---      packs A–Z, then the ⚡ actions that are not snippets at all.
---      ⚠️ SECTIONS ARE THE RESTING ORDER, NOT A SEARCH ORDER. hs.chooser
---      scores and reorders the panel itself the moment you type, and no
---      Lua can hold a section together through that. So the pack name is
---      on every row now as well as in its heading — a match still says
---      where it came from.
-
--- (6.117.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.118.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.122.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.123.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -330,6 +349,11 @@
 --    ⇪⇧W      picker: summon any running app to this monitor
 --    ⇪↓       return the window to where it was before you moved it
 --    ⌃⌥⌘[ ]   throw the window to the next monitor right or left
+--    🎬 6.123.0 — every one of these now READS THE FRAME BACK and nudges
+--    the window in if the app answered with a size of its own (VLC does).
+--    A window too big for the monitor keeps its top-left corner on screen
+--    and says so, rather than showing a success alert over a window whose
+--    sidebar is off the edge.
 --
 -- 🔎 ⇪space  UNIFIED SEARCH (modules/unified_search.lua) — 6.89.0
 --    One typed search over EVERY store: clipboard, commands, shots,
@@ -386,9 +410,16 @@
 --    (empty)   today's apps ranked most→least time
 --    week      this week's totals
 --    month     top apps AND top documents/windows this month
---    anything  searches all history by app name or window title
+--    anything  searches all history by app name, window title OR URL
 --    Automatic reports pop up daily at 4:00 PM and Monday at 7:30 AM.
 --    Selecting any row copies the name + time to the clipboard.
+--    🌐 6.123.0 — the CSV's columns are date,app,title,seconds,url. When
+--    the window in front is Chrome the row records the page, so this one
+--    file says what you were looking at, what it was called and for how
+--    long. Incognito windows are never recorded and named secrets are
+--    stripped from the address first. _G.urlReport() says why the column
+--    is empty when it is — usually macOS has not been told to allow
+--    Hammerspoon to control Chrome (Privacy & Security → Automation).
 --
 -- 👁 APP WATCHER (§3.7)  ·  automatic, no key needed
 --    Monitors apps you care about (edit the list in §3.7).
@@ -549,7 +580,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.122.0"
+_G.configVersion = "6.123.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

@@ -138,18 +138,77 @@ function M.setup(core)
         hs.alert.show("🪟 Returned to prior position — ⌃⌥M again toggles back")
     end
 
+    -- 🎬 6.123.0 — THE MOVE IS NOT FINISHED WHEN THE CALL RETURNS, and for
+    -- one class of app it never was. Every arrangement below COMPUTES a
+    -- rectangle and asks for it. An app is free to answer with a different
+    -- one, and some do: VLC's video window is aspect-locked with a minimum
+    -- size, so asked to become the proportional version of itself on
+    -- another monitor it keeps the width it wants — and accepts the origin
+    -- it was handed. The result is a window hanging off the edge with its
+    -- playlist sidebar sliced away, which is what LL was looking at.
+    -- moveToScreen's own ensureInScreenBounds does not catch this: that
+    -- clamps the rectangle being REQUESTED, and the app resizes afterwards.
+    --
+    -- So: ask, then LOOK. Read the frame the window actually ended up with
+    -- and, if it is not inside the monitor, push it in with setTopLeft —
+    -- which moves without resizing, because resizing is the argument this
+    -- window just won. Trying to resize it again only restarts the fight.
+    --
+    -- ORDER MATTERS AND IS THE WHOLE DESIGN. Right and bottom are clamped
+    -- first, left and top second, so left/top wins. For a window WIDER THAN
+    -- THE SCREEN that decides what gets sacrificed: the far edge, never the
+    -- title bar and never the left sidebar. The controls stay reachable.
+    --
+    -- ⚠️ HONEST LIMIT: nothing here forces a window to fit. One too big for
+    -- the monitor is still too big afterwards, merely anchored where you
+    -- can grab it. Returning false rather than pretending is what lets the
+    -- caller say so out loud instead of showing a success alert over a
+    -- half-visible window.
+    local FIT_SLOP = 1   -- px; frames can carry a fractional pixel and a
+                          -- hair of overhang is not a failure worth naming
+    local function settleIntoScreen(win, target)
+        if not (win and target) then return false end
+        local f, s
+        pcall(function() f = win:frame() end)
+        pcall(function() s = target:frame() end)
+        if not (f and s) then return false end
+
+        local x, y = f.x, f.y
+        if x + f.w > s.x + s.w then x = s.x + s.w - f.w end
+        if y + f.h > s.y + s.h then y = s.y + s.h - f.h end
+        if x < s.x then x = s.x end
+        if y < s.y then y = s.y end
+
+        if x ~= f.x or y ~= f.y then
+            pcall(function() win:setTopLeft({ x = x, y = y }) end)
+        end
+
+        -- Re-read rather than assume the nudge took — that assumption is
+        -- exactly the one that put us here.
+        local after
+        pcall(function() after = win:frame() end)
+        if not after then return false end
+        return after.x + FIT_SLOP >= s.x
+           and after.y + FIT_SLOP >= s.y
+           and after.x + after.w <= s.x + s.w + FIT_SLOP
+           and after.y + after.h <= s.y + s.h + FIT_SLOP
+    end
+    core.provide("windows.settle", settleIntoScreen)
+
     -- ⌃⌥← / ⌃⌥→ — snap the focused window to the left/right half
     local function setHalf(side)
         local win = focusedStandardWindow()
         if not win then hs.alert.show("🪟 No window in focus") return end
         if not guardNotFullScreen(win) then return end
         rememberFrame(win)
-        local f = win:screen():frame()
+        local scr = win:screen()
+        local f = scr:frame()
         if side == "left" then
             win:setFrame({ x = f.x, y = f.y, w = f.w / 2, h = f.h })
         else
             win:setFrame({ x = f.x + f.w / 2, y = f.y, w = f.w / 2, h = f.h })
         end
+        settleIntoScreen(win, scr)
     end
 
     -- ⌃⌥F — fill the screen's usable area (menu bar & Dock stay visible;
@@ -186,6 +245,11 @@ function M.setup(core)
         end
         wins[1]:setFrame({ x = f.x,           y = f.y, w = f.w / 2, h = f.h })
         wins[2]:setFrame({ x = f.x + f.w / 2, y = f.y, w = f.w / 2, h = f.h })
+        -- 6.123.0: the right-hand window is the one that overhangs when an
+        -- app refuses to be half-width — its origin is already halfway
+        -- across. Both are settled; a window that complied never moves.
+        settleIntoScreen(wins[1], scr)
+        settleIntoScreen(wins[2], scr)
         wins[1]:focus()
 
         local n1, n2 = "window", "window"
@@ -221,7 +285,23 @@ function M.setup(core)
         win:focus()
         local name = "monitor"
         pcall(function() name = target:name() or name end)
-        hs.alert.show("🪟 → " .. name, target)
+
+        -- 🎬 6.123.0 — DID IT ACTUALLY GO? A window that refused the move
+        -- must not be congratulated for it. The old alert said "→ monitor"
+        -- unconditionally, so the one case worth knowing about — the move
+        -- didn't take — looked exactly like success.
+        local landed
+        pcall(function() landed = win:screen() end)
+        if landed and landed ~= target then
+            hs.alert.show("🪟 " .. name .. " — this window would not move there", target)
+            return
+        end
+
+        if settleIntoScreen(win, target) then
+            hs.alert.show("🪟 → " .. name, target)
+        else
+            hs.alert.show("🪟 → " .. name .. " · bigger than that monitor — corner anchored, far edge overhangs", target)
+        end
     end
 
     -- ⌃⌥W — summon picker: type an app's name, select it, and its window
@@ -255,6 +335,7 @@ function M.setup(core)
                 win:moveToScreen(target, false, true)
                 win:raise()
             end)
+            settleIntoScreen(win, target)   -- 6.123.0, same reason as ⇪[ / ⇪]
         end
         app:activate(true)
         hs.alert.show("🪟 Summoned " .. choice.text)
