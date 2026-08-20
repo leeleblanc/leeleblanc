@@ -283,9 +283,14 @@ function M.setup(core)
     -- The shipped collections are 2,006 files of roughly 150 bytes each.
     -- Opening two thousand files to read 130 KB is the slowest way to do
     -- it, and in a zip those filenames cost more than their contents —
-    -- 714 KB of a 1.79 MB download. tools/build-snippets.lua folds them
-    -- into snippets/bundled.lua, which is 30 KB in the zip and ONE read
-    -- here.
+    -- 797 KB of a 2.1 MB download. tools/build-snippets.lua folds them
+    -- into snippets/bundled.lua, which is 128 KB and ONE read here.
+    --
+    -- 📦 6.117.0 STOPPED SHIPPING THE PACKS AT ALL. The table wins below
+    -- whenever it loads, so those 797 KB were files this function was
+    -- already refusing to open. The zip now carries bundled.lua only.
+    -- The scan is still here, still correct, and still the thing that
+    -- reads YOUR imports out of exp.dir — which is a different folder.
     --
     -- 🚨 IT IS A PREFERENCE, NOT A REQUIREMENT. Every failure below falls
     -- through to the directory scan and says why. A build with the packs

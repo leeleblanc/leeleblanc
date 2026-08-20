@@ -14,9 +14,12 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 ├── core/             dofile'd at a fixed point, NOT loader-managed (9 files)
 ├── modules/          one file per feature (49 files, ~27,000 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
-├── snippets/         bundled.lua — 2,006 shipped snippets in one table
+├── snippets/         bundled.lua — 2,006 shipped snippets in one table.
+│                     Since 6.117.0 the .json packs it was built from do
+│                     NOT ship: the expander skips them whenever the
+│                     table loads, so they were 797 KB of ignored files
 └── tools/            hs-install.sh · hs-doctor.sh · run-tests.sh ·
-                      build-snippets.lua · outlook-probe.lua
+                      build-snippets.lua
 ```
 
 `core/` is the part that is easy to get wrong when updating by hand.
@@ -311,7 +314,7 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Forty-nine Lua suites, 4,187 checks, plus three more that run the Capture
+Forty-eight Lua suites, 4,037 checks, plus three more that run the Capture
 Pad's, the screenshot editor's and unified search's page JavaScript under
 `node`. All of it runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:

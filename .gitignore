@@ -14,6 +14,14 @@
 # `<that folder>/tools/hs-install.sh <that folder>` — a wrapper puts
 # everything one level down and both halves of that instruction miss.
 #
+# 🚨 SINCE 6.117.0 THE ZIP CARRIES snippets/bundled.lua AND NOT THE 2,006
+# .json PACKS IT WAS BUILT FROM. That is not a trim for its own sake:
+# text_expander.lua does not read the packs when the table loads, and it
+# has not since 6.105.0 — shipping them put 797 KB of deliberately
+# ignored files in every download. All 2,006 snippets are in the table.
+# The packs stay in the working tree because build-snippets.lua rebuilds
+# the table from them.
+#
 # To rebuild any release from source:
 #   git checkout <the tag or commit for that version>
 #   mkdir -p /tmp/pkg
@@ -21,6 +29,8 @@
 #         hammerspoon/tools hammerspoon/tests hammerspoon/snippets \
 #         hammerspoon/GUIDE.md hammerspoon/INSTALL.md \
 #         hammerspoon/CHANGELOG.md /tmp/pkg/
+#   lua5.4 hammerspoon/tools/build-snippets.lua hammerspoon --check   ← REQUIRED
+#   find /tmp/pkg/snippets -mindepth 1 -depth ! -name bundled.lua -delete
 #   (cd /tmp/pkg && zip -qr ../hammerspoonX.Y.Z.zip .)
 #
 # Always run tools/run-tests.sh from INSIDE the unpacked package before
