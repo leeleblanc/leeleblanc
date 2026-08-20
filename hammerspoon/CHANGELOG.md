@@ -4,6 +4,61 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.121.0 — THE LEFT ⌘ GOES BACK TO ALFRED:
+
+  ✋ THE EDITOR PICKER NOW WATCHES THE RIGHT ⌘ ONLY.
+  LL: "Right now, I use the cmd+cmd so technically it's a conflict with
+  Hammerspoon. Can I use left cmd twice for Alfred and right cmd for
+  Hammerspoon?"
+
+  Yes — on this side of the fence, which is the honest shape of the
+  answer. A flagsChanged event carries the KEYCODE of the modifier that
+  changed, and left ⌘ (55) and right ⌘ (54) are two different keys. So
+  the tap can be told to care about one of them, and it now is: the
+  default gesture is right ⌘⌘, and 6.116.0's "either ⌘" is one setting
+  away.
+
+  Tapping left ⌘ twice does not merely fail to open the picker — it
+  DIRTIES the press, which clears any half-made gesture. Reaching for
+  Alfred can never leave this armed for whatever right ⌘ comes next.
+
+  🚨 IT TAKES TWO TO SPLIT A KEY AND THIS CONFIG IS ONLY ONE OF THEM.
+  Whether Alfred distinguishes the sides is Alfred's business and cannot
+  be read from in here. If Alfred fires on BOTH ⌘ keys then right ⌘⌘
+  opens Alfred as well as this picker, and no setting in this config
+  changes that. Which is exactly why the modifier is a setting too:
+
+      _G.editorPicker.tapMod  = "cmd" | "alt" | "ctrl" | "shift"
+      _G.editorPicker.tapSide = "right" | "left" | "either"
+
+  tapMod = "alt" puts the picker on right ⌥⌥, which Alfred is not
+  watching at all. The test that decides between them takes ten seconds:
+  tap the right ⌘ twice and see whether Alfred comes up.
+
+  🚨 THE SIDE CHECK DOES NOT REPLACE THE keyDown WATCH, and 6.116.0's
+  reason for that watch is untouched. Somebody who copies and pastes
+  with the right ⌘ produces right-⌘C then right-⌘V, which passes the
+  side check perfectly. Narrowing the gesture to one key narrows WHO may
+  start it; it says nothing about what happened in the middle.
+
+  ⚠️ A SIDE IT CANNOT READ IS REFUSED, NOT GUESSED — a guess is the
+  conflict coming back. Refused presses are counted, and after twelve of
+  them the Console says so ONCE and names the setting that takes the
+  side out of it. _G.editorPickerReport() prints the gesture, both
+  settings it is made of, how many times each ⌘ has been pressed this
+  session, and a warning when the side you chose has never been seen —
+  which is what a keyboard with no right ⌘ looks like from in here.
+
+  A keyboard map that reports one keycode for both keys FAILS OPEN: the
+  side is ignored and either key works, because a gesture that silently
+  stopped working is worse than one that is merely not narrowed.
+
+  🗂 The cheat sheet, the report and every Console line read the gesture
+  from the setting rather than saying ⌘⌘ from memory, so ⇪/ cannot
+  advertise a key the tap is not watching. Rewritten again in warm(),
+  after machine-profile overrides land, since those are applied after
+  setup() returns.
+
 NEW IN 6.120.0 — THE OTHER EIGHT, AND THE KEY THAT WAS ALREADY TAKEN:
 
   6.119.0 shipped four of the twelve LL asked for in one message. These

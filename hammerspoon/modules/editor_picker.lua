@@ -1,5 +1,6 @@
 -- =====================================================================
--- MODULE: EDITOR PICKER (⌘⌘, or ⇪⇧Z) — every text surface this config owns
+-- MODULE: EDITOR PICKER (right ⌘⌘, or ⇪⇧Z) — every text surface this
+-- config owns
 -- =====================================================================
 -- LL: "Right now a double-click of the cmd+cmd key pressed quickly.
 -- Could I bring up all my editor windows up and then let me select the
@@ -12,19 +13,53 @@
 -- to the front if it is already up). ⌥⏎ copies its text WITHOUT opening
 -- anything, which is the "copy from" half of the ask.
 --
---        ⌘⌘         the picker
+--        right ⌘⌘   the picker
 --        ⇪⇧Z        the same picker, for when the tap is unavailable
 --        ⏎          open it / bring it forward
 --        ⌥⏎         copy its text and stay where you are
+--
+-- ---- ✋ WHY THE RIGHT ⌘ AND NOT EITHER ONE (6.121.0) ------------------
+-- LL: "Right now I use the cmd+cmd so technically it's a conflict with
+-- Hammerspoon. Can I use left cmd twice for Alfred and right cmd for
+-- Hammerspoon?"
+--
+-- Yes, on this side of the fence — and this is the whole of what this
+-- config can do about it. A flagsChanged event carries the KEYCODE of the
+-- modifier that changed, and left and right ⌘ are two different keys:
+--
+--        left ⌘  55        right ⌘  54
+--        left ⌥  58        right ⌥  61
+--        left ⌃  59        right ⌃  62
+--        left ⇧  56        right ⇧  60
+--
+-- So ep.tapSide = "right" means a left-⌘ tap is not merely ignored, it
+-- CANCELS any sequence in flight — tapping left ⌘ twice for Alfred can
+-- never leave half a gesture armed here.
+--
+-- 🚨 IT TAKES TWO TO SPLIT A KEY, AND THIS FILE IS ONLY ONE OF THEM.
+-- Whether Alfred distinguishes the sides is Alfred's business and cannot
+-- be read from in here. If Alfred fires on BOTH ⌘ keys then right ⌘⌘ will
+-- open Alfred as well as this picker, and no setting in this file changes
+-- that. The test takes ten seconds — tap right ⌘ twice and watch — and
+-- there is a clean answer either way, because the modifier is a setting
+-- too: ep.tapMod = "alt" with ep.tapSide = "right" puts this picker on
+-- right ⌥⌥, which Alfred is not watching at all.
+--
+-- ⚠️ AND THE SIDE IS ONLY HONOURED WHEN IT CAN BE READ. A flagsChanged
+-- event with no readable keycode cannot be attributed to a side, and this
+-- refuses it rather than guessing — the guess would be the conflict
+-- coming back. Refused presses are COUNTED, and _G.editorPickerReport()
+-- prints the count, so a Mac where that reading does not work says so out
+-- loud instead of quietly losing the gesture. See ep.sideUnknownLimit.
 --
 -- ⌨️ AND ⇪⇧Z IS THE LAST FREE LETTER, not a mnemonic. ⇪E was the obvious
 -- one and §0.4's migration map has held it since long before this module
 -- existed (it edits a custom cheat sheet entry) — the hotkey sentry said
 -- so on the first run of the suite, which is the whole reason that sentry
--- is there. Z is what was left. The gesture you are meant to learn is
--- ⌘⌘; this key is the handrail for the days the tap is not running.
+-- is there. Z is what was left. The gesture you are meant to learn is the
+-- double tap; this key is the handrail for the days it is not running.
 --
--- ---- 🚨 WHY ⌘⌘ NEEDS TO WATCH keyDown AS WELL AS THE MODIFIERS -------
+-- ---- 🚨 WHY THE TAP WATCHES keyDown AS WELL AS THE MODIFIERS ---------
 -- The obvious build watches flagsChanged only: ⌘ goes down, ⌘ comes up,
 -- twice inside a third of a second, fire. It is wrong, and wrong in the
 -- most common keystroke sequence there is.
@@ -36,6 +71,11 @@
 -- are byte-identical to it, so copy-then-paste — which everybody does
 -- forty times a day — would open a picker over whatever you were doing.
 -- Timing does not separate them either: copy-paste is fast, on purpose.
+--
+-- 🚨 AND THE SIDE CHECK DOES NOT REPLACE THIS. Somebody who copies and
+-- pastes with the right ⌘ produces right-⌘C then right-⌘V, which passes
+-- the side check perfectly. Narrowing the gesture to one key narrows WHO
+-- may start it; it says nothing about what happened in the middle.
 --
 -- So this tap subscribes to keyDown too, and the entire keyDown branch
 -- is two assignments and a `return false`. That makes it the FOURTH
@@ -77,16 +117,21 @@ local M = {
     name  = "Editor Picker",
     order = 13.34,
     family = "text",
+    -- 🗂 THE FIRST TWO ROWS AND THE TITLE ARE REWRITTEN BY setup(), because
+    -- the gesture is a setting now and a cheat sheet that says ⌘⌘ while the
+    -- tap is watching right ⌥⌥ is worse than no cheat sheet at all. These
+    -- are the defaults, and they are what shows if setup never runs.
     cheatsheet = {
-        title = "🗂 EDITOR PICKER (⌘⌘ — every editor at once)",
+        title = "🗂 EDITOR PICKER (right ⌘⌘ — every editor at once)",
         entries = {
-            { "⌘⌘",  "Tap ⌘ twice, touching nothing else — the picker opens" },
-            { "⇪⇧Z", "The same picker, when the ⌘⌘ tap is unavailable" },
+            { "right ⌘⌘", "Tap it twice, touching nothing else — the picker opens" },
+            { "⇪⇧Z", "The same picker, when the double tap is unavailable" },
             { "⏎",   "Open it — or bring it forward if it is already up" },
             { "⌥⏎",  "Copy that editor's text and leave everything closed" },
             { "lists", "Capture Pad · Note Pad · OCR text · clipboard · pins" },
             { "sorted", "Open windows first, then whatever has something in it" },
             { "never", "⌘C then ⌘V does NOT open it — see the header" },
+            { "left ⌘⌘", "Left is yours — Alfred keeps it. See ep.tapSide" },
             { "check", "_G.editorPickerReport() — the roster and the tap's health" },
         },
     },
@@ -97,9 +142,18 @@ function M.setup(core)
 
     -- ✏️ EDIT HERE ---------------------------------------------------------
     ep.enabled     = true    -- false = no tap, no key, nothing bound
-    ep.tapEnabled  = true    -- false = ⇪⇧Z only; the ⌘⌘ tap is never created
+    ep.tapEnabled  = true    -- false = ⇪⇧Z only; the tap is never created
     ep.key         = "z"     -- ⇪⇧Z, the tap-free way in (see the header)
     ep.keyMods     = { "shift" }
+    -- 🎹 WHICH MODIFIER, AND WHICH ONE OF IT. Both are settings because the
+    -- key this picker wants is a key something else may already want:
+    --   tapMod  "cmd" · "alt" · "ctrl" · "shift"
+    --   tapSide "right" · "left" · "either"
+    -- "right" + "cmd" leaves left ⌘⌘ entirely to Alfred. If Alfred turns
+    -- out to fire on both ⌘ keys, "alt" moves this off ⌘ altogether and
+    -- the argument is over. "either" is the 6.116.0 behaviour.
+    ep.tapMod      = "cmd"
+    ep.tapSide     = "right"
     -- ⏱ Two windows, and they are different questions. maxHold is "was
     -- that ⌘ a TAP or a HOLD" — a modifier you are holding down to use is
     -- down for as long as you are reading the menu. tapGap is "were those
@@ -109,10 +163,87 @@ function M.setup(core)
     ep.maxHold     = 0.35    -- a tap is ⌘ down and up inside this
     ep.tapGap      = 0.35    -- and the second tap lands inside this
     ep.failLimit   = 5       -- consecutive callback throws before standing down
+    -- How many presses may go unattributed to a side before this says so in
+    -- the Console. Once, not every time: a line per keypress is a scroll.
+    ep.sideUnknownLimit = 12
     -- ----------------------------------------------------------------------
 
     local function say(m)  if _G.diag then _G.diag.say("editors", m)  end end
     local function warn(m) if _G.diag then _G.diag.warn("editors", m) end end
+
+    -- =================================================================
+    -- 🎹 WHICH PHYSICAL KEY
+    -- =================================================================
+    -- The numbers are the documented macOS keycodes and they have not
+    -- moved in twenty years, but they are the FALLBACK and not the
+    -- source: hs.keycodes is the thing that knows, and a hard-coded
+    -- constant that drifts is a gesture that dies quietly. Same shape as
+    -- core/hyper_key.lua's F18 lookup, for the same reason.
+    ep.MOD_KEYS = {
+        cmd   = { glyph = "⌘", left = "cmd",   right = "rightcmd",   codes = { 55, 54 } },
+        alt   = { glyph = "⌥", left = "alt",   right = "rightalt",   codes = { 58, 61 } },
+        ctrl  = { glyph = "⌃", left = "ctrl",  right = "rightctrl",  codes = { 59, 62 } },
+        shift = { glyph = "⇧", left = "shift", right = "rightshift", codes = { 56, 60 } },
+    }
+    ep.ALL_MODS = { "cmd", "alt", "ctrl", "shift" }
+
+    function ep.modSpec()
+        return ep.MOD_KEYS[ep.tapMod] or ep.MOD_KEYS.cmd
+    end
+
+    -- Resolved once at setup and again whenever tapMod changes, because a
+    -- per-machine profile may set tapMod AFTER this file has run.
+    function ep.resolveCodes()
+        local spec = ep.modSpec()
+        local left, right = spec.codes[1], spec.codes[2]
+        pcall(function()
+            local map = hs.keycodes and hs.keycodes.map
+            if type(map) ~= "table" then return end
+            if type(map[spec.left])  == "number" then left  = map[spec.left]  end
+            if type(map[spec.right]) == "number" then right = map[spec.right] end
+        end)
+        -- ⚠️ A KEYBOARD MAP THAT GIVES BOTH SIDES THE SAME NUMBER cannot
+        -- tell them apart, and pretending otherwise would silently refuse
+        -- every press. Say so and stop asking.
+        if left == right then
+            warn("this keyboard reports one keycode for both "
+                 .. ep.tapMod .. " keys — the side setting cannot apply")
+            ep.sideReadable = false
+        else
+            ep.sideReadable = true
+        end
+        ep.leftCode, ep.rightCode = left, right
+        ep.codesFor = ep.tapMod
+        return left, right
+    end
+
+    -- nil means "this event does not name a side" — NOT "either side".
+    function ep.sideOf(keyCode)
+        if ep.codesFor ~= ep.tapMod then ep.resolveCodes() end
+        if type(keyCode) ~= "number" then return nil end
+        if keyCode == ep.leftCode  then return "left"  end
+        if keyCode == ep.rightCode then return "right" end
+        return nil
+    end
+
+    -- The only place the setting is interpreted. Anything other than
+    -- "left" or "right" means the side does not matter, which is what
+    -- makes a typo in a profile fail open rather than kill the gesture.
+    function ep.sideOK(side)
+        if ep.tapSide ~= "left" and ep.tapSide ~= "right" then return true end
+        if not ep.sideReadable then return true end
+        return side == ep.tapSide
+    end
+
+    -- What to CALL the gesture, everywhere it is named. One function so
+    -- the cheat sheet, the report and the Console can never disagree.
+    function ep.gesture()
+        local g = ep.modSpec().glyph
+        g = g .. g
+        if ep.tapSide == "left"  then return "left "  .. g end
+        if ep.tapSide == "right" then return "right " .. g end
+        return g
+    end
 
     -- The registry. Created with `or` on purpose — modules insert into it
     -- directly, so nothing here depends on load order and this module can
@@ -325,9 +456,11 @@ function M.setup(core)
     --     which matters more here than anywhere else in this config,
     --     because this tap sees keyDown and a tap that ate keyDown would
     --     take the keyboard away entirely.
-    --   · IT NEVER LOOKS AT WHICH KEY. The keyDown branch reads no
-    --     keycode and no characters. It records THAT a key happened, and
-    --     that is the whole of its interest in your typing.
+    --   · IT NEVER LOOKS AT WHICH KEY YOU TYPED. The keyDown branch reads
+    --     no keycode and no characters. It records THAT a key happened,
+    --     and that is the whole of its interest in your typing. The
+    --     keycode it DOES read belongs to flagsChanged events only, where
+    --     the "key" is ⌘ or ⌥ and nothing you could be writing with.
     --   · IT STANDS DOWN FOR THE SHARED INJECTION GUARD, so the
     --     expander's and autocorrect's synthetic keys — and §3.12's boot
     --     self-test, which posts four of them — cannot assemble a
@@ -338,28 +471,53 @@ function M.setup(core)
     ep.tapFailures = 0
     ep.tapRunning  = false
     ep.fires       = 0
-    local cmdDownAt, dirty, lastTapAt = nil, false, 0
+    ep.sidesSeen   = { left = 0, right = 0 }
+    ep.sideUnknown = 0        -- presses this session that named no side
+    ep.saidUnknown = false    -- the Console line is printed once, not per key
+    local modDownAt, dirty, lastTapAt = nil, false, 0
 
     -- Exposed so the tests can drive the state machine without an event
     -- tap, and so ⇪⇧D can reset it after a machine wakes up confused.
     function ep.resetTapState()
-        cmdDownAt, dirty, lastTapAt = nil, false, 0
+        modDownAt, dirty, lastTapAt = nil, false, 0
     end
 
-    -- The state machine, called with a plain flags table and a wall clock.
+    -- Every modifier that is NOT the one this gesture is made of. Read
+    -- from the setting rather than written out, so switching tapMod to
+    -- "alt" does not leave ⌥ counting as an intruder in its own gesture.
+    local function otherFlags(flags)
+        for _, m in ipairs(ep.ALL_MODS) do
+            if m ~= ep.tapMod and flags[m] == true then return true end
+        end
+        return flags.fn == true
+    end
+
+    -- The state machine, called with a plain flags table, a wall clock and
+    -- the keycode of the modifier that changed (nil when unknown).
     -- Returns true on the frame that completes a double tap.
-    function ep.onFlags(flags, now)
+    function ep.onFlags(flags, now, keyCode)
         flags = flags or {}
-        local cmd     = flags.cmd == true
-        local others  = (flags.shift or flags.alt or flags.ctrl or flags.fn) == true
-        if cmd and cmdDownAt == nil then
-            cmdDownAt = now
+        local down    = flags[ep.tapMod] == true
+        local others  = otherFlags(flags)
+        if down and modDownAt == nil then
+            modDownAt = now
             dirty     = others          -- ⌘ arriving alongside ⇧ is not a tap
-        elseif cmd and cmdDownAt ~= nil then
+            -- 🚨 THE SIDE IS DECIDED ON THE WAY DOWN, and a wrong-side key
+            -- does not merely fail to count — it dirties the press, which
+            -- clears any half-made sequence on the release below. Tapping
+            -- left ⌘ twice for Alfred therefore cannot leave this armed.
+            local side = ep.sideOf(keyCode)
+            if side then
+                ep.sidesSeen[side] = (ep.sidesSeen[side] or 0) + 1
+            elseif ep.tapSide == "left" or ep.tapSide == "right" then
+                ep.noteUnknownSide()
+            end
+            if not ep.sideOK(side) then dirty = true end
+        elseif down and modDownAt ~= nil then
             if others then dirty = true end   -- ⇧ joined a held ⌘
-        elseif not cmd and cmdDownAt ~= nil then
-            local held = now - cmdDownAt
-            cmdDownAt = nil
+        elseif not down and modDownAt ~= nil then
+            local held = now - modDownAt
+            modDownAt = nil
             if dirty or others or held > ep.maxHold then
                 -- Not a tap, and it also breaks any sequence in progress:
                 -- ⌘-tap then ⌘X must not leave half a gesture armed for
@@ -376,6 +534,24 @@ function M.setup(core)
             lastTapAt = now
         end
         return false
+    end
+
+    -- A side setting this Mac cannot honour is a gesture that has quietly
+    -- stopped working, and the one thing worse than that is not being
+    -- told. Counted always; said once, at the limit.
+    function ep.noteUnknownSide()
+        ep.sideUnknown = ep.sideUnknown + 1
+        if ep.saidUnknown or ep.sideUnknown < ep.sideUnknownLimit then return end
+        ep.saidUnknown = true
+        print("🗂 Editor picker: " .. ep.sideUnknown .. " " .. ep.tapMod
+              .. " presses could not be attributed to a left or right key, "
+              .. "so " .. ep.gesture() .. " is being refused. Set "
+              .. "_G.editorPicker.tapSide = \"either\" to take the side out "
+              .. "of it. ⇪⇧Z opens the picker meanwhile.")
+        if _G.notices then
+            pcall(_G.notices.record, "runtime", "editor picker",
+                  ep.gesture() .. " refused — no side on the keycode")
+        end
     end
 
     -- Any real key press means the ⌘ around it was a chord, not a tap —
@@ -409,7 +585,14 @@ function M.setup(core)
             return
         end
         local flags = ev:getFlags() or {}
-        if ep.onFlags(flags, hs.timer.secondsSinceEpoch()) then
+        -- 🚨 pcall, AND NOT BECAUSE getKeyCode IS EXOTIC. It is the one
+        -- call in this callback that a stubbed, replayed or synthesised
+        -- event may simply not carry, and a throw here would be a throw
+        -- inside a keyboard tap. nil is a perfectly good answer: it means
+        -- "no side", which ep.sideOK already knows what to do with.
+        local code = nil
+        pcall(function() code = ev:getKeyCode() end)
+        if ep.onFlags(flags, hs.timer.secondsSinceEpoch(), code) then
             ep.fire()
         end
     end
@@ -426,13 +609,13 @@ function M.setup(core)
         ep.tapFailures = ep.tapFailures + 1
         if ep.tapFailures >= ep.failLimit then
             ep.stopTap()
-            print("🗂 Editor picker: the ⌘⌘ watcher threw "
+            print("🗂 Editor picker: the " .. ep.gesture() .. " watcher threw "
                   .. ep.failLimit .. " times in a row and has been "
                   .. "switched off. ⇪⇧Z still opens the picker. "
                   .. "Last error: " .. tostring(err))
             if _G.notices then
                 pcall(_G.notices.record, "runtime", "editor picker",
-                      "⌘⌘ watcher disabled after repeated failures")
+                      ep.gesture() .. " watcher disabled after repeated failures")
             end
         end
         return false
@@ -445,14 +628,15 @@ function M.setup(core)
             hs.eventtap.event.types.flagsChanged,
         }, function(ev) return ep.handler(ev) end)
         if not (okNew and tap) then
-            warn("could not create the ⌘⌘ watcher — ⇪⇧Z still works")
+            warn("could not create the " .. ep.gesture()
+                 .. " watcher — ⇪⇧Z still works")
             return false
         end
         ep.tap = tap
         local okStart = pcall(function() tap:start() end)
         ep.tapRunning = okStart and true or false
         if not okStart then
-            warn("the ⌘⌘ watcher would not start — ⇪⇧Z still works")
+            warn("the " .. ep.gesture() .. " watcher would not start — ⇪⇧Z still works")
         end
         return ep.tapRunning
     end
@@ -468,7 +652,9 @@ function M.setup(core)
     -- =================================================================
     function _G.editorPickerReport()
         local L = { "🗂 EDITOR PICKER" }
-        L[#L + 1] = string.format("   ⌘⌘ watcher : %s%s",
+        L[#L + 1] = string.format("   gesture    : %s  (tapMod = %s, tapSide = %s)",
+            ep.gesture(), tostring(ep.tapMod), tostring(ep.tapSide))
+        L[#L + 1] = string.format("   watcher    : %s%s",
             ep.tapRunning and "running" or "NOT running",
             ep.tapEnabled and "" or " (tapEnabled = false)")
         L[#L + 1] = string.format("   fired      : %d time%s this session",
@@ -476,6 +662,28 @@ function M.setup(core)
         L[#L + 1] = string.format("   fallback   : ⇪%s%s",
             (ep.keyMods and ep.keyMods[1] == "shift") and "⇧" or "",
             ep.key:upper())
+        -- 🚨 THE THREE NUMBERS THAT SAY WHETHER THE SPLIT IS WORKING, and
+        -- the reason this report exists at all now. Nought on the side you
+        -- chose means the gesture cannot fire, and this is the only place
+        -- that would ever tell you why.
+        L[#L + 1] = string.format("   keys seen  : left %d · right %d · no side %d",
+            ep.sidesSeen.left or 0, ep.sidesSeen.right or 0, ep.sideUnknown)
+        if not ep.sideReadable then
+            L[#L + 1] = "   ⚠️ this keyboard reports one keycode for both keys —"
+            L[#L + 1] = "      the side is being ignored and either key fires it"
+        elseif (ep.tapSide == "left" or ep.tapSide == "right")
+               and (ep.sidesSeen[ep.tapSide] or 0) == 0 then
+            L[#L + 1] = "   ⚠️ the " .. ep.tapSide .. " " .. ep.modSpec().glyph
+                        .. " has not been pressed once this session."
+            L[#L + 1] = "      Either you have not used it yet, or this keyboard"
+            L[#L + 1] = "      has no " .. ep.tapSide .. " one — try tapSide = \"either\"."
+        end
+        if ep.sideUnknown > 0 then
+            L[#L + 1] = string.format(
+                "   ⚠️ %d press%s named no side and %s refused.",
+                ep.sideUnknown, ep.sideUnknown == 1 and "" or "es",
+                ep.sideUnknown == 1 and "was" or "were")
+        end
         local states = ep.states()
         L[#L + 1] = string.format("   registered : %d editor%s",
             #states, #states == 1 and "" or "s")
@@ -497,6 +705,43 @@ function M.setup(core)
     -- =================================================================
     -- 🔌 WIRING
     -- =================================================================
+    ep.resolveCodes()
+
+    -- 🗂 THE SHEET IS TOLD WHAT THE TAP ACTUALLY WATCHES, because a cheat
+    -- sheet that says ⌘⌘ while the tap watches right ⌥⌥ is worse than no
+    -- cheat sheet: it is a wrong answer given confidently.
+    --
+    -- ⚠️ CALLED TWICE, AND THE SECOND TIME IS THE ONE THAT MATTERS ON A
+    -- MACHINE WITH A PROFILE. init.lua applies profile overrides to
+    -- M.config AFTER setup() returns and harvests M.cheatsheet a few lines
+    -- later, so a profile that sets tapSide would leave rows written here
+    -- describing the gesture it replaced. warm() runs after both and calls
+    -- this again — and by then the sheet holds THE SAME entries table by
+    -- reference, so the rows update in place. The title does not: it was
+    -- copied as a string. Hence the second half of this function, which
+    -- goes and corrects the harvested group's title as well.
+    function ep.describe()
+        local glyph = ep.modSpec().glyph
+        M.cheatsheet.title = "🗂 EDITOR PICKER (" .. ep.gesture()
+                             .. " — every editor at once)"
+        M.cheatsheet.entries[1] = { ep.gesture(),
+            "Tap it twice, touching nothing else — the picker opens" }
+        if ep.tapSide == "left" or ep.tapSide == "right" then
+            local otherSide = (ep.tapSide == "right") and "left" or "right"
+            M.cheatsheet.entries[8] = { otherSide .. " " .. glyph .. glyph,
+                "Not this one — yours to give to Alfred. See ep.tapSide" }
+        else
+            M.cheatsheet.entries[8] = { "either side", "Both " .. ep.tapMod
+                .. " keys fire it — ep.tapSide = \"right\" narrows it" }
+        end
+        for _, g in ipairs(_G.moduleCheatsheets or {}) do
+            if type(g) == "table" and g.source == M.name then
+                g.title = M.cheatsheet.title
+            end
+        end
+    end
+    ep.describe()
+
     if ep.enabled then
         core.hyperAddShortcut(ep.keyMods, ep.key, function() ep.show() end,
                               "editor picker")
@@ -516,7 +761,12 @@ end
 -- has not finished loading.
 M.warm = function()
     local ep = _G.editorPicker
-    if ep and ep.enabled and ep.tapEnabled then ep.startTap() end
+    if not ep then return end
+    -- Re-read the settings a profile may have changed since setup: the
+    -- keycodes for a new tapMod, and every place the gesture is named.
+    pcall(ep.resolveCodes)
+    pcall(ep.describe)
+    if ep.enabled and ep.tapEnabled then ep.startTap() end
 end
 
 return M

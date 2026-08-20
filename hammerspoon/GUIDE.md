@@ -225,7 +225,7 @@ into directly so the reader names no writer:
 | `_G.movablePanels` | every panel and picker | `window_move` — ⌘-drag |
 | `_G.escapeClaims` | every panel that Esc closes | `core/coexist` — the Esc router |
 | `_G.choosers` | every `hs.chooser` | the Esc router, so pickers close first |
-| `_G.editors` | every text surface | `editor_picker` — ⌘⌘ |
+| `_G.editors` | every text surface | `editor_picker` — right ⌘⌘ |
 
 🚨 **A registry rots silently.** Nothing errors when a module stops
 registering; the feature just quietly has one fewer row, and you find out
@@ -316,20 +316,29 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Fifty-two Lua suites, 4,717 checks, plus three more that run the Capture
+Fifty-two Lua suites, 4,654 checks, plus three more that run the Capture
 Pad's, the screenshot editor's and unified search's page JavaScript under
-`node` — fifty-seven stages in all. All of it runs with `lua5.4` on any
-machine — no Mac required, they stub the `hs` API:
+`node` for a further 105 — **4,759 checks over fifty-seven stages** in
+all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
+they stub the `hs` API:
 
-> 🚨 **These three numbers have been wrong twice, in two different ways,
-> so they are now MEASURED rather than remembered.** Until 6.118.0 the
+> 🚨 **These numbers have now been wrong three times, in three different
+> ways, so they are MEASURED rather than remembered.** Until 6.118.0 the
 > suite count said "forty-eight Lua suites", which was the STAGE count
 > wearing the wrong label — the three JavaScript suites are `.js` files
 > run by `node`, not Lua. 6.118.0 fixed the label and left the stage
 > figure at forty-eight, which was *also* wrong: the gate reported fifty
-> at the time. The gate prints all three on every run, so read them off
-> it rather than off this paragraph:
-> `sh tools/run-tests.sh . | tail -3`
+> at the time. And 6.121.0 found the CHECK figure adrift by 63, with no
+> way to tell which of the two totals it had once been. It is written as
+> both now, and the ambiguity is gone. Read them off the gate rather than
+> off this paragraph. The stage count is the gate's own last line; this
+> adds up every suite it ran, JavaScript included — drop the `_js` three
+> to get the Lua-only figure:
+> ```
+> sh tools/run-tests.sh . | grep -E '^   ✅ test_' \
+>   | sed -E 's/.*— (── [a-z_]+: )?([0-9]+) passed.*/\2/' \
+>   | awk '{s+=$1; n+=1} END {print n" suites, "s" checks"}'
+> ```
 
 ```
 tests/test_modules.lua       loader, profiles, warm phase, failure isolation, slot uniqueness
@@ -366,9 +375,12 @@ tests/test_file_tracker.lua  📅 the file_changes CSV schema and the migration 
                              against REAL files: the old date text is never parsed
 tests/test_task_creator.lua  ⌃⌥⌘T as a module: history, pipe parser, submit — and the
                              token NEVER appears in curl's argument list
-tests/test_editor_picker.lua 🗂 ⌘⌘: the state machine that must NOT fire on ⌘C then
-                             ⌘V, and the rule that ⏎ on an open editor never
-                             calls show() — both pads toggle, and one of them files
+tests/test_editor_picker.lua 🗂 right ⌘⌘: the state machine that must NOT fire on
+                             ⌘C then ⌘V, the LEFT ⌘ that belongs to Alfred and must
+                             cancel rather than be ignored, the press whose side
+                             cannot be read and is refused rather than guessed, and
+                             the rule that ⏎ on an open editor never calls show() —
+                             both pads toggle, and one of them files
 tests/test_right_click.lua   🖱 ⇪⇧F: the events it posts, and the wait for ⇧ to come
                              up before it posts them — a menu reads the modifiers
                              held when it opens

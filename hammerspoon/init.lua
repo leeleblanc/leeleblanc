@@ -4,8 +4,46 @@
 -- =====================================================================
 -- 08-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.120.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.121.0
 -- =====================================================================
+
+-- NEW IN 6.121.0 — THE LEFT ⌘ GOES BACK TO ALFRED:
+--   ✋ THE EDITOR PICKER NOW WATCHES THE RIGHT ⌘ ONLY. LL: "Right now I
+--      use the cmd+cmd so technically it's a conflict with Hammerspoon.
+--      Can I use left cmd twice for Alfred and right cmd for
+--      Hammerspoon?" Yes — on this side of the fence. A flagsChanged
+--      event carries the keycode of the modifier that changed, and left ⌘
+--      (55) and right ⌘ (54) are two different keys, so the tap can be
+--      told to care about one of them. It is, and the default is now the
+--      RIGHT one.
+--      Tapping left ⌘ twice does not merely fail to open the picker: it
+--      DIRTIES the press, which clears any half-made gesture. Reaching
+--      for Alfred can never leave this armed for the next right ⌘ that
+--      comes along.
+--      🚨 IT TAKES TWO TO SPLIT A KEY AND THIS CONFIG IS ONE OF THEM.
+--      Whether Alfred distinguishes the sides is Alfred's business and
+--      cannot be read from in here. If Alfred fires on both ⌘ keys then
+--      right ⌘⌘ opens Alfred as well, and no setting in this config
+--      changes that. Which is why the MODIFIER is a setting too:
+--          _G.editorPicker.tapMod  = "cmd" | "alt" | "ctrl" | "shift"
+--          _G.editorPicker.tapSide = "right" | "left" | "either"
+--      tapMod = "alt" puts the picker on right ⌥⌥, which Alfred is not
+--      watching at all. "either" is the 6.116.0 behaviour, unchanged.
+--      🚨 THE SIDE CHECK DOES NOT REPLACE THE keyDown WATCH. Somebody who
+--      copies and pastes with the right ⌘ produces right-⌘C then
+--      right-⌘V, which passes the side check perfectly. Narrowing the
+--      gesture to one key narrows WHO may start it and says nothing about
+--      what happened in the middle.
+--      ⚠️ AND A SIDE IT CANNOT READ IS REFUSED, NOT GUESSED. A guess is
+--      the conflict coming back. Refused presses are counted, and after
+--      twelve of them the Console says so ONCE and names the setting that
+--      takes the side out of it. _G.editorPickerReport() prints the
+--      count, how many times each ⌘ has been pressed this session, and
+--      warns when the side you chose has never been seen — which is what
+--      a keyboard with no right ⌘ looks like from in here.
+--      🗂 The cheat sheet and every message read the gesture from the
+--      setting rather than saying ⌘⌘ from memory, so ⇪/ cannot advertise
+--      a key the tap is not watching.
 
 -- NEW IN 6.120.0 — THE OTHER EIGHT, AND THE KEY THAT WAS ALREADY TAKEN:
 --   6.119.0 shipped four of the twelve LL asked for. These are the rest.
@@ -179,65 +217,10 @@
 --      packs from ~/.hammerspoon/snippets either, so yours stay where
 --      they are; they were already being ignored in favour of the table.
 
--- NEW IN 6.116.0 — FIVE THINGS LL ASKED FOR, IN THE ORDER HE ASKED:
---   🗂 ⌘⌘ OPENS EVERY EDITOR AT ONCE. LL: "Right now a double-click of
---      the cmd+cmd key pressed quickly. Could I bring up all my editor
---      windows up and then let me select the one I need to copy from or
---      edit from?" Tap ⌘ twice, touching nothing else, and a picker
---      lists the Capture Pad, Note Pad, OCR text, clipboard, window pins
---      and the screenshot editor — sorted with whatever is open first
---      and whatever has text in it next. ⏎ opens it, ⌥⏎ copies its text
---      and opens nothing. ⇪⇧Z is the same picker for when the tap is not
---      running.
---      🚨 THE TAP WATCHES keyDown AS WELL AS THE MODIFIERS, and that is
---      the whole design. A flagsChanged-only watcher cannot tell ⌘C-then
---      -⌘V from ⌘ tapped twice — the two are byte-identical to it — so
---      copy-then-paste would have opened the picker over whatever you
---      were doing, forty times a day.
---      🚨 AND ⏎ ON AN OPEN EDITOR NEVER CALLS show(). Both pads TOGGLE,
---      and closing the Note Pad FILES the draft, so picking an open pad
---      in order to go and READ it would have been the keystroke that
---      filed it.
---   🖱 ⇪⇧F RIGHT-CLICKS WHEREVER THE POINTER IS. LL: "I need a right key
---      tool that works to generate a right-click for files, chrome, etc."
---      The mouse grid has right-clicked since 6.45.0, but only as the
---      last step of aiming; this is the one key for when the pointer is
---      already on the file.
---      ⏳ IT WAITS FOR THE MODIFIERS TO COME UP FIRST. A context menu
---      reads the modifiers held when it OPENS: ⇧ makes Chrome show its
---      own menu instead of the page's, ⌥ rewrites half of Finder's. ⇪⇧F
---      means ⇧ is down, so posting on the keypress opens the wrong menu
---      every time.
---   💾 _G.saved() PROVES YOUR LOGS ARE SAVING. LL: "How do I know all my
---      logs and other tracking files are actually saving?" Every log
---      file with its size, rows, when it was last written and how much
---      it has grown since boot — plus a probe file written into the Logs
---      folder and read back, because "the folder exists" and "the folder
---      will take a write right now" are different claims. Also inside
---      ⇪⇧D. It watches the FILES, not the writes, because in 6.115.0
---      three files shared a name and two were frozen: every write
---      succeeded, and a write-logger would have said so cheerfully.
---      🔇 The background check runs every 30 minutes and prints only
---      when a file vanishes, shrinks, or has a stale same-named twin —
---      each said ONCE per session. On a healthy Mac it is silent.
---   ⌨️ THE KEY CASTER GROWS, NAMES THE APP, AND SHOWS EXPANSIONS. LL: "I
---      need the application it is in while it is capturing keys", "can
---      the keycaster be bigger and show text expansion key", and "I need
---      the keycaster grow in size as keys are sent". The last two were
---      one fix: it was a fixed 400×600 box, so one keystroke drew one
---      line at the top of a rectangle six lines tall and mostly air. It
---      is now the size of what is in it, growing downward and leftward
---      so a new key never shoves the panel under your eye. The frontmost
---      app's name sits above the keys, cached for half a second because
---      asking Accessibility on every keystroke is the one cost here that
---      would be felt. A snippet firing shows as ⌨ hte → shorthand — the
---      TRIGGER, not the text, because those snippets hold an employee ID
---      and two real addresses.
-
--- (6.114.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.116.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.120.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.121.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -536,7 +519,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.120.0"
+_G.configVersion = "6.121.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2939,7 +2922,7 @@ local BASE = {
     "net_tools",          -- 🌐 ⇪6  flush · ping · nslookup · traceroute
     "mac_panel",          -- 🖥 ⇪7  About This Mac, as a card
     "tab_search",         -- 🗂 ⇪⇧' every open tab in every running browser
-    "editor_picker",      -- 🗂 ⌘⌘ (or ⇪⇧Z) every editor at once, sorted by
+    "editor_picker",      -- 🗂 right ⌘⌘ (or ⇪⇧Z) every editor at once, by
                           -- what is open and what has something in it.
                           -- LAST on purpose: it only READS the registry the
                           -- editors above fill, so loading it after all of
