@@ -112,6 +112,12 @@ function M.setup(core)
     ak.ended     = {}     -- a log of what this session actually ended
     ak.lastNote  = nil
 
+    -- Constants, so test_diagnostics' external-binary review can see
+    -- them: a path inside a longer command string is invisible to that
+    -- scan, and the scan is what stops a dependency drifting in.
+    ak.PS   = "/bin/ps"
+    ak.KILL = "/bin/kill"
+
     local function say(m)  if _G.diag then _G.diag.say("appKill", m)  end end
     local function warn(m) if _G.diag then _G.diag.warn("appKill", m) end end
 
@@ -162,8 +168,8 @@ function M.setup(core)
         end
         local t0 = now
         local commOut, argsOut
-        pcall(function() commOut = hs.execute("/bin/ps -Ao pid=,%cpu=,rss=,comm=") end)
-        pcall(function() argsOut = hs.execute("/bin/ps -Ao pid=,args=") end)
+        pcall(function() commOut = hs.execute(ak.PS .. " -Ao pid=,%cpu=,rss=,comm=") end)
+        pcall(function() argsOut = hs.execute(ak.PS .. " -Ao pid=,args=") end)
         local by = ak.parse(commOut, argsOut)
 
         -- Which pids are GUI applications. hs.application knows; ps does
@@ -225,19 +231,19 @@ function M.setup(core)
         local how, ok
         if force then
             how = "forced"
-            ok = pcall(function() hs.execute("/bin/kill -9 " .. row.pid) end)
+            ok = pcall(function() hs.execute(ak.KILL .. " -9 " .. row.pid) end)
         elseif row.gui then
             how = "asked to quit"
             local app = hs.application.applicationForPID(row.pid)
             if app then
                 ok = pcall(function() app:kill() end)
             else
-                ok = pcall(function() hs.execute("/bin/kill " .. row.pid) end)
+                ok = pcall(function() hs.execute(ak.KILL .. " " .. row.pid) end)
             end
             ak.quitAt[row.pid] = hs.timer.secondsSinceEpoch()
         else
             how = "signalled"
-            ok = pcall(function() hs.execute("/bin/kill " .. row.pid) end)
+            ok = pcall(function() hs.execute(ak.KILL .. " " .. row.pid) end)
             ak.quitAt[row.pid] = hs.timer.secondsSinceEpoch()
         end
 

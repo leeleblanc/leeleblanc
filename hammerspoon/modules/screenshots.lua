@@ -978,6 +978,14 @@ function M.setup(core)
 
     -- screenshots.latest is what the Task Form's 📸 button calls — one
     -- keystroke from "capture" to "attached to a task".
+    -- 6.120.0 — WHERE zbarimg IS, published rather than copied. ⇪⇧` reads
+    -- QR codes off the screen and needs the same decoder this module
+    -- already hunts for. A second copy of the five candidate paths in
+    -- another file is a list that drifts: Homebrew moves, a new
+    -- no-admin install location gets added here, and the other copy goes
+    -- on looking in the old places and reporting "no decoder installed"
+    -- on a Mac that has one. One list, one owner, asked for by name.
+    core.provide("shots.zbarPath",      function() return shots.zbarPath() end)
     core.provide("screenshots.latest",  function() return shots.latest() end)
     core.provide("screenshots.capture", function() return shots.capture() end)
     core.provide("screenshots.show",    function() return shots.show() end)

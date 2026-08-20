@@ -58,6 +58,11 @@ local CHOOSERS   = {}
 local SHOWS      = 0
 local TASKS      = {}
 local SUPPRESSED = 0
+local SYSKEYS    = {}           -- every media key posted
+local FRONT_APP  = "TextEdit"
+local FRONT_TITLE = nil         -- the focused window's title
+local SERVICE_HAS = true        -- is screenshots loaded?
+local ZBAR       = "/opt/homebrew/bin/zbarimg"
 
 hs = {
     accessibilityState = function() return AX end,
@@ -70,6 +75,13 @@ hs = {
         contentTypes   = function() return FLAVORS end,
     },
     eventtap = {
+        event = {
+            newSystemKeyEvent = function(key, down)
+                local e = { key = key, down = down }
+                function e:post() SYSKEYS[#SYSKEYS + 1] = self ; return self end
+                return e
+            end,
+        },
         keyStrokes = function(s) TYPED[#TYPED + 1] = s end,
         keyStroke  = function(mods, key) KEYSTROKES[#KEYSTROKES + 1] =
                          (mods[1] or "") .. "+" .. key end,
@@ -115,7 +127,16 @@ hs = {
         end,
     },
     fs = {
+        -- The two directories that exist in this stub Mac. pathFromTitle
+        -- refuses a path that is not there, because Finder opening
+        -- nothing is worse than being told the title was not a path.
         attributes = function(p, what)
+            local dirs = { ["/Users/test/code"] = true, ["/Users/test"] = true }
+            if dirs[p] then
+                if what == "mode" then return "directory" end
+                return { mode = "directory", size = 128 }
+            end
+            if what == "mode" and p:find("^/Users/test/gone") then return nil end
             local a = { size = 2048, mode = "file", modification = 1700000000,
                         creation = 1600000000, access = 1700000001,
                         permissions = "rw-r--r--", uid = 501, gid = 20, nlink = 1 }
@@ -143,10 +164,26 @@ hs = {
             return el
         end,
     },
-    application = { frontmostApplication = function() return { name = function() return "TextEdit" end } end },
+    application = {
+        frontmostApplication = function()
+            return {
+                name = function() return FRONT_APP end,
+                focusedWindow = function()
+                    if FRONT_TITLE == nil then return nil end
+                    return { title = function() return FRONT_TITLE end }
+                end,
+            }
+        end,
+    },
 }
 _G.diag = { say = function() end, warn = function() end, err = function() end }
 _G.pasteboardSuppress = function() SUPPRESSED = SUPPRESSED + 1 end
+-- The service registry, as power_tools sees it: it asks screenshots.lua
+-- where zbarimg is rather than keeping a second copy of the search list.
+_G.service = {
+    has  = function(n) return SERVICE_HAS and n == "shots.zbarPath" end,
+    call = function(n) if n == "shots.zbarPath" then return ZBAR end end,
+}
 
 local BOUND, PROVIDED = {}, {}
 local CORE = {
@@ -164,6 +201,7 @@ local pt = _G.powerTools
 
 local function reset()
     TYPED, KEYSTROKES, ALERTS, TIMERS, EVERY = {}, {}, {}, {}, {}
+    SYSKEYS = {}
     SET_CALLS, CLEARED, SUPPRESSED = 0, 0, 0
     MODS, SECURE, AXSEL = {}, false, nil
     pt.lastNote = nil
@@ -224,14 +262,33 @@ check("the cheat sheet key cell is exactly ⇪;", (function()
     end
     return false
 end)())
-check("all four tools LL asked for are in the list", #pt.tools == 4, #pt.tools)
+check("all eight tools are in the list", #pt.tools == 8, #pt.tools)
 check("…and each has a stable id", (function()
-    local want = { plain = true, type = true, count = true, meta = true }
+    local want = { plain = true, type = true, count = true, meta = true,
+                   pause = true, ghere = true, greveal = true, qr = true }
     for _, t in ipairs(pt.tools) do
         if not want[t.id] then return false end
         want[t.id] = nil
     end
     return next(want) == nil
+end)())
+-- 🔑 THE FOUR WITH A KEY OF THEIR OWN. ⇪⇧, and ⇪⇧. are NOT among them
+-- and must never be: numpad_layer's laptop window row has claimed both
+-- since 6.114.0 (shrink and grow), and the first draft of this release
+-- pointed two tools at them. The hyper sentry would have printed a
+-- conflict at boot and one of the window keys would have gone quietly
+-- dead, which is the failure this config exists to prevent.
+check("⇪' pauses everything", BOUND["+'"] ~= nil)
+check("⇪` opens Ghostty here", BOUND["+`"] ~= nil)
+check("⇪⇧` reveals it in Finder", BOUND["shift+`"] ~= nil)
+check("⇪5 reads a QR code", BOUND["+5"] ~= nil)
+check("🚨 nothing here claims ⇪⇧, or ⇪⇧. — numpad_layer owns both",
+      BOUND["shift+,"] == nil and BOUND["shift+."] == nil)
+check("each new key is attributed to what it does", (function()
+    return BOUND["+'"].src == "pause all media"
+       and BOUND["+`"].src == "ghostty here"
+       and BOUND["shift+`"].src == "reveal ghostty"
+       and BOUND["+5"].src == "read a QR code"
 end)())
 
 -- =====================================================================
@@ -522,7 +579,7 @@ end)(), CLIP)
 
 pt.show()
 local pc = CHOOSERS[#CHOOSERS]
-check("the palette lists all four tools", #pc.choices_ == 4, #pc.choices_)
+check("the palette lists all eight tools", #pc.choices_ == 8, #pc.choices_)
 check("every palette row value is a scalar too", (function()
     for _, c in ipairs(pc.choices_) do
         for _, v in pairs(c) do
@@ -554,6 +611,226 @@ check("…and records the throw", pt.lastNote
       and pt.lastNote:find("threw", 1, true) ~= nil, pt.lastNote)
 pt.tools[1].run = saved
 check("an unknown id refuses without throwing", pt.run("nope") == false)
+
+-- =====================================================================
+out("\n=== 11. ⏸ pause: the media key, and only apps ALREADY running ===\n")
+-- =====================================================================
+-- 🚨 NAMING AN APP IN APPLESCRIPT LAUNCHES IT. A "pause everything" key
+-- that opens Music because Music was closed is worse than no key, so the
+-- script checks System Events' process list before it tells anybody
+-- anything — and that check lives in the script text, which is what is
+-- asserted here because the script is what ships.
+reset()
+TASKS = {}
+check("it reports success", pt.pauseAll() == true)
+check("🎹 the media key was posted", #SYSKEYS == 2, #SYSKEYS)
+check("…as a down and then an up, which is what a real ⏯ press is",
+      SYSKEYS[1] and SYSKEYS[1].key == "PLAY" and SYSKEYS[1].down == true
+      and SYSKEYS[2] and SYSKEYS[2].down == false,
+      SYSKEYS[1] and SYSKEYS[1].key)
+local pauseTask = TASKS[#TASKS]
+check("an osascript child process was started", pauseTask ~= nil
+      and pauseTask.bin == "/usr/bin/osascript" and pauseTask.started == true,
+      pauseTask and pauseTask.bin)
+check("🚨 the script consults the running process list FIRST",
+      pauseTask and pauseTask.args[2]:find("name of every process", 1, true) ~= nil)
+check("🚨 …and only tells an app that is IN that list",
+      pauseTask and pauseTask.args[2]:find("runningNames contains", 1, true) ~= nil)
+check("every player is passed as an argument, not baked into the script",
+      pauseTask and #pauseTask.args == 2 + #pt.players,
+      pauseTask and #pauseTask.args)
+check("…and they are the ones in pt.players", (function()
+    if not pauseTask then return false end
+    for i, n in ipairs(pt.players) do
+        if pauseTask.args[2 + i] ~= n then return false end
+    end
+    return true
+end)())
+check("it counts what it told you", (function()
+    pauseTask.cb(0, "3\n", "")
+    return pt.lastPaused == 3
+end)(), pt.lastPaused)
+check("…and says so, media key and players separately", ALERTS[#ALERTS]
+      and ALERTS[#ALERTS]:find("3 players", 1, true) ~= nil, ALERTS[#ALERTS])
+
+reset()
+TASKS = {}
+pt.pauseAll()
+TASKS[#TASKS].cb(0, "0\n", "")
+check("with no scriptable player running it says the media key went alone",
+      ALERTS[#ALERTS] and ALERTS[#ALERTS]:find("no scriptable player", 1, true) ~= nil,
+      ALERTS[#ALERTS])
+
+-- =====================================================================
+out("\n=== 12. 👻 Ghostty: a window title is only a path when it IS one ===\n")
+-- =====================================================================
+-- 🚨 REVEALING THE WRONG FOLDER IS WORSE THAN SAYING THE TITLE WAS NOT A
+-- PATH. Ghostty writes titles like "~/code/thing — zsh" at a prompt and
+-- "vim README.md" the moment you run something, and only the first kind
+-- can be trusted.
+check("an absolute path is a path", pt.pathFromTitle("/Users/test/code") == "/Users/test/code",
+      pt.pathFromTitle("/Users/test/code"))
+check("a ~ path is expanded against the home directory",
+      pt.pathFromTitle("~/code") == "/Users/test/code",
+      pt.pathFromTitle("~/code"))
+check("🚨 the shell name after an em dash is trimmed off",
+      pt.pathFromTitle("~/code — zsh") == "/Users/test/code",
+      pt.pathFromTitle("~/code — zsh"))
+check("…and after a plain hyphen too",
+      pt.pathFromTitle("/Users/test/code - bash") == "/Users/test/code",
+      pt.pathFromTitle("/Users/test/code - bash"))
+check("🚨 a command line is NOT a path", pt.pathFromTitle("vim README.md") == nil,
+      pt.pathFromTitle("vim README.md"))
+check("🚨 an ssh session is NOT a path",
+      pt.pathFromTitle("ssh build@10.0.0.4") == nil,
+      pt.pathFromTitle("ssh build@10.0.0.4"))
+check("🚨 a path that does not exist is NOT a path — Finder would open nothing",
+      pt.pathFromTitle("/Users/test/gone") == nil,
+      pt.pathFromTitle("/Users/test/gone"))
+check("an empty title is nil", pt.pathFromTitle("") == nil)
+check("a nil title is nil, not a throw", pt.pathFromTitle(nil) == nil)
+
+reset()
+TASKS = {}
+FRONT_APP = "Ghostty"
+FRONT_TITLE = "~/code — zsh"
+check("with a usable title, reveal goes straight to Finder",
+      pt.revealGhostty() == true)
+check("…opening the resolved directory", (function()
+    for _, t in ipairs(TASKS) do
+        if t.bin == "/usr/bin/open" and t.args[1] == "/Users/test/code" then
+            return true
+        end
+    end
+    return false
+end)())
+check("…without shelling out to lsof at all", (function()
+    for _, t in ipairs(TASKS) do
+        if t.bin == "/bin/sh" then return false end
+    end
+    return true
+end)())
+
+reset()
+TASKS = {}
+FRONT_TITLE = "vim README.md"
+pt.revealGhostty()
+check("with an unusable title it falls back to asking the shell", (function()
+    for _, t in ipairs(TASKS) do
+        if t.bin == "/bin/sh" then return true end
+    end
+    return false
+end)())
+check("…using lsof on Ghostty's own children", (function()
+    for _, t in ipairs(TASKS) do
+        if t.bin == "/bin/sh" then
+            return t.args[2]:find("lsof", 1, true) ~= nil
+               and t.args[2]:find("Ghostty", 1, true) ~= nil
+        end
+    end
+    return false
+end)())
+check("…and when no shell answers, it says so rather than opening nothing",
+      (function()
+    for _, t in ipairs(TASKS) do
+        if t.bin == "/bin/sh" then t.cb(0, "", "") end
+    end
+    for _, a in ipairs(ALERTS) do
+        if a:find("Could not tell where", 1, true) then return true end
+    end
+    return false
+end)(), ALERTS[#ALERTS])
+
+reset()
+TASKS = {}
+FRONT_APP = "Finder"
+check("Ghostty here asks FINDER where it is, not Ghostty",
+      pt.ghosttyHere() == true and TASKS[1]
+      and TASKS[1].bin == "/usr/bin/osascript"
+      and TASKS[1].args[2]:find("Finder", 1, true) ~= nil)
+TASKS[1].cb(0, "/Users/test/code\n", "")
+check("…then launches Ghostty with --working-directory", (function()
+    for _, t in ipairs(TASKS) do
+        if t.bin == "/usr/bin/open" then
+            for _, a in ipairs(t.args) do
+                if a == "--working-directory=/Users/test/code" then return true end
+            end
+        end
+    end
+    return false
+end)())
+check("…with -n, so a second window opens instead of raising the first",
+      (function()
+    for _, t in ipairs(TASKS) do
+        if t.bin == "/usr/bin/open" then
+            for _, a in ipairs(t.args) do
+                if a == "-na" then return true end
+            end
+        end
+    end
+    return false
+end)())
+
+-- =====================================================================
+out("\n=== 13. 🔳 QR: no decoder is a NAMED refusal ===\n")
+-- =====================================================================
+-- 🚨 macOS ships no QR decoder Hammerspoon can reach, so this needs
+-- zbarimg. Failing as though the code were unreadable would send you
+-- looking at the screen instead of at Homebrew.
+reset()
+TASKS = {}
+SERVICE_HAS = false
+check("with the screenshots module absent it refuses", pt.readQR() == false)
+check("…nothing was captured", #TASKS == 0, #TASKS)
+check("…and it names the reason", ALERTS[1]
+      and ALERTS[1]:find("screenshots module", 1, true) ~= nil, ALERTS[1])
+
+reset()
+TASKS = {}
+SERVICE_HAS, ZBAR = true, nil
+check("with no zbarimg installed it refuses", pt.readQR() == false)
+check("…and says to install it", ALERTS[1]
+      and ALERTS[1]:find("brew install zbar", 1, true) ~= nil, ALERTS[1])
+
+-- 📍 The path is ASKED FOR by service name, never copied. A second copy
+-- of screenshots.lua's five candidate locations is a list that drifts.
+reset()
+TASKS = {}
+SERVICE_HAS, ZBAR = true, "/opt/homebrew/bin/zbarimg"
+check("with a decoder it captures the screen", pt.readQR() == true)
+local cap = TASKS[1]
+check("…via screencapture", cap and cap.bin == "/usr/sbin/screencapture",
+      cap and cap.bin)
+check("…silently, so the shutter does not fire", cap and (function()
+    for _, a in ipairs(cap.args) do if a == "-x" then return true end end
+    return false
+end)())
+cap.cb(0, "", "")
+local dec = TASKS[2]
+check("…then runs the decoder the service named",
+      dec and dec.bin == "/opt/homebrew/bin/zbarimg", dec and dec.bin)
+check("a decoded payload lands on the clipboard", (function()
+    dec.cb(0, "QR-Code:https://example.com/x\n", "")
+    return CLIP == "https://example.com/x"
+end)(), CLIP)
+check("…and is shown, so you can see WHAT was copied", ALERTS[#ALERTS]
+      and ALERTS[#ALERTS]:find("example.com", 1, true) ~= nil, ALERTS[#ALERTS])
+
+reset()
+TASKS = {}
+pt.readQR()
+TASKS[1].cb(0, "", "")
+TASKS[2].cb(4, "", "")
+check("no code on screen says exactly that", ALERTS[#ALERTS]
+      and ALERTS[#ALERTS]:find("No QR code", 1, true) ~= nil, ALERTS[#ALERTS])
+
+reset()
+TASKS = {}
+pt.readQR()
+TASKS[1].cb(1, "", "")     -- screencapture refused
+check("a failed capture is reported, not decoded", (function()
+    return #TASKS == 1
+end)(), #TASKS)
 
 -- =====================================================================
 out("\n=== 10. the report tells the truth ===\n")

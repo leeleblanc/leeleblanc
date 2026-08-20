@@ -11,9 +11,27 @@
 --   "Can you give me something to strip clipboard formatting?"
 --   "List file metadata for a selected file"
 --
+-- 6.120.0 added four more, each with a key of its own as well, because
+-- these are the ones you press mid-something rather than go looking for:
+--
+--   "Can you create a key that will pause all audio and video?"
+--   "Can we open a Ghostty terminal from current Finder folder; and open
+--    current Ghostty teminal path in Finder?"
+--   "How about an on screen QR reader?"
+--
 -- One key opens the list, you type two letters, ⏎ runs it.
 --
 --        ⇪;         the power tools — type to filter, ⏎ runs it
+--        ⇪'         ⏸ pause all audio and video
+--        ⇪`         👻 Ghostty at the front Finder folder
+--        ⇪⇧`        📂 Finder at the front Ghostty folder
+--        ⇪5         🔳 read a QR code off the screen
+--
+-- 🔑 WHY THESE KEYS AND NOT LETTERS. There are none left — every ⇪
+-- letter and every ⇪⇧ letter has been claimed since 6.104.0. ⇪5 sits
+-- beside ⇪4, the screenshot key, because both read the screen; ⇪' and
+-- ⇪` are simply the two nearest unclaimed keys, and there is no
+-- mnemonic being implied. All of them are in ⇪⇧/ too.
 --
 -- ⚠️ THE ANSWER TO THE FIRST QUESTION IS NO, IT DID NOT EXIST. There was
 -- nothing anywhere in this config that typed the clipboard rather than
@@ -87,6 +105,11 @@ local M = {
             { "🔢 count", "Words · characters · ~sentences in the selection" },
             { "📋 plain", "Strips every bit of formatting off the clipboard" },
             { "ℹ️ meta",  "Every mdls attribute of the Finder selection, ⏎ copies" },
+            { "⇪'",     "⏸ Pause all audio and video — media key + every" },
+            { "",       "scriptable player that is already running" },
+            { "⇪`",     "👻 Ghostty at the front Finder window's folder" },
+            { "⇪⇧`",    "📂 Finder at the front Ghostty window's folder" },
+            { "⇪5",     "🔳 Read a QR code off the screen — needs zbar" },
             { "check",  "_G.powerReport() — what ran, and what refused" },
         },
     },
@@ -116,6 +139,27 @@ function M.setup(core)
     -- ℹ️ metadata
     pt.mdlsTimeout  = 6            -- seconds before mdls is abandoned
     pt.valueChars   = 300          -- attribute value shown in a row
+    -- ⏸ pause everything (6.120.0)
+    pt.pauseKey     = "'"          -- ⇪'  — one key, no picker
+    pt.pauseMods    = {}
+    -- ✏️ THE PLAYERS TOLD BY NAME, in addition to the media key. Order is
+    -- irrelevant; each is asked only if it is already running, because
+    -- naming an app in AppleScript LAUNCHES it, and "pause everything"
+    -- that opens Music is not what anybody meant.
+    pt.players      = { "Music", "Spotify", "VLC", "QuickTime Player",
+                        "TV", "IINA" }
+    -- 👻 Ghostty ↔ Finder (6.120.0)
+    pt.ghosttyKey   = "`"          -- ⇪` here · ⇪⇧` reveals in Finder
+    pt.ghosttyMods  = {}
+    pt.revealMods   = { "shift" }
+    pt.ghosttyApp   = "Ghostty"
+    -- 🔳 QR (6.120.0)
+    -- ⇪5 sits next to ⇪4, the screenshot key, because both of them read
+    -- the screen. That is the only one of this release's digits with a
+    -- reason behind it, and the others say so.
+    pt.qrKey        = "5"
+    pt.qrMods       = {}
+    pt.qrTimeout    = 8            -- seconds before the decode is abandoned
     -- ----------------------------------------------------------------------
 
     pt.chooser    = nil   -- HELD: an unreferenced hs.chooser is collected
@@ -127,6 +171,12 @@ function M.setup(core)
     pt.ran       = {}     -- id -> how many times
     pt.lastNote  = nil
     pt.typed     = 0      -- characters typed this session
+
+    -- See the 🚨 note at revealGhostty: these are constants so the
+    -- external-binary review in test_diagnostics can see them.
+    pt.PGREP, pt.LSOF  = "/usr/bin/pgrep", "/usr/sbin/lsof"
+    pt.XARGS, pt.SED   = "/usr/bin/xargs", "/usr/bin/sed"
+    pt.TAIL            = "/usr/bin/tail"
 
     local function say(m)  if _G.diag then _G.diag.say("powerTools", m)  end end
     local function warn(m) if _G.diag then _G.diag.warn("powerTools", m) end end
@@ -616,6 +666,370 @@ end tell]]
     end
 
     -- =====================================================================
+    -- ⏸ PAUSE ALL AUDIO AND VIDEO
+    -- =====================================================================
+    -- LL: "Can you create a key that will pause all audio and video?"
+    --
+    -- 🚨 READ THIS BEFORE BELIEVING THE NAME. macOS has no "pause
+    -- everything" call, and there is no API that enumerates what is
+    -- making sound. What exists is:
+    --
+    --   1. THE MEDIA KEY. Posting NX_KEYTYPE_PLAY is exactly what the ⏯
+    --      key on the keyboard does, and macOS routes it to ONE app —
+    --      whichever it currently considers "now playing". That is the
+    --      only mechanism that reaches a browser tab, and it reaches
+    --      exactly one of them.
+    --   2. NAMED APPS. A scriptable player can be told to pause by name.
+    --      That covers the desktop players and nothing else.
+    --
+    -- So this posts the media key AND tells every player in pt.players
+    -- that is ALREADY RUNNING to pause. Between them that is everything
+    -- on a normal Mac except a second browser tab playing under the
+    -- first — and the alert says how many were told, so you can see
+    -- when something was missed rather than wondering.
+    --
+    -- ⚠️ IT ONLY TALKS TO APPS THAT ARE ALREADY RUNNING, and that is not
+    -- politeness. Naming an application in AppleScript LAUNCHES it, so a
+    -- naive "tell application Music to pause" on a Mac with Music closed
+    -- opens Music. A pause key that starts a music player is worse than
+    -- no pause key.
+    --
+    -- 🚨 AND THE osascript RUNS IN A CHILD PROCESS, for the reason
+    -- universal_actions documents at length: an AppleScript error raised
+    -- inside Hammerspoon's own Apple Event handler is an Objective-C
+    -- exception, which unwinds straight past pcall and takes the whole
+    -- app down. A child process can only take itself down.
+    pt.pauseScript = [[
+on run argv
+    set toldCount to 0
+    tell application "System Events"
+        set runningNames to name of every process
+    end tell
+    repeat with n in argv
+        if runningNames contains (n as text) then
+            try
+                tell application (n as text) to pause
+                set toldCount to toldCount + 1
+            on error
+                try
+                    tell application (n as text) to playpause
+                    set toldCount to toldCount + 1
+                end try
+            end try
+        end if
+    end repeat
+    return toldCount
+end run]]
+
+    function pt.pauseAll()
+        -- The media key first, because it is instant and it is the only
+        -- thing that reaches a browser.
+        local okKey = pcall(function()
+            local e = hs.eventtap.event
+            e.newSystemKeyEvent("PLAY", true):post()
+            e.newSystemKeyEvent("PLAY", false):post()
+        end)
+        if not okKey then
+            note("could not post the media key")
+        end
+
+        local args = { "-e", pt.pauseScript }
+        for _, n in ipairs(pt.players) do args[#args + 1] = n end
+        local t
+        local okNew = pcall(function()
+            t = hs.task.new("/usr/bin/osascript", function(_, out2, _)
+                pt.pauseTask = nil
+                local told = tonumber((tostring(out2 or ""):match("(%d+)"))) or 0
+                pt.lastPaused = told
+                say("media key posted, " .. told .. " player(s) told to pause")
+                hs.alert.show(told > 0
+                    and ("⏸ Paused — media key sent, and " .. told
+                         .. " player" .. (told == 1 and "" or "s") .. " told by name")
+                    or  "⏸ Media key sent — no scriptable player was running",
+                    3)
+            end, args)
+        end)
+        if not (okNew and t) then
+            note("could not start osascript — media key only")
+            hs.alert.show("⏸ Media key sent (no scriptable players reached)", 2.5)
+            return true
+        end
+        pt.pauseTask = t
+        pcall(function() t:start() end)
+        return true
+    end
+
+    -- =====================================================================
+    -- 👻 GHOSTTY ↔ FINDER
+    -- =====================================================================
+    -- LL: "Can we open a Ghostty terminal from current Finder folder; and
+    -- open current Ghostty terminal path in Finder?"
+    --
+    -- The first direction is easy and reliable: Finder knows its front
+    -- window's folder and says so, and Ghostty takes --working-directory.
+    --
+    -- 🚨 THE SECOND DIRECTION IS THE HARD ONE, AND IT IS WORTH SAYING WHY.
+    -- A terminal's "current directory" belongs to the SHELL, not the
+    -- terminal — Ghostty is a window around a process whose cwd changes
+    -- every time you type cd, and it publishes that nowhere a neighbouring
+    -- process can simply read. Two routes are tried, in order:
+    --
+    --   1. THE WINDOW TITLE. Ghostty sets it from OSC 7 / OSC 2, which
+    --      for a normal shell prompt is the working directory — often
+    --      abbreviated with ~. Free, instant, and correct whenever the
+    --      shell is at a prompt rather than running something that
+    --      renamed the title (vim, ssh, a long build).
+    --   2. lsof ON THE SHELL. When the title is not a path, the child
+    --      processes of Ghostty are asked for their cwd directly. This
+    --      is the truth, and it costs a process launch.
+    --
+    -- ⚠️ WITH SEVERAL GHOSTTY WINDOWS OPEN, ROUTE 2 CANNOT TELL THEM
+    -- APART. There is no mapping from a window to the pid drawing it that
+    -- Hammerspoon can read, so it takes the most recently started shell.
+    -- Route 1 has no such problem — it reads the FRONT window's own title
+    -- — which is the reason it is tried first rather than being the
+    -- fallback. When route 2 is used the alert says so.
+    local FINDER_DIR = [[
+tell application "Finder"
+    try
+        return POSIX path of (target of front Finder window as alias)
+    on error
+        return POSIX path of (path to desktop folder)
+    end try
+end tell]]
+
+    function pt.ghosttyHere()
+        local t
+        local okNew = pcall(function()
+            t = hs.task.new("/usr/bin/osascript", function(_, out2, _)
+                pt.ghostTask = nil
+                local dir = tostring(out2 or ""):match("^%s*(.-)%s*$")
+                if dir == "" then
+                    note("Finder named no folder")
+                    hs.alert.show("👻 Finder has no front window", 3)
+                    return
+                end
+                local ok = pcall(function()
+                    hs.task.new("/usr/bin/open", nil, {
+                        "-na", pt.ghosttyApp, "--args",
+                        "--working-directory=" .. dir,
+                    }):start()
+                end)
+                if ok then
+                    pt.lastGhostty = dir
+                    say("opened " .. pt.ghosttyApp .. " at " .. dir)
+                    hs.alert.show("👻 " .. pt.ghosttyApp .. " — "
+                        .. (dir:match("([^/]+)/?$") or dir), 2.5)
+                else
+                    note("could not launch " .. pt.ghosttyApp)
+                    hs.alert.show("👻 Could not open " .. pt.ghosttyApp, 3)
+                end
+            end, { "-e", FINDER_DIR })
+        end)
+        if not (okNew and t) then
+            note("could not start osascript — no Finder folder")
+            hs.alert.show("👻 Could not ask Finder where it is", 3)
+            return false
+        end
+        pt.ghostTask = t
+        pcall(function() t:start() end)
+        return true
+    end
+
+    -- A window title is a path when it starts with / or ~. Ghostty also
+    -- writes titles like "~/code/thing — zsh", so the tail after an em
+    -- dash or a colon is trimmed before the test. Anything else is not a
+    -- path and must NOT be guessed at: revealing the wrong folder is
+    -- worse than saying the title was not one.
+    function pt.pathFromTitle(title)
+        if type(title) ~= "string" then return nil end
+        local s = title:match("^%s*(.-)%s*$")
+        s = s:gsub("%s+[—–%-|:].*$", "")
+        s = s:match("^%s*(.-)%s*$")
+        if s == "" then return nil end
+        if s:sub(1, 1) == "~" then
+            local home = core.homeDir or os.getenv("HOME")
+            if not home then return nil end
+            s = home .. s:sub(2)
+        end
+        if s:sub(1, 1) ~= "/" then return nil end
+        if hs.fs.attributes(s, "mode") ~= "directory" then return nil end
+        return s
+    end
+
+    function pt.ghosttyTitle()
+        local okApp, app = pcall(hs.application.frontmostApplication)
+        if not (okApp and app) then return nil end
+        local name
+        pcall(function() name = app:name() end)
+        if name ~= pt.ghosttyApp then return nil, "front app is " .. tostring(name) end
+        local title
+        pcall(function()
+            local w = app:focusedWindow()
+            if w then title = w:title() end
+        end)
+        return pt.pathFromTitle(title), title
+    end
+
+    function pt.revealGhostty()
+        local dir, title = pt.ghosttyTitle()
+        if dir then
+            pt.lastReveal = dir
+            pcall(function()
+                hs.task.new("/usr/bin/open", nil, { dir }):start()
+            end)
+            hs.alert.show("👻 Finder — " .. (dir:match("([^/]+)/?$") or dir), 2.5)
+            return true
+        end
+        -- Route 2: ask the shells themselves.
+        local t
+        local okNew = pcall(function()
+            t = hs.task.new("/bin/sh", function(_, out2, _)
+                pt.revealTask = nil
+                local path = tostring(out2 or ""):match("^%s*(.-)%s*$")
+                if path == "" or path:sub(1, 1) ~= "/" then
+                    note("no shell under " .. pt.ghosttyApp .. " reported a cwd"
+                         .. (title and (" (title was: " .. tostring(title) .. ")") or ""))
+                    hs.alert.show("👻 Could not tell where " .. pt.ghosttyApp
+                        .. " is.\nIts title is not a path and no shell answered.", 4)
+                    return
+                end
+                pt.lastReveal = path
+                say("revealed " .. path .. " (via lsof)")
+                pcall(function()
+                    hs.task.new("/usr/bin/open", nil, { path }):start()
+                end)
+                hs.alert.show("👻 Finder — " .. (path:match("([^/]+)/?$") or path)
+                    .. "\n(from the shell, not the window title)", 3)
+            end, { "-c",
+                -- The newest descendant of Ghostty that has a cwd. See the
+                -- header: with several windows open this cannot tell which
+                -- one is in front, and the alert says as much.
+                "pgrep -P \"$(pgrep -n -x " .. pt.ghosttyApp .. ")\" 2>/dev/null"
+                .. " | tail -1 | xargs -I{} lsof -a -d cwd -p {} -Fn 2>/dev/null"
+                .. " | sed -n 's/^n//p' | tail -1" })
+        end)
+        if not (okNew and t) then
+            note("could not start the cwd lookup")
+            hs.alert.show("👻 Could not tell where " .. pt.ghosttyApp .. " is", 3)
+            return false
+        end
+        pt.revealTask = t
+        pcall(function() t:start() end)
+        return true
+    end
+
+    -- =====================================================================
+    -- 🔳 READ A QR CODE OFF THE SCREEN
+    -- =====================================================================
+    -- LL: "How about an on screen QR reader?"
+    --
+    -- It scans the WHOLE screen rather than asking you to drag a box
+    -- around the code, and that is the better shape for this: zbar finds
+    -- a code anywhere in the image, so a region selection is a step that
+    -- buys nothing and costs you a drag. Press the key, the payload is on
+    -- the clipboard.
+    --
+    -- 🚨 IT NEEDS zbarimg, WHICH macOS DOES NOT SHIP. There is no QR
+    -- decoder in any Apple framework Hammerspoon can reach — Vision has
+    -- one, and Hammerspoon exposes no binding to it. `brew install zbar`
+    -- and this works; without it the refusal says exactly that rather
+    -- than failing as if the code were unreadable.
+    --
+    -- 📍 WHERE THE PATH COMES FROM. modules/screenshots.lua already hunts
+    -- for zbarimg across five install locations, including the two
+    -- no-admin Homebrew prefixes this config supports. It publishes that
+    -- as a service and this asks for it by name, because a second copy of
+    -- the list is a list that drifts.
+    function pt.zbarPath()
+        if not (_G.service and _G.service.has
+                and _G.service.has("shots.zbarPath")) then
+            return nil, "the screenshots module is not loaded on this Mac"
+        end
+        local ok, p = pcall(function() return _G.service.call("shots.zbarPath") end)
+        if ok and type(p) == "string" and p ~= "" then return p end
+        return nil, "zbarimg is not installed — brew install zbar"
+    end
+
+    function pt.readQR()
+        local zbar, why = pt.zbarPath()
+        if not zbar then
+            note("no QR decoder: " .. tostring(why))
+            hs.alert.show("🔳 No QR decoder — " .. tostring(why), 5)
+            return false
+        end
+        local shot = os.tmpname() .. ".png"
+        local cap
+        local okCap = pcall(function()
+            -- -x silences the shutter, -r keeps it raw (no shadow or
+            -- window dressing to confuse the decoder).
+            cap = hs.task.new("/usr/sbin/screencapture", function(code)
+                pt.qrCapTask = nil
+                if code ~= 0 then
+                    note("screencapture exited " .. tostring(code))
+                    hs.alert.show("🔳 Could not capture the screen", 3)
+                    return
+                end
+                pt.decodeQR(zbar, shot)
+            end, { "-x", "-r", shot })
+        end)
+        if not (okCap and cap) then
+            note("could not run screencapture")
+            hs.alert.show("🔳 Could not capture the screen", 3)
+            return false
+        end
+        pt.qrCapTask = cap
+        pcall(function() cap:start() end)
+        return true
+    end
+
+    function pt.decodeQR(zbar, shot)
+        local t
+        local okNew = pcall(function()
+            t = hs.task.new(zbar, function(_, out2, _)
+                pt.qrTask = nil
+                pcall(os.remove, shot)
+                -- zbarimg prints "QR-Code:<payload>", one per code found.
+                local payloads = {}
+                for line in tostring(out2 or ""):gmatch("[^\n]+") do
+                    local body = line:match("^[%w%-]+:(.*)$")
+                    if body and body ~= "" then payloads[#payloads + 1] = body end
+                end
+                if #payloads == 0 then
+                    note("no code found on screen")
+                    hs.alert.show("🔳 No QR code on this screen", 2.5)
+                    return
+                end
+                local text = table.concat(payloads, "\n")
+                pt.lastQR = text
+                pcall(function() hs.pasteboard.setContents(text) end)
+                say("decoded " .. #payloads .. " code(s)")
+                local shown = text:gsub("\n", " · ")
+                if #shown > 90 then shown = shown:sub(1, 89) .. "…" end
+                hs.alert.show("🔳 Copied — " .. shown, 5)
+            end, { "-q", "--raw", shot })
+        end)
+        if not (okNew and t) then
+            pcall(os.remove, shot)
+            note("could not run zbarimg")
+            hs.alert.show("🔳 Could not run the QR decoder", 3)
+            return
+        end
+        pt.qrTask = t
+        pcall(function() t:start() end)
+        pt.qrTimer = hs.timer.doAfter(pt.qrTimeout, function()
+            pt.qrTimer = nil
+            if pt.qrTask == t then
+                pcall(function() t:terminate() end)
+                pt.qrTask = nil
+                pcall(os.remove, shot)
+                note("zbarimg did not answer in " .. pt.qrTimeout .. "s")
+                hs.alert.show("🔳 The QR decoder did not answer", 3)
+            end
+        end)
+    end
+
+    -- =====================================================================
     -- THE LIST
     -- =====================================================================
     -- ✏️ To add one: copy a row. `id` is what _G.powerReport() counts by,
@@ -634,6 +1048,21 @@ end tell]]
         { id = "meta",  icon = "ℹ️", title = "File metadata",
           sub = "Every mdls attribute of the Finder selection — ⏎ copies one",
           run = function() return pt.fileMetadata() end },
+        -- 6.120.0 — the four with a key of their own. They are listed here
+        -- as well because ⇪; is the place you look when the key has not
+        -- stuck yet, and because ⇪⇧/ lists this module's rows.
+        { id = "pause", icon = "⏸", title = "Pause all audio and video",
+          sub = "Media key + every scriptable player that is running · ⇪'",
+          run = function() return pt.pauseAll() end },
+        { id = "ghere", icon = "👻", title = "Ghostty here",
+          sub = "Open Ghostty at the front Finder window's folder · ⇪`",
+          run = function() return pt.ghosttyHere() end },
+        { id = "greveal", icon = "📂", title = "Reveal Ghostty's folder",
+          sub = "Open Finder where the front Ghostty window is · ⇪⇧`",
+          run = function() return pt.revealGhostty() end },
+        { id = "qr",    icon = "🔳", title = "Read a QR code on screen",
+          sub = "Scans the whole screen, payload to the clipboard · ⇪5",
+          run = function() return pt.readQR() end },
     }
 
     function pt.byId(id)
@@ -723,12 +1152,27 @@ end tell]]
     if pt.enabled then
         core.hyperAddShortcut(pt.keyMods, pt.key, function() pt.show() end,
                               "power tools")
+        -- 6.120.0 — four of the rows also get a key of their own, because
+        -- these are the ones you press mid-something rather than go
+        -- looking for. ⇪; still lists them.
+        core.hyperAddShortcut(pt.pauseMods,   pt.pauseKey,
+                              function() pt.run("pause") end, "pause all media")
+        core.hyperAddShortcut(pt.ghosttyMods, pt.ghosttyKey,
+                              function() pt.run("ghere") end, "ghostty here")
+        core.hyperAddShortcut(pt.revealMods,  pt.ghosttyKey,
+                              function() pt.run("greveal") end, "reveal ghostty")
+        core.hyperAddShortcut(pt.qrMods,      pt.qrKey,
+                              function() pt.run("qr") end, "read a QR code")
     end
     core.provide("power.show",     function() return pt.show() end)
     core.provide("power.plain",    function() return pt.run("plain") end)
     core.provide("power.type",     function() return pt.run("type")  end)
     core.provide("power.count",    function() return pt.run("count") end)
     core.provide("power.metadata", function() return pt.run("meta")  end)
+    core.provide("power.pause",    function() return pt.run("pause") end)
+    core.provide("power.ghostty",  function() return pt.run("ghere") end)
+    core.provide("power.reveal",   function() return pt.run("greveal") end)
+    core.provide("power.qr",       function() return pt.run("qr") end)
     core.provide("power.report",   function() return _G.powerReport() end)
 
     _G.powerTools = pt
