@@ -61,6 +61,10 @@ local SUPPRESSED = 0
 local SYSKEYS    = {}           -- every media key posted
 local FRONT_APP  = "TextEdit"
 local FRONT_TITLE = nil         -- the focused window's title
+-- Which apps this pretend Mac has open, for hs.application.get. Empty by
+-- default: the pause key must do the right thing on a Mac with no player
+-- running, and that is the case it is easiest to forget to test.
+local RUNNING    = {}
 local SERVICE_HAS = true        -- is screenshots loaded?
 local ZBAR       = "/opt/homebrew/bin/zbarimg"
 
@@ -174,6 +178,11 @@ hs = {
                 end,
             }
         end,
+        -- 🚨 hs.application.get IS THE "is it running" QUESTION THAT DOES
+        -- NOT LAUNCH ANYTHING, which is why the pause key asks it instead
+        -- of asking AppleScript. RUNNING is the list of app names this
+        -- stub Mac is pretending to have open.
+        get = function(n) return RUNNING[n] and { name = function() return n end } or nil end,
     },
 }
 _G.diag = { say = function() end, warn = function() end, err = function() end }
@@ -636,13 +645,39 @@ check("🚨 the script consults the running process list FIRST",
       pauseTask and pauseTask.args[2]:find("name of every process", 1, true) ~= nil)
 check("🚨 …and only tells an app that is IN that list",
       pauseTask and pauseTask.args[2]:find("runningNames contains", 1, true) ~= nil)
+-- ⚠️ THE ARGUMENT LIST IS pt.players MINUS THE TOGGLE-ONLY NAMES (6.126.0).
+-- VLC understands neither verb this script sends, so passing it costs two
+-- Apple Events that can only fail. It is told by pt.pauseToggleOnly, which
+-- knows its vocabulary — see section 14.
+local function expectedArgv()
+    local want, skip = {}, {}
+    for _, n in ipairs(pt.toggleOnly or {}) do
+        if (pt.toggleScripts or {})[n] then skip[n] = true end
+    end
+    for _, n in ipairs(pt.players) do
+        if not skip[n] then want[#want + 1] = n end
+    end
+    return want
+end
 check("every player is passed as an argument, not baked into the script",
-      pauseTask and #pauseTask.args == 2 + #pt.players,
+      pauseTask and #pauseTask.args == 2 + #expectedArgv(),
       pauseTask and #pauseTask.args)
-check("…and they are the ones in pt.players", (function()
+check("…and they are pt.players in order, minus the toggle-only ones",
+      (function()
     if not pauseTask then return false end
-    for i, n in ipairs(pt.players) do
-        if pauseTask.args[2 + i] ~= n then return false end
+    for i, n in ipairs(expectedArgv()) do
+        if pauseTask.args[2 + i] ~= n then
+            return false, "arg " .. i .. " = "
+                   .. tostring(pauseTask.args[2 + i]) .. ", wanted " .. n
+        end
+    end
+    return true
+end)())
+check("🚨 …and VLC is NOT among them — this script cannot say anything it"
+      .. " understands", (function()
+    if not pauseTask then return false end
+    for i = 3, #pauseTask.args do
+        if pauseTask.args[i] == "VLC" then return false, "passed at " .. i end
     end
     return true
 end)())
@@ -660,6 +695,147 @@ TASKS[#TASKS].cb(0, "0\n", "")
 check("with no scriptable player running it says the media key went alone",
       ALERTS[#ALERTS] and ALERTS[#ALERTS]:find("no scriptable player", 1, true) ~= nil,
       ALERTS[#ALERTS])
+
+-- =====================================================================
+out("\n=== 14. ⏸ VLC, which speaks a different language ===\n")
+-- =====================================================================
+-- LL: "⇪' does not pause VLC."
+--
+-- 🚨 VLC HAS NO `pause` AND NO `playpause`. The generic script said both,
+-- VLC understood neither, the inner try swallowed the second error, and
+-- the film played on — with the count in the alert one short every time.
+-- Its toggle is spelled `play`, and `play` SENT TO A PAUSED VLC STARTS
+-- IT. Every check here exists so that a pause key never starts anything.
+check("pt.toggleOnly names VLC", (function()
+    for _, n in ipairs(pt.toggleOnly or {}) do
+        if n == "VLC" then return true end
+    end
+    return false
+end)())
+check("🚨 every held-back name has a script of its own — a name in"
+      .. " pt.toggleOnly with nothing to say it would be told NOTHING",
+      (function()
+    for _, n in ipairs(pt.toggleOnly or {}) do
+        if not (pt.toggleScripts or {})[n] then return false, n end
+    end
+    return true
+end)())
+check("…and VLC stays in pt.players, which is where the report reads from",
+      (function()
+    for _, n in ipairs(pt.players) do if n == "VLC" then return true end end
+    return false
+end)())
+
+local S = pt.vlcPauseScript or ""
+check("🚨 the script asks System Events whether VLC is running",
+      S:find('exists process "VLC"', 1, true) ~= nil)
+check("🚨 …BEFORE the tell that would relaunch a departed VLC", (function()
+    local guard = S:find("exists process", 1, true)
+    local tell  = S:find('tell application "VLC"', 1, true)
+    if not (guard and tell) then return false, "guard or tell missing" end
+    return guard < tell, guard .. " vs " .. tell
+end)())
+check("🚨 it reads `playing` before it sends a verb", (function()
+    local ask = S:find("if playing", 1, true)
+    local act = S:find("\n%s*play%s*\n")
+    if not (ask and act) then return false, "ask or verb missing" end
+    return ask < act, ask .. " vs " .. act
+end)())
+check("🚨 the only verb it sends is `play` — never pause, never playpause",
+      (function()
+    for line in S:gmatch("[^\n]+") do
+        local w = line:match("^%s*(%a+)%s*$")
+        if w == "pause" or w == "playpause" then return false, w end
+    end
+    return S:find("\n%s*play%s*\n") ~= nil
+end)())
+check("…and it answers in the three words pt.pauseToggleOnly knows",
+      S:find('"absent"', 1, true) ~= nil and S:find('"paused"', 1, true) ~= nil
+      and S:find('"already"', 1, true) ~= nil)
+-- 🚨 THE REASON THIS IS A SEPARATE SCRIPT IS NOT TIDINESS. `playing` and
+-- `play` are VLC's OWN terminology, which AppleScript can only resolve
+-- when the app is named as a LITERAL — and a literal name compiles
+-- against a dictionary that a Mac without VLC does not have. In the
+-- shared script it would take the whole pause key down; on its own it can
+-- only ever take itself down.
+check("🚨 no literal \"VLC\" in the script every player depends on — a Mac"
+      .. " with no VLC installed must still be able to compile it",
+      (pt.pauseScript or ""):find('"VLC"', 1, true) == nil)
+check("…so they are two different scripts", pt.vlcPauseScript ~= pt.pauseScript)
+
+reset()
+TASKS   = {}
+RUNNING = {}
+local vlcSaid, vlcCalls = "unset", 0
+pt.pauseToggleOnly(function(x) vlcCalls = vlcCalls + 1 ; vlcSaid = x end)
+check("🚨 with VLC not running NOTHING is launched — asking AppleScript"
+      .. " would have opened it", #TASKS == 0, #TASKS)
+check("…and the caller is told once that there is nothing to say",
+      vlcCalls == 1 and vlcSaid == nil, tostring(vlcSaid))
+
+RUNNING = { VLC = true }
+TASKS   = {}
+vlcSaid, vlcCalls = "unset", 0
+pt.pauseToggleOnly(function(x) vlcCalls = vlcCalls + 1 ; vlcSaid = x end)
+local vt = TASKS[#TASKS]
+check("with VLC running an osascript child process is started",
+      vt ~= nil and vt.bin == "/usr/bin/osascript" and vt.started == true,
+      vt and vt.bin)
+check("…carrying VLC's own script, not the generic one",
+      vt ~= nil and vt.args[2] == pt.vlcPauseScript)
+check("…and the caller has not been answered yet", vlcCalls == 0, vlcCalls)
+
+-- One keypress, one answer: run the script and hand back what it said.
+local function vlcSays(reply)
+    TASKS = {}
+    local got, n = "unset", 0
+    pt.pauseToggleOnly(function(x) n = n + 1 ; got = x end)
+    local t = TASKS[#TASKS]
+    if not t then return "NO TASK", n end
+    t.cb(0, reply, "")
+    return got, n
+end
+
+local r, n = vlcSays("paused\n")
+check("`paused` becomes a phrase for the alert", r == "VLC paused", tostring(r))
+check("…and done() is called exactly once per keypress", n == 1, n)
+r = vlcSays("already\n")
+check("🚨 `already` says so rather than claiming a pause that never"
+      .. " happened", r == "VLC was already paused", tostring(r))
+r = vlcSays("absent\n")
+check("`absent` — VLC quit in the gap between the two checks — says"
+      .. " nothing at all", r == nil, tostring(r))
+r = vlcSays("")
+check("an empty answer is reported, not counted as a pause",
+      r == "VLC did not answer", tostring(r))
+
+-- ---- both halves, one pill -------------------------------------------
+reset()
+TASKS = {}
+pt.pauseAll()
+local generic = TASKS[#TASKS]
+generic.cb(0, "1\n", "")
+check("🚨 the alert WAITS for VLC — one keypress must not show two pills",
+      #ALERTS == 0, #ALERTS)
+local vt2 = TASKS[#TASKS]
+check("…VLC's task is started by the generic script's answer",
+      vt2 ~= nil and vt2 ~= generic and vt2.args[2] == pt.vlcPauseScript)
+vt2.cb(0, "paused\n", "")
+check("…and then exactly one alert appears", #ALERTS == 1, #ALERTS)
+check("…carrying the count and VLC together", ALERTS[1]
+      and ALERTS[1]:find("1 player", 1, true) ~= nil
+      and ALERTS[1]:find("VLC paused", 1, true) ~= nil, ALERTS[1])
+
+reset()
+TASKS = {}
+pt.pauseAll()
+TASKS[#TASKS].cb(0, "0\n", "")
+TASKS[#TASKS].cb(0, "paused\n", "")
+check("🚨 with VLC the only player, it does not report that nothing was"
+      .. " running", ALERTS[#ALERTS]
+      and ALERTS[#ALERTS]:find("no scriptable player", 1, true) == nil
+      and ALERTS[#ALERTS]:find("VLC paused", 1, true) ~= nil, ALERTS[#ALERTS])
+RUNNING = {}
 
 -- =====================================================================
 out("\n=== 12. 👻 Ghostty: a window title is only a path when it IS one ===\n")

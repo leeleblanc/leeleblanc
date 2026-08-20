@@ -33,6 +33,12 @@
 -- ⇪` are simply the two nearest unclaimed keys, and there is no
 -- mnemonic being implied. All of them are in ⇪⇧/ too.
 --
+-- 6.126.0 — LL: "⇪' does not pause VLC." It did not, and it never had:
+-- VLC's dictionary has no `pause` and no `playpause`, so both verbs the
+-- shared script sent bounced, silently. Its toggle is spelled `play`, and
+-- `play` sent to a paused VLC starts it — so VLC gets its own script that
+-- reads the `playing` property first. See pt.vlcPauseScript.
+--
 -- ⚠️ THE ANSWER TO THE FIRST QUESTION IS NO, IT DID NOT EXIST. There was
 -- nothing anywhere in this config that typed the clipboard rather than
 -- pasting it. "Copy as Plain Text" in ⇪⇧A strips formatting, which is a
@@ -148,6 +154,14 @@ function M.setup(core)
     -- that opens Music is not what anybody meant.
     pt.players      = { "Music", "Spotify", "VLC", "QuickTime Player",
                         "TV", "IINA" }
+    -- 🚨 PLAYERS WHOSE ONLY VERB IS A TOGGLE, handled apart from the rest.
+    -- VLC has no `pause` and no `playpause`; its dictionary spells the
+    -- toggle `play`. Sending `play` blindly to a PAUSED VLC starts it,
+    -- which is the same sin as launching Music. Each name here gets its
+    -- own script that reads a "still playing?" property first. See
+    -- pt.pauseToggleOnly below. Names here are NOT passed to the generic
+    -- script — two Apple Events that can only ever fail are two too many.
+    pt.toggleOnly   = { "VLC" }
     -- 👻 Ghostty ↔ Finder (6.120.0)
     pt.ghosttyKey   = "`"          -- ⇪` here · ⇪⇧` reveals in Finder
     pt.ghosttyMods  = {}
@@ -721,6 +735,118 @@ on run argv
     return toldCount
 end run]]
 
+    -- =================================================================
+    -- ⏸ VLC, WHICH SPEAKS A DIFFERENT LANGUAGE
+    -- =================================================================
+    -- LL: "⇪' does not pause VLC."
+    --
+    -- 🚨 THE SCRIPT ABOVE REACHED VLC AND SAID TWO THINGS IT DOES NOT
+    -- UNDERSTAND. VLC's dictionary has no `pause` and no `playpause`. Both
+    -- branches of that try/on error raised errAEEventNotHandled, the inner
+    -- `try` swallowed the second one without a word, and VLC played on.
+    -- toldCount did not move either, so the count in the alert has been
+    -- quietly one short whenever VLC was running.
+    --
+    -- ⚠️ AND THE OBVIOUS FIX STARTS PLAYBACK. VLC's toggle is spelled
+    -- `play`, and `play` sent to a PAUSED VLC begins playing it. A pause
+    -- key that starts a film is the same failure as a pause key that opens
+    -- Music — worse, because you meant to silence the machine. So this
+    -- reads the `playing` property first and sends nothing when it is
+    -- false.
+    --
+    -- 🚨 AND IT IS A SEPARATE SCRIPT FOR A REASON THAT IS NOT TIDINESS.
+    -- `playing` and `play` are VLC's OWN terminology, and AppleScript can
+    -- only resolve an app's terminology when the app is named as a
+    -- LITERAL — `tell application (n as text)` inside the generic loop
+    -- resolves nothing at compile time. Naming VLC literally means this
+    -- text is compiled against VLC's dictionary, so it must not be part of
+    -- the script every player depends on: on a Mac with no VLC installed,
+    -- a compile failure here would take the whole pause key down with it.
+    -- In its own child process it can only take itself down, and it is
+    -- only ever launched when VLC is already running.
+    --
+    -- ⚠️ THE RUNNING CHECK IS MADE TWICE, AND BOTH ARE LOAD-BEARING.
+    -- Hammerspoon checks before launching osascript at all; the script
+    -- checks again on the inside, because VLC can quit in the gap between
+    -- the two, and `tell application "VLC"` on a departed VLC RELAUNCHES
+    -- IT. The whole point of this key is that it never starts anything.
+    pt.vlcPauseScript = [[
+tell application "System Events"
+    if not (exists process "VLC") then return "absent"
+end tell
+tell application "VLC"
+    if playing then
+        play
+        return "paused"
+    else
+        return "already"
+    end if
+end tell]]
+
+    -- 🚨 THE NAME → SCRIPT MAP IS WHAT MAKES pt.toggleOnly SAFE TO EDIT.
+    -- A name listed in pt.toggleOnly is held back from the generic script,
+    -- so if nothing here can say it, it is told NOTHING — the pause key
+    -- would go quiet for that player and the alert would not notice. Both
+    -- sides read this table, so a name without a script simply stays in
+    -- the generic script where it was.
+    pt.toggleScripts = { VLC = pt.vlcPauseScript }
+
+    -- Runs the toggle-only players and calls done(summary) with a short
+    -- phrase for the alert, or nil when there was nothing to say.
+    function pt.pauseToggleOnly(done)
+        local name, script, extras = nil, nil, 0
+        for _, n in ipairs(pt.toggleOnly or {}) do
+            local s = (pt.toggleScripts or {})[n]
+            -- 🚨 ASKED OF HAMMERSPOON, NOT OF APPLESCRIPT. hs.application
+            -- does not launch anything to answer "is it running";
+            -- AppleScript would have to name the app to ask, and naming it
+            -- launches it.
+            local running = false
+            if s then
+                pcall(function() running = hs.application.get(n) ~= nil end)
+            end
+            if s and running then
+                if name then extras = extras + 1 else name, script = n, s end
+            end
+        end
+        -- A tripwire for a future second entry, not a thing that happens
+        -- today: one keypress gets one alert, so only the first running
+        -- toggle-only player is carried into it.
+        if extras > 0 then
+            warn(extras .. " other toggle-only player(s) went untold —"
+                 .. " pt.pauseToggleOnly carries one per keypress")
+        end
+        if not name then return done(nil) end
+
+        local t
+        local okNew = pcall(function()
+            t = hs.task.new("/usr/bin/osascript", function(_, out2, _)
+                pt.vlcTask = nil
+                local r = tostring(out2 or ""):gsub("%s+$", "")
+                pt.lastVLC = r
+                if r == "paused" then
+                    done(name .. " paused")
+                elseif r == "already" then
+                    -- Said out loud rather than folded into the count. The
+                    -- machine is quiet either way, and "already" is the
+                    -- answer to "why did the number not go up".
+                    done(name .. " was already paused")
+                elseif r == "absent" then
+                    done(nil)
+                else
+                    warn(name .. " did not answer the pause script: " .. r)
+                    done(name .. " did not answer")
+                end
+            end, { "-e", pt.vlcPauseScript })
+        end)
+        if not (okNew and t) then
+            note("could not start osascript for " .. name)
+            return done(nil)
+        end
+        pt.vlcTask = t
+        pcall(function() t:start() end)
+    end
+
     function pt.pauseAll()
         -- The media key first, because it is instant and it is the only
         -- thing that reaches a browser.
@@ -733,20 +859,45 @@ end run]]
             note("could not post the media key")
         end
 
+        -- 🚨 THE TOGGLE-ONLY PLAYERS ARE HELD BACK FROM THIS SCRIPT. Every
+        -- name passed here is sent `pause` and then `playpause`, and for
+        -- VLC both of those are Apple Events it cannot handle — two round
+        -- trips whose only possible outcome is a swallowed error. They are
+        -- handled by pt.pauseToggleOnly instead, which knows their verb.
+        local skip = {}
+        for _, n in ipairs(pt.toggleOnly or {}) do
+            if (pt.toggleScripts or {})[n] then skip[n] = true end
+        end
         local args = { "-e", pt.pauseScript }
-        for _, n in ipairs(pt.players) do args[#args + 1] = n end
+        for _, n in ipairs(pt.players) do
+            if not skip[n] then args[#args + 1] = n end
+        end
         local t
         local okNew = pcall(function()
             t = hs.task.new("/usr/bin/osascript", function(_, out2, _)
                 pt.pauseTask = nil
                 local told = tonumber((tostring(out2 or ""):match("(%d+)"))) or 0
                 pt.lastPaused = told
-                say("media key posted, " .. told .. " player(s) told to pause")
-                hs.alert.show(told > 0
-                    and ("⏸ Paused — media key sent, and " .. told
-                         .. " player" .. (told == 1 and "" or "s") .. " told by name")
-                    or  "⏸ Media key sent — no scriptable player was running",
-                    3)
+                -- ⚠️ THE ALERT WAITS FOR VLC. Showing "2 players told" and
+                -- then a second pill a moment later reads as two events
+                -- when it was one keypress, so the summary is assembled
+                -- once both halves have answered.
+                pt.pauseToggleOnly(function(extra)
+                    local msg
+                    if told > 0 then
+                        msg = "⏸ Paused — media key sent, and " .. told
+                              .. " player" .. (told == 1 and "" or "s")
+                              .. " told by name"
+                    elseif extra then
+                        msg = "⏸ Paused — media key sent"
+                    else
+                        msg = "⏸ Media key sent — no scriptable player was running"
+                    end
+                    if extra then msg = msg .. " · " .. extra end
+                    say("media key posted, " .. told .. " player(s) told to pause"
+                        .. (extra and (" · " .. extra) or ""))
+                    hs.alert.show(msg, 3)
+                end)
             end, args)
         end)
         if not (okNew and t) then

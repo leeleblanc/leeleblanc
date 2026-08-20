@@ -4,8 +4,38 @@
 -- =====================================================================
 -- 08-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.125.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.126.0
 -- =====================================================================
+
+-- NEW IN 6.126.0 — ⇪' NOW ACTUALLY PAUSES VLC:
+--   ⏸ LL: "⇪' does not pause VLC." It did not, and it never had. The
+--      pause key posts the media key and then tells every running player
+--      by name — and what it told VLC was `pause`, then `playpause`.
+--      VLC's AppleScript dictionary contains NEITHER. Both bounced, the
+--      inner try swallowed the second error without a word, and the film
+--      played on. The count in the alert was one short every time too.
+--   🚨 AND THE OBVIOUS FIX STARTS PLAYBACK. VLC spells its toggle `play`,
+--      and `play` sent to a PAUSED VLC begins playing it. A pause key
+--      that starts a film is the same failure as one that opens Music —
+--      worse, because you pressed it to make the machine quiet. So VLC's
+--      script reads the `playing` property FIRST and sends nothing at all
+--      when it is false. It says "already paused" instead.
+--   ⚠️ IT IS A SEPARATE SCRIPT, AND THAT IS NOT TIDINESS. `playing` and
+--      `play` are VLC's own terminology, and AppleScript can only resolve
+--      an app's terminology when the app is named as a LITERAL — which
+--      means that text is compiled against a dictionary a Mac without VLC
+--      does not have. Inside the shared script a missing VLC would take
+--      the whole pause key down. In its own child process, launched only
+--      when VLC is already running, it can only take itself down.
+--   🚨 THE RUNNING CHECK IS MADE TWICE AND BOTH ARE LOAD-BEARING.
+--      Hammerspoon asks hs.application.get before launching osascript at
+--      all — AppleScript cannot be asked, because naming an app launches
+--      it. The script then asks System Events again on the inside, since
+--      VLC can quit in the gap and `tell application "VLC"` on a departed
+--      VLC RELAUNCHES IT. This key never starts anything.
+--   🔔 ONE KEYPRESS STILL GETS ONE PILL. The alert waits for both halves
+--      and reads "⏸ Paused — media key sent, and 2 players told by name ·
+--      VLC paused".
 
 -- NEW IN 6.125.0 — ⇪⇧Z IS YOURS AGAIN, AND THE PICKER GOES KEYLESS:
 --   ⌨️ THE EDITOR PICKER HAS NO ⇪ KEY AT ALL NOW.
@@ -168,50 +198,10 @@
 --      an empty string walks straight past in Lua — into openURL("")
 --      and then into a concatenation of a name such a row does not have.
 
--- NEW IN 6.121.0 — THE LEFT ⌘ GOES BACK TO ALFRED:
---   ✋ THE EDITOR PICKER NOW WATCHES THE RIGHT ⌘ ONLY. LL: "Right now I
---      use the cmd+cmd so technically it's a conflict with Hammerspoon.
---      Can I use left cmd twice for Alfred and right cmd for
---      Hammerspoon?" Yes — on this side of the fence. A flagsChanged
---      event carries the keycode of the modifier that changed, and left ⌘
---      (55) and right ⌘ (54) are two different keys, so the tap can be
---      told to care about one of them. It is, and the default is now the
---      RIGHT one.
---      Tapping left ⌘ twice does not merely fail to open the picker: it
---      DIRTIES the press, which clears any half-made gesture. Reaching
---      for Alfred can never leave this armed for the next right ⌘ that
---      comes along.
---      🚨 IT TAKES TWO TO SPLIT A KEY AND THIS CONFIG IS ONE OF THEM.
---      Whether Alfred distinguishes the sides is Alfred's business and
---      cannot be read from in here. If Alfred fires on both ⌘ keys then
---      right ⌘⌘ opens Alfred as well, and no setting in this config
---      changes that. Which is why the MODIFIER is a setting too:
---          _G.editorPicker.tapMod  = "cmd" | "alt" | "ctrl" | "shift"
---          _G.editorPicker.tapSide = "right" | "left" | "either"
---      tapMod = "alt" puts the picker on right ⌥⌥, which Alfred is not
---      watching at all. "either" is the 6.116.0 behaviour, unchanged.
---      (6.124.0 answered the question above out loud: Alfred DOES fire
---      on both keys, so the split was never available. See the top.)
---      🚨 THE SIDE CHECK DOES NOT REPLACE THE keyDown WATCH. Somebody who
---      copies and pastes with the right ⌘ produces right-⌘C then
---      right-⌘V, which passes the side check perfectly. Narrowing the
---      gesture to one key narrows WHO may start it and says nothing about
---      what happened in the middle.
---      ⚠️ AND A SIDE IT CANNOT READ IS REFUSED, NOT GUESSED. A guess is
---      the conflict coming back. Refused presses are counted, and after
---      twelve of them the Console says so ONCE and names the setting that
---      takes the side out of it. _G.editorPickerReport() prints the
---      count, how many times each ⌘ has been pressed this session, and
---      warns when the side you chose has never been seen — which is what
---      a keyboard with no right ⌘ looks like from in here.
---      🗂 The cheat sheet and every message read the gesture from the
---      setting rather than saying ⌘⌘ from memory, so ⇪/ cannot advertise
---      a key the tap is not watching.
-
--- (6.120.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.121.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.125.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.126.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -522,7 +512,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.125.0"
+_G.configVersion = "6.126.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

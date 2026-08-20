@@ -4,6 +4,73 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.126.0 — ⇪' NOW ACTUALLY PAUSES VLC:
+
+  ⏸ LL: "⇪' does not pause VLC."
+
+  It did not, and it never had. Here is exactly what was happening.
+
+  The pause key does two things: it posts the ⏯ media key, which is the
+  only thing that reaches a browser, and then it tells every player in
+  pt.players by name, because the media key only reaches whichever app
+  macOS thinks is "now playing". What it told each player was `pause`,
+  and if that failed, `playpause`.
+
+  VLC's AppleScript dictionary contains NEITHER of those words. Both
+  verbs raised errAEEventNotHandled, the second one inside an inner try
+  that swallowed it without a word, and the film played on. The number in
+  the alert was one short every time VLC was running, which is the only
+  visible trace this left.
+
+  🚨 AND THE OBVIOUS FIX STARTS PLAYBACK.
+  VLC spells its toggle `play`. Not "play if stopped" — the toggle. Sent
+  to a playing VLC it pauses; sent to a PAUSED VLC it starts it. A pause
+  key that begins a film is the same failure as a pause key that opens
+  Music, and worse in kind, because you pressed it to make the machine
+  quiet and it made noise.
+
+  So VLC's script reads the `playing` property first and sends nothing at
+  all when it is false. The alert then says "VLC was already paused",
+  which is also the answer to "why did the number not go up".
+
+  ⚠️ IT IS A SEPARATE SCRIPT, AND THAT IS NOT TIDINESS.
+  `playing` and `play` are VLC's own terminology, and AppleScript can
+  only resolve an app's terminology when the app is named as a LITERAL.
+  The shared script says `tell application (n as text)` — a name decided
+  at runtime — which is exactly why it can loop over six players, and
+  exactly why it can only send them universal verbs.
+
+  Naming VLC literally means the text is compiled against VLC's
+  dictionary. On a Mac with no VLC installed that compile FAILS, and if
+  the line lived in the shared script the failure would take the whole
+  pause key down with it — every player, over one missing app. In its own
+  child process, launched only when VLC is already running, it can only
+  ever take itself down.
+
+  🚨 THE RUNNING CHECK IS MADE TWICE AND BOTH ARE LOAD-BEARING.
+  Hammerspoon asks hs.application.get(name) before launching osascript at
+  all. AppleScript cannot be asked that question, because naming an app
+  is what launches it — the reason the shared script consults System
+  Events' process list before it says anything to anybody.
+
+  The script then asks System Events again on the inside, because VLC can
+  quit in the gap between the two checks, and `tell application "VLC"` on
+  a VLC that has just quit RELAUNCHES IT. This key never starts anything.
+  That is the whole design, and it now holds for VLC too.
+
+  🔔 ONE KEYPRESS STILL GETS ONE PILL.
+  The generic script and VLC's script run in two child processes, so the
+  alert waits for both halves before it draws: "⏸ Paused — media key
+  sent, and 2 players told by name · VLC paused". Two pills a moment
+  apart would read as two events when it was one keypress.
+
+  🧪 A NAME HELD BACK MUST HAVE SOMETHING TO SAY IT.
+  pt.toggleOnly lists the players kept out of the shared script, and
+  pt.toggleScripts maps each of them to its own script. Both sides read
+  the map, so a name added to pt.toggleOnly without a script stays in the
+  shared script where it was rather than being dropped from both paths
+  and silently told nothing. A test fails if that map ever goes empty.
+
 NEW IN 6.125.0 — ⇪⇧Z IS YOURS AGAIN, AND THE PICKER GOES KEYLESS:
 
   ⌨️ THE EDITOR PICKER HAS NO ⇪ KEY AT ALL NOW.
