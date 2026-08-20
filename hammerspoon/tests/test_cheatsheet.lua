@@ -1437,5 +1437,73 @@ do
   CS.hide()
 end
 
+-- =====================================================================
+print("\n=== 🔎 …AND SURVIVES A SEARCH (6.118.0) ===")
+-- LL: "The cheat sheet remembers its position when I scroll. But loses it
+-- when I search." Going to the TOP while filtering is deliberate and
+-- stays; what was missing was the way back. Clearing the query rebuilt
+-- the full list at row 1, so looking one thing up cost you your place —
+-- and there are two ways to clear a query (⌫ to empty, and Esc), so both
+-- are driven here rather than one standing in for the other.
+do
+  CS.rememberScroll = true
+  CS.scroll = nil
+  CS.show()
+  local anchor = math.min(11, st().maxFirst)
+  CS.scrollTo(anchor)
+  CS.typeChar("w")
+  check("typing a filter still goes to the top of the shorter list",
+        st().first == 1, st().first)
+  CS.backspace()
+  check("🔎 ⌫ back to nothing puts you where the search found you",
+        st().first == anchor and CS.query == "",
+        st().first .. " vs " .. anchor)
+
+  CS.scrollTo(anchor)
+  CS.typeChar("w"); CS.typeChar("i")
+  _G.cheatSheetOtherSeenAt = 0        -- no other panel; see the shadow note
+  CS.escape()
+  check("🔎 …and so does Esc, which clears the query before it closes",
+        st().first == anchor and CS.query == "" and _G.cheatSheetCanvas ~= nil,
+        st().first .. " vs " .. anchor)
+
+  -- 🚨 THE ONE THAT CATCHES THE OLD FALSE CLAIM. hide() has said since
+  -- 6.111.0 that closing while filtered "keeps the last row you were on
+  -- BEFORE you searched". It kept whatever was stored at the PREVIOUS
+  -- close, which is that row only if you had not scrolled this time —
+  -- so the stored row and the current row are deliberately DIFFERENT
+  -- here. With the old code this stores `anchor` and fails.
+  CS.hide()
+  CS.show()
+  local moved = math.min(5, st().maxFirst)
+  CS.scrollTo(moved)
+  CS.typeChar("w")
+  CS.hide()
+  check("🚨 closing mid-search stores the row the search took you FROM, "
+        .. "not the row stored at the last close",
+        CS.scroll == moved and moved ~= anchor,
+        tostring(CS.scroll) .. " vs " .. moved)
+  CS.show()
+  check("…so ⇪/ reopens you there", st().first == moved,
+        st().first .. " vs " .. moved)
+
+  -- The anchor is spent, not sticky: a second search from a new row must
+  -- come back to the NEW row, and a plain reopen must not be dragged to
+  -- a row some earlier search happened to leave behind.
+  local second = math.min(8, st().maxFirst)
+  CS.scrollTo(second)
+  CS.typeChar("w")
+  CS.backspace()
+  check("a second search anchors on where you were THAT time",
+        st().first == second and second ~= moved,
+        st().first .. " vs " .. second)
+  check("…and the anchor is spent once it is used",
+        CS.searchAnchor == nil, tostring(CS.searchAnchor))
+
+  CS.hide()
+  CS.scroll = nil
+  CS.searchAnchor = nil
+end
+
 print(("\n%d passed, %d failed\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

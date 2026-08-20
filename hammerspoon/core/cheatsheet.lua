@@ -158,6 +158,22 @@ return function(core)
     -- Set false to always open at the top.
     cheatSheet.rememberScroll = true
     cheatSheet.scroll    = nil   -- the row we were on at the last real close
+    -- 🔎 6.118.0 — AND THE ROW A SEARCH TOOK YOU AWAY FROM. LL: "the cheat
+    -- sheet remembers its position when I scroll, but loses it when I
+    -- search." Both halves of that were true, and only one of them was
+    -- deliberate. Typing goes to the top ON PURPOSE — see the three states
+    -- of preserveScroll at show(): a filtered list is a different, shorter
+    -- list, and row 40 of the old one is blank space that reads as "found
+    -- nothing". What was missing is the way BACK. Clearing the query
+    -- rebuilt the FULL list at row 1, so every search cost you your place
+    -- whether it found anything or not, and the cheapest way to look
+    -- something up was the one that threw away where you were.
+    --
+    -- This is where you were standing when the search began. Set when the
+    -- query leaves "", spent when the query returns to "" — and it is also
+    -- what a close-while-filtered stores, which is what the 🚨 in hide()
+    -- has been claiming since 6.111.0 without anything making it true.
+    cheatSheet.searchAnchor = nil
     cheatSheet.addKey    = "="   -- add-a-custom-entry key ("+" without shift)
 
     -- ---- the remembered position (6.106.0) -------------------------------
@@ -285,6 +301,7 @@ return function(core)
                 { "↑ ↓", "Scroll it a row at a time — hold to keep going" },
                 { "PgUp / PgDn", "Scroll a screenful  ·  Home / End jump to the ends" },
                 { "scroll wheel", "Scrolls it too, while the pointer is over the sheet" },
+                { "type letters", "Filters the sheet · ⌫ or Esc clears it and puts you back where you were" },
                 { "⇪=", "Add your own entry to this sheet" },
                 { "⇪E", "Edit a custom entry (picker)" },
                 { "⇪-", "Remove a custom entry (picker)" },
@@ -608,14 +625,25 @@ return function(core)
         end
         -- 📜 REMEMBER THE ROW — before the query is cleared below, because
         -- whether to remember it depends on the query.
-        -- 🚨 ONLY FROM AN UNFILTERED LIST. Row 12 of "what matched 'win'"
-        -- is not row 12 of the full sheet, so storing it would reopen you
-        -- at a place you were never at. Closing while filtered keeps the
-        -- last row you were on BEFORE you searched, which is where you
-        -- actually were reading.
-        if cheatSheet.rememberScroll and cheatSheet.query == ""
-           and _G.cheatSheetState then
-            cheatSheet.scroll = _G.cheatSheetState.first
+        -- 🚨 NEVER A ROW FROM A FILTERED LIST. Row 12 of "what matched
+        -- 'win'" is not row 12 of the full sheet, so storing it would
+        -- reopen you at a place you were never at.
+        -- 🔎 6.118.0 — AND THE OTHER HALF NOW EXISTS. This block used to
+        -- say that closing while filtered "keeps the last row you were on
+        -- BEFORE you searched", and it did no such thing: it kept whatever
+        -- was stored at the PREVIOUS close, which is that row only if you
+        -- had not scrolled this time round. The anchor is the row the
+        -- search actually took you away from, so the sentence is true now.
+        if cheatSheet.rememberScroll and _G.cheatSheetState then
+            if cheatSheet.query == "" then
+                cheatSheet.scroll = _G.cheatSheetState.first
+            elseif cheatSheet.searchAnchor then
+                cheatSheet.scroll = cheatSheet.searchAnchor
+            end
+            -- Filtered with no anchor (a sheet that somehow opened into a
+            -- query) leaves the stored row exactly as it was — the old
+            -- behaviour, and still the only honest answer with nothing to
+            -- go on.
         end
         if _G.cheatSheetEscHotkey then
             pcall(function() _G.cheatSheetEscHotkey:disable() end)
@@ -635,6 +663,11 @@ return function(core)
         -- that reopened still filtered by yesterday's search would look
         -- like most of your shortcuts had disappeared.
         cheatSheet.query = ""
+        -- Spent, one way or the other: either it was just written to
+        -- cheatSheet.scroll above, or there was no search to come back
+        -- from. Either way it must not survive into the next opening,
+        -- where it would answer a question nobody asked.
+        cheatSheet.searchAnchor = nil
         -- The shadow poller belongs to an OPEN sheet. Stopped on the same
         -- path that gives the keyboard back, so there is one exit and one
         -- thing to check when a timer turns up still running.
@@ -906,6 +939,13 @@ return function(core)
     -- the search found nothing.
     function cheatSheet.typeChar(ch)
         if not _G.cheatSheetCanvas then return end
+        -- 🔎 THE FIRST CHARACTER OF A SEARCH IS THE MOMENT YOUR PLACE IS
+        -- WORTH KEEPING, and this is the only place that can tell a first
+        -- keystroke from a fifth — by the time show() runs, the query
+        -- already has the letter in it and every keystroke looks alike.
+        if cheatSheet.query == "" and _G.cheatSheetState then
+            cheatSheet.searchAnchor = _G.cheatSheetState.first
+        end
         cheatSheet.query = cheatSheet.query .. ch
         -- show(), not render(): the ROWS are built in show(), so render()
         -- alone would repaint a new title over an unfiltered list.
@@ -1105,6 +1145,10 @@ return function(core)
     --   false — a FILTER keystroke. Go to the top, deliberately: you are
     --           looking at a different, shorter list and row 40 of the old
     --           one would be blank space that reads as "found nothing".
+    --           🔎 6.118.0 — WITH ONE EXCEPTION, and it is the whole fix:
+    --           a keystroke that EMPTIES the query is not a filter, it is
+    --           the end of one. You are back on the full list, so you go
+    --           back to the row the search took you from.
     --   nil   — a fresh ⇪/. Reopen where you last closed it.
     -- 🚨 nil and false used to behave identically, which is exactly why
     -- restoring the remembered row here cannot be written as `or`: the
@@ -1115,6 +1159,14 @@ return function(core)
             keepFirst = (_G.cheatSheetState and _G.cheatSheetState.first) or 1
         elseif preserveScroll == false then
             keepFirst = 1
+            -- Backspacing to nothing and Esc-clears both land here, which
+            -- is why the restore lives on the query rather than on which
+            -- key was pressed: there are two ways out of a search and
+            -- neither of them should have to know about this.
+            if cheatSheet.query == "" and cheatSheet.searchAnchor then
+                keepFirst = cheatSheet.searchAnchor
+                cheatSheet.searchAnchor = nil
+            end
         else
             -- Clamped to the current list further down, so a remembered row
             -- from a longer sheet lands on the last full view, never past it.
