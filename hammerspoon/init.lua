@@ -4,8 +4,38 @@
 -- =====================================================================
 -- 08-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.117.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.118.0
 -- =====================================================================
+
+-- NEW IN 6.118.0 — TWO LISTS THAT LOSE YOUR PLACE, AND NO LONGER DO:
+--   🔎 SEARCHING THE CHEAT SHEET NO LONGER COSTS YOUR PLACE IN IT. LL:
+--      "The cheat sheet remembers its position when I scroll. But loses
+--      it when I search." Both halves of that were true and only one was
+--      deliberate. Typing still goes to the top — a filtered sheet is a
+--      different, shorter list, and row 40 of the old one is blank space
+--      that reads as "found nothing". What was missing was the way BACK:
+--      clearing the query rebuilt the FULL list at row 1, so the cheapest
+--      way to look something up was the one that threw away where you
+--      were. The sheet now remembers the row a search took you from, and
+--      returns you to it whether you clear with ⌫ or with Esc.
+--      🚨 AND hide() HAS BEEN CLAIMING THIS SINCE 6.111.0. Its comment
+--      said closing mid-search "keeps the last row you were on BEFORE you
+--      searched"; it kept whatever was stored at the PREVIOUS close,
+--      which is that row only if you had not scrolled since. True now.
+--   🗂 ⇪⇧T IS SECTIONED BY COLLECTION, WITH YOURS AT THE TOP. LL: "Can
+--      you separate the snippets into sections with my textpanders
+--      first?" One flat A–Z list of 2,006 rows put the 80 snippets LL
+--      wrote among 1,349 emoji and 548 compose-key sequences — and
+--      ComposeKey and Emoji_Pack both sort before textpanders, so they
+--      were buried by the alphabet, not by accident. Each collection now
+--      gets a heading; textpanders is pinned first (exp.sectionOrder),
+--      then anything from your own snippets folder, then the shipped
+--      packs A–Z, then the ⚡ actions that are not snippets at all.
+--      ⚠️ SECTIONS ARE THE RESTING ORDER, NOT A SEARCH ORDER. hs.chooser
+--      scores and reorders the panel itself the moment you type, and no
+--      Lua can hold a section together through that. So the pack name is
+--      on every row now as well as in its heading — a match still says
+--      where it came from.
 
 -- NEW IN 6.117.0 — TWO DELETIONS. NOTHING GAINED A FEATURE:
 --   📧 THE OUTLOOK PROBE IS DELETED, NOT SHELVED. LL: "IT won't approve
@@ -179,26 +209,8 @@
 --      frame" memories, neither aware of the other. One now — and it is
 --      bounded, which it never was.
 --
--- NEW IN 6.113.0 — A PINNED NOTE CAN MOVE TO ANOTHER WINDOW:
---   LL: "can I move and pin it if I need to set it to another window?"
---   It could not, and not obviously so — _G.winPin.rebind() read like
---   the call for it and only ever offered notes whose window had stopped
---   RESOLVING, so a note on a healthy window got "not a movable note"
---   and retyping it somewhere else was the only route.
---   Now: focus the window you WANT it on, press ⇪⇧U, and the editor
---   lists every other note as a button — click one and it moves. You
---   drive from the destination, which is why this needs no window
---   picker: the hard half of "move X to Y" is naming Y, and Y is the
---   window you are looking at. rebind(id) takes live notes too.
---   🚨 AND THE MOVE PUTS THE NOTE BACK IF IT CANNOT FINISH. The old
---   rebind removed the source and THEN called set — if set refused, the
---   text was gone with nothing to recover it from. That is somebody's
---   typing and there is no undo for it anywhere in the module.
---   Clipboard History also moves from ✂️ TEXT to 🗒 CAPTURE on the cheat
---   sheet, on request. One word in one file; no key changed.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.117.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.118.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -497,7 +509,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.117.0"
+_G.configVersion = "6.118.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

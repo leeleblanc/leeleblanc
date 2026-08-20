@@ -14,10 +14,12 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 ├── core/             dofile'd at a fixed point, NOT loader-managed (9 files)
 ├── modules/          one file per feature (49 files, ~27,000 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
-├── snippets/         bundled.lua — 2,006 shipped snippets in one table.
-│                     Since 6.117.0 the .json packs it was built from do
-│                     NOT ship: the expander skips them whenever the
-│                     table loads, so they were 797 KB of ignored files
+├── snippets/         bundled.lua — 2,006 shipped snippets in one table,
+│                     in five collections. Since 6.117.0 the .json packs
+│                     it was built from do NOT ship: the expander skips
+│                     them whenever the table loads, so they were 797 KB
+│                     of ignored files. 6.118.0 sections ⇪⇧T by those
+│                     collections — see exp.sectionOrder
 └── tools/            hs-install.sh · hs-doctor.sh · run-tests.sh ·
                       build-snippets.lua
 ```
@@ -314,9 +316,11 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Forty-eight Lua suites, 4,037 checks, plus three more that run the Capture
+Forty-five Lua suites, 4,054 checks, plus three more that run the Capture
 Pad's, the screenshot editor's and unified search's page JavaScript under
-`node`. All of it runs with `lua5.4` on any machine — no Mac required,
+`node` — forty-eight stages in all. (That count said "forty-eight Lua
+suites" until 6.118.0, which was the STAGE count wearing the wrong label:
+the three JavaScript suites are `.js` files run by `node`, not Lua.) All of it runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 
 ```

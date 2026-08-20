@@ -308,7 +308,7 @@ Run it from the **unpacked zip, before Step 3**, not from `~/.hammerspoon`
 copy it reports forty-eight missing stages. That is a skip, not a pass,
 but it is also not a check.
 
-Syntax on `init.lua`, `core/` and all 49 modules, forty-eight Lua suites, then the
+Syntax on `init.lua`, `core/` and all 49 modules, forty-five Lua suites, then the
 Capture Pad's page JavaScript **executed** against a DOM stub. One exit
 code. A skipped stage is reported as a skip, never as a pass.
 

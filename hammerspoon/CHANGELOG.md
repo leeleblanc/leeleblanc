@@ -4,6 +4,84 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.118.0 — TWO LISTS THAT LOSE YOUR PLACE, AND NO LONGER DO:
+
+  🔎 SEARCHING THE CHEAT SHEET NO LONGER COSTS YOUR PLACE IN IT.
+  LL: "The cheat sheet remembers its position when I scroll. But loses
+  it when I search."
+
+  Both halves of that were true, and only one of them was deliberate.
+  Typing a filter goes to the TOP on purpose and still does: a filtered
+  sheet is a different, shorter list, and row 40 of the old one is blank
+  space that reads as "found nothing". What was missing is the way BACK.
+  Clearing the query rebuilt the FULL list at row 1, so a search cost
+  you your place whether it found anything or not — and the cheapest way
+  to look something up was the one that threw away where you were.
+
+  The sheet now records the row a search took you FROM, at the moment
+  the query leaves empty, and returns you to it when the query comes
+  back to empty. Both routes out of a search are covered, because there
+  are two: ⌫ back to nothing, and Esc, which clears before it closes.
+  Closing while still filtered stores that same row, so ⇪/ reopens you
+  where you were reading rather than where the filter had you.
+
+  🚨 AND hide() HAS BEEN CLAIMING THIS SINCE 6.111.0. Its comment said
+  that closing while filtered "keeps the last row you were on BEFORE you
+  searched". It did no such thing: it kept whatever was stored at the
+  PREVIOUS close, which is that row only if you had not scrolled since
+  opening. The sentence is true now, and the check that holds it to it
+  deliberately arranges for the stored row and the current row to
+  differ — with the old code it stores the wrong one and fails.
+
+  ✏️ cheatSheet.rememberScroll = false still turns the whole thing off.
+
+  🗂 ⇪⇧T IS SECTIONED BY COLLECTION, WITH YOURS AT THE TOP.
+  LL: "Can you separate the snippets into sections with my textpanders
+  first?"
+
+  One flat A–Z list of 2,006 rows put the 80 snippets LL wrote among
+  1,349 emoji and 548 compose-key sequences. Alphabetical is a fine
+  order for a list you can see the whole of, and this is not one — and
+  the alphabet was actively working against him here, since ComposeKey
+  and Emoji_Pack both sort ahead of textpanders.
+
+  Every collection now gets a heading row, and the sections come in
+  rank order: collections named in exp.sectionOrder first (textpanders,
+  by default), then anything found in your own snippets folder, then
+  the shipped packs A–Z, then the ⚡ actions — which are not snippets at
+  all but modules borrowing a trigger, and belong at the end rather than
+  salted through your own writing. A–Z runs INSIDE a section now, not
+  across the whole panel. A heading is inert: it carries no pick, and
+  the callback returns on it before it looks one up.
+
+  🚨 TWO DIFFERENT IDEAS OF "MINE", which is why there is a list as well
+  as a flag. Anything under exp.dir is yours BY CONSTRUCTION — you
+  imported or wrote it, and it already wins a collision — so it needs no
+  naming. textpanders is the awkward case: your own export, but SHIPPED,
+  sitting on disk beside four packs you downloaded and indistinguishable
+  from them by any structural test. Only you can say it is yours, so you
+  say it in exp.sectionOrder.
+
+  ⚠️ SECTIONS ARE THE RESTING ORDER, NOT A SEARCH ORDER, and that is
+  hs.chooser's doing rather than a decision made here: the moment you
+  type, it scores every row against what you typed and reorders the
+  panel itself. Nothing in Lua can hold a section together through that.
+  What survives is the pack name, now printed on every row's second line
+  as well as in its heading, so a match still says where it came from.
+
+  ✏️ exp.sections = false restores the one flat A–Z list of before.
+
+  🧪 AND ONE OF THE NEW CHECKS PASSED AGAINST BROKEN CODE. "⚡ actions
+  are LAST" went green with the actions deliberately ranked as an
+  ordinary shipped pack — because "⚡" is 0xE2… in UTF-8 and sorts after
+  every ASCII pack name there is. The check was reading a lucky byte and
+  calling it an ordering. The fixture now carries a pack whose name
+  begins with a 4-byte emoji, which sorts AFTER the actions heading, so
+  the position is decided by the rank again and the break fails as it
+  should. Third one of these in three releases: a check that excludes
+  nothing still goes green, and the only way to know is to break the
+  code on purpose and watch.
+
 NEW IN 6.117.0 — TWO DELETIONS. NOTHING GAINED A FEATURE:
 
   📧 THE OUTLOOK PROBE IS DELETED, NOT SHELVED.
