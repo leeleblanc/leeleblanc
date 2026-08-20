@@ -73,6 +73,7 @@ local M = {
         title = "✂️ TEXT EXPANDER (Alfred snippets)",
         entries = {
             { "⇪⇧T",   "Search your snippets and insert one" },
+            { "sections", "That list is grouped by collection — yours at the top" },
             { "type",  "A trigger expands as you type it — ;bd or gg1, both work" },
             { "add",   "_G.snippetAdd(\"gg1\", \"text\") in the Console" },
             { "import", "_G.snippetsImport() — finds .alfredsnippets in ~/Downloads" },
@@ -112,6 +113,32 @@ function M.setup(core)
     -- harness without it must degrade to "no bundled snippets" rather
     -- than throw inside setup() — which took the whole module down.
     exp.bundledDir    = hs.configdir and (hs.configdir .. "/snippets") or nil
+    -- 🗂 6.118.0 — ⇪⇧T IS SECTIONED BY COLLECTION, YOURS AT THE TOP.
+    -- LL: "Can you separate the snippets into sections with my textpanders
+    -- first?" One flat A–Z list of 2,006 rows put your own 80 snippets
+    -- among 1,349 emoji and 548 compose-key sequences — alphabetical is a
+    -- fine order for a list you can see the whole of, and this is not one.
+    -- Each collection now gets a heading row and the sections come in the
+    -- order below.
+    --
+    -- ⚠️ SECTIONS ARE THE RESTING ORDER, NOT A SEARCH ORDER, and that is
+    -- hs.chooser's doing rather than a choice made here: the moment you
+    -- type, it scores every row against what you typed and reorders the
+    -- panel itself. Nothing in Lua can hold a section together through
+    -- that. What survives is the pack name, now printed on every row's
+    -- second line, so a match still says where it came from.
+    exp.sections      = true      -- false = one flat A–Z list, as before
+    -- ✏️ SECTIONS PINNED ABOVE THE REST, in the order listed here. Names
+    -- are the collection's folder name, matched exactly — the same string
+    -- _G.snippetsList() prints in brackets.
+    -- 🚨 THIS IS NOT THE SAME IDEA AS "MINE", which is why it is a list
+    -- and not a flag. Anything in exp.dir is yours BY CONSTRUCTION — you
+    -- imported or wrote it, and it already wins a collision — so it needs
+    -- no naming. textpanders is the awkward case: your own export, but
+    -- SHIPPED, sitting on disk beside four packs you downloaded and
+    -- indistinguishable from them by any structural test. Only you can
+    -- say it is yours, so you say it here.
+    exp.sectionOrder  = { "textpanders" }
     exp.bufferMax     = 64        -- characters of typing kept in memory
     exp.maxChars      = 2000      -- a snippet longer than this is REFUSED
     exp.wordStartOnly = true      -- see the 🧨 note in the header
@@ -238,7 +265,12 @@ function M.setup(core)
     -- mistake as reading a module list from the file that had it wrong.
     -- The stub now demands the state, so this line cannot regress.
     -- (capture_pad.lua has always had this right; I did not look.)
-    local function scanDir(dir, label, into, problems, chooserOnly)
+    -- `own` marks everything found under exp.dir — the snippets YOU
+    -- imported or wrote, as opposed to the ones that shipped. It travels
+    -- down the recursion because a collection is a subdirectory, and a
+    -- subdirectory of yours is still yours. Used only by the ⇪⇧T sections
+    -- (6.118.0); matching, expansion and collision order are untouched.
+    local function scanDir(dir, label, into, problems, chooserOnly, own)
         local okIter, iter, dirObj = pcall(hs.fs.dir, dir)
         if not okIter or not iter then return 0, 0 end
         local prefix, suffix = readPlist(dir)
@@ -257,13 +289,14 @@ function M.setup(core)
                                 "%s: trigger %s already used by %s — the later one wins",
                                 label, trigger, tostring(into[trigger].name))
                         end
-                        into[trigger] = { text = text, name = name, source = label }
+                        into[trigger] = { text = text, name = name, source = label,
+                                          own = own or nil }
                         loaded = loaded + 1
                     elseif text then
                         -- keyword-less: usable from the chooser only
                         chooserOnly[#chooserOnly + 1] =
                             { text = text, name = name or entry:gsub("%.json$", ""),
-                              source = label }
+                              source = label, own = own or nil }
                     else
                         problems[#problems + 1] = label .. "/" .. entry
                                                   .. ": " .. tostring(reason)
@@ -273,7 +306,7 @@ function M.setup(core)
         end
         local subLoaded = 0
         for _, d in ipairs(subdirs) do
-            local n = scanDir(d[1], d[2], into, problems, chooserOnly)
+            local n = scanDir(d[1], d[2], into, problems, chooserOnly, own)
             subLoaded = subLoaded + n
         end
         return loaded + subLoaded
@@ -425,7 +458,7 @@ function M.setup(core)
             exp.bundledCount = scanDir(exp.bundledDir, "bundled", into,
                                        problems, chooserOnly)
         end
-        scanDir(exp.dir, "snippets", into, problems, chooserOnly)
+        scanDir(exp.dir, "snippets", into, problems, chooserOnly, true)
 
         exp.snippets    = into
         exp.chooserOnly = chooserOnly
@@ -1278,39 +1311,101 @@ function M.setup(core)
     -- throw), so the failure is silent from the keyboard.
     -- The row now carries a plain integer into a table that stays here.
     -- Strings are fine, which is why .trigger can stay as it was.
+    -- 🗂 WHICH SECTION A SNIPPET BELONGS TO, and where that section sits.
+    -- The four ranks are the whole answer to "whose snippet is this?":
+    --   1..n    a collection named in exp.sectionOrder, in the order named
+    --   OWN     yours by construction — anything found under exp.dir
+    --   SHIPPED the rest of the packs, A–Z among themselves
+    --   ACTION  ⚡ actions, which are not snippets at all: a module
+    --           borrowing a trigger (`begone` closes your banners). They
+    --           go last rather than salted through your own writing.
+    -- The constants are far apart so exp.sectionOrder would have to be ten
+    -- thousand entries long before a pin could collide with a rank.
+    exp.rankOwn, exp.rankShipped, exp.rankAction = 10000, 20000, 30000
+    function exp.sectionOf(s)
+        if type(s) ~= "table" then return "bundled", exp.rankShipped end
+        if s.fn then return "⚡ actions", exp.rankAction end
+        local src = tostring(s.source or "bundled")
+        for i, p in ipairs(exp.sectionOrder or {}) do
+            if src == p then return src, i end
+        end
+        return src, s.own and exp.rankOwn or exp.rankShipped
+    end
+
+    -- The heading row. It says what the section is as well as what it is
+    -- called, because "textpanders" and "ComposeKey" are both just folder
+    -- names until something tells you which one you wrote.
+    -- 🚨 A HEADING IS INERT: it carries no `pick`, and the callback returns
+    -- on `header` before it ever looks one up. Picking one closes the
+    -- panel and does nothing else — hs.chooser dismisses on any selection
+    -- and there is no way to refuse it from here.
+    local function sectionHeader(name, rank, n)
+        local what
+        if rank <= #(exp.sectionOrder or {}) then what = "yours — pinned first"
+        elseif rank == exp.rankOwn      then what = "yours — imported or written by you"
+        elseif rank == exp.rankAction   then what = "modules that borrowed a trigger"
+        else                                 what = "shipped with the config"
+        end
+        return { text    = "▸  " .. tostring(name):upper(),
+                 subText = string.format("%d  ·  %s", n, what),
+                 header  = true }
+    end
+
     function exp.show()
         local picks   = {}      -- [n] = { trigger = ..., snip = ... }, Lua-side
-        local choices = {}
-        choices[#choices + 1] = {
+        local rows, counts = {}, {}
+        local function add(s, trigger)
+            picks[#picks + 1] = { trigger = trigger, snip = s }
+            local sect, rank = exp.sectionOf(s)
+            counts[sect] = (counts[sect] or 0) + 1
+            rows[#rows + 1] = {
+                text    = tostring(s.name or trigger),
+                -- 🗂 THE PACK NAME IS ON EVERY ROW, not only in the
+                -- heading, and that is what makes a SEARCH still answer
+                -- "where did this come from" — see the ⚠️ at
+                -- exp.sections: typing reorders the panel and the
+                -- headings go with it.
+                subText = (trigger ~= "" and trigger or "(no trigger)")
+                          .. "   ·   " .. sect .. "   ·   "
+                          .. (s.fn and "⚡ an action — picking it runs it"
+                              or  s.text:gsub("%s+", " "):sub(1, 60)),
+                trigger = trigger, pick = #picks,
+                sect    = sect, rank = rank,
+            }
+        end
+        for trigger, s in pairs(exp.snippets) do add(s, trigger) end
+        for _, s in ipairs(exp.chooserOnly or {}) do add(s, "") end
+
+        -- Rank, then section name, then the row's own text. The last two
+        -- keys are what make this a TOTAL order: two rows in one section
+        -- can share a name (an emoji and its alias), and a comparator that
+        -- called them equal would let table.sort shuffle them between
+        -- openings for no reason anyone could see.
+        table.sort(rows, function(a, b)
+            if a.rank ~= b.rank then return a.rank < b.rank end
+            if a.sect ~= b.sect then return a.sect < b.sect end
+            if a.text ~= b.text then return a.text < b.text end
+            return tostring(a.trigger) < tostring(b.trigger)
+        end)
+
+        -- The ON/OFF row stays FIRST, above every section: it is the one
+        -- row here that is not a snippet, and it is the one you need when
+        -- the expander is misbehaving.
+        local choices = { {
             text    = exp.enabled and "⏸  Turn expansion OFF" or "▶️  Turn expansion ON",
             subText = exp.enabled
                       and "Triggers stop firing; ⇪⇧T still inserts by hand"
                       or  "Start expanding triggers as you type again",
             toggle  = true,
-        }
-        for trigger, s in pairs(exp.snippets) do
-            picks[#picks + 1] = { trigger = trigger, snip = s }
-            choices[#choices + 1] = {
-                text    = s.name or trigger,
-                subText = trigger .. "   ·   "
-                          .. (s.fn and "⚡ an action — picking it runs it"
-                              or  s.text:gsub("%s+", " "):sub(1, 70)),
-                trigger = trigger, pick = #picks,
-            }
+        } }
+        local cur
+        for _, r in ipairs(rows) do
+            if exp.sections and r.sect ~= cur then
+                cur = r.sect
+                choices[#choices + 1] = sectionHeader(r.sect, r.rank, counts[r.sect])
+            end
+            choices[#choices + 1] = r
         end
-        for _, s in ipairs(exp.chooserOnly or {}) do
-            picks[#picks + 1] = { trigger = "", snip = s }
-            choices[#choices + 1] = {
-                text    = s.name,
-                subText = "(no trigger)   ·   " .. (s.text:gsub("%s+", " "):sub(1, 70)),
-                pick    = #picks,
-            }
-        end
-        table.sort(choices, function(a, b)
-            if a.toggle then return true end
-            if b.toggle then return false end
-            return tostring(a.text) < tostring(b.text)
-        end)
 
         local okC, chooser = pcall(hs.chooser.new, function(choice)
             if not choice then return end
@@ -1319,6 +1414,12 @@ function M.setup(core)
                 hs.alert.show(exp.enabled and "✂️ Expansion ON" or "✂️ Expansion OFF")
                 return
             end
+            -- 🗂 A SECTION HEADING. Checked explicitly rather than left to
+            -- fall through the `picks[nil]` lookup below: that would work
+            -- today and would go on "working" if a heading ever grew a
+            -- pick by accident, which is how a divider starts inserting
+            -- text into somebody's document.
+            if choice.header then return end
             -- The bridge hands the number back as a float; Lua normalises
             -- picks[3.0] to picks[3], but tonumber costs nothing and covers
             -- the case where it arrives as a string.

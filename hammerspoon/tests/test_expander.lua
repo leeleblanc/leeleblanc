@@ -730,17 +730,64 @@ CHOOSERS = {}
 exp.show()
 local ch = CHOOSERS[#CHOOSERS]
 check("the chooser opens", ch and ch.shown == true)
-check("...listing every snippet plus the on/off row",
-  ch and #ch.rows_ == exp.count + #(exp.chooserOnly or {}) + 1,
-  ch and #ch.rows_)
+-- 🗂 6.118.0 — the list is SECTIONED, so the row count is snippets +
+-- the on/off row + one heading per collection. Counted from the rows
+-- rather than from a number written here: a hard-coded total would have
+-- to be edited every time this fixture grows a collection, and the day
+-- somebody edits it to make the suite pass is the day it stops checking.
+local function headings(c)
+  local n = 0
+  for _, r in ipairs((c and c.rows_) or {}) do
+    if r.header then n = n + 1 end
+  end
+  return n
+end
+check("...listing every snippet, the on/off row, and one heading per section",
+  ch and #ch.rows_ == exp.count + #(exp.chooserOnly or {}) + 1 + headings(ch),
+  ch and (#ch.rows_ .. " rows, " .. headings(ch) .. " headings"))
 check("...with the toggle FIRST, where it can always be found",
   ch.rows_[1].toggle == true, ch.rows_[1].text)
-check("...and the rest alphabetical", (function()
-  for i = 3, #ch.rows_ do
-    if tostring(ch.rows_[i].text) < tostring(ch.rows_[i - 1].text) then return false end
-  end
-  return true
-end)())
+check("🗂 every snippet sits under the heading for its own collection",
+  (function()
+    local under, seen = nil, 0
+    for i = 2, #ch.rows_ do
+      local r = ch.rows_[i]
+      if r.header then
+        under = r.text
+      else
+        seen = seen + 1
+        if not under then return false, "row " .. i .. " has no heading above it" end
+        -- The heading is the section name upper-cased; if that ever
+        -- stops being true this check must fail rather than be relaxed.
+        if not under:find(tostring(r.sect):upper(), 1, true) then
+          return false, r.text .. " is under " .. under
+        end
+      end
+    end
+    return seen > 0
+  end)())
+check("...and A–Z runs INSIDE a section, not across the whole list",
+  (function()
+    local prev
+    for i = 2, #ch.rows_ do
+      local r = ch.rows_[i]
+      if r.header then prev = nil
+      else
+        if prev and r.text < prev then return false, prev .. " then " .. r.text end
+        prev = r.text
+      end
+    end
+    return true
+  end)())
+check("🚨 a heading is INERT — picking one inserts nothing at all",
+  (function()
+    reset()
+    for _, r in ipairs(ch.rows_) do
+      if r.header then ch.cb(r) end
+    end
+    drain()
+    return #KEYSTROKES == 0 and DELETES == 0
+  end)(), KEYSTROKES[1])
 check("each row shows its trigger", (function()
   for _, r in ipairs(ch.rows_) do
     if r.trigger == "gg1" then return r.subText:find("gg1", 1, true) ~= nil end
@@ -1476,13 +1523,130 @@ check("🚨 every ⇪⇧T row survives the Objective-C bridge",
 check("...and the pick index still resolves to a real snippet",
   (function()
     exp.show()
-    local rows, seen = CHOOSERS[#CHOOSERS].rows_ or {}, 0
+    local rows, seen, heads = CHOOSERS[#CHOOSERS].rows_ or {}, 0, 0
     for _, row in ipairs(rows) do
       if row.pick then seen = seen + 1 end
+      if row.header then heads = heads + 1 end
     end
-    -- Every row but the ON/OFF toggle carries one.
-    return seen == #rows - 1 and seen > 0
+    -- Every row but the ON/OFF toggle and the section headings carries
+    -- one. A heading that grew a `pick` would be a divider that inserts
+    -- text into a document, which is why the two are counted separately
+    -- rather than the total being loosened to >=.
+    return seen == #rows - 1 - heads and seen > 0
   end)())
+
+-- =====================================================================
+out("\n=== 20. 🗂 THE ⇪⇧T SECTIONS, IN ORDER (6.118.0) ===\n")
+-- LL: "Can you separate the snippets into sections with my textpanders
+-- first?" Four ranks, and this is the section that holds them apart:
+-- a pinned collection, then yours-by-construction, then the shipped
+-- packs A–Z, then the ⚡ actions. Everything below is built from the
+-- REAL loader — a hand-made exp.snippets would only be my idea of what
+-- load() produces, which is the mistake §2's fixture exists to avoid.
+do
+  local SDIR = TMP .. "/sections"
+  mkdirp(SDIR)
+  write(SDIR .. "/bundled.lua", [[
+return {
+  version = 1,
+  packs = { { "Emoji_Pack", 1 }, { "textpanders", 1 }, { "ComposeKey", 1 },
+            { "🧪 Lab", 1 } },
+  triggers = {
+    [":joy:"] = { "😂", "Joy", 1 },
+    ["eml2"]  = { "work@example.com", "Work email", 2 },
+    ["cmp1"]  = { "ä", "a umlaut", 3 },
+    ["lab1"]  = { "specimen", "Lab one", 4 },
+  },
+}
+]])
+  -- 🚨 THAT LAST PACK IS THE WHOLE REASON THIS FIXTURE IS NOT SIMPLER,
+  -- and it was added because the check below PASSED AGAINST BROKEN CODE.
+  -- Rank the ⚡ actions as an ordinary shipped pack — the exact bug the
+  -- check exists to catch — and they still came out last, because "⚡"
+  -- is 0xE2… in UTF-8 and sorts after every ASCII pack name there is.
+  -- The check was reading a lucky byte and calling it an ordering. "🧪"
+  -- is 0xF0…, so it sorts AFTER the actions heading and the position is
+  -- decided by the rank again, which is the thing being tested.
+  exp.bundledDir = SDIR
+  exp.load()
+  exp.show()
+  local c = CHOOSERS[#CHOOSERS]
+  local order = {}
+  for _, r in ipairs(c.rows_ or {}) do
+    if r.header then order[#order + 1] = r.text end
+  end
+
+  check("the pinned collection is the FIRST section on the list",
+    order[1] and order[1]:find("TEXTPANDERS", 1, true) ~= nil,
+    table.concat(order, " | "))
+  check("🚨 …ahead of packs that beat it alphabetically. ComposeKey and "
+     .. "Emoji_Pack both sort before textpanders, which is exactly why "
+     .. "one flat A–Z buried the eighty snippets LL wrote",
+    (function()
+      for i = 2, #order do
+        if order[i]:find("COMPOSEKEY", 1, true)
+           or order[i]:find("EMOJI_PACK", 1, true) then return true end
+      end
+    end)(), table.concat(order, " | "))
+  check("yours-by-construction come next — the collections in exp.dir",
+    (function()
+      local firstShipped, lastOwn
+      for i, r in ipairs(c.rows_ or {}) do
+        if r.sect and r.rank == exp.rankOwn      then lastOwn = i end
+        if r.sect and r.rank == exp.rankShipped
+           and not firstShipped                  then firstShipped = i end
+      end
+      return lastOwn and firstShipped and lastOwn < firstShipped,
+             tostring(lastOwn) .. " vs " .. tostring(firstShipped)
+    end)())
+  check("⚡ actions are LAST — a module borrowing a trigger is not a "
+     .. "snippet you wrote",
+    order[#order]:find("ACTIONS", 1, true) ~= nil, order[#order])
+  check("every heading names its collection AND says whose it is",
+    (function()
+      for _, r in ipairs(c.rows_ or {}) do
+        if r.header and r.text:find("TEXTPANDERS", 1, true) then
+          return r.subText:find("yours", 1, true) ~= nil, r.subText
+        end
+      end
+    end)())
+  check("🔎 …and every ROW names its collection too, because a SEARCH "
+     .. "reorders the panel and takes the headings with it",
+    (function()
+      for _, r in ipairs(c.rows_ or {}) do
+        if r.trigger == "eml2" then
+          return r.subText:find("textpanders", 1, true) ~= nil, r.subText
+        end
+      end
+    end)())
+
+  check("✏️ exp.sectionOrder is the only thing that pins one — empty it "
+     .. "and textpanders falls back among the shipped packs",
+    (function()
+      exp.sectionOrder = {}
+      exp.show()
+      local o = {}
+      for _, r in ipairs(CHOOSERS[#CHOOSERS].rows_ or {}) do
+        if r.header then o[#o + 1] = r.text end
+      end
+      return o[1] and o[1]:find("TEXTPANDERS", 1, true) == nil,
+             table.concat(o, " | ")
+    end)())
+  check("✏️ exp.sections = false goes back to one flat A–Z list, no "
+     .. "headings at all",
+    (function()
+      exp.sections = false
+      exp.show()
+      local rows = CHOOSERS[#CHOOSERS].rows_ or {}
+      for _, r in ipairs(rows) do
+        if r.header then return false end
+      end
+      return #rows == exp.count + #(exp.chooserOnly or {}) + 1, #rows
+    end)())
+  exp.sections, exp.sectionOrder = true, { "textpanders" }
+  exp.bundledDir = nil
+  exp.load()
+end
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.execute("rm -rf '" .. TMP .. "'")
