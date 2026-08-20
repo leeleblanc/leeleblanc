@@ -643,6 +643,32 @@ check("…and never consumes the event",
 
 -- =====================================================================
 out("\n=== 2i. nothing may name the gesture from memory ===\n")
+-- 🚨 AND NOTHING MAY NAME THE *KEY* FROM MEMORY EITHER, which is the
+-- other half of the same rule and the half that actually went wrong.
+-- 6.125.0 gave ⇪⇧Z back, and FIVE separate messages had that key typed
+-- into them. Four were found by reading; the fifth — "the watcher would
+-- not start" — survived a full green suite and was caught by unzipping
+-- the release and grepping it. A sentry beats a careful reader, so:
+-- no LIVE line of this module may carry a ⇪⇧ chord literal. ep.wayIn()
+-- builds its own from "⇪" and "⇧" separately and is therefore fine,
+-- which is the point — the route is assembled from the setting or it is
+-- not written at all.
+check("🚨 no live line hard-codes a ⇪⇧ chord — the tap-free route comes "
+      .. "from ep.wayIn() or it does not get written", (function()
+    local f = io.open(HS .. "/modules/editor_picker.lua", "r")
+    if not f then return false, "module unreadable" end
+    local bad, n = {}, 0
+    for line in f:lines() do
+        n = n + 1
+        if not line:match("^%s*%-%-") and line:find("⇪⇧", 1, true) then
+            bad[#bad + 1] = n .. ": " .. line:gsub("^%s+", "")
+        end
+    end
+    f:close()
+    if n < 100 then return false, "only read " .. n .. " lines" end
+    if #bad > 0 then return false, table.concat(bad, " ;; ") end
+    return true
+end)())
 check("the cheat sheet title names the live gesture",
       M.cheatsheet.title:find("⌃⌃", 1, true) ~= nil,
       M.cheatsheet.title)

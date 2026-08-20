@@ -769,7 +769,8 @@ function M.setup(core)
         local okStart = pcall(function() tap:start() end)
         ep.tapRunning = okStart and true or false
         if not okStart then
-            warn("the " .. ep.gesture() .. " watcher would not start — ⇪⇧Z still works")
+            warn("the " .. ep.gesture() .. " watcher would not start — "
+                 .. ep.wayIn() .. " still works")
         end
         return ep.tapRunning
     end
