@@ -67,6 +67,11 @@ _G.panelLevels = {
     keycaster  = 2,   -- it shows what you just pressed, so it must not be
                       -- hidden BY what you just pressed: above the sheet
                       -- and the switcher, below the timer
+    macpanel   = 1,   -- 6.120.0 ⇪7's About-This-Mac card. Above the sheet
+                      -- because ⇪/ is how you look up ⇪7 in the first
+                      -- place, and a card that opens UNDER the thing that
+                      -- told you about it reads as the key not working.
+                      -- Below the timer, which outranks everything here.
     pomodoro   = 3,   -- ABOVE the cheat sheet — this is the ask
 }
 
