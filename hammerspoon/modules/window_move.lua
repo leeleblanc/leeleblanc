@@ -64,7 +64,29 @@
 -- to whatever app is underneath, and a tap that talks about other
 -- people's clicks is a tap you turn off. _G.windowMoveReport() is the
 -- answer instead: it prints the box, the record, who it belongs to, and
--- the last refusal with its coordinates.
+-- the last click it judged, with its coordinates.
+--
+-- 🚨 6.128.0 — AND IT STILL DID NOT MOVE. LL: "I clicked and dragged and
+-- nothing happened." 6.127.0 was a real bug really fixed, but it was not
+-- the only way to get nothing, because TWO separate computations had to
+-- be right before a ⌘-drag was allowed to start:
+--
+--   1. IS A PICKER OPEN — answered only by hs.chooser.globalCallback. If
+--      that willOpen never arrived, the entire picker branch was skipped
+--      and ⌘ did nothing at all. Now the callback is a HINT and
+--      chooser:isVisible() is the ground truth, with the placement
+--      record as a second source. See wm.currentChooser().
+--
+--   2. IS THE CLICK INSIDE THE BOX — and the box is a GUESS: a recorded
+--      top-left, a width the picker may decline to give, an assumed
+--      44 px row. Every error in it presented as "this one cannot be
+--      moved". ⌘-drag no longer asks. A visible picker plus ⌘ moves it.
+--      The box now decides ONE thing only: where the bare-click search
+--      band is, where being wrong costs a click nobody wanted anyway.
+--
+-- The lesson worth keeping: a feature gated on a computed value fails
+-- exactly like a feature that is missing. Gate on something the OS will
+-- state, or do not gate.
 --
 -- 🚨 THE DRAG IS DRIVEN FROM LUA, NOT FROM EVENTS, copied deliberately
 -- from the Capture Pad's 6.44.2 drag: a drag tracked by mouse-move
@@ -90,6 +112,7 @@ local M = {
         title = "🪟 WINDOW MOVE (⌘-drag — every panel, pickers included)",
         entries = {
             { "⌘ drag", "Hold ⌘, click and hold ON any panel or picker, move the mouse" },
+            { "always", "⌘-drag moves an OPEN PICKER from anywhere — even off it" },
             { "band",   "A PICKER drags by its search band — bare click-hold, no ⌘" },
             { "drag",   "Display-only panels (pomodoro, key caster) need no ⌘ — just grab" },
             { "sticks", "A dragged PICKER position is kept for the next picker you open" },
@@ -217,6 +240,56 @@ function M.setup(core)
         end
     end)
 
+    -- ---- which picker is on screen, asked properly ------------------------
+    -- 🚨 6.128.0 — THE CALLBACK ABOVE WAS THE ONLY ANSWER WE HAD, and
+    -- everything below it — the box, the band, the ⌘-drag — is skipped
+    -- entirely when it says "none". One missed willOpen therefore reads
+    -- exactly like a picker that cannot be moved, and leaves no trace of
+    -- why. macOS will answer hs.chooser:isVisible() directly (§1.5's
+    -- nudge has asked it since 6.30), so the callback is now a HINT that
+    -- gets CHECKED, and the placement record — which names its chooser
+    -- since 6.127.0 — is the fallback when the hint is missing.
+    --
+    -- The two directions are deliberately NOT symmetrical. The callback
+    -- already told us this picker opened, so it is trusted unless
+    -- isVisible() explicitly says otherwise (a build without the getter
+    -- must not lose the drag). A chooser reached from the RECORD has no
+    -- such statement behind it — a record outlives its picker by design —
+    -- so it is promoted only on an explicit yes.
+    local function saysVisible(ch)
+        if ch == nil then return nil end
+        local ok, v = pcall(function() return ch:isVisible() end)
+        if not ok or type(v) ~= "boolean" then return nil end
+        return v
+    end
+
+    -- Why currentChooser() answered as it did, in words, for the report.
+    wm.chooserWhy = "nothing asked yet"
+
+    function wm.currentChooser()
+        if wm.openChooser ~= nil and saysVisible(wm.openChooser) ~= false then
+            wm.chooserWhy = "the willOpen callback" ..
+                (saysVisible(wm.openChooser) == true and ", confirmed visible"
+                 or " (isVisible unavailable — trusted)")
+            return wm.openChooser
+        end
+        local placed = _G.lastPopupPlacement
+        if placed and saysVisible(placed.chooser) == true then
+            wm.chooserWhy = "the placement record's picker, confirmed visible"
+                            .. " — the willOpen callback never fired"
+            return placed.chooser
+        end
+        for _, c in pairs(_G.choosers or {}) do
+            if saysVisible(c) == true then
+                wm.chooserWhy = "found visible in _G.choosers — neither the "
+                                .. "callback nor the record knew about it"
+                return c
+            end
+        end
+        wm.chooserWhy = "no picker is visible"
+        return nil
+    end
+
     -- The picker's box, COMPUTED: top-left from §1.5's record, width and
     -- visible rows asked of the chooser itself, both pcall'd because both
     -- getters vary across Hammerspoon builds. Deliberately generous — the
@@ -225,8 +298,15 @@ function M.setup(core)
     -- Why the box came out nil or wrong, in words — read by the report so
     -- "I cannot move this one" is answerable without guessing.
     wm.boxWhy = "nothing open"
+    -- true only when the picker itself gave its width. A box built from
+    -- the 40% default is a GUESS, and the report must not print a guess
+    -- as though it were measured — that is how 6.127.0's report sent us
+    -- looking at numbers no click was ever judged against.
+    wm.boxMeasured = false
 
-    function wm.chooserBox()
+    function wm.chooserBox(ch)
+        ch = ch or wm.currentChooser()
+        wm.boxMeasured = false
         local placed = _G.lastPopupPlacement
         if not (placed and placed.point) then
             wm.boxWhy = "no placement on record — the picker was shown "
@@ -242,8 +322,7 @@ function M.setup(core)
         -- written to fall back to a jump-to-hand grab whenever there is no
         -- box at all. Refusing to trust a mismatched record puts those
         -- pickers back on the working path.
-        if placed.chooser ~= nil and wm.openChooser ~= nil
-           and placed.chooser ~= wm.openChooser then
+        if placed.chooser ~= nil and ch ~= nil and placed.chooser ~= ch then
             wm.boxWhy = "the placement on record belongs to a different "
                         .. "picker — ⌘-drag grabs by hand instead"
             return nil
@@ -251,19 +330,22 @@ function M.setup(core)
         wm.boxWhy = "computed from the placement on record"
         local w, rows = nil, 10
         pcall(function()
-            local pct = wm.openChooser:width()
+            local pct = ch:width()
             local sf  = placed.screen and placed.screen:frame()
             if type(pct) == "number" and pct > 0 and pct <= 100 and sf then
                 w = sf.w * (pct / 100)
+                wm.boxMeasured = true
             end
         end)
         if not w then
             local sf
             pcall(function() sf = placed.screen and placed.screen:frame() end)
             w = (sf and sf.w or 1440) * 0.4
+            wm.boxWhy = wm.boxWhy .. ", width ASSUMED at 40% (the picker "
+                        .. "did not answer)"
         end
         pcall(function()
-            local r = wm.openChooser:rows()
+            local r = ch:rows()
             if type(r) == "number" and r > 0 then rows = r end
         end)
         local pad = wm.chooserPad
@@ -274,7 +356,16 @@ function M.setup(core)
     end
 
     function wm.dragChooser(ch)
-        local base = (_G.lastPopupPlacement and _G.lastPopupPlacement.point)
+        -- Only THIS picker's record may seed the grab (6.128.0). ⌘-drag
+        -- now starts without consulting the box, so a record belonging to
+        -- a picker that closed hours ago would otherwise teleport this one
+        -- to those coordinates the instant you grabbed it. Mismatched or
+        -- missing, the answer is the same and it is a good one: grab it by
+        -- where the hand already is.
+        local placed = _G.lastPopupPlacement
+        local base = placed and placed.point
+                     and (placed.chooser == nil or placed.chooser == ch)
+                     and placed.point or nil
         local m = mousePosition()
         if not m then return false end
         -- No record (a chooser shown without showPopup): grab it by where
@@ -293,8 +384,10 @@ function M.setup(core)
             -- nudge keys, reset by the same ⌃⌥⌘R.
             _G.popupOffset.x = _G.popupOffset.x + (land.x - base.x)
             _G.popupOffset.y = _G.popupOffset.y + (land.y - base.y)
-            if _G.lastPopupPlacement and _G.lastPopupPlacement.point then
-                _G.lastPopupPlacement.point = { x = land.x, y = land.y }
+            local rec = _G.lastPopupPlacement
+            if rec and rec.point
+               and (rec.chooser == nil or rec.chooser == ch) then
+                rec.point = { x = land.x, y = land.y }
             end
             -- The Task Creator's mirror and the dashboard legend ride their
             -- picker — same calls the nudge path makes.
@@ -328,24 +421,46 @@ function M.setup(core)
             end
         end
 
-        if wm.openChooser then
-            local box = wm.chooserBox()
+        local ch = wm.currentChooser()
+        -- EVERY click that could plausibly have meant "move this picker"
+        -- is written down (6.128.0) — one slot, overwritten, read by the
+        -- report. "I clicked and dragged and nothing happened" had no
+        -- answer at all before this: 6.127.0 recorded only DECLINED
+        -- ⌘-clicks, so the two commonest ways to get nothing — a bare
+        -- click below the search band, and a picker the module never saw
+        -- — both left the record empty and the report showing "none".
+        -- Skipped for a plain click with no picker up, because that is
+        -- just somebody using their Mac.
+        local function note(cmd, box, strip, outcome)
+            if not (ch or cmd) then return end
+            wm.lastPickerClick = { x = p.x, y = p.y, cmd = cmd == true,
+                                   picker = ch ~= nil, why = wm.chooserWhy,
+                                   box = box, strip = strip,
+                                   outcome = outcome, when = os.date("%H:%M:%S") }
+        end
+
+        if ch then
+            local box = wm.chooserBox(ch)
             if f.cmd then
-                -- No box on record still grabs: better a jump-to-hand than
-                -- a picker that cannot be moved at all.
-                if (not box) or contains(box, p) then
-                    return wm.dragChooser(wm.openChooser)
-                end
-                -- A declined ⌘-click leaves EVIDENCE. LL reported "I can't
-                -- move" on a picker once (6.102.0); whether the box or the
-                -- hand is wrong is unknowable without this line. Trail only
-                -- — a wrong box must not also make the Console noisy.
-                -- 6.127.0: kept on wm as well, because a trail line scrolls
-                -- away and _G.windowMoveReport() is read after the fact.
-                wm.lastDeclined = { x = p.x, y = p.y, box = box,
-                                    when = os.date("%H:%M:%S") }
-                say(("⌘-click at %d,%d declined — picker box is %d,%d %dx%d")
-                    :format(p.x, p.y, box.x, box.y, box.w, box.h))
+                -- 🚨 6.128.0 — ⌘-DRAG NO LONGER ASKS THE BOX AT ALL, and
+                -- that is the whole point. The box is COMPUTED, from a
+                -- recorded top-left plus an assumed row height — so every
+                -- way it can be wrong (a width the picker would not give,
+                -- a placement macOS did not honour, a row height off by a
+                -- few pixels) came out as "this picker cannot be moved",
+                -- silently. The module already held that a jump-to-hand
+                -- grab beats an immovable picker when there is NO box;
+                -- there is no honest reason to be stricter when the box
+                -- is merely a guess. A visible picker plus ⌘ now means
+                -- move it, full stop.
+                --
+                -- The cost, accepted knowingly: a ⌘-click that lands
+                -- OUTSIDE an open picker starts a drag instead of going
+                -- to the app underneath. It is a rare gesture while a
+                -- picker holds the keyboard, Esc puts the picker away
+                -- first, and dropping it where it started costs nothing.
+                note(true, box, nil, "⌘-drag taken")
+                return wm.dragChooser(ch)
             elseif box then
                 -- 6.102.0 — LL's original spec, finally honoured for the
                 -- pickers: "click and hold then move". The SEARCH BAND is
@@ -361,9 +476,21 @@ function M.setup(core)
                                 w = box.w - wm.chooserPad * 2,
                                 h = wm.chooserHeadH }
                 if contains(strip, p) then
-                    return wm.dragChooser(wm.openChooser)
+                    note(false, box, strip, "search-band drag taken")
+                    return wm.dragChooser(ch)
                 end
+                note(false, box, strip,
+                     "bare click OUTSIDE the search band — nothing taken; "
+                     .. "⌘-drag moves a picker from anywhere on it")
+            else
+                note(false, nil, nil,
+                     "bare click, but there is no box to find the search "
+                     .. "band with (" .. tostring(wm.boxWhy) .. ") — ⌘-drag "
+                     .. "moves it from anywhere")
             end
+        else
+            note(f.cmd == true, nil, nil,
+                 "no picker visible and no panel under the pointer")
         end
         return false
     end
@@ -435,35 +562,65 @@ function M.setup(core)
                  e.plain and "   (bare click drags)" or ""))
         end
 
-        line("   picker open: " .. (wm.openChooser and "yes" or "no"))
+        -- 🚨 THIS REPORT IS READ WITH NO PICKER OPEN — always. A chooser
+        -- holds the keyboard, so reaching the Console means closing it
+        -- first. 6.127.0's version printed the LIVE box and the LIVE
+        -- picker anyway, which by then were a 40%-width guess and "no",
+        -- and I read those numbers as though a click had been judged
+        -- against them. Everything live is now labelled as live, and the
+        -- click record below is what actually answers the question.
+        local ch = wm.currentChooser()
+        line("   picker open: " .. (ch and "yes" or "no")
+             .. "   (" .. tostring(wm.chooserWhy) .. ")")
         local placed = _G.lastPopupPlacement
         if placed and placed.point then
-            line(("   placement  : %d,%d%s"):format(placed.point.x, placed.point.y,
-                 placed.chooser == nil and "   ⚠️ no chooser named — pre-6.127.0 caller"
-                 or (placed.chooser == wm.openChooser and "   (this picker)"
-                     or "   ⚠️ ANOTHER picker's — this one was shown without core.showPopup")))
+            local whose = "   (its picker is not on screen — expected with "
+                          .. "the Console in front)"
+            if placed.chooser == nil then
+                whose = "   ⚠️ no chooser named — pre-6.127.0 caller"
+            elseif ch ~= nil then
+                whose = (placed.chooser == ch) and "   (this picker)"
+                        or "   ⚠️ ANOTHER picker's — this one was shown "
+                           .. "without core.showPopup"
+            end
+            line(("   placement  : %d,%d%s"):format(placed.point.x,
+                                                    placed.point.y, whose))
         else
             line("   placement  : none on record")
         end
-        local box = wm.chooserBox()
+        local box = wm.chooserBox(ch)
         line("   grab box   : " .. (box
-             and ("%d,%d %dx%d"):format(box.x, box.y, box.w, box.h)
+             and (("%d,%d %dx%d"):format(box.x, box.y, box.w, box.h)
+                  .. (ch and "" or "   — computed NOW, with nothing open")
+                  .. (wm.boxMeasured and "" or "   ⚠️ width is a guess"))
              or  "none"))
         line("   why        : " .. tostring(wm.boxWhy))
         if box then
             line(("   band strip : %d,%d %dx%d  (bare click-hold drags here)")
                  :format(box.x + wm.chooserPad, box.y + wm.chooserPad,
                          box.w - wm.chooserPad * 2, wm.chooserHeadH))
-        elseif wm.openChooser then
+        elseif ch then
             line("   band strip : none — with no box the SEARCH BAND cannot be")
             line("                found, so ⌘-drag is the only way to move this one")
         end
-        if wm.lastDeclined then
-            local d = wm.lastDeclined
-            line(("   last refusal: ⌘-click %d,%d at %s — box was %d,%d %dx%d")
-                 :format(d.x, d.y, d.when, d.box.x, d.box.y, d.box.w, d.box.h))
+        if wm.lastPickerClick then
+            local d = wm.lastPickerClick
+            line(("   last click : %s at %d,%d at %s")
+                 :format(d.cmd and "⌘-click" or "bare click", d.x, d.y, d.when))
+            line("                picker seen: " .. (d.picker and "yes" or "NO")
+                 .. "  (" .. tostring(d.why) .. ")")
+            if d.box then
+                line(("                box then  : %d,%d %dx%d"):format(
+                     d.box.x, d.box.y, d.box.w, d.box.h))
+            end
+            if d.strip then
+                line(("                band then : %d,%d %dx%d"):format(
+                     d.strip.x, d.strip.y, d.strip.w, d.strip.h))
+            end
+            line("                outcome   : " .. tostring(d.outcome))
         else
-            line("   last refusal: none this session")
+            line("   last click : nothing yet — no ⌘-click, and no click at all")
+            line("                while a picker was up")
         end
         line("   drag now   : " .. (wm.dragTimer and "IN PROGRESS" or "idle"))
         line("")

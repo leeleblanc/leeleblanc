@@ -222,8 +222,14 @@ check("…and the placement record moved with it",
       and _G.lastPopupPlacement.point.y == 240)
 check("…and the picker's companions were re-synced", SYNCS == 1)
 
-check("⌘-click far OUTSIDE the picker's box still belongs to the Mac",
-      press(50, 700, { cmd = true }) == false)
+-- 6.128.0 REVERSES THIS ONE ON PURPOSE. It used to assert that a ⌘-click
+-- outside the computed box belonged to the Mac. That box is a guess, and
+-- every way it guessed wrong presented to LL as a picker that could not
+-- be moved at all — twice. While a picker is VISIBLE, ⌘ means move it.
+check("⌘-click far outside an OPEN picker's box STILL moves it (6.128.0)",
+      press(50, 700, { cmd = true }) == true)
+releaseAndTick()
+_G.popupOffset = { x = 30, y = 40 }
 
 hs.chooser.globalCallback(CH, "didClose")
 check("didClose forgets the chooser", wm.openChooser == nil)
@@ -264,22 +270,32 @@ check("a bare click on the ROWS below the band still means 'pick this one'",
 check("a bare click in the box's margin (outside the tight strip) passes through",
       press(450, 190) == false)
 
--- A declined ⌘-click must leave evidence in the diag trail — that line
--- is how the NEXT "I can't move this" report gets diagnosed.
-local SAID = {}
-_G.diag = { say  = function(_, m) SAID[#SAID + 1] = tostring(m) end,
-            warn = function() end, err = function() end }
-check("a ⌘-click outside the box is declined…",
-      press(50, 700, { cmd = true }) == false)
-check("…and says so in the diag trail, box included", (function()
-    for _, m in ipairs(SAID) do
-        if m:find("declined", 1, true) and m:find("box", 1, true) then
-            return true
-        end
-    end
-    return false
-end)(), table.concat(SAID, " | "))
-_G.diag = { say = function() end, warn = function() end, err = function() end }
+-- 🚨 6.128.0 — EVERY CLICK THAT COULD HAVE MEANT "MOVE THIS PICKER" IS
+-- WRITTEN DOWN. LL's report was "I clicked and dragged and nothing
+-- happened", and 6.127.0 recorded only DECLINED ⌘-clicks — so the two
+-- commonest ways to get nothing (a bare click below the band; a picker
+-- the module never saw) both left the record empty and the report
+-- printing "none". A silent no must still leave a trace.
+check("a bare click below the band records WHY nothing happened",
+      wm.lastPickerClick ~= nil
+      and wm.lastPickerClick.cmd == false
+      and wm.lastPickerClick.x == 450
+      and wm.lastPickerClick.outcome:find("OUTSIDE the search band", 1, true)
+          ~= nil,
+      wm.lastPickerClick and wm.lastPickerClick.outcome)
+check("…and it keeps the box and band it was judged against",
+      wm.lastPickerClick.box ~= nil and wm.lastPickerClick.strip ~= nil
+      and wm.lastPickerClick.strip.x
+          == wm.lastPickerClick.box.x + wm.chooserPad,
+      "box=" .. tostring(wm.lastPickerClick.box and wm.lastPickerClick.box.x)
+      .. " strip=" .. tostring(wm.lastPickerClick.strip and wm.lastPickerClick.strip.x))
+check("a taken ⌘-drag records itself too, marked as taken", (function()
+    press(450, 210, { cmd = true })
+    releaseAndTick()
+    return wm.lastPickerClick.cmd == true
+       and wm.lastPickerClick.outcome:find("taken", 1, true) ~= nil
+end)(), wm.lastPickerClick and wm.lastPickerClick.outcome)
+_G.popupOffset = { x = 0, y = 0 }
 hs.chooser.globalCallback(CH, "didClose")
 check("the band is dead once the picker is closed", press(450, 210) == false)
 
@@ -323,7 +339,21 @@ MOUSE.x, MOUSE.y = 420, 320
 tick()
 check("…and the picker that is actually open is the one that moves",
       #CH.shownAt == shownCH + 1 and #OTHER.shownAt == 0)
+-- ⚠️ AND IT IS GRABBED BY THE HAND, NOT SEEDED FROM THE STALE RECORD.
+-- 6.128.0 lets ⌘-drag start without consulting the box, so a record
+-- belonging to a picker that closed hours ago would TELEPORT this one to
+-- those coordinates the instant you grabbed it. Grabbed at 400,300 the
+-- base is 240,284; moved to 420,320 that lands at 260,304. Seeded from
+-- the stale 300,200 it would land at 320,220 instead.
+check("🚨 …grabbed by the HAND, not teleported to the stale record",
+      CH.shownAt[#CH.shownAt].x == 260 and CH.shownAt[#CH.shownAt].y == 304,
+      CH.shownAt[#CH.shownAt]
+      and (CH.shownAt[#CH.shownAt].x .. "," .. CH.shownAt[#CH.shownAt].y))
 releaseAndTick()
+check("…and the drop did NOT overwrite the other picker's record",
+      _G.lastPopupPlacement.point.x == 300
+      and _G.lastPopupPlacement.point.y == 200,
+      _G.lastPopupPlacement.point.x .. "," .. _G.lastPopupPlacement.point.y)
 
 check("⚠️ the band strip is NOT offered against a stale record — a bare"
       .. " click there would have moved nothing", press(450, 210) == false)
@@ -354,7 +384,70 @@ check("a record with no chooser named is still trusted (older caller)",
       wm.chooserBox() ~= nil)
 
 -- =====================================================================
-out("4d. the report that did not exist\n")
+out("4d. 🚨 THE CALLBACK IS A HINT, isVisible IS THE TRUTH (6.128.0)\n")
+-- =====================================================================
+-- LL, on 6.127.0: "I clicked and dragged and nothing happened."
+--
+-- 6.127.0 fixed a real bug and was still not enough, because the picker
+-- branch of the tap ran ONLY when hs.chooser.globalCallback had fired
+-- willOpen. One missed callback and ⌘ did nothing whatsoever — the same
+-- symptom, a different cause, and no trace of either. macOS will answer
+-- chooser:isVisible() directly, so that is the truth now, and the
+-- placement record (which names its chooser since 6.127.0) is a second
+-- way in when the callback never came.
+hs.chooser.globalCallback(CH, "didClose")
+local VIS = { shownAt = {}, vis = true }
+function VIS:show(pt) self.shownAt[#self.shownAt + 1] = pt end
+function VIS:width() return 40 end
+function VIS:rows() return 10 end
+function VIS:isVisible() return self.vis end
+
+_G.popupOffset        = { x = 0, y = 0 }
+_G.lastPopupPlacement = {
+    point   = { x = 300, y = 200 },
+    screen  = { frame = function() return { x = 0, y = 0, w = 1000, h = 800 } end },
+    chooser = VIS,
+}
+check("🚨 a VISIBLE picker the callback never announced is still found",
+      wm.currentChooser() == VIS)
+check("…and the report says the callback is the part that failed",
+      type(wm.chooserWhy) == "string"
+      and wm.chooserWhy:find("callback never fired", 1, true) ~= nil,
+      wm.chooserWhy)
+check("🚨 …so ⌘-drag moves it, where 6.127.0 did nothing at all",
+      press(400, 300, { cmd = true }) == true)
+MOUSE.x, MOUSE.y = 430, 330
+tick()
+check("…and it is that picker that moved", #VIS.shownAt == 1)
+releaseAndTick()
+
+VIS.vis = false
+check("a picker that says it is NOT visible is not offered",
+      wm.currentChooser() == nil)
+check("…and a ⌘-click there goes back to the Mac",
+      press(400, 300, { cmd = true }) == false)
+check("…and even THAT is written down, so 'nothing happened' has an answer",
+      wm.lastPickerClick ~= nil and wm.lastPickerClick.picker == false
+      and wm.lastPickerClick.outcome:find("no picker visible", 1, true) ~= nil,
+      wm.lastPickerClick and wm.lastPickerClick.outcome)
+
+-- ⚠️ The callback's word survives a build with no isVisible getter —
+-- refusing it there would cost the drag on exactly the Macs that have
+-- the least to fall back on.
+hs.chooser.globalCallback(CH, "willOpen")
+check("a chooser with no isVisible at all is trusted from the callback",
+      wm.currentChooser() == CH)
+-- …but the callback does NOT outrank an explicit no.
+VIS.vis = false
+wm.openChooser = VIS
+check("🚨 an explicit isVisible() == false beats the callback",
+      wm.currentChooser() == nil)
+wm.openChooser = nil
+hs.chooser.globalCallback(CH, "willOpen")   -- the report section wants one open
+_G.popupOffset = { x = 0, y = 0 }
+
+-- =====================================================================
+out("4e. the report that did not exist\n")
 -- =====================================================================
 -- 🚨 THIS MODULE FAILS SILENTLY BY DESIGN — a declined ⌘-click cannot
 -- make a noise, because the click belongs to the app underneath. It was
@@ -386,13 +479,35 @@ check("…and that showPopup is the missing call",
 check("it says whether the tap is up", rep:find("tap", 1, true) ~= nil)
 check("…and counts the registered panels",
       rep:find("panels", 1, true) ~= nil)
-check("it names the last refusal, with coordinates", (function()
-    -- section 4b declined a ⌘-click at 50,700
-    return rep:find("last refusal", 1, true) ~= nil
-       and rep:find("50,700", 1, true) ~= nil
+check("🚨 it replays the LAST CLICK it judged, with coordinates", (function()
+    -- 4d's last click was the ⌘-click at 400,300 with nothing visible
+    return rep:find("last click", 1, true) ~= nil
+       and rep:find("400,300", 1, true) ~= nil
 end)(), rep)
+check("…and says whether a picker was seen at all, and how it knew",
+      rep:find("picker seen", 1, true) ~= nil
+      and rep:find("outcome", 1, true) ~= nil, rep)
 check("…and when there is no box it says the band cannot be found",
       rep:find("SEARCH BAND cannot be", 1, true) ~= nil)
+
+-- 🚨 THE REPORT IS ALWAYS READ WITH NOTHING OPEN — a chooser holds the
+-- keyboard, so reaching the Console means closing it first. 6.127.0's
+-- report printed a live box computed from 40%-default fallbacks in that
+-- state and labelled it exactly like a measured one, and I read those
+-- numbers as though a click had been judged against them.
+check("🚨 a box computed with nothing open is labelled as such", (function()
+    local savedOpen = wm.openChooser
+    hs.chooser.globalCallback(CH, "didClose")
+    _G.lastPopupPlacement = {
+        point  = { x = 300, y = 200 },
+        screen = { frame = function() return { x = 0, y = 0, w = 1000, h = 800 } end },
+    }
+    local ok, r = pcall(_G.windowMoveReport)
+    wm.openChooser = savedOpen
+    if not (ok and type(r) == "string") then return false, "no report" end
+    return r:find("computed NOW, with nothing open", 1, true) ~= nil
+       and r:find("width is a guess", 1, true) ~= nil, r
+end)())
 
 check("the report survives an empty world", (function()
     if type(_G.windowMoveReport) ~= "function" then return false, "no report" end

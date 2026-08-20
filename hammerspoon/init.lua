@@ -4,8 +4,41 @@
 -- =====================================================================
 -- 08-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.127.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.128.0
 -- =====================================================================
+
+-- NEW IN 6.128.0 — AND IT STILL DID NOT MOVE:
+--   🪟 LL, on the 6.127.0 fix: "I clicked and dragged and nothing
+--      happened." 6.127.0 was a real bug really fixed. It was not the
+--      only way to get nothing, because a ⌘-drag on a picker had to pass
+--      TWO computed tests before it was allowed to start, and either one
+--      failing looks identical from the outside: a picker that will not
+--      move, in silence.
+--   🚨 TEST ONE — "IS A PICKER OPEN" was answered ONLY by
+--      hs.chooser.globalCallback. If that willOpen never arrived, the
+--      whole picker branch of the mouse tap was skipped and ⌘ did
+--      nothing at all. macOS will answer chooser:isVisible() directly,
+--      so that is the truth now; the callback is a hint that gets
+--      checked, and 6.127.0's placement record is a second way in.
+--   🚨 TEST TWO — "IS THE CLICK INSIDE THE BOX" and the box is a GUESS:
+--      a recorded top-left, a width the picker may decline to give, an
+--      assumed 44px row. ⌘-DRAG NO LONGER ASKS. A visible picker plus ⌘
+--      moves it, from anywhere — the same principle the module already
+--      held when there was no box at all. The box now decides one thing
+--      only: where the bare-click search band is.
+--   🩺 AND EVERY CLICK IS WRITTEN DOWN. 6.127.0's report recorded only
+--      DECLINED ⌘-clicks, so the two commonest ways to get nothing — a
+--      bare click below the band, and a picker the module never saw —
+--      both left it printing "none". _G.windowMoveReport() now replays
+--      the last click it judged: where, with which modifier, whether a
+--      picker was seen and how it knew, and what it decided.
+--   ⚠️ THE REPORT IS ALWAYS READ WITH NOTHING OPEN — a chooser holds the
+--      keyboard, so reaching the Console means closing it first. 6.127.0
+--      printed a live box built from 40%-width fallbacks in that state
+--      and labelled it like a measured one. Live values now say so.
+--   💡 THE LESSON: a feature gated on a computed value fails exactly
+--      like a feature that is missing. Gate on something the OS will
+--      state, or do not gate.
 
 -- NEW IN 6.127.0 — THE PICKERS THAT COULD NOT BE MOVED:
 --   🪟 LL: "The screenshot is a picker window I can't grab and move. Why?"
@@ -121,59 +154,10 @@
 --      the tap now watches the pointer as well and a click CANCELS a
 --      half-made gesture. ⌥ never had this problem; ⌃ has it constantly.
 --
--- NEW IN 6.123.0 — THE COLUMN THAT WAS PROMISED, AND THE WINDOW THAT
--- ONLY HALF-MOVED:
---   🌐 activity_history.csv HAS A url COLUMN. LL asked twice for "a tool
---      that would save any and all URLs and Window titles ... to a .csv
---      file". 6.120.0 answered honestly: window titles yes, URLs no, and
---      nothing was building the other half. This builds it. When the
---      window in front is Chrome, the row records the page — so one file
---      now says what you were looking at, what it was called, and for how
---      long. Columns: date,app,title,seconds,url. Rows written before
---      today read back with an empty url and are left alone; the file is
---      rewritten ONCE so the header is not left four columns wide over
---      five-column rows.
---      ⚡ IT LIVES IN THE ACTIVITY TRACKER, NOT IN A MODULE OF ITS OWN,
---      and that was the one real design decision. The obvious shape was
---      url_tracker.lua with its own poller — which is exactly what
---      6.104.0 DELETED when document_watcher turned out to be a second
---      five-second timer writing a second CSV about the same window
---      switches. The tracker already knows when a window comes forward.
---      The URL is a column on that row, not a second observer.
---      🕵️ INCOGNITO IS NEVER RECORDED, and it fails closed: Chrome is
---      asked for the window's mode first, and a mode that cannot be read
---      counts as private. An incognito window is a statement that the
---      page should not be written down.
---      🔐 AND SECRETS ARE CUT OUT. Query strings carry reset links,
---      OAuth codes and session tokens, and this file syncs to OneDrive.
---      Named secrets are stripped — from the fragment too, which is where
---      OAuth actually puts an access token. ?v= and your searches are
---      kept, because those are what make a row mean something.
---      ✔️ Chrome only, and it says so everywhere: there is no macOS API
---      for "the URL in the front window", only asking the browser in its
---      own language. _G.urlReport() says why the column is empty when it
---      is — usually System Settings → Privacy & Security → Automation.
---   🎬 ⇪[ AND ⇪] NO LONGER LEAVE A WINDOW HANGING OFF THE MONITOR. LL:
---      "Using hyper+[/] doesn't all the way work. But hyper+any arrow is
---      fine." Both halves of that were exactly right. The monitor jump
---      COMPUTES a rectangle and asks for it; VLC's video window is
---      aspect-locked, keeps the width it wants, accepts the origin it was
---      given, and lands with its playlist sidebar sliced off the edge.
---      moveToScreen's own ensureInScreenBounds cannot catch that — it
---      clamps the rectangle being REQUESTED, and the app resizes after.
---      Now the frame is READ BACK and nudged in with setTopLeft, which
---      moves without resizing; resizing is the argument that window just
---      won. A window too big for the monitor keeps its top-left corner on
---      screen, so the far edge overhangs and never the controls — and the
---      alert SAYS SO instead of showing the same success it always did.
---      The arrows were fine because a left-half snap starts at the
---      screen's own left edge, so an app that refuses to shrink grows
---      inward where you can still see it.
-
--- (6.122.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.123.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.127.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.128.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -484,7 +468,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.127.0"
+_G.configVersion = "6.128.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

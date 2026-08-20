@@ -4,6 +4,80 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.128.0 — AND IT STILL DID NOT MOVE:
+
+  🪟 LL, on the 6.127.0 fix: "I clicked and dragged and nothing
+  happened."
+
+  6.127.0 was a real bug really fixed. It was not the only way to get
+  nothing, because a ⌘-drag on a picker had to pass TWO separately
+  computed tests before it was allowed to start — and either one failing
+  looks identical from the outside: a picker that will not move, in
+  silence.
+
+  🚨 TEST ONE — "IS A PICKER OPEN" had exactly one source of truth:
+  hs.chooser.globalCallback firing willOpen. If it never arrived, the
+  entire picker branch of the mouse tap was skipped, and ⌘ did nothing
+  whatsoever. macOS will answer chooser:isVisible() directly — §1.5's
+  nudge has asked it since 6.30 — so that is the truth now. The callback
+  is a HINT that gets checked, and 6.127.0's placement record (which
+  names its chooser) is a second way in when the callback never came.
+
+  The two directions are deliberately not symmetrical. The callback
+  already stated this picker opened, so it stands unless isVisible()
+  explicitly says otherwise — a Hammerspoon build without the getter
+  must not lose the drag. A chooser reached from the RECORD has no such
+  statement behind it (a record outlives its picker by design), so it is
+  promoted only on an explicit yes.
+
+  🚨 TEST TWO — "IS THE CLICK INSIDE THE BOX", and the box is a GUESS.
+  There is no frame getter for an hs.chooser, so the box is assembled
+  from a recorded top-left, a width the picker may decline to give, and
+  an assumed 44px row height. Every way any of those can be wrong
+  presented as "this picker cannot be moved".
+
+  ⌘-DRAG NO LONGER ASKS THE BOX. A visible picker plus ⌘ moves it, from
+  anywhere — which is the principle the module already held when there
+  was NO box ("better a jump-to-hand than a picker that cannot be moved
+  at all"); there was no honest reason to be stricter when the box is
+  merely a guess. The box now decides one thing only: where the
+  bare-click SEARCH BAND is, where being wrong costs a click nobody
+  wanted anyway.
+
+  The cost, accepted knowingly: a ⌘-click landing OUTSIDE an open picker
+  starts a drag instead of reaching the app underneath. It is a rare
+  gesture while a picker holds the keyboard, Esc puts the picker away
+  first, and dropping it where it started costs nothing.
+
+  🩺 AND EVERY CLICK IS WRITTEN DOWN. 6.127.0 recorded only DECLINED
+  ⌘-clicks — so the two commonest ways to get nothing (a bare click
+  below the search band; a picker the module never saw at all) both left
+  the record empty and the report printing "last refusal: none".
+  _G.windowMoveReport() now replays the last click it judged: where it
+  was, which modifier was held, whether a picker was seen and how it
+  knew, the box and band it was measured against, and what it decided.
+
+  ⚠️ THE REPORT IS ALWAYS READ WITH NOTHING OPEN. A chooser holds the
+  keyboard, so reaching the Console means closing it first. 6.127.0's
+  report printed the LIVE box and LIVE picker anyway — which in that
+  state are a 40%-width fallback and "no" — labelled exactly like
+  measured values. Everything live now says so: "computed NOW, with
+  nothing open", "width is a guess", and a placement whose picker is
+  simply not on screen no longer reads as a warning about another one.
+
+  💡 THE LESSON, worth keeping: a feature gated on a computed value
+  fails exactly like a feature that is missing. Gate on something the OS
+  will state, or do not gate.
+
+  🧪 test_window_move.lua: 66 → 78 checks. Section 4d drives the
+  visibility paths (a picker the callback never announced is still
+  found and still drags; an explicit isVisible() == false beats the
+  callback; a chooser with no getter at all is trusted from the
+  callback), and the old "⌘-click outside the box belongs to the Mac"
+  check is REVERSED on purpose.
+```
+
+```text
 NEW IN 6.127.0 — THE PICKERS THAT COULD NOT BE MOVED:
 
   🪟 LL: "The screenshot is a picker window I can't grab and move. Why?"
