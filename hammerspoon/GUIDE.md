@@ -12,7 +12,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 ├── init.lua          the orchestrator (3,411 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (9 files)
-├── modules/          one file per feature (49 files, ~27,000 lines)
+├── modules/          one file per feature (56 files, ~33,400 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
 ├── snippets/         bundled.lua — 2,006 shipped snippets in one table,
 │                     in five collections. Since 6.117.0 the .json packs
@@ -316,9 +316,9 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Forty-nine Lua suites, 4,456 checks, plus three more that run the Capture
+Fifty-two Lua suites, 4,717 checks, plus three more that run the Capture
 Pad's, the screenshot editor's and unified search's page JavaScript under
-`node` — fifty-four stages in all. All of it runs with `lua5.4` on any
+`node` — fifty-seven stages in all. All of it runs with `lua5.4` on any
 machine — no Mac required, they stub the `hs` API:
 
 > 🚨 **These three numbers have been wrong twice, in two different ways,
@@ -388,7 +388,16 @@ tests/test_app_kill.lua      💀 ⇪⇧;: the two-ps join over paths with space
 tests/test_power_tools.lua   🧰 ⇪;: secure input checked BEFORE a character is typed,
                              the clipboard typed exactly ONCE, and the borrowed
                              clipboard put back on every path
-tests/test_integration.lua   🚨 all 53 modules loaded TOGETHER: shortcut, service and
+tests/test_tab_search.lua    🗂 ⇪⇧': the running-process check that stops the scan
+                             LAUNCHING every browser, and the jump that verifies
+                             the URL it landed on before calling it a jump
+tests/test_net_tools.lua     🌐 ⇪6: the host never touches a shell, every command
+                             is bounded by -c/-m/-w, and a half DNS flush is
+                             reported as a half flush
+tests/test_mac_panel.lua     🖥 ⇪7: df's kilobytes become bytes exactly once, and
+                             the card draws on the keypress rather than waiting
+                             three seconds for system_profiler
+tests/test_integration.lua   🚨 all 56 modules loaded TOGETHER: shortcut, service and
                              cheat-sheet-slot collisions — the only suite that can
                              catch two modules quietly claiming the same key
 tests/test_pad_js.js         the Capture Pad's in-page JavaScript, actually executed

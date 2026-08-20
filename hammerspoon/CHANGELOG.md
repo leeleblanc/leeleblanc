@@ -4,6 +4,209 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.120.0 — THE OTHER EIGHT, AND THE KEY THAT WAS ALREADY TAKEN:
+
+  6.119.0 shipped four of the twelve LL asked for in one message. These
+  are the remaining eight, which closes the list.
+
+  🗂 ⇪⇧' TAB SEARCH — every open tab, from anywhere.
+  LL: "Can we search my current open tabs and then jump to that tab,
+  from another application or on the desktop, in a folder? Essentially
+  anywhere but the app can I do this."
+
+  Yes, and that is the whole reason it is on ⇪. Press it in Finder, in
+  Word, on the desktop, in a terminal, type three letters of the page's
+  title, press ⏎, and that tab is in front of you. The browser does not
+  need to be frontmost and does not need to be visible.
+
+  Chrome, Safari, Edge, Brave and Arc are all asked, and each row names
+  its own browser — so two copies of the same page in two browsers are
+  two distinguishable rows. Adding another Chromium browser is one line;
+  they share Chrome's AppleScript dictionary.
+
+  ⚠️ A TAB IS ADDRESSED AS A POSITION, AND POSITIONS MOVE. There is no
+  stable identifier AppleScript can use — you reach a tab as "tab 4 of
+  window 2", which is where it is sitting right now. Drag a tab between
+  the scan and the jump and those numbers point somewhere else. Two
+  defences: the list is NEVER CACHED, so the numbers are milliseconds
+  old, and the jump VERIFIES — it returns the URL it actually landed on
+  and compares it, so "that tab moved" is something you are told rather
+  than something you discover by reading the wrong page.
+
+  🌐 ⇪6 NETWORK TOOLS — flush · ping · nslookup · traceroute.
+  LL: "Give me network tools that are / flush / ping / nslookup /
+  traceroute"
+
+  Pick one that needs a host and a second box opens where whatever you
+  type IS the host. No dialog, no form. Your clipboard prefills it with
+  the scheme, path and port stripped off, because "ping
+  https://docs.example.com/a/b" is a thing ping cannot do.
+
+  The output comes back as a searchable list — one row per line, ⏎ copies
+  that line — and the whole thing is on the clipboard before you have
+  read it, because the next step is usually pasting it to somebody.
+
+  🚨 A DNS FLUSH CANNOT FULLY WORK WITHOUT ADMIN, AND THIS ONE SAYS SO.
+  It is two commands:
+
+      dscacheutil -flushcache          ← no privileges needed
+      sudo killall -HUP mDNSResponder  ← needs an admin password
+
+  The second is the one that actually makes mDNSResponder forget, and it
+  needs to signal a root process. On the work Mac it CANNOT succeed —
+  and every "flush your DNS" instruction on the internet runs both and
+  mentions neither. This runs both, checks each, and reports which half
+  worked, because a half flush reported as a flush is how you spend an
+  afternoon debugging a cache that was never cleared. When the privileged
+  half fails, the alert names the remedy that needs no password: toggle
+  Wi-Fi off and on.
+
+  🖥 ⇪7 MAC PANEL — About This Mac, as a card.
+  LL: "Can you create windows like Pomodoro for: About This Mac"
+
+  The Pomodoro's shape: a small card in the corner of the screen you are
+  looking at, draggable, above everything else. ⇪7 opens it, ⇪7 puts it
+  away. It carries what Apple's own panel carries plus the four things
+  you actually go looking for that Apple does not put on the front page —
+  uptime, free disk, battery health, and this Mac's IP.
+
+  ⚡ IT DRAWS BEFORE IT KNOWS EVERYTHING. Nearly all of it is sysctl and
+  Hammerspoon's own APIs, which answer in microseconds. Two things do
+  not: the MARKETING NAME ("MacBook Pro" rather than "Mac14,9") needs
+  system_profiler, which takes one to three SECONDS, and the serial needs
+  ioreg. So the card opens instantly and fills those two in when they
+  land. A panel that takes three seconds to appear is a panel you stop
+  pressing.
+
+  ⚠️ AND "reading…" IS DIFFERENT FROM "—", deliberately. The first will
+  change; the second will not. Showing one for the other leaves you
+  waiting for a number that is never coming.
+
+  ⏸ ⇪' PAUSE ALL AUDIO AND VIDEO.
+  LL: "Can you create a key that will pause all audio and video?"
+
+  🚨 READ THIS BEFORE BELIEVING THE NAME. macOS has no "pause everything"
+  call and no API that enumerates what is making sound. What exists is
+  the MEDIA KEY, which macOS routes to ONE app — whichever it currently
+  considers "now playing", and the only mechanism that can reach a
+  browser tab — and telling a scriptable player to pause BY NAME, which
+  covers the desktop players and nothing else.
+
+  So the key does both, and the alert says how many players it reached,
+  so a miss is visible rather than something you wonder about.
+
+  ⚠️ IT ONLY TALKS TO APPS THAT ARE ALREADY RUNNING, and that is not
+  politeness: naming an application in AppleScript LAUNCHES it. A naive
+  "tell application Music to pause" on a Mac with Music closed OPENS
+  MUSIC, and a pause key that starts a music player is worse than no
+  pause key. The same hazard governs ⇪⇧', which is why both check the
+  running process list first.
+
+  👻 ⇪` GHOSTTY HERE · ⇪⇧` REVEAL IT IN FINDER.
+  LL: "Can we open a Ghostty terminal from current Finder folder; and
+  open current Ghostty teminal path in Finder?"
+
+  The first direction is easy and reliable. The second is the hard one
+  and is worth saying why: A TERMINAL'S CURRENT DIRECTORY BELONGS TO THE
+  SHELL, NOT THE WINDOW. Ghostty is a window around a process whose cwd
+  changes every time you type cd, and it publishes that nowhere a
+  neighbouring process can simply read.
+
+  Two routes, in order. The WINDOW TITLE first — Ghostty sets it from
+  OSC 7, which at a prompt is the working directory — because it is free,
+  instant, and reads the FRONT window's own title. When the title is not
+  a path (you are in vim, or ssh, or a long build), lsof on Ghostty's
+  child shells is the fallback. That route cannot tell two Ghostty
+  windows apart, so it takes the newest shell, and the alert says when it
+  was used. A title that is not a path is never guessed at: revealing the
+  wrong folder is worse than saying the title was not one.
+
+  🔳 ⇪5 READ A QR CODE OFF THE SCREEN.
+  LL: "How about an on screen QR reader?"
+
+  It scans the WHOLE screen rather than asking you to drag a box, because
+  zbar finds a code anywhere in the image and a region selection is a
+  step that buys nothing. Press the key, the payload is on the clipboard.
+
+  ⚠️ IT NEEDS zbarimg, WHICH macOS DOES NOT SHIP. There is no QR decoder
+  in any Apple framework Hammerspoon can reach. `brew install zbar` and
+  it works; without it the refusal says exactly that, rather than failing
+  as though the code were unreadable. The PATH comes from
+  screenshots.lua, which already hunts five install locations including
+  the two no-admin Homebrew prefixes — asked for by service name rather
+  than copied, because a second copy of that list is a list that drifts.
+
+  ---------------------------------------------------------------------
+  🚨 ⇪⇧, AND ⇪⇧. WERE ALREADY TAKEN
+  ---------------------------------------------------------------------
+  The first draft of this release put the network tools on ⇪⇧. and the
+  Mac panel on ⇪⇧,. Both are owned by numpad_layer's laptop window row
+  and have been since 6.114.0 — they are shrink and grow.
+
+  The hyper sentry would have caught it at boot and printed a conflict,
+  and then one of those two window keys would have been quietly dead
+  until somebody read the Console. This one was caught by reading the map
+  before writing the key rather than by the boot, which is the cheaper
+  place to catch it. A check in the suite now asserts that nothing in
+  power_tools claims either.
+
+  That is the second time in two releases that running out of keys has
+  produced a near-miss, and the reason is worth stating plainly: EVERY ⇪
+  LETTER AND EVERY ⇪⇧ LETTER HAS BEEN CLAIMED SINCE 6.104.0. What is left
+  is punctuation and seven digits, and digits carry no mnemonic — which
+  is why ⇪6 and ⇪7 matter more in ⇪⇧/ than on the keyboard, and why the
+  modules say so rather than pretending otherwise.
+
+  ---------------------------------------------------------------------
+  🚨 WHAT THE GATE CAUGHT
+  ---------------------------------------------------------------------
+
+  🚨 THE EXTERNAL-BINARY REVIEW FOUND SIXTEEN UNDECLARED COMMANDS — and
+  the interesting half is the ones it could NOT see. test_diagnostics
+  scans every module for quoted absolute paths and fails on anything not
+  on its reviewed list, which is the guard that stops a dependency
+  drifting in unnoticed. A binary written INSIDE a longer shell string —
+  "/usr/bin/dscacheutil -flushcache; …" — is invisible to that scan.
+
+  Three of the new modules were written that way, and would have shipped
+  eight commands that the review had never seen and never approved. Every
+  one is a named constant now, so the guard is real rather than
+  accidentally bypassed, and all sixteen are declared with what they are
+  for. ps and kill in ⇪⇧; were in the same position and are fixed too.
+
+  🚨 THE TAB JUMP COUNTED A WRONG LANDING AS A SUCCESS. ts.jumps was
+  incremented before the URL comparison, so _G.tabReport() would agree
+  with you about a jump that went to the wrong page — a report that
+  confirms something that did not happen is worse than no report. Found
+  by its own test on the first run, and the order is asserted now.
+
+  🚨 THE FIRST DISK FIGURE COULD HAVE BEEN WRONG BY 1024×. The obvious
+  route is hs.fs.freeSpace, whose unit has differed between Hammerspoon
+  versions — and no value it returns distinguishes the two, because 400
+  GB in bytes and 400 GB in kilobytes are both plausible readings of a
+  real Mac. The first draft guessed with a threshold. `df -k` says
+  kilobytes in its own name: one multiplication, no guess, and the test
+  pins the exact figure so "393 MB free" and "393 TB free" both fail.
+
+  ---------------------------------------------------------------------
+  📋 AND THE ANSWER TO THE ONE QUESTION THAT WAS NOT A TOOL
+  ---------------------------------------------------------------------
+  LL: "A while back I asked for a tool that would save any and all URLs
+  and Window titles would be posted to a .csv file. Did we get around to
+  that?"
+
+  HALF, and the half that exists has existed for a long time. WINDOW
+  TITLES: yes — activity_history CSV has recorded app + window title per
+  interval since well before the rename, ⇪⇧W searches it, and ⇪space
+  reads it as one of its sources. URLS: no. ⇪Y archives Chrome's own
+  history database, which is a different thing from "every URL that
+  passed through a window" — it is Chrome's record, not an observation of
+  yours, and it says nothing about Safari or about a URL you looked at
+  without navigating. A combined one was never built, and nothing in this
+  release builds it either.
+```
+
+```text
 NEW IN 6.119.0 — TWELVE TOOLS ASKED FOR, THE FIRST FOUR OF THEM, AND
 THE KEYBOARD RUNNING OUT OF LETTERS:
 

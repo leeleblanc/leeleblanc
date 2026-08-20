@@ -917,6 +917,50 @@ local ALLOWED_BINARIES = {
   -- 6.88.0 — ⌃⏎ on a panel history row: re-encode a PNG screenshot as a
   -- small JPEG next to the original. sips is Apple's own image tool.
   ["/usr/bin/sips"] = "⌃⏎ compress screenshot to jpg (ships with macOS)",
+  -- 6.120.0 — THE NETWORK TOOLS (⇪6). Four diagnostics LL asked for by
+  -- name. Every one ships with macOS and every one is run with bounded
+  -- arguments (ping -c, traceroute -m/-w) so it cannot run forever.
+  -- ⚠️ The host is passed as a POSITIONAL ARGUMENT to hs.task, never
+  -- interpolated into a shell line, so a hostname containing shell
+  -- metacharacters is only ever a hostname that will not resolve.
+  ["/sbin/ping"]             = "⇪6 ping, bounded by -c (ships with macOS)",
+  ["/usr/bin/nslookup"]      = "⇪6 DNS lookup (ships with macOS)",
+  ["/usr/sbin/traceroute"]   = "⇪6 traceroute, bounded by -m and -w (ships with macOS)",
+  -- The two halves of a DNS flush. The second needs to signal a root
+  -- process and therefore CANNOT succeed without admin — the module runs
+  -- both, checks both, and reports which one worked, because a half
+  -- flush reported as a flush is the failure that wastes an afternoon.
+  ["/usr/bin/dscacheutil"]   = "⇪6 flush, half 1 — no privileges (ships with macOS)",
+  ["/usr/bin/killall"]       = "⇪6 flush, half 2 — needs admin, reported when it "
+                            .. "fails rather than hidden (ships with macOS)",
+  -- 6.120.0 — THE MAC PANEL (⇪7). Everything About This Mac shows.
+  -- sysctl, sw_vers and df answer instantly and run on the keypress;
+  -- system_profiler takes SECONDS and ioreg a tenth of one, so those two
+  -- run out of process and fill themselves in when they land.
+  ["/usr/sbin/sysctl"]         = "⇪7 chip, memory, model id, boot time (ships with macOS)",
+  ["/usr/bin/sw_vers"]         = "⇪7 macOS version and build (ships with macOS)",
+  ["/bin/df"]                  = "⇪7 free disk — `df -k` says its unit in its own "
+                              .. "name, which hs.fs.freeSpace does not (ships with macOS)",
+  ["/usr/sbin/system_profiler"] = "⇪7 the model's MARKETING name, async because it "
+                              .. "takes 1-3 SECONDS (ships with macOS)",
+  ["/usr/sbin/ioreg"]          = "⇪7 serial number (ships with macOS)",
+  ["/usr/bin/grep"]            = "⇪7 picks the serial line out of ioreg (ships with macOS)",
+  -- 6.120.0 — ⇪⇧` REVEALS GHOSTTY'S FOLDER. A terminal's directory
+  -- belongs to the SHELL, not the window, and is published nowhere a
+  -- neighbouring process can read. The window title is tried first
+  -- because it names the FRONT window; this pipeline is the fallback
+  -- when the title is not a path.
+  ["/usr/bin/pgrep"]         = "⇪⇧` finds Ghostty's child shells (ships with macOS)",
+  ["/usr/sbin/lsof"]         = "⇪⇧` reads a shell's cwd (ships with macOS)",
+  ["/usr/bin/xargs"]         = "⇪⇧` feeds one pid to lsof (ships with macOS)",
+  ["/usr/bin/sed"]           = "⇪⇧` extracts the n-prefixed path (ships with macOS)",
+  ["/usr/bin/tail"]          = "⇪⇧` takes the newest shell (ships with macOS)",
+  -- 6.119.0 — ⇪⇧; lists and ends processes. Two ps calls joined on pid,
+  -- because comm and args both contain spaces and one call leaves no
+  -- separator a pattern can find.
+  ["/bin/ps"]                = "⇪⇧; the process list, twice (ships with macOS)",
+  ["/bin/kill"]              = "⇪⇧; ends one — four names refused outright, "
+                            .. "under ⌥ as well (ships with macOS)",
   ["/opt/homebrew/bin/brew"] = "OPTIONAL update checks, admin install",
   ["/usr/local/bin/brew"]    = "OPTIONAL update checks, admin install",
   -- the no-admin Homebrew prefixes, which are $HOME-relative in the source
@@ -964,8 +1008,15 @@ check("brew is RUN only from update_tracker (screenshots may look under "
   for name, body in pairs(moduleText) do
     if name ~= "update_tracker" then
       for line in body:gmatch("[^\n]+") do
+        -- 6.120.0 — power_tools joins the same carve-out. ⇪5 reads QR
+        -- codes and asks screenshots.lua for the zbarimg path by service
+        -- name rather than keeping a second copy of the search list; the
+        -- ONLY place it says "brew" is the sentence that tells you how to
+        -- install the decoder when there isn't one. Any OTHER brew
+        -- reference in either module still fails here.
         if not line:match("^%s*%-%-") and line:find("brew", 1, true)
-           and not (name == "screenshots" and line:lower():find("zbar", 1, true)) then
+           and not ((name == "screenshots" or name == "power_tools")
+                    and line:lower():find("zbar", 1, true)) then
           return false, name
         end
       end

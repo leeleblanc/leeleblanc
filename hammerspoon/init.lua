@@ -4,9 +4,60 @@
 -- =====================================================================
 -- 08-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.119.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.120.0
 -- =====================================================================
 
+-- NEW IN 6.120.0 — THE OTHER EIGHT, AND THE KEY THAT WAS ALREADY TAKEN:
+--   6.119.0 shipped four of the twelve LL asked for. These are the rest.
+--     🗂 ⇪⇧' TAB SEARCH — every open tab in every RUNNING browser, from
+--        anywhere: Finder, Word, the desktop, a terminal. Chrome, Safari,
+--        Edge, Brave and Arc, each row naming its own browser. ⏎ raises
+--        the window and switches to the tab.
+--     🌐 ⇪6  NETWORK TOOLS — flush · ping · nslookup · traceroute. Pick
+--        one and a second box opens where whatever you type IS the host;
+--        your clipboard prefills it, stripped of scheme and path. Output
+--        comes back as a searchable list and is on the clipboard already.
+--     🖥 ⇪7  MAC PANEL — About This Mac in the Pomodoro's shape, plus the
+--        four things Apple's does not put on the front page: uptime, free
+--        disk, battery health, and this Mac's IP.
+--     ⏸ ⇪'  PAUSE ALL AUDIO AND VIDEO.
+--     👻 ⇪`  Ghostty at the front Finder folder · ⇪⇧` Finder at the front
+--        Ghostty folder.
+--     🔳 ⇪5  READ A QR CODE off the screen — next to ⇪4 because both read
+--        the screen. Needs zbar; without it the refusal says exactly that.
+--   🚨 ⇪⇧, AND ⇪⇧. WERE ALREADY TAKEN, and the first draft of this
+--      release pointed two of these at them. numpad_layer's laptop window
+--      row has owned both since 6.114.0 (shrink and grow) — the hyper
+--      sentry would have printed a conflict at boot and one of those
+--      window keys would have gone quietly dead. Caught by reading the
+--      map rather than by the boot; a test asserts it now.
+--   ⚠️ THREE HONEST LIMITS, STATED ON THE KEY RATHER THAN DISCOVERED:
+--      ⏸ macOS routes the media key to ONE app — whichever it considers
+--        "now playing". So the key posts the media key AND tells every
+--        scriptable player that is ALREADY RUNNING to pause, and says how
+--        many it reached. Already running matters: naming an app in
+--        AppleScript LAUNCHES it, and a pause key that opens Music is
+--        worse than no pause key.
+--      👻 A terminal's directory belongs to the SHELL, not the window.
+--        The front window's TITLE is tried first because it is the only
+--        route that knows which window is in front; lsof on Ghostty's
+--        child shells is the fallback, and it cannot tell two windows
+--        apart. When that route is used, the alert says so.
+--      🗂 A tab is addressed as "tab 4 of window 2" — a POSITION, which
+--        moves. The list is never cached, and the jump verifies the URL
+--        it landed on, so "that tab moved" is something you are told.
+--
+-- ALSO IN 6.120.0 — WHAT THE GATE CAUGHT:
+--   🚨 THE EXTERNAL-BINARY REVIEW FOUND SIXTEEN UNDECLARED COMMANDS, and
+--      the interesting half was the ones it could NOT see: a binary
+--      written inside a longer shell string is invisible to that scan.
+--      Every one is a named constant now, so the review is real rather
+--      than accidentally bypassed, and all sixteen are declared with what
+--      they are for.
+--   🚨 THE TAB JUMP COUNTED A WRONG LANDING AS A SUCCESS. The counter
+--      incremented before the URL comparison, so a report agreed with you
+--      about a jump that went to the wrong page. Found by its own test.
+--
 -- NEW IN 6.119.0 — TWELVE TOOLS ASKED FOR, THE FIRST FOUR OF THEM, AND
 -- THE KEYBOARD RUNNING OUT OF LETTERS:
 --   🔑 EVERY ⇪ LETTER AND EVERY ⇪⇧ LETTER IS NOW CLAIMED. win_pin called
@@ -183,58 +234,10 @@
 --      TRIGGER, not the text, because those snippets hold an employee ID
 --      and two real addresses.
 
--- NEW IN 6.115.0 — FOUR THINGS LL ASKED FOR, AND THE FILE THAT WAS
--- LYING TO HIM:
---   📅 THE FILE CHANGES CSV LEADS WITH ITS DATE, IN ISO. LL: "On the {X}
---      file, the date should be first? Can we do that & fix the current
---      file?" It was the FIFTH column, in a log about when files moved,
---      and written DD/MM/YY — which Excel on a US locale reads as
---      MM/DD/YY and imports as TEXT, so sorting it clumps every row
---      beginning "11/" together regardless of month. That is very
---      probably the "only shows July 11th" he reported: a sort artefact,
---      not missing data. Your existing file is migrated in place at the
---      first boot, and 🚨 THE OLD DATE TEXT IS NEVER PARSED — every row
---      already carries an epoch, so the new timestamp is rebuilt from a
---      number that has exactly one meaning. The pre-migration file is
---      kept beside it.
---   🚨 THREE FILES SHARED A NAME AND TWO WERE FROZEN. This is what LL
---      was actually looking at. adoptLegacyFile copied the old file
---      forward and left the original in place FOREVER, unmarked — so
---      ~/.hammerspoon/activity_history.csv and <Logs>/activity_history
---      .csv both sit frozen on upgrade day beside the live machine-
---      tagged one, and nothing on disk says which is which. The old
---      comment said "delete it yourself whenever you're confident",
---      which asks you to be confident about the exact thing the naming
---      hid. Adopted originals are renamed .superseded now — renamed, not
---      deleted, and still readable as an adoption source so retiring one
---      on the home Mac cannot strand the work Mac.
---   ⏱ HOLD AN ARROW IN THE MOUSE GRID AND IT KEEPS MOVING. LL: "right
---      now you have to rapidly hit the key to move." Every landed-mode
---      arrow passed one function, which modal:bind takes as pressedfn
---      and nothing else — so a 1-point fine nudge meant forty taps.
---      init.lua's own popup nudge keys have done this correctly since
---      they were written; the grid never got it.
---   ✍️ ⇪⇧O EDITS IN A WINDOW, NOT AN ALERT. LL: "Edit OCR is too small —
---      give me a window like notepad", and "it doesn't come to the front
---      for an immediately editable window, I have to click on it." It
---      was hs.dialog.textPrompt: a fixed one-LINE field that cannot
---      scroll and cannot take a Return, wrapped around text that is
---      multi-line by nature. Now the Capture Pad's window, focused on
---      open, ⌘⏎ to save, Esc to cancel, with a Delete button so the
---      empty-to-delete rule is visible instead of remembered. A Mac
---      without hs.webview still gets the small prompt.
---   📦 AND THE ZIP STOPPED FAILING ITS OWN TEST SUITE. The release ships
---      snippets/bundled.lua without the source packs on purpose, so in
---      the installed tree snippets/ exists but is empty — and the drift
---      sentry built an empty table from nothing and called the real one
---      STALE. "Do not ship this", on a correct tree, since 6.105.0.
---      Found by running the suite against the UNZIPPED tree rather than
---      the repo, which is the only place it shows.
---
 -- (6.114.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.119.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.120.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -533,7 +536,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.119.0"
+_G.configVersion = "6.120.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2929,6 +2932,13 @@ local BASE = {
     "settings_panes",     -- ⚙️ ⇪,  System Settings, by name
     "app_kill",           -- 💀 ⇪⇧; end a process, politely then not
     "power_tools",        -- 🧰 ⇪;  type the clipboard · count · strip · mdls
+    -- 6.120.0 — the rest of LL's twelve. tab_search LAST of these three
+    -- because it is the only one that talks to other applications over
+    -- Apple Events, and a module that can be refused a permission is
+    -- better loaded after the ones that cannot.
+    "net_tools",          -- 🌐 ⇪6  flush · ping · nslookup · traceroute
+    "mac_panel",          -- 🖥 ⇪7  About This Mac, as a card
+    "tab_search",         -- 🗂 ⇪⇧' every open tab in every running browser
     "editor_picker",      -- 🗂 ⌘⌘ (or ⇪⇧Z) every editor at once, sorted by
                           -- what is open and what has something in it.
                           -- LAST on purpose: it only READS the registry the

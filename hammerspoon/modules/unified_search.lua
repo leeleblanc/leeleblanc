@@ -546,6 +546,17 @@ function M.setup(core)
         ["⇪,"]    = "settings.show",
         ["⇪;"]    = "power.show",
         ["⇪⇧;"]   = "kill.show",
+        -- 6.120.0 — the rest of the punctuation-and-digits tier. ⇪6 and
+        -- ⇪7 are digits with NO mnemonic behind them, which is exactly
+        -- why these two rows matter more than most: "network" and "mac"
+        -- in this box is how they will be found.
+        ["⇪6"]    = "net.show",
+        ["⇪7"]    = "mac.toggle",
+        ["⇪⇧'"]   = "tabs.show",
+        ["⇪'"]    = "power.pause",
+        ["⇪`"]    = "power.ghostty",
+        ["⇪⇧`"]   = "power.reveal",
+        ["⇪5"]    = "power.qr",
         ["⇪pad1"] = "notes.appendClipboard",
         ["⇪pad2"] = "notes.openPad",
         ["⇪pad3"] = "notes.pickTarget",
