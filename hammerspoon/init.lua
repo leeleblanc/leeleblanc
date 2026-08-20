@@ -4,8 +4,36 @@
 -- =====================================================================
 -- 08-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.128.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.129.0
 -- =====================================================================
+
+-- NEW IN 6.129.0 — THE KEYS THAT ALWAYS MOVED IT:
+--   🪟 LL, after three versions of drag fixes: "Can this box move or not?
+--      We're stuck in a loop. Can't move it no matter what. Also, what
+--      key combo will move this? Maybe it's me and not you?"
+--   ✅ IT WAS NOT THEM. ⇪⇧ ← → ↑ ↓ HAS MOVED AN OPEN PICKER SINCE 6.30.
+--      50 px a tap, hold the arrow to walk it across the screen, ⇪⇧R
+--      back to automatic. It is an hs.hotkey, so it fires THROUGH a
+--      chooser that owns the keyboard, and it repositions by hide() then
+--      show(point) — the only reposition macOS gives an hs.chooser. It
+--      shares nothing with the mouse tap, the globalCallback or the
+--      computed box: the three things 6.126–6.128 were spent debugging.
+--   🚨 AND IT WAS MISSING FROM THE ONE PLACE IT WAS NEEDED. The nudge is
+--      in the global cheat sheet. It was NOT in the WINDOW MOVE group —
+--      the group a person opens when a picker will not move. That group
+--      listed the ⌃⌥⌘R reset for a nudge whose ARROWS it never named,
+--      and five unproven mouse gestures. It now leads with the keys, and
+--      _G.windowMoveReport() prints them at the top of every report.
+--   ⚠️ NEVER DRAG A PICKER BY ITS ROWS — now stated outright, in both
+--      places. A bare click on a row RUNS that entry and closes the
+--      picker, so the most natural place to grab is the one place that
+--      cannot work. Bare click-hold drags the SEARCH BAND only; ⌘ held
+--      drags from anywhere.
+--   💡 THE LESSON: a working feature nobody can find is indistinguishable
+--      from a broken one, and it costs more — the hunt for the bug
+--      happens in code that has none. When a fix ships three times and
+--      the report is still "it does not move", stop editing the
+--      mechanism and go read what the user was told to press.
 
 -- NEW IN 6.128.0 — AND IT STILL DID NOT MOVE:
 --   🪟 LL, on the 6.127.0 fix: "I clicked and dragged and nothing
@@ -127,37 +155,10 @@
 --      ep.key is still read — set it to a letter and the ⇪ binding is back
 --      on the next reload, for whenever a letter frees up.
 --
--- NEW IN 6.124.0 — THE PICKER MOVES TO ⌃⌃, AND THE MOUSE GETS A VOTE:
---   ✋ THE EDITOR PICKER IS ON ⌃⌃ NOW, EITHER CONTROL KEY. LL asked for a
---      double Control, and then settled the question this config had been
---      calling unanswerable since 6.121.0 by going and testing it:
---          LL: "Alfred fires on either Control"
---      Alfred is side-blind, so it cannot be handed half a key — there
---      was no split to be had. LL moved Alfred off ⌃⌃ instead, which
---      removes the conflict rather than dividing it, and the picker took
---      the key whole. "alt"/"right" is 6.122.0's ⌥⌥ and "cmd"/"either"
---      is 6.116.0's ⌘⌘; both are still one line away.
---      ⚠️ NO SIDE IS DEMANDED, DELIBERATELY. A flagsChanged probe on LL's
---      external keyboard printed keycode 62, so a right ⌃ really is
---      there — but Apple builds no keyboard that has one, so tapSide =
---      "right" would have worked at the desk and died silently the
---      moment he opened the laptop.
---   🖱 AND ⌃-CLICK NO LONGER OPENS IT, which is what made ⌃ usable at
---      all. ⌃-click IS the Mac right-click and ⌃-scroll IS screen zoom,
---      so on ⌃ the two commonest gestures on the machine look like this:
---          ⌃-click        ctrl↓ · (click) · ctrl↑
---          ⌃ tapped once  ctrl↓ ·         · ctrl↑
---      — identical to a tap that only watches the keyboard. Two right-
---      clicks in quick succession would have opened the picker over
---      whatever was being clicked. That is the same argument the ⌘C/⌘V
---      block has always made, arriving through a different device, so
---      the tap now watches the pointer as well and a click CANCELS a
---      half-made gesture. ⌥ never had this problem; ⌃ has it constantly.
---
--- (6.123.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.124.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.128.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.129.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -468,7 +469,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.128.0"
+_G.configVersion = "6.129.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

@@ -235,6 +235,32 @@ both it and `_G.editors` now have tests that read `modules/` and fail the
 build when an expected registration is missing. Add a registry, add the
 scan with it.
 
+**Moving a picker: there are exactly two paths, and only one is a
+mouse** (6.129.0). `hs.chooser` exposes no frame getter — the binding
+list is `show`/`hide`/`isVisible`/`choices`/`query`/`width`/`rows` and
+friends, with no `frame` and no `topLeft`. So a picker cannot be asked
+where it is, only told where to go, and `window_move` COMPUTES a grab
+box from `_G.lastPopupPlacement` because it is forced to.
+
+| Path | Mechanism | Depends on |
+|---|---|---|
+| ⇪⇧ ← → ↑ ↓ nudge | `hs.hotkey` → `hide()` then `showPopup()` | nothing in `window_move` |
+| ⌘-drag / band drag | `hs.eventtap` → 60 Hz timer → `show({x,y})` | the tap, the placement record, the computed box |
+
+The nudge is a Carbon `RegisterEventHotKey`, so it fires THROUGH a
+chooser that owns the keyboard — which is the whole reason it works
+where an `hs.eventtap` on a picker is delicate. It has moved pickers
+since 6.30 and shares no code with the drag.
+
+🚨 **That independence is only useful if the person can find it.**
+6.126.0 through 6.128.0 were spent debugging the mouse path while the
+`WINDOW MOVE` cheatsheet group — the one screen you open at the moment a
+picker will not move — listed the `⌃⌥⌘R` reset for a nudge whose ARROWS
+it never named. A working feature nobody can find is indistinguishable
+from a broken one, and it costs more, because the hunt for the bug
+happens in code that does not have one. When a fix ships three times and
+the report is unchanged, go read what the user was told to press.
+
 **And nothing reaches into a module either.** If code outside a module
 needs one of its functions, the module publishes it:
 

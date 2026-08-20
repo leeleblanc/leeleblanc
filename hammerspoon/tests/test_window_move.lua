@@ -555,6 +555,63 @@ end)())
 wm.onMouseDown = realOnMouseDown
 
 -- =====================================================================
+out("\n7. \240\159\154\168 THE CHEATSHEET NAMES THE KEYS THAT ACTUALLY WORK (6.129.0)\n")
+-- =====================================================================
+-- 🚨 THIS IS A BREAK TEST FOR A DOCUMENTATION BUG, and it is here
+-- because a documentation bug cost three versions. ⇪⇧-arrows have moved
+-- an open picker since 6.30 through hs.hotkey — a path that touches
+-- NONE of the machinery above: not the tap, not the placement record,
+-- not the computed box. It was in the global cheat sheet and missing
+-- from THIS module's group, which is the group a person opens at the
+-- exact moment a picker will not move. That group listed the ⌃⌥⌘R
+-- reset for a nudge whose ARROWS it never named, so the one screen read
+-- at the moment of failure documented every unproven way to move a
+-- picker and omitted the proven one.
+--
+-- A working feature nobody can find is indistinguishable from a broken
+-- one. These checks make it impossible to delete the keys again while
+-- the group still claims to be about moving windows.
+local entries = M.cheatsheet.entries
+
+local function cheatFind(pat)
+    for _, e in ipairs(entries) do
+        if tostring(e[1]):find(pat, 1, true)
+        or tostring(e[2]):find(pat, 1, true) then return e end
+    end
+end
+
+check("the cheatsheet names the NUDGE ARROWS, not just their reset",
+      cheatFind("\226\135\170\226\135\167 \226\134\145\226\134\147\226\134\144\226\134\146") ~= nil)
+check("...and the FIRST row is the keyboard path, because it is the one "
+      .. "that does not depend on anything this module computes",
+      tostring(entries[1][1]):find("\226\134\145\226\134\147\226\134\144\226\134\146", 1, true) ~= nil,
+      tostring(entries[1][1]))
+check("...and the reset is written as the key you PRESS (\226\135\170\226\135\167R), not as "
+      .. "the \226\140\131\226\140\165\226\140\152R it is migrated from",
+      cheatFind("\226\135\170\226\135\167R") ~= nil)
+check("...and the group TITLE leads with the keys too, so the nudge is "
+      .. "visible before the group is even expanded",
+      M.cheatsheet.title:find("\226\135\170\226\135\167", 1, true) ~= nil,
+      M.cheatsheet.title)
+check("\240\159\154\168 the cheatsheet WARNS that a picker's ROWS are not a grab "
+      .. "handle \226\128\148 a bare click there RUNS the entry, which makes the most "
+      .. "natural place to grab the one place that cannot work",
+      cheatFind("ROWS") ~= nil)
+
+-- And the report says it too, because the report is what gets read when
+-- the cheat sheet has already been tried. Crucially it must say the
+-- keyboard path is INDEPENDENT: a reader looking at a broken tap should
+-- never conclude the nudge is broken as well.
+local rpt = _G.windowMoveReport()
+check("_G.windowMoveReport() prints the nudge keys",
+      rpt:find("\226\135\170\226\135\167", 1, true) ~= nil)
+check("...and says the keyboard path does NOT go through the mouse tap, "
+      .. "so a broken tap cannot be read as a broken nudge",
+      rpt:find("does not use this tap", 1, true) ~= nil)
+check("...and repeats the ROWS warning where a stuck reader will see it",
+      rpt:find("ROWS", 1, true) ~= nil)
+
+-- =====================================================================
 io.write(("\n%d passed, %d failed\n"):format(pass, fail))
 if fail > 0 then
     io.write("FAILURES:\n")

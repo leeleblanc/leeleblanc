@@ -88,6 +88,25 @@
 -- exactly like a feature that is missing. Gate on something the OS will
 -- state, or do not gate.
 --
+-- 🚨 6.129.0 — AND THE ANSWER WAS ALREADY SHIPPED. LL, after three
+-- versions of this: "Can this box move or not? What key combo will move
+-- this? Maybe it's me and not you?" It was not them. ⇪⇧ + ← → ↑ ↓ has
+-- moved an open picker since 6.30 — an hs.hotkey, so it fires THROUGH a
+-- chooser that owns the keyboard, and it repositions by hide() then
+-- show(point), which is the only reposition macOS gives an hs.chooser.
+-- It shares nothing with the mouse tap, the globalCallback, or the
+-- computed box — the three things being debugged. It was in the global
+-- cheat sheet. It was NOT in this module's own cheatsheet group, which
+-- listed the ⌃⌥⌘R reset for a nudge whose ARROWS it never named. So the
+-- one group a person opens when a picker will not move documented every
+-- unproven way to move it and omitted the proven one.
+--
+-- The lesson worth keeping: a working feature nobody can find is
+-- indistinguishable from a broken one, and it costs more, because the
+-- search for the bug happens in code that has none. When a fix ships
+-- three times and the report is still "it does not move", stop editing
+-- the mechanism and go read what the user was told to press.
+--
 -- 🚨 THE DRAG IS DRIVEN FROM LUA, NOT FROM EVENTS, copied deliberately
 -- from the Capture Pad's 6.44.2 drag: a drag tracked by mouse-move
 -- events dies the moment events stop arriving (and for a WKWebView they
@@ -109,16 +128,17 @@ local M = {
     order = 6.5,
     family = "windows",
     cheatsheet = {
-        title = "🪟 WINDOW MOVE (⌘-drag — every panel, pickers included)",
+        title = "🪟 WINDOW MOVE (⇪⇧-arrows move a picker · ⌘-drag moves anything)",
         entries = {
-            { "⌘ drag", "Hold ⌘, click and hold ON any panel or picker, move the mouse" },
-            { "always", "⌘-drag moves an OPEN PICKER from anywhere — even off it" },
-            { "band",   "A PICKER drags by its search band — bare click-hold, no ⌘" },
-            { "drag",   "Display-only panels (pomodoro, key caster) need no ⌘ — just grab" },
-            { "sticks", "A dragged PICKER position is kept for the next picker you open" },
-            { "⌃⌥⌘R",   "Back to automatic placement (same reset as the ⇪⇧-arrow nudge)" },
-            { "headers","The pad / editor / search bars drag with a bare click-hold too" },
-            { "check",  "_G.windowMoveReport() — why a panel refused to be grabbed" },
+            { "⇪⇧ ↑↓←→", "MOVE AN OPEN PICKER — 50 px a tap, hold the arrow to walk it" },
+            { "⇪⇧R",     "Put a nudged picker back to automatic placement" },
+            { "⌘ drag",  "Hold ⌘, click-hold ANYWHERE — on a panel or picker, or off it" },
+            { "band",    "A PICKER also drags by its search band — bare click-hold, no ⌘" },
+            { "not rows","NEVER drag a picker by its ROWS — a bare click there RUNS one" },
+            { "drag",    "Display-only panels (pomodoro, key caster) need no ⌘ — just grab" },
+            { "sticks",  "A dragged PICKER position is kept for the next picker you open" },
+            { "headers", "The pad / editor / search bars drag with a bare click-hold too" },
+            { "check",   "_G.windowMoveReport() — why a panel refused to be grabbed" },
         },
     },
 }
@@ -624,8 +644,10 @@ function M.setup(core)
         end
         line("   drag now   : " .. (wm.dragTimer and "IN PROGRESS" or "idle"))
         line("")
+        line("   ⇪⇧ ← → ↑ ↓ MOVES AN OPEN PICKER — 50 px a tap, hold to walk it,")
+        line("   ⇪⇧R resets. That path is keyboard-only and does not use this tap.")
         line("   ⌘-drag anywhere on a panel or picker · a picker's SEARCH BAND")
-        line("   drags with a bare click-hold · ⌃⌥⌘R resets picker placement")
+        line("   drags with a bare click-hold · never drag a picker by its ROWS")
         local s = table.concat(L, "\n")
         print(s)
         return s

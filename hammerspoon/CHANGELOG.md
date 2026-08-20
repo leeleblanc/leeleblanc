@@ -4,6 +4,68 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.129.0 — THE KEYS THAT ALWAYS MOVED IT:
+
+  🪟 LL, after three consecutive versions of drag fixes: "Can this box
+  move or not? We're stuck in a loop. Can't move it no matter what.
+  Also, what key combo will move this? Maybe it's me and not you?"
+
+  ✅ IT WAS NOT THEM.
+
+  ⇪⇧ ← → ↑ ↓ has moved an open picker since 6.30. Fifty pixels a tap,
+  hold the arrow to walk it across the screen, ⇪⇧R puts it back to
+  automatic placement. It is an hs.hotkey — a Carbon RegisterEventHotKey
+  — so it fires THROUGH a chooser that owns the keyboard, and it
+  repositions by hide() followed by show(point), which is the only
+  reposition macOS gives an hs.chooser at all.
+
+  It shares nothing with the mouse tap, the chooser globalCallback, or
+  the computed grab box. Those three are what 6.126.0, 6.127.0 and
+  6.128.0 were spent debugging. A path that works had been sitting
+  beside them the whole time.
+
+  🚨 AND IT WAS MISSING FROM THE ONE PLACE IT WAS NEEDED.
+
+  The nudge is in the global cheat sheet, and has been for a long time.
+  It was NOT in the WINDOW MOVE group — the group a person opens at the
+  exact moment a picker will not move. That group listed the ⌃⌥⌘R reset
+  for a nudge whose ARROWS it never named, followed by five mouse
+  gestures of unproven reliability.
+
+  So the one screen consulted at the moment of failure documented every
+  unproven way to move a picker and omitted the proven one.
+
+  The group now leads with the keys. _G.windowMoveReport() prints them
+  at the top of every report, and says outright that the keyboard path
+  does not go through the mouse tap — so a broken tap can never take the
+  working method down with it.
+
+  ⚠️ NEVER DRAG A PICKER BY ITS ROWS — now stated outright, in the
+  cheatsheet and in the report.
+
+  A bare click on a row RUNS that entry and closes the picker. The most
+  natural place to grab a list is the one place that cannot possibly
+  work, and nothing said so. Bare click-hold drags the SEARCH BAND only.
+  ⌘ held drags from anywhere, on or off the picker.
+
+  🔍 TWO THINGS VERIFIED AGAINST HAMMERSPOON'S OWN SOURCE rather than
+  assumed, because three versions of guessing had earned it:
+
+    · chooser:show(point) on an ALREADY-VISIBLE chooser really does
+      move it. showAtPoint: → showWithHints:NO atPoint: has no
+      isVisible guard and no early return before setFrameTopLeftPoint:.
+      The drag's move call was never the problem.
+    · hs.chooser genuinely exposes no frame getter. The full binding
+      list is show/hide/isVisible/choices/query/width/rows and friends
+      — no frame, no topLeft. window_move COMPUTES a grab box because
+      it is forced to, not by choice.
+
+  💡 THE LESSON: a working feature nobody can find is indistinguishable
+  from a broken one, and it costs more — because the hunt for the bug
+  happens in code that does not have one. When a fix ships three times
+  and the report is still "it does not move", stop editing the
+  mechanism and go read what the user was told to press.
+
 NEW IN 6.128.0 — AND IT STILL DID NOT MOVE:
 
   🪟 LL, on the 6.127.0 fix: "I clicked and dragged and nothing

@@ -284,10 +284,19 @@ return function(core)
                 { "⇪⇧C", "Toggle copy-on-select (off by default)" },
                 { "⇪O / ⇪⇧O", "OCR search and edit — see the OCR group below" },
             }},
-            { title = "🕹 POPUP POSITION", order = 5, family = "windows", entries = {
-                { "⇪⇧ ↑↓←→", "Nudge popup (hold to repeat)" },
-                { "⇪⇧R", "Reset nudge offset" },
-            }},
+            -- 🕹 6.129.0 — POPUP POSITION IS GONE, folded into WINDOW MOVE,
+            -- for the third and worst instance of the reason ⇪V never
+            -- entered CLIPBOARD & OCR and ⇪O left it. Its two rows were
+            -- the ⇪⇧-arrow nudge — the ONLY reliable way to move an open
+            -- picker, working since 6.30 — sitting in a group of their
+            -- own, one row above the WINDOW MOVE group that is what a
+            -- person actually opens when a picker will not move. That
+            -- group named the nudge's RESET and never its ARROWS, so the
+            -- sheet answered the question in the section nobody read and
+            -- withheld it from the section everybody did. Three versions
+            -- (6.126-6.128) went into debugging the mouse path instead.
+            -- The rows now live in modules/window_move.lua, whose keys
+            -- these are, and where a stuck reader is already looking.
             { title = "⌨️ ⇪ = CAPS LOCK (hold it, tap a key)", order = 14, family = "config", entries = {
                 { "⇪ + key", "Every shortcut on this sheet — hold Caps Lock" },
                 { "⇪⇧ + key", "The few second-level ones (edit/delete, nudging)" },
