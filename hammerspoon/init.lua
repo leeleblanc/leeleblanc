@@ -2,10 +2,37 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 08-19-26 using Claude          ← EDITED date. Bumped with every release.
+-- 08-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.116.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.117.0
 -- =====================================================================
+
+-- NEW IN 6.117.0 — TWO DELETIONS. NOTHING GAINED A FEATURE:
+--   📧 THE OUTLOOK PROBE IS DELETED, NOT SHELVED. LL: "IT won't approve
+--      it… remove the outlook probe and the test stage." 6.105.0 took it
+--      out of the module list; it kept costing something anyway — 41 KB
+--      in every zip, a row on the health monitor's cheat sheet pointing
+--      at a dofile() nobody would ever type, and a 46-check suite run on
+--      every release for a feature that is not coming back. Gone:
+--      tools/outlook-probe.lua, tests/test_outlook_probe.lua, the cheat
+--      sheet row, the runner stage. 50 stages now, not 51.
+--      🚨 THIS IS NOT AN OUTLOOK PURGE. Safe Links unwrapping (⇪⇧L),
+--      focus mode reading the reminder popup, the update tracker's cask
+--      and app_watcher's entry all stay — they work, and they were never
+--      part of the automation question the tenant policy closed.
+--   📦 THE ZIP IS 40% SMALLER, AND NOTHING WAS LEFT OUT OF IT. LL: "can
+--      you reduce the file size at all: it's now 2.1 mb." 2,006 .json
+--      snippet packs were 797 KB of it — and the expander does not read
+--      them. It reads snippets/bundled.lua and, in its own words, "IF
+--      THE TABLE LOADS, THE PACKS ARE NOT SCANNED", which has been true
+--      since 6.105.0. The zip was shipping 2,006 files the config
+--      deliberately ignores. All 2,006 snippets still ship, in the one
+--      128 KB table that was already doing the work.
+--      🚨 YOUR OWN IMPORTS ARE SOMEWHERE ELSE AND ARE UNTOUCHED. Those
+--      live in the OneDrive logs folder, not in the config, and are
+--      still scanned every load. The installer has never deleted the old
+--      packs from ~/.hammerspoon/snippets either, so yours stay where
+--      they are; they were already being ignored in favour of the table.
 
 -- NEW IN 6.116.0 — FIVE THINGS LL ASKED FOR, IN THE ORDER HE ASKED:
 --   🗂 ⌘⌘ OPENS EVERY EDITOR AT ONCE. LL: "Right now a double-click of
@@ -170,37 +197,8 @@
 --   Clipboard History also moves from ✂️ TEXT to 🗒 CAPTURE on the cheat
 --   sheet, on request. One word in one file; no key changed.
 --
--- NEW IN 6.112.0 — ⇪⇧U GETS A REAL BOX, AND ITS NOTES STOP VANISHING:
---   LL sent two screenshots of the pin prompt with the same ~25 visible
---   characters scrolling out of it: "That note window is tiny… that box
---   is way too small. And after I added one it's either not working or
---   the window is there I can't see it."
---   Two separate faults, and the second one is the serious one.
---   📐 THE NOTE WAS DRAWN OFF THE SCREEN. The canvas was sized to what
---   ONE UNWRAPPED LINE of text measured, so its width grew forever with
---   the note. Past roughly 110 characters on an 800pt window the
---   topRight anchor pushed it clean off the LEFT edge of the display —
---   pinned, saved, followed, and invisible. maxChars = 400 could not
---   save it: 400 characters is 3,140pt wide, off-screen on every display
---   sold, and the comment on that line claimed the opposite. Notes now
---   WRAP at wp.maxWidth (keeping the newlines you typed, breaking a URL
---   too long to fit rather than widening), and the final frame is
---   clamped to a real screen. Badly placed is now the worst case.
---   ✍️ THE BOX IS A WINDOW NOW. It was hs.dialog.textPrompt, whose
---   NSTextField cannot be resized, cannot scroll and cannot take a
---   Return — so the prompt's own promise that "newlines are fine" was
---   impossible to act on. ⇪⇧U opens the Capture Pad's window instead:
---   multi-line, monospace at the note's own wrap width so what wraps in
---   the box is what wraps on screen, a live character count against the
---   limit that used to refuse the pin only AFTER you typed 400
---   characters, ⌘⏎ to pin, Esc to cancel, an explicit Remove, draggable
---   by its header, and opened over the window it belongs to.
---   🚨 THE WINDOW IS CAPTURED WHEN YOU PRESS THE KEY, not when you save
---   — clicking another window mid-edit must not move the note onto it.
---   A Mac with no hs.webview still gets the small prompt, same meaning.
---
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.116.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.117.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -499,7 +497,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.116.0"
+_G.configVersion = "6.117.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2848,10 +2846,10 @@ local BASE = {
     --  unified search on the tool tag, one source in the one search box)
     "universal_actions",  -- ⇪⇧A  act on the Finder selection
     "pomodoro",           -- ⇪⇧P  25 on, 5 off
-    -- 6.105.0 the Outlook diagnostic left this list for tools/. It bound
-    -- no key and answered its question in 6.65.0, but still loaded at
-    -- every boot and sat on the cheat sheet. Run it by hand when the work
-    -- Mac needs asking:  dofile(hs.configdir .. "/tools/outlook-probe.lua")
+    -- (the Outlook diagnostic left this list in 6.105.0 and the repo in
+    --  6.117.0 — deleted, not moved. Outlook automation is shelved: the
+    --  tenant policy blocks the only route that worked. Do not re-add it
+    --  without a new answer from IT, or you are writing 6.65.0 again.)
     -- 6.68.0
     "text_expander",      -- ⇪⇧T  Alfred snippets, typed anywhere
     -- 6.71.0
@@ -3220,9 +3218,7 @@ end
 -- 🚨 SPECIFICALLY EXCLUDED, and named so this is not a mystery:
 --   · everything AppleScript-adjacent (bulk_rename, universal_actions)
 --     — see the 🚨 on writeFinderComment in modules/ocr_engine.lua,
---     which is where that crash story now lives. The Outlook probe was
---     the third until 6.105.0 moved it to tools/, where safe mode does
---     not have to exclude it because nothing loads it.
+--     which is where that crash story now lives.
 --   · copy_on_select, menubar_items, app_watcher, file_tracker — all
 --     Accessibility watchers or timers against other apps.
 local safeMode = false

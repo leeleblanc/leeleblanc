@@ -287,9 +287,9 @@ check_marker mouse_grid      "dropLattice"        6.65.0
 #  its run map is checked below, under the file that now owns it.)
 check_marker universal_actions "ua.ordered"       6.65.0
 check_marker pomodoro          "pom.answerSecs"   6.65.0
-# (outlook_probe was the third until 6.105.0 moved it to
-#  tools/outlook-probe.lua — a console tool now, not a loaded module, so
-#  a missing one costs nothing at boot and there is nothing to check.)
+# (outlook_probe was the third until 6.105.0 moved it out of the loader
+#  and 6.117.0 deleted it outright — Outlook automation is shelved, so
+#  there is no file left to check for.)
 # 6.104.0 — the two merges. A unified_search.lua without uni.runnable is
 # the pre-6.104.0 file, which means ⇪⇧/ opens a box with no tools in it;
 # an activity_tracker.lua without docFileFromTitle is the pre-6.104.0 file,
