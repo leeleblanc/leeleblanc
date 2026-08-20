@@ -4,6 +4,110 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.122.0 — TWO SEARCHES THAT WERE ONLY LOOKING AT HALF THE ROOM:
+
+  ✋ THE EDITOR PICKER IS ON right ⌥⌥ NOW, AND ⌘ IS FREE AGAIN.
+  6.121.0 offered LL the right ⌘ with the left one left to Alfred. What
+  he did instead was better than what was offered:
+
+      Alfred      → right ⌃⌃
+      this picker → right ⌥⌥
+
+  Two keys neither program has to share. Nothing depends any more on
+  whether Alfred can tell its ⌘ keys apart, which was the one thing this
+  config could not find out from in here — and the side machinery still
+  earns its keep, because it is what makes right ⌥⌥ mean the RIGHT ⌥ and
+  leaves the left one free. tapMod = "cmd" with tapSide = "either"
+  restores the 6.116.0 gesture in one line.
+
+  ⚙️ ⇪, SEARCHES THE SETTINGS, NOT JUST THE PANES.
+  LL: "What does this mean? I wanted to be able to search all Settings
+  app."
+
+  A fair complaint. 6.119.0 searched the ~58 PANES — the destinations in
+  the sidebar. It could find "Displays"; it could not find "Night
+  Shift", which is a switch inside Displays. Nobody thinks "I need the
+  Displays pane"; they think "where is Night Shift".
+
+  There is no list of every setting macOS has that this config can read.
+  Apple does not publish one, the panes are SwiftUI views rather than
+  files on disk, and the index behind System Settings' own search box is
+  private. So there are two answers, and the module is explicit about
+  which is which:
+
+    1. ~190 NAMED SETTINGS, hand-written and therefore exactly as
+       complete as somebody made it. Each points at the pane that holds
+       it and says where in that pane to look, so "hot corners" lands
+       you in Desktop & Dock knowing it is at the very bottom. This is
+       the fast half — one ⏎ and you are THERE.
+    2. THE LAST ROW IS ALWAYS "🔎 Search System Settings for …", which
+       hands your words to Apple's OWN search field: the complete index,
+       maintained by the people who move the settings. Slower — it lands
+       you in Settings looking at a result list — but it cannot be out
+       of date and it cannot be missing an entry. The hand-written half
+       is never a ceiling.
+
+  🚨 THE HAND-OFF TYPES; IT DOES NOT POKE A VALUE IN. Setting AXValue on
+  a SwiftUI search field frequently updates the text and runs no search:
+  the binding never fires. So the field is focused and the characters
+  are typed — real synthetic keystrokes, and therefore inside
+  _G.withInjection like every other typing tool here, so autocorrect,
+  the expander and the Key Caster do not treat this config's own typing
+  as yours.
+
+  ⏳ AND IT POLLS FOR THE FIELD rather than sleeping a fixed time, since
+  System Settings can take a moment or an age to draw. If it never finds
+  one it SAYS SO, with the query, rather than typing into whatever
+  happens to have focus — blind keystrokes are how a search query ends
+  up in a document.
+
+  A term naming a pane that does not exist is dropped and counted, and
+  the suite fails on the first orphan: a row that lists perfectly and
+  does nothing on ⏎ is the exact failure this module's header complains
+  about in Apple's URL scheme.
+
+  📸 ⇪⇧4's SEARCH READS THE WHOLE FOLDER, AND THE TEXT INSIDE THE IMAGES.
+  LL: "How do I search and bring up an image that is stored in the
+  screenshots folder?"
+
+  You could, and it was two things short of an answer.
+
+    1. IT ONLY EVER SAW THIRTY FILES. shots.maxList caps the list for a
+       good reason — every row decodes a whole PNG to draw a 72px
+       thumbnail — but the SEARCH was filtering that same capped list.
+       Anything older than your last thirty captures was unfindable and
+       nothing said so. The cap is now a drawing limit only: the moment
+       you type, the query runs over every file in the folder.
+    2. A SCREENSHOT'S NAME IS A TIMESTAMP, which is the one thing you
+       never remember about it. You remember what was ON it.
+
+  So the search now asks Spotlight too, with mdfind restricted to that
+  folder. That reaches the OCR text ⇪O's tagger has been writing into
+  each screenshot's Finder comment since 6.98.0 — searchable all along,
+  with nothing reading it back — plus whatever macOS indexed itself,
+  which on recent builds includes text found in images. Rows say WHICH
+  half found them, because "matched the name" and "matched the text
+  inside it" are different claims.
+
+  ⏳ THE SPOTLIGHT HALF IS DEBOUNCED AND ASYNCHRONOUS. Name matches
+  appear as you type, Spotlight's fold in a moment later, and a result
+  whose query is no longer in the box is DISCARDED rather than shown. A
+  hit for a file that has since left the folder is dropped rather than
+  offered as a row that opens nothing.
+
+  ☁️ AND IT CAN HONESTLY FIND NOTHING. This folder is in OneDrive; a
+  cloud-evicted file may not be indexed and Spotlight can be off for a
+  volume entirely. The name search always runs, so the panel is never
+  worse than it was — but the empty result says which halves actually
+  ran rather than implying both did.
+
+  🩹 ONE REAL BUG, FOUND BY A BREAK TEST THAT CRASHED WHERE IT SHOULD
+  HAVE REPORTED. settings_panes' open() guarded with `not row.url`, and
+  `not ""` is false in Lua — so a row carrying an empty string walked
+  straight past it into hs.urlevent.openURL("") and then into a
+  concatenation of a name such a row does not have. Guarded on type and
+  emptiness now, and it names what it refused.
+
 NEW IN 6.121.0 — THE LEFT ⌘ GOES BACK TO ALFRED:
 
   ✋ THE EDITOR PICKER NOW WATCHES THE RIGHT ⌘ ONLY.

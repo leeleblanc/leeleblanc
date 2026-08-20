@@ -225,7 +225,7 @@ into directly so the reader names no writer:
 | `_G.movablePanels` | every panel and picker | `window_move` — ⌘-drag |
 | `_G.escapeClaims` | every panel that Esc closes | `core/coexist` — the Esc router |
 | `_G.choosers` | every `hs.chooser` | the Esc router, so pickers close first |
-| `_G.editors` | every text surface | `editor_picker` — right ⌘⌘ |
+| `_G.editors` | every text surface | `editor_picker` — right ⌥⌥ |
 
 🚨 **A registry rots silently.** Nothing errors when a module stops
 registering; the feature just quietly has one fewer row, and you find out
@@ -316,9 +316,9 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Fifty-two Lua suites, 4,654 checks, plus three more that run the Capture
+Fifty-two Lua suites, 4,734 checks, plus three more that run the Capture
 Pad's, the screenshot editor's and unified search's page JavaScript under
-`node` for a further 105 — **4,759 checks over fifty-seven stages** in
+`node` for a further 105 — **4,839 checks over fifty-seven stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 
@@ -375,12 +375,12 @@ tests/test_file_tracker.lua  📅 the file_changes CSV schema and the migration 
                              against REAL files: the old date text is never parsed
 tests/test_task_creator.lua  ⌃⌥⌘T as a module: history, pipe parser, submit — and the
                              token NEVER appears in curl's argument list
-tests/test_editor_picker.lua 🗂 right ⌘⌘: the state machine that must NOT fire on
-                             ⌘C then ⌘V, the LEFT ⌘ that belongs to Alfred and must
-                             cancel rather than be ignored, the press whose side
-                             cannot be read and is refused rather than guessed, and
-                             the rule that ⏎ on an open editor never calls show() —
-                             both pads toggle, and one of them files
+tests/test_editor_picker.lua 🗂 right ⌥⌥: the state machine that must NOT fire on
+                             ⌘C then ⌘V, the wrong-side key that must CANCEL rather
+                             than be ignored, the press whose side cannot be read
+                             and is refused rather than guessed, and the rule that
+                             ⏎ on an open editor never calls show() — both pads
+                             toggle, and one of them files
 tests/test_right_click.lua   🖱 ⇪⇧F: the events it posts, and the wait for ⇧ to come
                              up before it posts them — a menu reads the modifiers
                              held when it opens

@@ -38,6 +38,8 @@ local DIR   = HOME .. "/Library/CloudStorage/OneDrive-Personal/2026 Screenshots"
 local FILES = {}       -- path -> { size=, modification= }
 local DIRS  = { [HOME .. "/Library/CloudStorage/OneDrive-Personal"] = true }
 local ALERTS, TASKS, CHOICES_SET = {}, {}, nil
+local DEFER_TIMERS = false   -- §12 turns this on to hold the debounce
+local PENDING       = {}     -- timers queued while DEFER_TIMERS is true
 local CLIP  = { kind = "empty" }
 local MODS  = {}       -- what checkKeyboardModifiers answers
 
@@ -72,8 +74,10 @@ hs = {
     },
     task = {
         new = function(cmd, cb, args)
-            local t = { cmd = cmd, cb = cb, args = args, started = false }
+            local t = { cmd = cmd, cb = cb, args = args, started = false,
+                        terminated = false }
             function t:start() self.started = true; return true end
+            function t:terminate() self.terminated = true; return true end
             table.insert(TASKS, t)
             return t
         end,
@@ -147,8 +151,21 @@ hs = {
             return { id = function() return 777 end }
         end,
     },
+    -- ⏱ FIRES IMMEDIATELY BY DEFAULT, which is what every section written
+    -- before 6.122.0 assumes. §12 sets DEFER_TIMERS to queue them instead,
+    -- because a debounce that fires instantly is not a debounce and a test
+    -- that cannot hold the timer cannot tell the difference.
     timer = { secondsSinceEpoch = function() return 1000 end,
-              doAfter = function(_, fn) fn(); return { stop = function() end } end },
+              doAfter = function(secs, fn)
+                  local t = { secs = secs, fn = fn, stopped = false }
+                  function t:stop() self.stopped = true end
+                  if DEFER_TIMERS then
+                      PENDING[#PENDING + 1] = t
+                  else
+                      fn()
+                  end
+                  return t
+              end },
 }
 _G.diag = { say = function() end, warn = function() end, err = function() end }
 _G.ocrShortcutAvailable = true
@@ -533,6 +550,180 @@ check("…whose text is trimmed onto the clipboard",
       CLIP.kind == "text" and CLIP.v == "Hello from OCR", tostring(CLIP.v))
 FILES["/opt/homebrew/bin/zbarimg"] = nil
 S._zbar = nil
+
+-- =====================================================================
+out("\n12. 🔎 the search: the WHOLE folder, and the text inside it\n")
+-- =====================================================================
+-- LL: "How do I search and bring up an image that is stored in the
+-- screenshots folder?" You could — over the newest thirty files, by
+-- filename, and a screenshot's filename is a timestamp. These are the
+-- checks for the two halves that were missing.
+
+-- A folder with more files than the panel will ever draw at once.
+for p in pairs(FILES) do
+    if p:sub(1, #DIR) == DIR then FILES[p] = nil end
+end
+local BASE = 1700000000
+for i = 1, 45 do
+    FILES[string.format("%s/Screenshot 2026-08-%02d at 09.%02d.00.png", DIR,
+                        (i % 28) + 1, i)] =
+        { size = 1000 * i, modification = BASE + i }
+end
+-- One with a distinctive name, deliberately OLDEST so the thirty-row cap
+-- would have hidden it.
+local OLD = DIR .. "/Screenshot 2026-01-02 at 08.00.00 invoice.png"
+FILES[OLD] = { size = 4242, modification = BASE - 99999 }
+-- And one whose name says nothing at all — the Spotlight-only case.
+local MUTE = DIR .. "/Screenshot 2026-03-03 at 07.00.00.png"
+FILES[MUTE] = { size = 777, modification = BASE - 88888 }
+
+S.thumbCache = {}
+S.show()
+local full = S.fullList
+check("show() keeps the WHOLE folder for the search to work over",
+      #full == 47, #full)
+check("…while the idle view stays capped", (function()
+    local n = 0
+    for _, c in ipairs(S.allChoices) do if c.path then n = n + 1 end end
+    return n == S.maxList
+end)())
+check("🚨 the cap is a drawing limit, not a search limit",
+      S.maxList < #full and S.searchMax > S.maxList,
+      S.maxList .. "/" .. S.searchMax)
+
+-- 🚨 THE FILE THE OLD SEARCH COULD NOT FIND. It is the oldest in the
+-- folder, so it was never among the thirty the filter looked at.
+local hits = S.filterChoices("invoice")
+check("🚨 a match older than the cap is found now", #hits == 1, #hits)
+check("…and it is the right file", hits[1] and hits[1].path == OLD,
+      hits[1] and hits[1].path)
+check("…and the row says the NAME is what matched",
+      hits[1] and hits[1].subText:find("name", 1, true) ~= nil,
+      hits[1] and hits[1].subText)
+check("…and it carries a thumbnail", hits[1] and hits[1].image ~= nil)
+
+check("every word has to match, not any of them",
+      #S.filterChoices("invoice zzzz") == 1
+      and S.filterChoices("invoice zzzz")[1].path == nil,
+      #S.filterChoices("invoice zzzz"))
+check("a date works as a query", #S.filterChoices("aug 05") > 0,
+      #S.filterChoices("aug 05"))
+check("an empty query gives the idle view back",
+      #S.filterChoices("") == #S.allChoices)
+
+out("\n12b. asking Spotlight for the text inside the image\n")
+DEFER_TIMERS = true
+PENDING, TASKS = {}, {}
+S.spotlightQuery, S.spotlightResults = nil, nil
+S.liveQuery = ""
+
+S.onQuery("acme corp")
+check("the name matches are drawn before anything is spawned",
+      #TASKS == 0, #TASKS)
+check("🚨 …and mdfind is DEBOUNCED, not run per keystroke",
+      #PENDING == 1, #PENDING)
+-- 🚨 A TIMER EXISTING IS NOT A DEBOUNCE. doAfter(0, …) queues a timer too
+-- and spawns a process per keystroke all the same; the delay has to be
+-- real, and it has to be the setting rather than a number typed inline.
+check("🚨 …with a real delay, taken from the setting",
+      S.findDelay > 0 and PENDING[1].secs == S.findDelay,
+      tostring(PENDING[1].secs) .. " vs " .. tostring(S.findDelay))
+-- Two more keystrokes while the first is still waiting.
+S.onQuery("acme corpo")
+S.onQuery("acme corporation")
+check("…each keystroke replaces the pending run rather than adding one",
+      (function()
+          local live = 0
+          for _, t in ipairs(PENDING) do if not t.stopped then live = live + 1 end end
+          return live == 1
+      end)(), #PENDING)
+
+local armed
+for _, t in ipairs(PENDING) do if not t.stopped then armed = t end end
+armed.fn()
+check("mdfind was started once the typing stopped", #TASKS == 1, #TASKS)
+check("…and it is the real binary", TASKS[1].cmd == "/usr/bin/mdfind", TASKS[1].cmd)
+check("🚨 …restricted to the screenshots folder, not the whole Mac",
+      TASKS[1].args[1] == "-onlyin" and TASKS[1].args[2] == DIR,
+      table.concat(TASKS[1].args, " "))
+check("…passed as arguments, never through a shell",
+      TASKS[1].args[3] == "acme corporation", TASKS[1].args[3])
+check("…and started", TASKS[1].started)
+
+TASKS[1].cb(0, MUTE .. "\n" .. OLD .. "\n/some/deleted/file.png\n")
+local merged = S.filterChoices("acme corporation")
+check("a Spotlight hit becomes a row", (function()
+    for _, r in ipairs(merged) do if r.path == MUTE then return true end end
+end)())
+check("🚨 …and says the TEXT is what matched, not the name",
+      (function()
+          for _, r in ipairs(merged) do
+              if r.path == MUTE then
+                  return r.subText:find("text inside it", 1, true) ~= nil
+              end
+          end
+      end)())
+check("🚨 a Spotlight hit for a file no longer in the folder is dropped",
+      (function()
+          for _, r in ipairs(merged) do
+              if r.path == "/some/deleted/file.png" then return false end
+          end
+          return true
+      end)())
+check("…and no row appears twice", (function()
+    local seen = {}
+    for _, r in ipairs(merged) do
+        if r.path then
+            if seen[r.path] then return false end
+            seen[r.path] = true
+        end
+    end
+    return true
+end)())
+
+-- 🚨 THE RACE. An answer to a query you have finished typing must not
+-- replace the list under the query you are now on.
+PENDING, TASKS = {}, {}
+S.spotlightQuery, S.spotlightResults = nil, nil
+S.onQuery("first")
+for _, t in ipairs(PENDING) do if not t.stopped then t.fn() end end
+local staleTask = TASKS[#TASKS]
+S.liveQuery = "second"        -- you have typed on
+staleTask.cb(0, MUTE .. "\n")
+check("🚨 a result for a query you have moved past is discarded",
+      S.spotlightQuery ~= "first", tostring(S.spotlightQuery))
+
+-- Ordering: names first, because a name match is a thing you remembered.
+S.spotlightQuery, S.spotlightResults = "invoice", { MUTE }
+S.liveQuery = "invoice"
+local ordered = S.filterChoices("invoice")
+check("🚨 name matches sort above text-only matches",
+      ordered[1] and ordered[1].path == OLD
+      and ordered[2] and ordered[2].path == MUTE,
+      ordered[1] and ordered[1].path)
+
+out("\n12c. an honest empty result\n")
+S.spotlightQuery, S.spotlightResults = nil, nil
+local none = S.filterChoices("zzzznothinghere")
+check("nothing matching says so", #none == 1 and none[1].path == nil, #none)
+check("🚨 …and admits Spotlight never answered, rather than implying it did",
+      none[1].subText:find("Spotlight had no answer", 1, true) ~= nil,
+      none[1].subText)
+S.spotlightQuery, S.spotlightResults = "zzzznothinghere", {}
+local none2 = S.filterChoices("zzzznothinghere")
+check("…and says the text WAS searched once it has been",
+      none2[1].subText:find("indexed text", 1, true) ~= nil, none2[1].subText)
+
+check("closing and reopening cancels any run in flight", (function()
+    PENDING, TASKS = {}, {}
+    S.onQuery("hello")
+    for _, t in ipairs(PENDING) do if not t.stopped then t.fn() end end
+    local t = TASKS[#TASKS]
+    S.show()
+    return t.terminated == true
+end)())
+DEFER_TIMERS = false
+PENDING = {}
 
 -- =====================================================================
 out(("\n%d passed, %d failed\n"):format(pass, fail))

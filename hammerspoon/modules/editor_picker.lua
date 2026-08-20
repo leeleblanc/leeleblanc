@@ -1,49 +1,51 @@
 -- =====================================================================
--- MODULE: EDITOR PICKER (right ⌘⌘, or ⇪⇧Z) — every text surface this
+-- MODULE: EDITOR PICKER (right ⌥⌥, or ⇪⇧Z) — every text surface this
 -- config owns
 -- =====================================================================
 -- LL: "Right now a double-click of the cmd+cmd key pressed quickly.
 -- Could I bring up all my editor windows up and then let me select the
 -- one I need to copy from or edit from?"
 --
--- Tap ⌘ twice, quickly, touching nothing else. A picker opens listing
--- every editor this config owns — the Capture Pad, the Note Pad, the OCR
--- text store, clipboard history, window pins, the screenshot editor —
--- with how much is in each one. ⏎ opens the one you chose (or brings it
--- to the front if it is already up). ⌥⏎ copies its text WITHOUT opening
--- anything, which is the "copy from" half of the ask.
+-- Tap the right ⌥ twice, quickly, touching nothing else. A picker opens
+-- listing every editor this config owns — the Capture Pad, the Note Pad,
+-- the OCR text store, clipboard history, window pins, the screenshot
+-- editor — with how much is in each one. ⏎ opens the one you chose (or
+-- brings it to the front if it is already up). ⌥⏎ copies its text WITHOUT
+-- opening anything, which is the "copy from" half of the ask.
 --
---        right ⌘⌘   the picker
+--        right ⌥⌥   the picker
 --        ⇪⇧Z        the same picker, for when the tap is unavailable
 --        ⏎          open it / bring it forward
 --        ⌥⏎         copy its text and stay where you are
 --
--- ---- ✋ WHY THE RIGHT ⌘ AND NOT EITHER ONE (6.121.0) ------------------
+-- ---- ✋ WHY A SIDE AT ALL, AND WHY ⌥ (6.121.0, settled in 6.122.0) ----
 -- LL: "Right now I use the cmd+cmd so technically it's a conflict with
 -- Hammerspoon. Can I use left cmd twice for Alfred and right cmd for
 -- Hammerspoon?"
 --
--- Yes, on this side of the fence — and this is the whole of what this
--- config can do about it. A flagsChanged event carries the KEYCODE of the
--- modifier that changed, and left and right ⌘ are two different keys:
+-- A flagsChanged event carries the KEYCODE of the modifier that changed,
+-- and left and right are two different keys on every one of them:
 --
 --        left ⌘  55        right ⌘  54
 --        left ⌥  58        right ⌥  61
 --        left ⌃  59        right ⌃  62
 --        left ⇧  56        right ⇧  60
 --
--- So ep.tapSide = "right" means a left-⌘ tap is not merely ignored, it
--- CANCELS any sequence in flight — tapping left ⌘ twice for Alfred can
+-- So the tap can be told to care about ONE key, and it is. ep.tapSide =
+-- "right" means a left-hand tap is not merely ignored, it CANCELS any
+-- sequence in flight, so reaching for another program's double tap can
 -- never leave half a gesture armed here.
 --
--- 🚨 IT TAKES TWO TO SPLIT A KEY, AND THIS FILE IS ONLY ONE OF THEM.
--- Whether Alfred distinguishes the sides is Alfred's business and cannot
--- be read from in here. If Alfred fires on BOTH ⌘ keys then right ⌘⌘ will
--- open Alfred as well as this picker, and no setting in this file changes
--- that. The test takes ten seconds — tap right ⌘ twice and watch — and
--- there is a clean answer either way, because the modifier is a setting
--- too: ep.tapMod = "alt" with ep.tapSide = "right" puts this picker on
--- right ⌥⌥, which Alfred is not watching at all.
+-- 🚨 WHAT 6.121.0 COULD NOT ANSWER, AND DID NOT PRETEND TO. Splitting ⌘
+-- needs BOTH programs to distinguish the sides, and whether Alfred does
+-- is Alfred's business — unreadable from in here. So the modifier was
+-- made a setting alongside the side, and LL settled it the better way:
+--
+--        Alfred      → right ⌃⌃
+--        this picker → right ⌥⌥
+--
+-- Two keys neither program has to share. Nothing now depends on the one
+-- fact this file could not check.
 --
 -- ⚠️ AND THE SIDE IS ONLY HONOURED WHEN IT CAN BE READ. A flagsChanged
 -- event with no readable keycode cannot be attributed to a side, and this
@@ -122,16 +124,16 @@ local M = {
     -- tap is watching right ⌥⌥ is worse than no cheat sheet at all. These
     -- are the defaults, and they are what shows if setup never runs.
     cheatsheet = {
-        title = "🗂 EDITOR PICKER (right ⌘⌘ — every editor at once)",
+        title = "🗂 EDITOR PICKER (right ⌥⌥ — every editor at once)",
         entries = {
-            { "right ⌘⌘", "Tap it twice, touching nothing else — the picker opens" },
+            { "right ⌥⌥", "Tap it twice, touching nothing else — the picker opens" },
             { "⇪⇧Z", "The same picker, when the double tap is unavailable" },
             { "⏎",   "Open it — or bring it forward if it is already up" },
             { "⌥⏎",  "Copy that editor's text and leave everything closed" },
             { "lists", "Capture Pad · Note Pad · OCR text · clipboard · pins" },
             { "sorted", "Open windows first, then whatever has something in it" },
             { "never", "⌘C then ⌘V does NOT open it — see the header" },
-            { "left ⌘⌘", "Left is yours — Alfred keeps it. See ep.tapSide" },
+            { "left ⌥⌥", "Not this one — the left ⌥ is free. See ep.tapSide" },
             { "check", "_G.editorPickerReport() — the roster and the tap's health" },
         },
     },
@@ -145,14 +147,23 @@ function M.setup(core)
     ep.tapEnabled  = true    -- false = ⇪⇧Z only; the tap is never created
     ep.key         = "z"     -- ⇪⇧Z, the tap-free way in (see the header)
     ep.keyMods     = { "shift" }
-    -- 🎹 WHICH MODIFIER, AND WHICH ONE OF IT. Both are settings because the
-    -- key this picker wants is a key something else may already want:
+    -- 🎹 WHICH MODIFIER, AND WHICH ONE OF IT:
     --   tapMod  "cmd" · "alt" · "ctrl" · "shift"
     --   tapSide "right" · "left" · "either"
-    -- "right" + "cmd" leaves left ⌘⌘ entirely to Alfred. If Alfred turns
-    -- out to fire on both ⌘ keys, "alt" moves this off ⌘ altogether and
-    -- the argument is over. "either" is the 6.116.0 behaviour.
-    ep.tapMod      = "cmd"
+    --
+    -- ✋ 6.122.0 — THE ARGUMENT WITH ALFRED IS OVER, AND NOT BY SPLITTING
+    -- ⌘ AFTER ALL. 6.121.0 offered LL the right ⌘ with left ⌘ left to
+    -- Alfred; what he did instead was better than what was offered:
+    --        Alfred      → right ⌃⌃
+    --        this picker → right ⌥⌥
+    -- Two keys neither program has to share, so nothing depends any more
+    -- on whether Alfred can tell its ⌘ keys apart — which was the one
+    -- thing 6.121.0 could not find out from in here. The side machinery
+    -- still earns its place: it is what makes right ⌥⌥ mean the RIGHT ⌥,
+    -- leaving the left one free for whatever comes next.
+    --
+    -- "cmd" + "either" is the 6.116.0 behaviour, one line away.
+    ep.tapMod      = "alt"
     ep.tapSide     = "right"
     -- ⏱ Two windows, and they are different questions. maxHold is "was
     -- that ⌘ a TAP or a HOLD" — a modifier you are holding down to use is

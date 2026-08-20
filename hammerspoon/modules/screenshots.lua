@@ -20,7 +20,56 @@
 -- query is non-empty the action rows step aside and every matching
 -- screenshot is listed — filename, date and size all match, so "aug 13"
 -- or "edited" or "1.2 MB" each work. Backspace to empty brings the
--- actions back. On a history row: ⏎ puts the image back on the
+-- actions back.
+--
+-- ---------------------------------------------------------------------
+-- 🔎 6.122.0 — TYPING SEARCHES THE WHOLE FOLDER, AND THE TEXT INSIDE
+-- ---------------------------------------------------------------------
+-- LL: "How do I search and bring up an image that is stored in the
+-- screenshots folder?"
+--
+-- You could, and it was two things short of an answer.
+--
+--   1. IT ONLY EVER SAW THIRTY FILES. shots.maxList caps the list, for a
+--      good reason — every row decodes a whole PNG to draw a 72px
+--      thumbnail — but the SEARCH was filtering that same capped list.
+--      Anything older than your last thirty captures was unfindable, and
+--      nothing said so. The cap now applies to the idle view only: the
+--      moment you type, the query runs over every file in the folder.
+--
+--   2. A SCREENSHOT'S NAME IS A TIMESTAMP, which is the one thing you
+--      never remember about it. You remember what was ON it.
+--
+-- So the search now asks Spotlight as well, with mdfind, restricted to
+-- this folder. That reaches two things a filename never could:
+--
+--   · THE TEXT THIS CONFIG ALREADY WROTE. ⇪O's OCR tagger has been
+--     putting recognised text into each screenshot's Finder comment
+--     since 6.98.0, and Spotlight indexes Finder comments. Every image
+--     you have ever run through it is searchable by its own words, and
+--     has been all along — nothing was reading it back.
+--   · WHATEVER macOS INDEXED ITSELF, which on recent builds includes
+--     text found in images without anybody asking.
+--
+-- Rows say WHICH of the two found them, because "matched the name" and
+-- "matched the text inside it" are different claims and a row that
+-- blurred them would be guessing on your behalf.
+--
+-- ⏳ THE SPOTLIGHT HALF IS ASYNCHRONOUS AND DEBOUNCED. mdfind is a
+-- separate process; spawning one per keystroke would leave a queue of
+-- them racing to answer a question you have already finished typing. The
+-- name matches appear instantly, the Spotlight ones fold in a moment
+-- later, and a result whose query is no longer what is in the box is
+-- DISCARDED rather than shown.
+--
+-- ☁️ AND IT CAN LEGITIMATELY FIND NOTHING. This folder lives in
+-- OneDrive; a file evicted to cloud-only may not be indexed, and
+-- Spotlight can be switched off for a volume entirely. The name search
+-- always runs, so the panel is never worse than it was — but "no text
+-- matches" is not proof that no screenshot contains those words.
+--
+-- ---------------------------------------------------------------------
+-- On a history row: ⏎ puts the image back on the
 -- clipboard, ⌘⏎ copies its file PATH (which is exactly what the Task
 -- Form's 📎 field wants), ⌥⏎ opens it in the EDITOR
 -- (modules/screenshot_editor.lua), and ⌃⏎ COMPRESSES it — sips (the
@@ -90,7 +139,8 @@ local M = {
             { "",     "saves to OneDrive/2026 Screenshots + copies to clipboard" },
             { "⇪⇧4",  "Panel: 8 actions (⌘1–⌘8) + history below · ⌘8 = BIG thumbnails" },
             { "⌘1–7", "area · scrolling · text/QR · edit newest · repeat · window · 10s" },
-            { "type",  "search the history — actions step aside while you type" },
+            { "type",  "searches the WHOLE folder — not just the newest 30 —" },
+            { "",      "by name, by date, and by the TEXT INSIDE the image" },
             { "⏎",    "history row: image on clipboard · ⌘⏎ its file PATH" },
             { "⌥⏎",   "history row: open in the editor (blur/text/arrows)" },
             { "⌃⏎",   "history row: compress to “… (compressed).jpg” + clipboard" },
@@ -106,7 +156,16 @@ function M.setup(core)
     shots.key       = "4"     -- ⇪4 capture · ⇪⇧4 panel (mnemonic: ⌘⇧4)
     shots.dir       = (core.homeDir or os.getenv("HOME") or "")
                       .. "/Library/CloudStorage/OneDrive-Personal/2026 Screenshots"
-    shots.maxList   = 30      -- newest N screenshots shown in the panel
+    shots.maxList   = 30      -- newest N shown when the box is EMPTY. Not a
+                              -- search limit — see shots.searchMax
+    -- 🔎 6.122.0 — the search half. searchMax is a DRAWING limit, not a
+    -- matching one: every file in the folder is compared, and this many
+    -- of the best are given thumbnails. Raise it and the panel gets
+    -- slower, because a thumbnail decodes a whole PNG.
+    shots.searchMax  = 60
+    shots.findDelay  = 0.25   -- quiet time before mdfind is spawned
+    shots.findTimeout = 6.0   -- and how long it is given to answer
+    shots.MDFIND     = "/usr/bin/mdfind"
     shots.historyRows = 8     -- history rows VISIBLE below the action rows
     shots.thumbH    = 72      -- thumbnail height in panel rows, pixels
     shots.alertSecs = 2.0
@@ -886,27 +945,197 @@ function M.setup(core)
         end)
     end
 
-    -- 6.88.0 — LL: "I can't tell if I can search the window." Typing now
-    -- ANSWERS that: the query filters the HISTORY (name + date + size all
-    -- match), and the action rows step aside while a query is live
-    -- so the matches are all you see. Empty query = actions + history.
-    function shots.filterChoices(query)
-        query = tostring(query or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
-        local all = shots.allChoices or {}
-        if query == "" then return all end
-        local out = {}
-        for _, c in ipairs(all) do
-            if c.path then
-                local hay = (tostring(c.text or "") .. " "
-                             .. tostring(c.subText or "")):lower()
-                if hay:find(query, 1, true) then out[#out + 1] = c end
-            end
+    -- ---- 🔎 the search (6.88.0, and the whole folder since 6.122.0) ------
+    -- One row per matching file, built from the FULL listing rather than
+    -- the capped view. See the 🔎 block in the header for why that
+    -- distinction is the fix rather than a detail.
+    function shots.searchRow(e, why)
+        return {
+            text    = e.name,
+            subText = os.date("%b %d %Y  %H:%M", e.mtime)
+                      .. "  ·  " .. prettySize(e.size)
+                      .. "  ·  " .. why
+                      .. "  ·  ⏎ image · ⌘⏎ path · ⌥⏎ edit · ⌃⏎ jpg",
+            path    = e.path,
+        }
+    end
+
+    -- The name half. Every word must appear somewhere in the row, so
+    -- "aug 13" and "13 aug" both work and neither matches everything.
+    function shots.nameMatches(query, list)
+        local words = {}
+        for w in tostring(query or ""):lower():gmatch("%S+") do
+            words[#words + 1] = w
         end
-        if #out == 0 then
-            out[1] = { text = "No screenshots match “" .. query .. "”",
-                       subText = "⌫ clears the search — the actions come back" }
+        local out = {}
+        if #words == 0 then return out end
+        for _, e in ipairs(list or {}) do
+            local hay = (tostring(e.name or "") .. " "
+                         .. os.date("%b %d %Y  %H:%M", e.mtime) .. " "
+                         .. prettySize(e.size)):lower()
+            local all = true
+            for _, w in ipairs(words) do
+                if not hay:find(w, 1, true) then all = false break end
+            end
+            if all then out[#out + 1] = e end
         end
         return out
+    end
+
+    -- 🚨 THE MERGE IS ORDERED, AND THE ORDER IS THE POINT. A file that
+    -- matched its NAME is a file you half-remembered correctly; a file
+    -- that matched only its indexed text is a guess that paid off. The
+    -- first kind goes on top, and each row says which it was, because
+    -- "matched the name" and "matched the text inside it" are different
+    -- claims and blurring them would be guessing on your behalf.
+    function shots.mergeResults(named, spotlight, list)
+        local out, seen = {}, {}
+        for _, e in ipairs(named or {}) do
+            if not seen[e.path] then
+                seen[e.path] = true
+                out[#out + 1] = shots.searchRow(e, "name")
+            end
+        end
+        local byPath = {}
+        for _, e in ipairs(list or {}) do byPath[e.path] = e end
+        for _, p in ipairs(spotlight or {}) do
+            local e = byPath[p]
+            -- ⚠️ A SPOTLIGHT HIT THAT IS NOT IN THE LISTING IS DROPPED.
+            -- mdfind answers about the folder as the INDEX last saw it;
+            -- a file deleted since would otherwise be offered as a row
+            -- that opens nothing.
+            if e and not seen[p] then
+                seen[p] = true
+                out[#out + 1] = shots.searchRow(e, "text inside it")
+            end
+        end
+        return out
+    end
+
+    -- Thumbnails for what will actually be drawn, and no further: each one
+    -- decodes a whole PNG. This is why searchMax exists.
+    function shots.withThumbs(rows, list)
+        local byPath = {}
+        for _, e in ipairs(list or {}) do byPath[e.path] = e end
+        local out = {}
+        for i, r in ipairs(rows) do
+            if i > shots.searchMax then break end
+            if r.path and byPath[r.path] then r.image = thumbFor(byPath[r.path]) end
+            out[#out + 1] = r
+        end
+        return out
+    end
+
+    function shots.noMatchRow(query, spotlightRan)
+        return {
+            text    = "No screenshots match “" .. query .. "”",
+            -- ☁️ Honest about what was actually asked. "Nothing matched"
+            -- and "nothing matched and Spotlight never answered" are not
+            -- the same result, and this folder is in OneDrive where the
+            -- second is a real possibility.
+            subText = spotlightRan
+                      and "Names, dates and indexed text all searched · ⌫ clears it"
+                      or  "Names and dates searched — Spotlight had no answer · ⌫ clears it",
+        }
+    end
+
+    -- The synchronous half: runs on every keystroke, never spawns
+    -- anything, and is what you actually see while you are still typing.
+    function shots.filterChoices(query)
+        query = tostring(query or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+        if query == "" then return shots.allChoices or {} end
+        local list = shots.fullList or {}
+        local rows = shots.mergeResults(shots.nameMatches(query, list),
+                                        shots.spotlightFor(query), list)
+        if #rows == 0 then
+            return { shots.noMatchRow(query, shots.spotlightQuery == query) }
+        end
+        return shots.withThumbs(rows, list)
+    end
+
+    -- ---- the Spotlight half ---------------------------------------------
+    -- Cached per query so the synchronous filter above can read the last
+    -- answer without waiting, and so a re-render on the same query does
+    -- not spawn a second mdfind.
+    shots.spotlightQuery   = nil
+    shots.spotlightResults = nil
+    shots.findTask  = nil   -- HELD: an unreferenced hs.task is collected
+    shots.findTimer = nil   -- HELD: ditto an hs.timer
+
+    function shots.spotlightFor(query)
+        if shots.spotlightQuery == query then return shots.spotlightResults end
+        return nil
+    end
+
+    function shots.parseMdfind(out)
+        local paths = {}
+        for line in tostring(out or ""):gmatch("[^\n]+") do
+            local p = line:gsub("^%s+", ""):gsub("%s+$", "")
+            if p ~= "" and p:sub(1, 1) == "/" then paths[#paths + 1] = p end
+        end
+        return paths
+    end
+
+    function shots.stopFind()
+        if shots.findTimer then pcall(function() shots.findTimer:stop() end) end
+        shots.findTimer = nil
+        if shots.findTask then pcall(function() shots.findTask:terminate() end) end
+        shots.findTask = nil
+    end
+
+    -- Debounced: the timer is re-armed on every keystroke, so mdfind is
+    -- spawned once you stop typing rather than once per character.
+    function shots.startFind(query, onDone)
+        shots.stopFind()
+        if query == "" then return false end
+        local ok = pcall(function()
+            shots.findTimer = hs.timer.doAfter(shots.findDelay, function()
+                shots.findTimer = nil
+                local started = pcall(function()
+                    shots.findTask = hs.task.new(shots.MDFIND, function(_, sout)
+                        shots.findTask = nil
+                        -- 🚨 AN ANSWER TO A QUESTION YOU HAVE FINISHED
+                        -- ASKING IS NOT AN ANSWER. Two keystrokes land
+                        -- while mdfind is running; showing its result
+                        -- would replace the list under the query you are
+                        -- now typing.
+                        if shots.liveQuery ~= query then return end
+                        shots.spotlightQuery   = query
+                        shots.spotlightResults = shots.parseMdfind(sout)
+                        if onDone then pcall(onDone, query) end
+                    end, { "-onlyin", shots.dir, query })
+                    if shots.findTask then shots.findTask:start() end
+                end)
+                if not started then
+                    shots.findTask = nil
+                    -- Spotlight being unavailable costs the text half and
+                    -- nothing else — the name search already answered.
+                    say("mdfind unavailable — searching names only")
+                end
+            end)
+        end)
+        return ok and shots.findTimer ~= nil
+    end
+
+    -- Every keystroke: draw the name matches NOW, and ask Spotlight for
+    -- the rest. The redraw when mdfind answers goes through the same
+    -- filterChoices, so there is one place that decides what a row says.
+    function shots.onQuery(q)
+        local query = tostring(q or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+        shots.liveQuery = query
+        if query == "" then
+            shots.stopFind()
+            pcall(function() shots.chooser:choices(shots.allChoices or {}) end)
+            return
+        end
+        pcall(function() shots.chooser:choices(shots.filterChoices(query)) end)
+        shots.startFind(query, function(answered)
+            -- Checked again here as well as inside the task callback: the
+            -- redraw is the thing with a visible cost, and two guards on
+            -- the same race is cheaper than one race that gets through.
+            if shots.liveQuery ~= answered then return end
+            pcall(function() shots.chooser:choices(shots.filterChoices(answered)) end)
+        end)
     end
 
     function shots.show()
@@ -932,13 +1161,14 @@ function M.setup(core)
                 shots.chooser:queryChangedCallback(function(q)
                     -- per-keystroke callback: guarded like an eventtap —
                     -- an error in here would repeat on every character
-                    pcall(function()
-                        shots.chooser:choices(shots.filterChoices(q))
-                    end)
+                    pcall(function() shots.onQuery(q) end)
                 end)
             end)
         end
+        shots.liveQuery = ""
+        shots.stopFind()
         local list = shots.list()
+        shots.fullList = list          -- what the SEARCH works over: all of it
         local choices = shots.choicesFrom(list)
         -- attach thumbnails AFTER choicesFrom so the pure list logic
         -- stays testable without hs.image
@@ -951,7 +1181,7 @@ function M.setup(core)
                 if mt then c.image = thumbFor(mt) end
             end
         end
-        shots.allChoices = choices   -- what the search filter works over
+        shots.allChoices = choices   -- the IDLE view: actions + the newest few
         -- 6.88.0 — LL: "I don't see the image history." The default
         -- chooser height is 10 rows and the 7 actions ate 7 of them; the
         -- history was there but below the fold. Tall enough now that the

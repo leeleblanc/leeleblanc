@@ -50,6 +50,18 @@ local CHOOSERS    = {}
 local SHOWS       = 0
 local TIMERS      = {}
 local URLEVENT_OK = true
+local LAUNCHED    = {}    -- bundle IDs handed to launchOrFocusByBundleID
+local TYPED       = {}    -- what reached hs.eventtap.keyStrokes
+local APP_RUNNING = true  -- is System Settings up yet
+local AX_APP      = nil   -- the stub accessibility tree, built in §8
+
+-- 🚨 THE INJECTION GUARD IS PART OF THE CONTRACT, NOT DECORATION. This
+-- module types into another application, and autocorrect, the expander
+-- and the Key Caster all read _G.typingInjection() to decide whether a
+-- keystroke was yours. Typing outside the guard would make this config's
+-- own search query look like something you wrote.
+local INJECTED = 0
+_G.withInjection = function(fn) INJECTED = INJECTED + 1 ; return pcall(fn) end
 
 -- What each scanned directory contains.
 local DIRS = {
@@ -75,6 +87,25 @@ hs = {
             TIMERS[#TIMERS + 1] = t
             return t
         end,
+        -- 🚨 A STOPPED TIMER STAYS STOPPED, exactly as the real one does.
+        -- Without this the poll below would keep firing after it found the
+        -- field and the "types once" check would pass for the wrong reason.
+        doEvery = function(secs, fn)
+            local t = { secs = secs, fn = fn, every = true, stopped = false }
+            function t:stop() self.stopped = true end
+            TIMERS[#TIMERS + 1] = t
+            return t
+        end,
+    },
+    application = {
+        launchOrFocusByBundleID = function(b) LAUNCHED[#LAUNCHED + 1] = b ; return true end,
+        get = function(b) return APP_RUNNING and { bundle = b } or nil end,
+    },
+    axuielement = {
+        applicationElement = function() return AX_APP end,
+    },
+    eventtap = {
+        keyStrokes = function(t) TYPED[#TYPED + 1] = tostring(t) end,
     },
     fs = {
         attributes = function(p, what)
@@ -110,7 +141,8 @@ hs = {
             function c:query(x) self.query_ = x ; return self end
             function c:show() SHOWS = SHOWS + 1 ; return self end
             function c:width(n) return self end
-            function c:searchSubText(b) return self end
+            function c:searchSubText(b) self.subText_ = b ; return self end
+            function c:queryChangedCallback(fn) self.onQuery = fn ; return self end
             CHOOSERS[#CHOOSERS + 1] = c
             return c
         end,
@@ -387,7 +419,7 @@ TIMERS[#TIMERS].fn()
 check("…the next one follows on the timer", #OPENED_URLS == 2, #OPENED_URLS)
 
 local rep = _G.settingsReport()
-check("the report names the module", rep:find("SETTINGS PANES", 1, true) ~= nil)
+check("the report names the module", rep:find("SETTINGS SEARCH", 1, true) ~= nil)
 check("…counts the curated table", rep:find("curated", 1, true) ~= nil)
 check("…counts what was found on disk", rep:find(".prefPane", 1, true) ~= nil)
 -- 🚨 The honesty line. macOS opens Settings at SOME page for an anchor it
@@ -397,6 +429,244 @@ check("🚨 …and states plainly that a retired identifier fails silently",
       rep:find("still exits 0", 1, true) ~= nil, rep)
 check("…and points at the probe as the only real test",
       rep:find("settingsProbe", 1, true) ~= nil, rep)
+
+-- =====================================================================
+out("\n=== 8. 🚨 THE SETTINGS INSIDE THE PANES ===\n")
+-- =====================================================================
+-- 6.119.0 searched the ~58 destinations in the sidebar. Nobody thinks "I
+-- need the Displays pane"; they think "where is Night Shift". These are
+-- the checks that say the second question now has an answer.
+local rows8 = sp.build()
+
+-- 🚨 THE ONE THAT CANNOT BE ALLOWED TO SLIDE. A term naming a pane that
+-- is not in the table is a row that looks perfect in the picker and does
+-- nothing at all on ⏎.
+check("🚨 every named setting points at a pane that exists",
+      #sp.orphans == 0,
+      #sp.orphans > 0 and table.concat(sp.orphans, ", ") or nil)
+-- 🚨 AND EXISTING IS NOT ENOUGH — IT HAS TO GO SOMEWHERE. A row with no
+-- URL is the same dead row as an orphan wearing a different hat: it lists
+-- perfectly and does nothing on ⏎. Counting orphans alone missed this.
+check("🚨 …and every row, pane or setting, has somewhere to go", (function()
+    for _, r in ipairs(rows8) do
+        if type(r.url) ~= "string" or r.url == "" then
+            return false, r.name
+        end
+    end
+    return true
+end)())
+check("there are enough of them to be worth the name",
+      #sp.terms >= 150, #sp.terms)
+
+local function termNamed(name)
+    for _, r in ipairs(rows8) do
+        if r.kind == "term" and r.name == name then return r end
+    end
+end
+-- ⚠️ GUARDED, because this section is where a broken table shows up and a
+-- break test that CRASHES tells you nothing. Everything below reads
+-- through `night`, so a missing one has to fail loudly and carry on.
+local night = termNamed("Night Shift")
+                or { name = "Night Shift", url = "", where = "", pane = "" }
+check("Night Shift is one of them", termNamed("Night Shift") ~= nil)
+check("…and it borrows the URL of the pane that holds it",
+      night and night.url == "x-apple.systempreferences:com.apple.Displays-Settings.extension",
+      night and night.url)
+check("…and says where in that pane to look",
+      night and night.where ~= "" and night.where:find("Night Shift", 1, true) ~= nil,
+      night and night.where)
+check("a term row names its pane in the subtitle, not just itself",
+      (function()
+          for i, r in ipairs(rows8) do
+              if r.kind == "term" and r.name == "Night Shift" then
+                  local c = sp.rowChoice(r, i)
+                  return c.subText:find("Displays", 1, true) ~= nil
+              end
+          end
+      end)())
+-- Terms with no pane of their own must not have quietly become panes.
+local paneCount = 0
+for _, r in ipairs(rows8) do if r.kind == "pane" then paneCount = paneCount + 1 end end
+check("panes and terms stay separable",
+      paneCount == #sp.panes + sp.scanned, paneCount)
+
+-- A term opens exactly as its pane does — same URL, same code path.
+reset()
+sp.open(night)
+check("⏎ on a setting opens the pane that holds it",
+      night.url ~= "" and OPENED_URLS[1] == night.url, OPENED_URLS[1])
+
+out("\n=== 8b. the filter, and the row that is always last ===\n")
+local f = sp.filter("night shift")
+check("typing the setting's name finds it", f[1] and f[1].text == "Night Shift",
+      f[1] and f[1].text)
+check("🚨 the ask row is ALWAYS last, even on a hit",
+      f[#f].idx == 0 and f[#f].ask == "night shift", f[#f].text)
+check("…and it quotes back what you typed",
+      f[#f].text:find("night shift", 1, true) ~= nil, f[#f].text)
+
+local none = sp.filter("zzzznothingmatchesthis")
+check("a query that matches nothing still offers Apple's search",
+      #none == 1 and none[1].idx == 0, #none)
+check("…and says why that row is the only one",
+      none[1].subText:find("Apple", 1, true) ~= nil, none[1].subText)
+
+-- Every word has to appear, and the pane name counts as part of the row —
+-- which is what makes "night dis" work at all.
+check("all words must match, not any of them",
+      #sp.filter("night zzzz") == 1, #sp.filter("night zzzz"))
+check("the pane name is searchable from the term's row",
+      (function()
+          for _, c in ipairs(sp.filter("night dis")) do
+              if c.text == "Night Shift" then return true end
+          end
+      end)())
+check("an empty query lists everything and adds no ask row",
+      #sp.filter("") == #rows8, #sp.filter(""))
+check("…and a whitespace-only query counts as empty",
+      #sp.filter("   ") == #rows8, #sp.filter("   "))
+
+-- 🚨 idx 0 is the ask row and no real row may collide with it: the
+-- callback tells them apart by that number alone.
+check("🚨 no real row carries idx 0", (function()
+    for _, c in ipairs(sp.filter("s")) do
+        if c.idx == 0 and not c.ask then return false end
+    end
+    return true
+end)())
+
+-- The chooser must do NO filtering of its own. Left on, searchSubText
+-- would filter the list sp.filter already built — and the ask row, whose
+-- subtitle says nothing about your query, would vanish from its own list.
+sp.show()
+local ch = CHOOSERS[#CHOOSERS]
+check("🚨 the chooser's own sub-text search is switched OFF",
+      ch.subText_ == false, tostring(ch.subText_))
+check("the picker filters on every keystroke", type(ch.onQuery) == "function")
+ch.onQuery("hot corners")
+check("…and typing rebuilds the list",
+      ch.choices_[1] and ch.choices_[1].text == "hot corners",
+      ch.choices_[1] and ch.choices_[1].text)
+check("…down to the match and the ask row, nothing else",
+      #ch.choices_ == 2, #ch.choices_)
+check("the placeholder counts both halves",
+      ch.placeholder:find("panes", 1, true) ~= nil
+      and ch.placeholder:find("settings", 1, true) ~= nil, ch.placeholder)
+
+out("\n=== 8c. 🔎 handing the query to Apple's own search ===\n")
+-- The stub accessibility tree: a window, a toolbar, and a search field
+-- three levels down — deeper than a fixed path would reach, which is the
+-- reason the module walks instead of indexing.
+local FIELD = {
+    role = "AXTextField", subrole = "AXSearchField",
+    value = "leftover", focused = false, kids = {},
+}
+local function node(role, kids, subrole)
+    return { role = role, subrole = subrole, kids = kids or {} }
+end
+local function axNode(n)
+    local o = {}
+    function o:setTimeout(t) n.timeout = t ; return self end
+    function o:attributeValue(a)
+        if a == "AXRole" then return n.role end
+        if a == "AXSubrole" then return n.subrole end
+        if a == "AXChildren" then
+            local out = {}
+            for _, k in ipairs(n.kids or {}) do out[#out + 1] = axNode(k) end
+            return out
+        end
+        return nil
+    end
+    function o:setAttributeValue(a, v)
+        if a == "AXFocused" then n.focused = v end
+        if a == "AXValue" then n.value = v end
+        return self
+    end
+    return o
+end
+local WINDOW = node("AXWindow", { node("AXGroup", { node("AXToolbar", { FIELD }) }) })
+local TIMEOUTS = {}
+AX_APP = {
+    setTimeout = function(self, t) TIMEOUTS[#TIMEOUTS + 1] = t ; return self end,
+    attributeValue = function(self, a)
+        if a == "AXFocusedWindow" then return axNode(WINDOW) end
+        return nil
+    end,
+}
+
+reset()
+TIMERS, LAUNCHED, TYPED, INJECTED = {}, {}, {}, 0
+APP_RUNNING = true
+check("askApple refuses an empty query", sp.askApple("  ") == false)
+check("…and touched nothing", #LAUNCHED == 0 and #TIMERS == 0)
+
+check("askApple opens System Settings", sp.askApple("night shift") == true)
+check("…by bundle id", LAUNCHED[1] == "com.apple.systempreferences", LAUNCHED[1])
+check("…and polls rather than sleeping a fixed time",
+      TIMERS[#TIMERS] and TIMERS[#TIMERS].every == true)
+check("nothing has been typed before the field is found", #TYPED == 0, #TYPED)
+
+local poll = TIMERS[#TIMERS]
+poll.fn()
+check("🚨 the field is found by walking, not by a fixed path", #TYPED == 1, #TYPED)
+check("…and what was typed is what was asked for",
+      TYPED[1] == "night shift", TYPED[1])
+check("…into a field that was focused first", FIELD.focused == true)
+check("…with the stale query cleared out of it", FIELD.value == "", FIELD.value)
+check("🚨 …inside the injection guard, so this config's typing is not yours",
+      INJECTED == 1, INJECTED)
+check("an AX timeout was set before anything was asked", #TIMEOUTS >= 1, #TIMEOUTS)
+check("the poll stopped once it succeeded", poll.stopped == true)
+check("the report counts the hand-off", _G.settingsReport():find("handed off", 1, true) ~= nil)
+
+-- 🚨 THE FAILURE THAT MATTERS: no field, no blind typing. Keystrokes into
+-- whatever happens to have focus is how a search query lands in a
+-- document.
+TIMERS, TYPED = {}, {}
+APP_RUNNING = false
+sp.askApple("hot corners")
+local poll2 = TIMERS[#TIMERS]
+local guard = 0
+while not poll2.stopped and guard < 100 do poll2.fn() ; guard = guard + 1 end
+check("🚨 a search field it never found is never typed into", #TYPED == 0, #TYPED)
+check("…and it gives up rather than polling forever", poll2.stopped == true)
+check("…and says so, with the query, so the trip is not wasted",
+      (function()
+          for _, a in ipairs(ALERTS) do
+              if a:find("hot corners", 1, true) then return true end
+          end
+      end)(), table.concat(ALERTS, " | "))
+check("…and records it as a problem rather than a success",
+      sp.lastNote ~= nil and sp.lastNote:find("search field", 1, true) ~= nil,
+      sp.lastNote)
+APP_RUNNING = true
+
+-- The fallback: a plain text field is taken only when no search field is
+-- there, because a pane with a text box open would otherwise win.
+local PLAIN = { role = "AXTextField", kids = {} }
+local W2 = node("AXWindow", { node("AXGroup", { PLAIN }) })
+local found = sp.findSearchField(axNode(W2))
+check("a plain text field is the fallback when there is no search field",
+      found ~= nil)
+local W3 = node("AXWindow", { node("AXGroup", { PLAIN, FIELD }) })
+local found3 = sp.findSearchField(axNode(W3))
+check("🚨 …but the search field wins when both are present",
+      found3 and found3:attributeValue("AXSubrole") == "AXSearchField",
+      found3 and found3:attributeValue("AXSubrole"))
+check("a tree with nothing in it returns nothing rather than throwing",
+      sp.findSearchField(axNode(node("AXWindow"))) == nil)
+-- 🚨 AN EMPTY STRING IS NOT A URL, AND `not ""` IS TRUE OF NOTHING IN
+-- LUA. A row carrying "" used to walk straight past the guard, into
+-- openURL("") and then into a concatenation of a name it did not have.
+reset()
+check("a row with an empty url is refused, not opened",
+      sp.open({ name = "Nowhere", url = "" }) == false)
+check("…and nothing was asked to open", #OPENED_URLS == 0, #OPENED_URLS)
+check("…and it said why, without needing a name to do it",
+      sp.open({ url = "" }) == false and sp.lastNote ~= nil
+      and sp.lastNote:find("no destination", 1, true) ~= nil, sp.lastNote)
+check("…and a nil root is answered, not thrown at",
+      sp.findSearchField(nil) == nil)
 
 -- =====================================================================
 out(("\n── test_settings_panes: %d passed, %d failed\n"):format(pass, fail))

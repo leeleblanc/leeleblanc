@@ -4,8 +4,65 @@
 -- =====================================================================
 -- 08-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.121.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.122.0
 -- =====================================================================
+
+-- NEW IN 6.122.0 — TWO SEARCHES THAT WERE ONLY LOOKING AT HALF THE ROOM:
+--   ✋ THE EDITOR PICKER IS ON right ⌥⌥ NOW, AND ⌘ IS FREE. 6.121.0
+--      offered LL the right ⌘ with the left one left to Alfred; what he
+--      did instead was better than what was offered —
+--          Alfred      → right ⌃⌃
+--          this picker → right ⌥⌥
+--      Two keys neither program has to share, so nothing depends any
+--      more on whether Alfred can tell its ⌘ keys apart, which was the
+--      one thing this config could not find out from in here. The side
+--      machinery still earns its keep: it is what makes right ⌥⌥ mean
+--      the RIGHT ⌥. "cmd"/"either" restores 6.116.0 in one line.
+--
+--   ⚙️ ⇪, SEARCHES THE SETTINGS, NOT JUST THE PANES. LL: "What does this
+--      mean? I wanted to be able to search all Settings app." A fair
+--      complaint: 6.119.0 searched the ~58 destinations in the sidebar,
+--      so it could find "Displays" and could not find "Night Shift",
+--      which is a switch inside it. Nobody thinks "I need the Displays
+--      pane". Two answers now, and the file is clear about which is
+--      which:
+--        · ~190 NAMED SETTINGS, hand-written, each pointing at the pane
+--          that holds it and saying where in that pane to look. Type
+--          "hot corners" and you land in Desktop & Dock knowing it is at
+--          the very bottom. Exactly as complete as somebody made it.
+--        · THE LAST ROW IS ALWAYS "🔎 Search System Settings for …",
+--          which hands your words to Apple's OWN search field — the
+--          complete index, maintained by the people who move the
+--          settings. The hand-written half is never a ceiling.
+--      🚨 IT TYPES RATHER THAN POKING A VALUE IN: setting AXValue on a
+--      SwiftUI search field updates the text and runs no search. So it
+--      focuses the field and types, inside _G.withInjection like every
+--      other typing tool here. It POLLS for that field rather than
+--      sleeping a fixed time, and if it never finds one it SAYS SO —
+--      blind keystrokes are how a query ends up in a document.
+--
+--   📸 ⇪⇧4's SEARCH READS THE WHOLE FOLDER, AND THE TEXT INSIDE THE
+--      IMAGES. LL: "How do I search and bring up an image that is stored
+--      in the screenshots folder?" You could, and it was two things
+--      short: it filtered the newest THIRTY files (the thumbnail cap was
+--      being applied to the search as well), and it matched on
+--      filenames, which are timestamps — the one thing you never
+--      remember about a screenshot.
+--      Now: the cap applies to the idle view only, and typing also runs
+--      mdfind inside that folder. That reaches the OCR text ⇪O has been
+--      writing into each screenshot's Finder comment since 6.98.0 —
+--      searchable all along, with nothing reading it back — plus
+--      whatever macOS indexed itself. Rows say which half found them.
+--      ⏳ Debounced and asynchronous: the name matches appear as you
+--      type, Spotlight's fold in a moment later, and an answer to a
+--      query you have finished typing is discarded rather than shown.
+--      ☁️ And it can honestly find nothing: a cloud-evicted OneDrive
+--      file may not be indexed, so "no text matches" is not proof.
+--
+--   🩹 AND ONE REAL BUG, FOUND BY A BREAK TEST THAT CRASHED WHERE IT
+--      SHOULD HAVE REPORTED. sp.open guarded with `not row.url`, which
+--      an empty string walks straight past in Lua — into openURL("")
+--      and then into a concatenation of a name such a row does not have.
 
 -- NEW IN 6.121.0 — THE LEFT ⌘ GOES BACK TO ALFRED:
 --   ✋ THE EDITOR PICKER NOW WATCHES THE RIGHT ⌘ ONLY. LL: "Right now I
@@ -190,37 +247,10 @@
 --      on every row now as well as in its heading — a match still says
 --      where it came from.
 
--- NEW IN 6.117.0 — TWO DELETIONS. NOTHING GAINED A FEATURE:
---   📧 THE OUTLOOK PROBE IS DELETED, NOT SHELVED. LL: "IT won't approve
---      it… remove the outlook probe and the test stage." 6.105.0 took it
---      out of the module list; it kept costing something anyway — 41 KB
---      in every zip, a row on the health monitor's cheat sheet pointing
---      at a dofile() nobody would ever type, and a 46-check suite run on
---      every release for a feature that is not coming back. Gone:
---      tools/outlook-probe.lua, tests/test_outlook_probe.lua, the cheat
---      sheet row, the runner stage. 50 stages now, not 51.
---      🚨 THIS IS NOT AN OUTLOOK PURGE. Safe Links unwrapping (⇪⇧L),
---      focus mode reading the reminder popup, the update tracker's cask
---      and app_watcher's entry all stay — they work, and they were never
---      part of the automation question the tenant policy closed.
---   📦 THE ZIP IS 40% SMALLER, AND NOTHING WAS LEFT OUT OF IT. LL: "can
---      you reduce the file size at all: it's now 2.1 mb." 2,006 .json
---      snippet packs were 797 KB of it — and the expander does not read
---      them. It reads snippets/bundled.lua and, in its own words, "IF
---      THE TABLE LOADS, THE PACKS ARE NOT SCANNED", which has been true
---      since 6.105.0. The zip was shipping 2,006 files the config
---      deliberately ignores. All 2,006 snippets still ship, in the one
---      128 KB table that was already doing the work.
---      🚨 YOUR OWN IMPORTS ARE SOMEWHERE ELSE AND ARE UNTOUCHED. Those
---      live in the OneDrive logs folder, not in the config, and are
---      still scanned every load. The installer has never deleted the old
---      packs from ~/.hammerspoon/snippets either, so yours stay where
---      they are; they were already being ignored in favour of the table.
-
--- (6.116.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.117.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.121.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.122.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -519,7 +549,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.121.0"
+_G.configVersion = "6.122.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

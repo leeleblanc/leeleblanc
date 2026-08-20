@@ -1,6 +1,6 @@
 -- =====================================================================
--- test_editor_picker.lua — right ⌘⌘ opens the editors; ⌘C⌘V and the LEFT
--- ⌘ do not
+-- test_editor_picker.lua — right ⌥⌥ opens the editors; ⌘C⌘V and the LEFT
+-- ⌥ do not
 -- =====================================================================
 --     lua5.4 test_editor_picker.lua [/path/to/hammerspoon]
 --
@@ -14,11 +14,12 @@
 -- would be unusable in a way that looks like a haunting rather than a
 -- bug. Every one of those checks fails if the keyDown branch is removed.
 --
--- Section 2f is 6.121.0's half of a fence LL shares with Alfred: the left
--- ⌘ is Alfred's and the right ⌘ is this config's. The checks there fail
--- if the side is read from the wrong edge of the press, if a wrong-side
--- key is merely ignored instead of cancelling, or if a press whose side
--- cannot be read is GUESSED — which would be the conflict coming back.
+-- Section 2f is the side machinery from 6.121.0. The gesture settled on
+-- right ⌥⌥ in 6.122.0 — Alfred took right ⌃⌃, so neither program has to
+-- share a key — and the checks there still decide whether the RIGHT one
+-- is what fires. They fail if the side is read from the wrong edge of the
+-- press, if a wrong-side key is merely ignored instead of cancelling, or
+-- if a press whose side cannot be read is GUESSED.
 
 local HS = (arg and arg[1]) or os.getenv("HAMMERSPOON_DIR")
            or ((os.getenv("HOME") or ".") .. "/.hammerspoon")
@@ -57,7 +58,8 @@ local KC = {
     cmd = 55, rightcmd = 54, alt = 58, rightalt = 61,
     ctrl = 59, rightctrl = 62, shift = 56, rightshift = 60,
 }
-local L_CMD, R_CMD, R_ALT = KC.cmd, KC.rightcmd, KC.rightalt
+local L_CMD, R_CMD          = KC.cmd, KC.rightcmd
+local L_ALT, R_ALT          = KC.alt, KC.rightalt
 
 hs = {
     keycodes = { map = KC },
@@ -148,14 +150,33 @@ end)())
 check("three services are published",
       PROVIDED["editors.show"] and PROVIDED["editors.list"]
       and PROVIDED["editors.report"])
+-- 🚨 THE SHIPPED GESTURE, PINNED. LL runs Alfred on right ⌃⌃ and this on
+-- right ⌥⌥; a release that quietly moved this back onto ⌘ would put it
+-- under Alfred again, and nothing else in the file would notice.
+check("the shipped gesture is the RIGHT ⌥, tapped twice",
+      ep.tapMod == "alt" and ep.tapSide == "right",
+      tostring(ep.tapMod) .. "/" .. tostring(ep.tapSide))
+check("…and it names itself that way", ep.gesture() == "right ⌥⌥", ep.gesture())
+check("…and the cheat sheet says so too",
+      M.cheatsheet.title:find("right ⌥⌥", 1, true) ~= nil
+      and M.cheatsheet.entries[1][1] == "right ⌥⌥", M.cheatsheet.title)
 
 -- =====================================================================
 out("\n=== 2. 🚨 ⌘C THEN ⌘V DOES NOT OPEN THE PICKER ===\n")
 -- =====================================================================
 -- The whole reason this tap subscribes to keyDown. Delete the keyDown
 -- branch of the callback and every check in this section fails.
+--
+-- ⚠️ RUN DELIBERATELY ON ⌘, EITHER SIDE — the 6.116.0 gesture. Nothing in
+-- this section is about WHICH key starts a gesture; it is about what
+-- happens between the two taps, and that is the same argument whatever
+-- the modifier. Reading these checks against ⌘ is reading them as they
+-- were written. The shipped right ⌥⌥ is pinned in section 1 and taken
+-- apart in 2f.
 local function feed(e) return TAP.cb(e) end
 local function tick(dt) NOW = NOW + dt end
+ep.tapMod, ep.tapSide = "cmd", "either"
+ep.resolveCodes()
 
 local function reset()
     ep.resetTapState()
@@ -279,10 +300,13 @@ end)())
 TAP.started = true ; ep.tapRunning = true ; ep.tapFailures = 0
 
 -- =====================================================================
-out("\n=== 2f. 🚨 THE LEFT ⌘ IS ALFRED'S ===\n")
+out("\n=== 2f. 🚨 ONE KEY, AND IT IS THE RIGHT ONE ===\n")
 -- =====================================================================
--- LL runs Alfred on ⌘⌘. This config can only narrow its own half of that
--- key, and these checks are that half.
+-- Back to the shipped gesture for the rest of the file.
+ep.tapMod, ep.tapSide = "alt", "right"
+ep.resolveCodes()
+ep.describe()
+
 local function tapWith(code, gap)
     feed(flagsEvent({ [ep.tapMod] = true }, code)); tick(0.05)
     feed(flagsEvent({}, code)); tick(gap or 0.10)
@@ -292,41 +316,39 @@ local function doubleTap(code)
     tapWith(code); tapWith(code)
 end
 
-check("the shipped default is the RIGHT key", ep.tapSide == "right", ep.tapSide)
-check("…of the ⌘ modifier", ep.tapMod == "cmd", ep.tapMod)
-check("the gesture names itself", ep.gesture() == "right ⌘⌘", ep.gesture())
 check("the keycodes were resolved from hs.keycodes.map",
-      ep.leftCode == 55 and ep.rightCode == 54,
+      ep.leftCode == 58 and ep.rightCode == 61,
       tostring(ep.leftCode) .. "/" .. tostring(ep.rightCode))
 check("a keycode is attributed to its side",
-      ep.sideOf(54) == "right" and ep.sideOf(55) == "left"
-      and ep.sideOf(61) == nil and ep.sideOf(nil) == nil)
+      ep.sideOf(61) == "right" and ep.sideOf(58) == "left"
+      and ep.sideOf(54) == nil and ep.sideOf(nil) == nil)
 
-doubleTap(R_CMD)
-check("right ⌘⌘ opens the picker", ep.fires == 1, ep.fires)
+doubleTap(R_ALT)
+check("right ⌥⌥ opens the picker", ep.fires == 1, ep.fires)
 
-doubleTap(L_CMD)
-check("left ⌘⌘ does NOT — that is Alfred's", ep.fires == 0, ep.fires)
+doubleTap(L_ALT)
+check("left ⌥⌥ does NOT — the other ⌥ is not this gesture",
+      ep.fires == 0, ep.fires)
 
 -- The wrong side must CANCEL, not merely fail to count. If it only failed
--- to count, reaching for Alfred mid-sequence would leave a right-⌘ tap
--- armed and the next right ⌘ a beat later would open the picker.
+-- to count, a left-hand tap mid-sequence would leave a right-⌥ tap armed
+-- and the next right ⌥ a beat later would open the picker unasked.
 reset()
-tapWith(R_CMD)          -- one good tap, armed
-tapWith(L_CMD)          -- Alfred
-tapWith(R_CMD)          -- and a good tap right after
-check("a left ⌘ between two right ⌘ taps cancels the gesture",
+tapWith(R_ALT)          -- one good tap, armed
+tapWith(L_ALT)          -- the other hand
+tapWith(R_ALT)          -- and a good tap right after
+check("a left ⌥ between two right ⌥ taps cancels the gesture",
       ep.fires == 0, ep.fires)
 
 reset()
-tapWith(L_CMD); tapWith(R_CMD)
+tapWith(L_ALT); tapWith(R_ALT)
 check("left-then-right is not a pair either", ep.fires == 0, ep.fires)
 
 -- Counters. These are what _G.editorPickerReport() prints, and the only
 -- way to tell "you have not pressed it yet" from "this keyboard has none".
 ep.sidesSeen = { left = 0, right = 0 }
 reset()
-tapWith(R_CMD); tapWith(R_CMD); tapWith(L_CMD)
+tapWith(R_ALT); tapWith(R_ALT); tapWith(L_ALT)
 check("each side is counted as it is pressed",
       ep.sidesSeen.right == 2 and ep.sidesSeen.left == 1,
       tostring(ep.sidesSeen.right) .. "/" .. tostring(ep.sidesSeen.left))
@@ -334,14 +356,14 @@ check("each side is counted as it is pressed",
 -- 🚨 A PRESS WITH NO READABLE SIDE IS REFUSED, NOT GUESSED.
 ep.sideUnknown, ep.saidUnknown = 0, false
 reset()
-feed(flagsEvent({ cmd = true }, false)); tick(0.05)
+feed(flagsEvent({ alt = true }, false)); tick(0.05)
 feed(flagsEvent({}, false)); tick(0.10)
-feed(flagsEvent({ cmd = true }, false)); tick(0.05)
+feed(flagsEvent({ alt = true }, false)); tick(0.05)
 feed(flagsEvent({}, false))
 check("a press naming no side does not fire", ep.fires == 0, ep.fires)
 check("…and was counted", ep.sideUnknown == 2, ep.sideUnknown)
 check("…and the keystroke still passed through",
-      feed(flagsEvent({ cmd = true }, false)) == false)
+      feed(flagsEvent({ alt = true }, false)) == false)
 
 -- Said ONCE at the limit, not once per keypress.
 local function unknownLines()
@@ -373,32 +395,63 @@ check("…and it names ⇪⇧Z", (function()
 end)())
 
 out("\n=== 2g. the side is a setting, and so is the modifier ===\n")
+-- 🚨 ⌘ MUST NOW DO NOTHING AT ALL. This is the check that says the move
+-- off ⌘ actually happened: Alfred is on right ⌃⌃ and ⌘⌘ belongs to
+-- neither of them any more.
+reset()
+feed(flagsEvent({ cmd = true }, R_CMD)); tick(0.05); feed(flagsEvent({}, R_CMD))
+tick(0.10)
+feed(flagsEvent({ cmd = true }, R_CMD)); tick(0.05); feed(flagsEvent({}, R_CMD))
+check("⌘⌘ does not open the picker any more", ep.fires == 0, ep.fires)
+reset()
+feed(flagsEvent({ ctrl = true }, KC.rightctrl)); tick(0.05)
+feed(flagsEvent({}, KC.rightctrl)); tick(0.10)
+feed(flagsEvent({ ctrl = true }, KC.rightctrl)); tick(0.05)
+feed(flagsEvent({}, KC.rightctrl))
+check("…nor does right ⌃⌃, which is Alfred's", ep.fires == 0, ep.fires)
+
+-- 🚨 THE INTRUDER TEST FOLLOWS THE SETTING. With tapMod = "alt", ⌥ is the
+-- gesture and must not count as a foreign modifier in its own press —
+-- while ⌘ now must. Hard-code that list again and this fails.
+reset()
+feed(flagsEvent({ alt = true, cmd = true }, R_ALT)); tick(0.05)
+feed(flagsEvent({}, R_ALT)); tick(0.10)
+feed(flagsEvent({ alt = true }, R_ALT)); tick(0.05)
+feed(flagsEvent({}, R_ALT))
+check("⌥ held with ⌘ is a chord, not half a gesture", ep.fires == 0, ep.fires)
+
 ep.tapSide = "left"
 ep.describe()
-doubleTap(L_CMD)
-check("tapSide = \"left\" moves it to the left ⌘", ep.fires == 1, ep.fires)
-doubleTap(R_CMD)
-check("…and the right ⌘ is the one refused now", ep.fires == 0, ep.fires)
-check("the gesture renames itself", ep.gesture() == "left ⌘⌘", ep.gesture())
+doubleTap(L_ALT)
+check("tapSide = \"left\" moves it to the left ⌥", ep.fires == 1, ep.fires)
+doubleTap(R_ALT)
+check("…and the right ⌥ is the one refused now", ep.fires == 0, ep.fires)
+check("the gesture renames itself", ep.gesture() == "left ⌥⌥", ep.gesture())
 
 ep.tapSide = "either"
 ep.sideUnknown = 0
 ep.describe()
-doubleTap(L_CMD)
-check("tapSide = \"either\" is the 6.116.0 behaviour — left fires",
+doubleTap(L_ALT)
+check("tapSide = \"either\" takes the side out of it — left fires",
       ep.fires == 1, ep.fires)
-doubleTap(R_CMD)
+doubleTap(R_ALT)
 check("…and so does right", ep.fires == 1, ep.fires)
 reset()
-feed(flagsEvent({ cmd = true }, false)); tick(0.05)
+feed(flagsEvent({ alt = true }, false)); tick(0.05)
 feed(flagsEvent({}, false)); tick(0.10)
-feed(flagsEvent({ cmd = true }, false)); tick(0.05)
+feed(flagsEvent({ alt = true }, false)); tick(0.05)
 feed(flagsEvent({}, false))
 check("…and an unreadable side is not refused when no side was asked for",
       ep.fires == 1, ep.fires)
 check("…nor counted as a refusal", ep.sideUnknown == 0, ep.sideUnknown)
 
--- ⌥ is the answer if Alfred turns out to fire on both ⌘ keys.
+-- Back onto ⌘ and out again, because the modifier is a setting and the
+-- 6.116.0 gesture has to remain one line away.
+ep.tapSide, ep.tapMod = "either", "cmd"
+ep.describe()
+doubleTap(R_CMD)
+check("tapMod = \"cmd\" restores the 6.116.0 gesture", ep.fires == 1, ep.fires)
+check("…and it renames itself back", ep.gesture() == "⌘⌘", ep.gesture())
 ep.tapSide, ep.tapMod = "right", "alt"
 ep.describe()
 check("the gesture follows the modifier", ep.gesture() == "right ⌥⌥",
@@ -406,22 +459,6 @@ check("the gesture follows the modifier", ep.gesture() == "right ⌥⌥",
 check("…and so do the keycodes, without being told to re-resolve",
       ep.sideOf(R_ALT) == "right" and ep.sideOf(R_CMD) == nil,
       tostring(ep.leftCode) .. "/" .. tostring(ep.rightCode))
-doubleTap(R_ALT)
-check("right ⌥⌥ opens the picker", ep.fires == 1, ep.fires)
-reset()
-feed(flagsEvent({ cmd = true }, R_CMD)); tick(0.05); feed(flagsEvent({}, R_CMD))
-tick(0.10)
-feed(flagsEvent({ cmd = true }, R_CMD)); tick(0.05); feed(flagsEvent({}, R_CMD))
-check("…and ⌘⌘ no longer does anything at all", ep.fires == 0, ep.fires)
--- 🚨 THE INTRUDER TEST HAS TO FOLLOW THE SETTING TOO. With tapMod = "alt",
--- ⌥ is the gesture and must not count as a foreign modifier in its own
--- press — while ⌘ now must.
-reset()
-feed(flagsEvent({ alt = true, cmd = true }, R_ALT)); tick(0.05)
-feed(flagsEvent({}, R_ALT)); tick(0.10)
-feed(flagsEvent({ alt = true }, R_ALT)); tick(0.05)
-feed(flagsEvent({}, R_ALT))
-check("⌥ held with ⌘ is a chord, not half a gesture", ep.fires == 0, ep.fires)
 
 -- The map is the source of the keycodes, not the fallback constants.
 KC.rightalt = 99
@@ -443,22 +480,20 @@ check("…and the gesture still works rather than dying quietly",
 KC.alt = 58
 
 -- Back to the shipped settings for everything below.
-ep.tapMod, ep.tapSide = "cmd", "right"
+ep.tapMod, ep.tapSide = "alt", "right"
 ep.resolveCodes()
 ep.describe()
 ep.sidesSeen, ep.sideUnknown, ep.saidUnknown = { left = 0, right = 0 }, 0, false
 reset()
 
-out("\n=== 2h. nothing may say ⌘⌘ from memory ===\n")
+out("\n=== 2h. nothing may name the gesture from memory ===\n")
 check("the cheat sheet title names the live gesture",
-      M.cheatsheet.title:find("right ⌘⌘", 1, true) ~= nil,
+      M.cheatsheet.title:find("right ⌥⌥", 1, true) ~= nil,
       M.cheatsheet.title)
 check("…and so does its first row",
-      M.cheatsheet.entries[1][1] == "right ⌘⌘", M.cheatsheet.entries[1][1])
-check("…and a row says whose the other one is",
-      M.cheatsheet.entries[8][1] == "left ⌘⌘"
-      and M.cheatsheet.entries[8][2]:find("Alfred", 1, true) ~= nil,
-      M.cheatsheet.entries[8][1])
+      M.cheatsheet.entries[1][1] == "right ⌥⌥", M.cheatsheet.entries[1][1])
+check("…and a row names the key this is NOT",
+      M.cheatsheet.entries[8][1] == "left ⌥⌥", M.cheatsheet.entries[8][1])
 ep.tapMod = "ctrl" ; ep.resolveCodes() ; ep.describe()
 check("changing the modifier rewrites the sheet rather than leaving it stale",
       M.cheatsheet.title:find("right ⌃⌃", 1, true) ~= nil
@@ -472,7 +507,9 @@ check("a title already harvested by init.lua is corrected in place",
       _G.moduleCheatsheets[1].title == M.cheatsheet.title,
       _G.moduleCheatsheets[1].title)
 _G.moduleCheatsheets = nil
-ep.tapMod = "cmd" ; ep.resolveCodes() ; ep.describe()
+-- Back to the shipped gesture, and it stays there to the end of the file:
+-- section 6 reads the report and the report must describe what ships.
+ep.tapMod = "alt" ; ep.resolveCodes() ; ep.describe()
 
 -- =====================================================================
 out("\n=== 3. the roster, sorted ===\n")
@@ -634,14 +671,14 @@ local rep = _G.editorPickerReport()
 check("it names the tap's state", rep:find("watcher    : running", 1, true) ~= nil,
       rep)
 check("it names the gesture and both settings it is made of",
-      rep:find("right ⌘⌘", 1, true) ~= nil
-      and rep:find("tapMod = cmd", 1, true) ~= nil
+      rep:find("right ⌥⌥", 1, true) ~= nil
+      and rep:find("tapMod = alt", 1, true) ~= nil
       and rep:find("tapSide = right", 1, true) ~= nil, rep)
 check("it names the fallback key", rep:find("⇪⇧Z", 1, true) ~= nil)
 check("it counts the roster", rep:find("registered : 1", 1, true) ~= nil, rep)
 check("it lists each editor", rep:find("One", 1, true) ~= nil)
 
--- 🚨 THE PART THAT DIAGNOSES A KEYBOARD WITH NO RIGHT ⌘. Nought presses on
+-- 🚨 THE PART THAT DIAGNOSES A KEYBOARD WITH NO RIGHT ⌥. Zero presses on
 -- the side you chose means the gesture cannot fire, and this report is the
 -- only place that would ever say why.
 ep.sidesSeen, ep.sideUnknown = { left = 3, right = 0 }, 0
