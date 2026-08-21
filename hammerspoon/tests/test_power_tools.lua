@@ -290,14 +290,14 @@ check("the cheat sheet key cell is exactly ⇪;", (function()
     end
     return false
 end)())
-check("all ten tools are in the list", #pt.tools == 10, #pt.tools)
+check("all eleven tools are in the list", #pt.tools == 11, #pt.tools)
 check("…and each has a stable id", (function()
-    -- 6.132.0 added countclip and case. ids are what _G.powerReport()
-    -- counts by and what ⇪space's run map points at, so they are checked
-    -- by name rather than by number alone.
+    -- 6.132.0 added countclip and case; 6.133.0 added define. ids are
+    -- what _G.powerReport() counts by and what ⇪space's run map points
+    -- at, so they are checked by name rather than by number alone.
     local want = { plain = true, type = true, count = true, meta = true,
                    pause = true, ghere = true, greveal = true, qr = true,
-                   countclip = true, case = true }
+                   countclip = true, case = true, define = true }
     for _, t in ipairs(pt.tools) do
         if not want[t.id] then return false end
         want[t.id] = nil
@@ -611,7 +611,7 @@ end)(), CLIP)
 
 pt.show()
 local pc = CHOOSERS[#CHOOSERS]
-check("the palette lists all ten tools", #pc.choices_ == 10, #pc.choices_)
+check("the palette lists all eleven tools", #pc.choices_ == 11, #pc.choices_)
 check("every palette row value is a scalar too", (function()
     for _, c in ipairs(pc.choices_) do
         for _, v in pairs(c) do

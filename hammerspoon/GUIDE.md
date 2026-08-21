@@ -12,7 +12,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 ├── init.lua          the orchestrator (3,411 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (10 files)
-├── modules/          one file per feature (57 files, ~36,700 lines)
+├── modules/          one file per feature (58 files, ~37,300 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
 ├── snippets/         bundled.lua — 2,006 shipped snippets in one table,
 │                     in five collections. Since 6.117.0 the .json packs
@@ -319,6 +319,38 @@ em dash is above 127 too, so the punctuation that is NOT a letter is
 named in a list rather than guessed at from the byte value. Any pattern
 in this config that walks user text has the same problem waiting in it.
 
+**When no source is guaranteed, make the sources a list and say which
+one answered** (6.133.0). ⇪8 wants definitions and synonyms; there is no
+single place to get them that is present on every Mac, offline, free and
+ours to read. There are four partial places. So `modules/define.lua`
+holds a `providers` list, each with `available()` for THIS Mac and a
+`why()` that names the fix, and the panel prints the source that
+answered. 🚨 **The reason is not neatness — it is that the silent
+failure is indistinguishable from the real one.** "No definition found"
+is what a missing `wn` looks like and also what a nonsense word looks
+like, and the first is fixed by one `brew install` while the second is
+not fixable at all. `_G.defineReport()` is where that distinction lives.
+
+⚠️ **A provider that is a good idea is not automatically a provider you
+should ship.** Apple's own dictionary data is the best text on the
+machine and already licensed to you. It sits in `Body.data` as zlib
+chunks of Apple-schema XML, crackable with the Perl macOS already ships.
+It is deliberately absent, because a parser that breaks on a macOS
+update fails by handing you GARBLED TEXT rather than by refusing — and
+refusing is the only failure this config accepts from something it
+cannot verify. The provider list is what makes that a deferral rather
+than a decision: it becomes provider 0 the day it is written and nothing
+else changes.
+
+🚨 **Anything asynchronous needs a generation number, not just a
+callback.** Look up one word, give up, look up another; the first
+reply arrives late and repaints the panel under the second word's title,
+and ⏎ types the wrong word into a document with everything on screen
+agreeing it was right. `d.gen` increments on each lookup AND when the
+picker closes, and a reply carrying a stale generation is dropped
+without being drawn. Any panel in this config that fills in from a task
+or a fetch has the same hazard waiting in it.
+
 **A registry field is the cheap way to add a capability to every
 module at once** (6.130.0). `_G.editors` gained one optional field,
 `csv`, and that was the whole of "write every editor to one
@@ -427,9 +459,9 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Fifty-six Lua suites, 5,305 checks, plus three more that run the Capture
+Fifty-seven Lua suites, 5,440 checks, plus three more that run the Capture
 Pad's, the screenshot editor's and unified search's page JavaScript under
-`node` for a further 105 — **5,410 checks over sixty-one stages** in
+`node` for a further 105 — **5,545 checks over sixty-two stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 
@@ -517,6 +549,9 @@ tests/test_power_tools.lua   🧰 ⇪;: secure input checked BEFORE a character 
 tests/test_text_case.lua     🔠 the six cases: where a word starts, why an accented
                              letter is not punctuation, and why camel/kebab/snake
                              run per line rather than over the whole selection
+tests/test_define.lua        📖 ⇪8: WordNet parsed from captured output, and the
+                             abandoned lookup whose late answer must never repaint
+                             the panel you have moved on to
 tests/test_tab_search.lua    🗂 ⇪⇧': the running-process check that stops the scan
                              LAUNCHING every browser, and the jump that verifies
                              the URL it landed on before calling it a jump
@@ -534,7 +569,7 @@ tests/test_activity_url.lua  🌐 the url column: the AppleScript's exact-match
                              allow-list, incognito failing closed, secrets cut
                              from the query AND the fragment, and the tab-switch
                              race driven through the real poller
-tests/test_integration.lua   🚨 all 57 modules loaded TOGETHER: shortcut, service and
+tests/test_integration.lua   🚨 all 58 modules loaded TOGETHER: shortcut, service and
                              cheat-sheet-slot collisions — the only suite that can
                              catch two modules quietly claiming the same key
 tests/test_pad_js.js         the Capture Pad's in-page JavaScript, actually executed

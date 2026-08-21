@@ -4,6 +4,94 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.133.0 — WHAT IT MEANS, AND WHAT ELSE YOU COULD SAY:
+  📖 LL: "I need a way to look up words for their definition and be
+     presented at the same time with their synonyms. How can we build
+     this?"
+  ⇪8 — put the cursor on a word or select it. One list opens holding
+     both: every sense of the word with its definition, and under each
+     sense the words that share it. ⏎ ON A SYNONYM REPLACES YOUR
+     SELECTION WITH IT. Nothing selected opens the box empty; type a
+     word and press ⏎. It is also a row on ⇪; and on ⇪space.
+  ❓ AND YES, YOUR MAC ALREADY DOES THIS — ⌃⌘D. Apple's Look Up popover
+     is good and this does not replace it. Three things it will not do,
+     which are the three reasons this exists: the thesaurus is a
+     SEPARATE ENTRY you scroll to or click into, and "at the same time"
+     was the whole of the ask; you cannot act on it, so reading that
+     `terse` is a synonym of `curt` and then retyping it by hand is the
+     part that wastes the time; and in a good half of these apps it
+     wants the mouse.
+  📚 THERE IS NO ONE SOURCE THAT IS PRESENT ON EVERY MAC, offline, free,
+     and legally ours to read. There are four partial ones. So the
+     sources are a LIST, asked in order, and the panel says which one
+     answered:
+       1. WordNet (`brew install wordnet`) — offline, one process, no
+          network. Not a compromise: its data model IS the thing that
+          was asked for — a sense, its definition, and the set of words
+          that share that sense. Most dictionaries make you infer that
+          pairing; WordNet stores it.
+       2. dictionaryapi.dev — definitions and synonyms per sense in one
+          keyless call. OFF BY DEFAULT.
+       3. Dictionary.app — always there, nothing to install, and Oxford
+          rather than WordNet's terser glosses. Not in-panel, so it is
+          the floor rather than the answer — the last row always hands
+          off to it, even when something else answered.
+  🚨 "NO DEFINITION FOUND" IS WHAT A MISSING wn LOOKS LIKE, and it is
+     also what a nonsense word looks like — and the first is fixed by
+     one brew command while the second is not fixable at all. Every
+     provider therefore carries a why() that names the FIX rather than
+     the fault, and _G.defineReport() prints which sources this Mac has,
+     which it does not, and what to do about it.
+  🚫 THE ONE THAT IS DELIBERATELY NOT HERE: Apple's own dictionary DATA.
+     It is the best text on the machine and already licensed to you, and
+     it lives in Body.data — zlib-compressed chunks of Apple-schema XML
+     whose layout has changed across macOS releases. It is crackable
+     without Homebrew, since macOS ships a Perl with zlib. It is absent
+     because a parser that breaks on a macOS update fails by handing you
+     GARBLED TEXT rather than by saying it cannot read the file, and
+     this config would rather refuse than lie. If it is ever written it
+     becomes provider 0 and nothing else changes — which is most of why
+     the providers are a list at all.
+  🌐 THE WEB PROVIDER IS OFF UNTIL YOU TURN IT ON. A lookup sends the
+     word you are writing about to somebody else's server. On the work
+     MacBook that is a sentence fragment leaving a managed machine, and
+     the proxy may eat the request anyway. The default sends nothing
+     anywhere; d.allowNetwork = true is one edit, and the report says
+     the option exists whether or not you have taken it.
+  ⏱ EVERY LOOKUP IS ASYNCHRONOUS, AND THAT IS NOT A PREFERENCE.
+     Hammerspoon has one thread and it is the thread that reads your
+     keyboard. A synchronous `wn` or a synchronous fetch does not make
+     the panel slow — it stops your typing, in every app, for as long as
+     it takes. That is precisely the fault 6.131.0 built core/lag.lua to
+     measure, and shipping a new cause of it in the next release would
+     be a poor joke. A sentry reads the module for io.popen, hs.execute
+     and hs.http.get and fails on any of them.
+  🚨 AND A LATE ANSWER MUST NOT LAND IN THE WRONG WORD. Look up `terse`,
+     give up, look up `laconic`; terse's reply arrives a second later
+     and repaints the open picker with terse's synonyms under laconic's
+     title. ⏎ then types the wrong word into your document, and
+     everything on screen agreed it was right. Every lookup carries a
+     GENERATION number — bumped on each lookup and again when the picker
+     closes — and a reply whose generation is stale is dropped without
+     being drawn. BREAK D removes that guard and watches the wrong word
+     arrive.
+  ⌨️ THE GUARDED REPLACE MOVED INTO power_tools AND IS PUBLISHED as
+     power.replaceSelection. ⇪8 is the second tool to write over your
+     selection, and a second copy of "check secure input, wait for
+     ⌘⇧⌃⌥, cap the length" is a second place to forget one of them. The
+     one that would be forgotten is the secure-input check, because it
+     is the only one whose absence is INVISIBLE — nothing arrives, no
+     error is raised, and the field simply stays as it was.
+  ✂️ THE PARSERS ARE PURE FUNCTIONS OF A STRING, so tests/test_define.lua
+     drives both from captured `wn` output and captured JSON with no
+     Mac, no Homebrew and no network in it — 129 checks, seven break
+     tests. The fiddly ones are real: a gloss containing " -- " must not
+     bleed into the synonym list, `light_up` must reach your sentence as
+     "light up", the word itself is dropped from its own synonyms
+     because a row whose ⏎ retypes what you already had reads as broken,
+     and a sense whose only member IS the word KEEPS ITS DEFINITION
+     rather than vanishing with it.
+
 NEW IN 6.132.0 — THE CASE OF THE THING:
   🔠 LL: "I need a way to Change/Transform Text Case — upper, lower,
      title, camel, kebab, or snake. I think I have something already to

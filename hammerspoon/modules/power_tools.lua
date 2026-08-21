@@ -145,6 +145,7 @@ local M = {
             { "📋 count", "The same, and both counts onto the clipboard" },
             { "🔠 case",  "UPPER · lower · Title · camel · kebab · snake —" },
             { "",        "each row previews YOUR text, then ⏎ types it back" },
+            { "📖 define", "Meaning + synonyms together — ⏎ swaps the word" },
             { "📋 plain", "Strips every bit of formatting off the clipboard" },
             { "ℹ️ meta",  "Every mdls attribute of the Finder selection, ⏎ copies" },
             { "⇪'",     "⏸ Pause all audio and video — media key + every" },
@@ -669,11 +670,62 @@ function M.setup(core)
         return true
     end
 
-    -- 🚨 THE SAME THREE GUARDS typeClipboard needs, for the same reasons,
-    -- and one more: an unchanged result is not typed at all. Retyping a
-    -- paragraph that is already lowercase would replace it with an
-    -- identical paragraph, which is invisible unless the app's undo stack
-    -- matters to you — and it always does.
+    -- =====================================================================
+    -- ⌨️ REPLACE THE SELECTION — the guarded chain, in ONE place (6.133.0)
+    -- =====================================================================
+    -- 🚨 THE SAME THREE GUARDS typeClipboard needs, for the same reasons.
+    -- Extracted from applyCase the moment a SECOND tool wanted to write
+    -- over your selection: ⇪8 replaces a word with its synonym, and a
+    -- second copy of "check secure input, wait for the modifiers, cap the
+    -- length" is a second place for one of those three to be forgotten.
+    -- The one that would be forgotten is the secure-input check, because
+    -- it is the only one whose absence is INVISIBLE — nothing arrives, no
+    -- error is raised, and the field simply stays as it was.
+    --
+    -- Published as power.replaceSelection so any module can use it without
+    -- reaching into this one. `icon` and `what` only shape the messages;
+    -- the refusals have to name the tool you actually pressed.
+    function pt.typeOver(text, icon, what)
+        icon, what = icon or "⌨️", what or "text"
+        if type(text) ~= "string" or text == "" then
+            note("nothing to type over the selection (" .. what .. ")")
+            return false
+        end
+        if #text > pt.typeMax then
+            note(what .. " too long to type (" .. #text .. " characters)")
+            hs.alert.show(("%s %d characters is too much to type back — the\n"
+                .. "cap is %d. Nothing was changed.")
+                :format(icon, #text, pt.typeMax), 5)
+            return false
+        end
+        local okSec, secure = pcall(hs.eventtap.isSecureInputEnabled)
+        if okSec and secure then
+            note("secure input is on — " .. what .. " cannot be typed back")
+            hs.alert.show(icon .. " Secure input is ON — macOS blocks synthetic\n"
+                .. "keystrokes. Your selection is untouched.", 5)
+            return false
+        end
+        pt.startTimer = hs.timer.doAfter(pt.typeDelay, function()
+            pt.startTimer = nil
+            pt.whenClear(function(clear)
+                if not clear then
+                    note("modifiers never came up — refused to type " .. what)
+                    hs.alert.show(icon .. " ⌘⇧⌃⌥ still held — nothing typed", 3)
+                    return
+                end
+                say(("%s: %d characters typed back"):format(what, #text))
+                pt.postText(text)
+            end)
+        end)
+        return true
+    end
+
+    -- ⚠️ AND ONE GUARD THAT IS THIS TOOL'S ALONE: an unchanged result is
+    -- not typed at all. Retyping a paragraph that is already lowercase
+    -- replaces it with an identical paragraph, which is invisible unless
+    -- the app's undo stack matters to you — and it always does. That test
+    -- cannot move into typeOver, because ⇪8 replacing a word with a
+    -- synonym has no "unchanged" to compare against.
     function pt.applyCase(id, text)
         if type(text) ~= "string" or text == "" then
             note("no text held for the case picker")
@@ -691,32 +743,7 @@ function M.setup(core)
             hs.alert.show("🔠 Already " .. tostring(id) .. " — nothing typed", 3)
             return false
         end
-        if #out > pt.typeMax then
-            note("case result too long to type (" .. #out .. " characters)")
-            hs.alert.show(("🔠 %d characters is too much to type back — the\n"
-                .. "cap is %d. Nothing was changed."):format(#out, pt.typeMax), 5)
-            return false
-        end
-        local okSec, secure = pcall(hs.eventtap.isSecureInputEnabled)
-        if okSec and secure then
-            note("secure input is on — the case cannot be typed back")
-            hs.alert.show("🔠 Secure input is ON — macOS blocks synthetic\n"
-                .. "keystrokes. Your selection is untouched.", 5)
-            return false
-        end
-        pt.startTimer = hs.timer.doAfter(pt.typeDelay, function()
-            pt.startTimer = nil
-            pt.whenClear(function(clear)
-                if not clear then
-                    note("modifiers never came up — refused to type the case")
-                    hs.alert.show("🔠 ⌘⇧⌃⌥ still held — nothing typed", 3)
-                    return
-                end
-                say(("case " .. id .. ": %d characters typed back"):format(#out))
-                pt.postText(out)
-            end)
-        end)
-        return true
+        return pt.typeOver(out, "🔠", "case " .. tostring(id))
     end
 
     -- =====================================================================
@@ -1420,6 +1447,20 @@ end tell]]
         { id = "case",  icon = "🔠", title = "Change the case of the selection",
           sub = "UPPER · lower · Title · camel · kebab · snake, previewed first",
           run = function() return pt.changeCase() end },
+        -- 6.133.0 — ⇪8 has its own key; the row is here because ⇪; is
+        -- where you look when the key has not stuck yet.
+        { id = "define", icon = "📖", title = "Define the selection",
+          sub = "Meaning and synonyms together — ⏎ swaps the word · ⇪8",
+          run = function()
+              if not (_G.service and _G.service.has
+                      and _G.service.has("define.selection")) then
+                  note("define.selection has no provider")
+                  hs.alert.show("📖 The Define module is not loaded.\n"
+                      .. "⇪⇧D lists module status.", 4)
+                  return false
+              end
+              return _G.service.call("define.selection") and true or false
+          end },
         { id = "meta",  icon = "ℹ️", title = "File metadata",
           sub = "Every mdls attribute of the Finder selection — ⏎ copies one",
           run = function() return pt.fileMetadata() end },
@@ -1557,6 +1598,14 @@ end tell]]
     core.provide("power.count",    function() return pt.run("count") end)
     core.provide("power.countClip", function() return pt.run("countclip") end)
     core.provide("power.case",     function() return pt.run("case") end)
+    -- 6.133.0 — the guarded replace, for any module that needs to write
+    -- over your selection. ⇪8 is the first caller; see pt.typeOver.
+    core.provide("power.replaceSelection",
+                 function(text, icon, what) return pt.typeOver(text, icon, what) end)
+    -- …and the reader that goes with it, so a caller does not grow its own
+    -- copy of "accessibility first, ⌘C second, refuse third" either.
+    core.provide("power.readSelection",
+                 function(label, done) return pt.withSelection(label, done) end)
     core.provide("power.metadata", function() return pt.run("meta")  end)
     core.provide("power.pause",    function() return pt.run("pause") end)
     core.provide("power.ghostty",  function() return pt.run("ghere") end)

@@ -4,8 +4,46 @@
 -- =====================================================================
 -- 08-21-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.132.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.133.0
 -- =====================================================================
+
+-- NEW IN 6.133.0 — WHAT IT MEANS, AND WHAT ELSE YOU COULD SAY:
+--   📖 LL: "I need a way to look up words for their definition and be
+--      presented at the same time with their synonyms."
+--   ⇪8 — the selection's meaning and its synonyms in ONE list, and ⏎ on
+--      a synonym REPLACES YOUR SELECTION with it. Nothing selected opens
+--      the box empty; type a word and press ⏎.
+--   ❓ AND YES, ⌃⌘D EXISTS. Apple's Look Up is good and this does not
+--      replace it. Three things it will not do: the thesaurus is a
+--      SEPARATE entry you click into, you cannot act on what it shows
+--      you, and in half these apps it wants the mouse.
+--   📚 NO ONE SOURCE IS PRESENT ON EVERY MAC, so the sources are a LIST
+--      and the panel says which one answered. WordNet first (offline,
+--      `brew install wordnet`, and its data model IS "a sense, its
+--      definition, and the words that share it"). A web API second, OFF
+--      by default. Dictionary.app always last, because a row that hands
+--      off to the thing that definitely works beats "nothing found".
+--   🚨 "NO DEFINITION FOUND" IS WHAT A MISSING wn LOOKS LIKE, and also
+--      what a nonsense word looks like — and the first is fixed by one
+--      brew command. Every provider therefore carries a why() that names
+--      the fix, and _G.defineReport() prints it.
+--   🌐 THE WEB PROVIDER IS OFF UNTIL YOU TURN IT ON. A lookup sends the
+--      word you are writing about to somebody else's server; on the work
+--      MacBook that is a sentence fragment leaving a managed machine.
+--   ⏱ EVERY LOOKUP IS ASYNC, WHICH IS NOT A PREFERENCE. A synchronous
+--      `wn` or fetch does not make the panel slow — it stops your typing
+--      in every app, which is the exact fault 6.131.0 built core/lag.lua
+--      to measure. hs.task and asyncGet, and a sentry reads the file for
+--      io.popen, hs.execute and hs.http.get.
+--   🚨 AND A LATE ANSWER MUST NOT LAND IN THE WRONG WORD. Look up one
+--      word, give up, look up another; the first reply arrives and
+--      repaints the panel under the second word's title, and ⏎ types the
+--      wrong word into your document. Every lookup carries a generation
+--      number and a stale reply is dropped undrawn.
+--   ⌨️ THE GUARDED REPLACE MOVED INTO power_tools AND IS PUBLISHED. ⇪8
+--      is the second tool to write over your selection, and a second
+--      copy of "check secure input, wait for ⌘⇧⌃⌥, cap the length" is a
+--      second place to forget the one whose absence is invisible.
 
 -- NEW IN 6.132.0 — THE CASE OF THE THING:
 --   🔠 LL: "I need a way to Change/Transform Text Case — upper, lower,
@@ -139,43 +177,10 @@
 --      the report is still "it does not move", stop editing the
 --      mechanism and go read what the user was told to press.
 
--- NEW IN 6.128.0 — AND IT STILL DID NOT MOVE:
---   🪟 LL, on the 6.127.0 fix: "I clicked and dragged and nothing
---      happened." 6.127.0 was a real bug really fixed. It was not the
---      only way to get nothing, because a ⌘-drag on a picker had to pass
---      TWO computed tests before it was allowed to start, and either one
---      failing looks identical from the outside: a picker that will not
---      move, in silence.
---   🚨 TEST ONE — "IS A PICKER OPEN" was answered ONLY by
---      hs.chooser.globalCallback. If that willOpen never arrived, the
---      whole picker branch of the mouse tap was skipped and ⌘ did
---      nothing at all. macOS will answer chooser:isVisible() directly,
---      so that is the truth now; the callback is a hint that gets
---      checked, and 6.127.0's placement record is a second way in.
---   🚨 TEST TWO — "IS THE CLICK INSIDE THE BOX" and the box is a GUESS:
---      a recorded top-left, a width the picker may decline to give, an
---      assumed 44px row. ⌘-DRAG NO LONGER ASKS. A visible picker plus ⌘
---      moves it, from anywhere — the same principle the module already
---      held when there was no box at all. The box now decides one thing
---      only: where the bare-click search band is.
---   🩺 AND EVERY CLICK IS WRITTEN DOWN. 6.127.0's report recorded only
---      DECLINED ⌘-clicks, so the two commonest ways to get nothing — a
---      bare click below the band, and a picker the module never saw —
---      both left it printing "none". _G.windowMoveReport() now replays
---      the last click it judged: where, with which modifier, whether a
---      picker was seen and how it knew, and what it decided.
---   ⚠️ THE REPORT IS ALWAYS READ WITH NOTHING OPEN — a chooser holds the
---      keyboard, so reaching the Console means closing it first. 6.127.0
---      printed a live box built from 40%-width fallbacks in that state
---      and labelled it like a measured one. Live values now say so.
---   💡 THE LESSON: a feature gated on a computed value fails exactly
---      like a feature that is missing. Gate on something the OS will
---      state, or do not gate.
-
--- (6.127.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.128.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.132.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.133.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -486,7 +491,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.132.0"
+_G.configVersion = "6.133.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2925,6 +2930,10 @@ local BASE = {
     -- press the key. Order here is therefore irrelevant; it sits beside
     -- power_tools only because that is where a reader will look.
     "text_case",          -- 🔠 UPPER · lower · Title · camel · kebab · snake
+    -- 6.133.0 — AFTER power_tools, though only for readability: it reaches
+    -- that module's guarded read-selection and replace-selection through
+    -- core.call at keypress time, so the order is not load-bearing.
+    "define",             -- 📖 ⇪8  meaning and synonyms, in one list
     -- 6.120.0 — the rest of LL's twelve. tab_search LAST of these three
     -- because it is the only one that talks to other applications over
     -- Apple Events, and a module that can be refused a permission is

@@ -969,6 +969,21 @@ local ALLOWED_BINARIES = {
   ["/.homebrew/bin/brew"]       = "OPTIONAL, under $HOME — the no-admin install",
   ["/.local/homebrew/bin/brew"] = "OPTIONAL, under $HOME — the no-admin install",
 }
+-- 🚨 6.133.0 — OPTIONAL BINARIES ARE A SEPARATE TABLE, NOT AN ENTRY IN
+-- THE ONE ABOVE. ⇪8 looks for WordNet's `wn`, which does NOT ship with
+-- macOS — so filing it under ALLOWED_BINARIES would have silenced 9c by
+-- asserting something untrue. The claim 9c makes is the one that matters
+-- on a managed Mac and it must stay exactly true: every binary this
+-- config REQUIRES is one macOS already ships. Anything here is one it
+-- can do without, the way it does without brew — the feature degrades
+-- and says so, and nothing else changes.
+local OPTIONAL_BINARIES = {
+  -- ~/bin/wn arrives here as "/bin/wn": the search path is built as
+  -- home .. "/bin/wn", so the quoted fragment in the source looks like a
+  -- system path to this scan. It is not one.
+  ["/bin/wn"] = "OPTIONAL, under $HOME — WordNet for ⇪8; without it the "
+             .. "define panel hands off to Dictionary.app instead",
+}
 local seen, unexpected = {}, {}
 for line in text:gmatch("[^\n]+") do
   if not line:match("^%s*%-%-") then
@@ -977,7 +992,9 @@ for line in text:gmatch("[^\n]+") do
       if path:match("^/usr/bin/") or path:match("^/bin/") or path:match("^/sbin/")
          or path:match("^/usr/sbin/") or path:match("brew$") then
         seen[path] = true
-        if not ALLOWED_BINARIES[path] then unexpected[#unexpected+1] = path end
+        if not (ALLOWED_BINARIES[path] or OPTIONAL_BINARIES[path]) then
+          unexpected[#unexpected+1] = path
+        end
       end
     end
   end
@@ -990,7 +1007,7 @@ check("...and the list is not empty (the scan actually ran)", next(seen) ~= nil)
 -- is optional. This is the claim that matters for a managed Mac: the
 -- config installs nothing and depends on nothing IT has to approve.
 for path in pairs(seen) do
-  if not path:match("brew$") then
+  if not (path:match("brew$") or OPTIONAL_BINARIES[path]) then
     check("ships with macOS: " .. path, ALLOWED_BINARIES[path] ~= nil)
   end
 end
@@ -1014,9 +1031,18 @@ check("brew is RUN only from update_tracker (screenshots may look under "
         -- ONLY place it says "brew" is the sentence that tells you how to
         -- install the decoder when there isn't one. Any OTHER brew
         -- reference in either module still fails here.
+        -- 6.133.0 — define.lua joins the same carve-out for the same
+        -- reason. ⇪8 looks under the brew prefixes for `wn` and runs wn
+        -- itself; the only place it says "brew" other than those paths
+        -- is the sentence telling you how to install WordNet when there
+        -- isn't one. Any OTHER brew reference in any of the three still
+        -- fails here.
         if not line:match("^%s*%-%-") and line:find("brew", 1, true)
            and not ((name == "screenshots" or name == "power_tools")
-                    and line:lower():find("zbar", 1, true)) then
+                    and line:lower():find("zbar", 1, true))
+           and not (name == "define"
+                    and (line:lower():find("wordnet", 1, true)
+                         or line:find("/bin/wn", 1, true))) then
           return false, name
         end
       end
@@ -1082,7 +1108,17 @@ check("...and a refusal is caught and explained, not fatal",
 -- because you selected that row and pressed Enter. The second is you
 -- clicking a link. Only the first is network activity this config
 -- initiates, and that is what is asserted here.
-check("the only host the config CONTACTS is Asana",
+-- 🚨 6.133.0 — THE RULE GAINED ITS FIRST EXCEPTION, AND GOT STRICTER
+-- FOR IT. ⇪8 can ask dictionaryapi.dev for a definition. Widening this
+-- to "these hosts" would have retired the only property worth having,
+-- so the exception is NAMED and the thing now asserted is the one that
+-- actually protects the work Mac: the shipped default must be OFF, and
+-- the fetch must be gated on the same switch. A host in this table is a
+-- host you can turn on; it is not a host this config contacts.
+local OPT_IN_HOSTS = {
+  ["api.dictionaryapi.dev"] = { module = "define", switch = "allowNetwork" },
+}
+check("the only host the config CONTACTS unasked is Asana",
       (function()
         local hosts = {}
         for line in text:gmatch("[^\n]+") do
@@ -1095,10 +1131,46 @@ check("the only host the config CONTACTS is Asana",
           end
         end
         for h in pairs(hosts) do
-          if h ~= "app.asana.com" then return false, h end
+          if h ~= "app.asana.com" and not OPT_IN_HOSTS[h] then return false, h end
         end
         return next(hosts) ~= nil        -- and the scan must have found it
       end)())
+-- 🚨 AND EVERY OPT-IN HOST SHIPS OFF. This is the check that replaces
+-- what the old wording promised. A default flipped to true — by an
+-- edit, a merge, or a good intention — turns a tool that sends nothing
+-- anywhere into one that sends the words you are writing to a third
+-- party, silently, on a managed machine. It fails the gate instead.
+for host, spec in pairs(OPT_IN_HOSTS) do
+  local body = moduleText[spec.module] or ""
+  -- ⚠️ CODE ONLY. The first version of this check searched the raw file
+  -- and failed on the module's own refusal message — the sentence that
+  -- tells you how to switch the provider ON contains the assignment as
+  -- text. A sentry that cannot tell an instruction from a string would
+  -- have been silenced by rewording the message, which is exactly the
+  -- wrong lesson. Comments and string literals come out first, the same
+  -- way the showPopup audit strips comments before counting calls.
+  local code = body:gsub("%-%-[^\n]*", ""):gsub('"[^"\n]*"', '""')
+  check("🚨 " .. host .. " is OFF in the shipped source ("
+        .. spec.module .. "." .. spec.switch .. " = false)",
+        code:find("%." .. spec.switch .. "%s*=%s*false") ~= nil
+        and code:find("%." .. spec.switch .. "%s*=%s*true") == nil,
+        code:match("[%w_]*%." .. spec.switch .. "%s*=%s*%w+"))
+  check("..." .. host .. "'s fetch is gated on that switch, so turning it "
+        .. "off really stops it", (function()
+          for line in body:gmatch("[^\n]+") do
+            if not line:match("^%s*%-%-") and line:find("asyncGet", 1, true) then
+              -- the guard is the line above it in the same function
+              local at = body:find(line, 1, true)
+              return body:sub(math.max(1, at - 400), at)
+                         :find("if not " .. "d%." .. spec.switch) ~= nil
+            end
+          end
+          return false
+        end)())
+  check("..." .. host .. " is reachable only through a provider that "
+        .. "reports itself unavailable when the switch is off",
+        body:find("available = function%(%) return d%." .. spec.switch) ~= nil)
+end
 check("...every OTHER url is only ever handed to your browser, never fetched",
       (function()
         local ut2 = moduleText.update_tracker or ""
