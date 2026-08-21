@@ -287,6 +287,44 @@ the errors each module's guard counts to switch a broken tap off, and
 symptom it was built to find. Two named locals carry the callback's two
 return values, which is the whole documented contract.
 
+**A gauge answers "how bad"; finding a culprit needs a switch**
+(6.134.0). 6.131.0 could measure every tap and still not settle the
+question, because the only control available was quitting Hammerspoon —
+which changes nine taps, forty timers and every watcher at once. That
+proves the config is responsible and names nothing inside it.
+`_G.lagTapsOff()` makes every keyboard tap inert for ninety seconds and
+`_G.lagOnly(n)` leaves exactly one running, so the experiment can be run
+in steps smaller than the whole application.
+
+🚨 **Inert, not stopped — because the config fights back.** Stopping a
+tap is the obvious implementation, and `text_expander` and `autocorrect`
+each run a 30-second watchdog that finds a stopped tap and restarts it.
+A diagnostic that silently undoes itself half a minute in does not fail,
+it *lies*, and it lies in the direction of "the taps are innocent" —
+the exact conclusion under test. So the tap keeps running and the
+wrapper returns `false` without calling the module's handler: nothing
+can re-arm what was never disarmed. It returns `false` and never `true`
+for the same class of reason — `true` means "handled", which would eat
+every keystroke in the config, and this is a button pressed by someone
+whose typing is already broken.
+
+🚨 **A tool must be able to answer whether it is itself the problem.**
+The site walker steps deliberately past `core/lag.lua` so a module's tap
+is blamed on the module rather than the probe — and that same rule would
+have filed the probe's own 20-a-second heartbeat under `init.lua`,
+whoever happened to load `core/`. It carries an explicit override so it
+appears in its own table under its own name. The question is fair: the
+probe shipped in 6.131.0 and the lag was reported again in 6.133.0.
+
+**Aggregate by call site when the thing measured is created in a loop.**
+Taps are created once and live forever, so a record per creation is a
+record per tap. Timers are not, and a record per creation would be a
+table that grows for as long as Hammerspoon runs — a leak inside the
+tool built to find leaks. `hs.timer.doAfter` is left unwrapped
+altogether: it is the hot one-shot, and resolving a call site costs a
+stack walk, so measuring it would put a real cost on a hot path in order
+to measure cost.
+
 **A shared rule belongs to neither of the tools that use it** (6.132.0).
 ⇪R renames files and ⇪; transforms selected text, and both needed the
 same six case rules. Putting them in either module means the other one

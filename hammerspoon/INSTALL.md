@@ -25,7 +25,7 @@ with no admin password. The two steps that *can* use admin are marked
 │   ├── hyper_key.lua         ⇪'s second way in, and the proof it works
 │   ├── changelog_csv.lua     one Excel-ready row per version
 │   ├── console.lua           the ⛔ ERRORS + ⚠️ NONBREAKING sections + repeat limiter
-│   ├── lag.lua               which tap is eating the keystroke — _G.lagReport()
+│   ├── lag.lua               which tap is eating the keystroke — _G.lagReport(), _G.lagTapsOff()
 │   └── notices.lua           the failure ledger — nothing fails silently
 ├── modules/              58 files, loaded by the §1.12 loader
 ├── tools/                hs-doctor.sh · hs-install.sh · run-tests.sh

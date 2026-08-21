@@ -4,8 +4,51 @@
 -- =====================================================================
 -- 08-21-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.133.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.134.0
 -- =====================================================================
+
+-- NEW IN 6.134.0 — THE SWITCH, NOT JUST THE GAUGE:
+--   ⌨️ LL: "Since the last, at least two versions, once I launch
+--      Hammerspoon my typing goes very slowly. I quit Hammerspoon. Then,
+--      back to normal. What do you need from me?"
+--   🔍 FIRST, WHAT IT IS NOT. 6.132.0 and 6.133.0 added no per-keystroke
+--      cost at all: text_case touches no hs API whatsoever, and define
+--      does nothing until ⇪8 is pressed. Neither creates a tap or a
+--      repeating timer. The suspicion was checked before any code was
+--      written, because the cheapest fix is the one you do not build.
+--   🔌 _G.lagTapsOff() — EVERY KEYBOARD TAP GOES INERT FOR 90 SECONDS.
+--      Type during that window. Whether the lag goes away is the whole
+--      answer, and it arrives in one round instead of five.
+--   🚨 INERT, NOT STOPPED, AND THE DIFFERENCE IS THE DESIGN. The expander
+--      and autocorrect each run a 30-second watchdog that finds a STOPPED
+--      tap and restarts it. A test that undoes itself half a minute in
+--      does not fail — it lies, and it lies in the direction of "the taps
+--      are innocent". So the tap keeps running and the wrapper returns
+--      false without calling the module. Nothing can re-arm what was
+--      never disarmed.
+--   ⏲ AND IT PUTS ITSELF BACK. While taps are inert ⇪ does nothing —
+--      ⇪ IS a tap — so a switch with no timer is one that can strand you
+--      in a config with no shortcuts. _G.lagTapsOn() ends it early.
+--   🔢 _G.lagOnly(n) RUNS EXACTLY ONE TAP. n is the # column, and it is
+--      the CREATION number, not the row position: the report sorts by
+--      time spent, so a sort-position number would name a different tap
+--      between reading it and typing it.
+--   ⏱ AND THE TIMERS ARE MEASURED NOW TOO, so "not a tap" stops being a
+--      dead end. The old report could say the thread stalled 900ms at
+--      14:32 and not one word about what was running. hs.timer.doEvery
+--      and .new are wrapped the same way, aggregated by call site, and
+--      totalled as a share of the one thread.
+--   🚨 INCLUDING THE PROBE'S OWN HEARTBEAT, under its own name. The site
+--      walker deliberately steps PAST core/lag.lua so a module's tap is
+--      blamed on the module — which would have filed the probe's own
+--      20-a-second timer under init.lua. A tool that cannot be asked
+--      whether it is itself the problem is the wrong tool here, because
+--      this file shipped in 6.131.0 and the lag was reported in 6.133.0.
+--      _G.lagQuiet() stops that heartbeat outright, so the probe can be
+--      ruled out rather than argued about.
+--   📋 THE REPORT GOES TO THE CLIPBOARD and ends by naming the next
+--      command. Evidence handed to someone whose typing is broken is a
+--      second job.
 
 -- NEW IN 6.133.0 — WHAT IT MEANS, AND WHAT ELSE YOU COULD SAY:
 --   📖 LL: "I need a way to look up words for their definition and be
@@ -149,38 +192,10 @@
 --      so ⌥⏎ cannot put an empty string on your clipboard over something
 --      you wanted, and it is in the CSV too — its cells are full paths.
 --
--- NEW IN 6.129.0 — THE KEYS THAT ALWAYS MOVED IT:
---   🪟 LL, after three versions of drag fixes: "Can this box move or not?
---      We're stuck in a loop. Can't move it no matter what. Also, what
---      key combo will move this? Maybe it's me and not you?"
---   ✅ IT WAS NOT THEM. ⇪⇧ ← → ↑ ↓ HAS MOVED AN OPEN PICKER SINCE 6.30.
---      50 px a tap, hold the arrow to walk it across the screen, ⇪⇧R
---      back to automatic. It is an hs.hotkey, so it fires THROUGH a
---      chooser that owns the keyboard, and it repositions by hide() then
---      show(point) — the only reposition macOS gives an hs.chooser. It
---      shares nothing with the mouse tap, the globalCallback or the
---      computed box: the three things 6.126–6.128 were spent debugging.
---   🚨 AND IT WAS MISSING FROM THE ONE PLACE IT WAS NEEDED. The nudge is
---      in the global cheat sheet. It was NOT in the WINDOW MOVE group —
---      the group a person opens when a picker will not move. That group
---      listed the ⌃⌥⌘R reset for a nudge whose ARROWS it never named,
---      and five unproven mouse gestures. It now leads with the keys, and
---      _G.windowMoveReport() prints them at the top of every report.
---   ⚠️ NEVER DRAG A PICKER BY ITS ROWS — now stated outright, in both
---      places. A bare click on a row RUNS that entry and closes the
---      picker, so the most natural place to grab is the one place that
---      cannot work. Bare click-hold drags the SEARCH BAND only; ⌘ held
---      drags from anywhere.
---   💡 THE LESSON: a working feature nobody can find is indistinguishable
---      from a broken one, and it costs more — the hunt for the bug
---      happens in code that has none. When a fix ships three times and
---      the report is still "it does not move", stop editing the
---      mechanism and go read what the user was told to press.
-
--- (6.128.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.129.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.133.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.134.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -491,7 +506,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.133.0"
+_G.configVersion = "6.134.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

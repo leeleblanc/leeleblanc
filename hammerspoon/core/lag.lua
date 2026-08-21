@@ -91,8 +91,77 @@
 -- the thread, not an accusation — the report says so rather than
 -- implying every entry is a bug.
 --
---     _G.lagReport()    everything measured so far
+-- ---------------------------------------------------------------------
+-- 🔌 6.134.0 — THE SWITCH, because measuring was not enough
+-- ---------------------------------------------------------------------
+-- LL, again, two versions later: "once I launch Hammerspoon my typing
+-- goes very slowly. I quit Hammerspoon. Then, back to normal."
+--
+-- That is a BETTER symptom than the first report, and the difference is
+-- the whole reason this section exists. "Sometimes it lags" needs a
+-- probe that is always on. "It lags whenever this program is running"
+-- is a controlled experiment waiting to happen — the variable is
+-- already isolated, and what is missing is a way to move it in steps
+-- smaller than quitting the whole application.
+--
+-- Quitting Hammerspoon changes EVERYTHING at once: nine keyboard taps,
+-- forty timers, every watcher. It proves the config is responsible and
+-- names nothing. So this file gains the two intermediate positions:
+--
+--     _G.lagTapsOff()   every keyboard tap goes inert, nothing else does
+--     _G.lagOnly(n)     exactly one tap runs; the other eight are inert
+--
+-- 🚨 INERT, NOT STOPPED, and that distinction is the entire design.
+-- Stopping a tap looks obvious and does not survive contact with this
+-- config: text_expander and autocorrect each run a 30-second watchdog
+-- that finds a stopped tap and starts it again. A test that silently
+-- undoes itself after thirty seconds is worse than no test, because it
+-- returns a WRONG answer rather than no answer — you would type for a
+-- minute, feel the lag come back, and conclude taps were innocent.
+--
+-- So the tap keeps running and the WRAPPER returns false without ever
+-- calling the module's handler. Nothing can re-arm it because nothing
+-- was disarmed, the keystroke passes through untouched, and the cost of
+-- the whole mechanism on the normal path is one comparison against an
+-- upvalue.
+--
+-- ⏲ AND IT PUTS ITSELF BACK. lagTapsOff takes a number of seconds and
+-- defaults to 90. While taps are inert ⇪ does nothing — that is the
+-- point, ⇪ IS a tap — so a switch with no timer would be a switch that
+-- can strand you in a config with no shortcuts, needing the Console to
+-- escape. The timer means the worst case is that you wait.
+--
+-- ---------------------------------------------------------------------
+-- ⏱ AND THE TIMERS, so that "not a tap" is not a dead end
+-- ---------------------------------------------------------------------
+-- If typing is still slow with every tap inert, the old report had
+-- nothing else to offer: it could tell you the thread stalled at
+-- 14:32:07 for 900ms and not one word about what was running. A stall
+-- with no attribution is a symptom restated, not a diagnosis.
+--
+-- hs.timer.doEvery and hs.timer.new are wrapped the same way and for
+-- the same reason — every repeating timer in this config is born from
+-- them, so nothing has to register and a timer written next year is
+-- measured on the day it is written. They are aggregated BY CALL SITE,
+-- so the table is bounded by how many timers the config creates rather
+-- than by how often they fire.
+--
+-- 🚨 hs.timer.doAfter IS DELIBERATELY NOT WRAPPED. It is the one-shot,
+-- and it is called from alerts, debounces and every deferred paste —
+-- often several times a second. Resolving a call site costs a stack
+-- walk, and paying for one on every doAfter would put a real cost on a
+-- hot path in order to measure cost. A one-shot that blocks the thread
+-- still shows up, as a stall with the time of day beside it.
+--
+--     _G.lagReport()    everything measured so far (also to the clipboard)
 --     _G.lagReset()     zero the counters and start again
+--     _G.lagTapsOff(s)  every keyboard tap inert for s seconds (default 90)
+--     _G.lagTapsOn()    undo it now
+--     _G.lagOnly(n)     only tap n runs — n is the # column in the report
+--     _G.lagMute(n)     make tap n inert on its own
+--     _G.lagUnmute(n)   and put it back
+--     _G.lagQuiet()     stop the probe's OWN heartbeat — it is a suspect
+--                       too, and it should be possible to rule it out
 -- =====================================================================
 
 return function(core)
@@ -116,6 +185,24 @@ return function(core)
     lag.installedAt = nil
     lag.wrapped    = 0
     lag.note       = nil       -- why the probe is not measuring, if so
+
+    -- ✏️ How long lagTapsOff stays off before it restores itself. Long
+    -- enough to type a paragraph and form an opinion; short enough that
+    -- forgetting about it is not an event.
+    lag.offSeconds = 90
+
+    lag.timers     = {}        -- repeating-timer records, keyed by call site
+    lag.timerOrder = {}        -- the same records, in creation order
+    lag.timerNote  = nil
+
+    -- 🚨 A PLAIN UPVALUE, NOT lag.suspended. Every wrapped callback closes
+    -- over this one local, so the check on the normal path is a register
+    -- read and a comparison. A field on lag would be a hash lookup on
+    -- every keystroke in every tap, which is a strange thing to spend on
+    -- a switch that is off almost always. lag.isSuspended() reads it for
+    -- anyone outside; nothing outside may write it.
+    local SUSPENDED = false
+    lag.restoreAt = nil        -- when the switch puts itself back, or nil
 
     -- ---- the clock -------------------------------------------------------
     -- Resolved ONCE, here, so the hot path has a plain function to call
@@ -256,6 +343,11 @@ return function(core)
             -- able to stop a tap from being made.
             local okSite, site = pcall(callerSite)
             local rec = {
+                -- The number you type into lagOnly/lagMute. Creation order,
+                -- fixed for the life of the session — the report sorts by
+                -- time spent, and an index that moved when the sort moved
+                -- would name a different tap between reading and typing.
+                n        = #lag.taps + 1,
                 site     = okSite and site or "unknown",
                 types    = names,
                 keyboard = onKeyboard,
@@ -264,6 +356,8 @@ return function(core)
                 max      = 0,
                 slow     = 0,      -- calls at or over lag.slowMs
                 worstAt  = nil,
+                muted    = false,  -- inert on its own, via lagMute
+                skipped  = 0,      -- events that arrived while inert
             }
             lag.taps[#lag.taps + 1] = rec
             lag.wrapped = lag.wrapped + 1
@@ -276,6 +370,16 @@ return function(core)
             -- pressure to the typing path is a probe that causes the
             -- symptom it was built to find.
             local wrapped = function(ev)
+                -- 🚨 FIRST, AND IT RETURNS false. false means "I did not
+                -- handle this event" — the keystroke continues to the app
+                -- exactly as if this tap had never been created. Returning
+                -- true here would EAT every keystroke in the config while
+                -- the switch was on, and the switch is reached by someone
+                -- whose typing is already broken.
+                if SUSPENDED or rec.muted then
+                    rec.skipped = rec.skipped + 1
+                    return false
+                end
                 local t0 = nowMs()
                 local a, b = fn(ev)
                 local dt = nowMs() - t0
@@ -288,11 +392,249 @@ return function(core)
                 if dt >= lag.slowMs then rec.slow = rec.slow + 1 end
                 return a, b
             end
-            return realNew(types, wrapped, ...)
+            rec.tap = realNew(types, wrapped, ...)
+            return rec.tap
         end
 
         lag.installedAt = os.date("%H:%M:%S")
         return true
+    end
+
+    -- =====================================================================
+    -- ⏱ THE REPEATING TIMERS
+    -- =====================================================================
+    -- Same trick, same reason, one difference: records are keyed by CALL
+    -- SITE and reused. A tap is created once and lives forever, so a
+    -- record per creation is a record per tap. A timer can be created and
+    -- discarded in a loop, and a record per creation would be a table that
+    -- grows for as long as Hammerspoon runs — a leak inside the tool whose
+    -- job is to find leaks.
+    local function timerRec(site, kind, interval)
+        local rec = lag.timers[site]
+        if rec then
+            -- Same site, new timer. The interval is worth keeping current
+            -- because a site that creates timers at two different rates is
+            -- exactly the kind of thing worth seeing in the table.
+            rec.made     = rec.made + 1
+            rec.interval = interval or rec.interval
+            return rec
+        end
+        rec = { site = site, kind = kind, interval = interval, made = 1,
+                calls = 0, total = 0, max = 0, slow = 0, worstAt = nil }
+        lag.timers[site] = rec
+        lag.timerOrder[#lag.timerOrder + 1] = rec
+        return rec
+    end
+
+    -- 🚨 THE ONE TIMER callerSite CANNOT NAME IS THIS FILE'S OWN.
+    -- callerSite deliberately walks PAST core/lag.lua, because a tap
+    -- created by a module must be reported against the module and not
+    -- against the probe that wrapped it. The heartbeat is the exception
+    -- that rule cannot see: this file really is its creator, so the walk
+    -- sails past and lands on whoever loaded core/ — init.lua. The probe
+    -- would then be measuring its own 20-a-second timer and filing the
+    -- cost under somebody else's name, which is the precise shape of a
+    -- tool that exonerates itself.
+    local siteOverride = nil
+    local function timedFn(rec, fn)
+        return function(...)
+            local t0 = nowMs()
+            local a, b = fn(...)
+            local dt = nowMs() - t0
+            rec.calls = rec.calls + 1
+            rec.total = rec.total + dt
+            if dt > rec.max then
+                rec.max     = dt
+                rec.worstAt = os.date("%H:%M:%S")
+            end
+            if dt >= lag.slowMs then rec.slow = rec.slow + 1 end
+            return a, b
+        end
+    end
+
+    -- 🚨 TIMERS ARE MEASURED BUT NEVER SUSPENDED, and that asymmetry is
+    -- deliberate. An inert keyboard tap costs you shortcuts for ninety
+    -- seconds. An inert timer costs you whatever that timer was in the
+    -- middle of — a half-written CSV, a pomodoro that never ends, a
+    -- clipboard poller that misses the copy you were about to paste. The
+    -- switch exists to answer one question safely, not to be a general
+    -- off button for the config.
+    function lag.installTimers()
+        if not (hs and hs.timer) then
+            lag.timerNote = "hs.timer is not available — no timer is measured"
+            return false
+        end
+        if hs.timer.__lagOriginalDoEvery or hs.timer.__lagOriginalNew then
+            lag.timerNote = "already wrapped — not wrapping twice"
+            return false
+        end
+
+        local realDoEvery = hs.timer.doEvery
+        if type(realDoEvery) == "function" then
+            hs.timer.__lagOriginalDoEvery = realDoEvery
+            hs.timer.doEvery = function(interval, fn, ...)
+                if type(fn) ~= "function" then
+                    return realDoEvery(interval, fn, ...)
+                end
+                local okSite, site = pcall(callerSite)
+                local rec = timerRec(siteOverride
+                                     or (okSite and site or "unknown"),
+                                     "doEvery", interval)
+                siteOverride = nil
+                return realDoEvery(interval, timedFn(rec, fn), ...)
+            end
+        end
+
+        local realTimerNew = hs.timer.new
+        if type(realTimerNew) == "function" then
+            hs.timer.__lagOriginalNew = realTimerNew
+            hs.timer.new = function(interval, fn, ...)
+                if type(fn) ~= "function" then
+                    return realTimerNew(interval, fn, ...)
+                end
+                local okSite, site = pcall(callerSite)
+                local rec = timerRec(siteOverride
+                                     or (okSite and site or "unknown"),
+                                     "new", interval)
+                siteOverride = nil
+                return realTimerNew(interval, timedFn(rec, fn), ...)
+            end
+        end
+        return true
+    end
+
+    -- =====================================================================
+    -- 🔌 THE SWITCH
+    -- =====================================================================
+    function lag.isSuspended() return SUSPENDED end
+
+    -- Cancelling a pending restore before arming another one: two calls to
+    -- lagTapsOff in a row must not leave the first timer running, or the
+    -- earlier one fires and turns the taps back on halfway through the
+    -- test you just started.
+    local function clearRestore()
+        if lag.restoreTimer then
+            pcall(function() lag.restoreTimer:stop() end)
+            lag.restoreTimer = nil
+        end
+        lag.restoreAt = nil
+    end
+
+    function lag.tapsOn(quiet)
+        clearRestore()
+        SUSPENDED = false
+        for _, r in ipairs(lag.taps) do r.muted = false end
+        local s = "🔌 Lag probe: every tap is live again"
+        if not quiet then
+            pcall(function() hs.alert.show("🔌 Taps back ON") end)
+        end
+        return s
+    end
+
+    function lag.tapsOff(seconds)
+        seconds = tonumber(seconds) or lag.offSeconds
+        if seconds <= 0 then seconds = lag.offSeconds end
+        clearRestore()
+        SUSPENDED = true
+        -- HELD, like every other timer in this config: an unreferenced
+        -- hs.timer is collected, and a collected timer never fires. Here
+        -- that would mean the switch never comes back on by itself, which
+        -- is the one failure this timer exists to prevent.
+        local okT, t = pcall(hs.timer.doAfter, seconds, function()
+            lag.restoreTimer = nil
+            lag.tapsOn(true)
+            pcall(function()
+                hs.alert.show("🔌 Taps back ON — the test window is over", 4)
+            end)
+        end)
+        if okT and t then
+            lag.restoreTimer = t
+            lag.restoreAt = os.date("%H:%M:%S", os.time() + math.floor(seconds))
+        end
+        local s = ("🔌 Lag probe: %d keyboard taps are INERT for %d seconds.\n"
+                   .. "   Type normally now. ⇪ shortcuts will not work — ⇪ is\n"
+                   .. "   itself a tap, and that is the thing being tested.\n"
+                   .. "   _G.lagTapsOn() ends it early.")
+                  :format(lag.keyboardCount(), seconds)
+        if not okT or not t then
+            -- Said loudly, because without the timer this switch is the
+            -- one that can stand you in a config with no shortcuts.
+            s = s .. "\n   ⚠️ THE RESTORE TIMER DID NOT ARM. It will NOT come "
+                  .. "back on by itself — run _G.lagTapsOn() yourself."
+        end
+        pcall(function()
+            hs.alert.show("🔌 Taps INERT for " .. seconds .. "s", 4)
+        end)
+        return s
+    end
+
+    -- 🚨 THE PROBE MUST BE TESTABLE AS A SUSPECT. It shipped in 6.131.0,
+    -- the lag was reported again in 6.133.0, and the heartbeat is the one
+    -- thing this config gained that runs 20 times a second forever whether
+    -- you touch the keyboard or not. Its measured cost is in the TIMERS
+    -- table under its own name, which is evidence — but evidence from the
+    -- accused. This turns it off so the question can be settled instead of
+    -- argued.
+    --
+    -- ⚠️ IT COSTS THE STALL LOG. With the heartbeat stopped nothing is
+    -- watching the thread, so no stall can be recorded until it restarts.
+    -- That is why lagTapsOff does NOT do this — the "still slow with the
+    -- taps off" branch is exactly when the stall log matters most.
+    function lag.quiet(on)
+        on = (on ~= false)
+        if not lag.beat then return "⏱ there is no heartbeat to stop" end
+        if on then
+            pcall(function() lag.beat:stop() end)
+            lag.beatStopped = true
+            return "⏱ the probe's own heartbeat is STOPPED. Type for a"
+                   .. " minute.\n   _G.lagQuiet(false) starts it again —"
+                   .. " no stall is recorded until you do."
+        end
+        local ok = pcall(function() lag.beat:start() end)
+        if not ok then
+            -- Some hs.timer objects will not restart after stop. Saying so
+            -- beats a cheerful message and a dead heartbeat.
+            lag.startHeartbeat()
+        end
+        lag.beatStopped = false
+        return "⏱ the heartbeat is running again"
+    end
+
+    function lag.keyboardCount()
+        local n = 0
+        for _, r in ipairs(lag.taps) do if r.keyboard then n = n + 1 end end
+        return n
+    end
+
+    -- n is the # column. Returns nil and a reason rather than throwing,
+    -- because this is typed into a console by someone who is annoyed.
+    local function tapByNumber(n)
+        n = tonumber(n)
+        if not n then return nil, "give me a number from the # column" end
+        for _, r in ipairs(lag.taps) do if r.n == n then return r end end
+        return nil, ("there is no tap #%d — the report lists 1 to %d")
+                    :format(n, #lag.taps)
+    end
+
+    function lag.mute(n, on)
+        local rec, why = tapByNumber(n)
+        if not rec then return "🔌 " .. why end
+        rec.muted = (on ~= false)
+        return ("🔌 tap #%d (%s) is now %s")
+               :format(rec.n, rec.site, rec.muted and "INERT" or "live")
+    end
+
+    -- The bisect step: everything inert except one. Deliberately does NOT
+    -- arm a restore timer — solo leaves ⇪ working if you solo the hyper
+    -- tap, and the state is visible at the top of every report.
+    function lag.only(n)
+        local rec, why = tapByNumber(n)
+        if not rec then return "🔌 " .. why end
+        SUSPENDED = false
+        for _, r in ipairs(lag.taps) do r.muted = (r ~= rec) end
+        return ("🔌 only tap #%d (%s) is live — every other tap is inert.\n"
+                .. "   _G.lagTapsOn() puts them all back.")
+               :format(rec.n, rec.site)
     end
 
     -- =====================================================================
@@ -308,6 +650,7 @@ return function(core)
         local expected = lag.stallEvery * 1000
         -- HELD in lag.beat: an unreferenced hs.timer is collected, and a
         -- collected timer never fires. Same rule as every timer here.
+        siteOverride = "core/lag.lua (the probe's own heartbeat)"
         local ok, t = pcall(hs.timer.doEvery, lag.stallEvery, function()
             local t1 = nowMs()
             local late = (t1 - last) - expected
@@ -348,8 +691,16 @@ return function(core)
     -- =====================================================================
     -- 🩺 THE REPORT
     -- =====================================================================
+    -- 🚨 ZEROES THE COUNTERS, NOT THE STATE. muted and SUSPENDED survive a
+    -- reset on purpose: reset is what you call at the START of a measured
+    -- run, and a reset that quietly turned every tap back on would undo
+    -- the experiment you were about to measure.
     function lag.reset()
         for _, r in ipairs(lag.taps) do
+            r.calls, r.total, r.max, r.slow, r.worstAt = 0, 0, 0, 0, nil
+            r.skipped = 0
+        end
+        for _, r in ipairs(lag.timerOrder) do
             r.calls, r.total, r.max, r.slow, r.worstAt = 0, 0, 0, 0, nil
         end
         lag.stalls, lag.stallCount = {}, 0
@@ -362,6 +713,16 @@ return function(core)
         return s
     end
 
+    -- The console is the only interface these have, so each one prints
+    -- what it did rather than returning a value you would have to inspect.
+    local function announce(s) print(s) return s end
+    function _G.lagTapsOff(seconds) return announce(lag.tapsOff(seconds)) end
+    function _G.lagTapsOn()         return announce(lag.tapsOn()) end
+    function _G.lagOnly(n)          return announce(lag.only(n)) end
+    function _G.lagMute(n)          return announce(lag.mute(n, true)) end
+    function _G.lagUnmute(n)        return announce(lag.mute(n, false)) end
+    function _G.lagQuiet(on)        return announce(lag.quiet(on)) end
+
     function _G.lagReport()
         local L = { "", "⏱ LAG PROBE" }
         local function line(s) L[#L + 1] = s end
@@ -373,6 +734,29 @@ return function(core)
         line("   slow line  : " .. tostring(lag.slowMs) .. "ms per call"
              .. "   ·   stall line: " .. tostring(lag.stallMs) .. "ms")
         if lag.note then line("   ⚠️ " .. lag.note) end
+        if lag.timerNote then line("   ⚠️ " .. lag.timerNote) end
+
+        -- 🚨 SAID AT THE TOP, NOT BURIED IN A COLUMN. A report read while
+        -- the switch is on describes a config with its taps turned off,
+        -- and every number below it is evidence about a machine that is
+        -- not the one you normally use. Someone who has forgotten they
+        -- pressed the switch would otherwise read a table of zeros as
+        -- proof that the taps were innocent.
+        local muted = {}
+        for _, r in ipairs(lag.taps) do
+            if r.muted then muted[#muted + 1] = "#" .. tostring(r.n) end
+        end
+        if lag.isSuspended() then
+            line("")
+            line("   🔌 EVERY TAP IS INERT RIGHT NOW — the numbers below stopped")
+            line("      moving when you pressed the switch."
+                 .. (lag.restoreAt and ("  Back on at " .. lag.restoreAt .. ".")
+                     or "  No restore timer is armed."))
+        elseif #muted > 0 then
+            line("")
+            line("   🔌 INERT: " .. table.concat(muted, " ")
+                 .. "   — those taps are not running. _G.lagTapsOn() restores them.")
+        end
 
         -- ---- the taps, worst total first ---------------------------------
         -- Sorted by TOTAL time, not by average: a tap averaging 1ms that
@@ -391,14 +775,16 @@ return function(core)
         if #order == 0 then
             line("      none created yet")
         else
-            line(("      %-26s %-22s %8s %8s %8s %6s")
-                 :format("created at", "watches", "calls", "avg ms",
+            line(("      %3s %-26s %-22s %8s %8s %8s %6s")
+                 :format("#", "created at", "watches", "calls", "avg ms",
                          "max ms", "slow"))
             for _, r in ipairs(order) do
                 local avg = (r.calls > 0) and (r.total / r.calls) or 0
-                line(("      %-26s %-22s %8d %8.2f %8.2f %6d%s")
-                     :format(r.site, r.types, r.calls, avg, r.max, r.slow,
-                             r.keyboard and "" or "   (mouse only)"))
+                local tail = r.keyboard and "" or "   (mouse only)"
+                if r.muted then tail = tail .. "   🔌 INERT" end
+                line(("      %3d %-26s %-22s %8d %8.2f %8.2f %6d%s")
+                     :format(r.n, r.site, r.types, r.calls, avg, r.max,
+                             r.slow, tail))
             end
         end
 
@@ -438,6 +824,46 @@ return function(core)
                  .. " read the stalls below.")
         end
 
+        -- ---- the repeating timers -------------------------------------------
+        -- Sorted by total time for the same reason the taps are: a timer
+        -- firing 20 times a second for an hour has spent more of your Mac
+        -- than one that ran once and took 200ms.
+        line("")
+        line("   TIMERS — every repeating timer, by total time spent")
+        local trows = {}
+        for i, r in ipairs(lag.timerOrder) do trows[i] = r end
+        table.sort(trows, function(a, b)
+            if a.total ~= b.total then return a.total > b.total end
+            return tostring(a.site) < tostring(b.site)
+        end)
+        if #trows == 0 then
+            line("      none created yet")
+        else
+            line(("      %-26s %8s %8s %8s %8s %6s")
+                 :format("created at", "every", "fires", "avg ms",
+                         "max ms", "slow"))
+            for _, r in ipairs(trows) do
+                local avg = (r.calls > 0) and (r.total / r.calls) or 0
+                local ivl = tonumber(r.interval)
+                line(("      %-26s %8s %8d %8.2f %8.2f %6d")
+                     :format(r.site, ivl and (("%.2fs"):format(ivl)) or "?",
+                             r.calls, avg, r.max, r.slow))
+            end
+            -- The number that actually answers "is a timer eating my Mac":
+            -- cost per second of wall clock, summed. A 0.05s timer taking
+            -- 1ms is 2% of the thread forever; a 60s timer taking 200ms is
+            -- 0.3% and looks far worse in the max column.
+            local load = 0
+            for _, r in ipairs(trows) do
+                local ivl = tonumber(r.interval)
+                if ivl and ivl > 0 and r.calls > 0 then
+                    load = load + (r.total / r.calls) / (ivl * 1000)
+                end
+            end
+            line(("      → repeating timers are using about %.2f%% of the one"
+                  .. " thread, all told"):format(load * 100))
+        end
+
         -- ---- the stalls ---------------------------------------------------
         line("")
         line("   STALLS — the one thread blocked long enough to be felt")
@@ -459,12 +885,44 @@ return function(core)
         end
         line("")
 
+        -- ---- what to do with all this ---------------------------------------
+        -- 🚨 THE REPORT ENDS BY NAMING THE NEXT ACTION. Everything above is
+        -- evidence, and evidence handed to someone whose typing is broken
+        -- is a second job. One command, chosen by what the numbers say.
+        line("")
+        if lag.isSuspended() then
+            line("   NEXT       : type a paragraph NOW, while the taps are inert.")
+            line("                Still slow? It is not a tap — read TIMERS and"
+                 .. " STALLS above.")
+            line("                Suddenly fine? It IS a tap — _G.lagTapsOn(),"
+                 .. " then bisect with")
+            line("                _G.lagOnly(n) using the # column.")
+        else
+            line("   NEXT       : _G.lagTapsOff() makes every keyboard tap inert"
+                 .. " for " .. tostring(lag.offSeconds) .. " seconds.")
+            line("                Type during that window. Whether the lag goes"
+                 .. " away is the whole answer.")
+        end
+        line("")
+
         local s = table.concat(L, "\n")
         print(s)
+        -- On the clipboard as well as the console, because the useful thing
+        -- to do with this is send it to someone, and selecting many lines
+        -- out of the Hammerspoon console by hand is its own small misery.
+        local copied = pcall(function() hs.pasteboard.setContents(s) end)
+        if copied then print("📋 (that report is on your clipboard too)") end
         return s
     end
 
+    -- 🚨 TIMERS ARE WRAPPED BEFORE THE HEARTBEAT STARTS, so the probe's own
+    -- heartbeat appears in its own TIMERS table. A measuring tool that
+    -- leaves itself out of the measurement is exactly the tool you cannot
+    -- use to answer "is the measuring tool the problem" — which is a real
+    -- question here, because this file was added in 6.131.0 and the lag
+    -- was reported again in 6.133.0.
     lag.install()
+    lag.installTimers()
     lag.startHeartbeat()
 
     _G.lagProbe = lag

@@ -4,6 +4,126 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.134.0 — THE SWITCH, NOT JUST THE GAUGE:
+  ⌨️ LL: "We have a problem. Since the last, at least two versions, once
+     I launch Hammerspoon my typing goes very slowly. My typing goes
+     from smooth to very slow. I quit Hammerspoon. Then, back to normal.
+     What do you need from me?"
+
+  🔍 FIRST, WHAT IT IS NOT — checked before a line was written, because
+     the cheapest fix is the one you do not build. 6.132.0 added
+     text_case, which touches no hs API at all and cannot cost a
+     keystroke anything. 6.133.0 added define, which does nothing
+     whatsoever until ⇪8 is pressed. Neither creates an event tap or a
+     repeating timer. Whatever this is, those two versions did not
+     introduce it — which also means the report "since the last two
+     versions" is measuring when it became UNBEARABLE, not when it
+     started.
+
+  🔌 SO THE PROBE GAINS A SWITCH. 6.131.0 built a gauge: it measures
+     every tap and every stall and prints a table. A gauge answers "how
+     bad" and this problem needs "which one", and the gap between them
+     is a controlled experiment nobody could run — because the only
+     control available was quitting Hammerspoon, which changes nine
+     taps, forty timers and every watcher at once. That proves the
+     config is responsible and names nothing inside it.
+
+         _G.lagTapsOff()   every keyboard tap inert for 90 seconds
+         _G.lagTapsOn()    undo it now
+         _G.lagOnly(n)     exactly one tap runs; the rest stay inert
+         _G.lagMute(n)     make one tap inert on its own
+         _G.lagUnmute(n)   and put it back
+
+     Type during the window. Whether the lag goes away is the whole
+     answer, and it arrives in one round rather than five.
+
+  🚨 INERT, NOT STOPPED, AND THAT DISTINCTION IS THE ENTIRE DESIGN.
+     Stopping a tap is the obvious implementation and it does not
+     survive contact with this config: text_expander and autocorrect
+     each run a 30-second watchdog that looks for a stopped tap and
+     starts it again. A test that quietly undoes itself half a minute in
+     does not fail — it LIES, and it lies in the direction of "the taps
+     are innocent", which is the one conclusion this whole exercise
+     exists to test. So the tap keeps running and the WRAPPER returns
+     false without ever calling the module's handler. Nothing can re-arm
+     what was never disarmed, the keystroke reaches the app untouched,
+     and the cost on the normal path is one comparison against an
+     upvalue.
+
+  🚨 AND IT RETURNS false, NEVER true. true means "I handled this event"
+     and would EAT every keystroke in the config for as long as the
+     switch was on. This is a button pressed by someone whose typing is
+     already broken; the one thing it must never do is make that worse.
+
+  ⏲ IT PUTS ITSELF BACK. While taps are inert ⇪ does nothing — ⇪ IS a
+     tap, and that is precisely the thing under test — so a switch with
+     no timer is a switch that can strand you in a config with no
+     shortcuts, needing the Console to escape. Ninety seconds by
+     default. The worst case is that you wait.
+
+  🔢 THE # COLUMN IS THE CREATION NUMBER, NOT THE ROW POSITION. The
+     report sorts by time spent, so a number that meant "third row"
+     would name a different tap between reading it and typing it — and
+     naming the wrong tap is the only bug a numbering scheme can have.
+
+  ⏱ AND THE TIMERS ARE MEASURED NOW, so "not a tap" stops being a dead
+     end. The old report could tell you the one thread blocked for 900ms
+     at 14:32 and not one word about what was running; a stall with no
+     attribution is a symptom restated, not a diagnosis. hs.timer.doEvery
+     and hs.timer.new are wrapped exactly as hs.eventtap.new is, so
+     nothing has to register and a timer written next year is measured
+     the day it is written. Records are aggregated BY CALL SITE, so a
+     timer created in a loop cannot grow the table forever — a leak
+     inside the tool whose job is finding leaks. The section totals the
+     lot as a share of the one thread, which is the number that actually
+     answers "is a timer eating my Mac": a 0.05s timer taking 1ms costs
+     2% of the thread forever, while a 60s timer taking 200ms costs 0.3%
+     and looks far worse in the max column.
+
+  🚨 hs.timer.doAfter IS DELIBERATELY NOT WRAPPED. It is the one-shot,
+     called from alerts, debounces and every deferred paste — often
+     several times a second. Resolving a call site costs a stack walk,
+     and paying for one on every doAfter would put a real cost on a hot
+     path in order to measure cost. A one-shot that blocks the thread
+     still appears, as a stall with the time of day beside it.
+
+  🚨 THE PROBE MEASURES ITS OWN HEARTBEAT, UNDER ITS OWN NAME. The site
+     walker steps deliberately PAST core/lag.lua so that a module's tap
+     is blamed on the module rather than on the probe that wrapped it —
+     and that same rule would have filed the probe's own 20-a-second
+     timer under init.lua, whoever happened to load core/. A tool that
+     cannot be asked whether it is itself the problem is the wrong tool
+     for this job, and it is a fair question: this file shipped in
+     6.131.0 and the lag was reported again in 6.133.0. _G.lagQuiet()
+     stops the heartbeat outright, so the probe can be ruled out rather
+     than argued about — at the cost of the stall log, which is why
+     lagTapsOff deliberately does NOT do it.
+
+  📋 THE REPORT GOES TO THE CLIPBOARD, and ends by naming the next
+     command rather than the next decision. Everything above it is
+     evidence, and evidence handed to someone whose typing is broken is
+     a second job.
+
+  🔨 FIVE NEW BREAK TESTS, and section 12 is now one of the four in this
+     suite marked as having teeth. The switch returns true and eats
+     every keystroke. The switch does nothing and reports taps innocent.
+     reset() lifts the suspension and silently ends the experiment it
+     was called to begin. Timer records key by creation and the table
+     grows forever. The heartbeat loses its override and the probe
+     exonerates itself. All five pass, which is to say all five caught
+     the break.
+
+  🩹 AND ONE TEST THAT WAS ALWAYS WRONG. "The verdict names a keyboard
+     tap, never the mouse one" was implemented as "the verdict line does
+     not contain 90" — the mouse tap's average. Adding fifty lines to
+     the stub moved the heavy tap to line 390, the verdict read
+     "test_lag.lua:390", and the check failed over a probe behaving
+     perfectly. A test that fails on a line number is a test that gets
+     silenced rather than read. It now compares against the sites the
+     probe actually recorded.
+```
+
+```text
 NEW IN 6.133.0 — WHAT IT MEANS, AND WHAT ELSE YOU COULD SAY:
   📖 LL: "I need a way to look up words for their definition and be
      presented at the same time with their synonyms. How can we build
