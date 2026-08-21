@@ -104,12 +104,32 @@ hs = {
 _G.diag = { say = function() end, warn = function() end, err = function() end }
 
 local BOUND, PROVIDED = {}, {}
+
+-- 💾 6.130.0 — THE CSV EXPORT WRITES A REAL FILE, to a real temp path, and
+-- section 9 reads it back off disk. A stubbed io.open would prove the
+-- module calls a function; only the file proves the QUOTING survives a
+-- clipboard item containing a comma, a quote and a newline — which is the
+-- half of a CSV writer that actually breaks.
+local TMPDIR = (os.getenv("TMPDIR") or "/tmp"):gsub("/$", "")
+local HOSTTAG = "hs-csv-test"
+local CSVPATH = TMPDIR .. "/editors-" .. HOSTTAG .. ".csv"
+local WRITE_FAILS = {}
+
 local CORE = {
     hyperAddShortcut = function(mods, key, fn, src)
         BOUND[(mods and mods[1] or "") .. "+" .. key] = { fn = fn, src = src }
     end,
     provide   = function(n, f) PROVIDED[n] = f end,
     showPopup = function(c) SHOWN[#SHOWN + 1] = c end,
+    logsDir   = TMPDIR,
+    hostTag   = HOSTTAG,
+    -- Byte-for-byte the same rule as init.lua's csvQuote: collapse
+    -- newlines, double the quotes, wrap the lot.
+    csvQuote  = function(v)
+        local s = tostring(v or ""):gsub('[\r\n]+', ' '):gsub('"', '""')
+        return '"' .. s .. '"'
+    end,
+    warnWriteFailed = function(l) WRITE_FAILS[#WRITE_FAILS + 1] = l end,
 }
 
 -- ---- synthetic events --------------------------------------------------
@@ -937,6 +957,7 @@ end
 local MUST_REGISTER = {
     "capture_pad", "note_pad", "ocr_engine",
     "clipboard_history", "win_pin", "screenshot_editor",
+    "screenshots",   -- 6.130.0 — ⏎ on its row opens the FOLDER
 }
 local missing = {}
 for _, name in ipairs(MUST_REGISTER) do
@@ -947,6 +968,46 @@ for _, name in ipairs(MUST_REGISTER) do
 end
 check("every editor-owning module registers into _G.editors",
       #missing == 0, table.concat(missing, ", "))
+
+-- 💾 6.130.0 — AND A MULTI-ITEM STORE MUST SUPPLY `csv`. Without it the
+-- one-file export falls back to `text`, which is the ⌥⏎ answer and is
+-- deliberately just the NEWEST item — so a thousand-item clipboard would
+-- export one row and the spreadsheet would look finished. That is the
+-- worst failure this feature has, because nothing about it looks wrong.
+--
+-- The two pads are correctly absent from this list: their entire content
+-- IS one draft, and the free `text` fallback is the whole truth for them.
+local MUST_SUPPLY_CSV = {
+    "clipboard_history", "ocr_engine", "win_pin", "screenshots",
+}
+local noCSV = {}
+for _, name in ipairs(MUST_SUPPLY_CSV) do
+    local src = slurp(HS .. "/modules/" .. name .. ".lua") or ""
+    if not src:find("csv%s*=%s*function") then noCSV[#noCSV + 1] = name end
+end
+check("💾 every MULTI-item store supplies csv, not just text",
+      #noCSV == 0, table.concat(noCSV, ", "))
+
+-- 🚨 AND THE OCR STORE EXPORTS THE CAPTURE, NOT THE PREVIEW. history()
+-- carries both — .text is a 65-character single-line title built for a
+-- picker row, .rawText is what was actually read off the screen. Section
+-- 9's BREAK 2 shows why this cannot be caught by counting rows: the wrong
+-- one passes every check and truncates every cell.
+--
+-- ⚠️ IT MATCHES THE ASSIGNMENT, NOT THE WORD. The first version of this
+-- sentry looked for "rawText" anywhere in the csv block and passed
+-- happily when the exported field was flipped to it.text — because the
+-- guard one line above still SAYS rawText. A sentry that a real break
+-- walks straight through is worse than none: it is a green tick over a
+-- truncated spreadsheet.
+check("🚨 the OCR store exports rawText, never the 65-char picker preview",
+      (function()
+    local src = slurp(HS .. "/modules/ocr_engine.lua") or ""
+    local block = src:match("csv%s*=%s*function%(%)(.-)\n%s*end,")
+    if not block then return false, "no csv block found" end
+    return block:find("text%s*=%s*it%.rawText") ~= nil,
+           (block:match("out%[#out %+ 1%][^\n]*") or block:sub(1, 120))
+end)())
 
 -- And the module list must actually load it, or none of the above ships.
 local initSrc = slurp(HS .. "/init.lua") or ""
@@ -994,6 +1055,285 @@ check("…and the picker still opens", (function()
     return #SHOWN == before + 1
 end)())
 hs.eventtap.new = realNew
+
+-- =====================================================================
+out("\n=== 9. 💾 EVERY EDITOR INTO ONE CSV (6.130.0) ===\n")
+-- =====================================================================
+-- LL: "Can these write into one file, .csv perhaps? Too crazy?"
+--
+-- The roster was already the right list; it had no way to hand its
+-- CONTENTS over. What is tested here is the contract that gap needed —
+-- `csv` for a store holding many things, `text` as the free single-row
+-- fallback for a store holding one — plus the two properties a
+-- spreadsheet lives or dies by: the quoting, and the fact that this file
+-- is a SNAPSHOT and therefore overwritten rather than appended to.
+
+-- Reads the written file back as a list of physical lines.
+local function csvLines()
+    local f = io.open(CSVPATH, "r")
+    if not f then return nil end
+    local body = f:read("*a"); f:close()
+    local out = {}
+    for line in tostring(body):gmatch("([^\n]+)") do out[#out + 1] = line end
+    return out
+end
+os.remove(CSVPATH)
+
+check("the path is the Logs dir plus the machine tag",
+      ep.csvPath() == CSVPATH, ep.csvPath())
+check("editors.csv is published as a service",
+      type(PROVIDED["editors.csv"]) == "function")
+
+-- ---- the contract ------------------------------------------------------
+-- 🚨 `csv` WINS OVER `text`, and it has to. Every multi-item store also
+-- answers `text` — that is the ⌥⏎ answer and it is deliberately just the
+-- newest item. A writer that read both would export the top row twice.
+check("💾 a csv function supplies one row per item", (function()
+    local n = #ep.itemsOf({ name = "X", csv = function()
+        return { { text = "one" }, { text = "two" }, { text = "three" } }
+    end })
+    return n == 3, n
+end)())
+check("🚨 …and csv WINS over text, which is only the newest item",
+      (function()
+    local items = ep.itemsOf({ name = "X",
+        text = function() return "just the newest" end,
+        csv  = function() return { { text = "a" }, { text = "b" } } end })
+    return #items == 2 and items[1].text == "a", #items
+end)())
+check("💾 a store with only text gets its one row for free", (function()
+    local items = ep.itemsOf({ name = "X",
+        text = function() return "the whole draft" end })
+    return #items == 1 and items[1].text == "the whole draft", #items
+end)())
+check("💾 a store with neither contributes nothing, and does not throw",
+      #ep.itemsOf({ name = "X" }) == 0)
+check("💾 an empty draft is no rows, not one blank row",
+      #ep.itemsOf({ name = "X", text = function() return "" end }) == 0)
+-- ⚠️ These come from OTHER modules, so every shape is checked rather than
+-- assumed. One store answering nonsense must cost its own rows only.
+check("🛡 a csv function that THROWS costs its own rows and nothing else",
+      #ep.itemsOf({ name = "X", csv = function() error("nope") end }) == 0)
+check("🛡 …and so does one that answers a number", (function()
+    local ok, n = pcall(function()
+        return #ep.itemsOf({ name = "X", csv = function() return 42 end })
+    end)
+    return ok and n == 0, ok and n or "threw"
+end)())
+check("🛡 …and junk items inside a good list are dropped, not exported",
+      (function()
+    local items = ep.itemsOf({ name = "X", csv = function()
+        return { { text = "keep" }, { text = 7 }, 99, { text = "" },
+                 "a bare string counts" }
+    end })
+    return #items == 2 and items[1].text == "keep"
+           and items[2].text == "a bare string counts", #items
+end)())
+check("💾 when and label ride along when a store supplies them", (function()
+    local it = ep.itemsOf({ name = "X", csv = function()
+        return { { text = "n", when = "2026-08-21 09:00", label = "Safari" } }
+    end })[1]
+    return it.when == "2026-08-21 09:00" and it.label == "Safari",
+           it.when .. "/" .. it.label
+end)())
+
+-- ---- the file ----------------------------------------------------------
+-- 🚨 THE NASTY STRING IS THE POINT OF THIS BLOCK. A clipboard holds
+-- whatever anybody copied, which routinely means commas (every CSV's
+-- field separator), double quotes (its escape character) and newlines
+-- (its ROW separator). Any one of them written raw turns one item into
+-- several malformed rows, and the damage is invisible until Excel opens
+-- it — so the file is read back and COUNTED, not merely written.
+local NASTY = 'a,comma "quoted" and\na newline'
+local WIDE  = "em—dash and £ and 🙂"      -- 3-byte, 2-byte and 4-byte
+_G.editors = {
+    { name = "Multi", order = 10, csv = function()
+        return { { text = "first", when = "Aug 21 09:00" },
+                 { text = NASTY },
+                 { text = WIDE } }
+    end },
+    { name = "Single", order = 20, text = function() return "one draft" end },
+    { name = "Nothing", order = 30 },
+}
+local rec = ep.exportCSV()
+check("💾 the export reports what it wrote",
+      type(rec) == "table" and rec.rows == 4, rec and rec.rows)
+check("💾 …and names the stores that gave nothing, rather than hiding them",
+      rec and #rec.empty == 1 and rec.empty[1] == "Nothing",
+      rec and rec.empty and rec.empty[1])
+
+local lines = csvLines()
+check("💾 the file exists and carries its header row",
+      lines ~= nil and lines[1] == "Date,Editor,Item,When,Label,Characters,Text",
+      lines and lines[1])
+-- 🚨 FIVE LINES, NOT SEVEN. Four rows plus one header — and it is only
+-- five if the newline inside NASTY was collapsed on the way in.
+check("🚨 a comma, a quote AND a newline still make exactly ONE row each",
+      lines ~= nil and #lines == 5, lines and #lines)
+check("…and the nasty item's text survives it intact", (function()
+    if not lines then return false end
+    for _, l in ipairs(lines) do
+        if l:find('a,comma ""quoted"" and a newline', 1, true) then return true end
+    end
+    return false, "the escaped text is not in the file"
+end)())
+-- 🚨 CHARACTERS, NOT BYTES. # would call this 26; the cell has to agree
+-- with what a human counts in Excel, or the column is worse than absent.
+check("🚨 the Characters column counts CHARACTERS, not bytes", (function()
+    if not lines then return false end
+    local want = tostring(utf8.len(WIDE))
+    for _, l in ipairs(lines) do
+        if l:find(WIDE, 1, true) then
+            return l:find("," .. want .. ',"', 1, true) ~= nil,
+                   l .. "  (wanted " .. want .. ", bytes = " .. #WIDE .. ")"
+        end
+    end
+    return false, "the wide row is missing"
+end)())
+check("💾 a text-only store contributes its single row", (function()
+    if not lines then return false end
+    for _, l in ipairs(lines) do
+        if l:find('"Single","1"', 1, true)
+           or l:find('"Single",1,', 1, true) then return true end
+    end
+    return false, "no Single row"
+end)())
+
+-- 🚨 IT OVERWRITES. See the module header: this dumps whole stores, so an
+-- appending writer would put a thousand byte-identical clipboard rows
+-- under last time's thousand — a longer file that is not a longer record.
+ep.exportCSV()
+local twice = csvLines()
+check("🚨 exporting twice REWRITES the file — it does not append",
+      twice ~= nil and #twice == 5, twice and #twice)
+
+-- ---- the row -----------------------------------------------------------
+local rows = ep.rows()
+local last = rows[#rows]
+check("💾 the export row is the LAST row, always",
+      last ~= nil and last.action == "csv", last and last.text)
+check("…and it is not an editor — it carries no edName to be opened as one",
+      last ~= nil and last.edName == nil)
+check("…and it names the file on the row, before you press it",
+      last ~= nil and last.subText:find(CSVPATH, 1, true) ~= nil, last.subText)
+check("…and no OTHER row claims to be the export",
+      (function()
+    local n = 0
+    for _, r in ipairs(rows) do if r.action == "csv" then n = n + 1 end end
+    return n == 1, n
+end)())
+-- 🚨 A picker that offers to export nothing is offering a lie. The
+-- "No editors registered" row is the whole list when the roster is empty.
+_G.editors = {}
+check("🚨 with nothing registered there is NO export row to press",
+      (function()
+    local r = ep.rows()
+    return #r == 1 and r[1].action == nil, #r
+end)())
+
+-- ---- pressing it -------------------------------------------------------
+-- The chooser's own callback, driven exactly as hs.chooser would.
+_G.editors = { { name = "Single", text = function() return "one draft" end } }
+os.remove(CSVPATH)
+ep.show()
+local cb = CHOOSERS[#CHOOSERS] and CHOOSERS[#CHOOSERS].cb
+check("⏎ on the export row writes the file", (function()
+    if not cb then return false, "no chooser callback" end
+    MODS = {}
+    cb({ text = "💾 Write every editor to one CSV", action = "csv" })
+    return csvLines() ~= nil
+end)())
+-- 🚨 ⌥ IS READ FOR EDITORS AND MUST NOT BE READ HERE. ⌥⏎ means "copy that
+-- editor's text"; there is no text to copy on the export row, and an ⌥
+-- held over from the previous keystroke must not turn a write into a
+-- silent clipboard clobber.
+os.remove(CSVPATH)
+check("🚨 ⌥⏎ on the export row still EXPORTS — it never falls into copy",
+      (function()
+    if not cb then return false end
+    local before = CLIP
+    MODS = { alt = true }
+    cb({ text = "💾 Write every editor to one CSV", action = "csv" })
+    MODS = {}
+    return csvLines() ~= nil and CLIP == before
+end)())
+
+-- ---- a Mac with no Logs folder ----------------------------------------
+-- The hostile Mac: no OneDrive, no logsDir. The export has nowhere to go
+-- and must SAY so rather than throw inside a chooser callback.
+do
+    local saved = CORE.logsDir
+    CORE.logsDir = nil
+    check("🛡 with no Logs folder csvPath() is nil, not a path to nowhere",
+          ep.csvPath() == nil, ep.csvPath())
+    check("🛡 …the export returns nil rather than throwing", (function()
+        local ok, r = pcall(ep.exportCSV)
+        return ok and r == nil, ok and tostring(r) or "threw"
+    end)())
+    check("🛡 …and the row says so instead of naming a file",
+          ep.csvSubText():find("nowhere", 1, true) ~= nil, ep.csvSubText())
+    CORE.logsDir = saved
+end
+
+-- ---- 🔨 break tests ----------------------------------------------------
+do
+    -- 🔨 BREAK 1: the writer opens with "a". This is the single most
+    -- likely "improvement" anybody would make to this file, because every
+    -- OTHER CSV in this config appends — they are logs, one row per event.
+    -- Prove the overwrite check above can actually tell the difference.
+    os.remove(CSVPATH)
+    local function appendTwice()
+        for _ = 1, 2 do
+            local f = io.open(CSVPATH, "a")
+            f:write(ep.CSV_HEADER)
+            f:write('"d","Single",1,"","",9,"one draft"\n')
+            f:close()
+        end
+        return #(csvLines() or {})
+    end
+    check("🔨 BREAK 1: an APPENDING writer doubles the file on a second "
+          .. "export — which is what section 9's overwrite check catches",
+          appendTwice() == 4, appendTwice())
+    os.remove(CSVPATH)
+
+    -- 🔨 BREAK 2: the store exports its PICKER PREVIEW instead of its
+    -- content. OCR history carries both — a 65-character single-line title
+    -- for the row, and the real capture — and picking the wrong one yields
+    -- a spreadsheet of truncated previews that LOOKS complete. Nothing
+    -- about the row count would give it away, so this is what would ship.
+    local full = string.rep("the whole capture ", 20)
+    _G.editors = { { name = "Preview", csv = function()
+        return { { text = full:sub(1, 65) } }      -- the bug
+    end } }
+    local bug = ep.itemsOf(_G.editors[1])[1]
+    check("🔨 BREAK 2: exporting the 65-char preview passes every count "
+          .. "check while silently truncating the item",
+          #bug.text == 65 and #full > 65, #bug.text)
+    _G.editors = { { name = "Real", csv = function()
+        return { { text = full } }
+    end } }
+    check("🔨 …while the real contract carries the whole thing",
+          #ep.itemsOf(_G.editors[1])[1].text == #full)
+end
+
+-- ---- the report names it -----------------------------------------------
+_G.editors = {
+    { name = "Gives", text = function() return "something" end },
+    { name = "Gives Not" },
+}
+do
+    local r = _G.editorPickerReport()
+    check("🩺 the report prints where the CSV goes",
+          r:find(CSVPATH, 1, true) ~= nil)
+    -- 🚨 A store supplying neither csv nor text is simply ABSENT from the
+    -- spreadsheet. The report is the only place that gap is visible before
+    -- somebody goes hunting for a column that was never written.
+    check("🚨 …and says which editors would contribute nothing to it",
+          r:find("supplies no csv and no text", 1, true) ~= nil)
+    check("🩺 …and names the store that DOES contribute, with its row count",
+          r:find("Gives%s+💾 1 row") ~= nil)
+end
+os.remove(CSVPATH)
 
 -- ---- result ------------------------------------------------------------
 out(string.format("\n%d passed, %d failed\n", pass, fail))

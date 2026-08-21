@@ -144,6 +144,7 @@ local M = {
             { "⏎",    "history row: image on clipboard · ⌘⏎ its file PATH" },
             { "⌥⏎",   "history row: open in the editor (blur/text/arrows)" },
             { "⌃⏎",   "history row: compress to “… (compressed).jpg” + clipboard" },
+            { "⌃⌃",   "“Screenshots” in the editor picker — ⏎ OPENS THE FOLDER" },
         },
     },
 }
@@ -718,6 +719,42 @@ function M.setup(core)
         return l[1] and l[1].path or nil
     end
 
+    -- ---- 🗂 the folder itself (6.130.0) -----------------------------------
+    -- LL: "I feel like any screenshots should be captured here, by a line
+    -- entry that sends me to that screenshot's folder"
+    --
+    -- 🚨 hs.task, NEVER hs.execute. hs.execute is SYNCHRONOUS and blocks
+    -- the only thread Hammerspoon has — and this folder lives inside
+    -- ~/Library/CloudStorage, where `open` on a directory OneDrive has not
+    -- finished materialising can sit there for seconds. A Mac frozen
+    -- keyboard-and-all is a far worse answer than a slow Finder window.
+    -- Same rule, same reason, as the sync-osascript rule in hs-lint.
+    function shots.revealFolder()
+        local dir = shots.ensureDir()
+        if not dir then return false end   -- ensureDir has already alerted
+        local t
+        local ok = pcall(function()
+            t = hs.task.new("/usr/bin/open",
+                            function() shots.openTask = nil end, { dir })
+        end)
+        if not (ok and t) then
+            pcall(function() hs.alert.show("📸 Could not open the folder", 3) end)
+            warn("hs.task.new failed for /usr/bin/open")
+            return false
+        end
+        shots.openTask = t   -- HELD: an unreferenced hs.task is collected
+        local started = false
+        pcall(function() started = t:start() end)
+        if not started then
+            shots.openTask = nil
+            pcall(function() hs.alert.show("📸 Could not open the folder", 3) end)
+            warn("/usr/bin/open would not start")
+            return false
+        end
+        say("opened " .. dir .. " in Finder")
+        return true
+    end
+
     -- ---- history picker (⇪⇧4) --------------------------------------------
     -- Thumbnails are the expensive part: hs.image.imageFromPath decodes
     -- the WHOLE png just to draw a 72px row. Two defences: the list cap,
@@ -1219,6 +1256,48 @@ function M.setup(core)
     core.provide("screenshots.latest",  function() return shots.latest() end)
     core.provide("screenshots.capture", function() return shots.capture() end)
     core.provide("screenshots.show",    function() return shots.show() end)
+    core.provide("screenshots.folder",  function() return shots.revealFolder() end)
+
+    -- 🗂 6.130.0 — IN THE EDITOR PICKER (⌃⌃), and it is the odd row there
+    -- on purpose. Every other entry on that roster opens a TEXT surface;
+    -- this one opens a FOLDER, because that is the ask — one line that
+    -- puts you where the captures are, from the same list you already
+    -- reach for when you want something you saved earlier.
+    --
+    -- ⏱ size() SCANS THE DIRECTORY, which is a real cost on a OneDrive
+    -- folder with hundreds of files in it. Accepted for exactly the reason
+    -- the OCR entry accepts its disk read: the picker only ever opens on a
+    -- deliberate gesture, never on a timer and never at boot.
+    --
+    -- No `view` (there is no window of ours to raise), and no `text` — a
+    -- folder has nothing for ⌥⏎ to copy, and saying so by omission is what
+    -- makes the picker print "has no text to copy" instead of putting an
+    -- empty string on the clipboard over something you wanted.
+    _G.editors = _G.editors or {}
+    table.insert(_G.editors, {
+        name  = "Screenshots",
+        key   = "⇪4 / ⇪⇧4",
+        what  = "⏎ opens the folder in Finder",
+        order = 70,
+        unit  = "captures",
+        size  = function() return #shots.list() end,
+        show  = function() shots.revealFolder() end,
+        -- 💾 6.130.0 — and it is IN the one-file CSV export too. A row in
+        -- the picker that contributes no column to the spreadsheet is a
+        -- hole exactly where somebody would go looking. The text cell is
+        -- the full path, so it can be pasted straight into Go-to-Folder.
+        csv   = function()
+            local out = {}
+            for _, f in ipairs(shots.list()) do
+                out[#out + 1] = {
+                    when  = os.date("%Y-%m-%d %H:%M:%S", f.mtime),
+                    label = string.format("%.0f KB", (f.size or 0) / 1024),
+                    text  = f.path,
+                }
+            end
+            return out
+        end,
+    })
 
     _G.screenshots = shots
     M.shots  = shots

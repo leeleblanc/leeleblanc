@@ -157,6 +157,43 @@
 -- go and read it, must never be the keystroke that files it. So the
 -- picker asks `view` first and brings that window forward; `show` is
 -- only ever called on a surface that is not currently up.
+--
+-- ---- 💾 ALL OF IT IN ONE FILE (6.130.0) -----------------------------
+-- LL: "Can these write into one file, .csv perhaps? Too crazy?"
+--
+-- Not crazy — the roster was already the right list, it just had no way
+-- to hand its CONTENTS over. The bottom row of the picker writes every
+-- editor to one spreadsheet:
+--
+--        <Logs>/editors-<Mac>.csv
+--        Date,Editor,Item,When,Label,Characters,Text
+--
+-- 🚨 IT IS A SNAPSHOT, SO IT OVERWRITES. Every other CSV here appends,
+-- because every other CSV here is a LOG — one row per event as it
+-- happens. This one dumps whole stores, and appending it would mean a
+-- second export writing a thousand clipboard rows that are byte-identical
+-- to the first thousand. That file is not a longer record, it is an
+-- unusable one, and Excel is the stated destination. The Date column
+-- stamps WHEN the snapshot was taken; re-running it takes a new one.
+--
+-- 🗂 THE `csv` FIELD IS OPTIONAL AND MOST MODULES DO NOT NEED IT. An
+-- editor holding ONE thing (either pad, whose whole content is a draft)
+-- already answers `text`, and that becomes its single row for free. Only
+-- a store holding MANY things has to say so:
+--
+--     csv = function()
+--         return {                              -- newest first
+--             { when = "2026-08-21 14:23",      -- optional
+--               label = "Safari — Inbox",       -- optional
+--               text  = "the item itself" },
+--         }
+--     end
+--
+-- ⚠️ AND A MODULE THAT SUPPLIES NEITHER IS NOT AN ERROR. It contributes
+-- no rows and is NAMED in the result, because "Window Pins exported
+-- nothing" and "Window Pins was skipped" are different facts and the
+-- silent version of this is a spreadsheet with a store quietly missing
+-- from it. Same rule as the roster itself: whatever registers, appears.
 -- =====================================================================
 
 local M = {
@@ -174,11 +211,13 @@ local M = {
             { "🗂", "The same picker with no key — ⇪space, then \"editor\"" },
             { "⏎",   "Open it — or bring it forward if it is already up" },
             { "⌥⏎",  "Copy that editor's text and leave everything closed" },
-            { "lists", "Capture Pad · Note Pad · OCR text · clipboard · pins" },
+            { "lists", "Capture Pad · Note Pad · OCR text · clipboard · pins · shots" },
             { "sorted", "Open windows first, then whatever has something in it" },
             { "never", "⌘C then ⌘V does NOT open it — see the header" },
             { "either ⌃", "Both Control keys fire it — ep.tapSide narrows it" },
             { "safe", "⌃-click and ⌃-scroll do NOT open it — they cancel it" },
+            { "💾", "The LAST row writes every editor to one CSV in your Logs" },
+            { "snapshot", "That CSV is REWRITTEN each export, not appended to" },
             { "check", "_G.editorPickerReport() — the roster and the tap's health" },
         },
     },
@@ -451,8 +490,151 @@ function M.setup(core)
             rows[1] = { text = "No editors registered",
                         subText = "Nothing inserted into _G.editors — "
                                   .. "see _G.editorPickerReport()" }
+            return rows
         end
+        -- 💾 6.130.0 — APPENDED AFTER THE SORT, so it is always the LAST
+        -- row. Handing it an `order` and letting rank() file it would put
+        -- it among the empty editors, where it would drift up and down the
+        -- list as stores fill and drain — and a destructive-ish action
+        -- (it rewrites its file) is the last thing that should move about
+        -- under somebody's ⏎.
+        rows[#rows + 1] = {
+            text    = "💾 Write every editor to one CSV",
+            subText = ep.csvSubText(),
+            action  = "csv",
+        }
         return rows
+    end
+
+    -- =================================================================
+    -- 💾 EVERY EDITOR, ONE SPREADSHEET
+    -- =================================================================
+    ep.csvBase    = "editors"        -- <Logs>/editors-<Mac>.csv
+    ep.CSV_HEADER = "Date,Editor,Item,When,Label,Characters,Text\n"
+
+    function ep.csvPath()
+        local dir = core.logsDir
+        if type(dir) ~= "string" or dir == "" then return nil end
+        local host = core.hostTag
+        host = (type(host) == "string" and host ~= "") and ("-" .. host) or ""
+        return dir .. "/" .. ep.csvBase .. host .. ".csv"
+    end
+
+    -- 🚨 CHARACTERS, NOT BYTES. # counts bytes, and a clipboard full of
+    -- em-dashes, curly quotes and emoji would report a length nobody can
+    -- reconcile with what they can see in the cell. utf8.len answers nil
+    -- on a malformed string rather than throwing — and a malformed string
+    -- is exactly the case where the byte count IS the honest answer.
+    local function textLen(s)
+        local ok, n = pcall(function() return utf8 and utf8.len(s) end)
+        if ok and type(n) == "number" then return n end
+        return #s
+    end
+
+    -- One editor's rows. `csv` is the rich answer, `text` is the one-row
+    -- fallback every single-draft editor gets for free, and neither is
+    -- required — see the header.
+    --
+    -- ⚠️ EVERY SHAPE IS CHECKED, not assumed. This runs over every module
+    -- at once, so one store answering a number where a string belongs must
+    -- cost its own rows and nothing else's. callField already pcalls.
+    function ep.itemsOf(e)
+        local out = {}
+        local items = callField(e, "csv", nil)
+        if type(items) == "table" then
+            for _, it in ipairs(items) do
+                local body, when, label = nil, "", ""
+                if type(it) == "string" then
+                    body = it
+                elseif type(it) == "table" then
+                    body = it.text
+                    if type(it.when)  == "string" then when  = it.when  end
+                    if type(it.label) == "string" then label = it.label end
+                end
+                if type(body) == "string" and body ~= "" then
+                    out[#out + 1] = { when = when, label = label, text = body }
+                end
+            end
+            return out
+        end
+        local txt = callField(e, "text", nil)
+        if type(txt) == "string" and txt ~= "" then
+            out[1] = { when = "", label = "", text = txt }
+        end
+        return out
+    end
+
+    -- What the row says underneath itself. The PATH is on the row, so you
+    -- know where it lands before pressing ⏎ rather than after.
+    function ep.csvSubText()
+        local p = ep.csvPath()
+        if not p then
+            return "no Logs folder on this Mac — the export has nowhere to go"
+        end
+        return "rewritten each time · " .. p
+    end
+
+    -- Returns a record — path, rows, and the editors that gave nothing —
+    -- rather than a bare true. The report reads it, and the tests read it
+    -- instead of scraping an alert string.
+    function ep.exportCSV()
+        local path = ep.csvPath()
+        if not path then
+            hs.alert.show("💾 No Logs folder on this Mac — nothing was written")
+            warn("no core.logsDir — the CSV export has nowhere to go")
+            return nil
+        end
+        local stamp = os.date("%Y-%m-%d %H:%M:%S")
+        local lines, count, empty = { ep.CSV_HEADER }, 0, {}
+        for _, s in ipairs(ep.states()) do
+            local items = ep.itemsOf(s.entry)
+            if #items == 0 then empty[#empty + 1] = s.name end
+            for i, it in ipairs(items) do
+                count = count + 1
+                lines[#lines + 1] = table.concat({
+                    core.csvQuote(stamp),
+                    core.csvQuote(s.name),
+                    tostring(i),
+                    core.csvQuote(it.when),
+                    core.csvQuote(it.label),
+                    tostring(textLen(it.text)),
+                    core.csvQuote(it.text),
+                }, ",") .. "\n"
+            end
+        end
+        -- 🚨 "w", AND THE HEADER BLOCK EXPLAINS WHY. This is a snapshot of
+        -- whole stores, not a log of events: appending would write a
+        -- thousand clipboard rows identical to last time's thousand.
+        local f = io.open(path, "w")
+        if not f then
+            if core.warnWriteFailed then
+                pcall(core.warnWriteFailed, "editors.csv")
+            else
+                hs.alert.show("💾 Could not write " .. path)
+            end
+            warn("could not open " .. path .. " for writing")
+            return nil
+        end
+        local okWrite = pcall(function() f:write(table.concat(lines)) end)
+        pcall(function() f:close() end)
+        if not okWrite then
+            if core.warnWriteFailed then
+                pcall(core.warnWriteFailed, "editors.csv")
+            end
+            warn("the write to " .. path .. " failed part-way")
+            return nil
+        end
+        hs.alert.show(string.format("💾 %d row%s → %s", count,
+            count == 1 and "" or "s", path:match("([^/]+)$") or path))
+        say(string.format("exported %d rows to %s", count, path))
+        -- 🚨 SAID OUT LOUD, because "Window Pins holds nothing" and "Window
+        -- Pins was skipped" are different facts and the spreadsheet cannot
+        -- tell them apart — a store with no rows simply is not in it.
+        if #empty > 0 then
+            say("nothing to export from: " .. table.concat(empty, ", "))
+        end
+        ep.lastExport = { path = path, rows = count, when = stamp, empty = empty }
+        return ep.lastExport
     end
 
     -- =================================================================
@@ -533,7 +715,12 @@ function M.setup(core)
     function ep.show()
         if not ep.chooser then
             ep.chooser = hs.chooser.new(function(pick)
-                if not pick or not pick.edName then return end
+                if not pick then return end
+                -- 💾 The export row is not an editor and carries no
+                -- edName. Checked BEFORE the edName guard, which would
+                -- otherwise drop it on the floor in silence.
+                if pick.action == "csv" then return ep.exportCSV() end
+                if not pick.edName then return end
                 -- The modifiers are read HERE rather than remembered from
                 -- a keystroke: the chooser owns the keyboard while it is
                 -- up, and this callback runs on the press that dismissed
@@ -846,6 +1033,25 @@ function M.setup(core)
             L[#L + 1] = "   Nothing registered. A module registers by inserting"
             L[#L + 1] = "   into _G.editors — see the header of this module."
         end
+        -- 💾 6.130.0 — WHERE THE CSV GOES AND WHAT THE LAST ONE DID. A
+        -- store that supplies neither `csv` nor `text` is silently absent
+        -- from the spreadsheet, so the roster above prints a 💾 against
+        -- every editor that WOULD contribute — the one place the gap is
+        -- visible before you go looking for a column that is not there.
+        L[#L + 1] = "   csv        : " .. (ep.csvPath() or "NOWHERE — no Logs folder")
+        for _, s in ipairs(states) do
+            local n = #ep.itemsOf(s.entry)
+            L[#L + 1] = string.format("   %-18s %s", s.name,
+                n > 0 and ("💾 " .. n .. " row" .. (n == 1 and "" or "s"))
+                       or "—  supplies no csv and no text")
+        end
+        if ep.lastExport then
+            L[#L + 1] = string.format("   last export: %d rows at %s",
+                ep.lastExport.rows, ep.lastExport.when)
+        else
+            L[#L + 1] = "   last export: none this session — the picker's "
+                        .. "last row writes it"
+        end
         local s = table.concat(L, "\n")
         print(s)
         return s
@@ -905,6 +1111,7 @@ function M.setup(core)
     end
     core.provide("editors.show",   function() return ep.show()   end)
     core.provide("editors.list",   function() return ep.states() end)
+    core.provide("editors.csv",    function() return ep.exportCSV() end)
     core.provide("editors.report", function() return _G.editorPickerReport() end)
 
     _G.editorPicker = ep

@@ -1195,6 +1195,31 @@ function M.setup(core)
             for _ in pairs(wp.pins or {}) do n = n + 1 end
             return n
         end,
+        -- 💾 6.130.0 — the notes, for the one-file CSV export. This is the
+        -- only store whose items are worth nothing without their LABEL: a
+        -- pinned note is about the window it is stuck to, and a column of
+        -- bare note text would have thrown that away.
+        csv   = function()
+            local out = {}
+            for _, p in pairs(wp.pins or {}) do
+                if type(p) == "table" and type(p.text) == "string"
+                   and p.text ~= "" then
+                    local label = type(p.appName) == "string" and p.appName or ""
+                    if type(p.title) == "string" and p.title ~= "" then
+                        label = (label ~= "" and (label .. " — ") or "") .. p.title
+                    end
+                    out[#out + 1] = { label = label, text = p.text, id = p.id }
+                end
+            end
+            -- 🚨 pairs() HAS NO ORDER, and a spreadsheet that reshuffles
+            -- its own rows between two exports of unchanged data reads as
+            -- data churn. Sorted by window id: stable across exports, and
+            -- it keeps a window's note next to itself.
+            table.sort(out, function(a, b)
+                return tostring(a.id or "") < tostring(b.id or "")
+            end)
+            return out
+        end,
     })
 
     core.provide("winPin.pin",      function() return wp.pin() end)

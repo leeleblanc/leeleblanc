@@ -4,9 +4,40 @@
 -- =====================================================================
 -- 08-20-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.129.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.130.0
 -- =====================================================================
 
+-- NEW IN 6.130.0 — EVERY EDITOR INTO ONE SPREADSHEET:
+--   💾 THE LAST ROW OF THE ⌃⌃ PICKER WRITES ALL OF IT TO ONE CSV.
+--          LL: "Can these write into one file, .csv perhaps? Too crazy?"
+--      Not crazy — the roster was already the right list, it simply had
+--      no way to hand its CONTENTS over. It goes to
+--      <Logs>/editors-<Mac>.csv, columns Date, Editor, Item, When,
+--      Label, Characters, Text. One row per item, not per store.
+--   🚨 IT IS A SNAPSHOT, SO IT OVERWRITES. Every other CSV here appends,
+--      because every other CSV here is a LOG — one row per event as it
+--      happens. This one dumps whole stores, and appending it would put a
+--      thousand clipboard rows underneath last time's identical thousand:
+--      a longer file that is not a longer record. The Date column stamps
+--      when the snapshot was taken.
+--   🗂 MOST MODULES NEEDED NOTHING. An editor holding ONE thing — either
+--      pad, whose whole content is a draft — already answers `text`, and
+--      that becomes its single row for free. Only the four multi-item
+--      stores (clipboard, OCR, pins, screenshots) had to say so, via a
+--      new optional `csv` field on the same registration they already do.
+--   ⚠️ AND A STORE SUPPLYING NEITHER IS SIMPLY ABSENT from the file —
+--      which is invisible in a spreadsheet, so _G.editorPickerReport()
+--      now prints a 💾 and a row count against every editor, and
+--      "supplies no csv and no text" against the ones that would
+--      contribute nothing.
+--   📸 SCREENSHOTS JOINS THE PICKER, AND ITS ⏎ OPENS THE FOLDER.
+--          LL: "any screenshots should be captured here, by a line entry
+--          that sends me to that screenshot's folder"
+--      It is the odd row on that roster on purpose: every other entry
+--      opens a text surface, this one opens Finder. It offers no `text`,
+--      so ⌥⏎ cannot put an empty string on your clipboard over something
+--      you wanted, and it is in the CSV too — its cells are full paths.
+--
 -- NEW IN 6.129.0 — THE KEYS THAT ALWAYS MOVED IT:
 --   🪟 LL, after three versions of drag fixes: "Can this box move or not?
 --      We're stuck in a loop. Can't move it no matter what. Also, what
@@ -127,38 +158,10 @@
 --      and reads "⏸ Paused — media key sent, and 2 players told by name ·
 --      VLC paused".
 
--- NEW IN 6.125.0 — ⇪⇧Z IS YOURS AGAIN, AND THE PICKER GOES KEYLESS:
---   ⌨️ THE EDITOR PICKER HAS NO ⇪ KEY AT ALL NOW.
---          LL: "This key should be free for future use: ⇪⇧Z"
---      It is free. Nothing in this config binds it.
---   🚨 AND THERE WAS NOWHERE TO MOVE IT TO, which is the part worth
---      knowing. Every ⇪ letter and every ⇪⇧ letter is spoken for — ⇪E was
---      the obvious mnemonic and §0.4's migration map has held it since
---      before the picker existed. What is genuinely free is ⇪⇧6 and the
---      brackets: keys nobody can guess, spent on a handrail nobody
---      touches on a day when the double tap works.
---   🗂 SO IT TOOK THE ROLLUP'S ROUTE. unified_search's run map has carried
---      ["📊"] = "rollup.show" since 6.105.0 for exactly this — a tool with
---      no key, opened from ⇪space. The picker now has ["🗂"] =
---      "editors.show" beside it: ⇪space, type "editor", ⏎.
---   ⚠️ AND THAT IS STILL TWO INDEPENDENT WAYS IN, which the picker's
---      header requires and a keyless tool would otherwise quietly lose.
---      ⌃⌃ is an hs.eventtap and dies when macOS revokes Accessibility;
---      ⇪ is Caps Lock through hs.hotkey and does not. Different failures,
---      different days — that was always the reason for the second route,
---      not the convenience.
---   🩺 THE FOUR "the tap is down, use X instead" MESSAGES NOW BUILD THE
---      ROUTE FROM THE SETTING. All four had "⇪⇧Z" typed into them; the
---      moment the key went away every one became a lie printed at exactly
---      the moment the reader most needs the truth. ep.wayIn() is the one
---      place that answers it, the way ep.gesture() already did for ⌃⌃.
---      ep.key is still read — set it to a letter and the ⇪ binding is back
---      on the next reload, for whenever a letter frees up.
---
--- (6.124.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.125.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.129.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.130.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -469,7 +472,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.129.0"
+_G.configVersion = "6.130.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

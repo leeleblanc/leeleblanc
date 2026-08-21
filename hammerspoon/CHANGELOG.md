@@ -4,6 +4,56 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.130.0 — EVERY EDITOR INTO ONE SPREADSHEET:
+  💾 THE LAST ROW OF THE ⌃⌃ PICKER WRITES ALL OF IT TO ONE CSV.
+         LL: "Can these write into one file, .csv perhaps? Too crazy?"
+     Not crazy — the roster the editor picker already shows was the right
+     list; it simply had no way to hand its CONTENTS over. The bottom row
+     of the picker now writes <Logs>/editors-<Mac>.csv, one row per item:
+         Date,Editor,Item,When,Label,Characters,Text
+     Also reachable as core.call("editors.csv").
+  🚨 IT IS A SNAPSHOT, SO IT OVERWRITES — and that is a deliberate break
+     with every other CSV in this config. The others append because they
+     are LOGS: one row per event, as it happens. This one dumps whole
+     stores. Appending it would write a thousand clipboard rows underneath
+     last time's byte-identical thousand — a longer file that is not a
+     longer record, and unusable in the Excel it was asked for. The Date
+     column stamps when the snapshot was taken; re-running takes a new one.
+  🗂 A NEW OPTIONAL `csv` FIELD, AND MOST MODULES NEEDED NOTHING. An
+     editor holding ONE thing — either pad, whose entire content is a
+     draft — already answers `text`, and that becomes its single row for
+     free. Only the four multi-item stores had to say so:
+         clipboard_history   every copy, newest first, with its date
+         ocr_engine          every capture — rawText, NOT the 65-char
+                             picker preview, which would have produced a
+                             spreadsheet of truncated cells that looks
+                             complete
+         win_pin             every note, LABELLED with the window it is
+                             stuck to, sorted by window id so two exports
+                             of unchanged pins match
+         screenshots         every capture's full path, size and mtime
+  ⚠️ A STORE SUPPLYING NEITHER IS SIMPLY ABSENT from the file, which is
+     invisible once you are looking at a spreadsheet. So
+     _G.editorPickerReport() now prints where the CSV goes, a 💾 and a row
+     count against every editor that would contribute, and "supplies no
+     csv and no text" against every one that would not.
+  📸 SCREENSHOTS JOINS THE EDITOR PICKER, AND ITS ⏎ OPENS THE FOLDER.
+         LL: "I feel like any screenshots should be captured here, by a
+         line entry that sends me to that screenshot's folder"
+     It is the odd row on that roster on purpose: every other entry opens
+     a text surface, this one opens Finder — through hs.task, never
+     hs.execute, because that folder lives in OneDrive where a synchronous
+     `open` can hang Hammerspoon's only thread and the keyboard with it.
+     It offers no `text`, so ⌥⏎ cannot put an empty string on the
+     clipboard over something you wanted, and it is in the CSV too.
+  🩺 THE SENTRIES THAT KEEP IT HONEST. test_editor_picker now requires
+     every MULTI-item store to declare `csv` — without it the export
+     silently falls back to `text`, exports one row, and looks finished —
+     and requires the OCR store to export rawText specifically. The first
+     version of that second check passed a real break (the word "rawText"
+     still appeared in the guard one line up); it matches the assignment
+     now.
+
 NEW IN 6.129.0 — THE KEYS THAT ALWAYS MOVED IT:
 
   🪟 LL, after three consecutive versions of drag fixes: "Can this box

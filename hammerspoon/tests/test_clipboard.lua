@@ -469,6 +469,44 @@ check("an empty history offers no action rows — nothing to pick",
       and C.editChooser.rows[1].action == nil
       and C.editChooser.rows[1].text:find("empty", 1, true) ~= nil)
 
+-- =====================================================================
+out("\n💾 the CSV supplier (6.130.0)\n")
+-- =====================================================================
+-- LL: "Can these write into one file, .csv perhaps?"
+--
+-- 🚨 THE WHOLE HISTORY, NOT THE NEWEST ITEM. This store also answers
+-- `text`, which is the ⌥⏎ answer and is deliberately just the top of the
+-- stack. If the export fell back to that, a thousand-item clipboard would
+-- write ONE row and the spreadsheet would look finished.
+do
+    local row
+    for _, e in ipairs(_G.editors or {}) do
+        if type(e) == "table" and e.name == "Clipboard" then row = e end
+    end
+    check("💾 the Clipboard registration supplies a csv function",
+          row ~= nil and type(row.csv) == "function")
+    _G.clipboardCache = {
+        { date = "Aug 21 14:23", text = "newest" },
+        { date = "Aug 21 09:01", text = "middle" },
+        { date = "Aug 20 17:44", text = "oldest" },
+    }
+    local items = row and row.csv() or {}
+    check("🚨 …carrying EVERY item, not just the one ⌥⏎ would copy",
+          #items == 3, #items)
+    check("💾 …newest first, the order the cache is already kept in",
+          items[1] and items[1].text == "newest", items[1] and items[1].text)
+    check("💾 …each with the date it was copied",
+          items[1] and items[1].when == "Aug 21 14:23", items[1] and items[1].when)
+    -- 🛡 The cache is loaded off disk and can be anything after a bad
+    -- write; a malformed row must cost itself and not the export.
+    _G.clipboardCache = { { text = "good" }, { date = "x" }, "junk", 7 }
+    check("🛡 …and a malformed cache row is dropped, not exported",
+          #row.csv() == 1, #row.csv())
+    _G.clipboardCache = {}
+    check("🛡 …an empty history exports no rows rather than one blank",
+          #row.csv() == 0, #row.csv())
+end
+
 io.open = realIoOpen
 out("\n")
 if fail > 0 then

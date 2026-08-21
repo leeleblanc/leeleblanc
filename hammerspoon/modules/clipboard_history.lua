@@ -507,6 +507,19 @@ function M.setup(core)
                 local top = (_G.clipboardCache or {})[1]
                 return top and top.text or nil
             end,
+            -- 💾 6.130.0 — the whole history for the one-file CSV export.
+            -- `text` above is the ⌥⏎ answer and is deliberately just the
+            -- newest item; this is every item, and the cache is stored
+            -- newest-first already, which is the order the export wants.
+            csv   = function()
+                local out = {}
+                for _, it in ipairs(_G.clipboardCache or {}) do
+                    if type(it) == "table" and type(it.text) == "string" then
+                        out[#out + 1] = { when = it.date, text = it.text }
+                    end
+                end
+                return out
+            end,
         })
     end
 

@@ -726,6 +726,89 @@ DEFER_TIMERS = false
 PENDING = {}
 
 -- =====================================================================
+out("\n13. 🗂 the folder row (6.130.0)\n")
+-- =====================================================================
+-- LL: "any screenshots should be captured here, by a line entry that
+-- sends me to that screenshot's folder"
+DIRS[DIR] = true
+do
+    local before = #TASKS
+    local ok = S.revealFolder()
+    check("🗂 revealFolder starts exactly one task", ok == true
+          and #TASKS == before + 1, #TASKS - before)
+    local t = TASKS[#TASKS]
+    -- 🚨 hs.task, NEVER hs.execute. hs.execute is SYNCHRONOUS and this
+    -- folder lives in OneDrive, where `open` on a directory that has not
+    -- finished materialising can sit for seconds — with Hammerspoon's one
+    -- thread, and therefore the whole keyboard, stopped behind it.
+    check("🚨 …through /usr/bin/open, out of process", t
+          and t.cmd == "/usr/bin/open" and t.started, t and t.cmd)
+    check("🗂 …pointed at the screenshots folder itself",
+          t and t.args[1] == DIR, t and t.args[1])
+    -- The callback releases the handle; an hs.task nothing references is
+    -- collected, and a collected task is one that never ran.
+    check("🗂 the task is HELD until it finishes", S.openTask ~= nil)
+    t.cb()
+    check("…and released afterwards", S.openTask == nil)
+end
+
+-- 🛟 The hostile Mac: no OneDrive, so there is no folder to open. It must
+-- refuse and say so, not launch `open` at a path that is not there.
+do
+    DIRS[DIR] = nil
+    local realMkdir = hs.fs.mkdir
+    hs.fs.mkdir = function() return nil end
+    local before = #TASKS
+    local ok = S.revealFolder()
+    check("🛟 with no folder it refuses rather than opening nothing",
+          ok == false and #TASKS == before, #TASKS - before)
+    check("🛟 …and the alert names the folder it looked for",
+          (ALERTS[#ALERTS] or ""):find("2026 Screenshots", 1, true) ~= nil,
+          ALERTS[#ALERTS])
+    hs.fs.mkdir = realMkdir
+    DIRS[DIR] = true
+end
+
+-- 🗂 The registration itself — the row that carries all of the above into
+-- the ⌃⌃ picker. Its `show` is what ⏎ calls.
+do
+    local row
+    for _, e in ipairs(_G.editors or {}) do
+        if type(e) == "table" and e.name == "Screenshots" then row = e end
+    end
+    check("🗂 it registers a Screenshots row in the editor picker", row ~= nil)
+    check("🗂 …whose ⏎ opens the folder", (function()
+        if not row then return false end
+        local before = #TASKS
+        row.show()
+        return #TASKS == before + 1
+               and TASKS[#TASKS].cmd == "/usr/bin/open"
+    end)())
+    -- 🚨 NO `text`, DELIBERATELY. ⌥⏎ means "copy that editor's text" and a
+    -- folder has none — the picker's own guard then says "has no text to
+    -- copy" instead of putting an empty string on the clipboard over
+    -- whatever was there.
+    check("🚨 …and offers no text, so ⌥⏎ cannot clobber the clipboard",
+          row and row.text == nil)
+    check("🗂 …and counts the folder for the picker's subtitle",
+          row and type(row.size) == "function" and row.size() == #S.list(),
+          row and row.size and row.size())
+    -- 💾 6.130.0 — and it is IN the one-file CSV export. A row in the
+    -- picker that contributes no column is a hole exactly where somebody
+    -- would go looking for one.
+    check("💾 …and supplies csv rows, so the export is not missing a store",
+          row and type(row.csv) == "function" and #row.csv() == #S.list(),
+          row and row.csv and #row.csv())
+    check("💾 …whose text cell is the full path, pasteable into Go-to-Folder",
+          (function()
+        if not (row and row.csv) then return false end
+        local first = row.csv()[1]
+        return first ~= nil and first.text:sub(1, #DIR) == DIR,
+               first and first.text
+    end)())
+end
+
+-- =====================================================================
 out(("\n%d passed, %d failed\n"):format(pass, fail))
 for _, f in ipairs(failures) do out("    ❌ " .. f .. "\n") end
 out("\n")

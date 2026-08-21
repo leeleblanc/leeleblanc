@@ -789,6 +789,70 @@ do
 end
 
 -- =====================================================================
+out("\n💾 the CSV supplier (6.130.0)\n")
+-- =====================================================================
+-- 🚨 THIS IS THE ONE STORE WHOSE ITEMS ARE WORTHLESS WITHOUT THEIR
+-- LABEL. A pinned note is ABOUT the window it is stuck to — "check this
+-- before sending" means nothing in a column of bare note text — so the
+-- app and title ride along in the Label cell.
+do
+    local row
+    for _, e in ipairs(_G.editors or {}) do
+        if type(e) == "table" and e.name == "Window Pins" then row = e end
+    end
+    check("💾 the Window Pins registration supplies a csv function",
+          row ~= nil and type(row.csv) == "function")
+    -- ⚠️ _G.winPin, NOT M.config. Section 10 loads a SECOND instance of
+    -- this module to test the Accessibility-off path, and that instance
+    -- registered the last "Window Pins" row — so the row found above
+    -- closes over ITS pins table, which is the one _G.winPin now names.
+    local wp = _G.winPin
+    wp.pins = {
+        [30] = { id = 30, text = "third",  appName = "Safari", title = "Inbox" },
+        [10] = { id = 10, text = "first",  appName = "Mail" },
+        [20] = { id = 20, text = "second", title = "Untitled" },
+    }
+    local items = row and row.csv() or {}
+    check("💾 every pinned note is a row", #items == 3, #items)
+    check("🚨 …labelled with the window it is stuck to",
+          items[1] and items[1].label == "Mail", items[1] and items[1].label)
+    check("🚨 …app AND title when both are known",
+          (function()
+        for _, it in ipairs(items) do
+            if it.text == "third" then return it.label == "Safari — Inbox", it.label end
+        end
+        return false, "no third row"
+    end)())
+    check("💾 …title alone when the app is not known",
+          (function()
+        for _, it in ipairs(items) do
+            if it.text == "second" then return it.label == "Untitled", it.label end
+        end
+        return false, "no second row"
+    end)())
+    -- 🚨 pairs() HAS NO ORDER. Without the sort these three rows come out
+    -- in whatever order the hash happens to yield, and a spreadsheet that
+    -- reshuffles itself between two exports of UNCHANGED data reads as
+    -- data churn — you cannot diff it against yesterday's.
+    check("🚨 …in a stable order, so two exports of the same pins match",
+          (function()
+        local a, b = row.csv(), row.csv()
+        for i = 1, #a do
+            if a[i].text ~= b[i].text then return false, "run to run drift" end
+        end
+        return a[1].text == "first" and a[3].text == "third",
+               a[1].text .. "/" .. a[3].text
+    end)())
+    -- 🛡 A pin whose canvas was deleted underneath it, or a note emptied
+    -- to nothing, must cost its own row and not the export.
+    wp.pins = { [1] = { id = 1, text = "" }, [2] = { id = 2 }, [3] = "junk",
+                [4] = { id = 4, text = "kept" } }
+    check("🛡 …and an empty or malformed pin is dropped, not exported",
+          #row.csv() == 1 and row.csv()[1].text == "kept", #row.csv())
+    wp.pins = {}
+end
+
+-- =====================================================================
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 for _, f2 in ipairs(failures) do out("  ✗ " .. f2 .. "\n") end
 os.exit(fail == 0 and 0 or 1)

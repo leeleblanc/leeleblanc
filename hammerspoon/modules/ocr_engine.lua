@@ -934,6 +934,24 @@ function M.setup(core)
             local h = ocr.history()
             return h[1] and h[1].rawText or nil
         end,
+        -- 💾 6.130.0 — every capture, for the one-file CSV export.
+        --
+        -- 🚨 rawText, NOT .text. history() carries BOTH: .text is a
+        -- 65-character single-line title built for a picker row, and
+        -- exporting that would produce a spreadsheet of truncated
+        -- previews that looks complete and is not. .rawText is the
+        -- capture. The 🕒 is stripped off the timestamp because the When
+        -- column is a date, not a label.
+        csv   = function()
+            local out = {}
+            for _, it in ipairs(ocr.history()) do
+                if type(it) == "table" and type(it.rawText) == "string" then
+                    local when = tostring(it.subText or ""):gsub("^🕒%s*", "")
+                    out[#out + 1] = { when = when, text = it.rawText }
+                end
+            end
+            return out
+        end,
     })
 
     -- ⎋ through the shared router, so the cheat sheet still closes LAST.

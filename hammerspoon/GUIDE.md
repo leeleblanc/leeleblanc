@@ -261,6 +261,33 @@ from a broken one, and it costs more, because the hunt for the bug
 happens in code that does not have one. When a fix ships three times and
 the report is unchanged, go read what the user was told to press.
 
+**A registry field is the cheap way to add a capability to every
+module at once** (6.130.0). `_G.editors` gained one optional field,
+`csv`, and that was the whole of "write every editor to one
+spreadsheet". No module list, no dispatch table, no file that has to be
+edited when a store is added — the same property that makes the roster
+itself work.
+
+| Store holds | Supplies | Export gets |
+|---|---|---|
+| one draft (either pad) | `text` — it already did | one row, free, no change to the module |
+| many items (clipboard, OCR, pins, screenshots) | `csv` → `{when, label, text}` list | one row per item |
+| neither (screenshot editor, a half-loaded module) | nothing | no rows, and it is NAMED in the report |
+
+🚨 **The fallback is the dangerous half.** `text` is the ⌥⏎ answer and is
+deliberately just the newest item, so a multi-item store that forgets
+`csv` exports ONE row and the spreadsheet looks finished. Nothing throws,
+no count is obviously wrong, and the only way to notice is to know what
+should have been there. `test_editor_picker` therefore keeps a list of
+the stores that MUST declare `csv` and fails the build when one drops it
+— the same shape of sentry as the roster scan above, for the same reason.
+
+⚠️ **And this CSV overwrites, where every other CSV in the config
+appends.** The others are logs: one row per event, as it happens. This
+one dumps whole stores, so appending would put a thousand clipboard rows
+under last time's byte-identical thousand. If you add another export
+here, ask which of the two it is before picking the file mode.
+
 **And nothing reaches into a module either.** If code outside a module
 needs one of its functions, the module publishes it:
 
