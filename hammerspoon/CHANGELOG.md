@@ -4,6 +4,76 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.131.0 — WHICH TAP IS EATING THE KEYSTROKE:
+  ⏱ LL: "Something is running perhaps Hammerspoon to cause my typing to
+     lag. Once I quit Hammerspoon, the lag went away. Seems related, but
+     nothing to report from the console."
+  🚨 THE CONSOLE WAS NEVER GOING TO HAVE IT. A console prints what
+     something CHOSE to print, and a slow function is not an error — it
+     prints nothing at all. Quitting Hammerspoon and watching the lag go
+     is a real measurement, and it narrows the fault to this config;
+     nothing narrower than "this config" was available to either of us.
+     core/lag.lua closes that gap by measuring instead of waiting to be
+     told.
+  ⌨️ WHY A TAP CAN CAUSE THIS AT ALL. An hs.eventtap is not a listener,
+     it sits IN THE PATH of the event: macOS hands it your keystroke and
+     the character does not reach the app you are typing into until the
+     callback returns. This config runs eight or nine keyboard taps at
+     once — the hyper key, the text expander, autocorrect, the ⌃⌃
+     gesture, the key caster when it is on — all on Hammerspoon's one
+     thread, in series. The delay on every key is the SUM of all of
+     them. Each one is fast. "Fast" is a claim that had never been
+     checked, and eight unchecked claims is the exact shape of a problem
+     that arrives gradually and has no error to show for itself.
+  🎯 SO IT WRAPS hs.eventtap.new ITSELF, ONCE, BEFORE ANYTHING RUNS.
+     Every tap in this config — core/ and modules/ alike — is born from
+     that one function. Wrapping it instruments all of them at once and
+     needs no cooperation from any module: nothing registers, nothing is
+     edited, and a tap written in a future version is measured the day
+     it is written without anybody remembering to. debug.getinfo names
+     the CALLER, so the report says "text_expander.lua:1133" rather than
+     an anonymous function nobody can place.
+  📉 AND THE HALF THAT NO TAP CAN EXPLAIN: STALLS. Hammerspoon has one
+     thread, and anything slow on it stops the keyboard just as
+     effectively without any tap being slow — a synchronous shell
+     command, a folder read that reaches OneDrive, a big JSON write. A
+     heartbeat set to fire every 50ms CANNOT fire while that thread is
+     busy, so how late it fires is a direct measurement of how long the
+     thread was blocked. The worst dozen are kept, with the time of day
+     and the app that was in front.
+  ⚠️ AND SOME STALLS ARE HONEST. Opening a picker that scans a folder
+     blocks the thread on purpose and will appear here. The report says
+     so rather than implying every row is a bug.
+  ⏱ IT IS ALWAYS ON, AND THAT IS THE DESIGN. The obvious alternative is
+     a switch: turn the probe on, reproduce the problem, read the
+     numbers. It is the wrong one here, because lag that comes and goes
+     is not reproducible on demand — by the time you have noticed it,
+     decided it is real, found the Console and turned something on, the
+     cause may be over. The evidence has to already exist at the moment
+     you think to look. So it costs what it costs, always: two clock
+     reads and four arithmetic operations per event, against a callback
+     budget measured in milliseconds.
+  🚨 NO pcall IN THE HOT PATH, AND NO table.pack EITHER. A probe whose
+     job is to measure per-keystroke cost must not add a per-keystroke
+     pcall to do it — and a pcall there would ALSO swallow the errors
+     that each module's own guard counts in order to switch a broken tap
+     off. table.pack would allocate a table on every keystroke, making
+     the probe a source of the symptom it was built to find. The
+     callback is called directly and its two return values are carried
+     by two named locals, which is the whole documented contract.
+  🩺 TWO BUGS IN THE PROBE'S OWN "WHERE DID THIS TAP COME FROM" COLUMN
+     WERE CAUGHT BY ITS TESTS AND BOTH ARE NOW BREAK TESTS. Asking
+     debug.getinfo for a fixed stack level was wrong because pcall is
+     itself a frame, so every tap was reported as created inside
+     core/lag.lua; fixing that by walking the stack then landed on the
+     C frame and reported "[C]:-1". Neither threw. Both produced a full,
+     confident, useless table — which is precisely the failure this file
+     exists to prevent, so BREAK G and BREAK H hold them shut.
+        _G.lagReport()    everything measured so far
+        _G.lagReset()     zero the counters and start again
+```
+
+```text
 NEW IN 6.130.0 — EVERY EDITOR INTO ONE SPREADSHEET:
   💾 THE LAST ROW OF THE ⌃⌃ PICKER WRITES ALL OF IT TO ONE CSV.
          LL: "Can these write into one file, .csv perhaps? Too crazy?"

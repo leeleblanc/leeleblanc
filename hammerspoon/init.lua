@@ -2,10 +2,51 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 08-20-26 using Claude          ← EDITED date. Bumped with every release.
+-- 08-21-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.130.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.131.0
 -- =====================================================================
+
+-- NEW IN 6.131.0 — WHICH TAP IS EATING THE KEYSTROKE:
+--   ⏱ LL: "Something is running perhaps Hammerspoon to cause my typing
+--      to lag. Once I quit Hammerspoon, the lag went away. Seems
+--      related, but nothing to report from the console."
+--   🚨 THE CONSOLE WAS NEVER GOING TO HAVE IT. It prints what something
+--      CHOSE to print, and a slow function is not an error — it prints
+--      nothing at all. Quitting Hammerspoon fixing the lag is a real
+--      measurement and it narrows the fault to this config; nothing
+--      narrower than "this config" existed. core/lag.lua closes that.
+--   ⌨️ WHY A TAP CAN DO THIS. An hs.eventtap is not a listener, it is IN
+--      THE PATH: your keystroke does not reach the app you are typing
+--      into until the callback returns. This config runs eight or nine
+--      keyboard taps — the hyper key, the expander, autocorrect, the ⌃⌃
+--      gesture, the caster — all on one thread, in series. The delay on
+--      every key is the SUM of them. Each is fast; "fast" is a claim
+--      that had never once been checked.
+--   🎯 SO IT WRAPS hs.eventtap.new ITSELF, ONCE, before anything runs.
+--      Every tap in the config is born from that one function, so every
+--      tap is timed with no module having to cooperate — and a tap
+--      written in a future version is measured the day it is written.
+--      debug.getinfo names the CALLER, so the report says
+--      "text_expander.lua:1133", not "function: 0x600002…".
+--   📉 AND THE HALF NO TAP CAN EXPLAIN: STALLS. Hammerspoon has one
+--      thread. Anything slow on it — a synchronous shell command, a
+--      folder read that reaches OneDrive, a big JSON write — stops the
+--      keyboard without any tap being slow. A heartbeat set to fire
+--      every 50ms cannot fire while that thread is busy, so how LATE it
+--      fires measures the block directly. The worst dozen are kept with
+--      the time and the app that was in front.
+--   ⏱ IT IS ALWAYS ON, DELIBERATELY. The obvious design is a switch:
+--      turn the probe on, reproduce the problem, read the numbers. Lag
+--      that comes and goes is not reproducible on demand — by the time
+--      you have noticed it and found the Console, the cause may be over.
+--      The evidence has to already exist at the moment you think to
+--      look, so it costs two clock reads per event, always.
+--   🚨 NO pcall IN THE HOT PATH. A probe measuring per-keystroke cost
+--      must not add a per-keystroke pcall to do it, and a pcall there
+--      would ALSO swallow the errors each module's own guard counts to
+--      switch a broken tap off. The callback is called directly.
+--        _G.lagReport()   ·   _G.lagReset()
 
 -- NEW IN 6.130.0 — EVERY EDITOR INTO ONE SPREADSHEET:
 --   💾 THE LAST ROW OF THE ⌃⌃ PICKER WRITES ALL OF IT TO ONE CSV.
@@ -128,40 +169,10 @@
 --      choosers must place three. Stripped of comments, so the comment
 --      explaining showPopup cannot stand in for calling it.
 
--- NEW IN 6.126.0 — ⇪' NOW ACTUALLY PAUSES VLC:
---   ⏸ LL: "⇪' does not pause VLC." It did not, and it never had. The
---      pause key posts the media key and then tells every running player
---      by name — and what it told VLC was `pause`, then `playpause`.
---      VLC's AppleScript dictionary contains NEITHER. Both bounced, the
---      inner try swallowed the second error without a word, and the film
---      played on. The count in the alert was one short every time too.
---   🚨 AND THE OBVIOUS FIX STARTS PLAYBACK. VLC spells its toggle `play`,
---      and `play` sent to a PAUSED VLC begins playing it. A pause key
---      that starts a film is the same failure as one that opens Music —
---      worse, because you pressed it to make the machine quiet. So VLC's
---      script reads the `playing` property FIRST and sends nothing at all
---      when it is false. It says "already paused" instead.
---   ⚠️ IT IS A SEPARATE SCRIPT, AND THAT IS NOT TIDINESS. `playing` and
---      `play` are VLC's own terminology, and AppleScript can only resolve
---      an app's terminology when the app is named as a LITERAL — which
---      means that text is compiled against a dictionary a Mac without VLC
---      does not have. Inside the shared script a missing VLC would take
---      the whole pause key down. In its own child process, launched only
---      when VLC is already running, it can only take itself down.
---   🚨 THE RUNNING CHECK IS MADE TWICE AND BOTH ARE LOAD-BEARING.
---      Hammerspoon asks hs.application.get before launching osascript at
---      all — AppleScript cannot be asked, because naming an app launches
---      it. The script then asks System Events again on the inside, since
---      VLC can quit in the gap and `tell application "VLC"` on a departed
---      VLC RELAUNCHES IT. This key never starts anything.
---   🔔 ONE KEYPRESS STILL GETS ONE PILL. The alert waits for both halves
---      and reads "⏸ Paused — media key sent, and 2 players told by name ·
---      VLC paused".
-
--- (6.125.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.126.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.130.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.131.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -472,7 +483,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.130.0"
+_G.configVersion = "6.131.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -601,6 +612,27 @@ do
         chunk()({})
     end)
     if not ok then print('⚠️ core/console.lua failed to load — the Console is unfiltered: ' .. tostring(e)) end
+end
+
+-- ⏱ THE LAG PROBE (core/lag.lua) — _G.lagReport() · 6.131.0
+-- 🚨 LOADED HERE FOR ONE REASON: IT MUST BEAT THE FIRST EVENT TAP.
+-- It works by wrapping hs.eventtap.new, so every tap created AFTER this
+-- point is timed and every tap created before it is invisible. Nothing
+-- above this line makes one — core/hyper_key.lua, core/cheatsheet.lua
+-- and every module load later — and moving this load point down would
+-- quietly shrink what the report covers while the report still looked
+-- complete. If you ever add a tap earlier than this, move THIS instead.
+do
+    local ok, e = pcall(function()
+        local chunk, le = loadfile(hs.configdir .. '/core/lag.lua')
+        if not chunk then error(le or 'cannot read core/lag.lua', 0) end
+        chunk()({})
+    end)
+    if not ok then
+        print('⚠️ core/lag.lua failed to load — everything still works, but '
+              .. '_G.lagReport() is unavailable and slow keystroke handlers '
+              .. 'will go unmeasured: ' .. tostring(e))
+    end
 end
 
 -- 6.42.0 — THE SERVICE REGISTRY, stubbed here so it is never nil.

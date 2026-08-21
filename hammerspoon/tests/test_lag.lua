@@ -1,0 +1,701 @@
+-- =====================================================================
+-- test_lag.lua — the probe that names the tap eating the keystroke
+-- =====================================================================
+--     lua5.4 test_lag.lua [/path/to/hammerspoon]
+--
+-- Executes core/lag.lua against a stubbed hs and drives real wrapped
+-- callbacks through it with a clock this file controls.
+--
+-- The checks with teeth are sections 3, 4 and 9.
+--
+--   3  THE WRAPPER MUST BE INVISIBLE. It sits in the path of every
+--      keystroke on this Mac. If it drops a return value the expander
+--      stops consuming the key it replaced; if it adds a pcall the
+--      errors stop reaching the guards that switch a broken tap off.
+--      Both are silent, and both are worse than the lag.
+--   4  THE ARITHMETIC IS THE PRODUCT. A probe that measures wrongly is
+--      not a weaker probe, it is a liar with a table of numbers, and
+--      6.130.0 already shipped one sentry that a real break walked
+--      straight through.
+--   9  IT MUST BEAT THE FIRST TAP. The whole design rests on being
+--      loaded before anything creates one; a report that silently
+--      covered half the taps would read exactly like a clean bill.
+-- =====================================================================
+
+local HS = (arg and arg[1]) or os.getenv("HAMMERSPOON_DIR")
+           or ((os.getenv("HOME") or ".") .. "/.hammerspoon")
+
+local pass, fail, failures = 0, 0, {}
+local function check(label, cond, extra)
+    if cond then pass = pass + 1
+    else fail = fail + 1
+         failures[#failures + 1] = label
+             .. (extra ~= nil and ("\n        got: " .. tostring(extra)) or "") end
+end
+local function out(s) io.write(s) end
+
+local printed = {}
+local realPrint = print
+print = function(...)
+    local p = {}
+    for i = 1, select("#", ...) do p[#p + 1] = tostring((select(i, ...))) end
+    printed[#printed + 1] = table.concat(p, " ")
+end
+
+-- ---- the stub Mac ------------------------------------------------------
+local TYPES = { keyDown = 10, keyUp = 11, flagsChanged = 12,
+                leftMouseDown = 1, rightMouseDown = 3 }
+
+local CLOCK      = 0        -- nanoseconds, driven by hand
+local MADE       = {}       -- every tap the REAL (stub) new was asked for
+local TIMERS     = {}
+local FRONT      = "Excel"
+local NEW_FAILS  = false
+
+local function stubNew(types, fn, ...)
+    if NEW_FAILS then error("no accessibility") end
+    local tap = { types = types, fn = fn, started = false, extra = { ... } }
+    function tap:start() self.started = true ; return self end
+    function tap:stop()  self.started = false ; return self end
+    MADE[#MADE + 1] = tap
+    return tap
+end
+
+local function freshEventtap()
+    MADE = {}
+    hs.eventtap = {
+        event = { types = TYPES },
+        new   = stubNew,
+    }
+end
+
+hs = {
+    timer = {
+        absoluteTime = function() return CLOCK end,
+        doEvery = function(secs, fn)
+            local t = { secs = secs, fn = fn, stopped = false }
+            function t:stop() self.stopped = true ; return self end
+            TIMERS[#TIMERS + 1] = t
+            return t
+        end,
+    },
+    application = {
+        frontmostApplication = function()
+            return { name = function() return FRONT end }
+        end,
+    },
+}
+freshEventtap()
+
+local chunk = assert(loadfile(HS .. "/core/lag.lua"))
+
+-- A brand-new probe over a brand-new eventtap stub. Used by most
+-- sections: the double-install guard is deliberate and would otherwise
+-- make every section after the first one measure nothing.
+local function freshProbe()
+    freshEventtap()
+    TIMERS = {}
+    return chunk()({})
+end
+
+-- Advance the controlled clock by ms and return it (nanoseconds inside).
+local function advance(ms) CLOCK = CLOCK + ms * 1e6 end
+
+local lag = freshProbe()
+
+-- =====================================================================
+out("1. it installs, and says so\n")
+-- =====================================================================
+check("hs.eventtap.new was replaced", hs.eventtap.new ~= stubNew)
+check("the original is kept, so the wrap can be seen and undone",
+      hs.eventtap.__lagOriginalNew == stubNew)
+check("installedAt is stamped", type(lag.installedAt) == "string"
+      and lag.installedAt:match("%d%d:%d%d:%d%d") ~= nil, lag.installedAt)
+check("nothing is wrapped yet", lag.wrapped == 0, lag.wrapped)
+check("no note — the install went cleanly", lag.note == nil, lag.note)
+check("the heartbeat timer is HELD (an unreferenced timer never fires)",
+      lag.beat ~= nil and lag.beat.secs == lag.stallEvery)
+
+-- =====================================================================
+out("2. a created tap is recorded, and named by where it came from\n")
+-- =====================================================================
+local keyTap = hs.eventtap.new({ TYPES.keyDown, TYPES.flagsChanged },
+                               function() return false end)
+check("the real hs.eventtap.new still ran", #MADE == 1)
+check("it returned the real tap object", keyTap == MADE[1])
+check("one tap recorded", #lag.taps == 1, #lag.taps)
+check("wrapped count follows", lag.wrapped == 1, lag.wrapped)
+
+local rec = lag.taps[1]
+check("the site names THIS file, not an anonymous function",
+      tostring(rec.site):find("test_lag%.lua:") ~= nil, rec.site)
+check("the site carries a line number",
+      tostring(rec.site):match(":%d+$") ~= nil, rec.site)
+-- 🚨 THE TWO WAYS THIS COLUMN GOES WRONG, both of which shipped once
+-- during 6.131.0's own build and neither of which threw anything. A
+-- report whose every row says "core/lag.lua" or "[C]" is not a broken
+-- probe you would notice — it is a full, confident, useless table.
+check("🚨 the site is never the probe's own file — it must not name itself",
+      tostring(rec.site):find("core/lag%.lua") == nil, rec.site)
+check("🚨 the site is never a C frame — pcall is not somewhere to look",
+      tostring(rec.site):find("%[C%]") == nil, rec.site)
+check("…and never gives up when a real caller exists",
+      rec.site ~= "unknown", rec.site)
+check("the watched types are named, not numbered",
+      rec.types == "keyDown+flagsChanged", rec.types)
+check("it is classified as a keyboard tap", rec.keyboard == true)
+check("counters start at zero",
+      rec.calls == 0 and rec.total == 0 and rec.max == 0 and rec.slow == 0)
+
+-- 🚨 A MOUSE-ONLY TAP CANNOT DELAY A KEYSTROKE, and a report that let a
+-- busy mouse tap sit at the top of the list would send the reader after
+-- the wrong thing. The classification is what keeps it out of the verdict.
+local mouseTap = hs.eventtap.new({ TYPES.leftMouseDown },
+                                 function() return false end)
+check("a mouse-only tap is recorded", #lag.taps == 2)
+check("…but is NOT counted as a keyboard tap",
+      lag.taps[2].keyboard == false, lag.taps[2].keyboard)
+check("…and its types are still named",
+      lag.taps[2].types == "leftMouseDown", lag.taps[2].types)
+
+-- =====================================================================
+out("3. the wrapper is invisible to the tap it wraps\n")
+-- =====================================================================
+-- 🚨 THIS SECTION IS THE ONE THAT PROTECTS THE KEYBOARD. Everything the
+-- callback said before must still be said, and everything it threw must
+-- still be thrown.
+local SEEN = {}
+local replacement = { "an", "event", "list" }
+freshProbe()
+local echo = hs.eventtap.new({ TYPES.keyDown }, function(ev)
+    SEEN[#SEEN + 1] = ev
+    return true, replacement
+end)
+local a, b = echo.fn("the-event")
+check("the event is passed through untouched", SEEN[1] == "the-event")
+check("the boolean return survives the wrapper", a == true, a)
+check("🚨 THE SECOND RETURN VALUE SURVIVES TOO — a dropped event list "
+      .. "means a replaced keystroke silently vanishes",
+      b == replacement, tostring(b))
+
+-- An eventtap callback that throws must still throw. Every tap in this
+-- config has its own guard that counts failures and switches itself off;
+-- a pcall in the wrapper would eat the error and those guards would never
+-- fire again.
+freshProbe()
+local boom = hs.eventtap.new({ TYPES.keyDown },
+                             function() error("tap exploded", 0) end)
+local okCall, errCall = pcall(boom.fn, "ev")
+check("🚨 an error inside the callback still propagates — the wrapper "
+      .. "adds no pcall", okCall == false)
+check("…and the message is unchanged", tostring(errCall) == "tap exploded",
+      errCall)
+
+-- Something that is not a callback is not ours to police.
+freshProbe()
+local before = #lag.taps
+local raw = hs.eventtap.new({ TYPES.keyDown }, nil)
+check("a non-function callback is handed straight to the real new",
+      raw ~= nil and #MADE >= 1)
+check("…and is not recorded as a measurable tap", #lag.taps == before,
+      #lag.taps)
+
+-- =====================================================================
+out("4. the arithmetic\n")
+-- =====================================================================
+lag = freshProbe()
+lag.slowMs = 8
+local t = hs.eventtap.new({ TYPES.keyDown }, function()
+    advance(2)                      -- this callback "takes" 2ms
+    return false
+end)
+t.fn("a") ; t.fn("b") ; t.fn("c")
+local r = lag.taps[1]
+check("three calls counted", r.calls == 3, r.calls)
+check("total is the sum in MILLISECONDS", math.abs(r.total - 6) < 0.001, r.total)
+check("max is one call's worth", math.abs(r.max - 2) < 0.001, r.max)
+check("none of them was slow", r.slow == 0, r.slow)
+check("worstAt is stamped when the max moves",
+      type(r.worstAt) == "string", r.worstAt)
+
+-- One slow call, and the max must move to it.
+local slow = hs.eventtap.new({ TYPES.keyDown }, function()
+    advance(40) ; return false
+end)
+slow.fn("x")
+local rs = lag.taps[2]
+check("a 40ms call is over the 8ms line", rs.slow == 1, rs.slow)
+check("…and max reflects it", math.abs(rs.max - 40) < 0.001, rs.max)
+
+-- 🚨 THE BOUNDARY. slowMs is a >= comparison; a call landing exactly on
+-- the line counts. Off by one here silently under-reports every tap that
+-- sits right at the threshold, which is where the interesting ones are.
+local edge = hs.eventtap.new({ TYPES.keyDown }, function()
+    advance(8) ; return false
+end)
+edge.fn("x")
+check("a call exactly ON the slow line counts as slow",
+      lag.taps[3].slow == 1, lag.taps[3].slow)
+
+-- =====================================================================
+out("5. the double-install guard\n")
+-- =====================================================================
+-- Wrapping twice would put two layers of timing on every keystroke and
+-- double every number in the report — a config that appeared to have
+-- halved in speed overnight, caused entirely by the tool sent to explain
+-- why it felt slow.
+local wrappedNew = hs.eventtap.new
+local second = chunk()({})
+check("the second install refuses", second.installedAt == nil,
+      second.installedAt)
+check("…and says why", tostring(second.note):find("already installed") ~= nil,
+      second.note)
+check("🚨 hs.eventtap.new is NOT wrapped a second time",
+      hs.eventtap.new == wrappedNew)
+
+-- And a Hammerspoon with no eventtap at all must not take the config down.
+do
+    local savedTap = hs.eventtap
+    hs.eventtap = {}
+    local noTap = chunk()({})
+    check("no hs.eventtap.new — the probe declines instead of throwing",
+          noTap.installedAt == nil)
+    check("…and names the reason",
+          tostring(noTap.note):find("not available") ~= nil, noTap.note)
+    hs.eventtap = savedTap
+end
+
+-- =====================================================================
+out("6. the clock, and its fallback\n")
+-- =====================================================================
+do
+    local savedAbs = hs.timer.absoluteTime
+    hs.timer.absoluteTime = nil
+    hs.timer.secondsSinceEpoch = function() return CLOCK / 1e9 end
+    freshEventtap() ; TIMERS = {}
+    local fb = chunk()({})
+    local before2 = CLOCK
+    local ft = hs.eventtap.new({ TYPES.keyDown }, function()
+        advance(5) ; return false
+    end)
+    ft.fn("x")
+    check("secondsSinceEpoch is used when absoluteTime is missing",
+          math.abs(fb.taps[1].total - 5) < 0.001, fb.taps[1].total)
+    check("…and it is still normalised to milliseconds",
+          fb.taps[1].total < 100, fb.taps[1].total)
+    CLOCK = before2 + 5e6
+    hs.timer.secondsSinceEpoch = nil
+    hs.timer.absoluteTime = savedAbs
+
+    -- No clock at all: the numbers are worthless and the report must SAY
+    -- so rather than print a table of confident zeroes.
+    local savedTimer = hs.timer
+    hs.timer = { doEvery = savedTimer.doEvery }
+    freshEventtap() ; TIMERS = {}
+    local blind = chunk()({})
+    check("with no clock the probe still installs",
+          blind.installedAt ~= nil)
+    check("🚨 …and warns that every timing will read zero",
+          tostring(blind.note):find("no usable clock") ~= nil, blind.note)
+    hs.timer = savedTimer
+end
+
+-- =====================================================================
+out("7. stalls\n")
+-- =====================================================================
+lag = freshProbe()
+lag.stallMs = 120
+local beat = lag.beat
+check("the heartbeat is on the timer list", beat ~= nil)
+
+-- A tick that arrives on time is not a stall.
+local function tick(ms) advance(ms) ; beat.fn() end
+tick(50)
+check("an on-time tick records nothing", lag.stallCount == 0, lag.stallCount)
+tick(60)
+check("10ms of jitter is not a stall", lag.stallCount == 0, lag.stallCount)
+
+-- 350ms late is felt.
+tick(400)
+check("a 350ms block is recorded", lag.stallCount == 1, lag.stallCount)
+check("…with the app that was in front", lag.stalls[1].app == "Excel",
+      lag.stalls[1].app)
+check("…and the lateness, not the interval",
+      math.abs(lag.stalls[1].late - 350) < 1, lag.stalls[1].late)
+check("…and a time of day", tostring(lag.stalls[1].when):match("%d%d:%d%d")
+      ~= nil, lag.stalls[1].when)
+
+-- 🚨 THE LIST KEEPS THE WORST, NOT THE LAST. A stall storm of small ones
+-- must not push out the four-second freeze that is the actual problem.
+lag = freshProbe()
+lag.stallMs, lag.keepStalls = 100, 3
+local b2 = lag.beat
+local function tick2(ms) advance(ms) ; b2.fn() end
+tick2(50)
+tick2(4050)                   -- 4000ms — the big one
+for _ = 1, 8 do tick2(250) end -- 200ms each, eight of them
+check("the list is capped", #lag.stalls == 3, #lag.stalls)
+check("every stall is still COUNTED, capped list or not",
+      lag.stallCount == 9, lag.stallCount)
+local biggest = 0
+for _, s in ipairs(lag.stalls) do
+    if s.late > biggest then biggest = s.late end
+end
+check("🚨 the four-second freeze SURVIVED eight later smaller ones",
+      math.abs(biggest - 4000) < 1, biggest)
+
+-- =====================================================================
+out("8. the report\n")
+-- =====================================================================
+lag = freshProbe()
+lag.slowMs = 8
+local quick = hs.eventtap.new({ TYPES.keyDown }, function()
+    advance(1) ; return false
+end)
+local heavy = hs.eventtap.new({ TYPES.keyDown, TYPES.flagsChanged }, function()
+    advance(30) ; return false
+end)
+local mouseOnly = hs.eventtap.new({ TYPES.leftMouseDown }, function()
+    advance(90) ; return false
+end)
+
+-- Nothing has run yet: the verdict must not pretend to know anything.
+local early = _G.lagReport()
+check("with no keystrokes seen, the verdict says so",
+      early:find("no keyboard tap has run yet") ~= nil)
+
+for _ = 1, 10 do quick.fn("k") end
+for _ = 1, 10 do heavy.fn("k") end
+mouseOnly.fn("m")
+
+local rep = _G.lagReport()
+check("the report prints", #printed > 0)
+check("it names the install time", rep:find("installed") ~= nil)
+check("it names how many taps it saw", rep:find("taps seen  : 3") ~= nil)
+check("every tap's site is listed",
+      rep:find("test_lag%.lua:") ~= nil)
+check("the columns are there",
+      rep:find("calls") ~= nil and rep:find("avg ms") ~= nil
+      and rep:find("max ms") ~= nil)
+check("a mouse-only tap is labelled as such",
+      rep:find("%(mouse only%)") ~= nil)
+
+-- 🚨 SORTED BY TOTAL, NOT BY AVERAGE. The mouse tap here averages 90ms —
+-- nine times the heavy keyboard tap — but has run once, for 90ms total,
+-- against the keyboard tap's 300ms. Sorting by average would put the
+-- irrelevant one at the top of a report about slow typing.
+do
+    local hi = rep:find("300%.00") or 0            -- heavy: 10 × 30ms
+    local mo = rep:find("90%.00")  or 0
+    local _  = mo
+    local heavyLine  = rep:match("([^\n]*30%.00[^\n]*)") or ""
+    local firstRow   = rep:match("max ms%s+slow\n(.-)\n") or ""
+    check("the heaviest tap is the first row",
+          firstRow:find("test_lag%.lua:") ~= nil
+          and firstRow:find("30%.00") ~= nil, firstRow)
+    check("the heavy tap's line reports its average",
+          heavyLine:find("30%.00") ~= nil, heavyLine)
+    local _ = hi
+end
+
+-- The verdict must name the tap, not leave the reader to work it out.
+check("🚨 the verdict NAMES the worst keyboard tap",
+      rep:find("VERDICT") ~= nil and rep:find("averaging 30%.0ms") ~= nil,
+      rep:match("VERDICT[^\n]*"))
+check("…and it is a keyboard tap that is named, never the mouse one",
+      rep:match("VERDICT[^\n]*"):find("90") == nil,
+      rep:match("VERDICT[^\n]*"))
+
+-- When nothing is slow the verdict has to say THAT, clearly, because
+-- "no tap is at fault" is the answer that sends you to the stalls.
+lag = freshProbe()
+lag.slowMs = 8
+local fastTap = hs.eventtap.new({ TYPES.keyDown }, function()
+    advance(0.5) ; return false
+end)
+for _ = 1, 5 do fastTap.fn("k") end
+local clean = _G.lagReport()
+check("a clean run says every tap is fast",
+      clean:find("every keyboard tap is fast") ~= nil,
+      clean:match("VERDICT[^\n]*"))
+check("…and points at the stalls instead",
+      clean:find("it is not a tap") ~= nil)
+check("…and reports the per-keystroke total, which is the number that "
+      .. "actually answers the question",
+      clean:find("0%.50ms total per keystroke") ~= nil,
+      clean:match("VERDICT[^\n]*"))
+check("with no stalls it says the thread stayed responsive",
+      clean:find("has stayed responsive") ~= nil)
+check("🚨 the report says a stall is not automatically a bug",
+      clean:find("not proof of a bug") ~= nil)
+
+-- Reset.
+local msg = _G.lagReset()
+check("reset says when", tostring(msg):find("zeroed") ~= nil, msg)
+check("counters are zero", lag.taps[1].calls == 0 and lag.taps[1].total == 0)
+check("stalls are cleared", #lag.stalls == 0 and lag.stallCount == 0)
+check("…but the taps themselves are still listed — a reset must not "
+      .. "make the config look tap-free", #lag.taps == 1, #lag.taps)
+
+-- A report before any install at all.
+do
+    local savedTap = hs.eventtap
+    hs.eventtap = {}
+    local none = chunk()({})
+    local s = _G.lagReport()
+    check("an uninstalled probe reports that fact loudly",
+          s:find("NOT INSTALLED") ~= nil)
+    local _ = none
+    hs.eventtap = savedTap
+end
+
+-- =====================================================================
+out("9. it must beat the first tap — the load-order sentry\n")
+-- =====================================================================
+local initSrc do
+    local f = assert(io.open(HS .. "/init.lua", "r"))
+    initSrc = f:read("*a") ; f:close()
+end
+
+local lagAt   = initSrc:find("core/lag%.lua")
+local hyperAt = initSrc:find("core/hyper_key%.lua'")
+local sheetAt = initSrc:find("core/cheatsheet%.lua'")
+check("init.lua loads core/lag.lua", lagAt ~= nil)
+check("🚨 …BEFORE core/hyper_key.lua, which makes the hyper tap",
+      lagAt ~= nil and hyperAt ~= nil and lagAt < hyperAt, lagAt)
+check("🚨 …and before core/cheatsheet.lua, which makes one too",
+      lagAt ~= nil and sheetAt ~= nil and lagAt < sheetAt, sheetAt)
+
+-- 🚨 AND NOTHING MAY CREATE A TAP ABOVE IT. This is the check that
+-- actually holds the design up: every assertion in the report — "taps
+-- seen: 9", the verdict, the whole table — is only true if no tap was
+-- born before the wrap went on. A tap added above this line would not
+-- appear anywhere, and the report would look exactly as it does now.
+do
+    local head = initSrc:sub(1, lagAt or 1)
+    check("🚨 no hs.eventtap.new is called before the probe installs",
+          head:find("hs%.eventtap%.new") == nil,
+          head:match("[^\n]*hs%.eventtap%.new[^\n]*"))
+end
+
+-- The module loader must come after it too, or half the modules' taps
+-- would be invisible.
+do
+    local loaderAt = initSrc:find("_G%.loadModules%(profile%.modules")
+    check("🚨 …and before the module loader runs",
+          lagAt ~= nil and loaderAt ~= nil and lagAt < loaderAt, loaderAt)
+end
+
+-- =====================================================================
+out("10. the source itself\n")
+-- =====================================================================
+local src do
+    local f = assert(io.open(HS .. "/core/lag.lua", "r"))
+    src = f:read("*a") ; f:close()
+end
+
+-- The hot path is the wrapped callback. Find it and check what is NOT
+-- in it — this is a probe for per-keystroke cost, so per-keystroke cost
+-- it adds itself is the one bug it cannot have.
+local hot = src:match("local wrapped = function%(ev%)(.-)\n            end")
+check("the wrapped callback was found", hot ~= nil)
+if hot then
+    check("🚨 no pcall in the hot path", hot:find("pcall") == nil, hot)
+    check("🚨 no table.pack in the hot path — it would allocate on every "
+          .. "keystroke", hot:find("table%.pack") == nil)
+    check("🚨 no os.date on every call — only when the max actually moves",
+          hot:find("os%.date") ~= nil
+          and hot:match("if dt > rec%.max then\n.-os%.date") ~= nil)
+    check("the callback is called directly, not through a guard",
+          hot:find("local a, b = fn%(ev%)") ~= nil)
+end
+
+check("the heartbeat timer is held in a field, not a local",
+      src:find("lag%.beat = t") ~= nil)
+check("the front app is only read inside recordStall, never per-tick",
+      select(2, src:gsub("frontmostApplication", "")) == 1)
+check("the probe publishes itself for the report to reach",
+      src:find("_G%.lagProbe = lag") ~= nil)
+check("both report entry points exist",
+      src:find("function _G%.lagReport") ~= nil
+      and src:find("function _G%.lagReset") ~= nil)
+
+-- =====================================================================
+-- 🔨 BREAK TESTS — each one restores a real bug and must be CAUGHT.
+-- =====================================================================
+out("11. break tests\n")
+
+-- BREAK A — the wrapper drops the second return value.
+do
+    local broken = src:gsub("return a, b\n            end\n            return realNew",
+                            "return a\n            end\n            return realNew", 1)
+    check("BREAK A changed the source", broken ~= src)
+    local bchunk = assert(load(broken, "broken-lag"))
+    freshEventtap() ; TIMERS = {}
+    hs.eventtap.__lagOriginalNew = nil
+    bchunk()({})
+    local tapB = hs.eventtap.new({ TYPES.keyDown },
+                                 function() return true, { "list" } end)
+    local x, y = tapB.fn("ev")
+    check("🔨 BREAK A caught: the event list is lost", y == nil, tostring(y))
+    local _ = x
+end
+
+-- BREAK B — sort the report by average instead of by total, which puts
+-- a once-run mouse tap above the tap that runs on every key.
+do
+    local broken = src:gsub("if a%.total ~= b%.total then return a%.total > b%.total end",
+                            "if a.max ~= b.max then return a.max > b.max end", 1)
+    check("BREAK B changed the source", broken ~= src)
+    local bchunk = assert(load(broken, "broken-lag"))
+    freshEventtap() ; TIMERS = {}
+    hs.eventtap.__lagOriginalNew = nil
+    local bl = bchunk()({})
+    bl.slowMs = 8
+    local q = hs.eventtap.new({ TYPES.keyDown }, function() advance(1) return false end)
+    local m = hs.eventtap.new({ TYPES.leftMouseDown }, function() advance(90) return false end)
+    for _ = 1, 10 do q.fn("k") end
+    m.fn("m")
+    local rp = _G.lagReport()
+    local firstRow = rp:match("max ms%s+slow\n(.-)\n") or ""
+    check("🔨 BREAK B caught: the once-run mouse tap climbs to the top",
+          firstRow:find("mouse only") ~= nil, firstRow)
+end
+
+-- BREAK C — drop the double-install guard.
+do
+    local broken = src:gsub("if hs%.eventtap%.__lagOriginalNew then",
+                            "if false then", 1)
+    check("BREAK C changed the source", broken ~= src)
+    local bchunk = assert(load(broken, "broken-lag"))
+    freshEventtap() ; TIMERS = {}
+    hs.eventtap.__lagOriginalNew = nil
+    local first = bchunk()({})
+    local afterFirst = hs.eventtap.new
+    bchunk()({})
+    check("🔨 BREAK C caught: a second install re-wraps the same function",
+          hs.eventtap.new ~= afterFirst)
+    -- And the damage it does: doubled timing on every keystroke.
+    local dt = hs.eventtap.new({ TYPES.keyDown },
+                               function() advance(10) return false end)
+    dt.fn("k")
+    check("🔨 BREAK C caught: the same keystroke is counted twice",
+          #first.taps >= 1 and first.taps[#first.taps].calls == 1
+          and first.taps[#first.taps].total > 0)
+end
+
+-- BREAK D — the stall list keeps the LAST instead of the worst.
+-- 🚨 THE FIRST VERSION OF THIS BREAK DID NOT BREAK ANYTHING. It removed
+-- only the "is this bigger than the smallest we kept" guard, and the
+-- eviction below still replaced the SMALLEST entry — so the four-second
+-- freeze survived and the check passed over a source that was, by then,
+-- genuinely different. Restoring the real bug takes BOTH edits: accept
+-- every stall, and evict slot 1 instead of the smallest. A break test
+-- that a real regression walks through is worse than no break test,
+-- which 6.130.0's OCR sentry had already demonstrated once.
+do
+    local broken = src:gsub("if late <= %(worstVal or 0%) then return end", "", 1)
+                      :gsub("if worstVal == nil or s%.late < worstVal then",
+                            "if worstVal == nil then", 1)
+    check("BREAK D changed the source", broken ~= src)
+    local bchunk = assert(load(broken, "broken-lag"))
+    freshEventtap() ; TIMERS = {}
+    hs.eventtap.__lagOriginalNew = nil
+    local bl = bchunk()({})
+    bl.stallMs, bl.keepStalls = 100, 3
+    local bb = bl.beat
+    local function tk(ms) advance(ms) ; bb.fn() end
+    tk(50)
+    tk(4050)
+    for _ = 1, 8 do tk(250) end
+    local biggest2 = 0
+    for _, s in ipairs(bl.stalls) do
+        if s.late > biggest2 then biggest2 = s.late end
+    end
+    check("🔨 BREAK D caught: the four-second freeze was pushed out by "
+          .. "eight small ones", biggest2 < 1000, biggest2)
+end
+
+-- BREAK E — the slow-line comparison goes strictly greater-than.
+do
+    local broken = src:gsub("if dt >= lag%.slowMs then", "if dt > lag.slowMs then", 1)
+    check("BREAK E changed the source", broken ~= src)
+    local bchunk = assert(load(broken, "broken-lag"))
+    freshEventtap() ; TIMERS = {}
+    hs.eventtap.__lagOriginalNew = nil
+    local bl = bchunk()({})
+    bl.slowMs = 8
+    local e = hs.eventtap.new({ TYPES.keyDown }, function() advance(8) return false end)
+    e.fn("k")
+    check("🔨 BREAK E caught: a call exactly on the line stops counting",
+          bl.taps[1].slow == 0, bl.taps[1].slow)
+end
+
+-- BREAK F — the verdict stops excluding mouse-only taps.
+do
+    local broken = src:gsub("            if r%.keyboard then\n                keyCalls",
+                            "            if true then\n                keyCalls", 1)
+    check("BREAK F changed the source", broken ~= src)
+    local bchunk = assert(load(broken, "broken-lag"))
+    freshEventtap() ; TIMERS = {}
+    hs.eventtap.__lagOriginalNew = nil
+    local bl = bchunk()({})
+    bl.slowMs = 8
+    local q = hs.eventtap.new({ TYPES.keyDown }, function() advance(1) return false end)
+    local m = hs.eventtap.new({ TYPES.leftMouseDown }, function() advance(90) return false end)
+    for _ = 1, 10 do q.fn("k") end
+    m.fn("m")
+    local rp = _G.lagReport()
+    local v = rp:match("VERDICT[^\n]*") or ""
+    check("🔨 BREAK F caught: the mouse tap is blamed for slow typing",
+          v:find("90%.0ms") ~= nil, v)
+end
+
+-- BREAK G — stop skipping C frames, and every site becomes "[C]:-1".
+-- This is not hypothetical: it is what the file did for two runs during
+-- its own build, after the FIRST site bug was fixed. The fix moved the
+-- wrong answer rather than removing it.
+do
+    local broken = src:gsub('if info%.what ~= "C" and src ~= SELF then',
+                            "if src ~= SELF then", 1)
+    check("BREAK G changed the source", broken ~= src)
+    local bchunk = assert(load(broken, "broken-lag"))
+    freshEventtap() ; TIMERS = {}
+    hs.eventtap.__lagOriginalNew = nil
+    local bl = bchunk()({})
+    hs.eventtap.new({ TYPES.keyDown }, function() return false end)
+    check("🔨 BREAK G caught: the site is a C frame nobody can go and read",
+          tostring(bl.taps[1].site):find("%[C%]") ~= nil, bl.taps[1].site)
+end
+
+-- BREAK H — resolve SELF through pcall, the original bug. SELF becomes
+-- "[C]", matches no frame, and the walk returns on its first step: every
+-- tap in the config is reported as created inside core/lag.lua.
+do
+    local broken = src:gsub("        local info = getInfo%(1, \"S\"%)\n"
+                            .. "        if type%(info%) == \"table\" then "
+                            .. "SELF = tostring%(info%.short_src%) end",
+                            "        local _ok, info = pcall(getInfo, 1, \"S\")\n"
+                            .. "        if type(info) == \"table\" then "
+                            .. "SELF = tostring(info.short_src) end", 1)
+    check("BREAK H changed the source", broken ~= src)
+    local bchunk = assert(load(broken, "broken-lag"))
+    freshEventtap() ; TIMERS = {}
+    hs.eventtap.__lagOriginalNew = nil
+    local bl = bchunk()({})
+    hs.eventtap.new({ TYPES.keyDown }, function() return false end)
+    -- The chunk is named "broken-lag", so "this file" is [string "broken-lag"].
+    check("🔨 BREAK H caught: the probe names ITSELF as the tap's creator",
+          tostring(bl.taps[1].site):find("broken%-lag") ~= nil,
+          bl.taps[1].site)
+end
+
+print = realPrint
+
+-- ---- result ------------------------------------------------------------
+out(string.format("\n%d passed, %d failed\n", pass, fail))
+if fail > 0 then
+    out("\nFAILURES:\n")
+    for _, f in ipairs(failures) do out("   ❌ " .. f .. "\n") end
+end
+os.exit(fail == 0 and 0 or 1)

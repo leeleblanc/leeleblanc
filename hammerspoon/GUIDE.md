@@ -11,7 +11,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 ~/.hammerspoon/
 ├── init.lua          the orchestrator (3,411 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
-├── core/             dofile'd at a fixed point, NOT loader-managed (9 files)
+├── core/             dofile'd at a fixed point, NOT loader-managed (10 files)
 ├── modules/          one file per feature (56 files, ~33,400 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
 ├── snippets/         bundled.lua — 2,006 shipped snippets in one table,
@@ -25,7 +25,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 ```
 
 `core/` is the part that is easy to get wrong when updating by hand.
-Those nine files are **not** modules — the loader never sees them;
+Those ten files are **not** modules — the loader never sees them;
 `init.lua` `dofile`s them at a fixed point during boot, so a missing or
 half-copied one takes the whole config down rather than costing you one
 feature. `cp init.lua ~/.hammerspoon/` on its own leaves an install
@@ -261,6 +261,32 @@ from a broken one, and it costs more, because the hunt for the bug
 happens in code that does not have one. When a fix ships three times and
 the report is unchanged, go read what the user was told to press.
 
+**Wrapping a shared constructor instruments everything that uses it**
+(6.131.0). Every event tap in this config — `core/` and `modules/` alike
+— is born from one function, `hs.eventtap.new`. `core/lag.lua` replaces
+that function once, before anything runs, and every tap is timed from
+then on. Nothing registers, no module is edited, and a tap written in a
+future version is measured the day it is written. It is the same
+property the `_G.editors` roster has, reached from the other end: there,
+modules opt in by inserting; here, they cannot opt out, because the door
+they all walk through is the thing that was changed.
+
+🚨 **Which makes load order load-bearing, so a sentry holds it.** The
+probe can only see taps created after it installs. Loaded too late it
+would report a partial list that looks exactly like a complete one —
+"taps seen: 4" is not visibly different from "taps seen: 9" unless you
+already know the answer. `tests/test_lag.lua` §9 therefore reads
+`init.lua` and fails if `core/lag.lua` is loaded after `hyper_key`,
+after `cheatsheet`, after the module loader, or if any `hs.eventtap.new`
+appears above it.
+
+⚠️ **And a measuring tool must not charge for measuring.** The wrapped
+callback contains no `pcall` and no `table.pack`: a pcall would swallow
+the errors each module's guard counts to switch a broken tap off, and
+`table.pack` would allocate on every keystroke — a probe generating the
+symptom it was built to find. Two named locals carry the callback's two
+return values, which is the whole documented contract.
+
 **A registry field is the cheap way to add a capability to every
 module at once** (6.130.0). `_G.editors` gained one optional field,
 `csv`, and that was the whole of "write every editor to one
@@ -412,6 +438,8 @@ tests/test_rename.lua        ⇪R, over 400 generated messy folders — no file 
 tests/test_workspaces.lua    ⇪⇧S, 300 generated workspaces — the busy flag never sticks
 tests/test_notices.lua       the failure ledger — a notice is never lost, and never floods
 tests/test_console.lua       the ⛔ ERRORS + ⚠️ NONBREAKING banners, the repeat limiter
+tests/test_lag.lua           ⏱ the keystroke probe — the wrapper must be invisible to
+                             the tap it wraps, and must name the file that made it
 tests/test_search_index.lua  the ⇪D file index: nice'd find, atomic publish, narrowing search
 tests/test_doc_keywords.lua  .docx → keywords → Finder comment; a human's comment survives
 tests/test_clipboard.lua     ⇪V, and the writes that must never destroy the history file
