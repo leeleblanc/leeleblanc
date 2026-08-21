@@ -12,7 +12,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 ├── init.lua          the orchestrator (3,411 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (10 files)
-├── modules/          one file per feature (56 files, ~33,400 lines)
+├── modules/          one file per feature (57 files, ~36,700 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
 ├── snippets/         bundled.lua — 2,006 shipped snippets in one table,
 │                     in five collections. Since 6.117.0 the .json packs
@@ -287,6 +287,38 @@ the errors each module's guard counts to switch a broken tap off, and
 symptom it was built to find. Two named locals carry the callback's two
 return values, which is the whole documented contract.
 
+**A shared rule belongs to neither of the tools that use it** (6.132.0).
+⇪R renames files and ⇪; transforms selected text, and both needed the
+same six case rules. Putting them in either module means the other one
+either copies them or depends on a tool it has nothing to do with — and
+the copy is the worse outcome, because it drifts SILENTLY: `snake_case`
+would mean one thing for a file name and another for a sentence, and no
+test, no report and no console line would ever say so.
+`modules/text_case.lua` therefore owns all six and has no key, no UI and
+no Mac in it at all. Both consumers call `case.apply` through the
+service bus at the moment you press the key, so load order does not
+matter and a sentry in `tests/test_text_case.lua` §7 reads both
+consumers and fails if either grows its own `:upper()` rule again.
+
+🚨 **A delegated rule with no provider must refuse BY NAME.** The
+fallback inside `bulk_rename`'s case rules returns the original file
+name, which is the safe answer for a rule that cannot run — and on its
+own it is indistinguishable from a rule that ran and decided nothing
+needed changing. `br.plan` therefore checks for the provider up front
+and returns no plan plus "the Text Case module is not loaded", rather
+than showing a preview of a rename that would change nothing. Belt is
+the refusal; braces is the fallback, for the case where the service
+disappears between the plan and the run.
+
+⚠️ **`%w` is ASCII, and that deletes text.** Lua's character classes are
+locale-dependent and the locale is C, so `[%w]+` treats the two bytes of
+`é` as punctuation. A tokeniser built on it does not mangle café — it
+returns `caf`, confidently, with nothing logged. The run class carries
+`\128-\255` explicitly, and the other half of the same rule is that an
+em dash is above 127 too, so the punctuation that is NOT a letter is
+named in a list rather than guessed at from the byte value. Any pattern
+in this config that walks user text has the same problem waiting in it.
+
 **A registry field is the cheap way to add a capability to every
 module at once** (6.130.0). `_G.editors` gained one optional field,
 `csv`, and that was the whole of "write every editor to one
@@ -395,9 +427,9 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Fifty-four Lua suites, 4,864 checks, plus three more that run the Capture
+Fifty-six Lua suites, 5,305 checks, plus three more that run the Capture
 Pad's, the screenshot editor's and unified search's page JavaScript under
-`node` for a further 105 — **4,969 checks over fifty-nine stages** in
+`node` for a further 105 — **5,410 checks over sixty-one stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 
@@ -482,6 +514,9 @@ tests/test_app_kill.lua      💀 ⇪⇧;: the two-ps join over paths with space
 tests/test_power_tools.lua   🧰 ⇪;: secure input checked BEFORE a character is typed,
                              the clipboard typed exactly ONCE, and the borrowed
                              clipboard put back on every path
+tests/test_text_case.lua     🔠 the six cases: where a word starts, why an accented
+                             letter is not punctuation, and why camel/kebab/snake
+                             run per line rather than over the whole selection
 tests/test_tab_search.lua    🗂 ⇪⇧': the running-process check that stops the scan
                              LAUNCHING every browser, and the jump that verifies
                              the URL it landed on before calling it a jump
@@ -499,7 +534,7 @@ tests/test_activity_url.lua  🌐 the url column: the AppleScript's exact-match
                              allow-list, incognito failing closed, secrets cut
                              from the query AND the fragment, and the tab-switch
                              race driven through the real poller
-tests/test_integration.lua   🚨 all 56 modules loaded TOGETHER: shortcut, service and
+tests/test_integration.lua   🚨 all 57 modules loaded TOGETHER: shortcut, service and
                              cheat-sheet-slot collisions — the only suite that can
                              catch two modules quietly claiming the same key
 tests/test_pad_js.js         the Capture Pad's in-page JavaScript, actually executed

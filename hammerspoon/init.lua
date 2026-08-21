@@ -4,8 +4,40 @@
 -- =====================================================================
 -- 08-21-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.131.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.132.0
 -- =====================================================================
+
+-- NEW IN 6.132.0 — THE CASE OF THE THING:
+--   🔠 LL: "I need a way to Change/Transform Text Case — upper, lower,
+--      title, camel, kebab, or snake. I think I have something already to
+--      pick out and transform file names, can we add this to that tool?"
+--      Yes and no. ⇪R renames FILES and cannot touch the sentence you
+--      have highlighted in an email, so the six cases went into ⇪R as
+--      asked AND onto ⇪; for selected text anywhere on the Mac.
+--   🚨 WHICH MEANT THEY COULD LIVE IN NEITHER OF THEM. Two copies of
+--      "what is a word?" is two copies that drift, silently: ⇪R would
+--      snake_case a file one way and ⇪; the same text another way, and
+--      nothing anywhere would report a problem. modules/text_case.lua
+--      owns all six; both tools ask it through core.call.
+--   ✂️ THE HARD PART IS THE WORD BOUNDARY, not the capital letters.
+--      fooBar is two words. XMLHttpRequest is three. iPhone14Pro is
+--      three, which is why the split rules include digits. And a byte
+--      above 127 is part of a word — Lua's %w is ASCII-only, so the
+--      obvious [%w]+ run pattern DELETES accented letters outright and
+--      café comes out of snake_case as "caf". Not mangled: gone.
+--   🔢 ⇪; COUNT → CLIPBOARD is a second row, not a change to the first.
+--      A tool you press to read a number must not quietly replace what
+--      is on your clipboard. LL: "Allow both counts to be posted."
+--   🖱 RIGHT-CLICK SAYS WHEN IT FIRED BLIND. LL: "I don't always have
+--      the same options when I use our right-click tool." When the wait
+--      for ⌘⇧⌃⌥ ran out with a key still down, the click went anyway,
+--      silently — and Chrome answers a ⇧-click with its own menu instead
+--      of the page's. The wait is now 450ms (⇪ is four keys and letting
+--      go of all four is not one motion) and a blind fire names the
+--      modifier on screen and in _G.rightClickReport().
+--   🔑 ⇪⇧V WAS NEVER MISSING. LL: "Shouldn't this be in the edit
+--      picker?" It was — as the Clipboard row, whose key cell said ⇪V
+--      alone. It now reads ⇪V / ⇪⇧V, the shape the Screenshots row uses.
 
 -- NEW IN 6.131.0 — WHICH TAP IS EATING THE KEYSTROKE:
 --   ⏱ LL: "Something is running perhaps Hammerspoon to cause my typing
@@ -140,39 +172,10 @@
 --      like a feature that is missing. Gate on something the OS will
 --      state, or do not gate.
 
--- NEW IN 6.127.0 — THE PICKERS THAT COULD NOT BE MOVED:
---   🪟 LL: "The screenshot is a picker window I can't grab and move. Why?"
---      Because fourteen modules opened their picker with a bare
---      chooser:show(). ⇪; ⇪, ⇪. ⇪D ⇪Y ⇪⇧; ⇪⇧' ⇪⇧. and more could not be
---      dragged AT ALL, and nothing anywhere said why.
---   🚨 THE RECORD WAS GLOBAL AND DID NOT SAY WHOSE. macOS gives
---      hs.chooser no frame getter, so window_move COMPUTES a picker's
---      grab box from _G.lastPopupPlacement. A picker that records nothing
---      leaves the LAST picker's coordinates standing — so the box was
---      drawn where some departed picker used to be, the ⌘-click on the
---      real one fell outside it, and the drag was DECLINED. Not "no box,
---      grab it by hand", which is the path that works: declined.
---   ✅ EVERY PICKER NOW GOES THROUGH core.showPopup, and the record names
---      its chooser. A record belonging to somebody else reads as NO
---      record, which drops through to the grab that always worked.
---   ↕️ AND THEY JOIN THE POSITION SYSTEM THEY WERE MISSING. Those pickers
---      were also ignoring the ⇪⇧-arrow nudge, the remembered offset and
---      ⌃⌥⌘R, and opened on the main screen rather than the one you are
---      looking at. That was the same missing call.
---   🩺 _G.windowMoveReport() — NEW, AND THE REAL LESSON. This was the one
---      module in the config without a report, and the one that fails
---      SILENTLY BY DESIGN: a mouse tap cannot announce a refused click,
---      because the click belongs to the app underneath. So there was no
---      way to see any of this. The report prints the box, the placement,
---      who it belongs to, and the last refusal with coordinates.
---   🧪 A sentry now counts pickers, not files: a module that builds three
---      choosers must place three. Stripped of comments, so the comment
---      explaining showPopup cannot stand in for calling it.
-
--- (6.126.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.127.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.131.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.132.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -483,7 +486,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.131.0"
+_G.configVersion = "6.132.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2917,6 +2920,11 @@ local BASE = {
     "settings_panes",     -- ⚙️ ⇪,  System Settings, by name
     "app_kill",           -- 💀 ⇪⇧; end a process, politely then not
     "power_tools",        -- 🧰 ⇪;  type the clipboard · count · strip · mdls
+    -- 6.132.0 — no key of its own. It owns the six case transforms, and
+    -- ⇪; and ⇪R both ask it for them through core.call at the moment you
+    -- press the key. Order here is therefore irrelevant; it sits beside
+    -- power_tools only because that is where a reader will look.
+    "text_case",          -- 🔠 UPPER · lower · Title · camel · kebab · snake
     -- 6.120.0 — the rest of LL's twelve. tab_search LAST of these three
     -- because it is the only one that talks to other applications over
     -- Apple Events, and a module that can be refused a permission is

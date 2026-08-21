@@ -4,6 +4,109 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.132.0 — THE CASE OF THE THING:
+  🔠 LL: "I need a way to Change/Transform Text Case — upper, lower,
+     title, camel, kebab, or snake. I think I have something already to
+     pick out and transform file names, can we add this to that tool? I
+     am open as always, to your suggestions."
+  ✅ YES AND NO, AND THE "NO" HALF IS THE DESIGN. ⇪R (bulk rename) walks
+     a Finder selection, groups sidecars, checks for collisions and calls
+     os.rename. It cannot touch the sentence you have highlighted in an
+     email, because there is no file there to rename. So the six cases
+     went into ⇪R as asked — all six, where there had been two — AND onto
+     ⇪; for text selected anywhere on the Mac.
+  🚨 WHICH MEANT THE RULES COULD LIVE IN NEITHER OF THEM. Two copies of
+     "what is a word?" is two copies that drift, and the drift is
+     silent: ⇪R would snake_case a file one way and ⇪; would snake_case
+     the same text another way, and nothing anywhere would report a
+     problem. modules/text_case.lua owns all six; both tools ask it
+     through core.call at the moment you press the key, so load order
+     does not matter and neither of them can opt out.
+  ✂️ THE HARD PART IS THE WORD BOUNDARY, not the capital letters. camel,
+     kebab and snake all need the same answer to "where do the words
+     start?", and the answer is three rules: split on punctuation, split
+     at a lower-or-digit followed by an upper (fooBar → foo Bar, and
+     iPhone14Pro → i Phone14 Pro, which is why digits are in that rule),
+     and split an acronym off the word behind it (XMLHttpRequest → XML
+     Http Request).
+  🚨 A BYTE ABOVE 127 IS PART OF A WORD. Lua's %w is ASCII-only in the C
+     locale, so the obvious [%w]+ run pattern treats the two bytes of "é"
+     as punctuation and DROPS THEM: café comes out of snake_case as
+     "caf". Not mangled, not flagged — gone. The run class carries
+     \128-\255 explicitly. The other half of the same rule is that an em
+     dash is above 127 too, so `this—that` would weld into one word;
+     the separators that are NOT letters are therefore named in a list
+     rather than guessed at from the bytes.
+  🔤 AND THE SIX ARE TWO IDEAS, NOT SIX VARIATIONS OF ONE. UPPER, lower
+     and Title KEEP THE TEXT'S SHAPE — every space, comma and line break
+     stays where it was. camel, kebab and snake REBUILD the text from its
+     words, and the punctuation is not preserved because it is the thing
+     being replaced: the separator IS the case. `Hello, world!` is
+     `HELLO, WORLD!` under upper and `hello-world` under kebab, and the
+     comma is not lost by accident.
+  ↩️ THE REBUILDING THREE RUN PER LINE. Select a list of eight things,
+     choose snake_case, and you get eight snake_case lines — not one
+     200-character identifier with the whole list welded into it.
+  👁 ⇪; PREVIEWS ALL SIX AGAINST YOUR OWN TEXT, and that ordering is the
+     whole design: the selection is read BEFORE the picker opens. Three
+     of the six throw your punctuation away by definition, and a preview
+     of somebody else's sample cannot warn you about that. A preview of
+     the paragraph you actually highlighted can.
+  ⚠️ AND IT REPLACES BY TYPING, because macOS has no "set the selection"
+     API — nothing can hand text back to an arbitrary app's text field.
+     The result is posted as keystrokes over the still-live selection,
+     so it inherits every guard ⇪; already needed to type the clipboard:
+     the secure-input check first, the wait for ⌘⇧⌃⌥ to come up, and the
+     length cap. An unchanged result is not typed at all, because
+     retyping an identical paragraph is invisible until you reach for
+     undo and find a step that did nothing.
+  🔢 COUNT → CLIPBOARD IS A SECOND ROW, NOT A CHANGE TO THE FIRST.
+     LL: "Allow both counts to be posted to the clipboard." A tool you
+     press to read a number must not quietly replace what is on your
+     clipboard — you reached for the count, not for a paste — and ⇪V's
+     history would fill with "128 words · 742 characters" lines nobody
+     asked to keep. Count the selection shows. Count the selection →
+     clipboard shows AND copies, and says which.
+  🖱 RIGHT-CLICK NOW SAYS WHEN IT FIRED BLIND. LL: "I don't always have
+     the same options when I use our right-click tool." That is this,
+     exactly. ⇪⇧F waits for the modifier keys to come up before posting,
+     because a context menu reads the modifiers held when it OPENS and
+     Chrome deliberately answers a ⇧-click with its own menu instead of
+     the page's. When the wait ran out with ⇧ still down, the click went
+     out anyway — silently. Two menus, one key, nothing on screen saying
+     which one you were about to get.
+  ⏳ THE WAIT WENT 0.30s → 0.45s, because ⇪ is ⌘⌃⌥⇧ held together and
+     letting go of all four is not one motion. And a blind fire now names
+     the modifier that was still down, on screen and as a running count
+     in _G.rightClickReport(). It still fires: swallowing the press would
+     trade a confusing menu for a dead key, and a dead key gets pressed
+     again with the same modifiers held.
+  ⚠️ SOME MENUS REALLY ARE DIFFERENT, with nothing wrong anywhere.
+     Right-clicking a misspelled word in Chrome gives you Add to
+     Dictionary and the spelling suggestions; right-clicking the
+     paragraph beside it does not. That is the page deciding what is
+     under the pointer, which is the one thing this module deliberately
+     never guesses at.
+  🔑 ⇪⇧V WAS NEVER MISSING. LL: "Shouldn't this be in the edit picker?
+     Sorry if I'm missing it. hyper+shift+V." It was there — as the
+     Clipboard row in the ⌃⌃ editor picker, whose key cell said ⇪V alone.
+     ⇪⇧V is that row's edit-and-delete view and has been since 6.97.0;
+     the row simply never said so, so the picker read as though ⇪V were
+     the only way in. It now reads ⇪V / ⇪⇧V, the shape the Screenshots
+     row has used since 6.122.0.
+  🧪 tests/test_text_case.lua — 101 checks, eight of them break tests.
+     BREAK A is the accented letter being deleted by a "simplified" run
+     pattern; BREAK E is the rebuilding cases welding a selected list
+     into one identifier; BREAK F is the picker advertising a transform
+     the code no longer performs. test_rename and test_power_tools both
+     load the REAL text_case module rather than stubbing it, because a
+     stub that answers case.apply with whatever the test expects proves
+     only that the test agrees with itself.
+  🔌 AND A CASE RULE WITH NO ENGINE REFUSES BY NAME. If text_case fails
+     to load, br.plan returns no plan and names the missing module rather
+     than handing every original name back and showing you a preview of
+     a rename that would change nothing.
+
 NEW IN 6.131.0 — WHICH TAP IS EATING THE KEYSTROKE:
   ⏱ LL: "Something is running perhaps Hammerspoon to cause my typing to
      lag. Once I quit Hammerspoon, the lag went away. Seems related, but

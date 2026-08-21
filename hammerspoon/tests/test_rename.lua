@@ -80,6 +80,33 @@ hs = {
 _G.diag = { say = function() end, warn = function() end,
             err = function() end, mark = function() end }
 
+-- 🔠 6.132.0 — THE REAL TEXT CASE MODULE, not a stub of it. Since this
+-- release the six case rules delegate to modules/text_case.lua through
+-- the service bus, and a stub that answers case.apply with "whatever the
+-- test expects" would prove only that the test agrees with itself. The
+-- real module is loaded and registered, so the checks below are checks
+-- on the two files WORKING TOGETHER — which is the thing that can break.
+local HS_DIR = (arg and arg[1]) or os.getenv("HAMMERSPOON_DIR")
+               or ((os.getenv("HOME") or ".") .. "/.hammerspoon")
+local CASE_SERVICES = {}
+do
+    local tcChunk = assert(loadfile(HS_DIR .. "/modules/text_case.lua"))
+    local TCM = tcChunk()
+    TCM.setup({ provide = function(n, f) CASE_SERVICES[n] = f end })
+end
+-- CASE_OFF flips the engine out from under bulk_rename, which is the
+-- world br.plan's refusal exists for.
+local CASE_OFF = false
+_G.service = {
+    has  = function(n) return (not CASE_OFF) and CASE_SERVICES[n] ~= nil end,
+    call = function(n, ...)
+        if CASE_OFF then return nil end
+        local f = CASE_SERVICES[n]
+        if not f then return nil end
+        return f(...)
+    end,
+}
+
 local CORE = {
     hostTag = "Test-Mac", logsDir = "/tmp/brtest",
     warnWriteFailed = function() end,
@@ -279,6 +306,70 @@ check("the tv rule leaves a non-episode alone rather than blanking it",
       #pl == 0, pl[1] and pl[1].name)
 
 -- =====================================================================
+out("\n=== 7b. 🔠 The six case rules (6.132.0) ===\n")
+-- =====================================================================
+-- LL asked for six cases and for them to live in the rename tool. Four
+-- were missing; all six now come from modules/text_case.lua, which is
+-- loaded for real at the top of this file. These checks therefore fail
+-- if EITHER file breaks — which is the point of not stubbing it.
+do
+    DISK = {}
+    local function renamed(base, rule)
+        local pl = BR.plan({ "/v/" .. base .. ".mp4" }, rule)
+        if not pl or #pl == 0 then return base end   -- rule declined
+        return (pl[1].name:gsub("%.mp4$", ""))
+    end
+    check("upper", renamed("Some File Name", "upper") == "SOME FILE NAME",
+          renamed("Some File Name", "upper"))
+    check("lower", renamed("Some File Name", "lower") == "some file name",
+          renamed("Some File Name", "lower"))
+    check("title", renamed("some file name", "title") == "Some File Name",
+          renamed("some file name", "title"))
+    check("camel", renamed("Some File Name", "camel") == "someFileName",
+          renamed("Some File Name", "camel"))
+    check("kebab", renamed("Some File Name", "kebab") == "some-file-name",
+          renamed("Some File Name", "kebab"))
+    check("snake", renamed("Some File Name", "snake") == "some_file_name",
+          renamed("Some File Name", "snake"))
+    -- The extension is not part of the base, so no case rule can touch it.
+    -- A rename to "SOME FILE NAME.MP4" is a file some apps stop opening.
+    local pl = BR.plan({ "/v/Some File.mp4" }, "upper")
+    check("🚨 the extension is never uppercased with the name",
+          pl[1] and pl[1].name == "SOME FILE.mp4", pl[1] and pl[1].name)
+    -- And a sidecar still follows, which is this module's whole promise.
+    DISK = {}
+    local pl2 = BR.plan({ "/v/My Show.mp4", "/v/My Show.en.srt" }, "kebab")
+    local names = {}
+    for _, it in ipairs(pl2 or {}) do names[#names + 1] = it.name end
+    table.sort(names)
+    check("🚨 a sidecar follows its video through a case rule",
+          table.concat(names, " ") == "my-show.en.srt my-show.mp4",
+          table.concat(names, " "))
+end
+
+-- 🚨 NO ENGINE, NO RENAME — refused BY NAME rather than silently doing
+-- nothing. The fn's own fallback returns the original name, so without
+-- this refusal ⇪R would show "nothing to rename" for a batch that
+-- plainly needs renaming, and the reason would be nowhere on screen.
+do
+    DISK = {}
+    CASE_OFF = true
+    local pl, problems = BR.plan({ "/v/Some File.mp4" }, "snake")
+    check("🚨 a case rule with no engine returns NO plan", pl == nil, pl)
+    check("🚨 …and names the module that is missing",
+          (problems and problems[1] or ""):find("Text Case") ~= nil,
+          problems and problems[1])
+    -- Everything that is not a case rule still works with it gone.
+    local pl2 = BR.plan({ "/v/a.b.c.mp4" }, "dots")
+    check("…while the non-case rules are unaffected", pl2 ~= nil and #pl2 == 1,
+          pl2 and #pl2)
+    CASE_OFF = false
+    local pl3 = BR.plan({ "/v/Some File.mp4" }, "snake")
+    check("…and the case rules come back when it does", pl3 ~= nil and #pl3 == 1,
+          pl3 and #pl3)
+end
+
+-- =====================================================================
 out("\n=== 8. THE EXPLORER — 400 random messy folders ===\n")
 -- =====================================================================
 -- Properties P1–P5 asserted over generated input. The generator mixes the
@@ -291,8 +382,11 @@ do
     local TAGS  = { "1080p", "1080p.ATVP-[y2flix.cc]", "108", "720p.WEBRip",
                     "2160p.NF.x265", "", "REPACK.1080p" }
     local TAILS = { "", "", "", "en", "forced", "sdh" }
-    local RULES = { "tv", "junk", "dots", "spaces", "lower", "title",
-                    "seq", "replace", "regex" }
+    -- All six cases are in here on purpose: P1–P5 must hold for them too,
+    -- and camel/kebab/snake are the rules most likely to make two files
+    -- collide, since they throw away the punctuation that told them apart.
+    local RULES = { "tv", "junk", "dots", "spaces", "seq", "replace", "regex",
+                    "upper", "lower", "title", "camel", "kebab", "snake" }
 
     local bad, worst = nil, 0
     for iter = 1, 400 do

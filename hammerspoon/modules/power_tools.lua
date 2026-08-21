@@ -89,6 +89,39 @@
 -- number is shown with a ~ in front of it rather than being quietly
 -- wrong. Words and characters have no such problem and carry no ~.
 --
+-- 📋 6.132.0 — LL: "Allow both counts to be posted to the clipboard."
+-- That is a SECOND ROW rather than a change to the first one. A tool you
+-- press to read a number must not quietly replace what is on your
+-- clipboard — you reached for the count, not for a paste — and ⇪V's
+-- history would fill with "128 words · 742 characters" lines nobody
+-- asked to keep. So: Count the selection shows. Count the selection →
+-- clipboard shows AND copies, and says so.
+--
+-- ---------------------------------------------------------------------
+-- 🔠 CHANGE THE CASE OF THE SELECTION (6.132.0)
+-- ---------------------------------------------------------------------
+-- LL: "I need a way to Change/Transform Text Case … I think I have
+-- something already to pick out and transform file names, can we add
+-- this to that tool?"
+--
+-- ⇪R does file names and cannot touch a sentence in an email, so the six
+-- cases live in modules/text_case.lua and BOTH tools ask it. Nothing
+-- about what a word is is decided in this file.
+--
+-- 🚨 THE SELECTION IS READ BEFORE THE PICKER OPENS, not after, and that
+-- ordering is the whole design. It means every row shows what that case
+-- will do to YOUR text rather than to the word "hello" — and three of
+-- the six (camel, kebab, snake) throw your punctuation away by
+-- definition. A preview of somebody else's sample cannot warn you about
+-- that; a preview of your own paragraph can.
+--
+-- ⚠️ AND IT REPLACES BY TYPING, because macOS has no "set the selection"
+-- API — nothing can hand text back to an arbitrary app's text field. The
+-- result is posted as keystrokes over the still-live selection, which
+-- means it inherits every guard the row above it needed: the secure
+-- input check first, the wait for ⌘⇧⌃⌥ to come up, and the length cap.
+-- If any of those refuses, nothing is typed and the selection stands.
+--
 -- ---------------------------------------------------------------------
 -- ℹ️ FILE METADATA — why it is a picker and not a window
 -- ---------------------------------------------------------------------
@@ -109,6 +142,9 @@ local M = {
             { "⌨️ type", "Types the clipboard key by key — for fields that" },
             { "",       "refuse ⌘V, like “confirm your email address”" },
             { "🔢 count", "Words · characters · ~sentences in the selection" },
+            { "📋 count", "The same, and both counts onto the clipboard" },
+            { "🔠 case",  "UPPER · lower · Title · camel · kebab · snake —" },
+            { "",        "each row previews YOUR text, then ⏎ types it back" },
             { "📋 plain", "Strips every bit of formatting off the clipboard" },
             { "ℹ️ meta",  "Every mdls attribute of the Finder selection, ⏎ copies" },
             { "⇪'",     "⏸ Pause all audio and video — media key + every" },
@@ -139,6 +175,13 @@ function M.setup(core)
     pt.copyWait     = 0.18         -- how long ⌘C is given to land
     pt.restoreAfter = 0.60         -- when the borrowed clipboard goes back
     pt.statsShow    = 7            -- seconds the numbers stay on screen
+    -- 📋 6.132.0 — what the second count row puts on the clipboard. Two
+    -- numbers, because "both counts" was the ask; the sentence estimate is
+    -- deliberately not in here, since a ~ in a pasted line is a footnote
+    -- nobody carries with them.
+    pt.countFormat  = "%d words · %d characters"
+    -- 🔠 case (6.132.0)
+    pt.previewChars = 64           -- how much of your text each row shows
     -- 🚨 Per-element Accessibility timeout, in seconds. The freeze guard,
     -- not a tuning knob — see pt.axSelection.
     pt.axTimeout    = 0.10
@@ -178,6 +221,7 @@ function M.setup(core)
 
     pt.chooser    = nil   -- HELD: an unreferenced hs.chooser is collected
     pt.metaChooser = nil  -- HELD
+    pt.caseChooser = nil  -- HELD
     pt.settleTimer, pt.typeTimer, pt.copyTimer = nil, nil, nil  -- HELD
     pt.startTimer, pt.metaTimer = nil, nil                      -- HELD
     pt.metaTask, pt.selTask = nil, nil                          -- HELD
@@ -185,6 +229,8 @@ function M.setup(core)
     pt.ran       = {}     -- id -> how many times
     pt.lastNote  = nil
     pt.typed     = 0      -- characters typed this session
+    pt.lastCountLine = nil  -- what the count row last put on the clipboard
+    pt.caseText  = nil      -- the selection the open case picker will act on
 
     -- See the 🚨 note at revealGhostty: these are constants so the
     -- external-binary review in test_diagnostics can see them.
@@ -482,30 +528,195 @@ function M.setup(core)
         end)
     end
 
-    function pt.countSelection()
+    -- ⏳ 6.132.0 — WHAT READS THE SELECTION, factored out so the case rows
+    -- use exactly the same two routes in exactly the same order. Both
+    -- callers need "AX first, ⌘C second, refuse third", and two copies of
+    -- that would be two places for the refusal message to drift.
+    -- `done(text, how)` — how is "accessibility" or "⌘C". done is never
+    -- called with nil; the refusal is shown here and the caller stops.
+    function pt.withSelection(label, done)
         local text = pt.axSelection()
-        if text then
-            pt.showStats(text, "accessibility")
-            return true
-        end
+        if text then done(text, "accessibility") return true end
         pt.copySelection(function(copied)
             if not copied then
                 note("no selection could be read, by either route")
-                hs.alert.show("🔢 Nothing selected — or this app answers\n"
+                hs.alert.show(label .. " Nothing selected — or this app answers\n"
                     .. "neither accessibility nor ⌘C", 4)
                 return
             end
-            pt.showStats(copied, "⌘C")
+            done(copied, "⌘C")
         end)
         return true
     end
 
-    function pt.showStats(text, how)
+    -- toClipboard comes from the SECOND count row. See the header for why
+    -- it is a second row and not a change to the first one.
+    function pt.countSelection(toClipboard)
+        return pt.withSelection("🔢", function(text, how)
+            pt.showStats(text, how, toClipboard)
+        end)
+    end
+
+    function pt.showStats(text, how, toClipboard)
         local st = pt.statsFor(text)
         pt.lastStats = st
-        say(("counted via %s: %d words, %d chars, ~%d sentences")
-            :format(how, st.words, st.chars, st.sentences))
-        hs.alert.show(pt.statsText(st), pt.statsShow)
+        local copied = false
+        if toClipboard then
+            local line = pt.countFormat:format(st.words, st.chars)
+            pt.lastCountLine = line
+            -- 📋 NOT suppressed from ⇪V's history, unlike the borrowed
+            -- clipboard in copySelection. That one is a round trip nobody
+            -- asked for; this one is the whole point of the row, and a copy
+            -- you deliberately made belongs in the history of copies.
+            copied = pcall(function() hs.pasteboard.setContents(line) end)
+            if not copied then note("could not put the counts on the clipboard") end
+        end
+        say(("counted via %s: %d words, %d chars, ~%d sentences%s")
+            :format(how, st.words, st.chars, st.sentences,
+                    toClipboard and (copied and " (copied)" or " (copy FAILED)") or ""))
+        local body = pt.statsText(st)
+        if toClipboard then
+            body = body .. "\n" .. (copied
+                and ("📋 " .. pt.lastCountLine .. " — copied")
+                or  "📋 The clipboard refused the counts")
+        end
+        hs.alert.show(body, pt.statsShow)
+    end
+
+    -- =====================================================================
+    -- 🔠 CHANGE THE CASE OF THE SELECTION (6.132.0)
+    -- =====================================================================
+    -- Every case rule lives in modules/text_case.lua. This file reads the
+    -- selection, draws the picker and types the answer back; it does not
+    -- know what a word is and must not learn.
+    function pt.caseList()
+        if not (_G.service and _G.service.has and _G.service.has("case.list")) then
+            return nil
+        end
+        local ok, list = pcall(function() return _G.service.call("case.list") end)
+        if ok and type(list) == "table" and #list > 0 then return list end
+        return nil
+    end
+
+    -- One line, whitespace collapsed, cut to fit a chooser row. A preview
+    -- that wraps is a preview you cannot compare against the row above it.
+    function pt.preview(s)
+        s = tostring(s or ""):gsub("%s+", " "):gsub("^%s+", "")
+        if s == "" then return "(nothing)" end
+        local n = utf8 and utf8.len and utf8.len(s) or nil
+        if (n or #s) <= pt.previewChars then return s end
+        if n then
+            local cut = utf8.offset(s, pt.previewChars + 1)
+            return (cut and s:sub(1, cut - 1) or s:sub(1, pt.previewChars)) .. "…"
+        end
+        return s:sub(1, pt.previewChars) .. "…"
+    end
+
+    function pt.changeCase()
+        if not pt.caseList() then
+            note("case.list has no provider — is modules/text_case.lua loaded?")
+            hs.alert.show("🔠 The Text Case module is not loaded, so there\n"
+                .. "are no cases to choose from. ⇪⇧D lists module status.", 5)
+            return false
+        end
+        return pt.withSelection("🔠", function(text)
+            pt.showCases(text)
+        end)
+    end
+
+    function pt.showCases(text)
+        local list = pt.caseList() or {}
+        local choices = {}
+        for _, c in ipairs(list) do
+            local out
+            local ok, res = pcall(function()
+                return _G.service.call("case.apply", c.id, text)
+            end)
+            if ok and type(res) == "string" then out = res end
+            choices[#choices + 1] = {
+                text    = c.label,
+                -- 🚨 THE PREVIEW IS OF YOUR TEXT, not of a sample. See the
+                -- header: camel, kebab and snake drop punctuation, and the
+                -- only warning that means anything is seeing it happen to
+                -- the paragraph you actually highlighted.
+                subText = out and pt.preview(out)
+                              or  "⚠️ this case could not be applied",
+                id      = c.id,
+                ok      = out ~= nil,
+            }
+        end
+        if not pt.caseChooser then
+            pt.caseChooser = hs.chooser.new(function(pick)
+                if not (pick and pick.ok) then return end
+                pt.applyCase(pick.id, pt.caseText)
+            end)
+            _G.choosers = _G.choosers or {}
+            _G.choosers.powerCase = pt.caseChooser
+            pcall(function()
+                pt.caseChooser:searchSubText(false)
+                pt.caseChooser:width(42)
+            end)
+        end
+        -- Held on pt rather than closed over, so a second ⇪; while the
+        -- first picker is open cannot type the FIRST selection's text.
+        pt.caseText = text
+        pt.caseChooser:choices(choices)
+        pt.caseChooser:placeholderText(
+            ("%d characters selected — pick a case"):format(#text))
+        pt.caseChooser:query("")
+        if core.showPopup then core.showPopup(pt.caseChooser)
+        else pt.caseChooser:show() end
+        return true
+    end
+
+    -- 🚨 THE SAME THREE GUARDS typeClipboard needs, for the same reasons,
+    -- and one more: an unchanged result is not typed at all. Retyping a
+    -- paragraph that is already lowercase would replace it with an
+    -- identical paragraph, which is invisible unless the app's undo stack
+    -- matters to you — and it always does.
+    function pt.applyCase(id, text)
+        if type(text) ~= "string" or text == "" then
+            note("no text held for the case picker")
+            return false
+        end
+        local ok, out = pcall(function()
+            return _G.service.call("case.apply", id, text)
+        end)
+        if not (ok and type(out) == "string") then
+            note("case.apply(" .. tostring(id) .. ") gave nothing back")
+            hs.alert.show("🔠 That case could not be applied — see the Console", 4)
+            return false
+        end
+        if out == text then
+            hs.alert.show("🔠 Already " .. tostring(id) .. " — nothing typed", 3)
+            return false
+        end
+        if #out > pt.typeMax then
+            note("case result too long to type (" .. #out .. " characters)")
+            hs.alert.show(("🔠 %d characters is too much to type back — the\n"
+                .. "cap is %d. Nothing was changed."):format(#out, pt.typeMax), 5)
+            return false
+        end
+        local okSec, secure = pcall(hs.eventtap.isSecureInputEnabled)
+        if okSec and secure then
+            note("secure input is on — the case cannot be typed back")
+            hs.alert.show("🔠 Secure input is ON — macOS blocks synthetic\n"
+                .. "keystrokes. Your selection is untouched.", 5)
+            return false
+        end
+        pt.startTimer = hs.timer.doAfter(pt.typeDelay, function()
+            pt.startTimer = nil
+            pt.whenClear(function(clear)
+                if not clear then
+                    note("modifiers never came up — refused to type the case")
+                    hs.alert.show("🔠 ⌘⇧⌃⌥ still held — nothing typed", 3)
+                    return
+                end
+                say(("case " .. id .. ": %d characters typed back"):format(#out))
+                pt.postText(out)
+            end)
+        end)
+        return true
     end
 
     -- =====================================================================
@@ -1201,6 +1412,14 @@ end tell]]
         { id = "count", icon = "🔢", title = "Count the selection",
           sub = "Words, characters and ~sentences in whatever is selected",
           run = function() return pt.countSelection() end },
+        -- 6.132.0 — the second count row. It shows the same numbers AND
+        -- copies two of them; the row above never touches your clipboard.
+        { id = "countclip", icon = "📋", title = "Count the selection → clipboard",
+          sub = "The same numbers, and “N words · N characters” copied",
+          run = function() return pt.countSelection(true) end },
+        { id = "case",  icon = "🔠", title = "Change the case of the selection",
+          sub = "UPPER · lower · Title · camel · kebab · snake, previewed first",
+          run = function() return pt.changeCase() end },
         { id = "meta",  icon = "ℹ️", title = "File metadata",
           sub = "Every mdls attribute of the Finder selection — ⏎ copies one",
           run = function() return pt.fileMetadata() end },
@@ -1290,6 +1509,10 @@ end tell]]
             ((ok and granted) and "granted — selections read without ⌘C"
                               or "OFF — counting falls back to ⌘C")
         L[#L + 1] = "   typed        : " .. pt.typed .. " characters this session"
+        local cases = pt.caseList()
+        L[#L + 1] = "   case engine  : " ..
+            (cases and (#cases .. " cases from modules/text_case.lua")
+                   or  "MISSING — 🔠 will refuse; is text_case loaded?")
         local any = false
         for _, t in ipairs(pt.tools) do
             if pt.ran[t.id] then
@@ -1303,6 +1526,9 @@ end tell]]
         if pt.lastStats then
             L[#L + 1] = "   last count   : " ..
                 pt.statsText(pt.lastStats):gsub("\n", " · "):gsub("🔢%s*", "")
+        end
+        if pt.lastCountLine then
+            L[#L + 1] = "   last copied  : " .. pt.lastCountLine
         end
         if pt.lastNote then L[#L + 1] = "   last problem : " .. pt.lastNote end
         local s = table.concat(L, "\n")
@@ -1329,6 +1555,8 @@ end tell]]
     core.provide("power.plain",    function() return pt.run("plain") end)
     core.provide("power.type",     function() return pt.run("type")  end)
     core.provide("power.count",    function() return pt.run("count") end)
+    core.provide("power.countClip", function() return pt.run("countclip") end)
+    core.provide("power.case",     function() return pt.run("case") end)
     core.provide("power.metadata", function() return pt.run("meta")  end)
     core.provide("power.pause",    function() return pt.run("pause") end)
     core.provide("power.ghostty",  function() return pt.run("ghere") end)

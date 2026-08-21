@@ -485,6 +485,14 @@ do
     end
     check("💾 the Clipboard registration supplies a csv function",
           row ~= nil and type(row.csv) == "function")
+    -- 🔑 6.132.0 — LL: "Shouldn't this be in the edit picker? ⇪⇧V." It
+    -- was, and had been since 6.97.0 — but the row's key cell said ⇪V
+    -- alone, so the picker read as though ⇪V were the only way in and the
+    -- edit view had no key at all. Both keys are bound (see §1); the row
+    -- must NAME both, or the picker is the place the config lies about
+    -- itself.
+    check("🔑 the Clipboard row names the edit view's key too",
+          row ~= nil and row.key == "⇪V / ⇪⇧V", row and row.key)
     _G.clipboardCache = {
         { date = "Aug 21 14:23", text = "newest" },
         { date = "Aug 21 09:01", text = "middle" },

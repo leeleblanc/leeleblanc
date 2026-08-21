@@ -189,9 +189,28 @@ _G.diag = { say = function() end, warn = function() end, err = function() end }
 _G.pasteboardSuppress = function() SUPPRESSED = SUPPRESSED + 1 end
 -- The service registry, as power_tools sees it: it asks screenshots.lua
 -- where zbarimg is rather than keeping a second copy of the search list.
+-- 🔠 6.132.0 — the case rows go through the REAL modules/text_case.lua,
+-- loaded here rather than stubbed. A stub that answers case.apply with
+-- whatever the test expects proves only that the test agrees with itself;
+-- what can actually break is the two files disagreeing.
+local CASE_SERVICES = {}
+do
+    local tcChunk = assert(loadfile(HS .. "/modules/text_case.lua"))
+    local TCM = tcChunk()
+    TCM.setup({ provide = function(n, f) CASE_SERVICES[n] = f end })
+end
+local CASE_OFF = false   -- a Mac where text_case failed to load
 _G.service = {
-    has  = function(n) return SERVICE_HAS and n == "shots.zbarPath" end,
-    call = function(n) if n == "shots.zbarPath" then return ZBAR end end,
+    has  = function(n)
+        if n == "shots.zbarPath" then return SERVICE_HAS end
+        return (not CASE_OFF) and CASE_SERVICES[n] ~= nil
+    end,
+    call = function(n, ...)
+        if n == "shots.zbarPath" then return ZBAR end
+        if CASE_OFF then return nil end
+        local f = CASE_SERVICES[n]
+        if f then return f(...) end
+    end,
 }
 
 local BOUND, PROVIDED = {}, {}
@@ -271,10 +290,14 @@ check("the cheat sheet key cell is exactly ⇪;", (function()
     end
     return false
 end)())
-check("all eight tools are in the list", #pt.tools == 8, #pt.tools)
+check("all ten tools are in the list", #pt.tools == 10, #pt.tools)
 check("…and each has a stable id", (function()
+    -- 6.132.0 added countclip and case. ids are what _G.powerReport()
+    -- counts by and what ⇪space's run map points at, so they are checked
+    -- by name rather than by number alone.
     local want = { plain = true, type = true, count = true, meta = true,
-                   pause = true, ghere = true, greveal = true, qr = true }
+                   pause = true, ghere = true, greveal = true, qr = true,
+                   countclip = true, case = true }
     for _, t in ipairs(pt.tools) do
         if not want[t.id] then return false end
         want[t.id] = nil
@@ -588,7 +611,7 @@ end)(), CLIP)
 
 pt.show()
 local pc = CHOOSERS[#CHOOSERS]
-check("the palette lists all eight tools", #pc.choices_ == 8, #pc.choices_)
+check("the palette lists all ten tools", #pc.choices_ == 10, #pc.choices_)
 check("every palette row value is a scalar too", (function()
     for _, c in ipairs(pc.choices_) do
         for _, v in pairs(c) do
@@ -1007,6 +1030,174 @@ TASKS[1].cb(1, "", "")     -- screencapture refused
 check("a failed capture is reported, not decoded", (function()
     return #TASKS == 1
 end)(), #TASKS)
+
+-- =====================================================================
+out("\n=== 15. 📋 the counts on the clipboard (6.132.0) ===\n")
+-- =====================================================================
+-- LL: "Allow both counts to be posted to the clipboard." It is a SECOND
+-- row rather than a change to the first, and §15 is mostly about proving
+-- the first row still does not touch your clipboard.
+reset()
+AXSEL = "one two three four five"
+CLIP  = "something I was keeping"
+pt.run("count")
+check("🚨 the plain count row does NOT touch the clipboard",
+      CLIP == "something I was keeping", CLIP)
+check("…and it did show the numbers", (ALERTS[1] or ""):find("5 words") ~= nil,
+      ALERTS[1])
+
+reset()
+AXSEL = "one two three four five"
+CLIP  = "something I was keeping"
+pt.run("countclip")
+check("the → clipboard row copies", CLIP ~= "something I was keeping", CLIP)
+check("…both counts, in one line", CLIP == "5 words · 23 characters", CLIP)
+check("…and says on screen that it copied",
+      (ALERTS[1] or ""):find("copied") ~= nil, ALERTS[1])
+check("…and the numbers are still shown too",
+      (ALERTS[1] or ""):find("5 words") ~= nil, ALERTS[1])
+check("the report shows what was copied last",
+      _G.powerReport():find("5 words · 23 characters", 1, true) ~= nil)
+
+-- 🚨 A CLIPBOARD THAT REFUSES MUST NOT BE REPORTED AS A SUCCESS. The
+-- whole value of this row is that you can paste the numbers afterwards.
+do
+    reset()
+    AXSEL = "one two"
+    local realSet = hs.pasteboard.setContents
+    hs.pasteboard.setContents = function() error("pasteboard is busy", 0) end
+    pt.run("countclip")
+    hs.pasteboard.setContents = realSet
+    check("🚨 a refused clipboard says so rather than claiming success",
+          (ALERTS[1] or ""):find("refused") ~= nil, ALERTS[1])
+    check("…and the counts are still on screen",
+          (ALERTS[1] or ""):find("2 words") ~= nil, ALERTS[1])
+end
+
+-- =====================================================================
+out("\n=== 16. 🔠 change the case of the selection (6.132.0) ===\n")
+-- =====================================================================
+-- The rules come from the real modules/text_case.lua — see the service
+-- stub at the top. These checks are about the three things THIS file
+-- owns: reading the selection first, previewing against it, and typing
+-- the answer back under the same guards typeClipboard needs.
+local function lastChooser() return CHOOSERS[#CHOOSERS] end
+
+reset()
+AXSEL = "Some Words Here"
+local before = #CHOOSERS
+check("the case row opens a picker", pt.run("case") and #CHOOSERS > before)
+do
+    local c = lastChooser()
+    check("…with all six cases in it", #c.choices_ == 6, #c.choices_)
+    -- 🚨 THE PREVIEW IS OF YOUR TEXT. A sample cannot warn you that three
+    -- of the six are about to throw your punctuation away.
+    local subs = {}
+    for _, ch in ipairs(c.choices_) do subs[ch.id] = ch.subText end
+    check("🚨 the UPPERCASE row previews YOUR text, not a sample",
+          subs.upper == "SOME WORDS HERE", subs.upper)
+    check("🚨 …and so does the snake row", subs.snake == "some_words_here",
+          subs.snake)
+    check("…and the kebab row", subs.kebab == "some-words-here", subs.kebab)
+    check("the placeholder says how much is selected",
+          c.placeholder:find("15 characters") ~= nil, c.placeholder)
+end
+
+-- ⏎ on a row types the result back over the still-live selection.
+do
+    local c = lastChooser()
+    c.cb({ id = "snake", ok = true })
+    runAfters()
+    drain(40)
+    check("⏎ types the transformed text back",
+          table.concat(TYPED) == "some_words_here", table.concat(TYPED))
+end
+
+-- 🚨 EVERY GUARD typeClipboard HAS, because this types too.
+do
+    reset() ; AXSEL = "Some Words Here"
+    pt.run("case")
+    SECURE = true
+    lastChooser().cb({ id = "upper", ok = true })
+    runAfters() ; drain(40)
+    check("🚨 secure input stops the case being typed", #TYPED == 0,
+          table.concat(TYPED))
+    check("…and says why", (ALERTS[#ALERTS] or ""):find("Secure input") ~= nil,
+          ALERTS[#ALERTS])
+    SECURE = false
+end
+do
+    reset() ; AXSEL = "Some Words Here"
+    pt.run("case")
+    MODS = { cmd = true }          -- never comes up
+    lastChooser().cb({ id = "upper", ok = true })
+    runAfters() ; drain(80)
+    check("🚨 a held modifier stops it too — a keystroke under ⌘ is a menu "
+          .. "command in somebody else's app", #TYPED == 0, table.concat(TYPED))
+    MODS = {}
+end
+do
+    reset() ; AXSEL = string.rep("word ", 2000)
+    pt.run("case")
+    lastChooser().cb({ id = "upper", ok = true })
+    runAfters() ; drain(40)
+    check("🚨 too much text to type is refused rather than half-typed",
+          #TYPED == 0, #TYPED)
+    check("…and the cap is named", (ALERTS[#ALERTS] or ""):find("cap is") ~= nil,
+          ALERTS[#ALERTS])
+end
+
+-- 🚨 AN UNCHANGED RESULT IS NOT TYPED. Retyping an identical paragraph
+-- is invisible until you reach for undo and find a step that did nothing.
+do
+    reset() ; AXSEL = "already lower"
+    pt.run("case")
+    lastChooser().cb({ id = "lower", ok = true })
+    runAfters() ; drain(40)
+    check("🚨 nothing is typed when the case would change nothing",
+          #TYPED == 0, table.concat(TYPED))
+    check("…and it says so", (ALERTS[#ALERTS] or ""):find("Already") ~= nil,
+          ALERTS[#ALERTS])
+end
+
+-- The selection is read the same two ways the counter reads it.
+do
+    reset() ; AXSEL = nil ; CLIP = nil
+    pt.run("case")
+    CLIP = "From The Clipboard"
+    runAfters()
+    check("an app with no accessibility falls back to ⌘C",
+          (lastChooser().choices_[6] or {}).subText == "from_the_clipboard",
+          (lastChooser().choices_[6] or {}).subText)
+    drain(40)
+end
+do
+    reset() ; AXSEL = nil ; CLIP = nil
+    local n = #CHOOSERS
+    pt.run("case")
+    runAfters() ; drain(40)
+    check("no selection at all opens no picker", #CHOOSERS == n, #CHOOSERS - n)
+    check("…and says which two routes were tried",
+          (ALERTS[#ALERTS] or ""):find("accessibility") ~= nil, ALERTS[#ALERTS])
+end
+
+-- 🚨 NO ENGINE, NO PICKER. A row that opens an empty chooser is worse
+-- than a row that explains itself.
+do
+    reset() ; AXSEL = "Some Words"
+    CASE_OFF = true
+    local n = #CHOOSERS
+    local ran = pt.run("case")
+    check("🚨 the case row refuses when text_case is not loaded", ran == false)
+    check("…without opening a picker", #CHOOSERS == n)
+    check("…and names the module", (ALERTS[#ALERTS] or ""):find("Text Case") ~= nil,
+          ALERTS[#ALERTS])
+    check("…and the report says the engine is missing",
+          _G.powerReport():find("MISSING") ~= nil)
+    CASE_OFF = false
+    check("…and the report finds it again once it is back",
+          _G.powerReport():find("6 cases") ~= nil)
+end
 
 -- =====================================================================
 out("\n=== 10. the report tells the truth ===\n")

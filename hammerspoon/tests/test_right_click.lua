@@ -103,6 +103,8 @@ local function reset()
     POSTED, ALERTS, TIMERS = {}, {}, {}
     RIGHTCLICK_CALLS = 0
     rc.fires = 0
+    rc.blind = 0
+    rc.lastBlind = nil
     rc.lastNote = nil
     if rc.settleTimer then rc.settleTimer = nil end
 end
@@ -193,6 +195,68 @@ check("a modifier that never clears still fires, after the timeout",
       #POSTED == 2, #POSTED)
 check("…and says how long it waited for it",
       (rc.lastWait or 0) >= math.floor(rc.settleTimeout * 1000), rc.lastWait)
+
+-- 🚨 6.132.0 — AND IT SAYS SO. LL: "I don't always have the same options
+-- when I use our right-click tool." This is that, exactly: the wait ran
+-- out with ⇧ still down, the click went anyway, and Chrome answered with
+-- its own menu instead of the page's. Firing was right. Firing SILENTLY
+-- was the bug, because a tool that behaves differently for a reason it
+-- never states reads as a tool that behaves randomly.
+check("🚨 a blind fire is counted", rc.blind == 1, rc.blind)
+check("🚨 …and names the modifier that was still down, not just 'a modifier'",
+      rc.lastBlind == "⌘", rc.lastBlind)
+check("🚨 …on screen, where you are looking when the wrong menu opens",
+      (ALERTS[#ALERTS] or ""):find("⌘") ~= nil, ALERTS[#ALERTS])
+check("…and the alert says what to do about it",
+      (ALERTS[#ALERTS] or ""):find("again") ~= nil, ALERTS[#ALERTS])
+MODS = {}
+
+-- Two modifiers down get both symbols, in a stable order.
+reset()
+MODS = { cmd = true, shift = true }
+rc.click()
+runTimers(100)
+check("both held modifiers are named", rc.lastBlind == "⌘⇧", rc.lastBlind)
+MODS = {}
+
+-- 🚨 AND A CLEAN FIRE MUST NOT BE MARKED BLIND. If every click carried
+-- the warning, the warning would be noise and would be ignored — which
+-- is the same silence, wearing a different hat.
+reset()
+MODS = {}
+rc.click()
+check("a click with nothing held is not blind", rc.blind == 0, rc.blind)
+check("…and carries no leftover modifier name", rc.lastBlind == nil,
+      rc.lastBlind)
+check("…and shows no warning", #ALERTS == 0, ALERTS[1])
+
+-- The one that came up in time is not blind either.
+reset()
+MODS = { shift = true }
+rc.click()
+MODS = {}
+runTimers(100)
+check("a modifier that comes up in time is not blind", rc.blind == 0, rc.blind)
+check("…and no warning is shown for it", #ALERTS == 0, ALERTS[1])
+
+-- ⏳ The wait itself. 0.30s was not long enough to let go of a four-key
+-- chord, which is how the blind fires were happening in the first place.
+check("⏳ the settle window is at least 0.45s", rc.settleTimeout >= 0.45,
+      rc.settleTimeout)
+check("…and is still short enough not to feel broken",
+      rc.settleTimeout <= 0.60, rc.settleTimeout)
+
+-- The knob exists, and turning it off restores the old silence — which
+-- is the only reason to check it: it proves the alert is what changed.
+reset()
+rc.warnOnBlind = false
+MODS = { alt = true }
+rc.click()
+runTimers(100)
+check("rc.warnOnBlind = false silences the warning", #ALERTS == 0, ALERTS[1])
+check("…but the fire is still counted and still named", rc.blind == 1
+      and rc.lastBlind == "⌥", tostring(rc.blind) .. "/" .. tostring(rc.lastBlind))
+rc.warnOnBlind = true
 MODS = {}
 
 out("\n=== 3b. the pointer is re-read after the wait ===\n")
@@ -258,6 +322,23 @@ check("it counts what fired", rep:find("fired", 1, true) ~= nil)
 check("it says where the last one landed", rep:find("100,200", 1, true) ~= nil, rep)
 check("…and in which app", rep:find("Finder", 1, true) ~= nil)
 check("it says where the pointer is now", rep:find("pointer now", 1, true) ~= nil)
+-- 6.132.0 — the report is where "it keeps giving me the wrong menu" gets
+-- answered, so the blind count is in it whether or not any have happened.
+check("the report always carries the blind count",
+      rep:find("blind", 1, true) ~= nil, rep)
+check("…and says how long it is willing to wait",
+      rep:find("450ms") ~= nil, rep)
+do
+    reset()
+    MODS = { shift = true }
+    rc.click()
+    runTimers(100)
+    local r2 = _G.rightClickReport()
+    check("after a blind fire the report explains that menu",
+          r2:find("modified one") ~= nil, r2)
+    check("…and names the modifier in it", r2:find("⇧") ~= nil, r2)
+    MODS = {}
+end
 check("with nothing clicked it says 'never', not '0,0'", (function()
     rc.fires, rc.lastAt = 0, nil
     return _G.rightClickReport():find("never", 1, true) ~= nil

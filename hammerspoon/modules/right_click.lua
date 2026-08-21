@@ -39,6 +39,34 @@
 -- swallowing the press — because a menu with the wrong items in it still
 -- beats no menu and no explanation.
 --
+-- 🚨 6.132.0 — AND UNTIL NOW THERE WAS NO EXPLANATION.
+-- LL: "I don't always have the same options when I use our right-click
+-- tool." That is this, exactly. When the wait ran out with ⇧ still down,
+-- the click went out anyway — silently — and Chrome answered it with its
+-- own menu instead of the page's. Two menus, one key, nothing on screen
+-- saying which one you were about to get, so the tool looked random.
+--
+-- Two changes, and the first one is the smaller:
+--
+--   · settleTimeout went 0.30 → 0.45. A third of a second is not long
+--     enough to let go of a key you are still pressing when the shortcut
+--     is a four-modifier chord; ⇪ is ⌘⌃⌥⇧ held together, and letting go
+--     of all four is not one motion.
+--   · A blind fire now SAYS SO — on screen, naming the modifiers that
+--     were still down, and in _G.rightClickReport() as a running count.
+--     The menu you get is still the wrong one. You now know it was.
+--
+-- ⚠️ IT STILL FIRES. Swallowing the press would trade a confusing menu
+-- for a dead key, which is worse: a dead key gets pressed again, and the
+-- second press has the same modifiers held as the first.
+--
+-- ⚠️ AND SOME MENUS REALLY ARE DIFFERENT, with nothing wrong anywhere.
+-- Right-clicking a misspelled word in Chrome gives you Add to Dictionary
+-- and the spelling suggestions; right-clicking the paragraph beside it
+-- does not. That is the page and the app deciding what is under the
+-- pointer, which is the one thing this module deliberately never guesses
+-- at. Different thing under the pointer, different menu.
+--
 -- The posted events also carry EXPLICITLY EMPTY FLAGS, which is the same
 -- protection from the other side: belt for the physical keys, braces for
 -- anything the window server might attach on the way out.
@@ -60,6 +88,8 @@ local M = {
         entries = {
             { "⇪⇧F",  "Right-click wherever the pointer is — any app" },
             { "waits", "For ⇧ to come up first, so you get the normal menu" },
+            { "says",  "If it gave up waiting, it tells you — that menu was" },
+            { "",      "the modified one, not the usual one" },
             { "vs ⇪X", "The grid is the other way: aim first, ⇧space clicks" },
             { "check", "_G.rightClickReport() — how many fired, and where" },
         },
@@ -76,14 +106,23 @@ function M.setup(core)
     -- ⏳ How long to wait for the modifier keys to come up before posting
     -- anyway. Long enough for a human to let go of a key they have already
     -- pressed; short enough that holding the key does not feel broken.
-    rc.settleTimeout = 0.30
+    -- 6.132.0: 0.30 → 0.45. See the header — ⇪ is four modifiers held at
+    -- once and releasing all four is not one motion.
+    rc.settleTimeout = 0.45
     rc.settleTick    = 0.02
+    -- 📣 Say so when the wait ran out and the click went anyway. Off makes
+    -- the tool silent again and the menus random again; it is a knob only
+    -- because a person who has read the header may not want the alert.
+    rc.warnOnBlind   = true
+    rc.blindShow     = 4           -- seconds that warning stays up
     -- ----------------------------------------------------------------------
 
     rc.fires    = 0
+    rc.blind    = 0         -- fires where the modifiers never came up
     rc.lastAt   = nil       -- the point of the last click
     rc.lastApp  = nil
     rc.lastWait = nil       -- how long we waited for the modifiers, in ms
+    rc.lastBlind = nil      -- which modifiers were still down, last time
     rc.lastNote = nil       -- why the last one did not fire, if it did not
     rc.settleTimer = nil    -- HELD: an unreferenced hs.timer is collected
 
@@ -115,6 +154,26 @@ function M.setup(core)
         local ok, mods = pcall(hs.eventtap.checkKeyboardModifiers)
         if not ok or type(mods) ~= "table" then return false end
         return (mods.cmd or mods.alt or mods.shift or mods.ctrl or mods.fn) == true
+    end
+
+    -- 📣 6.132.0 — WHICH ones, as symbols, for the blind-fire warning.
+    -- "modifiers were still held" is a fact about the config; "⇧ was still
+    -- held" is a fact about your hand, and only the second one tells you
+    -- what to do differently. Returns "" when nothing is down.
+    rc.MOD_SYMBOLS = {
+        { key = "cmd", sym = "⌘" }, { key = "shift", sym = "⇧" },
+        { key = "ctrl", sym = "⌃" }, { key = "alt",  sym = "⌥" },
+        { key = "fn",  sym = "fn" },
+    }
+
+    function rc.heldNames()
+        local ok, mods = pcall(hs.eventtap.checkKeyboardModifiers)
+        if not ok or type(mods) ~= "table" then return "" end
+        local out = {}
+        for _, m in ipairs(rc.MOD_SYMBOLS) do
+            if mods[m.key] then out[#out + 1] = m.sym end
+        end
+        return table.concat(out)
     end
 
     -- ---- the click itself -------------------------------------------------
@@ -151,8 +210,11 @@ function M.setup(core)
         return n or "?"
     end
 
-    -- fire(point, waitedMs) — everything after the modifiers are settled.
-    local function fire(point, waited)
+    -- fire(point, waitedMs, stillHeld) — everything after the modifiers are
+    -- settled, or after we gave up waiting for them. stillHeld is the
+    -- symbols that were STILL down when the wait ran out, "" or nil when
+    -- the wait ended properly.
+    local function fire(point, waited, stillHeld)
         if not rc.post(point) then
             rc.lastNote = "the click could not be posted"
             hs.alert.show("🖱 Could not right-click — see the Console")
@@ -163,8 +225,25 @@ function M.setup(core)
         rc.lastApp = frontAppName()
         rc.lastWait = waited
         rc.lastNote = nil
-        say(string.format("right-click at %d,%d in %s (waited %dms)",
-            math.floor(point.x), math.floor(point.y), rc.lastApp, waited))
+        local blind = (stillHeld and stillHeld ~= "") and stillHeld or nil
+        rc.lastBlind = blind
+        say(string.format("right-click at %d,%d in %s (waited %dms)%s",
+            math.floor(point.x), math.floor(point.y), rc.lastApp, waited,
+            blind and (" — BLIND, " .. blind .. " still held") or ""))
+        -- 🚨 THE FIX FOR "I don't always have the same options". The click
+        -- still went out; what changes is that you are told the menu you
+        -- are looking at was opened under a live modifier, which is the
+        -- one thing that makes the same key give two different menus.
+        if blind then
+            rc.blind = rc.blind + 1
+            warn(("fired with %s still held after %dms — the menu may be the "
+                  .. "modified one"):format(blind, waited))
+            if rc.warnOnBlind then
+                hs.alert.show(("🖱 %s was still held — this may be the %s menu,\n"
+                    .. "not the normal one. Let go and press ⇪⇧F again.")
+                    :format(blind, blind), rc.blindShow)
+            end
+        end
         return true
     end
 
@@ -204,15 +283,21 @@ function M.setup(core)
         local okTimer = pcall(function()
             rc.settleTimer = hs.timer.doEvery(rc.settleTick, function()
                 waited = waited + rc.settleTick
-                local done = (not rc.modifiersHeld()) or waited >= rc.settleTimeout
-                if not done then return end
+                local clear = not rc.modifiersHeld()
+                if not (clear or waited >= rc.settleTimeout) then return end
                 pcall(function() rc.settleTimer:stop() end)
                 rc.settleTimer = nil
+                -- 🚨 READ THE NAMES BEFORE POSTING, not after. The click
+                -- takes the focus somewhere and the keys can come up in the
+                -- same breath; asking afterwards reports "" for a fire that
+                -- really was blind, which is the silence this release is
+                -- about.
+                local stillHeld = (not clear) and rc.heldNames() or nil
                 -- 🚨 THE POINT IS RE-READ. The pointer can move during the
                 -- wait — a trackpad is under your other hand — and a click
                 -- posted at where it WAS is a click on the wrong thing.
                 local now = rc.pointer() or point
-                fire(now, math.floor(waited * 1000 + 0.5))
+                fire(now, math.floor(waited * 1000 + 0.5), stillHeld)
             end)
         end)
         if not (okTimer and rc.settleTimer) then
@@ -230,12 +315,24 @@ function M.setup(core)
         L[#L + 1] = "   accessibility : " .. (axAvailable() and "granted" or "OFF — no click can be posted")
         L[#L + 1] = string.format("   fired         : %d time%s this session",
             rc.fires, rc.fires == 1 and "" or "s")
+        L[#L + 1] = string.format("   blind         : %d of those fired with a "
+            .. "modifier still down", rc.blind)
+        if rc.blind > 0 then
+            L[#L + 1] = "                   those are the ones where the menu "
+                        .. "was not the usual one"
+        end
+        L[#L + 1] = string.format("   waits up to   : %dms for ⌘⇧⌃⌥ to come up "
+            .. "(rc.settleTimeout)", math.floor(rc.settleTimeout * 1000 + 0.5))
         if rc.lastAt then
             L[#L + 1] = string.format("   last          : %d,%d in %s",
                 math.floor(rc.lastAt.x), math.floor(rc.lastAt.y),
                 tostring(rc.lastApp))
             L[#L + 1] = string.format("   waited        : %dms for the modifiers to clear",
                 rc.lastWait or 0)
+            if rc.lastBlind then
+                L[#L + 1] = "   and gave up   : " .. rc.lastBlind
+                            .. " was still held — that menu was the modified one"
+            end
         else
             L[#L + 1] = "   last          : never — nothing has been clicked yet"
         end

@@ -493,7 +493,13 @@ function M.setup(core)
         _G.editors = _G.editors or {}
         table.insert(_G.editors, {
             name  = "Clipboard",
-            key   = "⇪V",
+            -- 6.132.0 — LL: "Shouldn't this be in the edit picker? ⇪⇧V."
+            -- It was: ⇪⇧V is this row's EDIT view. The row simply never
+            -- said so, so the picker read as if ⇪V were the only way in.
+            -- Same shape as the Screenshots row's "⇪4 / ⇪⇧4", where the
+            -- second key is likewise a different view, not a second door
+            -- into the same one.
+            key   = "⇪V / ⇪⇧V",
             what  = "everything you have copied",
             order = 40,
             unit  = "items",

@@ -72,6 +72,8 @@ local M = {
             { "tv",     "Normalise S01E01 naming across a whole season" },
             { "junk",   "Strip [tags], 1080p, WEBRip, release groups" },
             { "find",   "Find and replace · regex · sequential numbering" },
+            { "case",   "UPPER · lower · Title · camel · kebab · snake — the" },
+            { "",       "same six ⇪; runs over selected text (text_case.lua)" },
             { "safe",   "Subtitles move WITH their video — always, by design" },
             { "",       "Any collision aborts the whole batch. Nothing partial." },
         },
@@ -234,18 +236,44 @@ function M.setup(core)
         label = "Spaces → dots",
         fn = function(base) return tidy((base:gsub("%s+", "."))) end,
     }
-    br.rules.lower = {
-        label = "lowercase everything",
-        fn = function(base) return base:lower() end,
-    }
-    br.rules.title = {
-        label = "Title Case Each Word",
-        fn = function(base)
-            return (base:gsub("(%a[%w']*)", function(w)
-                return w:sub(1, 1):upper() .. w:sub(2):lower()
-            end))
-        end,
-    }
+    -- 🔠 6.132.0 — THE CASE RULES MOVED OUT OF THIS FILE.
+    -- LL asked for six cases, and asked for them here. Four of them were
+    -- missing, and the two that were here (lower, title) were about to
+    -- become one of two copies: ⇪; grew the same six for SELECTED TEXT in
+    -- the same release, and this tool cannot serve that — there is no file
+    -- to rename inside an email. So "what is a word?" is answered once, in
+    -- modules/text_case.lua, and both tools ask it.
+    --
+    -- 🚨 A CASE RULE WITH NO ENGINE MUST NOT QUIETLY DO NOTHING. `case` is
+    -- read by br.plan, which refuses the whole batch by name rather than
+    -- letting the fallback below hand back every original name and show you
+    -- a preview of a rename that would change nothing. The fn's fallback is
+    -- the second belt: reached only if the service disappears between the
+    -- plan and the run, and "leave the name alone" is the safe end of that.
+    local function caseRule(id, label)
+        return {
+            label = label,
+            case  = id,
+            fn = function(base)
+                if not (_G.service and _G.service.has
+                        and _G.service.has("case.apply")) then
+                    return base
+                end
+                local ok, out = pcall(function()
+                    return _G.service.call("case.apply", id, base)
+                end)
+                if ok and type(out) == "string" and out ~= "" then return out end
+                return base
+            end,
+        }
+    end
+
+    br.rules.upper = caseRule("upper", "UPPERCASE EVERYTHING")
+    br.rules.lower = caseRule("lower", "lowercase everything")
+    br.rules.title = caseRule("title", "Title Case Each Word")
+    br.rules.camel = caseRule("camel", "camelCaseTheWholeName")
+    br.rules.kebab = caseRule("kebab", "kebab-case-the-whole-name")
+    br.rules.snake = caseRule("snake", "snake_case_the_whole_name")
 
     -- Sequential numbering. `prefix` and `pad` come from the prompt.
     br.rules.seq = {
@@ -291,6 +319,15 @@ function M.setup(core)
     function br.plan(paths, ruleName, ctx)
         local rule = br.rules[ruleName]
         if not rule then return nil, { "no such rule: " .. tostring(ruleName) } end
+        -- 🔠 6.132.0 — a case rule with no engine refuses BY NAME. Without
+        -- this the fallback in caseRule hands every original name straight
+        -- back, the plan comes out empty, and ⇪R shows "nothing to rename"
+        -- for a batch that plainly needs renaming.
+        if rule.case and not (_G.service and _G.service.has
+                              and _G.service.has("case.apply")) then
+            return nil, { "the Text Case module is not loaded — it owns every "
+                          .. "case rule (modules/text_case.lua)" }
+        end
         local groups = br.group(paths)
         local prepCtx = ctx or {}
         if rule.prep then
@@ -596,7 +633,9 @@ end timeout]]
         local groups = br.group(paths)
         local sidecars = #paths - #groups
         local order = { "tv", "junk", "replace", "regex", "seq",
-                        "dots", "spaces", "title", "lower" }
+                        "dots", "spaces",
+                        -- 🔠 6.132.0 — the six, shape-keeping three first.
+                        "upper", "lower", "title", "camel", "kebab", "snake" }
         local choices = {}
         -- Undo first, when there is a batch to undo. It has no key of its
         -- own because ⇪⇧R belongs to something older; see the wiring note.
