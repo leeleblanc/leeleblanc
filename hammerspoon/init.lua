@@ -4,8 +4,38 @@
 -- =====================================================================
 -- 08-21-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.134.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.135.0
 -- =====================================================================
+
+-- NEW IN 6.135.0 — THE STRONGER DOSE, AND A TEST THAT COULD HAVE LIED:
+--   🔌🔌 _G.lagTapsGone() STOPS EVERY KEYBOARD TAP FOR REAL.
+--      6.134.0 shipped _G.lagTapsOff(), which makes each tap's callback
+--      INERT — it returns immediately without running the module's
+--      handler. That was chosen so the expander and autocorrect
+--      watchdogs, which restart a stopped tap every thirty seconds,
+--      could not silently undo the test.
+--   🚨 IT WAS ALSO A TRAP, AND THAT IS THE REAL NEWS HERE. An inert tap
+--      IS STILL A TAP: registered with macOS, still in the path your
+--      keystroke travels. lagTapsOff measures what the CALLBACKS cost.
+--      It cannot measure what HAVING five taps costs — the dispatch
+--      itself, secure input degrading all of them at once, a stale
+--      Accessibility grant. So "I ran lagTapsOff and nothing changed"
+--      would have read as "the taps are innocent" when the taps could be
+--      the entire problem. A confident wrong answer, which this file's
+--      own probe header calls worse than no answer.
+--   🐕 SO tapsGone HOLDS THE WATCHDOGS DOWN FIRST, by name, then stops
+--      each tap. Stopping a tap while its watchdog runs is a race the
+--      watchdog wins inside thirty seconds. It restores only the taps it
+--      actually stopped — screenshots' select-mode tap is stopped nearly
+--      always, and a restore that started it would switch on something
+--      the config had deliberately switched off.
+--   🔒 AND THE REPORT NOW NAMES SECURE INPUT. macOS turns it on for
+--      password fields and a badly-behaved app can leave it on for
+--      everybody; while it is on every tap is throttled by the OS, and
+--      bisecting them one at a time finds nothing because none of them
+--      is individually at fault.
+--   📋 Run them in order: _G.lagTapsOff() first, _G.lagTapsGone() only
+--      if the first one changed nothing.
 
 -- NEW IN 6.134.0 — THE SWITCH, NOT JUST THE GAUGE:
 --   ⌨️ LL: "Since the last, at least two versions, once I launch
@@ -161,41 +191,10 @@
 --      switch a broken tap off. The callback is called directly.
 --        _G.lagReport()   ·   _G.lagReset()
 
--- NEW IN 6.130.0 — EVERY EDITOR INTO ONE SPREADSHEET:
---   💾 THE LAST ROW OF THE ⌃⌃ PICKER WRITES ALL OF IT TO ONE CSV.
---          LL: "Can these write into one file, .csv perhaps? Too crazy?"
---      Not crazy — the roster was already the right list, it simply had
---      no way to hand its CONTENTS over. It goes to
---      <Logs>/editors-<Mac>.csv, columns Date, Editor, Item, When,
---      Label, Characters, Text. One row per item, not per store.
---   🚨 IT IS A SNAPSHOT, SO IT OVERWRITES. Every other CSV here appends,
---      because every other CSV here is a LOG — one row per event as it
---      happens. This one dumps whole stores, and appending it would put a
---      thousand clipboard rows underneath last time's identical thousand:
---      a longer file that is not a longer record. The Date column stamps
---      when the snapshot was taken.
---   🗂 MOST MODULES NEEDED NOTHING. An editor holding ONE thing — either
---      pad, whose whole content is a draft — already answers `text`, and
---      that becomes its single row for free. Only the four multi-item
---      stores (clipboard, OCR, pins, screenshots) had to say so, via a
---      new optional `csv` field on the same registration they already do.
---   ⚠️ AND A STORE SUPPLYING NEITHER IS SIMPLY ABSENT from the file —
---      which is invisible in a spreadsheet, so _G.editorPickerReport()
---      now prints a 💾 and a row count against every editor, and
---      "supplies no csv and no text" against the ones that would
---      contribute nothing.
---   📸 SCREENSHOTS JOINS THE PICKER, AND ITS ⏎ OPENS THE FOLDER.
---          LL: "any screenshots should be captured here, by a line entry
---          that sends me to that screenshot's folder"
---      It is the odd row on that roster on purpose: every other entry
---      opens a text surface, this one opens Finder. It offers no `text`,
---      so ⌥⏎ cannot put an empty string on your clipboard over something
---      you wanted, and it is in the CSV too — its cells are full paths.
---
--- (6.129.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.130.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.134.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.135.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -506,7 +505,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.134.0"
+_G.configVersion = "6.135.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

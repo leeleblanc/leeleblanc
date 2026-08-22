@@ -4,6 +4,64 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.135.0 — THE STRONGER DOSE, AND A TEST THAT COULD HAVE LIED:
+  🔌🔌 _G.lagTapsGone() STOPS EVERY KEYBOARD TAP FOR REAL.
+     6.134.0 shipped _G.lagTapsOff(), which makes each tap's callback
+     INERT — it returns immediately without ever running the module's
+     handler. That was the right answer to a specific hazard: text_expander
+     and autocorrect each run a 30-second watchdog that finds a stopped tap
+     and starts it again, so a stop-based test would have silently undone
+     itself mid-experiment.
+  🚨 IT WAS ALSO A TRAP, AND THAT IS THE REAL NEWS IN THIS VERSION.
+     An inert tap IS STILL A TAP. It is still registered with macOS, and
+     the keystroke still travels through the event-tap machinery to reach
+     it — it just meets a function that returns straight away.
+     That measures what our CALLBACKS cost. It cannot measure what HAVING
+     FIVE TAPS costs, and those are different numbers: the dispatch itself
+     has a price, secure input degrades every tap at once, and a stale
+     Accessibility grant can make the whole mechanism crawl with no
+     callback being slow at all.
+     So "I ran lagTapsOff and nothing changed" would have been read as
+     "the taps are innocent" in exactly the case where the taps are the
+     entire problem. A confident wrong answer — which core/lag.lua's own
+     header calls worse than no answer — reached by a road nobody had
+     walked down when the switch was designed.
+  🐕 SO tapsGone HOLDS THE WATCHDOGS DOWN FIRST, by name (_G.expanderWatchdog,
+     _G.autocorrectWatchdog), and only then stops each keyboard tap.
+     Stopping a tap while its watchdog is still running is a race the
+     watchdog wins inside thirty seconds. They are reached by global name
+     rather than through a new module API, because the modules must not
+     gain a "please stop watching" entry point that ships forever for the
+     sake of one diagnostic.
+  ↩️ AND IT RESTORES ONLY WHAT IT STOPPED. Each record remembers whether
+     its tap was running when the test began. screenshots' select-mode tap
+     spends nearly all its life stopped, and a restore that started it
+     would switch on something the config had deliberately switched off.
+     The mouse tap is never touched: this is a question about typing.
+  ⏲ Same self-restoring timer as tapsOff, same default of 90 seconds, and
+     the same loud warning if the timer fails to arm — with the taps gone,
+     ⇪ does nothing, so the Console is the only way back.
+  🔒 THE REPORT NOW NAMES SECURE INPUT. macOS turns it on for password
+     fields, and an app that quits badly can leave it on for everybody
+     afterwards. While it is on, every tap is being throttled by the OS —
+     an OS-level fact about all of them at once that no per-tap number can
+     show, and that bisecting one tap at a time will never find, because
+     none of them is individually at fault.
+  📝 AND THE "NEXT" BLOCK STOPPED OVERCLAIMING. It used to say "Still
+     slow? It is not a tap" after an inert run. It now says that the inert
+     result rules out what the callbacks DO, not the taps themselves, and
+     points at _G.lagTapsGone() as the next step.
+  📋 Run them in order: _G.lagTapsOff() first, _G.lagTapsGone() only if
+     the first one changed nothing.
+  🧪 tests/test_lag.lua grows to 206 checks: §16 covers the stronger dose
+     (taps stopped not inert, mouse tap untouched, an already-stopped tap
+     left alone, watchdogs held and released, the restore timer, both
+     report banners, all three secure-input states) and §17 adds four
+     break tests — N: the watchdogs are not held down; O: restore starts
+     every tap rather than the ones it stopped; P: lag.gone is never set
+     so the taps never come back; Q: the report describes a stopped config
+     as merely inert.
+
 NEW IN 6.134.0 — THE SWITCH, NOT JUST THE GAUGE:
   ⌨️ LL: "We have a problem. Since the last, at least two versions, once
      I launch Hammerspoon my typing goes very slowly. My typing goes

@@ -63,23 +63,41 @@ local function stubNew(types, fn, ...)
     -- stopCalls exists for section 12: the switch must make a tap INERT
     -- without stopping it, because a stopped tap is what the expander and
     -- autocorrect watchdogs go looking for and restart.
-    local tap = { types = types, fn = fn, started = false, extra = { ... },
-                  stopCalls = 0 }
-    function tap:start() self.started = true ; return self end
+    -- started = true from birth: the real hs.eventtap.new is followed by
+    -- :start() everywhere in this config, and section 16 needs to tell a
+    -- tap that was RUNNING when the test began from one that was already
+    -- stopped — those two must be restored differently.
+    local tap = { types = types, fn = fn, started = true, extra = { ... },
+                  stopCalls = 0, startCalls = 0 }
+    function tap:start()
+        self.startCalls = self.startCalls + 1
+        self.started = true
+        return self
+    end
     function tap:stop()
         self.stopCalls = self.stopCalls + 1
         self.started = false
         return self
     end
+    function tap:isEnabled() return self.started end
     MADE[#MADE + 1] = tap
     return tap
 end
+
+-- 6.135.0 — driven by hand so section 16 can prove the report says so.
+-- nil means "this Hammerspoon cannot tell us", which is a third state and
+-- must print neither the warning nor the all-clear.
+local SECURE = false
 
 local function freshEventtap()
     MADE = {}
     hs.eventtap = {
         event = { types = TYPES },
         new   = stubNew,
+        isSecureInputEnabled = function()
+            if SECURE == nil then error("not available") end
+            return SECURE
+        end,
     }
 end
 
@@ -1061,6 +1079,234 @@ do
     end
     check("🔨 BREAK M caught: the probe's own heartbeat is filed under "
           .. "somebody else's name", named == false)
+end
+
+-- =====================================================================
+-- 16. the stronger dose — STOPPED, not merely inert
+-- =====================================================================
+-- The reason this section exists: lagTapsOff hollows the callbacks out
+-- but leaves the taps installed, so it measures what our code DOES and
+-- not what having taps COSTS. If the lag lives in the event-tap
+-- machinery itself, the inert test reports no change and the honest
+-- reading of that is "not the callbacks", not "not the taps". These
+-- checks hold tapsGone to the harder promise.
+out("16. the stronger dose — stopped, not inert\n")
+
+do
+    freshEventtap() ; freshTimers()
+    hs.eventtap.__lagOriginalNew = nil
+    local bl = chunk()({})
+
+    -- Two keyboard taps and a mouse tap. The mouse tap must be left
+    -- alone: this switch answers a question about typing.
+    local k1 = hs.eventtap.new({ TYPES.keyDown }, function() return false end)
+    local k2 = hs.eventtap.new({ TYPES.keyDown }, function() return false end)
+    local m1 = hs.eventtap.new({ TYPES.leftMouseDown }, function() return false end)
+
+    -- A tap that is ALREADY stopped when the test begins — screenshots'
+    -- select-mode tap lives like this. Restoring must not start it.
+    local k3 = hs.eventtap.new({ TYPES.keyDown }, function() return false end)
+    k3:stop()
+    local k3stops = k3.stopCalls
+
+    -- The watchdogs the real config runs, standing in for the module ones.
+    local dog1 = { stopped = false }
+    function dog1:stop()  self.stopped = true  ; return self end
+    function dog1:start() self.stopped = false ; return self end
+    local dog2 = { stopped = false }
+    function dog2:stop()  self.stopped = true  ; return self end
+    function dog2:start() self.stopped = false ; return self end
+    _G.expanderWatchdog, _G.autocorrectWatchdog = dog1, dog2
+
+    bl.tapsGone(30)
+
+    check("the keyboard taps are actually STOPPED, not just inert",
+          k1.started == false and k2.started == false)
+    check("the mouse tap is left running — this is a question about typing",
+          m1.started == true)
+    check("a tap that was already stopped is not stopped again",
+          k3.stopCalls == k3stops, k3.stopCalls)
+    check("both watchdogs are held down, or they undo this in 30 seconds",
+          dog1.stopped == true and dog2.stopped == true)
+    check("the probe knows it is in the stronger state", bl.gone == true)
+    check("belt and braces: a revived tap would still meet an inert callback",
+          bl.isSuspended() == true)
+
+    -- and the restore
+    bl.tapsOn(true)
+    check("the stopped keyboard taps are started again",
+          k1.started == true and k2.started == true)
+    check("the already-stopped tap STAYS stopped — restoring must not "
+          .. "switch on what the config had deliberately switched off",
+          k3.started == false)
+    check("both watchdogs are watching again",
+          dog1.stopped == false and dog2.stopped == false)
+    check("and the probe is out of the stronger state", bl.gone ~= true)
+    check("and out of the inert state too", bl.isSuspended() == false)
+
+    _G.expanderWatchdog, _G.autocorrectWatchdog = nil, nil
+end
+
+do
+    -- The restore timer, which is what stops this stranding you in a
+    -- config whose ⇪ key does nothing.
+    freshEventtap() ; freshTimers()
+    hs.eventtap.__lagOriginalNew = nil
+    local bl = chunk()({})
+    hs.eventtap.new({ TYPES.keyDown }, function() return false end)
+    local before = #AFTERS
+    bl.tapsGone(45)
+    check("tapsGone arms a restore timer", #AFTERS > before)
+    check("and it is armed for the seconds asked for",
+          AFTERS[#AFTERS].secs == 45, AFTERS[#AFTERS].secs)
+    AFTERS[#AFTERS].fn()
+    check("and firing it puts the taps back", bl.gone ~= true)
+end
+
+do
+    -- The report must say which state it is describing. A table of zeros
+    -- read by someone who has forgotten they pressed the switch is how a
+    -- diagnostic tells a lie without printing a false number.
+    freshEventtap() ; freshTimers()
+    hs.eventtap.__lagOriginalNew = nil
+    local bl = chunk()({})
+    hs.eventtap.new({ TYPES.keyDown }, function() return false end)
+    bl.tapsGone(30)
+    local rp = _G.lagReport()
+    check("the report announces the STOPPED state, not the inert one",
+          rp:find("STOPPED RIGHT NOW") ~= nil)
+    check("and it names the stronger state ahead of the weaker one",
+          rp:find("EVERY TAP IS INERT RIGHT NOW") == nil)
+    bl.tapsOn(true)
+end
+
+do
+    -- Secure input: an OS-level fact about every tap at once, which no
+    -- per-tap number can show and no amount of bisecting will find.
+    freshEventtap() ; freshTimers()
+    hs.eventtap.__lagOriginalNew = nil
+    local bl = chunk()({})
+    SECURE = true
+    check("lag.secureInput reports it on", bl.secureInput() == true)
+    local rp = _G.lagReport()
+    check("and the report warns loudly", rp:find("SECURE INPUT IS ON") ~= nil)
+    check("and says this config did not cause it",
+          rp:find("Nothing in this config turns it on") ~= nil)
+    SECURE = false
+    check("lag.secureInput reports it off", bl.secureInput() == false)
+    rp = _G.lagReport()
+    check("and the all-clear is quiet, not a warning",
+          rp:find("SECURE INPUT IS ON") == nil
+          and rp:find("secure inp : off") ~= nil)
+    SECURE = nil
+    check("an hs that cannot answer gets nil, not a guess",
+          bl.secureInput() == nil)
+    rp = _G.lagReport()
+    check("and then the report says nothing either way, rather than "
+          .. "printing an all-clear it cannot support",
+          rp:find("secure inp") == nil and rp:find("SECURE INPUT") == nil)
+    SECURE = false
+end
+
+do
+    -- The NEXT block is the part the user actually acts on, and the old
+    -- wording was wrong in a way that mattered: "still slow? it is not a
+    -- tap" is not what an INERT test can conclude.
+    freshEventtap() ; freshTimers()
+    hs.eventtap.__lagOriginalNew = nil
+    local bl = chunk()({})
+    hs.eventtap.new({ TYPES.keyDown }, function() return false end)
+    bl.tapsOff(30)
+    local rp = _G.lagReport()
+    check("the inert report no longer claims a null result clears the taps",
+          rp:find("Still slow%? It is not a tap") == nil)
+    check("it points at the stronger dose instead",
+          rp:find("_G%.lagTapsGone") ~= nil)
+    bl.tapsOn(true)
+    rp = _G.lagReport()
+    check("and the idle report offers the ladder in order",
+          rp:find("_G%.lagTapsOff") ~= nil and rp:find("_G%.lagTapsGone") ~= nil)
+end
+
+-- =====================================================================
+-- 🔨 17. break tests for the stronger dose
+-- =====================================================================
+out("17. break tests for the stronger dose\n")
+
+-- BREAK N — the watchdogs are not held down. The taps come back inside
+-- thirty seconds and the test quietly reports the opposite of the truth.
+do
+    local broken = src:gsub("local dogs = pauseWatchdogs%(%)",
+                            "local dogs = 0", 1)
+    check("BREAK N changed the source", broken ~= src)
+    local bchunk = assert(load(broken, "broken-lag"))
+    freshEventtap() ; freshTimers()
+    hs.eventtap.__lagOriginalNew = nil
+    local bl = bchunk()({})
+    hs.eventtap.new({ TYPES.keyDown }, function() return false end)
+    local dog = { stopped = false }
+    function dog:stop()  self.stopped = true  ; return self end
+    function dog:start() self.stopped = false ; return self end
+    _G.expanderWatchdog = dog
+    bl.tapsGone(30)
+    check("🔨 BREAK N caught: the watchdog is still running and will "
+          .. "revive the taps mid-test", dog.stopped == false)
+    _G.expanderWatchdog = nil
+end
+
+-- BREAK O — restore starts every tap rather than only the ones this
+-- switch stopped, switching on what the config had switched off.
+do
+    local broken = src:gsub("if r%.wasRunning and r%.tap then",
+                            "if r.tap then", 1)
+    check("BREAK O changed the source", broken ~= src)
+    local bchunk = assert(load(broken, "broken-lag"))
+    freshEventtap() ; freshTimers()
+    hs.eventtap.__lagOriginalNew = nil
+    local bl = bchunk()({})
+    hs.eventtap.new({ TYPES.keyDown }, function() return false end)
+    local idle = hs.eventtap.new({ TYPES.keyDown }, function() return false end)
+    idle:stop()
+    bl.tapsGone(30)
+    bl.tapsOn(true)
+    check("🔨 BREAK O caught: a tap the config had deliberately stopped "
+          .. "was switched on by the restore", idle.started == true)
+end
+
+-- BREAK P — tapsGone stops the taps but never sets lag.gone, so tapsOn
+-- has nothing to restore and the taps stay dead after the window ends.
+do
+    local broken = src:gsub("lag%.gone = true", "lag.gone = false", 1)
+    check("BREAK P changed the source", broken ~= src)
+    local bchunk = assert(load(broken, "broken-lag"))
+    freshEventtap() ; freshTimers()
+    hs.eventtap.__lagOriginalNew = nil
+    local bl = bchunk()({})
+    local k = hs.eventtap.new({ TYPES.keyDown }, function() return false end)
+    bl.tapsGone(30)
+    bl.tapsOn(true)
+    check("🔨 BREAK P caught: the taps were stopped and never came back",
+          k.started == false)
+end
+
+-- BREAK Q — the report checks the weaker state first, so the stronger
+-- one is never announced and the reader is told "inert" about a config
+-- whose taps are gone.
+do
+    local broken = src:gsub("if lag%.gone then\n            %-%- Checked BEFORE isSuspended",
+                            "if false then\n            -- Checked BEFORE isSuspended", 1)
+    check("BREAK Q changed the source", broken ~= src)
+    local bchunk = assert(load(broken, "broken-lag"))
+    freshEventtap() ; freshTimers()
+    hs.eventtap.__lagOriginalNew = nil
+    local bl = bchunk()({})
+    hs.eventtap.new({ TYPES.keyDown }, function() return false end)
+    bl.tapsGone(30)
+    local rp = _G.lagReport()
+    check("🔨 BREAK Q caught: a stopped config is described as merely inert",
+          rp:find("STOPPED RIGHT NOW") == nil
+          and rp:find("EVERY TAP IS INERT RIGHT NOW") ~= nil)
+    bl.tapsOn(true)
 end
 
 print = realPrint

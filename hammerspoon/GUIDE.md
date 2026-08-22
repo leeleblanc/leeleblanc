@@ -308,6 +308,25 @@ for the same class of reason — `true` means "handled", which would eat
 every keystroke in the config, and this is a button pressed by someone
 whose typing is already broken.
 
+🚨 **Know what your control actually controls** (6.135.0). The inert
+switch above is a good answer to the watchdog problem and was, for one
+version, the *only* position on the dial — which made it a trap. An
+inert tap is still a tap: still registered with macOS, still in the path
+the keystroke travels, just meeting a callback that returns at once. So
+it measures what the callbacks *do*, and cannot measure what *having*
+five taps costs — the dispatch itself, secure input degrading all of
+them at once, a stale Accessibility grant. "I ran it and nothing
+changed" would therefore have been read as *the taps are innocent* in
+precisely the case where the taps are the whole problem: the same
+confident wrong answer the inert design was chosen to avoid, reached
+from the other side. The fix is a second, stronger position
+(`lagTapsGone`) that stops the taps for real and holds the watchdogs
+down by name first — and a null result on the weaker one that now says
+what it actually rules out. When you build a switch to isolate a
+variable, write down which variable it moves; the sentence is short, and
+if it does not match the question you are asking, the experiment is
+already wrong.
+
 🚨 **A tool must be able to answer whether it is itself the problem.**
 The site walker steps deliberately past `core/lag.lua` so a module's tap
 is blamed on the module rather than the probe — and that same rule would

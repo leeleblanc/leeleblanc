@@ -106,10 +106,11 @@
 --
 -- Quitting Hammerspoon changes EVERYTHING at once: nine keyboard taps,
 -- forty timers, every watcher. It proves the config is responsible and
--- names nothing. So this file gains the two intermediate positions:
+-- names nothing. So this file gains the intermediate positions:
 --
 --     _G.lagTapsOff()   every keyboard tap goes inert, nothing else does
---     _G.lagOnly(n)     exactly one tap runs; the other eight are inert
+--     _G.lagTapsGone()  every keyboard tap is STOPPED, watchdogs held down
+--     _G.lagOnly(n)     exactly one tap runs; the others are inert
 --
 -- 🚨 INERT, NOT STOPPED, and that distinction is the entire design.
 -- Stopping a tap looks obvious and does not survive contact with this
@@ -130,6 +131,39 @@
 -- point, ⇪ IS a tap — so a switch with no timer would be a switch that
 -- can strand you in a config with no shortcuts, needing the Console to
 -- escape. The timer means the worst case is that you wait.
+--
+-- ---------------------------------------------------------------------
+-- 🔌🔌 6.135.0 — AND WHY INERT ALONE WAS A TRAP
+-- ---------------------------------------------------------------------
+-- Inert is the right answer to the watchdogs and the wrong answer to the
+-- question on its own, because an inert tap IS STILL A TAP. It is still
+-- registered with macOS, and your keystroke still travels through the
+-- event-tap machinery to reach it — it just meets a function that
+-- returns immediately.
+--
+-- That measures what our CALLBACKS cost. It does not measure what HAVING
+-- FIVE TAPS costs, and those are different numbers: the dispatch itself
+-- has a price, secure input degrades every tap at once, and a stale
+-- Accessibility grant can make the whole mechanism crawl with no
+-- callback being slow at all.
+--
+-- 🚨 SO lagTapsOff COULD HAVE RETURNED A CONFIDENT WRONG ANSWER — type
+-- during the inert window, feel no change, conclude the taps are
+-- innocent, when the taps were the whole problem and the part switched
+-- off was never where the cost lived. Precisely the failure this header
+-- calls worse than no answer, reached by a different road.
+--
+-- lagTapsGone is the position that removes them for real. It stops each
+-- tap AND stops the two watchdogs by name first, because stopping a tap
+-- while its watchdog runs is a race the watchdog wins inside thirty
+-- seconds. It restores only the taps it actually stopped — screenshots'
+-- select-mode tap spends nearly all its life stopped, and a "restore"
+-- that started it would switch on something the config had deliberately
+-- switched off.
+--
+-- It is second, not first, because it needs that scaffolding, and a test
+-- needing more scaffolding has more ways to lie. Run tapsOff first; run
+-- tapsGone when tapsOff changed nothing.
 --
 -- ---------------------------------------------------------------------
 -- ⏱ AND THE TIMERS, so that "not a tap" is not a dead end
@@ -156,7 +190,9 @@
 --     _G.lagReport()    everything measured so far (also to the clipboard)
 --     _G.lagReset()     zero the counters and start again
 --     _G.lagTapsOff(s)  every keyboard tap inert for s seconds (default 90)
---     _G.lagTapsOn()    undo it now
+--     _G.lagTapsGone(s) every keyboard tap STOPPED for s seconds, and the
+--                       watchdogs held down so they cannot revive them
+--     _G.lagTapsOn()    undo either of those now
 --     _G.lagOnly(n)     only tap n runs — n is the # column in the report
 --     _G.lagMute(n)     make tap n inert on its own
 --     _G.lagUnmute(n)   and put it back
@@ -520,11 +556,69 @@ return function(core)
         lag.restoreAt = nil
     end
 
+    -- 🚨 THE WATCHDOGS, WHICH EXIST TO UNDO EXACTLY WHAT tapsGone DOES.
+    -- text_expander and autocorrect each run a 30-second timer that finds a
+    -- stopped tap and starts it again — a good idea, because macOS really
+    -- does disable taps it dislikes, and a silently dead expander is
+    -- indistinguishable from a wrong trigger. It is also the reason a
+    -- stop-based test cannot be trusted unless these are held down first.
+    --
+    -- They are stopped BY NAME rather than by asking the modules, because
+    -- the modules must not gain a "please stop watching" API that ships
+    -- forever for the sake of one diagnostic. If a module is not loaded the
+    -- global is nil and the loop skips it.
+    local WATCHDOGS = { "expanderWatchdog", "autocorrectWatchdog" }
+
+    local function pauseWatchdogs()
+        local held = {}
+        for _, name in ipairs(WATCHDOGS) do
+            local t = _G[name]
+            if t and pcall(function() t:stop() end) then
+                held[#held + 1] = name
+            end
+        end
+        lag.heldDogs = held
+        return #held
+    end
+
+    local function resumeWatchdogs()
+        local n = 0
+        for _, name in ipairs(lag.heldDogs or {}) do
+            local t = _G[name]
+            -- 🚨 RESTARTED EVEN IF IT THROWS ON THE WAY. A watchdog left
+            -- stopped is a tap that stays dead the next time macOS kills
+            -- it, and the user would never connect that to a lag test they
+            -- ran an hour earlier.
+            if t and pcall(function() t:start() end) then n = n + 1 end
+        end
+        lag.heldDogs = nil
+        return n
+    end
+
     function lag.tapsOn(quiet)
         clearRestore()
         SUSPENDED = false
         for _, r in ipairs(lag.taps) do r.muted = false end
+        local back = 0
+        if lag.gone then
+            -- Only the ones THIS switch stopped. A tap that was already
+            -- stopped when the test began — screenshots' select-mode tap
+            -- spends almost all its life stopped — must stay that way, or
+            -- the "restore" quietly turns on something the config had
+            -- deliberately switched off.
+            for _, r in ipairs(lag.taps) do
+                if r.wasRunning and r.tap then
+                    if pcall(function() r.tap:start() end) then back = back + 1 end
+                end
+                r.wasRunning = nil
+            end
+            resumeWatchdogs()
+            lag.gone = false
+        end
         local s = "🔌 Lag probe: every tap is live again"
+        if back > 0 then
+            s = s .. (" (%d restarted, watchdogs watching again)"):format(back)
+        end
         if not quiet then
             pcall(function() hs.alert.show("🔌 Taps back ON") end)
         end
@@ -566,6 +660,104 @@ return function(core)
             hs.alert.show("🔌 Taps INERT for " .. seconds .. "s", 4)
         end)
         return s
+    end
+
+    -- =====================================================================
+    -- 🔌🔌 THE STRONGER DOSE — and why INERT was not enough on its own
+    -- =====================================================================
+    -- tapsOff makes the CALLBACKS inert. The taps stay installed, stay
+    -- registered with macOS, and every keystroke still travels through the
+    -- event-tap machinery on its way to the app — it just meets a function
+    -- that returns false immediately.
+    --
+    -- That measures what our code costs. It does NOT measure what HAVING
+    -- FIVE TAPS costs, and those are different numbers. The event-tap path
+    -- itself has a price: macOS serialises the keystroke through each
+    -- registered tap, secure input degrades the lot of them, and a stale
+    -- Accessibility grant can make the whole mechanism crawl without any
+    -- callback being slow at all.
+    --
+    -- 🚨 SO tapsOff ALONE COULD RETURN A CONFIDENT WRONG ANSWER: type
+    -- during the inert window, feel no improvement, and conclude the taps
+    -- are innocent — when the taps are the entire problem and the cost was
+    -- never in the part that was switched off. That is the failure this
+    -- file's own header calls worse than no answer, and it applied here.
+    --
+    -- This is the position that removes them from the path for real. It is
+    -- second, not first, because it is the one that needs the watchdogs
+    -- held down, and a test that needs more scaffolding is a test with more
+    -- ways to lie. Run tapsOff first; run this when tapsOff changed
+    -- nothing.
+    function lag.tapsGone(seconds)
+        seconds = tonumber(seconds) or lag.offSeconds
+        if seconds <= 0 then seconds = lag.offSeconds end
+        clearRestore()
+        -- Watchdogs FIRST. Stopping a tap while its watchdog is still
+        -- running is a race, and the watchdog wins within thirty seconds.
+        local dogs = pauseWatchdogs()
+        SUSPENDED = true   -- belt as well as braces: a tap that gets
+                           -- revived anyway still meets an inert callback
+        local stopped, failed = 0, 0
+        for _, r in ipairs(lag.taps) do
+            if r.keyboard and r.tap then
+                local running = false
+                pcall(function() running = r.tap:isEnabled() end)
+                r.wasRunning = running
+                if running then
+                    if pcall(function() r.tap:stop() end) then
+                        stopped = stopped + 1
+                    else
+                        failed = failed + 1
+                    end
+                end
+            end
+        end
+        lag.gone = true
+        local okT, t = pcall(hs.timer.doAfter, seconds, function()
+            lag.restoreTimer = nil
+            lag.tapsOn(true)
+            pcall(function()
+                hs.alert.show("🔌 Taps back ON — the test window is over", 4)
+            end)
+        end)
+        if okT and t then
+            lag.restoreTimer = t
+            lag.restoreAt = os.date("%H:%M:%S", os.time() + math.floor(seconds))
+        end
+        local s = ("🔌🔌 Lag probe: %d keyboard taps are STOPPED for %d seconds,\n"
+                   .. "   and %d watchdog(s) are held down so they cannot revive\n"
+                   .. "   them. This is as close to \"Hammerspoon is not in the\n"
+                   .. "   keyboard path\" as you can get without quitting it.\n"
+                   .. "   If typing is smooth NOW but was not with _G.lagTapsOff(),\n"
+                   .. "   the cost is in HAVING taps, not in what they do.\n"
+                   .. "   _G.lagTapsOn() ends it early.")
+                  :format(stopped, seconds, dogs)
+        if failed > 0 then
+            s = s .. ("\n   ⚠️ %d tap(s) would not stop — the test is partial.")
+                     :format(failed)
+        end
+        if not okT or not t then
+            s = s .. "\n   ⚠️ THE RESTORE TIMER DID NOT ARM. Nothing comes back "
+                  .. "by itself — run _G.lagTapsOn() yourself."
+        end
+        pcall(function()
+            hs.alert.show("🔌🔌 Taps STOPPED for " .. seconds .. "s", 4)
+        end)
+        return s
+    end
+
+    -- Reported because it changes what every tap costs and nothing in this
+    -- config causes it: macOS turns secure input on for password fields,
+    -- and a badly-behaved app can leave it on for everybody afterwards.
+    -- When it is on, the taps below are being throttled by the OS and no
+    -- amount of muting them one at a time will show it.
+    function lag.secureInput()
+        if not (hs and hs.eventtap and hs.eventtap.isSecureInputEnabled) then
+            return nil
+        end
+        local ok, on = pcall(hs.eventtap.isSecureInputEnabled)
+        if not ok then return nil end
+        return on == true
     end
 
     -- 🚨 THE PROBE MUST BE TESTABLE AS A SUSPECT. It shipped in 6.131.0,
@@ -716,8 +908,9 @@ return function(core)
     -- The console is the only interface these have, so each one prints
     -- what it did rather than returning a value you would have to inspect.
     local function announce(s) print(s) return s end
-    function _G.lagTapsOff(seconds) return announce(lag.tapsOff(seconds)) end
-    function _G.lagTapsOn()         return announce(lag.tapsOn()) end
+    function _G.lagTapsOff(seconds)  return announce(lag.tapsOff(seconds)) end
+    function _G.lagTapsGone(seconds) return announce(lag.tapsGone(seconds)) end
+    function _G.lagTapsOn()          return announce(lag.tapsOn()) end
     function _G.lagOnly(n)          return announce(lag.only(n)) end
     function _G.lagMute(n)          return announce(lag.mute(n, true)) end
     function _G.lagUnmute(n)        return announce(lag.mute(n, false)) end
@@ -736,6 +929,22 @@ return function(core)
         if lag.note then line("   ⚠️ " .. lag.note) end
         if lag.timerNote then line("   ⚠️ " .. lag.timerNote) end
 
+        -- An OS-level fact about every tap at once, and one no per-tap
+        -- number can reveal: when it is on, the taps below are being
+        -- throttled by macOS and bisecting them one at a time will find
+        -- nothing, because none of them is individually at fault.
+        local secure = lag.secureInput()
+        if secure == true then
+            line("   ⚠️ SECURE INPUT IS ON. macOS is degrading every event tap"
+                 .. " right now.")
+            line("      Nothing in this config turns it on — a password field"
+                 .. " does, and an app")
+            line("      that quits badly can leave it on. Log out and back in"
+                 .. " if it persists.")
+        elseif secure == false then
+            line("   secure inp : off (good — taps are not being throttled)")
+        end
+
         -- 🚨 SAID AT THE TOP, NOT BURIED IN A COLUMN. A report read while
         -- the switch is on describes a config with its taps turned off,
         -- and every number below it is evidence about a machine that is
@@ -746,12 +955,20 @@ return function(core)
         for _, r in ipairs(lag.taps) do
             if r.muted then muted[#muted + 1] = "#" .. tostring(r.n) end
         end
-        if lag.isSuspended() then
+        local backAt = lag.restoreAt and ("  Back on at " .. lag.restoreAt .. ".")
+                       or "  No restore timer is armed."
+        if lag.gone then
+            -- Checked BEFORE isSuspended, because tapsGone sets both and
+            -- the stronger statement is the true one.
+            line("")
+            line("   🔌🔌 EVERY KEYBOARD TAP IS STOPPED RIGHT NOW — not merely")
+            line("      inert. They are out of the event path entirely and the"
+                 .. " watchdogs")
+            line("      are held down so they cannot revive them." .. backAt)
+        elseif lag.isSuspended() then
             line("")
             line("   🔌 EVERY TAP IS INERT RIGHT NOW — the numbers below stopped")
-            line("      moving when you pressed the switch."
-                 .. (lag.restoreAt and ("  Back on at " .. lag.restoreAt .. ".")
-                     or "  No restore timer is armed."))
+            line("      moving when you pressed the switch." .. backAt)
         elseif #muted > 0 then
             line("")
             line("   🔌 INERT: " .. table.concat(muted, " ")
@@ -891,17 +1108,34 @@ return function(core)
         -- is a second job. One command, chosen by what the numbers say.
         line("")
         if lag.isSuspended() then
-            line("   NEXT       : type a paragraph NOW, while the taps are inert.")
-            line("                Still slow? It is not a tap — read TIMERS and"
-                 .. " STALLS above.")
+            line("   NEXT       : type a paragraph NOW, while the taps are "
+                 .. (lag.gone and "stopped." or "inert."))
             line("                Suddenly fine? It IS a tap — _G.lagTapsOn(),"
                  .. " then bisect with")
             line("                _G.lagOnly(n) using the # column.")
+            if lag.gone then
+                line("                Still slow with them STOPPED? Then it is"
+                     .. " not the taps at all —")
+                line("                read TIMERS and STALLS above.")
+            else
+                -- 🚨 NOT \"then it is not a tap\", which is what this said
+                -- until the difference between inert and stopped was
+                -- thought through. Inert taps are still in the event path.
+                line("                Still slow? That rules out what the"
+                     .. " callbacks DO, not the taps")
+                line("                themselves — they are still installed."
+                     .. " Try _G.lagTapsGone()")
+                line("                next, which removes them for real.")
+            end
         else
             line("   NEXT       : _G.lagTapsOff() makes every keyboard tap inert"
                  .. " for " .. tostring(lag.offSeconds) .. " seconds.")
             line("                Type during that window. Whether the lag goes"
                  .. " away is the whole answer.")
+            line("                If it does NOT, _G.lagTapsGone() is the"
+                 .. " stronger dose — it stops")
+            line("                the taps outright instead of hollowing them"
+                 .. " out.")
         end
         line("")
 
