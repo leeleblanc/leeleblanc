@@ -4,6 +4,78 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.136.0 — THE PROBE WAS THE PRIME SUSPECT, SO IT IS NOW OFF:
+  🚨 THE LAG PROBE IS THE LEADING SUSPECT FOR THE LAG IT WAS BUILT TO
+     FIND. LL: "total shit show. All kinds of keys stopped working" and
+     "once I start Hammerspoon, I'm fucked." core/lag.lua shipped in
+     6.131.0 — exactly the window LL had already described as "the last,
+     at least two versions". Three releases (6.131.0, 6.134.0, 6.135.0)
+     were spent building better instruments on top of that file without
+     once testing the instrument itself.
+  📝 IT WAS WRITTEN DOWN AND NOT ACTED ON. core/lag.lua's own comment at
+     the install call reads: "this file was added in 6.131.0 and the lag
+     was reported again in 6.133.0." The coincidence was noticed, typed
+     into a source file, and then built past.
+  🔍 THE MECHANISM. install() replaces hs.eventtap.new for the whole
+     session, so EVERY tap in the config gets an extra Lua closure
+     between macOS and the real handler, and each of those closures does
+     two clock reads, four table writes and a comparison ON EVERY
+     KEYSTROKE. With five always-on keyboard taps that is five closures
+     and ten clock reads per character typed. installTimers() does the
+     same to every repeating timer.
+  💣 AND THEN THE SECOND-ORDER EFFECT, WHICH IS THE ONE THAT BITES.
+     macOS DISABLES an event tap whose callback takes too long. That is
+     not a theory — it is the documented reason text_expander and
+     autocorrect each run a watchdog to restart a stopped tap. A probe
+     that makes every callback slower can push taps past that timeout:
+     macOS kills them, the watchdogs revive them, they are killed again.
+     From the outside that is "all kinds of keys stopped working".
+  🔒 AND THERE WAS NO WAY TO SWITCH IT OFF. _G.lagQuiet() stops the
+     probe's heartbeat and NOT the wrapper, so the expensive half — the
+     part sitting on the keystroke path — ran no matter what was typed
+     into the console. The only honest way out was deleting the file.
+     6.135.0 spent an entire release on the difference between a tap
+     that is INERT and one that is GONE, and never noticed that the
+     probe only ever offered itself the weaker of those two. The same
+     trap, one level up.
+  🧨 THE 6.131.0 REASONING, AND WHERE IT WENT WRONG. That release argued
+     the probe must be "ALWAYS ON, DELIBERATELY", because lag that comes
+     and goes is not reproducible on demand and the evidence has to
+     already exist by the time you think to look. That is sound for an
+     intermittent fault. It is wrong here for two reasons: the cost of
+     always-on was asserted ("two clock reads per event") and never
+     measured, and LL's lag turned out to be constant from launch — so
+     the tradeoff bought nothing and charged full price.
+  ✅ SO: NO FILE, NO PROBE. core/lag.lua now installs nothing at all
+     unless ~/.hammerspoon/LAGPROBE exists. Same shape as SAFE mode,
+     deliberately: a file whose existence is the whole message, checked
+     once at load, with nothing inside it to get wrong. A file rather
+     than a setting because the state that matters is "what happens at
+     the next launch", and a file is the one thing you can still change
+     when the keyboard is the broken part.
+  🎛 _G.lagOn() writes the file, _G.lagOff() removes it. Both require a
+     reload and say so: install() must run before the first tap is
+     created, so arming a live session is impossible, and reporting
+     "armed" while the wrapper is not in place would be exactly the
+     class of confident-wrong-answer 6.135.0 was written to prevent.
+  📋 _G.lagReport() LEADS WITH "THE PROBE IS DISARMED" when it is off. A
+     disarmed probe has an empty tap table and a zero count, which reads
+     precisely like "measured everything, found nothing" — the most
+     misleading thing this report could say to someone whose typing is
+     broken. It now says the empty tables mean NO DATA.
+  🩹 EMERGENCY PATH, for a machine that is already unusable: quit
+     Hammerspoon, then
+        mv ~/.hammerspoon/core/lag.lua ~/.hammerspoon/core/lag.lua.off
+     init.lua loads that file inside a pcall, so its absence is a
+     printed warning and nothing else — all 58 modules still load.
+  🧪 test_lag 206 → 227 checks. §18 asserts that a disarmed probe leaves
+     hs.eventtap.new as the SAME function object — not "equivalent",
+     untouched — wraps nothing, records nothing, and starts no heartbeat.
+     Three new break tests: R inverts the gate (the 6.131.0 behaviour,
+     which must never be reachable by accident again), S makes armed()
+     answer true with no file present, T drops the disarmed banner so an
+     empty report looks innocent. 62 stages green.
+
 NEW IN 6.135.0 — THE STRONGER DOSE, AND A TEST THAT COULD HAVE LIED:
   🔌🔌 _G.lagTapsGone() STOPS EVERY KEYBOARD TAP FOR REAL.
      6.134.0 shipped _G.lagTapsOff(), which makes each tap's callback

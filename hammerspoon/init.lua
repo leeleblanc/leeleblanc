@@ -2,10 +2,43 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 08-21-26 using Claude          ← EDITED date. Bumped with every release.
+-- 08-22-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.135.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.136.0
 -- =====================================================================
+
+-- NEW IN 6.136.0 — THE PROBE WAS THE PRIME SUSPECT, SO IT IS NOW OFF:
+--   🚨 THE LAG PROBE IS THE LEADING SUSPECT FOR THE LAG IT WAS BUILT TO
+--      FIND. LL: "once I start Hammerspoon, I'm fucked." core/lag.lua
+--      shipped in 6.131.0 — exactly the window LL described as "the last,
+--      at least two versions". Three releases were spent building better
+--      instruments on top of it without once testing the instrument.
+--   🔍 THE MECHANISM. install() replaces hs.eventtap.new for the whole
+--      session, so EVERY tap gets an extra Lua closure between macOS and
+--      the real handler, each doing two clock reads and four table writes
+--      ON EVERY KEYSTROKE. Five always-on keyboard taps means five
+--      closures and ten clock reads per character.
+--   💣 AND THEN THE SECOND-ORDER EFFECT. macOS DISABLES an event tap
+--      whose callback takes too long — that is not a theory, it is the
+--      documented reason the expander and autocorrect each run a watchdog
+--      to restart a stopped tap. A probe that slows every callback can
+--      push taps past that timeout: macOS kills them, the watchdogs
+--      revive them, they get killed again. From the outside that is
+--      "all kinds of keys stopped working".
+--   🔒 AND THERE WAS NO OFF SWITCH. _G.lagQuiet() stops the heartbeat and
+--      NOT the wrapper, so the expensive half ran no matter what you
+--      typed. 6.135.0 spent a whole release on the difference between a
+--      tap that is INERT and one that is GONE, and never noticed the
+--      probe only ever offered itself the weaker of the two.
+--   ✅ SO: NO FILE, NO PROBE. core/lag.lua now installs nothing unless
+--      ~/.hammerspoon/LAGPROBE exists. _G.lagOn() writes it, _G.lagOff()
+--      removes it, both need a reload, and _G.lagReport() says DISARMED
+--      in its first line so an empty table is never read as "all clear".
+--   🩹 If your keys are broken right now and you cannot wait for this:
+--      quit Hammerspoon, then in Terminal
+--         mv ~/.hammerspoon/core/lag.lua ~/.hammerspoon/core/lag.lua.off
+--      init.lua loads that file inside a pcall, so its absence is a
+--      printed warning and nothing else.
 
 -- NEW IN 6.135.0 — THE STRONGER DOSE, AND A TEST THAT COULD HAVE LIED:
 --   🔌🔌 _G.lagTapsGone() STOPS EVERY KEYBOARD TAP FOR REAL.
@@ -150,51 +183,10 @@
 --      picker?" It was — as the Clipboard row, whose key cell said ⇪V
 --      alone. It now reads ⇪V / ⇪⇧V, the shape the Screenshots row uses.
 
--- NEW IN 6.131.0 — WHICH TAP IS EATING THE KEYSTROKE:
---   ⏱ LL: "Something is running perhaps Hammerspoon to cause my typing
---      to lag. Once I quit Hammerspoon, the lag went away. Seems
---      related, but nothing to report from the console."
---   🚨 THE CONSOLE WAS NEVER GOING TO HAVE IT. It prints what something
---      CHOSE to print, and a slow function is not an error — it prints
---      nothing at all. Quitting Hammerspoon fixing the lag is a real
---      measurement and it narrows the fault to this config; nothing
---      narrower than "this config" existed. core/lag.lua closes that.
---   ⌨️ WHY A TAP CAN DO THIS. An hs.eventtap is not a listener, it is IN
---      THE PATH: your keystroke does not reach the app you are typing
---      into until the callback returns. This config runs eight or nine
---      keyboard taps — the hyper key, the expander, autocorrect, the ⌃⌃
---      gesture, the caster — all on one thread, in series. The delay on
---      every key is the SUM of them. Each is fast; "fast" is a claim
---      that had never once been checked.
---   🎯 SO IT WRAPS hs.eventtap.new ITSELF, ONCE, before anything runs.
---      Every tap in the config is born from that one function, so every
---      tap is timed with no module having to cooperate — and a tap
---      written in a future version is measured the day it is written.
---      debug.getinfo names the CALLER, so the report says
---      "text_expander.lua:1133", not "function: 0x600002…".
---   📉 AND THE HALF NO TAP CAN EXPLAIN: STALLS. Hammerspoon has one
---      thread. Anything slow on it — a synchronous shell command, a
---      folder read that reaches OneDrive, a big JSON write — stops the
---      keyboard without any tap being slow. A heartbeat set to fire
---      every 50ms cannot fire while that thread is busy, so how LATE it
---      fires measures the block directly. The worst dozen are kept with
---      the time and the app that was in front.
---   ⏱ IT IS ALWAYS ON, DELIBERATELY. The obvious design is a switch:
---      turn the probe on, reproduce the problem, read the numbers. Lag
---      that comes and goes is not reproducible on demand — by the time
---      you have noticed it and found the Console, the cause may be over.
---      The evidence has to already exist at the moment you think to
---      look, so it costs two clock reads per event, always.
---   🚨 NO pcall IN THE HOT PATH. A probe measuring per-keystroke cost
---      must not add a per-keystroke pcall to do it, and a pcall there
---      would ALSO swallow the errors each module's own guard counts to
---      switch a broken tap off. The callback is called directly.
---        _G.lagReport()   ·   _G.lagReset()
-
--- (6.130.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.131.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.135.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.136.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -505,7 +497,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.135.0"
+_G.configVersion = "6.136.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

@@ -198,6 +198,43 @@
 --     _G.lagUnmute(n)   and put it back
 --     _G.lagQuiet()     stop the probe's OWN heartbeat — it is a suspect
 --                       too, and it should be possible to rule it out
+--     _G.lagOn()        arm the probe (writes the file, then reload)
+--     _G.lagOff()       disarm it (removes the file, then reload)
+--
+-- ---------------------------------------------------------------------
+-- 🚨🚨 6.136.0 — THIS PROBE IS OFF UNLESS YOU ASK FOR IT, AND HERE IS WHY
+-- ---------------------------------------------------------------------
+-- LL reported typing lag that started "the last, at least two versions"
+-- and stopped the moment Hammerspoon quit. This file shipped in 6.131.0,
+-- which is exactly that window. THE MEASURING TOOL IS THE LEADING
+-- SUSPECT FOR THE THING IT WAS BUILT TO MEASURE.
+--
+-- The mechanism is not subtle once you look at it. install() replaces
+-- hs.eventtap.new for the whole session, so EVERY tap in the config gets
+-- an extra Lua closure between macOS and the real handler, and every one
+-- of those closures does two clock reads, four table writes and a
+-- comparison ON EVERY KEYSTROKE. With five always-on keyboard taps that
+-- is five closures and ten clock reads per character typed.
+--
+-- 🚨 AND THEN THE SECOND-ORDER EFFECT, WHICH IS THE ONE THAT BITES:
+-- macOS DISABLES an event tap whose callback takes too long. That is not
+-- a theory — it is the documented reason text_expander and autocorrect
+-- each run a watchdog to restart a stopped tap. So a probe that makes
+-- every callback slower can push taps past that timeout, macOS kills
+-- them, the watchdogs revive them, and they get killed again. From the
+-- outside that is "all kinds of keys stopped working".
+--
+-- 🚨 AND THERE WAS NO WAY TO SWITCH IT OFF. _G.lagQuiet() stops the
+-- heartbeat and NOT the wrapper, so the expensive half — the part on the
+-- keystroke path — ran no matter what you typed into the console. The
+-- one honest way out was deleting the file. 6.135.0 spent a whole
+-- release on the difference between a tap that is INERT and one that is
+-- GONE, and never noticed the probe only offered itself the weaker of
+-- the two. Same trap, one level up.
+--
+-- ✅ SO: no file, no probe. Nothing is wrapped, nothing is measured, and
+-- the config runs exactly as it did before 6.131.0. Arm it deliberately
+-- for a diagnostic session and disarm it when you are done.
 -- =====================================================================
 
 return function(core)
@@ -230,6 +267,26 @@ return function(core)
     lag.timers     = {}        -- repeating-timer records, keyed by call site
     lag.timerOrder = {}        -- the same records, in creation order
     lag.timerNote  = nil
+
+    -- ---- THE ARMING FILE -------------------------------------------------
+    -- Same shape as SAFE mode, deliberately: a file whose EXISTENCE is the
+    -- whole message, checked once at load, with nothing inside it to get
+    -- wrong. It is a file rather than an hs.settings key because the state
+    -- that matters is "what happens at the next launch", and a file is the
+    -- one thing you can still change when the keyboard is the broken part.
+    lag.probeFile = (hs and hs.configdir or "") .. "/LAGPROBE"
+
+    -- 🚨 NOTHING BELOW THIS LINE RUNS WHEN THIS IS FALSE. Not the wrapper,
+    -- not the timer wrapper, not the heartbeat. The functions are all still
+    -- DEFINED — the report has to be able to explain that it is off, and
+    -- _G.lagOn() has to exist in order to turn it on — but install() is
+    -- never called, so hs.eventtap.new is never replaced.
+    local function armed()
+        if not (hs and hs.fs and hs.fs.attributes) then return false end
+        local ok, a = pcall(hs.fs.attributes, lag.probeFile)
+        return (ok and a) and true or false
+    end
+    lag.armed = armed()
 
     -- 🚨 A PLAIN UPVALUE, NOT lag.suspended. Every wrapped callback closes
     -- over this one local, so the check on the normal path is a register
@@ -920,6 +977,28 @@ return function(core)
         local L = { "", "⏱ LAG PROBE" }
         local function line(s) L[#L + 1] = s end
 
+        -- 🚨 FIRST LINE, BEFORE ANY NUMBER. A disarmed probe has an empty
+        -- tap table and a zero count, which reads exactly like "measured
+        -- everything, found nothing" — the most misleading thing this
+        -- report could possibly say to someone whose typing is broken.
+        if not lag.armed then
+            line("")
+            line("   🔒 THE PROBE IS DISARMED. Nothing is wrapped and nothing")
+            line("      below was measured — the empty tables mean NO DATA,")
+            line("      not a clean bill of health.")
+            line("")
+            line("      This is the default since 6.136.0 because the probe")
+            line("      itself costs something on every keystroke: it puts a")
+            line("      Lua closure between macOS and every tap's handler.")
+            line("")
+            line("      _G.lagOn() then reload  — to measure.")
+            line("      _G.lagOff() then reload — to stop paying for it.")
+            line("")
+            local s = table.concat(L, "\n")
+            print(s)
+            return s
+        end
+
         line("   installed  : " .. (lag.installedAt
              and (lag.installedAt .. "  (before any tap was created)")
              or  "NOT INSTALLED — nothing below was measured"))
@@ -1155,9 +1234,69 @@ return function(core)
     -- use to answer "is the measuring tool the problem" — which is a real
     -- question here, because this file was added in 6.131.0 and the lag
     -- was reported again in 6.133.0.
-    lag.install()
-    lag.installTimers()
-    lag.startHeartbeat()
+    -- =====================================================================
+    -- 🔒 ARMING — the file decides, and it decides at LOAD, once
+    -- =====================================================================
+    -- Writing the file cannot arm a running session: install() has to run
+    -- before the first tap is created, and by the time you can type a
+    -- command every tap already exists. So both of these change the file
+    -- and tell you to reload. Saying "armed" when the wrapper is not in
+    -- place would be the same class of lie 6.135.0 was written to fix.
+    local function armSay(on)
+        return on
+            and ("🔌 Lag probe ARMED — reload to start measuring.\n"
+                 .. "   File: " .. lag.probeFile .. "\n"
+                 .. "   ⚠️ It wraps every tap and every repeating timer, so\n"
+                 .. "   it COSTS something on the keystroke path. Disarm it\n"
+                 .. "   with _G.lagOff() when you have your answer.")
+            or  ("🔌 Lag probe DISARMED — reload and nothing is wrapped.\n"
+                 .. "   File removed: " .. lag.probeFile)
+    end
+
+    function lag.arm()
+        local ok = pcall(function()
+            local f = assert(io.open(lag.probeFile, "w"))
+            -- The content is not read by anything. It is here so that a
+            -- person who finds this file in six months knows what it is.
+            f:write("Presence of this file arms core/lag.lua.\n"
+                    .. "Remove it (or run _G.lagOff()) and reload.\n")
+            f:close()
+        end)
+        if not ok then
+            return "🔌 Could not write " .. lag.probeFile
+        end
+        lag.armed = true
+        return armSay(true)
+    end
+
+    function lag.disarm()
+        pcall(function() os.remove(lag.probeFile) end)
+        if armed() then
+            return "🔌 Could not remove " .. lag.probeFile
+                   .. " — delete it by hand and reload."
+        end
+        lag.armed = false
+        return armSay(false)
+    end
+
+    function _G.lagOn()  return announce(lag.arm())    end
+    function _G.lagOff() return announce(lag.disarm()) end
+
+    if lag.armed then
+        -- 🚨 TIMERS ARE WRAPPED BEFORE THE HEARTBEAT STARTS, so the probe's
+        -- own heartbeat appears in its own TIMERS table. A measuring tool
+        -- that leaves itself out of the measurement is exactly the tool you
+        -- cannot use to answer "is the measuring tool the problem" — which
+        -- turned out to be the actual question. See the 6.136.0 block at
+        -- the top of this file.
+        lag.install()
+        lag.installTimers()
+        lag.startHeartbeat()
+    else
+        lag.note = "the probe is DISARMED — no tap and no timer is wrapped,"
+                   .. " and nothing is being measured. _G.lagOn() then reload."
+        lag.timerNote = lag.note
+    end
 
     _G.lagProbe = lag
     return lag

@@ -141,6 +141,22 @@ hs = {
     alert = { show = function(s) ALERTS[#ALERTS + 1] = tostring(s) end },
     pasteboard = { setContents = function(s) CLIP = s end },
 }
+
+-- 6.136.0 — the probe is DISARMED unless ~/.hammerspoon/LAGPROBE exists.
+-- ARMED drives the hs.fs.attributes stub, so a section can build a probe
+-- on either side of that gate. Every section written before 6.136.0
+-- assumes an installed probe, so the default here is true — and §18
+-- flips it to false and asserts that nothing gets wrapped.
+local ARMED = true
+hs.configdir = "/tmp/hs-lag-test"
+hs.fs = {
+    attributes = function(p)
+        if p == hs.configdir .. "/LAGPROBE" then
+            return ARMED and { mode = "file" } or nil
+        end
+        return nil
+    end,
+}
 freshEventtap()
 
 -- 6.134.0 — the timer wrap has its own once-only guard, exactly like the
@@ -1307,6 +1323,126 @@ do
           rp:find("STOPPED RIGHT NOW") == nil
           and rp:find("EVERY TAP IS INERT RIGHT NOW") ~= nil)
     bl.tapsOn(true)
+end
+
+-- =====================================================================
+out("\n18. disarmed by default — the probe that stopped charging rent\n")
+-- =====================================================================
+-- 6.136.0. This is the section that matters most in this file, because
+-- the thing being asserted is that NOTHING HAPPENS. The probe wraps
+-- hs.eventtap.new for the whole session; if the gate leaks, every tap in
+-- the config pays for a diagnostic nobody asked for, and the symptom is
+-- exactly the one LL reported.
+do
+    ARMED = false
+    freshEventtap() ; freshTimers()
+    hs.eventtap.__lagOriginalNew = nil
+    local realNewBefore = hs.eventtap.new
+    local off = chunk()({})
+
+    check("a probe with no LAGPROBE file reports itself disarmed",
+          off.armed == false)
+    -- The strongest check in the section: the global function object is
+    -- the SAME one. Not "equivalent", not "also works" — untouched.
+    check("🔒 hs.eventtap.new is NOT replaced when disarmed",
+          hs.eventtap.new == realNewBefore)
+    check("hs.timer.doEvery is NOT replaced when disarmed",
+          hs.timer.doEvery == stubDoEvery)
+    check("nothing was wrapped", off.wrapped == 0)
+    check("installedAt stays nil — it never installed", off.installedAt == nil)
+
+    -- A tap made now must be the bare stub, with no record kept.
+    local t = hs.eventtap.new({ TYPES.keyDown }, function() return false end)
+    check("a tap created while disarmed is not recorded", #off.taps == 0)
+    check("and it is still a working tap", type(t) == "table")
+
+    -- No heartbeat. This is half the reason the file was suspected.
+    local beats = 0
+    for _, tm in ipairs(TIMERS) do
+        if tm.secs == off.stallEvery then beats = beats + 1 end
+    end
+    check("no heartbeat timer was started", beats == 0)
+
+    -- 🚨 THE REPORT MUST NOT LOOK INNOCENT. An empty tap table reads like
+    -- "measured everything, found nothing" unless it says otherwise.
+    local rp = _G.lagReport()
+    check("the report leads with DISARMED", rp:find("THE PROBE IS DISARMED") ~= nil)
+    check("and says the empty tables mean NO DATA, not a clean bill",
+          rp:find("NO DATA") ~= nil)
+    check("and names the way back on", rp:find("_G.lagOn%(%)") ~= nil)
+
+    -- arm()/disarm() touch a real file, so point them somewhere disposable.
+    local tmp = os.tmpname()
+    os.remove(tmp)
+    off.probeFile = tmp
+    local said = off.arm()
+    local f = io.open(tmp, "r")
+    check("arm() writes the file", f ~= nil)
+    if f then f:close() end
+    check("arm() says a reload is needed, not that it is measuring",
+          said:find("reload") ~= nil and said:find("ARMED") ~= nil)
+    check("arm() warns that the probe costs something",
+          said:find("COSTS something") ~= nil)
+    off.disarm()
+    check("disarm() removes the file", io.open(tmp, "r") == nil)
+
+    ARMED = true
+end
+
+-- =====================================================================
+out("\n19. break tests for the gate\n")
+-- =====================================================================
+
+-- BREAK R — the gate is inverted, so a machine with no file gets the
+-- probe anyway. This is the 6.131.0 behaviour that started the whole
+-- episode, and it must never be reachable by accident again.
+do
+    local broken = src:gsub("if lag%.armed then", "if true then", 1)
+    check("BREAK R changed the source", broken ~= src)
+    local bchunk = assert(load(broken, "broken-lag"))
+    ARMED = false
+    freshEventtap() ; freshTimers()
+    hs.eventtap.__lagOriginalNew = nil
+    local realNewBefore = hs.eventtap.new
+    local bl = bchunk()({})
+    check("🔨 BREAK R caught: a disarmed probe still wrapped hs.eventtap.new",
+          hs.eventtap.new ~= realNewBefore and bl.armed == false)
+    ARMED = true
+end
+
+-- BREAK S — armed() answers true when the file is missing. Same end
+-- state as R, reached from the check rather than the branch, so it needs
+-- its own test: a config that cannot be disarmed is the bug.
+do
+    local broken = src:gsub("return %(ok and a%) and true or false",
+                            "return true", 1)
+    check("BREAK S changed the source", broken ~= src)
+    local bchunk = assert(load(broken, "broken-lag"))
+    ARMED = false
+    freshEventtap() ; freshTimers()
+    hs.eventtap.__lagOriginalNew = nil
+    local bl = bchunk()({})
+    check("🔨 BREAK S caught: no file present and the probe armed anyway",
+          bl.armed == true)
+    ARMED = true
+end
+
+-- BREAK T — the disarmed report drops its banner and returns the normal
+-- body. The numbers are all zero and all meaningless, and nothing on
+-- screen says so.
+do
+    local broken = src:gsub("if not lag%.armed then\n            line%(\"\"%)",
+                            "if false then\n            line(\"\")", 1)
+    check("BREAK T changed the source", broken ~= src)
+    local bchunk = assert(load(broken, "broken-lag"))
+    ARMED = false
+    freshEventtap() ; freshTimers()
+    hs.eventtap.__lagOriginalNew = nil
+    bchunk()({})
+    local rp = _G.lagReport()
+    check("🔨 BREAK T caught: an empty report with no disarmed warning",
+          rp:find("THE PROBE IS DISARMED") == nil)
+    ARMED = true
 end
 
 print = realPrint

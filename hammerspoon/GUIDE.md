@@ -335,6 +335,41 @@ whoever happened to load `core/`. It carries an explicit override so it
 appears in its own table under its own name. The question is fair: the
 probe shipped in 6.131.0 and the lag was reported again in 6.133.0.
 
+🚨🚨 **Being able to ask the question is not the same as asking it**
+(6.136.0). The sentence directly above this one was written in 6.131.0
+and repeated in `core/lag.lua`'s own source. The coincidence was noticed,
+typed into two files, and then built past — three releases of better
+instruments on top of an instrument nobody tested. When you write down a
+suspicion about your own work, that is not a note for later. It is the
+next experiment, and it goes ahead of the feature.
+
+🚨 **An always-on diagnostic is a permanent tax, so price it before you
+levy it** (6.136.0). 6.131.0 argued the probe must always run, because
+intermittent lag is not reproducible on demand and the evidence has to
+already exist by the time you think to look. That reasoning is sound and
+it was still the wrong call, for two reasons worth separating. The cost
+was *asserted* — "two clock reads per event" — and never measured; and
+the fault turned out to be constant from launch, so the tradeoff bought
+nothing and charged full price. A cost you have not measured is not a
+small cost, it is an unknown one.
+
+**Know the failure mode of the layer you are standing on.** macOS
+disables an event tap whose callback runs too long. Every module here
+already knew that — it is the whole reason `text_expander` and
+`autocorrect` run watchdogs — so a probe that adds time to every callback
+was always able to push taps over that line and get them killed. The
+watchdogs then revive them and they are killed again, which from the
+outside is "all kinds of keys stopped working". The mechanism was
+documented in this repo before the probe was written.
+
+**An off switch must reach the expensive half.** `_G.lagQuiet()` stopped
+the probe's heartbeat and left the wrapper — the part actually sitting on
+the keystroke path — running. So the config's answer to "is the probe the
+problem?" was a switch that could not turn off the probe. 6.135.0 spent a
+whole release on the difference between a tap that is INERT and one that
+is GONE and never noticed the probe offered itself only the weaker of the
+two. If a switch cannot reach the costly part, it is decoration.
+
 **Aggregate by call site when the thing measured is created in a loop.**
 Taps are created once and live forever, so a record per creation is a
 record per tap. Timers are not, and a record per creation would be a
