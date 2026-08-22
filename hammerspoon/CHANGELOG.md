@@ -68,13 +68,24 @@ NEW IN 6.136.0 — THE PROBE WAS THE PRIME SUSPECT, SO IT IS NOW OFF:
         mv ~/.hammerspoon/core/lag.lua ~/.hammerspoon/core/lag.lua.off
      init.lua loads that file inside a pcall, so its absence is a
      printed warning and nothing else — all 58 modules still load.
-  🧪 test_lag 206 → 227 checks. §18 asserts that a disarmed probe leaves
+  🚑 AND SAFE MODE NOW OUTRANKS THE ARMING FILE. init.lua loads
+     core/lag.lua at line ~641 and does not check for the SAFE file
+     until line ~3290, so for its whole life SAFE mode cut the module
+     list from 58 to 4 and left the probe wrapping every tap that
+     remained. That made SAFE mode unable to answer the one question it
+     exists for: fewer modules also means fewer taps for the probe to
+     wrap, so the two explanations move together and neither can be
+     ruled out. SAFE now means safe — no instrument on the keystroke
+     path, whatever the arming file says — and the report says so, with
+     the way back out, for anyone reading it mid-diagnosis.
+  🧪 test_lag 206 → 236 checks. §18 asserts that a disarmed probe leaves
      hs.eventtap.new as the SAME function object — not "equivalent",
      untouched — wraps nothing, records nothing, and starts no heartbeat.
      Three new break tests: R inverts the gate (the 6.131.0 behaviour,
      which must never be reachable by accident again), S makes armed()
      answer true with no file present, T drops the disarmed banner so an
-     empty report looks innocent. 62 stages green.
+     empty report looks innocent, U removes the SAFE-mode override.
+     62 stages green.
 
 NEW IN 6.135.0 — THE STRONGER DOSE, AND A TEST THAT COULD HAVE LIED:
   🔌🔌 _G.lagTapsGone() STOPS EVERY KEYBOARD TAP FOR REAL.

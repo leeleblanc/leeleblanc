@@ -148,11 +148,15 @@ hs = {
 -- assumes an installed probe, so the default here is true — and §18
 -- flips it to false and asserts that nothing gets wrapped.
 local ARMED = true
+local SAFE  = false        -- 6.136.0 — SAFE mode outranks the arming file
 hs.configdir = "/tmp/hs-lag-test"
 hs.fs = {
     attributes = function(p)
         if p == hs.configdir .. "/LAGPROBE" then
             return ARMED and { mode = "file" } or nil
+        end
+        if p == hs.configdir .. "/SAFE" then
+            return SAFE and { mode = "file" } or nil
         end
         return nil
     end,
@@ -1390,8 +1394,64 @@ do
 end
 
 -- =====================================================================
+out("\n18b. SAFE mode outranks the arming file\n")
+-- =====================================================================
+-- init.lua loads core/lag.lua around line 641 and does not check for the
+-- SAFE file until around line 3290, so until 6.136.0 SAFE mode cut the
+-- module list from 58 to 4 and left the probe wrapping every tap that
+-- was left. That made SAFE mode unable to answer the question it exists
+-- for: fewer modules also means fewer taps to wrap, so the two possible
+-- explanations moved together and neither could be ruled out.
+do
+    ARMED = true          -- the arming file IS present ...
+    SAFE  = true          -- ... and SAFE mode must still win
+    freshEventtap() ; freshTimers()
+    hs.eventtap.__lagOriginalNew = nil
+    local realNewBefore = hs.eventtap.new
+    local s = chunk()({})
+
+    check("🚑 SAFE mode disarms the probe even with LAGPROBE present",
+          s.armed == false)
+    check("and it knows it is in SAFE mode", s.inSafe == true)
+    check("hs.eventtap.new is untouched in SAFE mode",
+          hs.eventtap.new == realNewBefore)
+    check("nothing wrapped in SAFE mode", s.wrapped == 0)
+
+    local rp = _G.lagReport()
+    check("the report says SAFE MODE WINS", rp:find("SAFE MODE IS ON") ~= nil)
+    check("and names the way out of SAFE mode",
+          rp:find("rm ~/%.hammerspoon/SAFE") ~= nil)
+
+    -- And the control: same arming file, SAFE gone, probe arms normally.
+    SAFE = false
+    freshEventtap() ; freshTimers()
+    hs.eventtap.__lagOriginalNew = nil
+    local n = chunk()({})
+    check("leaving SAFE mode lets the arming file work again",
+          n.armed == true and n.inSafe == false)
+    ARMED = true ; SAFE = false
+end
+
+-- =====================================================================
 out("\n19. break tests for the gate\n")
 -- =====================================================================
+
+-- BREAK U — SAFE mode stops outranking the arming file, so a config in
+-- SAFE mode still pays for the probe. That is the 6.135.0-and-earlier
+-- behaviour that made SAFE mode useless as an experiment.
+do
+    local broken = src:gsub("if exists%(lag%.safeFile%) then return false end",
+                            "", 1)
+    check("BREAK U changed the source", broken ~= src)
+    local bchunk = assert(load(broken, "broken-lag"))
+    ARMED, SAFE = true, true
+    freshEventtap() ; freshTimers()
+    hs.eventtap.__lagOriginalNew = nil
+    local bl = bchunk()({})
+    check("🔨 BREAK U caught: SAFE mode no longer disarms the probe",
+          bl.armed == true)
+    ARMED, SAFE = true, false
+end
 
 -- BREAK R — the gate is inverted, so a machine with no file gets the
 -- probe anyway. This is the 6.131.0 behaviour that started the whole
@@ -1414,17 +1474,19 @@ end
 -- state as R, reached from the check rather than the branch, so it needs
 -- its own test: a config that cannot be disarmed is the bug.
 do
-    local broken = src:gsub("return %(ok and a%) and true or false",
-                            "return true", 1)
+    -- Targets the arming line itself, NOT the shared exists() helper:
+    -- breaking exists() also makes the SAFE check fire, which disarms the
+    -- probe and hides the very fault this test is looking for.
+    local broken = src:gsub("return exists%(lag%.probeFile%)", "return true", 1)
     check("BREAK S changed the source", broken ~= src)
     local bchunk = assert(load(broken, "broken-lag"))
-    ARMED = false
+    ARMED, SAFE = false, false
     freshEventtap() ; freshTimers()
     hs.eventtap.__lagOriginalNew = nil
     local bl = bchunk()({})
     check("🔨 BREAK S caught: no file present and the probe armed anyway",
           bl.armed == true)
-    ARMED = true
+    ARMED, SAFE = true, false
 end
 
 -- BREAK T — the disarmed report drops its banner and returns the normal

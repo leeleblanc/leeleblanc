@@ -34,6 +34,13 @@
 --      ~/.hammerspoon/LAGPROBE exists. _G.lagOn() writes it, _G.lagOff()
 --      removes it, both need a reload, and _G.lagReport() says DISARMED
 --      in its first line so an empty table is never read as "all clear".
+--   🚑 AND SAFE MODE NOW OUTRANKS THE ARMING FILE. This file loads
+--      core/lag.lua at line ~641 and does not look for the SAFE file
+--      until line ~3290, so SAFE mode has always cut the modules from 58
+--      to 4 and left the probe wrapping every tap that remained. That
+--      made SAFE mode unable to answer the question it exists for —
+--      fewer modules also means fewer taps to wrap, so both explanations
+--      move together and neither can be ruled out. SAFE now means safe.
 --   🩹 If your keys are broken right now and you cannot wait for this:
 --      quit Hammerspoon, then in Terminal
 --         mv ~/.hammerspoon/core/lag.lua ~/.hammerspoon/core/lag.lua.off

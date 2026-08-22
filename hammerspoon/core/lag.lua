@@ -281,12 +281,29 @@ return function(core)
     -- DEFINED — the report has to be able to explain that it is off, and
     -- _G.lagOn() has to exist in order to turn it on — but install() is
     -- never called, so hs.eventtap.new is never replaced.
-    local function armed()
+    -- 🚨 SAFE MODE WINS, ALWAYS. init.lua loads this file at line ~641 and
+    -- does not look for the SAFE file until line ~3290, so for its whole
+    -- life SAFE mode has cut the module list from 58 to 4 and left the
+    -- probe wrapping every tap that remained. That made SAFE mode unable
+    -- to answer the one question it exists for — fewer modules also means
+    -- fewer taps for the probe to wrap, so the two explanations move
+    -- together and neither can be ruled out. SAFE now means safe: the
+    -- smallest thing that could possibly work, with no instrument on the
+    -- keystroke path, whatever the arming file says.
+    lag.safeFile = (hs and hs.configdir or "") .. "/SAFE"
+
+    local function exists(path)
         if not (hs and hs.fs and hs.fs.attributes) then return false end
-        local ok, a = pcall(hs.fs.attributes, lag.probeFile)
+        local ok, a = pcall(hs.fs.attributes, path)
         return (ok and a) and true or false
     end
-    lag.armed = armed()
+
+    local function armed()
+        if exists(lag.safeFile) then return false end
+        return exists(lag.probeFile)
+    end
+    lag.armed  = armed()
+    lag.inSafe = exists(lag.safeFile)
 
     -- 🚨 A PLAIN UPVALUE, NOT lag.suspended. Every wrapped callback closes
     -- over this one local, so the check on the normal path is a register
@@ -987,6 +1004,16 @@ return function(core)
             line("      below was measured — the empty tables mean NO DATA,")
             line("      not a clean bill of health.")
             line("")
+            if lag.inSafe then
+                -- Worth saying on its own line: someone reading this in
+                -- SAFE mode is mid-diagnosis and needs to know that arming
+                -- the probe will not work until they leave.
+                line("   🚑 SAFE MODE IS ON, AND SAFE MODE WINS. The probe stays")
+                line("      off here even with the arming file present, because")
+                line("      SAFE means the smallest thing that could work.")
+                line("      rm ~/.hammerspoon/SAFE and reload to leave.")
+                line("")
+            end
             line("      This is the default since 6.136.0 because the probe")
             line("      itself costs something on every keystroke: it puts a")
             line("      Lua closure between macOS and every tap's handler.")
