@@ -61,10 +61,11 @@ local SUPPRESSED = 0
 local SYSKEYS    = {}           -- every media key posted
 local FRONT_APP  = "TextEdit"
 local FRONT_TITLE = nil         -- the focused window's title
--- Which apps this pretend Mac has open, for hs.application.get. Empty by
--- default: the pause key must do the right thing on a Mac with no player
--- running, and that is the case it is easiest to forget to test.
+-- Which apps this pretend Mac has open. Empty by default: the pause key
+-- must do the right thing on a Mac with no player running, and that is
+-- the case it is easiest to forget to test.
 local RUNNING    = {}
+local GETCALLS   = 0            -- hs.application.get calls — must stay 0
 local SERVICE_HAS = true        -- is screenshots loaded?
 local ZBAR       = "/opt/homebrew/bin/zbarimg"
 
@@ -178,11 +179,21 @@ hs = {
                 end,
             }
         end,
-        -- 🚨 hs.application.get IS THE "is it running" QUESTION THAT DOES
-        -- NOT LAUNCH ANYTHING, which is why the pause key asks it instead
-        -- of asking AppleScript. RUNNING is the list of app names this
-        -- stub Mac is pretending to have open.
-        get = function(n) return RUNNING[n] and { name = function() return n end } or nil end,
+        -- 🚨 STILL ASKED OF HAMMERSPOON, NOT OF APPLESCRIPT — naming an
+        -- app to AppleScript launches it. But since 6.137.0 the question
+        -- is ONE bulk runningApplications() sweep: get() by name measured
+        -- ~3,000ms per MISS on macOS 27, and the pause key paid it per
+        -- player precisely when no player was open. get stays here only
+        -- as a tripwire — the module must never call it again.
+        runningApplications = function()
+            local list = {}
+            for n in pairs(RUNNING) do
+                list[#list + 1] = { name = function() return n end }
+            end
+            return list
+        end,
+        get = function(n) GETCALLS = GETCALLS + 1
+                          return RUNNING[n] and { name = function() return n end } or nil end,
     },
 }
 _G.diag = { say = function() end, warn = function() end, err = function() end }
@@ -795,6 +806,9 @@ check("🚨 with VLC not running NOTHING is launched — asking AppleScript"
       .. " would have opened it", #TASKS == 0, #TASKS)
 check("…and the caller is told once that there is nothing to say",
       vlcCalls == 1 and vlcSaid == nil, tostring(vlcSaid))
+check("🚨 and hs.application.get was never asked — by name it costs"
+      .. " ~3,000ms per missing player on macOS 27 (the 6.137.0 freeze)",
+      GETCALLS == 0, GETCALLS)
 
 RUNNING = { VLC = true }
 TASKS   = {}

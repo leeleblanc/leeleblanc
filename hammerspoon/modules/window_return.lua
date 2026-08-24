@@ -79,6 +79,8 @@ function M.setup(core)
     -- ✏️ EDIT HERE ---------------------------------------------------------
     wr.enabled      = true
     wr.snapshotSecs = 30     -- how often the current setup's layout is refreshed
+    wr.sweepStep    = 0.05   -- pause between apps inside one snapshot sweep
+    wr.slowAppMs    = 250    -- an app slower than this gets named in the console
     wr.settleSecs   = 2.0    -- quiet time after a monitor change before looking
     wr.stableStep   = 1.0    -- seconds between stability readings
     wr.stableNeed   = 2      -- consecutive identical readings = settled
@@ -103,6 +105,10 @@ function M.setup(core)
         local saved = hs.settings.get(SETTINGS_KEY)
         if type(saved) == "table" then wr.layouts = saved end
     end)
+
+    wr.sweeping   = false   -- a chunked snapshot is mid-flight (6.137.0)
+    wr.sweepTimer = nil     -- HELD: the step timer between apps
+    wr.lastSweep  = nil     -- per-app ms profile of the latest sweep
 
     function wr.signature()
         local uuids = {}
@@ -135,20 +141,79 @@ function M.setup(core)
         return ok and d or nil
     end
 
+    -- 🚨 6.137.0 — THE SNAPSHOT NO LONGER FREEZES THE KEYBOARD. The old
+    -- body was one hs.window.allWindows() call: a synchronous
+    -- Accessibility round trip to every app at once, measured at 1,586ms
+    -- on macOS 27 — and it ran every 30 seconds on the one thread every
+    -- keystroke waits on. Same disease as focus_mode's Outlook lookup,
+    -- smaller dose (see the 6.137.0 note there).
+    --
+    -- Now the sweep is CHUNKED: regular GUI apps only (app:kind() == 1 —
+    -- the background agents that make up most of ~128 running processes
+    -- own no standard window and are not worth an AX round trip each),
+    -- ONE app's windows per timer step, a breath between apps for
+    -- keystrokes to get through. The trade, chosen deliberately: an
+    -- accessory app's window (kind 0) is no longer remembered — describe()
+    -- only keeps standard windows anyway, and those live in regular apps.
+    -- A monitor change mid-sweep abandons the whole pass uncommitted:
+    -- half of yesterday's desktop stitched to half of today's is worse
+    -- than 30 more seconds of the layout we already had.
+    --
+    -- Each app's cost is measured into wr.lastSweep, and any single app
+    -- over wr.slowAppMs gets named in the console — if one process is
+    -- eating the sweep, the next fix should know its name, not guess.
     function wr.snapshot()
         if wr.transitioning then return end   -- never save a mid-change mess
+        if wr.sweeping then return end        -- one sweep at a time
         local sig = wr.signature()
         if sig == "" then return end
+
+        local apps = {}
+        pcall(function()
+            for _, a in ipairs(hs.application.runningApplications() or {}) do
+                local okK, k = pcall(function() return a:kind() end)
+                if okK and k == 1 then apps[#apps + 1] = a end
+            end
+        end)
+        if #apps == 0 then return end
+
+        wr.sweeping = true
         local entries = {}
-        local wins = {}
-        pcall(function() wins = hs.window.allWindows() or {} end)
-        for _, win in ipairs(wins) do
-            local d = describe(win)
-            if d then entries[#entries + 1] = d end
+        local profile = { apps = {}, totalMs = 0, at = os.date("%H:%M:%S") }
+        local i = 0
+        local function step()
+            if wr.transitioning then wr.sweeping = false; return end
+            i = i + 1
+            local app = apps[i]
+            if not app then
+                wr.sweeping  = false
+                wr.lastSweep = profile
+                if #entries == 0 then return end  -- an empty desktop teaches nothing
+                wr.layouts[sig] = { savedAt = os.time(), entries = entries }
+                pcall(function() hs.settings.set(SETTINGS_KEY, wr.layouts) end)
+                return
+            end
+            local t0 = hs.timer.absoluteTime()
+            pcall(function()
+                for _, win in ipairs(app:allWindows() or {}) do
+                    local d = describe(win)
+                    if d then entries[#entries + 1] = d end
+                end
+            end)
+            local ms = (hs.timer.absoluteTime() - t0) / 1e6
+            profile.totalMs = profile.totalMs + ms
+            local an = "?"
+            pcall(function() an = app:name() or "?" end)
+            profile.apps[#profile.apps + 1] = { name = an, ms = ms }
+            if ms > wr.slowAppMs then
+                warn(("%s took %dms to list its windows"):format(an, ms))
+            end
+            -- HELD in wr: an unreferenced hs.timer is collected before it
+            -- fires (the 6.16.18 lesson), and a collected step is a sweep
+            -- that silently never finishes.
+            wr.sweepTimer = hs.timer.doAfter(wr.sweepStep, step)
         end
-        if #entries == 0 then return end      -- an empty desktop teaches nothing
-        wr.layouts[sig] = { savedAt = os.time(), entries = entries }
-        pcall(function() hs.settings.set(SETTINGS_KEY, wr.layouts) end)
+        step()
     end
 
     -- Is this remembered frame still somewhere a window can live? A

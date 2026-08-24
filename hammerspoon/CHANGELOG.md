@@ -4,6 +4,55 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.137.0 — THE LAG, FOUND AND KILLED. IT WAS NEVER A TAP:
+  🎯 MEASURED AT LAST, AND THE TAPS WERE INNOCENT. The probe's own
+     report on LL's Mac: all five keyboard taps together cost 0.08ms
+     per keystroke. The stalls were a TIMER — focus_mode's meeting tick
+     blocked the one thread ~1,549ms EVERY 4 SECONDS, like clockwork
+     (stall log: 17:45:50, :54, :58, 17:46:02 …). Direct timing then
+     pinned the exact line: hs.application.get("Microsoft Outlook") =
+     2,884ms, then 3,023ms, per call, with Outlook not running. On
+     macOS 27 a name lookup that MISSES takes hs.application's slow
+     "alternate names / Spotlight" resolution path every time — a miss
+     cannot be cached, so an idle Mac paid the most, forever.
+  ⌨️ WHY A TIMER READS AS TYPING LAG. Every keystroke visits five event
+     taps, and each tap is a round trip through Hammerspoon's ONE
+     thread. Freeze that thread 1.5 seconds in every 4 and keystrokes
+     queue behind the freeze: typing turns to sludge, quitting
+     Hammerspoon fixes it instantly — LL's report, word for word. The
+     control test proved the other half: TEN do-nothing taps on an
+     empty config typed perfectly clean. Taps are cheap. The thread
+     they all share was the whole story.
+  🧪 THE METHOD IS THE ACTUAL NEWS. 6.131.0–6.136.0 shipped four
+     releases of instrument-building and guesswork; the lag survived
+     all of them. 6.137.0 came from three measurements LL ran in the
+     console — the probe report, a 5ms bulk sweep, a 3s name lookup —
+     and the fix was not written until the numbers named the line.
+  ✅ THE CURE IS THE 6.16.22 IDIOM, APPLIED THREE TIMES OVER:
+     · focus_mode: Outlook now comes out of the bulk
+       runningApplications() sweep the meeting detector already runs
+       (5ms for 128 apps, measured), stashed in fm._outlook — never
+       looked up by name. Budget-exhausted sweeps skip the reminder
+       scan for one 4s tick rather than risk a stale answer.
+     · power_tools: the pause key asks one bulk sweep instead of
+       get() per toggle-only player, so it no longer hangs for seconds
+       precisely when no player is open.
+     · window_return: the 30-second snapshot was one 1,586ms
+       hs.window.allWindows() gulp — the same freeze at a lower dose.
+       It now walks ONE app per 0.05s step, regular GUI apps only
+       (background agents get no Accessibility round trip), abandons
+       uncommitted when a monitor change lands mid-sweep, keeps a
+       per-app ms profile in wr.lastSweep, and names any app slower
+       than 250ms in the console — the next fix gets a name, not a
+       guess.
+  🛡 AND IT STAYS DEAD. test_focus P7 fails the suite if focus_mode
+     ever calls hs.application.get/find again (a call counter AND a
+     comment-stripped source grep); test_power_tools counts get()
+     calls and demands zero; test_window_return proves the snapshot
+     never asks for the whole desktop at once, never sweeps an agent,
+     commits nothing before its steps run, and abandons cleanly on a
+     mid-sweep monitor change.
+
 NEW IN 6.136.0 — THE PROBE WAS THE PRIME SUSPECT, SO IT IS NOW OFF:
   🚨 THE LAG PROBE IS THE LEADING SUSPECT FOR THE LAG IT WAS BUILT TO
      FIND. LL: "total shit show. All kinds of keys stopped working" and

@@ -1037,18 +1037,32 @@ end tell]]
     -- Runs the toggle-only players and calls done(summary) with a short
     -- phrase for the alert, or nil when there was nothing to say.
     function pt.pauseToggleOnly(done)
+        -- 🚨 ASKED OF HAMMERSPOON, NOT OF APPLESCRIPT. hs.application
+        -- does not launch anything to answer "is it running";
+        -- AppleScript would have to name the app to ask, and naming it
+        -- launches it.
+        --
+        -- 🚨 6.137.0 — AND ASKED BY BULK SWEEP, NOT BY NAME. This used to
+        -- be hs.application.get(n) per player, which on macOS 27 costs
+        -- ~3,000ms per name that is NOT running (the same name-resolution
+        -- freeze focus_mode paid every 4 seconds, measured on LL's Mac) —
+        -- so the pause key hung for seconds precisely when no player was
+        -- open. One runningApplications() enumeration (5ms for 128 apps,
+        -- measured) plus a pure-Lua name match — app_watcher's 6.16.22
+        -- idiom. If the enumeration itself fails, every player reads as
+        -- not running and the key falls through to its other duties;
+        -- wrong-but-instant beats right-but-frozen on a keypress.
+        local sweep = {}
+        pcall(function()
+            for _, a in ipairs(hs.application.runningApplications() or {}) do
+                local okN, n2 = pcall(function() return a:name() end)
+                if okN and n2 then sweep[n2] = true end
+            end
+        end)
         local name, script, extras = nil, nil, 0
         for _, n in ipairs(pt.toggleOnly or {}) do
             local s = (pt.toggleScripts or {})[n]
-            -- 🚨 ASKED OF HAMMERSPOON, NOT OF APPLESCRIPT. hs.application
-            -- does not launch anything to answer "is it running";
-            -- AppleScript would have to name the app to ask, and naming it
-            -- launches it.
-            local running = false
-            if s then
-                pcall(function() running = hs.application.get(n) ~= nil end)
-            end
-            if s and running then
+            if s and sweep[n] then
                 if name then extras = extras + 1 else name, script = n, s end
             end
         end

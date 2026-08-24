@@ -23,10 +23,12 @@ local function out(s) io.write(s) end
 -- ---- the stub Mac ------------------------------------------------------
 local SCREENS  = {}       -- what allScreens() reports; each { uuid, frame }
 local WINDOWS  = {}       -- what allWindows() reports
+local APPS     = {}       -- what runningApplications() reports (6.137.0 sweep)
 local SETTINGS = {}       -- what hs.settings holds
 local ALERTS   = {}
 local TIMERS   = {}       -- every doAfter/doEvery, fired by hand
 local AX       = true
+local ATIME    = 0        -- fake absoluteTime, advancing 1ms per reading
 
 local function screen(uuid, x, y, w, h)
     return { getUUID   = function() return uuid end,
@@ -52,6 +54,19 @@ local function win(id, bundle, title, x, y, w, h, opts)
     return o
 end
 
+-- A fake application for the chunked snapshot sweep (6.137.0). `kind`
+-- mirrors hs.application:kind(): 1 = regular GUI app, 0 = agent. _asked
+-- counts allWindows() calls, which is how the tests prove an agent is
+-- never paid an Accessibility round trip.
+local function fapp(name, kind, wins)
+    return {
+        _asked = 0,
+        name = function() return name end,
+        kind = function() return kind end,
+        allWindows = function(self) self._asked = self._asked + 1; return wins end,
+    }
+end
+
 hs = {
     screen = {
         allScreens = function() return SCREENS end,
@@ -62,12 +77,14 @@ hs = {
         } end },
     },
     window   = { allWindows = function() return WINDOWS end },
+    application = { runningApplications = function() return APPS end },
     settings = {
         get = function(k) return SETTINGS[k] end,
         set = function(k, v) SETTINGS[k] = v end,
     },
     alert = { show = function(msg) ALERTS[#ALERTS + 1] = tostring(msg) end },
     timer = {
+        absoluteTime = function() ATIME = ATIME + 1000000; return ATIME end,
         doAfter = function(secs, fn)
             local t = { secs = secs, fn = fn, stopped = false }
             function t:stop() self.stopped = true end
@@ -147,7 +164,33 @@ local ourOwn  = win(105, "org.hammerspoon.Hammerspoon", "picker", 300, 200, 400,
 local orphan  = win(106, nil, "no app", 0, 0, 300, 300, { noApp = true })
 WINDOWS = { safari, excel, mini, weird, ourOwn, orphan }
 
+-- 6.137.0: the snapshot sweeps app by app, so the fake Mac's windows
+-- live in fake apps now. One agent (kind 0) stands guard: paying it an
+-- Accessibility round trip is the regression these checks exist to stop.
+local agent = fapp("BackgroundAgent", 0, {})
+APPS = {
+    fapp("Safari",      1, { safari }),
+    fapp("Excel",       1, { excel  }),
+    fapp("TextEdit",    1, { mini   }),
+    fapp("Finder",      1, { weird  }),
+    fapp("Hammerspoon", 1, { ourOwn }),
+    fapp("Ghost",       1, { orphan }),
+    agent,
+}
+
+-- The single whole-desktop call was the 1,586ms keyboard freeze. The
+-- snapshot must never make it again; wr.plan (section 4) still may.
+local wholeDesktopAsks = 0
+local realAllWindows = hs.window.allWindows
+hs.window.allWindows = function()
+    wholeDesktopAsks = wholeDesktopAsks + 1; return WINDOWS
+end
+
 wr.snapshot()
+check("the sweep is chunked — nothing is committed before the steps run",
+      wr.layouts["UUID-A+UUID-B"] == nil and wr.sweeping == true)
+drain()
+hs.window.allWindows = realAllWindows
 local saved = wr.layouts["UUID-A+UUID-B"]
 check("the docked setup was remembered", saved ~= nil and type(saved.entries) == "table")
 check("…with exactly the two real windows — minimized, non-standard, our"
@@ -156,12 +199,24 @@ check("…with exactly the two real windows — minimized, non-standard, our"
 check("…and persisted through hs.settings, so a reload costs nothing",
       type(SETTINGS["windowReturn.layouts"]) == "table"
       and SETTINGS["windowReturn.layouts"]["UUID-A+UUID-B"] ~= nil)
+check("the snapshot never asks for the whole desktop at once",
+      wholeDesktopAsks == 0, wholeDesktopAsks)
+check("a kind-0 agent is never asked for its windows", agent._asked == 0)
+check("the sweep profile names every app it paid a round trip",
+      wr.lastSweep ~= nil and #wr.lastSweep.apps == 6,
+      wr.lastSweep and #wr.lastSweep.apps)
 check("a snapshot mid-transition is refused — it would save the mess", (function()
     wr.transitioning = true
-    local before = saved.savedAt
     wr.snapshot()
     wr.transitioning = false
-    return wr.layouts["UUID-A+UUID-B"].savedAt == before
+    return wr.layouts["UUID-A+UUID-B"] == saved   -- same table: no commit
+end)())
+check("a monitor change MID-SWEEP abandons the pass uncommitted", (function()
+    wr.snapshot()                 -- a fresh sweep takes off
+    wr.transitioning = true       -- …and the screens change under it
+    drain()
+    wr.transitioning = false
+    return wr.layouts["UUID-A+UUID-B"] == saved and wr.sweeping == false
 end)())
 
 -- =====================================================================

@@ -214,6 +214,9 @@ function M.setup(core)
     fm.warnedQuiet  = false
     fm.manualOffUntil = 0     -- auto-engage suppressed until this time
     fm.log          = {}      -- last few transitions, for ⇪⇧F
+    fm._outlook     = nil     -- Outlook's app object, stashed by the sweep
+                              -- in detectMeetingWindow. See 6.137.0 note
+                              -- in scanOutlookReminder for why this exists.
 
     local function say(m)  if _G.diag then _G.diag.say("focus", m)  end end
     local function warn(m) if _G.diag then _G.diag.warn("focus", m) end end
@@ -247,6 +250,11 @@ function M.setup(core)
     -- Returns appObject, reason  — or nil.
     function fm.detectMeetingWindow()
         local t0 = now()
+        -- Cleared at the top of every sweep: if the budget runs out below
+        -- before Outlook is reached, the stash stays nil and the reminder
+        -- scan sits this tick out. A skipped scan costs a 4-second wait;
+        -- a stale app object costs nothing (isRunning is checked at use).
+        fm._outlook = nil
         local okApps, apps = pcall(hs.application.runningApplications)
         if not okApps or not apps then return nil end
         for _, app in ipairs(apps) do
@@ -258,6 +266,7 @@ function M.setup(core)
             end
             local name = "?"
             pcall(function() name = app:name() or "?" end)
+            if name == "Microsoft Outlook" then fm._outlook = app end
             local spec = fm.meetingApps[name]
             if spec then
                 local okW, wins = pcall(function() return app:allWindows() end)
@@ -291,9 +300,23 @@ function M.setup(core)
     -- give us reliably any more, and it is arguably the better one: a
     -- reminder carrying a join link means a meeting is about to start,
     -- which is exactly when you want the Mac to settle down.
+    -- 🚨 6.137.0 — hs.application.get("Microsoft Outlook") WAS THE TYPING
+    -- LAG. Measured on LL's Mac (macOS 27 beta): ~3,000ms PER CALL when
+    -- Outlook is not running — get() falls into hs.application's
+    -- name-resolution path (the "alternate names / Spotlight support"
+    -- console line is that path announcing itself), and a miss cannot be
+    -- cached. tick() lands here every 4 seconds whenever no meeting is
+    -- on, so the one thread every keystroke waits on was frozen ~40% of
+    -- the time. Same disease app_watcher cured in 6.16.22, same cure:
+    -- the answer comes from the bulk sweep detectMeetingWindow already
+    -- runs (5ms for 128 apps, measured), which stashes Outlook's app
+    -- object in fm._outlook. This function must NEVER look an app up by
+    -- name — test_focus.lua P7 stands guard on exactly that.
     function fm.scanOutlookReminder()
-        local app = hs.application.get("Microsoft Outlook")
-        if not app then return nil end
+        local app = fm._outlook
+        local alive = false
+        pcall(function() alive = app ~= nil and app:isRunning() == true end)
+        if not alive then return nil end
         local el = appElement(app)
         if not el then return nil end
         local t0 = now()

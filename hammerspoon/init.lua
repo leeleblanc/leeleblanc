@@ -2,10 +2,43 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 08-22-26 using Claude          ← EDITED date. Bumped with every release.
+-- 08-24-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.136.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.137.0
 -- =====================================================================
+
+-- NEW IN 6.137.0 — THE LAG, FOUND AND KILLED. IT WAS NEVER A TAP:
+--   🎯 MEASURED AT LAST, AND THE TAPS WERE INNOCENT. The probe's own
+--      report: all five keyboard taps together cost 0.08ms per
+--      keystroke. The stalls were a TIMER — focus_mode's meeting tick
+--      blocked the one thread ~1,549ms EVERY 4 SECONDS, like clockwork.
+--      Direct timing then pinned the line: hs.application.get(
+--      "Microsoft Outlook") = 2,884ms, then 3,023ms, per call, with
+--      Outlook not running. On macOS 27 a name lookup that MISSES takes
+--      the slow "alternate names / Spotlight" resolution path each time
+--      — a miss cannot be cached, so idle Macs paid the most.
+--   ⌨️ WHY A TIMER READS AS TYPING LAG. Every keystroke visits five
+--      event taps, and each tap is a round trip through Hammerspoon's
+--      ONE thread. Freeze that thread 1.5s in every 4 and keystrokes
+--      queue behind the freeze — typing turns to sludge, quitting
+--      Hammerspoon fixes it instantly, and both fit LL's report
+--      exactly. Ten do-nothing taps on an empty config typed clean
+--      (measured): taps are cheap; the thread they share was the story.
+--   ✅ THE CURE IS THE 6.16.22 IDIOM, APPLIED THREE TIMES OVER. Outlook
+--      now comes out of the bulk runningApplications() sweep that
+--      focus_mode's detector already runs (5ms for 128 apps, measured)
+--      — never by name. power_tools' pause key asks one sweep instead
+--      of get() per player, so it no longer hangs precisely when no
+--      player is open. And window_return's 30-second snapshot — one
+--      1,586ms hs.window.allWindows() gulp, the same freeze at a lower
+--      dose — now walks ONE app per 0.05s step, regular GUI apps only,
+--      abandons uncommitted when a monitor change lands mid-sweep, and
+--      names any app slower than 250ms in the console.
+--   🛡 AND IT STAYS DEAD. test_focus P7 fails the suite if focus_mode
+--      ever calls hs.application.get/find again; test_power_tools
+--      counts get() calls and demands zero; test_window_return proves
+--      the snapshot never asks for the whole desktop at once and never
+--      pays a background agent an Accessibility round trip.
 
 -- NEW IN 6.136.0 — THE PROBE WAS THE PRIME SUSPECT, SO IT IS NOW OFF:
 --   🚨 THE LAG PROBE IS THE LEADING SUSPECT FOR THE LAG IT WAS BUILT TO
@@ -158,42 +191,10 @@
 --      copy of "check secure input, wait for ⌘⇧⌃⌥, cap the length" is a
 --      second place to forget the one whose absence is invisible.
 
--- NEW IN 6.132.0 — THE CASE OF THE THING:
---   🔠 LL: "I need a way to Change/Transform Text Case — upper, lower,
---      title, camel, kebab, or snake. I think I have something already to
---      pick out and transform file names, can we add this to that tool?"
---      Yes and no. ⇪R renames FILES and cannot touch the sentence you
---      have highlighted in an email, so the six cases went into ⇪R as
---      asked AND onto ⇪; for selected text anywhere on the Mac.
---   🚨 WHICH MEANT THEY COULD LIVE IN NEITHER OF THEM. Two copies of
---      "what is a word?" is two copies that drift, silently: ⇪R would
---      snake_case a file one way and ⇪; the same text another way, and
---      nothing anywhere would report a problem. modules/text_case.lua
---      owns all six; both tools ask it through core.call.
---   ✂️ THE HARD PART IS THE WORD BOUNDARY, not the capital letters.
---      fooBar is two words. XMLHttpRequest is three. iPhone14Pro is
---      three, which is why the split rules include digits. And a byte
---      above 127 is part of a word — Lua's %w is ASCII-only, so the
---      obvious [%w]+ run pattern DELETES accented letters outright and
---      café comes out of snake_case as "caf". Not mangled: gone.
---   🔢 ⇪; COUNT → CLIPBOARD is a second row, not a change to the first.
---      A tool you press to read a number must not quietly replace what
---      is on your clipboard. LL: "Allow both counts to be posted."
---   🖱 RIGHT-CLICK SAYS WHEN IT FIRED BLIND. LL: "I don't always have
---      the same options when I use our right-click tool." When the wait
---      for ⌘⇧⌃⌥ ran out with a key still down, the click went anyway,
---      silently — and Chrome answers a ⇧-click with its own menu instead
---      of the page's. The wait is now 450ms (⇪ is four keys and letting
---      go of all four is not one motion) and a blind fire names the
---      modifier on screen and in _G.rightClickReport().
---   🔑 ⇪⇧V WAS NEVER MISSING. LL: "Shouldn't this be in the edit
---      picker?" It was — as the Clipboard row, whose key cell said ⇪V
---      alone. It now reads ⇪V / ⇪⇧V, the shape the Screenshots row uses.
-
--- (6.131.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.132.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.136.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.137.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -504,7 +505,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.136.0"
+_G.configVersion = "6.137.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

@@ -24,6 +24,9 @@
 --       recorded prior state, which is what makes restore correct.
 --   P6  THE WATCHDOG ALWAYS FIRES. However detection misbehaves, focus
 --       cannot stay engaged forever.
+--   P7  NO NAME LOOKUPS, EVER. hs.application.get by name cost ~3,000ms
+--       per miss on macOS 27 and tick() paid it every 4 seconds — the
+--       6.137.0 typing lag. Outlook comes from the bulk sweep's stash.
 
 local HS = (arg and arg[1]) or os.getenv("HAMMERSPOON_DIR")
            or ((os.getenv("HOME") or ".") .. "/.hammerspoon")
@@ -54,6 +57,7 @@ local function mkApp(name, windows, cameraOn)
         _name = name, _windows = windows or {}, _cameraOn = cameraOn,
         _selected = {},
         name = function(self) return self._name end,
+        isRunning = function(self) return true end,
         allWindows = function(self)
             local ws = {}
             for _, t in ipairs(self._windows) do
@@ -78,6 +82,8 @@ local function mkApp(name, windows, cameraOn)
 end
 
 local CANVAS_THROWS = false
+local GETCALLS = 0     -- every hs.application.get — P7 says the module
+                       -- must never make one (the 6.137.0 typing lag)
 hs = {
     timer = {
         secondsSinceEpoch = function() return NOW end,
@@ -88,6 +94,7 @@ hs = {
         runningApplications = function() return APPS end,
         frontmostApplication = function() return APPS[1] end,
         get = function(n)
+            GETCALLS = GETCALLS + 1
             for _, a in ipairs(APPS) do if a._name == n then return a end end
         end,
         watcher = { new = function(fn) return { fn = fn, start = function() end } end,
@@ -335,6 +342,28 @@ check("a reminder with no join link does NOT engage it", FM.engaged == false)
 check("every Accessibility element got a timeout before being asked "
       .. "anything — the freeze guard from 6.47.0, applied here too",
       TIMEOUTS["Microsoft Outlook"] ~= nil)
+
+-- P7 — THE 6.137.0 TYPING LAG MUST STAY DEAD. hs.application.get by
+-- name measured ~3,000ms per MISS on macOS 27, and tick() paid it every
+-- 4 seconds. Outlook now comes from the bulk sweep's stash, so the
+-- module must never call get() — and the source must not carry a
+-- name lookup even dormant. Comment lines are stripped before the grep:
+-- the fix's own history comment is allowed to name the crime.
+check("P7: the module never called hs.application.get — not once, on any "
+      .. "path this whole suite drove", GETCALLS == 0, GETCALLS)
+check("P7: the source carries no hs.application.get/find outside comments",
+      (function()
+    local f = io.open(HS .. "/modules/focus_mode.lua", "r")
+    if not f then return false end
+    local src = f:read("*a"); f:close()
+    for line in src:gmatch("[^\n]*") do
+        if not line:match("^%s*%-%-") then
+            if line:find("hs%.application%.get")
+               or line:find("hs%.application%.find") then return false end
+        end
+    end
+    return true
+end)())
 
 -- =====================================================================
 out("\n=== 6b. TEAMS: the false positives from LL's own report ===\n")
