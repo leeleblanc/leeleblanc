@@ -4,6 +4,36 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.138.0 — THE WHEEL FOLLOWS THE DRAG:
+  🖱 LL, the day after the lag fix: "I can no longer use my magic pad
+     to scroll the list. Keyboard works fine." And then, having tried a
+     fresh open and a drag: "Seems like a drag kills the sheet
+     functionality."
+  🎯 THE BUG WAS A RECTANGLE LEFT BEHIND. The cheat sheet's wheel
+     handler only claims a scroll when the pointer sits inside st.rect
+     — that is what lets the window UNDER the open sheet keep scrolling
+     normally. Dragging the sheet (6.67.0) moved the canvas but never
+     moved that rectangle: after a drag, two-finger scrolls over the
+     sheet landed "outside" and were declined, while scrolls over the
+     empty desk where the sheet USED to be were still being swallowed.
+     Closing and reopening rebuilt the rectangle, which is why the
+     fault healed itself just often enough to be confusing.
+  ⌨️ WHY THE KEYBOARD NEVER NOTICED: the arrow keys scroll through
+     hotkeys, a separate route with no hit test at all. "Keyboard works
+     fine" was the fingerprint that ruled out everything else.
+  🔎 DIAGNOSED BY MEASUREMENT, THE 6.137.0 WAY: a temporary spy tap on
+     LL's Mac counted 356 scroll events delivered with 246 passing the
+     hit test — macOS 27 was delivering every event, the sheet's tap
+     was alive, and the rectangle left at the old spot was the whole
+     story. The spy disarmed itself after 25 seconds.
+  ✅ ONE FIX, WHERE THE DRAG ENDS: the sheet's drop handler now writes
+     the dropped frame into st.rect alongside the position it already
+     remembered — verbatim, not clamped, because the hit box must match
+     the canvas wherever the drag physically left it.
+  🛡 test_cheatsheet: dropping the sheet must move the wheel's hit box
+     with it, and the wheel must be claimed at the new position with no
+     reopen in between.
+
 NEW IN 6.137.0 — THE LAG, FOUND AND KILLED. IT WAS NEVER A TAP:
   🎯 MEASURED AT LAST, AND THE TAPS WERE INNOCENT. The probe's own
      report on LL's Mac: all five keyboard taps together cost 0.08ms

@@ -4,8 +4,33 @@
 -- =====================================================================
 -- 08-24-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.137.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.138.0
 -- =====================================================================
+
+-- NEW IN 6.138.0 — THE WHEEL FOLLOWS THE DRAG:
+--   🖱 LL, the day after the lag fix: "I can no longer use my magic pad
+--      to scroll the list. Keyboard works fine." And then, having tried
+--      a fresh open: "Seems like a drag kills the sheet functionality."
+--   🎯 THE BUG WAS A RECTANGLE LEFT BEHIND. The cheat sheet's wheel
+--      handler only claims a scroll when the pointer sits inside
+--      st.rect — that is what lets the window UNDER the open sheet keep
+--      scrolling normally. Dragging the sheet moved the canvas but
+--      never moved that rectangle: after a drag, two-finger scrolls
+--      over the sheet landed "outside" and were declined, while scrolls
+--      over the empty desk where the sheet USED to be were still being
+--      swallowed. Closing and reopening rebuilt the rectangle, which is
+--      why the fault healed itself just often enough to be confusing.
+--   ⌨️ WHY THE KEYBOARD NEVER NOTICED: the arrow keys scroll through
+--      hotkeys, a separate route with no hit test at all.
+--   ✅ ONE FIX, WHERE THE DRAG ENDS: the sheet's drop handler now
+--      writes the dropped frame into st.rect alongside the position it
+--      already remembered. Diagnosed with a live spy tap on LL's Mac
+--      first: 356 scroll events delivered, 246 passing the hit test —
+--      macOS 27 was delivering every event; the rectangle left at the
+--      old spot was the whole story.
+--   🛡 test_cheatsheet: dropping the sheet must move the wheel's hit
+--      box with it, and the wheel must be claimed at the new position
+--      with no reopen in between.
 
 -- NEW IN 6.137.0 — THE LAG, FOUND AND KILLED. IT WAS NEVER A TAP:
 --   🎯 MEASURED AT LAST, AND THE TAPS WERE INNOCENT. The probe's own
@@ -153,48 +178,10 @@
 --      command. Evidence handed to someone whose typing is broken is a
 --      second job.
 
--- NEW IN 6.133.0 — WHAT IT MEANS, AND WHAT ELSE YOU COULD SAY:
---   📖 LL: "I need a way to look up words for their definition and be
---      presented at the same time with their synonyms."
---   ⇪8 — the selection's meaning and its synonyms in ONE list, and ⏎ on
---      a synonym REPLACES YOUR SELECTION with it. Nothing selected opens
---      the box empty; type a word and press ⏎.
---   ❓ AND YES, ⌃⌘D EXISTS. Apple's Look Up is good and this does not
---      replace it. Three things it will not do: the thesaurus is a
---      SEPARATE entry you click into, you cannot act on what it shows
---      you, and in half these apps it wants the mouse.
---   📚 NO ONE SOURCE IS PRESENT ON EVERY MAC, so the sources are a LIST
---      and the panel says which one answered. WordNet first (offline,
---      `brew install wordnet`, and its data model IS "a sense, its
---      definition, and the words that share it"). A web API second, OFF
---      by default. Dictionary.app always last, because a row that hands
---      off to the thing that definitely works beats "nothing found".
---   🚨 "NO DEFINITION FOUND" IS WHAT A MISSING wn LOOKS LIKE, and also
---      what a nonsense word looks like — and the first is fixed by one
---      brew command. Every provider therefore carries a why() that names
---      the fix, and _G.defineReport() prints it.
---   🌐 THE WEB PROVIDER IS OFF UNTIL YOU TURN IT ON. A lookup sends the
---      word you are writing about to somebody else's server; on the work
---      MacBook that is a sentence fragment leaving a managed machine.
---   ⏱ EVERY LOOKUP IS ASYNC, WHICH IS NOT A PREFERENCE. A synchronous
---      `wn` or fetch does not make the panel slow — it stops your typing
---      in every app, which is the exact fault 6.131.0 built core/lag.lua
---      to measure. hs.task and asyncGet, and a sentry reads the file for
---      io.popen, hs.execute and hs.http.get.
---   🚨 AND A LATE ANSWER MUST NOT LAND IN THE WRONG WORD. Look up one
---      word, give up, look up another; the first reply arrives and
---      repaints the panel under the second word's title, and ⏎ types the
---      wrong word into your document. Every lookup carries a generation
---      number and a stale reply is dropped undrawn.
---   ⌨️ THE GUARDED REPLACE MOVED INTO power_tools AND IS PUBLISHED. ⇪8
---      is the second tool to write over your selection, and a second
---      copy of "check secure input, wait for ⌘⇧⌃⌥, cap the length" is a
---      second place to forget the one whose absence is invisible.
-
--- (6.132.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.133.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.137.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.138.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -505,7 +492,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.137.0"
+_G.configVersion = "6.138.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

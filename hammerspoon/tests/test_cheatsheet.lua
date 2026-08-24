@@ -590,6 +590,25 @@ if reg.onDrop then reg.onDrop({ x = 100, y = 200, w = 300, h = 400 }) end
 check("dropping it remembers where you put it",
       CS.pos and CS.pos.x == 100 and CS.pos.y == 200,
       CS.pos and CS.pos.x)
+
+-- 🖱 6.138.0 — LL, on a Magic Trackpad: "Seems like a drag kills the
+-- sheet functionality." The wheel handler hit-tests st.rect, and a drop
+-- that moved the canvas but not that rectangle left a sheet the
+-- trackpad could not scroll until it was closed and reopened.
+check("🚨 the WHEEL'S HIT BOX MOVES WITH THE DROP — a rectangle left at "
+      .. "the old spot is a sheet the trackpad cannot scroll until it "
+      .. "is reopened",
+      (function()
+        local r = _G.cheatSheetState and _G.cheatSheetState.rect
+        return r ~= nil and r.x == 100 and r.y == 200
+                        and r.w == 300 and r.h == 400
+      end)())
+MOUSE = { x = 150, y = 300 }   -- inside the DROPPED frame
+check("...so the wheel is claimed over the sheet's NEW position, with "
+      .. "no reopen in between",
+      CS.wheelHandler(wheelEvent({
+        [hs.eventtap.event.properties.scrollWheelEventDeltaAxis1] = 2,
+      })) == true)
 CS.show()
 check("...and the next draw opens THERE, not back in the centre",
       canvasRect.x == 100 and canvasRect.y == 200,

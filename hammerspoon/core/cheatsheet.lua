@@ -1384,6 +1384,22 @@ return function(core)
             _G.makeCanvasDraggable(canvas, "cheat sheet", function(f)
                 cheatSheet.pos = { x = f.x, y = f.y }
                 cheatSheet.savePos(cheatSheet.pos)
+                -- 🖱 6.138.0 — THE WHEEL'S HIT BOX MOVES WITH THE PANEL.
+                -- wheelHandler hit-tests st.rect on every scroll, and
+                -- until now a drag moved the canvas but left that
+                -- rectangle at the old spot: two-finger scrolling died
+                -- over the moved sheet (and was still swallowed over
+                -- empty desk where it used to be) until the next reopen
+                -- rebuilt it. The keyboard never noticed — the arrow
+                -- keys don't hit-test. LL, on a Magic Trackpad: "Seems
+                -- like a drag kills the sheet functionality."
+                -- The frame goes in verbatim, not clamped: the canvas
+                -- is physically AT f, and the hit box must match the
+                -- canvas, wherever it is.
+                local st = _G.cheatSheetState
+                if st then
+                    st.rect = { x = f.x, y = f.y, w = f.w, h = f.h }
+                end
             end)
         end
 
