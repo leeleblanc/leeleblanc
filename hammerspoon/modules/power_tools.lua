@@ -153,6 +153,7 @@ local M = {
             { "⇪`",     "👻 Ghostty at the front Finder window's folder" },
             { "⇪⇧`",    "📂 Finder at the front Ghostty window's folder" },
             { "⇪5",     "🔳 Read a QR code off the screen — needs zbar" },
+            { "🆓 free", "_G.freeKeys() — every unclaimed key, from the live registry" },
             { "check",  "_G.powerReport() — what ran, and what refused" },
         },
     },
@@ -1529,10 +1530,10 @@ end tell]]
         -- own: screen_veil.lua owns the relay and the reason it works
         -- where 6.82.0's four attempts did not. 6.140.0 shipped them
         -- keyless (every ⇪ letter was taken); 6.141.0 gave the toggle
-        -- ⇪9 at LL's ask. Invert stays keyless HERE because the
-        -- conflict sentry caught ⇪⇧9 belonging to the numpad laptop
-        -- row — and macOS ships ⌃⌥⌘8 already bound besides. The rows
-        -- stay as the discoverable path; setup never earns a key.
+        -- ⇪9 at LL's ask, and the sentry refused ⇪⇧9 for invert — it
+        -- was the numpad laptop row's key. 6.142.0: LL cleared that
+        -- whole row, so invert has ⇪⇧9 after all, exactly as picked.
+        -- Setup never earns a key; the rows stay the discoverable path.
         { id = "mono",  icon = "🌑", title = "Grayscale on/off",
           sub = "Relays ⌥⌘F5, the macOS switch — _G.monoSetup() once first · ⇪9",
           run = function() return pt.veilCall("mono") end },
@@ -1540,8 +1541,14 @@ end tell]]
           sub = "Opens the pane and names the three ticks only you can make",
           run = function() return pt.veilCall("monoSetup") end },
         { id = "invert", icon = "🔄", title = "Invert the screen colours",
-          sub = "Relays ⌃⌥⌘8. Inversion, NOT grayscale — needs no setup",
+          sub = "Relays ⌃⌥⌘8. Inversion, NOT grayscale — no setup · ⇪⇧9",
           run = function() return pt.veilCall("invert") end },
+        -- 🆓 6.142.0 — the list LL asked for, as a tool rather than a
+        -- document: "the keys listed as future possible options for
+        -- keyboard shortcuts". _G.freeKeys() owns the logic below.
+        { id = "freekeys", icon = "🆓", title = "Free keys — future shortcut options",
+          sub = "Every unclaimed ⇪ / ⇪⇧ / pad key, read from the LIVE registry",
+          run = function() return _G.freeKeys() ~= nil end },
     }
 
     -- 6.140.0 — the guard the three grayscale rows share. The backup rows
@@ -1655,6 +1662,117 @@ end tell]]
         return s
     end
 
+    -- =====================================================================
+    -- _G.freeKeys() — THE KEYS LISTED AS FUTURE POSSIBLE OPTIONS (6.142.0)
+    -- =====================================================================
+    -- LL: "These shortcuts were supposed to be cleaned, cleared and the
+    -- keys listed as future possible options for keyboard shortcuts."
+    -- Every earlier attempt at that list was a careful read of the source
+    -- — and 6.141.0 showed what a careful read is worth: ⇪⇧9 LOOKED free
+    -- in a survey of documented keys because the numpad laptop row built
+    -- its claims in a LOOP, so no literal "⇪⇧9" existed to find. This
+    -- list is therefore not written, it is READ — from _G.hyperBound, the
+    -- registry every binding fills at boot and the conflict sentry trusts.
+    --
+    -- WHAT "FREE" MEANS HERE, exactly:
+    --   · a plain ⇪ key whose registry source is "chord" is FREE —
+    --     hyperFinalize gives every leftover bare key a raw ⌘⇧⌃⌥ forward,
+    --     so claiming one costs only that forward.
+    --   · a ⇪⇧ combination is FREE when nothing claims it at all —
+    --     shifted keys are never chord-forwarded.
+    --   · ⇪⇧Z is NEVER listed. LL: "don't use ⇪⇧Z please. We will use
+    --     that later." Reserved is not free, and the report says which.
+    --   · a pad key this Mac has no key code for is named, not listed —
+    --     a key that cannot be pressed is not an option (the ⇪pad+ rule;
+    --     _G.padProbe() has the full story).
+    function _G.freeKeys()
+        local bound = _G.hyperBound or {}
+        local function ownerOf(mods, key)
+            return bound[(mods == "") and key or (mods .. "+" .. key)]
+        end
+        local names = {}
+        for c in ("abcdefghijklmnopqrstuvwxyz"):gmatch(".") do
+            names[#names + 1] = c
+        end
+        for d = 0, 9 do names[#names + 1] = tostring(d) end
+        for _, k in ipairs({ "-", "=", "[", "]", "\\", ";", "'", ",", ".",
+                             "/", "`", "space", "tab", "return",
+                             "left", "right", "up", "down" }) do
+            names[#names + 1] = k
+        end
+        local freePlain, freeShift = {}, {}
+        for _, k in ipairs(names) do
+            local plain = ownerOf("", k)
+            if plain == nil or plain == "chord" then
+                freePlain[#freePlain + 1] = k
+            end
+            if ownerOf("shift", k) == nil and k ~= "z" then
+                freeShift[#freeShift + 1] = k
+            end
+        end
+        local padNames = { "pad0","pad1","pad2","pad3","pad4","pad5","pad6",
+                           "pad7","pad8","pad9","pad.","pad+","pad-","pad*",
+                           "pad/","pad=","padenter","padclear" }
+        local map = hs.keycodes and hs.keycodes.map
+        local padFree, padShiftFree, padDead = {}, {}, {}
+        for _, n in ipairs(padNames) do
+            if map and map[n] == nil then
+                padDead[#padDead + 1] = n
+            else
+                if ownerOf("", n) == nil then
+                    padFree[#padFree + 1] = n
+                end
+                if ownerOf("shift", n) == nil then
+                    padShiftFree[#padShiftFree + 1] = n
+                end
+            end
+        end
+        -- ⌘⇧pad is the one layer the hyper registry cannot answer for: it
+        -- binds through hs.hotkey, not the modal. Its table is the truth.
+        local cmdShiftPad = "unknown — numpad_layer is not loaded"
+        local nl = _G.numpadLayer
+        if nl and type(nl.cmdShiftActions) == "table" then
+            local claimed = {}
+            for k in pairs(nl.cmdShiftActions) do claimed[#claimed + 1] = k end
+            table.sort(claimed)
+            cmdShiftPad = (#claimed == 0)
+                and "ALL free — and a real macOS modifier, usable outside ⇪"
+                or ("all free EXCEPT " .. table.concat(claimed, " "))
+        end
+        local function joined(list)
+            return (#list == 0) and "none — every one is claimed"
+                   or table.concat(list, " ")
+        end
+        local out = {
+            "════════════════════════════════════════════════════════",
+            " FREE KEYS — future shortcut options   " .. os.date("%Y-%m-%d %H:%M"),
+            " Read from the LIVE hyper registry, not from any list a",
+            " person maintains. If a key is here, nothing claims it.",
+            "════════════════════════════════════════════════════════",
+            "   ⇪    " .. joined(freePlain),
+            "   ⇪⇧   " .. joined(freeShift),
+            "   🔒 NOT listed and NOT free: ⇪⇧Z is reserved —",
+            "      LL: \"don't use ⇪⇧Z please. We will use that later.\"",
+            "   ⇪ pad   " .. joined(padFree),
+            "   ⇪⇧ pad  " .. joined(padShiftFree),
+            "   ⌘⇧ pad  " .. cmdShiftPad,
+        }
+        if #padDead > 0 then
+            out[#out + 1] = "   ⚠️ no key code on this Mac (not options): "
+                            .. table.concat(padDead, " ")
+        end
+        out[#out + 1] = ""
+        out[#out + 1] = "   ℹ️ A free plain ⇪ key currently forwards the raw"
+        out[#out + 1] = "      ⌘⇧⌃⌥ chord; claiming it costs only that forward."
+        out[#out + 1] = "      Shifted combinations do nothing at all today."
+        out[#out + 1] = "════════════════════════════════════════════════════════"
+        local text = table.concat(out, "\n")
+        print(text)
+        pcall(function() hs.pasteboard.setContents(text) end)
+        hs.alert.show("🆓 Free keys copied — the list is in the Console too", 3)
+        return text
+    end
+
     if pt.enabled then
         core.hyperAddShortcut(pt.keyMods, pt.key, function() pt.show() end,
                               "power tools")
@@ -1690,6 +1808,7 @@ end tell]]
     core.provide("power.reveal",   function() return pt.run("greveal") end)
     core.provide("power.qr",       function() return pt.run("qr") end)
     core.provide("power.report",   function() return _G.powerReport() end)
+    core.provide("power.freeKeys", function() return pt.run("freekeys") end)
 
     _G.powerTools = pt
     M.pt     = pt

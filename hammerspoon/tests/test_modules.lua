@@ -258,11 +258,11 @@ out("\n=== 3. Cheat sheet groups travel WITH the module ===\n")
 --     was the one automatic tool the sheet never mentioned.
 -- Asana Comments still declares none: its entries belong to the ASANA
 -- group that init.lua still owns.
--- 🔄 WAS 17, IS 18 SINCE 6.114.0: numpad_layer contributes a THIRD group,
--- the laptop layer (⇪⇧ + the number row). It is a separate group rather
--- than more rows in the ⇪⇧pad one because a reader with no number pad
--- needs to find it as its own heading, not three lines down inside a
--- block whose title says "the pad IS the screen".
+-- 🔄 WAS 17, IS 18 SINCE 6.114.0: numpad_layer contributes a THIRD group.
+-- From 6.114.0 to 6.141.0 that group WAS the laptop layer (⇪⇧ + the
+-- number row); 6.142.0 cleared those bindings on LL's word and the group
+-- became the freed-keys ledger — same slot, so a reader who knew where
+-- the layer lived finds the note saying where its keys went.
 check("eighteen groups registered — one module contributes three, one has "
       .. "no cheat sheet at all, and Asana Comments declares none",
       #_G.moduleCheatsheets == 18, #_G.moduleCheatsheets)
@@ -286,12 +286,14 @@ check("the five new 6.44.0 groups sit between Autocorrect and the ⇪ reference"
                          -- 6.101.0 — the numpad's FIRST group holds its
                          -- own slot; the second sits a thousandth above
                          -- it, which is what keeps the sort total.
-                         -- 6.114.0 — and a third at 13.502, the laptop
-                         -- layer. Its title says NO NUMBER PAD rather than
-                         -- NUMPAD, deliberately: it is the group you go
-                         -- looking for when you HAVEN'T got one.
+                         -- 6.114.0 — and a third at 13.502: the laptop
+                         -- layer until 6.141.0, and since 6.142.0 the
+                         -- freed-keys ledger that replaced it — same
+                         -- slot, so a reader who knew where the layer
+                         -- lived finds the note saying where its keys
+                         -- went. Its title names the NUMBER ROW.
                          [13.5] = "NUMPAD", [13.501] = "NUMPAD",
-                         [13.502] = "NO NUMBER PAD" }
+                         [13.502] = "NUMBER ROW" }
         for slot, needle in pairs(wanted) do
           if not (byOrder[slot] or ""):find(needle, 1, true) then return false end
         end

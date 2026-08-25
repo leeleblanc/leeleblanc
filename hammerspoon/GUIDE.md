@@ -185,9 +185,9 @@ module is listed even with no `cheatsheet` at all.
 
 **Two families in one module?** `M.cheatsheet` may be a **list** of groups,
 each with its own `family` — `modules/numpad_layer.lua` does this because
-`⇪ pad` captures text while `⇪⇧ pad` moves windows (and since 6.114.0 a third
-group, `⇪⇧` + the number row, for a keyboard with no pad). Each group gets its
-own slot automatically.
+`⇪ pad` captures text while `⇪⇧ pad` moves windows (and a third group: from
+6.114.0 the number-row laptop layer, since 6.142.0 the freed-keys ledger that
+replaced it). Each group gets its own slot automatically.
 
 ### What `core` gives you
 
@@ -794,9 +794,12 @@ The plain `⇪ + pad` layer is the **capture row** (6.99.0, re-cut
 as `⇪pad2`, and the pad's only door until this release, since `note_pad.lua`
 binds no letter. The other five are runnable from `⇪space`: they were always
 listed there, and ⏎ handed you the key string instead of running them, because
-`uni.runnable` had no entry. The window map has a laptop layer too — `⇪⇧` + the
-number row, the same digits as `⇪⇧pad`, with 4, 6 and 0 deliberately absent
-because `⇪←` `⇪→` `⇪↑` already do those and need no pad.
+`uni.runnable` had no entry. The window map had a laptop layer too — `⇪⇧` + the
+number row, 6.114.0 to 6.141.0 — until LL had it cleaned and cleared in
+6.142.0: those keys are **future shortcut options** now (`_G.freeKeys()`
+lists them from the live registry), `⇪⇧9` went to Invert colours, and on a
+laptop the halves/maximise/put-back/monitor moves remain on `⇪←` `⇪→` `⇪↑`
+`⇪↓` and `⇪[` `⇪]`.
 
 In the pad, every **line** routes by its prefix — `*` Idea, `+` Log,
 `!` Asana task, `?` Asana note (the last two go into the Capture Pad

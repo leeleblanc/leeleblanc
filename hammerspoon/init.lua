@@ -4,8 +4,32 @@
 -- =====================================================================
 -- 08-25-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.141.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.142.0
 -- =====================================================================
+
+-- NEW IN 6.142.0 — THE NUMBER-ROW LAYER COMES OUT; FREE KEYS GET A LEDGER:
+--   🆓 LL, with a screenshot of the "NO NUMBER PAD" cheat sheet box:
+--      "These shortcuts were supposed to be cleaned, cleared and the
+--      keys listed as future possible options for keyboard shortcuts.
+--      Like we just used ⇪9 on the keypad for grayscale." Both halves,
+--      done.
+--   🧹 CLEANED AND CLEARED: numpad_layer's 6.114.0 laptop layer (⇪⇧ +
+--      the number row) is GONE — table deleted, its ten bindings
+--      unbound, tests pin the keys free. ⇪⇧1 2 3 5 7 8, ⇪⇧, ⇪⇧. and
+--      ⇪⇧⏎ are future options now. The pad window map and the capture
+--      row are untouched; on a laptop, ⇪← ⇪→ ⇪↑ ⇪↓ and ⇪[ ⇪] still
+--      move windows, and the layer's old cheat sheet box became the
+--      ledger saying where its keys went.
+--   🔄 AND THE KEY THAT LAYER BLOCKED IS RELEASED: ⇪⇧9 = Invert
+--      colours — the exact pick from 6.141.0 that the no-two-owners
+--      sentry refused while the row still owned the key. The sentry
+--      was right both times: it guards owners, and the owner changed
+--      by LL's word, not by a quiet steal.
+--   📋 LISTED, NOT REMEMBERED: _G.freeKeys() (also the 🆓 row in ⇪;)
+--      prints every unclaimed ⇪ / ⇪⇧ / pad key — READ from the live
+--      hyper registry, never from documentation, because a hand-made
+--      survey is exactly what missed ⇪⇧9 in 6.141.0. ⇪⇧Z is shown
+--      reserved, never free: "We will use that later."
 
 -- NEW IN 6.141.0 — GRAYSCALE GETS ITS KEY: ⇪9 TOGGLES:
 --   🌑 LL: "why am I not using some hyperkey combo for my new
@@ -102,35 +126,10 @@
 --      OneDrive), no Homebrew → the Brewfile step stands down and the
 --      report says so. ⇪; gains two rows: Back up now · Backup report.
 
--- NEW IN 6.138.0 — THE WHEEL FOLLOWS THE DRAG:
---   🖱 LL, the day after the lag fix: "I can no longer use my magic pad
---      to scroll the list. Keyboard works fine." And then, having tried
---      a fresh open: "Seems like a drag kills the sheet functionality."
---   🎯 THE BUG WAS A RECTANGLE LEFT BEHIND. The cheat sheet's wheel
---      handler only claims a scroll when the pointer sits inside
---      st.rect — that is what lets the window UNDER the open sheet keep
---      scrolling normally. Dragging the sheet moved the canvas but
---      never moved that rectangle: after a drag, two-finger scrolls
---      over the sheet landed "outside" and were declined, while scrolls
---      over the empty desk where the sheet USED to be were still being
---      swallowed. Closing and reopening rebuilt the rectangle, which is
---      why the fault healed itself just often enough to be confusing.
---   ⌨️ WHY THE KEYBOARD NEVER NOTICED: the arrow keys scroll through
---      hotkeys, a separate route with no hit test at all.
---   ✅ ONE FIX, WHERE THE DRAG ENDS: the sheet's drop handler now
---      writes the dropped frame into st.rect alongside the position it
---      already remembered. Diagnosed with a live spy tap on LL's Mac
---      first: 356 scroll events delivered, 246 passing the hit test —
---      macOS 27 was delivering every event; the rectangle left at the
---      old spot was the whole story.
---   🛡 test_cheatsheet: dropping the sheet must move the wheel's hit
---      box with it, and the wheel must be claimed at the new position
---      with no reopen in between.
-
--- (6.137.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.138.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.141.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.142.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -445,7 +444,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.141.0"
+_G.configVersion = "6.142.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2878,7 +2877,7 @@ local BASE = {
     "menu_search",        -- 🔎 ⇪.  the front app's menus, flattened
     "settings_panes",     -- ⚙️ ⇪,  System Settings, by name
     "app_kill",           -- 💀 ⇪⇧; end a process, politely then not
-    "power_tools",        -- 🧰 ⇪;  type the clipboard · count · strip · grayscale
+    "power_tools",        -- 🧰 ⇪;  type the clipboard · count · grayscale · free keys
     -- 6.132.0 — no key of its own. It owns the six case transforms, and
     -- ⇪; and ⇪R both ask it for them through core.call at the moment you
     -- press the key. Order here is therefore irrelevant; it sits beside

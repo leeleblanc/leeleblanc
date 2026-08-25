@@ -301,18 +301,20 @@ check("the cheat sheet key cell is exactly ⇪;", (function()
     end
     return false
 end)())
-check("all sixteen tools are in the list", #pt.tools == 16, #pt.tools)
+check("all seventeen tools are in the list", #pt.tools == 17, #pt.tools)
 check("…and each has a stable id", (function()
     -- 6.132.0 added countclip and case; 6.133.0 added define; 6.139.0
     -- added backup and backupreport; 6.140.0 added mono, monoset and
-    -- invert (the grayscale relay). ids are what _G.powerReport()
-    -- counts by and what ⇪space's run map points at, so they are
-    -- checked by name rather than by number alone.
+    -- invert (the grayscale relay); 6.142.0 added freekeys (the
+    -- future-options ledger). ids are what _G.powerReport() counts by
+    -- and what ⇪space's run map points at, so they are checked by name
+    -- rather than by number alone.
     local want = { plain = true, type = true, count = true, meta = true,
                    pause = true, ghere = true, greveal = true, qr = true,
                    countclip = true, case = true, define = true,
                    backup = true, backupreport = true,
-                   mono = true, monoset = true, invert = true }
+                   mono = true, monoset = true, invert = true,
+                   freekeys = true }
     for _, t in ipairs(pt.tools) do
         if not want[t.id] then return false end
         want[t.id] = nil
@@ -647,7 +649,7 @@ end)(), CLIP)
 
 pt.show()
 local pc = CHOOSERS[#CHOOSERS]
-check("the palette lists all sixteen tools", #pc.choices_ == 16, #pc.choices_)
+check("the palette lists all seventeen tools", #pc.choices_ == 17, #pc.choices_)
 check("every palette row value is a scalar too", (function()
     for _, c in ipairs(pc.choices_) do
         for _, v in pairs(c) do
@@ -1252,6 +1254,58 @@ rep = _G.powerReport()
 check("…and says when counting has to fall back to ⌘C",
       rep:find("⌘C", 1, true) ~= nil, rep)
 AX = true
+
+-- =====================================================================
+out("\n=== 11. 🆓 the free-key ledger (6.142.0) ===\n")
+-- =====================================================================
+-- LL: "These shortcuts were supposed to be cleaned, cleared and the
+-- keys listed as future possible options for keyboard shortcuts." The
+-- ledger is READ from _G.hyperBound rather than written by hand,
+-- because a hand-written survey is exactly what missed ⇪⇧9 in 6.141.0
+-- (the laptop row built its claims in a loop; no literal "⇪⇧9" existed
+-- to grep). These checks feed it a small fake registry and expect the
+-- report to repeat only what the registry says.
+do
+    local savedBound = _G.hyperBound
+    _G.hyperBound = {
+        ["9"]       = "grayscale relay",   -- claimed → not free
+        ["1"]       = "chord",             -- forwarded raw → FREE
+        ["shift+9"] = "invert colours",    -- claimed → not free
+        ["pad1"]    = "numpad pad1",       -- claimed → not free
+    }
+    CLIP, SET_CALLS = nil, 0
+    ALERTS = {}
+    local rep = _G.freeKeys()
+    check("the report exists and says it reads the LIVE registry",
+          type(rep) == "string" and rep:find("LIVE", 1, true) ~= nil)
+    local plainLine = rep:match("⇪    ([^\n]*)") or ""
+    check("a chord-forwarded key is listed free — claiming ⇪1 costs only "
+          .. "the raw-chord forward",
+          plainLine:find("%f[%w]1%f[%W]") ~= nil, plainLine)
+    check("a claimed key is NOT listed — ⇪9 is the grayscale relay",
+          plainLine:find("%f[%w]9%f[%W]") == nil, plainLine)
+    local shiftLine = rep:match("⇪⇧   ([^\n]*)") or ""
+    check("a claimed shifted key is NOT listed — ⇪⇧9 is invert",
+          shiftLine:find("%f[%w]9%f[%W]") == nil, shiftLine)
+    check("a freed shifted digit IS listed — ⇪⇧7 came back in 6.142.0",
+          shiftLine:find("%f[%w]7%f[%W]") ~= nil, shiftLine)
+    check("🔒 ⇪⇧Z is never listed — reserved is not free, and the report "
+          .. "says which and quotes why",
+          shiftLine:find("%f[%w]z%f[%W]") == nil
+          and rep:find("reserved", 1, true) ~= nil
+          and rep:find("We will use that later", 1, true) ~= nil, shiftLine)
+    check("a claimed pad key is NOT listed — ⇪pad1 is the capture row",
+          (rep:match("⇪ pad   ([^\n]*)") or "x"):find("pad1%f[%W]") == nil,
+          rep:match("⇪ pad   ([^\n]*)"))
+    check("the list lands on the clipboard, whole",
+          SET_CALLS >= 1 and CLIP == rep)
+    check("…and says so on screen", ALERTS[#ALERTS] ~= nil
+          and ALERTS[#ALERTS]:find("Free keys", 1, true) ~= nil,
+          ALERTS[#ALERTS])
+    check("the ⇪; row runs the same report and counts as a run",
+          pt.run("freekeys") == true and (pt.ran.freekeys or 0) >= 1)
+    _G.hyperBound = savedBound
+end
 
 -- =====================================================================
 out(("\n── test_power_tools: %d passed, %d failed\n"):format(pass, fail))

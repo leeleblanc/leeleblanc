@@ -1450,9 +1450,11 @@ end)())
 
 -- 6.141.0 — LL: "why am I not using some hyperkey combo for my new
 -- grayscale?" — and picked ⇪9, with ⇪⇧9 for invert. The integration
--- suite's conflict sentry refused the second half: ⇪⇧9 has been the
--- numpad laptop row's top-right window key since 6.114.0. So the
--- toggle got its key and invert kept ⌃⌥⌘8, which macOS ships bound.
+-- suite's conflict sentry refused the second half: ⇪⇧9 was the numpad
+-- laptop row's top-right window key. 6.142.0 — LL answered by clearing
+-- that whole layer ("These shortcuts were supposed to be cleaned,
+-- cleared and the keys listed as future possible options"), so ⇪⇧9
+-- now goes exactly where LL pointed in the first place.
 check("⇪9 is bound and relays ⌥⌘F5", (function()
     local h = hyperFor({}, "9")
     if not h then return false, "no ⇪9 binding" end
@@ -1460,10 +1462,18 @@ check("⇪9 is bound and relays ⌥⌘F5", (function()
     h.fn()
     return KEYSTROKES[n + 1] ~= nil and KEYSTROKES[n + 1].key == "f5"
 end)())
-check("🚨 the veil does NOT claim ⇪⇧9 — that is the numpad laptop row's "
-      .. "top-right window key", (function()
+check("🚨 ⇪⇧9 IS the veil's now — invert colours, LL's 6.141.0 pick, "
+      .. "honoured once the numpad row was cleared in 6.142.0", (function()
     local h = hyperFor({ "shift" }, "9")
-    return h == nil or h.name ~= "invert colours"
+    return h ~= nil and h.name == "invert colours", h and h.name
+end)())
+check("...and pressing it relays ⌃⌥⌘8, exactly like the ⇪; row", (function()
+    local h = hyperFor({ "shift" }, "9")
+    if not h then return false, "no ⇪⇧9 binding" end
+    local n = #KEYSTROKES
+    h.fn()
+    local ks = KEYSTROKES[n + 1]
+    return ks ~= nil and ks.key == "8" and ks.mods:find("ctrl") ~= nil
 end)())
 
 ALERTS = {}
@@ -1892,12 +1902,12 @@ local boundCount = live.bindAll()
 -- that exist NOWHERE else on the keyboard: the capture row (pad1 pad2
 -- pad3 pad* pad- → quick append and the Note Pad) plus pad4 → split.
 -- 17 window keys + 6 capture keys = 23.
--- 💻 6.114.0 adds the LAPTOP layer: ⇪⇧ + the number row, ten more (seven
--- digits — 4, 6 and 0 are deliberately absent — plus , . and Return).
--- 17 + 6 + 10 = 33.
-check("the WINDOW layer's 17 keys, the 6.99.0 capture row's 6 and the "
-      .. "6.114.0 laptop row's 10 — 33 bindings, nothing else",
-      boundCount == 33, boundCount)
+-- 💻 6.114.0 added a LAPTOP layer (⇪⇧ + the number row — ten more, 33
+-- in all) and 6.142.0 REMOVED it on LL's word: those keys are future
+-- options now, and this count is how the clearing stays cleared.
+check("the WINDOW layer's 17 keys and the 6.99.0 capture row's 6 — 23 "
+      .. "bindings, nothing else now the 6.142.0 clearing stands",
+      boundCount == 23, boundCount)
 check("...including all ten digits, on the SHIFTED layer", (function()
     for i = 0, 9 do if not hyperFor({ "shift" }, "pad" .. i) then return false end end
     return true
@@ -1961,10 +1971,8 @@ check("an unmapped key name is SKIPPED, not bound to nil", (function()
     local n2 = m2.numpad
     n2.actions = { padnonsense = "focus.toggle", pad1 = "focus.toggle" }
     -- Cleared so this checks the unshifted map alone; the shifted layer
-    -- gets the same guard and its own assertion below. (6.114.0: the
-    -- laptop row is cleared here too, for the same reason.)
+    -- gets the same guard and its own assertion below.
     n2.shiftActions = {}
-    n2.rowActions   = {}
     -- ⚠️ RESET THE COUNTERS. Since 6.49.0 the layer is live, so setup()
     -- has ALREADY run bindAll and filled these — and bindAll is
     -- idempotent, so without this it returns the previous 28 and the
@@ -1987,7 +1995,6 @@ check("the SHIFTED layer gets the same nil-key guard — a key macOS has no "
     m3.setup(core)
     local n3 = m3.numpad
     n3.actions      = {}
-    n3.rowActions   = {}
     n3.shiftActions = { padnonsense2 = "full", pad1 = "bottomLeft" }
     n3.bound, n3.skipped = {}, {}
     hs.keycodes.map.padnonsense2 = nil
@@ -1998,69 +2005,55 @@ check("the SHIFTED layer gets the same nil-key guard — a key macOS has no "
 end)())
 
 -- =====================================================================
--- 💻 6.114.0 — THE LAPTOP LAYER: ⇪⇧ + THE NUMBER ROW
+-- 🆓 6.142.0 — THE LAPTOP LAYER IS GONE, AND THE KEYS STAY FREE
 -- =====================================================================
--- LL, undocked: "Sometimes I will not have an external keyboard on my
--- work MacBook." Until now the answer was that the pad bindings cost
--- nothing when the pad is absent — true, and not an answer, because nine
--- window placements and the Quick Append Pad then had NO key at all.
---
--- What is asserted here is the part a reader cannot verify by eye: that
--- the second layer is a MIRROR and not a second implementation. Two
--- tables that happen to agree today are two tables that disagree after
--- the next edit, and the failure would be silent — ⇪⇧7 would simply put
--- the window somewhere ⇪⇧pad7 does not.
-check("💻 the laptop layer is bound on ⇪⇧ + the number row", (function()
-    for _, k in ipairs({ "1", "2", "3", "5", "7", "8", "9", ",", ".", "return" }) do
-        if not hyperFor({ "shift" }, k) then return false, k end
-    end
-    return true
-end)())
-check("🚨 every laptop digit does EXACTLY what the same pad digit does — "
-      .. "a mirror that drifts sends the window somewhere else and says "
-      .. "nothing", (function()
-    for _, d in ipairs({ "1", "2", "3", "5", "7", "8", "9" }) do
-        local row = live.rowActions[d]
-        local pad = live.shiftActions["pad" .. d]
-        if row ~= pad then
-            return false, d .. ": row=" .. tostring(row) .. " pad=" .. tostring(pad)
+-- 6.114.0 mirrored the pad zones onto ⇪⇧ + the number row. LL, with a
+-- screenshot of that layer's own cheat sheet box: "These shortcuts were
+-- supposed to be cleaned, cleared and the keys listed as future
+-- possible options for keyboard shortcuts." What is pinned here is the
+-- CLEARING, because a freed key's natural fate is to be quietly
+-- reclaimed — the same reason the ⇪⇧Z giveback has a test of its own.
+check("🚨 the laptop row's table is GONE — not parked, not emptied: a "
+      .. "table that still exists is a table something eventually refills",
+      live.rowActions == nil and live.rowMods == nil)
+check("🚨 the freed number-row keys claim NOTHING — ⇪⇧1 2 3 5 7 8, "
+      .. "⇪⇧comma, ⇪⇧period and ⇪⇧return are future options, not zones",
+      (function()
+    for _, k in ipairs({ "1", "2", "3", "5", "7", "8", ",", ".", "return" }) do
+        local h = hyperFor({ "shift" }, k)
+        if h and tostring(h.name):find("numpad", 1, true) then
+            return false, k .. " still claimed by " .. tostring(h.name)
         end
     end
     return true
 end)())
-check("🚨 4, 6 and 0 are ABSENT from the laptop layer — ⇪⇧4 is the "
-      .. "Screenshots panel and ⇪⇧0 the mini calendar, and completing a "
-      .. "pattern by taking a live key is worse than a documented hole",
-      live.rowActions["4"] == nil and live.rowActions["6"] == nil
-      and live.rowActions["0"] == nil,
-      tostring(live.rowActions["4"]) .. "/" .. tostring(live.rowActions["6"])
-      .. "/" .. tostring(live.rowActions["0"]))
-check("…and their zones are still reachable, which is WHY they are absent "
-      .. "— left half, right half and maximise are ⇪← ⇪→ ⇪↑, on every "
-      .. "keyboard ever made",
-      live.zones.leftHalf ~= nil and live.zones.rightHalf ~= nil
-      and live.zones.full ~= nil)
-check("the three non-digit keys carry the actions the pad puts on its own "
-      .. "non-digits — < shrinks, > grows, Return centres without resizing",
-      live.rowActions[","] == "shrink" and live.rowActions["."] == "grow"
-      and live.rowActions["return"] == "centreOnly"
-      and live.shiftActions["pad+"] == "grow"
+check("⇪⇧9 is the ONE digit that left the row BOUND — to the veil's "
+      .. "invert, LL's 6.141.0 pick, not to a window zone", (function()
+    local h = hyperFor({ "shift" }, "9")
+    return h ~= nil and h.name == "invert colours", h and h.name
+end)())
+check("…and the zones the row mirrored are still where they always were — "
+      .. "the PAD window map is untouched by the clearing",
+      live.shiftActions.pad7 == "topLeft"
+      and live.shiftActions.pad9 == "topRight"
+      and live.shiftActions.pad5 == "centre"
+      and live.shiftActions["pad."] == "restore"
       and live.shiftActions.padenter == "centreOnly")
-check("the laptop row gets the same nil-key guard as the other three — a "
-      .. "key macOS has no code for is skipped and NAMED, not handed to "
-      .. "hs.hotkey as nil", (function()
-    local m4 = load("numpad_layer")
-    m4.setup(core)
-    local n4 = m4.numpad
-    n4.actions, n4.shiftActions = {}, {}
-    n4.rowActions = { rownonsense = "full", ["7"] = "topLeft" }
-    n4.bound, n4.skipped = {}, {}
-    hs.keycodes.map.rownonsense = nil
-    n4.enabled = true
-    n4.bindAll()
-    return #n4.bound == 1 and n4.bound[1] == "⇧row 7"
-           and #n4.skipped == 1 and n4.skipped[1] == "⇧row rownonsense",
-           table.concat(n4.bound, ",") .. " / " .. table.concat(n4.skipped, ",")
+check("the cheat sheet's third group now IS the ledger — it names the "
+      .. "freed keys and points at _G.freeKeys() instead of advertising "
+      .. "bindings that no longer exist", (function()
+    local g = numGroups[3]
+    if not g then return false, "no third group" end
+    if not tostring(g.title):lower():find("cleared", 1, true) then
+        return false, "title: " .. tostring(g.title)
+    end
+    local sawKeys, sawTool = false, false
+    for _, e in ipairs(g.entries or {}) do
+        local v = tostring(e[2])
+        if v:find("⇪⇧1 2 3 5 7 8", 1, true) then sawKeys = true end
+        if v:find("_G.freeKeys()", 1, true) then sawTool = true end
+    end
+    return sawKeys and sawTool, tostring(sawKeys) .. "/" .. tostring(sawTool)
 end)())
 -- 🔗 THE SHARED "PUT IT BACK" MEMORY. Before 6.114.0 this layer kept its
 -- own table, so ⇪⇧pad7 then ⇪↓ answered "No prior position remembered for

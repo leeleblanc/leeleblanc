@@ -4,6 +4,42 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.142.0 — THE NUMBER-ROW LAYER COMES OUT; FREE KEYS GET A LEDGER:
+  🆓 LL, with a screenshot of the "NO NUMBER PAD" cheat sheet box:
+     "These shortcuts were supposed to be cleaned, cleared and the
+     keys listed as future possible options for keyboard shortcuts.
+     Like we just used ⇪9 on the keypad for grayscale." Both halves,
+     done.
+  🧹 CLEANED AND CLEARED. numpad_layer's 6.114.0 laptop layer — the
+     ⇪⇧ number-row mirror of the pad window map — is GONE: the
+     rowActions table is deleted (not parked; a parked table is a
+     claim you have to remember not to believe), its ten bindings are
+     unbound, and the count check drops 33 → 23 so the clearing stays
+     cleared. ⇪⇧1 2 3 5 7 8, ⇪⇧comma, ⇪⇧period and ⇪⇧return are
+     future shortcut options now. The pad window map (⇪⇧pad) and the
+     capture row (⇪pad) are untouched; on a laptop the halves,
+     maximise, put-back and monitor moves remain on ⇪← ⇪→ ⇪↑ ⇪↓ and
+     ⇪[ ⇪] — the quarters and centre are pad-only again, a documented
+     hole rather than nine spent keys. The layer's old cheat sheet
+     box became the ledger that says where its keys went.
+  🔄 AND THE KEY THAT LAYER BLOCKED IS RELEASED: ⇪⇧9 = Invert
+     colours (relays ⌃⌥⌘8) — the exact pick from 6.141.0 that the
+     no-two-owners sentry refused while the row owned the key. The
+     sentry was right both times: it guards owners, and the owner
+     changed by LL's word, not by a quiet steal. test_features flips
+     the 6.141.0 pin — ⇪⇧9 must now BE the veil's invert, and the
+     other freed row keys must claim nothing.
+  📋 LISTED, NOT REMEMBERED: _G.freeKeys(), also the 🆓 row in ⇪;.
+     Prints every unclaimed ⇪ / ⇪⇧ / pad key and copies the list —
+     READ from _G.hyperBound, the live registry the conflict sentry
+     trusts, never from documentation, because a hand-made survey is
+     exactly what missed ⇪⇧9 in 6.141.0 (the row built its claims in
+     a loop; no literal "⇪⇧9" existed to grep). A chord-forwarded
+     plain key counts as free and says what claiming it costs; pad
+     keys this Mac cannot send are named, not listed (the ⇪pad+
+     rule); ⇪⇧Z is shown reserved, never free: "We will use that
+     later."
+
 NEW IN 6.141.0 — GRAYSCALE GETS ITS KEY: ⇪9 TOGGLES:
   🌑 LL: "why am I not using some hyperkey combo for my new
      grayscale?" Fair question. 6.140.0 shipped it keyless because

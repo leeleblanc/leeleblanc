@@ -233,7 +233,7 @@ run and whether it exists here, and every path it writes to. Read-only.
 | ⇪2 or ⇪pad2 | the Quick Append Pad — lines route by prefix: * idea + log ! task ? note |
 | ⇪pad* | the pad pre-typed with * (an Idea) · ⇪pad- with + (a Log) |
 | ⇪⇧pad7 | number pad, shifted → window to the top-left quarter |
-| ⇪⇧7 | **no number pad?** same zone, number row — 4, 6 and 0 are ⇪← ⇪→ ⇪↑ |
+| ⇪⇧9 | invert the screen colours — ⇪9 is grayscale, and the other ⇪⇧ digits are free since 6.142.0 |
 | ⌃⌥⌘V | clipboard history |
 
 If **⇪ does nothing at all**, the Caps Lock remap was refused — check
