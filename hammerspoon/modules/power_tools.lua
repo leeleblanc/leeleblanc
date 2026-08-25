@@ -1493,6 +1493,38 @@ end tell]]
         { id = "qr",    icon = "🔳", title = "Read a QR code on screen",
           sub = "Scans the whole screen, payload to the clipboard · ⇪5",
           run = function() return pt.readQR() end },
+        -- 6.139.0 — the rebuild kit's two by-hand doors. Rows rather than
+        -- keys, deliberately: a backup is run by hand twice a year, and
+        -- that does not earn a ⇪ letter. The daily 5 PM run needs no door
+        -- at all.
+        { id = "backup", icon = "☁️", title = "Back up now — the rebuild kit",
+          sub = "Config, dotfiles, Brewfile, app manifest → OneDrive",
+          run = function()
+              if not (_G.service and _G.service.has
+                      and _G.service.has("backup.now")) then
+                  note("backup.now has no provider")
+                  hs.alert.show("☁️ The Daily Backup module is not loaded.\n"
+                      .. "⇪⇧D lists module status.", 4)
+                  return false
+              end
+              return _G.service.call("backup.now") and true or false
+          end },
+        { id = "backupreport", icon = "🧾", title = "Backup report",
+          sub = "Destination, last run, what was skipped and why",
+          run = function()
+              if not (_G.service and _G.service.has
+                      and _G.service.has("backup.report")) then
+                  note("backup.report has no provider")
+                  hs.alert.show("☁️ The Daily Backup module is not loaded.\n"
+                      .. "⇪⇧D lists module status.", 4)
+                  return false
+              end
+              local ok = _G.service.call("backup.report") and true or false
+              if ok then
+                  hs.alert.show("☁️ Report is in the Hammerspoon Console", 2)
+              end
+              return ok
+          end },
     }
 
     function pt.byId(id)

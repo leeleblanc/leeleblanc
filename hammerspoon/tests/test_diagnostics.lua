@@ -320,8 +320,12 @@ end
 check("no App Lock code remains", not liveCode("appLock"), liveCode("appLock"))
 check("no App Lock section header", not text:find("6.6 APP LOCK", 1, true))
 check("no PIN prompt code", not liveCode("appLockChallenge"))
+-- 6.139.0 — the exclusion moved from a quoted shell string to the
+-- rebuild kit's exclude TABLE, which is applied to every rsync the
+-- backup runs. The claim is unchanged: the leftover PIN hash from the
+-- removed App Lock must never reach a cloud copy.
 check("applock.json is STILL excluded from backups (leftovers never sync)",
-  text:find("--exclude 'applock.json'", 1, true) ~= nil)
+  text:find('"applock.json"', 1, true) ~= nil)
 check("no unprotected hs.json.decode on network replies",
   not liveCode("hs%.json%.decode%(body%)") and not liveCode("hs%.json%.decode%(b%)")
   and not liveCode("hs%.json%.decode%(responseBody%)"))
@@ -888,7 +892,13 @@ local ALLOWED_BINARIES = {
   -- one Apple ships.
   ["/usr/bin/osascript"] = "Finder selection + Finder comment tags, OUT OF "
                         .. "PROCESS so an Apple Event cannot abort us (ships with macOS)",
-  ["/bin/zsh"]           = "runs the rsync backup line (ships with macOS)",
+  -- 6.139.0 — the backup no longer goes through a shell at all (rsync is
+  -- run directly, argument array); zsh stays reviewed for the two callers
+  -- below, each of which passes a fixed command of its own.
+  ["/bin/zsh"]           = "universal actions' open-with lines + update "
+                        .. "tracker's version checks (ships with macOS)",
+  ["/usr/bin/rsync"]     = "the daily backup / rebuild kit copies, run "
+                        .. "directly with an argument array (ships with macOS)",
   -- 6.92.0 — ⇪Y reads Chrome's History database. Chrome keeps the live
   -- file locked, so a COPY is queried — by Apple's own sqlite3, out of
   -- process (hs.task), because a 100 MB history must never block the
@@ -1020,10 +1030,17 @@ local ut = moduleText.update_tracker or ""
 -- for zbarimg (the optional QR decoder) — it checks file existence and
 -- runs zbarimg itself, never brew. Lines mentioning zbar are that lookup;
 -- any OTHER brew reference in it still fails here.
-check("brew is RUN only from update_tracker (screenshots may look under "
-      .. "the brew prefixes for zbarimg)", (function()
+-- 6.139.0 — daily_backup joins update_tracker as a legitimate brew
+-- RUNNER: the rebuild kit's Brewfile comes from `brew bundle dump`, the
+-- manifest asks `brew list --cask` who it already owns, and adoption
+-- asks `brew search`. All three go through hs.task with argument
+-- arrays, all three stand down when brew is absent, and the module's
+-- own suite (test_daily_backup §7) proves the degradation. Any brew
+-- reference in any OTHER module still fails here.
+check("brew is RUN only from update_tracker and daily_backup (screenshots "
+      .. "may look under the brew prefixes for zbarimg)", (function()
   for name, body in pairs(moduleText) do
-    if name ~= "update_tracker" then
+    if name ~= "update_tracker" and name ~= "daily_backup" then
       for line in body:gmatch("[^\n]+") do
         -- 6.120.0 — power_tools joins the same carve-out. ⇪5 reads QR
         -- codes and asks screenshots.lua for the zbarimg path by service

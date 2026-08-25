@@ -4,6 +4,77 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.139.0 — THE REBUILD KIT: A CLEAN INSTALL IN ONE FOLDER:
+  ☁️ LL: "Is there a way for Hammerspoon to backup my user directory
+     for future OSX installs, my applications directory using homebrew
+     as much as possible, but a better method that also accounts for
+     apps homebrew can't install, all to my OneDrive?" The Daily
+     Backup module — 68 lines that had copied ~/.hammerspoon at 5 PM
+     since §1.7 was a section of init.lua — grew into the answer.
+     Same timer, same destination, same excluded token; a far bigger
+     kit.
+  📦 WHAT LANDS IN OneDrive/Backups/Hammerspoon/<Mac>/ EVERY DAY:
+     · the config, exactly as before (secret.lua excluded)
+     · RebuildKit/dotfiles — .zshrc, .zprofile, .gitconfig, .config/,
+       and ~/.ssh/config (the settings FILE; the keys beside it are
+       never touched)
+     · RebuildKit/LaunchAgents and RebuildKit/Fonts
+     · RebuildKit/Documents and Desktop (home Mac; see the work note)
+     · RebuildKit/Brewfile — brew bundle dump: formulae, casks, taps,
+       Mac App Store apps
+     · RebuildKit/apps.csv — EVERY installed non-Apple app with
+       version, bundle id, and its way back: app-store (a receipt in
+       the bundle proves it), homebrew (a cask this Mac owns), or
+       direct (reinstall from the vendor — the honest rows)
+     · RebuildKit/README.md — the restore guide, REWRITTEN WITH REAL
+       NUMBERS after every run, so future-LL on a blank Mac follows
+       instructions that describe this kit, not a generic hope. Steps:
+       OneDrive down, brew, brew bundle, walk the direct rows, copy
+       dotfiles, copy the config, recreate secret.lua by hand, grant
+       the permissions ⇪⇧D lists.
+  🧭 DELIBERATELY A KIT, NOT A MIRROR. Time Machine (an external
+     drive) stays the byte-for-byte, versioned safety net; OneDrive
+     gets the curated set a clean install cannot get anywhere else.
+     A whole home folder synced to OneDrive fails in practice — file
+     counts, caches, node_modules — and sync is not backup: it
+     replicates a deletion as faithfully as an edit.
+  🚨 WHAT NEVER LEAVES THE MAC, BY DESIGN: secret.lua (excluded on
+     the config entry AND in the global exclude list every rsync
+     carries — belt and braces), private SSH keys, the Keychain.
+     test_daily_backup holds each of these as law: the kit table may
+     not contain the .ssh folder, an id_rsa path, or a Keychain path,
+     and every rsync's argument array must carry
+     --exclude secret.lua.
+  🍺 _G.backupAdopt() — THE BETTER-THAN-BREWFILE MOVE. brew bundle
+     only records what brew installed. Adoption closes the gap: the
+     apps marked `direct` in the manifest are checked against brew's
+     cask index, and every exact match is printed as the ready-to-run
+     line `brew install --cask --adopt <token>` — Homebrew takes over
+     the copy already in /Applications without reinstalling it, and
+     the Brewfile covers it forever after.
+  ⏱ NONE OF IT TOUCHES THE KEYBOARD. Every rsync and every brew call
+     is an hs.task with an argument ARRAY (the net_tools rule — no
+     shell strings, no quoting bugs), strictly one at a time with a
+     breath between steps; the app scan reads Info.plists a slice per
+     step instead of ~80 in one gulp. Built three releases after the
+     6.137.0 lag post-mortem and tested to never reintroduce it: the
+     suite greps the shipped file for io.popen / os.execute /
+     hs.execute and fails if one appears.
+  🏢 THE WORK MAC RUNS THE SAME FILE, SMALLER. §0.1 lands it on
+     whatever OneDrive that machine has; its profile sets docs=false
+     so Documents/Desktop stay out (they live in the company's own
+     OneDrive already, and a personal backup habit on a managed Mac
+     should stay inside the lines); no Homebrew → the Brewfile step
+     stands down and the report says so; a folder Full Disk Access
+     won't open is recorded as partial WITH the fix named, never a
+     crash. A missing source is "not on this Mac", never a failure.
+  🧰 TWO NEW ⇪; ROWS, NO NEW KEY: "Back up now — the rebuild kit" and
+     "Backup report". A backup is run by hand twice a year; that does
+     not earn a ⇪ letter. Console: _G.backupNow() · _G.backupReport()
+     · _G.backupAdopt(). The report names the destination, the last
+     run's per-area outcome, and the manifest count; a kit older than
+     3 days is called out at boot.
+
 NEW IN 6.138.0 — THE WHEEL FOLLOWS THE DRAG:
   🖱 LL, the day after the lag fix: "I can no longer use my magic pad
      to scroll the list. Keyboard works fine." And then, having tried a

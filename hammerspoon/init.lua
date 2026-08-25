@@ -2,10 +2,49 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 08-24-26 using Claude          ← EDITED date. Bumped with every release.
+-- 08-25-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.138.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.139.0
 -- =====================================================================
+
+-- NEW IN 6.139.0 — THE REBUILD KIT: A CLEAN INSTALL IN ONE FOLDER:
+--   ☁️ LL: "Is there a way for Hammerspoon to backup my user directory
+--      for future OSX installs, my applications directory using
+--      homebrew as much as possible, all to my OneDrive?" The Daily
+--      Backup module — 68 lines that copied ~/.hammerspoon at 5 PM
+--      since §1.7 was a section — grew into the answer. Same timer,
+--      same destination, same excluded token; a far bigger kit.
+--   📦 WHAT LANDS IN OneDrive/Backups/Hammerspoon/<Mac>/: this config
+--      (as before), and a RebuildKit/ folder holding dotfiles (.zshrc,
+--      .gitconfig, .config/, the ssh CONFIG file), LaunchAgents, Fonts,
+--      Documents and Desktop, a Brewfile from brew bundle dump, an
+--      apps.csv naming EVERY installed app with version, bundle id and
+--      how to get it back (App Store / brew cask / vendor), and a
+--      README.md restore guide rewritten with real numbers every run.
+--   🧭 DELIBERATELY A KIT, NOT A MIRROR. Time Machine stays the
+--      byte-for-byte safety net; OneDrive gets the curated set a clean
+--      install cannot get anywhere else. Syncing a whole home folder
+--      into OneDrive fails in practice — file counts, caches — and
+--      sync is not backup: it replicates deletions faithfully.
+--   🚨 WHAT NEVER LEAVES, BY DESIGN: secret.lua (excluded from every
+--      rsync AND the global exclude list — belt and braces), private
+--      SSH keys (only ~/.ssh/config, the settings file, is copied),
+--      the Keychain. The tests hold this as law, not preference.
+--   🍺 _G.backupAdopt() — the better-than-Brewfile move: apps installed
+--      by hand that HAVE a cask are named, with the exact
+--      `brew install --cask --adopt` line that lets Homebrew take over
+--      the copy already in /Applications. After that the Brewfile
+--      covers them forever.
+--   ⏱ AND NONE OF IT TOUCHES THE KEYBOARD. Every rsync and brew call
+--      is an hs.task argument array — no shell strings — one at a
+--      time with a breath between steps; the app scan reads
+--      Info.plists a slice per step. Built three releases after
+--      6.137.0, and tested to never reintroduce it: the suite greps
+--      the shipped file for synchronous escape hatches.
+--   🏢 THE WORK MAC RUNS THE SAME FILE, SMALLER: its profile sets
+--      docs = false (Documents/Desktop stay in the company's own
+--      OneDrive), no Homebrew → the Brewfile step stands down and the
+--      report says so. ⇪; gains two rows: Back up now · Backup report.
 
 -- NEW IN 6.138.0 — THE WHEEL FOLLOWS THE DRAG:
 --   🖱 LL, the day after the lag fix: "I can no longer use my magic pad
@@ -135,53 +174,10 @@
 --   📋 Run them in order: _G.lagTapsOff() first, _G.lagTapsGone() only
 --      if the first one changed nothing.
 
--- NEW IN 6.134.0 — THE SWITCH, NOT JUST THE GAUGE:
---   ⌨️ LL: "Since the last, at least two versions, once I launch
---      Hammerspoon my typing goes very slowly. I quit Hammerspoon. Then,
---      back to normal. What do you need from me?"
---   🔍 FIRST, WHAT IT IS NOT. 6.132.0 and 6.133.0 added no per-keystroke
---      cost at all: text_case touches no hs API whatsoever, and define
---      does nothing until ⇪8 is pressed. Neither creates a tap or a
---      repeating timer. The suspicion was checked before any code was
---      written, because the cheapest fix is the one you do not build.
---   🔌 _G.lagTapsOff() — EVERY KEYBOARD TAP GOES INERT FOR 90 SECONDS.
---      Type during that window. Whether the lag goes away is the whole
---      answer, and it arrives in one round instead of five.
---   🚨 INERT, NOT STOPPED, AND THE DIFFERENCE IS THE DESIGN. The expander
---      and autocorrect each run a 30-second watchdog that finds a STOPPED
---      tap and restarts it. A test that undoes itself half a minute in
---      does not fail — it lies, and it lies in the direction of "the taps
---      are innocent". So the tap keeps running and the wrapper returns
---      false without calling the module. Nothing can re-arm what was
---      never disarmed.
---   ⏲ AND IT PUTS ITSELF BACK. While taps are inert ⇪ does nothing —
---      ⇪ IS a tap — so a switch with no timer is one that can strand you
---      in a config with no shortcuts. _G.lagTapsOn() ends it early.
---   🔢 _G.lagOnly(n) RUNS EXACTLY ONE TAP. n is the # column, and it is
---      the CREATION number, not the row position: the report sorts by
---      time spent, so a sort-position number would name a different tap
---      between reading it and typing it.
---   ⏱ AND THE TIMERS ARE MEASURED NOW TOO, so "not a tap" stops being a
---      dead end. The old report could say the thread stalled 900ms at
---      14:32 and not one word about what was running. hs.timer.doEvery
---      and .new are wrapped the same way, aggregated by call site, and
---      totalled as a share of the one thread.
---   🚨 INCLUDING THE PROBE'S OWN HEARTBEAT, under its own name. The site
---      walker deliberately steps PAST core/lag.lua so a module's tap is
---      blamed on the module — which would have filed the probe's own
---      20-a-second timer under init.lua. A tool that cannot be asked
---      whether it is itself the problem is the wrong tool here, because
---      this file shipped in 6.131.0 and the lag was reported in 6.133.0.
---      _G.lagQuiet() stops that heartbeat outright, so the probe can be
---      ruled out rather than argued about.
---   📋 THE REPORT GOES TO THE CLIPBOARD and ends by naming the next
---      command. Evidence handed to someone whose typing is broken is a
---      second job.
-
--- (6.133.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.134.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.138.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.139.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -241,13 +237,17 @@
 --    picker and panel; where you drop a picker STICKS), or nudge with
 --    ⇪⇧ + arrow keys (hold to walk it). ⇪⇧R = back to automatic.
 --
--- ☁️ DAILY BACKUP (§1.7)  ·  automatic at 5:00 PM
+-- ☁️ DAILY BACKUP (§1.7)  ·  the rebuild kit, automatic at 5:00 PM
 --    rsync copies your ~/.hammerspoon folder (EXCEPT secret.lua —
 --    the token never leaves this Mac) to
---    OneDrive/Backups/Hammerspoon/<MachineName>/ every day.
+--    OneDrive/Backups/Hammerspoon/<MachineName>/ every day, and
+--    6.139.0 added the RebuildKit/ folder beside it: dotfiles,
+--    LaunchAgents, Fonts, Documents, Desktop, a Brewfile, an apps.csv
+--    naming every installed app and how to reinstall it, and a
+--    README.md restore guide rewritten after every run.
+--    _G.backupNow() runs it by hand; _G.backupReport() explains;
+--    _G.backupAdopt() names the apps Homebrew could take over.
 --    Quiet on success; on-screen alert if something goes wrong.
---    Your data files don't need this backup anymore — they live in
---    OneDrive directly — this protects init.lua itself.
 --
 -- ⇪P  APP PEEK (§1.8)
 --    Hides the frontmost app instantly so you can see what's
@@ -492,7 +492,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.138.0"
+_G.configVersion = "6.139.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2987,6 +2987,14 @@ _G.moduleProfiles = {
                 -- make the cross-Space sweep slower; lower the cap or
                 -- turn Spaces off here rather than editing the module.
                 maxWindows = 24,
+            },
+            daily_backup = {
+                -- 6.139.0 — the rebuild kit backs up dotfiles, this
+                -- config and the app manifest on the work Mac, but NOT
+                -- Documents/Desktop: those already live in the
+                -- company's own OneDrive, and a personal backup habit
+                -- on a managed machine should stay inside the lines.
+                docs = false,
             },
         },
     }),
