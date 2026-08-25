@@ -1448,6 +1448,24 @@ check("invert() presses ⌃⌥⌘8, also with 0 delay", (function()
        and KEYSTROKES[n + 1].delay == 0
 end)())
 
+-- 6.141.0 — LL: "why am I not using some hyperkey combo for my new
+-- grayscale?" — and picked ⇪9, with ⇪⇧9 for invert. The integration
+-- suite's conflict sentry refused the second half: ⇪⇧9 has been the
+-- numpad laptop row's top-right window key since 6.114.0. So the
+-- toggle got its key and invert kept ⌃⌥⌘8, which macOS ships bound.
+check("⇪9 is bound and relays ⌥⌘F5", (function()
+    local h = hyperFor({}, "9")
+    if not h then return false, "no ⇪9 binding" end
+    local n = #KEYSTROKES
+    h.fn()
+    return KEYSTROKES[n + 1] ~= nil and KEYSTROKES[n + 1].key == "f5"
+end)())
+check("🚨 the veil does NOT claim ⇪⇧9 — that is the numpad laptop row's "
+      .. "top-right window key", (function()
+    local h = hyperFor({ "shift" }, "9")
+    return h == nil or h.name ~= "invert colours"
+end)())
+
 ALERTS = {}
 hs.eventtap.keyStroke = function() error("posting refused") end
 check("a refused keystroke is reported, never raised",

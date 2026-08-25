@@ -4,8 +4,23 @@
 -- =====================================================================
 -- 08-25-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.140.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.141.0
 -- =====================================================================
+
+-- NEW IN 6.141.0 — GRAYSCALE GETS ITS KEY: ⇪9 TOGGLES:
+--   🌑 LL: "why am I not using some hyperkey combo for my new
+--      grayscale?" Fair — 6.140.0 shipped it keyless because every ⇪
+--      letter was taken and the judgment was that ⌥⌘F5 (which IS a
+--      dedicated key once set up) plus the ⇪; rows covered it. LL
+--      wanted a key anyway and picked ⇪9, with ⇪⇧9 for invert.
+--   🚨 THE SENTRY EARNED ITS KEEP: the first draft bound both, and
+--      the NO-TWO-OWNERS check refused it — ⇪⇧9 has been the numpad
+--      laptop row's TOP-RIGHT window key since 6.114.0, exactly the
+--      silent-theft failure that check exists to prevent. So ⇪9 =
+--      grayscale on/off (relays ⌥⌘F5, then the honest read-back),
+--      and invert keeps its ⇪; row plus ⌃⌥⌘8, which macOS ships
+--      already bound. Setup stays keyless — it is run once, ever:
+--      _G.monoSetup() still comes first on each Mac. One tick, yours.
 
 -- NEW IN 6.140.1 — THE WORK MAC BACKS UP DOCUMENTS TOO:
 --   ☁️ LL: "For my work computer, all documents are safe to backup."
@@ -112,43 +127,10 @@
 --      box with it, and the wheel must be claimed at the new position
 --      with no reopen in between.
 
--- NEW IN 6.137.0 — THE LAG, FOUND AND KILLED. IT WAS NEVER A TAP:
---   🎯 MEASURED AT LAST, AND THE TAPS WERE INNOCENT. The probe's own
---      report: all five keyboard taps together cost 0.08ms per
---      keystroke. The stalls were a TIMER — focus_mode's meeting tick
---      blocked the one thread ~1,549ms EVERY 4 SECONDS, like clockwork.
---      Direct timing then pinned the line: hs.application.get(
---      "Microsoft Outlook") = 2,884ms, then 3,023ms, per call, with
---      Outlook not running. On macOS 27 a name lookup that MISSES takes
---      the slow "alternate names / Spotlight" resolution path each time
---      — a miss cannot be cached, so idle Macs paid the most.
---   ⌨️ WHY A TIMER READS AS TYPING LAG. Every keystroke visits five
---      event taps, and each tap is a round trip through Hammerspoon's
---      ONE thread. Freeze that thread 1.5s in every 4 and keystrokes
---      queue behind the freeze — typing turns to sludge, quitting
---      Hammerspoon fixes it instantly, and both fit LL's report
---      exactly. Ten do-nothing taps on an empty config typed clean
---      (measured): taps are cheap; the thread they share was the story.
---   ✅ THE CURE IS THE 6.16.22 IDIOM, APPLIED THREE TIMES OVER. Outlook
---      now comes out of the bulk runningApplications() sweep that
---      focus_mode's detector already runs (5ms for 128 apps, measured)
---      — never by name. power_tools' pause key asks one sweep instead
---      of get() per player, so it no longer hangs precisely when no
---      player is open. And window_return's 30-second snapshot — one
---      1,586ms hs.window.allWindows() gulp, the same freeze at a lower
---      dose — now walks ONE app per 0.05s step, regular GUI apps only,
---      abandons uncommitted when a monitor change lands mid-sweep, and
---      names any app slower than 250ms in the console.
---   🛡 AND IT STAYS DEAD. test_focus P7 fails the suite if focus_mode
---      ever calls hs.application.get/find again; test_power_tools
---      counts get() calls and demands zero; test_window_return proves
---      the snapshot never asks for the whole desktop at once and never
---      pays a background agent an Accessibility round trip.
-
--- (6.136.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.137.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.140.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.141.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -463,7 +445,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.140.1"
+_G.configVersion = "6.141.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

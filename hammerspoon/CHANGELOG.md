@@ -4,6 +4,32 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.141.0 — GRAYSCALE GETS ITS KEY: ⇪9 TOGGLES:
+  🌑 LL: "why am I not using some hyperkey combo for my new
+     grayscale?" Fair question. 6.140.0 shipped it keyless because
+     every ⇪ letter was already claimed and the judgment was that
+     ⌥⌘F5 — which IS a dedicated grayscale key on the keyboard once
+     the one-time setup is done — plus the ⇪; rows covered an
+     occasional toggle. LL wanted a key anyway and picked ⇪9, with
+     ⇪⇧9 for invert (⇪1 and ⇪3 remain the last free plain keys;
+     ⇪⇧Z stays reserved at LL's earlier ask).
+  🚨 AND THE SENTRY EARNED ITS KEEP. The first draft bound both keys
+     and the integration suite's NO-TWO-OWNERS check refused to ship
+     it: ⇪⇧9 has been the numpad laptop row's TOP-RIGHT window key
+     since 6.114.0 — the same collision family the sentry caught on
+     ⇪⇧4 back then, and precisely the silent theft it exists to
+     prevent. numpad_layer's own rule stands: a documented hole
+     beats a stolen key.
+  ⌨️ SO: ⇪9 = grayscale on/off — relays ⌥⌘F5 and keeps the honest
+     read-back; it lives in screen_veil.lua beside ⇪G. Invert keeps
+     its ⇪; row plus ⌃⌥⌘8, which macOS ships already bound — a
+     hyper relay for it would spend a key on a key. The ⇪; mono row
+     names ⇪9 in its sub line. Setup stays keyless on purpose — it
+     is run once per Mac, ever: _G.monoSetup(), one tick, yours.
+  🧪 test_features 4b fires ⇪9 through the stub and checks ⌥⌘F5
+     comes out the other side — and pins that the veil never claims
+     ⇪⇧9, so this exact collision cannot come back quietly.
+
 NEW IN 6.140.1 — THE WORK MAC BACKS UP DOCUMENTS TOO:
   ☁️ LL: "For my work computer, all documents are safe to backup."
      6.139.0 had guessed the other way and set docs = false in the

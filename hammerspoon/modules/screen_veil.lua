@@ -81,9 +81,11 @@ local M = {
             { "⇪⇧=",    "5% stronger" },
             { "⇪⇧-",    "5% weaker" },
             { "⌃⌥⌘⇧G", "PANIC — remove the veil no matter what" },
+            { "⇪9",     "Grayscale on/off — relays ⌥⌘F5, the macOS switch" },
+            { "⌃⌥⌘8",  "Invert the screen colours — macOS's own key, no setup" },
             { "note",   "A veil dims and mutes; it cannot desaturate. True B&W" },
-            { "",       "is a macOS switch — ⇪; lists it, or _G.mono()" },
-            { "",       "_G.monoSetup() once first: it needs one tick from you" },
+            { "",       "is the macOS switch on ⇪9 — _G.monoSetup() once first:" },
+            { "",       "it needs one tick from you. ⇪; lists all three rows" },
             { "",       "Click-through: the veil never eats a click or takes focus" },
         },
     },
@@ -326,6 +328,14 @@ function M.setup(core)
     veil.monoKey    = "f5"
     veil.invertMods = { "ctrl", "alt", "cmd" }   -- stock "Invert colors"
     veil.invertKey  = "8"
+    -- 6.141.0 — LL asked for a key after all ("why am I not using some
+    -- hyperkey combo for my new grayscale?") and picked ⇪9 — with ⇪⇧9
+    -- for invert. The conflict sentry refused the second half: ⇪⇧9 has
+    -- been the numpad laptop row's TOP-RIGHT window key since 6.114.0,
+    -- and that file's own rule stands — a documented hole beats a
+    -- stolen key. So ⇪9 toggles grayscale; invert keeps its ⇪; row
+    -- and macOS's own ⌃⌥⌘8, which ships already bound anyway.
+    veil.monoHyperKey = "9"
     veil.readBackAfter = 0.6   -- seconds to wait before re-reading the pref
     veil.monoTimer  = nil      -- HELD — the rule at the top applies here too
     veil.DEFAULTS   = "/usr/bin/defaults"  -- reviewed in test_diagnostics 9b
@@ -486,6 +496,8 @@ function M.setup(core)
 
     -- ---- keys ------------------------------------------------------------
     core.hyperAddShortcut({}, veil.toggleKey, function() veil.toggle() end, "screen veil")
+    core.hyperAddShortcut({}, veil.monoHyperKey, function() veil.mono() end,
+                          "grayscale relay")
     core.hyperAddShortcut({ "shift" }, veil.toggleKey, function() veil.cyclePreset() end,
                           "screen veil strength")
     core.hyperAddShortcut({ "shift" }, "=", function() veil.nudge(veil.step) end,

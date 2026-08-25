@@ -1527,11 +1527,14 @@ end tell]]
           end },
         -- 6.140.0 — grayscale, at last. These rows hold no logic of their
         -- own: screen_veil.lua owns the relay and the reason it works
-        -- where 6.82.0's four attempts did not. They live here because
-        -- grayscale does not deserve a key of its own and there is not a
-        -- ⇪ letter left to give it anyway.
+        -- where 6.82.0's four attempts did not. 6.140.0 shipped them
+        -- keyless (every ⇪ letter was taken); 6.141.0 gave the toggle
+        -- ⇪9 at LL's ask. Invert stays keyless HERE because the
+        -- conflict sentry caught ⇪⇧9 belonging to the numpad laptop
+        -- row — and macOS ships ⌃⌥⌘8 already bound besides. The rows
+        -- stay as the discoverable path; setup never earns a key.
         { id = "mono",  icon = "🌑", title = "Grayscale on/off",
-          sub = "Relays ⌥⌘F5, the macOS switch — _G.monoSetup() once first",
+          sub = "Relays ⌥⌘F5, the macOS switch — _G.monoSetup() once first · ⇪9",
           run = function() return pt.veilCall("mono") end },
         { id = "monoset", icon = "🛠", title = "Set up grayscale (once)",
           sub = "Opens the pane and names the three ticks only you can make",
