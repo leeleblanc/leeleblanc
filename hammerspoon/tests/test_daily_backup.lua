@@ -238,7 +238,10 @@ check("Documents and Desktop ride along while bk.docs is true",
       ids.documents ~= nil and ids.desktop ~= nil)
 bk.docs = false
 local worKit = bk.buildKit()
-check("…and the work profile's docs=false drops exactly those two",
+-- 6.140.1 — no shipped profile sets this any more (LL: "all documents
+-- are safe to backup" on the work Mac too), but the knob must keep
+-- working for any future Mac that needs it.
+check("…and the docs=false knob drops exactly those two",
       #worKit == #kit - 2, #worKit)
 bk.docs = true
 check("🚨 SSH appears ONLY as its config FILE — never the keys folder", (function()

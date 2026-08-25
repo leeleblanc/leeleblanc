@@ -4,6 +4,20 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.140.1 — THE WORK MAC BACKS UP DOCUMENTS TOO:
+  ☁️ LL: "For my work computer, all documents are safe to backup."
+     6.139.0 had guessed the other way and set docs = false in the
+     work profile so Documents/Desktop would stay in the company's
+     OneDrive. That override is now REMOVED: both Macs build the full
+     rebuild kit — Documents and Desktop included. One profile line
+     changed; the docs knob itself stays in daily_backup.lua for any
+     future Mac that needs it, and test_daily_backup still proves it
+     drops exactly Documents and Desktop when set.
+  📁 First work-Mac run note: macOS gates Documents/Desktop behind
+     Full Disk Access. If the run reports "grant Hammerspoon Full
+     Disk Access", that is the whole fix — the report names it rather
+     than failing quietly, exactly as 6.139.0 built it to.
+
 NEW IN 6.140.0 — GRAYSCALE, AT LAST: PRESS THE KEY macOS OWNS:
   🌑 6.82.0 removed a grayscale toggle after four failed routes —
      defaults write, launchctl, killall, osascript. That verdict

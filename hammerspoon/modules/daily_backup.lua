@@ -45,13 +45,14 @@
 -- rebuilt three releases after 6.137.0; it does not reintroduce the
 -- disease the lag emergency cured.
 --
--- 🏢 THE WORK MAC RUNS THE SAME FILE, SMALLER. §0.1 already lands that
--- machine on whatever OneDrive it has. The work profile in init.lua
--- sets docs = false: dotfiles, this config, the Brewfile and the app
--- manifest are backed up; Documents and Desktop are not — those live
--- in the company's own OneDrive already, and a personal backup habit
--- on a managed Mac should stay inside the lines. No Homebrew on that
--- Mac → the Brewfile step skips itself and the report says so.
+-- 🏢 THE WORK MAC RUNS THE SAME FILE — INCLUDING DOCUMENTS. 6.139.0
+-- shipped the work profile with docs = false on the guess that work
+-- Documents belonged only in the company's OneDrive; 6.140.1 removed
+-- that override after LL confirmed "all documents are safe to backup"
+-- on that machine. Both Macs now build the full kit. §0.1 already
+-- lands each machine on whatever OneDrive it has; no Homebrew on the
+-- work Mac → the Brewfile step skips itself and the report says so.
+-- The docs knob below stays for any future Mac that needs it.
 
 local M = {
     name  = "Daily Backup",
@@ -82,7 +83,7 @@ function M.setup(core)
     bk.sliceApps   = 12      -- Info.plists read per step in the app scan
     bk.taskCapSecs = 600     -- watchdog: no single rsync/brew step runs longer
     bk.staleDays   = 3       -- boot note when the last good run is older
-    bk.docs        = true    -- Documents + Desktop in the kit (work: false)
+    bk.docs        = true    -- Documents + Desktop in the kit (both Macs)
     -- Applied to EVERY rsync. secret.lua is here as well as on the config
     -- entry — belt and braces, because this is the one exclusion that is
     -- a promise, not a preference. applock.json is the removed App Lock's

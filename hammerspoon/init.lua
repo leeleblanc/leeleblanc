@@ -4,8 +4,20 @@
 -- =====================================================================
 -- 08-25-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.140.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.140.1
 -- =====================================================================
+
+-- NEW IN 6.140.1 — THE WORK MAC BACKS UP DOCUMENTS TOO:
+--   ☁️ LL: "For my work computer, all documents are safe to backup."
+--      6.139.0 had guessed the other way and set docs = false in the
+--      work profile so Documents/Desktop would stay in the company's
+--      OneDrive. That override is now REMOVED: both Macs build the
+--      full rebuild kit — Documents and Desktop included. One profile
+--      line changed; the docs knob itself stays in daily_backup.lua
+--      for any future Mac that needs it, and its test now says so.
+--   📁 First work-Mac run note: macOS gates Documents/Desktop behind
+--      Full Disk Access. If the run reports "grant Hammerspoon Full
+--      Disk Access", that is the fix — ⇪, and search for it.
 
 -- NEW IN 6.140.0 — GRAYSCALE, AT LAST: PRESS THE KEY macOS OWNS:
 --   🌑 6.82.0 removed a grayscale toggle after four failed routes —
@@ -133,50 +145,10 @@
 --      the snapshot never asks for the whole desktop at once and never
 --      pays a background agent an Accessibility round trip.
 
--- NEW IN 6.136.0 — THE PROBE WAS THE PRIME SUSPECT, SO IT IS NOW OFF:
---   🚨 THE LAG PROBE IS THE LEADING SUSPECT FOR THE LAG IT WAS BUILT TO
---      FIND. LL: "once I start Hammerspoon, I'm fucked." core/lag.lua
---      shipped in 6.131.0 — exactly the window LL described as "the last,
---      at least two versions". Three releases were spent building better
---      instruments on top of it without once testing the instrument.
---   🔍 THE MECHANISM. install() replaces hs.eventtap.new for the whole
---      session, so EVERY tap gets an extra Lua closure between macOS and
---      the real handler, each doing two clock reads and four table writes
---      ON EVERY KEYSTROKE. Five always-on keyboard taps means five
---      closures and ten clock reads per character.
---   💣 AND THEN THE SECOND-ORDER EFFECT. macOS DISABLES an event tap
---      whose callback takes too long — that is not a theory, it is the
---      documented reason the expander and autocorrect each run a watchdog
---      to restart a stopped tap. A probe that slows every callback can
---      push taps past that timeout: macOS kills them, the watchdogs
---      revive them, they get killed again. From the outside that is
---      "all kinds of keys stopped working".
---   🔒 AND THERE WAS NO OFF SWITCH. _G.lagQuiet() stops the heartbeat and
---      NOT the wrapper, so the expensive half ran no matter what you
---      typed. 6.135.0 spent a whole release on the difference between a
---      tap that is INERT and one that is GONE, and never noticed the
---      probe only ever offered itself the weaker of the two.
---   ✅ SO: NO FILE, NO PROBE. core/lag.lua now installs nothing unless
---      ~/.hammerspoon/LAGPROBE exists. _G.lagOn() writes it, _G.lagOff()
---      removes it, both need a reload, and _G.lagReport() says DISARMED
---      in its first line so an empty table is never read as "all clear".
---   🚑 AND SAFE MODE NOW OUTRANKS THE ARMING FILE. This file loads
---      core/lag.lua at line ~641 and does not look for the SAFE file
---      until line ~3290, so SAFE mode has always cut the modules from 58
---      to 4 and left the probe wrapping every tap that remained. That
---      made SAFE mode unable to answer the question it exists for —
---      fewer modules also means fewer taps to wrap, so both explanations
---      move together and neither can be ruled out. SAFE now means safe.
---   🩹 If your keys are broken right now and you cannot wait for this:
---      quit Hammerspoon, then in Terminal
---         mv ~/.hammerspoon/core/lag.lua ~/.hammerspoon/core/lag.lua.off
---      init.lua loads that file inside a pcall, so its absence is a
---      printed warning and nothing else.
-
--- (6.135.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.136.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.140.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.140.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -491,7 +463,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.140.0"
+_G.configVersion = "6.140.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2987,14 +2959,15 @@ _G.moduleProfiles = {
                 -- turn Spaces off here rather than editing the module.
                 maxWindows = 24,
             },
-            daily_backup = {
-                -- 6.139.0 — the rebuild kit backs up dotfiles, this
-                -- config and the app manifest on the work Mac, but NOT
-                -- Documents/Desktop: those already live in the
-                -- company's own OneDrive, and a personal backup habit
-                -- on a managed machine should stay inside the lines.
-                docs = false,
-            },
+            -- ☁️ 6.140.1 — NO daily_backup OVERRIDE HERE, ON PURPOSE.
+            -- 6.139.0 shipped docs = false for this profile on the
+            -- guess that work Documents belonged only in the company's
+            -- OneDrive. LL overruled it the next day: "For my work
+            -- computer, all documents are safe to backup." So the work
+            -- Mac now runs the module's default — Documents and
+            -- Desktop in the kit on BOTH Macs. The docs knob still
+            -- exists in modules/daily_backup.lua for any future Mac
+            -- that needs it.
         },
     }),
 
