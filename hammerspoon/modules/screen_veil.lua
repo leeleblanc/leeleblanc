@@ -26,14 +26,41 @@
 -- So: for "dim it until I can read / watch a film through it", which is
 -- what the 90%-to-a-comfortable-number range you described actually
 -- describes, this module is the right tool and does the whole job.
--- For LITERAL black-and-white, macOS has it built in and Hammerspoon is
--- not involved:
+-- For LITERAL black-and-white, the switch lives in macOS:
 --     System Settings → Accessibility → Display → Color Filters
 --     → on, Filter type: Grayscale
--- and the Shortcut panel (⌥⌘F5) can put it on a key. That switch runs
--- inside WindowServer, below every app, which is why it can do what a
--- canvas cannot. The two stack fine — veil for brightness, Color
--- Filters for colour.
+-- That switch runs inside WindowServer, below every app, which is why it
+-- can do what a canvas cannot. The two stack fine — veil for brightness,
+-- Color Filters for colour. 6.140.0 adds a way to REACH that switch from
+-- here without touching it; see the next block.
+--
+-- ---------------------------------------------------------------------
+-- 🌑 6.140.0 — GRAYSCALE, AND WHY THE FOURTH ATTEMPT IS DIFFERENT
+-- ---------------------------------------------------------------------
+-- 6.82.0 removed a grayscale toggle. The note reads: "defaults write +
+-- launchctl, killall, and osascript all failed or errored in practice."
+-- That verdict was correct and it is still correct. But every one of
+-- those four tried to do the SAME THING — SET THE SETTING — and macOS
+-- does not let a process do that. The switch belongs to universalaccessd,
+-- the preference domain is cached, and a UI walk through System Settings
+-- breaks on the next OS release.
+--
+-- 🔑 THE ROUTE THAT WAS NEVER TRIED: do not set the value. PRESS THE KEY
+-- macOS IS ALREADY LISTENING FOR. macOS ships an Accessibility Shortcut
+-- bound to ⌥⌘F5. Its feature list is yours to choose, and when Color
+-- Filters is the ONLY feature ticked, that shortcut stops opening a panel
+-- and becomes a direct grayscale toggle handled inside the OS.
+--
+-- Sending ⌥⌘F5 needs no new permission — Hammerspoon already posts
+-- keystrokes — and nothing here can break when System Settings is
+-- rearranged, because nothing here reads System Settings.
+--
+-- ⚠️ WHAT THIS STILL CANNOT DO, AND WILL NOT PRETEND TO. The one-time
+-- tick is YOURS. It is precisely the step 6.82.0 proved a program cannot
+-- take, so _G.monoSetup() opens the right pane and then gets out of the
+-- way. And if you leave more than one feature ticked, ⌥⌘F5 opens the
+-- chooser panel instead of toggling — that is macOS behaving as designed,
+-- not a fault here, and _G.monoReport() says so rather than guessing.
 --
 -- 🚨 SAFETY. A full-screen sheet you cannot dismiss would be a bad day,
 -- so: the strength is HARD-CAPPED at 90% (M.config.maxLevel) and never
@@ -54,8 +81,9 @@ local M = {
             { "⇪⇧=",    "5% stronger" },
             { "⇪⇧-",    "5% weaker" },
             { "⌃⌥⌘⇧G", "PANIC — remove the veil no matter what" },
-            { "note",   "A veil dims and mutes; it cannot desaturate. True B&W:" },
-            { "",       "Accessibility → Display → Color Filters → Grayscale" },
+            { "note",   "A veil dims and mutes; it cannot desaturate. True B&W" },
+            { "",       "is a macOS switch — ⇪; lists it, or _G.mono()" },
+            { "",       "_G.monoSetup() once first: it needs one tick from you" },
             { "",       "Click-through: the veil never eats a click or takes focus" },
         },
     },
@@ -286,6 +314,174 @@ function M.setup(core)
         local p = veil.presets[veil.presetIndex]
         veil.setLevel(p.level, p.name .. " · " ..
                       string.format("%d%%", math.floor(p.level * 100 + 0.5)))
+    end
+
+    -- ---- GRAYSCALE: THE RELAY --------------------------------------------
+    -- See the 6.140.0 block at the top of the file for why this presses a
+    -- key instead of writing a preference. Nothing below creates a tap or
+    -- a repeating timer; the one timer is a single shot on your keypress.
+
+    -- ✏️ EDIT HERE — only if you have rebound the macOS side.
+    veil.monoMods   = { "alt", "cmd" }           -- Accessibility Shortcut
+    veil.monoKey    = "f5"
+    veil.invertMods = { "ctrl", "alt", "cmd" }   -- stock "Invert colors"
+    veil.invertKey  = "8"
+    veil.readBackAfter = 0.6   -- seconds to wait before re-reading the pref
+    veil.monoTimer  = nil      -- HELD — the rule at the top applies here too
+    veil.DEFAULTS   = "/usr/bin/defaults"  -- reviewed in test_diagnostics 9b
+
+    -- Reads the PREFERENCE FILE. That is not the same as reading the screen,
+    -- and the difference matters: macOS caches this domain, so a value read
+    -- an instant after a change can still be the old one. Every line that
+    -- uses this labels it as a preference, never as a fact about what you
+    -- are looking at.
+    -- ⚠️ SYNCHRONOUS ON PURPOSE, and allowed to be: one `defaults read` of
+    -- one small domain answers in milliseconds, and it runs only on an
+    -- action you just took — never inside a tap, never on a repeating
+    -- timer. Same reasoning as ⇪7's instant reads in mac_panel.lua. The
+    -- whole domain is read in ONE child process and the three keys picked
+    -- out of the dump, rather than three shells for three keys.
+    function veil.monoState()
+        local out
+        pcall(function()
+            out = hs.execute(veil.DEFAULTS
+                  .. " read com.apple.universalaccess 2>/dev/null")
+        end)
+        if type(out) ~= "string" then out = "" end
+        local function num(key)
+            -- %f[%w] so "grayscale" cannot match inside a longer key name
+            local v = out:match("%f[%w]" .. key .. "%s*=%s*(%-?%d+)")
+            return v and tonumber(v) or nil
+        end
+        return {
+            filterOn   = num("colorFilterEnabled"),
+            filterType = num("colorFilterType"),
+            legacyGray = num("grayscale"),
+        }
+    end
+
+    function veil.monoReport()
+        local st  = veil.monoState()
+        local out = {}
+        local function line(s) out[#out + 1] = s end
+        line("🌑 GRAYSCALE — what the preference file says")
+        line("")
+        if st.filterOn == nil then
+            line("   com.apple.universalaccess would not answer for")
+            line("   colorFilterEnabled. That is usually not a fault — it")
+            line("   means the key has never been written, so Color Filters")
+            line("   has not been switched on even once. Run _G.monoSetup().")
+        else
+            line(("   Color Filters ......... %s")
+                 :format(st.filterOn == 1 and "ON" or "off"))
+            if st.filterType then
+                line(("   Filter type ........... %d%s"):format(
+                     st.filterType,
+                     st.filterType == 0 and "  (Grayscale)"
+                     or "  ⚠️ a filter IS on, but it is not grayscale"))
+            end
+        end
+        if st.legacyGray == 1 then
+            line("   Legacy grayscale key .. ON")
+        end
+        line("")
+        line("   ⚠️ THIS IS THE PREFERENCE FILE, NOT THE SCREEN. macOS caches")
+        line("   the domain, so a value read a moment after a change can")
+        line("   still be the old one. Trust your eyes over this block.")
+        line("")
+        line("   ⌥⌘F5 toggles grayscale — but ONLY if Color Filters is the")
+        line("   one feature ticked under Accessibility → Shortcut. With")
+        line("   more than one ticked, macOS opens a chooser panel instead")
+        line("   and nothing toggles. _G.monoSetup() walks you through it.")
+        local s = table.concat(out, "\n")
+        pcall(function() hs.pasteboard.setContents(s) end)
+        return s
+    end
+
+    -- Opens the pane and then stops. The tick is yours to make — that is
+    -- the whole finding of 6.82.0 and this does not try to talk past it.
+    function veil.monoSetup()
+        pcall(function()
+            hs.urlevent.openURL(
+                "x-apple.systempreferences:com.apple.preference.universalaccess"
+                .. "?Seeing_Display")
+        end)
+        local msg = table.concat({
+            "🌑 One-time setup — then never again",
+            "",
+            "1. Color Filters → on.  Filter type → Grayscale.",
+            "2. Back to Accessibility, scroll to the bottom → Shortcut.",
+            "3. Tick Color Filters. UNTICK EVERYTHING ELSE.",
+            "",
+            "Step 3 is the one that matters. One feature ticked and ⌥⌘F5",
+            "toggles it outright; more than one and it opens a panel.",
+        }, "\n")
+        pcall(function() hs.alert.show(msg, 12) end)
+        return msg
+    end
+
+    function veil.mono()
+        -- The trailing 0 is the inter-event delay. Left to default it is
+        -- 200ms of BLOCKED MAIN THREAD per press; hyper_key.lua passes 0
+        -- for the same reason.
+        local ok = pcall(function()
+            hs.eventtap.keyStroke(veil.monoMods, veil.monoKey, 0)
+        end)
+        if not ok then
+            pcall(function() hs.alert.show("🌑 Could not send ⌥⌘F5", 3) end)
+            return false
+        end
+        _G.diag.say("veil", "sent ⌥⌘F5 (macOS Accessibility Shortcut)")
+        -- Read back AFTER a beat. Asking immediately returns the value from
+        -- before the keystroke often enough that an instant read would make
+        -- a working toggle look broken.
+        if veil.monoTimer then pcall(function() veil.monoTimer:stop() end) end
+        veil.monoTimer = hs.timer.doAfter(veil.readBackAfter, function()
+            veil.monoTimer = nil
+            local st, said = veil.monoState(), nil
+            if st.filterOn == 1 then
+                said = (st.filterType == nil or st.filterType == 0)
+                       and "🌑 Grayscale ON"
+                       or  "🌑 A colour filter is on — but not grayscale"
+            elseif st.filterOn == 0 then
+                said = "🌑 Colour is back"
+            else
+                said = "🌑 Sent ⌥⌘F5 — run _G.monoSetup() once if nothing changed"
+            end
+            pcall(function() hs.alert.show(said, 2) end)
+        end)
+        return true
+    end
+
+    -- Inversion is NOT desaturation and is not offered as a substitute for
+    -- it. It is here because it is the one colour change that needs no
+    -- setup whatsoever: ⌃⌥⌘8 ships already bound.
+    function veil.invert()
+        local ok = pcall(function()
+            hs.eventtap.keyStroke(veil.invertMods, veil.invertKey, 0)
+        end)
+        if ok then
+            pcall(function() hs.alert.show("🔄 Invert colours (⌃⌥⌘8)", 2) end)
+        else
+            pcall(function() hs.alert.show("🔄 Could not send ⌃⌥⌘8", 3) end)
+        end
+        return ok
+    end
+
+    _G.mono          = function() return veil.mono() end
+    _G.monoSetup     = function() return veil.monoSetup() end
+    _G.monoReport    = function() return veil.monoReport() end
+    _G.invertColours = function() return veil.invert() end
+
+    -- The ⇪; rows in power_tools reach these by SERVICE NAME (pt.veilCall)
+    -- so that module never holds a reference into this one. Guarded the
+    -- way daily_backup guards its own: a stub core without provide is a
+    -- test harness, not an error.
+    if core.provide then
+        core.provide("veil.mono",      function() return veil.mono() end)
+        core.provide("veil.monoSetup", function() return veil.monoSetup() end)
+        core.provide("veil.invert",    function() return veil.invert() end)
+        core.provide("veil.monoReport", function() return veil.monoReport() end)
     end
 
     -- ---- keys ------------------------------------------------------------

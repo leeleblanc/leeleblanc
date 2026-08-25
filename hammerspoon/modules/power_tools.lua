@@ -1525,7 +1525,36 @@ end tell]]
               end
               return ok
           end },
+        -- 6.140.0 — grayscale, at last. These rows hold no logic of their
+        -- own: screen_veil.lua owns the relay and the reason it works
+        -- where 6.82.0's four attempts did not. They live here because
+        -- grayscale does not deserve a key of its own and there is not a
+        -- ⇪ letter left to give it anyway.
+        { id = "mono",  icon = "🌑", title = "Grayscale on/off",
+          sub = "Relays ⌥⌘F5, the macOS switch — _G.monoSetup() once first",
+          run = function() return pt.veilCall("mono") end },
+        { id = "monoset", icon = "🛠", title = "Set up grayscale (once)",
+          sub = "Opens the pane and names the three ticks only you can make",
+          run = function() return pt.veilCall("monoSetup") end },
+        { id = "invert", icon = "🔄", title = "Invert the screen colours",
+          sub = "Relays ⌃⌥⌘8. Inversion, NOT grayscale — needs no setup",
+          run = function() return pt.veilCall("invert") end },
     }
+
+    -- 6.140.0 — the guard the three grayscale rows share. The backup rows
+    -- above spell the same guard out inline; three rows in a row earn a
+    -- helper. Everything goes through the service registry, so the rows
+    -- work when Screen Veil is loaded and say so plainly when it is not.
+    function pt.veilCall(what)
+        local svc = "veil." .. what
+        if not (_G.service and _G.service.has and _G.service.has(svc)) then
+            note(svc .. " has no provider")
+            hs.alert.show("🌑 The Screen Veil module is not loaded.\n"
+                .. "⇪⇧D lists module status.", 4)
+            return false
+        end
+        return _G.service.call(svc) and true or false
+    end
 
     function pt.byId(id)
         for _, t in ipairs(pt.tools) do

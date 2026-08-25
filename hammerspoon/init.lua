@@ -4,8 +4,37 @@
 -- =====================================================================
 -- 08-25-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.139.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.140.0
 -- =====================================================================
+
+-- NEW IN 6.140.0 — GRAYSCALE, AT LAST: PRESS THE KEY macOS OWNS:
+--   🌑 6.82.0 removed a grayscale toggle after four failed routes —
+--      defaults write, launchctl, killall, osascript. That verdict
+--      stands: all four tried to SET the setting, and macOS does not
+--      let a process do that. The route none of them tried: press the
+--      key macOS is already listening for. The Accessibility Shortcut
+--      ships bound to ⌥⌘F5, and when Color Filters is the ONLY feature
+--      ticked under Accessibility → Shortcut, ⌥⌘F5 stops opening a
+--      chooser panel and becomes a direct grayscale toggle handled
+--      inside WindowServer — below every app, which is exactly the
+--      place a Hammerspoon canvas can never reach.
+--   ⇪; gains three rows: Grayscale on/off · Set up grayscale (once) ·
+--      Invert the screen colours (⌃⌥⌘8 — inversion, not grayscale, but
+--      the one colour change that needs no setup at all). Console
+--      doors: _G.mono() · _G.monoSetup() · _G.monoReport() ·
+--      _G.invertColours(). No new ⇪ key; grayscale does not earn one.
+--   🛠 THE ONE-TIME TICK IS YOURS. _G.monoSetup() opens the right pane
+--      and names the three ticks, then gets out of the way — making
+--      that tick is precisely the step 6.82.0 proved a program cannot
+--      take, and this release does not pretend otherwise.
+--   🔎 THE READ-BACK IS HONEST. 0.6s after the keypress the module
+--      reads the PREFERENCE FILE (one /usr/bin/defaults read — never a
+--      write; test_features 4b pins that structurally) and reports what
+--      it found: grayscale on, colour back, "a filter is on but not
+--      grayscale", or "run _G.monoSetup() once". Never a success it
+--      cannot see.
+--   🌗 The veil (⇪G) is unchanged and the two stack: veil for
+--      brightness, Color Filters for colour.
 
 -- NEW IN 6.139.0 — THE REBUILD KIT: A CLEAN INSTALL IN ONE FOLDER:
 --   ☁️ LL: "Is there a way for Hammerspoon to backup my user directory
@@ -144,40 +173,10 @@
 --      init.lua loads that file inside a pcall, so its absence is a
 --      printed warning and nothing else.
 
--- NEW IN 6.135.0 — THE STRONGER DOSE, AND A TEST THAT COULD HAVE LIED:
---   🔌🔌 _G.lagTapsGone() STOPS EVERY KEYBOARD TAP FOR REAL.
---      6.134.0 shipped _G.lagTapsOff(), which makes each tap's callback
---      INERT — it returns immediately without running the module's
---      handler. That was chosen so the expander and autocorrect
---      watchdogs, which restart a stopped tap every thirty seconds,
---      could not silently undo the test.
---   🚨 IT WAS ALSO A TRAP, AND THAT IS THE REAL NEWS HERE. An inert tap
---      IS STILL A TAP: registered with macOS, still in the path your
---      keystroke travels. lagTapsOff measures what the CALLBACKS cost.
---      It cannot measure what HAVING five taps costs — the dispatch
---      itself, secure input degrading all of them at once, a stale
---      Accessibility grant. So "I ran lagTapsOff and nothing changed"
---      would have read as "the taps are innocent" when the taps could be
---      the entire problem. A confident wrong answer, which this file's
---      own probe header calls worse than no answer.
---   🐕 SO tapsGone HOLDS THE WATCHDOGS DOWN FIRST, by name, then stops
---      each tap. Stopping a tap while its watchdog runs is a race the
---      watchdog wins inside thirty seconds. It restores only the taps it
---      actually stopped — screenshots' select-mode tap is stopped nearly
---      always, and a restore that started it would switch on something
---      the config had deliberately switched off.
---   🔒 AND THE REPORT NOW NAMES SECURE INPUT. macOS turns it on for
---      password fields and a badly-behaved app can leave it on for
---      everybody; while it is on every tap is throttled by the OS, and
---      bisecting them one at a time finds nothing because none of them
---      is individually at fault.
---   📋 Run them in order: _G.lagTapsOff() first, _G.lagTapsGone() only
---      if the first one changed nothing.
-
--- (6.134.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.135.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.139.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.140.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -492,7 +491,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.139.0"
+_G.configVersion = "6.140.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2925,7 +2924,7 @@ local BASE = {
     "menu_search",        -- 🔎 ⇪.  the front app's menus, flattened
     "settings_panes",     -- ⚙️ ⇪,  System Settings, by name
     "app_kill",           -- 💀 ⇪⇧; end a process, politely then not
-    "power_tools",        -- 🧰 ⇪;  type the clipboard · count · strip · mdls
+    "power_tools",        -- 🧰 ⇪;  type the clipboard · count · strip · grayscale
     -- 6.132.0 — no key of its own. It owns the six case transforms, and
     -- ⇪; and ⇪R both ask it for them through core.call at the moment you
     -- press the key. Order here is therefore irrelevant; it sits beside

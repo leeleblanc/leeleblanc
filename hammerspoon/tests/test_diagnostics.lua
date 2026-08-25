@@ -879,7 +879,13 @@ local ALLOWED_BINARIES = {
   ["/usr/bin/shortcuts"] = "image OCR via your own Shortcut (ships with macOS)",
   ["/usr/bin/hidutil"]   = "Caps Lock -> hyper remap, per-user (ships with macOS)",
   ["/usr/bin/open"]      = "relaunch an app you asked to reopen (ships with macOS)",
-  ["/usr/bin/defaults"]  = "read an app's version from its plist (ships with macOS)",
+  -- 6.140.0 — screen_veil joined as a second caller: the grayscale
+  -- read-back READS com.apple.universalaccess after relaying ⌥⌘F5. It
+  -- never writes it — test_features 4b pins that structurally, and the
+  -- 9a launchctl/killall bans above already fence off 6.82.0's other
+  -- failed routes.
+  ["/usr/bin/defaults"]  = "read an app's version from its plist + the "
+                        .. "grayscale preference read-back (ships with macOS)",
   -- 🚨 6.65.1 — AND THIS ONE IS A DELIBERATE, LOAD-BEARING CHOICE, which
   -- is exactly what this list exists to record. Every AppleScript in this
   -- config used to run IN PROCESS via hs.osascript.applescript, which

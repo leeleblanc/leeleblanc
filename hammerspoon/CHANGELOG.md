@@ -4,6 +4,47 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.140.0 — GRAYSCALE, AT LAST: PRESS THE KEY macOS OWNS:
+  🌑 6.82.0 removed a grayscale toggle after four failed routes —
+     defaults write, launchctl, killall, osascript. That verdict
+     stands: all four tried to SET the setting, and macOS does not let
+     a process do that. The route none of them tried: press the key
+     macOS is already listening for. The Accessibility Shortcut ships
+     bound to ⌥⌘F5, and when Color Filters is the ONLY feature ticked
+     under Accessibility → Shortcut, ⌥⌘F5 stops opening a chooser
+     panel and becomes a direct grayscale toggle handled inside
+     WindowServer — below every app, which is exactly the place a
+     Hammerspoon canvas can never reach (the 6.82.0 header explains
+     why a canvas can dim and mute but never desaturate).
+  ⇪; gains three rows: Grayscale on/off · Set up grayscale (once) ·
+     Invert the screen colours (⌃⌥⌘8 — inversion, not grayscale, but
+     the one colour change that needs no setup at all). Console doors:
+     _G.mono() · _G.monoSetup() · _G.monoReport() · _G.invertColours().
+     No new ⇪ key; grayscale does not earn one. The rows hold no logic:
+     power_tools relays by service name (pt.veilCall → veil.mono /
+     veil.monoSetup / veil.invert) and says so plainly when the Screen
+     Veil module is not loaded.
+  🛠 THE ONE-TIME TICK IS YOURS. _G.monoSetup() opens the right pane
+     and names the three ticks — Color Filters on, type Grayscale,
+     then under Shortcut tick Color Filters and UNTICK EVERYTHING
+     ELSE — and gets out of the way. Making that tick is precisely the
+     step 6.82.0 proved a program cannot take.
+  🔎 THE READ-BACK IS HONEST. 0.6s after the keypress the module reads
+     the PREFERENCE FILE (one /usr/bin/defaults read of the whole
+     com.apple.universalaccess domain — never a write; test_features
+     4b pins that structurally, and launchctl/killall stay banned
+     config-wide by test_diagnostics 9a) and reports what it found:
+     grayscale on, colour back, "a filter is on but not grayscale", or
+     "run _G.monoSetup() once". Never a success it cannot see, and the
+     report says in as many words that it read a preference file, not
+     the screen.
+  ⌨️ Both keystrokes are posted with an explicit 0 delay — the
+     hs.eventtap.keyStroke default is 200ms of blocked main thread,
+     and after the lag month that default is not welcome here. The
+     read-back timer is HELD in veil.monoTimer per the 6.33.0 rule.
+  🌗 The veil (⇪G) is unchanged and the two stack: veil for
+     brightness, Color Filters for colour.
+
 NEW IN 6.139.0 — THE REBUILD KIT: A CLEAN INSTALL IN ONE FOLDER:
   ☁️ LL: "Is there a way for Hammerspoon to backup my user directory
      for future OSX installs, my applications directory using homebrew

@@ -1353,6 +1353,131 @@ check("a reload restores the STRENGTH you last used", veil.level == 0.75)
 check("🚨 ...but never comes back up dimmed — warm() does not switch it on",
       (function() veil.on = false; veilMod.warm(core); return veil.on == false end)())
 
+-- ---------------------------------------------------------------------
+-- 4b. THE GRAYSCALE RELAY (6.140.0) — press the key macOS listens for
+-- ---------------------------------------------------------------------
+-- The module was set up above with the real core, so the services are
+-- already registered; the stubs below are added only now, which also
+-- proves the relay looks its tools up at CALL time, not at setup.
+local KEYSTROKES, EXECUTED, OPENED_URLS = {}, {}, {}
+local DEFAULTS_OUT = ""
+hs.eventtap.keyStroke = function(mods, key, delay)
+    table.insert(KEYSTROKES, { mods = table.concat(mods, "+"),
+                               key = key, delay = delay })
+end
+hs.execute = function(cmd)
+    table.insert(EXECUTED, cmd)
+    return DEFAULTS_OUT, true, "exit", 0
+end
+hs.urlevent = { openURL = function(u) table.insert(OPENED_URLS, u) end }
+
+check("the four console doors exist",
+      _G.mono ~= nil and _G.monoSetup ~= nil and _G.monoReport ~= nil
+      and _G.invertColours ~= nil)
+check("...and the ⇪; rows can reach them by service name",
+      _G.service.registry["veil.mono"] ~= nil
+      and _G.service.registry["veil.monoSetup"] ~= nil
+      and _G.service.registry["veil.invert"] ~= nil)
+
+ALERTS = {}
+check("mono() presses ⌥⌘F5 — the macOS Accessibility Shortcut",
+      veil.mono() == true and #KEYSTROKES == 1
+      and KEYSTROKES[1].key == "f5"
+      and KEYSTROKES[1].mods:find("alt") and KEYSTROKES[1].mods:find("cmd"))
+check("...with an explicit 0 delay — the default is 200ms of blocked "
+      .. "main thread", KEYSTROKES[1].delay == 0)
+check("...and the read-back timer is HELD, not thrown away",
+      veil.monoTimer ~= nil and veil.monoTimer.fn ~= nil)
+check("...and NOTHING has shelled out yet — the keypress alone is the act",
+      #EXECUTED == 0)
+
+-- The read-back, three ways. Fire the held timer by hand with the
+-- preference file saying three different things.
+DEFAULTS_OUT = "{\n    colorFilterEnabled = 1;\n    colorFilterType = 0;\n}"
+veil.monoTimer.fn()
+check("read-back with the filter on says Grayscale ON",
+      ALERTS[#ALERTS]:find("Grayscale ON", 1, true) ~= nil)
+check("...the timer handle is released after it fires", veil.monoTimer == nil)
+check("...and the whole domain went through ONE child process, not three",
+      #EXECUTED == 1 and EXECUTED[1]:find("/usr/bin/defaults", 1, true) ~= nil
+      and EXECUTED[1]:find(" read ", 1, true) ~= nil)
+
+veil.mono()
+DEFAULTS_OUT = "{\n    colorFilterEnabled = 1;\n    colorFilterType = 2;\n}"
+veil.monoTimer.fn()
+check("a filter that is on but NOT grayscale is named, not claimed",
+      ALERTS[#ALERTS]:find("not grayscale", 1, true) ~= nil)
+
+veil.mono()
+DEFAULTS_OUT = ""   -- the domain has never been written
+veil.monoTimer.fn()
+check("an unanswerable domain sends you to _G.monoSetup(), not to a guess",
+      ALERTS[#ALERTS]:find("monoSetup", 1, true) ~= nil)
+
+-- monoState parses the dump, and cannot be fooled by a longer key name.
+DEFAULTS_OUT = "{\n    colorFilterEnabled = 0;\n    grayscaleTint = 9;\n"
+            .. "    grayscale = 1;\n}"
+local st = veil.monoState()
+check("monoState reads the dump: off, legacy key on, no type",
+      st.filterOn == 0 and st.legacyGray == 1 and st.filterType == nil)
+
+-- The report is honest about WHAT it read.
+DEFAULTS_OUT = "{\n    colorFilterEnabled = 1;\n    colorFilterType = 0;\n}"
+local rep = veil.monoReport()
+check("the report says it read the PREFERENCE FILE, not the screen",
+      rep:find("PREFERENCE FILE, NOT THE SCREEN", 1, true) ~= nil)
+check("...names the one-tick rule that makes ⌥⌘F5 a toggle",
+      rep:find("one feature ticked", 1, true) ~= nil)
+check("...and lands on the clipboard",
+      CLIPBOARD_TEXT:find("GRAYSCALE", 1, true) ~= nil)
+
+-- Setup opens the right pane and then GETS OUT OF THE WAY — the tick is
+-- the user's. That is the whole 6.82.0 finding, kept.
+ALERTS = {}
+veil.monoSetup()
+check("monoSetup opens the Accessibility pane",
+      OPENED_URLS[1] ~= nil
+      and OPENED_URLS[1]:find("universalaccess", 1, true) ~= nil)
+check("...and its instructions name the step that matters",
+      ALERTS[1]:find("UNTICK EVERYTHING ELSE", 1, true) ~= nil)
+
+check("invert() presses ⌃⌥⌘8, also with 0 delay", (function()
+    local n = #KEYSTROKES
+    return veil.invert() == true and KEYSTROKES[n + 1].key == "8"
+       and KEYSTROKES[n + 1].mods:find("ctrl")
+       and KEYSTROKES[n + 1].delay == 0
+end)())
+
+ALERTS = {}
+hs.eventtap.keyStroke = function() error("posting refused") end
+check("a refused keystroke is reported, never raised",
+      veil.mono() == false
+      and ALERTS[1]:find("Could not send", 1, true) ~= nil)
+
+-- 🚨 THE 6.82.0 VERDICT IS STRUCTURAL LAW: the relay READS the preference
+-- and never writes it. (launchctl/killall are banned config-wide by
+-- test_diagnostics 9a; this pins the write path too.)
+check("🚨 the module never runs `defaults write` — it presses a key instead",
+      (function()
+          local f = io.open(MODDIR .. "/screen_veil.lua", "r")
+          if not f then return false, "cannot read source" end
+          local src = f:read("a"); f:close()
+          -- comment lines are skipped: the header QUOTES 6.82.0's failed
+          -- "defaults write" attempt, and prose is not a call
+          for line in src:gmatch("[^\n]+") do
+              if not line:match("^%s*%-%-") and line:find("write", 1, true)
+                 and line:find("defaults", 1, true) then
+                  return false, line
+              end
+          end
+          return true
+      end)())
+
+-- Put the stubs back the way section 5+ expects them: absent.
+hs.eventtap.keyStroke = nil
+hs.execute = nil
+hs.urlevent = nil
+
 -- =====================================================================
 -- 5. MINI CALENDAR
 -- =====================================================================

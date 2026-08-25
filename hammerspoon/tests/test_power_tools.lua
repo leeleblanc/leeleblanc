@@ -301,22 +301,45 @@ check("the cheat sheet key cell is exactly ⇪;", (function()
     end
     return false
 end)())
-check("all thirteen tools are in the list", #pt.tools == 13, #pt.tools)
+check("all sixteen tools are in the list", #pt.tools == 16, #pt.tools)
 check("…and each has a stable id", (function()
     -- 6.132.0 added countclip and case; 6.133.0 added define; 6.139.0
-    -- added backup and backupreport. ids are what _G.powerReport()
+    -- added backup and backupreport; 6.140.0 added mono, monoset and
+    -- invert (the grayscale relay). ids are what _G.powerReport()
     -- counts by and what ⇪space's run map points at, so they are
     -- checked by name rather than by number alone.
     local want = { plain = true, type = true, count = true, meta = true,
                    pause = true, ghere = true, greveal = true, qr = true,
                    countclip = true, case = true, define = true,
-                   backup = true, backupreport = true }
+                   backup = true, backupreport = true,
+                   mono = true, monoset = true, invert = true }
     for _, t in ipairs(pt.tools) do
         if not want[t.id] then return false end
         want[t.id] = nil
     end
     return next(want) == nil
 end)())
+
+-- 🌑 6.140.0 — THE GRAYSCALE ROWS HOLD NO LOGIC. All three go through
+-- pt.veilCall, which asks the service registry for screen_veil's
+-- provider. The row must say so plainly when the veil is not loaded,
+-- and must RELAY — not reimplement — when it is.
+reset()
+check("the mono row without Screen Veil says so instead of failing quietly",
+      pt.run("mono") == false
+      and ALERTS[1] ~= nil
+      and ALERTS[1]:find("Screen Veil module is not loaded", 1, true) ~= nil)
+do
+    local relayed = {}
+    CASE_SERVICES["veil.mono"]      = function() relayed.mono   = true; return true end
+    CASE_SERVICES["veil.invert"]    = function() relayed.invert = true; return true end
+    CASE_SERVICES["veil.monoSetup"] = function() relayed.setup  = true; return true end
+    reset()
+    check("with Screen Veil loaded, mono/monoset/invert relay by service name",
+          pt.run("mono") == true and pt.run("invert") == true
+          and pt.run("monoset") == true
+          and relayed.mono and relayed.invert and relayed.setup)
+end
 -- 🔑 THE FOUR WITH A KEY OF THEIR OWN. ⇪⇧, and ⇪⇧. are NOT among them
 -- and must never be: numpad_layer's laptop window row has claimed both
 -- since 6.114.0 (shrink and grow), and the first draft of this release
@@ -624,7 +647,7 @@ end)(), CLIP)
 
 pt.show()
 local pc = CHOOSERS[#CHOOSERS]
-check("the palette lists all thirteen tools", #pc.choices_ == 13, #pc.choices_)
+check("the palette lists all sixteen tools", #pc.choices_ == 16, #pc.choices_)
 check("every palette row value is a scalar too", (function()
     for _, c in ipairs(pc.choices_) do
         for _, v in pairs(c) do
