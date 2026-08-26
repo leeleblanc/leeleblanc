@@ -2129,8 +2129,11 @@ local function codeOnly(src)
     return table.concat(out, "\n")
 end
 
+-- 6.143.0 — dialog_home joins this sweep BY NAME: it is the module most
+-- tempted by hs.window.filter (watching windows appear is that module's
+-- textbook use), so the ban is pinned exactly where it would break first.
 for _, n in ipairs({ "screen_veil", "mini_calendar", "quick_append",
-                     "capture_pad", "numpad_layer" }) do
+                     "capture_pad", "numpad_layer", "dialog_home" }) do
     local raw = io.open(MODDIR .. "/" .. n .. ".lua"):read("a")
     local src = codeOnly(raw)
     check(n .. ": no hs.window.filter (the 44-second beachball)",

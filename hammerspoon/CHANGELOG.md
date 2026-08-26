@@ -4,6 +4,64 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.143.0 — DIALOG HOME: DIALOGS LAND AT YOUR SPOT:
+  🎯 LL, with a screenshot of Finder's "A folder named 'core' already
+     exists in this location. Do you want to replace it…" box: "Can we
+     capture this kind of window and make it appear in the same place,
+     on my primary monitor?" That is the dialog every install of this
+     very config produces — drag the zip's folders into ~/.hammerspoon
+     and Finder asks about `core` and `modules` in a box that opens
+     wherever the app feels like putting it. macOS gives you no say;
+     on two monitors you hunt for the question before you can answer
+     it. Now you don't: modules/dialog_home.lua, automatic, no key.
+  🪟 WHAT COUNTS AS "THIS KIND OF WINDOW": role AXWindow with subrole
+     AXDialog or AXSystemDialog — the accessibility API's own word for
+     a dialog — plus standard windows that declare themselves MODAL (a
+     dialog in a window's clothing; dh.alsoModal turns that rule off).
+     Sheets are never touched: they are glued to their window's title
+     bar and belong to it, not to a spot. Anything dialog-flagged but
+     bigger than 60% of the screen is left alone, and a window whose
+     size cannot be read is left alone honestly rather than flung.
+  🎯 WHERE THEY LAND: one spot. Default — centred, a little high (the
+     place macOS puts alerts), on the PRIMARY monitor: the menu-bar
+     screen from System Settings → Displays, hs.screen.primaryScreen,
+     NOT mainScreen (that is the focus-follows-you behaviour being
+     replaced, and the suite pins the difference on two stub screens).
+     Every move is verified a beat later and re-applied once if the
+     app snapped its dialog back — the 6.123.0 VLC lesson: a move that
+     silently did nothing looks identical to success until you look
+     again. A dialog that refuses twice goes on file, not on retry.
+  🖐 THE CAPTURE IS LITERAL. Drag any dialog somewhere better: when
+     the drag goes quiet (debounced — AXWindowMoved fires per step,
+     one drag must be one capture, not two hundred), that position
+     becomes the new home, persisted in hs.settings and validated on
+     the way back in like every remembered position in this config (a
+     NaN or a half-written blob reads as NO spot). The module's own
+     moves open a suppression window first, so its AXWindowMoved echo
+     can never read as your drag — break-tested: removing that guard
+     fails exactly one check. _G.dialogHome.reset() forgets the spot.
+  ⚖️ WATCHED THE ONLY WAY THIS CONFIG ALLOWS. Not hs.window.filter —
+     that module subscribes to every window of every app, froze this
+     Mac for 44 seconds once (window_switcher's header tells it), and
+     is banned with sentries; dialog_home now sits IN that sentry
+     sweep by name, since watching windows appear is that API's
+     textbook bait. Instead: ONE Accessibility observer on the
+     FRONTMOST app, re-attached as you switch (copy_on_select's shape
+     since 6.55), every element behind an AX timeout (the wedged-app
+     rule), no polling, no keyboard taps. The honest limit: a dialog
+     popping in a BACKGROUND app is placed the moment you switch to
+     that app — attach() sweeps that one app's windows, measured, and
+     a slow app is named (Window Return's rule). Apps that refuse a
+     watcher are recorded once per session, not once per activation.
+  🔎 _G.dialogs() answers before you ask twice: the home screen, the
+     spot and whether it was captured or default, the LAST window
+     seen with its subrole — so a dialog that slipped through teaches
+     you the exact string to add to dh.subroles — and who refused.
+     Accessibility off: the module stands down completely and
+     _G.dialogs() says why, the Window Return way. New suite
+     test_dialog_home (52 checks) joins the gate; off switch:
+     dh.enabled = false in the EDIT HERE.
+
 NEW IN 6.142.0 — THE NUMBER-ROW LAYER COMES OUT; FREE KEYS GET A LEDGER:
   🆓 LL, with a screenshot of the "NO NUMBER PAD" cheat sheet box:
      "These shortcuts were supposed to be cleaned, cleared and the

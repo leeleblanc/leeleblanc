@@ -2,10 +2,36 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 08-25-26 using Claude          ← EDITED date. Bumped with every release.
+-- 08-26-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.142.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.143.0
 -- =====================================================================
+
+-- NEW IN 6.143.0 — DIALOG HOME: DIALOGS LAND AT YOUR SPOT:
+--   🎯 LL, with a screenshot of Finder's "A folder named 'core' already
+--      exists — Replace?" box: "Can we capture this kind of window and
+--      make it appear in the same place, on my primary monitor?" That
+--      is the dialog every install of this very config produces, and
+--      macOS opens it wherever it feels like. Now: modules/
+--      dialog_home.lua watches for THIS KIND of window — role AXWindow,
+--      subrole AXDialog / AXSystemDialog, plus modally-flagged standard
+--      windows; sheets never — and moves each one to ONE spot the
+--      moment it appears. Default: centred, a little high, on the
+--      PRIMARY monitor (the menu-bar screen).
+--   🖐 THE CAPTURE IS LITERAL: drag any dialog somewhere better and
+--      that spot becomes the home, persisted across reloads
+--      (hs.settings, validated on the way back in like every remembered
+--      position here). _G.dialogHome.reset() forgets it. The module's
+--      own moves are suppressed from capture, so only YOUR drag counts.
+--   ⚖️ WATCHED THE ONLY WAY THIS CONFIG ALLOWS: one Accessibility
+--      observer on the FRONTMOST app (copy_on_select's pattern) — never
+--      hs.window.filter, which froze this Mac for 44 seconds once and
+--      is banned with sentries; dialog_home is now IN that sentry sweep
+--      by name. A background app's waiting dialog is placed the moment
+--      you switch to it. Moves are verified and refusals recorded:
+--      _G.dialogs() names the home screen, the spot, the last window
+--      seen (with its subrole, for teaching the filter new kinds), and
+--      every app that refused a watcher.
 
 -- NEW IN 6.142.0 — THE NUMBER-ROW LAYER COMES OUT; FREE KEYS GET A LEDGER:
 --   🆓 LL, with a screenshot of the "NO NUMBER PAD" cheat sheet box:
@@ -87,49 +113,10 @@
 --   🌗 The veil (⇪G) is unchanged and the two stack: veil for
 --      brightness, Color Filters for colour.
 
--- NEW IN 6.139.0 — THE REBUILD KIT: A CLEAN INSTALL IN ONE FOLDER:
---   ☁️ LL: "Is there a way for Hammerspoon to backup my user directory
---      for future OSX installs, my applications directory using
---      homebrew as much as possible, all to my OneDrive?" The Daily
---      Backup module — 68 lines that copied ~/.hammerspoon at 5 PM
---      since §1.7 was a section — grew into the answer. Same timer,
---      same destination, same excluded token; a far bigger kit.
---   📦 WHAT LANDS IN OneDrive/Backups/Hammerspoon/<Mac>/: this config
---      (as before), and a RebuildKit/ folder holding dotfiles (.zshrc,
---      .gitconfig, .config/, the ssh CONFIG file), LaunchAgents, Fonts,
---      Documents and Desktop, a Brewfile from brew bundle dump, an
---      apps.csv naming EVERY installed app with version, bundle id and
---      how to get it back (App Store / brew cask / vendor), and a
---      README.md restore guide rewritten with real numbers every run.
---   🧭 DELIBERATELY A KIT, NOT A MIRROR. Time Machine stays the
---      byte-for-byte safety net; OneDrive gets the curated set a clean
---      install cannot get anywhere else. Syncing a whole home folder
---      into OneDrive fails in practice — file counts, caches — and
---      sync is not backup: it replicates deletions faithfully.
---   🚨 WHAT NEVER LEAVES, BY DESIGN: secret.lua (excluded from every
---      rsync AND the global exclude list — belt and braces), private
---      SSH keys (only ~/.ssh/config, the settings file, is copied),
---      the Keychain. The tests hold this as law, not preference.
---   🍺 _G.backupAdopt() — the better-than-Brewfile move: apps installed
---      by hand that HAVE a cask are named, with the exact
---      `brew install --cask --adopt` line that lets Homebrew take over
---      the copy already in /Applications. After that the Brewfile
---      covers them forever.
---   ⏱ AND NONE OF IT TOUCHES THE KEYBOARD. Every rsync and brew call
---      is an hs.task argument array — no shell strings — one at a
---      time with a breath between steps; the app scan reads
---      Info.plists a slice per step. Built three releases after
---      6.137.0, and tested to never reintroduce it: the suite greps
---      the shipped file for synchronous escape hatches.
---   🏢 THE WORK MAC RUNS THE SAME FILE, SMALLER: its profile sets
---      docs = false (Documents/Desktop stay in the company's own
---      OneDrive), no Homebrew → the Brewfile step stands down and the
---      report says so. ⇪; gains two rows: Back up now · Backup report.
-
--- (6.138.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.139.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.142.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.143.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -444,7 +431,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.142.0"
+_G.configVersion = "6.143.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2894,6 +2881,11 @@ local BASE = {
     "net_tools",          -- 🌐 ⇪6  flush · ping · nslookup · traceroute
     "mac_panel",          -- 🖥 ⇪7  About This Mac, as a card
     "tab_search",         -- 🗂 ⇪⇧' every open tab in every running browser
+    -- 6.143.0 — LL, with a screenshot of Finder's "already exists —
+    -- Replace?" box: "Can we capture this kind of window and make it
+    -- appear in the same place, on my primary monitor?"
+    "dialog_home",        -- 🎯 dialogs land at one spot on the primary
+                          --    monitor; drag one to move the spot (no key)
     "editor_picker",      -- 🗂 ⌃⌃ (or ⇪space) every editor at once, by
                           -- what is open and what has something in it.
                           -- LAST on purpose: it only READS the registry the

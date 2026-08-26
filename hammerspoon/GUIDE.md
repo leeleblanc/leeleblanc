@@ -12,7 +12,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 ├── init.lua          the orchestrator (3,411 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (10 files)
-├── modules/          one file per feature (58 files, ~37,300 lines)
+├── modules/          one file per feature (59 files, ~39,000 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
 ├── snippets/         bundled.lua — 2,006 shipped snippets in one table,
 │                     in five collections. Since 6.117.0 the .json packs
@@ -601,6 +601,9 @@ tests/test_doc_keywords.lua  .docx → keywords → Finder comment; a human's co
 tests/test_clipboard.lua     ⇪V, and the writes that must never destroy the history file
 tests/test_win_pin.lua       📌 ⇪⇧U notes that follow one window — anchors, the
                              adaptive follow timer, dead-vs-stale, rebind
+tests/test_dialog_home.lua   🎯 dialogs land at your spot: the dialog-kind rule, the
+                             PRIMARY-screen default, drag capture with self-move
+                             suppression, and the Accessibility-off stand-down
 tests/test_rollup.lua        📊 the 16:01 card: derived from services, silent on an
                              empty day, and it must never take the keyboard
 tests/test_select_mode.lua   ☑️ pick-several in the ⇪⇧V/⇪⇧E/⇪⇧O editors — ⇪⇧O drives

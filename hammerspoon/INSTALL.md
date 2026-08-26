@@ -27,7 +27,7 @@ with no admin password. The two steps that *can* use admin are marked
 │   ├── console.lua           the ⛔ ERRORS + ⚠️ NONBREAKING sections + repeat limiter
 │   ├── lag.lua               which tap is eating the keystroke — OFF unless ~/.hammerspoon/LAGPROBE exists (_G.lagOn())
 │   └── notices.lua           the failure ledger — nothing fails silently
-├── modules/              58 files, loaded by the §1.12 loader
+├── modules/              59 files, loaded by the §1.12 loader
 ├── tools/                hs-doctor.sh · hs-install.sh · run-tests.sh
 └── logs/                 only if there is no OneDrive on this Mac
 ```
@@ -87,6 +87,11 @@ if the verify fails**. It refuses to run as root.
 > is exactly why the script exists.
 
 **Undo any install:** `sh ~/.hammerspoon/tools/hs-install.sh --rollback`
+
+Installing by drag-and-drop in Finder instead? The "already exists —
+Replace?" dialog that produces is the very box Dialog Home was born from
+(6.143.0): once the config is running, dialogs like it open at one spot
+on your primary monitor, and dragging one somewhere better moves the spot.
 
 ---
 
@@ -178,7 +183,7 @@ Menu bar hammer → **Reload Config**.
 A healthy boot is two lines:
 
 ```
-🧭 Lees-MacBook-Air  ·  58 modules  ·  114 ⇪ shortcuts  ·  0.43s
+🧭 Lees-MacBook-Air  ·  59 modules  ·  114 ⇪ shortcuts  ·  0.43s
    All green.  ⇪⇧D diagnostic report  ·  _G.bootReport() for the full detail
 ```
 
@@ -309,7 +314,7 @@ Run it from the **unpacked zip, before Step 3**, not from `~/.hammerspoon`
 copy it reports every Lua stage as missing. That is a skip, not a pass,
 but it is also not a check.
 
-Syntax on `init.lua`, `core/` and all 58 modules, fifty-seven Lua suites, then the
+Syntax on `init.lua`, `core/` and all 59 modules, fifty-eight Lua suites, then the
 Capture Pad's page JavaScript **executed** against a DOM stub. One exit
 code. A skipped stage is reported as a skip, never as a pass.
 
