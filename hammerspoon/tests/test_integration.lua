@@ -1415,7 +1415,12 @@ do
                   ~= nil)
         check("...and the changeCount is still advanced first, so the NEXT "
            .. "real copy is seen normally", (function()
-            local w = live:match("_G%.clipboardTimer = hs%.timer%.doEvery%b()")
+            -- 6.144.0 — the poll body became a NAMED function so the eco
+            -- registry can rebuild the timer at battery cadence; the first
+            -- pattern reads that form, the older two keep reading the
+            -- inline-callback form should it ever come back.
+            local w = live:match("local function clipboardPoll%(%).-\nend\n_G%.clipboardTimer")
+                      or live:match("_G%.clipboardTimer = hs%.timer%.doEvery%b()")
                       or live:match("_G%.clipboardTimer.-\n    end\n%)")
             if not w then return false end
             local iAdv = w:find("lastChangeCount = currentChangeCount", 1, true)

@@ -171,7 +171,7 @@ end
 -- No injection can legitimately last two seconds. If one appears to,
 -- something threw past a decrement and both typing features are now
 -- switched off with nothing to switch them back on.
-_G.injectWatchdog = hs.timer.doEvery(5, function()
+local function injectWatchdogCheck()
     local at = _G.injectStartedAt
     if at and (hs.timer.secondsSinceEpoch() - at) > 2 then
         print("⌨️ Injection guard was stuck for >2s — cleared. Autocorrect "
@@ -182,7 +182,27 @@ _G.injectWatchdog = hs.timer.doEvery(5, function()
         end
         _G.injectDepth, _G.injectStartedAt = 0, nil
     end
-end)
+end
+_G.injectWatchdog = hs.timer.doEvery(5, injectWatchdogCheck)
+
+-- 🔋 6.144.0 — on battery this check runs once a minute instead of every
+-- five seconds. The honest cost: a stuck guard — already a rare bug
+-- caught past a pcall — could stand the typing features down for up to
+-- a minute before this clears it, instead of up to seven seconds. The
+-- rebuild preserves the running state, so a deliberately stopped
+-- watchdog is never revived by a cadence change.
+if _G.eco then
+    _G.eco.register("injection watchdog", {
+        normal = 5, saver = 60,
+        apply = function(secs)
+            local was, running = _G.injectWatchdog, true
+            pcall(function() running = was:running() end)
+            if was then pcall(function() was:stop() end) end
+            _G.injectWatchdog = hs.timer.doEvery(secs, injectWatchdogCheck)
+            if not running then pcall(function() _G.injectWatchdog:stop() end) end
+        end,
+    })
+end
 
 -- =====================================================================
 -- 📋 BORROWING THE CLIPBOARD (6.69.0)

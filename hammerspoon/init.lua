@@ -2,10 +2,36 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 08-26-26 using Claude          ← EDITED date. Bumped with every release.
+-- 08-27-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.143.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.144.0
 -- =====================================================================
+
+-- NEW IN 6.144.0 — BATTERY SAVER: ON BATTERY, THE CONFIG SLOWS ITSELF:
+--   🔋 LL: "when I am only on battery power, I lower the battery
+--      consumption … DO not propose screen dimming. I can do that on
+--      my own. Let's be creative, but aim for stability." Two halves.
+--   🐢 ECO MODE: modules/battery_saver.lua + an eco REGISTRY beside the
+--      service registry. On battery the config's own pollers slow —
+--      clipboard 0.5s→2s (the biggest constant cost: 7,200 wake-ups an
+--      hour become 1,800), injection watchdog 5s→60s, the two tap
+--      watchdogs 30s→120s, activity 5s→15s, focus 4s→12s — and the
+--      Spotlight boot scan (the priciest periodic thing here) waits
+--      for AC. Every cadence restored the moment the cord is back.
+--      Each timer's OWNER declares its own two cadences and rebuilds
+--      its own timer; battery_saver only says when. Rebuilds preserve
+--      running state, so the lag probe's held-down watchdogs stay held.
+--   📢 THE HOG CALLER-OUT: the real battery goes to other apps. On
+--      battery only, one out-of-process ps every 4 minutes; an app
+--      over 60% CPU across two samples is NAMED in a notification —
+--      once per app per hour, never killed. ⇪⇧; stays the hammer.
+--   ⚖️ STABLE BY CONSTRUCTION: event-driven (hs.battery.watcher; zero
+--      periodic work on AC), a 20s debounce so brief unplugs flip
+--      nothing (boot skips it — a Mac that boots on battery IS on
+--      battery), and a desktop is a no-op. Deliberately NOT done: no
+--      dimming (LL's own), no pmset/Low Power Mode (needs root — set
+--      "Only on Battery" once in System Settings instead), no killing.
+--      _G.eco() · _G.battReport() · _G.ecoOn()/_G.ecoOff()/_G.ecoAuto().
 
 -- NEW IN 6.143.0 — DIALOG HOME: DIALOGS LAND AT YOUR SPOT:
 --   🎯 LL, with a screenshot of Finder's "A folder named 'core' already
@@ -84,39 +110,10 @@
 --      Full Disk Access. If the run reports "grant Hammerspoon Full
 --      Disk Access", that is the fix — ⇪, and search for it.
 
--- NEW IN 6.140.0 — GRAYSCALE, AT LAST: PRESS THE KEY macOS OWNS:
---   🌑 6.82.0 removed a grayscale toggle after four failed routes —
---      defaults write, launchctl, killall, osascript. That verdict
---      stands: all four tried to SET the setting, and macOS does not
---      let a process do that. The route none of them tried: press the
---      key macOS is already listening for. The Accessibility Shortcut
---      ships bound to ⌥⌘F5, and when Color Filters is the ONLY feature
---      ticked under Accessibility → Shortcut, ⌥⌘F5 stops opening a
---      chooser panel and becomes a direct grayscale toggle handled
---      inside WindowServer — below every app, which is exactly the
---      place a Hammerspoon canvas can never reach.
---   ⇪; gains three rows: Grayscale on/off · Set up grayscale (once) ·
---      Invert the screen colours (⌃⌥⌘8 — inversion, not grayscale, but
---      the one colour change that needs no setup at all). Console
---      doors: _G.mono() · _G.monoSetup() · _G.monoReport() ·
---      _G.invertColours(). No new ⇪ key; grayscale does not earn one.
---   🛠 THE ONE-TIME TICK IS YOURS. _G.monoSetup() opens the right pane
---      and names the three ticks, then gets out of the way — making
---      that tick is precisely the step 6.82.0 proved a program cannot
---      take, and this release does not pretend otherwise.
---   🔎 THE READ-BACK IS HONEST. 0.6s after the keypress the module
---      reads the PREFERENCE FILE (one /usr/bin/defaults read — never a
---      write; test_features 4b pins that structurally) and reports what
---      it found: grayscale on, colour back, "a filter is on but not
---      grayscale", or "run _G.monoSetup() once". Never a success it
---      cannot see.
---   🌗 The veil (⇪G) is unchanged and the two stack: veil for
---      brightness, Color Filters for colour.
-
--- (6.139.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.140.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.143.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.144.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -187,6 +184,16 @@
 --    _G.backupNow() runs it by hand; _G.backupReport() explains;
 --    _G.backupAdopt() names the apps Homebrew could take over.
 --    Quiet on success; on-screen alert if something goes wrong.
+--
+-- 🔋 BATTERY SAVER (modules/battery_saver.lua)  ·  automatic, no key
+--    On battery, the config's own pollers slow down (clipboard poll,
+--    the watchdogs, activity and focus detection) and the Spotlight
+--    boot scan waits for AC; every cadence is restored the moment
+--    the cord is back. An app holding serious CPU on battery is
+--    NAMED in a notification — once per app per hour, never killed.
+--    _G.eco() says what is slowed; _G.battReport() charge and drain;
+--    _G.ecoOn()/_G.ecoOff()/_G.ecoAuto() force it either way. A Mac
+--    with no battery loads it and sleeps.
 --
 -- ⇪P  APP PEEK (§1.8)
 --    Hides the frontmost app instantly so you can see what's
@@ -431,7 +438,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.143.0"
+_G.configVersion = "6.144.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -629,6 +636,35 @@ _G.service = {
             return nil
         end
         return a, b, c
+    end,
+}
+
+-- 6.144.0 — THE ECO REGISTRY, stubbed here so it is never nil.
+-- On battery, modules/battery_saver.lua slows this config's own pollers
+-- down and restores them the moment the cord is back. WHAT it may slow
+-- is declared HERE, by the code that owns each timer: a registration
+-- names a normal and a battery cadence and hands over an apply function
+-- that rebuilds its own timer at the given pace — or a hold function
+-- for work that should simply wait for AC. Nothing ever reaches into
+-- another module's timer from outside, and a timer that never registers
+-- is untouched — the same one-way contract as the service registry
+-- above, and for the same reason: the alternative is coupling that
+-- grows back. This is a stub exactly the way _G.service is: it only
+-- RECORDS. battery_saver drives it, and without that module loaded a
+-- registration costs one table entry and nothing else.
+_G.eco = {
+    registry = {},
+    active   = false,   -- true while the battery cadence is applied
+    register = function(name, spec)
+        _G.eco.registry[name] = spec
+        -- A module can load or warm AFTER the flip to battery already
+        -- happened — boot on battery does exactly that, since modules
+        -- load last and warm later still. Late arrivals get the current
+        -- mode applied at once, so registered always means in step.
+        if _G.eco.active and type(spec) == "table" then
+            if spec.apply and spec.saver then pcall(spec.apply, spec.saver)
+            elseif spec.hold then pcall(spec.hold, true) end
+        end
     end,
 }
 
@@ -1683,7 +1719,10 @@ end
 -- that gets rewritten on every copy) — a console line notes the skip.
 
 local lastChangeCount = hs.pasteboard.changeCount()
-_G.clipboardTimer = hs.timer.doEvery(0.5, function()
+-- 🔋 6.144.0 — the poll body is a NAMED function now, because on battery
+-- the eco registry rebuilds this timer at a slower pace and needs the
+-- same body to hand to the new one. Behaviour is unchanged at 0.5s.
+local function clipboardPoll()
     local currentChangeCount = hs.pasteboard.changeCount()
     if currentChangeCount ~= lastChangeCount then
         lastChangeCount = currentChangeCount
@@ -1738,7 +1777,26 @@ _G.clipboardTimer = hs.timer.doEvery(0.5, function()
         end
         end  -- closes the copied-image-files branch (6.11.0)
     end
-end)
+end
+_G.clipboardTimer = hs.timer.doEvery(0.5, clipboardPoll)
+
+-- 🔋 6.144.0 — ON BATTERY THIS POLL IS THE BIGGEST CONSTANT COST in the
+-- whole config: 7,200 wake-ups an hour, around the clock, for a counter
+-- that almost never changed. At 2s it is a quarter of that, and the
+-- worst case is a copy taking two seconds to appear in ⇪V's history.
+-- The rebuild PRESERVES the running state on purpose: if something has
+-- deliberately stopped this timer, a cadence change must not be the
+-- thing that quietly switches it back on.
+_G.eco.register("clipboard poll", {
+    normal = 0.5, saver = 2,
+    apply = function(secs)
+        local was, running = _G.clipboardTimer, true
+        pcall(function() running = was:running() end)
+        if was then pcall(function() was:stop() end) end
+        _G.clipboardTimer = hs.timer.doEvery(secs, clipboardPoll)
+        if not running then pcall(function() _G.clipboardTimer:stop() end) end
+    end,
+})
 
 -- =====================================================================
 -- 3.12 HYPER KEY — Caps Lock IS ⌘⇧⌃⌥ (replaces Karabiner)
@@ -2886,6 +2944,14 @@ local BASE = {
     -- appear in the same place, on my primary monitor?"
     "dialog_home",        -- 🎯 dialogs land at one spot on the primary
                           --    monitor; drag one to move the spot (no key)
+    -- 6.144.0 — LL: on battery power only, lower the battery consumption.
+    -- Late in this list ON PURPOSE: by the time it loads, every eco
+    -- registration made during setup is already in the registry, so a
+    -- boot on battery lands with the slow cadences applied in one pass.
+    -- Warm-phase registrations arriving later are caught by the registry
+    -- itself.
+    "battery_saver",      -- 🔋 on battery the config slows its own pollers
+                          --    and NAMES the apps draining you (no key)
     "editor_picker",      -- 🗂 ⌃⌃ (or ⇪space) every editor at once, by
                           -- what is open and what has something in it.
                           -- LAST on purpose: it only READS the registry the

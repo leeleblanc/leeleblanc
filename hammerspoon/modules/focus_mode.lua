@@ -757,6 +757,29 @@ function M.setup(core)
     M.warm = function()
         if not (fm.enabled and fm.auto) then return end
         fm.timer = hs.timer.doEvery(fm.pollSecs, fm.tick)
+        -- 🔋 6.144.0 — on battery detection looks every 12 seconds instead
+        -- of every 4. The cost is latency only: joining a meeting is still
+        -- instant (the app watcher below fires on activation), and leaving
+        -- one is noticed up to 12 seconds late. Registered HERE rather
+        -- than in setup because the timer only exists from warm onward —
+        -- and the registry applies the battery cadence immediately on a
+        -- late registration, so booting on battery lands here in step.
+        -- Running state is preserved across the rebuild.
+        if _G.eco then
+            _G.eco.register("focus detection", {
+                normal = fm.pollSecs, saver = 12,
+                apply = function(secs)
+                    if not fm.timer then return end
+                    local was, running = fm.timer, true
+                    pcall(function() running = was:running() end)
+                    pcall(function() was:stop() end)
+                    fm.timer = hs.timer.doEvery(secs, fm.tick)
+                    if not running then
+                        pcall(function() fm.timer:stop() end)
+                    end
+                end,
+            })
+        end
         -- The app watcher makes joining feel instant; the poll is what
         -- makes LEAVING reliable. Both are needed — an app watcher never
         -- fires for "the meeting window changed title".

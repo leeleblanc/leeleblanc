@@ -599,7 +599,7 @@ function M.setup(core)
         end
     end
 
-    _G.activityPoller = hs.timer.doEvery(activityPollInterval, function()
+    local function activityTick()
         local okIdle, idle = pcall(hs.host.idleTime)
         if okIdle and idle and idle >= 300 then   -- activityIdleThreshold: 5 min away = stop the clock
             if _G.activitySession.app then
@@ -618,7 +618,32 @@ function M.setup(core)
             closeActivitySession()
             openActivitySession(appName, title)
         end
-    end)
+    end
+    _G.activityPoller = hs.timer.doEvery(activityPollInterval, activityTick)
+
+    -- 🔋 6.144.0 — on battery this poll runs every 15 seconds instead of
+    -- every 5. The honest cost is precision, not data: a switch between
+    -- apps is noticed up to 15 seconds late, so a session's boundary can
+    -- be off by that much. Durations still add up from the same clock
+    -- (os.time at open and close), idle credit still rewinds to when
+    -- idling actually began, and the lock watcher below still closes
+    -- sessions the instant the screen locks — the 30-hour bug does not
+    -- come back at any cadence. Running state is preserved across the
+    -- rebuild so a deliberately stopped poller stays stopped.
+    if _G.eco then
+        _G.eco.register("activity poll", {
+            normal = activityPollInterval, saver = 15,
+            apply = function(secs)
+                local was, running = _G.activityPoller, true
+                pcall(function() running = was:running() end)
+                if was then pcall(function() was:stop() end) end
+                _G.activityPoller = hs.timer.doEvery(secs, activityTick)
+                if not running then
+                    pcall(function() _G.activityPoller:stop() end)
+                end
+            end,
+        })
+    end
 
     -- 6.11.3: THE 30-HOUR BUG — a session left open when the Mac sleeps or
     -- the screen locks keeps its original startTime; Hammerspoon's own

@@ -514,6 +514,7 @@ scan M "$modq"
 
     function rd.refresh(how)
         if rd.running then return false end
+        rd.ecoDeferred = false   -- any real scan satisfies a deferred boot scan
         local usedq, modq = rd.queries()
         local ok = pcall(function()
             local t = hs.task.new(rd.sh, function(code, sout, serr)
@@ -1016,10 +1017,36 @@ if (q.focus) q.focus();
 
     -- warm: read back yesterday's CSV so the first ⇪I is instant, then
     -- start a real scan in the background.
+    -- 🔋 6.144.0 — UNLESS THE MAC IS ON BATTERY. The Spotlight sweep is
+    -- the single most expensive periodic thing this config does, and at
+    -- boot its only job is freshening a cache that already serves. On
+    -- battery the boot scan waits: the CSV answers ⇪I exactly as it does
+    -- in the first seconds of every boot, opening the panel still scans
+    -- when the cache is stale (that is you asking, not the background),
+    -- ⇪⇧I still forces one, and the deferred scan runs by itself the
+    -- moment the cord is back — unless a user-initiated scan already
+    -- satisfied it (rd.refresh clears the deferral flag).
+    rd.ecoHold, rd.ecoDeferred = false, false
     M.warm = function()
         pcall(rd.loadTypes)
         pcall(rd.loadCsv)
+        if rd.ecoHold then
+            rd.ecoDeferred = true
+            return
+        end
         if not rd.refresh() then pcall(rd.fallbackWalk) end
+    end
+
+    if _G.eco then
+        _G.eco.register("recent docs boot scan", {
+            hold = function(on)
+                rd.ecoHold = on and true or false
+                if not on and rd.ecoDeferred then
+                    rd.ecoDeferred = false
+                    if not rd.refresh() then pcall(rd.fallbackWalk) end
+                end
+            end,
+        })
     end
 
     function _G.recentDocsReport()

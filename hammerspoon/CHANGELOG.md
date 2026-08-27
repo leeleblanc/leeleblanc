@@ -4,6 +4,85 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.144.0 — BATTERY SAVER: ON BATTERY, THE CONFIG SLOWS ITSELF:
+  🔋 LL: "Ok, now I need a tool that when I am only on battery power,
+     I lower the battery consumption. … DO not propose screen dimming.
+     I can do that on my own. Let's be creative, but aim for
+     stability." Two halves came out of that sentence — one turns the
+     config's own cost down, one names where the real battery goes.
+  🐢 ECO MODE, THROUGH A REGISTRY. modules/battery_saver.lua plus an
+     eco registry in init.lua, beside the service registry and built
+     on the same one-way contract: the code that OWNS each timer
+     declares a normal and a battery cadence and an apply function
+     that rebuilds its own timer; battery_saver only says WHEN.
+     Nothing ever reaches into another module's timer. On battery:
+        clipboard poll        0.5s → 2s   — the biggest constant cost
+                              in the whole config: 7,200 wake-ups an
+                              hour become 1,800; the worst case is a
+                              copy taking 2s to reach ⇪V's history
+        injection watchdog    5s   → 60s
+        autocorrect watchdog  30s  → 120s — a tap macOS kills stays
+        expander watchdog     30s  → 120s   dead up to 2 min, said
+                                            plainly in both modules
+        activity poll         5s   → 15s  — boundaries up to 15s
+                                            coarser; durations, idle
+                                            credit and the lock
+                                            watcher are untouched
+        focus detection       4s   → 12s  — joining is still instant
+                                            (app watcher); leaving is
+                                            noticed up to 12s late
+     and the Spotlight boot scan — the priciest periodic thing this
+     config runs — WAITS: the CSV cache serves ⇪I exactly as it does
+     in the first seconds of every boot, opening the panel still
+     scans when stale (that is you asking), ⇪⇧I still forces one,
+     and the deferred scan fires by itself when the cord is back.
+     Every cadence is restored the moment AC returns.
+  📢 THE HOG CALLER-OUT. The real battery goes to other apps, so on
+     battery only, one out-of-process ps (argument array, no shell)
+     every 4 minutes watches for an app holding over 60% CPU across
+     two consecutive samples — and NAMES it in a notification, once
+     per app per hour. Dropping under the line resets the strikes
+     but never the mute, so an app sawing across the threshold is
+     still one name an hour. It never kills anything: ⇪⇧; is the
+     hammer, and it stays yours. _G.battReport() adds the numbers —
+     charge, drain in mA, time left, the last sample's top five.
+  ⚖️ STABLE BY CONSTRUCTION, which was the brief:
+     · EVENT-DRIVEN — hs.battery.watcher fires only on a power
+       change; on AC this module adds ZERO periodic work.
+     · DEBOUNCED — power must hold 20s before cadences flip, so
+       briefly unplugging to move to the couch changes nothing. Boot
+       skips the debounce: a Mac that boots on battery IS on
+       battery, and late (warm-phase) registrations are caught by
+       the registry itself, which applies the active cadence to
+       arrivals.
+     · STATE-PRESERVING — every rebuild keeps the running/stopped
+       state it found, so the lag probe's held-down watchdogs stay
+       held down through a flip (core/lag.lua stops and restarts
+       them BY NAME; the new object sits under the old name).
+     · A DESKTOP IS A NO-OP — the power source never reads Battery
+       Power, the watcher never fires, the module loads and sleeps.
+       The work Mac needs no profile override.
+  🚫 DELIBERATELY NOT DONE, each a decision: no screen dimming (LL's
+     own, by request); no pmset / macOS Low Power Mode toggling — it
+     needs root, meaning a password prompt on every unplug or a
+     sudoers edit, both against this config's security posture, and
+     System Settings already offers Low Power Mode "Only on Battery"
+     natively (set it once by hand); no killing, pausing or renicing
+     of other apps, ever.
+  🖥 Console doors: _G.eco() what is slowed right now and by how
+     much · _G.battReport() · _G.ecoOn() / _G.ecoOff() force it
+     either way · _G.ecoAuto() hands control back to the cord.
+  🧪 tests/test_battery_saver.lua (53 checks) drives the debounced
+     flip, the flap that must flip nothing, exact-cadence restore,
+     boot-on-battery, the hog strikes and the once-an-hour mute, the
+     forced modes and the no-battery stand-down — against the eco
+     registry EXTRACTED from init.lua's real source, so a drifted
+     stub fails the suite. Source sentries pin all seven shipped
+     registrations by name and pin that each rebuild preserves
+     running state. test_integration's clipboard sentry learned the
+     poll body's new named-function shape and still proves the
+     changeCount advances before the suppression check.
+
 NEW IN 6.143.0 — DIALOG HOME: DIALOGS LAND AT YOUR SPOT:
   🎯 LL, with a screenshot of Finder's "A folder named 'core' already
      exists in this location. Do you want to replace it…" box: "Can we

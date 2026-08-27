@@ -447,14 +447,39 @@ function M.setup(core)
 
             -- Lesson from the brightness saga: macOS silently disables event
             -- taps it thinks are slow. A watchdog quietly revives ours.
-            _G.autocorrectWatchdog = hs.timer.doEvery(30, function()
+            local function autocorrectRevive()
                 pcall(function()
                     if _G.autocorrectTap and not _G.autocorrectTap:isEnabled() then
                         _G.autocorrectTap:start()
                         print("✏️ Autocorrect tap was disabled by macOS — revived")
                     end
                 end)
-            end)
+            end
+            _G.autocorrectWatchdog = hs.timer.doEvery(30, autocorrectRevive)
+
+            -- 🔋 6.144.0 — on battery the revive check runs every two
+            -- minutes instead of every thirty seconds. The honest cost:
+            -- a tap macOS kills on battery could stay dead up to two
+            -- minutes before revival — typing is simply not corrected in
+            -- that window, the same as autocorrect being off. Running
+            -- state is preserved across the rebuild so the lag probe's
+            -- held-down watchdog stays held down (core/lag.lua pauses
+            -- these BY NAME and restarts by name too, so the new object
+            -- under the old name is exactly what it will restart).
+            if _G.eco then
+                _G.eco.register("autocorrect watchdog", {
+                    normal = 30, saver = 120,
+                    apply = function(secs)
+                        local was, running = _G.autocorrectWatchdog, true
+                        pcall(function() running = was:running() end)
+                        if was then pcall(function() was:stop() end) end
+                        _G.autocorrectWatchdog = hs.timer.doEvery(secs, autocorrectRevive)
+                        if not running then
+                            pcall(function() _G.autocorrectWatchdog:stop() end)
+                        end
+                    end,
+                })
+            end
         else
             _G.autocorrectStatus = "OFF (event tap failed to start)"
         end

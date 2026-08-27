@@ -1511,14 +1511,37 @@ function M.setup(core)
     -- macOS switches event taps off when it feels like it. A dead expander
     -- is indistinguishable from a wrong trigger from where you are sitting,
     -- so it is revived and the revival is announced.
-    _G.expanderWatchdog = hs.timer.doEvery(30, function()
+    local function expanderRevive()
         pcall(function()
             if _G.expanderTap and not _G.expanderTap:isEnabled() then
                 _G.expanderTap:start()
                 print("✂️ Text expander tap was disabled by macOS — revived")
             end
         end)
-    end)
+    end
+    _G.expanderWatchdog = hs.timer.doEvery(30, expanderRevive)
+
+    -- 🔋 6.144.0 — on battery the revive check runs every two minutes
+    -- instead of every thirty seconds; a tap macOS kills on battery can
+    -- stay dead up to two minutes before revival, which is the expander
+    -- being off, not broken. Running state is preserved across the
+    -- rebuild so the lag probe's held-down watchdog stays held down —
+    -- core/lag.lua stops and restarts these BY NAME, and the new object
+    -- sits under the old name.
+    if _G.eco then
+        _G.eco.register("expander watchdog", {
+            normal = 30, saver = 120,
+            apply = function(secs)
+                local was, running = _G.expanderWatchdog, true
+                pcall(function() running = was:running() end)
+                if was then pcall(function() was:stop() end) end
+                _G.expanderWatchdog = hs.timer.doEvery(secs, expanderRevive)
+                if not running then
+                    pcall(function() _G.expanderWatchdog:stop() end)
+                end
+            end,
+        })
+    end
 end
 
 return M
