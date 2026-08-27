@@ -4,6 +4,39 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.145.0 — THE SETUP DOOR RETIRES; THE SHEET NAMES TRIPLE-PRESS:
+  🪦 LL, straight after the 6.144.1 ship: "Ok, remove it and rollback
+     changes. But, please add triple press to the cheat sheet, the
+     native mac shortcut." Done, both halves. _G.monoSetup() is GONE —
+     the console door, the veil.monoSetup service, the 🛠 "Set up
+     grayscale (once)" row in ⇪;, and the open(1) task that 6.144.1
+     had just added to make the pane-open work. The one-time Color
+     Filters tick was always LL's to make (the 6.82.0 finding), it was
+     already made by hand, and triple-pressing Touch ID — macOS's own
+     trigger for the same Accessibility Shortcut — covers the walk to
+     the pane without Hammerspoon's help. ⇪9 STAYS: it posts the true
+     F5 keycode beneath the media-key layer and was never the
+     complaint — it is the half LL called "mine that we built in".
+  ⌨️ THE CHEAT SHEET NAMES THE NATIVE ROUTE. The Screen Veil box gains
+     a "3× Touch ID" row — grayscale natively, triple-press Touch ID,
+     macOS's own shortcut — beside ⇪9, and its note now names the
+     by-hand setup (tick Color Filters ALONE under Accessibility →
+     Shortcut) instead of pointing at a door that no longer exists.
+     Every other text that pointed there — monoReport's tail, the
+     read-back's "nothing changed" alert, the ⇪; mono row's subtitle —
+     now names the pane, or the triple-press, by hand.
+  🧪 THE RETIREMENT IS PINNED, NOT JUST DONE: test_features holds the
+     global gone, the service gone, the name out of screen_veil's
+     source, the whole run opening zero URLs, and the Touch ID row
+     present on the sheet; test_power_tools holds the ⇪; palette at
+     sixteen rows with monoset refused by the exact-set check.
+  ⚖️ KEPT, DELIBERATELY — the one part of 6.144.1 that does not roll
+     back: the ⇪, repair. settings_panes still goes through
+     /usr/bin/open with the exit code read and hs.urlevent banned by
+     its suite. Reverting that would re-brick URL rows that had never
+     opened in the first place; it is a separate tool's real bug fix,
+     not part of the setup door, and it stays.
+
 NEW IN 6.144.1 — THE SETTINGS DOOR THAT NEVER OPENED:
   🚪 LL, with the Color Filters screenshots and their console open:
      "Hmmm... the Mac shortcut doesn't work same as mine that we built"

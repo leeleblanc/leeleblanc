@@ -31,8 +31,8 @@
 --     → on, Filter type: Grayscale
 -- That switch runs inside WindowServer, below every app, which is why it
 -- can do what a canvas cannot. The two stack fine — veil for brightness,
--- Color Filters for colour. 6.140.0 adds a way to REACH that switch from
--- here without touching it; see the next block.
+-- Color Filters for colour. ⇪9 presses the shortcut macOS already binds
+-- to that switch; see the next block.
 --
 -- ---------------------------------------------------------------------
 -- 🌑 6.140.0 — GRAYSCALE, AND WHY THE FOURTH ATTEMPT IS DIFFERENT
@@ -56,11 +56,15 @@
 -- rearranged, because nothing here reads System Settings.
 --
 -- ⚠️ WHAT THIS STILL CANNOT DO, AND WILL NOT PRETEND TO. The one-time
--- tick is YOURS. It is precisely the step 6.82.0 proved a program cannot
--- take, so _G.monoSetup() opens the right pane and then gets out of the
--- way. And if you leave more than one feature ticked, ⌥⌘F5 opens the
--- chooser panel instead of toggling — that is macOS behaving as designed,
--- not a fault here, and _G.monoReport() says so rather than guessing.
+-- tick is YOURS, made by hand: System Settings → Accessibility →
+-- Shortcut → tick Color Filters and NOTHING ELSE. It is precisely the
+-- step 6.82.0 proved a program cannot take. (6.140.0–6.144.1 shipped a
+-- setup door that opened the pane for you; 6.145.0 retired it at LL's
+-- word — the tick was already made, and triple-pressing Touch ID, the
+-- native macOS shortcut, covers the toggle without Hammerspoon at all.)
+-- If you leave more than one feature ticked, ⌥⌘F5 opens the chooser
+-- panel instead of toggling — that is macOS behaving as designed, not a
+-- fault here, and _G.monoReport() says so rather than guessing.
 --
 -- 🚨 SAFETY. A full-screen sheet you cannot dismiss would be a bad day,
 -- so: the strength is HARD-CAPPED at 90% (M.config.maxLevel) and never
@@ -82,10 +86,11 @@ local M = {
             { "⇪⇧-",    "5% weaker" },
             { "⌃⌥⌘⇧G", "PANIC — remove the veil no matter what" },
             { "⇪9",     "Grayscale on/off — relays ⌥⌘F5, the macOS switch" },
+            { "3× Touch ID", "Grayscale natively — triple-press Touch ID, macOS's own shortcut" },
             { "⇪⇧9",    "Invert the screen colours — relays ⌃⌥⌘8, no setup" },
             { "note",   "A veil dims and mutes; it cannot desaturate. True B&W" },
-            { "",       "is the macOS switch on ⇪9 — _G.monoSetup() once first:" },
-            { "",       "it needs one tick from you. ⇪; lists all three rows" },
+            { "",       "is Color Filters — set up once, by hand: tick it ALONE" },
+            { "",       "under Accessibility → Shortcut. ⇪; lists the rows" },
             { "",       "Click-through: the veil never eats a click or takes focus" },
         },
     },
@@ -384,7 +389,8 @@ function M.setup(core)
             line("   com.apple.universalaccess would not answer for")
             line("   colorFilterEnabled. That is usually not a fault — it")
             line("   means the key has never been written, so Color Filters")
-            line("   has not been switched on even once. Run _G.monoSetup().")
+            line("   has not been switched on even once. Flip it on by hand:")
+            line("   Settings → Accessibility → Display → Color Filters.")
         else
             line(("   Color Filters ......... %s")
                  :format(st.filterOn == 1 and "ON" or "off"))
@@ -406,48 +412,19 @@ function M.setup(core)
         line("   ⌥⌘F5 toggles grayscale — but ONLY if Color Filters is the")
         line("   one feature ticked under Accessibility → Shortcut. With")
         line("   more than one ticked, macOS opens a chooser panel instead")
-        line("   and nothing toggles. _G.monoSetup() walks you through it.")
+        line("   and nothing toggles. Triple-pressing Touch ID — the native")
+        line("   macOS shortcut — fires the same toggle, no Hammerspoon.")
         local s = table.concat(out, "\n")
         pcall(function() hs.pasteboard.setContents(s) end)
         return s
     end
 
-    -- Opens the pane and then stops. The tick is yours to make — that is
-    -- the whole finding of 6.82.0 and this does not try to talk past it.
-    -- 🚨 6.144.1 — /usr/bin/open, NOT hs.urlevent.openURL. Hammerspoon
-    -- refuses ANY url without '://' — it logs "called for a URL that
-    -- lacks '://'" and returns false without opening — and Settings
-    -- destinations never carry one. From 6.140.0 to 6.144.0 this alert
-    -- showed while the pane never opened; the walkthrough only worked
-    -- because LL walked there by hand. open(1) takes the same string as
-    -- one ARGUMENT (the net_tools rule: an array, no shell, no quoting)
-    -- and reports refusal in its exit code — the only place it does.
-    function veil.monoSetup()
-        pcall(function()
-            veil.monoOpenTask = hs.task.new("/usr/bin/open", function(rc)
-                if rc ~= 0 then
-                    pcall(function()
-                        hs.alert.show("🌑 System Settings would not open — "
-                            .. "search Settings for Color Filters by hand", 4)
-                    end)
-                end
-            end, { "x-apple.systempreferences:"
-                   .. "com.apple.preference.universalaccess?Seeing_Display" })
-            veil.monoOpenTask:start()   -- HELD in veil, or it is reaped mid-run
-        end)
-        local msg = table.concat({
-            "🌑 One-time setup — then never again",
-            "",
-            "1. Color Filters → on.  Filter type → Grayscale.",
-            "2. Back to Accessibility, scroll to the bottom → Shortcut.",
-            "3. Tick Color Filters. UNTICK EVERYTHING ELSE.",
-            "",
-            "Step 3 is the one that matters. One feature ticked and ⌥⌘F5",
-            "toggles it outright; more than one and it opens a panel.",
-        }, "\n")
-        pcall(function() hs.alert.show(msg, 12) end)
-        return msg
-    end
+    -- 🪦 6.145.0 — the setup door is RETIRED at LL's word ("remove it and
+    -- rollback changes"). It opened the Settings pane for the one-time
+    -- tick; LL had already made the tick by hand, and the native
+    -- triple-press of Touch ID covers the toggle from there. The tick
+    -- itself was never this module's to make — that finding (6.82.0)
+    -- stands, and every text below points at the pane by name instead.
 
     function veil.mono()
         -- The trailing 0 is the inter-event delay. Left to default it is
@@ -475,7 +452,8 @@ function M.setup(core)
             elseif st.filterOn == 0 then
                 said = "🌑 Colour is back"
             else
-                said = "🌑 Sent ⌥⌘F5 — run _G.monoSetup() once if nothing changed"
+                said = "🌑 Sent ⌥⌘F5 — if nothing changed, tick Color Filters"
+                       .. " (alone) under Settings → Accessibility → Shortcut"
             end
             pcall(function() hs.alert.show(said, 2) end)
         end)
@@ -498,7 +476,6 @@ function M.setup(core)
     end
 
     _G.mono          = function() return veil.mono() end
-    _G.monoSetup     = function() return veil.monoSetup() end
     _G.monoReport    = function() return veil.monoReport() end
     _G.invertColours = function() return veil.invert() end
 
@@ -508,7 +485,6 @@ function M.setup(core)
     -- test harness, not an error.
     if core.provide then
         core.provide("veil.mono",      function() return veil.mono() end)
-        core.provide("veil.monoSetup", function() return veil.monoSetup() end)
         core.provide("veil.invert",    function() return veil.invert() end)
         core.provide("veil.monoReport", function() return veil.monoReport() end)
     end

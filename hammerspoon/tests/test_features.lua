@@ -1371,13 +1371,15 @@ hs.execute = function(cmd)
 end
 hs.urlevent = { openURL = function(u) table.insert(OPENED_URLS, u) end }
 
-check("the four console doors exist",
-      _G.mono ~= nil and _G.monoSetup ~= nil and _G.monoReport ~= nil
-      and _G.invertColours ~= nil)
-check("...and the ⇪; rows can reach them by service name",
+check("the three console doors exist — and the setup door is GONE "
+      .. "(6.145.0, at LL's word: the tick was made by hand)",
+      _G.mono ~= nil and _G.monoReport ~= nil and _G.invertColours ~= nil
+      and _G.monoSetup == nil)
+check("...and the ⇪; rows can reach the live ones by service name — "
+      .. "and cannot reach the retired one",
       _G.service.registry["veil.mono"] ~= nil
-      and _G.service.registry["veil.monoSetup"] ~= nil
-      and _G.service.registry["veil.invert"] ~= nil)
+      and _G.service.registry["veil.invert"] ~= nil
+      and _G.service.registry["veil.monoSetup"] == nil)
 
 ALERTS = {}
 check("mono() presses ⌥⌘F5 — the macOS Accessibility Shortcut",
@@ -1411,8 +1413,11 @@ check("a filter that is on but NOT grayscale is named, not claimed",
 veil.mono()
 DEFAULTS_OUT = ""   -- the domain has never been written
 veil.monoTimer.fn()
-check("an unanswerable domain sends you to _G.monoSetup(), not to a guess",
-      ALERTS[#ALERTS]:find("monoSetup", 1, true) ~= nil)
+check("an unanswerable domain names the by-hand tick, not a guess — "
+      .. "and no longer points at the retired setup door",
+      ALERTS[#ALERTS]:find("Color Filters", 1, true) ~= nil
+      and ALERTS[#ALERTS]:find("Accessibility", 1, true) ~= nil
+      and ALERTS[#ALERTS]:find("monoSetup", 1, true) == nil)
 
 -- monoState parses the dump, and cannot be fooled by a longer key name.
 DEFAULTS_OUT = "{\n    colorFilterEnabled = 0;\n    grayscaleTint = 9;\n"
@@ -1431,21 +1436,28 @@ check("...names the one-tick rule that makes ⌥⌘F5 a toggle",
 check("...and lands on the clipboard",
       CLIPBOARD_TEXT:find("GRAYSCALE", 1, true) ~= nil)
 
--- Setup opens the right pane and then GETS OUT OF THE WAY — the tick is
--- the user's. That is the whole 6.82.0 finding, kept.
-ALERTS = {}
-veil.monoSetup()
-check("monoSetup opens the Accessibility pane through open(1) — NEVER "
-   .. "hs.urlevent.openURL, which refuses every URL without '://' by "
-   .. "returning false (the 6.144.1 finding: the pane never opened)",
-      veil.monoOpenTask ~= nil
-      and veil.monoOpenTask.bin == "/usr/bin/open"
-      and tostring((veil.monoOpenTask.args or {})[1])
-              :find("universalaccess", 1, true) ~= nil
-      and veil.monoOpenTask.started == true
-      and #OPENED_URLS == 0)
-check("...and its instructions name the step that matters",
-      ALERTS[1]:find("UNTICK EVERYTHING ELSE", 1, true) ~= nil)
+-- 🪦 6.145.0 — the setup door is RETIRED at LL's word ("remove it and
+-- rollback changes"). The one-time tick was made by hand, and the
+-- native triple-press of Touch ID covers the walk to the pane. The
+-- doors check above pins the global and the service gone; these pin
+-- the source, the cheat sheet, and that the relay never opens a URL.
+local veilSrc = (function()
+    local f = io.open(MODDIR .. "/screen_veil.lua", "r")
+    if not f then return "" end
+    local s = f:read("*a"); f:close(); return s
+end)()
+check("🪦 the retired name is out of the SOURCE, not just unhooked",
+      #veilSrc > 0 and veilSrc:find("monoSetup", 1, true) == nil)
+check("...and the whole run never opened a URL — the relay presses "
+      .. "keys, nothing else", #OPENED_URLS == 0)
+check("the cheat sheet names the native triple-press of Touch ID — "
+      .. "LL's ask when the door came out", (function()
+    for _, e in ipairs(veilMod.cheatsheet.entries) do
+        if tostring(e[1]):find("Touch ID", 1, true)
+           and tostring(e[2]):find("triple%-press") then return true end
+    end
+    return false
+end)())
 
 check("invert() presses ⌃⌥⌘8, also with 0 delay", (function()
     local n = #KEYSTROKES

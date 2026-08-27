@@ -301,19 +301,19 @@ check("the cheat sheet key cell is exactly ⇪;", (function()
     end
     return false
 end)())
-check("all seventeen tools are in the list", #pt.tools == 17, #pt.tools)
+check("all sixteen tools are in the list", #pt.tools == 16, #pt.tools)
 check("…and each has a stable id", (function()
     -- 6.132.0 added countclip and case; 6.133.0 added define; 6.139.0
-    -- added backup and backupreport; 6.140.0 added mono, monoset and
-    -- invert (the grayscale relay); 6.142.0 added freekeys (the
-    -- future-options ledger). ids are what _G.powerReport() counts by
-    -- and what ⇪space's run map points at, so they are checked by name
-    -- rather than by number alone.
+    -- added backup and backupreport; 6.140.0 added the grayscale relay
+    -- rows; 6.142.0 added freekeys (the future-options ledger); 6.145.0
+    -- retired the grayscale setup row with its console door. ids are
+    -- what _G.powerReport() counts by and what ⇪space's run map points
+    -- at, so they are checked by name rather than by number alone.
     local want = { plain = true, type = true, count = true, meta = true,
                    pause = true, ghere = true, greveal = true, qr = true,
                    countclip = true, case = true, define = true,
                    backup = true, backupreport = true,
-                   mono = true, monoset = true, invert = true,
+                   mono = true, invert = true,
                    freekeys = true }
     for _, t in ipairs(pt.tools) do
         if not want[t.id] then return false end
@@ -322,7 +322,7 @@ check("…and each has a stable id", (function()
     return next(want) == nil
 end)())
 
--- 🌑 6.140.0 — THE GRAYSCALE ROWS HOLD NO LOGIC. All three go through
+-- 🌑 6.140.0 — THE GRAYSCALE ROWS HOLD NO LOGIC. Both go through
 -- pt.veilCall, which asks the service registry for screen_veil's
 -- provider. The row must say so plainly when the veil is not loaded,
 -- and must RELAY — not reimplement — when it is.
@@ -335,13 +335,17 @@ do
     local relayed = {}
     CASE_SERVICES["veil.mono"]      = function() relayed.mono   = true; return true end
     CASE_SERVICES["veil.invert"]    = function() relayed.invert = true; return true end
-    CASE_SERVICES["veil.monoSetup"] = function() relayed.setup  = true; return true end
     reset()
-    check("with Screen Veil loaded, mono/monoset/invert relay by service name",
+    check("with Screen Veil loaded, mono and invert relay by service name",
           pt.run("mono") == true and pt.run("invert") == true
-          and pt.run("monoset") == true
-          and relayed.mono and relayed.invert and relayed.setup)
+          and relayed.mono and relayed.invert)
 end
+-- 🪦 6.145.0 — the setup row retired with the setup door itself, at
+-- LL's word. The exact-set check above already refuses a stray id;
+-- this names the absence so a revival cannot land quietly.
+check("🪦 the setup row is gone — the tick is made by hand, and the "
+      .. "native triple-press of Touch ID walks there",
+      pt.byId("monoset") == nil)
 -- 🔑 THE FOUR WITH A KEY OF THEIR OWN. ⇪⇧, and ⇪⇧. are NOT among them
 -- and must never be: numpad_layer's laptop window row has claimed both
 -- since 6.114.0 (shrink and grow), and the first draft of this release
@@ -649,7 +653,7 @@ end)(), CLIP)
 
 pt.show()
 local pc = CHOOSERS[#CHOOSERS]
-check("the palette lists all seventeen tools", #pc.choices_ == 17, #pc.choices_)
+check("the palette lists all sixteen tools", #pc.choices_ == 16, #pc.choices_)
 check("every palette row value is a scalar too", (function()
     for _, c in ipairs(pc.choices_) do
         for _, v in pairs(c) do

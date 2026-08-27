@@ -1533,13 +1533,12 @@ end tell]]
         -- ⇪9 at LL's ask, and the sentry refused ⇪⇧9 for invert — it
         -- was the numpad laptop row's key. 6.142.0: LL cleared that
         -- whole row, so invert has ⇪⇧9 after all, exactly as picked.
-        -- Setup never earns a key; the rows stay the discoverable path.
+        -- 🪦 6.145.0 — the setup row is gone with the setup door itself,
+        -- at LL's word: the one-time tick was made by hand, and the
+        -- native triple-press of Touch ID covers the walk to the pane.
         { id = "mono",  icon = "🌑", title = "Grayscale on/off",
-          sub = "Relays ⌥⌘F5, the macOS switch — _G.monoSetup() once first · ⇪9",
+          sub = "Relays ⌥⌘F5, the macOS switch · ⇪9 · native: triple-press Touch ID",
           run = function() return pt.veilCall("mono") end },
-        { id = "monoset", icon = "🛠", title = "Set up grayscale (once)",
-          sub = "Opens the pane and names the three ticks only you can make",
-          run = function() return pt.veilCall("monoSetup") end },
         { id = "invert", icon = "🔄", title = "Invert the screen colours",
           sub = "Relays ⌃⌥⌘8. Inversion, NOT grayscale — no setup · ⇪⇧9",
           run = function() return pt.veilCall("invert") end },
@@ -1551,10 +1550,10 @@ end tell]]
           run = function() return _G.freeKeys() ~= nil end },
     }
 
-    -- 6.140.0 — the guard the three grayscale rows share. The backup rows
-    -- above spell the same guard out inline; three rows in a row earn a
-    -- helper. Everything goes through the service registry, so the rows
-    -- work when Screen Veil is loaded and say so plainly when it is not.
+    -- 6.140.0 — the guard the grayscale rows share (three rows then, two
+    -- since 6.145.0 retired setup). The backup rows above spell the same
+    -- guard out inline. Everything goes through the service registry, so
+    -- the rows work when Screen Veil is loaded and say so when it is not.
     function pt.veilCall(what)
         local svc = "veil." .. what
         if not (_G.service and _G.service.has and _G.service.has(svc)) then

@@ -4,8 +4,32 @@
 -- =====================================================================
 -- 08-27-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.144.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.145.0
 -- =====================================================================
+
+-- NEW IN 6.145.0 — THE SETUP DOOR RETIRES; THE SHEET NAMES TRIPLE-PRESS:
+--   🪦 LL, straight after the 6.144.1 ship: "Ok, remove it and rollback
+--      changes. But, please add triple press to the cheat sheet, the
+--      native mac shortcut." Done, both halves. _G.monoSetup() is GONE —
+--      the console door, the veil.monoSetup service, the 🛠 setup row in
+--      ⇪;, and the open(1) task 6.144.1 had just added to make it work.
+--      The one-time Color Filters tick was always LL's to make (the
+--      6.82.0 finding), it was already made by hand, and triple-pressing
+--      Touch ID — macOS's own trigger for the same Accessibility
+--      Shortcut — covers the walk to the pane without Hammerspoon's
+--      help. ⇪9 STAYS: it posts the true F5 keycode beneath the
+--      media-key layer and was never the complaint.
+--   ⌨️ THE CHEAT SHEET NAMES THE NATIVE ROUTE: the Screen Veil box gains
+--      a "3× Touch ID" row beside ⇪9, and every text that pointed at
+--      the retired door — monoReport's tail, the read-back's "nothing
+--      changed" alert, the ⇪; mono row's subtitle — now names the pane,
+--      or the triple-press, by hand. Tests pin the retirement: global
+--      gone, service gone, ⇪; row gone, the name out of the source.
+--   ⚖️ KEPT, DELIBERATELY — the one part of 6.144.1 that does not roll
+--      back: the ⇪, repair (settings_panes through /usr/bin/open, exit
+--      code read, hs.urlevent banned by its suite). Reverting it would
+--      re-brick URL rows that had never opened in the first place; a
+--      separate tool's real bug fix, not part of the setup door.
 
 -- NEW IN 6.144.1 — THE SETTINGS DOOR THAT NEVER OPENED:
 --   🚪 LL, with the Color Filters screenshots and their console: the
@@ -110,25 +134,10 @@
 --      survey is exactly what missed ⇪⇧9 in 6.141.0. ⇪⇧Z is shown
 --      reserved, never free: "We will use that later."
 
--- NEW IN 6.141.0 — GRAYSCALE GETS ITS KEY: ⇪9 TOGGLES:
---   🌑 LL: "why am I not using some hyperkey combo for my new
---      grayscale?" Fair — 6.140.0 shipped it keyless because every ⇪
---      letter was taken and the judgment was that ⌥⌘F5 (which IS a
---      dedicated key once set up) plus the ⇪; rows covered it. LL
---      wanted a key anyway and picked ⇪9, with ⇪⇧9 for invert.
---   🚨 THE SENTRY EARNED ITS KEEP: the first draft bound both, and
---      the NO-TWO-OWNERS check refused it — ⇪⇧9 has been the numpad
---      laptop row's TOP-RIGHT window key since 6.114.0, exactly the
---      silent-theft failure that check exists to prevent. So ⇪9 =
---      grayscale on/off (relays ⌥⌘F5, then the honest read-back),
---      and invert keeps its ⇪; row plus ⌃⌥⌘8, which macOS ships
---      already bound. Setup stays keyless — it is run once, ever:
---      _G.monoSetup() still comes first on each Mac. One tick, yours.
-
--- (6.140.1 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.141.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.144.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.145.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -453,7 +462,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.144.1"
+_G.configVersion = "6.145.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
