@@ -4,8 +4,35 @@
 -- =====================================================================
 -- 08-27-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.144.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.144.1
 -- =====================================================================
+
+-- NEW IN 6.144.1 — THE SETTINGS DOOR THAT NEVER OPENED:
+--   🚪 LL, with the Color Filters screenshots and their console: the
+--      "urlevent: openURL() called for a URL that lacks '://'" ERROR
+--      under _G.monoSetup(). Verified against Hammerspoon's own source:
+--      hs.urlevent.openURL REFUSES any URL without '://' — it logs that
+--      line and returns false without opening — and every
+--      x-apple.systempreferences: destination is exactly that shape.
+--      monoSetup's pane-open had never worked since 6.140.0; the
+--      walkthrough alert showed while LL walked to the pane by hand.
+--   🚨 WORSE IN ⇪,: settings_panes wrapped the same call in a pcall,
+--      and A REFUSAL IS A RETURN VALUE, NOT A THROW — the pcall
+--      reported success, the fallback under it never ran once, and
+--      every URL row counted itself opened while opening nothing.
+--   🔧 THE FIX IS THE BORING ONE: both go through /usr/bin/open now —
+--      one hs.task per open, the URL (or .prefPane path — open takes
+--      either) as a single ARGUMENT, no shell, no quoting, and failure
+--      read from the exit code, the only place open(1) reports it. A
+--      refused pane says so out loud instead of counting as a success.
+--      settings_panes no longer touches hs.urlevent at all, and its
+--      suite pins the door shut both behaviourally and in the source.
+--   ⌨️ AND THE ANSWER TO THE ACTUAL QUESTION: nothing in LL's setup was
+--      wrong. On the built-in keyboard the key printed F5 is the
+--      dictation/media key, so a bare ⌥⌘F5 never reaches the
+--      Accessibility Shortcut — Fn⌥⌘F5 or triple-pressing Touch ID is
+--      the by-hand chord. ⇪9 posts the TRUE F5 keycode in software,
+--      beneath the media-key remapping, which is why it just works.
 
 -- NEW IN 6.144.0 — BATTERY SAVER: ON BATTERY, THE CONFIG SLOWS ITSELF:
 --   🔋 LL: "when I am only on battery power, I lower the battery
@@ -98,22 +125,10 @@
 --      already bound. Setup stays keyless — it is run once, ever:
 --      _G.monoSetup() still comes first on each Mac. One tick, yours.
 
--- NEW IN 6.140.1 — THE WORK MAC BACKS UP DOCUMENTS TOO:
---   ☁️ LL: "For my work computer, all documents are safe to backup."
---      6.139.0 had guessed the other way and set docs = false in the
---      work profile so Documents/Desktop would stay in the company's
---      OneDrive. That override is now REMOVED: both Macs build the
---      full rebuild kit — Documents and Desktop included. One profile
---      line changed; the docs knob itself stays in daily_backup.lua
---      for any future Mac that needs it, and its test now says so.
---   📁 First work-Mac run note: macOS gates Documents/Desktop behind
---      Full Disk Access. If the run reports "grant Hammerspoon Full
---      Disk Access", that is the fix — ⇪, and search for it.
-
--- (6.140.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.140.1 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.144.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.144.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -438,7 +453,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.144.0"
+_G.configVersion = "6.144.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

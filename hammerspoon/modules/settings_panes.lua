@@ -630,7 +630,9 @@ function M.setup(core)
             hs.application.launchOrFocusByBundleID(sp.SETTINGS_BUNDLE)
         end)
         if not launched then
-            pcall(function() hs.urlevent.openURL("x-apple.systempreferences:") end)
+            -- 6.144.1 — through open(1) like every other destination here;
+            -- hs.urlevent.openURL refused this scheme-only URL outright.
+            sp.launch("x-apple.systempreferences:")
         end
         local waited = 0
         local okTimer = pcall(function()
@@ -687,12 +689,41 @@ function M.setup(core)
     end
 
     -- ---- opening ---------------------------------------------------------
-    -- A .prefPane on disk is a FILE, not a URL: `open` on the bundle is
-    -- what launches it, and that path is why sp.open branches rather than
-    -- handing everything to hs.urlevent.
+    -- 🚨 6.144.1 — EVERYTHING GOES THROUGH open(1), NOTHING THROUGH
+    -- hs.urlevent.openURL. That call refuses ANY url without '://' — it
+    -- logs "called for a URL that lacks '://'" and returns false without
+    -- opening — and every x-apple.systempreferences: destination is
+    -- exactly that shape. Worse, the old code wrapped it in a pcall, and
+    -- A REFUSAL IS A RETURN VALUE, NOT A THROW: the pcall reported
+    -- success, the hs.execute fallback on the next line never ran once,
+    -- and sp.opens counted a pane that never opened. Every URL row of ⇪,
+    -- was silently dead while reporting itself fine. /usr/bin/open takes
+    -- a Settings URL and a .prefPane path alike as ONE ARGUMENT (an
+    -- array, the net_tools rule — no shell, no quoting), and reports
+    -- refusal in its exit code, which is the only place it does: that
+    -- callback is where failure is said out loud now.
+    sp.openBin = "/usr/bin/open"
+    function sp.launch(target)
+        local started = false
+        pcall(function()
+            local t = hs.task.new(sp.openBin, function(rc)
+                if rc ~= 0 then
+                    sp.lastNote = "open(1) refused: " .. tostring(target)
+                    warn(sp.lastNote)
+                    pcall(function()
+                        hs.alert.show("⚙️ System Settings refused that pane", 3)
+                    end)
+                end
+            end, { tostring(target) })
+            sp.task = t     -- HELD: an unreferenced hs.task is reaped mid-run
+            if t:start() then started = true end
+        end)
+        return started
+    end
+
     -- 🚨 AN EMPTY STRING IS NOT A URL, AND `not ""` IS FALSE IN LUA. Until
     -- 6.122.0 this guard read `not row.url`, which a row carrying "" walks
-    -- straight past — into hs.urlevent.openURL("") and then into a
+    -- straight past — into the opener with nothing to open and then into a
     -- concatenation of row.name, which such a row does not have either.
     -- Found by a break test that CRASHED where it should have reported: a
     -- test harness cannot tell you about a nil field it never reaches.
@@ -703,22 +734,15 @@ function M.setup(core)
             warn(sp.lastNote)
             return false
         end
-        local ok
-        if row.from == "disk" then
-            ok = pcall(function() hs.execute("/usr/bin/open " ..
-                                             ("%q"):format(row.url)) end)
-        else
-            ok = pcall(function() hs.urlevent.openURL(row.url) end)
-            if not ok then
-                ok = pcall(function() hs.execute("/usr/bin/open " ..
-                                                 ("%q"):format(row.url)) end)
-            end
-        end
+        -- A .prefPane on disk is a FILE and a Settings destination is a
+        -- URL; open(1) takes either as the same single argument, so the
+        -- branch the old code needed is gone with the bug.
+        local ok = sp.launch(row.url)
         if ok then
             sp.opens      = sp.opens + 1
             sp.lastOpened = row.name
             sp.lastURL    = row.url
-            say("opened " .. row.name)
+            say("handed to open(1): " .. row.name)
             return true
         end
         sp.lastNote = "could not open " .. tostring(row.name or "that row")

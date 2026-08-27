@@ -414,11 +414,26 @@ function M.setup(core)
 
     -- Opens the pane and then stops. The tick is yours to make — that is
     -- the whole finding of 6.82.0 and this does not try to talk past it.
+    -- 🚨 6.144.1 — /usr/bin/open, NOT hs.urlevent.openURL. Hammerspoon
+    -- refuses ANY url without '://' — it logs "called for a URL that
+    -- lacks '://'" and returns false without opening — and Settings
+    -- destinations never carry one. From 6.140.0 to 6.144.0 this alert
+    -- showed while the pane never opened; the walkthrough only worked
+    -- because LL walked there by hand. open(1) takes the same string as
+    -- one ARGUMENT (the net_tools rule: an array, no shell, no quoting)
+    -- and reports refusal in its exit code — the only place it does.
     function veil.monoSetup()
         pcall(function()
-            hs.urlevent.openURL(
-                "x-apple.systempreferences:com.apple.preference.universalaccess"
-                .. "?Seeing_Display")
+            veil.monoOpenTask = hs.task.new("/usr/bin/open", function(rc)
+                if rc ~= 0 then
+                    pcall(function()
+                        hs.alert.show("🌑 System Settings would not open — "
+                            .. "search Settings for Color Filters by hand", 4)
+                    end)
+                end
+            end, { "x-apple.systempreferences:"
+                   .. "com.apple.preference.universalaccess?Seeing_Display" })
+            veil.monoOpenTask:start()   -- HELD in veil, or it is reaped mid-run
         end)
         local msg = table.concat({
             "🌑 One-time setup — then never again",

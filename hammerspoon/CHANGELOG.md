@@ -4,6 +4,58 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.144.1 — THE SETTINGS DOOR THAT NEVER OPENED:
+  🚪 LL, with the Color Filters screenshots and their console open:
+     "Hmmm... the Mac shortcut doesn't work same as mine that we built"
+     — and above it, the line that cracked the case:
+     "ERROR: urlevent: hs.urlevent.openURL() called for a URL that
+     lacks '://'", printed by _G.monoSetup(). Verified against
+     Hammerspoon's own source: hs.urlevent.openURL REFUSES any URL
+     without '://' — it logs exactly that line and returns false
+     without opening anything — and every x-apple.systempreferences:
+     destination is exactly that shape. So monoSetup's pane-open had
+     NEVER worked, from 6.140.0 to 6.144.0: the walkthrough alert
+     showed, System Settings stayed shut, and the instructions only
+     ever landed because LL walked to the pane by hand.
+  🚨 AND THE SAME LANDMINE SAT UNDER ⇪,. settings_panes wrapped the
+     same call in a pcall with an hs.execute fallback below it — but a
+     REFUSAL IS A RETURN VALUE, NOT A THROW. The pcall reported
+     success, the fallback never ran once, sp.opens counted a pane
+     that never opened, and every URL row of ⇪, was silently dead
+     while reporting itself fine. The two disk-pane rows (which used
+     open(1) directly) were the only ones actually opening — which is
+     precisely the kind of partial failure that looks like "it works
+     sometimes" and never gets reported.
+  🔧 THE FIX IS THE BORING, CORRECT ONE: everything goes through
+     /usr/bin/open now. One hs.task per open, the destination as a
+     single ARGUMENT (an array, the net_tools rule — no shell, no
+     quoting to get wrong), and open(1) takes a Settings URL and a
+     .prefPane path alike, so the branch the old code needed is gone
+     with the bug. Failure is read from the exit code — the only
+     place open(1) reports it — and a refused pane now says so out
+     loud (alert + sp.lastNote) instead of counting as a success.
+     settings_panes no longer contains hs.urlevent OR hs.execute at
+     all. screen_veil's monoSetup opens the Color Filters pane the
+     same way, and says so honestly if even open(1) is refused.
+  ⌨️ THE ANSWER TO THE ACTUAL QUESTION, for the record: nothing in
+     LL's setup was wrong — both screenshots showed it done exactly
+     right (Color Filters on, Grayscale, the ONLY feature ticked
+     under Shortcut). On the built-in keyboard the key printed F5 is
+     the dictation/media key, so a bare ⌥⌘F5 never reaches the
+     Accessibility Shortcut at all — the by-hand chord is Fn⌥⌘F5, or
+     triple-pressing Touch ID. ⇪9 posts the TRUE F5 keycode in
+     software, beneath the media-key remapping, which is why the key
+     we built works where the printed chord does not. ⇪9 stays the
+     reliable switch; this is a point for it, not against it.
+  🧪 test_settings_panes rewrote its opening section: one open(1)
+     task per open, URL as the single argument, the refusal callback
+     announces, and the hs.urlevent door is pinned shut twice — the
+     stub records any call to it (must stay at zero for the whole
+     suite) and the shipped source is checked to contain neither
+     hs.urlevent nor hs.execute. test_features' monoSetup check now
+     proves the pane opens through open(1) and that nothing touched
+     the URL handler.
+
 NEW IN 6.144.0 — BATTERY SAVER: ON BATTERY, THE CONFIG SLOWS ITSELF:
   🔋 LL: "Ok, now I need a tool that when I am only on battery power,
      I lower the battery consumption. … DO not propose screen dimming.

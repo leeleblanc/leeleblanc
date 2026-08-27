@@ -43,13 +43,19 @@ local function out(s) io.write(s) end
 print = function() end
 
 -- ---- the stub Mac ------------------------------------------------------
-local OPENED_URLS = {}    -- hs.urlevent.openURL
-local EXECUTED    = {}    -- hs.execute
-local ALERTS      = {}
-local CHOOSERS    = {}
-local SHOWS       = 0
-local TIMERS      = {}
-local URLEVENT_OK = true
+-- 🚨 6.144.1 — OPENED_URLS is fed by the open(1) TASK stub now, not by
+-- hs.urlevent.openURL. The real openURL REFUSES every URL that lacks
+-- '://' — it returns false without throwing — and every
+-- x-apple.systempreferences: destination is that shape, so the module
+-- must never touch it: URLEVENT_CALLS pins that it does not.
+local OPENED_URLS    = {}  -- args[1] of every started /usr/bin/open task
+local TASKS          = {}  -- every open(1) task, with its exit callback
+local URLEVENT_CALLS = {}  -- must stay EMPTY for the whole suite
+local EXECUTED       = {}  -- hs.execute — must also stay empty now
+local ALERTS         = {}
+local CHOOSERS       = {}
+local SHOWS          = 0
+local TIMERS         = {}
 local LAUNCHED    = {}    -- bundle IDs handed to launchOrFocusByBundleID
 local TYPED       = {}    -- what reached hs.eventtap.keyStrokes
 local APP_RUNNING = true  -- is System Settings up yet
@@ -75,8 +81,22 @@ hs = {
     execute = function(cmd) EXECUTED[#EXECUTED + 1] = cmd ; return "" end,
     urlevent = {
         openURL = function(u)
-            if not URLEVENT_OK then error("no url handler") end
-            OPENED_URLS[#OPENED_URLS + 1] = u
+            URLEVENT_CALLS[#URLEVENT_CALLS + 1] = u
+            return false   -- what the real one does to every '://'-less URL
+        end,
+    },
+    task = {
+        new = function(bin, cb, args)
+            local t = { bin = bin, cb = cb, args = args }
+            function t:start()
+                self.started = true
+                TASKS[#TASKS + 1] = self
+                if bin == "/usr/bin/open" then
+                    OPENED_URLS[#OPENED_URLS + 1] = args and args[1]
+                end
+                return true
+            end
+            return t
         end,
     },
     timer = {
@@ -165,7 +185,7 @@ M.setup(CORE)
 local sp = _G.settingsPanes
 
 local function reset()
-    OPENED_URLS, EXECUTED, ALERTS = {}, {}, {}
+    OPENED_URLS, TASKS, EXECUTED, ALERTS = {}, {}, {}, {}
     sp.lastNote = nil
 end
 
@@ -329,30 +349,46 @@ check("…so Displays still opens through its modern URL",
 -- =====================================================================
 out("\n=== 5. opening: a URL and a bundle are not the same thing ===\n")
 -- =====================================================================
+-- 🚨 6.144.1 — EVERYTHING GOES THROUGH open(1) NOW. The old URL branch
+-- called hs.urlevent.openURL inside a pcall, and a refusal is a RETURN
+-- VALUE, not a throw: the pcall reported success, the fallback below it
+-- never ran once, and every URL row of ⇪, was silently dead while
+-- counting itself as opened. These checks pin the replacement: one
+-- /usr/bin/open task per open, argument ARRAY (no shell, no quoting to
+-- get wrong), failure read from the exit code.
 reset()
 local wifi = paneNamed(sp.build(), "Wi-Fi")
-check("a curated pane opens through hs.urlevent",
+check("a curated pane is handed to open(1) as one task",
       sp.open(wifi) == true and #OPENED_URLS == 1, #OPENED_URLS)
-check("…with the prefixed URL", OPENED_URLS[1]
-      and OPENED_URLS[1]:find("x-apple.systempreferences:", 1, true) == 1,
+check("…with the prefixed URL as its single ARGUMENT", OPENED_URLS[1]
+      and OPENED_URLS[1]:find("x-apple.systempreferences:", 1, true) == 1
+      and TASKS[1] and TASKS[1].bin == "/usr/bin/open"
+      and #TASKS[1].args == 1,
       OPENED_URLS[1])
-check("…and nothing was shelled out", #EXECUTED == 0, #EXECUTED)
+check("…and nothing was shelled out — an argument array needs no quoting",
+      #EXECUTED == 0, #EXECUTED)
+check("…and hs.urlevent was never touched — it refuses these URLs outright",
+      #URLEVENT_CALLS == 0, URLEVENT_CALLS[1])
 
 reset()
 local prof = nil
 for _, r in ipairs(sp.build()) do if r.from == "disk" then prof = r break end end
-check("a .prefPane on DISK is a file, so it goes through `open`",
-      prof and sp.open(prof) == true and #EXECUTED == 1, #EXECUTED)
-check("…and not through the URL handler", #OPENED_URLS == 0, #OPENED_URLS)
-check("…with the path quoted, because paths have spaces in them",
-      EXECUTED[1] and EXECUTED[1]:find('"') ~= nil, EXECUTED[1])
+check("a .prefPane on DISK goes through the SAME open(1) — it takes a "
+   .. "file path and a URL alike as one argument",
+      prof and sp.open(prof) == true and #OPENED_URLS == 1
+      and OPENED_URLS[1] == prof.url, OPENED_URLS[1])
 
--- A Mac with no URL handler must still open the pane.
+-- open(1) says no in its exit code, and that is the only place it does.
 reset()
-URLEVENT_OK = false
-check("if hs.urlevent throws, it falls back to `open`",
-      sp.open(wifi) == true and #EXECUTED == 1, #EXECUTED)
-URLEVENT_OK = true
+check("a refused pane is announced, not silently counted", (function()
+    if sp.open(wifi) ~= true then return false end
+    local t = TASKS[#TASKS]
+    if not (t and t.cb) then return false end
+    t.cb(1)                       -- open(1) exits nonzero: no handler
+    local said = ALERTS[#ALERTS] or ""
+    return said:find("refused", 1, true) ~= nil
+       and sp.lastNote and sp.lastNote:find("refused", 1, true) ~= nil
+end)(), sp.lastNote)
 
 reset()
 check("opening nothing is false, not a throw", sp.open(nil) == false)
@@ -667,6 +703,23 @@ check("…and it said why, without needing a name to do it",
       and sp.lastNote:find("no destination", 1, true) ~= nil, sp.lastNote)
 check("…and a nil root is answered, not thrown at",
       sp.findSearchField(nil) == nil)
+
+-- =====================================================================
+out("\n=== 🚨 the door hs.urlevent.openURL is bricked shut ===\n")
+-- =====================================================================
+-- The real openURL refuses every URL without '://' by RETURNING false,
+-- which a pcall cannot see — the exact shape that left ⇪,'s URL rows
+-- dead-while-reporting-fine until 6.144.1. So the ban is pinned twice:
+-- behaviourally across this whole suite, and in the shipped source.
+check("hs.urlevent.openURL was never called once, anywhere in this suite",
+      #URLEVENT_CALLS == 0, URLEVENT_CALLS[1])
+check("…and the shipped module no longer contains the call at all", (function()
+    local f = io.open(HS .. "/modules/settings_panes.lua", "r")
+    if not f then return false end
+    local body = f:read("*a"):gsub("%-%-[^\n]*", "")   -- comments stripped
+    f:close()
+    return body:find("urlevent") == nil and body:find("hs%.execute") == nil
+end)())
 
 -- =====================================================================
 out(("\n── test_settings_panes: %d passed, %d failed\n"):format(pass, fail))

@@ -1435,9 +1435,15 @@ check("...and lands on the clipboard",
 -- the user's. That is the whole 6.82.0 finding, kept.
 ALERTS = {}
 veil.monoSetup()
-check("monoSetup opens the Accessibility pane",
-      OPENED_URLS[1] ~= nil
-      and OPENED_URLS[1]:find("universalaccess", 1, true) ~= nil)
+check("monoSetup opens the Accessibility pane through open(1) — NEVER "
+   .. "hs.urlevent.openURL, which refuses every URL without '://' by "
+   .. "returning false (the 6.144.1 finding: the pane never opened)",
+      veil.monoOpenTask ~= nil
+      and veil.monoOpenTask.bin == "/usr/bin/open"
+      and tostring((veil.monoOpenTask.args or {})[1])
+              :find("universalaccess", 1, true) ~= nil
+      and veil.monoOpenTask.started == true
+      and #OPENED_URLS == 0)
 check("...and its instructions name the step that matters",
       ALERTS[1]:find("UNTICK EVERYTHING ELSE", 1, true) ~= nil)
 
