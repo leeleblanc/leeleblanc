@@ -106,10 +106,15 @@ local ALERTS  = {}       -- every hs.alert.show
 local CLIP    = nil      -- last hs.pasteboard.setContents
 
 local function stubDoEvery(secs, fn)
-    local t = { secs = secs, fn = fn, stopped = false }
-    function t:stop()  self.stopped = true  ; return self end
-    function t:start() self.stopped = false ; return self end
-    TIMERS[#TIMERS + 1] = t
+    -- 6.145.1 — MODELS hs/timer.lua:173, NOT A SHORTCUT. Hammerspoon's
+    -- real doEvery is Lua: it builds the timer it returns by calling
+    -- hs.timer.new — the very function the probe wraps. The old stub
+    -- built its timer by hand, so no test could ever see the echo row
+    -- that inner call produced in LL's real reports. "boom" stands in
+    -- for the invalid interval the real one would refuse.
+    if secs == "boom" then error("stub doEvery refusing the interval") end
+    local t = hs.timer.new(secs, fn)
+    t:start()
     return t
 end
 local function stubTimerNew(secs, fn)
@@ -988,6 +993,43 @@ do
     local loopRec = lag.timerOrder[#lag.timerOrder]
     check("…and it counts how many were made", loopRec.made == 20, loopRec.made)
 
+    -- 🪦 6.145.1 — THE ECHO ROW. Hammerspoon's doEvery builds its timer
+    -- by calling hs.timer.new from inside hs/timer.lua, and stubDoEvery
+    -- at the top of this file now does the same. Before the fix the
+    -- probe wrapped that inner call a SECOND time: LL's 6.137.0 report
+    -- carried an "hs/timer.lua:173" row with 19,228 fires that belonged
+    -- to no module — every doEvery in the config, counted again. Two
+    -- doEvery creations have happened in this section (`slow` and the
+    -- loop above), so exactly two records may name this file.
+    local fromThisFile = 0
+    for _, r in ipairs(lag.timerOrder) do
+        if tostring(r.site):find("test_lag%.lua:") then
+            fromThisFile = fromThisFile + 1
+        end
+    end
+    check("🚨 no echo row — doEvery's inner hs.timer.new is never a record",
+          fromThisFile == 2, fromThisFile)
+
+    -- the pass-through flag must come back OFF: a direct hs.timer.new a
+    -- moment later is a different timer and must be measured
+    local beforeDirect = #lag.timerOrder
+    hs.timer.new(3, function() end)
+    check("a direct hs.timer.new right after a doEvery is still measured",
+          #lag.timerOrder == beforeDirect + 1,
+          #lag.timerOrder - beforeDirect)
+
+    -- and a doEvery that THROWS must reset it on the way out too —
+    -- stuck ON, every timer after the first bad interval would go
+    -- unmeasured and the table would quietly go blind
+    local okBoom = pcall(hs.timer.doEvery, "boom", function() end)
+    check("a doEvery that throws still throws through the wrapper",
+          okBoom == false)
+    local beforeBoom = #lag.timerOrder
+    hs.timer.new(4, function() end)
+    check("…and the flag reset — the next hs.timer.new is measured",
+          #lag.timerOrder == beforeBoom + 1,
+          #lag.timerOrder - beforeBoom)
+
     -- 🚨 THE PROBE MUST BE RULE-OUT-ABLE. Its heartbeat is the one thing
     -- 6.131.0 added that runs 20 times a second forever, and the lag came
     -- back two versions later. Evidence from the accused is not enough.
@@ -1099,6 +1141,43 @@ do
     end
     check("🔨 BREAK M caught: the probe's own heartbeat is filed under "
           .. "somebody else's name", named == false)
+end
+
+-- BREAK V — the pass-through flag is dropped, and every doEvery timer
+-- is wrapped twice: once under its caller's name, once under the one
+-- line inside Hammerspoon's own timer.lua that every doEvery shares.
+-- The echo row from LL's 6.137.0 report, brought back on purpose.
+do
+    local broken = src:gsub('if insideDoEvery or type%(fn%) ~= "function" then',
+                            'if type(fn) ~= "function" then', 1)
+    check("BREAK V changed the source", broken ~= src)
+    local bchunk = assert(load(broken, "broken-lag"))
+    freshEventtap() ; freshTimers()
+    hs.eventtap.__lagOriginalNew = nil
+    local bl = bchunk()({})
+    -- The heartbeat is the only timer so far, and its own site is
+    -- overridden to name core/lag.lua — yet the echo of its inner
+    -- hs.timer.new is ALREADY in the table, filed under stubDoEvery's
+    -- line in this file: one shared row absorbing every doEvery, which
+    -- is precisely the shape of the hs/timer.lua:173 row in the report.
+    local echo
+    for _, r in ipairs(bl.timerOrder) do
+        if tostring(r.site):find("test_lag%.lua:") then echo = r end
+    end
+    check("🔨 BREAK V caught: the echo row is back — doEvery's inner "
+          .. "hs.timer.new recorded under the library's own line",
+          echo ~= nil, echo and echo.site)
+
+    -- …and the cost is counted twice: one fire lands in the caller's
+    -- record AND in the echo record.
+    local t = hs.timer.doEvery(1, function() end)
+    local callsBefore = 0
+    for _, r in ipairs(bl.timerOrder) do callsBefore = callsBefore + r.calls end
+    t.fn()
+    local callsAfter = 0
+    for _, r in ipairs(bl.timerOrder) do callsAfter = callsAfter + r.calls end
+    check("🔨 …and one fire is counted TWICE", callsAfter - callsBefore == 2,
+          callsAfter - callsBefore)
 end
 
 -- =====================================================================

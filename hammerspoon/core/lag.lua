@@ -579,6 +579,17 @@ return function(core)
             return false
         end
 
+        -- 🚨 ONE TIMER, ONE ROW (6.145.1). Hammerspoon's doEvery is Lua,
+        -- not C: hs/timer.lua builds the timer it hands back by calling
+        -- hs.timer.new — the very function wrapped just below. Without
+        -- this flag that inner call was wrapped a SECOND time, filed
+        -- under the one site every doEvery shares: the line inside
+        -- Hammerspoon's own library. LL's 6.137.0 report showed the
+        -- result — an "hs/timer.lua:173" row, 19,228 fires, echoing
+        -- every doEvery in the config and counting its cost twice, in
+        -- the table whose one job is to say where the time really went.
+        local insideDoEvery = false
+
         local realDoEvery = hs.timer.doEvery
         if type(realDoEvery) == "function" then
             hs.timer.__lagOriginalDoEvery = realDoEvery
@@ -591,7 +602,16 @@ return function(core)
                                      or (okSite and site or "unknown"),
                                      "doEvery", interval)
                 siteOverride = nil
-                return realDoEvery(interval, timedFn(rec, fn), ...)
+                -- pcall, so a doEvery that throws (a bad interval) cannot
+                -- leave the flag stuck ON — stuck, every hs.timer.new for
+                -- the rest of the session would pass by unmeasured, and
+                -- the table would quietly go blind.
+                insideDoEvery = true
+                local okCall, t = pcall(realDoEvery, interval,
+                                        timedFn(rec, fn), ...)
+                insideDoEvery = false
+                if not okCall then error(t, 2) end
+                return t
             end
         end
 
@@ -599,7 +619,10 @@ return function(core)
         if type(realTimerNew) == "function" then
             hs.timer.__lagOriginalNew = realTimerNew
             hs.timer.new = function(interval, fn, ...)
-                if type(fn) ~= "function" then
+                -- insideDoEvery: this call is doEvery building the timer
+                -- the wrapper above is ALREADY measuring — pass it
+                -- through untouched, or it becomes the echo row.
+                if insideDoEvery or type(fn) ~= "function" then
                     return realTimerNew(interval, fn, ...)
                 end
                 local okSite, site = pcall(callerSite)

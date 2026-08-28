@@ -4,8 +4,26 @@
 -- =====================================================================
 -- 08-27-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.145.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.145.1
 -- =====================================================================
+
+-- NEW IN 6.145.1 — THE ECHO ROW: EVERY doEvery TIMER, COUNTED ONCE:
+--   ⏱ Parked since 6.137.0, picked by LL from the open list. The lag
+--      probe's timer table carried an "hs/timer.lua:173" row — 19,228
+--      fires in LL's own report — that belonged to no module.
+--      Hammerspoon's doEvery is Lua, not C: it builds the timer it
+--      hands back by calling hs.timer.new, the OTHER function the probe
+--      wraps, so every doEvery timer was measured twice — once under
+--      its caller's name and once under that one shared library line —
+--      and the totals said the timers cost more than they did.
+--   🚿 THE FIX IS A PASS-THROUGH, NOT A FILTER: while the wrapped
+--      doEvery is calling the real one, the new-wrapper lets the inner
+--      call through untouched — that timer is already being measured.
+--      The flag resets even when doEvery throws, so one bad interval
+--      cannot blind the table for the rest of the session. The test
+--      stub now builds its timer the way hs/timer.lua really does, so
+--      the echo row can never come back unseen; a break test brings it
+--      back on purpose and watches one fire get counted twice.
 
 -- NEW IN 6.145.0 — THE SETUP DOOR RETIRES; THE SHEET NAMES TRIPLE-PRESS:
 --   🪦 LL, straight after the 6.144.1 ship: "Ok, remove it and rollback
@@ -110,34 +128,10 @@
 --      seen (with its subrole, for teaching the filter new kinds), and
 --      every app that refused a watcher.
 
--- NEW IN 6.142.0 — THE NUMBER-ROW LAYER COMES OUT; FREE KEYS GET A LEDGER:
---   🆓 LL, with a screenshot of the "NO NUMBER PAD" cheat sheet box:
---      "These shortcuts were supposed to be cleaned, cleared and the
---      keys listed as future possible options for keyboard shortcuts.
---      Like we just used ⇪9 on the keypad for grayscale." Both halves,
---      done.
---   🧹 CLEANED AND CLEARED: numpad_layer's 6.114.0 laptop layer (⇪⇧ +
---      the number row) is GONE — table deleted, its ten bindings
---      unbound, tests pin the keys free. ⇪⇧1 2 3 5 7 8, ⇪⇧, ⇪⇧. and
---      ⇪⇧⏎ are future options now. The pad window map and the capture
---      row are untouched; on a laptop, ⇪← ⇪→ ⇪↑ ⇪↓ and ⇪[ ⇪] still
---      move windows, and the layer's old cheat sheet box became the
---      ledger saying where its keys went.
---   🔄 AND THE KEY THAT LAYER BLOCKED IS RELEASED: ⇪⇧9 = Invert
---      colours — the exact pick from 6.141.0 that the no-two-owners
---      sentry refused while the row still owned the key. The sentry
---      was right both times: it guards owners, and the owner changed
---      by LL's word, not by a quiet steal.
---   📋 LISTED, NOT REMEMBERED: _G.freeKeys() (also the 🆓 row in ⇪;)
---      prints every unclaimed ⇪ / ⇪⇧ / pad key — READ from the live
---      hyper registry, never from documentation, because a hand-made
---      survey is exactly what missed ⇪⇧9 in 6.141.0. ⇪⇧Z is shown
---      reserved, never free: "We will use that later."
-
--- (6.141.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.142.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.145.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.145.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -462,7 +456,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.145.0"
+_G.configVersion = "6.145.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

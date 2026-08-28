@@ -4,6 +4,35 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.145.1 — THE ECHO ROW: EVERY doEvery TIMER, COUNTED ONCE:
+  ⏱ Parked since 6.137.0 ("noted, not fixed"), picked by LL from the
+     open list. The lag probe's timer table carried an
+     "hs/timer.lua:173" row — 19,228 fires in LL's own 6.137.0
+     report — that belonged to no module. Hammerspoon's doEvery is
+     Lua, not C: hs/timer.lua builds the timer it hands back by
+     calling hs.timer.new, the OTHER function the probe wraps. So
+     every doEvery timer was wrapped twice — measured once under its
+     caller's name and once under that one shared library line — and
+     the timer totals, and the "share of the one thread" verdict they
+     feed, claimed the timers cost more than they did.
+  🚿 THE FIX IS A PASS-THROUGH, NOT A FILTER. While the wrapped
+     doEvery is calling the real one, a flag makes the new-wrapper
+     hand the inner call straight through — that timer is already
+     being measured under the right name; wrapping it again is what
+     MADE the echo row. The real call runs inside pcall so a doEvery
+     that throws (a bad interval) cannot leave the flag stuck ON —
+     stuck, every hs.timer.new for the rest of the session would pass
+     by unmeasured and the table would quietly go blind.
+  🧪 THE STUB NOW TELLS THE TRUTH. test_lag's doEvery stub used to
+     build its timer by hand, which is why no test ever saw the echo:
+     it now builds it the way hs/timer.lua really does — through
+     hs.timer.new — so the whole existing suite runs against the real
+     shape. New checks pin one record per doEvery, the flag OFF again
+     for the next direct hs.timer.new, and the throw path resetting
+     it; BREAK V drops the flag on purpose and watches the echo row
+     come back and a single fire get counted twice. test_lag 243
+     checks; the gate 5,895 over the same sixty-five stages.
+
 NEW IN 6.145.0 — THE SETUP DOOR RETIRES; THE SHEET NAMES TRIPLE-PRESS:
   🪦 LL, straight after the 6.144.1 ship: "Ok, remove it and rollback
      changes. But, please add triple press to the cheat sheet, the
