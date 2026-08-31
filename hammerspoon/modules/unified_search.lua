@@ -533,6 +533,10 @@ function M.setup(core)
         -- and ⇪ is Caps Lock through hs.hotkey, which fails for entirely
         -- different reasons than an event tap does.
         ["🗂"]    = "editors.show",
+        -- 📎 6.146.0 — DEFAULT APPS, keyless like the rollup: every ⇪
+        -- letter is long gone, and a tool used a few times a year has no
+        -- claim on one anyway. This row IS its front door.
+        ["📎"]    = "defaultApps.show",
         -- 💻 6.114.0 — THE NUMBER PAD ROW, RUNNABLE WITHOUT A NUMBER PAD.
         -- These six were already listed here — srcTools lists EVERY cheat
         -- sheet row — and ⏎ on one of them copied the key string instead

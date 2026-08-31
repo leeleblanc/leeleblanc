@@ -4,6 +4,63 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.146.0 — DEFAULT APPS: A FILE TYPE OPENS IN THE APP YOU CHOSE:
+  📎 LL: "Can we create a tool that will allow me to set a default
+     application for a specific file type? So, PDFs open in Acrobat
+     instead? Also, we need to verify the setting/assignment took."
+     Both halves are the spec, and both shipped. modules/
+     default_apps.lua, the sixty-first module, keyless the way the
+     rollup is — every ⇪ letter is long spoken for, and a tool used a
+     few times a year has no claim on one. ⇪space (or ⇪⇧/), @tool,
+     the 📎 row is its front door; the run map joins 📎 to
+     defaultApps.show the way 📊 reaches the rollup.
+  🗂 TWO PICKERS. First the type: the common extensions preloaded,
+     and ANY typed extension grows its own row the moment it passes
+     the guard (letters, digits, + . _ -, twenty characters — the
+     same regex again inside the script, because argv is an input
+     even when this file is not the caller). Then the app: ONLY the
+     apps whose Info.plist claims the type — the same set Finder
+     offers under Open With — with today's default starred, bundle id
+     and path in the subtitle, and an app that is listed but gone
+     from disk saying so. Picking the starred row changes nothing and
+     says why. An app that never claimed the type is not offered:
+     every app that mishandles a type it never claimed started
+     exactly that way.
+  🔏 THE WRITE GOES THROUGH LAUNCHSERVICES — the registry Finder's
+     Get Info → "Change All…" writes — via osascript -l JavaScript,
+     the one reviewed binary, OUT OF PROCESS (the 6.65.1 rule: an
+     Apple Event cannot abort us from a child), no admin, no new
+     dependency, both Macs. Lua never touches the registry; it only
+     reads the child's JSON.
+  ✅ THE VERDICT IS THE READ-BACK, NOT THE RETURN CODE — the half of
+     the request that says "verify the assignment took". The same
+     script, in the same run, reads the registry back through TWO
+     independent doors: LSCopyDefaultRoleHandler (the table the write
+     targets) and NSWorkspace's app-for-type answer (what macOS 12+
+     would actually launch). The alert quotes what LaunchServices NOW
+     says — matched case-insensitively, because LS lowercases bundle
+     ids on the way out, with the raw string kept so a real mismatch
+     is never smoothed over. Status 0 with the wrong read-back is a
+     loud DID NOT TAKE. And a re-check two seconds later asks AGAIN:
+     a write undone by a racing LS refresh flips the history entry to
+     FAILED and shouts, because you had already stopped watching.
+  🧾 _G.defaultAppsReport() (also defaultApps.report): every change
+     this session — was, wanted, read-back, the 2s confirmation — and
+     the one trap the registry cannot see: a per-file "Always Open
+     With" override beats the type-wide default, so ONE stubborn file
+     after a verified change is Get Info on that file, not a failed
+     write. URL schemes (the default browser) are documented out of
+     scope: macOS requires consent in System Settings there.
+  🧪 tests/test_default_apps.lua, the sixty-first Lua suite, 80
+     checks: the guard, both pickers, the argv, the verdict rules,
+     the revert catch, the honest failure paths, the JXA pinned to
+     keep both witnesses — plus cross-file sentries (BASE, the run
+     map, the gate itself) and three break tests: verdict-trusts-
+     status-0, guard removed, revert-stays-green — each proving the
+     lie the intact module refuses to tell. Counts: 61 modules
+     (INSTALL.md, hs-doctor), gate 5,979 checks over sixty-six
+     stages.
+
 NEW IN 6.145.2 — THE BACKUP LINE THAT ALWAYS SAID "not configured":
   🔎 LL pasted a clean 6.145.1 diagnostic and asked "How are we
      looking?" — and one line in it was lying. PATHS said "backup

@@ -907,7 +907,11 @@ local ALLOWED_BINARIES = {
   -- process exiting non-zero. The extra binary is the price, and it is
   -- one Apple ships.
   ["/usr/bin/osascript"] = "Finder selection + Finder comment tags, OUT OF "
-                        .. "PROCESS so an Apple Event cannot abort us (ships with macOS)",
+                        .. "PROCESS so an Apple Event cannot abort us (ships with macOS). "
+                        -- 6.146.0 — and the 📎 default-apps tool: its -l JavaScript
+                        -- bridge is the only route from here to the LaunchServices
+                        -- set-handler API, same binary, same out-of-process safety.
+                        .. "Also 📎's LaunchServices read/write via -l JavaScript",
   -- 6.139.0 — the backup no longer goes through a shell at all (rsync is
   -- run directly, argument array); zsh stays reviewed for the two callers
   -- below, each of which passes a fixed command of its own.

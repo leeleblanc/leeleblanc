@@ -9,7 +9,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,496 lines)
+├── init.lua          the orchestrator (3,510 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (10 files)
 ├── modules/          one file per feature (60 files, ~39,600 lines)
@@ -551,9 +551,9 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Sixty Lua suites, 5,790 checks, plus three more that run the Capture
+Sixty-one Lua suites, 5,874 checks, plus three more that run the Capture
 Pad's, the screenshot editor's and unified search's page JavaScript under
-`node` for a further 105 — **5,896 checks over sixty-five stages** in
+`node` for a further 105 — **5,979 checks over sixty-six stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 
@@ -608,6 +608,10 @@ tests/test_battery_saver.lua 🔋 on battery the config slows itself: the deboun
                              flip, exact-cadence restore, the hog caller-out's
                              once-an-hour mute, and the desktop no-op — driving
                              the eco registry EXTRACTED from init.lua's source
+tests/test_default_apps.lua  📎 a file type opens in the app you chose: the
+                             extension guard, the claiming-apps picker, the
+                             read-back verdict (status 0 is NOT success), the
+                             2s revert catch — and break tests that prove each
 tests/test_rollup.lua        📊 the 16:01 card: derived from services, silent on an
                              empty day, and it must never take the keyboard
 tests/test_select_mode.lua   ☑️ pick-several in the ⇪⇧V/⇪⇧E/⇪⇧O editors — ⇪⇧O drives

@@ -4,8 +4,30 @@
 -- =====================================================================
 -- 08-31-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.145.2
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.146.0
 -- =====================================================================
+
+-- NEW IN 6.146.0 — DEFAULT APPS: A FILE TYPE OPENS IN THE APP YOU CHOSE:
+--   📎 LL: "Can we create a tool that will allow me to set a default
+--      application for a specific file type? So, PDFs open in Acrobat
+--      instead? Also, we need to verify the setting/assignment took."
+--      Both halves shipped: modules/default_apps.lua, keyless like the
+--      rollup — ⇪space, @tool, the 📎 row. Pick a type (any extension;
+--      a typed one grows its own row), pick from the apps that CLAIM
+--      the type — Finder's own Open With set, today's default starred.
+--   🔏 THE WRITE GOES THROUGH LAUNCHSERVICES, the registry Get Info's
+--      "Change All…" writes, via osascript's JavaScript bridge — the
+--      one reviewed binary, out of process, no admin, both Macs.
+--   ✅ AND THE VERDICT IS THE READ-BACK, NOT THE RETURN CODE. The same
+--      script reads the registry again through TWO doors — the LS
+--      handler table and NSWorkspace's app-for-type answer — and the
+--      alert quotes what LaunchServices NOW says. A re-check two
+--      seconds later catches a write a racing LS refresh undid, and
+--      shouts, because you stopped watching. _G.defaultAppsReport()
+--      keeps every change with its verdict. Break tests prove the
+--      status-0-is-not-success rule is what stands between a lying ✅
+--      and the truth. Per-file "Always Open With" overrides and the
+--      default browser are documented out of scope.
 
 -- NEW IN 6.145.2 — THE BACKUP LINE THAT ALWAYS SAID "not configured":
 --   🔎 LL pasted a clean 6.145.1 diagnostic and asked "How are we
@@ -95,36 +117,10 @@
 --      the by-hand chord. ⇪9 posts the TRUE F5 keycode in software,
 --      beneath the media-key remapping, which is why it just works.
 
--- NEW IN 6.144.0 — BATTERY SAVER: ON BATTERY, THE CONFIG SLOWS ITSELF:
---   🔋 LL: "when I am only on battery power, I lower the battery
---      consumption … DO not propose screen dimming. I can do that on
---      my own. Let's be creative, but aim for stability." Two halves.
---   🐢 ECO MODE: modules/battery_saver.lua + an eco REGISTRY beside the
---      service registry. On battery the config's own pollers slow —
---      clipboard 0.5s→2s (the biggest constant cost: 7,200 wake-ups an
---      hour become 1,800), injection watchdog 5s→60s, the two tap
---      watchdogs 30s→120s, activity 5s→15s, focus 4s→12s — and the
---      Spotlight boot scan (the priciest periodic thing here) waits
---      for AC. Every cadence restored the moment the cord is back.
---      Each timer's OWNER declares its own two cadences and rebuilds
---      its own timer; battery_saver only says when. Rebuilds preserve
---      running state, so the lag probe's held-down watchdogs stay held.
---   📢 THE HOG CALLER-OUT: the real battery goes to other apps. On
---      battery only, one out-of-process ps every 4 minutes; an app
---      over 60% CPU across two samples is NAMED in a notification —
---      once per app per hour, never killed. ⇪⇧; stays the hammer.
---   ⚖️ STABLE BY CONSTRUCTION: event-driven (hs.battery.watcher; zero
---      periodic work on AC), a 20s debounce so brief unplugs flip
---      nothing (boot skips it — a Mac that boots on battery IS on
---      battery), and a desktop is a no-op. Deliberately NOT done: no
---      dimming (LL's own), no pmset/Low Power Mode (needs root — set
---      "Only on Battery" once in System Settings instead), no killing.
---      _G.eco() · _G.battReport() · _G.ecoOn()/_G.ecoOff()/_G.ecoAuto().
-
--- (6.143.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.144.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.145.2
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.146.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -205,6 +201,17 @@
 --    _G.eco() says what is slowed; _G.battReport() charge and drain;
 --    _G.ecoOn()/_G.ecoOff()/_G.ecoAuto() force it either way. A Mac
 --    with no battery loads it and sleeps.
+--
+-- 📎 DEFAULT APPS (modules/default_apps.lua)  ·  no key — ⇪space, @tool
+--    Pick a file type (any extension), pick the app that opens it —
+--    only apps that CLAIM the type are offered, today's default
+--    starred. The change is written to LaunchServices out of process
+--    and then READ BACK through two independent APIs before the ✅ is
+--    believed; a re-check two seconds later catches a write that a
+--    racing LS refresh undid. _G.defaultAppsReport() lists every
+--    change this session with its verdict. Per-file "Always Open
+--    With" overrides and the default browser are out of scope — the
+--    report says why.
 --
 -- ⇪P  APP PEEK (§1.8)
 --    Hides the frontmost app instantly so you can see what's
@@ -449,7 +456,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.145.2"
+_G.configVersion = "6.146.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2956,6 +2963,13 @@ local BASE = {
     -- appear in the same place, on my primary monitor?"
     "dialog_home",        -- 🎯 dialogs land at one spot on the primary
                           --    monitor; drag one to move the spot (no key)
+    -- 6.146.0 — LL: set a default application for a specific file type,
+    -- and verify the assignment took. Reads and writes LaunchServices
+    -- through osascript; the verdict comes from reading the registry
+    -- back, never from the write's return code. No key — reached from
+    -- the tool search, the way the rollup is.
+    "default_apps",       -- 📎 a file type opens in the app YOU chose,
+                          --    with the change read back and proven
     -- 6.144.0 — LL: on battery power only, lower the battery consumption.
     -- Late in this list ON PURPOSE: by the time it loads, every eco
     -- registration made during setup is already in the registry, so a
