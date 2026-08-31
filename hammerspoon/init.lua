@@ -2,10 +2,29 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 08-27-26 using Claude          ← EDITED date. Bumped with every release.
+-- 08-31-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.145.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.145.2
 -- =====================================================================
+
+-- NEW IN 6.145.2 — THE BACKUP LINE THAT ALWAYS SAID "not configured":
+--   🔎 LL pasted a clean 6.145.1 diagnostic and asked "How are we
+--      looking?" — and one line in it was lying. PATHS said "backup
+--      dir : not configured" while CAPABILITIES, in the SAME report,
+--      showed the 5:00 PM backup armed into OneDrive. Both sincere:
+--      the backups run off core.backupDir; the PATHS line read a
+--      GLOBAL named backupDir that no Mac ever sets.
+--   🧬 THE BUG SHIPPED IN 6.44.11, when §1.11 was lifted out of
+--      init.lua into core/diagnostics.lua. The extraction passed
+--      three upvalues and missed the fourth — the header comment even
+--      said "three values", so the file believed itself. The suite
+--      hid it by defining backupDir as a real global, which init.lua
+--      never does: its backupDir is a local, invisible to that read.
+--   🩹 init.lua now passes backupDir; diagnostics keeps it like the
+--      other three. And the suite hands the chunk the value then
+--      DELETES its harness global before building the report — so the
+--      line can only be right by keeping core.backupDir, and the next
+--      accidental global read fails the suite instead of every Mac.
 
 -- NEW IN 6.145.1 — THE ECHO ROW: EVERY doEvery TIMER, COUNTED ONCE:
 --   ⏱ Parked since 6.137.0, picked by LL from the open list. The lag
@@ -102,36 +121,10 @@
 --      "Only on Battery" once in System Settings instead), no killing.
 --      _G.eco() · _G.battReport() · _G.ecoOn()/_G.ecoOff()/_G.ecoAuto().
 
--- NEW IN 6.143.0 — DIALOG HOME: DIALOGS LAND AT YOUR SPOT:
---   🎯 LL, with a screenshot of Finder's "A folder named 'core' already
---      exists — Replace?" box: "Can we capture this kind of window and
---      make it appear in the same place, on my primary monitor?" That
---      is the dialog every install of this very config produces, and
---      macOS opens it wherever it feels like. Now: modules/
---      dialog_home.lua watches for THIS KIND of window — role AXWindow,
---      subrole AXDialog / AXSystemDialog, plus modally-flagged standard
---      windows; sheets never — and moves each one to ONE spot the
---      moment it appears. Default: centred, a little high, on the
---      PRIMARY monitor (the menu-bar screen).
---   🖐 THE CAPTURE IS LITERAL: drag any dialog somewhere better and
---      that spot becomes the home, persisted across reloads
---      (hs.settings, validated on the way back in like every remembered
---      position here). _G.dialogHome.reset() forgets it. The module's
---      own moves are suppressed from capture, so only YOUR drag counts.
---   ⚖️ WATCHED THE ONLY WAY THIS CONFIG ALLOWS: one Accessibility
---      observer on the FRONTMOST app (copy_on_select's pattern) — never
---      hs.window.filter, which froze this Mac for 44 seconds once and
---      is banned with sentries; dialog_home is now IN that sentry sweep
---      by name. A background app's waiting dialog is placed the moment
---      you switch to it. Moves are verified and refusals recorded:
---      _G.dialogs() names the home screen, the spot, the last window
---      seen (with its subrole, for teaching the filter new kinds), and
---      every app that refused a watcher.
-
--- (6.142.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.143.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.145.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.145.2
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -456,7 +449,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.145.1"
+_G.configVersion = "6.145.2"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -1685,7 +1678,8 @@ local diagOK, diagErr = pcall(function()
     local path = hs.configdir .. '/core/diagnostics.lua'
     local chunk, loadErr = loadfile(path)
     if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
-    chunk()({ logsDir = logsDir, hostTag = hostTag, asanaEnabled = asanaEnabled })
+    chunk()({ logsDir = logsDir, hostTag = hostTag, asanaEnabled = asanaEnabled,
+              backupDir = backupDir })
 end)
 if not diagOK then
     print('⚠️ core/diagnostics.lua failed to load — ⇪⇧D and the diagnostic '

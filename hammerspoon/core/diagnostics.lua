@@ -8,9 +8,14 @@
 -- exactly the point §1.11 used to sit, so nothing about the boot order
 -- changed; only the 287 lines moved.
 --
--- It takes the three values it used to read as upvalues from init.lua.
--- All three are assigned before this point and never reassigned after,
+-- It takes the four values it used to read as upvalues from init.lua.
+-- All four are assigned before this point and never reassigned after,
 -- so passing them by value is equivalent to the closure it replaces.
+-- 🩹 6.145.2 — backupDir is the fourth. The 6.44.11 extraction passed
+-- three and missed it, so the PATHS line read a global nobody sets and
+-- printed "not configured" on every Mac ever since — while the backups
+-- themselves ran fine. The test harness hid it by defining backupDir as
+-- a real global, which init.lua never does (its backupDir is a local).
 --
 -- If this file is missing or raises, init.lua keeps the NO-OP diag
 -- stand-in it installed earlier and boots anyway — degraded, loudly, but
@@ -21,6 +26,7 @@ return function(core)
     local logsDir      = core.logsDir
     local hostTag      = core.hostTag
     local asanaEnabled = core.asanaEnabled
+    local backupDir    = core.backupDir
 
     -- =====================================================================
     -- 1.11 DIAGNOSTICS — ⇪⇧D writes the report I need to debug anything

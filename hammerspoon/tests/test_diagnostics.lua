@@ -69,7 +69,15 @@ _G.diag.trail[1] = "pre-existing entry from before §1.11 loaded"
 local DIAG_PATH = HS .. "/core/diagnostics.lua"
 local diagChunk = assert(loadfile(DIAG_PATH),
                          "cannot load the shipped diagnostics: " .. DIAG_PATH)
-diagChunk()({ logsDir = logsDir, hostTag = hostTag, asanaEnabled = asanaEnabled })
+diagChunk()({ logsDir = logsDir, hostTag = hostTag, asanaEnabled = asanaEnabled,
+              backupDir = backupDir })
+-- 6.145.2 — the global dies the moment the chunk has been handed the value.
+-- Before the fix, diagnostics read `backupDir` as a GLOBAL — which this
+-- harness defined (above) and init.lua never does, its backupDir being a
+-- local — so this suite stayed green while every real Mac's report printed
+-- "backup dir : not configured". With the global gone, the report below can
+-- only know the path if it actually kept core.backupDir.
+backupDir = nil
 local keptEarly = _G.diag.trail[1] == "pre-existing entry from before §1.11 loaded"
 io.open = realopen
 
@@ -139,6 +147,8 @@ for _, want in ipairs({
   "PATHS", "/tmp/hs-test", "ERRORS", "LAST 25 EVENTS", "END OF REPORT" }) do
   check("report contains: " .. want, inReport(r, want))
 end
+check("backup dir is the PASSED value, not a global only this harness sets",
+  inReport(r, "backup dir     : /tmp/hs-backup"), r:match("backup dir[^\n]*"))
 check("live probe TIMES the window enumeration (the beachball measure)",
   r:find("orderedWindows : 3 windows in %d") ~= nil)
 check("a slow enumeration is flagged in the report", r:find("SLOW") ~= nil)

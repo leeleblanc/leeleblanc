@@ -4,6 +4,38 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.145.2 — THE BACKUP LINE THAT ALWAYS SAID "not configured":
+  🔎 LL pasted a clean 6.145.1 diagnostic and asked "How are we
+     looking?" — and one line in it was lying. PATHS said "backup
+     dir : not configured" while CAPABILITIES, in the SAME report,
+     showed the 5:00 PM daily backup armed into OneDrive. Both were
+     sincere: the backups run off core.backupDir, which was set; the
+     PATHS line read a GLOBAL named backupDir that no Mac ever sets,
+     and _G.diag.fileInfo(nil) answers "not configured".
+  🧬 THE BUG SHIPPED IN 6.44.11, when §1.11 was lifted out of
+     init.lua into core/diagnostics.lua. Inside init.lua the line had
+     read backupDir as an UPVALUE and was right; the extraction passed
+     three values (logsDir, hostTag, asanaEnabled) and missed the
+     fourth — the file's own header said "the three values", so it
+     believed itself. Every diagnostic report on every Mac has printed
+     the false line since. Nothing downstream reads it; the cost was
+     purely a lie waiting to send a future debugging session hunting a
+     backup problem that does not exist.
+  🫥 WHY 5,895 CHECKS NEVER CAUGHT IT: the test harness defines
+     backupDir as a real global (line 42 of test_diagnostics.lua, one
+     assignment with hostTag and friends), so in the SUITE the bare
+     global read found a value and the line looked right. init.lua
+     never does that — its backupDir is a local. The green was real;
+     the environment was not.
+  🩹 THE FIX IS FOUR WORDS AND A TRAP. init.lua passes backupDir in
+     the table (§1.11 load site); diagnostics unpacks it like the
+     other three, and the untouched PATHS line binds to the new local.
+     The suite now hands the chunk the value and then DELETES its
+     harness global before building the report — so the report can
+     only be right by keeping core.backupDir, and the next accidental
+     global read fails the suite instead of every Mac. test_diagnostics
+     427 checks; the gate 5,896 over the same sixty-five stages.
+
 NEW IN 6.145.1 — THE ECHO ROW: EVERY doEvery TIMER, COUNTED ONCE:
   ⏱ Parked since 6.137.0 ("noted, not fixed"), picked by LL from the
      open list. The lag probe's timer table carried an
