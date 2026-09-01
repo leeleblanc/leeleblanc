@@ -4,6 +4,65 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.148.0 — EVERY TOOL POPS IN FRONT OF THE CHEAT SHEET:
+  🪟 LL, with ⇪space layered over the sheet in their screenshot: "Can
+     you make all the tools pop in front of the cheat sheet? Like the
+     app picker/universal launcher." Why only those behaved: the
+     webview tools (⇪space, ⇪I, the pads, the editors) all call
+     hs.webview's bringToFront(true), which parks them near
+     screenSaver (~1000) — while hs.chooser's panel is PINNED at
+     mainMenu+3 by Hammerspoon itself (HSChooser.m, read from the
+     source, 2026-09-01) and exposes no level API at all. The sheet
+     drew at `overlay` (102), seventy-five levels above the chooser's
+     rung: all seventeen chooser tools — ⇪D apps, ⇪V clipboard, ⇪;
+     power tools, ⇪⇧4 screenshots, ⇪⇧6 net watch, 📎 default apps
+     and the rest — opened UNDERNEATH the reference that told you
+     about them.
+  🪜 THE LADDER (core/coexist.lua) IS REBUILT AROUND THAT FIXED RUNG:
+     offsets from mainMenu now, with the chooser's +3 written down as
+     the landmark nobody can move. The sheet drops to mainMenu−2 —
+     THE FLOOR, the statement _G.escapePriorities has made since
+     6.78.0 ("closes last" IS "drawn under"). The canvas cards
+     (⇪- calendar, 16:01 rollup, Asana mirror, ⇪7 card, ⌥Tab HUD,
+     win_pin stickers) take NAMED rungs between sheet and chooser —
+     five of them used to name `overlay` directly, TYING the sheet
+     and stacking by accident of show order, the same undefinedness
+     6.68.0 first fought. Only the Key Caster (+4) and the pomodoro
+     (+5) outrank the chooser: the two windows that must never hide
+     behind what you press. The ⇪Q dim drops below even the sheet —
+     a dim that covered your picker was backwards. Deliberately above
+     the whole ladder, unchanged: every webview panel, the mouse
+     grid, the screenshot area-picker, the legend strip, the veil.
+     test_integration executes the real block and pins the policy:
+     sheet under the chooser rung, every card between the two,
+     pomodoro on top, and each of the five cards asking for its
+     level BY NAME instead of a bare `overlay`.
+  🔄 THE SWITCHER'S "0 apps / Slowest app: nil" LINE RETIRED — LL's
+     console showed it three times ("stopped after 3.0s / 0 apps —
+     Slowest app: nil (0.00s)"). Zero apps means the per-app pass
+     never ran: hs.window.orderedWindows() alone spent the whole
+     budget. The message now blames the on-screen listing with its
+     own timing and says the cross-Space pass was skipped — instead
+     of naming a nil app and suggesting a skipApps fix that could
+     not possibly have helped. A genuinely slow app still gets the
+     classic line with its name; both paths are under test.
+  🕘 THE ⇪Y KILL NAMES THE STEP IT DIED IN. The 6.147.0 watchdog did
+     its job on the Air — twice — and could say nothing but "it
+     hung": a killed task's stdout dies with it. The export script
+     now logs one line to a progress file BEFORE each step (copying
+     Default, querying Profile 1, … finished cleanly) — a FILE, not
+     stdout, because stdout is the JSON data channel a marker would
+     corrupt. The kill reads the file's last line into its status,
+     alert, notice and the report's new "progress:" line: "it hung
+     at: copying Default" points at the History COPY (permission
+     territory); "querying …" would point at sqlite3. Two smaller
+     lies fixed around it: the killed sh still EXITS (code 15, from
+     our own terminate), and that exit used to land in the completion
+     callback and overwrite the honest KILLED status with "export
+     failed (sh exited 15)" — LL's console showed exactly that pair.
+     The guard is PER-RUN, so a killed run's late exit can no longer
+     touch a newer run's state either.
+
 NEW IN 6.147.0 — SIX ANSWERS: WHO'S TALKING · NAMES · CLOCK · CONSOLE:
   🌐 NET WATCH (modules/net_watch.lua, the sixty-second module, on
      ⇪⇧6 — the free-keys ledger listed it, and it is the shift of ⇪6

@@ -112,6 +112,7 @@ function M.setup(core)
     chrome.exporting = false
     chrome.exportedAt = nil   -- when the running export started (for the alert)
     chrome.watchdog  = nil    -- HELD: the deadline timer on a running export
+    chrome.progressPath = nil -- the export's flight-recorder file (6.148.0)
     chrome.lastMs    = nil
 
     local function epoch()
@@ -169,21 +170,52 @@ function M.setup(core)
     -- "Application Support" both contain spaces, and passing them as $4,
     -- $5… means no quoting ever has to be right. Chrome timestamps are
     -- microseconds since 1601 (the Windows epoch); the query converts.
+    --
+    -- 🚨 6.148.0 — THE FLIGHT RECORDER. The 6.147.0 watchdog killed two
+    -- hung exports on LL's Air and could say nothing but "it hung":
+    -- stdout only reaches Lua when the task EXITS, so a killed run is a
+    -- run whose evidence died with it. The script now writes one line to
+    -- a progress file BEFORE each step; the watchdog reads that file's
+    -- last line and names the step the run died in. Progress goes to a
+    -- FILE, not stdout, because stdout is the data channel — a marker
+    -- line inside a profile's block would break that block's JSON parse.
     local SCRIPT = [[
 sq="$1"; tmp="$2"; cutoff="$3"; limit="$4"; shift 4
+pf="$tmp/hs-chrome-progress.txt"
+: > "$pf"
 n=0
 while [ "$#" -ge 2 ]; do
   lbl="$1"; db="$2"; shift 2
   n=$((n+1))
+  printf 'copying %s\n' "$lbl" >> "$pf"
   cp -f "$db" "$tmp/hs-chrome-$n.db" 2>/dev/null || continue
   cp -f "$db-wal" "$tmp/hs-chrome-$n.db-wal" 2>/dev/null
   cp -f "$db-shm" "$tmp/hs-chrome-$n.db-shm" 2>/dev/null
   printf '##PROFILE## %s\n' "$lbl"
+  printf 'querying %s\n' "$lbl" >> "$pf"
   "$sq" -json "$tmp/hs-chrome-$n.db" "SELECT url, title, visit_count AS visits, CAST(last_visit_time/1000000 - 11644473600 AS INTEGER) AS ts FROM urls WHERE last_visit_time > $cutoff AND hidden = 0 ORDER BY last_visit_time DESC LIMIT $limit;"
   printf '\n'
   rm -f "$tmp/hs-chrome-$n.db" "$tmp/hs-chrome-$n.db-wal" "$tmp/hs-chrome-$n.db-shm"
 done
+printf 'finished cleanly\n' >> "$pf"
 ]]
+
+    -- The last line the export managed to log — nil when no progress file
+    -- exists (an export that has never run, or a Mac whose tmp was wiped).
+    -- After a kill this is the step the run died in; after a healthy run
+    -- it reads "finished cleanly".
+    function chrome.lastProgress()
+        local last
+        pcall(function()
+            local f = io.open(chrome.progressPath or "", "r")
+            if not f then return end
+            for line in f:lines() do
+                if line:match("%S") then last = line end
+            end
+            f:close()
+        end)
+        return last
+    end
 
     -- stdout → entries. Each profile's block is a JSON array under its
     -- ##PROFILE## marker; a profile whose block will not parse costs that
@@ -292,6 +324,9 @@ done
             local t = hs.fs.temporaryDirectory()
             if type(t) == "string" and t ~= "" then tmp = t:gsub("/$", "") end
         end)
+        -- Where the script's `pf` lands — the Lua side computes the same
+        -- path so the watchdog and the report can read it back.
+        chrome.progressPath = tmp .. "/hs-chrome-progress.txt"
         local cutoff = (math.floor(epoch()) - chrome.days * 86400
                         + 11644473600) * 1000000
         local args = { "-c", SCRIPT, "hs-chrome-history", chrome.sqlite, tmp,
@@ -302,8 +337,25 @@ done
             args[#args + 1] = d.path
         end
         local t0 = epoch()
+        -- 🚨 6.148.0 — PER-RUN, not module state, on purpose: the killed
+        -- task's exit can land after a FRESH export has already started,
+        -- and a shared flag would make that late exit swallow the new
+        -- run's completion (or its `exporting` flag).
+        local killedByWatchdog = false
         local okNew, t = pcall(function()
             return hs.task.new("/bin/sh", function(code, sout, serr)
+                -- 🚨 6.148.0 — A KILLED RUN EXITS TOO. terminate() makes sh
+                -- exit 15, which lands HERE a moment after the watchdog
+                -- wrote the honest status (which step it died in) — and the
+                -- generic branch below then overwrote it with "export
+                -- failed (sh exited 15)". LL's console showed exactly that
+                -- pair of lines. The kill's own exit is not a second
+                -- failure to report, and it must not touch module state a
+                -- newer run may own by now.
+                if killedByWatchdog then
+                    if andThen then andThen(false, 0) end
+                    return
+                end
                 chrome.exporting = false
                 if chrome.watchdog then
                     pcall(function() chrome.watchdog:stop() end)
@@ -358,20 +410,28 @@ done
             chrome.watchdog = nil
             if not chrome.exporting then return end
             chrome.exporting = false
+            killedByWatchdog = true
             pcall(function() t:terminate() end)
+            -- The flight recorder names the step the run died in — the
+            -- one fact 6.147.0's kill could not give.
+            local stuck = chrome.lastProgress()
+            local at = stuck and (" — it hung at: " .. stuck)
+                       or " — it hung before writing any progress"
             chrome.status = "export KILLED after " .. chrome.exportTimeout
-                            .. "s — it hung. _G.chromeHistoryReport() has the details"
+                            .. "s" .. at
+                            .. ". _G.chromeHistoryReport() has the details"
             warn(chrome.status)
             if _G.notices then
                 _G.notices.record("chrome", "export hung and was killed",
-                    "the /bin/sh export ran past " .. chrome.exportTimeout
-                    .. "s and was terminated. sqlite3 or the History copy "
-                    .. "is stuck — run _G.chromeHistoryReport()")
+                    "ran past " .. chrome.exportTimeout .. "s and was "
+                    .. "terminated" .. at
+                    .. " — run _G.chromeHistoryReport()")
             end
             pcall(function()
                 hs.alert.show("🕘 Chrome export hung and was stopped after "
-                              .. chrome.exportTimeout .. "s.\n"
-                              .. "_G.chromeHistoryReport() explains.", 5)
+                              .. chrome.exportTimeout .. "s"
+                              .. (stuck and ("\nIt died at: " .. stuck) or "")
+                              .. "\n_G.chromeHistoryReport() explains.", 5)
             end)
         end)
         chrome.watchdog = okDog and dog or nil
@@ -648,6 +708,15 @@ done
             outLine(string.format("   last export: %.0fms", chrome.lastMs))
         else
             outLine("   last export: not run yet this session")
+        end
+        -- 6.148.0 — the flight recorder's last word. "finished cleanly"
+        -- after a healthy run; after a kill, the step the run died in —
+        -- which is the line to paste when ⇪Y hangs.
+        local prog = chrome.lastProgress()
+        if prog then
+            outLine("   progress:    " .. prog
+                    .. (prog == "finished cleanly" and ""
+                        or "  ← where the killed run stopped"))
         end
         if chrome.loadedAt and chrome.loadedAt > 0 then
             outLine("   loaded:      " .. ageWords(epoch() - chrome.loadedAt)

@@ -319,7 +319,9 @@ function M.setup(core)
             c[2].frame = { x = roll.padding, y = roll.padding,
                            w = roll.width - roll.padding * 2,
                            h = h - roll.padding * 2 }
-            c:level("overlay")
+            -- 6.148.0 — the coexist ladder, not a bare "overlay" that
+            -- tied with the cheat sheet
+            c:level((_G.panelLevel and _G.panelLevel("rollup")) or "overlay")
             -- 🚨 NO FOCUS, EVER. clickActivating(false) is the whole reason
             -- this is a canvas and not a chooser: the card can appear while
             -- you are typing a sentence and the sentence keeps going into

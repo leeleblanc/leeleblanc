@@ -438,7 +438,12 @@ function M.setup(core)
                 frame = { x = pad, y = pad, w = panelW - pad * 2, h = panelH - pad * 2 },
             },
         })
-        pcall(function() canvas:level(hs.canvas.windowLevels.overlay) end)
+        -- 6.148.0 — the coexist ladder, not a bare `overlay` that tied
+        -- with the cheat sheet
+        pcall(function()
+            canvas:level((_G.panelLevel and _G.panelLevel("taskcreator"))
+                         or hs.canvas.windowLevels.overlay)
+        end)
         -- Same Spaces/full-screen visibility declarations as the legend
         -- and cheat sheet — without them the mirror can't appear over
         -- native full-screen apps

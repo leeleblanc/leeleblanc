@@ -271,7 +271,20 @@ function M.setup(core)
             #entries, elapsed, tOrdered, #appsSeen,
             truncated and ", BUDGET SPENT" or "",
             slowestApp and string.format(", slowest: %s %.2fs", slowestApp, slowestTime) or ""))
-        if truncated then
+        if truncated and #appsSeen == 0 then
+            -- 🚨 6.148.0 — LL's console: "stopped after 3.0s / 0 apps —
+            -- Slowest app: nil (0.00s)". Zero apps means the per-app pass
+            -- never ran AT ALL: the on-screen listing above spent the
+            -- whole budget before the first application could be asked.
+            -- Blaming a slowest app of "nil" and suggesting skipApps was
+            -- advice that could not possibly help. Name the real culprit.
+            print(string.format(
+                "🔄 Window switcher: the on-screen window list alone took %.1fs "
+                .. "(budget %.1fs) — macOS was slow to answer, no single app is to "
+                .. "blame, and the cross-Space pass was skipped. Showing this "
+                .. "Space's windows; a press within %.0fs reuses the list.",
+                tOrdered, altTab.listBudget, altTab.cacheFor))
+        elseif truncated then
             print(string.format(
                 "🔄 Window switcher: stopped after %.1fs / %d apps — showing what it had. "
                 .. "Slowest app: %s (%.2fs). Add it to altTab.skipApps in "

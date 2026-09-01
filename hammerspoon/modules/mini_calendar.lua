@@ -538,7 +538,13 @@ function M.setup(core)
             return
         end
         cal.canvas = made
-        pcall(function() cal.canvas:level(hs.canvas.windowLevels.overlay) end)
+        -- 6.148.0 — on the coexist ladder: above the cheat sheet, below
+        -- the choosers. Bare `overlay` TIED it with the sheet, and a tie
+        -- stacks by whichever was shown last.
+        pcall(function()
+            cal.canvas:level((_G.panelLevel and _G.panelLevel("calendar"))
+                             or hs.canvas.windowLevels.overlay)
+        end)
         pcall(function()
             cal.canvas:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" })
         end)

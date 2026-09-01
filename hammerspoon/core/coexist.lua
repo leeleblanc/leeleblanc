@@ -36,49 +36,67 @@
 return function(core)
 
 -- =====================================================================
--- 🪟 PANEL STACKING ORDER (6.68.0)
+-- 🪟 PANEL STACKING ORDER (6.68.0 · rebuilt around the chooser 6.148.0)
 -- =====================================================================
--- LL: "Bring the Hammerspoon tool window in front of shortcuts."
+-- LL, 6.68.0: "Bring the Hammerspoon tool window in front of shortcuts."
+-- LL, 6.148.0: "Can you make all the tools pop in front of the cheat
+-- sheet? Like the app picker/universal launcher."
 --
--- The pomodoro and the cheat sheet were both drawn at hs.canvas's
--- `overlay` level. Two windows at the SAME level are ordered by whichever
--- was shown last, which is why the timer sat behind the shortcut panel
--- some of the time and in front of it the rest — the stacking wasn't
--- wrong, it was UNDEFINED, and undefined reads as "sometimes broken".
+-- The 6.68.0 table answered the first ask one panel at a time — the
+-- pomodoro, then the ⌥Tab HUD, then the ⇪7 card — and every window
+-- built since had to rediscover the problem. The second ask is the same
+-- ask made universal, and it runs into a constraint the old table never
+-- looked at:
 --
--- So it is defined here, in one table, instead of as a magic string in
--- each module. The numbers are OFFSETS FROM `overlay`, not absolute
--- levels: an NSWindow level is just an integer and hs.canvas:level()
--- takes one, so "the cheat sheet's level plus three" survives macOS
--- renumbering the named constants in a way that hard-coded 200 would not.
+-- 🚨 hs.chooser's panel sits at mainMenu+3 AND EXPOSES NO LEVEL API.
+-- (HSChooser.m: `setLevel:(CGWindowLevelForKey(kCGMainMenuWindowLevelKey)
+-- + 3)` — read from the Hammerspoon source, 2026-09-01.) Seventeen of
+-- the tools here are choosers, and the old sheet at `overlay` (102) was
+-- seventy-five levels ABOVE that rung: every picker the sheet told you
+-- about opened UNDERNEATH it. The tools that DID pop in front — ⇪space,
+-- ⇪I, the pads and the editors — are hs.webview windows, and every one
+-- of them calls bringToFront(true), which parks it near screenSaver
+-- (~1000). That is the behavior LL pointed at; the choosers can never
+-- follow it, so the sheet comes down instead.
 --
--- 🚨 THE INVARIANT IS TESTED, not assumed: test_cheatsheet asserts
--- pomodoro > cheatsheet. Anything that quietly equalises them fails.
+-- The chooser's rung cannot move, so the ladder is built AROUND it:
+-- offsets from `mainMenu` (24 today), with the chooser's fixed +3 as
+-- the landmark. The cheat sheet is the FLOOR — the statement
+-- _G.escapePriorities already makes about Esc ("it closes last" IS
+-- "it is drawn under everything"). The canvas cards live between the
+-- sheet and the chooser, and only two things outrank the chooser: the
+-- Key Caster (it shows what you press, and you press keys INTO
+-- choosers) and the pomodoro (its 6.68.0 ask, unchanged).
 --
--- The Mouse Grid is NOT in this table on purpose. It sits at
--- `screenSaver` (~1000) because it is a targeting overlay that must be
--- above literally everything including these panels, and expressing that
--- as "overlay + 898" would obscure why.
+-- 🚨 THE INVARIANTS ARE TESTED, not assumed: test_integration asserts
+-- the sheet is below the chooser landmark, every card rung is above the
+-- sheet, and the pomodoro still tops the ladder.
+--
+-- Deliberately NOT in this table, each ABOVE the whole ladder for its
+-- own reason: every hs.webview panel (bringToFront(true), above), the
+-- mouse grid and the screenshot area-picker (targeting overlays that
+-- must beat everything), the keyboard legend strip (ambient and tiny),
+-- and the screen veil (privacy — hard to lift by design).
 _G.panelLevels = {
-    cheatsheet = 0,   -- the reference level
-    focus      = 0,
-    popup      = 0,
-    switcher   = 1,   -- ⌥Tab HUD: above the sheet, below the timer
-    keycaster  = 2,   -- it shows what you just pressed, so it must not be
-                      -- hidden BY what you just pressed: above the sheet
-                      -- and the switcher, below the timer
-    macpanel   = 1,   -- 6.120.0 ⇪7's About-This-Mac card. Above the sheet
-                      -- because ⇪/ is how you look up ⇪7 in the first
-                      -- place, and a card that opens UNDER the thing that
-                      -- told you about it reads as the key not working.
-                      -- Below the timer, which outranks everything here.
-    pomodoro   = 3,   -- ABOVE the cheat sheet — this is the ask
+    focus      = -3,  -- ⇪Q dim: a backdrop even the sheet reads over
+    cheatsheet = -2,  -- THE FLOOR. Everything pops in front of it.
+    calendar   = -1,  -- ⇪- card — was at `overlay`, TIED with the sheet:
+    rollup     = -1,  -- the 16:01 card — same tie, same fix
+    taskcreator = -1, -- the Asana mirror card — same
+    macpanel   = -1,  -- ⇪7 About-This-Mac card (6.120.0's ask, kept)
+    switcher   = -1,  -- ⌥Tab HUD
+    pinbadge   = -1,  -- win_pin's stickers
+    popup      = 0,   -- and a panel with no row lands here: above the
+                      -- sheet, below the chooser — safe by default
+    -- [chooser =  3]    macOS's fixed rung: written down, not ours to set
+    keycaster  = 4,   -- above even the chooser you are typing into
+    pomodoro   = 5,   -- the 6.68.0 ask, still the top of the ladder
 }
 
 function _G.panelLevel(name)
-    local base = 102   -- hs.canvas.windowLevels.overlay on every macOS to date
+    local base = 24    -- hs.canvas.windowLevels.mainMenu on every macOS to date
     pcall(function()
-        local lv = (hs.canvas and hs.canvas.windowLevels or {}).overlay
+        local lv = (hs.canvas and hs.canvas.windowLevels or {}).mainMenu
         if type(lv) == "number" then base = lv end
     end)
     return base + (_G.panelLevels[name] or 0)

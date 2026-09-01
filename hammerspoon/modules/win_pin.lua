@@ -301,7 +301,9 @@ function M.setup(core)
             c:frame({ x = 0, y = 0, w = w, h = h })
             c[2].frame = { x = wp.padding, y = wp.padding,
                            w = w - wp.padding * 2, h = h - wp.padding * 2 }
-            c:level("overlay")
+            -- 6.148.0 — the coexist ladder: stickers sit above the
+            -- sheet but under any picker you are actually working
+            c:level((_G.panelLevel and _G.panelLevel("pinbadge")) or "overlay")
             -- Clicking a note must not pull focus to Hammerspoon, and the
             -- click belongs to the window underneath. Both matter more here
             -- than usual: Window Move runs an event tap that consumes

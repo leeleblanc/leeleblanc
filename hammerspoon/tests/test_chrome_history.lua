@@ -326,6 +326,50 @@ check("…status names the kill and points at the report",
       chrome.status)
 check("…and the alert says so out loud",
       (ALERTS[#ALERTS] or ""):find("hung", 1, true) ~= nil, ALERTS[#ALERTS])
+
+-- -----------------------------------------------------------------------
+-- 🚨 6.148.0 — THE FLIGHT RECORDER. Two kills on LL's Air could say
+-- nothing but "it hung". The script now logs each step to a progress
+-- file; the suite plays the script's role, writes the file a hung run
+-- would have left behind, and fires a second hang.
+local PROG = os.tmpname()
+do
+    local pf = io.open(PROG, "w")
+    pf:write("copying Default\nquerying Default\ncopying Profile 1\n")
+    pf:close()
+end
+chrome.export()
+local hung2 = TASKS[#TASKS]
+chrome.progressPath = PROG   -- the suite's stand-in for the script's $pf
+WATCHDOGS[#WATCHDOGS].fn()
+check("6.148.0 — the kill names the step the run died in",
+      tostring(chrome.status):find("it hung at: copying Profile 1", 1, true) ~= nil,
+      chrome.status)
+check("…and the alert carries the same step",
+      (ALERTS[#ALERTS] or ""):find("copying Profile 1", 1, true) ~= nil,
+      ALERTS[#ALERTS])
+check("…lastProgress reads the LAST line and skips trailing blanks", (function()
+    local pf = io.open(PROG, "a") ; pf:write("\n") ; pf:close()
+    return chrome.lastProgress() == "copying Profile 1"
+end)(), chrome.lastProgress())
+-- 🚨 the killed sh still EXITS — code 15, from our own terminate() — and
+-- that exit used to land in the completion callback and overwrite the
+-- honest KILLED status with "export failed (sh exited 15)". LL's console
+-- showed exactly that pair of lines, three seconds apart.
+hung2.cb(15, "", "")
+check("6.148.0 — the kill's own exit does not clobber the KILLED status",
+      tostring(chrome.status):find("KILLED", 1, true) ~= nil, chrome.status)
+os.remove(PROG)
+-- and the SCRIPT itself carries the recorder: a marker BEFORE each step,
+-- written to the FILE — never stdout, which is the JSON data channel
+local SCRIPT2 = hung2.args[2]
+check("the script logs 'copying' before each cp, into the progress file",
+      SCRIPT2:find([=[printf 'copying %s\n' "$lbl" >> "$pf"]=], 1, true) ~= nil)
+check("the script logs 'querying' before each sqlite3, into the file",
+      SCRIPT2:find([=[printf 'querying %s\n' "$lbl" >> "$pf"]=], 1, true) ~= nil)
+check("…and 'finished cleanly' when the loop completes",
+      SCRIPT2:find("finished cleanly", 1, true) ~= nil)
+
 check("a fresh export may start after the kill", chrome.export() == true)
 TASKS[#TASKS].cb(0, "##PROFILE## Default\n[]\n", "")   -- and completes clean
 

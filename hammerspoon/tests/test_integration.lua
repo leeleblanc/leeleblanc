@@ -1023,7 +1023,7 @@ do
 
     if block then
         local sandbox = {
-            hs = { canvas = { windowLevels = { overlay = 102 } },
+            hs = { canvas = { windowLevels = { overlay = 102, mainMenu = 24 } },
                    timer = { secondsSinceEpoch = function() return 1000 end,
                              doEvery = function() return { stop = function() end } end } },
             print = function() end,
@@ -1038,17 +1038,59 @@ do
             chunk()
 
             out("   -- the stacking order --\n")
-            check("the cheat sheet is the reference level",
-                  sandbox.panelLevel("cheatsheet") == 102,
+            -- 🪟 6.148.0 — THE LADDER IS BUILT AROUND THE CHOOSER'S RUNG.
+            -- hs.chooser's panel sits at mainMenu+3 (HSChooser.m) and has
+            -- no level API, so it is the one rung that cannot move.
+            -- Seventeen tools are choosers, and the old sheet at overlay
+            -- (102) covered every one of them — LL: "make all the tools
+            -- pop in front of the cheat sheet".
+            local chooserRung = 24 + 3
+            check("the ladder is based on mainMenu — the band hs.chooser "
+               .. "actually lives in — not on overlay, 75 levels above it",
+                  sandbox.panelLevel("cheatsheet") == 24 - 2,
                   sandbox.panelLevel("cheatsheet"))
-            check("🪟 THE POMODORO IS STRICTLY ABOVE THE CHEAT SHEET. Both "
-               .. "were `overlay`, and two windows at one level stack by "
-               .. "whichever was shown last — so the timer was in front or "
-               .. "behind depending on the order you pressed the keys",
+            check("🪟 THE SHEET IS BELOW THE CHOOSER RUNG (mainMenu+3): "
+               .. "every picker now opens in front of it",
+                  sandbox.panelLevel("cheatsheet") < chooserRung,
+                  sandbox.panelLevel("cheatsheet"))
+            check("...and every named rung is above the sheet, except the "
+               .. "⇪Q dim — the one deliberate backdrop", (function()
+                    for name in pairs(sandbox.panelLevels) do
+                        if name ~= "cheatsheet" and name ~= "focus"
+                           and sandbox.panelLevel(name)
+                               <= sandbox.panelLevel("cheatsheet") then
+                            return false, name
+                        end
+                    end
+                    return true
+                end)())
+            check("...the canvas cards sit BETWEEN the sheet and the "
+               .. "chooser — above the backdrop, below the picker in use",
+                  (function()
+                    for _, name in ipairs({ "calendar", "rollup",
+                                            "taskcreator", "macpanel",
+                                            "switcher", "pinbadge" }) do
+                        local lv = sandbox.panelLevel(name)
+                        if lv <= sandbox.panelLevel("cheatsheet")
+                           or lv >= chooserRung then
+                            return false, name
+                        end
+                    end
+                    return true
+                  end)())
+            check("🪟 THE POMODORO IS STRICTLY ABOVE THE CHEAT SHEET — the "
+               .. "6.68.0 ask survives the rebuild",
                   sandbox.panelLevel("pomodoro") > sandbox.panelLevel("cheatsheet"),
                   sandbox.panelLevel("pomodoro") .. " vs "
                   .. sandbox.panelLevel("cheatsheet"))
-            check("...and the ⌥Tab HUD sits between them",
+            check("...and it tops the whole ladder, chooser included, with "
+               .. "the key caster right under it — the two windows that "
+               .. "must never hide behind what you press",
+                  sandbox.panelLevel("pomodoro") > chooserRung
+                  and sandbox.panelLevel("keycaster") > chooserRung
+                  and sandbox.panelLevel("pomodoro")
+                      > sandbox.panelLevel("keycaster"))
+            check("...and the ⌥Tab HUD sits between the sheet and the timer",
                   sandbox.panelLevel("switcher") > sandbox.panelLevel("cheatsheet")
                   and sandbox.panelLevel("switcher") < sandbox.panelLevel("pomodoro"),
                   sandbox.panelLevel("switcher"))
@@ -1056,15 +1098,16 @@ do
             -- than returning a wrong number, and an unguarded throw aborts
             -- the run and blames whatever line came next. That lesson has
             -- cost this repo three debugging sessions.
-            check("an unknown panel falls back to the reference level rather "
-               .. "than to nil, which hs.canvas:level() would reject",
-                  select(2, pcall(sandbox.panelLevel, "nothing at all")) == 102)
+            check("an unknown panel falls back to the mainMenu base — above "
+               .. "the sheet, below the chooser, and never nil, which "
+               .. "hs.canvas:level() would reject",
+                  select(2, pcall(sandbox.panelLevel, "nothing at all")) == 24)
             check("the levels are OFFSETS, so they follow macOS if it "
                .. "renumbers the named constants", (function()
-                sandbox.hs.canvas.windowLevels.overlay = 500
-                local ok = sandbox.panelLevel("cheatsheet") == 500
-                           and sandbox.panelLevel("pomodoro") == 503
-                sandbox.hs.canvas.windowLevels.overlay = 102
+                sandbox.hs.canvas.windowLevels.mainMenu = 500
+                local ok = sandbox.panelLevel("cheatsheet") == 498
+                           and sandbox.panelLevel("pomodoro") == 505
+                sandbox.hs.canvas.windowLevels.mainMenu = 24
                 return ok
             end)())
 
@@ -1441,6 +1484,19 @@ do
           code("modules/pomodoro.lua"):find('panelLevel("pomodoro")', 1, true) ~= nil)
     check("the cheat sheet asks for its level by name",
           code("core/cheatsheet.lua"):find('panelLevel("cheatsheet")', 1, true) ~= nil)
+    -- 🪟 6.148.0 — the five canvas cards that used to name `overlay`
+    -- directly, tying themselves to the sheet's old level. A bare
+    -- `overlay` reappearing in any of them is the 6.68.0 bug reborn.
+    check("the ⇪- calendar card asks for its level by name",
+          code("modules/mini_calendar.lua"):find('panelLevel("calendar")', 1, true) ~= nil)
+    check("the 16:01 rollup card asks for its level by name",
+          code("modules/daily_rollup.lua"):find('panelLevel("rollup")', 1, true) ~= nil)
+    check("the Asana mirror card asks for its level by name",
+          code("modules/task_creator.lua"):find('panelLevel("taskcreator")', 1, true) ~= nil)
+    check("the ⇪Q dim asks for its level by name",
+          code("modules/focus_mode.lua"):find('panelLevel("focus")', 1, true) ~= nil)
+    check("win_pin's stickers ask for their level by name",
+          code("modules/win_pin.lua"):find('panelLevel("pinbadge")', 1, true) ~= nil)
     check("the pomodoro claims Esc while it is asking",
           code("modules/pomodoro.lua"):find('claimEscape("pomodoro"', 1, true) ~= nil)
     check("🚨 AND THE CHEAT SHEET ASKS THE ROUTER BEFORE CLOSING ITSELF — "

@@ -4,8 +4,44 @@
 -- =====================================================================
 -- 09-01-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.147.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.148.0
 -- =====================================================================
+
+-- NEW IN 6.148.0 — EVERY TOOL POPS IN FRONT OF THE CHEAT SHEET:
+--   🪟 LL: "Can you make all the tools pop in front of the cheat sheet?
+--      Like the app picker/universal launcher." Why only ⇪space behaved:
+--      hs.chooser's panel is PINNED at mainMenu+3 with no level API
+--      (read from the Hammerspoon source), and the sheet drew at
+--      `overlay` — seventy-five levels above it — so all seventeen
+--      chooser tools opened UNDERNEATH the reference that told you
+--      about them. The webview tools (⇪space, ⇪I, the pads, the
+--      editors) ride bringToFront(true) near the very top, which is
+--      why they alone popped in front.
+--   🪜 SO THE LADDER IS REBUILT AROUND THE CHOOSER'S FIXED RUNG
+--      (core/coexist.lua): the sheet drops to mainMenu−2 — THE FLOOR,
+--      the statement the Esc router has always made ("closes last" IS
+--      "drawn under"). The canvas cards (⇪- calendar, 16:01 rollup,
+--      Asana mirror, ⇪7 card, ⌥Tab HUD, win_pin stickers) take named
+--      rungs between the sheet and the chooser — they used to TIE the
+--      sheet at `overlay` and stack by accident of show order. Only
+--      the Key Caster and the pomodoro outrank the chooser: the two
+--      windows that must never hide behind what you press. And the ⇪Q
+--      dim becomes a true backdrop below even the sheet, so the tool
+--      you reach for is never the thing dimmed.
+--   🔄 THE SWITCHER'S "0 apps / Slowest app: nil" LINE IS RETIRED —
+--      LL's console showed it three times. Zero apps means the
+--      ON-SCREEN listing spent the whole budget before a single app
+--      was asked; the message now says exactly that, with the
+--      listing's own timing, instead of blaming a nil app and
+--      suggesting a skipApps fix that could not possibly help.
+--   🕘 THE ⇪Y KILL NAMES THE STEP IT DIED IN: the 6.147.0 watchdog
+--      fired twice on this Air and could only say "it hung" — a
+--      killed task's stdout dies with it. The export script now logs
+--      each step (copying X, querying X) to a progress file; the kill
+--      reads its last line — "it hung at: copying Default" — into the
+--      status, the alert and _G.chromeHistoryReport(). And the kill's
+--      own exit (sh exited 15, from our own terminate) no longer
+--      overwrites that status with the less honest "export failed".
 
 -- NEW IN 6.147.0 — SIX ANSWERS: WHO'S TALKING · NAMES · CLOCK · CONSOLE:
 --   🌐 NET WATCH (⇪⇧6, the ledger's free key) — LL: "list any
@@ -102,34 +138,10 @@
 --      the echo row can never come back unseen; a break test brings it
 --      back on purpose and watches one fire get counted twice.
 
--- NEW IN 6.145.0 — THE SETUP DOOR RETIRES; THE SHEET NAMES TRIPLE-PRESS:
---   🪦 LL, straight after the 6.144.1 ship: "Ok, remove it and rollback
---      changes. But, please add triple press to the cheat sheet, the
---      native mac shortcut." Done, both halves. _G.monoSetup() is GONE —
---      the console door, the veil.monoSetup service, the 🛠 setup row in
---      ⇪;, and the open(1) task 6.144.1 had just added to make it work.
---      The one-time Color Filters tick was always LL's to make (the
---      6.82.0 finding), it was already made by hand, and triple-pressing
---      Touch ID — macOS's own trigger for the same Accessibility
---      Shortcut — covers the walk to the pane without Hammerspoon's
---      help. ⇪9 STAYS: it posts the true F5 keycode beneath the
---      media-key layer and was never the complaint.
---   ⌨️ THE CHEAT SHEET NAMES THE NATIVE ROUTE: the Screen Veil box gains
---      a "3× Touch ID" row beside ⇪9, and every text that pointed at
---      the retired door — monoReport's tail, the read-back's "nothing
---      changed" alert, the ⇪; mono row's subtitle — now names the pane,
---      or the triple-press, by hand. Tests pin the retirement: global
---      gone, service gone, ⇪; row gone, the name out of the source.
---   ⚖️ KEPT, DELIBERATELY — the one part of 6.144.1 that does not roll
---      back: the ⇪, repair (settings_panes through /usr/bin/open, exit
---      code read, hs.urlevent banned by its suite). Reverting it would
---      re-brick URL rows that had never opened in the first place; a
---      separate tool's real bug fix, not part of the setup door.
-
--- (6.144.1 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.145.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.147.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.148.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -474,7 +486,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.147.0"
+_G.configVersion = "6.148.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

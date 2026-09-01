@@ -400,15 +400,58 @@ check("HUD fits on the screen", AT.session.w <= 3840 and AT.session.h <= 2160,
       AT.session.w .. "x" .. AT.session.h)
 
 out("\n=== 9. Slow machines report a number, not a beachball ===\n")
-reset(5)
+reset(5)   -- budget stays at reset()'s 999: nothing truncates, the
+           -- slow WARNING is the branch under test
 local realNow = hs.timer.secondsSinceEpoch
 local step = 0
 hs.timer.secondsSinceEpoch = function() step = step + 1; return 1000 + (step > 1 and 2.5 or 0) end
-combos["alt+tab"]()
-check("a slow enumeration is timed and reported", logged("took"), log[1])
-check("...and names the slowest application, which is the actionable part",
-      logged("slowest:"), log[#log])
+AT.listWindows()
+check("a slow enumeration is timed and reported",
+      (log[#log] or ""):find("listing took", 1, true) ~= nil, log[#log])
 hs.timer.secondsSinceEpoch = realNow
+
+out("\n=== 9b. 6.148.0 — zero apps asked: the ON-SCREEN pass is the culprit ===\n")
+-- 🚨 LL's console: "stopped after 3.0s / 0 apps — Slowest app: nil
+-- (0.00s)". Zero apps means the per-app loop broke before asking a
+-- single application — the whole budget died in the on-screen listing.
+-- Blaming a slowest app of "nil" and suggesting skipApps was advice
+-- that could not possibly help.
+reset(3)
+AT.listBudget = 0.8
+local zt = 0
+hs.timer.secondsSinceEpoch = function() zt = zt + 1 ; return zt == 1 and 1000 or 1003 end
+AT.listWindows()
+hs.timer.secondsSinceEpoch = realNow
+check("the message blames the on-screen listing, with its own timing",
+      (log[#log] or ""):find("on-screen window list alone took 3.0s", 1, true) ~= nil,
+      log[#log])
+check("...and the nonsense 'Slowest app: nil' line is gone for good", (function()
+    for _, l in ipairs(log) do
+        if l:find("Slowest app: nil", 1, true) then return false, l end
+    end
+    return true
+end)())
+
+out("\n=== 9c. 6.148.0 — but a genuinely slow APP is still named ===\n")
+-- The classic message survives for the case it was built for: the
+-- budget dies INSIDE the per-app pass, with a culprit worth naming.
+reset(2)
+AT.listBudget = 0.8
+local seq = { 1000,     -- t0
+              1000.1,   -- tOrdered: the on-screen pass was quick
+              1000.2,   -- App1's deadline check — within budget
+              1000.3,   -- App1's own timer starts
+              1001.2,   -- …and ends: App1 took 0.9s
+              1001.9,   -- App2's deadline check — budget spent, break
+              1001.6, 1001.6 }
+local tick = 0
+hs.timer.secondsSinceEpoch = function() tick = tick + 1 ; return seq[tick] or 1001.6 end
+AT.listWindows()
+hs.timer.secondsSinceEpoch = realNow
+check("one slow app is still named, with its own time",
+      (log[#log] or ""):find("Slowest app: App1", 1, true) ~= nil, log[#log])
+check("...and the skipApps advice appears only on THIS path",
+      (log[#log] or ""):find("skipApps", 1, true) ~= nil)
 
 out("\n=== 10. Failures degrade, they don't hang or crash ===\n")
 reset(5); FAIL.list = true

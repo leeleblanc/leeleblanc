@@ -488,7 +488,11 @@ function M.setup(core)
                         }
                     end
                     pcall(function() c:replaceElements(elems) end)
-                    local lvl = (hs.canvas.windowLevels or {}).overlay
+                    -- 6.148.0 — the dim is a BACKDROP on the coexist
+                    -- ladder: below the sheet and the pickers, so the
+                    -- tool you reach for is never the thing dimmed.
+                    local lvl = (_G.panelLevel and _G.panelLevel("focus"))
+                                or (hs.canvas.windowLevels or {}).overlay
                     pcall(function() c:level(lvl) end)
                     pcall(function()
                         -- 🚨 6.66.1 — see the note in pomodoro.lua:
