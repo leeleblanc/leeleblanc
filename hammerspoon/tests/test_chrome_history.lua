@@ -39,6 +39,7 @@ local NOW = 1000
 local FS, FILES = {}, {}
 local CLIPBOARD = nil
 local TASKS, ALERTS, CHOOSERS, HYPER, PROVIDED = {}, {}, {}, {}, {}
+local WATCHDOGS = {}      -- every hs.timer.doAfter — the export deadline
 local URL_BUNDLE, URL_PLAIN = {}, {}
 local BUNDLE_RESULT = true
 
@@ -94,12 +95,22 @@ hs = {
         end,
         temporaryDirectory = function() return "/tmp/test-tmp/" end,
     },
-    timer = { secondsSinceEpoch = function() NOW = NOW + 0.0001 ; return NOW end },
+    timer = {
+        secondsSinceEpoch = function() NOW = NOW + 0.0001 ; return NOW end,
+        -- 6.147.0 — the export deadline arms through doAfter; the suite
+        -- fires it by hand to model the hang the Air actually had.
+        doAfter = function(secs, fn)
+            local t = { secs = secs, fn = fn, stopped = false }
+            function t:stop() self.stopped = true end
+            WATCHDOGS[#WATCHDOGS + 1] = t
+            return t
+        end,
+    },
     json  = { decode = miniJson },
     task  = { new = function(cmd, cb, args)
         local t = { cmd = cmd, cb = cb, args = args, started = false }
         function t:start() self.started = true ; return self end
-        function t:terminate() return self end
+        function t:terminate() self.dead = true ; return self end
         TASKS[#TASKS + 1] = t
         return t end },
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
@@ -287,6 +298,36 @@ check("control characters in titles become spaces",
 check("status counts pages and profiles",
       tostring(chrome.status):find("3 pages") and
       tostring(chrome.status):find("3 profiles"), chrome.status)
+check("a completing export STOPS its deadline — the timer never fires "
+      .. "on a healthy run", #WATCHDOGS >= 1
+      and WATCHDOGS[#WATCHDOGS].stopped == true, #WATCHDOGS)
+
+-- =======================================================================
+out("3b) 6.147.0 — the deadline: a hung export is killed, and says so\n")
+-- =======================================================================
+-- On LL's Air the export hung and `exporting` stayed true for the whole
+-- session — every ⇪Y press said "press again in a moment", forever.
+chrome.export()
+local hungTask = TASKS[#TASKS]
+local dog = WATCHDOGS[#WATCHDOGS]
+check("a deadline is armed beside every export",
+      dog.stopped == false and dog.secs == chrome.exportTimeout, dog.secs)
+check("…and ⇪Y during the run now says how LONG it has been running", (function()
+    chrome.entries = {}
+    chrome.show()
+    return (ALERTS[#ALERTS] or ""):find("s in%)") ~= nil, ALERTS[#ALERTS]
+end)())
+dog.fn()
+check("the deadline kills the hang: flag down, task terminated",
+      chrome.exporting == false and hungTask.dead == true)
+check("…status names the kill and points at the report",
+      tostring(chrome.status):find("KILLED", 1, true) ~= nil
+      and tostring(chrome.status):find("chromeHistoryReport", 1, true) ~= nil,
+      chrome.status)
+check("…and the alert says so out loud",
+      (ALERTS[#ALERTS] or ""):find("hung", 1, true) ~= nil, ALERTS[#ALERTS])
+check("a fresh export may start after the kill", chrome.export() == true)
+TASKS[#TASKS].cb(0, "##PROFILE## Default\n[]\n", "")   -- and completes clean
 
 -- =======================================================================
 out("4) the CSV — written on export, quoting round-trips exactly\n")

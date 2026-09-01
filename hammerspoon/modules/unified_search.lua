@@ -565,6 +565,7 @@ function M.setup(core)
         -- why these two rows matter more than most: "network" and "mac"
         -- in this box is how they will be found.
         ["⇪6"]    = "net.show",
+        ["⇪⇧6"]   = "netwatch.show",
         ["⇪7"]    = "mac.toggle",
         ["⇪⇧'"]   = "tabs.show",
         ["⇪'"]    = "power.pause",

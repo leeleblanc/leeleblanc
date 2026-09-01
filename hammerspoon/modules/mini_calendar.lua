@@ -41,6 +41,8 @@ local M = {
             { "T / Home", "Back to today" },
             { "click",  "A date COPIES it as 08-07-26 · ‹ › change month · Today" },
             { "C",      "Copy the highlighted date without reaching for the mouse" },
+            { "R",      "Copy a “Date report:” — every format at once, time included" },
+            { "clock",  "The panel shows the time NOW, live to the second" },
             { "range",  "±1 year from today, then it stops and tells you" },
             { "Esc",    "Close" },
         },
@@ -72,9 +74,25 @@ function M.setup(core)
     -- %Y for a four-digit year, %d-%m-%y for day-first, etc.
     cal.copyFormat  = "%m-%d-%y"
     cal.copyOnClick = true      -- false = clicking only selects, never copies
+    -- 🕐 6.147.0 — the clock and the report, both LL's ask, verbatim:
+    -- "give all as a 'Date report:'" and "a time display: 2:00:00 PM so
+    -- I can see what time it is". The clock is drawn live while the
+    -- panel is open; R copies the report — the highlighted date in
+    -- EVERY format below, the week/day line, and the time now.
+    cal.timeFormat    = "%I:%M:%S %p"   -- 02:00:00 PM; the zero is shaved
+    cal.reportFormats = {
+        "%m-%d-%y",          -- 09-01-26 · the click-to-copy shape
+        "%Y-%m-%d",          -- 2026-09-01 · ISO, sorts everywhere
+        "%m/%d/%Y",          -- 09/01/2026
+        "%B %d, %Y",         -- September 01, 2026
+        "%A, %B %d, %Y",     -- Tuesday, September 01, 2026
+        "%a, %b %d",         -- Tue, Sep 01
+        "%d %B %Y",          -- 01 September 2026
+    }
     -- ----------------------------------------------------------------------
 
     cal.canvas = nil    -- HELD. A collected canvas takes the panel with it.
+    cal.clock  = nil    -- HELD: the 1s re-render while the panel is open
     cal.modal  = nil    -- HELD, same reason, and it owns the arrow keys
     cal.menu   = nil    -- HELD
     cal.tick   = nil    -- HELD: the timer that refreshes the menu-bar date
@@ -341,6 +359,16 @@ function M.setup(core)
             textColor = st.fg or { white = 0.98 },
             frame = { x = L.pad + 22, y = L.footY + 20, w = cal.width - L.pad * 2 - 44, h = 46 },
         })
+        -- 🕐 6.147.0 — the time, as big as the date and live to the
+        -- second (cal.clock re-renders while the panel is up). Same
+        -- frame as the date line, right-aligned, so the footer reads
+        -- date on the left, NOW on the right.
+        table.insert(els, {
+            type = "text", text = cal.timeNow(),
+            textSize = 34, textAlignment = "right",
+            textColor = st.fg or { white = 0.98 },
+            frame = { x = L.pad + 22, y = L.footY + 20, w = cal.width - L.pad * 2 - 44, h = 46 },
+        })
 
         local doy   = tonumber(os.date("%j", cal.cursor))
         local yr    = tonumber(os.date("%Y", cal.cursor))
@@ -362,7 +390,8 @@ function M.setup(core)
         table.insert(els, {
             type = "text",
             text = "←→ day   ↑↓ week   [ ] month   T today   click or C copies "
-                   .. os.date(cal.copyFormat, cal.cursor) .. "   Esc close" .. edgeNote,
+                   .. os.date(cal.copyFormat, cal.cursor)
+                   .. "   R the Date report   Esc close" .. edgeNote,
             textSize = 13, textAlignment = "left",
             textColor = cal.atEdge and { red = 1, green = 0.72, blue = 0.4 }
                                     or { white = 0.42 },
@@ -417,6 +446,49 @@ function M.setup(core)
         return text
     end
 
+    -- ---- the Date report (6.147.0) ---------------------------------------
+    -- "02:00:00 PM" → "2:00:00 PM". %-I would skip the zero, but the
+    -- no-padding flag is a GNU extension BSD strftime does not have (the
+    -- menu-bar title below builds %-d by hand for the same reason).
+    function cal.timeNow(now)
+        return (os.date(cal.timeFormat, now):gsub("^0", ""))
+    end
+
+    -- Every format at once, under one heading — so one copy answers
+    -- however the receiving field wants its date spelled. The time rides
+    -- along at the bottom because the report is a snapshot, and a
+    -- snapshot should say when it was taken.
+    function cal.buildReport(t, now)
+        cal.today = cal.today or todayNoon()
+        t = t or cal.cursor or cal.today
+        local L = { "Date report: " .. os.date("%A, %B %d, %Y", t):gsub(" 0", " ") }
+        for _, fmt in ipairs(cal.reportFormats) do
+            L[#L + 1] = "  " .. os.date(fmt, t)
+        end
+        local doy   = tonumber(os.date("%j", t))
+        local yr    = tonumber(os.date("%Y", t))
+        local total = tonumber(os.date("%j", noon(yr, 12, 31)))
+        L[#L + 1] = "  week " .. os.date("%V", t) .. " · day " .. doy
+                    .. " of " .. total .. " · " .. relativeWords(t)
+        L[#L + 1] = "  Time now: " .. cal.timeNow(now)
+        return table.concat(L, "\n")
+    end
+
+    function cal.copyReport(t)
+        local text = cal.buildReport(t)
+        local ok = false
+        pcall(function() ok = hs.pasteboard.setContents(text) ~= false end)
+        if not ok then
+            hs.alert.show("🗓 Could not reach the clipboard")
+            print("🗓 Mini calendar: hs.pasteboard.setContents failed for the report")
+            return nil
+        end
+        hs.alert.show("🗓 Date report copied — every format, time included", 1.8)
+        _G.diag.say("calendar", "report copied for "
+                    .. os.date("%Y-%m-%d", t or cal.cursor or cal.today))
+        return text
+    end
+
     -- ---- show / hide -----------------------------------------------------
     local function frameFor()
         local screen = core.resolveBaseScreen and core.resolveBaseScreen()
@@ -435,6 +507,10 @@ function M.setup(core)
 
     function cal.hide()
         if cal.modal then pcall(function() cal.modal:exit() end) end
+        if cal.clock then
+            pcall(function() cal.clock:stop() end)
+            cal.clock = nil
+        end
         if cal.canvas then
             pcall(function() cal.canvas:delete() end)
             cal.canvas = nil
@@ -491,6 +567,20 @@ function M.setup(core)
         if _G.showCanvasSafely then _G.showCanvasSafely(cal.canvas, "mini calendar")
         else pcall(function() cal.canvas:show() end) end
         if cal.modal then pcall(function() cal.modal:enter() end) end
+        -- 🕐 the live clock: one render a second, ONLY while the panel
+        -- is up — hide() stops it, and the timer stops itself if the
+        -- canvas vanished some other way. Not eco-registered: it exists
+        -- only while a panel you opened is on screen.
+        if cal.clock then pcall(function() cal.clock:stop() end) end
+        local okTick, tick = pcall(hs.timer.doEvery, 1, function()
+            if cal.canvas then
+                cal.render()
+            elseif cal.clock then
+                pcall(function() cal.clock:stop() end)
+                cal.clock = nil
+            end
+        end)
+        cal.clock = (okTick and tick) or nil
         _G.diag.say("calendar", "opened on " .. os.date("%Y-%m-%d", cal.cursor))
     end
 
@@ -519,6 +609,7 @@ function M.setup(core)
             { {}, "home",   function() cal.goToday() end },
             { {}, "t",      function() cal.goToday() end },
             { {}, "c",      function() cal.copyDate() end },
+            { {}, "r",      function() cal.copyReport() end },
             { {}, "escape", function() cal.hide() end },
             { {}, "return", function() cal.hide() end },
             { {}, "q",      function() cal.hide() end },
@@ -529,7 +620,8 @@ function M.setup(core)
             -- The one-shot keys get NO repeat handler: a held Esc would close
             -- twice, and a held C would refill the clipboard and stack an
             -- alert thirty times a second.
-            local noRepeat = { escape = true, ["return"] = true, q = true, c = true }
+            local noRepeat = { escape = true, ["return"] = true, q = true, c = true,
+                               r = true }
             local repeatFn = (not noRepeat[b[2]]) and b[3] or nil
             pcall(function() cal.modal:bind(b[1], b[2], b[3], nil, repeatFn) end)
         end
@@ -543,6 +635,7 @@ function M.setup(core)
     -- opening the panel:  _G.service.call("calendar.format", os.time())
     core.provide("calendar.format", function(t) return cal.formatDate(t) end)
     core.provide("calendar.copyToday", function() return cal.copyDate(todayNoon()) end)
+    core.provide("calendar.report", function(t) return cal.copyReport(t) end)
 
     -- ⎋ 6.78.0 — CLAIMED, so the cheat sheet knows the calendar is up.
     -- The panel's own Esc is a MODAL binding and the sheet's is a plain

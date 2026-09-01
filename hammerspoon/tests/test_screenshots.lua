@@ -307,37 +307,38 @@ check("the service answers the same", PROVIDED["screenshots.latest"]() == shot1)
 local choices = S.choicesFrom(list)
 check("the panel leads with the EIGHT action rows", (function()
     local acts = {}
-    for i = 1, 8 do acts[#acts + 1] = choices[i] and choices[i].act end
+    for i = 1, 9 do acts[#acts + 1] = choices[i] and choices[i].act end
     return acts[1] == "area" and acts[2] == "scroll" and acts[3] == "recognize"
        and acts[4] == "editNewest" and acts[5] == "repeat"
        and acts[6] == "window" and acts[7] == "delayed"
        and acts[8] == "bigBrowse"          -- 6.89.0: ⌘8 = BIG thumbnails
+       and acts[9] == "nameSweep"          -- 6.147.0: ⌘9 = name by content
 end)())
-check("…then one row per screenshot, path attached", #choices == 8 + 4
-      and choices[9].path == shot1, #choices)
+check("…then one row per screenshot, path attached", #choices == 9 + 4
+      and choices[10].path == shot1, #choices)
 check("history subText carries date, size and the modifier hints",
-      (choices[10].subText or ""):find("MB") ~= nil
-      and (choices[9].subText or ""):find("⌥⏎") ~= nil,
-      choices[10].subText)
+      (choices[11].subText or ""):find("MB") ~= nil
+      and (choices[10].subText or ""):find("⌥⏎") ~= nil,
+      choices[11].subText)
 check("the cap is respected", (function()
     local old = S.maxList
     S.maxList = 2
     local c = S.choicesFrom(list)
     S.maxList = old
-    return #c == 8 + 2
+    return #c == 9 + 2
 end)())
 
 HYPER["shift|4"]()   -- open the panel
 check("⇪⇧4 shows the panel through showPopup", #POPUPS == 1 and POPUPS[1].shown)
 check("…with actions + history loaded", type(CHOICES_SET) == "table"
-      and #CHOICES_SET == 8 + 4, CHOICES_SET and #CHOICES_SET)
+      and #CHOICES_SET == 9 + 4, CHOICES_SET and #CHOICES_SET)
 check("…action rows carry no thumbnail", CHOICES_SET[1].image == nil)
 check("…and thumbnails attached to the history rows",
-      CHOICES_SET[9].image ~= nil and CHOICES_SET[9].image.__path == shot1)
+      CHOICES_SET[10].image ~= nil and CHOICES_SET[10].image.__path == shot1)
 -- 6.88.0 — LL: "I don't see the image history." The panel must be TALL
 -- enough that history rows are visible UNDER the action rows.
-check("the panel sizes itself past the 8 actions (history above the fold)",
-      type(POPUPS[1].nrows) == "number" and POPUPS[1].nrows == 8 + 4,
+check("the panel sizes itself past the 9 actions (history above the fold)",
+      type(POPUPS[1].nrows) == "number" and POPUPS[1].nrows == 9 + 4,
       POPUPS[1].nrows)
 
 -- 6.88.0 — LL: "I can't tell if I can search the window." Typing filters
@@ -357,7 +358,7 @@ check("…an unmatched query explains itself instead of going blank",
       CHOICES_SET[1] and CHOICES_SET[1].text)
 POPUPS[1].qcb("")
 check("…and an empty query brings the actions back",
-      #CHOICES_SET == 8 + 4 and CHOICES_SET[1].act == "area", #CHOICES_SET)
+      #CHOICES_SET == 9 + 4 and CHOICES_SET[1].act == "area", #CHOICES_SET)
 
 -- 6.89.0 — ⌘8 hands the folder to Unified Search, pre-filtered to
 -- @shots, where thumbnails render at 84px instead of a chooser row.
@@ -422,8 +423,8 @@ for p, f in pairs(FILES) do saved[p] = f end
 for p in pairs(saved) do FILES[p] = nil end
 local c = S.choicesFrom(S.list())
 check("an empty folder still shows the actions, plus one row that explains",
-      #c == 9 and c[9].path == nil and (c[9].text or ""):find("No screenshots") ~= nil,
-      c[9] and c[9].text)
+      #c == 10 and c[10].path == nil and (c[10].text or ""):find("No screenshots") ~= nil,
+      c[10] and c[10].text)
 for p, f in pairs(saved) do FILES[p] = f end
 
 -- OneDrive not signed in: the parent folder cannot be made
@@ -807,6 +808,127 @@ do
                first and first.text
     end)())
 end
+
+-- =====================================================================
+out("\n=== 6.147.0 — content names: the shot's words become its name ===\n")
+-- =====================================================================
+-- LL: "Can we apply better naming conventions to the screenshot files
+-- than SCR- so the OCR text is applied and searchable?"
+local NDIR = "/cloud/2026 Screenshots NAMES"
+DIRS[NDIR] = true
+local savedDir = S.dir
+S.dir = NDIR
+local realRename = os.rename
+local RENAMES = {}
+os.rename = function(old, new)
+    if FILES[old] then
+        RENAMES[#RENAMES + 1] = { old = old, new = new }
+        FILES[new] = FILES[old]
+        FILES[old] = nil
+        return true
+    end
+    return nil, "no such file"
+end
+local SVC = {}
+local savedService = _G.service
+_G.service = {
+    has  = function(n) return n == "ocr.comment" end,
+    call = function(n, p, txt) SVC[#SVC + 1] = { n = n, p = p, txt = txt }
+           return true end,
+}
+_G.ocrShortcutAvailable = true
+
+-- the slug: words of the text, short noise dropped, digits kept
+check("the slug keeps words and digit-bearing shorts, drops noise",
+      S.slugFrom("an Q3 of Quarterly report to be numbers final")
+      == "Q3 Quarterly report numbers final",
+      S.slugFrom("an Q3 of Quarterly report to be numbers final"))
+check("…caps at " .. S.slugChars .. " characters on a word boundary",
+      #(S.slugFrom(string.rep("wordhere ", 20)) or "") <= S.slugChars)
+check("…and no text means NO slug, not an empty suffix",
+      S.slugFrom("a of to") == nil and S.slugFrom("") == nil)
+
+-- the naming rules
+local mt1 = os.time({ year = 2026, month = 9, day = 1, hour = 4, min = 36, sec = 2 })
+check("an SCR- file folds into the module's own convention, keeping "
+      .. "its real moment",
+      S.contentName("SCR-20260901-eubp.png", "words here", mt1)
+      == "Screenshot 2026-09-01 at 04.36.02 — words here.png",
+      S.contentName("SCR-20260901-eubp.png", "words here", mt1))
+check("a word-less capture of our own gains its words",
+      S.contentName("Screenshot 2026-09-01 at 04.48.37.png", "words here", mt1)
+      == "Screenshot 2026-09-01 at 04.48.37 — words here.png")
+check("a name that already carries words is FINISHED — never touched",
+      S.contentName("Screenshot 2026-09-01 at 04.48.37 — done.png", "x", mt1) == nil)
+check("a name a person chose is never rewritten",
+      S.contentName("IMG_1234.png", "words", mt1) == nil
+      and S.contentName("my design final v2.png", "words", mt1) == nil)
+
+-- the capture hook: finish() queues one OCR, and the editor path never does
+local own = NDIR .. "/Screenshot 2026-09-01 at 04.48.37.png"
+FILES[own] = { mode = "file", size = 999, modification = mt1 }
+local before = #TASKS
+S.finish(own, false)
+check("a finished capture queues ONE background OCR of itself",
+      #TASKS == before + 1 and TASKS[#TASKS].cmd == "/usr/bin/shortcuts",
+      TASKS[#TASKS] and TASKS[#TASKS].cmd)
+TASKS[#TASKS].cb(0, "Quarterly report Q3 numbers final\n", "")
+check("…and the file now carries its words",
+      FILES[NDIR .. "/Screenshot 2026-09-01 at 04.48.37 — Quarterly report "
+            .. "Q3 numbers final.png"] ~= nil, RENAMES[#RENAMES]
+            and RENAMES[#RENAMES].new)
+check("…with the text handed to the OCR engine for the Finder comment",
+      #SVC == 1 and SVC[1].n == "ocr.comment"
+      and SVC[1].txt:find("Quarterly", 1, true) ~= nil)
+local edited = NDIR .. "/Screenshot 2026-09-01 at 04.50.00.png"
+FILES[edited] = { mode = "file", size = 999, modification = mt1 }
+before = #TASKS
+S.finish(edited, true)
+check("a capture headed for the blur editor is NOT renamed under it",
+      #TASKS == before)
+
+-- the ⌘9 sweep: the SCR- backlog, one OCR at a time. The editor-bound
+-- fixture above is still word-less and WOULD be a legitimate candidate
+-- — cleared first so the batch below is exactly the two files staged.
+FILES[edited] = nil
+FILES[NDIR .. "/SCR-20260901-eyjg.png"] = { mode = "file", size = 500,
+                                            modification = mt1 }
+FILES[NDIR .. "/Screenshot 2026-08-30 at 10.00.00.png"] =
+      { mode = "file", size = 500, modification = mt1 }
+FILES[NDIR .. "/IMG_9999.png"] = { mode = "file", size = 500, modification = mt1 }
+ALERTS = {}
+before = #TASKS
+S.renameSweep()
+check("the sweep announces its batch — two candidates, the person's "
+      .. "file excluded", (ALERTS[1] or ""):find("Naming 2", 1, true) ~= nil,
+      ALERTS[1])
+check("…and runs ONE shortcuts process, not two at once",
+      #TASKS == before + 1)
+TASKS[#TASKS].cb(0, "Lees MacBook Air Model", "")
+check("the second starts only when the first finishes",
+      #TASKS == before + 2)
+TASKS[#TASKS].cb(0, "", "")   -- a blank image: no text
+check("the closing alert counts renames AND the text-free honestly",
+      (ALERTS[#ALERTS] or ""):find("Named 1 of 2 — 1 had no readable text",
+                                   1, true) ~= nil, ALERTS[#ALERTS])
+check("…the SCR- file now wears the words it contained", (function()
+    for p in pairs(FILES) do
+        if p:find("Lees MacBook Air Model", 1, true) then return true end
+    end
+    return false
+end)())
+check("a second sweep while one runs is refused", (function()
+    S.nameBusy = true
+    ALERTS = {}
+    S.renameSweep()
+    S.nameBusy = false
+    return (ALERTS[1] or ""):find("already running", 1, true) ~= nil
+end)())
+
+os.rename = realRename
+_G.service = savedService
+_G.ocrShortcutAvailable = nil
+S.dir = savedDir
 
 -- =====================================================================
 out(("\n%d passed, %d failed\n"):format(pass, fail))

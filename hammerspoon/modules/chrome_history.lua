@@ -93,6 +93,14 @@ function M.setup(core)
     chrome.csvFile   = (core.logsDir or ".") .. "/chrome_history-"
                        .. tostring(core.hostTag or "Mac") .. ".csv"
     chrome.openWith  = "com.google.Chrome"   -- ⏎ opens here; falls back to default
+    -- 🚨 6.147.0 — THE EXPORT GETS A DEADLINE. On LL's Air the export
+    -- hung and `exporting` stayed true for the whole session, so every
+    -- ⇪Y press answered "press again in a moment" — forever, and
+    -- nothing ever said the export was stuck. A healthy 90-day export
+    -- measures in single-digit seconds even across profiles; anything
+    -- past this is a hang, and a killed hang that SAYS SO beats a
+    -- polite alert that never stops being wrong.
+    chrome.exportTimeout = 45     -- seconds before a running export is killed
     -- ----------------------------------------------------------------------
 
     local function say(m)  if _G.diag then _G.diag.say("chrome", m)  end end
@@ -102,6 +110,8 @@ function M.setup(core)
     chrome.status    = "off"
     chrome.loadedAt  = 0
     chrome.exporting = false
+    chrome.exportedAt = nil   -- when the running export started (for the alert)
+    chrome.watchdog  = nil    -- HELD: the deadline timer on a running export
     chrome.lastMs    = nil
 
     local function epoch()
@@ -295,6 +305,10 @@ done
         local okNew, t = pcall(function()
             return hs.task.new("/bin/sh", function(code, sout, serr)
                 chrome.exporting = false
+                if chrome.watchdog then
+                    pcall(function() chrome.watchdog:stop() end)
+                    chrome.watchdog = nil
+                end
                 chrome.lastMs = (epoch() - t0) * 1000
                 if code ~= 0 then
                     chrome.status = "export failed (sh exited " .. tostring(code) .. ")"
@@ -325,6 +339,7 @@ done
         end
         chrome.task = t     -- held: an unreferenced task is collected mid-run
         chrome.exporting = true
+        chrome.exportedAt = epoch()
         local started = false
         pcall(function() started = t:start() end)
         if not started then
@@ -333,6 +348,33 @@ done
             warn(chrome.status)
             return false
         end
+        -- 🚨 6.147.0 — the deadline. Without it, a hung sh left
+        -- `exporting` true for the rest of the session and ⇪Y said
+        -- "press again in a moment" until reboot. The completion
+        -- callback above stops this timer on every normal exit; the
+        -- timer fires ONLY on the hang it exists for.
+        if chrome.watchdog then pcall(function() chrome.watchdog:stop() end) end
+        local okDog, dog = pcall(hs.timer.doAfter, chrome.exportTimeout, function()
+            chrome.watchdog = nil
+            if not chrome.exporting then return end
+            chrome.exporting = false
+            pcall(function() t:terminate() end)
+            chrome.status = "export KILLED after " .. chrome.exportTimeout
+                            .. "s — it hung. _G.chromeHistoryReport() has the details"
+            warn(chrome.status)
+            if _G.notices then
+                _G.notices.record("chrome", "export hung and was killed",
+                    "the /bin/sh export ran past " .. chrome.exportTimeout
+                    .. "s and was terminated. sqlite3 or the History copy "
+                    .. "is stuck — run _G.chromeHistoryReport()")
+            end
+            pcall(function()
+                hs.alert.show("🕘 Chrome export hung and was stopped after "
+                              .. chrome.exportTimeout .. "s.\n"
+                              .. "_G.chromeHistoryReport() explains.", 5)
+            end)
+        end)
+        chrome.watchdog = okDog and dog or nil
         return true
     end
 
@@ -426,8 +468,13 @@ done
     function chrome.show()
         if #chrome.entries == 0 then
             if chrome.exporting then
+                -- 6.147.0 — the alert now carries the elapsed time, so a
+                -- healthy two-second export and a hang about to be killed
+                -- read differently even before the watchdog speaks.
+                local secs = math.floor(epoch() - (chrome.exportedAt or epoch()))
                 pcall(function()
-                    hs.alert.show("🕘 Reading Chrome history — press ⇪Y again in a moment")
+                    hs.alert.show("🕘 Reading Chrome history (" .. secs
+                                  .. "s in) — press ⇪Y again in a moment")
                 end)
             else
                 pcall(function()

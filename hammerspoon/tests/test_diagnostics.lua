@@ -960,7 +960,8 @@ local ALLOWED_BINARIES = {
   -- process and therefore CANNOT succeed without admin — the module runs
   -- both, checks both, and reports which one worked, because a half
   -- flush reported as a flush is the failure that wastes an afternoon.
-  ["/usr/bin/dscacheutil"]   = "⇪6 flush, half 1 — no privileges (ships with macOS)",
+  ["/usr/bin/dscacheutil"]   = "⇪6 flush, half 1 · ⇪⇧6 reverse-resolves each "
+                            .. "remote IP, no privileges (ships with macOS)",
   ["/usr/bin/killall"]       = "⇪6 flush, half 2 — needs admin, reported when it "
                             .. "fails rather than hidden (ships with macOS)",
   -- 6.120.0 — THE MAC PANEL (⇪7). Everything About This Mac shows.
@@ -981,7 +982,8 @@ local ALLOWED_BINARIES = {
   -- because it names the FRONT window; this pipeline is the fallback
   -- when the title is not a path.
   ["/usr/bin/pgrep"]         = "⇪⇧` finds Ghostty's child shells (ships with macOS)",
-  ["/usr/sbin/lsof"]         = "⇪⇧` reads a shell's cwd (ships with macOS)",
+  ["/usr/sbin/lsof"]         = "⇪⇧` reads a shell's cwd · ⇪⇧6 lists every app's "
+                            .. "live connections, one snapshot per press (ships with macOS)",
   ["/usr/bin/xargs"]         = "⇪⇧` feeds one pid to lsof (ships with macOS)",
   ["/usr/bin/sed"]           = "⇪⇧` extracts the n-prefixed path (ships with macOS)",
   ["/usr/bin/tail"]          = "⇪⇧` takes the newest shell (ships with macOS)",

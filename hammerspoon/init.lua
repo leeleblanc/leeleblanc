@@ -2,10 +2,46 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 08-31-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-01-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.146.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.147.0
 -- =====================================================================
+
+-- NEW IN 6.147.0 — SIX ANSWERS: WHO'S TALKING · NAMES · CLOCK · CONSOLE:
+--   🌐 NET WATCH (⇪⇧6, the ledger's free key) — LL: "list any
+--      application that is communicating with some service … say what
+--      it is doing … resolve where the application is pulling its data
+--      from." One lsof snapshot per press, no polling: every app of
+--      YOURS with a live connection, one row per app. Remote IPs
+--      reverse-resolved through the system resolver, known services
+--      explained (Microsoft AutoUpdate monitors Office updates; apsd
+--      is every push notification), and an unknown one says
+--      UNRECOGNIZED with its raw paths — never a confident guess.
+--      ⌘1 copies the FULL report; ⏎ on an app copies that app's:
+--      what · why · each path with both ends, state, and the resolved
+--      name. _G.netWatchReport() is the console twin.
+--   🕐 THE DATE PICKER GAINS A CLOCK AND A REPORT (⇪⇧0): the panel now
+--      shows the time — 2:00:00 PM, live to the second — and R copies
+--      a "Date report:" of the highlighted date in EVERY format, the
+--      week/day line, and the time it was taken. C still copies the
+--      one-format date; calendar.report serves other modules.
+--   🏷 SCREENSHOTS ARE NAMED BY WHAT IS ON THEM: every ⇪4 capture is
+--      OCR'd in the background and its filename gains the shot's own
+--      words; ⌘9 in the ⇪⇧4 panel sweeps the backlog — SCR-XXXX files
+--      (the other capture tool's naming) fold into "Screenshot … —
+--      words.png". A name with words, or one a person chose, is never
+--      touched. The words also land in the Finder comment via the OCR
+--      engine (its never-overwrite rule intact).
+--   🔄 ⌥TAB REACHES THE HAMMERSPOON CONSOLE: asked for BY NAME, since
+--      it slips both of the switcher's nets (menu-bar app, and a
+--      console window that answers isStandard() = false). Open =
+--      a tile; closed = not.
+--   🕘 ⇪Y'S EXPORT GETS A DEADLINE: on this Air the export hung and
+--      "press ⇪Y again in a moment" became forever. A hung export is
+--      now KILLED after 45s and says so; the waiting alert counts the
+--      seconds so a healthy run and a hang read differently.
+--   📎 DEFAULT APPS, UNBURIED: LL: "the tool to set default apps is
+--      buried" — it now has a ⇪; power-tools row beside its @tool row.
 
 -- NEW IN 6.146.0 — DEFAULT APPS: A FILE TYPE OPENS IN THE APP YOU CHOSE:
 --   📎 LL: "Can we create a tool that will allow me to set a default
@@ -90,37 +126,10 @@
 --      re-brick URL rows that had never opened in the first place; a
 --      separate tool's real bug fix, not part of the setup door.
 
--- NEW IN 6.144.1 — THE SETTINGS DOOR THAT NEVER OPENED:
---   🚪 LL, with the Color Filters screenshots and their console: the
---      "urlevent: openURL() called for a URL that lacks '://'" ERROR
---      under _G.monoSetup(). Verified against Hammerspoon's own source:
---      hs.urlevent.openURL REFUSES any URL without '://' — it logs that
---      line and returns false without opening — and every
---      x-apple.systempreferences: destination is exactly that shape.
---      monoSetup's pane-open had never worked since 6.140.0; the
---      walkthrough alert showed while LL walked to the pane by hand.
---   🚨 WORSE IN ⇪,: settings_panes wrapped the same call in a pcall,
---      and A REFUSAL IS A RETURN VALUE, NOT A THROW — the pcall
---      reported success, the fallback under it never ran once, and
---      every URL row counted itself opened while opening nothing.
---   🔧 THE FIX IS THE BORING ONE: both go through /usr/bin/open now —
---      one hs.task per open, the URL (or .prefPane path — open takes
---      either) as a single ARGUMENT, no shell, no quoting, and failure
---      read from the exit code, the only place open(1) reports it. A
---      refused pane says so out loud instead of counting as a success.
---      settings_panes no longer touches hs.urlevent at all, and its
---      suite pins the door shut both behaviourally and in the source.
---   ⌨️ AND THE ANSWER TO THE ACTUAL QUESTION: nothing in LL's setup was
---      wrong. On the built-in keyboard the key printed F5 is the
---      dictation/media key, so a bare ⌥⌘F5 never reaches the
---      Accessibility Shortcut — Fn⌥⌘F5 or triple-pressing Touch ID is
---      the by-hand chord. ⇪9 posts the TRUE F5 keycode in software,
---      beneath the media-key remapping, which is why it just works.
-
--- (6.144.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.144.1 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.146.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.147.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -212,6 +221,15 @@
 --    change this session with its verdict. Per-file "Always Open
 --    With" overrides and the default browser are out of scope — the
 --    report says why.
+--
+-- 🌐 ⇪⇧6  NET WATCH (modules/net_watch.lua)
+--    Who's talking: every app of yours with a live network
+--    connection, one row per app — remote IPs reverse-resolved,
+--    known services explained (an unknown one says UNRECOGNIZED,
+--    never a guess). ⌘1 copies the full report, ⏎ copies one app's:
+--    what · why · each path with both ends, state and resolved name.
+--    One lsof snapshot per press, nothing in the background.
+--    _G.netWatchReport() prints the same report to the Console.
 --
 -- ⇪P  APP PEEK (§1.8)
 --    Hides the frontmost app instantly so you can see what's
@@ -456,7 +474,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.146.0"
+_G.configVersion = "6.147.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2958,6 +2976,11 @@ local BASE = {
     "net_tools",          -- 🌐 ⇪6  flush · ping · nslookup · traceroute
     "mac_panel",          -- 🖥 ⇪7  About This Mac, as a card
     "tab_search",         -- 🗂 ⇪⇧' every open tab in every running browser
+    -- 6.147.0 — LL: list any application communicating with some
+    -- service, say what it is, what it is doing, and resolve where it
+    -- pulls its data from. One lsof snapshot per press, no polling.
+    "net_watch",          -- 🌐 ⇪⇧6 who's talking — apps with live
+                          --    connections, remote ends resolved + explained
     -- 6.143.0 — LL, with a screenshot of Finder's "already exists —
     -- Replace?" box: "Can we capture this kind of window and make it
     -- appear in the same place, on my primary monitor?"

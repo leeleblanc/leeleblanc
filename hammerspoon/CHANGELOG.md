@@ -4,6 +4,90 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.147.0 — SIX ANSWERS: WHO'S TALKING · NAMES · CLOCK · CONSOLE:
+  🌐 NET WATCH (modules/net_watch.lua, the sixty-second module, on
+     ⇪⇧6 — the free-keys ledger listed it, and it is the shift of ⇪6
+     net tools). LL, with the ⇪7 card open: "Can you make the panel
+     of information more indepth? Specifically I want it to list any
+     application that is running something that is communicating with
+     some service to do something … Say what the application is · Say
+     what the application is doing · Resolve where the application is
+     pulling its data from." Plus ⌘1 copy-all and ⌘2 copy-one.
+     · THE CONNECTIONS: one /usr/sbin/lsof -i snapshot per press,
+       field output (-F) so command names with spaces arrive whole,
+       run without root — YOUR apps, by design; the report's first
+       line says root's daemons need admin. No polling, nothing for
+       the battery saver to slow.
+     · THE NAMES: every public remote IP reverse-resolved through
+       dscacheutil (the resolver's own cache), ONE lookup at a time
+       with a per-lookup deadline, cached per session; private-range
+       addresses labeled "local network", never resolved.
+     · THE WHY: a rule table maps known processes and domains to what
+       they are and why they talk — Microsoft AutoUpdate monitors
+       Office updates, apsd is every notification's one connection,
+       an Akamai name is a CDN edge. A name no rule matches says
+       UNRECOGNIZED and shows its raw paths — the honest fallback is
+       the point; a confident wrong "why" teaches you to trust wrong
+       answers about your own network. (A break test replaces the
+       fallback and watches an unknown daemon wear AutoUpdate's
+       story.)
+     · THE COPIES: row 1 (the chooser's native ⌘1) copies the FULL
+       report; ⏎ on any app row (⌘2 reaches the first) copies that
+       app's alone — name/pids, what, why, and each path as
+       "TCP local → remote (STATE)" with "IP resolves to name" under
+       it. _G.netWatchReport() prints the same thing.
+  🕐 THE DATE PICKER'S CLOCK AND REPORT (⇪⇧0) — LL: "Can you it the
+     date picker give all as a 'Date report:'? And can you enter a
+     time display: 2:00:00 PM so I can see what time it is?" The
+     panel's footer now shows the time as big as the date, LIVE to
+     the second (one render a second, only while the panel is open,
+     stopped on close). R copies "Date report:" — the highlighted
+     date in all seven formats, the week/day/relative line, and
+     "Time now:" closing it. The leading zero is shaved by hand
+     (2:00:00 PM, not 02:00:00 PM) because %-I is a GNU extension
+     BSD strftime does not have. calendar.report is published.
+  🏷 SCREENSHOTS NAMED BY WHAT IS ON THEM — LL: "Can we apply better
+     naming conventions to the screenshot files than SCR- so the OCR
+     text is applied and searchable?" Every ⇪4-family capture is
+     OCR'd in the background (same HS OCR Shortcut) and renamed
+     "Screenshot … — its own words.png" a few seconds later — except
+     one headed into the blur editor, where a rename would orphan the
+     save. ⌘9 in the ⇪⇧4 panel (the ninth native slot) sweeps the
+     backlog: SCR-YYYYMMDD-xxxx files fold into the same convention
+     keeping their real mtime; word-less "Screenshot …" files gain
+     theirs; a name that already carries " — ", or one a person
+     chose, is NEVER touched. One shortcuts process at a time, capped
+     per sweep, closing with "Named N of M — K had no readable text".
+     The text also lands in the Finder comment through the OCR
+     engine's new ocr.comment service (its never-overwrite rule
+     applies), so Spotlight finds it two ways.
+  🔄 ⌥TAB LANDS ON THE HAMMERSPOON CONSOLE — LL asked exactly that.
+     The console slips both of the switcher's nets: Hammerspoon is a
+     menu-bar app (the kind == 1 per-app pass never asks it) and the
+     console window can answer isStandard() = false. So it is asked
+     for BY NAME — hs.console.hswindow() — when open; a closed
+     console is not a tile, it is a tool you have not opened.
+  🕘 ⇪Y'S EXPORT GETS A DEADLINE — LL: "Messages are saying still
+     building Chrome history." On the Air the /bin/sh export hung,
+     `exporting` stayed true, and every press answered "press again
+     in a moment" — forever, with nothing saying it was stuck. The
+     export now arms a 45s watchdog: a hang is terminated, status
+     says KILLED and points at _G.chromeHistoryReport(), a notice is
+     recorded, and the waiting alert counts the seconds so a healthy
+     two-second export and a hang read differently. The watchdog is
+     stopped on every normal exit and the suite drives both paths.
+  📎 DEFAULT APPS, UNBURIED — LL: "The tool to set default apps is
+     buried and I'm not sure it's working." It keeps its @tool row
+     and gains a ⇪; power-tools row (seventeenth tool), the same
+     guarded service-call shape as the backup and veil rows. Whether
+     it WORKS on this Mac: press it once and read the alert — the
+     verdict is LaunchServices' own read-back, and
+     _G.defaultAppsReport() keeps the receipts.
+  🧪 tests/test_net_watch.lua is the sixty-second Lua suite (56
+     checks); test_screenshots +17, test_features +8, test_switcher
+     +3, test_chrome_history +7, test_power_tools 17-tool pins.
+     Counts: 62 modules; gate 6,073 checks over sixty-seven stages.
+
 NEW IN 6.146.0 — DEFAULT APPS: A FILE TYPE OPENS IN THE APP YOU CHOSE:
   📎 LL: "Can we create a tool that will allow me to set a default
      application for a specific file type? So, PDFs open in Acrobat

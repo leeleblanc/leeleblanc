@@ -301,20 +301,22 @@ check("the cheat sheet key cell is exactly ⇪;", (function()
     end
     return false
 end)())
-check("all sixteen tools are in the list", #pt.tools == 16, #pt.tools)
+check("all seventeen tools are in the list", #pt.tools == 17, #pt.tools)
 check("…and each has a stable id", (function()
     -- 6.132.0 added countclip and case; 6.133.0 added define; 6.139.0
     -- added backup and backupreport; 6.140.0 added the grayscale relay
     -- rows; 6.142.0 added freekeys (the future-options ledger); 6.145.0
-    -- retired the grayscale setup row with its console door. ids are
-    -- what _G.powerReport() counts by and what ⇪space's run map points
+    -- retired the grayscale setup row with its console door; 6.147.0
+    -- added defaultapp — LL called the keyless 📎 tool "buried", and
+    -- ⇪; is where the act-now tools live. ids are what
+    -- _G.powerReport() counts by and what ⇪space's run map points
     -- at, so they are checked by name rather than by number alone.
     local want = { plain = true, type = true, count = true, meta = true,
                    pause = true, ghere = true, greveal = true, qr = true,
                    countclip = true, case = true, define = true,
                    backup = true, backupreport = true,
                    mono = true, invert = true,
-                   freekeys = true }
+                   freekeys = true, defaultapp = true }
     for _, t in ipairs(pt.tools) do
         if not want[t.id] then return false end
         want[t.id] = nil
@@ -653,7 +655,7 @@ end)(), CLIP)
 
 pt.show()
 local pc = CHOOSERS[#CHOOSERS]
-check("the palette lists all sixteen tools", #pc.choices_ == 16, #pc.choices_)
+check("the palette lists all seventeen tools", #pc.choices_ == 17, #pc.choices_)
 check("every palette row value is a scalar too", (function()
     for _, c in ipairs(pc.choices_) do
         for _, v in pairs(c) do

@@ -137,8 +137,10 @@ local M = {
         entries = {
             { "⇪4",   "Instant capture: crosshair · SPACE = window · Esc = cancel" },
             { "",     "saves to OneDrive/2026 Screenshots + copies to clipboard" },
-            { "⇪⇧4",  "Panel: 8 actions (⌘1–⌘8) + history below · ⌘8 = BIG thumbnails" },
+            { "⇪⇧4",  "Panel: 9 actions (⌘1–⌘9) + history below · ⌘8 = BIG thumbnails" },
             { "⌘1–7", "area · scrolling · text/QR · edit newest · repeat · window · 10s" },
+            { "🏷 names", "Every ⇪4 capture is renamed by ITS OWN words · ⌘9 sweeps" },
+            { "",       "the backlog — SCR- files become “Screenshot … — words.png”" },
             { "type",  "searches the WHOLE folder — not just the newest 30 —" },
             { "",      "by name, by date, and by the TEXT INSIDE the image" },
             { "⏎",    "history row: image on clipboard · ⌘⏎ its file PATH" },
@@ -183,6 +185,21 @@ function M.setup(core)
         cropTop   = 0,      -- points to crop off slices 2+ (sticky headers)
         maxSlices = 12,     -- hard cap, whatever `height` asks for
     }
+    -- 🏷 6.147.0 — CONTENT NAMES. LL: "Can we apply better naming
+    -- conventions to the screenshot files than SCR- so the OCR text is
+    -- applied and searchable?" Two halves:
+    --   · every ⇪4-family capture is OCR'd in the background and its
+    --     name gains the shot's own words a few seconds later:
+    --     "Screenshot 2026-09-01 at 04.48.37 — worked and verified.png"
+    --   · ⌘9 in the panel sweeps the backlog: SCR-YYYYMMDD-xxxx files
+    --     (another capture tool's naming) are folded into this module's
+    --     convention, word-less "Screenshot …" files gain theirs.
+    -- A name that already carries " — " is finished and never touched;
+    -- so is any name a person chose (neither SCR- nor "Screenshot …").
+    shots.nameByContent = true   -- rename own captures automatically
+    shots.slugWords     = 7      -- at most this many words in the name
+    shots.slugChars     = 48     -- and at most this many characters
+    shots.sweepCap      = 40     -- files OCR'd per ⌘9 sweep, one at a time
     -- ----------------------------------------------------------------------
 
     local function say(m)  if _G.diag then _G.diag.say("screenshots", m)  end end
@@ -278,6 +295,14 @@ function M.setup(core)
         end
         say("captured " .. (path:match("[^/]+$") or path)
             .. (copied and " (copied)" or " (copy FAILED)"))
+        -- 🏷 6.147.0 — the name gains the shot's own words, a few
+        -- seconds behind the capture. NOT when the blur editor is about
+        -- to open on this exact path: a rename under the editor would
+        -- orphan its save. (The clipboard holds pixels, not the path,
+        -- so the rename never breaks a paste.)
+        if shots.nameByContent and not thenEdit then
+            shots.nameByText(path)
+        end
         return true
     end
 
@@ -685,6 +710,181 @@ function M.setup(core)
         end)
     end
 
+    -- ---- content names (6.147.0) -----------------------------------------
+    -- The words OF the shot become the NAME of the shot, so Finder,
+    -- Spotlight, ⇪⇧4 and ⇪⇧space all find it by what was on the screen
+    -- — with no index in the way, because the index IS the filename.
+
+    -- OCR text → the filename's word part. Words under three characters
+    -- are noise ("of", "at", UI chrome) unless they carry a digit, which
+    -- is usually the part you remember ("403", "M5").
+    function shots.slugFrom(text)
+        local words = {}
+        for w in tostring(text or ""):gmatch("[%w][%w'%-]*") do
+            if #w >= 3 or w:match("%d") then
+                words[#words + 1] = w
+                if #words >= shots.slugWords then break end
+            end
+        end
+        local slug = table.concat(words, " ")
+        if #slug > shots.slugChars then
+            slug = slug:sub(1, shots.slugChars):gsub("%s+%S*$", "")
+        end
+        slug = slug:gsub("^%s+", ""):gsub("%s+$", "")
+        if slug == "" then return nil end
+        return slug
+    end
+
+    -- What a file should be called once its words are known. nil means
+    -- "leave it alone": it already carries words (an " — " in the name),
+    -- or its name was chosen by a person — only the two mechanical
+    -- conventions (SCR-… and this module's own) are ever rewritten.
+    function shots.contentName(basename, slug, mtime)
+        if not slug then return nil end
+        if basename:find(" — ", 1, true) then return nil end
+        local stem, ext = basename:match("^(.+)%.(%w+)$")
+        if not stem then return nil end
+        if stem:match("^SCR%-%d%d%d%d%d%d%d%d%-") then
+            -- another tool's random suffix: fold into this module's own
+            -- shape, keeping the file's real moment (its mtime)
+            stem = os.date("Screenshot %Y-%m-%d at %H.%M.%S", mtime or os.time())
+        elseif not stem:match("^Screenshot ") then
+            return nil
+        end
+        return stem .. " — " .. slug .. "." .. ext
+    end
+
+    function shots.renameTo(path, newBase)
+        local dir = path:match("^(.*)/[^/]+$") or shots.dir
+        local target = dir .. "/" .. newBase
+        local exists
+        pcall(function() exists = hs.fs.attributes(target, "size") end)
+        if exists then
+            local stem, ext = newBase:match("^(.+)%.(%w+)$")
+            for n = 2, 99 do
+                target = dir .. "/" .. stem .. " " .. n .. "." .. ext
+                local e2 = nil
+                pcall(function() e2 = hs.fs.attributes(target, "size") end)
+                if not e2 then break end
+            end
+        end
+        local ok = os.rename(path, target)
+        if not ok then
+            warn("rename failed: " .. (path:match("[^/]+$") or path))
+            return nil
+        end
+        say("named by content: " .. (target:match("[^/]+$") or target))
+        return target
+    end
+
+    -- OCR one file, rename it from its words, and hand the words to the
+    -- OCR engine for the Finder comment (its never-overwrite rule
+    -- applies there, not here). Failure costs the new name only — the
+    -- file itself is never at risk, rename is the ONLY write.
+    function shots.nameByText(path, onDone)
+        if _G.ocrShortcutAvailable == false then
+            if onDone then onDone(nil) end
+            return false
+        end
+        local t
+        local okNew = pcall(function()
+            t = hs.task.new("/usr/bin/shortcuts", function(code, sout)
+                shots.nameTask = nil
+                local newPath
+                local text = tostring(sout or ""):match("^%s*(.-)%s*$") or ""
+                if code == 0 and text ~= "" then
+                    local base = path:match("[^/]+$") or path
+                    local mtime
+                    pcall(function()
+                        mtime = hs.fs.attributes(path, "modification")
+                    end)
+                    local newBase = shots.contentName(base, shots.slugFrom(text), mtime)
+                    if newBase then newPath = shots.renameTo(path, newBase) end
+                    if newPath and _G.service and _G.service.has
+                       and _G.service.has("ocr.comment") then
+                        pcall(function()
+                            _G.service.call("ocr.comment", newPath, text)
+                        end)
+                    end
+                end
+                if onDone then onDone(newPath) end
+            end, { "run", shots.ocrShortcut, "-i", path })
+            t:start()
+        end)
+        if not (okNew and t) then
+            if onDone then onDone(nil) end
+            return false
+        end
+        shots.nameTask = t   -- HELD
+        return true
+    end
+
+    -- ⌘9 — the backlog. Serial ON PURPOSE: one `shortcuts` process at a
+    -- time, so forty queued OCRs cost a quiet minute, not forty
+    -- simultaneous processes.
+    shots.nameBusy = false
+    function shots.renameSweep()
+        if not shots.ensureDir() then return end
+        if shots.nameBusy then
+            pcall(function()
+                hs.alert.show("🏷 A naming sweep is already running", 2.5)
+            end)
+            return
+        end
+        local todo = {}
+        pcall(function()
+            for f in hs.fs.dir(shots.dir) do
+                if #todo >= shots.sweepCap then break end
+                local ext = tostring(f):match("%.(%w+)$")
+                if ext and (ext:lower() == "png" or ext:lower() == "jpg"
+                            or ext:lower() == "jpeg")
+                   and not f:find(" — ", 1, true)
+                   and (f:match("^SCR%-%d%d%d%d%d%d%d%d%-")
+                        or f:match("^Screenshot ")) then
+                    todo[#todo + 1] = shots.dir .. "/" .. f
+                end
+            end
+        end)
+        if #todo == 0 then
+            pcall(function()
+                hs.alert.show("🏷 Nothing to name — every screenshot here "
+                              .. "already carries its words", 3)
+            end)
+            return
+        end
+        shots.nameBusy = true
+        local renamed, silent, i = 0, 0, 0
+        local function step()
+            i = i + 1
+            local path = todo[i]
+            if not path then
+                shots.nameBusy = false
+                pcall(function()
+                    hs.alert.show(("🏷 Named %d of %d — %d had no readable text")
+                                  :format(renamed, #todo, silent), 4)
+                end)
+                say(("sweep: %d/%d renamed, %d text-free"):format(renamed, #todo, silent))
+                return
+            end
+            local started = shots.nameByText(path, function(newPath)
+                if newPath then renamed = renamed + 1 else silent = silent + 1 end
+                step()
+            end)
+            if not started then
+                shots.nameBusy = false
+                pcall(function()
+                    hs.alert.show("🏷 OCR unavailable — needs the “"
+                                  .. shots.ocrShortcut .. "” Shortcut", 4)
+                end)
+            end
+        end
+        pcall(function()
+            hs.alert.show("🏷 Naming " .. #todo
+                          .. " screenshots by their text…", 2.5)
+        end)
+        step()
+    end
+
     -- ---- listing ---------------------------------------------------------
     local IMAGE_EXT = { png = true, jpg = true, jpeg = true, gif = true,
                         tiff = true, heic = true, webp = true }
@@ -885,6 +1085,11 @@ function M.setup(core)
             { text = "🔎 BIG thumbnails — browse in Unified Search",
               act = "bigBrowse",
               subText = "same screenshots, 2× the thumbnail, searchable (⇪⇧space)" },
+            -- 6.147.0 — ⌘9, the backlog namer. The ninth and last slot
+            -- the chooser numbers natively.
+            { text = "🏷 Name them by what's ON them", act = "nameSweep",
+              subText = ("SCR-/word-less files get their text in the name "
+                         .. "(%d per run, one at a time)"):format(shots.sweepCap) },
         }
     end
 
@@ -911,6 +1116,7 @@ function M.setup(core)
                     hs.alert.show("🔎 Unified Search is not loaded", 3)
                 end)
             end
+        elseif act == "nameSweep"  then shots.renameSweep()
         end
     end
 
@@ -1192,7 +1398,7 @@ function M.setup(core)
             _G.choosers.screenshots = shots.chooser
             pcall(function()
                 shots.chooser:placeholderText(
-                    "Type to search screenshots · ⌘1–⌘8 actions")
+                    "Type to search screenshots · ⌘1–⌘9 actions")
             end)
             pcall(function()
                 shots.chooser:queryChangedCallback(function(q)

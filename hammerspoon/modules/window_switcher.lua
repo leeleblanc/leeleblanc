@@ -58,6 +58,7 @@ local M = {
         entries = {
             { "⌥Tab", "Hold ⌥, tap Tab to walk every open window, release to switch" },
             { "⌥⇧Tab", "Walk backwards through the same list" },
+            { "console", "The Hammerspoon Console is a tile too, whenever it is open" },
             { "← →", "Keep ⌥ down: step one tile, wrapping like Tab" },
             { "↑ ↓", "Keep ⌥ down: jump a whole ROW — the fast way across many rows" },
             { "Home / End", "First tile / last tile" },
@@ -166,6 +167,29 @@ function M.setup(core)
                   .. tostring(spaceErr))
             _G.diag.warn("altTab", "current-Space listing failed: " .. tostring(spaceErr))
         end
+
+        -- 1b. HAMMERSPOON'S OWN CONSOLE (6.147.0 — LL: "Can I use
+        -- alt+tab to land on the Hammerspoon console?"). It slips both
+        -- nets on purpose: Hammerspoon is a menu-bar app, so the
+        -- kind == 1 per-app pass below never asks it, and on some
+        -- builds the console window answers isStandard() = false, which
+        -- add() treats as "not a window you switch to". So it is asked
+        -- for BY NAME — hs.console.hswindow() hands it over when it is
+        -- open, and hands back nil when it is not (a closed console is
+        -- not a tile, it is a tool you have not opened).
+        pcall(function()
+            if not (hs.console and hs.console.hswindow) then return end
+            local cw = hs.console.hswindow()
+            if not cw then return end
+            local okId, id = pcall(function() return cw:id() end)
+            if not (okId and id) or seenWin[id] then return end
+            if not altTab.includeMinimized then
+                local okMin, min = pcall(function() return cw:isMinimized() end)
+                if okMin and min then return end
+            end
+            seenWin[id] = true
+            table.insert(entries, { win = cw })
+        end)
         local tOrdered = hs.timer.secondsSinceEpoch() - t0
 
         -- 2. Every other window, app by app — the cross-Space part.

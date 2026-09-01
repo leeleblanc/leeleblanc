@@ -981,6 +981,13 @@ function M.setup(core)
     -- ---- what init.lua's clipboard watcher calls -------------------------
     core.provide("ocr.clipboardFiles", function() return ocr.clipboardFiles() end)
     core.provide("ocr.tagFiles",       function(p) return ocr.tagFiles(p) end)
+    -- 6.147.0 — for a caller that ALREADY HAS the text (the screenshot
+    -- renamer OCR'd the file to name it): write the Finder comment
+    -- without a second OCR run. The never-overwrite rule lives inside
+    -- writeFinderComment and applies here exactly as everywhere else.
+    core.provide("ocr.comment",        function(p, text)
+        return ocr.writeFinderComment(p, text)
+    end)
     core.provide("ocr.image",          function(i) return ocr.image(i) end)
     core.provide("ocr.show",           function() return ocr.show() end)
     core.provide("ocr.edit",           function() return ocr.edit() end)

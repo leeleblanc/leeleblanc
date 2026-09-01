@@ -772,5 +772,43 @@ check("the selected tile's border is the shared selection blue", (function()
 end)())
 _G.uiStyle = nil
 
+out("\n=== 14. 6.147.0 — the Hammerspoon Console is a tile ===\n")
+-- LL: "Can I use alt+tab to land on the Hammerspoon console?" The
+-- console slips both of the module's nets — Hammerspoon is a menu-bar
+-- app (never asked by the kind == 1 pass) and the console window can
+-- answer isStandard() = false — so it is asked for BY NAME.
+reset(2)
+local CONSOLE = mkwin(999, "Hammerspoon", "Hammerspoon Console", false, false)
+hs.console = { hswindow = function() return CONSOLE end }
+check("an open console is listed even though isStandard() is false and "
+      .. "no kind-1 app owns it", (function()
+    for _, e in ipairs(AT.listWindows()) do
+        if e.win and e.win:id() == 999 then return true end
+    end
+    return false
+end)())
+hs.console = { hswindow = function() return nil end }
+AT.cache = nil
+check("a CLOSED console is not a tile — it is a tool you have not opened",
+      (function()
+    for _, e in ipairs(AT.listWindows()) do
+        if e.win and e.win:id() == 999 then return false end
+    end
+    return true
+end)())
+local MINI_CONSOLE = mkwin(998, "Hammerspoon", "Hammerspoon Console", true, false)
+hs.console = { hswindow = function() return MINI_CONSOLE end }
+AT.cache = nil
+AT.includeMinimized = false
+check("a minimised console honours includeMinimized like every window",
+      (function()
+    for _, e in ipairs(AT.listWindows()) do
+        if e.win and e.win:id() == 998 then return false end
+    end
+    return true
+end)())
+AT.includeMinimized = true
+hs.console = nil
+
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

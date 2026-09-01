@@ -154,6 +154,7 @@ local M = {
             { "⇪⇧`",    "📂 Finder at the front Ghostty window's folder" },
             { "⇪5",     "🔳 Read a QR code off the screen — needs zbar" },
             { "🆓 free", "_G.freeKeys() — every unclaimed key, from the live registry" },
+            { "📎 open in", "Default app for a file type — set it, proof read back" },
             { "check",  "_G.powerReport() — what ran, and what refused" },
         },
     },
@@ -1548,6 +1549,23 @@ end tell]]
         { id = "freekeys", icon = "🆓", title = "Free keys — future shortcut options",
           sub = "Every unclaimed ⇪ / ⇪⇧ / pad key, read from the LIVE registry",
           run = function() return _G.freeKeys() ~= nil end },
+        -- 📎 6.147.0 — LL, the day after 6.146.0 shipped it keyless:
+        -- "The tool to set default apps is buried". The @tool row stays
+        -- (it is still the searchable front door), but ⇪; is where the
+        -- act-now tools live, so it earns a row here too — same guarded
+        -- service-call shape as the backup and veil rows above.
+        { id = "defaultapp", icon = "📎", title = "Default app for a file type",
+          sub = "Pick a type, pick the app — LaunchServices read back as proof",
+          run = function()
+              if not (_G.service and _G.service.has
+                      and _G.service.has("defaultApps.show")) then
+                  note("defaultApps.show has no provider")
+                  hs.alert.show("📎 The Default Apps module is not loaded.\n"
+                      .. "⇪⇧D lists module status.", 4)
+                  return false
+              end
+              return _G.service.call("defaultApps.show") and true or false
+          end },
     }
 
     -- 6.140.0 — the guard the grayscale rows share (three rows then, two

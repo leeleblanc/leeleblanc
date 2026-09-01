@@ -1670,6 +1670,44 @@ end)())
 check("calendar.format is published for other modules",
       _G.service.call("calendar.format", aug7) == "08-07-26")
 
+-- 🕐 6.147.0 — THE DATE REPORT AND THE CLOCK, both LL's ask verbatim:
+-- "give all as a 'Date report:'" · "a time display: 2:00:00 PM so I
+-- can see what time it is".
+local noon7 = at(2026, 8, 7)
+local rep = cal.buildReport(noon7, at(2026, 8, 7))
+check("the report opens with the heading LL named",
+      rep:find("^Date report: Friday, August 7, 2026") ~= nil, rep)
+check("...and carries EVERY configured format", (function()
+    for _, fmt in ipairs(cal.reportFormats) do
+        if not rep:find(os.date(fmt, noon7), 1, true) then return false, fmt end
+    end
+    return true
+end)())
+check("...the week/day line", rep:find("week %d+ · day %d+ of %d+") ~= nil)
+check("...and the time now, closing it", rep:find("Time now: ", 1, true) ~= nil)
+check("the clock shaves the leading zero — 2:00:00 PM, not 02:00:00 PM",
+      cal.timeNow(at(2026, 8, 7) + 2 * 3600):match("^2:") ~= nil
+      and cal.timeNow(at(2026, 8, 7) + 2 * 3600):find("PM", 1, true) ~= nil,
+      cal.timeNow(at(2026, 8, 7) + 2 * 3600))
+check("R copies the report from the keyboard, and never on repeat", (function()
+    CLIPBOARD_TEXT = ""
+    for _, b in ipairs(cal.modal.bindings) do
+        if b.key == "r" then
+            b.fn()
+            return CLIPBOARD_TEXT:find("Date report:", 1, true) ~= nil
+                   and b.repeatFn == nil
+        end
+    end
+    return false
+end)(), CLIPBOARD_TEXT:sub(1, 40))
+check("calendar.report is published for other modules", (function()
+    CLIPBOARD_TEXT = ""
+    local r = _G.service.call("calendar.report", noon7)
+    return type(r) == "string" and r:find("08-07-26", 1, true) ~= nil
+end)())
+check("the panel ticks a live clock while open — held, 1s, stopped on hide",
+      cal.clock ~= nil)
+
 cal.hide()
 check("closing deletes the canvas and disarms the keys",
       cal.canvas == nil and cal.modal.entered == false)
