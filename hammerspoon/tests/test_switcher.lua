@@ -410,48 +410,109 @@ check("a slow enumeration is timed and reported",
       (log[#log] or ""):find("listing took", 1, true) ~= nil, log[#log])
 hs.timer.secondsSinceEpoch = realNow
 
-out("\n=== 9b. 6.148.0 — zero apps asked: the ON-SCREEN pass is the culprit ===\n")
--- 🚨 LL's console: "stopped after 3.0s / 0 apps — Slowest app: nil
--- (0.00s)". Zero apps means the per-app loop broke before asking a
--- single application — the whole budget died in the on-screen listing.
--- Blaming a slowest app of "nil" and suggesting skipApps was advice
--- that could not possibly help.
+out("\n=== 9b. 6.151.0 — a slow ON-SCREEN pass no longer starves the sweep ===\n")
+-- 🚨 The 6.148.0 console: the on-screen listing alone took 3.0s, the
+-- budget counted from t0, and the per-app pass ran for ZERO apps. That
+-- message was made honest in 6.148.0; the STARVATION itself is what
+-- 6.151.0 removes — it was exactly why ⌥Tab showed one Chrome window
+-- and none of the minimised / other-desktop ones (LL's report). The
+-- budget now times the per-app pass alone, so a slow phase 1 costs a
+-- warning line, not the cross-Space windows.
 reset(3)
 AT.listBudget = 0.8
 local zt = 0
 hs.timer.secondsSinceEpoch = function() zt = zt + 1 ; return zt == 1 and 1000 or 1003 end
 AT.listWindows()
 hs.timer.secondsSinceEpoch = realNow
-check("the message blames the on-screen listing, with its own timing",
+check("the message still blames the on-screen listing, with its own timing",
       (log[#log] or ""):find("on-screen window list alone took 3.0s", 1, true) ~= nil,
       log[#log])
+check("...but the per-app pass RAN anyway — every app was still asked",
+      _G.altTabLastListing and _G.altTabLastListing.apps == 3,
+      _G.altTabLastListing and _G.altTabLastListing.apps)
+check("...and is not reported as truncated: nothing was cut",
+      _G.altTabLastListing and _G.altTabLastListing.truncated == false)
 check("...and the nonsense 'Slowest app: nil' line is gone for good", (function()
     for _, l in ipairs(log) do
         if l:find("Slowest app: nil", 1, true) then return false, l end
     end
     return true
 end)())
+check("phase 1's own time is published for ⇪⇧D",
+      _G.altTabLastListing and _G.altTabLastListing.orderedSecs == 3.0,
+      _G.altTabLastListing and _G.altTabLastListing.orderedSecs)
 
-out("\n=== 9c. 6.148.0 — but a genuinely slow APP is still named ===\n")
+out("\n=== 9c. …but a genuinely slow APP is still named ===\n")
 -- The classic message survives for the case it was built for: the
 -- budget dies INSIDE the per-app pass, with a culprit worth naming.
+-- (Clock sequence updated for 6.151.0: the pass takes its own t1
+-- reading before the first deadline check.)
 reset(2)
 AT.listBudget = 0.8
 local seq = { 1000,     -- t0
               1000.1,   -- tOrdered: the on-screen pass was quick
-              1000.2,   -- App1's deadline check — within budget
-              1000.3,   -- App1's own timer starts
-              1001.2,   -- …and ends: App1 took 0.9s
-              1001.9,   -- App2's deadline check — budget spent, break
-              1001.6, 1001.6 }
+              1000.2,   -- t1: the per-app pass starts its own clock
+              1000.3,   -- App1's deadline check — 0.1s in, within budget
+              1000.4,   -- App1's own timer starts
+              1001.3,   -- …and ends: App1 took 0.9s
+              1001.1,   -- App2's deadline check — 0.9s > 0.8s, break
+              1001.4, 1001.4 }
 local tick = 0
-hs.timer.secondsSinceEpoch = function() tick = tick + 1 ; return seq[tick] or 1001.6 end
+hs.timer.secondsSinceEpoch = function() tick = tick + 1 ; return seq[tick] or 1001.4 end
 AT.listWindows()
 hs.timer.secondsSinceEpoch = realNow
 check("one slow app is still named, with its own time",
       (log[#log] or ""):find("Slowest app: App1", 1, true) ~= nil, log[#log])
 check("...and the skipApps advice appears only on THIS path",
       (log[#log] or ""):find("skipApps", 1, true) ~= nil)
+
+out("\n=== 9d. 6.151.0 — the other Chrome windows: visible apps are asked FIRST ===\n")
+-- LL: "it shows one Chrome window but no other Chrome windows I have
+-- open". The others were minimised or on other desktops — findable only
+-- by the per-app pass — and Chrome sat at the BACK of macOS's running-
+-- app order while background agents ate the budget at the front. An app
+-- that owns a window on this desktop is asked before any app that does
+-- not, so the windows you are most likely reaching for are collected
+-- before the budget can run out.
+reset(0)
+local chromeHere = mkwin(500, "Chrome", "Docs")
+local chromeMin  = mkwin(501, "Chrome", "Mail", true)          -- minimised
+local chromeAway = mkwin(502, "Chrome", "Calendar"); chromeAway.space = "other"
+WINS = { chromeHere, chromeMin, chromeAway }
+local chromeApp = mkapp("Chrome", { chromeHere, chromeMin, chromeAway })
+APPS = {}
+for i = 1, 10 do          -- background agents, each 0.5s of AX time,
+  local aw = mkwin(600 + i, "Agent" .. i, "W"); aw.space = "other"
+  local a = mkapp("Agent" .. i, { aw })
+  local realAll = a.allWindows
+  a.allWindows = function(self) NOW = NOW + 0.5; return realAll(self) end
+  table.insert(APPS, a)
+end
+table.insert(APPS, chromeApp)   -- …and Chrome dead LAST in macOS's order
+AT.listBudget = 0.8
+AT.cache = nil
+combos["alt+tab"]()
+local ids = {}
+for _, i in ipairs(AT.session.items) do
+  if i.win then ids[i.win:id()] = true end
+end
+check("the minimised Chrome window is a tile", ids[501] == true)
+check("the other-desktop Chrome window is a tile", ids[502] == true)
+check("...even though the budget still cut the agent queue short",
+      _G.altTabLastListing.truncated == true)
+check("...because Chrome was asked before the agents that macOS listed first",
+      (function()
+        -- Only agents asked BEFORE the break contributed windows; with
+        -- Chrome first, at most two agents fit the 0.8s budget.
+        local agents = 0
+        for id in pairs(ids) do if id > 600 then agents = agents + 1 end end
+        return agents <= 2
+      end)(), (function()
+        local n = 0
+        for id in pairs(ids) do if id > 600 then n = n + 1 end end
+        return n
+      end)())
+AT.finish(false)
 
 out("\n=== 10. Failures degrade, they don't hang or crash ===\n")
 reset(5); FAIL.list = true

@@ -4,8 +4,28 @@
 -- =====================================================================
 -- 09-02-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.150.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.151.0
 -- =====================================================================
+
+-- NEW IN 6.151.0 — ⌥TAB: THE OTHER CHROME WINDOWS, FOUND AT LAST:
+--   🪟 LL: "Alt+Tab is not showing all windows. Example it shows one
+--      Chrome window but no other Chrome windows I have open." The
+--      missing ones were minimised or on other desktops — findable
+--      ONLY by the per-app sweep (macOS's on-screen listing cannot see
+--      them, by design) — and that sweep was starved two ways at once.
+--   ⏱ THE BUDGET COUNTED FROM THE WRONG CLOCK: the 0.8s deadline
+--      started before the on-screen listing, which alone has taken
+--      3.0s on this Mac (the 6.148.0 console paste) — so the per-app
+--      sweep ran for ZERO apps and ⌥Tab quietly became "this desktop
+--      only". The sweep now times itself: a slow phase 1 costs a
+--      Console line, never the cross-Space windows.
+--   🥇 AND THE QUEUE WAS IN macOS'S ORDER, NOT YOURS: background
+--      agents at the front of the running-app list ate the budget
+--      while Chrome waited at the back. Apps that own a window ON THIS
+--      DESKTOP are asked first now — an app whose window you can see
+--      is exactly the app whose other windows you are reaching for.
+--   📏 ⇪⇧D's listing report grows orderedSecs, so the next paste shows
+--      phase 1's own cost next to the sweep's.
 
 -- NEW IN 6.150.0 — THE APP MONITOR ALARM: ONLY ESC DISMISSES IT:
 --   🖱 LL: "if click off this tool it stops the alarm. Can we set it so
@@ -123,32 +143,10 @@
 --   📎 DEFAULT APPS, UNBURIED: LL: "the tool to set default apps is
 --      buried" — it now has a ⇪; power-tools row beside its @tool row.
 
--- NEW IN 6.146.0 — DEFAULT APPS: A FILE TYPE OPENS IN THE APP YOU CHOSE:
---   📎 LL: "Can we create a tool that will allow me to set a default
---      application for a specific file type? So, PDFs open in Acrobat
---      instead? Also, we need to verify the setting/assignment took."
---      Both halves shipped: modules/default_apps.lua, keyless like the
---      rollup — ⇪space, @tool, the 📎 row. Pick a type (any extension;
---      a typed one grows its own row), pick from the apps that CLAIM
---      the type — Finder's own Open With set, today's default starred.
---   🔏 THE WRITE GOES THROUGH LAUNCHSERVICES, the registry Get Info's
---      "Change All…" writes, via osascript's JavaScript bridge — the
---      one reviewed binary, out of process, no admin, both Macs.
---   ✅ AND THE VERDICT IS THE READ-BACK, NOT THE RETURN CODE. The same
---      script reads the registry again through TWO doors — the LS
---      handler table and NSWorkspace's app-for-type answer — and the
---      alert quotes what LaunchServices NOW says. A re-check two
---      seconds later catches a write a racing LS refresh undid, and
---      shouts, because you stopped watching. _G.defaultAppsReport()
---      keeps every change with its verdict. Break tests prove the
---      status-0-is-not-success rule is what stands between a lying ✅
---      and the truth. Per-file "Always Open With" overrides and the
---      default browser are documented out of scope.
-
--- (6.145.2 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.146.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.150.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.151.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -493,7 +491,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.150.0"
+_G.configVersion = "6.151.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

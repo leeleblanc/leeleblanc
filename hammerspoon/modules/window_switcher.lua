@@ -102,7 +102,10 @@ function M.setup(core)
     -- is a freeze, not a switcher. The sweep now stops when the budget is
     -- spent and shows what it managed to collect. A partial list you can
     -- see beats a complete one that arrives 16 seconds late.
-    altTab.listBudget  = 0.8   -- seconds; the sweep stops when spent
+    altTab.listBudget  = 0.8   -- seconds; the PER-APP sweep stops when
+                               -- spent. 6.151.0: measured over that sweep
+                               -- alone — a slow on-screen listing (phase
+                               -- 1) can no longer starve it to zero apps.
     altTab.cacheFor    = 4.0   -- reuse the last list for this long
     -- ✏️ Apps that are always slow to answer go here, by exact name, and
     -- are never asked. ⇪⇧D names the worst offender after every press.
@@ -193,6 +196,23 @@ function M.setup(core)
         local tOrdered = hs.timer.secondsSinceEpoch() - t0
 
         -- 2. Every other window, app by app — the cross-Space part.
+        -- 🚨 6.151.0 — TWO FIXES FROM ONE REPORT. LL: "Alt+Tab is not
+        -- showing all windows. Example it shows one Chrome window but no
+        -- other Chrome windows I have open." The missing windows were
+        -- minimised or on other desktops — exactly the ones only THIS
+        -- pass can find (the on-screen listing above cannot, by macOS
+        -- design) — and this pass was being starved two ways at once:
+        --   • The deadline counted from t0, so a slow on-screen listing
+        --     (3.0s on this Mac — the 6.148.0 console paste) spent the
+        --     whole budget before the first application was asked and
+        --     the pass ran for ZERO apps. The budget now times THIS
+        --     sweep alone; a slow phase 1 is phase 1's problem.
+        --   • Within the sweep, apps were asked in whatever order macOS
+        --     returned them, so the budget (and the maxWindows cap) went
+        --     to whatever came first while Chrome waited at the back of
+        --     the line. Apps that own a window ON THIS DESKTOP are asked
+        --     first now: an app whose window you can see is exactly the
+        --     app whose OTHER windows you are most likely reaching for.
         local appsSeen, withWindows = {}, {}
         local truncated, slowestApp, slowestTime = false, nil, 0
         if altTab.includeOtherSpaces or altTab.includeApps then
@@ -200,32 +220,56 @@ function M.setup(core)
                 local skip = {}
                 for _, n in ipairs(altTab.skipApps or {}) do skip[n] = true end
 
-                for _, app in ipairs(hs.application.runningApplications() or {}) do
-                    -- THE DEADLINE. Checked beforeeach app rather than after,
-                    -- so the budget is a ceiling on what we ask for, not a
-                    -- report on what we already spent.
-                    if hs.timer.secondsSinceEpoch() - t0 > altTab.listBudget then
-                        truncated = true
-                        break
+                -- Which apps own a window phase 1 already listed?
+                local hasHere = {}
+                for _, e in ipairs(entries) do
+                    local okA, a = pcall(function() return e.win:application() end)
+                    if okA and a then
+                        local okN, n = pcall(function() return a:name() end)
+                        if okN and n then hasHere[n] = true end
                     end
+                end
+
+                local ordered, laterRank = {}, {}
+                for _, app in ipairs(hs.application.runningApplications() or {}) do
                     local okKind, kind = pcall(function() return app:kind() end)
                     local okName, aname = pcall(function() return app:name() end)
                     aname = okName and aname or "?"
+                    -- ONLY GUI APPS, still: kind() and name() are cheap
+                    -- properties off the bulk enumeration (the app_watcher
+                    -- 6.16.22 lesson), so ranking every app costs nothing
+                    -- next to a single allWindows() call.
                     if okKind and kind == 1 and not skip[aname] then
-                        table.insert(appsSeen, app)
-                        if altTab.includeOtherSpaces then
-                            -- Timed PER APP: when one application is the
-                            -- reason a press felt slow, the report has to
-                            -- be able to name it. A single culprit goes in
-                            -- altTab.skipApps and the problem is over.
-                            local a0 = hs.timer.secondsSinceEpoch()
-                            local okW, appWins = pcall(function() return app:allWindows() end)
-                            if okW then
-                                for _, w in ipairs(appWins or {}) do add(w) end
-                            end
-                            local took = hs.timer.secondsSinceEpoch() - a0
-                            if took > slowestTime then slowestTime, slowestApp = took, aname end
+                        table.insert(hasHere[aname] and ordered or laterRank,
+                                     { app = app, name = aname })
+                    end
+                end
+                for _, a in ipairs(laterRank) do table.insert(ordered, a) end
+
+                local t1 = hs.timer.secondsSinceEpoch()
+                for _, a in ipairs(ordered) do
+                    -- THE DEADLINE. Checked before each app rather than
+                    -- after, so the budget is a ceiling on what we ask
+                    -- for, not a report on what we already spent. Measured
+                    -- from t1 (6.151.0), so this sweep always gets its
+                    -- full budget no matter how long phase 1 took.
+                    if hs.timer.secondsSinceEpoch() - t1 > altTab.listBudget then
+                        truncated = true
+                        break
+                    end
+                    table.insert(appsSeen, a.app)
+                    if altTab.includeOtherSpaces then
+                        -- Timed PER APP: when one application is the
+                        -- reason a press felt slow, the report has to
+                        -- be able to name it. A single culprit goes in
+                        -- altTab.skipApps and the problem is over.
+                        local a0 = hs.timer.secondsSinceEpoch()
+                        local okW, appWins = pcall(function() return a.app:allWindows() end)
+                        if okW then
+                            for _, w in ipairs(appWins or {}) do add(w) end
                         end
+                        local took = hs.timer.secondsSinceEpoch() - a0
+                        if took > slowestTime then slowestTime, slowestApp = took, a.name end
                     end
                 end
             end)
@@ -271,25 +315,29 @@ function M.setup(core)
             #entries, elapsed, tOrdered, #appsSeen,
             truncated and ", BUDGET SPENT" or "",
             slowestApp and string.format(", slowest: %s %.2fs", slowestApp, slowestTime) or ""))
-        if truncated and #appsSeen == 0 then
-            -- 🚨 6.148.0 — LL's console: "stopped after 3.0s / 0 apps —
-            -- Slowest app: nil (0.00s)". Zero apps means the per-app pass
-            -- never ran AT ALL: the on-screen listing above spent the
-            -- whole budget before the first application could be asked.
-            -- Blaming a slowest app of "nil" and suggesting skipApps was
-            -- advice that could not possibly help. Name the real culprit.
-            print(string.format(
-                "🔄 Window switcher: the on-screen window list alone took %.1fs "
-                .. "(budget %.1fs) — macOS was slow to answer, no single app is to "
-                .. "blame, and the cross-Space pass was skipped. Showing this "
-                .. "Space's windows; a press within %.0fs reuses the list.",
-                tOrdered, altTab.listBudget, altTab.cacheFor))
-        elseif truncated then
+        if truncated then
+            -- The budget died INSIDE the per-app pass, so there is a
+            -- culprit worth naming and skipApps is advice that helps.
+            -- (6.151.0: this can no longer mean "0 apps asked" — the
+            -- budget times the per-app pass alone, so the first app is
+            -- always reached. The 6.148.0 "the pass was skipped" message
+            -- retired with the starvation it described.)
             print(string.format(
                 "🔄 Window switcher: stopped after %.1fs / %d apps — showing what it had. "
                 .. "Slowest app: %s (%.2fs). Add it to altTab.skipApps in "
                 .. "modules/window_switcher.lua, or raise altTab.listBudget.",
                 elapsed, #appsSeen, tostring(slowestApp), slowestTime))
+        elseif tOrdered > altTab.listBudget then
+            -- Phase 1 alone outspent a whole budget (3.0s on this Mac,
+            -- 6.148.0) — macOS being slow to answer, no single app to
+            -- blame. Worth a line because the press FELT slow, and the
+            -- line should say the cross-Space sweep was not the cost.
+            print(string.format(
+                "🔄 Window switcher: the on-screen window list alone took %.1fs "
+                .. "— macOS was slow to answer, no single app is to blame. The "
+                .. "cross-Space sweep still ran with its own %.1fs budget "
+                .. "(%d apps); a press within %.0fs reuses the list.",
+                tOrdered, altTab.listBudget, #appsSeen, altTab.cacheFor))
         elseif elapsed > altTab.slowWarnSeconds then
             print(string.format(
                 "🔄 Window switcher: listing took %.2fs across %d apps (slowest: %s %.2fs)",
@@ -297,6 +345,7 @@ function M.setup(core)
         end
         _G.altTabLastListing = {
             seconds = elapsed, apps = #appsSeen, entries = #entries,
+            orderedSecs = tOrdered,
             truncated = truncated, slowestApp = slowestApp, slowestTime = slowestTime,
         }
 

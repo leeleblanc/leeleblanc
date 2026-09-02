@@ -4,6 +4,53 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.151.0 — ⌥TAB: THE OTHER CHROME WINDOWS, FOUND AT LAST:
+  🪟 LL: "Alt+Tab is not showing all windows. Example it shows one
+     Chrome window but no other Chrome windows I have open. how do we
+     solve this?" The one it showed was the Chrome window on the
+     current desktop; the missing ones were minimised or on other
+     desktops. Those are findable ONLY by the per-app sweep —
+     hs.window.orderedWindows() reports the current Space, minus
+     minimised windows, by macOS design (the 6.39.0 note) — and the
+     sweep was being starved two different ways at once.
+  ⏱ STARVATION ONE: THE WRONG CLOCK. The 0.8s listBudget (the 6.41.0
+     answer to a 15.9s freeze) started counting BEFORE the on-screen
+     listing, and on this Mac that listing alone has taken 3.0s (the
+     6.148.0 console paste: "stopped after 3.0s / 0 apps"). By the
+     time the per-app loop reached its first deadline check the budget
+     was already gone, so it asked ZERO applications and ⌥Tab quietly
+     degraded to "this desktop only" — while the cheat sheet went on
+     promising "EVERY window: all desktops/Spaces, minimised too".
+     6.148.0 made the MESSAGE honest about this and left the
+     starvation in; LL's report is what that trade-off costs. The
+     sweep now takes its own t1 the moment it starts, and the budget
+     is measured against that: a slow phase 1 costs a Console line
+     (reworded — it now says the sweep still ran, with the apps
+     count), never the cross-Space windows. Worst case is phase 1's
+     time PLUS one full budget, and the 4s cache amortises it.
+  🥇 STARVATION TWO: macOS'S ORDER, NOT YOURS. Within the sweep,
+     applications were asked in runningApplications() order, so
+     background agents at the front ate the budget (and their windows
+     ate maxWindows slots) while Chrome sat at the back of the line.
+     Apps that own a window phase 1 already listed are asked FIRST
+     now: an app with a window on your desktop is precisely the app
+     whose OTHER windows you are reaching for. Ranking is pure Lua
+     over the bulk enumeration (kind/name properties — the app_watcher
+     6.16.22 lesson), so it costs nothing next to one AX call.
+  📏 ⇪⇧D: _G.altTabLastListing grows orderedSecs, so the next console
+     paste shows phase 1's own cost beside the sweep's. The 6.148.0
+     "0 apps / Slowest app: nil" state is impossible by construction
+     now — the first app is always reached — and its special-case
+     message retired with it.
+  🧪 test_switcher 145 → 152: 9b now proves the 3.0s-phase-1 scenario
+     still asks every app (and publishes orderedSecs); 9c's clock
+     sequence gained the sweep's own t1 tick; new 9d rebuilds LL's
+     exact report — one Chrome window visible, one minimised, one on
+     another desktop, Chrome LAST in macOS's order behind ten slow
+     agents — and pins that both hidden Chrome windows are tiles while
+     the agent queue is still cut short by the budget. 6,137 checks
+     across the gate.
+
 NEW IN 6.150.0 — THE APP MONITOR ALARM: ONLY ESC DISMISSES IT:
   🖱 LL: "if click off this tool it stops the alarm. Can we set it so
      that it will not close until I click escape?" The tool: the App
