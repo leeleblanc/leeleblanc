@@ -11,6 +11,11 @@
 -- gives up after 30s means you'd never find out. It now stays on
 -- screen (and keeps gently pinging) indefinitely until you actually
 -- respond, however long that takes.
+-- 6.150.0: AND A STRAY CLICK NO LONGER COUNTS AS RESPONDING. macOS
+-- closes a chooser the moment it loses focus, so clicking any other
+-- window used to end the alarm exactly as if you had pressed Esc —
+-- acknowledged by accident. Now only Esc (or a button) resolves it:
+-- a click-off just brings the popup back a beat later, pings intact.
 -- Dismissing with Esc posts a macOS notification — "{app} closed" —
 -- so you still have a record even if you didn't take an action.
 -- Requires notifications to be allowed for Hammerspoon in System
@@ -32,7 +37,7 @@ local M = {
         title = "👁 APP MONITOR (automatic)",
         entries = {
             { "Enter", "Spawn (relaunch) or End" },
-            { "Esc", "Dismiss (stays open otherwise, no timeout) → posts notification" }
+            { "Esc", "The ONLY dismiss (clicking elsewhere brings it back) → posts notification" }
         },
     },
 }
@@ -99,6 +104,13 @@ function M.setup(core)
     local appMonitorCurrent = nil  -- app the popup is currently asking about
     local appMonitorPing    = nil  -- repeating sound timer
     local appMonitorResolved = nil -- cached sound objects (see below)
+    -- 6.150.0 — Esc bookkeeping (the full story sits on the chooser
+    -- callback below). All three are locals captured by closures that
+    -- live as long as the module, so none can be garbage-collected the
+    -- way the unstored timers of 6.16.18 were.
+    local appMonitorEscAt  = 0     -- when Esc was last pressed while the popup was up
+    local appMonitorEscTap = nil   -- keyDown observer, running ONLY while a popup waits
+    local appMonitorReshow = nil   -- one-shot re-show timer in flight, if any
 
     -- 6.61.0 — RESOLVE THE SOUND NAMES, AND SAY SO WHEN THEY ARE WRONG.
     --
@@ -161,6 +173,8 @@ function M.setup(core)
 
     local function appMonitorStopTimers()
         if appMonitorPing then appMonitorPing:stop(); appMonitorPing = nil end
+        if appMonitorReshow then appMonitorReshow:stop(); appMonitorReshow = nil end
+        if appMonitorEscTap then pcall(function() appMonitorEscTap:stop() end) end
     end
 
     local function appMonitorNotify(appName)
@@ -169,6 +183,29 @@ function M.setup(core)
         end)
         -- If notifications are blocked/unavailable, at least flash an alert
         if not ok then hs.alert.show("ℹ️ " .. appName .. " closed") end
+    end
+
+    -- Places the popup front-and-center on the frontmost app's screen.
+    -- Chooser panels float above normal windows by nature. (Deliberately
+    -- NOT dragged by popup nudging — it's an alert, not a picker.)
+    -- 6.150.0: split out of showNext, because one question can now need
+    -- PRESENTING more than once — a click-off hides the chooser without
+    -- answering it, and this is what brings it back.
+    -- 6.127.0 — shown through core.showPopup WITH ITS OWN POINT, so it
+    -- keeps the placement below and still lands in _G.lastPopupPlacement.
+    -- Being absent from that record is not neutral: window_move computes
+    -- a picker's grab box from it, so an unrecorded panel is dragged
+    -- against the LAST picker's coordinates and cannot be moved at all.
+    local function appMonitorPresent()
+        local screen = core.resolveBaseScreen()
+        local f = screen:frame()
+        local pct = 40
+        local okW, w = pcall(function() return _G.appMonitorChooser:width() end)
+        if okW and type(w) == "number" and w > 0 and w <= 100 then pct = w end
+        local width = f.w * (pct / 100)
+        local at = hs.geometry.point(f.x + (f.w - width) / 2, f.y + f.h * 0.35)
+        if core.showPopup then core.showPopup(_G.appMonitorChooser, at)
+        else _G.appMonitorChooser:show(at) end
     end
 
     local appMonitorShowNext  -- forward declaration (finish + showNext call each other)
@@ -207,7 +244,51 @@ function M.setup(core)
     end
 
     _G.appMonitorChooser = hs.chooser.new(function(choice)
+        -- 6.150.0 — WHO DISMISSED THIS, YOU OR macOS? A chooser closes
+        -- itself the moment it loses key focus, and that close calls
+        -- this callback with nil — byte-for-byte the same nil as Esc.
+        -- So a stray click on another window used to silence the alarm
+        -- as if you had acknowledged it: the "you never found out"
+        -- failure this module exists to prevent, except you were AT the
+        -- Mac. The two nils are told apart by the keyboard: the Esc tap
+        -- below records WHEN Esc was last pressed while the popup was
+        -- actually on screen. Nil with a fresh press = you dismissed it.
+        -- Nil without one = focus theft (a click, ⌘-tab, a dialog) —
+        -- not an answer, so the same question comes back a beat later
+        -- and the pings never stop. Esc is the one dismissal that counts.
+        if choice == nil and appMonitorCurrent
+           and (hs.timer.secondsSinceEpoch() - appMonitorEscAt) > 0.75 then
+            if appMonitorReshow then appMonitorReshow:stop() end
+            appMonitorReshow = hs.timer.doAfter(0.25, function()
+                appMonitorReshow = nil
+                if appMonitorCurrent then pcall(appMonitorPresent) end
+            end)
+            return
+        end
         appMonitorFinish(choice)
+    end)
+    -- The tap that makes the nil/nil distinction above possible. It
+    -- OBSERVES (returns false, never eats the key) and runs only while
+    -- a popup is waiting — started in showNext, stopped alongside the
+    -- ping in appMonitorStopTimers — so it adds nothing to the standing
+    -- keyboard path core/lag.lua worries about. The isVisible guard
+    -- keeps an Esc aimed at something else (pressed during the brief
+    -- gap while the popup is hidden) from counting as an answer.
+    local function appMonitorOnKey(ev)
+        -- Synthetic typing (the expander's, autocorrect's) reaches this
+        -- layer looking exactly like fingers; an injected Esc must not
+        -- read as you answering the alarm.
+        if _G.typingInjection and _G.typingInjection() then return false end
+        if appMonitorCurrent and ev:getKeyCode() == hs.keycodes.map.escape then
+            local okV, vis = pcall(function() return _G.appMonitorChooser:isVisible() end)
+            if okV and vis then appMonitorEscAt = hs.timer.secondsSinceEpoch() end
+        end
+        return false
+    end
+    appMonitorEscTap = hs.eventtap.new({ hs.eventtap.event.types.keyDown }, function(ev)
+        local ok, ret = pcall(appMonitorOnKey, ev)
+        if ok then return ret end
+        return false   -- an observer must fail invisibly, never eat the key
     end)
     -- ⎋ 6.93.0: filed in _G.choosers so Esc closes it before the cheat sheet
     _G.choosers = _G.choosers or {}
@@ -237,26 +318,12 @@ function M.setup(core)
             { text = "🛑 End",   subText = "Acknowledge — leave it closed",   action = "end"   },
         })
 
-        -- Front and center: chooser panels float above normal windows by
-        -- nature; we center it on the frontmost app's screen. (Deliberately
-        -- NOT registered in _G.choosers — it's an alert, not a picker, so
-        -- popup nudging shouldn't drag it around.)
-        local screen = core.resolveBaseScreen()
-        local f = screen:frame()
-        local pct = 40
-        local okW, w = pcall(function() return _G.appMonitorChooser:width() end)
-        if okW and type(w) == "number" and w > 0 and w <= 100 then pct = w end
-        local width = f.w * (pct / 100)
-        -- 6.127.0 — shown through core.showPopup WITH ITS OWN POINT, so it
-        -- keeps the placement above and still lands in _G.lastPopupPlacement.
-        -- Being absent from that record is not neutral: window_move computes
-        -- a picker's grab box from it, so an unrecorded panel is dragged
-        -- against the LAST picker's coordinates and cannot be moved at all.
-        -- Recording it is unrelated to the nudge keys, which walk _G.choosers
-        -- — this one is still deliberately absent from there.
-        local at = hs.geometry.point(f.x + (f.w - width) / 2, f.y + f.h * 0.35)
-        if core.showPopup then core.showPopup(_G.appMonitorChooser, at)
-        else _G.appMonitorChooser:show(at) end
+        -- A fresh question: the Esc that ended the LAST popup must not be
+        -- able to dismiss this one (two apps closed together, Esc on the
+        -- first, a click-off on the second inside the freshness window).
+        appMonitorEscAt = 0
+        if appMonitorEscTap then pcall(function() appMonitorEscTap:start() end) end
+        appMonitorPresent()
 
         -- Audible ping now, then again every appMonitorPingInterval seconds
         -- INDEFINITELY — no auto-dismiss anymore, so this keeps sounding
@@ -275,6 +342,16 @@ function M.setup(core)
             local function ping()
                 nextSound = (nextSound % #sounds) + 1
                 pcall(function() sounds[nextSound]:play() end)
+                -- 6.150.0 belt-and-braces: if the question is still open
+                -- but the popup is somehow off screen — a hide path that
+                -- skipped the chooser callback — and no recent Esc
+                -- explains it, bring it back. The alarm you can hear and
+                -- the popup you can answer must stay one thing.
+                if appMonitorCurrent and not appMonitorReshow
+                   and (hs.timer.secondsSinceEpoch() - appMonitorEscAt) > 1.5 then
+                    local okV, vis = pcall(function() return _G.appMonitorChooser:isVisible() end)
+                    if okV and vis == false then pcall(appMonitorPresent) end
+                end
             end
             ping()
             appMonitorPing = hs.timer.doEvery(appMonitorPingInterval, ping)

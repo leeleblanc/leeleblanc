@@ -4,6 +4,58 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.150.0 — THE APP MONITOR ALARM: ONLY ESC DISMISSES IT:
+  🖱 LL: "if click off this tool it stops the alarm. Can we set it so
+     that it will not close until I click escape?" The tool: the App
+     Watcher popup — the one that appears, pinging, when a watched
+     app quits. Root cause: that popup is an hs.chooser, and macOS
+     closes a chooser THE MOMENT IT LOSES KEY FOCUS. That close calls
+     the completion callback with nil — byte-for-byte the same nil
+     the callback gets for Esc. So a stray click on any other window
+     read as "acknowledged, stop the alarm": the 6.16.21 no-auto-
+     dismiss design ("if you're away, a popup that gives up means
+     you'd never find out"), quietly undone by a mouse. Worse than
+     away: you were AT the Mac, mid-click on something else, and
+     still never found out.
+  ⎋ THE TWO NILS ARE TOLD APART BY THE KEYBOARD. hs.chooser exposes
+     no "why did I close" API, so the module now watches for the one
+     signal that distinguishes them: a small keyDown eventtap records
+     WHEN Esc was last pressed while the popup was actually visible.
+     The callback then reads the nil against that clock. Nil with a
+     fresh press (0.75s) = you dismissed it — notification posted,
+     alarm stopped, queue advances, exactly as before. Nil without
+     one = focus theft (a click, ⌘-tab, a new dialog) — NOT an
+     answer, so the same question is re-presented a beat (0.25s)
+     later, and the ping sequence never stopped in between. Buttons
+     arrive as a real choice and are untouched. The tap OBSERVES
+     (returns false, never eats a key), is pcall-shielded, checks
+     _G.typingInjection() so the expander's synthetic Esc cannot
+     acknowledge a crash, and runs ONLY while a popup is waiting —
+     started in showNext, stopped with the ping — so it adds nothing
+     to the standing keyboard path core/lag.lua exists to police.
+  🐕 THE PING DOUBLES AS A WATCHDOG. Placement moved out of showNext
+     into appMonitorPresent(), because one question can now need
+     presenting more than once. Each ping also asks: question still
+     open, popup not visible, no reshow in flight, no recent Esc to
+     explain it? Then re-present — covering any hide path that skips
+     the chooser callback. The alarm you can hear and the popup you
+     can answer stay one thing. An Esc pressed while the popup is
+     HIDDEN (the beat between click-off and re-show) is deliberately
+     ignored: it was aimed at whatever you clicked, not at a popup
+     you could not see.
+  🧪 test_app_watcher grew from 44 to 69 checks, and dismiss() in its
+     harness is now the FULL Esc sequence (tap sees the key, then
+     hide + nil callback) — a bare nil callback is the click-off
+     shape and no longer dismisses anything, which is the entire
+     point. Pinned: click-off posts no notification, re-shows, and
+     the pings run straight through; Esc posts exactly one and
+     silences the alarm; buttons still resolve; the tap runs only
+     while a popup waits; a hidden-popup Esc resolves nothing; the
+     watchdog re-presents; click-off does not skip the queue; an
+     injected Esc cannot answer. 6,130 checks across the gate.
+  📋 Cheat sheet row updated: "Esc — The ONLY dismiss (clicking
+     elsewhere brings it back) → posts notification".
+
 NEW IN 6.149.0 — THE ⇪Q DIM: DARKER, AND A SHIELD THAT STAYS TRUE:
   🌑 LL: "the ⇪Q dim needs to be darker and does it handle pop-ups
      that could appear? In essence, I'd like to nabb interruptions."

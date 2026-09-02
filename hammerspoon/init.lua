@@ -4,8 +4,29 @@
 -- =====================================================================
 -- 09-02-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.149.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.150.0
 -- =====================================================================
+
+-- NEW IN 6.150.0 — THE APP MONITOR ALARM: ONLY ESC DISMISSES IT:
+--   🖱 LL: "if click off this tool it stops the alarm. Can we set it so
+--      that it will not close until I click escape?" Root cause: the
+--      popup is an hs.chooser, and macOS closes a chooser the moment it
+--      loses key focus — and that close calls the callback with NIL,
+--      byte-for-byte the same nil as pressing Esc. A stray click on any
+--      other window read as "acknowledged": the 6.16.21 no-auto-dismiss
+--      design, undone by a mouse.
+--   ⎋ THE TWO NILS ARE NOW TOLD APART BY THE KEYBOARD: a tiny keyDown
+--      tap (running ONLY while a popup waits, observe-only, injection-
+--      guarded) records when Esc was last pressed while the popup was
+--      actually on screen. Nil with a fresh press = you dismissed it,
+--      notification posted as ever. Nil without one = focus theft — a
+--      click, ⌘-tab, a dialog — so the SAME question comes back a beat
+--      later, and the pings never stopped in between. Enter on a button
+--      answers as always; Esc is the one dismissal that counts.
+--   🐕 AND THE PING DOUBLES AS A WATCHDOG: if the question is still
+--      open but the popup is somehow off screen with no recent Esc to
+--      explain it, the next ping re-presents it. The alarm you can hear
+--      and the popup you can answer stay one thing.
 
 -- NEW IN 6.149.0 — THE ⇪Q DIM: DARKER, AND A SHIELD THAT STAYS TRUE:
 --   🌑 LL: "the ⇪Q dim needs to be darker and does it handle pop-ups
@@ -124,29 +145,10 @@
 --      and the truth. Per-file "Always Open With" overrides and the
 --      default browser are documented out of scope.
 
--- NEW IN 6.145.2 — THE BACKUP LINE THAT ALWAYS SAID "not configured":
---   🔎 LL pasted a clean 6.145.1 diagnostic and asked "How are we
---      looking?" — and one line in it was lying. PATHS said "backup
---      dir : not configured" while CAPABILITIES, in the SAME report,
---      showed the 5:00 PM backup armed into OneDrive. Both sincere:
---      the backups run off core.backupDir; the PATHS line read a
---      GLOBAL named backupDir that no Mac ever sets.
---   🧬 THE BUG SHIPPED IN 6.44.11, when §1.11 was lifted out of
---      init.lua into core/diagnostics.lua. The extraction passed
---      three upvalues and missed the fourth — the header comment even
---      said "three values", so the file believed itself. The suite
---      hid it by defining backupDir as a real global, which init.lua
---      never does: its backupDir is a local, invisible to that read.
---   🩹 init.lua now passes backupDir; diagnostics keeps it like the
---      other three. And the suite hands the chunk the value then
---      DELETES its harness global before building the report — so the
---      line can only be right by keeping core.backupDir, and the next
---      accidental global read fails the suite instead of every Mac.
-
--- (6.145.1 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.145.2 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.149.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.150.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -491,7 +493,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.149.0"
+_G.configVersion = "6.150.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

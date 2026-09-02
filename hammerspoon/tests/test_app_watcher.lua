@@ -46,11 +46,15 @@ local function bootModule(opts)
     local played     = {}                -- sound names, in play order
     local afterFns   = {}                -- hs.timer.doAfter callbacks
     local everyFns   = {}                -- hs.timer.doEvery callbacks
-    local running    = { ["Shottr"] = true }
+    local running    = { ["Shottr"] = true, ["Ghostty"] = true }
     local chooserShown = false
     local shownCount   = 0
     local lookups      = 0
     local chooserFn    = nil   -- the module's completion callback
+    local chooserVisible = false -- what isVisible() reports (6.150.0)
+    local lastPlaceholder = nil  -- which app the popup is asking about
+    local notified   = {}        -- informativeText of every notification sent
+    local escTap     = nil       -- the module's Esc eventtap (6.150.0)
 
     local function makeSound(name)
         return { play = function() played[#played + 1] = name end }
@@ -68,25 +72,50 @@ local function bootModule(opts)
         timer = {
             doAfter = function(_, fn) afterFns[#afterFns + 1] = fn
                         return { stop = function() end } end,
+            -- 6.150.0: stop() marks the timer, and tick() below skips
+            -- marked ones — without this, "the alarm goes quiet after
+            -- Esc" cannot be tested at all.
             doEvery = function(interval, fn)
-                        everyFns[#everyFns + 1] = { interval = interval, fn = fn }
-                        return { stop = function() end } end,
+                        local t = { interval = interval, fn = fn, stopped = false }
+                        t.stop = function() t.stopped = true end
+                        everyFns[#everyFns + 1] = t
+                        return t end,
             secondsSinceEpoch = function() return 100 end,
         },
         chooser = { new = function(fn) local c = {}
             chooserFn = fn
             local noop = function() return c end
             c.rows, c.width, c.bgDark, c.fgColor, c.subTextColor = noop, noop, noop, noop, noop
-            c.placeholderText, c.choices, c.searchSubText = noop, noop, noop
-            c.query, c.hide, c.cancel = noop, noop, noop
-            c.show = function() chooserShown = true
+            c.choices, c.searchSubText = noop, noop
+            c.query, c.cancel = noop, noop
+            c.placeholderText = function(_, s) lastPlaceholder = s; return c end
+            c.isVisible = function() return chooserVisible end
+            c.hide = function() chooserVisible = false; return c end
+            c.show = function() chooserShown = true; chooserVisible = true
                                 shownCount = shownCount + 1; return c end
             return c end },
+        -- 6.150.0: the Esc watcher. The stub records start/stop so the
+        -- "live only while a popup waits" claim is checkable, and keeps
+        -- the callback so tests can press Esc the way the tap sees it.
+        eventtap = {
+            event = { types = { keyDown = 10 } },
+            new = function(_, fn)
+                local t = { started = false, fn = fn }
+                t.start = function() t.started = true; return t end
+                t.stop  = function() t.started = false; return t end
+                escTap = t
+                return t
+            end,
+        },
+        keycodes = { map = { escape = 53 } },
         geometry = { point = function(x, y) return { x = x, y = y } end },
         screen = { mainScreen = function() return { frame = function()
                      return { x = 0, y = 0, w = 1440, h = 900 } end } end },
         alert  = { show = function() end },
-        notify = { new = function() return { send = function() end } end },
+        notify = { new = function(_, o)
+            return { send = function()
+                notified[#notified + 1] = (o and o.informativeText) or "?"
+            end } end },
         application = {
             runningApplications = function()
                 local out = {}
@@ -168,14 +197,48 @@ local function bootModule(opts)
         -- So a test that wants three popups must answer each one, exactly
         -- as pressing Esc would. Without this, relaunch+quit still yields
         -- a single popup and the test is measuring nothing again.
-        dismiss = function() if chooserFn then chooserFn(nil) end end,
+        -- 6.150.0: dismissing now IS the full Esc sequence — the tap sees
+        -- the keypress while the popup is up, then macOS hides the
+        -- chooser and calls the callback with nil. A bare chooserFn(nil)
+        -- no longer dismisses anything: that is the click-off shape, and
+        -- the module now answers it by bringing the popup back.
+        dismiss = function()
+            if escTap then escTap.fn({ getKeyCode = function() return 53 end }) end
+            chooserVisible = false
+            if chooserFn then chooserFn(nil) end
+        end,
+        -- The two halves of dismiss, separately, plus the other ways a
+        -- popup can leave the screen — for the 6.150.0 tests.
+        pressEsc = function()
+            if escTap then escTap.fn({ getKeyCode = function() return 53 end }) end
+        end,
+        clickOff = function()      -- focus theft: macOS hides it, callback nil, NO Esc
+            chooserVisible = false
+            if chooserFn then chooserFn(nil) end
+        end,
+        choose = function(action)  -- a button press
+            chooserVisible = false
+            if chooserFn then chooserFn({ action = action }) end
+        end,
+        vanish = function() chooserVisible = false end,  -- hidden with NO callback at all
+        fireAfters = function()    -- run pending doAfter timers (the re-show)
+            for i = 1, #afterFns do afterFns[i]() end
+            for i = #afterFns, 1, -1 do table.remove(afterFns, i) end
+        end,
+        visible    = function() return chooserVisible end,
+        tapStarted = function() return escTap ~= nil and escTap.started end,
+        placeholder = function() return lastPlaceholder or "" end,
+        notified   = notified,
     }
 end
 
--- Advances the repeating ping timer n times.
+-- Advances the repeating ping timer n times. Skips stopped timers, the
+-- way real time would.
 local function tick(h, n)
     for _ = 1, n do
-        for _, t in ipairs(h.everyFns) do t.fn() end
+        for _, t in ipairs(h.everyFns) do
+            if not t.stopped then t.fn() end
+        end
     end
 end
 
@@ -344,6 +407,128 @@ do
     local okRun = pcall(function() h.quit("Shottr") end)
     ok(okRun, "a missing notice ledger does not break the popup")
     ok(h.wasShown(), "the popup is still shown without the ledger")
+end
+
+say("── APP WATCHER: only Esc dismisses (6.150.0) ──")
+
+-- 12. A click elsewhere does NOT end the alarm ------------------------
+--     macOS closes a chooser on focus loss and calls the callback with
+--     nil — the same nil as Esc. Before 6.150.0 that stray click
+--     silenced the alarm as if you had acknowledged it.
+do
+    local h = bootModule()
+    h.quit("Shottr")
+    eq(h.shownCount(), 1, "one popup up before the click")
+    h.clickOff()
+    eq(#h.notified, 0, "a click-off posts NO 'closed' notification — nothing was answered")
+    eq(h.shownCount(), 1, "the re-show is scheduled, not synchronous (the click has to finish landing)")
+    h.fireAfters()
+    eq(h.shownCount(), 2, "the popup comes back on its own")
+    ok(h.visible(), "and it is visible again")
+    local before = #h.played
+    tick(h, 2)
+    eq(#h.played, before + 2, "the pings never stopped — the alarm ran straight through the click")
+end
+
+-- 13. Esc still dismisses, exactly as before --------------------------
+do
+    local h = bootModule()
+    h.quit("Shottr")
+    h.dismiss()   -- tap sees Esc while visible, then hide + nil callback
+    eq(#h.notified, 1, "Esc posts exactly one notification")
+    ok(h.notified[1]:find("Shottr"), "naming the app that closed", h.notified[1])
+    h.fireAfters()
+    eq(h.shownCount(), 1, "no re-show was scheduled — Esc is an answer")
+    local before = #h.played
+    tick(h, 3)
+    eq(#h.played, before, "and the alarm is silent afterwards")
+end
+
+-- 14. The buttons still resolve ---------------------------------------
+do
+    local h = bootModule()
+    h.quit("Shottr")
+    h.choose("end")
+    eq(#h.notified, 0, "End acknowledges without a notification, as before")
+    h.fireAfters()
+    eq(h.shownCount(), 1, "and no re-show fights the button")
+end
+
+-- 15. The Esc tap runs ONLY while a popup is waiting ------------------
+--     This config has real history with keyboard taps and lag
+--     (core/lag.lua exists because of it); a watcher that ran all day
+--     would be a standing suspect. It must start with the popup and
+--     stop with the answer.
+do
+    local h = bootModule()
+    ok(not h.tapStarted(), "no popup, no tap")
+    h.quit("Shottr")
+    ok(h.tapStarted(), "popup up → tap running")
+    h.dismiss()
+    ok(not h.tapStarted(), "popup answered → tap stopped")
+end
+
+-- 16. An Esc pressed while the popup is HIDDEN does not count ---------
+--     During the beat between a click-off and the re-show, an Esc is
+--     aimed at whatever the user clicked — not at a popup they cannot
+--     see. It must not silently resolve the question.
+do
+    local h = bootModule()
+    h.quit("Shottr")
+    h.vanish()            -- off screen, question still open
+    h.pressEsc()          -- aimed at something else entirely
+    h.clickOff()          -- the nil callback arrives
+    eq(#h.notified, 0, "the hidden-popup Esc resolved nothing")
+    h.fireAfters()
+    eq(h.shownCount(), 2, "the popup still comes back")
+end
+
+-- 17. A popup hidden with NO callback is brought back by the ping -----
+--     Some hide paths skip the chooser callback entirely. The alarm you
+--     can hear and the popup you can answer must stay one thing, so the
+--     ping doubles as the watchdog.
+do
+    local h = bootModule()
+    h.quit("Shottr")
+    h.vanish()            -- hidden, no callback, no Esc anywhere
+    tick(h, 1)
+    eq(h.shownCount(), 2, "the next ping re-presents the popup")
+    ok(h.visible(), "and it reports visible again")
+end
+
+-- 18. Click-off does not skip the queue -------------------------------
+--     Two apps close together; the second waits its turn. A click-off
+--     on the first must re-ask about the FIRST — only a real answer
+--     moves the queue along.
+do
+    local h = bootModule()
+    h.quit("Shottr")
+    h.quit("Ghostty")
+    eq(h.shownCount(), 1, "the second close queues behind the first popup")
+    h.clickOff(); h.fireAfters()
+    ok(h.placeholder():find("Shottr"), "click-off re-asks about the SAME app", h.placeholder())
+    h.dismiss()
+    ok(h.placeholder():find("Ghostty"), "Esc moves on to the queued app", h.placeholder())
+    eq(#h.notified, 1, "and only the Esc'd app got a notification")
+end
+
+-- 19. A SYNTHETIC Esc does not answer the alarm -----------------------
+--     The expander and autocorrect inject keystrokes that reach an
+--     eventtap looking exactly like fingers (the lint's
+--     keyboard-tap-ignores-injection rule exists for this). While
+--     _G.typingInjection() is up, an Esc must not count — otherwise an
+--     expansion fired at the wrong moment silently acknowledges a
+--     crashed app.
+do
+    local h = bootModule()
+    _G.typingInjection = function() return true end
+    h.quit("Shottr")
+    h.pressEsc()          -- injected, not fingers
+    h.clickOff()
+    eq(#h.notified, 0, "the injected Esc resolved nothing")
+    h.fireAfters()
+    eq(h.shownCount(), 2, "the popup comes back — only real fingers can answer")
+    _G.typingInjection = nil
 end
 
 -- run-tests.sh greps for this exact shape and adds its own "✅ <suite> —"
