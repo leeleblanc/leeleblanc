@@ -42,7 +42,8 @@ Hammerspoon config) — talk to them like a peer.
   a snippet engine (2,007 triggers), Tab switcher. Modules: activity,
   appLauncher, asana, backup, banners, calendar, capturePad, snippets.
   `hs.spaces` usage is UNKNOWN — before blaming or exonerating, check:
-  `grep -rn "hs.spaces\|missionControl" ~/.hammerspoon/`
+  `grep -rnE 'hs\.spaces|missionControl' ~/.hammerspoon/`
+  (macOS ships BSD grep: use `-E`; GNU-style `\|` silently matches nothing.)
 - **Session context:** iPhone Mirroring is routinely in use (its window is
   a capture-protected class — relevant, see cause C1 below). Wallpaper is
   the macOS default Golden Gate aerial (likely dynamic). Terminal is
@@ -66,16 +67,19 @@ The two regions of Mission Control are drawn from **different pipelines**:
 - **Main area** = live window proxy surfaces.
 
 "Tiles empty, main area fine" therefore localizes the fault to the
-**snapshot path**, full stop. Window enumeration, space enumeration, and
-live compositing are all provably working. Do not chase settings that only
+**snapshot path** — the best-supported working model (the pipeline split is
+inferred from symptoms plus community reports, not Apple documentation).
+What is directly evidenced: window enumeration, space enumeration, and live
+compositing all work. Do not chase settings that only
 affect the main area (e.g. "Group windows by application" governs main-area
 grouping).
 
 ## Refutation ledger (already falsified — do not re-litigate)
 
-Each of these was adversarially checked against the screenshot evidence.
-The decisive fact: **Desktop 1, the selected space, visibly holds four open
-windows in the main area, yet its own thumbnail is wallpaper-only.**
+Each of these was adversarially checked against the screenshot evidence
+(screenshot not attached; the decisive fact is restated here): **Desktop 1,
+the selected space, visibly held four open windows in the main area, yet
+its own thumbnail was wallpaper-only.**
 
 1. ~~Minimized / Cmd-H hidden windows are excluded~~ — true behavior, but
    Desktop 1's windows are neither (they render in the main area).
@@ -89,10 +93,12 @@ windows in the main area, yet its own thumbnail is wallpaper-only.**
 5. ~~Hammerspoon as the cause~~ — its event taps and hotkeys live in the
    HID input-routing path with no write channel into Dock compositing; a
    misbehaving tap produces input lag or dead hotkeys (macOS auto-disables
-   unresponsive taps), never blank previews. The Hammerspoon issue tracker
-   has zero reports of blanked Mission Control previews, and this config
-   shows no `hs.spaces` usage. (Still run the 2-minute exoneration test in
-   the ladder — it's cheap and makes any Feedback report airtight.)
+   unresponsive taps), not blank previews. As of the research pass, the
+   Hammerspoon issue tracker had zero reports of blanked Mission Control
+   previews, and the diagnostic report evidences no `hs.spaces` usage
+   (confirm with the grep in the machine section before treating this as
+   final). Still run the 2-minute exoneration test in the ladder — it's
+   cheap and makes any Feedback report airtight.
 6. ~~Dock-injection tools (yabai scripting-addition class)~~ — none
    installed; requires deliberately downgraded SIP.
 
@@ -127,7 +133,8 @@ windows in the main area, yet its own thumbnail is wallpaper-only.**
 
 Run on **both** displays' spaces bars; judge every step by whether
 **the current space's** thumbnail populates (Desktops 2/3 may be
-legitimately empty).
+legitimately empty). The only sanctioned jump is the one step 2 names
+(2 → 5 → 8, skipping 3, 4, 6, 7).
 
 1. **Hover test (free, discriminates C2):** In Mission Control, dwell the
    pointer directly ON each Desktop tile for 2–3 seconds. Invoke Mission
@@ -147,12 +154,14 @@ legitimately empty).
 5. **Machine-specific exonerations (~2 min):**
    a. Quit iPhone Mirroring → `killall Dock` → re-check (tests C1).
    b. Quit Hammerspoon (`osascript -e 'quit app "Hammerspoon"'`, verify
-      with `pgrep -fl Hammerspoon` printing nothing) → `killall Dock` →
-      re-check. **Warn the user first:** hyper key, all 112 shortcuts,
-      2,007 snippets, and autocorrect go dead until relaunch. Relaunch
-      Hammerspoon after the test regardless of outcome. If (against
-      expectation) tiles return: bisect init.lua module loads in halves
-      and grep for `hs.spaces` usage.
+      with `pgrep -l Hammerspoon` printing nothing — name-only match; `-f`
+      would false-positive on editors or logging hooks whose command lines
+      mention `~/.hammerspoon/`) → `killall Dock` → re-check. **Warn the
+      user first:** hyper key, all 112 shortcuts, 2,007 snippets, and
+      autocorrect go dead until relaunch. Relaunch Hammerspoon
+      (`open -a Hammerspoon`) after the test regardless of outcome. If
+      (against expectation) tiles return: bisect init.lua module loads in
+      halves and grep for `hs.spaces` usage.
 6. **Configuration aggravators (~2 min each, tests C3):** turn off HDR on
    both displays (System Settings → Displays); switch all spaces to a
    static-color wallpaper; unplug one external display. `killall Dock` and
@@ -184,8 +193,10 @@ Manager is off (it alters Mission Control presentation).
   app-to-space bindings, and Dock config; prefs corruption is already
   refuted, so the step has no motivation; and on a beta the plist schema
   may not rebuild predictably. If the user explicitly insists anyway:
-  back up first (`cp ~/Library/Preferences/com.apple.{spaces,dock}.plist
-  ~/Desktop/`), move files aside rather than delete, and run
+  back up first via `defaults export com.apple.spaces
+  ~/Desktop/com.apple.spaces.plist` (and likewise for `com.apple.dock` —
+  `defaults export` captures cfprefsd's in-memory state, which can be newer
+  than the on-disk plist), move files aside rather than delete, and run
   `killall cfprefsd Dock` afterward.
 - Never suggest disabling SIP, installing Dock-injection tools, or
   reinstalling/downgrading macOS casually (downgrade = full erase).
