@@ -4,6 +4,62 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.149.0 — THE ⇪Q DIM: DARKER, AND A SHIELD THAT STAYS TRUE:
+  🌑 LL: "the ⇪Q dim needs to be darker and does it handle pop-ups
+     that could appear? In essence, I'd like to nabb interruptions."
+     Darker first: fm.dimAlpha rises 0.55 → 0.75. At 0.55 a dimmed
+     Slack was still legible enough to read, which is the opposite of
+     a shield; at 0.75 the shapes survive ("that's Slack") but the
+     words do not. One number to taste, and the suite now pins it at
+     ≥ 0.7 so a future tweak cannot quietly fade it back.
+  🕳 POP-UPS, THE HONEST ANSWER: the sheet itself already caught
+     them. It sits at mainMenu−3 on the coexist ladder — above every
+     ordinary window level (normal 0, floating 3, modal 8) — so a
+     dialog appearing mid-meeting rises UNDER the dim and comes up
+     dimmed. The HOLES were the way through: bare rectangles captured
+     once at engage time, so a pop-up landing ON TOP of the meeting
+     window sat inside the hole and showed through at full
+     brightness — center-screen, over the one place you were
+     guaranteed to be looking. And a moved or resized meeting window
+     slid into the dim while its stale hole lit up whatever had
+     drifted underneath.
+  🔄 SO THE HOLES ARE LIVE NOW, AND THEY KNOW ABOUT Z-ORDER. Every
+     two seconds — only while the dim is up; the repaint timer is
+     born in dimOn and dies in dimOff — the canvas elements are
+     rebuilt from the real window stack, painted back-to-front the
+     way the screen itself is: a critical window paints "clear" (a
+     hole), anything else paints the dim color with compositeRule
+     "copy", so an intruder OVER the meeting heals the hole shut
+     exactly where it sits. "copy" and not a plain fill because
+     0.75-alpha over 0.75-alpha stacks to 0.94 and every overlap
+     would read as a randomly darker patch. One CGWindow sweep plus
+     a replaceElements per screen per tick — no canvas created or
+     shown — and deliberately NOT in the eco registry: that is for
+     cadences that run all day, and this one exists only while a
+     meeting does, the moment the shield being right matters most.
+  🔔 WHAT THE DIM STILL DOES NOT CATCH, said plainly: notification
+     banners, which draw above mainMenu. Those are the macOS Focus
+     half's job — the Meeting Focus On/Off Shortcuts — same as ever.
+     The cheat sheet row now says "pop-ups included" on the dim line.
+  🧪 test_focus 4b: the canvas stub records what was painted and
+     orderedWindows became controllable. Pinned: the darkness floor;
+     hole = clear at the meeting's frame; intruder-over-meeting =
+     copy AFTER the hole, at the intruder's frame, at dimAlpha;
+     intruder-under-meeting = the hole painted last and winning; a
+     pop-up arriving after engage nabbed on the next tick; a moved
+     meeting window's hole following it; the repaint timer torn down
+     with the dim. 82 checks in the suite, 6,105 across the gate.
+  📏 AND GUIDE.md's MEASURING SNIPPET WAS ITSELF UNDERCOUNTING, by
+     exactly 130: test_arranger and test_activity_url print their own
+     "✅ test_x:" prefix on the gate row, the snippet's sed only knew
+     the "── test_x:" shape, and an unrecognized row passed through
+     unparsed — counted as a suite, summed as ZERO checks. It now
+     grabs the number in front of "passed" instead of parsing the
+     prefix. The documented totals were never wrong — they were
+     summed by hand at each ceremony — but the tool the paragraph
+     told a reader to trust was. Fourth entry in that block's own
+     "wrong in a new way" ledger.
+
 NEW IN 6.148.0 — EVERY TOOL POPS IN FRONT OF THE CHEAT SHEET:
   🪟 LL, with ⇪space layered over the sheet in their screenshot: "Can
      you make all the tools pop in front of the cheat sheet? Like the

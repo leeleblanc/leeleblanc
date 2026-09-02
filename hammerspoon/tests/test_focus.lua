@@ -40,7 +40,7 @@ end
 local function out(s) io.write(s) end
 
 -- ---- a controllable Mac ----------------------------------------------
-local NOW, APPS, ALERTS, TASKS, CANVASES = 1000, {}, {}, {}, {}
+local NOW, APPS, ALERTS, TASKS, CANVASES, WINDOWS = 1000, {}, {}, {}, {}, {}
 local MIC = { muted = false, volume = 70, canMute = true }
 local printed, HYPER, PROVIDED, TIMEOUTS = {}, {}, {}, {}
 print = function(...)
@@ -87,7 +87,10 @@ local GETCALLS = 0     -- every hs.application.get — P7 says the module
 hs = {
     timer = {
         secondsSinceEpoch = function() return NOW end,
-        doEvery  = function(_, fn) return { fn = fn, stop = function() end } end,
+        doEvery  = function(_, fn)
+            local t = { fn = fn, stopped = false }
+            t.stop = function() t.stopped = true end
+            return t end,
         doAfter  = function(_, fn) return { fn = fn, stop = function() end } end,
     },
     application = {
@@ -140,15 +143,19 @@ hs = {
         return { { id = function() return 1 end,
                    fullFrame = function() return { x = 0, y = 0, w = 1440, h = 900 } end } }
     end },
-    window = { orderedWindows = function() return {} end },
+    window = { orderedWindows = function() return WINDOWS end },
     canvas = {
         new = function()
             if CANVAS_THROWS then error("canvas exploded") end
-            local c = { shown = false }
-            for _, m in ipairs({ "replaceElements", "level", "behaviorAsLabels",
-                                 "canvasMouseEvents" }) do
+            local c = { shown = false, elems = nil, mouse = nil }
+            for _, m in ipairs({ "level", "behaviorAsLabels" }) do
                 c[m] = function(self) return self end
             end
+            -- Recorded, not swallowed: the 6.149.0 dim rebuilds these
+            -- elements from the live window stack, and what got painted
+            -- IS the property under test.
+            function c:replaceElements(e) self.elems = e ; return self end
+            function c:canvasMouseEvents(...) self.mouse = { ... } ; return self end
             function c:show() self.shown = true ; return self end
             function c:delete()
                 if CANVAS_THROWS then error("delete exploded") end
@@ -173,10 +180,19 @@ local CORE = {
     provide = function(n, f) PROVIDED[n] = f end,
 }
 
+-- A fake on-screen window for the dim's z-order pass. orderedWindows
+-- hands these over FRONT TO BACK, exactly as the real one does.
+local function mkWin(appName, frame)
+    return {
+        application = function() return { name = function() return appName end } end,
+        frame = function() return frame end,
+    }
+end
+
 local M, FM
 local function boot()
     APPS, ALERTS, TASKS, CANVASES, printed = {}, {}, {}, {}, {}
-    HYPER, PROVIDED, TIMEOUTS = {}, {}, {}
+    HYPER, PROVIDED, TIMEOUTS, WINDOWS = {}, {}, {}, {}
     NOW = 1000 ; CANVAS_THROWS = false
     MIC = { muted = false, volume = 70, canMute = true }
     M = dofile(HS .. "/modules/focus_mode.lua")
@@ -285,6 +301,95 @@ check("🚨 P3: A CANVAS THAT THROWS DURING TEARDOWN DOES NOT STRAND THE "
       MIC.muted == false)
 check("and the module still ends up disengaged rather than stuck",
       FM.engaged == false)
+
+-- =====================================================================
+out("\n=== 4b. The dim — darker, live, and z-order aware (6.149.0) ===\n")
+-- =====================================================================
+-- LL: "the ⇪Q dim needs to be darker and does it handle pop-ups that
+-- could appear? In essence, I'd like to nabb interruptions." The old dim
+-- captured the critical frames ONCE at engage time: a pop-up landing
+-- inside a hole showed through at full brightness, and a moved meeting
+-- window slid into the dim while its stale hole lit up whatever drifted
+-- underneath. Now the elements are rebuilt from the live window stack,
+-- back to front: critical → "clear" (a hole), anything else → "copy" of
+-- the dim (heals the hole exactly where an intruder sits).
+boot()
+check("🌑 the dim is dark enough to actually shield — pinned at ≥ 0.7 so "
+      .. "a future tweak cannot quietly fade it back to see-through",
+      type(FM.dimAlpha) == "number" and FM.dimAlpha >= 0.7, FM.dimAlpha)
+
+-- A pop-up ON TOP of the meeting window — front-to-back, as the real
+-- orderedWindows reports it: the intruder first, the meeting under it.
+local meetingF = { x = 100, y = 100, w = 800, h = 600 }
+local popupF   = { x = 300, y = 250, w = 400, h = 200 }
+boot()
+WINDOWS = { mkWin("Finder", popupF), mkWin("zoom.us", meetingF) }
+FM.engage("test", nil, "zoom.us")
+local c = CANVASES[#CANVASES]
+local e = (c and c.elems) or {}
+check("the dim went up with painted elements", #e == 3, #e)
+check("the base sheet covers the whole screen at dimAlpha",
+      e[1] and e[1].frame and e[1].frame.w == 1440
+      and e[1].fillColor and e[1].fillColor.alpha == FM.dimAlpha)
+check("the meeting window is a HOLE — compositeRule clear, at its frame",
+      e[2] and e[2].compositeRule == "clear"
+      and e[2].frame and e[2].frame.x == meetingF.x)
+check("🚨 THE POP-UP OVER THE MEETING IS PAINTED BACK OVER THE HOLE — "
+      .. "after it, compositeRule copy, exactly where it sits; the old "
+      .. "dim let anything inside the hole show through at full "
+      .. "brightness, center-screen, over the one place you were looking",
+      e[3] and e[3].compositeRule == "copy"
+      and e[3].frame and e[3].frame.x == popupF.x
+      and e[3].fillColor and e[3].fillColor.alpha == FM.dimAlpha)
+check("…with copy, not a plain fill — dim-over-dim would stack 0.75 to "
+      .. "0.94 and every overlap would read as a darker patch",
+      e[3] and e[3].compositeRule ~= nil)
+check("clicks still pass through the sheet — a dim that eats the mouse "
+      .. "is not dimmed, it is disabled",
+      c and c.mouse and c.mouse[1] == false and c.mouse[2] == false
+      and c.mouse[3] == false and c.mouse[4] == false)
+FM.disengage("cleanup")
+
+-- The other stacking: the same pop-up BEHIND the meeting window. The
+-- hole is painted last and wins — the meeting stays fully legible.
+boot()
+WINDOWS = { mkWin("zoom.us", meetingF), mkWin("Finder", popupF) }
+FM.engage("test", nil, "zoom.us")
+local e2 = (CANVASES[#CANVASES] or {}).elems or {}
+check("a window UNDER the meeting is painted first and the hole last — "
+      .. "z-order decides, not app category",
+      e2[2] and e2[2].compositeRule == "copy"
+      and e2[3] and e2[3].compositeRule == "clear")
+FM.disengage("cleanup")
+
+-- The repaint: an interruption that arrives AFTER engage is nabbed on
+-- the next tick, and a moved meeting window keeps its hole.
+boot()
+WINDOWS = { mkWin("zoom.us", meetingF) }
+FM.engage("test", nil, "zoom.us")
+local c3 = CANVASES[#CANVASES]
+check("engaged with just the meeting: the base sheet plus one hole",
+      c3 and c3.elems and #c3.elems == 2)
+check("a repaint timer went up with the dim", FM.dimTimer ~= nil)
+WINDOWS = { mkWin("Finder", popupF), mkWin("zoom.us", meetingF) }
+FM.dimTimer.fn()                    -- the next repaint tick
+check("🚨 A POP-UP ARRIVING MID-MEETING IS NABBED ON THE NEXT TICK — the "
+      .. "repaint reads the live window stack and heals the hole over it",
+      c3 and c3.elems and #c3.elems == 3
+      and c3.elems[3].compositeRule == "copy")
+local movedF = { x = 500, y = 340, w = 800, h = 500 }
+WINDOWS = { mkWin("zoom.us", movedF) }
+FM.dimTimer.fn()
+check("a moved meeting window keeps its hole — the hole follows the "
+      .. "frame instead of lighting up whatever drifted underneath",
+      c3 and c3.elems and #c3.elems == 2
+      and c3.elems[2].compositeRule == "clear"
+      and c3.elems[2].frame.x == movedF.x)
+local dimTimer = FM.dimTimer
+FM.disengage("test")
+check("disengaging tears the repaint timer down with the dim — a repaint "
+      .. "with nothing to paint must not outlive the meeting",
+      FM.dimTimer == nil and dimTimer.stopped == true)
 
 -- =====================================================================
 out("\n=== 5. Idempotence and the manual override — P5 ===\n")

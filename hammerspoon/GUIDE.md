@@ -9,7 +9,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,545 lines)
+├── init.lua          the orchestrator (3,550 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (10 files)
 ├── modules/          one file per feature (60 files, ~39,600 lines)
@@ -551,27 +551,33 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Sixty-two Lua suites, 5,987 checks, plus three more that run the Capture
+Sixty-two Lua suites, 6,000 checks, plus three more that run the Capture
 Pad's, the screenshot editor's and unified search's page JavaScript under
-`node` for a further 105 — **6,092 checks over sixty-seven stages** in
+`node` for a further 105 — **6,105 checks over sixty-seven stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 
-> 🚨 **These numbers have now been wrong three times, in three different
+> 🚨 **These numbers have now been wrong four times, in four different
 > ways, so they are MEASURED rather than remembered.** Until 6.118.0 the
 > suite count said "forty-eight Lua suites", which was the STAGE count
 > wearing the wrong label — the three JavaScript suites are `.js` files
 > run by `node`, not Lua. 6.118.0 fixed the label and left the stage
 > figure at forty-eight, which was *also* wrong: the gate reported fifty
-> at the time. And 6.121.0 found the CHECK figure adrift by 63, with no
-> way to tell which of the two totals it had once been. It is written as
-> both now, and the ambiguity is gone. Read them off the gate rather than
-> off this paragraph. The stage count is the gate's own last line; this
-> adds up every suite it ran, JavaScript included — drop the `_js` three
-> to get the Lua-only figure:
+> at the time. 6.121.0 found the CHECK figure adrift by 63, with no
+> way to tell which of the two totals it had once been. And 6.149.0
+> found THE MEASURING SNIPPET ITSELF undercounting by exactly 130: two
+> suites print their own "✅ test_x:" prefix on the gate's row, the old
+> sed only recognized the "── test_x:" shape, and an unrecognized row
+> passed through unparsed — counted as a suite, summed as ZERO checks.
+> The snippet below grabs the number in front of "passed" instead of
+> parsing the prefix, so a suite's echo style can no longer eat its
+> checks. Read the numbers off the gate rather than off this paragraph.
+> The stage count is the gate's own last line; this adds up every suite
+> it ran, JavaScript included — drop the `_js` three to get the
+> Lua-only figure:
 > ```
 > sh tools/run-tests.sh . | grep -E '^   ✅ test_' \
->   | sed -E 's/.*— (── [a-z_]+: )?([0-9]+) passed.*/\2/' \
+>   | grep -oE '[0-9]+ passed' \
 >   | awk '{s+=$1; n+=1} END {print n" suites, "s" checks"}'
 > ```
 

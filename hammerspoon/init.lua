@@ -2,10 +2,33 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-01-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-02-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.148.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.149.0
 -- =====================================================================
+
+-- NEW IN 6.149.0 — THE ⇪Q DIM: DARKER, AND A SHIELD THAT STAYS TRUE:
+--   🌑 LL: "the ⇪Q dim needs to be darker and does it handle pop-ups
+--      that could appear? In essence, I'd like to nabb interruptions."
+--      Darker: 0.75, up from 0.55 — dimmed apps keep their shapes but
+--      lose their words, which is what a shield means. One number
+--      (fm.dimAlpha) to taste.
+--   🕳 POP-UPS: the sheet itself already caught them — it sits above
+--      every ordinary window level, so a dialog appearing mid-meeting
+--      rises UNDER the dim. The holes did not: they were bare
+--      rectangles captured once at engage time, so a pop-up landing
+--      OVER the meeting window sat inside the hole and showed through
+--      at full brightness — center-screen, over the one place you were
+--      guaranteed to be looking. And a moved meeting window slid into
+--      the dim while its stale hole lit up whatever drifted under it.
+--   🔄 SO THE HOLES ARE LIVE NOW, AND KNOW ABOUT Z-ORDER: every two
+--      seconds (only while the dim is up) the elements are rebuilt from
+--      the real window stack, painted back-to-front like the screen
+--      itself — a critical window punches a hole, anything above it
+--      paints the dim back over exactly where it sits. An interruption
+--      is re-dimmed within a tick; the hole follows the meeting window
+--      wherever you drag it. Notification banners stay the macOS Focus
+--      half's job (the Meeting Focus On/Off Shortcuts), same as ever.
 
 -- NEW IN 6.148.0 — EVERY TOOL POPS IN FRONT OF THE CHEAT SHEET:
 --   🪟 LL: "Can you make all the tools pop in front of the cheat sheet?
@@ -120,28 +143,10 @@
 --      line can only be right by keeping core.backupDir, and the next
 --      accidental global read fails the suite instead of every Mac.
 
--- NEW IN 6.145.1 — THE ECHO ROW: EVERY doEvery TIMER, COUNTED ONCE:
---   ⏱ Parked since 6.137.0, picked by LL from the open list. The lag
---      probe's timer table carried an "hs/timer.lua:173" row — 19,228
---      fires in LL's own report — that belonged to no module.
---      Hammerspoon's doEvery is Lua, not C: it builds the timer it
---      hands back by calling hs.timer.new, the OTHER function the probe
---      wraps, so every doEvery timer was measured twice — once under
---      its caller's name and once under that one shared library line —
---      and the totals said the timers cost more than they did.
---   🚿 THE FIX IS A PASS-THROUGH, NOT A FILTER: while the wrapped
---      doEvery is calling the real one, the new-wrapper lets the inner
---      call through untouched — that timer is already being measured.
---      The flag resets even when doEvery throws, so one bad interval
---      cannot blind the table for the rest of the session. The test
---      stub now builds its timer the way hs/timer.lua really does, so
---      the echo row can never come back unseen; a break test brings it
---      back on purpose and watches one fire get counted twice.
-
--- (6.145.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.145.1 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.148.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.149.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -486,7 +491,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.148.0"
+_G.configVersion = "6.149.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

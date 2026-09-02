@@ -75,7 +75,7 @@ local M = {
             { "auto",  "Engages on a Zoom/Teams meeting window, or an Outlook" },
             { "",      "reminder carrying a join link" },
             { "does",  "Mutes mic · camera off IF provably on · Focus on · dims" },
-            { "",      "every app that is not the meeting" },
+            { "",      "everything that is not the meeting — pop-ups included" },
             { "safe",  "Restores ONLY what it changed. Watchdog disengages if" },
             { "",      "detection dies, so the mic never stays muted." },
             { "can't", "Cannot revoke camera access — no macOS API. It drives" },
@@ -118,8 +118,17 @@ function M.setup(core)
     fm.focusOnShortcut  = "Meeting Focus On"
     fm.focusOffShortcut = "Meeting Focus Off"
 
-    fm.dimAlpha      = 0.55       -- how hard non-critical apps are dimmed
+    -- 🌑 6.149.0 — 0.75, up from 0.55. LL: "the ⇪Q dim needs to be
+    -- darker … I'd like to nabb interruptions." At 0.55 the dimmed apps
+    -- were still legible enough to read, which is the opposite of a
+    -- shield. 0.75 leaves shapes ("that's Slack") but not words — one
+    -- number to taste if it ever feels wrong in either direction.
+    fm.dimAlpha      = 0.75       -- how hard non-critical apps are dimmed
     fm.dimWhite      = 0.00       -- 0 = black. 1 = white-out, if you prefer
+    -- How often the dim re-reads the window stack while it is up, so a
+    -- pop-up landing over the meeting is re-dimmed and a moved meeting
+    -- window keeps its hole. See dimRefresh for what one pass costs.
+    fm.dimRefreshSecs = 2
 
     -- Never dimmed. The meeting app is added automatically; these are the
     -- ones you still want fully legible while the meeting runs.
@@ -209,6 +218,10 @@ function M.setup(core)
     fm.lastReason   = "—"
     fm.canvases     = {}      -- screen id -> hs.canvas. HELD: an unreferenced
                               -- canvas is collected and the dim vanishes.
+    fm.dimTimer     = nil     -- HELD: the dim's repaint timer. Lives exactly
+                              -- as long as the dim does — dimOn to dimOff.
+    fm.dimCritical  = nil     -- the never-dimmed set for the CURRENT dim,
+                              -- kept so dimRefresh punches the same holes.
     fm.timer        = nil     -- HELD: an unreferenced hs.timer is collected.
     fm.appWatcher   = nil     -- HELD: likewise.
     fm.warnedQuiet  = false
@@ -445,49 +458,116 @@ function M.setup(core)
 
     -- ---- dimming ---------------------------------------------------------
     -- A translucent sheet per screen, with a HOLE punched over every
-    -- critical window. The hole is a second element drawn with
-    -- compositeRule "clear", which erases what the first element painted —
-    -- that is how you dim everything EXCEPT something, with one canvas.
+    -- critical window. A hole is an element drawn with compositeRule
+    -- "clear", which erases what the elements before it painted — that is
+    -- how you dim everything EXCEPT something, with one canvas.
+    --
+    -- 🚨 6.149.0 — THE HOLES ARE LIVE NOW, AND THEY KNOW ABOUT Z-ORDER.
+    -- LL: "does it handle pop-ups that could appear? I'd like to nabb
+    -- interruptions." The sheet itself already did — it sits at
+    -- mainMenu−3 on the coexist ladder, above every ordinary window
+    -- level (0–8), so a dialog appearing mid-meeting rises UNDER the dim
+    -- and comes up dimmed. But the holes did not: they were captured
+    -- ONCE, at engage time, as bare rectangles. Two ways through, both
+    -- real:
+    --   · a pop-up landing ON TOP of the meeting window sat inside the
+    --     hole and showed through at full brightness — and over the
+    --     meeting, center-screen, is exactly where dialogs love to land.
+    --     The one place the shield had to cover was the one place you
+    --     were guaranteed to be looking.
+    --   · move or resize the meeting window and it slid into the dim,
+    --     while the stale hole lit up whatever drifted underneath it.
+    -- So the elements are rebuilt every fm.dimRefreshSecs from the real
+    -- window stack, painted back-to-front the way the screen itself is:
+    -- a critical window paints "clear" (a hole), anything else paints
+    -- the dim color with compositeRule "copy" — so an intruder OVER the
+    -- meeting heals the hole shut exactly where it sits. "copy" and not
+    -- a plain fill: 0.75-alpha painted over 0.75-alpha stacks to 0.94,
+    -- and every overlap would read as a randomly darker patch.
+
+    local function dimShade()
+        return { white = fm.dimWhite, alpha = fm.dimAlpha }
+    end
+
+    -- The window stack, BACK TO FRONT, each frame marked critical or not.
+    -- orderedWindows hands it over front-to-back, hence the reversal.
+    local function dimLayers(critical)
+        local layers = {}
+        local okWins, wins = pcall(hs.window.orderedWindows)
+        wins = (okWins and wins) or {}
+        for i = #wins, 1, -1 do
+            local w, appName, f = wins[i], nil, nil
+            pcall(function() appName = w:application():name() end)
+            pcall(function() f = w:frame() end)
+            if f then
+                layers[#layers + 1] = {
+                    f = f,
+                    critical = (appName and critical[appName]) and true or false,
+                }
+            end
+        end
+        return layers
+    end
+
+    -- One screen's element list: the base sheet, then the stack replayed
+    -- over it. Canvas coordinates are relative to the canvas, so every
+    -- window frame is translated onto this screen; frames that belong to
+    -- another screen land outside the canvas and clip away harmlessly.
+    local function dimElements(sf, layers)
+        local elems = { {
+            type = "rectangle", action = "fill",
+            fillColor = dimShade(),
+            frame = { x = 0, y = 0, w = sf.w, h = sf.h },
+        } }
+        for _, L in ipairs(layers) do
+            elems[#elems + 1] = {
+                type = "rectangle", action = "fill",
+                fillColor = L.critical and { white = 1, alpha = 1 } or dimShade(),
+                compositeRule = L.critical and "clear" or "copy",
+                frame = { x = L.f.x - sf.x, y = L.f.y - sf.y,
+                          w = L.f.w, h = L.f.h },
+            }
+        end
+        return elems
+    end
+
+    -- Repaint every sheet from the CURRENT stack. Cheap on purpose: one
+    -- CGWindow sweep plus a replaceElements per screen — no canvas is
+    -- created, shown or leveled here — so it can run every couple of
+    -- seconds for the length of a meeting without being felt. It is NOT
+    -- in the eco registry, deliberately: the registry is for cadences
+    -- that run all day, and this timer exists only while a meeting does —
+    -- the moment the shield being right matters most, battery or not.
+    function fm.dimRefresh()
+        if not next(fm.canvases) then return end
+        local layers = dimLayers(fm.dimCritical or {})
+        for _, scr in ipairs(hs.screen.allScreens() or {}) do
+            local id ; pcall(function() id = scr:id() end)
+            local c = id and fm.canvases[id] or nil
+            if c then
+                local okF, sf = pcall(function() return scr:fullFrame() end)
+                if okF and sf then
+                    pcall(function() c:replaceElements(dimElements(sf, layers)) end)
+                end
+            end
+        end
+    end
+
     function fm.dimOn(meetingAppName)
         fm.dimOff()
         if not fm.doDim then return nil end
         local critical = {}
         for k, v in pairs(fm.criticalApps) do critical[k] = v end
         if meetingAppName then critical[meetingAppName] = true end
+        fm.dimCritical = critical
 
-        -- Collect the frames that must stay legible, before drawing.
-        local holes = {}
-        local okWins, wins = pcall(hs.window.orderedWindows)
-        for _, w in ipairs((okWins and wins) or {}) do
-            local ok, appName = pcall(function() return w:application():name() end)
-            if ok and appName and critical[appName] then
-                local okF, f = pcall(function() return w:frame() end)
-                if okF and f then holes[#holes + 1] = f end
-            end
-        end
-
+        local layers = dimLayers(critical)
         for _, scr in ipairs(hs.screen.allScreens() or {}) do
             local okF, sf = pcall(function() return scr:fullFrame() end)
             if okF and sf then
                 local okNew, c = pcall(hs.canvas.new, sf)
                 if okNew and c then
-                    local elems = { {
-                        type = "rectangle", action = "fill",
-                        fillColor = { white = fm.dimWhite, alpha = fm.dimAlpha },
-                        frame = { x = 0, y = 0, w = sf.w, h = sf.h },
-                    } }
-                    for _, h in ipairs(holes) do
-                        -- Canvas coordinates are relative to the canvas, so
-                        -- the window frame is translated onto this screen.
-                        elems[#elems + 1] = {
-                            type = "rectangle", action = "fill",
-                            fillColor = { white = 1, alpha = 1 },
-                            compositeRule = "clear",
-                            frame = { x = h.x - sf.x, y = h.y - sf.y,
-                                      w = h.w, h = h.h },
-                        }
-                    end
-                    pcall(function() c:replaceElements(elems) end)
+                    pcall(function() c:replaceElements(dimElements(sf, layers)) end)
                     -- 6.148.0 — the dim is a BACKDROP on the coexist
                     -- ladder: below the sheet and the pickers, so the
                     -- tool you reach for is never the thing dimmed.
@@ -514,19 +594,33 @@ function M.setup(core)
                     if _G.showCanvasSafely then
                         _G.showCanvasSafely(c, "focus dimmer")
                     else pcall(function() c:show() end) end
-                    fm.canvases[scr:id() or (#fm.canvases + 1)] = c
+                    local id ; pcall(function() id = scr:id() end)
+                    fm.canvases[id or (#fm.canvases + 1)] = c
                 end
             end
+        end
+        -- The repaint timer lives exactly as long as the dim does. Only
+        -- started when a sheet actually went up: with nothing to repaint
+        -- the tick would be a no-op forever.
+        if next(fm.canvases) then
+            fm.dimTimer = hs.timer.doEvery(fm.dimRefreshSecs, function()
+                pcall(fm.dimRefresh)
+            end)
         end
         return { on = true }
     end
 
     function fm.dimOff()
+        if fm.dimTimer then
+            pcall(function() fm.dimTimer:stop() end)
+            fm.dimTimer = nil
+        end
         for id, c in pairs(fm.canvases) do
             pcall(function() c:delete() end)
             fm.canvases[id] = nil
         end
         fm.canvases = {}
+        fm.dimCritical = nil
     end
 
     -- ---- engage / disengage ----------------------------------------------
