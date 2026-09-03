@@ -43,20 +43,19 @@ local WATCHDOGS = {}      -- every hs.timer.doAfter — the export deadline
 local URL_BUNDLE, URL_PLAIN = {}, {}
 local BUNDLE_RESULT = true
 
--- sqlite3 -json emits arrays of flat objects with string and integer
--- values — this decodes exactly that shape, which keeps the suite free
--- of a JSON library. Anything carrying the BROKEN marker refuses to
--- parse, standing in for a corrupt block.
+-- 6.152.1 — the export emits ONE JSON OBJECT PER LINE (json_object per
+-- row) and the module decodes line by line, so the slicer can cut
+-- anywhere. This decodes exactly that shape — one flat object with
+-- string and integer values per call — keeping the suite free of a
+-- JSON library. Anything carrying the BROKEN marker refuses to parse,
+-- standing in for a corrupt row.
 local function miniJson(raw)
     if raw:find("BROKEN", 1, true) then error("not valid JSON") end
-    local arr = {}
-    for obj in raw:gmatch("%b{}") do
-        local o = {}
-        for k, v in obj:gmatch('"([%w_]+)"%s*:%s*"([^"]*)"') do o[k] = v end
-        for k, v in obj:gmatch('"([%w_]+)"%s*:%s*(%-?%d+)') do o[k] = tonumber(v) end
-        arr[#arr + 1] = o
-    end
-    return arr
+    local o = {}
+    for k, v in raw:gmatch('"([%w_]+)"%s*:%s*"([^"]*)"') do o[k] = v end
+    for k, v in raw:gmatch('"([%w_]+)"%s*:%s*(%-?%d+)') do o[k] = tonumber(v) end
+    if next(o) == nil then error("not valid JSON") end
+    return o
 end
 
 hs = {
@@ -191,6 +190,24 @@ local function feed(profiles)      -- { { "label", "json" }, ... }
     return table.concat(lines, "\n") .. "\n"
 end
 
+-- 6.152.1 — a sliced ingest that runs out of budget parks a doAfter(0)
+-- continuation; the module's watchdogs use doAfter too, so the two are
+-- told apart by secs (a deadline is chrome.exportTimeout, a
+-- continuation is 0). This fires every parked continuation, including
+-- the ones a fired continuation parks, until the ingest completes.
+local function drainPump()
+    local guard = 0
+    repeat
+        local fired = false
+        for _, t in ipairs(WATCHDOGS) do
+            if t.secs == 0 and not t.stopped and not t.fired then
+                t.fired = true ; fired = true ; t.fn()
+            end
+        end
+        guard = guard + 1
+    until not fired or guard > 200
+end
+
 local HOME = "/Users/lee"
 local CSV  = os.tmpname()
 local CORE = {
@@ -274,7 +291,9 @@ check("-c then the script", T.args[1] == "-c" and T.args[2]:find("##PROFILE##", 
 check("script copies BEFORE it queries", T.args[2]:find('cp %-f "%$db"') ~= nil)
 check("the -wal and -shm companions ride along",
       T.args[2]:find("db%-wal") and T.args[2]:find("db%-shm"))
-check("sqlite3 asked for -json", T.args[2]:find("-json", 1, true))
+check("6.152.1 — rows are one JSON OBJECT PER LINE (json_object), so "
+      .. "the ingest can slice anywhere",
+      T.args[2]:find("json_object(", 1, true) ~= nil)
 check("Chrome's hidden redirect noise is filtered", T.args[2]:find("hidden = 0", 1, true))
 check("sqlite path is argument 4", T.args[4] == "/usr/bin/sqlite3", T.args[4])
 local cutoff = tonumber(T.args[6])
@@ -301,11 +320,11 @@ check("🚨 …and stdout carries a ##FILE## marker naming that file",
 
 local stdout = feed({
     { "Default",
-      '[{"url":"https://gmail.com/inbox","title":"Inbox - Gmail","visits":40,"ts":900},'
-      .. '{"url":"https://news.site/a","title":"Big\tNews\ttoday","visits":2,"ts":700}]' },
+      '{"url":"https://gmail.com/inbox","title":"Inbox - Gmail","visits":40,"ts":900}\n'
+      .. '{"url":"https://news.site/a","title":"Big\tNews\ttoday","visits":2,"ts":700}' },
     { "Profile 1",
-      '[{"url":"https://work.example.com/wiki","title":"Team Wiki","visits":9,"ts":800}]' },
-    { "Profile 12", "[BROKEN" },
+      '{"url":"https://work.example.com/wiki","title":"Team Wiki","visits":9,"ts":800}' },
+    { "Profile 12", "{BROKEN}" },
 })
 T.cb(0, stdout, "")
 check("export callback lowers the flag", chrome.exporting == false)
@@ -417,8 +436,8 @@ chrome.csvFile = CSV
 chrome.export()
 TASKS[#TASKS].cb(0, feed({
     { "Default",
-      '[{"url":"https://a.com/q?x=1,2","title":"Comma, and -quote- title","visits":3,"ts":1600000000},'
-      .. '{"url":"https://plain.org","title":"Plain","visits":1,"ts":1600000060}]' },
+      '{"url":"https://a.com/q?x=1,2","title":"Comma, and -quote- title","visits":3,"ts":1600000000}\n'
+      .. '{"url":"https://plain.org","title":"Plain","visits":1,"ts":1600000060}' },
 }), "")
 local f = io.open(CSV, "r")
 check("the CSV file exists after an export", f ~= nil)
@@ -431,8 +450,10 @@ check("a comma'd title is quoted in the file",
       content:find('"Comma, and %-quote%- title"') ~= nil)
 local before = #chrome.entries
 chrome.entries = {}
-local loaded = chrome.loadCsv()
-check("loadCsv reads back what writeCsv wrote", loaded == before, loaded)
+-- 6.152.1 — loadCsv is sliced and answers through a callback; a small
+-- file still completes synchronously, which this relies on
+local loaded ; chrome.loadCsv(function(n) loaded = n end)
+check("loadCsv reads back what the export saved", loaded == before, loaded)
 check("the comma'd title survives the round trip",
       chrome.entries[2] and chrome.entries[2].title == "Comma, and -quote- title",
       chrome.entries[2] and chrome.entries[2].title)
@@ -442,19 +463,59 @@ check("timestamps rebuild close enough to keep the order",
       chrome.entries[1].ts > chrome.entries[2].ts)
 
 -- =======================================================================
+out("4b) 6.152.1 — the ingest is SLICED: big exports never hold the Mac\n")
+-- =======================================================================
+-- 🚨 THE BEACHBALL 6.152.0 SHIPPED. The pipe fix freed the data, and
+-- the freed data then froze the Mac: parse + sort + CSV ran as ONE
+-- main-thread pass the moment an export completed — ~30s after every
+-- boot. LL's Console showed macOS killing the typing taps at exactly
+-- that moment ("Autocorrect tap was disabled by macOS"), which is what
+-- a beachball looks like in writing. The ingest now works under a time
+-- budget and parks a continuation when it is spent. The suite's clock
+-- advances 0.0001s per reading, so shrinking the budget below one
+-- reading forces a yield at every budget check.
+chrome.sliceBudget = 0.00005
+local big = {}
+for i = 1, 450 do
+    big[i] = '{"url":"https://rows.example/' .. i .. '","title":"row ' .. i
+             .. '","visits":1,"ts":' .. (1600100000 - i) .. '}'
+end
+chrome.export()
+TASKS[#TASKS].cb(0, feed({ { "Default", table.concat(big, "\n") } }), "")
+local queued = false
+for _, t in ipairs(WATCHDOGS) do
+    if t.secs == 0 and not t.stopped and not t.fired then queued = true end
+end
+check("🚨 a big profile PARKS A CONTINUATION instead of finishing inline",
+      queued)
+check("…and no half-parsed list is installed mid-flight",
+      #chrome.entries ~= 450, #chrome.entries)
+drainPump()
+check("the sliced ingest finishes across turns with every row",
+      #chrome.entries == 450, #chrome.entries)
+check("…newest first still holds", chrome.entries[1].ts == 1600100000 - 1,
+      chrome.entries[1] and chrome.entries[1].ts)
+local fh450 = io.open(CSV, "r")
+local csvRows = 0
+if fh450 then for _ in fh450:lines() do csvRows = csvRows + 1 end ; fh450:close() end
+check("…and the CSV, also written in slices, carries header + all 450",
+      csvRows == 451, csvRows)
+chrome.sliceBudget = 0.04
+
+-- =======================================================================
 out("5) the fuzzy match — substring beats sequence, title beats URL\n")
 -- =======================================================================
--- Regenerated per call: parse() DELETES the files a feed writes, so a
+-- Regenerated per call: ingest() DELETES the files a feed writes, so a
 -- reused stdout string would point at files that no longer exist.
 local function corpusFeed()
     return feed({
         { "Default",
-          '[{"url":"https://mail.google.com/mail/u/0","title":"Inbox (3) - Gmail","visits":99,"ts":9000},'
-          .. '{"url":"https://calendar.google.com/r/week","title":"Google Calendar","visits":50,"ts":8000},'
-          .. '{"url":"https://en.wikipedia.org/wiki/Giant_panda","title":"Giant panda - Wikipedia","visits":2,"ts":7000},'
-          .. '{"url":"https://pandas.pydata.org/docs","title":"API reference","visits":8,"ts":6000},'
-          .. '{"url":"https://old.example.com/gmail-tips","title":"Ten tips","visits":1,"ts":5000},'
-          .. '{"url":"https://abc.example.com/x","title":"alpha beta card","visits":1,"ts":4000}]' },
+          '{"url":"https://mail.google.com/mail/u/0","title":"Inbox (3) - Gmail","visits":99,"ts":9000}\n'
+          .. '{"url":"https://calendar.google.com/r/week","title":"Google Calendar","visits":50,"ts":8000}\n'
+          .. '{"url":"https://en.wikipedia.org/wiki/Giant_panda","title":"Giant panda - Wikipedia","visits":2,"ts":7000}\n'
+          .. '{"url":"https://pandas.pydata.org/docs","title":"API reference","visits":8,"ts":6000}\n'
+          .. '{"url":"https://old.example.com/gmail-tips","title":"Ten tips","visits":1,"ts":5000}\n'
+          .. '{"url":"https://abc.example.com/x","title":"alpha beta card","visits":1,"ts":4000}' },
     })
 end
 chrome.export()

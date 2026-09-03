@@ -4,6 +4,57 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.152.1 — THE BEACHBALL 6.152.0 SHIPPED, DEAD THE SAME DAY:
+  🏖 LL, hours after installing 6.152.0: "Keeps giving me the spinning
+     beachball. Something doesn't seem right." The Console pasted with
+     it held the receipts: "✏️ Autocorrect tap was disabled by macOS —
+     revived" and the expander's twin, ~30 seconds after EVERY boot
+     (21:19:59 and 21:20:45, two boots, both at +31s). macOS disables
+     an event tap when its process stops servicing events for too
+     long — a tap kill in the Console IS a beachball in writing, with
+     a timestamp. The search index was exonerated by the second boot
+     (no rebuild ran, the stall came anyway); what happens at +31s
+     after every boot is the Chrome export completing: warm() starts
+     it at +2s, and copying each profile's History database takes
+     ~29s.
+  🕘 THE CULPRIT WAS THE ⇪Y FIX SUCCEEDING. 6.152.0 freed the export
+     from its pipe deadlock — and the completion callback then did
+     everything in ONE main-thread pass: read megabytes of JSON back
+     from the profile files, hs.json.decode the lot, build 20,000+
+     entry tables (two gsubs, a lower, a strftime each), sort them,
+     and write the whole CSV to the OneDrive Logs folder with two MORE
+     os.date calls per row. That code path had never once run with
+     real data — every export before 6.152.0 died in the pipe — so its
+     cost was invisible until the day the fix landed. The boot-time
+     loadCsv had the same growth: last session's CSV used to be
+     stale-tiny (exports always died); now it is 20,000+ rows read
+     back synchronously at warm().
+  🔪 SO INGESTION IS SLICED — the ⌥Tab sweep's time-budget idea
+     applied to parsing (chrome.sliceBudget, 40ms): a slice does at
+     most that much work, parks a doAfter(0) continuation, lets
+     keystrokes through, continues. Three structural changes make
+     every unit of work cuttable: (1) the export emits ONE JSON OBJECT
+     PER LINE (json_object per row) instead of one 20,000-row array,
+     because a single giant hs.json.decode is an unbudgetable bite;
+     (2) loadCsv is sliced the same way and answers through a
+     callback (warm chains the export off its completion); (3) the CSV
+     writer takes date and time from e.when — built once in finish()
+     — instead of calling os.date twice per row: 40,000 strftimes a
+     run, gone. Small exports still complete synchronously inside one
+     slice (the tests rely on it); a newer ingest (⇪⇧Y mid-parse)
+     supersedes the old one, which never installs. The report grows a
+     receipt: "last parse: N rows in K slices, Nms total".
+  ⏲ AND THE 45s EXPORT DEADLINE WAS A GUESS made in 6.147.0 while the
+     deadlock kept any export from ever finishing — "a healthy export
+     measures in single-digit seconds" was belief, not measurement.
+     The first export that ever completed took ~29s on the Air, and
+     the work Mac will be slower; at 45s the watchdog would kill
+     legitimate runs on a bad day. It fires at 120s now, for the
+     genuine never-coming-back hang only.
+  ✅ Gate: 6,204 → 6,209 checks (test_chrome_history 99 → 104: the
+     NDJSON shape, the parked continuation, the mid-flight
+     non-install, the cross-turn finish, the sliced CSV).
+
 NEW IN 6.152.0 — NINE ASKS IN ONE PASS: ⌥TAB'S MEMORY AND SPEED · THE
 PAUSE KEY · THE POMODORO LOG · ⇪T'S DETAILS · THREE BUGS DEAD:
   🧠 ⌥TAB REMEMBERS OTHER DESKTOPS. LL, after 6.151.0: "Opt+tab still

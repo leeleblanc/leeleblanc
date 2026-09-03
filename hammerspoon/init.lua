@@ -4,8 +4,35 @@
 -- =====================================================================
 -- 09-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.152.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.152.1
 -- =====================================================================
+
+-- NEW IN 6.152.1 — THE BEACHBALL 6.152.0 SHIPPED, DEAD THE SAME DAY:
+--   🏖 LL: "Keeps giving me the spinning beachball." The Console pasted
+--      with it held the receipts: "Autocorrect tap was disabled by
+--      macOS — revived" ~30 seconds after EVERY boot — macOS kills
+--      event taps when a process stops servicing events, and that same
+--      stall is what the cursor shows as a beachball.
+--   🕘 THE CULPRIT WAS THE ⇪Y FIX SUCCEEDING. 6.152.0 freed the export
+--      from its pipe deadlock — and the completion code then decoded
+--      megabytes of JSON, built 20,000+ entry tables, sorted them and
+--      wrote the whole CSV in ONE main-thread pass. That path had
+--      never run with real data before (every export died first), so
+--      its cost was invisible until the day the fix landed. warm()
+--      starts the export 2s after boot, it completes ~29s later: the
+--      stall at +31s, both boots, to the second.
+--   🔪 SO INGESTION IS SLICED — the ⌥Tab sweep's budget idea applied
+--      to parsing: at most 40ms of work per event-loop turn, then a
+--      continuation, keystrokes through, continue. The rows arrive one
+--      JSON object per line (json_object) so the decode itself can be
+--      cut anywhere; the boot-time CSV read-back is sliced the same
+--      way (it is 20,000+ rows now that exports succeed); the CSV
+--      write drops 40,000 redundant strftime calls a run. ⇪⇧D's
+--      report grows a "last parse: N rows in K slices" receipt.
+--   ⏲ AND THE 45s DEADLINE WAS A GUESS made while the deadlock kept
+--      any export from ever finishing — the first run that actually
+--      completed took ~29s (copying the History databases dominates).
+--      The watchdog now fires at 120s, for the genuine hang only.
 
 -- NEW IN 6.152.0 — NINE ASKS IN ONE PASS: ⌥TAB'S MEMORY AND SPEED ·
 -- THE PAUSE KEY · THE POMODORO LOG · ⇪T'S DETAILS · THREE BUGS DEAD:
@@ -138,46 +165,10 @@
 --      wherever you drag it. Notification banners stay the macOS Focus
 --      half's job (the Meeting Focus On/Off Shortcuts), same as ever.
 
--- NEW IN 6.148.0 — EVERY TOOL POPS IN FRONT OF THE CHEAT SHEET:
---   🪟 LL: "Can you make all the tools pop in front of the cheat sheet?
---      Like the app picker/universal launcher." Why only ⇪space behaved:
---      hs.chooser's panel is PINNED at mainMenu+3 with no level API
---      (read from the Hammerspoon source), and the sheet drew at
---      `overlay` — seventy-five levels above it — so all seventeen
---      chooser tools opened UNDERNEATH the reference that told you
---      about them. The webview tools (⇪space, ⇪I, the pads, the
---      editors) ride bringToFront(true) near the very top, which is
---      why they alone popped in front.
---   🪜 SO THE LADDER IS REBUILT AROUND THE CHOOSER'S FIXED RUNG
---      (core/coexist.lua): the sheet drops to mainMenu−2 — THE FLOOR,
---      the statement the Esc router has always made ("closes last" IS
---      "drawn under"). The canvas cards (⇪- calendar, 16:01 rollup,
---      Asana mirror, ⇪7 card, ⌥Tab HUD, win_pin stickers) take named
---      rungs between the sheet and the chooser — they used to TIE the
---      sheet at `overlay` and stack by accident of show order. Only
---      the Key Caster and the pomodoro outrank the chooser: the two
---      windows that must never hide behind what you press. And the ⇪Q
---      dim becomes a true backdrop below even the sheet, so the tool
---      you reach for is never the thing dimmed.
---   🔄 THE SWITCHER'S "0 apps / Slowest app: nil" LINE IS RETIRED —
---      LL's console showed it three times. Zero apps means the
---      ON-SCREEN listing spent the whole budget before a single app
---      was asked; the message now says exactly that, with the
---      listing's own timing, instead of blaming a nil app and
---      suggesting a skipApps fix that could not possibly help.
---   🕘 THE ⇪Y KILL NAMES THE STEP IT DIED IN: the 6.147.0 watchdog
---      fired twice on this Air and could only say "it hung" — a
---      killed task's stdout dies with it. The export script now logs
---      each step (copying X, querying X) to a progress file; the kill
---      reads its last line — "it hung at: copying Default" — into the
---      status, the alert and _G.chromeHistoryReport(). And the kill's
---      own exit (sh exited 15, from our own terminate) no longer
---      overwrites that status with the less honest "export failed".
-
--- (6.147.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.148.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.152.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.152.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -522,7 +513,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.152.0"
+_G.configVersion = "6.152.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

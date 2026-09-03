@@ -85,10 +85,14 @@ mirrors draw order: "closes last" IS "drawn under".
 - Screenshots folder override: waiting on LL to name a path; then ship a
   one-line `settings = { screenshots = { dir = "..." } }` profile override
   with full ceremony. (Verified: zero code changes needed.)
-- Chrome export (⇪Y) hang: ROOT-CAUSED and fixed in 6.152.0 — sqlite3's JSON
-  filled the 64 KB task pipe nothing reads until exit (hence every kill at
-  "querying Default"); rows travel by temp file now. Awaiting LL's
-  confirmation after install; if it still hangs, `progress:` row again.
+- Chrome export (⇪Y): the 6.152.0 pipe fix WORKED — and the first completing
+  export then beachballed the Mac (~30s after every boot: taps "disabled by
+  macOS" in Console = main-thread stall; that parse path had never run with
+  real data). 6.152.1 slices ALL ingestion under chrome.sliceBudget (40ms per
+  event-loop turn), rows travel as one json_object per line, loadCsv is
+  sliced too, exportTimeout 45→120s (a real export measures ~29s on the Air —
+  DB copies dominate). Verify with LL: no beachball post-boot, ⇪Y populated,
+  report's "last parse: N rows in K slices" row.
 - Tab search: the real fault was an AppleScript COMPILE error (Safari branch
   lacked `using terms from`; "osascript exited 1: 577") — fixed 6.152.0. It
   never ran far enough to ask for Automation, so expect the macOS grant

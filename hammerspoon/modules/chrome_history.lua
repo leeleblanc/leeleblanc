@@ -34,13 +34,16 @@
 -- its -wal/-shm companions when present) and the copy is queried with
 -- /usr/bin/sqlite3, which ships with macOS. That runs as an hs.task,
 -- OFF the main thread: a 100 MB history file must never freeze the
--- keyboard. `-json` output rather than delimited, because page titles
+-- keyboard. JSON output rather than delimited, because page titles
 -- contain every delimiter anyone has ever chosen — and 6.152.0: the
 -- JSON goes to a FILE per profile, never through the task's stdout
 -- pipe, because a pipe that is only read at exit deadlocks on the first
 -- 64 KB (the "hung at: querying" kills — see the note at SCRIPT).
--- Entries younger than 90 days and not hidden (Chrome's own flag for
--- redirect noise), one row per page, newest first.
+-- 6.152.1: ONE JSON OBJECT PER LINE (json_object per row), not one
+-- giant array, and every ingest runs in TIME-BUDGETED SLICES — see the
+-- note at runSliced for the beachball this closed the day 6.152.0
+-- shipped. Entries younger than 90 days and not hidden (Chrome's own
+-- flag for redirect noise), one row per page, newest first.
 --
 -- FRESHNESS: the export re-runs when what is loaded is older than
 -- chrome.staleSecs, and ⇪⇧Y forces it. On boot, warm() reads BACK the
@@ -99,11 +102,19 @@ function M.setup(core)
     -- 🚨 6.147.0 — THE EXPORT GETS A DEADLINE. On LL's Air the export
     -- hung and `exporting` stayed true for the whole session, so every
     -- ⇪Y press answered "press again in a moment" — forever, and
-    -- nothing ever said the export was stuck. A healthy 90-day export
-    -- measures in single-digit seconds even across profiles; anything
-    -- past this is a hang, and a killed hang that SAYS SO beats a
-    -- polite alert that never stops being wrong.
-    chrome.exportTimeout = 45     -- seconds before a running export is killed
+    -- nothing ever said the export was stuck. A killed hang that SAYS
+    -- SO beats a polite alert that never stops being wrong. 6.152.1
+    -- raised the deadline from 45s: "a healthy export measures in
+    -- single-digit seconds" was a guess made while the pipe deadlock
+    -- kept any export from ever finishing — the first run that actually
+    -- completed took ~29s on the Air (copying each profile's History
+    -- database is the bulk of it), and the work Mac will be slower. The
+    -- deadline now exists only for the genuine never-coming-back hang.
+    chrome.exportTimeout = 120    -- seconds before a running export is killed
+    -- 🚨 6.152.1 — THE INGEST BUDGET: how long one main-thread slice of
+    -- parsing or CSV-writing may run before yielding to the event loop.
+    -- See runSliced below for the beachball this number exists for.
+    chrome.sliceBudget = 0.04     -- seconds of main thread per slice
     -- ----------------------------------------------------------------------
 
     local function say(m)  if _G.diag then _G.diag.say("chrome", m)  end end
@@ -117,6 +128,8 @@ function M.setup(core)
     chrome.watchdog  = nil    -- HELD: the deadline timer on a running export
     chrome.progressPath = nil -- the export's flight-recorder file (6.148.0)
     chrome.lastMs    = nil
+    chrome.pumpTimer = nil    -- HELD: a sliced ingest's parked continuation (6.152.1)
+    chrome.lastIngest = nil   -- { rows, turns, secs } of the last sliced parse
 
     local function epoch()
         local ok, t = pcall(function() return hs.timer.secondsSinceEpoch() end)
@@ -196,8 +209,14 @@ function M.setup(core)
     -- redirected to its own file and stdout carries only two tiny marker
     -- lines per profile — the label, then the file that holds its rows —
     -- which fit in the buffer a thousand times over. Lua reads the files
-    -- back in parse() and deletes them. Same reasoning as the progress
+    -- back in ingest() and deletes them. Same reasoning as the progress
     -- file, finally applied to the payload too.
+    --
+    -- 🚨 6.152.1 — AND THE ROWS ARE ONE JSON OBJECT PER LINE, not one
+    -- array: json_object() per row means the Lua side can decode any
+    -- number of rows a slice at a time, where a single 20,000-row array
+    -- is one indivisible hs.json.decode — an unbudgetable main-thread
+    -- bite. (sqlite3's JSON functions ship built in on macOS.)
     local SCRIPT = [[
 sq="$1"; tmp="$2"; cutoff="$3"; limit="$4"; shift 4
 pf="$tmp/hs-chrome-progress.txt"
@@ -211,7 +230,7 @@ while [ "$#" -ge 2 ]; do
   cp -f "$db-wal" "$tmp/hs-chrome-$n.db-wal" 2>/dev/null
   cp -f "$db-shm" "$tmp/hs-chrome-$n.db-shm" 2>/dev/null
   printf 'querying %s\n' "$lbl" >> "$pf"
-  "$sq" -json "$tmp/hs-chrome-$n.db" "SELECT url, title, visit_count AS visits, CAST(last_visit_time/1000000 - 11644473600 AS INTEGER) AS ts FROM urls WHERE last_visit_time > $cutoff AND hidden = 0 ORDER BY last_visit_time DESC LIMIT $limit;" > "$tmp/hs-chrome-$n.json" 2>/dev/null
+  "$sq" "$tmp/hs-chrome-$n.db" "SELECT json_object('url', url, 'title', title, 'visits', visit_count, 'ts', CAST(last_visit_time/1000000 - 11644473600 AS INTEGER)) FROM urls WHERE last_visit_time > $cutoff AND hidden = 0 ORDER BY last_visit_time DESC LIMIT $limit;" > "$tmp/hs-chrome-$n.json" 2>/dev/null
   printf '##PROFILE## %s\n' "$lbl"
   printf '##FILE## %s\n' "$tmp/hs-chrome-$n.json"
   rm -f "$tmp/hs-chrome-$n.db" "$tmp/hs-chrome-$n.db-wal" "$tmp/hs-chrome-$n.db-shm"
@@ -236,85 +255,189 @@ printf 'finished cleanly\n' >> "$pf"
         return last
     end
 
-    -- stdout → entries. 6.152.0: stdout carries only MARKERS now — a
-    -- ##PROFILE## line naming the profile, then a ##FILE## line naming
-    -- the file that holds its JSON rows (see the pipe-deadlock note at
-    -- SCRIPT). Each file is read back, parsed, and DELETED here; a
-    -- profile whose file will not parse costs that profile a warning,
-    -- never the export. An empty file is a profile with nothing in the
-    -- 90-day window — sqlite3 -json prints nothing for zero rows — and
-    -- is not worth a warning.
-    function chrome.parse(out)
-        local entries, label = {}, nil
-        for line in (tostring(out or "") .. "\n"):gmatch("(.-)\n") do
-            local l = line:match("^##PROFILE## (.+)$")
-            local p = line:match("^##FILE## (.+)$")
-            if l then
-                label = l
-            elseif p and label then
-                local raw
-                local f = io.open(p, "r")
-                if f then raw = f:read("*a"); f:close() end
-                pcall(os.remove, p)
-                raw = tostring(raw or ""):gsub("^%s+", ""):gsub("%s+$", "")
-                if raw ~= "" then
-                    local okDec, rows = pcall(function() return hs.json.decode(raw) end)
-                    if okDec and type(rows) == "table" then
-                        for _, r in ipairs(rows) do
-                            if type(r) == "table" and type(r.url) == "string" and r.url ~= "" then
-                                entries[#entries + 1] = finish({
-                                    url = r.url, title = r.title, visits = r.visits,
-                                    ts = r.ts, profile = label,
-                                })
-                            end
-                        end
-                    else
-                        warn("the " .. label .. " rows did not parse as JSON")
-                    end
-                end
-            end
-        end
-        table.sort(entries, function(a, b) return a.ts > b.ts end)
-        return entries
-    end
-
-    -- ---- the file --------------------------------------------------------
+    -- ---- the file's quoting ----------------------------------------------
     local function csvField(s)
         s = tostring(s or "")
         if s:find('[",\n]') then s = '"' .. s:gsub('"', '""') .. '"' end
         return s
     end
 
-    function chrome.writeCsv(entries)
-        local f = io.open(chrome.csvFile, "w")
-        if not f then
-            warn("could not write " .. chrome.csvFile)
-            if core.warnWriteFailed then core.warnWriteFailed("chrome_history csv") end
-            return false
+    -- ---- the sliced ingest -----------------------------------------------
+    -- 🚨 6.152.1 — THE BEACHBALL 6.152.0 SHIPPED. The pipe fix freed the
+    -- data, and the freed data then froze the Mac: the completion
+    -- callback decoded megabytes of JSON, built 20,000+ entry tables,
+    -- sorted them and wrote the whole CSV — in ONE main-thread pass.
+    -- LL's Console showed the receipts ~30 seconds after every boot (the
+    -- export completing): "Autocorrect tap was disabled by macOS", "Text
+    -- expander tap was disabled by macOS" — macOS kills event taps when
+    -- a process stops servicing events, and that same stall is what the
+    -- cursor shows as a beachball. Before 6.152.0 this code path had
+    -- simply never run with real data: every export died in the pipe
+    -- first, so its cost was invisible until the day the fix landed.
+    --
+    -- So ingestion now runs in TIME-BUDGETED SLICES — the ⌥Tab sweep's
+    -- budget idea applied to parsing: do at most sliceBudget seconds of
+    -- work, park a doAfter(0) continuation, let keystrokes through,
+    -- continue. Small exports still finish inside one slice (the tests
+    -- rely on that synchronous path); only work that actually takes time
+    -- gets cut. One run at a time: a newer ingest (⇪⇧Y mid-parse)
+    -- supersedes the old one, which simply never installs its entries.
+    local ingestSeq = 0
+    local function runSliced(work)
+        ingestSeq = ingestSeq + 1
+        local seq = ingestSeq
+        local function turn()
+            if seq ~= ingestSeq then return end  -- superseded: a newer run owns the data
+            local ok, more = pcall(work, epoch() + (chrome.sliceBudget or 0.04))
+            if not ok then
+                warn("ingest failed — " .. tostring(more))
+                return
+            end
+            if more then
+                local okT, t = pcall(hs.timer.doAfter, 0, turn)
+                if okT and t then
+                    chrome.pumpTimer = t   -- held: unreferenced timers are collected
+                else
+                    return turn()          -- no timers to park on: finish inline,
+                end                        -- never drop data (a proper tail call)
+            end
         end
-        f:write("date,time,title,url,visits,profile\n")
-        for _, e in ipairs(entries) do
-            f:write(os.date("%Y-%m-%d", e.ts), ",", os.date("%H:%M", e.ts), ",",
-                    csvField(e.title), ",", csvField(e.url), ",",
-                    tostring(e.visits), ",", csvField(e.profile), "\n")
+        turn()
+    end
+
+    -- stdout → entries → CSV, a slice at a time. stdout carries only
+    -- MARKERS (6.152.0) — a ##PROFILE## line naming the profile, then a
+    -- ##FILE## line naming the file that holds its rows, one JSON object
+    -- per line (6.152.1). Each file is read back, decoded row by row,
+    -- and DELETED here; a row that will not parse costs a counted
+    -- warning, never the export. An empty file is a profile with nothing
+    -- in the 90-day window — sqlite3 prints nothing for zero rows — and
+    -- is not worth a warning. done(n) fires after the CSV is on disk.
+    function chrome.ingest(out, done)
+        local files, label = {}, nil
+        for line in (tostring(out or "") .. "\n"):gmatch("(.-)\n") do
+            local l = line:match("^##PROFILE## (.+)$")
+            local p = line:match("^##FILE## (.+)$")
+            if l then label = l
+            elseif p and label then
+                files[#files + 1] = { label = label, path = p }
+            end
         end
-        f:close()
-        return true
+        -- a superseded run may have left its half-written CSV open
+        if chrome._csvOpen then pcall(function() chrome._csvOpen:close() end) end
+        chrome._csvOpen = nil
+        local entries = {}
+        local fi, lines, li, bad = 0, nil, 1, 0
+        local installed, csv, ci, csvDone = false, nil, 0, false
+        local turns, t0 = 0, epoch()
+        runSliced(function(deadline)
+            turns = turns + 1
+            while true do
+                if lines then
+                    -- rows of files[fi]. The budget is checked every 250
+                    -- rows: often enough that a slice stays a few ms, rare
+                    -- enough that the check costs nothing (and that the
+                    -- test suite's stub clock never trips it on a small
+                    -- feed — small ingests MUST complete synchronously).
+                    while li <= #lines do
+                        local ln = lines[li] ; li = li + 1
+                        if ln:match("%S") then
+                            local okD, row = pcall(function() return hs.json.decode(ln) end)
+                            if okD and type(row) == "table"
+                               and type(row.url) == "string" and row.url ~= "" then
+                                entries[#entries + 1] = finish({
+                                    url = row.url, title = row.title,
+                                    visits = row.visits, ts = row.ts,
+                                    profile = files[fi].label,
+                                })
+                            else bad = bad + 1 end
+                        end
+                        if li % 250 == 0 and epoch() > deadline then return true end
+                    end
+                    if bad > 0 then
+                        warn(bad .. " of the " .. files[fi].label
+                             .. " rows did not parse as JSON")
+                    end
+                    lines = nil
+                elseif fi < #files then
+                    fi = fi + 1
+                    local raw
+                    local f = io.open(files[fi].path, "r")
+                    if f then raw = f:read("*a") ; f:close() end
+                    pcall(os.remove, files[fi].path)
+                    lines, li, bad = {}, 1, 0
+                    for ln in (tostring(raw or "") .. "\n"):gmatch("(.-)\n") do
+                        lines[#lines + 1] = ln
+                    end
+                    if epoch() > deadline then return true end
+                elseif not installed then
+                    table.sort(entries, function(a, b) return a.ts > b.ts end)
+                    chrome.entries  = entries
+                    chrome.loadedAt = epoch()
+                    installed = true
+                    -- entries are live from here: ⇪Y works while the CSV
+                    -- below is still being written out behind it
+                elseif not csvDone then
+                    if not csv then
+                        csv = io.open(chrome.csvFile, "w")
+                        if not csv then
+                            warn("could not write " .. chrome.csvFile)
+                            if core.warnWriteFailed then
+                                core.warnWriteFailed("chrome_history csv")
+                            end
+                            csvDone = true
+                        else
+                            chrome._csvOpen = csv
+                            csv:write("date,time,title,url,visits,profile\n")
+                        end
+                    else
+                        -- date and time come from e.when ("%Y-%m-%d %H:%M",
+                        -- built once in finish) — the old writeCsv called
+                        -- os.date twice MORE per row, 40,000 strftimes a run
+                        while ci < #entries do
+                            ci = ci + 1
+                            local e = entries[ci]
+                            csv:write(e.when:sub(1, 10), ",", e.when:sub(12, 16), ",",
+                                      csvField(e.title), ",", csvField(e.url), ",",
+                                      tostring(e.visits), ",", csvField(e.profile), "\n")
+                            if ci % 250 == 0 and epoch() > deadline then return true end
+                        end
+                        csv:close()
+                        chrome._csvOpen = nil
+                        csvDone = true
+                    end
+                else
+                    chrome.lastIngest = { rows = #entries, turns = turns,
+                                          secs = epoch() - t0 }
+                    if done then done(#entries) end
+                    return nil
+                end
+            end
+        end)
     end
 
     -- Read LAST SESSION'S save back, so ⇪Y answers seconds after login
     -- while the fresh export runs behind it. ts is rebuilt from the date
     -- and time columns — approximate to the minute, which is all the
-    -- ranking needs.
-    function chrome.loadCsv()
+    -- ranking needs. 6.152.1: sliced like the ingest — once an export
+    -- has succeeded this CSV is 20,000+ rows, and warm() runs this two
+    -- seconds after every boot. done(n) fires when the entries are
+    -- installed; loadedAt is deliberately NOT stamped here (the caller
+    -- decides how stale a last-session save is).
+    function chrome.loadCsv(done)
         local f = io.open(chrome.csvFile, "r")
-        if not f then return 0 end
-        local entries, first = {}, true
-        for line in f:lines() do
-            if first then
-                first = false          -- the header row
-            else
-                local c = core.splitCSVLine and core.splitCSVLine(line)
+        if not f then
+            if done then done(0) end
+            return
+        end
+        local rows = {}
+        for line in f:lines() do rows[#rows + 1] = line end
+        f:close()
+        local entries, i = {}, 1        -- rows[1] is the header
+        runSliced(function(deadline)
+            while i < #rows do
+                i = i + 1
+                local c = core.splitCSVLine and core.splitCSVLine(rows[i])
                 if type(c) == "table" and c[4] and c[4] ~= "" then
                     local y, mo, d = tostring(c[1] or ""):match("(%d+)-(%d+)-(%d+)")
                     local h, mi = tostring(c[2] or ""):match("(%d+):(%d+)")
@@ -331,12 +454,13 @@ printf 'finished cleanly\n' >> "$pf"
                         ts = ts, profile = c[6] or "?",
                     })
                 end
+                if i % 250 == 0 and epoch() > deadline then return true end
             end
-        end
-        f:close()
-        table.sort(entries, function(a, b) return a.ts > b.ts end)
-        chrome.entries = entries
-        return #entries
+            table.sort(entries, function(a, b) return a.ts > b.ts end)
+            chrome.entries = entries
+            if done then done(#entries) end
+            return nil
+        end)
     end
 
     function chrome.export(andThen)
@@ -401,16 +525,16 @@ printf 'finished cleanly\n' >> "$pf"
                     if andThen then andThen(false, 0) end
                     return
                 end
-                local entries = chrome.parse(sout)
-                chrome.entries  = entries
-                chrome.loadedAt = epoch()
-                chrome.writeCsv(entries)
-                chrome.status = string.format("%d pages · %d profile%s · %.0fms",
-                                              #entries, #dbs,
-                                              #dbs == 1 and "" or "s",
-                                              chrome.lastMs)
-                say("exported " .. chrome.status)
-                if andThen then andThen(true, #entries) end
+                -- 6.152.1 — SLICED: the old one-pass parse+CSV froze the
+                -- Mac right here, the first time an export ever succeeded
+                chrome.ingest(sout, function(n)
+                    chrome.status = string.format("%d pages · %d profile%s · %.0fms",
+                                                  n, #dbs,
+                                                  #dbs == 1 and "" or "s",
+                                                  chrome.lastMs)
+                    say("exported " .. chrome.status)
+                    if andThen then andThen(true, n) end
+                end)
             end, args)
         end)
         if not (okNew and t) then
@@ -738,6 +862,15 @@ printf 'finished cleanly\n' >> "$pf"
         else
             outLine("   last export: not run yet this session")
         end
+        -- 6.152.1 — the sliced ingest's receipt: how many rows, cut into
+        -- how many main-thread slices. One slice = a small export; many
+        -- slices = the keyboard was being let through, working as built.
+        if chrome.lastIngest then
+            outLine(string.format("   last parse:  %d rows in %d slice%s, %.0fms total",
+                                  chrome.lastIngest.rows, chrome.lastIngest.turns,
+                                  chrome.lastIngest.turns == 1 and "" or "s",
+                                  chrome.lastIngest.secs * 1000))
+        end
         -- 6.148.0 — the flight recorder's last word. "finished cleanly"
         -- after a healthy run; after a kill, the step the run died in —
         -- which is the line to paste when ⇪Y hangs.
@@ -832,13 +965,15 @@ printf 'finished cleanly\n' >> "$pf"
     core.provide("chromeHistory.export", function() return chrome.export() end)
 
     M.warm = function()
-        local had = 0
-        pcall(function() had = chrome.loadCsv() end)
-        if had > 0 then
-            chrome.loadedAt = 0    -- data, but stale by definition
-            chrome.status = had .. " pages (last save; refreshing)"
-        end
-        chrome.export()
+        -- loadCsv is sliced (6.152.1); the export starts from its
+        -- completion so the two never interleave on chrome.entries
+        chrome.loadCsv(function(had)
+            if had > 0 then
+                chrome.loadedAt = 0    -- data, but stale by definition
+                chrome.status = had .. " pages (last save; refreshing)"
+            end
+            chrome.export()
+        end)
     end
 
     _G.chromeHistory       = chrome
