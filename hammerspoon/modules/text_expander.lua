@@ -1342,7 +1342,22 @@ function M.setup(core)
     -- on `header` before it ever looks one up. Picking one closes the
     -- panel and does nothing else — hs.chooser dismisses on any selection
     -- and there is no way to refuse it from here.
-    local function sectionHeader(name, rank, n)
+    -- 👁 6.156.0 — WHAT IS IN IT, BESIDE IT. LL: "To the right of the
+    -- snippets panel can you show what is in the snippet collection? If I
+    -- select one, nothing seems to happen. I can't remember what is in
+    -- the collection if I can't see it." Two answers:
+    --   · the ⇪V preview pane (clipboard_history's, published as the
+    --     preview.* services) follows this picker too: a snippet row shows
+    --     its WHOLE text, a collection heading lists every snippet in it
+    --     (trigger and name), the on/off row shows nothing;
+    --   · ⏎ on a heading is no longer inert: the picker re-opens showing
+    --     ONLY that collection, with a "◂ All snippets" row to come back.
+    -- For the pane to follow, the rows on screen must be rows this module
+    -- knows about, so the FILTERING is done here now (the chooser's own
+    -- search is bypassed): every word typed must appear in the name, the
+    -- trigger, the collection or the snippet's text — name and trigger
+    -- hits first. The body being searchable is new too.
+    local function sectionHeader(name, rank, n, members)
         local what
         if rank <= #(exp.sectionOrder or {}) then what = "yours — pinned first"
         elseif rank == exp.rankOwn      then what = "yours — imported or written by you"
@@ -1350,17 +1365,66 @@ function M.setup(core)
         else                                 what = "shipped with the config"
         end
         return { text    = "▸  " .. tostring(name):upper(),
-                 subText = string.format("%d  ·  %s", n, what),
-                 header  = true }
+                 subText = string.format("%d  ·  %s  ·  ⏎ shows only these", n, what),
+                 header  = true, sect = name,
+                 rawText = table.concat(members or {}, "\n"),
+                 head    = string.format("🗂 %s  ·  %d snippet%s  ·  ⏎ shows only these",
+                                         tostring(name):upper(), n, n == 1 and "" or "s") }
     end
 
-    function exp.show()
+    exp.lastChoices = nil        -- the rows on screen, for the pane
+    exp.filterMax   = 400        -- rows a keystroke may return
+    function exp.filter(choices, query)
+        local words = {}
+        for w in tostring(query or ""):lower():gmatch("%S+") do words[#words + 1] = w end
+        if #words == 0 then return choices end
+        local strong, weak = {}, {}
+        for _, r in ipairs(choices) do
+            if not (r.header or r.toggle or r.back) then
+                local name = tostring(r.text or ""):lower()
+                local trig = tostring(r.trigger or ""):lower()
+                local sect = tostring(r.sect or ""):lower()
+                local body = tostring(r.rawText or ""):lower()
+                local all, strongHit = true, false
+                for _, w in ipairs(words) do
+                    if name:find(w, 1, true) or trig:find(w, 1, true) then
+                        strongHit = true
+                    elseif not (sect:find(w, 1, true) or body:find(w, 1, true)) then
+                        all = false
+                        break
+                    end
+                end
+                if all and #strong + #weak < exp.filterMax then
+                    local bucket = strongHit and strong or weak
+                    bucket[#bucket + 1] = r
+                end
+            end
+        end
+        for _, r in ipairs(weak) do strong[#strong + 1] = r end
+        return strong
+    end
+
+    -- A heading was picked: the picker is mid-dismiss inside its own
+    -- callback, so the narrowed one opens a beat later (HELD timer).
+    function exp.reopen(section)
+        local okT, t = pcall(hs.timer.doAfter, 0.05, function()
+            exp.reopenTimer = nil
+            exp.show(section)
+        end)
+        if okT and t then exp.reopenTimer = t else exp.show(section) end
+    end
+
+    function exp.show(section)
         local picks   = {}      -- [n] = { trigger = ..., snip = ... }, Lua-side
-        local rows, counts = {}, {}
+        local rows, counts, members = {}, {}, {}
         local function add(s, trigger)
             picks[#picks + 1] = { trigger = trigger, snip = s }
             local sect, rank = exp.sectionOf(s)
             counts[sect] = (counts[sect] or 0) + 1
+            local body = s.fn
+                and ("⚡ " .. tostring(s.name or trigger)
+                     .. "\n\nAn action, not text: picking it runs it.")
+                or  tostring(s.text or "")
             rows[#rows + 1] = {
                 text    = tostring(s.name or trigger),
                 -- 🗂 THE PACK NAME IS ON EVERY ROW, not only in the
@@ -1374,6 +1438,10 @@ function M.setup(core)
                               or  s.text:gsub("%s+", " "):sub(1, 60)),
                 trigger = trigger, pick = #picks,
                 sect    = sect, rank = rank,
+                rawText = body,
+                head    = string.format("✂️ %s  ·  %s  ·  %d char%s",
+                                        trigger ~= "" and trigger or "no trigger",
+                                        sect, #body, #body == 1 and "" or "s"),
             }
         end
         for trigger, s in pairs(exp.snippets) do add(s, trigger) end
@@ -1390,24 +1458,41 @@ function M.setup(core)
             if a.text ~= b.text then return a.text < b.text end
             return tostring(a.trigger) < tostring(b.trigger)
         end)
+        -- what each heading's pane lists: the section's rows, in this order
+        for _, r in ipairs(rows) do
+            local m = members[r.sect] or {}
+            members[r.sect] = m
+            m[#m + 1] = string.format("%-14s %s",
+                                      r.trigger ~= "" and r.trigger or "—", r.text)
+        end
 
         -- The ON/OFF row stays FIRST, above every section: it is the one
         -- row here that is not a snippet, and it is the one you need when
-        -- the expander is misbehaving.
-        local choices = { {
-            text    = exp.enabled and "⏸  Turn expansion OFF" or "▶️  Turn expansion ON",
-            subText = exp.enabled
-                      and "Triggers stop firing; ⇪⇧T still inserts by hand"
-                      or  "Start expanding triggers as you type again",
-            toggle  = true,
-        } }
+        -- the expander is misbehaving. In a narrowed view its place is
+        -- taken by the way back.
+        local choices = {}
+        if section then
+            choices[1] = { text = "◂  All snippets",
+                           subText = "back to every collection", back = true }
+        else
+            choices[1] = {
+                text    = exp.enabled and "⏸  Turn expansion OFF" or "▶️  Turn expansion ON",
+                subText = exp.enabled
+                          and "Triggers stop firing; ⇪⇧T still inserts by hand"
+                          or  "Start expanding triggers as you type again",
+                toggle  = true,
+            }
+        end
         local cur
         for _, r in ipairs(rows) do
-            if exp.sections and r.sect ~= cur then
-                cur = r.sect
-                choices[#choices + 1] = sectionHeader(r.sect, r.rank, counts[r.sect])
+            if section == nil or r.sect == section then
+                if exp.sections and r.sect ~= cur then
+                    cur = r.sect
+                    choices[#choices + 1] = sectionHeader(r.sect, r.rank,
+                                                          counts[r.sect], members[r.sect])
+                end
+                choices[#choices + 1] = r
             end
-            choices[#choices + 1] = r
         end
 
         local okC, chooser = pcall(hs.chooser.new, function(choice)
@@ -1417,12 +1502,11 @@ function M.setup(core)
                 hs.alert.show(exp.enabled and "✂️ Expansion ON" or "✂️ Expansion OFF")
                 return
             end
-            -- 🗂 A SECTION HEADING. Checked explicitly rather than left to
-            -- fall through the `picks[nil]` lookup below: that would work
-            -- today and would go on "working" if a heading ever grew a
-            -- pick by accident, which is how a divider starts inserting
-            -- text into somebody's document.
-            if choice.header then return end
+            if choice.back then exp.reopen(nil) return end
+            -- 🗂 A SECTION HEADING re-opens the picker on that collection
+            -- alone. Checked explicitly rather than left to fall through
+            -- the `picks[nil]` lookup below: a heading must never insert.
+            if choice.header then exp.reopen(choice.sect) return end
             -- The bridge hands the number back as a float; Lua normalises
             -- picks[3.0] to picks[3], but tonumber costs nothing and covers
             -- the case where it arrives as a string.
@@ -1439,13 +1523,32 @@ function M.setup(core)
         -- ⎋ 6.93.0: filed in _G.choosers so Esc closes it before the cheat sheet
         _G.choosers = _G.choosers or {}
         _G.choosers.snippets = chooser
+        exp.lastChoices = choices
         pcall(function()
             chooser:choices(choices)
             chooser:rows(12)
             chooser:width(45)
             chooser:placeholderText(exp.count > 0
-                and ("search " .. exp.count .. " snippets")
+                and ((section and ("search " .. tostring(section):upper() .. " — ")
+                      or "search ") .. exp.count .. " snippets")
                 or  "no snippets yet — run _G.snippetsImport() in the Console")
+        end)
+        -- our own filter, so the rows on screen are the rows the pane reads
+        pcall(function()
+            chooser:queryChangedCallback(function(q)
+                pcall(function()
+                    exp.lastChoices = exp.filter(choices, q)
+                    chooser:choices(exp.lastChoices)
+                end)
+            end)
+        end)
+        -- the pane goes down with the picker — and waits out a nudge
+        pcall(function()
+            chooser:hideCallback(function()
+                if core.call then pcall(core.call, "preview.suspend") end
+            end)
+        end)
+        pcall(function()
             -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the
             -- LAST picker's coordinates standing in _G.lastPopupPlacement,
             -- and window_move computes its grab box from that record. It
@@ -1453,6 +1556,9 @@ function M.setup(core)
             if core.showPopup then core.showPopup(chooser)
             else chooser:show() end
         end)
+        if core.call then
+            pcall(core.call, "preview.open", chooser, function() return exp.lastChoices end)
+        end
         return true
     end
 

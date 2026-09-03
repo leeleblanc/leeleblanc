@@ -704,6 +704,27 @@ do
     C.previewOn = true
     C.previewClose()
 
+    -- 👁 6.156.0 — the pane is a SERVICE other pickers use (⇪⇧T's rows
+    -- bring their own head line)
+    check("preview.open / suspend / close are published",
+          type(PROVIDED["preview.open"]) == "function"
+          and type(PROVIDED["preview.suspend"]) == "function"
+          and type(PROVIDED["preview.close"]) == "function")
+    _G.lastPopupPlacement = { screen = SCREEN, point = { x = 300, y = 180 },
+                              chooser = C.chooser }
+    local foreign = { { text = "sig", rawText = "Kind regards,\nLee",
+                        head = "✂️ sig  ·  textpanders  ·  17 chars" } }
+    SEL = 1 ; VIS = true
+    PROVIDED["preview.open"](C.chooser, function() return foreign end)
+    check("a row's own head line replaces the clipboard header", (function()
+        for _, e in ipairs(pane().elements) do
+            if e.type == "text" and e.text == foreign[1].head then return true end
+        end
+    end)())
+    check("...and its whole text is the body", bodyText() == "Kind regards,\nLee", bodyText())
+    PROVIDED["preview.close"]()
+    check("preview.close takes it down", C.pv.canvas == nil and C.pv.poll == nil)
+
     -- the wrap is arithmetic, and it keeps indentation
     local w = C.previewWrap("    indented code line that is fairly long indeed", 24)
     check("the wrap keeps leading indentation and breaks at words",

@@ -31,17 +31,25 @@ end
 local MOUSE   = { x = 0, y = 0 }     -- what hs.mouse reports
 local BUTTONS = {}                    -- what checkMouseButtons reports
 local TIMERS  = {}                    -- every doEvery, tickable by hand
-local TAP     = nil                   -- the one mouse tap the module makes
+local TAP     = nil                   -- the one mouse-DOWN tap the module makes
+local DRAGTAPS = {}                   -- 6.156.0: one per drag (dragged + up)
+local NO_DRAG_TAPS = false            -- true = macOS refuses the drag tap
 
 hs = {
     chooser = {},                     -- module installs globalCallback here
     eventtap = {
-        event = { types = { leftMouseDown = 1, keyDown = 10, keyUp = 11 } },
+        event = { types = { leftMouseDown = 1, leftMouseUp = 2, leftMouseDragged = 6,
+                            keyDown = 10, keyUp = 11 } },
         new = function(types, cb)
-            TAP = { types = types, cb = cb, started = false }
-            function TAP:start() self.started = true end
-            function TAP:stop()  self.started = false end
-            return TAP
+            local t = { types = types, cb = cb, started = false }
+            function t:start() self.started = true end
+            function t:stop()  self.started = false end
+            if TAP == nil then TAP = t
+            else
+                if NO_DRAG_TAPS then error("no Accessibility for taps") end
+                DRAGTAPS[#DRAGTAPS + 1] = t
+            end
+            return t
         end,
         checkMouseButtons = function() return BUTTONS end,
     },
@@ -67,10 +75,11 @@ end
 local PROVIDED = {}
 local CORE = { provide = function(n, f) PROVIDED[n] = f end }
 
-local function evt(x, y, flags)
+local function evt(x, y, flags, kind)
     return {
         location = function() return { x = x, y = y } end,
         getFlags = function() return flags or {} end,
+        getType  = function() return kind or 1 end,
     }
 end
 
@@ -83,7 +92,15 @@ end
 
 local function lastTimer() return TIMERS[#TIMERS] end
 local function tick() local t = lastTimer(); if t and not t.stopped then t.fn() end end
-local function releaseAndTick() BUTTONS = {} tick() end
+local function dragTap() return DRAGTAPS[#DRAGTAPS] end
+-- 6.156.0: a release is the mouse-UP EVENT when a drag tap is up (the
+-- engine no longer trusts the button poll there), the button poll otherwise
+local function releaseAndTick()
+    BUTTONS = {}
+    local dt = dragTap()
+    if dt and dt.started then dt.cb(evt(MOUSE.x, MOUSE.y, {}, 2)) end
+    tick()
+end
 
 -- =====================================================================
 out("── Window Move: hit rules, drag engine, chooser commit ──\n")
@@ -148,11 +165,77 @@ tick()
 check("…every tick, any direction",
       #MOVED_A == 2 and MOVED_A[2].x == 40 and MOVED_A[2].y == 75)
 releaseAndTick()
-check("button up ends the drag and stops the timer",
+check("the release ends the drag and stops the timer",
       lastTimer().stopped == true)
 MOUSE.x, MOUSE.y = 500, 500
 tick()
 check("…and nothing follows the mouse afterwards", #MOVED_A == 2)
+
+out("3b. 🚨 the events drive the drag; the button poll is the fallback (6.156.0)\n")
+-- LL: "Holding ⌘ and drag from anywhere, from/to anywhere doesn't seem to
+-- work. And using ⌘shift+arrowkey does seem to work." The mouse-down
+-- that starts a picker drag is CONSUMED, and a consumed press can read
+-- as "released" from checkMouseButtons on the very first tick.
+local tapsBefore = #DRAGTAPS
+check("a drag opens ONE tap for dragged + up events, held on the module",
+      press(150, 120, { cmd = true }) == true and #DRAGTAPS == tapsBefore + 1
+      and dragTap().started and wm.dragTap == dragTap(), #DRAGTAPS - tapsBefore)
+check("...listening for leftMouseDragged and leftMouseUp only", (function()
+    local seen = {}
+    for _, t in ipairs(dragTap().types) do seen[t] = true end
+    return seen[6] and seen[2] and not seen[1]
+end)())
+check("...and the record says which engine is carrying it",
+      wm.lastDrag and wm.lastDrag.engine == "tap", wm.lastDrag and wm.lastDrag.engine)
+local movedBefore = #MOVED_A
+MOUSE.x, MOUSE.y = 170, 140
+local consumed = dragTap().cb(evt(170, 140, {}, 6))
+check("a dragged EVENT moves the panel — offset held — and is never consumed",
+      consumed == false and #MOVED_A == movedBefore + 1
+      and MOVED_A[#MOVED_A].x == 120 and MOVED_A[#MOVED_A].y == 120,
+      MOVED_A[#MOVED_A] and (MOVED_A[#MOVED_A].x .. "," .. MOVED_A[#MOVED_A].y))
+BUTTONS = {}
+tick()
+check("🚨 the button poll reading 'up' does NOT end a tap-driven drag "
+      .. "(the consumed-press failure)", lastTimer().stopped == false
+      and wm.lastDrag.ended == nil)
+check("a tick with the pointer where it already is costs no move", #MOVED_A == movedBefore + 1)
+dragTap().cb(evt(170, 140, {}, 2))
+check("the mouse-UP event ends it: timer stopped, tap stopped and released, "
+      .. "record says 'mouse up'", lastTimer().stopped == true
+      and dragTap().started == false and wm.dragTap == nil
+      and wm.lastDrag.ended == "mouse up" and wm.lastDrag.moves == 1,
+      wm.lastDrag.ended)
+check("the report carries the drag record", (function()
+    local r = _G.windowMoveReport()
+    return r:find("last drag", 1, true) ~= nil and r:find("engine tap", 1, true) ~= nil
+       and r:find("ended: mouse up", 1, true) ~= nil
+end)())
+printed = {}
+press(150, 120, { cmd = true })
+dragTap().cb(evt(150, 120, {}, 2))         -- released before any move
+check("a drag that ended before it moved anything SAYS SO in the Console",
+      (function()
+          for _, l in ipairs(printed) do
+              if l:find("ended before anything moved", 1, true) then return true end
+          end
+          return false
+      end)(), printed[1])
+check("...and the report flags it", _G.windowMoveReport():find("moved NOTHING", 1, true) ~= nil)
+NO_DRAG_TAPS = true
+tapsBefore = #DRAGTAPS
+check("no tap to be had (no Accessibility): the drag still starts on the timer",
+      press(150, 120, { cmd = true }) == true and #DRAGTAPS == tapsBefore
+      and wm.lastDrag.engine == "timer", wm.lastDrag.engine)
+MOUSE.x, MOUSE.y = 160, 130
+tick()
+check("...follows by polling", MOVED_A[#MOVED_A].x == 110 and MOVED_A[#MOVED_A].y == 110)
+BUTTONS = {}
+tick()
+check("...and the button poll ends it there, as it always did",
+      lastTimer().stopped == true and wm.lastDrag.ended == "button read up",
+      wm.lastDrag.ended)
+NO_DRAG_TAPS = false
 
 check("a plain=true panel drags with NO ⌘ at all",
       press(650, 430, {}) == true)

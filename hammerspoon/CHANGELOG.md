@@ -4,6 +4,100 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.156.0 — ⇪Y WITHOUT THE LOGINS · ⇪⇧T SHOWS WHAT IS IN IT · ⇪L
+DELETES · THE ⌘-DRAG THAT DID NOTHING · ⌥TAB'S PHASES:
+  🙈 ⇪Y — LL: "Can you remove entries that are just logins? I don't need
+     those." A page whose URL contains one of chrome.loginPatterns
+     (login.live.com, accounts.google.com, /login, /signin, /oauth, /sso/,
+     wsignin, okta, microsoftonline…, plain text, case-insensitive) or
+     whose TITLE starts like a login page ("Sign in", "Log in", "Login |",
+     "Verify it's you"…) is left out of the picker — and only the
+     picker: the archive keeps every row, so chrome.hideLogins = false
+     brings them back without an export. A page ABOUT logins is not a
+     login (the wiki titled "Login procedures" stays); the placeholder
+     counts what is hidden ("· 3 logins hidden"). Judged once per
+     archive (cached on the entries table), not per keystroke.
+  📜 ⇪Y — "can you show more than nine cmd+{number}? I'd like a
+     scrollable list of at least 30 days." ⌘1–⌘9 are macOS's own row
+     shortcuts and stop at nine; what was short was the LIST: the empty
+     box held the newest 40 pages. It now holds everything from the last
+     chrome.listDays (30) — never fewer than showRows, never more than
+     chrome.listMax (3,000; hs.chooser scrolls) — and the picker stands
+     sixteen rows tall (chrome.pickerRows). A typed search still returns
+     the best forty.
+  👁 ⇪⇧T — "To the right of the snippets panel can you show what is in
+     the snippet collection? If I select one, nothing seems to happen. I
+     can't remember what is in the collection if I can't see it." Two
+     answers. The ⇪V preview pane is a SERVICE now (preview.open /
+     suspend / close, published by clipboard_history; a row may bring
+     its own head line) and the snippet picker uses it: a snippet row
+     shows its WHOLE text with the trigger and collection above it, a
+     collection heading lists every snippet in it — trigger and name,
+     one per line — and the on/off row shows nothing. And ⏎ on a heading
+     is no longer inert: the picker re-opens on that collection alone,
+     with a "◂ All snippets" row on top to come back (a beat later, on a
+     held timer — hs.chooser is mid-dismiss inside its own callback).
+     For the pane to follow, the rows on screen must be rows this module
+     knows, so the FILTERING moved here: every typed word must appear in
+     the name, the trigger, the collection or the snippet's TEXT (the
+     body was never searchable before), name and trigger hits first,
+     headings and the on/off row stepping aside while a query is up.
+  🗑 ⇪L (⌃⌥⌘L) — "Can we use the Asana hyper+L to also select and delete
+     tasks in bulk or one line?" The picker grew the clipboard editor's
+     select mode: "☑️ Select several to delete…" switches it on, ⏎ then
+     TAGS rows (✓) and the picker re-opens with the tags kept, and
+     "🗑 Delete N selected tasks" does the deed. One line: ⌥⏎ on any row
+     deletes just that task. Both ASK FIRST — a dialog naming the tasks
+     — and the request is DELETE /tasks/{gid}, one at a time, with the
+     token in the header (never a process argument; the sentry pins
+     it). Asana keeps a deleted task in Deleted Items for 30 days; the
+     dialog says so. The list refreshes itself afterwards.
+  🧲 ⌘-DRAG — "Holding ⌘ and drag from anywhere, from/to anywhere
+     doesn't seem to work. And using ⌘shift+arrowkey does seem to work.
+     Am I using the ⌘ drag movement wrong? Guess if you can't tell me."
+     The guess, with the code in front of me: the nudge keys touch none
+     of the drag engine, so the engine is the suspect, and it had one
+     way to fail silently. Every tick it asked checkMouseButtons()
+     whether the button was still down and ended the drag the first
+     time it said no. That answer comes from the event system — and the
+     mouse-DOWN that starts a picker drag is the one event the module
+     CONSUMES (so a ⌘-click on a row does not also pick the row). A
+     consumed press that never updates the session's button state reads
+     as "released" on the very first tick, and the drag ends before it
+     moves anything, with no line anywhere. The pad's header drag never
+     consumed its press, which is why one could work and the other not.
+     So the events drive the drag now: a tap on leftMouseDragged and
+     leftMouseUp carries it (the HID keeps sending dragged events while
+     the button is physically down, whatever the session state says),
+     the mouse-up ends it, the tap never consumes anything, and the
+     button poll is used only when that tap cannot be made. Every drag
+     is written down — engine, moves, how it ended — and
+     _G.windowMoveReport() prints the record; a drag that ended before
+     it moved anything says so in the Console. If it STILL does not
+     move, that Console line plus the report's "last drag" line is the
+     whole diagnosis — paste them.
+  ⏱ ⌥TAB — "listing took 1.64s across 13 apps (slowest: Alfred
+     Preferences 0.00s · memory: 0 probed in 0.00s)", twice. Thirteen
+     apps at 0.00s and no probes cannot add up to 1.64s, so the time was
+     in a phase nothing measured. The likeliest: the OWNERS pass, which
+     asked every listed window for its application() and then name() —
+     two AX round trips each, outside every timer. It asks nothing now:
+     the sweep already knows which app it asked, the memory remembered
+     its name, the console is Hammerspoon, and every entry arrives
+     carrying it. And every phase is timed — zorder, apps, sweep,
+     console, memory, owners, sort, app-only, tail — so the slow line
+     ends "· slowest phase: owners 1.52s" and the next paste is an
+     answer. _G.altTabLastListing.phases has the numbers.
+  🎯 "Dialog Home: Preview didn't accept an Accessibility watcher" — not
+     bad. Some apps refuse an AX observer (Preview, Finder, VLC, Archive
+     Utility do); Dialog Home says so once per app per session and
+     simply does not home THAT app's dialogs. Nothing else is affected.
+  ✅ Gate: 6,432 → 6,485 checks (test_chrome_history 119 → 130;
+     test_expander 225 → 240; test_window_move 88 → 101; test_switcher
+     181 → 185; test_clipboard 95 → 99; test_select_mode 37 → 43), 67
+     stages, lint and the hostile world green, in the tree and inside
+     the package. The zip still carries no snippets/ (see 6.155.0).
+
 NEW IN 6.155.0 — WORDS ON EVERY SCREENSHOT · THE PANE RIDES A MOVED
 PICKER · TWO CONSOLE LINES ANSWERED:
   🏷 ⇪⇧4 — LL, looking at the panel: "Can you see some of the screenshots

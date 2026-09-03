@@ -125,6 +125,15 @@ mirrors draw order: "closes last" IS "drawn under".
 - Write ledger: a store rewritten whole (⇪I cache, .json, chrome/clipboard
   files, `_G.rewrittenFiles` registry) may shrink silently; >50% loss is
   still reported once. Any NEW rewritten store must register itself.
+- 6.156.0 verify with LL: ⌘-drag on a picker moves it (if not: the Console
+  "ended before anything moved" line + `_G.windowMoveReport()` "last drag"
+  line say why — engine tap vs timer); ⇪Y shows no login pages and the
+  empty box scrolls ~30 days; ⇪⇧T pane shows a snippet's text / a
+  heading's contents, ⏎ on a heading narrows; ⇪L select mode + ⌥⏎ delete
+  (asks first; Asana trash 30 days); ⌥Tab slow line names the phase.
+  Preview pane is a SERVICE (preview.open/suspend/close from
+  clipboard_history); a picker using it must filter its own rows
+  (queryChangedCallback) so row indexes match what is on screen.
 - 6.155.0 verify with LL: an SCR- capture from another tool gets its words
   within seconds of landing (Console: "named on arrival"; ⌘9 row says
   "nothing waiting"); ⇪V pane survives a ⇪⇧-arrow nudge and rides a

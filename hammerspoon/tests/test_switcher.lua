@@ -598,6 +598,8 @@ out("\n=== 9c. a genuinely slow APP is still named ===\n")
 reset(2)
 AT.listBudget = 0.8
 local seq = { 1000,     -- t0
+              1000.0,   -- 6.156.0: phase("zorder") reads the clock
+              1000.05,  -- 6.156.0: phase("apps") reads it again
               1000.1,   -- t1: the sweep starts its own clock
               1000.2,   -- App1's deadline check — 0.1s in, within budget
               1000.3,   -- App1's own timer starts
@@ -612,6 +614,43 @@ check("one slow app is named, with its own time",
       (log[#log] or ""):find("Slowest app: App1", 1, true) ~= nil, log[#log])
 check("...and the skipApps advice appears only on THIS path",
       (log[#log] or ""):find("skipApps", 1, true) ~= nil)
+
+out("\n=== 9c'. 6.156.0 — every phase is timed; the owners pass asks AX nothing ===\n")
+-- LL's Console, again: "listing took 1.64s across 13 apps (slowest:
+-- Alfred Preferences 0.00s · memory: 0 probed in 0.00s)" — thirteen apps
+-- at 0.00s and no probes cannot add up to 1.64s.
+reset(3)
+local APPCALLS = 0
+for _, w in ipairs(WINS) do
+  local realApp = w.application
+  w.application = function(self) APPCALLS = APPCALLS + 1; return realApp(self) end
+end
+APPS = appsFromWindows(WINS)      -- (asks application() itself, once per window)
+APPCALLS = 0
+AT.cache = nil
+AT.listWindows()
+check("🚨 the owners pass asks NO window for its application — the sweep "
+   .. "already knew", APPCALLS == 0, APPCALLS)
+check("every phase is published for ⇪⇧D", (function()
+  local p = _G.altTabLastListing and _G.altTabLastListing.phases
+  return type(p) == "table" and p.zorder ~= nil and p.sweep ~= nil
+     and p.memory ~= nil and p.owners ~= nil
+end)())
+check("...and the slowest phase is named", type(_G.altTabLastListing.slowPhase) == "string")
+-- a slow press whose time is in NO app and NO probe: the line names the phase
+reset(3)
+local ticks = 0
+hs.timer.secondsSinceEpoch = function()
+  ticks = ticks + 1
+  -- the clock jumps 2s exactly once, inside the owners pass: between the
+  -- memory phase's stamp and the owners phase's stamp
+  return 1000 + (ticks >= 8 and 2 or 0)
+end
+AT.cache = nil
+AT.listWindows()
+hs.timer.secondsSinceEpoch = realNow
+check("a slow press names its SLOWEST PHASE in the Console line",
+      (log[#log] or ""):find("slowest phase: ", 1, true) ~= nil, log[#log])
 
 out("\n=== 9d. the other Chrome windows: visible apps first + the memory ===\n")
 -- LL: "it shows one Chrome window but no other Chrome windows I have

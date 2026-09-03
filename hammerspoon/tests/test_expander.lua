@@ -154,6 +154,9 @@ hs = {
       function c:width() return c end
       function c:placeholderText(p) self.ph = p; return c end
       function c:show() self.shown = true; return c end
+      -- 6.156.0: the module filters for itself and feeds the preview pane
+      function c:queryChangedCallback(f) self.qcb = f; return c end
+      function c:hideCallback(f) self.hideCb = f; return c end
       table.insert(CHOOSERS, c)
       return c
     end,
@@ -197,9 +200,11 @@ _G.notices = { recorded = {},
   tell = function() end }
 
 local PROVIDED, HYPER = {}, {}
+local CALLS = {}       -- 6.156.0: every core.call — the preview pane services
 local core = {
   logsDir = TMP,
   provide = function(n, fn) PROVIDED[n] = fn end,
+  call    = function(n, ...) CALLS[#CALLS + 1] = { n = n, args = { ... } }; return true end,
   hyperAddShortcut = function(mods, key, fn, src)
     table.insert(HYPER, { combo = table.concat(mods, "+") .. "+" .. key, fn = fn, src = src })
   end,
@@ -779,7 +784,7 @@ check("...and A–Z runs INSIDE a section, not across the whole list",
     end
     return true
   end)())
-check("🚨 a heading is INERT — picking one inserts nothing at all",
+check("🚨 a heading NEVER INSERTS — picking one types nothing at all",
   (function()
     reset()
     for _, r in ipairs(ch.rows_) do
@@ -788,6 +793,112 @@ check("🚨 a heading is INERT — picking one inserts nothing at all",
     drain()
     return #KEYSTROKES == 0 and DELETES == 0
   end)(), KEYSTROKES[1])
+
+-- =====================================================================
+out("\n=== 11b. 6.156.0 — what is in it, beside it: the pane and the narrowed view ===\n")
+-- LL: "To the right of the snippets panel can you show what is in the
+-- snippet collection? If I select one, nothing seems to happen. I can't
+-- remember what is in the collection if I can't see it."
+CHOOSERS, CALLS = {}, {}
+exp.show()
+ch = CHOOSERS[#CHOOSERS]
+check("opening the picker asks for the preview pane, handing it THIS chooser "
+   .. "and the rows on screen", (function()
+  for _, c in ipairs(CALLS) do
+    if c.n == "preview.open" and c.args[1] == ch and type(c.args[2]) == "function"
+       and c.args[2]() == exp.lastChoices then return true end
+  end
+  return false
+end)())
+check("every snippet row carries its WHOLE text for the pane, and a head line "
+   .. "naming trigger and collection", (function()
+  for _, r in ipairs(ch.rows_) do
+    if r.trigger == "gg1" then
+      return type(r.rawText) == "string" and #r.rawText > 0
+         and type(r.head) == "string" and r.head:find("gg1", 1, true) ~= nil
+         and r.head:find(tostring(r.sect), 1, true) ~= nil
+    end
+  end
+end)())
+local heading
+for _, r in ipairs(ch.rows_) do if r.header then heading = r; break end end
+check("a collection heading lists what is IN it — trigger and name per line",
+      heading and type(heading.rawText) == "string"
+      and heading.rawText:find("\n", 1, true) ~= nil
+      and heading.head:find("snippets", 1, true) ~= nil, heading and heading.head)
+check("...every snippet of that collection is on the list", (function()
+  local n = 0
+  for _, r in ipairs(ch.rows_) do
+    if not r.header and not r.toggle and r.sect == heading.sect then
+      n = n + 1
+      if not heading.rawText:find(r.text, 1, true) then return false, r.text end
+    end
+  end
+  return n > 0 and select(2, heading.rawText:gsub("\n", "")) + 1 == n
+end)())
+check("the on/off row previews nothing", ch.rows_[1].toggle and ch.rows_[1].rawText == nil)
+check("the picker hides → the pane is suspended (waits out a nudge)", (function()
+  if not ch.hideCb then return false end
+  ch.hideCb()
+  return CALLS[#CALLS].n == "preview.suspend"
+end)())
+
+-- typing: our own filter, so the rows on screen are the rows the pane reads
+local before = #ch.rows_
+ch.qcb("gg1")
+check("typing filters HERE — name or trigger hits first — and the rows on "
+   .. "screen are what the pane reads",
+      #ch.rows_ < before and ch.rows_[1].trigger == "gg1" and exp.lastChoices == ch.rows_,
+      ch.rows_[1] and ch.rows_[1].trigger)
+check("...headings and the on/off row step aside while a query is up", (function()
+  for _, r in ipairs(ch.rows_) do if r.header or r.toggle then return false end end
+  return true
+end)())
+ch.qcb("")
+check("...and an empty box brings the whole sectioned list back",
+      #ch.rows_ == before and ch.rows_[1].toggle == true)
+check("the BODY is searchable now — a word only inside a snippet's text finds it", (function()
+  local target
+  for _, r in ipairs(ch.rows_) do
+    if r.rawText and #r.rawText > 12 and not r.header then target = r; break end
+  end
+  if not target then return true end
+  local word = target.rawText:match("%a%a%a%a+")
+  if not word then return true end
+  ch.qcb(word)
+  for _, r in ipairs(ch.rows_) do if r == target then return true end end
+  return false
+end)())
+ch.qcb("")
+
+-- ⏎ on a heading: the picker re-opens on that collection alone
+CHOOSERS = {}
+ch.cb(heading)
+check("⏎ on a heading queues a re-open a beat later, not inside the callback",
+      #CHOOSERS == 0)
+drain()
+local narrow = CHOOSERS[#CHOOSERS]
+check("...and the picker re-opens showing ONLY that collection",
+      narrow and narrow.shown and (function()
+        local seen = 0
+        for _, r in ipairs(narrow.rows_) do
+          if not (r.header or r.back) then
+            seen = seen + 1
+            if r.sect ~= heading.sect then return false end
+          end
+        end
+        return seen > 0
+      end)())
+check("...with a way back on top instead of the on/off row",
+      narrow.rows_[1].back == true and narrow.rows_[1].text:find("All snippets", 1, true) ~= nil)
+check("...and the placeholder names the collection",
+      tostring(narrow.ph):find(tostring(heading.sect):upper(), 1, true) ~= nil, narrow.ph)
+CHOOSERS = {}
+narrow.cb(narrow.rows_[1])
+drain()
+check("◂ All snippets brings the full list back",
+      CHOOSERS[#CHOOSERS] and CHOOSERS[#CHOOSERS].rows_[1].toggle == true)
+ch = CHOOSERS[#CHOOSERS]
 check("each row shows its trigger", (function()
   for _, r in ipairs(ch.rows_) do
     if r.trigger == "gg1" then return r.subText:find("gg1", 1, true) ~= nil end

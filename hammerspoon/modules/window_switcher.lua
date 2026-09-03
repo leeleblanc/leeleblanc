@@ -224,6 +224,22 @@ function M.setup(core)
     function altTab.listWindows()
         local t0 = hs.timer.secondsSinceEpoch()
         local entries, seenWin, seenApp = {}, {}, {}
+        -- ⏱ 6.156.0 — EVERY PHASE IS TIMED. LL's Console, again:
+        -- "listing took 1.64s across 13 apps (slowest: Alfred Preferences
+        -- 0.00s · memory: 0 probed in 0.00s)" — thirteen apps at 0.00s
+        -- and no probes cannot add up to 1.64s, so the time was in a
+        -- phase nothing measured. The owners pass (below) is the likely
+        -- one: one application() + name() per entry, both AX round
+        -- trips, outside every timer — and it no longer needs them (the
+        -- sweep knows each window's app already). Whatever is left, the
+        -- slow line now names the slowest phase, so the next paste is
+        -- an answer rather than a question.
+        local phases, pMark = {}, t0
+        local function phase(name)
+            local t = hs.timer.secondsSinceEpoch()
+            phases[name] = (phases[name] or 0) + (t - pMark)
+            pMark = t
+        end
 
         -- 0. The stacking order, from CoreGraphics alone: id -> rank,
         -- front-to-back, current desktop only. pcall'd and optional —
@@ -234,9 +250,13 @@ function M.setup(core)
             local ids = (hs.window._orderedwinids and hs.window._orderedwinids()) or {}
             for i, id in ipairs(ids) do zorder[id] = i end
         end)
+        phase("zorder")
 
         local seq = 0
-        local function add(w, remembered)
+        -- appName (6.156.0): the sweep knows which app it asked, so the
+        -- entry carries the name and the owners pass below never has to
+        -- ask AX for it again.
+        local function add(w, remembered, appName)
             local okId, id = pcall(function() return w:id() end)
             if not (okId and id) or seenWin[id] then return end
             local okStd, standard = pcall(function() return w:isStandard() end)
@@ -248,7 +268,8 @@ function M.setup(core)
             seenWin[id] = true
             seq = seq + 1
             table.insert(entries, { win = w, id = id, rank = zorder[id],
-                                    seq = seq, remembered = remembered })
+                                    seq = seq, remembered = remembered,
+                                    appName = appName })
         end
 
         local skip = {}
@@ -286,6 +307,7 @@ function M.setup(core)
                 local ordered = first
                 for _, a in ipairs(second) do table.insert(ordered, a) end
                 for _, a in ipairs(rest)   do table.insert(ordered, a) end
+                phase("apps")
 
                 local t1 = hs.timer.secondsSinceEpoch()
                 for _, a in ipairs(ordered) do
@@ -305,7 +327,7 @@ function M.setup(core)
                     local okW, appWins = pcall(function() return a.app:allWindows() end)
                     if okW then
                         for _, w in ipairs(appWins or {}) do
-                            add(w, false)
+                            add(w, false, a.name)
                             -- Feed the memory: any id add() accepted
                             -- (now or earlier this pass) is a real,
                             -- standard window worth remembering. `at` is
@@ -330,6 +352,7 @@ function M.setup(core)
                 _G.diag.warn("altTab", "per-application listing failed: " .. tostring(appErr))
             end
         end
+        phase("sweep")
 
         -- 1b. HAMMERSPOON'S OWN CONSOLE (6.147.0 — LL: "Can I use
         -- alt+tab to land on the Hammerspoon console?"). It slips the
@@ -352,8 +375,10 @@ function M.setup(core)
             end
             seenWin[id] = true
             seq = seq + 1
-            table.insert(entries, { win = cw, id = id, rank = zorder[id], seq = seq })
+            table.insert(entries, { win = cw, id = id, rank = zorder[id], seq = seq,
+                                    appName = "Hammerspoon" })
         end)
+        phase("console")
 
         -- 2. THE MEMORY — windows this function listed before that the
         -- sweep no longer reports: parked on another desktop, or owned
@@ -424,12 +449,14 @@ function M.setup(core)
                         seq = seq + 1
                         remembered = remembered + 1
                         table.insert(entries, { win = k.win, id = id,
-                                                seq = seq, remembered = true })
+                                                seq = seq, remembered = true,
+                                                appName = k.name })
                     end
                 end
             end
             probeSecs = hs.timer.secondsSinceEpoch() - p0
         end
+        phase("memory")
 
         -- Which apps already own a listed window? Worked out from the
         -- ENTRIES, not from how many each app contributed: an app whose
@@ -437,22 +464,30 @@ function M.setup(core)
         -- sweep, and counting that as "has no windows" would give it a
         -- second, bogus "no open window" tile. The same pass records
         -- which apps had a VISIBLE window (rank = this desktop) — next
-        -- press's sweep asks them first. One application()+name() per
-        -- entry; these used to be two separate loops paying it twice.
+        -- press's sweep asks them first.
+        -- 6.156.0 — NO AX HERE ANY MORE. This used to ask application()
+        -- and name() of every entry, two round trips each, outside every
+        -- timer: the likeliest home of LL's unexplained 1.6s. Every entry
+        -- now arrives knowing its app's name (the sweep asked that app;
+        -- the memory remembered it; the console is Hammerspoon), and AX
+        -- is asked only for an entry that somehow does not.
         local lastHere = {}
         for _, e in ipairs(entries) do
-            if e.win then
+            local n = e.appName
+            if not n and e.win then
                 local okA, a = pcall(function() return e.win:application() end)
                 if okA and a then
-                    local okN, n = pcall(function() return a:name() end)
-                    if okN and n then
-                        withWindows[n] = true
-                        if e.rank then lastHere[n] = true end
-                    end
+                    local okN, nm = pcall(function() return a:name() end)
+                    if okN then n = nm end
                 end
+            end
+            if n then
+                withWindows[n] = true
+                if e.rank then lastHere[n] = true end
             end
         end
         altTab.lastHere = lastHere
+        phase("owners")
 
         -- Front-to-back for what is on this desktop (the CG ranks), then
         -- everything unranked — minimised, other desktops — in the order
@@ -478,12 +513,19 @@ function M.setup(core)
             end
         end
 
+        phase("tail")
         local elapsed = hs.timer.secondsSinceEpoch() - t0
+        local slowPhase, slowPhaseSecs = "none", 0
+        for k, v in pairs(phases) do
+            if v > slowPhaseSecs then slowPhase, slowPhaseSecs = k, v end
+        end
         _G.diag.say("altTab", string.format(
-            "listed %d entries in %.3fs (%d apps, %d remembered — %d probed in %.2fs%s%s)",
+            "listed %d entries in %.3fs (%d apps, %d remembered — %d probed in %.2fs%s%s"
+            .. ", slowest phase: %s %.2fs)",
             #entries, elapsed, #appsSeen, remembered, probed, probeSecs,
             truncated and ", BUDGET SPENT" or "",
-            slowestApp and string.format(", slowest: %s %.2fs", slowestApp, slowestTime) or ""))
+            slowestApp and string.format(", slowest: %s %.2fs", slowestApp, slowestTime) or "",
+            slowPhase, slowPhaseSecs))
         if truncated then
             -- The budget died inside the sweep, so there is a culprit
             -- worth naming and skipApps is advice that helps. (The
@@ -498,16 +540,19 @@ function M.setup(core)
             -- 6.153.0 — the line now accounts for the MEMORY too. LL's
             -- "1.64s across 13 apps (slowest: 0.01s)" was unanswerable
             -- precisely because the probes ran outside every timer.
+            -- 6.156.0 — and for the PHASE, so a slow press names where
+            -- the time went even when no app and no probe took it.
             print(string.format(
                 "🔄 Window switcher: listing took %.2fs across %d apps (slowest: %s %.2fs"
-                .. " · memory: %d probed in %.2fs)",
+                .. " · memory: %d probed in %.2fs · slowest phase: %s %.2fs)",
                 elapsed, #appsSeen, tostring(slowestApp), slowestTime,
-                probed, probeSecs))
+                probed, probeSecs, slowPhase, slowPhaseSecs))
         end
         _G.altTabLastListing = {
             seconds = elapsed, apps = #appsSeen, entries = #entries,
             remembered = remembered, probed = probed, probeSecs = probeSecs,
             truncated = truncated, slowestApp = slowestApp, slowestTime = slowestTime,
+            phases = phases, slowPhase = slowPhase, slowPhaseSecs = slowPhaseSecs,
         }
 
         while #entries > altTab.maxWindows do table.remove(entries) end

@@ -105,6 +105,34 @@ function M.setup(core)
     chrome.maxTotal  = 60000      -- archive rows kept in all, newest first
     chrome.staleSecs = 6 * 3600   -- ⇪Y quietly re-exports past this age
     chrome.showRows  = 40         -- results the picker holds per keystroke
+    -- 📜 6.156.0 — LL: "can you show more than nine cmd+{number}? I'd
+    -- like a scrollable list of at least 30 days." The empty box used to
+    -- hold the newest showRows pages; it now holds EVERYTHING from the
+    -- last listDays (never fewer than showRows), up to listMax rows —
+    -- hs.chooser scrolls, and ⌘1–⌘9 are macOS's own shortcuts for the
+    -- first nine rows, which cannot be extended. A typed search still
+    -- returns the best showRows.
+    chrome.listDays   = 30
+    chrome.listMax    = 3000
+    chrome.pickerRows = 16        -- rows visible at once
+    -- 🙈 6.156.0 — LL: "Can you remove entries that are just logins? I
+    -- don't need those." A page whose URL contains one of these (plain
+    -- text, case-insensitive), or whose title STARTS like one of the
+    -- title patterns, is left out of the picker — and only the picker:
+    -- the archive keeps every row, so chrome.hideLogins = false brings
+    -- them back without an export. The placeholder counts what is hidden.
+    chrome.hideLogins    = true
+    chrome.loginPatterns = {
+        "login.", "/login", "/signin", "/sign-in", "/sign_in", "/logout",
+        "/auth/", "/oauth", "/sso/", "/saml", "wsignin", "/password",
+        "/2fa", "/mfa", "/otp/", "accounts.google.com", "login.live.com",
+        "login.microsoftonline.com", "okta.com", "auth0.com", "/authorize",
+    }
+    chrome.loginTitles = {           -- Lua patterns, matched at the start
+        "^sign in", "^signin", "^log in", "^login$", "^login [%-|:–—]",
+        "^login to ", "^sign%-in", "^authenticat", "^verify it",
+        "^two%-factor", "^2%-step",
+    }
     local home = core.homeDir or os.getenv("HOME") or "~"
     chrome.chromeDir = home .. "/Library/Application Support/Google/Chrome"
     chrome.extraDbs  = {}         -- e.g. { { label = "Brave", path = home ..
@@ -699,6 +727,47 @@ printf 'finished cleanly\n' >> "$pf"
         return total
     end
 
+    -- 🙈 Is this row a login page? Judged by URL (plain finds, C-speed)
+    -- and by the start of the title (anchored patterns of ours).
+    function chrome.isLogin(e)
+        local u = tostring(e.url or ""):lower()
+        for _, p in ipairs(chrome.loginPatterns or {}) do
+            if u:find(p, 1, true) then return true end
+        end
+        local t = tostring(e.title or ""):lower()
+        for _, p in ipairs(chrome.loginTitles or {}) do
+            if t:find(p) then return true end
+        end
+        return false
+    end
+
+    -- The picker's view of the archive: logins out (when hideLogins),
+    -- counted in chrome.hiddenLogins. Cached on the entries table's
+    -- identity and length, so a keystroke costs one table walk, not
+    -- twenty plain finds per row.
+    chrome.hiddenLogins = 0
+    function chrome.visible()
+        local src = chrome.entries
+        local c = chrome.visCache
+        if c and c.src == src and c.n == #src and c.hide == chrome.hideLogins then
+            chrome.hiddenLogins = c.hidden
+            return c.list
+        end
+        local list, hidden = {}, 0
+        if chrome.hideLogins then
+            for _, e in ipairs(src) do
+                if chrome.isLogin(e) then hidden = hidden + 1
+                else list[#list + 1] = e end
+            end
+        else
+            for i, e in ipairs(src) do list[i] = e end
+        end
+        chrome.visCache = { src = src, n = #src, hide = chrome.hideLogins,
+                            list = list, hidden = hidden }
+        chrome.hiddenLogins = hidden
+        return list
+    end
+
     function chrome.search(query)
         local words, patterns = {}, {}
         for w in tostring(query or ""):lower():gmatch("%S+") do
@@ -706,14 +775,21 @@ printf 'finished cleanly\n' >> "$pf"
             patterns[#patterns + 1] = seqPattern(w)
         end
         local out = {}
+        local pool = chrome.visible()
         if #words == 0 then
-            for i = 1, math.min(#chrome.entries, chrome.showRows) do
-                out[#out + 1] = chrome.entries[i]
+            -- newest first already: everything inside listDays, never
+            -- fewer than showRows, never more than listMax
+            local cutoff = epoch() - (chrome.listDays or 0) * 86400
+            for i = 1, #pool do
+                local e = pool[i]
+                if #out >= (chrome.listMax or 3000) then break end
+                if #out >= chrome.showRows and (e.ts or 0) < cutoff then break end
+                out[#out + 1] = e
             end
             return out
         end
         local scored = {}
-        for idx, e in ipairs(chrome.entries) do
+        for idx, e in ipairs(pool) do
             local s = chrome.score(e, words, patterns)
             -- idx breaks ties: entries are newest-first, so equal scores
             -- surface this morning's page above last month's
@@ -819,7 +895,7 @@ printf 'finished cleanly\n' >> "$pf"
             _G.choosers = _G.choosers or {}
             _G.choosers.chromeHistory = c
             pcall(function()
-                c:rows(12)
+                c:rows(chrome.pickerRows or 12)
                 c:width(48)
                 c:searchSubText(false)   -- we filter for ourselves below
                 c:queryChangedCallback(function(query)
@@ -832,11 +908,14 @@ printf 'finished cleanly\n' >> "$pf"
         pcall(function()
             local altName = tostring(chrome.altBrowser or ""):match("[^.]+$")
                             or "other"
-            chrome.chooser:placeholderText(#chrome.entries
+            local first = choicesFor(chrome.search(""))
+            chrome.chooser:placeholderText(#chrome.visible()
                 .. " pages, " .. tostring(chrome.days) .. " days — ⏎ opens · ⌥⏎ "
-                .. altName .. " · ⌘⏎ copies")
+                .. altName .. " · ⌘⏎ copies"
+                .. (chrome.hiddenLogins > 0
+                    and (" · " .. chrome.hiddenLogins .. " logins hidden") or ""))
             chrome.chooser:query("")
-            chrome.chooser:choices(choicesFor(chrome.search("")))
+            chrome.chooser:choices(first)
             -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the
             -- LAST picker's coordinates standing in _G.lastPopupPlacement,
             -- and window_move computes its grab box from that record. It

@@ -400,7 +400,9 @@ function M.setup(core)
         local rect = { x = x, y = y, w = w, h = h }
         local chars = #text
         local rawLines = select(2, text:gsub("\n", "")) + 1
-        local head = string.format("📋 %s  ·  %d char%s  ·  %d line%s%s",
+        -- 6.156.0 — another picker's rows may bring their own header
+        -- (the snippet picker names the trigger and the collection)
+        local head = entry.head or string.format("📋 %s  ·  %d char%s  ·  %d line%s%s",
             tostring(entry.when or ""), chars, chars == 1 and "" or "s",
             rawLines, rawLines == 1 and "" or "s",
             chars > clip.previewMaxChars
@@ -863,6 +865,14 @@ function M.setup(core)
     core.provide("clipboard.add",   function(t) return clip.add(t)   end)
     core.provide("clipboard.save",  function()  return clip.save()   end)
     core.provide("clipboard.count", function()  return #_G.clipboardCache end)
+    -- 👁 6.156.0 — THE PANE IS A SERVICE. Any picker whose rows carry a
+    -- rawText (and, optionally, a head line) can have the same pane beside
+    -- it: hand over the chooser and a function returning the rows AS SHOWN
+    -- (the caller must do its own filtering, so row indexes match). One
+    -- pane at a time — the second opener closes the first.
+    core.provide("preview.open",    function(ch, rowsFn) return clip.previewOpen(ch, rowsFn) end)
+    core.provide("preview.suspend", function() clip.previewSuspend() return true end)
+    core.provide("preview.close",   function() clip.previewClose()   return true end)
 
     -- ⏱ THE FILE IS READ IN warm(), NOT setup(). It can be a megabyte and
     -- it is on the boot path otherwise. Copies made in the ~2 seconds

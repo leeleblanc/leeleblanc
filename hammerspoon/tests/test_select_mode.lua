@@ -367,6 +367,33 @@ check("...and it reaches the engine through the registry instead",
       and iCode:find('ocr%.image') ~= nil)
 
 -- =====================================================================
+-- 🗑 6.156.0 — ⇪L (⌃⌥⌘L), the Asana picker, has select mode too. LL:
+-- "Can we use the Asana hyper+L to also select and delete tasks in bulk
+-- or one line?" Pinned to init.lua's source, like the rest of this suite.
+local asanaDel = iCode:match("_G%.asanaSelect%.delete = function(.-)\nend") or ""
+check("⇪L: the Asana picker grew select mode — a switch-on row, ✓ tags, a 🗑 row",
+      iCode:find("selectStart = true", 1, true) ~= nil
+      and iCode:find("deleteTagged = true", 1, true) ~= nil
+      and iCode:find('sel.tagged[c.gid] and "✓ "', 1, true) ~= nil)
+check("...⌥⏎ on one row deletes just that one",
+      iCode:find("mods.alt and choice.gid", 1, true) ~= nil)
+check("🚨 deleting ASKS FIRST — the confirmation precedes the request", (function()
+    local a = asanaDel:find("hs.dialog.blockAlert", 1, true)
+    local b = asanaDel:find('"DELETE"', 1, true)
+    return a ~= nil and b ~= nil and a < b
+end)())
+check("...through hs.http.asyncRequest with the token in a HEADER, never a shell",
+      asanaDel:find("hs.http.asyncRequest", 1, true) ~= nil
+      and asanaDel:find("Bearer", 1, true) ~= nil
+      and asanaDel:find("hs.execute", 1, true) == nil
+      and asanaDel:find("hs.task", 1, true) == nil)
+check("...one task at a time, and the trash's 30 days are named",
+      asanaDel:find("local function step", 1, true) ~= nil
+      and asanaDel:find("30 days", 1, true) ~= nil)
+check("...and a fresh fetch clears stale ✓ marks",
+      iCode:find("_G.asanaSelect.on, _G.asanaSelect.tagged = false, {}   -- a fresh list", 1, true) ~= nil)
+
+-- =====================================================================
 io.open = realIoOpen
 out(string.format("\n── test_select_mode: %d passed, %d failed\n", pass, fail))
 if fail > 0 then

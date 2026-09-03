@@ -638,6 +638,78 @@ r = chrome.search("")
 check("empty query lists the newest pages", #r >= 1 and r[1].ts == 9000)
 
 -- =======================================================================
+out("5b) 6.156.0 — logins stay out of the picker; the empty box holds 30 days\n")
+-- =======================================================================
+-- LL: "Can you remove entries that are just logins? I don't need those.
+-- And can you show more than nine cmd+{number}? I'd like a scrollable
+-- list of at least 30 days."
+local sixPages = {}
+for i, e in ipairs(chrome.entries) do sixPages[i] = e end
+local NOWTS = 1000                 -- the stub clock
+-- the shape finish() gives every ingested row (hay/titleLen feed the scorer)
+local function mk(url, title, ts, visits)
+    return { url = url, title = title, ts = ts, visits = visits or 1,
+             profile = "Default", when = "", titleLen = #title,
+             hay = (title .. " " .. url):lower() }
+end
+chrome.entries = {
+    mk("https://login.live.com/login.srf?wa=wsignin1.0", "Continue", NOWTS - 100, 5),
+    mk("https://accounts.google.com/signin/v2/identifier", "Sign in - Google Accounts", NOWTS - 200, 5),
+    mk("https://work.example.com/wiki/Sessions", "Login procedures wiki", NOWTS - 300, 5),
+    mk("https://mail.google.com/mail/u/0", "Inbox (3) - Gmail", NOWTS - 400, 99),
+    mk("https://shop.example.com/cart", "Sign in to continue", NOWTS - 500, 1),
+}
+r = chrome.search("")
+check("login pages are gone from the empty-box list — by URL (login.live.com, "
+      .. "accounts.google.com) and by a title that starts 'Sign in'",
+      #r == 2 and r[1].url:find("wiki", 1, true) and r[2].url:find("mail.google", 1, true),
+      #r)
+check("…a page ABOUT logins is not a login (the pattern is the URL, not the word)",
+      r[1] and r[1].title == "Login procedures wiki")
+check("…and they are counted", chrome.hiddenLogins == 3, chrome.hiddenLogins)
+r = chrome.search("sign")
+check("a search does not find them either", #r == 0, #r)
+chrome.hideLogins = false
+r = chrome.search("")
+check("chrome.hideLogins = false brings every row back — no export needed",
+      #r == 5 and chrome.hiddenLogins == 0, #r)
+chrome.hideLogins = true
+check("the placeholder says how many are hidden", (function()
+    chrome.show()
+    local P = CHOOSERS[1]
+    return P and tostring(P.placeholder):find("2 pages", 1, true) ~= nil
+       and tostring(P.placeholder):find("3 logins hidden", 1, true) ~= nil
+end)(), CHOOSERS[1] and CHOOSERS[1].placeholder)
+-- the empty box: 30 days, not 40 rows
+local many = {}
+for i = 1, 240 do
+    -- two pages a day, newest first, 120 days back: 62 inside 30 days
+    many[i] = mk("https://day.example.com/" .. i, "Day " .. i,
+                 NOWTS - math.floor((i - 1) / 2) * 86400)
+end
+chrome.entries = many
+r = chrome.search("")
+check("the empty box holds every page from the last chrome.listDays (30), "
+      .. "not the newest showRows (40)", #r >= 60 and #r <= 62, #r)   -- the stub
+      -- clock sits a few seconds past NOWTS, so the day-30 pair may fall either side
+local few = {}
+for i = 1, 3 do few[i] = mk("https://x.example.com/" .. i, "X " .. i, NOWTS - 200 * 86400) end
+chrome.entries = few
+r = chrome.search("")
+check("…old pages still list when that is all there is", #r == 3, #r)
+chrome.entries = many
+chrome.listDays = 2
+r = chrome.search("")
+check("…and never fewer than showRows, even past the window", #r == 40, #r)
+chrome.listDays = 30
+chrome.listMax = 10
+r = chrome.search("")
+check("chrome.listMax caps the empty box for the chooser's sake", #r == 10, #r)
+chrome.listMax = 3000
+check("the picker is taller now (chrome.pickerRows rows)", chrome.pickerRows == 16)
+chrome.entries = sixPages
+
+-- =======================================================================
 out("6) the picker — one chooser, our filter, ⏎ reopens in Chrome\n")
 -- =======================================================================
 check("⇪Y shows the picker", chrome.show() == true and #CHOOSERS == 1)

@@ -4,8 +4,36 @@
 -- =====================================================================
 -- 09-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.155.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.156.0
 -- =====================================================================
+
+-- NEW IN 6.156.0 — ⇪Y WITHOUT THE LOGINS · ⇪⇧T SHOWS WHAT IS IN IT · ⇪L
+-- DELETES · THE ⌘-DRAG THAT DID NOTHING · ⌥TAB'S PHASES:
+--   🙈 ⇪Y — "remove entries that are just logins": a URL matching
+--      chrome.loginPatterns or a title that starts like a login page
+--      stays out of the picker (the archive keeps it; chrome.hideLogins
+--      = false shows all); the placeholder counts the hidden. "A
+--      scrollable list of at least 30 days": the empty box holds
+--      everything inside chrome.listDays (30), sixteen rows tall.
+--   👁 ⇪⇧T — "show what is in the snippet collection": the ⇪V pane is a
+--      service now (preview.open / suspend / close) and follows this
+--      picker — a snippet's whole text, a heading's full list; ⏎ on a
+--      heading re-opens the picker on that collection alone. Filtering
+--      moved into the module (the pane needs the rows on screen), and
+--      a snippet's TEXT is searchable for the first time.
+--   🗑 ⇪L — "select and delete tasks in bulk or one line": select mode
+--      (☑️ row, ✓ tags, 🗑 row) and ⌥⏎ on one row; both ask first;
+--      DELETE /tasks/{gid} one at a time, token in the header; Asana's
+--      trash keeps them 30 days.
+--   🧲 ⌘-DRAG "doesn't seem to work" — the guess: the drag engine polled
+--      checkMouseButtons(), and the mouse-down a picker drag CONSUMES
+--      can read as "released" on the first tick. The events drive the
+--      drag now (a dragged + up tap; the poll only as fallback); every
+--      drag is recorded, and one that moved nothing says so in the
+--      Console. _G.windowMoveReport() has the record.
+--   ⏱ ⌥TAB — "listing took 1.64s … slowest 0.00s · memory 0": every
+--      phase is timed and the slow line names the slowest; the owners
+--      pass no longer asks AX for each window's app (the sweep knew).
 
 -- NEW IN 6.155.0 — WORDS ON EVERY SCREENSHOT · THE PANE RIDES A MOVED
 -- PICKER · TWO CONSOLE LINES ANSWERED:
@@ -141,77 +169,10 @@
 --      completed took ~29s (copying the History databases dominates).
 --      The watchdog now fires at 120s, for the genuine hang only.
 
--- NEW IN 6.152.0 — NINE ASKS IN ONE PASS: ⌥TAB'S MEMORY AND SPEED ·
--- THE PAUSE KEY · THE POMODORO LOG · ⇪T'S DETAILS · THREE BUGS DEAD:
---   🧠 ⌥TAB REMEMBERS OTHER DESKTOPS. The truth 6.151.0 missed: macOS's
---      Accessibility API returns an app's MINIMISED windows but simply
---      omits windows parked on another desktop — LL's sweep asked
---      Chrome, Chrome answered in 0.00s, and the Desktop-2 window was
---      not in the answer. The private APIs that can enumerate other
---      Spaces return "a lot of false positives" by their own docs, so
---      the fix is a MEMORY: every window a press lists is remembered,
---      the AX handle stays valid after its Space stops being
---      enumerated, and remembered windows the sweep no longer sees are
---      probed (dead ones forgotten) and shown as tiles — selecting one
---      rides the app activation across desktops. One ⌥Tab on a desktop
---      teaches it, per reload.
---   ⚡ AND IT IS FASTER: the old phase 1 (hs.window.orderedWindows) was
---      the SAME per-app sweep run a second time internally, just to
---      learn the stacking order — 1.6s on this Air, every press, per
---      LL's console. The order now comes from the raw CoreGraphics id
---      list (milliseconds); the budgeted sweep runs ONCE.
---   ⏸ PAUSE HAMMERSPOON — ⇪⇧1, the first spend from the 6.142.0 free
---      row (LL: "Can I pause Hammerspoon using an empty key from my
---      Cheat Sheet?"). One press: every other ⇪ shortcut goes quiet
---      (honoured centrally in hyperBind) and autocorrect, the expander
---      and the key caster pass keystrokes through untouched. A ⏸ HS
---      menu-bar flag stands while paused — press again, or click it,
---      to resume. Trackers and timers keep running: pause means "out
---      of my keyboard", not "stop keeping my logs".
---   🍅 THE POMODORO GROWS UP: 20% bigger (one pom.scale knob, type
---      included); FAINT at 30% opacity until it matters — solid 90%
---      for the last five minutes, under the mouse (instantly, off
---      again on leave), and whenever it flashes or asks. And it KEEPS
---      A LOG: every launch and every completed 25 minutes lands in
---      pomodoro_log-<Mac>.csv (date,time,event,detail); the 4:30
---      workday end shows the day's tally, Fridays add the week table,
---      _G.pomodoroReport() answers any time.
---   ✅ ⇪T LEARNS THE DETAILS: optional Start/End date AND time (Asana's
---      rules enforced before the request — a start needs an end, times
---      come in pairs), plus the PROJECT'S OWN custom fields — ACD
---      Strategic Principle, SAC Values, Task Priority, Progress,
---      Supervisor — fetched from Asana at boot with their live option
---      lists, rendered as dropdowns (multi-selects included), sent as
---      custom_fields. Edit a dropdown in Asana and ⇪T has it on the
---      next reload; the pipe chooser's four-string call is untouched.
---   🗂 TAB SEARCH NEVER WORKED, AND NOW DOES: the Safari branch of the
---      scan script lacked `using terms from` — the bare word `tab`
---      parsed as AppleScript's tab-character constant and the WHOLE
---      script failed to compile ("osascript exited 1: 577:579", LL's
---      ⛔ errors section) on every press, while the alert blamed
---      Automation permission. Both scripts borrow Safari's dictionary
---      now. (⇪⇧' still needs the Automation grant, once per browser —
---      for real this time.)
---   🕘 THE ⇪Y HANG, SOLVED AT THE ROOT: every kill died at "querying
---      Default" because sqlite3 wrote megabytes of JSON into a pipe
---      whose 64 KB buffer is only read at task exit — the child blocks,
---      the task never exits, the watchdog kills it, forever. The rows
---      travel by FILE now; stdout carries two marker lines a profile.
---   🆓 THE ⇪⇧pad WINDOW MAP IS CLEARED — LL: those rows "should just
---      say: 'Key available for use'". They do; the zones stay one
---      claimed line away, and ⇪arrows still cover halves/maximise/
---      put-back/monitors.
---   🧲 WINDOW MOVE IS RETITLED "PANEL MOVE" — it moves HAMMERSPOON'S
---      panels and pickers, not your apps' windows; the old name is why
---      it read as a twin of the Window Arranger.
---   🐛 AND THE CRASH OFF THE CONSOLE: window_return's slow-app warning
---      fed a float to %d — "number has no integer representation",
---      once per snapshot cycle. Floored.
-
--- (6.151.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.152.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.155.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.156.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -556,7 +517,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.155.0"
+_G.configVersion = "6.156.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2445,6 +2406,10 @@ local asanaCaps = {
 
 local isAsanaFetching     = false
 local asanaDashboardMode  = "open"   -- "open" or "comment"
+-- 🗑 6.156.0 — the picker's select mode (see _G.asanaSelect.rows below);
+-- a global rather than a local because this file is near the 200-local
+-- ceiling. on/tagged = the state, master = the last fetched list.
+_G.asanaSelect = { on = false, tagged = {}, master = nil }
 
 -- ---- COLOR LEGEND STRIP — pills above the task list ------------------
 -- hs.chooser can't draw a footer inside its own window, so the legend
@@ -2593,6 +2558,7 @@ end
 local function fetchAsanaDashboard(mode)
     if not requireAsana() then return end
     asanaDashboardMode = mode or "open"
+    _G.asanaSelect.on, _G.asanaSelect.tagged = false, {}   -- a fresh list, no stale ✓
     asanaLegendHide()   -- clear any stale strip from a previous open
 
     if isAsanaFetching then
@@ -2723,6 +2689,35 @@ local function fetchAsanaDashboard(mode)
                         hs.alert.show("⚠️ No task ID found for this row")
                     end
                 else
+                    -- 🗑 6.156.0 — SELECT MODE and the delete verbs, before
+                    -- the open. The rows are the ones _G.asanaSelect.rows
+                    -- built; every branch that keeps the picker up calls
+                    -- reshow(), which re-opens it with the ✓ marks kept.
+                    local sel = _G.asanaSelect
+                    if choice.selectStart then
+                        sel.on, sel.tagged = true, {}
+                        sel.reshow(); return
+                    elseif choice.selectStop then
+                        sel.on, sel.tagged = false, {}
+                        sel.reshow(); return
+                    elseif choice.deleteTagged then
+                        local list = {}
+                        for _, c in ipairs(sel.master or {}) do
+                            if sel.tagged[c.gid] then table.insert(list, c) end
+                        end
+                        sel.delete(list); return
+                    end
+                    if sel.on and choice.gid then
+                        if sel.tagged[choice.gid] then sel.tagged[choice.gid] = nil
+                        else sel.tagged[choice.gid] = true end
+                        sel.reshow(); return
+                    end
+                    -- ⌥⏎ on one row: delete just that task (asks first)
+                    local mods = {}
+                    pcall(function() mods = hs.eventtap.checkKeyboardModifiers() or {} end)
+                    if mods.alt and choice.gid then
+                        sel.delete({ choice }); return
+                    end
                     -- 🚀 OPEN MODE: open the task in the browser
                     if choice.url then
                         hs.urlevent.openURL(choice.url)
@@ -2734,14 +2729,112 @@ local function fetchAsanaDashboard(mode)
 
         local placeholder = (asanaDashboardMode == "comment")
             and "💬 Pick a task to comment on…"
-            or  "Filter your current priority tasks..."
+            or  "Filter your current priority tasks… (⌥⏎ deletes one)"
 
-        _G.choosers.asana:choices(masterChoicesList)
+        _G.asanaSelect.master = masterChoicesList
+        local rows = _G.asanaSelect.rows(masterChoicesList)
+        _G.choosers.asana:choices(rows)
         _G.choosers.asana:placeholderText(placeholder)
-        _G.choosers.asana:rows(math.min(#masterChoicesList, 10))
+        _G.choosers.asana:rows(math.min(#rows, 10))
         showPopup(_G.choosers.asana)
         asanaLegendShow()
     end)
+end
+
+-- 🗑 6.156.0 — SELECT SEVERAL, DELETE. LL: "Can we use the Asana hyper+L
+-- to also select and delete tasks in bulk or one line?" The picker grows
+-- the clipboard editor's select mode (6.97.0): a "☑️ Select several…"
+-- row switches it on, ⏎ then TAGS rows (✓) and the picker re-opens with
+-- the tags kept, and a "🗑 Delete N selected" row does the deed — after
+-- a confirmation that names the tasks. One line: ⌥⏎ on any row deletes
+-- just that task, same confirmation. The request is DELETE /tasks/{gid}
+-- with the token in the header (never a process argument), one task at a
+-- time; Asana keeps a deleted task in its trash ("Deleted Items") for 30
+-- days, and the dialog says so. These hang off _G.asanaSelect instead of
+-- being new locals: this file is near Lua's 200-local ceiling.
+_G.asanaSelect.rows = function(master)
+    local sel = _G.asanaSelect
+    if asanaDashboardMode ~= "open" then return master end
+    local n = 0
+    for _ in pairs(sel.tagged) do n = n + 1 end
+    local rows = {}
+    if sel.on then
+        if n > 0 then
+            table.insert(rows, {
+                text    = ("🗑 Delete %d selected task%s"):format(n, n == 1 and "" or "s"),
+                subText = "asks first · they go to Asana's trash, restorable for 30 days",
+                deleteTagged = true })
+        end
+        table.insert(rows, { text = "✕ Leave select mode",
+                             subText = "keeps everything as it is", selectStop = true })
+        for _, c in ipairs(master) do
+            table.insert(rows, { text = (sel.tagged[c.gid] and "✓ " or "") .. tostring(c.text),
+                                 subText = c.subText, url = c.url, gid = c.gid })
+        end
+    else
+        table.insert(rows, { text = "☑️ Select several to delete…",
+                             subText = "⏎ tags rows, then 🗑 · ⌥⏎ on any row deletes just that one",
+                             selectStart = true })
+        for _, c in ipairs(master) do table.insert(rows, c) end
+    end
+    return rows
+end
+
+_G.asanaSelect.reshow = function()
+    local sel = _G.asanaSelect
+    if not (_G.choosers.asana and sel.master) then return end
+    local rows = sel.rows(sel.master)
+    _G.choosers.asana:choices(rows)
+    pcall(function() _G.choosers.asana:rows(math.min(#rows, 10)) end)
+    showPopup(_G.choosers.asana)
+    asanaLegendShow()
+end
+
+_G.asanaSelect.delete = function(list)
+    if #list == 0 then
+        hs.alert.show("Nothing picked — press Enter on the rows you want first")
+        return
+    end
+    local names = {}
+    for i = 1, math.min(#list, 8) do
+        names[#names + 1] = "• " .. (tostring(list[i].text):gsub("^✓ ", ""))
+    end
+    if #list > 8 then names[#names + 1] = ("… and %d more"):format(#list - 8) end
+    local button = nil
+    pcall(function()
+        button = hs.dialog.blockAlert(
+            ("Delete %d task%s from Asana?"):format(#list, #list == 1 and "" or "s"),
+            table.concat(names, "\n")
+            .. "\n\nThey go to Asana's trash — restorable from Deleted Items for 30 days.",
+            "Delete", "Cancel")
+    end)
+    if button ~= "Delete" then hs.alert.show("🗑 Nothing deleted") return end
+    local done, failed, i = 0, 0, 0
+    local headers = { ["Authorization"] = "Bearer " .. asanaToken,
+                      ["Accept"] = "application/json" }
+    local function step()
+        i = i + 1
+        local t = list[i]
+        if not t then
+            hs.alert.show(("🗑 Deleted %d task%s%s"):format(done, done == 1 and "" or "s",
+                failed > 0 and (" · %d failed — see the Console"):format(failed) or ""), 4)
+            _G.asanaSelect.on, _G.asanaSelect.tagged = false, {}
+            if done > 0 then fetchAsanaDashboard("open") end
+            return
+        end
+        hs.http.asyncRequest("https://app.asana.com/api/1.0/tasks/" .. tostring(t.gid),
+            "DELETE", nil, headers, function(status, body)
+                if status == 200 then
+                    done = done + 1
+                else
+                    failed = failed + 1
+                    print("🚨 ASANA delete failed for " .. tostring(t.text) .. " — status "
+                          .. tostring(status) .. ": " .. tostring(body):sub(1, 200))
+                end
+                step()
+            end)
+    end
+    step()
 end
 
 -- Dashboard: open task in browser

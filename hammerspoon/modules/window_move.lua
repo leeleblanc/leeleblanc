@@ -165,6 +165,7 @@ function M.setup(core)
                              -- click-hold there drags (6.102.0) — same rule
                              -- as the pad header, so keep it TIGHT: too tall
                              -- and bare clicks on the first row start drags
+    wm.dragMaxSecs  = 30     -- 6.156.0: a drag no mouse-up ever closed ends here
     -- ----------------------------------------------------------------------
 
     local function warn(m) if _G.diag then _G.diag.warn("windowMove", m) end end
@@ -205,10 +206,54 @@ function M.setup(core)
     -- moveFn(x, y) is called with the panel's new TOP-LEFT on every tick;
     -- endFn (optional) runs once when the button is released. One drag at
     -- a time — starting a new one tears the old one down first.
-    function wm.endDrag()
+    --
+    -- 🚨 6.156.0 — THE EVENTS DRIVE THE DRAG; THE BUTTON POLL IS THE
+    -- FALLBACK. LL: "Holding ⌘ and drag from anywhere, from/to anywhere
+    -- doesn't seem to work. And using ⌘shift+arrowkey does seem to work."
+    -- The nudge keys touch none of this engine, so the engine is the
+    -- suspect, and it had one way to fail silently: every tick asked
+    -- hs.eventtap.checkMouseButtons() whether the button was still down
+    -- and ended the drag the first time it said no. That state is read
+    -- from the event system, and the mouse-DOWN that started a picker
+    -- drag is the one event this module CONSUMES (so a ⌘-click on a row
+    -- does not also pick it) — a consumed press that never updates the
+    -- session's button state reads as "released" on the very first tick,
+    -- and the drag ends before it moves anything, with no line anywhere.
+    -- The pad's header drag never consumed its press, which is why one
+    -- could work and the other not. So: a tap on leftMouseDragged and
+    -- leftMouseUp now carries the drag (the HID keeps sending dragged
+    -- events while the button is physically down, whatever the session
+    -- state says), the mouse-UP ends it, and the button poll is used
+    -- only when that tap cannot be made (no Accessibility). Every drag
+    -- is written down — engine, moves, how it ended — for the report,
+    -- and a drag that ends before it moved anything says so in the
+    -- Console, so the next "it doesn't work" comes with its own answer.
+    local function now()
+        local t
+        pcall(function() t = hs.timer.secondsSinceEpoch() end)
+        return tonumber(t) or os.time()
+    end
+
+    wm.lastDrag = nil       -- the record of the most recent drag
+
+    function wm.endDrag(why)
         if wm.dragTimer then
             pcall(function() wm.dragTimer:stop() end)
             wm.dragTimer = nil
+        end
+        if wm.dragTap then
+            pcall(function() wm.dragTap:stop() end)
+            wm.dragTap = nil
+        end
+        local d = wm.lastDrag
+        if d and not d.ended then
+            d.ended = why or "ended"
+            d.secs  = now() - d.at
+            if d.moves == 0 and why ~= "superseded" then
+                print(("🪟 Window Move: the drag ended before anything moved — %s, "
+                       .. "%.2fs in, engine: %s. _G.windowMoveReport() has the record.")
+                      :format(d.ended, d.secs, tostring(d.engine)))
+            end
         end
         local fin = wm.dragEnd
         wm.dragEnd = nil
@@ -221,18 +266,60 @@ function M.setup(core)
             print("🪟 Window Move: cannot read the mouse position — drag unavailable")
             return false
         end
-        wm.endDrag()
+        wm.endDrag("superseded")
         -- Grab offset held constant for the whole drag, so the panel moves
         -- WITH the pointer instead of jumping its corner to it.
         local off = { x = m.x - startTopLeft.x, y = m.y - startTopLeft.y }
         wm.dragEnd = endFn
+        local d = { at = now(), moves = 0, ticks = 0, engine = "timer",
+                    from = { x = m.x, y = m.y }, when = os.date("%H:%M:%S") }
+        wm.lastDrag = d
+        local function follow(p)
+            if d.last and d.last.x == p.x and d.last.y == p.y then return end
+            d.moves = d.moves + 1
+            d.last  = { x = p.x, y = p.y }
+            pcall(moveFn, p.x - off.x, p.y - off.y)
+        end
+        -- The tap: dragged events follow, the mouse-up ends. Never
+        -- consumes — the button is the person's. pcall'd end to end: no
+        -- Accessibility, no tap, and the timer below is the whole engine.
+        pcall(function()
+            local T = hs.eventtap.event.types
+            if not (T.leftMouseDragged and T.leftMouseUp) then return end
+            local tap = hs.eventtap.new({ T.leftMouseDragged, T.leftMouseUp }, function(ev)
+                pcall(function()
+                    if ev:getType() == T.leftMouseUp then
+                        wm.endDrag("mouse up")
+                    else
+                        local p = ev:location()
+                        if p and p.x then follow(p) end
+                    end
+                end)
+                return false
+            end)
+            if tap and pcall(function() tap:start() end) then
+                wm.dragTap = tap       -- HELD for the drag's life
+                d.engine = "tap"
+            end
+        end)
         -- HELD in wm.dragTimer — an unreferenced hs.timer is collected, and
         -- a collected timer never fires. Same rule as every timer here.
         wm.dragTimer = hs.timer.doEvery(wm.tickSecs, function()
-            if not leftButtonDown() then wm.endDrag() return end
+            d.ticks = d.ticks + 1
+            if wm.dragTap then
+                -- the tap owns the ending; the timer only follows, and
+                -- closes a drag whose mouse-up never arrived
+                if now() - d.at > wm.dragMaxSecs then
+                    wm.endDrag("no mouse-up in " .. wm.dragMaxSecs .. "s")
+                    return
+                end
+            elseif not leftButtonDown() then
+                wm.endDrag("button read up")
+                return
+            end
             local p = mousePosition()
-            if not p then wm.endDrag() return end
-            pcall(moveFn, p.x - off.x, p.y - off.y)
+            if not p then wm.endDrag("no mouse position") return end
+            follow(p)
         end)
         return true
     end
@@ -662,6 +749,22 @@ function M.setup(core)
             line("                while a picker was up")
         end
         line("   drag now   : " .. (wm.dragTimer and "IN PROGRESS" or "idle"))
+        if wm.lastDrag then
+            local d = wm.lastDrag
+            line(("   last drag  : %s from %d,%d — engine %s, %d move%s, %d tick%s, %s")
+                 :format(d.when or "?", d.from.x, d.from.y, tostring(d.engine),
+                         d.moves, d.moves == 1 and "" or "s",
+                         d.ticks, d.ticks == 1 and "" or "s",
+                         d.ended and ("ended: " .. d.ended
+                                      .. (d.secs and (" after %.2fs"):format(d.secs) or ""))
+                                 or "still running"))
+            if d.moves == 0 and d.ended then
+                line("                ⚠️ it moved NOTHING — the engine could not follow the hand;")
+                line("                the 'ended' reason above is the whole diagnosis")
+            end
+        else
+            line("   last drag  : none this session")
+        end
         line("")
         line("   ⇪⇧ ← → ↑ ↓ MOVES AN OPEN PICKER — 50 px a tap, hold to walk it,")
         line("   ⇪⇧R resets. That path is keyboard-only and does not use this tap.")
