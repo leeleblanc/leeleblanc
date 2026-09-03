@@ -156,6 +156,23 @@ function M.setup(core)
     exp.excludedApps  = {         -- exact names; expansion never runs here
         "Terminal",
     }
+    -- 📌 6.159.0 — BUILT-IN SNIPPETS. LL: "create all three in this
+    -- build." So they are in the code, not in a Console line: a fresh
+    -- install has them with no packs and no typing — the two date forms
+    -- 6.158.0 taught {date:…}, and the yt-dlp command with the copied
+    -- link quoted in. They are the LOWEST tier: a snippet of yours (Mine,
+    -- an import, a shipped pack) with the same trigger wins, and the load
+    -- says which built-in stood aside. The triggers are spelled to stay
+    -- out of the packs' way — ;d/ and ;d- read as "date, slashes" and
+    -- "date, dashes"; ;mp3 is what you want out of the link. Add a row,
+    -- or empty the table, and reload. { trigger, text, name }.
+    exp.builtin = {
+        { ";d/",  "{date:DD/MM/YYYY}", "Today · DD/MM/YYYY" },
+        { ";d-",  "{date:DD-MM-YYYY}", "Today · DD-MM-YYYY" },
+        { ";mp3", 'yt-dlp -x --audio-format mp3 "{clipboard}"',
+                  "yt-dlp · audio from the copied link" },
+    }
+    exp.builtinSource = "built in"   -- the ⇪⇧T heading they sit under
     -- ----------------------------------------------------------------------
 
     local function say(m)  if _G.diag then _G.diag.say("expander", m)  end end
@@ -460,6 +477,31 @@ function M.setup(core)
                                        problems, chooserOnly)
         end
         scanDir(exp.dir, "snippets", into, problems, chooserOnly, true)
+
+        -- 📌 Built-ins go in LAST and only where nothing else is: the
+        -- packs and everything on disk have had their say, so any trigger
+        -- of yours wins by construction. A shadowed built-in is one
+        -- Console line, not a problem — you meant it.
+        exp.builtinCount, exp.builtinShadowed = 0, {}
+        for _, b in ipairs(exp.builtin or {}) do
+            local trigger, text, name = b[1], b[2], b[3]
+            if type(trigger) == "string" and trigger ~= ""
+               and type(text) == "string" and text ~= "" then
+                if into[trigger] then
+                    exp.builtinShadowed[#exp.builtinShadowed + 1] = trigger
+                    print(string.format("✂️ Text expander: built-in %s stands "
+                        .. "aside — yours (%s) has that trigger", trigger,
+                        tostring(into[trigger].name)))
+                else
+                    into[trigger] = { text = text, name = name or trigger,
+                                      source = exp.builtinSource }
+                    exp.builtinCount = exp.builtinCount + 1
+                end
+            else
+                problems[#problems + 1] = "built in: a row without both a "
+                    .. "trigger and a text was skipped (exp.builtin)"
+            end
+        end
 
         exp.snippets    = into
         exp.chooserOnly = chooserOnly

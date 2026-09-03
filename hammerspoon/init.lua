@@ -4,8 +4,27 @@
 -- =====================================================================
 -- 09-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.158.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.159.0
 -- =====================================================================
+
+-- NEW IN 6.159.0 — THE THREE SNIPPETS SHIP · ⇪⇧; KNOWS WHAT IT MAY END:
+--   📌 LL: "create all three in this build." They are in the code now,
+--      not in a Console line: ;d/ → 03/09/2026, ;d- → 03-09-2026, ;mp3
+--      → yt-dlp -x --audio-format mp3 "<the copied link>". Built-ins sit
+--      UNDER everything of yours — a Mine, import or pack snippet with
+--      the same trigger wins and the load says so — under their own
+--      ⇪⇧T heading. exp.builtin in text_expander.lua is the table.
+--   🔒 "a 'Kill an app' tool that identifies anything running, that I
+--      can kill, but that will not crash my MacBook." ⇪⇧; still lists
+--      every process, and every row now wears its tier, read off the
+--      process's OWNER and PATH: 🖥 ⚙️ yours (apps — Apple's in
+--      /System/Applications included — helpers, shells, scripts,
+--      Homebrew: offered), 🔁 relaunches (Finder, Dock, the menu-bar
+--      agents: offered, launchd brings them back), 🔒 locked (another
+--      user's, or yours but part of macOS — loginwindow, cfprefsd, tccd:
+--      listed with the reason, never ended, not under ⌥, not on a
+--      second pick). Yours first, then 🔁, then 🔒; the placeholder and
+--      _G.killReport() count each. No sudo, ever.
 
 -- NEW IN 6.158.0 — DATES YOUR WAY IN A SNIPPET · ⇪⇧2 TYPES THE CLIPBOARD:
 --   📅 LL: "insert dynamic content: 1. Date in this formats: DD/MM/YYYY
@@ -79,41 +98,10 @@
 --      phase is timed and the slow line names the slowest; the owners
 --      pass no longer asks AX for each window's app (the sweep knew).
 
--- NEW IN 6.155.0 — WORDS ON EVERY SCREENSHOT · THE PANE RIDES A MOVED
--- PICKER · TWO CONSOLE LINES ANSWERED:
---   🏷 ⇪⇧4 — LL: "some of the screenshots have OCR'd thumbnails and
---      others don't have words in the title? Is there a better way we
---      can put words in the title along with the other information?"
---      The word-less rows were another tool's (SCR-20260902-rkdn.png),
---      and nothing named those until ⌘9 was pressed. The folder is
---      WATCHED now: a mechanical, word-less arrival — an SCR- file, or a
---      "Screenshot …" from the other Mac via OneDrive — is OCR'd once it
---      has sat still for shots.watchSettle and renamed "Screenshot <its
---      moment> — <its words>", one shortcuts process at a time, never a
---      file this module wrote (finish() names those) or one the blur
---      editor holds. The ⌘9 row says how many are waiting.
---   🧲 ⇪V — "I can't move it. Should I be able to?" You can: ⌘-drag from
---      anywhere on it, ⇪⇧-arrows nudge it, ⇪⇧R resets, and the spot
---      sticks for the next picker. What did not survive a nudge was
---      6.154.0's preview pane (a nudge is hide + show, and the
---      hideCallback closed the pane for good): it now waits
---      clip.previewGrace for the picker to come back, re-opens at the
---      new spot, and rides a ⌘-drag live.
---   🏷 "⚠️ OCR tag: … a file-reference path macOS would not resolve" —
---      after ⌘C on the unpacked release FOLDER. A folder by reference is
---      a normal miss now (the filesystem is asked what the reference IS
---      before the tagger speaks), and hs.fs.pathFromURL is a second
---      route when realpath comes up empty.
---   🖱 "⚠️ mouseGrid: watchdog fired after 8s — landed badge left open"
---      — because the click that used ⇪X's landing came from the
---      trackpad. A mouse-down tap runs while landed: the click passes
---      through untouched and the badge stops outstaying it
---      (grid.clickEnds = false is the watchdog alone, as before).
-
--- (6.154.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.155.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.158.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.159.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -458,7 +446,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.158.0"
+_G.configVersion = "6.159.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -3137,7 +3125,7 @@ local BASE = {
     -- no key at all, the way the rollup is.
     "menu_search",        -- 🔎 ⇪.  the front app's menus, flattened
     "settings_panes",     -- ⚙️ ⇪,  System Settings, by name
-    "app_kill",           -- 💀 ⇪⇧; end a process, politely then not
+    "app_kill",           -- 💀 ⇪⇧; end a process, politely then not · macOS's own 🔒
     "power_tools",        -- 🧰 ⇪;  type the clipboard · count · grayscale · free keys
     -- 6.132.0 — no key of its own. It owns the six case transforms, and
     -- ⇪; and ⇪R both ask it for them through core.call at the moment you

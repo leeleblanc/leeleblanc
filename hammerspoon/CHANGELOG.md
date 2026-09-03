@@ -4,6 +4,74 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.159.0 — THE THREE SNIPPETS SHIP · ⇪⇧; KNOWS WHAT IT MAY END:
+  📌 LL: "Pick a free key yourself and create all three in this build."
+     The key was ⇪⇧2 (6.158.0); the three were Console lines, and a
+     Console line is a step. So they ship in the code — exp.builtin in
+     text_expander.lua, a { trigger, text, name } table — and a fresh
+     install has them with no packs and nothing typed:
+       ;d/    → 03/09/2026          {date:DD/MM/YYYY}
+       ;d-    → 03-09-2026          {date:DD-MM-YYYY}
+       ;mp3   → yt-dlp -x --audio-format mp3 "<the copied link>"
+     They are the LOWEST tier, on purpose: the packs and everything on
+     disk load first, a built-in goes in only where nothing else has
+     the trigger, and a shadowed one is ONE Console line ("built-in ;d/
+     stands aside — yours (…) has that trigger"), not a problem and not
+     a notice — you meant it. Delete yours and the built-in is back on
+     the next load. ⇪⇧T lists them under their own BUILT IN heading,
+     ranked with the shipped packs, never above your own; the preview
+     pane shows the text like any row. The triggers are spelled to stay
+     out of the packs' way: ;d/ and ;d- read as "date, slashes" and
+     "date, dashes", ;mp3 is what you want out of the link. Terminal is
+     the one app the expander never types into; Ghostty is not.
+  🔒 LL: "I'd like a 'Kill an app' tool that identifies anything
+     running, that I can kill, but that will not crash my MacBook." ⇪⇧;
+     has listed every process since 6.119.0 and refused four names and
+     itself; everything else was allowed "including things you will
+     regret". Four names were never the whole list of what takes a Mac
+     down, and a list of names is what goes stale — so every row is
+     now placed in a tier by two facts ps already reports, the
+     process's OWNER and its PATH, and wears it:
+       🖥 ⚙️  YOURS       runs as you, lives outside macOS's own
+                          folders: apps — Apple's in /System/Applications
+                          included, Terminal is an app — helpers,
+                          shells, scripts, what you installed. Offered.
+       🔁     RELAUNCHES  runs as you, part of macOS, and launchd
+                          starts it again the moment it ends: Finder,
+                          Dock, SystemUIServer, ControlCenter,
+                          NotificationCenter, Spotlight, WindowManager.
+                          Offered and marked — "restart the Dock" is a
+                          real fix. ⏎ asks, ⌥⏎ forces, as ever.
+       🔒     LOCKED      another user's — root's, mostly: macOS would
+                          refuse the kill anyway, and this config never
+                          asks for admin — or yours but part of macOS
+                          (/System/Library, /usr/libexec, /usr/sbin,
+                          /sbin, /Library/Apple: cfprefsd, tccd,
+                          loginwindow …), where ending it can hang the
+                          session or log you out. Listed, with the
+                          reason LEADING the subtitle. Never ended: not
+                          under ⌥, not on a second pick.
+     Yours come first (GUI apps, then hottest), then 🔁, then 🔒; the
+     placeholder counts each ("41 you can end · 6 relaunch · 212
+     locked") and _G.killReport() repeats it with who you are. "Who I
+     am" is read off Hammerspoon's OWN row in the same ps — uid, no
+     extra call, no guess — and the login name is the fallback if that
+     row is ever missing. The four names keep their own reasons and
+     hold whoever owns them: loginwindow is yours by owner and still
+     refused. ak.systemPaths and ak.relaunches are the two tables; the
+     first is spelled without trailing slashes because the diagnostics
+     binary review reads a quoted "/usr/sbin/…" as a program this
+     config runs, and these are compared, never run.
+  ✅ Gate: 6,540 → 6,609 checks (test_app_kill 66 → 124: uid and user
+     parsed, every kind of process in the fixture pinned to its tier by
+     value, the ordering, the badges, the counts, loginwindow/cfprefsd/
+     tccd/mds_stores/coreaudiod refused under ⌥ too, Finder ended both
+     ways, the login-name fallback; test_expander 256 → 267: the three
+     built-ins fire through the tap, a real Mine file wins over one and
+     the Console says so, it comes back when the file goes), 67 stages,
+     lint and the hostile world green, in the tree and inside the
+     package. The zip still carries no snippets/ (see 6.155.0).
+
 NEW IN 6.158.0 — DATES YOUR WAY IN A SNIPPET · ⇪⇧2 TYPES THE CLIPBOARD:
   📅 LL: "How can we build a tool that allows me to insert dynamic
      content: 1. Date in this formats: DD/MM/YYYY and DD-MM-YYYY."

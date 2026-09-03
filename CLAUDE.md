@@ -152,3 +152,9 @@ mirrors draw order: "closes last" IS "drawn under".
   in a snippet; the three `_G.snippetAdd` Console lines in the NEW IN
   block, once (Mine syncs through OneDrive). `{date:…}` knows D, M and Y
   only — no time letters, by design (M would mean minutes too).
+- 6.159.0 verify with LL: ;d/ ;d- ;mp3 expand on a fresh install (they are
+  `exp.builtin`; a pack snippet with the same trigger wins and the Console
+  says "stands aside" — then rename the built-in); ⇪⇧; rows wear 🖥 ⚙️ 🔁
+  🔒 and the 🔒 reason reads right on the work Mac (no admin: root's rows
+  say so). Tiers come from owner + path (`ak.systemPaths`,
+  `ak.relaunches`), never a name list alone — keep it that way.

@@ -350,7 +350,10 @@ check("_G.snippetsList is reachable", type(_G.snippetsList) == "function")
 
 -- =====================================================================
 out("\n=== 2. Reading Alfred's actual format ===\n")
-check("every snippet in all three collections loaded", exp.count == 6, exp.count)
+-- 6.159.0: six from the fixture's collections, plus the three built-ins
+-- the code ships (§8c) — nothing in the fixture shadows them.
+check("every snippet in all three collections loaded, plus the three built in",
+  exp.count == 9 and exp.builtinCount == 3, exp.count)
 check("a ;-prefixed keyword survives verbatim", exp.snippets[";bd"] ~= nil,
   exp.snippets[";bd"])
 check("...with its text", exp.snippets[";bd"].text == "brew doctor")
@@ -697,6 +700,54 @@ do
   check("...and the report now lists the new form among the supported",
     logged("{date:DD/MM/YYYY}"), table.concat(log, " | "))
 end
+
+-- =====================================================================
+out("\n=== 8c. 📌 6.159.0 — built-in snippets, in the build, under yours ===\n")
+-- =====================================================================
+-- LL: "create all three in this build." So a fresh install has them with
+-- no Console line and no packs — and anything of yours with the same
+-- trigger wins, because a built-in is a suggestion, not a claim.
+check("three ship in the code", type(exp.builtin) == "table" and #exp.builtin == 3,
+  #(exp.builtin or {}))
+check("...and all three loaded", exp.builtinCount == 3
+  and exp.snippets[";d/"] ~= nil and exp.snippets[";d-"] ~= nil
+  and exp.snippets[";mp3"] ~= nil, exp.builtinCount)
+check("...under their own ⇪⇧T heading, ranked with the shipped packs, not "
+   .. "above your own", (function()
+    local sec, rank = exp.sectionOf(exp.snippets[";d/"])
+    return sec == "built in" and rank == exp.rankShipped, sec .. "/" .. tostring(rank)
+  end)())
+reset(); typeStr(";d/"); drain()
+check("📅 ;d/ types today with slashes", KEYSTROKES[1] == os.date("%d/%m/%Y"),
+  KEYSTROKES[1])
+reset(); typeStr(";d-"); drain()
+check("📅 ;d- types today with dashes", KEYSTROKES[1] == os.date("%d-%m-%Y"),
+  KEYSTROKES[1])
+reset(); typeStr(";mp3"); drain()
+check("🎬 ;mp3 types the yt-dlp command with the clipboard quoted in",
+  KEYSTROKES[1] == 'yt-dlp -x --audio-format mp3 "clipboard contents"',
+  KEYSTROKES[1])
+-- yours wins — through a REAL file and a real load, the way it happens
+mkdirp(TMP .. "/snippets/Mine")
+snippetFile(TMP .. "/snippets/Mine", "dslash.json", "Mine wins", ";d/", "my own date")
+log = {}
+exp.load()
+check("🚨 a snippet of YOURS with the same trigger wins over the built-in",
+  exp.snippets[";d/"] and exp.snippets[";d/"].text == "my own date"
+  and exp.snippets[";d/"].source ~= "built in",
+  exp.snippets[";d/"] and exp.snippets[";d/"].source)
+check("...the shadowed one is not counted as loaded",
+  exp.builtinCount == 2 and exp.builtinShadowed[1] == ";d/", exp.builtinCount)
+check("...the Console says which built-in stood aside, and for whom",
+  logged("built-in ;d/ stands aside") and logged("Mine wins"),
+  table.concat(log, " | "))
+check("...and that is a line, not a problem — nothing is reported as failing "
+   .. "to load", #(exp.problems or {}) == 0, table.concat(exp.problems or {}, " | "))
+os.remove(TMP .. "/snippets/Mine/dslash.json")
+exp.load()
+check("...and it comes back the moment yours is gone",
+  exp.snippets[";d/"] and exp.snippets[";d/"].source == "built in"
+  and exp.builtinCount == 3, exp.snippets[";d/"] and exp.snippets[";d/"].source)
 
 -- =====================================================================
 out("\n=== 9. Rule 7: everything that fails, says so ===\n")
@@ -1169,7 +1220,8 @@ exp.load()
 local loadMs = (os.clock() - t0) * 1000
 
 out("   -- it all loaded --\n")
-check("all 2,006 triggers loaded from five collections", exp.count == 2006, exp.count)
+check("all 2,006 triggers loaded from five collections (and the three built in)",
+  exp.count == 2006 + 3, exp.count)
 check("nothing failed to load", #(exp.problems or {}) == 0,
   table.concat(exp.problems or {}, " | "):sub(1, 200))
 check("Emoji Pack loaded WITH NO info.plist — a missing plist is a "
