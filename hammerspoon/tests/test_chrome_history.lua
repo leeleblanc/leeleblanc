@@ -299,8 +299,13 @@ check("6.152.1 — rows are one JSON OBJECT PER LINE (json_object), so "
 check("Chrome's hidden redirect noise is filtered", T.args[2]:find("hidden = 0", 1, true))
 check("sqlite path is argument 4", T.args[4] == "/usr/bin/sqlite3", T.args[4])
 local cutoff = tonumber(T.args[6])
-check("cutoff is 90 days back in CHROME's epoch (µs since 1601)",
-      cutoff == (1000 - 90 * 86400 + 11644473600) * 1000000, T.args[6])
+-- 6.154.0 — chrome.days is 180 now; Chrome only ever answers 90 of them,
+-- the archive supplies the rest (§3c). The query asks for the full
+-- window so a Chrome that keeps more than 90 would be taken at its word.
+check("cutoff is chrome.days back in CHROME's epoch (µs since 1601)",
+      cutoff == (1000 - chrome.days * 86400 + 11644473600) * 1000000, T.args[6])
+check("🗄 6.154.0 — the window is 180 days: LL's 'as far back as possible "
+      .. "but not past 180'", chrome.days == 180, chrome.days)
 check("row cap is argument 7", T.args[7] == "20000", T.args[7])
 check("profile labels and paths arrive as PAIRED args",
       T.args[8] == "Default"
@@ -354,6 +359,69 @@ check("6.152.0 — the per-profile JSON files are DELETED after parsing",
     end
     return true
 end)())
+
+-- =======================================================================
+out("3c) 🗄 6.154.0 — the archive keeps what Chrome forgets, to 180 days\n")
+-- =======================================================================
+-- Chrome deletes history at 90 days, so an export is at most 90 deep.
+-- The second 90 come from the previous save: a row the fresh export no
+-- longer contains is carried forward while it is inside chrome.days.
+do
+    local now = 1000
+    local old   = { url = "https://old.site/kept",   title = "Old but kept",
+                    ts = now - 120 * 86400, visits = 3, profile = "Default" }
+    local stale = { url = "https://old.site/gone",   title = "Past 180",
+                    ts = now - 200 * 86400, visits = 3, profile = "Default" }
+    local dup   = { url = "https://gmail.com/inbox", title = "Older copy",
+                    ts = now - 10 * 86400, visits = 1, profile = "Default" }
+    local fresh = { { url = "https://gmail.com/inbox", title = "Inbox - Gmail",
+                      ts = 900, visits = 40, profile = "Default" } }
+    local merged, carried = chrome.mergeArchive(fresh, { dup, old, stale }, now)
+    check("🗄 a row Chrome no longer returns is CARRIED from the archive",
+          carried == 1 and (function()
+        for _, e in ipairs(merged) do
+            if e.url == old.url then return e.archived == true end
+        end
+    end)(), carried)
+    check("…a row past chrome.days is left behind", (function()
+        for _, e in ipairs(merged) do if e.url == stale.url then return false end end
+        return true
+    end)())
+    check("…and a URL the export DID return is not doubled — the fresh row "
+          .. "wins, with its newer visit count", #merged == 2
+          and merged[1].url == "https://gmail.com/inbox" and merged[1].visits == 40,
+          #merged)
+    check("…newest first", merged[1].ts > merged[2].ts)
+    local realCap = chrome.maxTotal
+    chrome.maxTotal = 1
+    local capped = chrome.mergeArchive(fresh, { old }, now)
+    check("…and the whole archive is CAPPED at chrome.maxTotal, newest first — "
+          .. "'without bogging down' was the other half of the ask",
+          #capped == 1 and capped[1].url == "https://gmail.com/inbox", #capped)
+    chrome.maxTotal = realCap
+end
+-- End to end: the previous entries are on the module when an export lands.
+chrome.entries = { { url = "https://archive.site/page", title = "From last time",
+                     ts = 1000 - 100 * 86400, visits = 2, profile = "Default",
+                     when = "2025-01-01 00:00", hay = "from last time", titleLen = 14 } }
+chrome.export()
+T = TASKS[#TASKS]
+T.cb(0, feed({ { "Default",
+    '{"url":"https://gmail.com/inbox","title":"Inbox - Gmail","visits":41,"ts":950}' } }), "")
+check("🗄 an export that lands MERGES the archive: the old page survives "
+      .. "beside the fresh one", #chrome.entries == 2
+      and chrome.entries[2].url == "https://archive.site/page"
+      and chrome.entries[2].archived == true, #chrome.entries)
+check("…the status line says how many were kept",
+      tostring(chrome.status):find("1 kept from the archive", 1, true) ~= nil,
+      chrome.status)
+check("…and the CSV written carries the archived row forward", (function()
+    local f = io.open(chrome.csvFile, "r")
+    if not f then return false end
+    local s = f:read("*a") ; f:close()
+    return s:find("archive.site/page", 1, true) ~= nil
+end)())
+chrome.entries = {}
 
 -- =======================================================================
 out("3b) 6.147.0 — the deadline: a hung export is killed, and says so\n")
@@ -434,7 +502,10 @@ check("6.152.0 — an EMPTY rows file (nothing in the window) is not a warning",
 out("4) the CSV — written on export, quoting round-trips exactly\n")
 -- =======================================================================
 chrome.csvFile = CSV
--- a second export, with data built to stress the quoting
+-- a second export, with data built to stress the quoting.
+-- 6.154.0 — an export MERGES the archive now (§3c), so a section that
+-- counts rows starts from an empty one.
+chrome.entries = {}
 chrome.export()
 TASKS[#TASKS].cb(0, feed({
     { "Default",
@@ -482,6 +553,7 @@ for i = 1, 450 do
     big[i] = '{"url":"https://rows.example/' .. i .. '","title":"row ' .. i
              .. '","visits":1,"ts":' .. (1600100000 - i) .. '}'
 end
+chrome.entries = {}          -- 6.154.0 — exports merge; count from empty
 chrome.export()
 TASKS[#TASKS].cb(0, feed({ { "Default", table.concat(big, "\n") } }), "")
 local queued = false
@@ -520,6 +592,7 @@ local function corpusFeed()
           .. '{"url":"https://abc.example.com/x","title":"alpha beta card","visits":1,"ts":4000}' },
     })
 end
+chrome.entries = {}          -- 6.154.0 — exports merge; count from empty
 chrome.export()
 TASKS[#TASKS].cb(0, corpusFeed(), "")
 check("six pages loaded", #chrome.entries == 6, #chrome.entries)

@@ -4,8 +4,55 @@
 -- =====================================================================
 -- 09-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.153.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.154.0
 -- =====================================================================
+
+-- NEW IN 6.154.0 — SEVEN ASKS: ⇪V SHOWS THE WHOLE ENTRY · ⇪X LANDS ON THE
+-- BUTTON · ⌥TAB IS A ROLODEX · ⇪6 GROWS A REPORT · ⇪Y REACHES 180 DAYS:
+--   👁 ⇪V / ⇪⇧V — LL: "Can the full contents of the clipboard item be
+--      shown as I arrow up/down, or put my mouse cursor on an item?" A
+--      pane beside the picker (right if it fits, else left) shows the
+--      WHOLE entry of the row the arrows or the mouse are on, growing to
+--      the screen's bottom edge and ending in "… N more lines" when it
+--      must. hs.chooser has no selection callback and does not follow
+--      the mouse (HSChooser.m, checked), so a poll that runs only while
+--      a picker is up reads selectedRow() and the row under the pointer.
+--   🎯 ⇪X — "if the grid letters are close to a dialog box or tab, can
+--      we jump the cursor on top of that button? … only if that button
+--      or field is within the box". The third letter hit-tests the cell
+--      (at most five AX questions, each with a timeout, all under 80ms)
+--      and lands ON a control whose centre is inside it; the badge
+--      names it. No Accessibility, an app that answers nothing, a spent
+--      budget: the cell-centre jump exactly as before.
+--   🗂 ⌥TAB — "like a rolladex of tiles": the front card large and
+--      centred, neighbours receding either side, Tab turns the wheel,
+--      ↑↓ turn it five. EVERY window is on it (the wall drew what the
+--      screen held and apologised for the rest); snapshots are taken
+--      as cards come round, not one per window per press. altTab.layout
+--      = "grid" is the old wall.
+--   🩺 ⇪6 — "run multiple commands and build a report that tells us
+--      what is going on": fourteen READ-ONLY questions in one shell run
+--      → a VERDICT naming the first broken link (no IP · no router ·
+--      router silent · internet silent · names fail · captive portal),
+--      saved to Logs/net_report-<Mac>.txt. 🧹 Refresh & verify = the
+--      flush, then the report — nothing disabled, killed or
+--      reconfigured ("we must be very safe"); the DNS race names a
+--      faster resolver and where YOU set it. Plus dig with timing, LAN
+--      devices, interfaces, public IP (by DNS), and a speed test via
+--      Homebrew when it is there. Twelve rows, each describing itself.
+--   🗄 ⇪Y — "as far back in time as possible but not past 180 days":
+--      Chrome forgets at 90; the archive now carries forward what a
+--      fresh export no longer has (by URL, inside chrome.days, capped at
+--      chrome.maxTotal), so the CSV reaches 180 over time.
+--   💾 "Is this a problem?" — "recent_docs-….csv has SHRUNK". No: it is
+--      the ⇪I cache, rewritten whole after every scan. The write ledger
+--      now knows which stores are rewritten (a registry, .json by
+--      nature, the known caches) and stays silent unless one loses more
+--      than half.
+--   👻 POMODORO — "fade both the focus box and the time … more
+--      translucent": alert level 90 → 75%, the card's fill and the
+--      digits translucent copies (cardAlpha / inkAlpha); the flash
+--      keeps its full colours.
 
 -- NEW IN 6.153.0 — ⌥TAB'S HIDDEN 1.5 SECONDS · THE ⇪T WINDOW GROWS UP ·
 -- ⇪Y LEARNS TO COPY:
@@ -150,31 +197,10 @@
 --   📏 ⇪⇧D's listing report grows orderedSecs, so the next paste shows
 --      phase 1's own cost next to the sweep's.
 
--- NEW IN 6.150.0 — THE APP MONITOR ALARM: ONLY ESC DISMISSES IT:
---   🖱 LL: "if click off this tool it stops the alarm. Can we set it so
---      that it will not close until I click escape?" Root cause: the
---      popup is an hs.chooser, and macOS closes a chooser the moment it
---      loses key focus — and that close calls the callback with NIL,
---      byte-for-byte the same nil as pressing Esc. A stray click on any
---      other window read as "acknowledged": the 6.16.21 no-auto-dismiss
---      design, undone by a mouse.
---   ⎋ THE TWO NILS ARE NOW TOLD APART BY THE KEYBOARD: a tiny keyDown
---      tap (running ONLY while a popup waits, observe-only, injection-
---      guarded) records when Esc was last pressed while the popup was
---      actually on screen. Nil with a fresh press = you dismissed it,
---      notification posted as ever. Nil without one = focus theft — a
---      click, ⌘-tab, a dialog — so the SAME question comes back a beat
---      later, and the pings never stopped in between. Enter on a button
---      answers as always; Esc is the one dismissal that counts.
---   🐕 AND THE PING DOUBLES AS A WATCHDOG: if the question is still
---      open but the popup is somehow off screen with no recent Esc to
---      explain it, the next ping re-presents it. The alarm you can hear
---      and the popup you can answer stay one thing.
-
--- (6.149.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.150.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.153.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.154.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -519,7 +545,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.153.0"
+_G.configVersion = "6.154.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

@@ -320,6 +320,66 @@ end
 check("a file that vanished since boot is reported", saidGone,
       table.concat(printed, " | "))
 
+-- =====================================================================
+out("\n=== 5c. 💾 6.154.0 — a REWRITTEN store that shrinks is not a truncation ===\n")
+-- =====================================================================
+-- LL's Console: "recent_docs-Lees-MacBook-Air.csv has SHRUNK — 49.7 KB
+-- at boot, 48.8 KB now. That is either a rotation or a truncation, and
+-- only one of them is fine." Neither: that file is the ⇪I CACHE,
+-- rewritten whole after every Spotlight scan, and it shrinks whenever a
+-- document ages out of the 30-day window. The shrink rule was written
+-- for append-only logs and did not know the difference.
+put(LOGS .. "/recent_docs-TestMac.csv", "path,used,mod\n/a,1,2\n/b,3,4\n/c,5,6\n")
+put(LOGS .. "/custom_store-TestMac.csv", "k,v\n1,2\n3,4\n5,6\n")
+put(CFG  .. "/frames.json", '{"a":1,"b":2,"c":3}')
+_G.rewrittenFiles = { [LOGS .. "/custom_store-TestMac.csv"] = "a store its module registered" }
+wl.takeBaseline()
+put(LOGS .. "/recent_docs-TestMac.csv", "path,used,mod\n/a,1,2\n/b,3,4\n")  -- one aged out
+put(LOGS .. "/custom_store-TestMac.csv", "k,v\n1,2\n3,4\n")
+put(CFG  .. "/frames.json", '{"a":1,"b":2}')
+printed = {}
+problems = wl.check(true)
+check("🚨 the ⇪I cache shrinking a little is NOT a problem — it is known "
+      .. "by name as a store rewritten whole on every save",
+      #problems == 0 and wl.rewrittenWhy(LOGS .. "/recent_docs-TestMac.csv") ~= nil,
+      #problems > 0 and problems[1].text or nil)
+check("…nor a store whose module REGISTERED it in _G.rewrittenFiles",
+      wl.rewrittenWhy(LOGS .. "/custom_store-TestMac.csv") == "a store its module registered")
+check("…nor a .json store — a JSON array cannot be appended to, so every "
+      .. "JSON file here is rewritten from scratch",
+      wl.rewrittenWhy(CFG .. "/frames.json") ~= nil)
+check("🚨 …and NOTHING was printed — the Console line LL asked about is gone",
+      #printed == 0, table.concat(printed, " | "))
+local rep5c = wl.report()
+check("the report says 'rewritten — normal' instead of ⚠️ for it",
+      rep5c:find("rewritten — normal", 1, true) ~= nil, rep5c)
+check("an append-only log is judged exactly as before",
+      wl.rewrittenWhy(LOGS .. "/activity_history-TestMac.csv") == nil)
+-- Losing MORE THAN HALF is the clipboard-history P4 disaster wearing a
+-- different filename, and that is still worth a look — once.
+put(LOGS .. "/recent_docs-TestMac.csv", "path,used,mod\n")
+printed = {}
+problems = wl.check(true)
+check("🚨 …but a rewritten store that LOST MORE THAN HALF is called out",
+      #problems == 1 and #printed == 1
+      and printed[1]:find("MORE THAN HALF", 1, true) ~= nil,
+      table.concat(printed, " | "))
+check("…saying why a smaller file would normally have been fine",
+      printed[1] and printed[1]:find("rewritten", 1, true) ~= nil, printed[1])
+printed = {}
+wl.check(true)
+check("…and once only, like every other finding", #printed == 0,
+      table.concat(printed, " | "))
+check("the service lets a module that loads AFTER the ledger register its file",
+      (function()
+    PROVIDED["writeLedger.rewritten"]("/x/y.csv", "why")
+    return _G.rewrittenFiles["/x/y.csv"] == "why"
+end)())
+os.remove(LOGS .. "/recent_docs-TestMac.csv")
+os.remove(LOGS .. "/custom_store-TestMac.csv")
+os.remove(CFG  .. "/frames.json")
+_G.rewrittenFiles = {}
+
 out("\n=== 6. the report answers the question ===\n")
 put(LOGS .. "/file_changes-TestMac.csv", "ts,name\n1,x\n2,y\n3,z\n")
 put(LOGS .. "/activity_history-TestMac.csv", "a,b,c\n1,2,3\n4,5,6\n")

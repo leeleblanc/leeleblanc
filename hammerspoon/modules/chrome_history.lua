@@ -1,10 +1,12 @@
 -- =====================================================================
--- MODULE: CHROME HISTORY (⇪Y) — 90 days of browsing, saved and searched
+-- MODULE: CHROME HISTORY (⇪Y) — 180 days of browsing, saved and searched
 -- =====================================================================
 -- LL: "Chrome history saver with a powerful fuzzy search control over
 -- the Chrome history. Saves 90 days of history in the best file format
 -- to retrieve the most relevant data. Is searchable in the unified
--- clipboard."
+-- clipboard." And 6.154.0: "go as far back in time as possible but not
+-- past 180 days" — the archive now keeps what Chrome forgets (see
+-- chrome.mergeArchive).
 --
 -- Chrome deletes history older than 90 days, silently and by design,
 -- and it keeps what remains locked inside a SQLite database no other
@@ -68,9 +70,10 @@ local M = {
     family = "find",     -- the history shelf: files 10 · docs 11 · commands
                       -- 12 · the web 12.5
     cheatsheet = {
-        title = "🕘 CHROME HISTORY (⇪Y — 90 days, every profile)",
+        title = "🕘 CHROME HISTORY (⇪Y — 180 days, every profile)",
         entries = {
-            { "⇪Y",      "Fuzzy-search 90 days of Chrome history — ⏎ reopens the page" },
+            { "⇪Y",      "Fuzzy-search 180 days of Chrome history — ⏎ reopens the page" },
+            { "archive", "Chrome forgets at 90 days — the CSV keeps pages to 180 (chrome.days)" },
             { "type",    "Words in any order, title or URL · char sequences too — gml finds gmail" },
             { "⌘⏎",     "COPY the page's URL to the clipboard instead of opening it" },
             { "⌥⏎",     "Open in the OTHER browser (Safari · chrome.altBrowser)" },
@@ -89,8 +92,17 @@ function M.setup(core)
     -- ✏️ EDIT HERE ---------------------------------------------------------
     chrome.enabled   = true
     chrome.key       = "y"        -- ⇪Y search · ⇪⇧Y refresh ("historY")
-    chrome.days      = 90         -- how far back the export reaches
-    chrome.maxRows   = 20000      -- per profile, newest first
+    -- 🗄 6.154.0 — LL: "go as far back in time as possible but not past
+    -- 180 days" — "without bogging down Hammerspoon, Chrome, my MacBook".
+    -- Chrome itself deletes history at 90 days, so no export can ever
+    -- hand back more than that; the second 90 come from the ARCHIVE this
+    -- module already keeps — see chrome.mergeArchive: rows from the last
+    -- save that the fresh export no longer contains are carried forward
+    -- while they are inside this window. maxTotal bounds the file and
+    -- the per-keystroke search (one C-speed find per row per word).
+    chrome.days      = 180        -- how far back the archive reaches
+    chrome.maxRows   = 20000      -- per profile per export, newest first
+    chrome.maxTotal  = 60000      -- archive rows kept in all, newest first
     chrome.staleSecs = 6 * 3600   -- ⇪Y quietly re-exports past this age
     chrome.showRows  = 40         -- results the picker holds per keystroke
     local home = core.homeDir or os.getenv("HOME") or "~"
@@ -100,6 +112,10 @@ function M.setup(core)
     chrome.sqlite    = "/usr/bin/sqlite3"
     chrome.csvFile   = (core.logsDir or ".") .. "/chrome_history-"
                        .. tostring(core.hostTag or "Mac") .. ".csv"
+    -- 💾 6.154.0 — the CSV is rewritten whole after every export, so it
+    -- may shrink; the write ledger is told so it does not cry truncation.
+    _G.rewrittenFiles = _G.rewrittenFiles or {}
+    _G.rewrittenFiles[chrome.csvFile] = "the ⇪Y archive — rewritten after every export"
     chrome.openWith  = "com.google.Chrome"   -- ⏎ opens here; falls back to default
     -- 6.153.0 — LL: "But I might want to copy it and open it in another
     -- browser." ⌥⏎ opens the pick here instead of Chrome; ⌘⏎ copies the
@@ -269,6 +285,45 @@ printf 'finished cleanly\n' >> "$pf"
         return s
     end
 
+    -- ---- 🗄 the archive (6.154.0) ----------------------------------------
+    -- THE ARCHIVE KEEPS WHAT CHROME FORGETS. Chrome deletes history at
+    -- 90 days, so a fresh export is at most 90 days deep — but the last
+    -- save is on disk, and any row in it that the export no longer
+    -- contains (Chrome dropped it, or the per-profile cap cut it) is
+    -- carried forward as long as it is inside chrome.days. Keyed on the
+    -- URL, which is Chrome's own key (one row per URL in its `urls`
+    -- table); a URL the export DID return wins outright, with its newer
+    -- visit count. Newest first, capped at chrome.maxTotal, so neither
+    -- the file nor the per-keystroke search can grow without bound.
+    -- Carried rows are marked `archived` so the picker can say so.
+    function chrome.mergeArchive(fresh, previous, now)
+        now = now or epoch()
+        local cutoff = now - (chrome.days or 90) * 86400
+        local seen, out, carried = {}, {}, 0
+        for _, e in ipairs(fresh or {}) do
+            if e.url and not seen[e.url] then
+                seen[e.url] = true
+                out[#out + 1] = e
+            end
+        end
+        for _, e in ipairs(previous or {}) do
+            if e.url and not seen[e.url] and (e.ts or 0) >= cutoff then
+                seen[e.url] = true
+                e.archived = true
+                out[#out + 1] = e
+                carried = carried + 1
+            end
+        end
+        table.sort(out, function(a, b) return a.ts > b.ts end)
+        local cap = chrome.maxTotal or 60000
+        if #out > cap then
+            local trimmed = {}
+            for i = 1, cap do trimmed[i] = out[i] end
+            out = trimmed
+        end
+        return out, carried
+    end
+
     -- ---- the sliced ingest -----------------------------------------------
     -- 🚨 6.152.1 — THE BEACHBALL 6.152.0 SHIPPED. The pipe fix freed the
     -- data, and the freed data then froze the Mac: the completion
@@ -378,7 +433,12 @@ printf 'finished cleanly\n' >> "$pf"
                     end
                     if epoch() > deadline then return true end
                 elseif not installed then
-                    table.sort(entries, function(a, b) return a.ts > b.ts end)
+                    -- 6.154.0 — the previous save's rows ride along
+                    -- (sorted and capped inside), so the CSV below
+                    -- carries the archive forward, not just the export
+                    local merged, carried = chrome.mergeArchive(entries, chrome.entries)
+                    entries = merged
+                    chrome.carried  = carried
                     chrome.entries  = entries
                     chrome.loadedAt = epoch()
                     installed = true
@@ -441,6 +501,9 @@ printf 'finished cleanly\n' >> "$pf"
         for line in f:lines() do rows[#rows + 1] = line end
         f:close()
         local entries, i = {}, 1        -- rows[1] is the header
+        -- 6.154.0 — rows older than the window are left behind here,
+        -- so lowering chrome.days actually shortens the archive
+        local cutoff = math.floor(epoch()) - (chrome.days or 90) * 86400
         runSliced(function(deadline)
             while i < #rows do
                 i = i + 1
@@ -456,14 +519,18 @@ printf 'finished cleanly\n' >> "$pf"
                                            min = tonumber(mi) }) or 0
                         end)
                     end
-                    entries[#entries + 1] = finish({
-                        url = c[4], title = c[3], visits = c[5],
-                        ts = ts, profile = c[6] or "?",
-                    })
+                    if ts == 0 or ts >= cutoff then
+                        entries[#entries + 1] = finish({
+                            url = c[4], title = c[3], visits = c[5],
+                            ts = ts, profile = c[6] or "?",
+                        })
+                    end
                 end
                 if i % 250 == 0 and epoch() > deadline then return true end
             end
             table.sort(entries, function(a, b) return a.ts > b.ts end)
+            local cap = chrome.maxTotal or 60000
+            while #entries > cap do entries[#entries] = nil end
             chrome.entries = entries
             if done then done(#entries) end
             return nil
@@ -535,10 +602,13 @@ printf 'finished cleanly\n' >> "$pf"
                 -- 6.152.1 — SLICED: the old one-pass parse+CSV froze the
                 -- Mac right here, the first time an export ever succeeded
                 chrome.ingest(sout, function(n)
-                    chrome.status = string.format("%d pages · %d profile%s · %.0fms",
+                    local kept = chrome.carried or 0
+                    chrome.status = string.format("%d pages · %d profile%s · %.0fms%s",
                                                   n, #dbs,
                                                   #dbs == 1 and "" or "s",
-                                                  chrome.lastMs)
+                                                  chrome.lastMs,
+                                                  kept > 0 and (" · " .. kept
+                                                      .. " kept from the archive") or "")
                     say("exported " .. chrome.status)
                     if andThen then andThen(true, n) end
                 end)
@@ -763,8 +833,8 @@ printf 'finished cleanly\n' >> "$pf"
             local altName = tostring(chrome.altBrowser or ""):match("[^.]+$")
                             or "other"
             chrome.chooser:placeholderText(#chrome.entries
-                .. " pages, 90 days — ⏎ opens · ⌥⏎ " .. altName
-                .. " · ⌘⏎ copies")
+                .. " pages, " .. tostring(chrome.days) .. " days — ⏎ opens · ⌥⏎ "
+                .. altName .. " · ⌘⏎ copies")
             chrome.chooser:query("")
             chrome.chooser:choices(choicesFor(chrome.search("")))
             -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the

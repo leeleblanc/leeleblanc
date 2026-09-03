@@ -90,6 +90,9 @@ _G.panelLevels = {
                       -- sheet, below the chooser — safe by default
     -- [chooser =  3]    macOS's fixed rung: written down, not ours to set
     keycaster  = 4,   -- above even the chooser you are typing into
+    clippreview = 4,  -- ⇪V's preview pane sits BESIDE its chooser, and a
+                      -- rung above it so no other panel can slide between
+                      -- the list and the text it is showing (6.154.0)
     pomodoro   = 5,   -- the 6.68.0 ask, still the top of the ladder
 }
 

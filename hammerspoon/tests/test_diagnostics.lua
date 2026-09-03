@@ -964,6 +964,24 @@ local ALLOWED_BINARIES = {
                             .. "remote IP, no privileges (ships with macOS)",
   ["/usr/bin/killall"]       = "⇪6 flush, half 2 — needs admin, reported when it "
                             .. "fails rather than hidden (ships with macOS)",
+  -- 6.154.0 — THE NETWORK REPORT (⇪6 🩺 / 🧹). Fourteen READ-ONLY questions
+  -- in one shell run, every binary shipped by Apple and reaching the
+  -- script as a positional argument. None of them is ever run with a
+  -- verb that changes anything — test_net_tools pins the banned verbs
+  -- (setairportpower, setdnsservers, route flush, arp -d, sudo…) by name.
+  ["/usr/bin/dig"]           = "⇪6 timed DNS lookups, the DNS race, the public IP "
+                            .. "asked of OpenDNS (ships with macOS)",
+  ["/sbin/route"]            = "⇪6 `route -n get default` — the router, read only (ships with macOS)",
+  ["/usr/sbin/networksetup"] = "⇪6 hardware ports + the Wi-Fi network — -list/-get only, "
+                            .. "never -set (ships with macOS)",
+  ["/sbin/ifconfig"]         = "⇪6 `ifconfig -l` — interface names for the tunnel count "
+                            .. "(ships with macOS)",
+  ["/usr/sbin/scutil"]       = "⇪6 resolvers (--dns) and VPN configurations (--nc list) "
+                            .. "(ships with macOS)",
+  ["/usr/sbin/arp"]          = "⇪6 `arp -a` — devices on the LAN, never -d (ships with macOS)",
+  ["/usr/sbin/netstat"]      = "⇪6 `netstat -rn` — the routing table (ships with macOS)",
+  ["/usr/sbin/ipconfig"]     = "⇪6 getifaddr / getsummary — the IP per interface, never "
+                            .. "`set` (ships with macOS)",
   -- 6.120.0 — THE MAC PANEL (⇪7). Everything About This Mac shows.
   -- sysctl, sw_vers and df answer instantly and run on the keypress;
   -- system_profiler takes SECONDS and ioreg a tenth of one, so those two
@@ -1076,12 +1094,19 @@ check("brew is RUN only from update_tracker and daily_backup (screenshots "
         -- is the sentence telling you how to install WordNet when there
         -- isn't one. Any OTHER brew reference in any of the three still
         -- fails here.
+        -- 6.154.0 — net_tools joins the carve-out on the same terms. ⇪6's
+        -- 🚀 speed test looks under the brew prefixes for speedtest-cli
+        -- and runs it itself; the only other place it says "brew" is the
+        -- install command the row copies when there isn't one. Any OTHER
+        -- brew reference in it still fails here.
         if not line:match("^%s*%-%-") and line:find("brew", 1, true)
            and not ((name == "screenshots" or name == "power_tools")
                     and line:lower():find("zbar", 1, true))
            and not (name == "define"
                     and (line:lower():find("wordnet", 1, true)
-                         or line:find("/bin/wn", 1, true))) then
+                         or line:find("/bin/wn", 1, true)))
+           and not (name == "net_tools"
+                    and line:lower():find("speedtest", 1, true)) then
           return false, name
         end
       end

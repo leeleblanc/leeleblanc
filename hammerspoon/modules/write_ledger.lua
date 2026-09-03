@@ -34,7 +34,9 @@
 -- ---- AND IT DOES NOT FLOOD THE CONSOLE ------------------------------
 -- The scheduled check prints on exactly three conditions:
 --        · a file that was there at boot has DISAPPEARED
---        · a file has SHRUNK
+--        · a file has SHRUNK (an append-only log; a store that is
+--          rewritten whole on every save may shrink — 6.154.0, see the
+--          ✏️ block — unless it lost more than half)
 --        · two files look like the same log and the twin is stale
 -- and each of those is said ONCE per session, not once per check. On a
 -- healthy Mac this module is completely silent for the whole session,
@@ -63,6 +65,8 @@ local M = {
             { "grown",    "How much each file has grown since this boot" },
             { "probe",    "Writes and re-reads a test file — proves the folder takes writes" },
             { "twins",    "Warns when two files look like the same log (one is frozen)" },
+            { "shrunk",   "An append-only log that shrank is called out; a store" },
+            { "",         "rewritten whole (⇪I cache, .json) may shrink — that is normal" },
             { "quiet",    "Checks itself every 30 min and says NOTHING unless wrong" },
         },
     },
@@ -77,7 +81,36 @@ function M.setup(core)
     wl.rowCountMax  = 4 * 1024 * 1024   -- don't count rows in files bigger than this
     wl.staleDays    = 7         -- a same-named twin untouched this long is called out
     wl.exts         = { csv = true, json = true, log = true, txt = true }
+    -- 💾 6.154.0 — A REWRITTEN STORE THAT SHRINKS IS NOT A TRUNCATION.
+    -- LL's Console: "recent_docs-Lees-MacBook-Air.csv has SHRUNK — 49.7
+    -- KB at boot, 48.8 KB now. That is either a rotation or a
+    -- truncation, and only one of them is fine." Neither, as it turns
+    -- out: that file is a CACHE the ⇪I module rewrites in full after
+    -- every Spotlight scan, so it shrinks whenever a document ages out
+    -- of the 30-day window — which is Tuesday, not a fault. The shrink
+    -- rule was written for APPEND-ONLY logs, where a smaller file can
+    -- only mean lost rows, and it did not know the difference.
+    --
+    -- Three ways a file is known to be rewritten whole on every save:
+    --   · the writing module says so: _G.rewrittenFiles[path] = "why"
+    --     (recent_docs, clipboard_history and chrome_history do)
+    --   · it is .json — a JSON array cannot be appended to, so every
+    --     JSON store in this config is rewritten from scratch by nature
+    --   · its name matches one of the patterns below — stores that
+    --     predate the registry and rewrite themselves on edits or
+    --     re-checks (the OCR log after a ⇪⇧O delete, the update tracker
+    --     after a daily check)
+    -- For those a smaller file is silent and the report says "rewritten
+    -- — normal". Losing MORE THAN HALF is still called out, once: a
+    -- cache rewritten as nearly nothing is the clipboard-history P4
+    -- disaster wearing a different filename, and that is worth a look.
+    wl.rewrittenNames = { "recent_docs%-", "recent_doc_types%-",
+                          "chrome_history%-", "clipboard_history",
+                          "image_text%-", "app_updates%-" }
+    wl.rewriteDropFrac = 0.5    -- a rewritten file losing this much is reported
     -- ----------------------------------------------------------------------
+
+    _G.rewrittenFiles = _G.rewrittenFiles or {}   -- path -> why (see above)
 
     local function say(m)  if _G.diag then _G.diag.say("saved", m)  end end
     local function warn(m) if _G.diag then _G.diag.warn("saved", m) end end
@@ -114,6 +147,26 @@ function M.setup(core)
     function wl.isRetired(name)
         return name:find("%.superseded$") ~= nil
             or name:find("%.before%-") ~= nil
+    end
+
+    -- 💾 6.154.0 — why this file is rewritten whole on every save, or
+    -- nil for an append-only log (see the ✏️ block). The registry wins
+    -- because the writing module knows best; the two rules cover stores
+    -- that never registered.
+    function wl.rewrittenWhy(path, name)
+        local reg = _G.rewrittenFiles or {}
+        if type(reg[path]) == "string" then return reg[path] end
+        if reg[path] then return "rewritten whole on every save" end
+        name = name or tostring(path):match("[^/]+$") or ""
+        if name:lower():match("%.json$") then
+            return "a JSON store — rewritten from scratch on every save"
+        end
+        for _, pat in ipairs(wl.rewrittenNames or {}) do
+            if name:find(pat) then
+                return "rewritten whole on every save"
+            end
+        end
+        return nil
     end
 
     -- ---- one directory, no recursion beyond what dirs() names -------------
@@ -307,13 +360,30 @@ function M.setup(core)
                     text = "💾 " .. path .. " was here at boot and is GONE now.",
                 }
             elseif now.size < was.size then
-                problems[#problems + 1] = {
-                    key = "shrank:" .. path,
-                    text = string.format(
-                        "💾 %s has SHRUNK — %s at boot, %s now. That is either a "
-                        .. "rotation or a truncation, and only one of them is fine.",
-                        path, human(was.size), human(now.size)),
-                }
+                local why = wl.rewrittenWhy(path, now.name)
+                if not why then
+                    problems[#problems + 1] = {
+                        key = "shrank:" .. path,
+                        text = string.format(
+                            "💾 %s has SHRUNK — %s at boot, %s now. That is either a "
+                            .. "rotation or a truncation, and only one of them is fine.",
+                            path, human(was.size), human(now.size)),
+                    }
+                elseif now.size < was.size * (1 - (wl.rewriteDropFrac or 0.5)) then
+                    -- 6.154.0 — rewritten, but by too much to wave through
+                    problems[#problems + 1] = {
+                        key = "shrank:" .. path,
+                        text = string.format(
+                            "💾 %s LOST MORE THAN HALF ITS SIZE — %s at boot, %s now. "
+                            .. "It is %s, so a smaller file is normal; this much "
+                            .. "smaller is worth a look (_G.saved() for the rows).",
+                            path, human(was.size), human(now.size), why),
+                    }
+                else
+                    -- 6.154.0 — the recent_docs case: normal, and silent
+                    say(string.format("%s shrank %s → %s — %s, so that is normal",
+                        now.name, human(was.size), human(now.size), why))
+                end
             end
         end
 
@@ -392,7 +462,14 @@ function M.setup(core)
                 since = "+" .. human(f.size - was.size)
                 changed = changed + 1
             elseif f.size < was.size then
-                since = "-" .. human(was.size - f.size) .. " ⚠️"
+                -- 6.154.0 — a rewritten store's shrink wears no ⚠️
+                -- unless it lost more than half (the check's rule)
+                local why = wl.rewrittenWhy(f.path, f.name)
+                if why and f.size >= was.size * (1 - (wl.rewriteDropFrac or 0.5)) then
+                    since = "-" .. human(was.size - f.size) .. " (rewritten — normal)"
+                else
+                    since = "-" .. human(was.size - f.size) .. " ⚠️"
+                end
                 changed = changed + 1
             else
                 since = "unchanged"
@@ -460,6 +537,14 @@ function M.setup(core)
     core.provide("writeLedger.report", function() return wl.report() end)
     core.provide("writeLedger.check",  function() return wl.check(true) end)
     core.provide("writeLedger.scan",   function() return wl.scan()  end)
+    -- 6.154.0 — the front door for a module that rewrites its file whole
+    -- and loads AFTER this one; the ones that load before write the
+    -- global directly, which is the same table.
+    core.provide("writeLedger.rewritten", function(path, why)
+        if type(path) == "string" and path ~= "" then
+            _G.rewrittenFiles[path] = why or true
+        end
+    end)
 
     _G.writeLedger = wl
     M.wl     = wl

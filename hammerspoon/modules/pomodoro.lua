@@ -62,8 +62,9 @@ local M = {
             { "esc",     "Stop and close — only while it is flashing" },
             { "where",   "Top-right, just under the clock" },
             { "below",   "Time · date · hours left in your 7:30–4:30 workday" },
-            { "faint",   "Sits at 30% — turns SOLID (90%) for the last 5 minutes" },
-            { "hover",   "Mouse over it: solid instantly · mouse off: faint again" },
+            { "faint",   "Sits at 30% — rises to 75% for the last 5 minutes (never solid)" },
+            { "ink",     "The box and the digits are translucent too (cardAlpha / inkAlpha)" },
+            { "hover",   "Mouse over it: 75% instantly · mouse off: faint again" },
             { "log",     "Every start & completion → pomodoro_log-<Mac>.csv (Logs)" },
             { "4:30",    "Day's tally at workday end · Friday adds the week's" },
             { "note",    "Enter/esc are NOT captured during the countdown" },
@@ -98,7 +99,17 @@ function M.setup(core)
     -- canvas:alpha() — the colours never change, only the card's own
     -- opacity, so this cannot fight the shared style table.
     pom.alphaIdle  = 0.30        -- most of the countdown
-    pom.alphaAlert = 0.90        -- last alertMins · hover · flash · asking
+    -- 👻 6.154.0 — LL: "Can you fade both the Pomodoro focus box and the
+    -- time instead of being solid white also? Both need to be more
+    -- translucent." Three knobs, because "solid" had three causes: the
+    -- whole card rose to 90% for the last five minutes (now 75%, never
+    -- solid), the card's own fill was the shared 92% background (now
+    -- cardAlpha of that — a COPY, the shared table untouched), and the
+    -- digits were 97% white (now inkAlpha of that). The FLASH keeps its
+    -- full colours: an alert nobody can see is no alert.
+    pom.alphaAlert = 0.75        -- last alertMins · hover · flash · asking
+    pom.cardAlpha  = 0.78        -- the box: this × the shared bg alpha
+    pom.inkAlpha   = 0.80        -- FOCUS/BREAK label + the countdown digits
     pom.alertMins  = 5           -- solid for the final stretch (any phase —
                                  -- the 5-minute break is therefore always
                                  -- solid, which is what a break should be)
@@ -276,26 +287,37 @@ function M.setup(core)
     -- whole card, type included, from one knob (6.152.0).
     local function S(n) return math.floor(n * pom.scale + 0.5) end
 
+    -- A copy of a colour at a scaled alpha. Copied, not mutated: bg and
+    -- fg are shared with (or ARE) _G.uiStyle's tables, and writing an
+    -- alpha into those would fade every panel that reads the style.
+    local function faded(c, frac)
+        return { red = c.red, green = c.green, blue = c.blue,
+                 white = c.white, alpha = (c.alpha or 1) * frac }
+    end
+
     local function elements(label, clock, bg, fg)
-        -- The two small lines are dimmed so the countdown stays the thing
-        -- the corner of your eye reads first. Copied, not mutated: fg is
-        -- shared with (or IS) _G.uiStyle.fg, and writing an alpha into
-        -- that table would dim every panel that reads the style.
-        local dim = { red = fg.red, green = fg.green, blue = fg.blue,
-                      white = fg.white, alpha = (fg.alpha or 1) * 0.78 }
+        -- 👻 6.154.0 — the card's fill and its ink are translucent
+        -- copies (pom.cardAlpha / pom.inkAlpha) — EXCEPT during the
+        -- flash, which is the one moment the card is meant to shout.
+        local loud = (bg == pom.bgFlash)
+        local fill = loud and bg or faded(bg, pom.cardAlpha or 1)
+        local ink  = loud and fg or faded(fg, pom.inkAlpha or 1)
+        -- The two small lines are dimmed below the ink so the countdown
+        -- stays the thing the corner of your eye reads first.
+        local dim = faded(ink, 0.78)
         local small = S((st.font and st.font.label) or 12)
         return {
-            { type = "rectangle", action = "fill", fillColor = bg,
+            { type = "rectangle", action = "fill", fillColor = fill,
               roundedRectRadii = { xRadius = st.radius or 12,
                                    yRadius = st.radius or 12 },
               frame = { x = 0, y = 0, w = pom.width, h = pom.height } },
             { type = "text", text = label,
               textSize = small,
-              textColor = fg, textAlignment = "center",
+              textColor = ink, textAlignment = "center",
               frame = { x = 0, y = S(10), w = pom.width, h = S(18) } },
             { type = "text", text = clock,
               textSize = S((st.font and st.font.big) or 40),
-              textColor = fg, textAlignment = "center",
+              textColor = ink, textAlignment = "center",
               frame = { x = 0, y = S(30), w = pom.width, h = S(52) } },
             -- 🕰 6.94.0 — under the countdown: the real time and date, and
             -- what is left of the 7:30–4:30 workday. Rebuilt on every
@@ -336,6 +358,7 @@ function M.setup(core)
         end
     end
     pom.applyAlpha = applyAlpha
+    pom.elements   = elements     -- exposed for the test harness (6.154.0)
 
     local function paint(label, clock, bg, fg)
         local s = pom.state

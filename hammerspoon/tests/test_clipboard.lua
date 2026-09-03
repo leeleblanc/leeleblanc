@@ -85,6 +85,10 @@ local function dec(s)
 end
 
 local HYPER, PROVIDED = {}, {}
+-- 👁 6.154.0 — the preview pane's world: canvases, a poll timer, the
+-- mouse, and a chooser that answers selectedRow / isVisible / hideCallback
+local CANVASES, TIMERS = {}, {}
+local SEL, VIS, MOUSE = 1, true, { x = 0, y = 0 }
 hs = {
     json = { encode = enc, decode = dec },
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
@@ -92,14 +96,49 @@ hs = {
                    getContents = function() return PASTEBOARD end },
     chooser = { new = function(fn)
         local c = { fn = fn }
-        for _, m in ipairs({ "placeholderText", "show", "width", "searchSubText" }) do
+        for _, m in ipairs({ "placeholderText", "show", "searchSubText" }) do
             c[m] = function(self) return self end
         end
         function c:choices(x) self.rows = x ; return self end
         function c:queryChangedCallback(f) self.qcb = f ; return self end
+        -- the getters the preview pane asks (window_move asks the same two)
+        function c:width(x) if x then return self end return 40 end
+        function c:rows(x) if x then return self end return 10 end
+        function c:selectedRow() return SEL end
+        function c:isVisible() return VIS end
+        function c:hideCallback(f) self.hideCb = f ; return self end
+        function c:query() return self end
         return c end },
+    canvas = {
+        windowLevels = { mainMenu = 24, popUpMenu = 101, overlay = 25 },
+        new = function(rect)
+            local c = { rect = rect, elements = {}, shown = false, deleted = false }
+            function c:replaceElements(e)
+                if type(e) ~= "table" or #e == 0 then error("bad elements") end
+                self.elements = e ; return self
+            end
+            function c:show()   self.shown = true  ; return self end
+            function c:hide()   self.shown = false ; return self end
+            function c:delete() self.deleted = true ; self.shown = false ; return self end
+            function c:frame(r) if r then self.rect = r end return self.rect end
+            function c:level(l) self.lvl = l ; return self end
+            function c:behaviorAsLabels() return self end
+            function c:canvasMouseEvents() return self end
+            CANVASES[#CANVASES + 1] = c
+            return c
+        end,
+    },
+    mouse = { absolutePosition = function() return MOUSE end },
     dialog = { textPrompt = function() return "Cancel", "" end },
-    timer = { secondsSinceEpoch = function() return 1000 end },
+    timer = {
+        secondsSinceEpoch = function() return 1000 end,
+        doEvery = function(secs, fn)
+            local t = { secs = secs, fn = fn, stopped = false }
+            function t:stop() self.stopped = true end
+            TIMERS[#TIMERS + 1] = t
+            return t
+        end,
+    },
     configdir = "/cfg",
 }
 _G.diag = { say = function() end, warn = function() end,
@@ -513,6 +552,140 @@ do
     _G.clipboardCache = {}
     check("🛡 …an empty history exports no rows rather than one blank",
           #row.csv() == 0, #row.csv())
+end
+
+-- =====================================================================
+out("\n=== 9. 👁 6.154.0 — the preview pane beside the picker ===\n")
+-- =====================================================================
+-- LL: "Can the full contents of the clipboard item in ⌘V be shown as I
+-- arrow up/down, or put my mouse cursor on an item? The view should
+-- show to the right of the window and be able to scroll or
+-- automatically expand to show that entry."
+-- hs.chooser has no selection callback and does not follow the mouse,
+-- so a poll reads selectedRow() and the row under the pointer; the pane
+-- is a canvas beside the picker, sized to the text.
+do
+    boot() ; C.loaded = true
+    local LONG = {}
+    for i = 1, 200 do LONG[i] = "line " .. i .. " of a long clipboard entry" end
+    C.add("third")
+    C.add(table.concat(LONG, "\n"))
+    C.add("first is short")                 -- newest → row 1
+    local SCREEN = { frame = function() return { x = 0, y = 0, w = 1440, h = 900 } end }
+    _G.lastPopupPlacement = { screen = SCREEN, point = { x = 300, y = 180 },
+                              chooser = C.chooser }
+    SEL, VIS, MOUSE = 1, true, { x = 0, y = 0 }
+    CANVASES, TIMERS = {}, {}
+    local function pane() return C.pv.canvas end
+    local function bodyText()
+        local c = pane()
+        if not c then return "" end
+        for _, e in ipairs(c.elements) do
+            if e.type == "text" and e.textFont == "Menlo" then return e.text end
+        end
+        return ""
+    end
+    local function footer()
+        local c = pane()
+        if not c then return "" end
+        local last = c.elements[#c.elements]
+        return (last and last.type == "text") and last.text or ""
+    end
+
+    HYPER["|v"]()
+    check("opening ⇪V starts a poll at clip.previewPoll — and only then",
+          TIMERS[1] ~= nil and TIMERS[1].secs == C.previewPoll, TIMERS[1] and TIMERS[1].secs)
+    check("…HELD on the module, not left to the collector", C.pv.poll == TIMERS[1])
+    check("a pane is drawn the moment the picker opens", pane() ~= nil and pane().shown)
+    local box = C.previewBox(C.chooser)
+    check("…to the RIGHT of the picker's computed box",
+          box and pane() and pane().rect.x >= box.x + box.w, pane() and pane().rect.x)
+    check("…showing the WHOLE entry for the selected row", bodyText() == "first is short",
+          bodyText())
+    check("…with the date and the size in its header", (function()
+        for _, e in ipairs(pane().elements) do
+            if e.type == "text" and e.text:find("14 chars", 1, true) then return true end
+        end
+    end)())
+    check("…click-through and on the rung above the chooser",
+          pane().lvl ~= nil, pane().lvl)
+
+    SEL = 2 ; TIMERS[1].fn()
+    check("↓ onto the long entry: the pane FOLLOWS THE KEYBOARD, and shows the "
+          .. "full text, not the 100-character row",
+          bodyText():find("line 1 of a long", 1, true) ~= nil
+          and bodyText():find("line 30 of", 1, true) ~= nil, bodyText():sub(1, 60))
+    check("…auto-expanded down to the screen's bottom edge and no further",
+          pane().rect.y + pane().rect.h <= 900 and pane().rect.h > 400,
+          pane().rect.h)
+    check("…and what will not fit is ADMITTED in a footer, never clipped "
+          .. "mid-word", footer():find("more line", 1, true) ~= nil, footer())
+
+    MOUSE = { x = box.x + 20, y = box.y + C.pv.headH + 2 * C.pv.rowH + 10 }
+    TIMERS[1].fn()
+    check("🖱 the mouse over row 3 WINS over the keyboard: the pane shows 'third'",
+          bodyText() == "third", bodyText())
+    check("…and the pane says which one it is following",
+          C.pv.shown and C.pv.shown.how == "mouse" and C.pv.shown.row == 3)
+    MOUSE = { x = 0, y = 0 } ; TIMERS[1].fn()
+    check("the mouse off the picker hands back to the keyboard",
+          bodyText():find("line 1 of", 1, true) ~= nil)
+    local drawsBefore = #CANVASES
+    TIMERS[1].fn() ; TIMERS[1].fn()
+    check("the same row twice costs no redraw — the poll is cheap when "
+          .. "nothing changed", #CANVASES == drawsBefore)
+
+    -- near the right edge the pane goes LEFT
+    _G.lastPopupPlacement.point = { x = 1000, y = 180 }
+    SEL = 1 ; C.pv.lastKey = nil ; TIMERS[1].fn()
+    check("with no room on the right the pane sits on the LEFT",
+          pane().rect.x + pane().rect.w <= 1000, pane().rect.x)
+    _G.lastPopupPlacement.point = { x = 300, y = 180 }
+
+    -- typing re-renders the list: row 1 is a different entry now
+    C.chooser.qcb("third") ; TIMERS[1].fn()
+    check("after a search the pane re-keys on the NEW list — row 1 is the match",
+          bodyText() == "third", bodyText())
+
+    C.chooser.hideCb()
+    check("the picker's hideCallback closes the pane and stops the poll",
+          C.pv.canvas == nil and TIMERS[1].stopped == true)
+
+    HYPER["|v"]() ; VIS = false ; C.pv.poll.fn()
+    check("a picker that is simply GONE closes the pane on the next poll",
+          C.pv.canvas == nil and C.pv.poll == nil)
+    VIS = true
+
+    _G.lastPopupPlacement = nil
+    local okNo = pcall(function() HYPER["|v"]() end)
+    check("no placement on record: no pane, and no throw",
+          okNo and C.pv.canvas == nil)
+    C.previewClose()
+
+    -- ⇪⇧V: an action row previews nothing; an entry row previews its text
+    _G.lastPopupPlacement = { screen = SCREEN, point = { x = 300, y = 180 },
+                              chooser = C.editChooser }
+    SEL = 1 ; HYPER["shift|v"]()
+    check("⇪⇧V's '☑️ Select several…' row previews nothing", C.pv.canvas == nil)
+    SEL = 2 ; C.pv.poll.fn()
+    check("…and an entry row previews its full text", bodyText() == "first is short",
+          bodyText())
+    C.previewClose()
+
+    C.previewOn = false
+    HYPER["|v"]()
+    check("clip.previewOn = false: no poll, no pane — the list alone, as before",
+          C.pv.poll == nil and C.pv.canvas == nil)
+    C.previewOn = true
+    C.previewClose()
+
+    -- the wrap is arithmetic, and it keeps indentation
+    local w = C.previewWrap("    indented code line that is fairly long indeed", 24)
+    check("the wrap keeps leading indentation and breaks at words",
+          w[1] == "    indented code line" and w[2] == "that is fairly long", w[1] .. "|" .. tostring(w[2]))
+    check("a word longer than a line is cut rather than lost",
+          #C.previewWrap(string.rep("x", 50), 20) == 3)
+    _G.lastPopupPlacement = nil
 end
 
 io.open = realIoOpen

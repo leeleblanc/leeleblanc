@@ -90,6 +90,15 @@ function M.setup(core)
     rd.openBin   = "/usr/bin/open"     -- ⌘⏎ reveal (-R)
     rd.csvFile   = core.logsDir .. "/recent_docs-" .. core.hostTag .. ".csv"
     rd.typesFile = core.logsDir .. "/recent_doc_types-" .. core.hostTag .. ".csv"
+    -- 💾 6.154.0 — BOTH FILES ARE REWRITTEN WHOLE ON EVERY SAVE (a scan
+    -- replaces the cache; the learned-types list is re-sorted and
+    -- capped), so they SHRINK whenever a document ages out of the window.
+    -- The write ledger would otherwise call a smaller cache a truncation
+    -- — it did, in LL's Console ("recent_docs-…csv has SHRUNK — 49.7 KB
+    -- at boot, 48.8 KB now"). Told here, by the module that knows.
+    _G.rewrittenFiles = _G.rewrittenFiles or {}
+    _G.rewrittenFiles[rd.csvFile]   = "the ⇪I cache — rewritten after every Spotlight scan"
+    _G.rewrittenFiles[rd.typesFile] = "the ⇪I learned-types list — rewritten on every learn"
     -- SEED groups: shown even merely-modified. csv sits with Excel;
     -- txt/lua are LL's 6.93.0 additions — everything else is learned.
     rd.groups = {

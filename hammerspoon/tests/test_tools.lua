@@ -790,6 +790,32 @@ pom.start()
 local card = CANVASES[#CANVASES]
 check("the card opens FAINT — pom.alphaIdle, whole-window alpha",
       card.alpha_ == pom.alphaIdle, card.alpha_)
+-- 👻 6.154.0 — LL: "fade both the Pomodoro focus box and the time
+-- instead of being solid white also. Both need to be more translucent."
+check("👻 6.154.0 — the alert level is no longer 90%: the card never goes solid",
+      pom.alphaAlert <= 0.8, pom.alphaAlert)
+check("…the box is a translucent COPY of the shared background "
+      .. "(pom.cardAlpha) — the shared table itself untouched", (function()
+    local rect = card.elements[1]
+    return rect and rect.type == "rectangle" and rect.fillColor ~= pom.bgWork
+       and math.abs(rect.fillColor.alpha - (pom.bgWork.alpha or 1) * pom.cardAlpha) < 0.001
+       and (pom.bgWork.alpha or 1) > rect.fillColor.alpha
+end)(), card.elements[1] and card.elements[1].fillColor.alpha)
+check("…and the countdown digits are inked at pom.inkAlpha, not solid white",
+      (function()
+    for _, e in ipairs(card.elements) do
+        if e.type == "text" and e.text:match("^%d%d:%d%d$") then
+            return e.textColor ~= pom.fgWork
+               and math.abs(e.textColor.alpha - (pom.fgWork.alpha or 1) * pom.inkAlpha) < 0.001
+        end
+    end
+    return false
+end)())
+check("…while the FLASH keeps its full colours — an alert nobody can see "
+      .. "is no alert", (function()
+    local els = pom.elements("STAND UP", "— • —", pom.bgFlash, pom.fgFlash)
+    return els[1].fillColor == pom.bgFlash and els[3].textColor == pom.fgFlash
+end)())
 check("a hover poll is running at pom.hoverSecs — and ONLY while the "
       .. "card is up", (function()
     for _, t in ipairs(TIMERS) do

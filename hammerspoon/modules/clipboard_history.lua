@@ -62,6 +62,8 @@ local M = {
         title = "📋 CLIPBOARD HISTORY (⇪V — every copy, searchable)",
         entries = {
             { "⇪V",   "Search clipboard history — matches the FULL text" },
+            { "👁 pane","Beside the list: the WHOLE entry of the row the arrows or the" },
+            { "",     "mouse are on — grows to the screen edge, then '… N more lines'" },
             { "⇪⇧V",  "Edit or delete an entry · an edit is re-copied" },
             { "☑️ row","Pick several rows, then delete or copy them as ONE" },
             { "keeps","The last 1,000 copies, newest first" },
@@ -81,9 +83,21 @@ function M.setup(core)
     clip.maxItemSize = 1000000      -- ~1 MB; bigger copies are not stored
     clip.rows        = 250          -- rows shown before you narrow the search
     clip.preview     = 100          -- characters shown per row
+    -- 👁 6.154.0 — the pane beside the picker (see THE PREVIEW PANE below)
+    clip.previewOn   = true         -- false = the list alone, as before
+    clip.previewW    = 420          -- points wide; shrinks if the screen is narrow
+    clip.previewPoll = 0.08         -- seconds between selection/hover reads —
+                                    -- runs ONLY while a picker is on screen
+    clip.previewMaxChars = 12000    -- characters laid out per preview
     clip.file        = (core.logsDir or hs.configdir)
                        .. "/clipboard_history-" .. tostring(core.hostTag) .. ".json"
     -- ----------------------------------------------------------------------
+
+    -- 💾 6.154.0 — the file is rewritten WHOLE on every copy, edit and
+    -- delete, so it shrinks whenever you delete an entry. Said to the
+    -- write ledger, which otherwise reads a smaller file as a truncation.
+    _G.rewrittenFiles = _G.rewrittenFiles or {}
+    _G.rewrittenFiles[clip.file] = "the clipboard history — rewritten on every copy, edit and delete"
 
     -- The one-time migration of the pre-6.10 file from ~/.hammerspoon into
     -- the Logs folder came across with the rest of the feature: it belongs
@@ -201,6 +215,270 @@ function M.setup(core)
     clip.chooser, clip.editChooser = nil, nil   -- HELD: else collected
     local editSnapshot = {}
 
+    -- =====================================================================
+    -- 👁 THE PREVIEW PANE (6.154.0)
+    -- =====================================================================
+    -- LL: "Can the full contents of the clipboard item in ⌘V be shown as I
+    -- arrow up/down, or put my mouse cursor on an item? The view should
+    -- show to the right of the window and be able to scroll or
+    -- automatically expand to show that entry."
+    --
+    -- hs.chooser has no selection-changed callback, and it does NOT follow
+    -- the mouse — HSChooser.m has no mouseMoved and no tracking area
+    -- (checked, not assumed) — so both halves of the ask are answered by
+    -- ONE small poll that runs only while a picker is on screen:
+    --   · the KEYBOARD answer is chooser:selectedRow()
+    --   · the MOUSE answer is the row under the pointer, computed from the
+    --     picker's box — the placement record plus window_move's row
+    --     constants, because macOS gives a chooser no frame getter. The
+    --     mouse wins while it is inside the picker, the keyboard the rest
+    --     of the time. (One honest limit: the box maths assumes the list
+    --     is scrolled to its top, which it is until you wheel it.)
+    -- The pane is an hs.canvas beside the picker — to the RIGHT when it
+    -- fits, else the left — sized to the text down to the screen's bottom
+    -- edge ("automatically expand"); what will not fit ends in an honest
+    -- "… N more lines" footer rather than being clipped mid-word. Text is
+    -- pre-wrapped in Menlo, whose advance is known, so the height is
+    -- arithmetic rather than a guess. The picker's hideCallback closes
+    -- the pane; the poll closes it too if the picker is simply gone.
+    clip.pv = { canvas = nil, poll = nil, chooser = nil, rowsFn = nil,
+                lastKey = nil, gen = 0,
+                rowH = 44, headH = 56 }   -- window_move's chooserRowH / chooserHeadH
+    local pv = clip.pv
+
+    function clip.previewClose()
+        if pv.poll   then pcall(function() pv.poll:stop()     end) ; pv.poll = nil end
+        if pv.canvas then pcall(function() pv.canvas:delete() end) ; pv.canvas = nil end
+        pv.chooser, pv.rowsFn, pv.lastKey, pv.shown = nil, nil, nil, nil
+    end
+
+    -- The picker's box, computed the way window_move computes its grab
+    -- box: top-left from the placement record, width and rows asked of
+    -- the chooser (pcall'd — both getters vary across builds). A record
+    -- that names a DIFFERENT picker is worse than none (the 6.127.0 bug).
+    function clip.previewBox(chooser)
+        local placed = _G.lastPopupPlacement
+        if not (placed and placed.point) then return nil, "no placement on record" end
+        if placed.chooser ~= nil and placed.chooser ~= chooser then
+            return nil, "the placement on record belongs to a different picker"
+        end
+        local sf
+        pcall(function() sf = placed.screen and placed.screen:frame() end)
+        if type(sf) ~= "table" then sf = { x = 0, y = 0, w = 1440, h = 900 } end
+        local w = sf.w * 0.4
+        pcall(function()
+            local pct = chooser:width()
+            if type(pct) == "number" and pct > 0 and pct <= 100 then
+                w = sf.w * pct / 100
+            end
+        end)
+        local rows = 10
+        pcall(function()
+            local r = chooser:rows()
+            if type(r) == "number" and r > 0 then rows = r end
+        end)
+        return { x = placed.point.x, y = placed.point.y, w = w,
+                 h = pv.headH + rows * pv.rowH }, sf
+    end
+
+    -- Which row to show: the mouse while it is inside the picker's rows,
+    -- otherwise the keyboard's selection. nil = nothing to show.
+    function clip.previewRow(chooser, box, n)
+        local m
+        pcall(function() m = hs.mouse.absolutePosition() end)
+        if type(m) == "table" and box
+           and m.x >= box.x and m.x <= box.x + box.w
+           and m.y >= box.y + pv.headH and m.y <= box.y + box.h then
+            local r = math.floor((m.y - box.y - pv.headH) / pv.rowH) + 1
+            if r >= 1 and r <= n then return r, "mouse" end
+        end
+        local sel
+        pcall(function() sel = chooser:selectedRow() end)
+        if type(sel) == "number" and sel >= 1 and sel <= n then return sel, "keys" end
+        return nil
+    end
+
+    -- Word-wrapped into lines of at most `cols` monospace characters, so
+    -- the pane's height is arithmetic. Leading indentation is kept, tabs
+    -- become four spaces, a word longer than a line is cut.
+    function clip.previewWrap(text, cols)
+        cols = math.max(8, math.floor(cols or 60))
+        local out = {}
+        text = tostring(text or ""):gsub("\r\n", "\n"):gsub("\r", "\n"):gsub("\t", "    ")
+        for raw in (text .. "\n"):gmatch("(.-)\n") do
+            local line = raw:match("^%s*") or ""
+            for word in raw:gmatch("%S+%s*") do
+                while #word > cols do
+                    if line ~= "" and line:match("%S") then
+                        out[#out + 1] = (line:gsub("%s+$", "")) ; line = ""
+                    end
+                    out[#out + 1] = word:sub(1, cols)
+                    word = word:sub(cols + 1)
+                end
+                if #line + #word > cols and line:match("%S") then
+                    out[#out + 1] = (line:gsub("%s+$", ""))
+                    line = word
+                else
+                    line = line .. word
+                end
+            end
+            out[#out + 1] = (line:gsub("%s+$", ""))
+        end
+        if #out > 1 and out[#out] == "" then out[#out] = nil end
+        return out
+    end
+
+    -- Lay the entry out beside the picker. Returns true when a pane is
+    -- on screen for it.
+    function clip.previewDraw(entry, box, sf, key)
+        if pv.canvas and pv.lastKey == key then return true end
+        local sty = _G.uiStyle or {}
+        local pad, fs = 14, 13
+        local charW  = fs * 0.602                 -- Menlo's advance, per em
+        local lineH  = math.floor(fs * 1.35 + 0.5)
+        local gap, w = 12, clip.previewW
+        local x = box.x + box.w + gap
+        if x + w > sf.x + sf.w - 8 then
+            if box.x - gap - w >= sf.x + 8 then
+                x = box.x - gap - w                       -- the left, then
+            else
+                x = box.x + box.w + gap                   -- narrow screen:
+                w = math.max(180, sf.x + sf.w - 8 - x)    -- take what fits
+            end
+        end
+        local y    = box.y
+        local maxH = sf.y + sf.h - 12 - y
+        local text = tostring(entry.rawText or "")
+        local shownText = text:sub(1, clip.previewMaxChars)
+        local lines = clip.previewWrap(shownText, (w - pad * 2) / charW)
+        local total = #lines
+        local headH, footH, hidden = 20, 0, 0
+        local bodyMax = math.max(1, math.floor((maxH - pad * 2 - headH) / lineH))
+        if total > bodyMax then
+            footH = 18
+            local fit = math.max(1, math.floor((maxH - pad * 2 - headH - footH) / lineH))
+            hidden = total - fit
+            local cut = {}
+            for i = 1, fit do cut[i] = lines[i] end
+            lines = cut
+        end
+        local h = pad * 2 + headH + #lines * lineH + footH
+        local rect = { x = x, y = y, w = w, h = h }
+        local chars = #text
+        local rawLines = select(2, text:gsub("\n", "")) + 1
+        local head = string.format("📋 %s  ·  %d char%s  ·  %d line%s%s",
+            tostring(entry.when or ""), chars, chars == 1 and "" or "s",
+            rawLines, rawLines == 1 and "" or "s",
+            chars > clip.previewMaxChars
+                and ("  ·  first " .. clip.previewMaxChars .. " shown") or "")
+        local els = {
+            { type = "rectangle", action = "strokeAndFill",
+              fillColor   = sty.bg or { red = 0.09, green = 0.10, blue = 0.13, alpha = 0.92 },
+              strokeColor = sty.stroke or { white = 1, alpha = 0.18 }, strokeWidth = 1,
+              roundedRectRadii = { xRadius = sty.radius or 12, yRadius = sty.radius or 12 },
+              frame = { x = 0.5, y = 0.5, w = w - 1, h = h - 1 } },
+            { type = "text", text = head, textSize = 11,
+              textColor = sty.fgDim or { white = 1, alpha = 0.55 },
+              textLineBreak = "truncateTail",
+              frame = { x = pad, y = pad - 2, w = w - pad * 2, h = headH } },
+            -- pre-wrapped, so "clip" here only ever trims a line the
+            -- width estimate got slightly wrong — never re-wraps
+            { type = "text", text = table.concat(lines, "\n"), textSize = fs,
+              textFont = "Menlo", textLineBreak = "clip",
+              textColor = sty.fg or { white = 1, alpha = 0.97 },
+              frame = { x = pad, y = pad + headH, w = w - pad * 2,
+                        h = #lines * lineH + 4 } },
+        }
+        if hidden > 0 then
+            els[#els + 1] = {
+                type = "text",
+                text = string.format("… %d more line%s — ⏎ copies all of it",
+                                     hidden, hidden == 1 and "" or "s"),
+                textSize = 11, textColor = sty.fgDim or { white = 1, alpha = 0.55 },
+                frame = { x = pad, y = h - pad - footH + 2, w = w - pad * 2, h = footH },
+            }
+        end
+        if not pv.canvas then
+            local okC, c = pcall(hs.canvas.new, rect)
+            if not (okC and c) then return false end
+            pv.canvas = c
+            pcall(function()
+                -- beside the chooser, never under it: the ladder's rung
+                -- above macOS's fixed chooser level (core/coexist.lua)
+                c:level((_G.panelLevel and _G.panelLevel("clippreview"))
+                        or (hs.canvas.windowLevels or {}).popUpMenu
+                        or (hs.canvas.windowLevels or {}).overlay)
+            end)
+            pcall(function() c:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" }) end)
+            -- click-through: a pane that swallowed the click you were
+            -- about to make on the picker would be worse than none
+            pcall(function() c:canvasMouseEvents(false, false, false, false) end)
+            pcall(function() c:replaceElements(els) end)
+            if _G.showCanvasSafely then _G.showCanvasSafely(c, "clipboard preview")
+            else pcall(function() c:show() end) end
+        else
+            pcall(function() pv.canvas:frame(rect) end)
+            pcall(function() pv.canvas:replaceElements(els) end)
+        end
+        pv.lastKey = key
+        return true
+    end
+
+    function clip.previewTick()
+        local ch = pv.chooser
+        if not ch then clip.previewClose() return end
+        local vis
+        pcall(function() vis = ch:isVisible() end)
+        if vis == false then clip.previewClose() return end
+        local box, sf = clip.previewBox(ch)
+        local rows = (pv.rowsFn and pv.rowsFn()) or {}
+        local r, how = nil, nil
+        if box then r, how = clip.previewRow(ch, box, #rows) end
+        local entry = r and rows[r]
+        if not (entry and type(entry.rawText) == "string") then
+            -- an action row, an empty list, or nowhere to put the pane:
+            -- take it down (a fresh one is cheap) and keep polling
+            if pv.canvas then pcall(function() pv.canvas:delete() end) ; pv.canvas = nil end
+            pv.lastKey, pv.shown = nil, nil
+            return
+        end
+        local key = pv.gen .. ":" .. r .. ":" .. #entry.rawText
+        if pv.lastKey ~= key then clip.previewDraw(entry, box, sf, key) end
+        pv.shown = { row = r, how = how }
+    end
+
+    function clip.previewOpen(chooser, rowsFn)
+        clip.previewClose()
+        if not (clip.previewOn and chooser) then return false end
+        pv.chooser, pv.rowsFn = chooser, rowsFn
+        local okT, t = pcall(hs.timer.doEvery, clip.previewPoll, function()
+            local ok, err = pcall(clip.previewTick)
+            if not ok then
+                warn("preview pane — " .. tostring(err))
+                clip.previewClose()
+            end
+        end)
+        if not (okT and t) then pv.chooser, pv.rowsFn = nil, nil ; return false end
+        pv.poll = t                 -- HELD: an unreferenced timer is collected
+        pcall(clip.previewTick)     -- the first paint is now, not a poll later
+        return true
+    end
+
+    -- Every way a picker opens goes through one of these two, so the pane
+    -- follows. One placement call PER PICKER, on purpose: test_integration
+    -- counts them against the pickers built, and that count is the
+    -- contract that keeps every picker draggable (6.127.0).
+    local function openMain()
+        if core.showPopup then core.showPopup(clip.chooser)
+        else clip.chooser:show() end
+        clip.previewOpen(clip.chooser, function() return clip.lastChoices end)
+    end
+    local function openEdit()
+        if core.showPopup then core.showPopup(clip.editChooser)
+        else clip.editChooser:show() end
+        clip.previewOpen(clip.editChooser, function() return clip.lastEditChoices end)
+    end
+
     -- ☑️ 6.97.0 — SELECT MODE, the same pattern the Document Watcher list
     -- proved in 6.40.0: hs.chooser has no shift-click multi-select, so
     -- Enter TAGS rows (✓) and an action row applies to all of them at
@@ -256,6 +534,7 @@ function M.setup(core)
                     text    = oneLine(item.text or ""):sub(1, clip.preview),
                     subText = item.date or "",
                     rawText = item.text,
+                    when    = item.date or "",
                 }
                 if #choices >= clip.rows then break end
             end
@@ -267,6 +546,8 @@ function M.setup(core)
                 subText = "Searches the full text of every saved item",
             }
         end
+        clip.lastChoices = choices          -- 👁 what the preview pane indexes
+        clip.pv.gen = clip.pv.gen + 1
         clip.chooser:choices(choices)
     end
 
@@ -326,6 +607,8 @@ function M.setup(core)
                               .. oneLine(item.text or ""):sub(1, clip.preview),
                     subText = (item.date or "") .. "  ·  " .. hint,
                     idx     = i,
+                    rawText = item.text,        -- 👁 for the preview pane
+                    when    = item.date or "",
                 }
                 shown = shown + 1
                 if shown >= clip.rows then break end
@@ -338,6 +621,8 @@ function M.setup(core)
                 subText = "",
             }
         end
+        clip.lastEditChoices = choices      -- 👁 what the preview pane indexes
+        clip.pv.gen = clip.pv.gen + 1
         clip.editChooser:choices(choices)
     end
 
@@ -384,6 +669,10 @@ function M.setup(core)
         pcall(function()
             clip.chooser:placeholderText("Search Clipboard History...")
         end)
+        -- 👁 the pane goes down with the picker — Esc, a pick, a click away
+        pcall(function()
+            clip.chooser:hideCallback(function() clip.previewClose() end)
+        end)
         clip.chooser:queryChangedCallback(function(query)
             local ok, err = pcall(clip.render, query)
             if not ok then
@@ -396,8 +685,7 @@ function M.setup(core)
         local function reopenEdit()
             clip.renderEdit("")
             pcall(function() clip.editChooser:query("") end)
-            if core.showPopup then core.showPopup(clip.editChooser)
-            else clip.editChooser:show() end
+            openEdit()
         end
 
         clip.editChooser = hs.chooser.new(function(choice)
@@ -453,6 +741,9 @@ function M.setup(core)
             clip.editChooser:placeholderText(
                 "Search clipboard history to edit or delete — Enter opens a row")
         end)
+        pcall(function()
+            clip.editChooser:hideCallback(function() clip.previewClose() end)
+        end)
         clip.editChooser:queryChangedCallback(function(query)
             local ok, err = pcall(clip.renderEdit, query)
             if not ok then
@@ -467,8 +758,7 @@ function M.setup(core)
         -- is the same destination without the indirection.
         core.hyperAddShortcut({}, clip.key, function()
             clip.render("")
-            if core.showPopup then core.showPopup(clip.chooser)
-            else clip.chooser:show() end
+            openMain()
         end, "clipboard history")
 
         core.hyperAddShortcut({ "shift" }, clip.key, function()
@@ -476,8 +766,7 @@ function M.setup(core)
             -- into week-old ✓ marks is how the wrong rows get deleted.
             clip.selectMode, clip.tagged = false, {}
             clip.renderEdit("")
-            if core.showPopup then core.showPopup(clip.editChooser)
-            else clip.editChooser:show() end
+            openEdit()
         end, "clipboard edit")
     end
 
@@ -505,8 +794,7 @@ function M.setup(core)
             unit  = "items",
             show  = function()
                 clip.render("")
-                if core.showPopup then core.showPopup(clip.chooser)
-                else clip.chooser:show() end
+                openMain()
             end,
             size  = function() return #(_G.clipboardCache or {}) end,
             text  = function()

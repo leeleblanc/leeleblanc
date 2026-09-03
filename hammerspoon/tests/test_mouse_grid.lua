@@ -50,6 +50,43 @@ end
 
 local SCREENS, CANVASES, CANVAS_NEW, TIMERS = {}, {}, 0, {}
 local MOUSE_AT, CLICKS, AX_OK = { x = 0, y = 0 }, {}, true
+-- 🎯 6.154.0 — the Accessibility world under the cell: AXELEMS is the
+-- list of elements on screen (role, frame, title, pid); a hit-test answers
+-- the first one whose frame contains the point. ASKS counts questions,
+-- GRID_UP_AT_ASK records whether our own overlay was still visible when
+-- the first question was asked — which it must never be.
+local AXELEMS, ASKS, GRID_UP_AT_ASK, AX_THROWS = {}, 0, nil, false
+local function mkAxElement(spec)
+    local e = { spec = spec }
+    function e:setTimeout() self.timedOut = true ; return self end
+    function e:pid() return self.spec.pid end
+    function e:attributeValue(k)
+        if k == "AXRole"  then return self.spec.role end
+        if k == "AXFrame" then return self.spec.frame end
+        if k == "AXTitle" then return self.spec.title end
+        return nil
+    end
+    return e
+end
+local SYSWIDE = {}
+function SYSWIDE:setTimeout() self.timedOut = true ; return self end
+function SYSWIDE:elementAtPosition(x, y)
+    ASKS = ASKS + 1
+    if GRID_UP_AT_ASK == nil then
+        GRID_UP_AT_ASK = false
+        for _, c in ipairs(CANVASES) do
+            if c.visible and c.isGrid then GRID_UP_AT_ASK = true end
+        end
+    end
+    if AX_THROWS then error("hostile: AX refuses") end
+    for _, spec in ipairs(AXELEMS) do
+        local f = spec.frame
+        if x >= f.x and x <= f.x + f.w and y >= f.y and y <= f.y + f.h then
+            return mkAxElement(spec)
+        end
+    end
+    return nil
+end
 local GLOBAL_HOTKEYS, HYPER, PROVIDED = {}, {}, {}
 local SCREEN_WATCHERS = {}
 local NOW = 1000
@@ -188,6 +225,8 @@ hs = {
         },
     },
     accessibilityState = function() return AX_OK end,
+    axuielement = { systemWideElement = function() return SYSWIDE end },
+    processInfo = { processID = 4242 },
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
     timer = {
         secondsSinceEpoch = function() NOW = NOW + 0.001; return NOW end,
@@ -236,8 +275,15 @@ local function resetWorld()
     CLICKS, ALERTS, printed = {}, {}, {}
     MODALS, GLOBAL_HOTKEYS, HYPER, PROVIDED, SCREEN_WATCHERS = {}, {}, {}, {}, {}
     MOUSE_AT, AX_OK = { x = 0, y = 0 }, true
+    AXELEMS, ASKS, GRID_UP_AT_ASK, AX_THROWS = {}, 0, nil, false
     _G.diag.said = {}
     _G.mouseGrid, _G.mouseGridReport = nil, nil
+end
+local function said(needle)
+    for _, l in ipairs(_G.diag.said) do
+        if l:sub(1, 3) == "say" and l:find(needle, 1, true) then return true end
+    end
+    return false
 end
 
 -- Load the SHIPPED file. `src` lets section 8 hand in a mutated copy.
@@ -961,6 +1007,137 @@ loadModule(); AX_OK = false; rep = _G.mouseGridReport()
 check("...and says the jump still works when it is off",
       rep:find("jump works", 1, true) ~= nil)
 AX_OK = true
+
+-- =====================================================================
+out("\n=== 7b. 🎯 6.154.0 — the third letter snaps onto a control INSIDE the cell ===\n")
+-- =====================================================================
+-- LL: "If the grid letters are close to a dialog box or tab, can we jump
+-- the cursor on top of that button? But, only if that button or field is
+-- within the box that I select by typing two letters and then the third
+-- of course would jump to that element."
+-- Cell "aaa" is the top-left cell of the 1512×982 display: 44.5 × 46.8pt.
+setScreens(ONE); loadModule()
+local cellW, cellH = 1512 / 34, 982 / 21
+-- the grid canvases are tagged so the hit-test stub can tell them apart
+-- from the landed badge
+grid.show(false)
+for _, p in ipairs(grid.cache.screens) do
+    p.gridCanvas.isGrid, p.labelCanvas.isGrid = true, true
+end
+AXELEMS = { { role = "AXButton", title = "Save", pid = 999,
+              frame = { x = 5, y = 5, w = 30, h = 30 } } }   -- centre 20,20;
+                                                            -- covers the
+                                                            -- cell centre
+typeLabel("aaa"); checkInv("snapped")
+check("🎯 a button whose centre is inside the cell: the pointer lands ON IT, "
+      .. "not at the cell centre",
+      math.abs(MOUSE_AT.x - 20) < 0.01 and math.abs(MOUSE_AT.y - 20) < 0.01,
+      string.format("%.1f,%.1f", MOUSE_AT.x, MOUSE_AT.y))
+check("...the trail says so, naming the control", said("snapped to AXButton 'Save'"))
+check("...landed mode as usual, and the badge names what SPACE will hit",
+      grid.state and grid.state.phase == "landed" and (function()
+    for _, e in ipairs(grid.cross.elements) do
+        if e.type == "text" and e.text:find("Save", 1, true) then return true end
+    end
+end)())
+check("🚨 the overlay was hidden BEFORE the question was asked — otherwise "
+      .. "our own scrim is the answer", GRID_UP_AT_ASK == false,
+      tostring(GRID_UP_AT_ASK))
+check("the centre is asked first, so the common case costs ONE question",
+      ASKS == 1, ASKS)
+check("every element asked was given a timeout first — a wedged app must "
+      .. "not hold the keyboard", SYSWIDE.timedOut == true)
+grid.hide("t"); checkInv("cleanup")
+
+-- 'within the box': a control that merely OVERLAPS the cell, its centre
+-- outside, does not pull the pointer out of the cell you chose
+loadModule()
+AXELEMS = { { role = "AXButton", title = "Wide", pid = 999,
+              frame = { x = 30, y = 5, w = 120, h = 16 } } }   -- centre x = 90
+grid.show(false); typeLabel("aaa"); checkInv("overlap")
+check("a control whose centre is OUTSIDE the cell is left alone — the "
+      .. "pointer stays inside the box you typed",
+      math.abs(MOUSE_AT.x - cellW / 2) < 0.01, MOUSE_AT.x)
+check("...and the trail says why", said("centre is outside"))
+grid.hide("t")
+
+-- several inside: the nearest to the cell centre wins
+loadModule()
+AXELEMS = { { role = "AXButton", title = "Far", pid = 999,
+              frame = { x = 1, y = 1, w = 8, h = 8 } },          -- centre 5,5
+            { role = "AXTextField", title = "Near", pid = 999,
+              frame = { x = 18, y = 19, w = 10, h = 10 } } }    -- centre 23,24
+grid.show(false); typeLabel("aaa"); checkInv("nearest")
+check("with two controls inside the cell, the one NEAREST its centre wins",
+      math.abs(MOUSE_AT.x - 23) < 0.01 and math.abs(MOUSE_AT.y - 24) < 0.01,
+      string.format("%.1f,%.1f", MOUSE_AT.x, MOUSE_AT.y))
+grid.hide("t")
+
+-- not a control: text is not what "jump onto it" means
+loadModule()
+AXELEMS = { { role = "AXStaticText", title = "para", pid = 999,
+              frame = { x = 0, y = 0, w = 44, h = 46 } } }
+grid.show(false); typeLabel("aaa"); checkInv("text")
+check("a paragraph under the cell is NOT a snap target",
+      math.abs(MOUSE_AT.x - cellW / 2) < 0.01 and said("not a control"))
+grid.hide("t")
+
+-- our own window is ignored by pid, belt to the hide-first braces
+loadModule()
+AXELEMS = { { role = "AXButton", title = "ours", pid = 4242,
+              frame = { x = 5, y = 5, w = 20, h = 16 } } }
+grid.show(false); typeLabel("aaa"); checkInv("own pid")
+check("a control in Hammerspoon's OWN process is ignored",
+      math.abs(MOUSE_AT.x - cellW / 2) < 0.01 and said("our own window"))
+grid.hide("t")
+
+-- the budget is a ceiling on what is ASKED
+loadModule(); grid.snapBudget = 0
+AXELEMS = { { role = "AXButton", title = "Save", pid = 999,
+              frame = { x = 5, y = 5, w = 20, h = 16 } } }
+grid.show(false); typeLabel("aaa"); checkInv("budget")
+check("🚨 with the budget spent NO question is asked and the cell centre stands",
+      ASKS == 0 and math.abs(MOUSE_AT.x - cellW / 2) < 0.01, ASKS)
+check("...and the trail says 'budget spent'", said("budget spent"))
+grid.hide("t")
+
+-- no Accessibility (the work Mac): nothing is asked, the jump still works
+loadModule(); AX_OK = false; grid.show(false); typeLabel("aaa"); checkInv("no AX")
+check("without Accessibility nothing is asked and THE JUMP STILL WORKS",
+      ASKS == 0 and MOUSE_AT.x > 0, ASKS)
+AX_OK = true; grid.hide("t")
+
+-- the off switch
+loadModule(); grid.snapToControls = false; grid.show(false); typeLabel("aaa")
+checkInv("snap off")
+check("grid.snapToControls = false: nothing asked, cell centre as before",
+      ASKS == 0 and math.abs(MOUSE_AT.x - cellW / 2) < 0.01)
+grid.hide("t")
+
+-- an AX that throws costs the snap, never the jump or the invariant
+loadModule(); AX_THROWS = true; grid.show(false); typeLabel("aaa"); checkInv("AX throws")
+check("an Accessibility layer that THROWS costs the snap, never the jump",
+      math.abs(MOUSE_AT.x - cellW / 2) < 0.01 and grid.state
+      and grid.state.phase == "landed")
+AX_THROWS = false; grid.hide("t")
+
+-- the snap rides ⇪⇧X's click-on-arrival too
+loadModule()
+AXELEMS = { { role = "AXButton", title = "OK", pid = 999,
+              frame = { x = 5, y = 5, w = 20, h = 16 } } }
+grid.show(true); typeLabel("aaa"); checkInv("click on arrival, snapped")
+check("⇪⇧X clicks the CONTROL it snapped onto, not the cell centre",
+      #CLICKS == 1 and math.abs(CLICKS[1].p.x - 15) < 0.01
+      and math.abs(CLICKS[1].p.y - 13) < 0.01,
+      CLICKS[1] and string.format("%.1f,%.1f", CLICKS[1].p.x, CLICKS[1].p.y))
+
+-- the report says whether snapping is live on THIS Mac
+loadModule()
+local rep7b = _G.mouseGridReport()
+check("the report has a snap line", rep7b:find("snap", 1, true) ~= nil)
+loadModule(); AX_OK = false; rep7b = _G.mouseGridReport(); AX_OK = true
+check("...which says the snap needs Accessibility when it is off",
+      rep7b:find("needs Accessibility", 1, true) ~= nil)
 
 -- =====================================================================
 out("\n=== 8. MUTATIONS — proof this suite fails when it should ===\n")

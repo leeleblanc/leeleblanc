@@ -199,6 +199,9 @@ local mod = dofile(HS .. "/modules/window_switcher.lua")
 mod.setup({ resolveBaseScreen = function(...) return resolveBaseScreen(...) end,
             diag = _G.diag })
 local AT = mod.altTab
+-- 6.154.0 — the layout the module SHIPS with, captured before reset()
+-- pins the legacy geometry sections to the grid (see reset and §15)
+local DEFAULT_LAYOUT = AT.layout
 
 local out = io.write
 NAVKEYS = {}
@@ -245,6 +248,10 @@ local function reset(n)
   AT.probeBudget = 999    -- 6.153.0 — same rule for the memory probes
   AT.enabled, AT.includeMinimized = true, true
   AT.includeOtherSpaces, AT.includeApps = true, true
+  -- 🗂 6.154.0 — the sections below were written for the TILE WALL and
+  -- pin its geometry (cols, rows, the screen-capacity cut); they run in
+  -- grid mode on purpose. §15 covers the rolodex, the shipped default.
+  AT.layout = "grid"
 end
 for _, b in ipairs(bound) do combos[b.combo] = b.fn end
 
@@ -1058,6 +1065,120 @@ check("a minimised console honours includeMinimized like every window",
 end)())
 AT.includeMinimized = true
 hs.console = nil
+
+-- =====================================================================
+out("\n=== 15. 🗂 6.154.0 — the ROLODEX ===\n")
+-- =====================================================================
+-- LL: "Can you make Opt+Tab like a rolladex of tiles?" One card front
+-- and centre, neighbours receding either side, Tab turns the wheel —
+-- and every window is on it, with snapshots taken as cards come round.
+check("the module SHIPS with the rolodex", DEFAULT_LAYOUT == "rolodex", DEFAULT_LAYOUT)
+resolveBaseScreen = function() return { frame = function() return { x=0, y=0, w=3840, h=2160 } end } end
+reset(0)
+for i = 1, 20 do table.insert(WINS, mkwin(i, "App" .. i, "W" .. i)) end
+APPS = appsFromWindows(WINS)
+AT.layout = "rolodex"
+combos["alt+tab"]()
+local S = AT.session
+check("the session knows its layout", S.layout == "rolodex" and S.side == AT.rolodexSide,
+      S.layout .. " ±" .. tostring(S.side))
+check("🗂 EVERY window is on the wheel — no screen-capacity cut, nothing hidden",
+      #S.items == 20 and S.hidden == 0, #S.items .. " items, " .. S.hidden .. " hidden")
+local function images()
+  local out2 = {}
+  for _, e in ipairs(drawn) do if e.type == "image" then out2[#out2 + 1] = e end end
+  return out2
+end
+local imgs = images()
+check("only the cards ON the wheel are drawn: centre + side either way",
+      #imgs == 2 * AT.rolodexSide + 1, #imgs)
+check("📸 …and only THOSE were photographed — snapshots are lazy now",
+      SNAPSHOT_CALLS == 2 * AT.rolodexSide + 1, SNAPSHOT_CALLS)
+check("the centre card is drawn LAST (on top) and is the LARGEST",
+      imgs[#imgs].image == "snap:" .. S.index and (function()
+  for i = 1, #imgs - 1 do if imgs[i].frame.w >= imgs[#imgs].frame.w then return false end end
+  return true
+end)(), imgs[#imgs].image)
+check("…neighbours recede: smaller and fainter the further from the centre",
+      (function()
+  -- the first two drawn are the farthest pair; the last is the centre
+  return imgs[1].frame.w < imgs[#imgs - 1].frame.w
+     and imgs[1].imageAlpha < imgs[#imgs].imageAlpha and imgs[#imgs].imageAlpha == 1
+end)(), imgs[1].imageAlpha .. " vs " .. imgs[#imgs].imageAlpha)
+check("the caption reads 'i / n'", (function()
+  for _, e in ipairs(drawn) do
+    if e.type == "text" and e.text:find("^" .. S.index .. " / 20") then return true end
+  end
+end)())
+local before = SNAPSHOT_CALLS
+combos["alt+tab"]()
+check("Tab turns the wheel one card", AT.session.index == 3, AT.session.index)
+check("📸 …and the card that came into view is photographed then, ONE more",
+      SNAPSHOT_CALLS == before + 1, SNAPSHOT_CALLS - before)
+AT.jumpTo(20); combos["alt+tab"]()
+check("past the last card is the first — a ring, like Tab has always wrapped",
+      AT.session.index == 1, AT.session.index)
+check("…and the ring shows the last cards on the LEFT of the first", (function()
+  local seen = {}
+  for _, e in ipairs(images()) do seen[e.image] = true end
+  return seen["snap:20"] and seen["snap:2"]
+end)())
+AT.session.index = 1; AT.render()
+navKey("alt", "down").fire()
+check("↓ turns the wheel rolodexJump cards", AT.session.index == 1 + AT.rolodexJump,
+      AT.session.index)
+navKey("alt", "up").fire()
+check("↑ turns it back", AT.session.index == 1)
+navKey("alt", "up").fire()
+check("…clamped at the first card, not wrapped — a big step that wrapped "
+      .. "would be a guess", AT.session.index == 1)
+AT.jumpTo(18); navKey("alt", "down").fire()
+check("…and clamped at the last", AT.session.index == 20, AT.session.index)
+check("no card is ever drawn twice", (function()
+  local seen = {}
+  for _, e in ipairs(images()) do
+    if seen[e.image] then return false end
+    seen[e.image] = true
+  end
+  return true
+end)())
+AT.finish(false)
+
+-- a narrow screen shrinks the wheel rather than overflowing (1314pt lesson)
+resolveBaseScreen = function() return { frame = function() return { x=0, y=0, w=800, h=600 } end } end
+reset(0)
+for i = 1, 12 do table.insert(WINS, mkwin(i, "App" .. i, "W" .. i)) end
+APPS = appsFromWindows(WINS)
+AT.layout = "rolodex"
+combos["alt+tab"]()
+check("on a narrow screen the wheel shows FEWER side cards so the HUD fits",
+      AT.session.side < AT.rolodexSide and AT.session.w <= 800,
+      "±" .. AT.session.side .. ", " .. AT.session.w .. "pt")
+check("…and still every window is on it", #AT.session.items == 12)
+AT.finish(false)
+resolveBaseScreen = function() return { frame = function() return { x=0, y=0, w=3840, h=2160 } end } end
+
+-- few windows: a strip, not a ring — nothing drawn twice
+reset(3)
+AT.layout = "rolodex"
+combos["alt+tab"]()
+check("with three windows all three are cards and none is doubled", (function()
+  local seen, n = {}, 0
+  for _, e in ipairs(images()) do
+    if seen[e.image] then return false end
+    seen[e.image] = true ; n = n + 1
+  end
+  return n == 3
+end)(), #images())
+AT.finish(false)
+
+-- the wall is one setting away
+reset(14)
+AT.layout = "grid"
+combos["alt+tab"]()
+check("altTab.layout = \"grid\" brings the tile wall back, rows and all",
+      AT.session.layout == "grid" and AT.session.cols == 6 and AT.session.rows == 3)
+AT.finish(false)
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

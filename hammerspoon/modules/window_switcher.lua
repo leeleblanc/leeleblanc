@@ -1,12 +1,14 @@
 -- =====================================================================
--- MODULE: WINDOW SWITCHER (was §1.10) — ⌥Tab, Windows-style, one tile per window
+-- MODULE: WINDOW SWITCHER (was §1.10) — ⌥Tab, Windows-style, one card per window
 -- =====================================================================
--- Hold ⌥ and tap Tab to walk every open WINDOW — one thumbnail tile
+-- Hold ⌥ and tap Tab to walk every open WINDOW — one thumbnail card
 -- each — ⌥⇧Tab to walk back, release ⌥ to switch to the highlighted
 -- one, Esc to cancel. That is the Windows Alt+Tab behaviour, which
 -- macOS does not have: ⌘Tab switches APPS, so a five-window app hides
 -- behind a single icon. ⌘Tab itself is left alone — macOS reserves it,
--- as §0.3's knownSystemCombos table already records.
+-- as §0.3's knownSystemCombos table already records. 6.154.0 draws the
+-- cards as a ROLODEX (see altTab.layout in the ✏️ block); the 6.34.0
+-- tile wall is one setting away.
 --
 -- ⚠️ 6.34.0 — WHY THIS IS HAND-BUILT AND NOT hs.window.switcher.
 -- 6.33.0 used hs.window.switcher, which is built on hs.window.filter.
@@ -57,14 +59,16 @@ local M = {
     cheatsheet = {
         title = "🔄 WINDOW SWITCHER (⌥Tab — Windows-style)",
         entries = {
-            { "⌥Tab", "Hold ⌥, tap Tab to walk every open window, release to switch" },
-            { "⌥⇧Tab", "Walk backwards through the same list" },
-            { "console", "The Hammerspoon Console is a tile too, whenever it is open" },
-            { "← →", "Keep ⌥ down: step one tile, wrapping like Tab" },
-            { "↑ ↓", "Keep ⌥ down: jump a whole ROW — the fast way across many rows" },
-            { "Home / End", "First tile / last tile" },
-            { "Return", "Switch to the highlighted tile without waiting for ⌥ release" },
-            { "tiles", "One thumbnail per WINDOW, with its title underneath" },
+            { "⌥Tab", "Hold ⌥, tap Tab to turn the ROLODEX of windows, release to switch" },
+            { "⌥⇧Tab", "Turn it backwards" },
+            { "console", "The Hammerspoon Console is a card too, whenever it is open" },
+            { "← →", "Keep ⌥ down: one card, wrapping like Tab" },
+            { "↑ ↓", "Keep ⌥ down: turn the wheel FIVE cards at a time" },
+            { "Home / End", "First card / last card" },
+            { "Return", "Switch to the front card without waiting for ⌥ release" },
+            { "cards", "One thumbnail per WINDOW — the front card large, neighbours" },
+            { "",      "receding either side; EVERY window is on the wheel" },
+            { "grid",  "altTab.layout = \"grid\" brings the tile wall back" },
             { "Esc", "Cancels — no switch" },
             { "shows", "Every window: all monitors, minimised too, other desktops" },
             { "memory", "Another desktop's windows are REMEMBERED from the last press" },
@@ -133,6 +137,27 @@ function M.setup(core)
     altTab.gap, altTab.pad     = 14, 22
     altTab.maxCols          = 6
     altTab.pollInterval     = 0.05   -- how often we check whether ⌥ is still down
+    -- 🗂 6.154.0 — THE ROLODEX. LL: "Can you make Opt+Tab like a rolladex
+    -- of tiles?" One card front and centre, its neighbours receding to
+    -- either side — smaller, fainter, overlapped — and Tab turns the
+    -- wheel. Three things the tile wall could not do fall out of it:
+    --   · EVERY window is reachable. The wall drew only what the screen
+    --     could hold and admitted the rest in a footer; the wheel shows
+    --     a window of cards over the whole list, so 36 windows on a
+    --     laptop are 36 cards, not 15 plus an apology.
+    --   · Snapshots are taken LAZILY, for the cards on screen, one more
+    --     per turn — not one per window on the keypress you are waiting
+    --     on (the 6.35.0 lesson, taken further).
+    --   · It reads as a ring: past the last card is the first, the way
+    --     Tab has always wrapped.
+    -- "grid" keeps the 6.34.0 tile wall exactly as it was.
+    altTab.layout        = "rolodex"
+    altTab.cardW, altTab.cardH = 320, 200   -- the centre card
+    altTab.rolodexSide   = 3        -- cards shown either side of the centre
+    altTab.rolodexScale  = 0.80     -- each step back shrinks by this much
+    altTab.rolodexStep   = 0.38     -- sideways step per card, × cardW
+    altTab.rolodexFade   = 0.22     -- alpha lost per step back
+    altTab.rolodexJump   = 5        -- ↑ ↓ turn the wheel this many cards
 
     altTab.session = nil   -- nil when idle; a table while the HUD is up
     altTab.poll    = nil   -- MUST be held: an unreferenced timer is collected
@@ -519,6 +544,105 @@ function M.setup(core)
         return table.concat(out) .. "…"
     end
 
+    -- 📸 The tile picture, taken ONCE per item and only when asked for.
+    -- Snapshots are per-window and cheap (CoreGraphics, not AX), but
+    -- still pcall'd: one uncooperative window must not take the whole
+    -- switcher down. A window on another Space has nothing on screen to
+    -- capture, so snapshot() returns nil for it and the app icon stands
+    -- in. That is expected here, not a failure.
+    --
+    -- 🔐 THIS CALL IS THE ONLY THING IN THE WHOLE CONFIG THAT NEEDS
+    -- SCREEN RECORDING PERMISSION. Photographing another app's window is
+    -- a screen capture as far as macOS is concerned, so w:snapshot() is
+    -- what makes the prompt appear. Set altTab.useSnapshots = false on a
+    -- Mac where you cannot grant it (or simply do not want to): every
+    -- tile falls back to the app icon, the switcher is otherwise
+    -- identical, and macOS is never asked for the permission at all.
+    function altTab.imageFor(item)
+        if item.snapTried then return item.image end
+        item.snapTried = true
+        local w, app = item.win, item.app
+        local okSnap, img = false, nil
+        if w and altTab.useSnapshots then
+            okSnap, img = pcall(function() return w:snapshot() end)
+        end
+        if not (okSnap and img) and app then
+            local okIcon, icon = pcall(function()
+                return hs.image.imageFromAppBundle(app:bundleID())
+            end)
+            img = okIcon and icon or nil
+        end
+        item.image = img
+        return img
+    end
+
+    -- 🗂 6.154.0 — the rolodex: which cards are on the wheel right now,
+    -- FAR TO NEAR so the centre paints last and on top. `off` is the
+    -- card's distance from the centre (negative = left). With enough
+    -- windows the wheel is a ring (past the last card is the first);
+    -- with fewer than 2·side+1 it is a straight strip, so no window is
+    -- ever drawn twice.
+    function altTab.rolodexCards(s)
+        local n, cards = #s.items, {}
+        if n == 0 then return cards end
+        local ring = n >= 2 * s.side + 1
+        for d = s.side, 0, -1 do
+            local offs = (d == 0) and { 0 } or { -d, d }
+            for _, off in ipairs(offs) do
+                local idx = s.index + off
+                if ring then
+                    idx = ((idx - 1) % n) + 1
+                    cards[#cards + 1] = { idx = idx, off = off }
+                elseif idx >= 1 and idx <= n then
+                    cards[#cards + 1] = { idx = idx, off = off }
+                end
+            end
+        end
+        return cards
+    end
+
+    local function renderRolodex(s, els, sty)
+        local cW, cH = altTab.cardW, altTab.cardH
+        local centreX, topY = s.w / 2, altTab.pad
+        for _, c in ipairs(altTab.rolodexCards(s)) do
+            local item  = s.items[c.idx]
+            local depth = math.abs(c.off)
+            local scale = altTab.rolodexScale ^ depth
+            local w, h  = cW * scale, cH * scale
+            local x = centreX + c.off * altTab.rolodexStep * cW - w / 2
+            local y = topY + (cH - h) / 2
+            local alpha = math.max(0.15, 1 - depth * altTab.rolodexFade)
+            local front = (c.off == 0)
+            table.insert(els, {
+                type = "rectangle", action = "strokeAndFill",
+                fillColor   = front and { red = 0.28, green = 0.52, blue = 0.92, alpha = 0.35 }
+                                    or { white = 0.10, alpha = 0.85 * alpha },
+                strokeColor = front and (sty.selectLine
+                                         or { red = 0.45, green = 0.68, blue = 1.0, alpha = 0.95 })
+                                    or { white = 1, alpha = 0.18 * alpha },
+                strokeWidth = front and 2 or 1,
+                roundedRectRadii = { xRadius = 10 * scale, yRadius = 10 * scale },
+                frame = { x = x, y = y, w = w, h = h },
+            })
+            -- taken here, for THIS card, the first time it is on the wheel
+            local img = altTab.imageFor(item)
+            if img then
+                table.insert(els, {
+                    type = "image", image = img, imageAlpha = alpha,
+                    imageScaling = "scaleProportionally", imageAlignment = "center",
+                    frame = { x = x + 8 * scale, y = y + 8 * scale,
+                              w = w - 16 * scale, h = h - 16 * scale },
+                })
+            end
+        end
+        local current = s.items[s.index]
+        table.insert(els, {
+            type = "text", text = fit(current and current.label or "", 40),
+            textSize = 13, textAlignment = "center", textColor = { white = 1 },
+            frame = { x = altTab.pad, y = topY + cH + 8, w = s.w - altTab.pad * 2, h = 20 },
+        })
+    end
+
     function altTab.render()
         local s = altTab.session
         if not (s and s.canvas) then return end
@@ -536,8 +660,10 @@ function M.setup(core)
             frame = { x = 0.5, y = 0.5, w = s.w - 1, h = s.h - 1 },
         })
 
+        if s.layout == "rolodex" then renderRolodex(s, els, sty) end
+
         local titleChars = math.max(8, math.floor(altTab.tileW / 7))
-        for i, item in ipairs(s.items) do
+        for i, item in ipairs(s.layout == "rolodex" and {} or s.items) do
             local col = (i - 1) % s.cols
             local row = math.floor((i - 1) / s.cols)
             local x = altTab.pad + col * (altTab.tileW + altTab.gap)
@@ -578,10 +704,17 @@ function M.setup(core)
 
         local current = s.items[s.index]
         local caption = current and current.full or ""
+        if s.layout == "rolodex" then
+            -- the wheel's position, then the hint: ↑↓ only when a jump
+            -- can actually move more than a step
+            caption = string.format("%d / %d  ·  %s", s.index, #s.items, caption)
+            if #s.items > altTab.rolodexJump then
+                caption = caption .. string.format("      ←→ one · ↑↓ %d", altTab.rolodexJump)
+            end
         -- The arrow hint only appears when there IS a second row, because
         -- on a single row ↑↓ do nothing and advertising a key that does
         -- nothing is worse than saying nothing at all.
-        if (s.rows or 1) > 1 then
+        elseif (s.rows or 1) > 1 then
             caption = caption .. "      ↑↓ row · ←→ tile"
         end
         if s.truncated then
@@ -778,6 +911,12 @@ function M.setup(core)
         if not s then return end
         local n = #s.items
         if n == 0 then return end
+        -- 🗂 the rolodex has no rows: ↑↓ turn the wheel by rolodexJump,
+        -- clamped at the ends (a big step that wrapped would be a guess)
+        if s.layout == "rolodex" then
+            altTab.jumpTo(s.index + delta * altTab.rolodexJump)
+            return
+        end
         local cols = math.max(1, s.cols or 1)
         local rows = math.ceil(n / cols)
         local row  = math.floor((s.index - 1) / cols)
@@ -877,6 +1016,7 @@ function M.setup(core)
         -- actually be drawn.
         local screen = core.resolveBaseScreen()
         local sf = screen:frame()
+        local layout = (altTab.layout == "grid") and "grid" or "rolodex"
 
         -- Fitted to the SCREEN, not to a fixed column count. Six 200pt tiles
         -- plus padding is 1314pt — wider than a 1280pt laptop display, and a
@@ -885,14 +1025,17 @@ function M.setup(core)
         -- from the height; anything that will not fit is dropped from the
         -- BACK (least recent) and the footer says how many are showing,
         -- because a silently shortened list is the same class of bug as text
-        -- clipped mid-sentence.
+        -- clipped mid-sentence. (The GRID's rule — the rolodex keeps every
+        -- window, see the ✏️ block.)
         local cellH   = altTab.tileH + 24 + altTab.gap
         local cols    = math.floor((sf.w * 0.92 - altTab.pad * 2 + altTab.gap)
                                    / (altTab.tileW + altTab.gap))
         cols = math.max(1, math.min(altTab.maxCols, cols, #wins))
         local rowsMax = math.max(1, math.floor((sf.h * 0.9 - altTab.pad * 2 - 14) / cellH))
         local total   = #wins
-        for i = total, cols * rowsMax + 1, -1 do table.remove(wins, i) end
+        if layout == "grid" then
+            for i = total, cols * rowsMax + 1, -1 do table.remove(wins, i) end
+        end
 
         local snapStart = hs.timer.secondsSinceEpoch()
         local items = {}
@@ -907,40 +1050,20 @@ function M.setup(core)
                 title = w:title()
                 if title == nil or title == "" then title = name end
             end
-            -- Snapshots are per-window and cheap (CoreGraphics, not AX), but
-            -- still pcall'd: one uncooperative window must not take the
-            -- whole switcher down.
-            -- A window on another Space has nothing on screen to capture,
-            -- so snapshot() returns nil for it and the app icon stands in.
-            -- That is expected here, not a failure.
-            --
-            -- 🔐 THIS CALL IS THE ONLY THING IN THE WHOLE CONFIG THAT NEEDS
-            -- SCREEN RECORDING PERMISSION. Photographing another app's
-            -- window is a screen capture as far as macOS is concerned, so
-            -- w:snapshot() is what makes the prompt appear. Set
-            -- altTab.useSnapshots = false on a Mac where you cannot grant it
-            -- (or simply do not want to): every tile falls back to the app
-            -- icon, the switcher is otherwise identical, and macOS is never
-            -- asked for the permission in the first place.
-            local okSnap, img = false, nil
-            if w and altTab.useSnapshots then
-                okSnap, img = pcall(function() return w:snapshot() end)
-            end
-            if not (okSnap and img) and app then
-                local okIcon, icon = pcall(function()
-                    return hs.image.imageFromAppBundle(app:bundleID())
-                end)
-                img = okIcon and icon or nil
-            end
-            table.insert(items, {
-                win = w, app = app, appOnly = entry.appOnly, image = img,
+            local item = {
+                win = w, app = app, appOnly = entry.appOnly, image = nil,
                 remembered = entry.remembered, label = name,
                 -- A remembered tile says so in the caption: the sweep no
                 -- longer sees this window (another desktop, usually), so
                 -- selecting it rides the app activation across Spaces.
                 full = name .. " — " .. title
                        .. (entry.remembered and "   · remembered (another desktop?)" or ""),
-            })
+            }
+            -- The grid draws every tile at once, so it captures every
+            -- tile now; the rolodex captures each card the first time it
+            -- turns into view (altTab.imageFor, from render).
+            if layout == "grid" then altTab.imageFor(item) end
+            table.insert(items, item)
         end
         local snapElapsed = hs.timer.secondsSinceEpoch() - snapStart
         _G.diag.say("altTab", string.format("captured %d tiles in %.3fs", #items, snapElapsed))
@@ -955,6 +1078,20 @@ function M.setup(core)
         local rows = math.ceil(n / cols)
         local w    = altTab.pad * 2 + cols * altTab.tileW + (cols - 1) * altTab.gap
         local h    = altTab.pad * 2 + rows * cellH + 14
+        local side = 0
+        if layout == "rolodex" then
+            -- the wheel: a centre card and up to rolodexSide either way,
+            -- fewer if the screen is narrow (the 1314pt lesson, again)
+            side = math.min(altTab.rolodexSide, math.max(0, n - 1))
+            local function wheelW(k)
+                return altTab.pad * 2 + altTab.cardW
+                       + 2 * k * altTab.rolodexStep * altTab.cardW
+            end
+            while side > 0 and wheelW(side) > sf.w * 0.92 do side = side - 1 end
+            cols, rows = 1, 1
+            w = wheelW(side)
+            h = altTab.pad * 2 + altTab.cardH + 28 + 30
+        end
         local rect = { x = sf.x + (sf.w - w) / 2, y = sf.y + (sf.h - h) / 2, w = w, h = h }
 
         local canvas = hs.canvas.new(rect)
@@ -994,14 +1131,18 @@ function M.setup(core)
 
         altTab.session = {
             items = items, cols = cols, rows = rows, w = w, h = h, hidden = total - n,
-        truncated = (_G.altTabLastListing or {}).truncated or false,
+            truncated = (_G.altTabLastListing or {}).truncated or false,
+            layout = layout, side = side,
             index = start,
             startedAt = hs.timer.secondsSinceEpoch(),
             canvas = canvas,
         }
         altTab.render()
-        _G.diag.say("altTab", string.format("HUD open: %d tiles, %d cols, %dx%d, start index %d",
-            n, cols, w, h, altTab.session.index))
+        -- ⚠️ %.0f for the size: the wheel's width is a float (cardW × a
+        -- fraction), and %d on a float RAISES in Lua 5.4
+        _G.diag.say("altTab", string.format("HUD open: %d tiles, %s, %.0fx%.0f, start index %d",
+            n, layout == "rolodex" and ("rolodex ±" .. side) or (cols .. " cols"),
+            w, h, altTab.session.index))
         pcall(function()
             canvas:level((_G.panelLevel and _G.panelLevel("switcher"))
                          or hs.canvas.windowLevels.overlay)

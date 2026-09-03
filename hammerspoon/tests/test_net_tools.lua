@@ -126,15 +126,21 @@ check("the cheat sheet key cell is exactly ⇪6", (function()
     end
     return false
 end)())
-check("all four tools LL named are present", #nt.tools == 4, #nt.tools)
-check("…and they are the four he named", (function()
+check("all four tools LL named are STILL present (6.154.0 added eight more)", (function()
     local want = { flush = true, ping = true, look = true, trace = true }
-    for _, t in ipairs(nt.tools) do
-        if not want[t.id] then return false end
-        want[t.id] = nil
-    end
+    for _, t in ipairs(nt.tools) do want[t.id] = nil end
     return next(want) == nil
 end)())
+check("6.154.0 — twelve tools in all", #nt.tools == 12, #nt.tools)
+check("🗣 …and EVERY row describes itself — LL: 'a picker that describes "
+      .. "and then executes the commands'", (function()
+    for _, t in ipairs(nt.tools) do
+        if not (nt.subFor(t) and #nt.subFor(t) > 20) then return false, t.id end
+    end
+    return true
+end)())
+check("the report and the safe refresh lead the list", nt.tools[1].id == "report"
+      and nt.tools[2].id == "refresh", nt.tools[1].id)
 
 -- =====================================================================
 out("\n=== 2. what counts as a host ===\n")
@@ -426,6 +432,270 @@ check("…lists what ran, against what", rep:find("example.com", 1, true) ~= nil
 check("🚨 …and repeats that a full flush needs admin",
       rep:lower():find("admin", 1, true) ~= nil, rep)
 check("…naming the no-admin substitute", rep:find("Wi%-Fi") ~= nil, rep)
+
+-- =====================================================================
+out("\n=== 9. 🩺 6.154.0 — the report: many commands, one verdict ===\n")
+-- =====================================================================
+-- LL: "can we use the command line to run multiple commands and build a
+-- report that tells us what is going on".
+reset()
+nt.reportFile = os.tmpname()
+nt.report("report")
+local rt = TASKS[1]
+check("the report is ONE shell run", rt and rt.bin == "/bin/sh", rt and rt.bin)
+local script = rt and rt.args[2] or ""
+check("🚨 every binary reaches the script as a POSITIONAL argument — none is "
+      .. "written into the script text", not script:find("/usr/", 1, true)
+      and not script:find("/sbin/", 1, true)
+      and rt.args[4] == nt.DIG and rt.args[16] == nt.KILLALL, script:sub(1, 80))
+check("…and the mode rides last: 'report' asks only", rt.args[17] == "report", rt.args[17])
+check("🚨 the script NEVER disables, kills, renews or reconfigures anything — "
+      .. "LL: 'I do not want to disable or kill or cause conflicts'", (function()
+    for _, bad in ipairs({ "setairportpower", "setdnsservers", "setnetworkserviceenabled",
+                           "route flush", "route delete", "route add", "arp %-d",
+                           "sudo", "pkill", "kill %-9", "ipconfig set", "renew",
+                           "ifconfig %S+ down", "ifconfig %S+ up", "networksetup %-set",
+                           "killall %-9", "dscl", "defaults write", "launchctl" }) do
+        if script:find(bad) then return false, bad end
+    end
+    return true
+end)())
+check("🚨 the ONE signal it can send (-HUP to mDNSResponder, the flush) sits "
+      .. "INSIDE the refresh branch and nowhere else", (function()
+    local n = select(2, script:gsub('"%$kil"', ""))
+    return n == 1 and script:find('if %[ "%$mode" = "refresh" %]') ~= nil
+           and script:find('"%$kil" %-HUP mDNSResponder') ~= nil
+end)())
+check("every wait is bounded in its arguments", script:find("-c 3 -i 0.2 -t 4", 1, true)
+      and script:find("+time=2 +tries=1", 1, true) and script:find("-m 4", 1, true))
+check("the run has a deadline of its own, longer than one tool's",
+      TIMERS[#TIMERS].secs == nt.reportTimeout and nt.reportTimeout > nt.timeout,
+      TIMERS[#TIMERS].secs)
+
+-- a healthy Mac, as the script would print it
+local HEALTHY = [[
+@@ ports
+Hardware Port: Wi-Fi
+Device: en0
+Ethernet Address: aa:bb:cc:dd:ee:ff
+Hardware Port: Thunderbolt Bridge
+Device: bridge0
+@@ addr
+en0 192.168.1.23
+@@ wifi
+Current Wi-Fi Network: HomeNet
+Security: WPA2 Personal
+@@ gateway
+   route to: default
+destination: default
+       mask: default
+    gateway: 192.168.1.1
+  interface: en0
+@@ dns
+resolver #1
+  nameserver[0] : 192.168.1.1
+  nameserver[1] : 1.1.1.1
+@@ pinggw
+PING 192.168.1.1: 56 data bytes
+3 packets transmitted, 3 packets received, 0.0% packet loss
+round-trip min/avg/max/stddev = 1.9/2.1/2.4/0.2 ms
+@@ ping1
+PING 1.1.1.1: 56 data bytes
+3 packets transmitted, 3 packets received, 0.0% packet loss
+round-trip min/avg/max/stddev = 13.0/14.2/15.1/0.9 ms
+@@ dnstime
+;; Query time: 14 msec
+;; SERVER: 192.168.1.1#53(192.168.1.1) (UDP)
+@@ race
+;; Query time: 12 msec
+;; SERVER: 1.1.1.1#53(1.1.1.1) (UDP)
+;; Query time: 19 msec
+;; SERVER: 8.8.8.8#53(8.8.8.8) (UDP)
+;; Query time: 31 msec
+;; SERVER: 9.9.9.9#53(9.9.9.9) (UDP)
+@@ public
+203.0.113.9
+@@ captive
+200 0.087
+@@ vpn
+lo0 gif0 stf0 en0 utun0 utun3
+No network configurations
+@@ routes
+Destination        Gateway            Flags
+default            192.168.1.1        UGScg
+192.168.1/24       link#5             UCS
+@@ arp
+router (192.168.1.1) at 0:1:2:3:4:5 on en0 ifscope [ethernet]
+printer (192.168.1.40) at 6:7:8:9:a:b on en0 ifscope [ethernet]
+@@ done
+]]
+rt.cb(0, HEALTHY, "")
+local R = nt.lastReport
+check("the facts are parsed: IP on Wi-Fi", R and R.facts.addr[1].ip == "192.168.1.23"
+      and R.facts.ports.en0 == "Wi-Fi")
+check("…the network name", R.facts.ssid == "HomeNet", R.facts.ssid)
+check("…the router and the resolvers", R.facts.gateway == "192.168.1.1"
+      and R.facts.dns[2] == "1.1.1.1")
+check("…both pings, loss and average", R.facts.pingGw.avg == 2.1
+      and R.facts.ping1.loss == 0 and R.facts.ping1.avg == 14.2)
+check("…the DNS time and who answered", R.facts.dnsMs == 14
+      and R.facts.dnsServer == "192.168.1.1")
+check("…the race, FASTEST FIRST", R.facts.race[1].server == "1.1.1.1"
+      and R.facts.race[1].ms == 12 and R.facts.race[3].server == "9.9.9.9")
+check("…the public IP and the portal check", R.facts.publicIp == "203.0.113.9"
+      and R.facts.captiveCode == 200)
+check("…the tunnels, and no VPN", #R.facts.tunnels == 2 and #R.facts.vpns == 0)
+check("…and the LAN", R.facts.arpCount == 2 and R.facts.routeCount >= 2)
+check("✅ a healthy Mac gets a ONE-LINE all-clear with the numbers in it",
+      #R.verdict == 1 and R.verdict[1]:find("✅ All good", 1, true) ~= nil
+      and R.verdict[1]:find("2 ms", 1, true) ~= nil, R.verdict[1])
+check("the whole report is on the clipboard, verdict first",
+      CLIP and CLIP:find("VERDICT", 1, true) ~= nil
+      and CLIP:find("VERDICT", 1, true) < CLIP:find("FACTS", 1, true))
+check("…and saved to the Logs folder", (function()
+    local f = io.open(nt.reportFile, "r")
+    if not f then return false end
+    local s = f:read("*a") ; f:close() ; os.remove(nt.reportFile)
+    return s:find("All good", 1, true) ~= nil
+end)())
+check("…which the write ledger knows is rewritten whole every run",
+      _G.rewrittenFiles and _G.rewrittenFiles[nt.reportFile] ~= nil)
+
+-- the verdict names the FIRST broken link, top down
+local function verdictFor(text)
+    return nt.verdict(nt.parseReport(text))
+end
+local function swap(text, from, to)
+    local s, n = text:gsub(from, to)
+    assert(n > 0, "fixture edit missed: " .. from)
+    return s
+end
+local deadRouter = swap(HEALTHY, "3 packets transmitted, 3 packets received, 0%.0%% packet loss\nround%-trip min/avg/max/stddev = 1%.9/2%.1/2%.4/0%.2 ms",
+                        "3 packets transmitted, 0 packets received, 100.0%% packet loss")
+check("❌ a router that does not answer is called a LOCAL problem",
+      verdictFor(deadRouter)[1]:find("LOCAL", 1, true) ~= nil, verdictFor(deadRouter)[1])
+local deadInet = swap(HEALTHY, "3 packets transmitted, 3 packets received, 0%.0%% packet loss\nround%-trip min/avg/max/stddev = 13%.0/14%.2/15%.1/0%.9 ms",
+                      "3 packets transmitted, 0 packets received, 100.0%% packet loss")
+check("❌ router fine but 1.1.1.1 silent → the ISP, not this Mac",
+      verdictFor(deadInet)[1]:find("ISP", 1, true) ~= nil, verdictFor(deadInet)[1])
+local deadDns = swap(HEALTHY, ";; Query time: 14 msec\n;; SERVER: 192%.168%.1%.1#53%(192%.168%.1%.1%) %(UDP%)",
+                     ";; connection timed out; no servers could be reached")
+check("❌ pings fine but names do not resolve → DNS is the problem, with the fix",
+      verdictFor(deadDns)[1]:find("DNS is the problem", 1, true) ~= nil
+      and verdictFor(deadDns)[1]:find("Flush DNS", 1, true) ~= nil, verdictFor(deadDns)[1])
+local slowDns = swap(HEALTHY, "Query time: 14 msec", "Query time: 180 msec")
+local V, tips = verdictFor(slowDns)
+check("⚠️ slow DNS is named with its number", V[1]:find("DNS is slow", 1, true)
+      and V[1]:find("180 ms", 1, true), V[1])
+check("💡 …and the race's winner is offered as the by-hand fix — with where "
+      .. "to set it, and that this tool never will", tips[1]
+      and tips[1]:find("1.1.1.1 answers in 12 ms", 1, true)
+      and tips[1]:find("System Settings", 1, true)
+      and tips[1]:find("never changes", 1, true), tips[1])
+local portal = swap(HEALTHY, "200 0%.087", "302 0.120")
+check("⚠️ a non-200 from captive.apple.com → a captive portal, with what to do",
+      verdictFor(portal)[1]:find("Captive portal", 1, true) ~= nil
+      and verdictFor(portal)[1]:find("browser", 1, true) ~= nil, verdictFor(portal)[1])
+local vpn = swap(HEALTHY, "No network configurations",
+                 '* (Connected)  0A1B2C3D IPSec  "Work VPN"  [IPSec]')
+V = verdictFor(vpn)
+check("🔒 a connected VPN is named, and said to carry everything above",
+      V[#V]:find("VPN connected: Work VPN", 1, true) ~= nil, V[#V])
+local noIp = swap(HEALTHY, "@@ addr\nen0 192%.168%.1%.23\n", "@@ addr\n")
+V = verdictFor(noIp)
+check("❌ no IP at all stops the reasoning at the first link — one line, "
+      .. "the one to fix", #V == 1 and V[1]:find("No IP address", 1, true) ~= nil, V[1])
+
+out("\n=== 9b. 🧹 the safe refresh: the flush, then the report ===\n")
+reset()
+nt.reportFile = os.tmpname()
+nt.report("refresh")
+rt = TASKS[1]
+check("the refresh is the same script with mode 'refresh'", rt.args[17] == "refresh")
+rt.cb(0, "@@ flush\nDSCACHE_RC=0\nkillall: warning: ...\nMDNS_RC=1\n" .. HEALTHY, "")
+check("the report opens with the REFRESH block, both halves reported honestly",
+      CLIP:find("🧹 REFRESH", 1, true) ~= nil
+      and CLIP:find("✅ dscacheutil", 1, true) ~= nil
+      and CLIP:find("needs admin", 1, true) ~= nil, CLIP:sub(1, 300))
+check("…saying in so many words that nothing else was touched",
+      CLIP:find("nothing else was touched", 1, true) ~= nil)
+check("…and the verdict still follows", CLIP:find("VERDICT", 1, true) ~= nil)
+check("history records it as a refresh", nt.history[#nt.history].tool == "refresh")
+os.remove(nt.reportFile)
+local rep9 = _G.netReport()
+check("_G.netReport() now carries the last verdict and where the file went",
+      rep9:find("last report", 1, true) ~= nil and rep9:find("All good", 1, true) ~= nil
+      and rep9:find("saved:", 1, true) ~= nil, rep9)
+
+out("\n=== 9c. the other new tools describe themselves and stay bounded ===\n")
+reset()
+nt.race()
+rt = TASKS[1]
+check("🏁 the race is one shell run, dig positional, the three resolvers as args",
+      rt.bin == "/bin/sh" and rt.args[4] == nt.DIG and rt.args[5] == "1.1.1.1"
+      and rt.args[7] == "9.9.9.9", table.concat(rt.args, " "):sub(1, 60))
+rt.cb(0, "@@ system\n;; Query time: 40 msec\n;; SERVER: 10.0.0.1#53(10.0.0.1)\n"
+         .. "@@ 1.1.1.1\n;; Query time: 12 msec\n;; SERVER: 1.1.1.1#53(1.1.1.1)\n"
+         .. "@@ 8.8.8.8\n;; Query time: 19 msec\n;; SERVER: 8.8.8.8#53(8.8.8.8)\n"
+         .. "@@ 9.9.9.9\n;; connection timed out\n", "")
+check("…listed fastest first, yours labelled, a silent one honest",
+      CLIP:find("1. 1.1.1.1", 1, true) ~= nil and CLIP:find("yours", 1, true) ~= nil
+      and CLIP:find("no answer", 1, true) ~= nil, CLIP)
+check("…and it says where YOU change it, and that it never will",
+      CLIP:find("System Settings", 1, true) ~= nil
+      and CLIP:find("never changes it", 1, true) ~= nil)
+
+reset()
+nt.dig("example.com")
+check("⏱ dig runs the real binary with the host as its own argument, bounded",
+      TASKS[1].bin == nt.DIG and TASKS[1].args[1] == "+time=2"
+      and TASKS[1].args[2] == "+tries=1" and TASKS[1].args[3] == "example.com")
+TASKS[1].cb(0, ";; Query time: 23 msec\n;; SERVER: 1.1.1.1#53(1.1.1.1)\n", "")
+check("…and the title carries the timing", nt.outChooser.placeholder:find("23 ms", 1, true) ~= nil,
+      nt.outChooser.placeholder)
+
+reset()
+nt.publicIp()
+check("🌍 the public IP is a DNS question to OpenDNS, not a web page",
+      TASKS[1].bin == nt.DIG and (function()
+    local j = table.concat(TASKS[1].args, " ")
+    return j:find("myip.opendns.com", 1, true) and j:find("@resolver1.opendns.com", 1, true)
+end)())
+TASKS[1].cb(0, "203.0.113.9\n", "")
+check("…the answer is copied and announced", CLIP == "203.0.113.9" and (function()
+    for _, a in ipairs(ALERTS) do if a:find("copied", 1, true) then return true end end
+end)(), CLIP)
+
+reset()
+nt.lan()
+check("🏠 the LAN list is arp -a, read only", TASKS[1].bin == nt.ARP
+      and TASKS[1].args[1] == "-a" and #TASKS[1].args == 1)
+reset()
+nt.interfaces()
+check("🔌 interfaces: networksetup and ipconfig, positional, list/get only",
+      TASKS[1].bin == "/bin/sh" and TASKS[1].args[4] == nt.NETSETUP
+      and TASKS[1].args[5] == nt.IPCONFIG
+      and not TASKS[1].args[2]:find("%-set") and TASKS[1].args[2]:find("getifaddr", 1, true))
+
+out("\n=== 9d. 🚀 the speed test is optional, the Homebrew way ===\n")
+reset()
+local realPaths = nt.speedtestPaths
+nt.speedtestPaths = {}
+check("absent: the row says how to install it", nt.subFor(nt.byId("speed")):find("Not installed", 1, true) ~= nil,
+      nt.subFor(nt.byId("speed")))
+check("…and ⏎ copies the install command instead of pretending", nt.speedtest() == false
+      and CLIP == nt.speedInstall and #TASKS == 0, CLIP)
+local sp = os.tmpname() .. "-speedtest-cli"
+local spf = io.open(sp, "w") ; spf:write("#!/bin/sh\n") ; spf:close()
+nt.speedtestPaths = { sp }
+check("present: the row names the binary", nt.subFor(nt.byId("speed")):find("speedtest%-cli") ~= nil)
+reset()
+nt.speedtest()
+check("…and it runs it directly, --simple, with a longer deadline than the rest",
+      TASKS[1] and TASKS[1].bin == sp and TASKS[1].args[1] == "--simple"
+      and TIMERS[#TIMERS].secs == nt.speedTimeout, TASKS[1] and TASKS[1].bin)
+os.remove(sp)
+nt.speedtestPaths = realPaths
 
 -- =====================================================================
 out(("\n── test_net_tools: %d passed, %d failed\n"):format(pass, fail))

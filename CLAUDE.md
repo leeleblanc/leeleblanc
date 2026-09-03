@@ -97,14 +97,26 @@ mirrors draw order: "closes last" IS "drawn under".
   lacked `using terms from`; "osascript exited 1: 577") — fixed 6.152.0. It
   never ran far enough to ask for Automation, so expect the macOS grant
   prompts on LL's first real press (once per browser); then verify.
-- ⌥Tab: 6.153.0 budgets the memory probes — LL's "very slow" console line
-  (1.64s across 13 apps, slowest 0.01s) was the probe loop re-proving every
-  remembered window unbudgeted. Verify: presses fast again; a still-slow
-  "listing took" line now names its phase ("memory: N probed in X.XXs").
-  Memory still learns one press per desktop per reload; if a learned window
-  never shows, ask for `_G.altTabLastListing` (remembered/probed/probeSecs).
+- ⌥Tab: 6.153.0 budgets the memory probes (a still-slow "listing took" line
+  names its phase: "memory: N probed in X.XXs"; `_G.altTabLastListing` has
+  remembered/probed/probeSecs). 6.154.0 draws it as a ROLODEX
+  (`altTab.layout`, "grid" = the old wall); snapshots are lazy per card.
+  Verify: feel + speed; every window reachable; ↑↓ turn five.
 - 6.153.0 verify with LL: ⇪T takes typing the moment it opens (non-activating
   mask, read-back verified), drags by its header, SAC Values are checkbox
   chips; ⇪Y ⌘⏎ copies the URL, ⌥⏎ opens in Safari (chrome.altBrowser).
+- 6.154.0 verify with LL: ⇪V/⇪⇧V preview pane follows arrows AND the mouse
+  (hover maths assumes the list is unscrolled — hs.chooser has no scroll
+  getter); ⇪X lands on a button/tab inside the typed cell (needs
+  Accessibility; the badge names it; `_G.mouseGridReport()` has a snap
+  line); ⇪6 🩺 report's verdict reads right on both Macs (work Mac: the
+  mDNS flush half needs admin, said honestly), 🚀 speed row finds
+  speedtest-cli under ~/homebrew; ⇪Y reaches 180 days only OVER TIME
+  (Chrome's 90 is the export ceiling; the archive carries the rest —
+  status line says "N kept from the archive"); pomodoro translucency to
+  taste (pom.alphaAlert / cardAlpha / inkAlpha).
+- Write ledger: a store rewritten whole (⇪I cache, .json, chrome/clipboard
+  files, `_G.rewrittenFiles` registry) may shrink silently; >50% loss is
+  still reported once. Any NEW rewritten store must register itself.
 - Pomodoro weekly report currently fires with the Friday 4:30 tally; LL may
   want a different day/shape once seen.

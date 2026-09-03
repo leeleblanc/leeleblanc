@@ -36,6 +36,19 @@
 -- second stage sharing this same key handling. It should not be merged
 -- into this one — the two have opposite failure modes.
 --
+-- 🎯 6.154.0 — AND THE SECOND STAGE ARRIVED, ON THE TERMS ABOVE. LL: "If
+-- the grid letters are close to a dialog box or tab, can we jump the
+-- cursor on top of that button? But, only if that button or field is
+-- within the box that I select by typing two letters and then the third
+-- of course would jump to that element." It is NOT a tree walk: it is at
+-- most five HIT-TESTS ("what is under this point?") inside the one cell
+-- you typed, centre first, one AX round-trip each, with a per-question
+-- timeout and a budget. A control whose centre lies inside that cell
+-- wins; anything else — no Accessibility, an Electron app that answers
+-- nothing, a budget spent — leaves the cell-centre jump exactly as it
+-- was. See SNAP ONTO A CONTROL below. The failure mode is therefore
+-- "no snap", never "no jump".
+--
 -- ---------------------------------------------------------------------
 -- 🚨 SAFETY — THE REAL RISK IN THIS FILE
 -- ---------------------------------------------------------------------
@@ -129,6 +142,7 @@ local M = {
             { "⇪X",       "Overlay the labelled grid on every display" },
             { "⇪⇧X",      "Same, but click the moment you finish typing" },
             { "asdfghjkl","Type a cell's 3 letters — the pointer jumps there" },
+            { "snap",     "A button/field INSIDE that cell? The pointer lands ON it" },
             { "⌫",        "Undo one letter while typing" },
             { "⎋",        "Cancel — the pointer does not move" },
             { "-- after it lands --", "" },
@@ -201,6 +215,24 @@ function M.setup(core)
     -- Drop the grid lines once typing starts, so the survivors stand alone
     -- on the scrim. false keeps the full lattice up the whole time.
     grid.dropLattice  = true
+
+    -- 🎯 6.154.0 — SNAP ONTO A CONTROL INSIDE THE CELL (see the header).
+    -- A handful of hit-tests, not a tree walk; every question has its
+    -- own timeout and the whole thing a budget. Roles that count as "a
+    -- button or field": macOS tabs are AXRadioButtons inside a tab group,
+    -- web buttons/links in Chrome answer AXButton/AXLink, an open menu's
+    -- rows are AXMenuItems. Text, images and table cells are left out —
+    -- landing on a paragraph's centre is not what "jump onto it" means.
+    grid.snapToControls = true
+    grid.snapBudget     = 0.08      -- seconds of hit-testing per landing
+    grid.snapTimeout    = 0.05      -- per AX question (setTimeout)
+    grid.snapRoles      = {
+        AXButton = true, AXTextField = true, AXTextArea = true,
+        AXCheckBox = true, AXRadioButton = true, AXPopUpButton = true,
+        AXComboBox = true, AXLink = true, AXMenuButton = true,
+        AXMenuItem = true, AXMenuBarItem = true, AXDisclosureTriangle = true,
+        AXSlider = true, AXIncrementor = true, AXColorWell = true,
+    }
 
     -- After the jump, stay live so SPACE can click (the "tab onto it"
     -- feel). false = jump and get out of the way immediately.
@@ -660,7 +692,9 @@ function M.setup(core)
     -- =====================================================================
     -- THE LANDED BADGE — the visual proof that keys are being captured
     -- =====================================================================
-    local function showCrosshair(px, py)
+    -- `hint` (6.154.0) names the control the pointer snapped onto, so the
+    -- badge reads "🎯 Save · space click …" and you know what SPACE hits.
+    local function showCrosshair(px, py, hint)
         local W, H = 232, 78
         local scr  = hs.mouse.getCurrentScreen() or hs.screen.mainScreen()
         local sf   = scr and scr:fullFrame() or { x = 0, y = 0, w = 1440, h = 900 }
@@ -696,7 +730,9 @@ function M.setup(core)
             { type = "rectangle", action = "fill",
               fillColor = { white = 0.0, alpha = 0.72 }, roundedRectRadii = { xRadius = 5, yRadius = 5 },
               frame = { x = 8, y = H - 24, w = W - 16, h = 18 } },
-            { type = "text", text = "space click · ↑↓←→ nudge · ⎋ done",
+            { type = "text",
+              text = (hint and ("🎯 " .. hint .. " · space click · ⎋ done")
+                      or "space click · ↑↓←→ nudge · ⎋ done"),
               textSize = 11, textColor = { white = 1.0, alpha = 0.95 },
               textAlignment = "center",
               frame = { x = 8, y = H - 23, w = W - 16, h = 17 } },
@@ -812,9 +848,111 @@ function M.setup(core)
     end
 
     -- =====================================================================
+    -- 🎯 SNAP ONTO A CONTROL (6.154.0)
+    -- =====================================================================
+    -- What is under the cell? Asked of the system-wide AX element at the
+    -- cell's centre and its four quarter points — five questions at most,
+    -- centre first so the common case costs one — each with its own
+    -- timeout, the lot under grid.snapBudget. An answer counts when it is
+    -- a control (grid.snapRoles) whose CENTRE lies inside the cell: that
+    -- is LL's "only if that button or field is within the box". Several?
+    -- The one nearest the cell's centre. Our own windows are ignored by
+    -- pid (the overlay is hidden before asking, but a belt is cheap).
+    -- Returns { x, y, role, title } or nil plus the reason, for the trail.
+    local function ownPid()
+        local ok, p = pcall(function() return hs.processInfo.processID end)
+        return ok and p or nil
+    end
+
+    local function samplePoints(cell)
+        local cx, cy = cell.ax, cell.ay
+        local dx, dy = cell.rw / 4, cell.rh / 4
+        return { { x = cx, y = cy },
+                 { x = cx - dx, y = cy - dy }, { x = cx + dx, y = cy - dy },
+                 { x = cx - dx, y = cy + dy }, { x = cx + dx, y = cy + dy } }
+    end
+
+    function grid.snapPoint(cell)
+        if not grid.snapToControls then return nil, "snap is off" end
+        if not axAvailable() then return nil, "no Accessibility" end
+        local okSys, sys = pcall(function() return hs.axuielement.systemWideElement() end)
+        if not (okSys and sys) then return nil, "no system-wide element" end
+        pcall(function() sys:setTimeout(grid.snapTimeout) end)
+        local me = ownPid()
+        local left, top = cell.ax - cell.rw / 2, cell.ay - cell.rh / 2
+        local right, bottom = left + cell.rw, top + cell.rh
+        local t0 = hs.timer.secondsSinceEpoch()
+        local best, bestD, asked = nil, math.huge, 0
+        local why, seen = "nothing under the cell", {}
+        for i, p in ipairs(samplePoints(cell)) do
+            -- the budget is a ceiling on what is ASKED, checked before
+            -- each question — the ⌥Tab listBudget rule
+            if hs.timer.secondsSinceEpoch() - t0 > grid.snapBudget then
+                why = "budget spent"
+                break
+            end
+            -- the CENTRE was asked first and it is a control: the pointer
+            -- would land on it anyway, so the common case costs one
+            if i > 1 and best then break end
+            asked = asked + 1
+            local el
+            pcall(function() el = sys:elementAtPosition(p.x, p.y) end)
+            if el then
+                pcall(function() el:setTimeout(grid.snapTimeout) end)
+                local pid, role, frame
+                pcall(function() pid = el:pid() end)
+                if me ~= nil and pid == me then
+                    why = "only our own window under the cell"
+                else
+                    pcall(function() role = el:attributeValue("AXRole") end)
+                    if role and grid.snapRoles[role] then
+                        pcall(function() frame = el:attributeValue("AXFrame") end)
+                        if type(frame) == "table" and frame.w and frame.h then
+                            local fx = frame.x + frame.w / 2
+                            local fy = frame.y + frame.h / 2
+                            local key = tostring(fx) .. "," .. tostring(fy)
+                            if not seen[key] then
+                                seen[key] = true
+                                if fx >= left and fx <= right
+                                   and fy >= top and fy <= bottom then
+                                    local d = (fx - cell.ax) ^ 2 + (fy - cell.ay) ^ 2
+                                    if d < bestD then
+                                        local title
+                                        pcall(function()
+                                            title = el:attributeValue("AXTitle")
+                                        end)
+                                        best, bestD = { x = fx, y = fy, role = role,
+                                                        title = title }, d
+                                    end
+                                else
+                                    why = role .. " under the cell, but its centre "
+                                          .. "is outside it"
+                                end
+                            end
+                        end
+                    elseif role then
+                        why = tostring(role) .. " is not a control"
+                    end
+                end
+            end
+        end
+        -- ⚠️ %.0f, never %d: these are screen coordinates (see layoutKey)
+        local ms = (hs.timer.secondsSinceEpoch() - t0) * 1000
+        if best then
+            say(string.format("snapped to %s%s at %.0f,%.0f (%d asked, %.0fms)",
+                best.role,
+                best.title and (" '" .. tostring(best.title):sub(1, 30) .. "'") or "",
+                best.x, best.y, asked, ms))
+            return best
+        end
+        say(string.format("no snap: %s (%d asked, %.0fms)", why, asked, ms))
+        return nil, why
+    end
+
+    -- =====================================================================
     -- LANDED MODE
     -- =====================================================================
-    local function enterLanded(point)
+    local function enterLanded(point, snap)
         hideAllShown()
         pcall(function() grid.pickModal:exit() end)
         local okEnter = pcall(function() grid.landModal:enter() end)
@@ -825,8 +963,13 @@ function M.setup(core)
             warn("landModal:enter() failed — pointer moved, keys not captured")
             return
         end
-        grid.state = { phase = "landed", point = point }
-        if not showCrosshair(point.x, point.y) then
+        grid.state = { phase = "landed", point = point, snapped = snap }
+        local hint
+        if snap then
+            hint = tostring(snap.title or snap.role or ""):sub(1, 18)
+            if hint == "" then hint = nil end
+        end
+        if not showCrosshair(point.x, point.y, hint) then
             grid.hide("no badge could be drawn")
             warn("landed badge could not be drawn — refusing to capture keys "
                  .. "invisibly; the pointer has still moved")
@@ -948,12 +1091,19 @@ function M.setup(core)
                 return
             end
             local point = { x = cell.ax, y = cell.ay }
+            -- 🎯 6.154.0 — THE OVERLAY COMES DOWN BEFORE THE HIT-TEST, or
+            -- "what is under this point?" is answered by our own scrim.
+            -- hideAllShown() is idempotent; every path below calls it
+            -- again on its way to hide()/enterLanded().
+            hideAllShown()
+            local snap = grid.snapPoint(cell)
+            if snap then point = { x = snap.x, y = snap.y } end
             movePointer(point)
             if s.clickOnArrival then
                 grid.hide("jumped + clicked")
                 clickAt(point, "left")
             elseif grid.landedMode then
-                enterLanded(point)
+                enterLanded(point, snap)
             else
                 grid.hide("jumped")
             end
@@ -1087,6 +1237,12 @@ function M.setup(core)
         out[#out + 1] = "   clicking: " .. (axAvailable()
             and "✅ Accessibility granted"
             or  "⚪️ Accessibility OFF — the jump works, space-to-click does not")
+        out[#out + 1] = "   snap    : " .. (not grid.snapToControls
+            and "off (grid.snapToControls)"
+            or (axAvailable()
+                and string.format("✅ a control inside the typed cell is landed on "
+                                  .. "(≤5 hit-tests, %.0fms budget)", grid.snapBudget * 1000)
+                or  "⚪️ needs Accessibility — the cell centre stands in"))
         print(table.concat(out, "\n"))
         return table.concat(out, "\n")
     end

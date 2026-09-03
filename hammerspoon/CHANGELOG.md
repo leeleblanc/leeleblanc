@@ -4,6 +4,156 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.154.0 — SEVEN ASKS: ⇪V SHOWS THE WHOLE ENTRY · ⇪X LANDS ON THE
+BUTTON · ⌥TAB IS A ROLODEX · ⇪6 GROWS A REPORT · ⇪Y REACHES 180 DAYS:
+  👁 ⇪V / ⇪⇧V — LL: "Can the full contents of the clipboard item in cmd+V
+     be shown as I arrow up/down, or put my mouse cursor on an item? The
+     view should show to the right of the window and be able to scroll
+     or automatically expand to show that entry." A pane beside the
+     picker — to the right when it fits, else the left — shows the WHOLE
+     entry of the row the arrows or the mouse are on, in Menlo, growing
+     to the screen's bottom edge ("automatically expand") and ending in
+     an honest "… N more lines — ⏎ copies all of it" when it must, never
+     clipped mid-word. hs.chooser has no selection-changed callback and
+     does NOT follow the mouse (HSChooser.m was read, not assumed), so
+     ONE poll that runs only while a picker is up reads selectedRow()
+     for the keyboard and computes the row under the pointer from the
+     picker's box — the placement record plus window_move's row
+     constants, since macOS gives a chooser no frame getter. The mouse
+     wins inside the picker, the keyboard elsewhere; the hover maths
+     assumes the list is unscrolled (there is no scroll getter). The
+     picker's hideCallback closes the pane; the poll closes it too when
+     the picker is simply gone. Click-through, on a new ladder rung
+     (clippreview = 4, beside and above the chooser). clip.previewOn =
+     false is the old list alone. Both openers keep their own
+     core.showPopup line — test_integration counts one per picker.
+  🎯 ⇪X — LL: "If the grid letters are close to a dialog box or tab, can
+     we jump the cursor on top of that button? But, only if that button
+     or field is within the box that I select by typing two letters and
+     then the third of course would jump to that element." On the
+     header's own terms — no accessibility-tree walk — the third letter
+     now HIT-TESTS the cell: the centre first, then its four quarter
+     points, at most five AX questions each with setTimeout, all under
+     grid.snapBudget (80ms), and the centre alone when it already
+     answers with a control. A control (grid.snapRoles: buttons, fields,
+     checkboxes, radio buttons — macOS tabs — pop-ups, links, menu
+     items…) whose CENTRE lies inside the cell wins, the nearest to the
+     cell's centre if several; the pointer lands ON it and the landed
+     badge names it ("🎯 Save · space click · ⎋ done"). The overlay is
+     hidden BEFORE the question is asked (or our own scrim answers), and
+     Hammerspoon's own pid is ignored as a belt to those braces. No
+     Accessibility, an Electron app that answers nothing, a paragraph
+     under the cell, a control merely overlapping it, a spent budget, an
+     AX layer that throws: the cell-centre jump exactly as before — the
+     failure mode is "no snap", never "no jump". ⇪⇧X clicks what it
+     snapped onto. _G.mouseGridReport() grew a snap line.
+  🗂 ⌥TAB — LL: "Can you make Opt+Tab like a rolladex of tiles?" The
+     front card large and centred (320×200), neighbours receding either
+     side — scaled by 0.8 per step, fainter, overlapped — drawn far to
+     near so the centre paints on top; Tab turns the wheel, ← → one
+     card, ↑ ↓ five (clamped: a big step that wrapped would be a guess),
+     Home/End the ends, and past the last card is the first. Three
+     things the tile wall could not do fall out of it: EVERY window is
+     on the wheel (the wall drew what the screen held and admitted the
+     rest in a footer); snapshots are taken LAZILY as cards come round —
+     the visible seven on the press, one more per turn — not one per
+     window on the keypress you are waiting on; and a narrow screen
+     shows fewer side cards rather than overflowing. The caption reads
+     "i / n · App — title". altTab.layout = "grid" is the 6.34.0 wall,
+     unchanged, and the suite's geometry pins run against it; §15 pins
+     the rolodex. (One %d on a float width found by the suite: the
+     wheel's width is cardW × a fraction, and %d raises in Lua 5.4.)
+  🩺 ⇪6 — LL: "can we use the command line to run multiple commands and
+     build a report that tells us what is going on", "a picker that
+     describes and then executes the commands", and "something that
+     when run it cleans our network connections … But, we must be very
+     safe. I do not want to disable or kill or cause conflicts with my
+     network configs." 🩺 NETWORK REPORT: fourteen READ-ONLY questions in
+     ONE /bin/sh run — ports, the IP per interface, the Wi-Fi network,
+     the default router, the resolvers, three pings to the router and
+     three to 1.1.1.1 (the internet with no DNS in the way), a timed
+     lookup, the same lookup raced against 1.1.1.1 · 8.8.8.8 · 9.9.9.9,
+     the public IP asked of OpenDNS BY DNS (no web page), Apple's
+     captive-portal check, tunnels and VPN configurations, the routing
+     table, the ARP cache. Every binary ships with macOS and reaches the
+     script as a positional argument; every wait is bounded in its
+     arguments (ping -c/-i/-t, dig +time/+tries, curl -m) under a 60s
+     deadline. The Lua side parses the facts and reasons TOP DOWN, so
+     the VERDICT names the FIRST broken link — no IP, no router, router
+     silent (LOCAL), router fine but 1.1.1.1 silent (the ISP), pings
+     fine but names fail (DNS — flush, or set 1.1.1.1), slow DNS with
+     its number, a non-200 from captive.apple.com (a portal — open a
+     browser), a connected VPN named — or one ✅ line with the numbers.
+     WHAT WOULD HELP is by hand: the race's winner and where in System
+     Settings to set it; this tool never changes network settings
+     itself. Saved to Logs/net_report-<Mac>.txt, whole thing on the
+     clipboard, verdict first. 🧹 REFRESH & VERIFY (SAFE) is the same
+     script with the flush in front — exactly the two lines Flush DNS
+     has run since 6.120.0, each half reported honestly (the
+     mDNSResponder half needs admin; on the work Mac the report says so
+     and that nothing else was touched). What "safe" means, pinned by
+     name in the suite: no setairportpower, no setdnsservers, no route
+     flush/add/delete, no arp -d, no sudo, no pkill/kill -9, no ipconfig
+     set/renew, no ifconfig up/down, no launchctl — and the one signal
+     it can send (-HUP to mDNSResponder) sits inside the refresh branch
+     only. Eight more rows, each describing itself: ⏱ dig with timing
+     (which server, how many ms), 🏁 DNS race (yours vs the public three,
+     fastest first), 🔌 interfaces & addresses, 🏠 devices on this network
+     (arp -a), 🌍 public IP (copied), and 🚀 speed test — the ONE optional
+     tool, the way ⇪8's WordNet is: speedtest-cli under ~/homebrew,
+     /opt/homebrew or /usr/local when Homebrew has it (LL runs Homebrew
+     from his home directory on the work Mac), --simple, a 120s
+     deadline; absent, the row says so and ⏎ copies the install command.
+     test_diagnostics's reviewed-binary list grew the eight read-only
+     binaries and net_tools joined the brew carve-out on define's terms.
+  🗄 ⇪Y — LL: "Without bogging down Hammerspoon, Chrome, my MacBook
+     overall, can we use our Chrome history search to go as far back in
+     time as possible but not past 180 days?" Chrome itself deletes
+     history at 90 days, so no export can hand back more — the second 90
+     come from the ARCHIVE this module already keeps: chrome.mergeArchive
+     carries forward rows from the previous save that the fresh export
+     no longer contains (Chrome dropped them, or the per-profile cap cut
+     them), keyed on the URL (Chrome's own key; a URL the export DID
+     return wins with its newer visit count), inside chrome.days = 180,
+     newest first, capped at chrome.maxTotal = 60,000 so neither the CSV
+     nor the per-keystroke search grows without bound — "without
+     bogging down" was the other half of the ask. loadCsv prunes past
+     the window and caps too, so lowering chrome.days shortens the
+     archive. The status line says "N kept from the archive"; the
+     placeholder and cheat sheet say 180. The test suite's exact-count
+     sections now start from an empty archive, since an export merges.
+  💾 LL: "Is this a problem? … recent_docs-Lees-MacBook-Air.csv has
+     SHRUNK — 49.7 KB at boot, 48.8 KB now. That is either a rotation or
+     a truncation, and only one of them is fine." Neither: that file is
+     the ⇪I CACHE, rewritten whole after every Spotlight scan, and it
+     shrinks whenever a document ages out of the 30-day window. The
+     write ledger's shrink rule was written for append-only logs and did
+     not know the difference. It does now, three ways: a registry
+     (_G.rewrittenFiles[path] = why — recent_docs, clipboard_history,
+     chrome_history and the net report register themselves, and a
+     later-loading module can use the writeLedger.rewritten service),
+     .json by nature (a JSON array cannot be appended to), and name
+     patterns for the caches that predate the registry (the OCR log
+     after a ⇪⇧O delete, the update tracker). For those a smaller file
+     is silent and the report says "rewritten — normal"; losing MORE
+     THAN HALF is still reported, once, because a cache rewritten as
+     nearly nothing is the clipboard-history P4 disaster under another
+     name.
+  👻 POMODORO — LL: "Can you fade both the Pomodoro focus box and the
+     time instead of being solid white also? Both need to be more
+     translucent." "Solid" had three causes, so three knobs: the whole
+     card rose to 90% for the last five minutes (pom.alphaAlert, now
+     75% — never solid), the card's fill was the shared 92% background
+     (pom.cardAlpha = 0.78 of that — a COPY; the shared style table is
+     untouched, test_style's identity pins hold), and the digits were
+     97% white (pom.inkAlpha = 0.80 of that). The FLASH keeps its full
+     colours: an alert nobody can see is no alert.
+  ✅ Gate: 6,228 → 6,383 checks (test_switcher 160 → 181; test_mouse_grid
+     296 → 326; test_clipboard 65 → 89; test_net_tools 66 → 115;
+     test_write_ledger 65 → 75; test_chrome_history 110 → 119;
+     test_tools 110 → 114; test_diagnostics 431 → 439), 67 stages, lint
+     and the hostile world green, in the tree and inside the package.
+
 NEW IN 6.153.0 — ⌥TAB'S HIDDEN 1.5 SECONDS · THE ⇪T WINDOW GROWS UP ·
 ⇪Y LEARNS TO COPY:
   🐢 LL: "Opt+Tab is very slow", with the Console line that could not
