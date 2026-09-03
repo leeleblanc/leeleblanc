@@ -618,6 +618,9 @@ out("\n=== 8. Placeholders ===\n")
 addSnippet("{c}", "a{cursor}b", "Cursor")
 addSnippet("{p}", "paste: {clipboard}", "Clip")
 addSnippet("{d}", "on {date}", "Date")
+addSnippet("{sl}", "{date:DD/MM/YYYY}", "Date, slashes")
+addSnippet("{da}", "{date:DD-MM-YYYY}", "Date, dashes")
+addSnippet("{al}", "{date:dd MMM yyyy}", "Date, Alfred's spelling")
 addSnippet("{u}", "hi {unknownthing}", "Unknown")
 
 reset(); typeStr("{c}"); drain()
@@ -632,12 +635,68 @@ reset(); typeStr("{d}"); drain()
 check("{date} becomes today", KEYSTROKES[1] == "on " .. os.date("%Y-%m-%d"),
   KEYSTROKES[1])
 
+-- 📅 6.158.0 — LL: "Date in this formats: DD/MM/YYYY and DD-MM-YYYY."
+reset(); typeStr("{sl}"); drain()
+check("📅 {date:DD/MM/YYYY} is today with slashes — LL's first format",
+  KEYSTROKES[1] == os.date("%d/%m/%Y"), KEYSTROKES[1])
+reset(); typeStr("{da}"); drain()
+check("📅 {date:DD-MM-YYYY} is today with dashes — the second",
+  KEYSTROKES[1] == os.date("%d-%m-%Y"), KEYSTROKES[1])
+reset(); typeStr("{al}"); drain()
+check("📅 case does not matter and MMM is the month's short name — "
+   .. "dd MMM yyyy is how Alfred spells it",
+  KEYSTROKES[1] == os.date("%d %b %Y"), KEYSTROKES[1])
+check("...and none of the three is reported as unknown",
+  not logged("is not a placeholder this config knows"),
+  table.concat(log, " | "))
+
 reset(); typeStr("{u}"); drain()
 check("🚨 AN UNKNOWN PLACEHOLDER IS INSERTED LITERALLY, NOT DROPPED — a "
    .. "snippet that quietly loses {date:yyyy} is worse than one that "
    .. "visibly contains it", KEYSTROKES[1] == "hi {unknownthing}", KEYSTROKES[1])
 check("...and it is reported once", logged("is not a placeholder this config knows"))
-for _, k in ipairs({ "{c}", "{p}", "{d}", "{u}" }) do dropSnippet(k) end
+for _, k in ipairs({ "{c}", "{p}", "{d}", "{sl}", "{da}", "{al}", "{u}" }) do
+  dropSnippet(k)
+end
+
+-- 📅 The date grammar itself, pinned on a KNOWN day (Thursday 3 September
+-- 2026) so each form is checked by value rather than by running os.date
+-- again with the same idea of the answer.
+do
+  local when = os.time({ year = 2026, month = 9, day = 3, hour = 12 })
+  local function fmt(p) return exp.formatDate(p, when) end
+  check("DD/MM/YYYY → 03/09/2026", fmt("DD/MM/YYYY") == "03/09/2026",
+    fmt("DD/MM/YYYY"))
+  check("DD-MM-YYYY → 03-09-2026", fmt("DD-MM-YYYY") == "03-09-2026",
+    fmt("DD-MM-YYYY"))
+  check("one letter is the unpadded number: D/M/YY → 3/9/26",
+    fmt("D/M/YY") == "3/9/26", fmt("D/M/YY"))
+  check("YYY reads as the full year rather than refusing — the ask was "
+     .. "typed DD/MM/YYY once", fmt("DD/MM/YYY") == "03/09/2026",
+    fmt("DD/MM/YYY"))
+  check("MMM and MMMM are the month's names",
+    fmt("MMM MMMM") == os.date("%b %B", when), fmt("MMM MMMM"))
+  check("DDD and DDDD are the weekday's names",
+    fmt("DDD DDDD") == os.date("%a %A", when), fmt("DDD DDDD"))
+  check("lower case is the same date: dd.mm.yyyy → 03.09.2026",
+    fmt("dd.mm.yyyy") == "03.09.2026", fmt("dd.mm.yyyy"))
+  check("every other character is kept as typed — words included, as "
+     .. "long as they hold no D, M or Y",
+    fmt("YYYY-MM-DD (week of DD)") == "2026-09-03 (week of 03)",
+    fmt("YYYY-MM-DD (week of DD)"))
+  check("a run longer than four is the four-letter form, not an error",
+    fmt("MMMMMM") == os.date("%B", when), fmt("MMMMMM"))
+  check("{date} alone is STILL ISO — no snippet written before 6.158.0 "
+     .. "changes", exp.substitute("{date}") == os.date("%Y-%m-%d"),
+    exp.substitute("{date}"))
+  local seen = {}
+  local kept = exp.substitute("{date:}", seen)
+  check("🚨 an EMPTY {date:} is an unknown like any other — kept as typed "
+     .. "and reported, never silently dropped",
+    kept == "{date:}" and seen["date:"] == true, kept)
+  check("...and the report now lists the new form among the supported",
+    logged("{date:DD/MM/YYYY}"), table.concat(log, " | "))
+end
 
 -- =====================================================================
 out("\n=== 9. Rule 7: everything that fails, says so ===\n")

@@ -147,3 +147,8 @@ mirrors draw order: "closes last" IS "drawn under".
   `hs.timer.do*` result must be HELD (test_diagnostics sentry).
 - Pomodoro weekly report currently fires with the Friday 4:30 tally; LL may
   want a different day/shape once seen.
+- 6.158.0 verify with LL: ⇪⇧2 types the clipboard (let go of ⇧ after the
+  press — it waits up to 0.6s); `{date:DD/MM/YYYY}` / `{date:DD-MM-YYYY}`
+  in a snippet; the three `_G.snippetAdd` Console lines in the NEW IN
+  block, once (Mine syncs through OneDrive). `{date:…}` knows D, M and Y
+  only — no time letters, by design (M would mean minutes too).

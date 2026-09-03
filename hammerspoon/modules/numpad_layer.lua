@@ -172,11 +172,12 @@ local M = {
         family = "windows",
         title = "🆓 THE ⇪⇧ NUMBER ROW — cleared 6.142.0, future shortcut options",
         entries = {
-            { "cleared",  "⇪⇧2 3 5 7 8 · ⇪⇧, ⇪⇧. ⇪⇧⏎ — all unbound now" },
+            { "cleared",  "⇪⇧3 5 7 8 · ⇪⇧, ⇪⇧. ⇪⇧⏎ — all unbound now" },
             { "why",      "LL: shortcuts \"cleaned, cleared and the keys listed" },
             { "",         "as future possible options for keyboard shortcuts\"" },
             { "except",   "⇪⇧9 = Invert colours — LL's 6.141.0 pick, unblocked" },
             { "and",      "⇪⇧1 = ⏸ Pause Hammerspoon (6.152.0) — the first spend" },
+            { "",         "⇪⇧2 = ⌨️ Type the clipboard (6.158.0) — the second" },
             { "taken",    "⇪⇧0 mini calendar · ⇪⇧4 Screenshots stay where they are" },
             { "the list", "_G.freeKeys() — every free key, from the LIVE registry" },
             { "zones?",   "On the PAD (⇪⇧pad) · halves ⇪← ⇪→ · maximise ⇪↑ ·" },

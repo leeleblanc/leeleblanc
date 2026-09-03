@@ -4,6 +4,57 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.158.0 — DATES YOUR WAY IN A SNIPPET · ⇪⇧2 TYPES THE CLIPBOARD:
+  📅 LL: "How can we build a tool that allows me to insert dynamic
+     content: 1. Date in this formats: DD/MM/YYYY and DD-MM-YYYY."
+     The expander's {date} was ISO only (2026-09-03), and anything
+     like {date:yyyy} was refused on purpose — kept as typed, reported
+     once — rather than guessed at. {date:PATTERN} is a placeholder
+     now, spelled the way people spell dates rather than the way
+     strftime does: D, M and Y are the date letters, the LENGTH of a
+     run picks the form, case does not matter (dd/MM/yyyy is Alfred's
+     spelling and works unchanged), and every other character is kept
+     as typed. D 3 · DD 03 · DDD Thu · DDDD Thursday; M 9 · MM 09 ·
+     MMM Sep · MMMM September; YY 26 · YYYY 2026 — and YYY reads as
+     YYYY rather than refusing, because that is how the ask was typed.
+     {date} alone stays ISO, so every snippet written before this
+     release expands exactly as it did; time stays {time}, because a
+     minutes letter would collide with M — the one ambiguity the table
+     is built not to have. An empty {date:} is still kept and reported
+     like any unknown, and the report's "Supported:" line now names
+     the new form. The triggers themselves are snippets, made once in
+     the Console (Mine lives in OneDrive's Logs/snippets, so both Macs
+     get them):
+       _G.snippetAdd(";ds", "{date:DD/MM/YYYY}", "Date · slashes")
+       _G.snippetAdd(";dd", "{date:DD-MM-YYYY}", "Date · dashes")
+  🎬 "2. Take a YouTube url: yt-dlp -x --audio-format mp3 <url>" — no
+     code at all: {clipboard} was already a placeholder. Copy the
+     link, type the trigger, the command lands with the URL quoted:
+       _G.snippetAdd(";yt",
+         'yt-dlp -x --audio-format mp3 "{clipboard}"', "yt-dlp audio")
+     Pick any triggers; a leading ; keeps them out of prose.
+  ⌨️ "Clipboard paste no matter what: I need a simple automated
+     shortcut to type the clipboard contents where we can't use ⌘+V,
+     or paste." The ⌨️ row in ⇪; has done exactly that — as two
+     steps, the picker then the row. ⇪⇧2 is the row's own key now:
+     one press, the same guards in the same order (secure input is
+     checked before a single character is posted; it waits up to
+     0.6s for ⇧ to come up so the first letter is not ⇧-something;
+     bursts of 120 with a gap; pt.typeMax still 5,000). ⇪⇧2 because
+     the ⇪⇧ number row is what 6.142.0 cleared for asks like this,
+     and ⇪⇧1 — the pause switch — is the same module's first spend;
+     pt.typeKey / pt.typeMods move it, the ⇪; sub line follows them.
+     The numpad ledger reads ⇪⇧3 5 7 8 now and says where 2 went;
+     _G.freeKeys() reads the live registry as ever (⇪1 and ⇪3 are
+     still the two free plain keys).
+  ✅ Gate: 6,518 → 6,540 checks (test_expander 240 → 256: the two
+     formats typed through the tap, Alfred's lower case, and the
+     grammar pinned by value on a known day; test_power_tools 222 →
+     228: the key, its source, the constants, the press through the
+     stub with one timer and the clipboard typed exactly once), 67
+     stages, lint and the hostile world green, in the tree and inside
+     the package. The zip still carries no snippets/ (see 6.155.0).
+
 NEW IN 6.157.0 — THE PREVIEW PANE, ON EVERY PICKER THAT HOLDS TEXT:
   👁 LL, with ⇪O open: "I need a preview window for the relevant pickers
      like hyper+o. Can we correct all the picker tools that don't have

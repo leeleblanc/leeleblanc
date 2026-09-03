@@ -9,10 +9,10 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,738 lines)
+├── init.lua          the orchestrator (3,712 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (10 files)
-├── modules/          one file per feature (60 files, ~39,600 lines)
+├── modules/          one file per feature (62 files, ~44,600 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
 ├── snippets/         bundled.lua — 2,006 shipped snippets in one table,
 │                     in five collections. Since 6.117.0 the .json packs
@@ -517,6 +517,8 @@ and `<logsDir>/diagnostics-<machine>.txt`.
 | ⇪Y hides a page you wanted (or shows a login) | `chrome.loginPatterns` / `chrome.loginTitles` decide; `chrome.hideLogins = false` shows everything; the placeholder counts what is hidden |
 | ⌥Tab is slow and no app is named | the Console line ends "· slowest phase: …" (6.156.0) — that phase is where the time went; `_G.altTabLastListing.phases` has all of them |
 | A picker has no preview pane | the pane follows any chooser whose rows carry `rawText` (6.157.0) — three lines in the module: `rawText` on the row, `preview.suspend` on hide, `preview.open` after show; action lists and app lists have none on purpose |
+| A snippet's `{date:…}` came out as typed | only D, M and Y are date letters (6.158.0): `{date:DD/MM/YYYY}` → 03/09/2026, `{date:D MMM YYYY}` → 3 Sep 2026; an unknown token is kept and reported once in the Console, and that line lists what is supported |
+| ⇪⇧2 typed nothing | the alert says which: secure input (a password field) beats synthetic keystrokes, or ⇧ was still down 0.6s after the press — let go of it |
 | `attempt to call a nil value (global '…')` | something calls a function that moved into a module — publish it with `core.provide` and call it with `_G.service.call` |
 | `No provider for '…'` | that module didn't load; see `Modules:` in the boot report |
 | brew errors on every app at once | Homebrew's cache, not your list: `rm -rf "$(brew --cache)/api" && brew update --force` |
@@ -561,9 +563,9 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Sixty-two Lua suites, 6,413 checks, plus three more that run the Capture
+Sixty-two Lua suites, 6,435 checks, plus three more that run the Capture
 Pad's, the screenshot editor's and unified search's page JavaScript under
-`node` for a further 105 — **6,518 checks over sixty-seven stages** in
+`node` for a further 105 — **6,540 checks over sixty-seven stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 

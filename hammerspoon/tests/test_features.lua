@@ -2118,7 +2118,9 @@ check("the cheat sheet's third group now IS the ledger — it names the "
     local sawKeys, sawTool = false, false
     for _, e in ipairs(g.entries or {}) do
         local v = tostring(e[2])
-        if v:find("⇪⇧2 3 5 7 8", 1, true) then sawKeys = true end
+        -- 6.158.0 spent ⇪⇧2 on typing the clipboard, so the ledger
+        -- reads 3 5 7 8 now — and says where 2 went, beside 1.
+        if v:find("⇪⇧3 5 7 8", 1, true) then sawKeys = true end
         if v:find("_G.freeKeys()", 1, true) then sawTool = true end
     end
     return sawKeys and sawTool, tostring(sawKeys) .. "/" .. tostring(sawTool)

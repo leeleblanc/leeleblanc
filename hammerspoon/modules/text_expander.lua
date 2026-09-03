@@ -81,6 +81,7 @@ local M = {
             { "{cursor}", "In a snippet: where the caret lands afterwards" },
             { "{clipboard}", "In a snippet: whatever is on the clipboard" },
             { "{date} {time}", "In a snippet: today, and now" },
+            { "{date:…}", "In a snippet: {date:DD/MM/YYYY} — D, M and Y, any form" },
             { "off",   "expander.enabled = false, or the ⏸ row in ⇪⇧T" },
             { "never", "Nothing you type is ever logged — see the module header" },
         },
@@ -519,16 +520,69 @@ function M.setup(core)
     end
 
     -- ---- placeholders ----------------------------------------------------
-    -- Alfred's dynamic tokens. The four that are cheap and unambiguous are
+    -- Alfred's dynamic tokens. The cheap and unambiguous ones are
     -- supported; anything else in braces is LEFT EXACTLY AS TYPED and
     -- reported, rather than silently deleted — a snippet that quietly
-    -- loses "{date:yyyy}" is worse than one that visibly contains it.
+    -- loses "{cursor:2}" is worse than one that visibly contains it.
     -- {cursor} is handled by the caller (it needs arrow keys, not text).
+    --
+    -- 📅 6.158.0 — {date:PATTERN}. LL: "Date in this formats: DD/MM/YYYY
+    -- and DD-MM-YYYY." The pattern is spelled the way people spell dates,
+    -- not the way strftime does: D, M and Y are the date letters (case
+    -- does not matter — dd/MM/yyyy is how Alfred writes it), the LENGTH
+    -- of a run picks the form, and every other character is kept as
+    -- typed:
+    --
+    --     D  3      DD  03      DDD  Thu     DDDD  Thursday
+    --     M  9      MM  09      MMM  Sep     MMMM  September
+    --     YY 26     YYYY 2026   (YYY reads as YYYY rather than refusing)
+    --
+    -- So {date:DD/MM/YYYY} → 03/09/2026 and {date:DD-MM-YYYY} →
+    -- 03-09-2026. {date} on its own stays 2026-09-03 (ISO, sortable), so
+    -- every snippet written before 6.158.0 expands exactly as it did.
+    -- Time stays {time}: a minutes letter would collide with M, and that
+    -- is the one ambiguity this table is built not to have. An empty
+    -- {date:} is an unknown like any other — kept, and reported once.
+    local DATE_FORMS = {
+        D = { "%d", "%d", "%a", "%A" },
+        M = { "%m", "%m", "%b", "%B" },
+    }
+    function exp.formatDate(pattern, when)
+        pattern = tostring(pattern)
+        when = when or os.time()
+        local upper = pattern:upper()      -- byte for byte, so indexes agree
+        local out, i, n = {}, 1, #upper
+        while i <= n do
+            local c = upper:sub(i, i)
+            if c == "D" or c == "M" or c == "Y" then
+                local j = i
+                while j < n and upper:sub(j + 1, j + 1) == c do j = j + 1 end
+                local len = j - i + 1
+                if c == "Y" then
+                    out[#out + 1] = os.date(len <= 2 and "%y" or "%Y", when)
+                elseif len == 1 then
+                    -- the unpadded day or month: "3", not "03"
+                    out[#out + 1] = tostring(tonumber(os.date(DATE_FORMS[c][1], when)))
+                else
+                    out[#out + 1] = os.date(DATE_FORMS[c][math.min(len, 4)], when)
+                end
+                i = j + 1
+            else
+                out[#out + 1] = pattern:sub(i, i)
+                i = i + 1
+            end
+        end
+        return table.concat(out)
+    end
+
     function exp.substitute(text, seenUnknown)
         local out = text
         out = out:gsub("{clipboard}", function()
             local ok, c = pcall(hs.pasteboard.getContents)
             return (ok and c) or ""
+        end)
+        out = out:gsub("{date:([^}]+)}", function(pattern)
+            return exp.formatDate(pattern)
         end)
         out = out:gsub("{date}", os.date("%Y-%m-%d"))
         out = out:gsub("{time}", os.date("%H:%M"))
@@ -537,7 +591,7 @@ function M.setup(core)
                 seenUnknown[token] = true
                 print("✂️ Text expander: {" .. token .. "} is not a placeholder this "
                       .. "config knows — it was inserted literally. Supported: "
-                      .. "{cursor} {clipboard} {date} {time}")
+                      .. "{cursor} {clipboard} {date} {date:DD/MM/YYYY} {time}")
             end
         end
         return out

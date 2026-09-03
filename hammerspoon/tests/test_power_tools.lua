@@ -369,6 +369,31 @@ check("each new key is attributed to what it does", (function()
        and BOUND["+5"].src == "read a QR code"
 end)())
 
+-- ⌨️ 6.158.0 — THE FIFTH KEY. LL: "I need a simple automated shortcut to
+-- type the clipboard contents where we can't use ⌘+V, or paste." ⇪⇧2 —
+-- the ⇪⇧ number row 6.142.0 cleared, beside ⇪⇧1, the pause switch.
+check("⇪⇧2 types the clipboard without the picker (6.158.0)",
+      BOUND["shift+2"] ~= nil and BOUND["shift+2"].src == "type the clipboard",
+      BOUND["shift+2"] and BOUND["shift+2"].src)
+check("...it is the key the constants say, so a one-line edit moves it",
+      pt.typeKey == "2" and pt.typeMods[1] == "shift" and pt.typeHint == "⇪⇧2",
+      pt.typeHint)
+check("...and the ⇪; row names the key, from the same constants",
+      (pt.byId("type").sub or ""):find("⇪⇧2", 1, true) ~= nil,
+      pt.byId("type").sub)
+reset()
+CLIP = "lee@example.com"
+BOUND["shift+2"].fn()
+check("pressing it starts the typing path — nothing typed on the press, "
+      .. "one timer armed, the same as the row",
+      #TYPED == 0 and #TIMERS == 1, #TYPED .. " typed, " .. #TIMERS .. " timers")
+check("...and it counts as a run of the row, so _G.powerReport() sees it",
+      (pt.ran.type or 0) >= 1, pt.ran.type)
+drain()
+check("...and what it types is the clipboard, exactly once",
+      table.concat(TYPED) == "lee@example.com", table.concat(TYPED))
+reset()
+
 -- =====================================================================
 out("\n=== 1b. ⏸ 6.152.0 — pause Hammerspoon itself (⇪⇧1) ===\n")
 -- =====================================================================

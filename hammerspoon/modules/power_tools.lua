@@ -26,12 +26,15 @@
 --        ⇪`         👻 Ghostty at the front Finder folder
 --        ⇪⇧`        📂 Finder at the front Ghostty folder
 --        ⇪5         🔳 read a QR code off the screen
+--        ⇪⇧2        ⌨️ type the clipboard — no picker (6.158.0)
 --
 -- 🔑 WHY THESE KEYS AND NOT LETTERS. There are none left — every ⇪
 -- letter and every ⇪⇧ letter has been claimed since 6.104.0. ⇪5 sits
 -- beside ⇪4, the screenshot key, because both read the screen; ⇪' and
 -- ⇪` are simply the two nearest unclaimed keys, and there is no
--- mnemonic being implied. All of them are in ⇪⇧/ too.
+-- mnemonic being implied. All of them are in ⇪⇧/ too. ⇪⇧2 (6.158.0) is
+-- the next key of the ⇪⇧ number row 6.142.0 cleared, beside ⇪⇧1 — the
+-- pause switch — and it types the clipboard without opening the list.
 --
 -- 6.126.0 — LL: "⇪' does not pause VLC." It did not, and it never had:
 -- VLC's dictionary has no `pause` and no `playpause`, so both verbs the
@@ -43,8 +46,8 @@
 -- nothing anywhere in this config that typed the clipboard rather than
 -- pasting it. "Copy as Plain Text" in ⇪⇧A strips formatting, which is a
 -- different problem with a similar shape, and that is probably the thing
--- being half-remembered. It is here now, and it is the row called
--- Type the clipboard.
+-- being half-remembered. It is here now: the row called Type the
+-- clipboard, and since 6.158.0 the key ⇪⇧2.
 --
 -- ---------------------------------------------------------------------
 -- ⌨️ TYPE THE CLIPBOARD — what it is actually for, and where it fails
@@ -139,8 +142,8 @@ local M = {
         title = "🧰 POWER TOOLS (⇪; — the small ones, in one list)",
         entries = {
             { "⇪;",     "The list — type to filter, ⏎ runs it" },
-            { "⌨️ type", "Types the clipboard key by key — for fields that" },
-            { "",       "refuse ⌘V, like “confirm your email address”" },
+            { "⇪⇧2",    "Types the clipboard key by key — for fields that" },
+            { "",       "refuse ⌘V, like “confirm your email address” (⌨️ row too)" },
             { "🔢 count", "Words · characters · ~sentences in the selection" },
             { "📋 count", "The same, and both counts onto the clipboard" },
             { "🔠 case",  "UPPER · lower · Title · camel · kebab · snake —" },
@@ -176,6 +179,16 @@ function M.setup(core)
     pt.typeDelay    = 0.25         -- let the picker close and focus return
     pt.settleTimeout = 0.60        -- give up waiting for ⌘⇧⌃⌥ to come up
     pt.settleTick   = 0.02
+    -- ⌨️ 6.158.0 — A KEY OF ITS OWN. LL: "I need a simple automated
+    -- shortcut to type the clipboard contents where we can't use ⌘+V, or
+    -- paste." ⇪⇧2: the ⇪⇧ number row is what 6.142.0 cleared for asks
+    -- like this, and ⇪⇧1 (the pause switch, 6.152.0) is this module's
+    -- first spend from it — same row, same module. The ⇪; row's sub line
+    -- is built from these two; the cheat sheet entry and numpad_layer's
+    -- ledger are text and move by hand.
+    pt.typeKey      = "2"          -- ⇪⇧2
+    pt.typeMods     = { "shift" }
+    pt.typeHint     = "⇪" .. (#pt.typeMods > 0 and "⇧" or "") .. pt.typeKey
     -- 🔢 counting
     pt.copyWait     = 0.18         -- how long ⌘C is given to land
     pt.restoreAfter = 0.60         -- when the borrowed clipboard goes back
@@ -1497,7 +1510,8 @@ end tell]]
           sub = "Keep the text, drop the font, colour, links and RTF",
           run = function() return pt.stripClipboard() end },
         { id = "type",  icon = "⌨️", title = "Type the clipboard",
-          sub = "For fields that refuse ⌘V — “confirm your email address”",
+          sub = "For fields that refuse ⌘V — “confirm your email address” · "
+                .. pt.typeHint,
           run = function() return pt.typeClipboard() end },
         { id = "count", icon = "🔢", title = "Count the selection",
           sub = "Words, characters and ~sentences in whatever is selected",
@@ -1855,6 +1869,12 @@ end tell]]
                               function() pt.run("greveal") end, "reveal ghostty")
         core.hyperAddShortcut(pt.qrMods,      pt.qrKey,
                               function() pt.run("qr") end, "read a QR code")
+        -- ⌨️ 6.158.0 — the fifth: type the clipboard without the picker.
+        -- Same row, same guards; the 0.25s head start the picker needed
+        -- is kept, because it is also how long ⇧ takes to come up after
+        -- the press.
+        core.hyperAddShortcut(pt.typeMods,    pt.typeKey,
+                              function() pt.run("type") end, "type the clipboard")
         -- ⏸ 6.152.0 — the pause switch. Its normalized combo is published
         -- BEFORE binding so init.lua's hyperPauseWrap can recognise "this
         -- is the one key that still works while paused". The combo string

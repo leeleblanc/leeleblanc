@@ -4,8 +4,29 @@
 -- =====================================================================
 -- 09-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.157.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.158.0
 -- =====================================================================
+
+-- NEW IN 6.158.0 — DATES YOUR WAY IN A SNIPPET · ⇪⇧2 TYPES THE CLIPBOARD:
+--   📅 LL: "insert dynamic content: 1. Date in this formats: DD/MM/YYYY
+--      and DD-MM-YYYY." {date:PATTERN} in any snippet (text_expander):
+--      D, M and Y are the date letters, a run's length picks the form
+--      (D 3 · DD 03 · DDD Thu · DDDD Thursday, the same for M; YY 26 ·
+--      YYYY 2026), case does not matter, everything else is kept as
+--      typed. {date} alone stays ISO, so no older snippet changes. The
+--      triggers are two Console lines, once (Mine lives in OneDrive):
+--        _G.snippetAdd(";ds", "{date:DD/MM/YYYY}", "Date · slashes")
+--        _G.snippetAdd(";dd", "{date:DD-MM-YYYY}", "Date · dashes")
+--   🎬 "2. Take a YouTube url: yt-dlp -x --audio-format mp3 <url>" — no
+--      new code: {clipboard} was already a placeholder. Copy the link,
+--      type the trigger, the command lands with the URL quoted:
+--        _G.snippetAdd(";yt",
+--          'yt-dlp -x --audio-format mp3 "{clipboard}"', "yt-dlp audio")
+--   ⌨️ "a simple automated shortcut to type the clipboard contents where
+--      we can't use ⌘+V" — ⇪⇧2 (power_tools): the ⇪; row's own key, the
+--      same guards in the same order (secure input first, waits for ⇧
+--      to come up, bursts of 120). The ⇪⇧ number row 6.142.0 cleared
+--      spends its second key; the ledger (⇪/, _G.freeKeys()) says so.
 
 -- NEW IN 6.157.0 — THE PREVIEW PANE, ON EVERY PICKER THAT HOLDS TEXT:
 --   👁 LL: "I need a preview window for the relevant pickers like
@@ -89,57 +110,10 @@
 --      through untouched and the badge stops outstaying it
 --      (grid.clickEnds = false is the watchdog alone, as before).
 
--- NEW IN 6.154.0 — SEVEN ASKS: ⇪V SHOWS THE WHOLE ENTRY · ⇪X LANDS ON THE
--- BUTTON · ⌥TAB IS A ROLODEX · ⇪6 GROWS A REPORT · ⇪Y REACHES 180 DAYS:
---   👁 ⇪V / ⇪⇧V — LL: "Can the full contents of the clipboard item be
---      shown as I arrow up/down, or put my mouse cursor on an item?" A
---      pane beside the picker (right if it fits, else left) shows the
---      WHOLE entry of the row the arrows or the mouse are on, growing to
---      the screen's bottom edge and ending in "… N more lines" when it
---      must. hs.chooser has no selection callback and does not follow
---      the mouse (HSChooser.m, checked), so a poll that runs only while
---      a picker is up reads selectedRow() and the row under the pointer.
---   🎯 ⇪X — "if the grid letters are close to a dialog box or tab, can
---      we jump the cursor on top of that button? … only if that button
---      or field is within the box". The third letter hit-tests the cell
---      (at most five AX questions, each with a timeout, all under 80ms)
---      and lands ON a control whose centre is inside it; the badge
---      names it. No Accessibility, an app that answers nothing, a spent
---      budget: the cell-centre jump exactly as before.
---   🗂 ⌥TAB — "like a rolladex of tiles": the front card large and
---      centred, neighbours receding either side, Tab turns the wheel,
---      ↑↓ turn it five. EVERY window is on it (the wall drew what the
---      screen held and apologised for the rest); snapshots are taken
---      as cards come round, not one per window per press. altTab.layout
---      = "grid" is the old wall.
---   🩺 ⇪6 — "run multiple commands and build a report that tells us
---      what is going on": fourteen READ-ONLY questions in one shell run
---      → a VERDICT naming the first broken link (no IP · no router ·
---      router silent · internet silent · names fail · captive portal),
---      saved to Logs/net_report-<Mac>.txt. 🧹 Refresh & verify = the
---      flush, then the report — nothing disabled, killed or
---      reconfigured ("we must be very safe"); the DNS race names a
---      faster resolver and where YOU set it. Plus dig with timing, LAN
---      devices, interfaces, public IP (by DNS), and a speed test via
---      Homebrew when it is there. Twelve rows, each describing itself.
---   🗄 ⇪Y — "as far back in time as possible but not past 180 days":
---      Chrome forgets at 90; the archive now carries forward what a
---      fresh export no longer has (by URL, inside chrome.days, capped at
---      chrome.maxTotal), so the CSV reaches 180 over time.
---   💾 "Is this a problem?" — "recent_docs-….csv has SHRUNK". No: it is
---      the ⇪I cache, rewritten whole after every scan. The write ledger
---      now knows which stores are rewritten (a registry, .json by
---      nature, the known caches) and stays silent unless one loses more
---      than half.
---   👻 POMODORO — "fade both the focus box and the time … more
---      translucent": alert level 90 → 75%, the card's fill and the
---      digits translucent copies (cardAlpha / inkAlpha); the flash
---      keeps its full colours.
-
--- (6.153.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.154.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.157.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.158.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -484,7 +458,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.157.0"
+_G.configVersion = "6.158.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
