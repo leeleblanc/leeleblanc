@@ -491,11 +491,14 @@ return function(core)
     -- table cost exactly one local no matter how many get added later.
 
     -- ✏️ SEE-THROUGH, this panel only (§1.5's panelAlpha covers the other
-    -- canvas panels). 1.0 = solid, lower = more see-through. 0.75 shows the
-    -- window behind the sheet clearly while white text on the near-black
-    -- panel still reads at roughly 8:1 contrast. Below ~0.6 the shortcuts
-    -- start losing the fight against a bright background.
-    cheatSheet.alpha = 0.75
+    -- canvas panels). 1.0 = solid, lower = more see-through. 0.75 showed
+    -- the window behind the sheet clearly while white text on the
+    -- near-black panel still read at roughly 8:1 contrast; 6.156.1 — LL:
+    -- "Can we make the cheat sheet window less translucent by about
+    -- 20%?" — so 0.75 × 1.2 = 0.90: the window behind is a hint, not a
+    -- distraction. Below ~0.6 the shortcuts start losing the fight
+    -- against a bright background.
+    cheatSheet.alpha = 0.90
 
     -- =====================================================================
     -- 🔎 SEARCH (6.66.0) — type while the sheet is open

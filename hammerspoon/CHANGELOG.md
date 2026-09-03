@@ -4,6 +4,22 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.156.1 — THE CHEAT SHEET, 20% LESS SEE-THROUGH:
+  🪟 ⇪/ — LL: "Can we make the cheat sheet window less translucent by
+     about 20%?" One knob, one number: cheatSheet.alpha in
+     core/cheatsheet.lua goes 0.75 → 0.90 (0.75 × 1.2 — "20% less
+     see-through" read as 20% more opaque, which is the change you can
+     actually see; 0.80 would have been the arithmetic on the
+     translucency and invisible in practice). The window behind the sheet
+     is a hint now rather than a distraction, and the white text on the
+     near-black panel reads better for it. The other canvas panels keep
+     §1.5's panelAlpha; nothing else changed. test_cheatsheet's
+     readability pin moved with it (the panel's alpha must equal the
+     knob and sit inside 0.6–0.95).
+  ✅ Gate: 6,485 checks, 67 stages, unchanged in count; lint and the
+     hostile world green, in the tree and inside the package. The zip
+     still carries no snippets/ (see 6.155.0).
+
 NEW IN 6.156.0 — ⇪Y WITHOUT THE LOGINS · ⇪⇧T SHOWS WHAT IS IN IT · ⇪L
 DELETES · THE ⌘-DRAG THAT DID NOTHING · ⌥TAB'S PHASES:
   🙈 ⇪Y — LL: "Can you remove entries that are just logins? I don't need

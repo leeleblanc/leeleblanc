@@ -4,8 +4,15 @@
 -- =====================================================================
 -- 09-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.156.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.156.1
 -- =====================================================================
+
+-- NEW IN 6.156.1 — THE CHEAT SHEET, 20% LESS SEE-THROUGH:
+--   🪟 ⇪/ — LL: "Can we make the cheat sheet window less translucent by
+--      about 20%?" cheatSheet.alpha 0.75 → 0.90 (core/cheatsheet.lua,
+--      the one knob): the window behind the sheet is a hint now, not a
+--      distraction, and the white-on-near-black text reads better for
+--      it. Nothing else changed.
 
 -- NEW IN 6.156.0 — ⇪Y WITHOUT THE LOGINS · ⇪⇧T SHOWS WHAT IS IN IT · ⇪L
 -- DELETES · THE ⌘-DRAG THAT DID NOTHING · ⌥TAB'S PHASES:
@@ -142,37 +149,10 @@
 --      bare ⏎ is Chrome, unchanged. The placeholder teaches all three
 --      on every open.
 
--- NEW IN 6.152.1 — THE BEACHBALL 6.152.0 SHIPPED, DEAD THE SAME DAY:
---   🏖 LL: "Keeps giving me the spinning beachball." The Console pasted
---      with it held the receipts: "Autocorrect tap was disabled by
---      macOS — revived" ~30 seconds after EVERY boot — macOS kills
---      event taps when a process stops servicing events, and that same
---      stall is what the cursor shows as a beachball.
---   🕘 THE CULPRIT WAS THE ⇪Y FIX SUCCEEDING. 6.152.0 freed the export
---      from its pipe deadlock — and the completion code then decoded
---      megabytes of JSON, built 20,000+ entry tables, sorted them and
---      wrote the whole CSV in ONE main-thread pass. That path had
---      never run with real data before (every export died first), so
---      its cost was invisible until the day the fix landed. warm()
---      starts the export 2s after boot, it completes ~29s later: the
---      stall at +31s, both boots, to the second.
---   🔪 SO INGESTION IS SLICED — the ⌥Tab sweep's budget idea applied
---      to parsing: at most 40ms of work per event-loop turn, then a
---      continuation, keystrokes through, continue. The rows arrive one
---      JSON object per line (json_object) so the decode itself can be
---      cut anywhere; the boot-time CSV read-back is sliced the same
---      way (it is 20,000+ rows now that exports succeed); the CSV
---      write drops 40,000 redundant strftime calls a run. ⇪⇧D's
---      report grows a "last parse: N rows in K slices" receipt.
---   ⏲ AND THE 45s DEADLINE WAS A GUESS made while the deadlock kept
---      any export from ever finishing — the first run that actually
---      completed took ~29s (copying the History databases dominates).
---      The watchdog now fires at 120s, for the genuine hang only.
-
--- (6.152.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.152.1 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.156.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.156.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -517,7 +497,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.156.0"
+_G.configVersion = "6.156.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

@@ -310,8 +310,13 @@ check("longest rendered line within the character budget",
 print(("     longest line (%d chars): %s"):format(ulen(longest), longest))
 
 print("\n=== 4. Translucency ===")
-check("panel alpha is see-through but readable (0.6–0.85)",
-  drawn[1].fillColor.alpha >= 0.6 and drawn[1].fillColor.alpha <= 0.85, drawn[1].fillColor.alpha)
+-- 6.156.1 — LL: "less translucent by about 20%": the knob went 0.75 → 0.90.
+-- The pin follows the KNOB, not a literal, and keeps the readable range.
+check("panel alpha IS the cheatSheet.alpha knob, see-through but readable (0.6–0.95)",
+  drawn[1].fillColor.alpha == CS.alpha
+  and drawn[1].fillColor.alpha >= 0.6 and drawn[1].fillColor.alpha <= 0.95,
+  drawn[1].fillColor.alpha)
+check("...and 6.156.1's 20% is in: 0.90", CS.alpha == 0.90, CS.alpha)
 check("panel is near-black, so white text keeps contrast",
   drawn[1].fillColor.red <= 0.12 and drawn[1].fillColor.blue <= 0.14)
 check("entry text is full white", (function()

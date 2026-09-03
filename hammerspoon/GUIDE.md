@@ -9,7 +9,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,736 lines)
+├── init.lua          the orchestrator (3,716 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (10 files)
 ├── modules/          one file per feature (60 files, ~39,600 lines)
