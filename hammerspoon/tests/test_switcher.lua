@@ -242,6 +242,7 @@ local function reset(n)
   MODS = { alt = true }; NOW = 1000
   AT.cache = nil          -- each scenario starts with a cold list
   AT.listBudget = 999     -- no deadline unless a test sets one
+  AT.probeBudget = 999    -- 6.153.0 — same rule for the memory probes
   AT.enabled, AT.includeMinimized = true, true
   AT.includeOtherSpaces, AT.includeApps = true, true
 end
@@ -394,7 +395,62 @@ check("includeOtherSpaces = false switches the memory off too", (function()
   return true
 end)())
 
-out("\n=== 7b. Running apps with no window at all ===\n")
+out("\n=== 7d. 6.153.0 — the memory probes are BUDGETED ===\n")
+-- 🚨 LL's Console: "listing took 1.64s across 13 apps (slowest: 0.01s)".
+-- Thirteen fast apps cannot add up to 1.64 seconds — the missing 1.5s
+-- was THIS loop: every remembered window, an AX round-trip, every
+-- press, outside every timer in the file. Probing now stops when
+-- altTab.probeBudget is spent; what the budget could not reach is still
+-- a tile (something vouched for it recently), and is probed FIRST next
+-- press — least recently verified first — so the culling of dead
+-- windows rotates through the whole memory instead of stalling.
+reset(2)
+ROLES = {}
+local fars = {}
+for i = 1, 6 do
+  local fw = mkwin(400 + i, "Far" .. i, "Away " .. i)
+  local realRole = fw.role
+  -- each probe costs half a second of AX time, and is recorded
+  fw.role = function(self)
+    table.insert(ROLES, 400 + i); NOW = NOW + 0.5; return realRole(self)
+  end
+  table.insert(fars, fw); table.insert(WINS, fw)
+end
+APPS = appsFromWindows(WINS)
+combos["alt+tab"]()              -- the learning press: all six seen here
+AT.finish(false)
+for _, fw in ipairs(fars) do fw.space = "other" end
+ROLES = {}
+NOW = NOW + 10                   -- past the cache; the memory serves them now
+AT.cache = nil
+AT.probeBudget = 0.8             -- two 0.5s probes fit, four do not
+combos["alt+tab"]()
+check("🚨 probing STOPS when the budget is spent", #ROLES == 2, #ROLES)
+check("...the unreached windows are still tiles — alive until proven "
+   .. "otherwise, never silently dropped", (function()
+  local n = 0
+  for _, i in ipairs(AT.session.items) do
+    local id = i.win and i.win:id()
+    if id and id > 400 then n = n + 1 end
+  end
+  return n == 6
+end)(), #AT.session.items .. " items")
+check("...and the probe count and cost are published for ⇪⇧D",
+      _G.altTabLastListing.probed == 2 and _G.altTabLastListing.probeSecs >= 1,
+      tostring(_G.altTabLastListing.probed) .. " in "
+      .. tostring(_G.altTabLastListing.probeSecs) .. "s")
+local firstRound = {}
+for _, id in ipairs(ROLES) do firstRound[id] = true end
+AT.finish(false)
+ROLES = {}
+NOW = NOW + 10
+AT.cache = nil
+combos["alt+tab"]()
+check("🔁 the NEXT press probes the windows the budget skipped — least "
+   .. "recently verified first, so the queue rotates",
+      #ROLES == 2 and not firstRound[ROLES[1]] and not firstRound[ROLES[2]],
+      table.concat(ROLES, ","))
+AT.finish(false)
 reset(2)
 APPS = appsFromWindows(WINS)
 table.insert(APPS, mkapp("Notes", {}))

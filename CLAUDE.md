@@ -97,8 +97,14 @@ mirrors draw order: "closes last" IS "drawn under".
   lacked `using terms from`; "osascript exited 1: 577") — fixed 6.152.0. It
   never ran far enough to ask for Automation, so expect the macOS grant
   prompts on LL's first real press (once per browser); then verify.
-- ⌥Tab other-desktop memory: verify after 6.152.0 — one ⌥Tab press per
-  desktop (per reload) teaches it; if a learned window still never shows,
-  ask for `_G.altTabLastListing` (has `remembered`).
+- ⌥Tab: 6.153.0 budgets the memory probes — LL's "very slow" console line
+  (1.64s across 13 apps, slowest 0.01s) was the probe loop re-proving every
+  remembered window unbudgeted. Verify: presses fast again; a still-slow
+  "listing took" line now names its phase ("memory: N probed in X.XXs").
+  Memory still learns one press per desktop per reload; if a learned window
+  never shows, ask for `_G.altTabLastListing` (remembered/probed/probeSecs).
+- 6.153.0 verify with LL: ⇪T takes typing the moment it opens (non-activating
+  mask, read-back verified), drags by its header, SAC Values are checkbox
+  chips; ⇪Y ⌘⏎ copies the URL, ⌥⏎ opens in Safari (chrome.altBrowser).
 - Pomodoro weekly report currently fires with the Friday 4:30 tally; LL may
   want a different day/shape once seen.

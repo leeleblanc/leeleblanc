@@ -42,6 +42,7 @@ local TASKS, ALERTS, CHOOSERS, HYPER, PROVIDED = {}, {}, {}, {}, {}
 local WATCHDOGS = {}      -- every hs.timer.doAfter — the export deadline
 local URL_BUNDLE, URL_PLAIN = {}, {}
 local BUNDLE_RESULT = true
+local MODS = {}           -- 6.153.0 — what ⌘/⌥ are held at pick time
 
 -- 6.152.1 — the export emits ONE JSON OBJECT PER LINE (json_object per
 -- row) and the module decodes line by line, so the slicer can cut
@@ -114,6 +115,7 @@ hs = {
         return t end },
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
     pasteboard = { setContents = function(t) CLIPBOARD = t ; return true end },
+    eventtap = { checkKeyboardModifiers = function() return MODS end },
     urlevent = {
         openURLWithBundle = function(url, bundle)
             URL_BUNDLE[#URL_BUNDLE + 1] = { url = url, bundle = bundle }
@@ -592,6 +594,42 @@ C.fn({ url = "https://plain.org" })
 check("Chrome refusing falls back to the default browser",
       URL_PLAIN[1] == "https://plain.org", URL_PLAIN[1])
 BUNDLE_RESULT = true
+
+-- 6.153.0 — LL: "But I might want to copy it and open it in another
+-- browser." The pick reads the modifiers held at the moment of ⏎:
+-- ⌘ copies and opens nothing, ⌥ opens in chrome.altBrowser, bare ⏎
+-- stays exactly what it was (the four checks above).
+check("the placeholder advertises the verbs, naming the alt browser off "
+   .. "its bundle id", tostring(C.placeholder):find("⌘⏎", 1, true) ~= nil
+      and tostring(C.placeholder):find("Safari", 1, true) ~= nil,
+      C.placeholder)
+local bundlesBefore, plainBefore = #URL_BUNDLE, #URL_PLAIN
+MODS = { cmd = true }
+C.fn({ url = "https://mail.google.com/mail/u/0" })
+check("⌘⏎ COPIES the URL to the clipboard…",
+      CLIPBOARD == "https://mail.google.com/mail/u/0", CLIPBOARD)
+check("…opens NOTHING…", #URL_BUNDLE == bundlesBefore
+      and #URL_PLAIN == plainBefore)
+check("…and says so", (ALERTS[#ALERTS] or ""):find("copied", 1, true) ~= nil,
+      ALERTS[#ALERTS])
+MODS = { alt = true }
+C.fn({ url = "https://plain.org/x" })
+check("⌥⏎ opens in the OTHER browser (chrome.altBrowser)",
+      URL_BUNDLE[#URL_BUNDLE]
+      and URL_BUNDLE[#URL_BUNDLE].bundle == "com.apple.Safari"
+      and URL_BUNDLE[#URL_BUNDLE].url == "https://plain.org/x",
+      URL_BUNDLE[#URL_BUNDLE] and URL_BUNDLE[#URL_BUNDLE].bundle)
+MODS = {}
+check("a build without hs.eventtap still opens normally — the modifier "
+   .. "read degrades to a bare ⏎", (function()
+    local saved = hs.eventtap
+    hs.eventtap = nil
+    local before = #URL_BUNDLE
+    C.fn({ url = "https://degrade.example/" })
+    hs.eventtap = saved
+    return #URL_BUNDLE == before + 1
+           and URL_BUNDLE[#URL_BUNDLE].url == "https://degrade.example/"
+end)())
 
 -- =======================================================================
 out("7) staleness, emptiness, and the shifted key\n")

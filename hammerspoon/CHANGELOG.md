@@ -4,6 +4,69 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.153.0 — ⌥TAB'S HIDDEN 1.5 SECONDS · THE ⇪T WINDOW GROWS UP ·
+⇪Y LEARNS TO COPY:
+  🐢 LL: "Opt+Tab is very slow", with the Console line that could not
+     explain itself: "🔄 Window switcher: listing took 1.64s across 13
+     apps (slowest: NordVPN 0.01s)" — and 1.58s the next press,
+     slowest Sublime Text, also 0.01s. Thirteen fast apps cannot add
+     up to 1.64 seconds, so the missing ~1.5s had to be inside the
+     measured region but outside the per-app timers: phase 2, the
+     6.152.0 MEMORY, re-proving every remembered window the sweep no
+     longer sees. Each re-proof was TWO synchronous AX round-trips
+     (role, then isMinimized), per window, per press, unbudgeted —
+     press ⌥Tab on a couple of desktops and the memory holds enough
+     windows to burn a second and a half every single press.
+  ⏱ THE FIX IS THE SWEEP'S OWN MEDICINE: altTab.probeBudget (0.25s),
+     checked before each probe, least-recently-verified first. The
+     sweep stamps windows it re-sees as verified for free, so the
+     budget is spent only on windows nothing has vouched for lately. A
+     window the budget cannot reach is still a tile — something
+     vouched for it recently, and dropping it silently would resurrect
+     the missing-windows bug — and it sits at the FRONT of next
+     press's probe queue, so the culling of closed windows rotates
+     through the whole memory within a few presses instead of
+     stalling. The isMinimized read is skipped when minimised windows
+     are included anyway (the default — that alone halves the AX
+     cost), the withWindows/lastHere passes are merged (one
+     application()+name() per entry, was two), and the slow-listing
+     Console line now accounts for the phase: "· memory: N probed in
+     X.XXs". The next unexplained slow press will name itself.
+  ✅ THE ⇪T WINDOW, THREE COMPLAINTS IN ONE MESSAGE: "the SAC Values
+     selector doesn't look right. Also, I can't move this window. And
+     it doesn't seem active, I have to click on it." (1) A multi_enum
+     field renders as CHECKBOX CHIPS now, not a <select multiple>: the
+     list box was the one system-styled always-open control in a form
+     of dark dropdowns, its ⌘-click rule lived in a hover tooltip, and
+     WebKit paints the focused row solid blue — which reads as
+     "already picked" when nothing is. Labelled checkboxes say all of
+     it; the picks still travel as an array of option gids, so the
+     submit path is untouched. (2) The TITLE BAR IS A DRAG HANDLE: the
+     header reports mousedown and window_move drives the drag off the
+     _G.movablePanels entry the form has had since 6.89.0 — the exact
+     ⇪space recipe; ⌘-drag anywhere still works. (3) The form asks for
+     the NON-ACTIVATING PANEL MASK (the Capture Pad's recipe, applied
+     arithmetically and verified by read-back): allowTextEntry made the
+     window ABLE to become key, but a plain panel from a background app
+     only takes the keyboard once macOS activates the app — which a
+     click is the first thing to do. With the mask it types the moment
+     it opens, and Hammerspoon's other windows stay put.
+  🕘 ⇪Y GROWS TWO VERBS — LL: "When I select an item from Chrome
+     history and click on it, it launches that URL. But I might want
+     to copy it and open it in another browser." hs.chooser has no
+     per-row action API, so the pick reads the modifiers held at the
+     moment of ⏎ (the standard Hammerspoon answer): ⌘⏎ copies the URL
+     to the clipboard and opens nothing, ⌥⏎ opens it in Safari
+     (chrome.altBrowser — one line to retarget), bare ⏎ opens in
+     Chrome exactly as before. The placeholder teaches all three on
+     every open, naming the alt browser off its bundle id; a build
+     without hs.eventtap degrades to bare-⏎ behaviour.
+  ✅ Gate: 6,209 → 6,228 checks (test_switcher 156 → 160: the probe
+     budget and its rotation; test_taskform 52 → 61: chips, checked
+     restore, dragStart by name, the verified mask, the maskless
+     build; test_chrome_history 104 → 110: the three verbs, the
+     placeholder, the eventtap-less degrade).
+
 NEW IN 6.152.1 — THE BEACHBALL 6.152.0 SHIPPED, DEAD THE SAME DAY:
   🏖 LL, hours after installing 6.152.0: "Keeps giving me the spinning
      beachball. Something doesn't seem right." The Console pasted with

@@ -72,6 +72,8 @@ local M = {
         entries = {
             { "⇪Y",      "Fuzzy-search 90 days of Chrome history — ⏎ reopens the page" },
             { "type",    "Words in any order, title or URL · char sequences too — gml finds gmail" },
+            { "⌘⏎",     "COPY the page's URL to the clipboard instead of opening it" },
+            { "⌥⏎",     "Open in the OTHER browser (Safari · chrome.altBrowser)" },
             { "⇪⇧Y",     "Re-read Chrome now and re-save the CSV, with a count" },
             { "file",    "chrome_history-<Mac>.csv in the Logs folder — Excel opens it" },
             { "@web",    "The same pages inside ⇪space — there ⏎ copies the URL" },
@@ -99,6 +101,11 @@ function M.setup(core)
     chrome.csvFile   = (core.logsDir or ".") .. "/chrome_history-"
                        .. tostring(core.hostTag or "Mac") .. ".csv"
     chrome.openWith  = "com.google.Chrome"   -- ⏎ opens here; falls back to default
+    -- 6.153.0 — LL: "But I might want to copy it and open it in another
+    -- browser." ⌥⏎ opens the pick here instead of Chrome; ⌘⏎ copies the
+    -- URL and opens nothing. The placeholder names this app off its
+    -- bundle id, so changing it updates the hint too.
+    chrome.altBrowser = "com.apple.Safari"
     -- 🚨 6.147.0 — THE EXPORT GETS A DEADLINE. On LL's Air the export
     -- hung and `exporting` stayed true for the whole session, so every
     -- ⇪Y press answered "press again in a moment" — forever, and
@@ -653,15 +660,42 @@ printf 'finished cleanly\n' >> "$pf"
     end
 
     -- ---- opening ---------------------------------------------------------
-    function chrome.open(url)
+    function chrome.open(url, bundle)
         local ok = false
-        pcall(function() ok = hs.urlevent.openURLWithBundle(url, chrome.openWith) end)
+        pcall(function()
+            ok = hs.urlevent.openURLWithBundle(url, bundle or chrome.openWith)
+        end)
         if not ok then pcall(function() ok = hs.urlevent.openURL(url) end) end
         if not ok then
             pcall(function() hs.alert.show("🕘 could not open " .. url:sub(1, 60)) end)
-            warn("neither Chrome nor the default browser took " .. url:sub(1, 90))
+            warn("neither the browser nor the default took " .. url:sub(1, 90))
         end
         return ok
+    end
+
+    -- 6.153.0 — ⏎ IS NO LONGER THE ONLY VERB. The pick reads whatever
+    -- modifiers are held at the moment you press ⏎ (or click): ⌘ copies
+    -- the URL to the clipboard and opens nothing, ⌥ opens it in
+    -- chrome.altBrowser, bare ⏎ opens it in Chrome as always.
+    -- hs.chooser has no per-row action API — modifiers-at-pick is the
+    -- standard Hammerspoon answer, and the read degrades to "bare" on a
+    -- build without hs.eventtap. Returns the verb so the test suite and
+    -- ⇪⇧D can see which path fired.
+    function chrome.pick(url)
+        local mods = {}
+        pcall(function() mods = hs.eventtap.checkKeyboardModifiers() or {} end)
+        if mods.cmd then
+            pcall(function() hs.pasteboard.setContents(url) end)
+            pcall(function() hs.alert.show("🕘 copied — " .. url:sub(1, 60)) end)
+            say("copied " .. url:sub(1, 90))
+            return "copied"
+        end
+        if mods.alt then
+            chrome.open(url, chrome.altBrowser)
+            return "alt"
+        end
+        chrome.open(url)
+        return "opened"
     end
 
     -- ---- the picker ------------------------------------------------------
@@ -704,7 +738,7 @@ printf 'finished cleanly\n' >> "$pf"
         end
         if not chrome.chooser then
             local okC, c = pcall(hs.chooser.new, function(pick)
-                if pick and pick.url then chrome.open(pick.url) end
+                if pick and pick.url then chrome.pick(pick.url) end
             end)
             if not (okC and c) then
                 warn("hs.chooser unavailable")
@@ -726,8 +760,11 @@ printf 'finished cleanly\n' >> "$pf"
             end)
         end
         pcall(function()
+            local altName = tostring(chrome.altBrowser or ""):match("[^.]+$")
+                            or "other"
             chrome.chooser:placeholderText(#chrome.entries
-                .. " pages, 90 days — type fragments, ⏎ reopens")
+                .. " pages, 90 days — ⏎ opens · ⌥⏎ " .. altName
+                .. " · ⌘⏎ copies")
             chrome.chooser:query("")
             chrome.chooser:choices(choicesFor(chrome.search("")))
             -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the

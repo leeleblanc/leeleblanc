@@ -4,8 +4,37 @@
 -- =====================================================================
 -- 09-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.152.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.153.0
 -- =====================================================================
+
+-- NEW IN 6.153.0 — ⌥TAB'S HIDDEN 1.5 SECONDS · THE ⇪T WINDOW GROWS UP ·
+-- ⇪Y LEARNS TO COPY:
+--   🐢 "⌥TAB IS VERY SLOW" — and the Console line could not explain
+--      itself: "listing took 1.64s across 13 apps (slowest: 0.01s)".
+--      Thirteen fast apps cannot add up to 1.64 seconds. The missing
+--      1.5s was 6.152.0's MEMORY re-proving every remembered window —
+--      two AX round-trips each, every press, outside every timer in
+--      the file. The probes now stop at altTab.probeBudget (0.25s),
+--      least recently verified first; a window the budget cannot reach
+--      is still a tile and is probed FIRST next press, so a closed one
+--      still vanishes within a press or two. The isMinimized read is
+--      skipped when minimised windows are included anyway (the
+--      default — that halves the AX cost by itself), and the timing
+--      line now accounts for the phase: "· memory: N probed in X.XXs".
+--   ✅ THE ⇪T WINDOW, THREE COMPLAINTS IN ONE SITTING: SAC Values is
+--      CHECKBOX CHIPS now, not the one system-styled list box in a
+--      dark form (its ⌘-click rule lived in a hover tooltip, and
+--      WebKit's focus blue read as "already picked"). The TITLE BAR IS
+--      A DRAG HANDLE — window_move drives it, the ⇪space recipe; ⌘-drag
+--      anywhere still works. And the form asks for the non-activating
+--      panel mask (the Capture Pad's recipe, verified by read-back), so
+--      it TAKES TYPING THE MOMENT IT OPENS instead of after a click —
+--      without yanking Hammerspoon's other windows forward.
+--   🕘 ⇪Y GROWS TWO VERBS — LL: "I might want to copy it and open it
+--      in another browser." ⌘⏎ copies the pick's URL to the clipboard
+--      and opens nothing; ⌥⏎ opens it in Safari (chrome.altBrowser);
+--      bare ⏎ is Chrome, unchanged. The placeholder teaches all three
+--      on every open.
 
 -- NEW IN 6.152.1 — THE BEACHBALL 6.152.0 SHIPPED, DEAD THE SAME DAY:
 --   🏖 LL: "Keeps giving me the spinning beachball." The Console pasted
@@ -142,33 +171,10 @@
 --      explain it, the next ping re-presents it. The alarm you can hear
 --      and the popup you can answer stay one thing.
 
--- NEW IN 6.149.0 — THE ⇪Q DIM: DARKER, AND A SHIELD THAT STAYS TRUE:
---   🌑 LL: "the ⇪Q dim needs to be darker and does it handle pop-ups
---      that could appear? In essence, I'd like to nabb interruptions."
---      Darker: 0.75, up from 0.55 — dimmed apps keep their shapes but
---      lose their words, which is what a shield means. One number
---      (fm.dimAlpha) to taste.
---   🕳 POP-UPS: the sheet itself already caught them — it sits above
---      every ordinary window level, so a dialog appearing mid-meeting
---      rises UNDER the dim. The holes did not: they were bare
---      rectangles captured once at engage time, so a pop-up landing
---      OVER the meeting window sat inside the hole and showed through
---      at full brightness — center-screen, over the one place you were
---      guaranteed to be looking. And a moved meeting window slid into
---      the dim while its stale hole lit up whatever drifted under it.
---   🔄 SO THE HOLES ARE LIVE NOW, AND KNOW ABOUT Z-ORDER: every two
---      seconds (only while the dim is up) the elements are rebuilt from
---      the real window stack, painted back-to-front like the screen
---      itself — a critical window punches a hole, anything above it
---      paints the dim back over exactly where it sits. An interruption
---      is re-dimmed within a tick; the hole follows the meeting window
---      wherever you drag it. Notification banners stay the macOS Focus
---      half's job (the Meeting Focus On/Off Shortcuts), same as ever.
-
--- (6.148.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.149.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.152.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.153.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -513,7 +519,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.152.1"
+_G.configVersion = "6.153.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

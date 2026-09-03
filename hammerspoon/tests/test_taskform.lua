@@ -48,7 +48,8 @@ hs = {
             end,
         },
         new = function(rect, opts, uc)
-            local v = { rect = rect, uc = uc, deleted = false, shown = false }
+            local v = { rect = rect, uc = uc, deleted = false, shown = false,
+                        style = 0 }
             function v:html(s) LAST_HTML = s; return self end
             function v:show() self.shown = true; return self end
             function v:delete() self.deleted = true; return self end
@@ -58,9 +59,17 @@ hs = {
             function v:level() return self end
             function v:behaviorAsLabels() return self end
             function v:bringToFront() return self end
+            -- 6.153.0 — the non-activating mask is applied arithmetically
+            -- and read back; the stub keeps an honest style number.
+            function v:windowStyle(s)
+                if s ~= nil then self.style = s end
+                return self.style
+            end
+            function v:frame(f) if f then self.rect = f end return self.rect end
             VIEW = v
             return v
         end,
+        windowMasks = { nonactivating = 128 },
     },
     drawing = { windowLevels = { floating = 5 } },
     screen = { mainScreen = function()
@@ -244,8 +253,14 @@ check("enum options carry their Asana gids as values",
       LAST_HTML:find('value="O1"', 1, true) ~= nil)
 check("…option names are ESCAPED, not injected",
       LAST_HTML:find("Low &amp; &lt;odd&gt;", 1, true) ~= nil)
-check("a multi_enum renders as a MULTIPLE select",
-      LAST_HTML:find("multiple", 1, true) ~= nil)
+check("🚨 6.153.0 — a multi_enum renders as CHECKBOX CHIPS, and the old "
+   .. "system list box is gone (LL: “the SAC Values selector doesn't "
+   .. "look right”)",
+      LAST_HTML:find('class="cf chips" data-gid="F2"', 1, true) ~= nil
+      and LAST_HTML:find("multiple", 1, true) == nil)
+check("…each option is one labelled chip carrying its Asana gid",
+      LAST_HTML:find('<label class="chip"><input type="checkbox" value="M1"',
+                     1, true) ~= nil)
 check("a people field types against the same team datalist as Assignee",
       LAST_HTML:find('data-gid="F3" list="team"', 1, true) ~= nil)
 check("an unsupported subtype is SKIPPED whole, not half-drawn",
@@ -273,16 +288,67 @@ check("a sent task clears the details with the rest of the draft",
 _G.taskFormShow()
 BRIDGE({ body = { a = "close", title = "x", desc = "", assignee = "",
     attach = "", startDate = "2026-12-01", startTime = "", dueDate = "",
-    dueTime = "", custom = { F1 = "O2" } } })
+    dueTime = "", custom = { F1 = "O2", F2 = { "M2" } } } })
 _G.taskFormShow()
 check("Esc keeps the details; reopening restores the pick as SELECTED",
       F.draft.startDate == "2026-12-01"
       and LAST_HTML:find('value="O2" selected', 1, true) ~= nil)
+check("…and a kept multi-pick comes back as a CHECKED chip",
+      LAST_HTML:find('value="M2" checked', 1, true) ~= nil
+      and LAST_HTML:find('value="M1" checked', 1, true) == nil)
 msg("close", {})
 F.draft = { title = "", desc = "", assignee = "", attach = "",
             startDate = "", startTime = "", dueDate = "", dueTime = "",
             custom = {} }
 _G.asanaCustomFields = {}
+
+-- =====================================================================
+out("5c. 6.153.0 — the window: a drag handle, and it types without a click\n")
+-- =====================================================================
+-- LL, same message: "I can't move this window. And it doesn't seem
+-- active, I have to click on it." Two fixes, both borrowed whole from
+-- panels that already had them: the header reports mousedown and
+-- window_move drives the drag (⇪space's recipe), and the window asks
+-- for the non-activating panel mask so it can take the keyboard from a
+-- background app (the Capture Pad's recipe, verified by read-back).
+_G.taskFormShow()
+check("the header reports mousedown as dragStart (the page side of the drag)",
+      LAST_HTML:find("dragStart", 1, true) ~= nil
+      and LAST_HTML:find("mousedown", 1, true) ~= nil)
+local DRAGGED = {}
+_G.beginPanelDrag = function(name) DRAGGED[#DRAGGED + 1] = name; return true end
+msg("dragStart", { title = "mid-drag" })
+check("…and Lua hands the drag to Window Move BY NAME — the same entry "
+   .. "the module filed in _G.movablePanels at setup",
+      DRAGGED[#DRAGGED] == "task form")
+check("…a drag message still carries every field (the one-place rule), so "
+   .. "nothing typed is lost to a grab", F.draft.title == "mid-drag")
+_G.beginPanelDrag = nil
+check("the movablePanels entry is there for ⌘-drag too", (function()
+    for _, e in ipairs(_G.movablePanels or {}) do
+        if e.name == "task form" then return true end
+    end
+end)())
+check("🚨 the non-activating panel mask was requested, applied, and "
+   .. "VERIFIED by read-back — what lets ⇪T take typing the moment it "
+   .. "opens instead of after a click",
+      F.nonActivatingApplied == true, tostring(F.nonActivatingWhy))
+check("…the mask really is on the window",
+      VIEW.style and (math.floor(VIEW.style / 128) % 2) == 1,
+      tostring(VIEW.style))
+msg("close", {})
+
+-- a build whose hs.webview has no nonactivating mask must still open
+-- the form — and say what was lost, not pretend
+local savedMasks = hs.webview.windowMasks
+hs.webview.windowMasks = nil
+_G.taskFormShow()
+check("no mask on this build → the form still opens, honestly reported",
+      F.webview ~= nil and F.nonActivatingApplied == false
+      and (printed[#printed] or ""):find("non%-activating") ~= nil,
+      printed[#printed])
+hs.webview.windowMasks = savedMasks
+msg("close", {})
 
 -- =====================================================================
 out("6. the 📸 newest-screenshot button\n")

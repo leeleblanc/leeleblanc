@@ -62,6 +62,8 @@ local M = {
             { "⇪T",   "Open the form: Title · Description · Assignee · Attachment" },
             { "dates", "Start/End date & time — all optional (a start needs an end)" },
             { "fields","The PROJECT'S dropdowns — Priority, Progress… fetched live" },
+            { "chips", "A multi-pick field (SAC Values) is CHECKBOXES — tick any" },
+            { "drag",  "The title bar moves the window (⌘-drag anywhere works too)" },
             { "⏎",    "send the task (from any field)" },
             { "⇥",    "next field · ⇧⇥ previous" },
             { "⌥⏎",   "newline inside the Description box" },
@@ -80,6 +82,9 @@ function M.setup(core)
     form.width       = 560
     form.height      = 480
     form.focusOnOpen = true
+    form.nonActivating = true  -- 6.153.0 — take the keyboard the moment the
+                               -- form opens, without a click and without
+                               -- pulling Hammerspoon's other windows forward
     -- ----------------------------------------------------------------------
 
     -- The draft survives Esc, a stray click, and reopening — cleared only
@@ -134,25 +139,43 @@ function M.setup(core)
             local cur = d.custom and d.custom[f.gid]
             local label = '<div class="row"><label>' .. escapeHtml(f.name)
                           .. ':</label>'
-            if f.subtype == "enum" or f.subtype == "multi_enum" then
-                local multi = (f.subtype == "multi_enum")
+            if f.subtype == "enum" then
                 local sel = {}
-                if type(cur) == "table" then
-                    for _, g in ipairs(cur) do sel[g] = true end
-                elseif cur then sel[tostring(cur)] = true end
+                if cur then sel[tostring(cur)] = true end
                 local o = { '<select class="cf" data-gid="'
-                            .. escapeHtml(f.gid) .. '"'
-                            .. (multi and (' multiple size="'
-                                .. math.min(4, math.max(2, #(f.options or {})))
-                                .. '" title="⌘-click for more than one"') or "")
-                            .. '>' }
-                if not multi then o[#o + 1] = '<option value="">—</option>' end
+                            .. escapeHtml(f.gid) .. '">',
+                            '<option value="">—</option>' }
                 for _, opt in ipairs(f.options or {}) do
                     o[#o + 1] = '<option value="' .. escapeHtml(opt.gid) .. '"'
                                 .. (sel[opt.gid] and " selected" or "") .. '>'
                                 .. escapeHtml(opt.name) .. '</option>'
                 end
                 o[#o + 1] = '</select></div>'
+                cfRows[#cfRows + 1] = label .. table.concat(o)
+            elseif f.subtype == "multi_enum" then
+                -- ☑️ 6.153.0 — CHECKBOX CHIPS, not a <select multiple>.
+                -- LL on that list box: "the SAC Values selector doesn't
+                -- look right." Fair three times over: it was the one
+                -- system-styled always-open list in a form of dark
+                -- dropdowns; its multi-select needed ⌘-click knowledge
+                -- that lived in a hover tooltip; and WebKit paints the
+                -- focused row solid blue, which reads as "already
+                -- picked" when nothing is. A row of labelled checkboxes
+                -- says everything the tooltip could not, and the values
+                -- travel exactly as before (an array of option gids).
+                local sel = {}
+                if type(cur) == "table" then
+                    for _, g in ipairs(cur) do sel[g] = true end
+                end
+                local o = { '<div class="cf chips" data-gid="'
+                            .. escapeHtml(f.gid) .. '">' }
+                for _, opt in ipairs(f.options or {}) do
+                    o[#o + 1] = '<label class="chip"><input type="checkbox" value="'
+                                .. escapeHtml(opt.gid) .. '"'
+                                .. (sel[opt.gid] and " checked" or "") .. '>'
+                                .. escapeHtml(opt.name) .. '</label>'
+                end
+                o[#o + 1] = '</div></div>'
                 cfRows[#cfRows + 1] = label .. table.concat(o)
             elseif f.subtype == "people" then
                 cfRows[#cfRows + 1] = label .. '<input class="cf" data-gid="'
@@ -192,7 +215,8 @@ function M.setup(core)
          font-size:15px; line-height:1.5; background:#141418; color:#e8e8ec; }
   header { padding:14px 18px 8px; display:flex; justify-content:space-between;
            align-items:baseline; border-bottom:1px solid #2a2a32;
-           user-select:none; -webkit-user-select:none; }
+           user-select:none; -webkit-user-select:none; cursor:grab; }
+  header.dragging { cursor:grabbing; }
   h1 { font-size:16px; margin:0; font-weight:600; }
   .hint { color:#8a8a96; font-size:13px; }
   #wrap { padding:14px 18px; }
@@ -225,8 +249,17 @@ function M.setup(core)
   select { flex:1; box-sizing:border-box; background:#1d1d24; color:#f2f2f6;
            border:1px solid #33333e; border-radius:8px; padding:7px 10px;
            font-size:14px; }
-  select[multiple] { padding:4px 6px; }
   select:focus { outline:none; border-color:#4a7fe0; }
+  /* ☑️ 6.153.0 — multi_enum chips. :has() only paints the checked wash;
+     a WebKit without it still shows the checkbox itself, so nothing is
+     lost on an older Hammerspoon build. */
+  .chips { flex:1; display:flex; flex-wrap:wrap; gap:8px; padding-top:5px; }
+  .chip { display:inline-flex; align-items:center; gap:7px; background:#1d1d24;
+          color:#e8e8ec; border:1px solid #33333e; border-radius:15px;
+          padding:5px 12px; font-size:13px; cursor:pointer;
+          user-select:none; -webkit-user-select:none; }
+  .chip input { accent-color:#3566cc; margin:0; }
+  .chip:has(input:checked) { background:#243352; border-color:#4a7fe0; }
   input[type=date], input[type=time] { color-scheme: dark; }
   ]] .. themeCss .. [[
 </style>
@@ -273,11 +306,11 @@ function M.setup(core)
     document.querySelectorAll('.cf').forEach(function(el){
       var g = el.getAttribute('data-gid');
       if (!g) return;
-      if (el.tagName === 'SELECT' && el.multiple) {
+      if (el.classList.contains('chips')) {
         var vals = [];
-        for (var i = 0; i < el.options.length; i++) {
-          if (el.options[i].selected && el.options[i].value) vals.push(el.options[i].value);
-        }
+        el.querySelectorAll('input:checked').forEach(function(cb){
+          if (cb.value) vals.push(cb.value);
+        });
         cf[g] = vals;
       } else {
         cf[g] = el.value || '';
@@ -287,6 +320,18 @@ function M.setup(core)
     window.webkit.messageHandlers.taskForm.postMessage(m);
   }
   function submitIt(){ say({a:'submit'}); }
+  // 6.153.0 — the header is a drag handle (LL: "I can't move this
+  // window"). Only the mousedown is reported; the drag itself is driven
+  // from Lua by window_move, because JS mousemove dies the moment the
+  // pointer outruns the window. Same recipe as ⇪space and the pads.
+  var hdr = document.querySelector('header');
+  hdr.addEventListener('mousedown', function(e){
+    if (e.button !== 0) return;
+    e.preventDefault();
+    hdr.classList.add('dragging');
+    say({a:'dragStart'});
+  });
+  window.addEventListener('mouseup', function(){ hdr.classList.remove('dragging'); });
   window.addEventListener('keydown', function(e){
     if (e.key === 'Escape') { e.preventDefault(); say({a:'close'}); return; }
     if (e.metaKey && (e.key === 'l' || e.key === 'L')) {
@@ -362,12 +407,46 @@ function M.setup(core)
                     hs.alert.show("📸 No screenshots yet — ⇪4 takes one", 3)
                 end)
             end
+        elseif body.a == "dragStart" then
+            -- The form registered itself in _G.movablePanels at setup;
+            -- window_move drives the whole drag from that entry and
+            -- stops on its own when the button comes up.
+            if _G.beginPanelDrag then _G.beginPanelDrag("task form")
+            else print("✅ Task Form: window_move is off — the header cannot drag") end
         elseif body.a == "close" then
             form.hide()   -- draft already captured above — kept for reopen
         end
     end
 
     -- ---- window ----------------------------------------------------------
+    -- Read back and verified, never assumed — AppKit silently drops style
+    -- bits it will not honour. The full story is at Capture Pad's
+    -- applyNonActivating; the arithmetic (not 5.3's `&`) is because this
+    -- file runs on whatever Lua the installed Hammerspoon was built with.
+    function form.applyNonActivating(view)
+        if not view then return false, "there is no window" end
+        local masks = hs.webview and hs.webview.windowMasks
+        local bit   = type(masks) == "table" and masks.nonactivating or nil
+        if type(bit) ~= "number" or bit < 1 then
+            return false, "this Hammerspoon has no nonactivating window mask"
+        end
+        local function isSet(v) return (math.floor(v / bit) % 2) == 1 end
+        local okGet, cur = pcall(function() return view:windowStyle() end)
+        if not (okGet and type(cur) == "number") then
+            return false, "the window style could not be read"
+        end
+        if not isSet(cur) then
+            local okSet = pcall(function() view:windowStyle(cur + bit) end)
+            if not okSet then return false, "the window style was rejected" end
+        end
+        local okRe, now = pcall(function() return view:windowStyle() end)
+        if not (okRe and type(now) == "number") then
+            return false, "the window style could not be read back"
+        end
+        if not isSet(now) then return false, "macOS dropped the mask" end
+        return true, "applied"
+    end
+
     function form.render()
         if not form.webview then return end
         pcall(function() form.webview:html(form.buildHtml()) end)
@@ -401,8 +480,9 @@ function M.setup(core)
         local extra = 100
         for _, f in ipairs(_G.asanaCustomFields or {}) do
             if f.subtype == "multi_enum" then
-                extra = extra + 28
-                       + math.min(4, math.max(2, #(f.options or {}))) * 18
+                -- chips wrap: roughly three fit a row at this width
+                extra = extra + 24
+                       + math.ceil(math.max(1, #(f.options or {})) / 3) * 32
             elseif f.subtype == "enum" or f.subtype == "people"
                 or f.subtype == "number" or f.subtype == "text" then
                 extra = extra + 44
@@ -442,6 +522,24 @@ function M.setup(core)
         pcall(function()
             view:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" })
         end)
+        -- ⌨️ 6.153.0 — LL: "it doesn't seem active, I have to click on
+        -- it." allowTextEntry makes this window ABLE to become key and
+        -- bringToFront asks it to — but a plain panel from a background
+        -- app only takes the keyboard once macOS activates the app, and
+        -- a click is what does that. The non-activating panel mask (the
+        -- Capture Pad's recipe, verified by read-back) lets the window
+        -- take the keyboard the moment it opens, without dragging
+        -- Hammerspoon's other windows forward either.
+        form.nonActivatingApplied, form.nonActivatingWhy = false, "not requested"
+        if form.nonActivating then
+            form.nonActivatingApplied, form.nonActivatingWhy =
+                form.applyNonActivating(view)
+            if not form.nonActivatingApplied then
+                print("✅ Task Form: non-activating panel unavailable — "
+                      .. tostring(form.nonActivatingWhy)
+                      .. "; the form may need a click before it takes typing.")
+            end
+        end
         form.render()
         pcall(function() view:show() end)
         if form.focusOnOpen then

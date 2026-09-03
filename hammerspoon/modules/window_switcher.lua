@@ -110,6 +110,19 @@ function M.setup(core)
                                -- spent. 6.151.0: measured over that sweep
                                -- alone — a slow on-screen listing (phase
                                -- 1) can no longer starve it to zero apps.
+    -- ⏱ 6.153.0 — AND A SEPARATE ONE FOR THE MEMORY. Re-proving a
+    -- remembered window is a synchronous AX round-trip to its app, and
+    -- LL's Console showed the sum: "listing took 1.64s across 13 apps
+    -- (slowest: 0.01s)" — thirteen fast apps CANNOT add up to 1.64s, so
+    -- the missing 1.5s was the probe loop, which ran per press,
+    -- unbudgeted, outside the per-app timer that was supposed to name
+    -- slow things. Probes now stop when this budget is spent; what the
+    -- budget could not reach is listed anyway (it was alive recently)
+    -- and probed FIRST next press — least-recently-verified first — so
+    -- a closed window is still culled within a press or two instead of
+    -- haunting the grid forever.
+    altTab.probeBudget = 0.25  -- seconds per press spent re-proving
+                               -- remembered windows
     altTab.cacheFor    = 4.0   -- reuse the last list for this long
     -- ✏️ Apps that are always slow to answer go here, by exact name, and
     -- are never asked. ⇪⇧D names the worst offender after every press.
@@ -162,7 +175,9 @@ function M.setup(core)
     --     window), and the AX element for a live window stays valid after
     --     its Space stops being enumerated — only the LISTING forgets it,
     --     the handle still answers role/title/focus. So windows the sweep
-    --     no longer sees are probed and, if still alive, added as tiles;
+    --     no longer sees are probed (under altTab.probeBudget since
+    --     6.153.0 — the probes ARE AX round-trips, and unbudgeted they
+    --     were 1.5s of LL's press) and, if still alive, added as tiles;
     --     selecting one activates its app and focuses it, and macOS
     --     itself carries you to its desktop. The one honest limit: a
     --     window is remembered from the first ⌥Tab press that could see
@@ -268,11 +283,15 @@ function M.setup(core)
                             add(w, false)
                             -- Feed the memory: any id add() accepted
                             -- (now or earlier this pass) is a real,
-                            -- standard window worth remembering.
+                            -- standard window worth remembering. `at` is
+                            -- when it was last PROVEN alive — the sweep
+                            -- just proved it, for free, so phase 2's
+                            -- probes can spend their budget on windows
+                            -- nothing has vouched for lately.
                             local okId, id = pcall(function() return w:id() end)
                             if okId and id and seenWin[id] then
                                 altTab.known[id] = { win = w, app = a.app,
-                                                     name = a.name }
+                                                     name = a.name, at = a0 }
                             end
                         end
                     end
@@ -313,56 +332,102 @@ function M.setup(core)
 
         -- 2. THE MEMORY — windows this function listed before that the
         -- sweep no longer reports: parked on another desktop, or owned
-        -- by an app the budget cut off this press. Probed cheaply first
-        -- (a dead app by isRunning — no AX at all; then the element's
-        -- role, one attribute read); a window that fails the probe is
-        -- forgotten so closed windows cannot haunt the grid.
-        local remembered = 0
+        -- by an app the budget cut off this press. A dead APP costs
+        -- nothing to detect (isRunning — no AX at all) and prunes its
+        -- windows unconditionally. Re-proving a LIVE app's window is one
+        -- AX attribute read (role), and 6.153.0 puts those under
+        -- altTab.probeBudget, least-recently-verified first: this loop
+        -- was the 1.5s LL's Console could not account for — every
+        -- remembered window, two AX round-trips, every press, outside
+        -- the per-app timer. A window the budget cannot reach is listed
+        -- anyway (something vouched for it recently) and is at the front
+        -- of the probe queue next press, so a closed window still
+        -- disappears within a press or two. A probed-dead window is
+        -- forgotten outright, same as always.
+        local remembered, probed, probeSecs = 0, 0, 0
         if altTab.includeOtherSpaces then
+            local cands = {}
             for id, k in pairs(altTab.known) do
                 if seenWin[id] then
                     -- re-seen this press: memory already refreshed above
                 elseif skip[k.name] then
                     altTab.known[id] = nil     -- skipApps means hands off
                 else
-                    local alive = false
+                    local appGone = false
                     pcall(function()
                         if k.app and k.app.isRunning and not k.app:isRunning() then
-                            return
+                            appGone = true
                         end
+                    end)
+                    if appGone then altTab.known[id] = nil
+                    else table.insert(cands, { id = id, k = k }) end
+                end
+            end
+            table.sort(cands, function(a, b)
+                return (a.k.at or 0) < (b.k.at or 0)
+            end)
+            local p0 = hs.timer.secondsSinceEpoch()
+            for _, c in ipairs(cands) do
+                local id, k = c.id, c.k
+                local alive = true
+                -- The budget is a ceiling on what we ask for, checked
+                -- BEFORE each probe — the listBudget rule, applied here.
+                local now = hs.timer.secondsSinceEpoch()
+                if now - p0 < altTab.probeBudget then
+                    alive = false
+                    pcall(function()
                         if k.win and k.win:role() == "AXWindow" then alive = true end
                     end)
-                    if alive then
+                    probed = probed + 1
+                    if alive then k.at = now end
+                end
+                if not alive then
+                    altTab.known[id] = nil
+                else
+                    local listIt = true
+                    if not altTab.includeMinimized then
+                        -- Only pay this second AX read when the answer
+                        -- can change anything: with minimised windows
+                        -- included (the default) it never could, and it
+                        -- used to run per window per press regardless.
                         local wasMin = false
                         pcall(function() wasMin = k.win:isMinimized() or false end)
-                        if altTab.includeMinimized or not wasMin then
-                            seenWin[id] = true
-                            seq = seq + 1
-                            remembered = remembered + 1
-                            table.insert(entries, { win = k.win, id = id,
-                                                    seq = seq, remembered = true })
-                        end
-                    else
-                        altTab.known[id] = nil
+                        listIt = not wasMin
+                    end
+                    if listIt then
+                        seenWin[id] = true
+                        seq = seq + 1
+                        remembered = remembered + 1
+                        table.insert(entries, { win = k.win, id = id,
+                                                seq = seq, remembered = true })
                     end
                 end
             end
+            probeSecs = hs.timer.secondsSinceEpoch() - p0
         end
 
         -- Which apps already own a listed window? Worked out from the
         -- ENTRIES, not from how many each app contributed: an app whose
         -- windows all arrived from the memory adds nothing new in the
         -- sweep, and counting that as "has no windows" would give it a
-        -- second, bogus "no open window" tile.
+        -- second, bogus "no open window" tile. The same pass records
+        -- which apps had a VISIBLE window (rank = this desktop) — next
+        -- press's sweep asks them first. One application()+name() per
+        -- entry; these used to be two separate loops paying it twice.
+        local lastHere = {}
         for _, e in ipairs(entries) do
             if e.win then
                 local okA, a = pcall(function() return e.win:application() end)
                 if okA and a then
                     local okN, n = pcall(function() return a:name() end)
-                    if okN and n then withWindows[n] = true end
+                    if okN and n then
+                        withWindows[n] = true
+                        if e.rank then lastHere[n] = true end
+                    end
                 end
             end
         end
+        altTab.lastHere = lastHere
 
         -- Front-to-back for what is on this desktop (the CG ranks), then
         -- everything unranked — minimised, other desktops — in the order
@@ -374,21 +439,6 @@ function M.setup(core)
             if rx ~= ry then return rx < ry end
             return x.seq < y.seq
         end)
-
-        -- Remember which apps had a VISIBLE window this press — next
-        -- press's sweep asks them first, so the budget goes to the apps
-        -- whose other windows you are most likely reaching for.
-        local lastHere = {}
-        for _, e in ipairs(entries) do
-            if e.rank and e.win then
-                local okA, a = pcall(function() return e.win:application() end)
-                if okA and a then
-                    local okN, n = pcall(function() return a:name() end)
-                    if okN and n then lastHere[n] = true end
-                end
-            end
-        end
-        altTab.lastHere = lastHere
 
         -- 3. Apps that are running with NO window at all. Without these,
         --    "every open program" quietly means "every open window", and
@@ -405,8 +455,8 @@ function M.setup(core)
 
         local elapsed = hs.timer.secondsSinceEpoch() - t0
         _G.diag.say("altTab", string.format(
-            "listed %d entries in %.3fs (%d apps, %d remembered%s%s)",
-            #entries, elapsed, #appsSeen, remembered,
+            "listed %d entries in %.3fs (%d apps, %d remembered — %d probed in %.2fs%s%s)",
+            #entries, elapsed, #appsSeen, remembered, probed, probeSecs,
             truncated and ", BUDGET SPENT" or "",
             slowestApp and string.format(", slowest: %s %.2fs", slowestApp, slowestTime) or ""))
         if truncated then
@@ -420,13 +470,18 @@ function M.setup(core)
                 .. "modules/window_switcher.lua, or raise altTab.listBudget.",
                 elapsed, #appsSeen, tostring(slowestApp), slowestTime))
         elseif elapsed > altTab.slowWarnSeconds then
+            -- 6.153.0 — the line now accounts for the MEMORY too. LL's
+            -- "1.64s across 13 apps (slowest: 0.01s)" was unanswerable
+            -- precisely because the probes ran outside every timer.
             print(string.format(
-                "🔄 Window switcher: listing took %.2fs across %d apps (slowest: %s %.2fs)",
-                elapsed, #appsSeen, tostring(slowestApp), slowestTime))
+                "🔄 Window switcher: listing took %.2fs across %d apps (slowest: %s %.2fs"
+                .. " · memory: %d probed in %.2fs)",
+                elapsed, #appsSeen, tostring(slowestApp), slowestTime,
+                probed, probeSecs))
         end
         _G.altTabLastListing = {
             seconds = elapsed, apps = #appsSeen, entries = #entries,
-            remembered = remembered,
+            remembered = remembered, probed = probed, probeSecs = probeSecs,
             truncated = truncated, slowestApp = slowestApp, slowestTime = slowestTime,
         }
 
