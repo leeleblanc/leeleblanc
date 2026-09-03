@@ -139,8 +139,8 @@ local M = {
             { "",     "saves to OneDrive/2026 Screenshots + copies to clipboard" },
             { "⇪⇧4",  "Panel: 9 actions (⌘1–⌘9) + history below · ⌘8 = BIG thumbnails" },
             { "⌘1–7", "area · scrolling · text/QR · edit newest · repeat · window · 10s" },
-            { "🏷 names", "Every ⇪4 capture is renamed by ITS OWN words · ⌘9 sweeps" },
-            { "",       "the backlog — SCR- files become “Screenshot … — words.png”" },
+            { "🏷 names", "Every capture — ⇪4's AND other tools' SCR- files — gets" },
+            { "",       "ITS OWN words in the name as it lands · ⌘9 sweeps the backlog" },
             { "type",  "searches the WHOLE folder — not just the newest 30 —" },
             { "",      "by name, by date, and by the TEXT INSIDE the image" },
             { "⏎",    "history row: image on clipboard · ⌘⏎ its file PATH" },
@@ -200,6 +200,20 @@ function M.setup(core)
     shots.slugWords     = 7      -- at most this many words in the name
     shots.slugChars     = 48     -- and at most this many characters
     shots.sweepCap      = 40     -- files OCR'd per ⌘9 sweep, one at a time
+    -- 👀 6.155.0 — ARRIVALS FROM OTHER TOOLS ARE NAMED TOO. LL, looking at
+    -- the panel: "some of the screenshots have OCR'd thumbnails and others
+    -- don't have words in the title … Is there a better way we can put
+    -- words in the title along with the other information?" The word-less
+    -- rows were not ours: SCR-20260902-rkdn.png is another capture tool's
+    -- name, and nothing named those until ⌘9 was pressed. The folder is
+    -- WATCHED now: every mechanical, word-less arrival — an SCR- file, or
+    -- a "Screenshot …" from the other Mac via OneDrive — is queued for the
+    -- same OCR a ⇪4 capture gets, once it has sat still for watchSettle.
+    -- One shortcuts process at a time, as ⌘9 does; beyond watchCap they
+    -- wait for ⌘9 rather than piling up behind a OneDrive re-sync.
+    shots.watchFolder = true
+    shots.watchSettle = 2.5      -- seconds a new file must be still before OCR
+    shots.watchCap    = 20       -- arrivals queued at once; the rest wait for ⌘9
     -- ----------------------------------------------------------------------
 
     local function say(m)  if _G.diag then _G.diag.say("screenshots", m)  end end
@@ -212,11 +226,15 @@ function M.setup(core)
     function shots.ensureDir()
         local mode
         pcall(function() mode = hs.fs.attributes(shots.dir, "mode") end)
-        if mode == "directory" then return shots.dir end
+        if mode == "directory" then
+            shots.startWatch()      -- idempotent; a folder that exists is watched
+            return shots.dir
+        end
         local made = false
         pcall(function() made = hs.fs.mkdir(shots.dir) end)
         if made then
             say("created " .. shots.dir)
+            shots.startWatch()
             return shots.dir
         end
         -- mkdir cannot create parents; if OneDrive-Personal itself is
@@ -238,19 +256,24 @@ function M.setup(core)
         return os.date("Screenshot %Y-%m-%d at %H.%M.%S", t) .. ".png"
     end
 
+    -- 👀 6.155.0 — every path THIS module writes is registered, so the
+    -- folder watcher can tell its own captures (finish() names those, or
+    -- the editor holds them) from another tool's arrivals.
+    shots.own = {}
     local function freshPath()
         local base = shots.dir .. "/" .. shots.filenameAt()
         local exists
         pcall(function() exists = hs.fs.attributes(base, "size") end)
-        if not exists then return base end
+        if not exists then shots.own[base] = true ; return base end
         -- two captures inside one second — number the second one rather
         -- than letting screencapture overwrite the first
         for n = 2, 99 do
             local p = base:gsub("%.png$", (" (%d).png"):format(n))
             local e
             pcall(function() e = hs.fs.attributes(p, "size") end)
-            if not e then return p end
+            if not e then shots.own[p] = true ; return p end
         end
+        shots.own[base] = true
         return base
     end
 
@@ -562,6 +585,7 @@ function M.setup(core)
             assert(outImg, "canvas would not render")
             outPath = shots.dir .. "/"
                       .. shots.filenameAt():gsub("%.png$", " (scrolling).png")
+            shots.own[outPath] = true
             assert(outImg:saveToFile(outPath), "could not write " .. outPath)
         end)
         for _, f in ipairs(files) do pcall(os.remove, f) end
@@ -754,6 +778,20 @@ function M.setup(core)
         return stem .. " — " .. slug .. "." .. ext
     end
 
+    -- The names this module is allowed to rewrite: an image with one of
+    -- the two MECHANICAL names (another tool's SCR-…, or our own
+    -- timestamp) and no words yet. One definition, used by ⌘9's sweep and
+    -- the folder watcher alike — two copies of this rule would drift.
+    function shots.wantsName(name)
+        local ext = tostring(name or ""):match("%.(%w+)$")
+        if not ext then return false end
+        ext = ext:lower()
+        if ext ~= "png" and ext ~= "jpg" and ext ~= "jpeg" then return false end
+        if name:find(" — ", 1, true) then return false end
+        return name:match("^SCR%-%d%d%d%d%d%d%d%d%-") ~= nil
+            or name:match("^Screenshot ") ~= nil
+    end
+
     function shots.renameTo(path, newBase)
         local dir = path:match("^(.*)/[^/]+$") or shots.dir
         local target = dir .. "/" .. newBase
@@ -781,6 +819,7 @@ function M.setup(core)
     -- OCR engine for the Finder comment (its never-overwrite rule
     -- applies there, not here). Failure costs the new name only — the
     -- file itself is never at risk, rename is the ONLY write.
+    shots.nameTasks = {}
     function shots.nameByText(path, onDone)
         if _G.ocrShortcutAvailable == false then
             if onDone then onDone(nil) end
@@ -790,6 +829,7 @@ function M.setup(core)
         local okNew = pcall(function()
             t = hs.task.new("/usr/bin/shortcuts", function(code, sout)
                 shots.nameTask = nil
+                shots.nameTasks[t] = nil
                 local newPath
                 local text = tostring(sout or ""):match("^%s*(.-)%s*$") or ""
                 if code == 0 and text ~= "" then
@@ -815,7 +855,12 @@ function M.setup(core)
             if onDone then onDone(nil) end
             return false
         end
-        shots.nameTask = t   -- HELD
+        -- HELD — as a SET (6.155.0). One slot held only the newest task;
+        -- a ⇪4 capture OCR'd while an arrival was being named dropped the
+        -- earlier task to the collector, whose callback then never came,
+        -- and a queue waiting on that callback would have waited forever.
+        shots.nameTask = t
+        shots.nameTasks[t] = true
         return true
     end
 
@@ -835,12 +880,7 @@ function M.setup(core)
         pcall(function()
             for f in hs.fs.dir(shots.dir) do
                 if #todo >= shots.sweepCap then break end
-                local ext = tostring(f):match("%.(%w+)$")
-                if ext and (ext:lower() == "png" or ext:lower() == "jpg"
-                            or ext:lower() == "jpeg")
-                   and not f:find(" — ", 1, true)
-                   and (f:match("^SCR%-%d%d%d%d%d%d%d%d%-")
-                        or f:match("^Screenshot ")) then
+                if shots.wantsName(f) then
                     todo[#todo + 1] = shots.dir .. "/" .. f
                 end
             end
@@ -864,6 +904,7 @@ function M.setup(core)
                                   :format(renamed, #todo, silent), 4)
                 end)
                 say(("sweep: %d/%d renamed, %d text-free"):format(renamed, #todo, silent))
+                shots.drainQueue()      -- arrivals that waited for the sweep
                 return
             end
             local started = shots.nameByText(path, function(newPath)
@@ -883,6 +924,120 @@ function M.setup(core)
                           .. " screenshots by their text…", 2.5)
         end)
         step()
+    end
+
+    -- ---- 👀 the folder watcher (6.155.0) ---------------------------------
+    -- Another tool's capture, or a screenshot the other Mac took, lands
+    -- in this folder with a mechanical name and no words. The watcher
+    -- queues it for the same OCR a ⇪4 capture gets — after it has sat
+    -- still for watchSettle (a file still being written OCRs as
+    -- nothing), one shortcuts process at a time (the ⌘9 discipline,
+    -- sharing its nameBusy flag), and never a file this module wrote
+    -- itself (finish() names those) or one the blur editor has open (a
+    -- rename under the editor would orphan its save).
+    shots.watcher = nil    -- HELD: an unreferenced pathwatcher is collected
+    shots.pending = {}     -- path -> settle timer (HELD, same reason)
+    shots.queue   = {}     -- paths waiting for the one-at-a-time OCR
+    shots.namedOnArrival = 0
+    shots.leftForSweep   = 0
+
+    local function editorHolds(path)
+        local ed = _G.screenshotEditor
+        return type(ed) == "table" and ed.currentPath == path
+    end
+
+    function shots.queueArrival(path)
+        local size
+        pcall(function() size = hs.fs.attributes(path, "size") end)
+        if not size or size == 0 then return false end   -- gone, or empty
+        local name = path:match("[^/]+$") or path
+        if not shots.wantsName(name) then return false end   -- renamed meanwhile
+        if shots.own[path] or editorHolds(path) then return false end
+        for _, q in ipairs(shots.queue) do if q == path then return false end end
+        if #shots.queue >= shots.watchCap then
+            shots.leftForSweep = shots.leftForSweep + 1
+            if shots.leftForSweep == 1 then
+                say(("%d arrivals already waiting — the rest are left for ⌘9")
+                    :format(shots.watchCap))
+            end
+            return false
+        end
+        shots.queue[#shots.queue + 1] = path
+        shots.drainQueue()
+        return true
+    end
+
+    function shots.drainQueue()
+        if shots.nameBusy then return end
+        if #shots.queue == 0 then return end
+        if _G.ocrShortcutAvailable == false then
+            -- no OCR on this Mac: nothing to wait for, and ⌘9 will say so
+            -- out loud when pressed — this path stays quiet after one line
+            shots.leftForSweep = shots.leftForSweep + #shots.queue
+            shots.queue = {}
+            if not shots.saidNoOcr then
+                shots.saidNoOcr = true
+                say("arrivals not named — the “" .. shots.ocrShortcut
+                    .. "” Shortcut is unavailable here")
+            end
+            return
+        end
+        local path = table.remove(shots.queue, 1)
+        shots.nameBusy = true
+        local started = shots.nameByText(path, function(newPath)
+            shots.nameBusy = false
+            if newPath then
+                shots.namedOnArrival = shots.namedOnArrival + 1
+                say("named on arrival: " .. (newPath:match("[^/]+$") or newPath))
+            end
+            shots.drainQueue()
+        end)
+        if not started then
+            shots.nameBusy = false
+            shots.leftForSweep = shots.leftForSweep + #shots.queue
+            shots.queue = {}
+        end
+    end
+
+    function shots.onFolderEvent(paths)
+        if not shots.watchFolder then return end
+        for _, p in ipairs(type(paths) == "table" and paths or {}) do
+            if type(p) == "string" and p:match("^(.*)/[^/]+$") == shots.dir then
+                local name = p:match("[^/]+$") or ""
+                if shots.wantsName(name) and not shots.own[p] then
+                    -- "still" means no event for watchSettle: every write
+                    -- restarts the clock
+                    local old = shots.pending[p]
+                    if old then pcall(function() old:stop() end) end
+                    local okT, t = pcall(hs.timer.doAfter, shots.watchSettle, function()
+                        shots.pending[p] = nil
+                        pcall(shots.queueArrival, p)
+                    end)
+                    shots.pending[p] = (okT and t) or nil
+                end
+            end
+        end
+    end
+
+    function shots.startWatch()
+        if not shots.watchFolder then return false end
+        if shots.watcher then return true end
+        if not (hs.pathwatcher and hs.pathwatcher.new) then return false end
+        local ok, w = pcall(hs.pathwatcher.new, shots.dir, function(paths)
+            pcall(shots.onFolderEvent, paths)
+        end)
+        if not (ok and w) then
+            warn("could not watch the folder — arrivals wait for ⌘9")
+            return false
+        end
+        local okS = pcall(function() w:start() end)
+        if not okS then
+            warn("the folder watcher would not start — arrivals wait for ⌘9")
+            return false
+        end
+        shots.watcher = w
+        say("watching the folder — other tools' captures get their words as they land")
+        return true
     end
 
     -- ---- listing ---------------------------------------------------------
@@ -1054,8 +1209,30 @@ function M.setup(core)
     -- ---- the ⇪⇧4 panel: eight actions, then history -----------------------
     -- hs.chooser numbers its first rows ⌘1–⌘9 natively, which is why the
     -- actions sit on top: ⌘3 IS "recognize text", no arrowing needed.
-    function shots.actionRows()
+    function shots.actionRows(list)
         local qr = shots.zbarPath()
+        -- 6.155.0 — the ⌘9 row says how many are WAITING, when the list
+        -- is to hand: "nothing waiting" is the honest state most days now
+        -- that arrivals are named as they land.
+        local waiting = nil
+        if type(list) == "table" then
+            waiting = 0
+            for _, e in ipairs(list) do
+                if type(e) == "table" and shots.wantsName(e.name or "") then
+                    waiting = waiting + 1
+                end
+            end
+        end
+        local nameSub
+        if waiting == 0 then
+            nameSub = "nothing waiting — every screenshot here carries its words"
+        elseif waiting then
+            nameSub = ("%d waiting — SCR-/word-less files get their text in the "
+                       .. "name (%d per run, one at a time)"):format(waiting, shots.sweepCap)
+        else
+            nameSub = ("SCR-/word-less files get their text in the name "
+                       .. "(%d per run, one at a time)"):format(shots.sweepCap)
+        end
         return {
             { text = "📐 Capture area", act = "area",
               subText = "crosshair select — saved + copied, then the editor" },
@@ -1088,8 +1265,7 @@ function M.setup(core)
             -- 6.147.0 — ⌘9, the backlog namer. The ninth and last slot
             -- the chooser numbers natively.
             { text = "🏷 Name them by what's ON them", act = "nameSweep",
-              subText = ("SCR-/word-less files get their text in the name "
-                         .. "(%d per run, one at a time)"):format(shots.sweepCap) },
+              subText = nameSub },
         }
     end
 
@@ -1122,7 +1298,7 @@ function M.setup(core)
 
     function shots.choicesFrom(list)
         local choices = {}
-        for _, a in ipairs(shots.actionRows()) do choices[#choices + 1] = a end
+        for _, a in ipairs(shots.actionRows(list)) do choices[#choices + 1] = a end
         for i, e in ipairs(list) do
             if i > shots.maxList then break end
             choices[#choices + 1] = {
@@ -1442,6 +1618,14 @@ function M.setup(core)
     end
 
     -- ---- keys & services -------------------------------------------------
+    -- 👀 The watcher starts at boot ONLY if the folder is already there —
+    -- one stat, no mkdir, no alert; ensureDir() starts it on first use
+    -- otherwise. (The hostile Mac with no OneDrive boots without it.)
+    if shots.enabled and shots.watchFolder then
+        local mode
+        pcall(function() mode = hs.fs.attributes(shots.dir, "mode") end)
+        if mode == "directory" then shots.startWatch() end
+    end
     if shots.enabled then
         core.hyperAddShortcut({}, shots.key, function() shots.capture() end,
                               "screenshot — save + copy")

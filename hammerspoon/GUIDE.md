@@ -9,7 +9,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,632 lines)
+├── init.lua          the orchestrator (3,643 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (10 files)
 ├── modules/          one file per feature (60 files, ~39,600 lines)
@@ -511,6 +511,8 @@ and `<logsDir>/diagnostics-<machine>.txt`.
 | ⌥Tab misses another desktop's window | it is remembered from the first press that could SEE that desktop (6.152.0) — press ⌥Tab there once after a reload |
 | ⌥Tab is a wheel of cards, not a wall | 6.154.0's rolodex; `altTab.layout = "grid"` in a profile brings the tile wall back |
 | ⇪6 says the internet is fine but a site won't load | read the report's VERDICT top down — a captive portal or slow DNS is named there; the DNS race says which resolver to set by hand |
+| A picker (⇪V, ⇪⇧4 …) won't drag | hold ⌘ and drag from anywhere on it, or ⇪⇧-arrows; a bare drag on the rows RUNS one. ⇪⇧R puts it back. The ⇪V pane follows (6.155.0) |
+| A screenshot has no words in its name | it came from another tool or the other Mac — the folder watcher names it once it sits still (`shots.watchSettle`); older ones: ⌘9 in ⇪⇧4, whose row counts them |
 | `attempt to call a nil value (global '…')` | something calls a function that moved into a module — publish it with `core.provide` and call it with `_G.service.call` |
 | `No provider for '…'` | that module didn't load; see `Modules:` in the boot report |
 | brew errors on every app at once | Homebrew's cache, not your list: `rm -rf "$(brew --cache)/api" && brew update --force` |
@@ -555,9 +557,9 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Sixty-two Lua suites, 6,278 checks, plus three more that run the Capture
+Sixty-two Lua suites, 6,327 checks, plus three more that run the Capture
 Pad's, the screenshot editor's and unified search's page JavaScript under
-`node` for a further 105 — **6,383 checks over sixty-seven stages** in
+`node` for a further 105 — **6,432 checks over sixty-seven stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 

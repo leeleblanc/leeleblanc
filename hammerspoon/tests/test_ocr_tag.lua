@@ -54,6 +54,8 @@ local CLIPBOARD_ITEMS = {}     -- what readAllData answers
 local DISK       = {}          -- path -> "file" (hs.fs.attributes mode)
 local REALPATHS  = {}          -- what pathToAbsolute answers
 local RESOLVED_ARGS = {}       -- every arg pathToAbsolute was given
+local URLPATHS   = {}          -- what pathFromURL answers (6.155.0), keyed by URL
+local URL_ARGS   = {}          -- every URL pathFromURL was given
 
 hs = {
     pasteboard = {
@@ -72,6 +74,10 @@ hs = {
         pathToAbsolute = function(path)
             table.insert(RESOLVED_ARGS, path)
             return REALPATHS[path]
+        end,
+        pathFromURL = function(url)
+            table.insert(URL_ARGS, url)
+            return URLPATHS[url]
         end,
     },
 }
@@ -113,7 +119,7 @@ printed = {}   -- setup() may print; the checks below count lines
 
 local function reset()
     printed, CLIPBOARD_ITEMS, RESOLVED_ARGS = {}, {}, {}
-    DISK, REALPATHS = {}, {}
+    DISK, REALPATHS, URLPATHS, URL_ARGS = {}, {}, {}, {}
 end
 
 -- =====================================================================
@@ -170,6 +176,64 @@ check("...the line carries the ⚠️ mark (Console files it NONBREAKING)",
       printed[1] and printed[1]:find("⚠️", 1, true) == 1, printed[1])
 check("...and says the path would not resolve",
       said("would not resolve"))
+
+out("\n=== T3. 6.155.0 — a second route, and a copied FOLDER is not an anomaly ===\n")
+-- LL's Console, right after unpacking a release and ⌘C-ing the folder:
+--   ⚠️ OCR tag: clipboard file URL(s) matched no usable image — a
+--   file-reference path macOS would not resolve — raw value:
+--   "/.file/id=6571367.22263352/"
+
+reset()
+DISK["/Users/lee/photo.png"] = "file"
+URLPATHS["file:///.file/id=5.5/"] = "/Users/lee/photo.png"   -- realpath: nothing
+CLIPBOARD_ITEMS = { { ["public.file-url"] = "file:///.file/id=5.5/" } }
+paths = clipboardImageFilePaths()
+check("realpath empty, CoreFoundation answers: the image IS found",
+      #paths == 1 and paths[1] == "/Users/lee/photo.png", paths[1] or "none")
+check("...asked with the reference as a file URL, slash restored",
+      URL_ARGS[1] == "file:///.file/id=5.5/", URL_ARGS[1])
+check("...realpath was still asked FIRST", RESOLVED_ARGS[1] == "/.file/id=5.5")
+check("...and nothing is printed", not saidAnything(), printed[1])
+
+reset()
+DISK["/Users/lee/IMG_0001.heic"] = "file"
+REALPATHS["/.file/id=6.6"] = "/Users/lee/IMG_0001.heic"
+URLPATHS["file:///.file/id=6.6/"] = "/Users/lee/other.png"
+CLIPBOARD_ITEMS = { { ["public.file-url"] = "file:///.file/id=6.6/" } }
+paths = clipboardImageFilePaths()
+check("when realpath answers, the second route is not consulted",
+      #paths == 1 and paths[1] == "/Users/lee/IMG_0001.heic" and #URL_ARGS == 0,
+      #URL_ARGS)
+
+reset()
+URLPATHS["file:///.file/id=7.7/"] = "/.file/id=7.7"   -- an answer that is no answer
+CLIPBOARD_ITEMS = { { ["public.file-url"] = "file:///.file/id=7.7/" } }
+paths = clipboardImageFilePaths()
+check("a second route that hands the reference back unresolved counts as no answer",
+      #paths == 0 and #printed == 1 and said("would not resolve"), printed[1])
+
+reset()
+DISK["/.file/id=6571367.22263352"] = "directory"
+CLIPBOARD_ITEMS = { { ["public.file-url"] = "file:///.file/id=6571367.22263352/" } }
+paths = clipboardImageFilePaths()
+check("LL's exact line: a copied FOLDER by reference is a normal miss — silent",
+      #paths == 0 and not saidAnything(), printed[1])
+
+reset()
+DISK["/.file/id=8.8"] = "file"
+CLIPBOARD_ITEMS = { { ["public.file-url"] = "file:///.file/id=8.8/" } }
+paths = clipboardImageFilePaths()
+check("a reference the filesystem CAN stat but nobody can name still speaks, "
+      .. "and says what it is", #printed == 1 and said("calls it a file"), printed[1])
+
+reset()
+hs.fs.pathFromURL = nil
+REALPATHS = {}
+CLIPBOARD_ITEMS = { { ["public.file-url"] = "file:///.file/id=9.9/" } }
+paths = clipboardImageFilePaths()
+check("a Hammerspoon build without pathFromURL degrades to the old line, no throw",
+      #paths == 0 and #printed == 1 and said("would not resolve"), printed[1])
+hs.fs.pathFromURL = function(url) table.insert(URL_ARGS, url) return URLPATHS[url] end
 
 reset()
 CLIPBOARD_ITEMS = { { ["public.file-url"] = "file:///Users/lee/ghost.png" } }

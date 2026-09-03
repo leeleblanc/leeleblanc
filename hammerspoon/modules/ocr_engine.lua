@@ -232,14 +232,38 @@ function M.setup(core)
             -- translates the id form (realpath), so resolve FIRST, then
             -- judge the real name.
             if candidate:find("/.file/", 1, true) == 1 then
-                local resolved
-                pcall(function()
-                    resolved = hs.fs.pathToAbsolute((candidate:gsub("/+$", "")))
-                end)
-                if type(resolved) ~= "string" or resolved == "" then
+                local ref = (candidate:gsub("/+$", ""))
+                local resolved, via
+                pcall(function() resolved = hs.fs.pathToAbsolute(ref) end)
+                if type(resolved) == "string" and resolved ~= "" then via = "realpath" end
+                -- 6.155.0 — A SECOND ROUTE. CoreFoundation resolves file
+                -- reference URLs itself (tracking a file by id is what
+                -- they are for); hs.fs.pathFromURL hands that answer back
+                -- on the builds that have it, and is asked only when
+                -- realpath came up empty.
+                if not via then
+                    pcall(function()
+                        if type(hs.fs.pathFromURL) ~= "function" then return end
+                        local p = hs.fs.pathFromURL("file://" .. ref .. "/")
+                        if type(p) == "string" and p ~= ""
+                           and p:find("/.file/", 1, true) ~= 1 then
+                            resolved, via = p, "pathFromURL"
+                        end
+                    end)
+                end
+                if not via then
+                    -- Neither route named it. A FOLDER copied in Finder
+                    -- arrives exactly this way (6.155.0 — LL ⌘C'd the
+                    -- unpacked release folder and got the ⚠️ line for it),
+                    -- and a folder is a normal miss, not an anomaly: ask
+                    -- the filesystem what the reference IS before speaking.
+                    local mode
+                    pcall(function() mode = hs.fs.attributes(ref, "mode") end)
+                    if mode == "directory" then return end
                     if not firstMiss then
-                        firstMiss = "a file-reference path macOS would not resolve — raw value: \""
-                            .. stripToQwerty(candidate:sub(1, 160)) .. "\""
+                        firstMiss = "a file-reference path macOS would not resolve"
+                            .. (mode and (" (the filesystem calls it a " .. tostring(mode) .. ")") or "")
+                            .. " — raw value: \"" .. stripToQwerty(candidate:sub(1, 160)) .. "\""
                     end
                     return
                 end

@@ -647,14 +647,39 @@ do
     check("after a search the pane re-keys on the NEW list — row 1 is the match",
           bodyText() == "third", bodyText())
 
+    -- 🧲 6.155.0 — LL: "I can't move it. Should I be able to?" A ⇪⇧-arrow
+    -- nudge is hide() + show(point); the pane must wait that out.
+    local NOW = 1000
+    local realClock = hs.timer.secondsSinceEpoch
+    hs.timer.secondsSinceEpoch = function() return NOW end
     C.chooser.hideCb()
-    check("the picker's hideCallback closes the pane and stops the poll",
-          C.pv.canvas == nil and TIMERS[1].stopped == true)
+    check("the picker's hideCallback takes the pane down at once", C.pv.canvas == nil)
+    check("…but the poll stays for clip.previewGrace — a nudged picker is "
+          .. "about to come back", C.pv.poll == TIMERS[1] and not TIMERS[1].stopped)
+    VIS = false ; TIMERS[1].fn()
+    check("…a hidden picker inside the grace draws nothing and keeps polling",
+          C.pv.canvas == nil and C.pv.poll ~= nil)
+    VIS = true ; SEL = 1
+    _G.lastPopupPlacement.point = { x = 340, y = 200 } ; TIMERS[1].fn()
+    local box2 = C.previewBox(C.chooser)
+    check("the picker back at a NEW spot gets its pane back THERE",
+          pane() ~= nil and box2 and box2.x == 340
+          and pane().rect.x >= box2.x + box2.w, pane() and pane().rect.x)
+    check("…showing the selected row again", bodyText() == "third", bodyText())
+    C.chooser.hideCb() ; VIS = false
+    NOW = NOW + C.previewGrace ; TIMERS[1].fn()
+    check("gone for the whole grace: the pane closes and the poll stops",
+          C.pv.canvas == nil and C.pv.poll == nil and TIMERS[1].stopped == true)
+    VIS = true
+    _G.lastPopupPlacement.point = { x = 300, y = 180 }
 
     HYPER["|v"]() ; VIS = false ; C.pv.poll.fn()
-    check("a picker that is simply GONE closes the pane on the next poll",
-          C.pv.canvas == nil and C.pv.poll == nil)
+    check("a picker that is simply GONE keeps the pane down while the grace runs",
+          C.pv.canvas == nil and C.pv.poll ~= nil)
+    NOW = NOW + C.previewGrace ; C.pv.poll.fn()
+    check("…and closes the poll once it has run", C.pv.poll == nil)
     VIS = true
+    hs.timer.secondsSinceEpoch = realClock
 
     _G.lastPopupPlacement = nil
     local okNo = pcall(function() HYPER["|v"]() end)

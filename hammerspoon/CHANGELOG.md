@@ -4,6 +4,91 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.155.0 — WORDS ON EVERY SCREENSHOT · THE PANE RIDES A MOVED
+PICKER · TWO CONSOLE LINES ANSWERED:
+  🏷 ⇪⇧4 — LL, looking at the panel: "Can you see some of the screenshots
+     have OCR'd thumbnails and others don't have words in the title? Is
+     there a better way we can put words in the title along with the
+     other information?" The row without words was SCR-20260902-rkdn.png
+     — another capture tool's name — and 6.147.0's naming reached only
+     the captures THIS module took (finish() OCRs those a few seconds
+     after the shutter) plus whatever ⌘9 was pressed for. The folder is
+     WATCHED now (hs.pathwatcher, started at boot when the folder exists
+     and otherwise on first use): a mechanical, word-less arrival — an
+     SCR- file, or a "Screenshot …" that the other Mac took and OneDrive
+     brought over — waits until it has sat still for shots.watchSettle
+     (2.5s; every write restarts the clock, so a half-written PNG is
+     never OCR'd as nothing), then goes through the same nameByText the
+     ⇪4 path uses and becomes "Screenshot <its own moment> — <its
+     words>.png", one shortcuts process at a time under ⌘9's nameBusy
+     discipline. Never touched: a file this module wrote itself (every
+     path it creates is registered in shots.own — finish() names those,
+     and the editor-bound ones are the editor's), a file the blur editor
+     has open (_G.screenshotEditor.currentPath), a name a person chose,
+     a name that already carries " — ". Beyond shots.watchCap (20) the
+     rest are left for ⌘9 rather than piled up behind a OneDrive
+     re-sync, and the ⌘9 row now says "N waiting" or "nothing waiting —
+     every screenshot here carries its words". A one-slot task holder
+     became a SET on the way: a ⇪4 OCR landing while an arrival was
+     being named would have dropped the earlier task to the collector,
+     and the queue would have waited for a callback that never came.
+  🧲 ⇪V — LL: "On the screenshot that shows the Clipboard History panel,
+     I can't move it. Should I be able to?" Yes, and it has been movable
+     since 6.30/6.127.0: hold ⌘ and drag from ANYWHERE on it (a bare
+     drag on the rows runs one — that is the row's job), or ⇪⇧-arrows
+     nudge it, ⇪⇧R puts it back, and the spot sticks for the next picker
+     you open. What did NOT survive a move was 6.154.0's preview pane: a
+     nudge is hide() + show(point), the picker's hideCallback closed the
+     pane AND stopped its poll, and nothing re-opened it because the
+     re-show goes through core.showPopup, not this module's openers. The
+     hideCallback now only SUSPENDS — the canvas goes at once (a pane
+     over empty desk is wrong for as long as it lasts), the poll stays —
+     and the pane closes for good only after the picker has been gone
+     for clip.previewGrace (0.6s); a picker back inside that, at a new
+     placement, gets its pane back THERE on the next tick. A ⌘-drag never
+     hides the picker (show(point) re-anchors it live), and window_move
+     now moves the placement record WITH the hand instead of at the
+     drop, so the pane rides along at the poll's cadence.
+  🏷 "⚠️ OCR tag: clipboard file URL(s) matched no usable image — a
+     file-reference path macOS would not resolve — raw value:
+     "/.file/id=6571367.22263352/"" — printed as LL ⌘C'd the unpacked
+     6.154.0 FOLDER to install it. A folder copied in Finder arrives by
+     reference exactly like an image does, realpath declined it, and
+     6.98.0's rule ("an unresolvable reference is an anomaly worth one
+     line") had no way to tell the two apart. It asks now: when neither
+     route can NAME the reference, the filesystem is asked what it IS,
+     and a directory is a normal miss — silent, like every other
+     non-image ⌘C. A file nobody can name still gets its line, and the
+     line says the filesystem calls it a file. The second route is new:
+     CoreFoundation resolves file reference URLs itself (that is what
+     they exist for) and hs.fs.pathFromURL hands the answer back on the
+     builds that have it, asked only when realpath came up empty, and
+     an answer that merely echoes the reference counts as none.
+  🖱 "⚠️ mouseGrid: watchdog fired after 8s — landed badge left open" —
+     the line that follows every ⇪X landing that is used with the
+     TRACKPAD instead of the space bar, which 6.154.0's snap-to-control
+     makes the natural thing to do: the pointer is already on the
+     button. A mouse-down tap now runs ONLY while landed; the click is
+     never consumed (the badge is click-through — hs.canvas ignores the
+     mouse unless asked to track it, and the ring's middle is
+     transparent anyway), the teardown is deferred one event-loop turn
+     so it never happens inside the tap's own callback, and the tap is
+     pcall'd end to end — no Accessibility, no tap, the watchdog alone
+     as before. grid.clickEnds = false turns it off.
+  ✅ Gate: 6,383 → 6,432 checks (test_screenshots 134 → 155;
+     test_mouse_grid 326 → 339; test_ocr_tag 51 → 60; test_clipboard
+     89 → 95), 67 stages, lint and the hostile world green, in the tree
+     and inside the package.
+  📦 THIS ZIP CARRIES NO snippets/ FOLDER — deliberately said out loud.
+     snippets/ is never in git (it holds real personal data) and the
+     build machine behind this session was rebuilt between 6.154.0 and
+     6.155.0, so there was no bundled.lua to pack. That is safe by the
+     installer's own rule: hs-install.sh touches ~/.hammerspoon/snippets
+     ONLY when the download has a snippets/ folder, so the bundled.lua
+     6.154.0 installed stays exactly where it is and ⇪⇧T keeps all 2,006
+     snippets. The next snippets CHANGE needs the packs handed back
+     (a zip of ~/.hammerspoon/snippets) before it can be built.
+
 NEW IN 6.154.0 — SEVEN ASKS: ⇪V SHOWS THE WHOLE ENTRY · ⇪X LANDS ON THE
 BUTTON · ⌥TAB IS A ROLODEX · ⇪6 GROWS A REPORT · ⇪Y REACHES 180 DAYS:
   👁 ⇪V / ⇪⇧V — LL: "Can the full contents of the clipboard item in cmd+V

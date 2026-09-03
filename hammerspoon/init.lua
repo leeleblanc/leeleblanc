@@ -4,8 +4,39 @@
 -- =====================================================================
 -- 09-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.154.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.155.0
 -- =====================================================================
+
+-- NEW IN 6.155.0 — WORDS ON EVERY SCREENSHOT · THE PANE RIDES A MOVED
+-- PICKER · TWO CONSOLE LINES ANSWERED:
+--   🏷 ⇪⇧4 — LL: "some of the screenshots have OCR'd thumbnails and
+--      others don't have words in the title? Is there a better way we
+--      can put words in the title along with the other information?"
+--      The word-less rows were another tool's (SCR-20260902-rkdn.png),
+--      and nothing named those until ⌘9 was pressed. The folder is
+--      WATCHED now: a mechanical, word-less arrival — an SCR- file, or a
+--      "Screenshot …" from the other Mac via OneDrive — is OCR'd once it
+--      has sat still for shots.watchSettle and renamed "Screenshot <its
+--      moment> — <its words>", one shortcuts process at a time, never a
+--      file this module wrote (finish() names those) or one the blur
+--      editor holds. The ⌘9 row says how many are waiting.
+--   🧲 ⇪V — "I can't move it. Should I be able to?" You can: ⌘-drag from
+--      anywhere on it, ⇪⇧-arrows nudge it, ⇪⇧R resets, and the spot
+--      sticks for the next picker. What did not survive a nudge was
+--      6.154.0's preview pane (a nudge is hide + show, and the
+--      hideCallback closed the pane for good): it now waits
+--      clip.previewGrace for the picker to come back, re-opens at the
+--      new spot, and rides a ⌘-drag live.
+--   🏷 "⚠️ OCR tag: … a file-reference path macOS would not resolve" —
+--      after ⌘C on the unpacked release FOLDER. A folder by reference is
+--      a normal miss now (the filesystem is asked what the reference IS
+--      before the tagger speaks), and hs.fs.pathFromURL is a second
+--      route when realpath comes up empty.
+--   🖱 "⚠️ mouseGrid: watchdog fired after 8s — landed badge left open"
+--      — because the click that used ⇪X's landing came from the
+--      trackpad. A mouse-down tap runs while landed: the click passes
+--      through untouched and the badge stops outstaying it
+--      (grid.clickEnds = false is the watchdog alone, as before).
 
 -- NEW IN 6.154.0 — SEVEN ASKS: ⇪V SHOWS THE WHOLE ENTRY · ⇪X LANDS ON THE
 -- BUTTON · ⌥TAB IS A ROLODEX · ⇪6 GROWS A REPORT · ⇪Y REACHES 180 DAYS:
@@ -177,30 +208,10 @@
 --      fed a float to %d — "number has no integer representation",
 --      once per snapshot cycle. Floored.
 
--- NEW IN 6.151.0 — ⌥TAB: THE OTHER CHROME WINDOWS, FOUND AT LAST:
---   🪟 LL: "Alt+Tab is not showing all windows. Example it shows one
---      Chrome window but no other Chrome windows I have open." The
---      missing ones were minimised or on other desktops — findable
---      ONLY by the per-app sweep (macOS's on-screen listing cannot see
---      them, by design) — and that sweep was starved two ways at once.
---   ⏱ THE BUDGET COUNTED FROM THE WRONG CLOCK: the 0.8s deadline
---      started before the on-screen listing, which alone has taken
---      3.0s on this Mac (the 6.148.0 console paste) — so the per-app
---      sweep ran for ZERO apps and ⌥Tab quietly became "this desktop
---      only". The sweep now times itself: a slow phase 1 costs a
---      Console line, never the cross-Space windows.
---   🥇 AND THE QUEUE WAS IN macOS'S ORDER, NOT YOURS: background
---      agents at the front of the running-app list ate the budget
---      while Chrome waited at the back. Apps that own a window ON THIS
---      DESKTOP are asked first now — an app whose window you can see
---      is exactly the app whose other windows you are reaching for.
---   📏 ⇪⇧D's listing report grows orderedSecs, so the next paste shows
---      phase 1's own cost next to the sweep's.
-
--- (6.150.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.151.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.154.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.155.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -545,7 +556,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.154.0"
+_G.configVersion = "6.155.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

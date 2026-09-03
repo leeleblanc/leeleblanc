@@ -72,6 +72,13 @@ mirrors draw order: "closes last" IS "drawn under".
    first; init.lua sits at the zip ROOT (no wrapper folder); snippets pruned
    to bundled.lua only; re-run `tools/run-tests.sh` from INSIDE the unpacked
    package; zip named `hammerspoonX.Y.Z.zip` at repo root, gitignored.
+   🚨 `hammerspoon/snippets/` is NOT in git and is GONE whenever the build
+   container is rebuilt (it was for 6.155.0). A zip without `snippets/` is
+   safe — hs-install.sh touches `~/.hammerspoon/snippets` only when the
+   download has that folder — but SAY SO in the changelog and to LL. Any
+   snippets change needs the packs from LL's Mac first.
+   The container also lacks `lua5.4` after a rebuild: `apt-get install -y
+   lua5.4` (root, no sudo needed) before the gate.
 5. Current version and check counts: read them off init.lua line 7 and the
    top CHANGELOG entry — do not trust numbers remembered from chat.
 
@@ -118,5 +125,13 @@ mirrors draw order: "closes last" IS "drawn under".
 - Write ledger: a store rewritten whole (⇪I cache, .json, chrome/clipboard
   files, `_G.rewrittenFiles` registry) may shrink silently; >50% loss is
   still reported once. Any NEW rewritten store must register itself.
+- 6.155.0 verify with LL: an SCR- capture from another tool gets its words
+  within seconds of landing (Console: "named on arrival"; ⌘9 row says
+  "nothing waiting"); ⇪V pane survives a ⇪⇧-arrow nudge and rides a
+  ⌘-drag; no ⚠️ OCR-tag line after ⌘C on a folder; a trackpad click
+  after ⇪X lands leaves no watchdog line. Screenshots contract: every path
+  the module writes goes in `shots.own` (the watcher skips those);
+  `shots.nameTasks` is a SET (one slot dropped concurrent OCRs); any
+  `hs.timer.do*` result must be HELD (test_diagnostics sentry).
 - Pomodoro weekly report currently fires with the Friday 4:30 tally; LL may
   want a different day/shape once seen.

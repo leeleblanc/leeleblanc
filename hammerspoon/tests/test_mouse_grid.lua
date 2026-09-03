@@ -49,6 +49,7 @@ print = function(...)
 end
 
 local SCREENS, CANVASES, CANVAS_NEW, TIMERS = {}, {}, 0, {}
+local TAPS = {}    -- 6.155.0: every hs.eventtap.new (the hand-click listener)
 local MOUSE_AT, CLICKS, AX_OK = { x = 0, y = 0 }, {}, true
 -- 🎯 6.154.0 — the Accessibility world under the cell: AXELEMS is the
 -- list of elements on screen (role, frame, title, pid); a hit-test answers
@@ -213,8 +214,16 @@ hs = {
     eventtap = {
         leftClick  = function(p) CLICKS[#CLICKS + 1] = { kind = "left",  p = p } end,
         rightClick = function(p) CLICKS[#CLICKS + 1] = { kind = "right", p = p } end,
+        -- 6.155.0: the hand-click listener that runs while landed
+        new = function(types, fn)
+            local t = { types = types, fn = fn, started = false }
+            function t:start() self.started = true; return self end
+            function t:stop()  self.started = false; return self end
+            TAPS[#TAPS + 1] = t
+            return t
+        end,
         event = {
-            types = { leftMouseDown = 1, leftMouseUp = 2 },
+            types = { leftMouseDown = 1, leftMouseUp = 2, rightMouseDown = 3 },
             properties = { mouseEventClickState = "clickState" },
             newMouseEvent = function(t, p)
                 local e = { t = t, p = p }
@@ -271,7 +280,7 @@ local CORE = {
 local grid   -- the live module table under test
 
 local function resetWorld()
-    CANVASES, CANVAS_NEW, TIMERS = {}, 0, {}
+    CANVASES, CANVAS_NEW, TIMERS, TAPS = {}, 0, {}, {}
     CLICKS, ALERTS, printed = {}, {}, {}
     MODALS, GLOBAL_HOTKEYS, HYPER, PROVIDED, SCREEN_WATCHERS = {}, {}, {}, {}, {}
     MOUSE_AT, AX_OK = { x = 0, y = 0 }, true
@@ -667,6 +676,50 @@ check("it clicks the NUDGED point, not the original cell centre",
       and math.abs(CLICKS[1].p.y - MOUSE_AT.y) < 0.01)
 check("everything is torn down after the click", grid.state == nil
       and grid.cross == nil and not anyModalEntered())
+
+out("   -- 🖱 a click by hand ends landed mode (6.155.0) --\n")
+-- LL's Console after ⇪X had landed on a button: "watchdog fired after 8s
+-- — landed badge left open". The click came from the trackpad.
+loadModule(); grid.show(false)
+check("no hand-click listener while merely picking", #TAPS == 0)
+typeLabel("aaa")
+check("landing starts ONE mouse-down tap, held on the module",
+      #TAPS == 1 and TAPS[1].started and grid.clickTap == TAPS[1], #TAPS)
+check("...for mouse-DOWN events only — left, right and other", (function()
+    local seen = {}
+    for _, t in ipairs(TAPS[1].types or {}) do seen[t] = true end
+    return seen[1] and seen[3] and not seen[2]
+end)())
+local timersBefore = #TIMERS
+local consumed = TAPS[1].fn({})
+check("a click by hand is never consumed — it is the person's click",
+      consumed == false)
+check("...and landed mode is still up INSIDE the tap callback (teardown is "
+      .. "deferred one turn)", grid.state ~= nil and grid.state.phase == "landed"
+      and #TIMERS == timersBefore + 1 and TIMERS[#TIMERS].secs == 0)
+TIMERS[#TIMERS].fn()
+checkInv("after a hand click")
+check("...then everything comes down: no state, no badge, tap stopped, "
+      .. "watchdog stopped", grid.state == nil and grid.cross == nil
+      and grid.clickTap == nil and not TAPS[1].started
+      and grid.watchdog == nil)
+check("...quietly — a hand click is not a warning", not warned("watchdog"))
+check("no synthetic click was added to the real one", #CLICKS == 0)
+loadModule(); grid.show(false); typeLabel("aaa")
+grid.hide("test")
+check("every other exit stops the tap too", not TAPS[1].started and grid.clickTap == nil)
+loadModule(); grid.clickEnds = false; grid.show(false); typeLabel("aaa")
+check("grid.clickEnds = false: no tap, the watchdog alone as before",
+      #TAPS == 0 and grid.state ~= nil and grid.state.phase == "landed")
+grid.hide("test")
+loadModule()
+local realTapNew = hs.eventtap.new
+hs.eventtap.new = function() error("no Accessibility for taps") end
+grid.show(false); typeLabel("aaa"); checkInv("landed without a tap")
+check("a tap macOS refuses costs nothing: landed mode still works",
+      grid.state ~= nil and grid.state.phase == "landed" and grid.clickTap == nil)
+hs.eventtap.new = realTapNew
+grid.hide("test")
 
 loadModule(); grid.show(false); typeLabel("aaa"); landKey("space", "shift")
 checkInv("right click")

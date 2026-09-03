@@ -89,6 +89,9 @@ function M.setup(core)
     clip.previewPoll = 0.08         -- seconds between selection/hover reads —
                                     -- runs ONLY while a picker is on screen
     clip.previewMaxChars = 12000    -- characters laid out per preview
+    clip.previewGrace = 0.6         -- 6.155.0: seconds the pane waits for a
+                                    -- NUDGED picker to come back (⇪⇧-arrows
+                                    -- hide + re-show it) before it gives up
     clip.file        = (core.logsDir or hs.configdir)
                        .. "/clipboard_history-" .. tostring(core.hostTag) .. ".json"
     -- ----------------------------------------------------------------------
@@ -239,17 +242,48 @@ function M.setup(core)
     -- edge ("automatically expand"); what will not fit ends in an honest
     -- "… N more lines" footer rather than being clipped mid-word. Text is
     -- pre-wrapped in Menlo, whose advance is known, so the height is
-    -- arithmetic rather than a guess. The picker's hideCallback closes
-    -- the pane; the poll closes it too if the picker is simply gone.
+    -- arithmetic rather than a guess. The picker's hideCallback takes the
+    -- pane down; the poll closes for good once the picker has been gone
+    -- for clip.previewGrace.
+    --
+    -- 🧲 6.155.0 — THE PANE SURVIVES A MOVE. LL: "I can't move it. Should
+    -- I be able to?" You can — ⌘-drag from anywhere on it, or ⇪⇧-arrows
+    -- (window_move) — and the first cut of the pane did not survive the
+    -- second: a nudge is hide() + show(point), the hideCallback closed
+    -- the pane AND stopped the poll, and nothing re-opened it because the
+    -- re-show goes through core.showPopup, not this module's openers. The
+    -- hideCallback now only SUSPENDS (the canvas goes, the poll stays) and
+    -- the poll closes for good only after the picker has been gone for
+    -- clip.previewGrace; a picker that is back within it — a nudge takes
+    -- one event-loop turn — gets its pane back at the NEW placement on
+    -- the next tick. A ⌘-drag never hides the picker at all (show(point)
+    -- re-anchors it live) and window_move now moves the placement point
+    -- with the hand, so the pane rides along at the poll's cadence.
     clip.pv = { canvas = nil, poll = nil, chooser = nil, rowsFn = nil,
-                lastKey = nil, gen = 0,
+                lastKey = nil, gen = 0, hiddenAt = nil,
                 rowH = 44, headH = 56 }   -- window_move's chooserRowH / chooserHeadH
     local pv = clip.pv
+
+    local function now()
+        local t
+        pcall(function() t = hs.timer.secondsSinceEpoch() end)
+        return tonumber(t) or os.time()
+    end
 
     function clip.previewClose()
         if pv.poll   then pcall(function() pv.poll:stop()     end) ; pv.poll = nil end
         if pv.canvas then pcall(function() pv.canvas:delete() end) ; pv.canvas = nil end
-        pv.chooser, pv.rowsFn, pv.lastKey, pv.shown = nil, nil, nil, nil
+        pv.chooser, pv.rowsFn, pv.lastKey, pv.shown, pv.hiddenAt = nil, nil, nil, nil, nil
+    end
+
+    -- The picker went away: the pane goes with it NOW (a pane over an
+    -- empty spot is wrong for as long as it lasts), the poll stays for
+    -- previewGrace in case the picker is only being moved.
+    function clip.previewSuspend()
+        if pv.canvas then pcall(function() pv.canvas:delete() end) ; pv.canvas = nil end
+        pv.lastKey, pv.shown = nil, nil
+        if pv.poll then pv.hiddenAt = pv.hiddenAt or now()
+        else clip.previewClose() end
     end
 
     -- The picker's box, computed the way window_move computes its grab
@@ -429,7 +463,15 @@ function M.setup(core)
         if not ch then clip.previewClose() return end
         local vis
         pcall(function() vis = ch:isVisible() end)
-        if vis == false then clip.previewClose() return end
+        if vis == false then
+            -- gone — for good, or for the one turn a nudge takes?
+            if pv.canvas then pcall(function() pv.canvas:delete() end) ; pv.canvas = nil end
+            pv.lastKey, pv.shown = nil, nil
+            pv.hiddenAt = pv.hiddenAt or now()
+            if now() - pv.hiddenAt >= clip.previewGrace then clip.previewClose() end
+            return
+        end
+        pv.hiddenAt = nil
         local box, sf = clip.previewBox(ch)
         local rows = (pv.rowsFn and pv.rowsFn()) or {}
         local r, how = nil, nil
@@ -670,8 +712,9 @@ function M.setup(core)
             clip.chooser:placeholderText("Search Clipboard History...")
         end)
         -- 👁 the pane goes down with the picker — Esc, a pick, a click away
+        -- — and waits out a nudge (6.155.0, see previewSuspend)
         pcall(function()
-            clip.chooser:hideCallback(function() clip.previewClose() end)
+            clip.chooser:hideCallback(function() clip.previewSuspend() end)
         end)
         clip.chooser:queryChangedCallback(function(query)
             local ok, err = pcall(clip.render, query)
@@ -742,7 +785,7 @@ function M.setup(core)
                 "Search clipboard history to edit or delete — Enter opens a row")
         end)
         pcall(function()
-            clip.editChooser:hideCallback(function() clip.previewClose() end)
+            clip.editChooser:hideCallback(function() clip.previewSuspend() end)
         end)
         clip.editChooser:queryChangedCallback(function(query)
             local ok, err = pcall(clip.renderEdit, query)

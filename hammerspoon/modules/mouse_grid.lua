@@ -243,6 +243,12 @@ function M.setup(core)
     -- 🚨 Watchdogs. Neither of these is a nicety.
     grid.timeoutSecs = 12           -- overlay up, nothing typed
     grid.landedSecs  = 8            -- landed badge up, nothing pressed
+    -- 🖱 6.155.0 — a click by HAND ends landed mode. LL's Console, after
+    -- ⇪X had landed on a button: "watchdog fired after 8s — landed badge
+    -- left open". The click that used the landing came from the trackpad,
+    -- not the space bar, and nothing was listening for it. A mouse-down
+    -- tap now runs only while landed; the click passes through untouched.
+    grid.clickEnds   = true
 
     -- "screenSaver" draws ABOVE the menu bar, which is required: at
     -- "overlay" the top ~25pt of the grid hides behind it and menu-bar
@@ -263,6 +269,7 @@ function M.setup(core)
                            -- warm-up, and here it would cost the watchdog.
     grid.screenWatch = nil -- HELD for the same reason
     grid.cross    = nil    -- the landed-mode badge canvas
+    grid.clickTap = nil    -- HELD while landed: the hand-click listener (6.155.0)
 
     -- 🐛 A FLAT LIST OF WHAT IS ON SCREEN, KEPT DELIBERATELY SEPARATE FROM
     -- grid.cache. The first version of hide() walked `grid.cache.screens or
@@ -758,11 +765,19 @@ function M.setup(core)
     -- hiding one canvas throws, the modal must still exit and the rest
     -- must still come down. A shared pcall would let one failure strand
     -- the overlay, which is precisely the lock-out this guards against.
+    local function stopClickTap()
+        if grid.clickTap then
+            pcall(function() grid.clickTap:stop() end)
+            grid.clickTap = nil
+        end
+    end
+
     function grid.hide(reason)
         if grid.watchdog then
             pcall(function() grid.watchdog:stop() end)
             grid.watchdog = nil
         end
+        stopClickTap()
         hideAllShown()
         pcall(function() if grid.cross then grid.cross:delete() end end)
         grid.cross = nil
@@ -780,6 +795,44 @@ function M.setup(core)
             warn("watchdog fired after " .. secs .. "s — " .. why)
             grid.hide("watchdog")
         end)
+    end
+
+    -- 🖱 The hand-click listener (6.155.0). The badge is click-through
+    -- (an hs.canvas ignores the mouse unless asked to track it, and the
+    -- ring's middle is transparent anyway), so the click reaches the
+    -- control underneath exactly as before — the badge just stops
+    -- outstaying it. The teardown is deferred one turn: the click is on
+    -- its way to the app, and a tap callback that tears the world down
+    -- mid-delivery is the kind of thing this module's safety section
+    -- exists to forbid. The tap is pcall'd end to end: no Accessibility,
+    -- no tap — the watchdog stays as the only exit, as it was.
+    local function startClickTap()
+        stopClickTap()
+        if not grid.clickEnds then return false end
+        local types = {}
+        pcall(function()
+            local T = hs.eventtap.event.types
+            for _, k in ipairs({ "leftMouseDown", "rightMouseDown", "otherMouseDown" }) do
+                if T[k] then types[#types + 1] = T[k] end
+            end
+        end)
+        if #types == 0 then return false end
+        local okNew, tap = pcall(hs.eventtap.new, types, function()
+            if grid.state and grid.state.phase == "landed" then
+                pcall(function()
+                    grid.endTimer = hs.timer.doAfter(0, function()   -- HELD
+                        grid.endTimer = nil
+                        grid.hide("clicked by hand")
+                    end)
+                end)
+            end
+            return false      -- never consumed: the click is the person's
+        end)
+        if not (okNew and tap) then return false end
+        local okStart = pcall(function() tap:start() end)
+        if not okStart then return false end
+        grid.clickTap = tap
+        return true
     end
 
     -- =====================================================================
@@ -976,6 +1029,7 @@ function M.setup(core)
             return
         end
         armWatchdog(grid.landedSecs, "landed badge left open")
+        startClickTap()
         say("landed at " .. math.floor(point.x) .. "," .. math.floor(point.y))
     end
 

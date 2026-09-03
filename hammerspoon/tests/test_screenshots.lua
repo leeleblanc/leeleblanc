@@ -42,8 +42,18 @@ local DEFER_TIMERS = false   -- §12 turns this on to hold the debounce
 local PENDING       = {}     -- timers queued while DEFER_TIMERS is true
 local CLIP  = { kind = "empty" }
 local MODS  = {}       -- what checkKeyboardModifiers answers
+local WATCHERS = {}    -- 6.155.0: every hs.pathwatcher asked for
 
 hs = {
+    pathwatcher = {
+        new = function(path, fn)
+            local w = { path = path, fn = fn, started = false }
+            function w:start() self.started = true; return self end
+            function w:stop()  self.started = false; return self end
+            WATCHERS[#WATCHERS + 1] = w
+            return w
+        end,
+    },
     fs = {
         attributes = function(path, key)
             if DIRS[path] then
@@ -924,6 +934,120 @@ check("a second sweep while one runs is refused", (function()
     S.nameBusy = false
     return (ALERTS[1] or ""):find("already running", 1, true) ~= nil
 end)())
+
+-- =====================================================================
+out("\n=== 6.155.0 — 👀 arrivals from other tools are named as they land ===\n")
+-- =====================================================================
+-- LL, looking at the panel: "some of the screenshots have OCR'd
+-- thumbnails and others don't have words in the title? Is there a better
+-- way we can put words in the title along with the other information?"
+-- The word-less row was SCR-20260902-rkdn.png — another tool's capture,
+-- which nothing named until ⌘9 was pressed.
+check("the folder is watched from its first use — ONE watcher, started, held",
+      #WATCHERS == 1 and WATCHERS[1].path == DIR and WATCHERS[1].started
+      and S.watcher == WATCHERS[1], #WATCHERS)
+local W = WATCHERS[1]
+S.nameBusy = false
+S.queue, S.pending = {}, {}
+DEFER_TIMERS = true ; PENDING = {}
+local mtScr = os.time({ year = 2026, month = 9, day = 2, hour = 20, min = 0, sec = 12 })
+local scr = NDIR .. "/SCR-20260902-rkdn.png"
+FILES[scr] = { mode = "file", size = 885000, modification = mtScr }
+before = #TASKS
+W.fn({ scr })
+check("LL's exact file — SCR-20260902-rkdn.png from another tool — is NOT "
+      .. "OCR'd on sight: it must sit still first",
+      #TASKS == before and #PENDING == 1 and PENDING[1].secs == S.watchSettle,
+      #PENDING)
+W.fn({ scr })
+check("…a second write restarts the clock", #PENDING == 2 and PENDING[1].stopped)
+PENDING[2].fn()
+check("…settled: ONE shortcuts OCR, of that file",
+      #TASKS == before + 1 and TASKS[#TASKS].cmd == "/usr/bin/shortcuts"
+      and TASKS[#TASKS].args[4] == scr, TASKS[#TASKS] and TASKS[#TASKS].args[4])
+TASKS[#TASKS].cb(0, "Numpad window map\n", "")
+check("…and it now carries its words, in this module's own shape, keeping "
+      .. "its real moment",
+      FILES[NDIR .. "/Screenshot 2026-09-02 at 20.00.12 — Numpad window map.png"] ~= nil,
+      RENAMES[#RENAMES] and RENAMES[#RENAMES].new)
+check("…counted as named on arrival", S.namedOnArrival == 1 and S.nameBusy == false)
+
+out("   -- what the watcher leaves alone --\n")
+PENDING = {}
+HYPER["|4"]()                                  -- a capture of our own
+local ownp = TASKS[#TASKS].args[2]
+TASKS[#TASKS].cb()                             -- Esc — no file written
+check("a capture of our own is registered as ours", S.own[ownp] == true, ownp)
+W.fn({ ownp })
+check("…and the watcher leaves it alone — finish() names those", #PENDING == 0)
+W.fn({ NDIR .. "/Screenshot 2026-09-02 at 19.52.07 — ACD Strategic (edited).jpg" })
+check("a name that already carries words is finished", #PENDING == 0)
+W.fn({ NDIR .. "/IMG_1234.png", NDIR .. "/notes.txt",
+       "/elsewhere/SCR-20260902-abcd.png", NDIR .. "/sub/SCR-20260902-deep.png" })
+check("a person's name, a non-image, a file outside the folder or below "
+      .. "it: nothing queued", #PENDING == 0)
+local held = NDIR .. "/SCR-20260902-held.png"
+FILES[held] = { mode = "file", size = 100, modification = mtScr }
+_G.screenshotEditor = { currentPath = held }
+before = #TASKS
+W.fn({ held }) ; PENDING[#PENDING].fn()
+check("a file the blur editor has open is NOT renamed under it", #TASKS == before)
+_G.screenshotEditor = nil
+local gone = NDIR .. "/SCR-20260902-gone.png"
+W.fn({ gone }) ; PENDING[#PENDING].fn()     -- never written to disk
+check("a file that vanished before it settled is skipped", #TASKS == before)
+
+out("   -- one at a time, and a cap --\n")
+local a, b = NDIR .. "/SCR-20260902-aaaa.png", NDIR .. "/SCR-20260902-bbbb.png"
+FILES[a] = { mode = "file", size = 100, modification = mtScr }
+FILES[b] = { mode = "file", size = 100, modification = mtScr }
+before = #TASKS
+W.fn({ a, b })
+local n = #PENDING
+PENDING[n - 1].fn() ; PENDING[n].fn()
+check("two arrivals settle into ONE shortcuts process at a time",
+      #TASKS == before + 1 and #S.queue == 1, #TASKS - before)
+TASKS[#TASKS].cb(0, "", "")                    -- a blank image
+check("the second starts when the first finishes",
+      #TASKS == before + 2 and #S.queue == 0 and TASKS[#TASKS].args[4] == b)
+TASKS[#TASKS].cb(0, "second words", "")
+check("…and the queue is empty and idle afterwards", S.nameBusy == false)
+S.watchCap = 1
+S.nameBusy = true                              -- hold the drain so the queue fills
+local c1, c2 = NDIR .. "/SCR-20260902-cap1.png", NDIR .. "/SCR-20260902-cap2.png"
+FILES[c1] = { mode = "file", size = 100, modification = mtScr }
+FILES[c2] = { mode = "file", size = 100, modification = mtScr }
+W.fn({ c1, c2 })
+n = #PENDING
+PENDING[n - 1].fn() ; PENDING[n].fn()
+check("beyond watchCap the rest are left for ⌘9 — and counted",
+      #S.queue == 1 and S.leftForSweep == 1, S.leftForSweep)
+S.queue, S.nameBusy, S.watchCap, S.leftForSweep = {}, false, 20, 0
+
+out("   -- the ⌘9 row, the switch, and a Mac without the Shortcut --\n")
+local rows = S.actionRows({ { name = "SCR-20260902-zzzz.png" },
+                            { name = "Screenshot 2026-09-02 at 10.00.00 — done.png" } })
+check("the ⌘9 row counts what is WAITING",
+      (rows[9].subText or ""):find("1 waiting", 1, true) ~= nil, rows[9].subText)
+check("…says 'nothing waiting' when every file carries its words",
+      (S.actionRows({})[9].subText or ""):find("nothing waiting", 1, true) ~= nil)
+check("…and reads as before when no list is to hand",
+      (S.actionRows()[9].subText or ""):find("SCR-/word-less", 1, true) ~= nil)
+S.watchFolder = false
+n = #PENDING
+W.fn({ NDIR .. "/SCR-20260902-offx.png" })
+check("shots.watchFolder = false: the watcher is inert", #PENDING == n)
+S.watchFolder = true
+_G.ocrShortcutAvailable = false
+local d = NDIR .. "/SCR-20260902-dddd.png"
+FILES[d] = { mode = "file", size = 100, modification = mtScr }
+before = #TASKS
+W.fn({ d }) ; PENDING[#PENDING].fn()
+check("no OCR Shortcut on this Mac: nothing spawned, nothing left queued",
+      #TASKS == before and #S.queue == 0 and S.leftForSweep == 1)
+_G.ocrShortcutAvailable = true
+DEFER_TIMERS = false
+S.leftForSweep = 0
 
 os.rename = realRename
 _G.service = savedService

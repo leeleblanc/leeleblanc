@@ -402,11 +402,21 @@ function M.setup(core)
         base = base and { x = base.x, y = base.y }
                 or  { x = m.x - 160, y = m.y - 16 }
         local land = { x = base.x, y = base.y }
+        local rec = _G.lastPopupPlacement
+        local recIsOurs = rec and rec.point
+                          and (rec.chooser == nil or rec.chooser == ch)
         local started = wm.beginDrag(base, function(x, y)
             land.x, land.y = x, y
             -- show(point) re-anchors a VISIBLE chooser; hide+show (what the
             -- ⇪⇧-arrow nudge does) would flicker at 60 Hz.
             pcall(function() ch:show({ x = x, y = y }) end)
+            -- 6.155.0 — the record moves WITH the hand, not only at the
+            -- drop: ⇪V's preview pane reads it on every poll, and a pane
+            -- that waited for the drop sat over empty desk for the whole
+            -- drag.
+            if recIsOurs and _G.lastPopupPlacement == rec then
+                rec.point = { x = x, y = y }
+            end
         end, function()
             -- Where it was dropped becomes the standing offset, so the NEXT
             -- picker opens there too — one position system, shared with the
