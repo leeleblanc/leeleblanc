@@ -16,9 +16,10 @@ NEW IN 6.156.1 — THE CHEAT SHEET, 20% LESS SEE-THROUGH:
      §1.5's panelAlpha; nothing else changed. test_cheatsheet's
      readability pin moved with it (the panel's alpha must equal the
      knob and sit inside 0.6–0.95).
-  ✅ Gate: 6,485 checks, 67 stages, unchanged in count; lint and the
-     hostile world green, in the tree and inside the package. The zip
-     still carries no snippets/ (see 6.155.0).
+  ✅ Gate: 6,485 → 6,486 checks (test_cheatsheet 185 → 186: one pin
+     became two), 67 stages, lint and the hostile world green, in the
+     tree and inside the package. The zip still carries no snippets/
+     (see 6.155.0).
 
 NEW IN 6.156.0 — ⇪Y WITHOUT THE LOGINS · ⇪⇧T SHOWS WHAT IS IN IT · ⇪L
 DELETES · THE ⌘-DRAG THAT DID NOTHING · ⌥TAB'S PHASES:
