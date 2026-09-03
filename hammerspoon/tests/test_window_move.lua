@@ -471,7 +471,7 @@ if type(_G.windowMoveReport) == "function" then
     rep = (okR and type(r) == "string") and r or ""
 end
 check("the report is text and names the module", type(rep) == "string"
-      and rep:find("WINDOW MOVE", 1, true) ~= nil)
+      and rep:find("PANEL MOVE", 1, true) ~= nil)
 check("🚨 it says the placement belongs to ANOTHER picker — the whole"
       .. " point of the report", rep:find("ANOTHER picker", 1, true) ~= nil, rep)
 check("…and that showPopup is the missing call",

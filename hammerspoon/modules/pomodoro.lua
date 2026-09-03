@@ -62,8 +62,12 @@ local M = {
             { "esc",     "Stop and close — only while it is flashing" },
             { "where",   "Top-right, just under the clock" },
             { "below",   "Time · date · hours left in your 7:30–4:30 workday" },
+            { "faint",   "Sits at 30% — turns SOLID (90%) for the last 5 minutes" },
+            { "hover",   "Mouse over it: solid instantly · mouse off: faint again" },
+            { "log",     "Every start & completion → pomodoro_log-<Mac>.csv (Logs)" },
+            { "4:30",    "Day's tally at workday end · Friday adds the week's" },
             { "note",    "Enter/esc are NOT captured during the countdown" },
-            { "was",     "⇪pad+ in 6.65.0 — that key does not exist on this Mac" },
+            { "check",   "_G.pomodoroReport() — today, this week, and the file" },
         },
     },
 }
@@ -77,11 +81,33 @@ function M.setup(core)
                                  -- in the header for why it is not a pad key.
     pom.workMins   = 25          -- the session
     pom.breakMins  = 5           -- stand up, stretch
-    pom.width      = 170         -- the width you asked for
-    pom.height     = 132         -- was 99 — 6.94.0 adds two lines below
-                                 -- the countdown (time · date, workday left)
+    -- 📏 6.152.0 — LL: "make the pomodoro at least 20% bigger". One
+    -- knob, applied to the card AND everything drawn on it (text sizes,
+    -- line positions), so the layout scales as a whole instead of big
+    -- box / small type.
+    pom.scale      = 1.2
+    pom.width      = math.floor(170 * pom.scale + 0.5)
+    pom.height     = math.floor(132 * pom.scale + 0.5)  -- was 99 — 6.94.0
+                                 -- added two lines below the countdown
     pom.marginX    = 12          -- gap from the right edge of the screen
     pom.marginY    = 6           -- gap below the menu bar (under the clock)
+    -- 👻 6.152.0 — THE CARD IS FAINT UNTIL IT MATTERS. LL: "go from 30%
+    -- to 90% ... as the time counts down to the last five minutes" and
+    -- "if I move the mouse pointer on to it, bring it immediately to
+    -- 90%, and off of it, back to 30%". Whole-window alpha via
+    -- canvas:alpha() — the colours never change, only the card's own
+    -- opacity, so this cannot fight the shared style table.
+    pom.alphaIdle  = 0.30        -- most of the countdown
+    pom.alphaAlert = 0.90        -- last alertMins · hover · flash · asking
+    pom.alertMins  = 5           -- solid for the final stretch (any phase —
+                                 -- the 5-minute break is therefore always
+                                 -- solid, which is what a break should be)
+    pom.hoverSecs  = 0.15        -- hover poll while the card is up. A poll,
+                                 -- NOT a canvas mouse callback: window_move's
+                                 -- drag owns mouseCallback (one per canvas),
+                                 -- and "immediately" at 0.15s is immediate
+                                 -- to a human. Runs ONLY while the card is
+                                 -- on screen; stop() kills it.
     -- 🕰 6.94.0 — THE WORKDAY, for the "hours left" line under the clock.
     -- LL: "display the regular time and date and how many hours are left
     -- in the day if I'm working from 7:30 to 4:30 ... I don't take lunch."
@@ -103,6 +129,16 @@ function M.setup(core)
     -- isAlive(). Generous, because a legitimate pause between phases must
     -- never trip it — this is a safety net, not a policy.
     pom.zombieSecs = 60
+    -- 📒 6.152.0 — THE LOG. LL: "All the pomodoro completions need to go
+    -- into a log file" with a date/time stamp column and "an entry for
+    -- each time it is launched and completed". CSV in the Logs folder,
+    -- machine-tagged like every other store (both Macs write constantly;
+    -- one shared file would mean OneDrive conflict copies). Columns:
+    -- date,time,event,detail — `started` on every ⇪⇧P launch (and every
+    -- ⏎ re-launch), `completed` when the 25-minute work phase finishes,
+    -- which is when a pomodoro counts.
+    pom.logFile = (core.logsDir or ".") .. "/pomodoro_log-"
+                  .. tostring(core.hostTag or "Mac") .. ".csv"
     -- ----------------------------------------------------------------------
 
     -- Colours. Work is calm, break is amber and loud enough to catch the
@@ -236,6 +272,10 @@ function M.setup(core)
     end
 
     -- ---- drawing ---------------------------------------------------------
+    -- 📏 Every drawn number goes through S() so pom.scale resizes the
+    -- whole card, type included, from one knob (6.152.0).
+    local function S(n) return math.floor(n * pom.scale + 0.5) end
+
     local function elements(label, clock, bg, fg)
         -- The two small lines are dimmed so the countdown stays the thing
         -- the corner of your eye reads first. Copied, not mutated: fg is
@@ -243,7 +283,7 @@ function M.setup(core)
         -- that table would dim every panel that reads the style.
         local dim = { red = fg.red, green = fg.green, blue = fg.blue,
                       white = fg.white, alpha = (fg.alpha or 1) * 0.78 }
-        local small = (st.font and st.font.label) or 12
+        local small = S((st.font and st.font.label) or 12)
         return {
             { type = "rectangle", action = "fill", fillColor = bg,
               roundedRectRadii = { xRadius = st.radius or 12,
@@ -252,23 +292,50 @@ function M.setup(core)
             { type = "text", text = label,
               textSize = small,
               textColor = fg, textAlignment = "center",
-              frame = { x = 0, y = 10, w = pom.width, h = 18 } },
+              frame = { x = 0, y = S(10), w = pom.width, h = S(18) } },
             { type = "text", text = clock,
-              textSize = (st.font and st.font.big) or 40,
+              textSize = S((st.font and st.font.big) or 40),
               textColor = fg, textAlignment = "center",
-              frame = { x = 0, y = 30, w = pom.width, h = 52 } },
+              frame = { x = 0, y = S(30), w = pom.width, h = S(52) } },
             -- 🕰 6.94.0 — under the countdown: the real time and date, and
             -- what is left of the 7:30–4:30 workday. Rebuilt on every
             -- paint, and the ticker paints once a second, so the wall
             -- clock ticks along with the countdown.
             { type = "text", text = pom.clockLine(),
               textSize = small, textColor = dim, textAlignment = "center",
-              frame = { x = 0, y = 86, w = pom.width, h = 16 } },
+              frame = { x = 0, y = S(86), w = pom.width, h = S(16) } },
             { type = "text", text = pom.workLine(),
               textSize = small, textColor = dim, textAlignment = "center",
-              frame = { x = 0, y = 104, w = pom.width, h = 16 } },
+              frame = { x = 0, y = S(104), w = pom.width, h = S(16) } },
         }
     end
+
+    -- 👻 What should the card's opacity be RIGHT NOW? One answer for
+    -- every path (tick, hover poll, flash, ask), so no path can disagree:
+    -- solid when you are looking at it (hover), when it is talking to you
+    -- (flash / question), or in the final stretch; faint otherwise.
+    function pom.targetAlpha()
+        local s = pom.state
+        if not s then return pom.alphaIdle end
+        if s.hovered or s.flasher or s.asking then return pom.alphaAlert end
+        local e = s.endsAt
+        if type(e) == "number" and e ~= math.huge then
+            local left = e - hs.timer.secondsSinceEpoch()
+            if left <= pom.alertMins * 60 then return pom.alphaAlert end
+        end
+        return pom.alphaIdle
+    end
+
+    local function applyAlpha()
+        local s = pom.state
+        if not (s and s.canvas) then return end
+        local a = pom.targetAlpha()
+        if s.alphaNow ~= a then
+            s.alphaNow = a
+            pcall(function() s.canvas:alpha(a) end)
+        end
+    end
+    pom.applyAlpha = applyAlpha
 
     local function paint(label, clock, bg, fg)
         local s = pom.state
@@ -276,6 +343,129 @@ function M.setup(core)
         pcall(function()
             s.canvas:replaceElements(elements(label, clock, bg, fg))
         end)
+        applyAlpha()
+    end
+
+    -- ---- the hover poll (6.152.0) ----------------------------------------
+    -- Runs at pom.hoverSecs ONLY while the card is on screen; stop()
+    -- kills it with everything else. A poll rather than a canvas mouse
+    -- callback because window_move's drag layer owns mouseCallback (a
+    -- canvas has exactly one), and 0.15s reads as "immediately".
+    local function checkHover()
+        local s = pom.state
+        if not (s and s.canvas) then return end
+        local inside = false
+        pcall(function()
+            local m = hs.mouse.absolutePosition()
+            local f = s.canvas:frame()
+            inside = m and f
+                     and m.x >= f.x and m.x <= f.x + f.w
+                     and m.y >= f.y and m.y <= f.y + f.h
+        end)
+        if s.hovered ~= inside then
+            s.hovered = inside
+            applyAlpha()
+        end
+    end
+
+    -- ---- the log and its reports (6.152.0) -------------------------------
+    local function csvField(v)
+        v = tostring(v or "")
+        if v:find('[",\n]') then v = '"' .. v:gsub('"', '""') .. '"' end
+        return v
+    end
+
+    function pom.logEvent(event, detail)
+        local ok = pcall(function()
+            local f = io.open(pom.logFile, "a")
+            if not f then error("unwritable") end
+            if f:seek("end") == 0 then f:write("date,time,event,detail\n") end
+            f:write(os.date("%Y-%m-%d"), ",", os.date("%H:%M:%S"), ",",
+                    csvField(event), ",", csvField(detail), "\n")
+            f:close()
+        end)
+        if not ok then
+            warn("could not append to " .. pom.logFile)
+            if core.warnWriteFailed then core.warnWriteFailed("pomodoro log") end
+        end
+    end
+
+    -- date "YYYY-MM-DD" → { started = n, completed = n }. Reads the file
+    -- fresh each time: the counts are asked for a few times a DAY, and a
+    -- year of pomodoros is a few thousand short lines.
+    function pom.dayCounts(dateStr)
+        local c = { started = 0, completed = 0 }
+        pcall(function()
+            local f = io.open(pom.logFile, "r")
+            if not f then return end
+            for line in f:lines() do
+                local d, ev = line:match("^([%d%-]+),[%d:]+,([^,]+)")
+                if d == dateStr then
+                    if ev == "started" then c.started = c.started + 1
+                    elseif ev == "completed" then c.completed = c.completed + 1 end
+                end
+            end
+            f:close()
+        end)
+        return c
+    end
+
+    -- Monday→today of the CURRENT week, one line per day. os.date("*t")
+    -- has wday 1 = Sunday, so Monday is found by walking back (wday+5)%7
+    -- days — floored epochs throughout (the 6.93.0 lesson above).
+    function pom.weekLines(now)
+        now = math.floor(now or hs.timer.secondsSinceEpoch())
+        local t = os.date("*t", now)
+        local monday = now - (((t.wday + 5) % 7) * 86400)
+        local lines, total = {}, 0
+        for d = 0, 6 do
+            local day = monday + d * 86400
+            if day > now then break end
+            local ds = os.date("%Y-%m-%d", day)
+            local c = pom.dayCounts(ds)
+            total = total + c.completed
+            lines[#lines + 1] = string.format("   %s  %s   %d completed (%d started)",
+                                              os.date("%a", day), ds,
+                                              c.completed, c.started)
+        end
+        lines[#lines + 1] = string.format("   week total: %d completed", total)
+        return lines
+    end
+
+    -- 🍅 4:30's tally. LL: "a log of the pomodoros I've completed at the
+    -- end of the day" and "a report at the end of the week" — one timer,
+    -- firing at workdayEnd: every workday it shows the day's count, and
+    -- on Friday the week's table rides along.
+    function pom.endOfDay()
+        local now = math.floor(hs.timer.secondsSinceEpoch())
+        local t = os.date("*t", now)
+        if pom.weekendsOff and (t.wday == 1 or t.wday == 7) then return end
+        local c = pom.dayCounts(os.date("%Y-%m-%d", now))
+        local msg = string.format("🍅 Today: %d pomodoro%s completed (%d started)",
+                                  c.completed, c.completed == 1 and "" or "s",
+                                  c.started)
+        if t.wday == 6 then    -- Friday: the week rides along
+            msg = msg .. "\n\nThis week:\n" .. table.concat(pom.weekLines(now), "\n")
+        end
+        pcall(function() hs.alert.show(msg, 8) end)
+        print(msg:gsub("\n\n", "\n"))
+        return msg
+    end
+
+    function _G.pomodoroReport()
+        local now = math.floor(hs.timer.secondsSinceEpoch())
+        local c = pom.dayCounts(os.date("%Y-%m-%d", now))
+        local L = { "🍅 POMODORO" }
+        L[#L + 1] = string.format("   today: %d completed, %d started",
+                                  c.completed, c.started)
+        L[#L + 1] = "   this week:"
+        for _, l in ipairs(pom.weekLines(now)) do L[#L + 1] = l end
+        L[#L + 1] = "   log: " .. pom.logFile
+        L[#L + 1] = "   daily tally fires at " .. tostring(pom.workdayEnd)
+                    .. (pom.weekendsOff and " (weekdays)" or "")
+        local s = table.concat(L, "\n")
+        print(s)
+        return s
     end
 
     -- ---- the keyboard, held for as short a time as possible --------------
@@ -370,6 +560,9 @@ function M.setup(core)
         local s = pom.state
         if not s then return end
         if s.phase == "work" then
+            -- 📒 6.152.0 — the 25 minutes are DONE: this is the moment a
+            -- pomodoro counts, so this is the moment it is written down.
+            pom.logEvent("completed", pom.workMins .. "m of focus")
             -- The flash IS the notification. No sound, no hs.notify: this
             -- fires while you are mid-sentence in something, and the whole
             -- design goal is "tells you without taking over".
@@ -482,6 +675,7 @@ function M.setup(core)
         if s then
             if s.ticker  then pcall(function() s.ticker:stop()  end) end
             if s.flasher then pcall(function() s.flasher:stop() end) end
+            if s.hoverer then pcall(function() s.hoverer:stop() end) end
             if s.canvas  then pcall(function() s.canvas:delete() end) end
         end
         if why then say("stopped (" .. why .. ")") end
@@ -559,6 +753,18 @@ function M.setup(core)
             return false
         end
         startPhase("work")
+        -- 📒 6.152.0 — every launch is a row: ⇪⇧P and the ⏎ "go again"
+        -- both land here, which is exactly LL's "each time it is
+        -- launched". The completion row is written by phaseEnded.
+        pom.logEvent("started", pom.workMins .. "m work + "
+                     .. pom.breakMins .. "m break")
+        -- 👻 the hover poll — held in the state so stop() can kill it,
+        -- and applyAlpha() has already painted the card faint.
+        pcall(function()
+            pom.state.hoverer = hs.timer.doEvery(pom.hoverSecs, function()
+                pcall(checkHover)
+            end)
+        end)
         -- 🚨 THE TICK IS PCALL'D, AND A SWALLOWED THROW IS REPORTED.
         -- It has to be pcall'd — an error on a repeating timer that
         -- reaches the uncaught handler once a second is its own disaster
@@ -626,9 +832,22 @@ function M.setup(core)
                               "pomodoro")
     end
 
+    -- 🍅 6.152.0 — the 4:30 tally, armed once per session and HELD (an
+    -- unreferenced hs.timer is collected before it ever fires — the
+    -- 6.16.18 lesson). doAt repeats daily; endOfDay itself skips
+    -- weekends, so the timer needs no calendar sense of its own.
+    pcall(function()
+        pom.dailyTimer = hs.timer.doAt(pom.workdayEnd, "1d", function()
+            pcall(pom.endOfDay)
+        end)
+    end)
+
+    pom.checkHover = checkHover   -- exposed for the test harness
+
     core.provide("pomodoro.toggle", function() return pom.toggle() end)
     core.provide("pomodoro.start",  function() return pom.start()  end)
     core.provide("pomodoro.stop",   function() return pom.stop("service") end)
+    core.provide("pomodoro.report", function() return _G.pomodoroReport() end)
 
     -- 6.89.0 — listed for Window Move with plain = true: the timer card is
     -- pure display, so a bare click-hold drags it. ⌘-drag works too.

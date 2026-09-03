@@ -4,6 +4,153 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.152.0 — NINE ASKS IN ONE PASS: ⌥TAB'S MEMORY AND SPEED · THE
+PAUSE KEY · THE POMODORO LOG · ⇪T'S DETAILS · THREE BUGS DEAD:
+  🧠 ⌥TAB REMEMBERS OTHER DESKTOPS. LL, after 6.151.0: "Opt+tab still
+     isn't detecting all windows. I swear it used too." The console
+     proved the sweep RAN (12 apps, Chrome answering in 0.00s) — which
+     falsifies the 6.39.0 belief this module was built on: macOS's
+     Accessibility API returns an app's MINIMISED windows (no Space
+     owns them) but simply omits windows parked on another desktop.
+     6.151.0's fix genuinely delivered the minimised ones; the
+     other-desktop ones were never in AX's answer at all. The private
+     APIs that CAN enumerate other Spaces return "a lot of false
+     positives" by their own documentation and need hs.window.filter
+     (banned since the 44-second beachball) to prune — so the fix is a
+     MEMORY instead: every window a listing sees is remembered (id →
+     hs.window), the AX handle stays valid after its Space stops being
+     enumerated, and remembered windows the sweep no longer reports
+     are probed cheaply (isRunning first — no AX — then one role read)
+     and shown as tiles, captioned "remembered". Dead ones are
+     forgotten on the spot. Selecting one activates its app and
+     focuses the window; macOS itself carries you to its desktop. The
+     honest limit, stated on the cheat sheet: a window is known from
+     the first press that could see its desktop — one ⌥Tab per desktop
+     per reload teaches it.
+  ⚡ AND THE PRESS IS ~HALF THE PRICE. "It is also slow to display":
+     the old phase 1, hs.window.orderedWindows(), internally re-runs
+     the whole per-app sweep (plus an isHidden per app and visibility
+     checks per window) just to learn the stacking order — 1.6s on
+     this Air by LL's console, on top of the sweep's own 0.7s, every
+     uncached press. The stacking order now comes from
+     hs.window._orderedwinids() — the raw CoreGraphics id list,
+     milliseconds, pcall'd with a sweep-order fallback — and the
+     budgeted per-app sweep is the ONLY Accessibility pass. Sweep
+     order: frontmost app, then apps that had a visible window last
+     press, then the rest; tiles sort by CG rank, then discovery.
+     The "on-screen list alone took Ns" message retired with the
+     phase that caused it.
+  ⏸ PAUSE HAMMERSPOON — ⇪⇧1. LL: "Can I pause Hammerspoon using an
+     empty key from my Cheat Sheet?" The first spend from the 6.142.0
+     free row. One press: _G.hsPaused goes up, every OTHER hyper
+     shortcut is suppressed centrally (hyperBind wraps all three
+     handlers at bind time, so migrations, modules and hyperActions
+     are all covered and none can forget), and the typing interceptors
+     — autocorrect, the expander, the key caster — pass every
+     keystroke through untouched via one guard at the top of each
+     handler. The taps stay RUNNING (a stopped tap needs its watchdog
+     dance to come back; a pass-through costs one comparison). A
+     ⏸ HS menu-bar flag stands while paused; clicking it resumes, as
+     does ⇪⇧1 — the one hyper key the wrap exempts, via
+     _G.hsPauseCombo published before binding. A shortcut pressed
+     while paused gets one throttled alert naming the way back.
+     Trackers and timers keep running: pause means "out of my
+     keyboard", not "stop keeping my logs".
+  🍅 THE POMODORO GROWS UP (four asks in one):
+     · 20% BIGGER — pom.scale = 1.2, applied through S() to the card
+       AND every drawn size and position, so the type scales with it.
+     · FAINT UNTIL IT MATTERS — whole-window alpha via canvas:alpha():
+       30% through the countdown, 90% for the last five minutes, mid-
+       flash, while asking, and UNDER THE MOUSE — a 0.15s hover poll
+       (not a canvas mouseCallback: window_move's drag owns that, one
+       per canvas) makes it solid the moment you point at it and faint
+       again when you leave. One targetAlpha() answers every path.
+     · THE LOG — pomodoro_log-<Mac>.csv in the Logs folder:
+       date,time,event,detail; a `started` row for every launch (⇪⇧P
+       and ⏎ alike), a `completed` row when the 25 minutes finish —
+       the moment a pomodoro counts.
+     · THE TALLIES — at workdayEnd (4:30) a card says "Today: N
+       pomodoros completed (M started)"; Fridays append the Mon–Fri
+       week table. hs.timer.doAt, daily, weekend-guarded.
+       _G.pomodoroReport() prints today + the week + the file path any
+       time; pomodoro.report is a service.
+  ✅ ⇪T LEARNS THE DETAILS (two asks):
+     · THE SCHEDULE — optional Start/End date and time fields (native
+       date/time inputs). Asana's rules are enforced BEFORE the
+       request, as alerts instead of Console 400s: a time needs its
+       date; a start needs an end; with both dates set the times come
+       as a pair or not at all (start_at cannot ride with due_on).
+       Dates go as start_on/due_on, timed ones as start_at/due_at in
+       ISO 8601 with the local offset spelled ±hh:mm.
+     · THE PROJECT'S FIELDS — ACD Strategic Principle, SAC Values,
+       Task Priority, Progress, Supervisor: those are the project's
+       custom fields, and their gids and option lists belong to Asana,
+       not this repo. warm() fetches custom_field_settings once per
+       boot into _G.asanaCustomFields; the form renders what came
+       back — enum → dropdown, multi_enum → multi-select (⌘-click),
+       people → input over the same team datalist as Assignee (names
+       resolve through the same roster at submit), number/text →
+       inputs; unsupported subtypes are skipped whole. Values travel
+       as custom_fields keyed by gid; empties are dropped. Edit a
+       dropdown in Asana and ⇪T has it on the next reload. The pipe
+       chooser's four-string call is untouched, and the draft —
+       schedule and picks included — still survives Esc.
+  🗂 TAB SEARCH NEVER WORKED, AND NOW DOES. LL's ⛔ errors section:
+     "osascript exited 1: 577:579: syntax error: Expected end of line
+     but found identifier." Character 577 is the Safari branch's
+     `tab ti of window wi` — and without `using terms from
+     application "Safari"`, the bare word `tab` parses as
+     AppleScript's built-in tab-CHARACTER constant, so the whole
+     script failed to COMPILE on every press, Chromium branch
+     included, while the alert blamed Automation permission (the
+     CLAUDE.md open item chased that theory too). The jump script had
+     the identical flaw. Both now borrow Safari's dictionary, exactly
+     as the Chromium branch has always borrowed Chrome's. ⇪⇧' still
+     needs the Automation grant, once per browser — expect the macOS
+     prompts on first real use.
+  🕘 THE ⇪Y HANG, SOLVED AT THE ROOT. Every flight-recorder kill read
+     "it hung at: querying Default" — and the mechanism was in
+     6.148.0's own comment: "stdout only reaches Lua when the task
+     EXITS." sqlite3 writes megabytes of JSON (20,000 rows/profile)
+     into a 64 KB pipe nothing drains until exit; the buffer fills,
+     sqlite3 blocks mid-write, the task can never exit, the watchdog
+     kills it at 45s — every run, deterministically. The data never
+     touches the pipe now: each profile's rows are redirected to
+     their own temp file and stdout carries two marker lines per
+     profile (##PROFILE##, ##FILE##); parse() reads the files back
+     and deletes them. An empty file is a profile with nothing in
+     the window, not a warning.
+  🆓 THE ⇪⇧pad WINDOW MAP IS CLEARED. LL: "Why does the numpad section
+     on the cheat sheet still list some window arranging keys? Those
+     should just say: 'Key available for use'." — the 6.142.0
+     instruction, applied to the pad. shiftActions is empty-but-
+     claimable (the cmdShiftActions posture); the zones and verbs stay
+     in numpad.run, so `pad7 = "topLeft"` revives a key in one line;
+     the sheet's rows now read, in LL's words, "Key available for
+     use". Halves/maximise/put-back/monitors still live on ⇪arrows.
+  🧲 WINDOW MOVE → "PANEL MOVE". LL: "Why don't we combine these two
+     because they both work on windows: Window picker, Window move?"
+     They work on DIFFERENT windows — the Arranger moves your apps',
+     this module moves Hammerspoon's own panels and pickers — and the
+     old title is what hid that. Retitled on the sheet and in
+     _G.windowMoveReport(); nothing about the mechanics changed.
+  🐛 AND THE CONSOLE CRASH: window_return.lua:209 fed a float to %d
+     ("number has no integer representation", once per snapshot
+     cycle, straight off LL's paste). Floored.
+  🧪 THE GATE, REBUILT WHERE THE WORLD CHANGED: test_switcher's
+     harness now tells the AX truth (allWindows omits other-desktop
+     windows), so the memory is proven the way it will really run —
+     learn on one desktop, serve on another, forget the dead; the
+     legacy orderedWindows stub COUNTS calls so the double sweep
+     cannot creep back. test_chrome_history feeds marker+file stdout
+     and proves the files are deleted after parsing. test_tab_search
+     pins `using terms from application "Safari"` in BOTH scripts.
+     test_task_creator covers the date rules, the ISO offsets, every
+     custom-field shape and the fetch; test_taskform drives the
+     Details section end to end. test_tools covers the alpha ramp,
+     the hover, the log rows and the tallies. test_power_tools walks
+     the pause lifecycle. 6,137 → 6,204 checks, 67 stages green.
+
 NEW IN 6.151.0 — ⌥TAB: THE OTHER CHROME WINDOWS, FOUND AT LAST:
   🪟 LL: "Alt+Tab is not showing all windows. Example it shows one
      Chrome window but no other Chrome windows I have open. how do we

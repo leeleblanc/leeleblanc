@@ -247,6 +247,11 @@ function M.setup(core)
     local acFailures = 0
     local acMaxFailures = 5
     local function acOnEvent(ev)
+            -- ⏸ 6.152.0 — the pause switch (⇪⇧1, power_tools): while it
+            -- is up, every keystroke passes through untouched. The tap
+            -- stays running — a stopped tap needs its watchdog dance to
+            -- come back, a pass-through guard costs one comparison.
+            if _G.hsPaused then return false end
             -- Either flag standing means "this keystroke is not a person
             -- typing". The local one covers our own injection; the shared
             -- one covers the text expander's (6.69.0).

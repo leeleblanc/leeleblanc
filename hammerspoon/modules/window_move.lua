@@ -128,7 +128,16 @@ local M = {
     order = 6.5,
     family = "windows",
     cheatsheet = {
-        title = "🪟 WINDOW MOVE (⇪⇧-arrows move a picker · ⌘-drag moves anything)",
+        -- 6.152.0 — retitled. LL, seeing this box beside WINDOW ARRANGER:
+        -- "Why don't we combine these two because they both work on
+        -- windows?" They don't work on the same windows: the ARRANGER
+        -- moves YOUR APPS' windows around the screen; this box moves
+        -- HAMMERSPOON'S OWN panels and pickers (the cheat sheet, the
+        -- pomodoro card, every ⇪ list). Two different populations, two
+        -- different mechanisms — merging the boxes would file ⌘-drag
+        -- advice under a tool it does not belong to. The new title says
+        -- whose windows these are, which was the actual confusion.
+        title = "🧲 PANEL MOVE (⇪⇧-arrows nudge a picker · MY panels, NOT your apps')",
         entries = {
             { "⇪⇧ ↑↓←→", "MOVE AN OPEN PICKER — 50 px a tap, hold the arrow to walk it" },
             { "⇪⇧R",     "Put a nudged picker back to automatic placement" },
@@ -567,7 +576,7 @@ function M.setup(core)
         local L = {}
         local function line(s) L[#L + 1] = s end
         line("")
-        line("🪟 WINDOW MOVE")
+        line("🧲 PANEL MOVE (module file: window_move.lua)")
         line("   enabled    : " .. tostring(wm.enabled))
         line("   tap        : " .. (wm.tap and "up" or "NOT RUNNING — nothing drags")
              .. "  (errors " .. tostring(wm.tapFailures) .. "/5)")

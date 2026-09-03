@@ -83,7 +83,12 @@ local function mkTimer(kind, secs, fn)
 end
 
 local function mkCanvas(frame)
+    -- 6.152.0 — the frame doubles as a METHOD: real hs.canvas answers
+    -- :frame() with its rect, and the pomodoro's hover poll calls it.
+    -- A callable table keeps every older `panel.frame.w` check working.
+    frame = setmetatable(frame, { __call = function(self) return self end })
     local c = { frame = frame, elements = {}, shown = false, deleted = false }
+    function c:alpha(a) if a ~= nil then self.alpha_ = a end return self.alpha_ or 1 end
     function c:replaceElements(e)
         -- FAITHFUL to hs.canvas: an empty table is read as ONE element
         -- with no key-value pairs, and throws. The 6.62.0 crash got past
@@ -103,12 +108,17 @@ local function mkCanvas(frame)
     return c
 end
 
+MOUSE = { x = 0, y = 0 }   -- the pomodoro hover poll reads this
 hs = {
     timer = {
         secondsSinceEpoch = function() return NOW end,
         doAfter = function(s, fn) return mkTimer("after", s, fn) end,
         doEvery = function(s, fn) return mkTimer("every", s, fn) end,
+        doAt = function(t, rep, fn)
+            local tm = mkTimer("at", t, fn) ; tm.rep = rep ; return tm
+        end,
     },
+    mouse = { absolutePosition = function() return MOUSE end },
     alert  = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
     canvas = { windowLevels = { overlay = 17 }, new = function(f) return mkCanvas(f) end },
     screen = {
@@ -535,12 +545,21 @@ say("   -- the panel --")
 CANVASES = {}
 check("start() draws", pom.start() == true and #CANVASES == 1)
 local panel = CANVASES[1]
-check("it is 170 wide as asked, and taller since 6.94.0 — two lines now "
-      .. "live under the countdown",
-      panel.frame.w == 170 and panel.frame.h == 132,
+check("📏 6.152.0 — 20% bigger, from one knob: 170×132 × pom.scale",
+      panel.frame.w == math.floor(170 * pom.scale + 0.5)
+      and panel.frame.h == math.floor(132 * pom.scale + 0.5)
+      and pom.scale >= 1.2,
       panel.frame.w .. "x" .. panel.frame.h)
+check("...and the type scales WITH the card — big box, big clock",
+      (function()
+    for _, e in ipairs(panel.elements) do
+        if e.type == "text" and e.text == "25:00" then
+            return e.textSize == math.floor(40 * pom.scale + 0.5), e.textSize
+        end
+    end
+end)())
 check("it sits in the top-right, under the menu bar rather than over it",
-      panel.frame.x > 1300 and panel.frame.y >= 25,
+      panel.frame.x + panel.frame.w > 1490 and panel.frame.y >= 25,
       panel.frame.x .. "," .. panel.frame.y)
 check("it is shown", panel.shown)
 check("it opens at 25:00, not at 00:00 counting up", (function()
@@ -758,6 +777,124 @@ check("🚨 a tick landing DURING teardown cannot repaint — state is "
     pom.stop("test")
     return fired and not paintedAfterDelete
 end)())
+-- =====================================================================
+say("   -- 👻 6.152.0: faint until it matters, solid under the mouse --")
+-- LL: "make the timer go from 30% transparency to 90% ... the last five
+-- minutes" and "if I move the mouse pointer on to it, bring it
+-- immediately to 90% and then if I move off of it, back to 30%".
+pom.logFile = os.tmpname()
+os.remove(pom.logFile)          -- logEvent recreates it, header first
+CANVASES, TIMERS = {}, {}
+NOW = 10000
+pom.start()
+local card = CANVASES[#CANVASES]
+check("the card opens FAINT — pom.alphaIdle, whole-window alpha",
+      card.alpha_ == pom.alphaIdle, card.alpha_)
+check("a hover poll is running at pom.hoverSecs — and ONLY while the "
+      .. "card is up", (function()
+    for _, t in ipairs(TIMERS) do
+        if t.live and t.kind == "every" and t.secs == pom.hoverSecs then return true end
+    end
+end)())
+tickTo((pom.workMins - pom.alertMins) * 60 - 60)
+check("mid-countdown it stays faint", card.alpha_ == pom.alphaIdle, card.alpha_)
+tickTo(61)
+check("👻 the last five minutes turn it SOLID — pom.alphaAlert",
+      card.alpha_ == pom.alphaAlert, card.alpha_)
+pom.stop("test")
+
+CANVASES, TIMERS = {}, {}
+NOW = 20000
+pom.start()
+card = CANVASES[#CANVASES]
+MOUSE = { x = card.frame.x + 5, y = card.frame.y + 5 }
+pom.checkHover()
+check("mouse ON the card: solid, in one poll tick — 'immediately'",
+      card.alpha_ == pom.alphaAlert, card.alpha_)
+MOUSE = { x = 1, y = 1 }
+pom.checkHover()
+check("mouse off: faint again", card.alpha_ == pom.alphaIdle, card.alpha_)
+check("the flash is always solid — an alert nobody can see is no alert",
+      (function()
+    pom.state.flasher = true            -- stand-in: mid-flash
+    local a = pom.targetAlpha()
+    pom.state.flasher = nil
+    return a == pom.alphaAlert
+end)())
+pom.stop("test")
+check("stop() takes the hover poll down with everything else", (function()
+    for _, t in ipairs(TIMERS) do
+        if t.live and t.kind == "every" and t.secs == pom.hoverSecs then return false end
+    end
+    return true
+end)())
+
+say("   -- 📒 6.152.0: the log, and the 4:30 tally --")
+CANVASES, TIMERS, MODALS = {}, {}, {}
+NOW = 30000
+pom.start()                              -- row: started
+NOW = NOW + pom.workMins * 60 + 1
+for _, t in ipairs(TIMERS) do
+    if t.live and t.kind == "every" and t.secs == 1 then t.fn() end
+end                                      -- work phase ends → row: completed
+do
+    local f = io.open(pom.logFile, "r")
+    local content = f and f:read("*a") or ""
+    if f then f:close() end
+    check("the file begins with the promised columns: date,time,event,detail",
+          content:find("^date,time,event,detail\n") ~= nil, content:sub(1, 30))
+    check("every launch writes a `started` row, stamped to the second",
+          content:find("\n%d%d%d%d%-%d%d%-%d%d,%d%d:%d%d:%d%d,started,") ~= nil)
+    check("🍅 finishing the 25 minutes writes `completed` — the moment a "
+          .. "pomodoro counts", content:find(",completed,") ~= nil)
+end
+pom.stop("test")
+local todayReal = os.date("%Y-%m-%d")
+local counts = pom.dayCounts(todayReal)
+check("dayCounts reads the rows back", counts.started >= 1
+      and counts.completed >= 1, counts.started .. "/" .. counts.completed)
+check("weekLines closes with the week total",
+      (function()
+    local L = pom.weekLines(os.time())
+    return L[#L] and L[#L]:find("week total:", 1, true) ~= nil
+end)())
+check("the daily tally timer is armed AT workdayEnd, repeating daily",
+      (function()
+    for _, t in ipairs(TIMERS) do
+        if t.kind == "at" and t.secs == pom.workdayEnd and t.rep == "1d" then
+            return true
+        end
+    end
+    -- armed at setup time, before this section reset TIMERS — re-arm to
+    -- prove the shape rather than pass on absence
+    pomMod.setup(core)
+    pom = pomMod.pom
+    pom.logFile = os.tmpname()
+    for _, t in ipairs(TIMERS) do
+        if t.kind == "at" and t.secs == pom.workdayEnd and t.rep == "1d" then
+            return true
+        end
+    end
+end)())
+check("the tally announces the day's completed count", (function()
+    ALERTS = {}
+    local off = pom.weekendsOff
+    pom.weekendsOff = false             -- the guard is not under test here
+    NOW = os.time()                     -- so the tally reads today's rows
+    local msg = pom.endOfDay()
+    pom.weekendsOff = off
+    return msg and msg:find("Today:", 1, true) ~= nil
+           and ALERTS[1] and ALERTS[1]:find("pomodoro", 1, true) ~= nil, msg
+end)())
+check("_G.pomodoroReport names the file and today's tally", (function()
+    local r = _G.pomodoroReport()
+    return r:find(pom.logFile, 1, true) ~= nil
+           and r:find("today:", 1, true) ~= nil
+end)())
+check("it publishes pomodoro.report", _G.service.has("pomodoro.report"))
+os.remove(pom.logFile)
+NOW = 40000
+
 -- =====================================================================
 say("   -- 🧟 6.70.0: THE PANEL THAT WOULD NOT GO AWAY --")
 -- LL, with a screenshot of a panel reading "DONE ⏎ / esc":

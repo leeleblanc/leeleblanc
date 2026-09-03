@@ -37,6 +37,18 @@ binaries as UPPERCASE constants; chooser row values are scalars. Profile
 `settings` overrides are applied AFTER setup into `mod.config` (init.lua's
 "apply settings" block), so a settings override needs zero module changes.
 
+Pause switch (6.152.0): ⇪⇧1 toggles `_G.hsPaused` (power_tools). Hyper
+shortcuts are suppressed CENTRALLY in init.lua's hyperBind (the pause key
+itself is exempt via `_G.hsPauseCombo`, published before binding); every
+keyboard TAP handler must start with `if _G.hsPaused then return false end`
+(autocorrect, expander, key caster do). Taps stay running while paused.
+
+⌥Tab (6.152.0): macOS AX never returns another desktop's windows from
+`app:allWindows()` (minimised yes, other-Space no) — the switcher serves
+them from `altTab.known`, a memory fed by every listing; z-order comes from
+`hs.window._orderedwinids()`. `hs.window.orderedWindows()` is banned there
+(it re-runs the whole sweep internally; the test counts calls).
+
 ## Panel ladder (core/coexist.lua)
 
 `hs.chooser` is PINNED by macOS at mainMenu+3 and exposes no level API — the
@@ -73,9 +85,16 @@ mirrors draw order: "closes last" IS "drawn under".
 - Screenshots folder override: waiting on LL to name a path; then ship a
   one-line `settings = { screenshots = { dir = "..." } }` profile override
   with full ceremony. (Verified: zero code changes needed.)
-- Chrome export (⇪Y) hang: flight recorder shipped in 6.148.0; waiting on a
-  pasted kill alert or `_G.chromeHistoryReport()`'s `progress:` row. Stuck at
-  "copying X" → History cp / TCC territory; "querying X" → sqlite3.
-- Tab search: needs the Automation grant (System Settings → Privacy &
-  Security → Automation → Hammerspoon → Google Chrome) or a `_G.tabReport()`
-  paste.
+- Chrome export (⇪Y) hang: ROOT-CAUSED and fixed in 6.152.0 — sqlite3's JSON
+  filled the 64 KB task pipe nothing reads until exit (hence every kill at
+  "querying Default"); rows travel by temp file now. Awaiting LL's
+  confirmation after install; if it still hangs, `progress:` row again.
+- Tab search: the real fault was an AppleScript COMPILE error (Safari branch
+  lacked `using terms from`; "osascript exited 1: 577") — fixed 6.152.0. It
+  never ran far enough to ask for Automation, so expect the macOS grant
+  prompts on LL's first real press (once per browser); then verify.
+- ⌥Tab other-desktop memory: verify after 6.152.0 — one ⌥Tab press per
+  desktop (per reload) teaches it; if a learned window still never shows,
+  ask for `_G.altTabLastListing` (has `remembered`).
+- Pomodoro weekly report currently fires with the Friday 4:30 tally; LL may
+  want a different day/shape once seen.

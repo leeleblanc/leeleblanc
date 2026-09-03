@@ -973,6 +973,9 @@ function M.setup(core)
     exp.failures = 0
     exp.maxFailures = 5
     local function expOnEvent(ev)
+            -- ⏸ 6.152.0 — the pause switch (⇪⇧1, power_tools): triggers
+            -- stop firing while it is up; every keystroke passes through.
+            if _G.hsPaused then return false end
             -- 🚨 ASYNC DRAIN WINDOW: navigation keys (ESC, arrows, etc.)
             -- cancel the drain window so that a user action always resets
             -- state, and so that test-harness reset() + press(53) works.

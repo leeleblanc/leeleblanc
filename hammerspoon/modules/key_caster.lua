@@ -640,6 +640,9 @@ function M.setup(core)
         -- 🚨 EVERY PATH RETURNS false. This module watches; it never
         -- consumes. A display tool that eats a keystroke is worse than no
         -- display tool, so even the failure path below returns false.
+        -- ⏸ 6.152.0 — and while the pause switch (⇪⇧1) is up, it does
+        -- not even watch: nothing is recorded, nothing is drawn.
+        if _G.hsPaused then return false end
         local ok, err = pcall(onEvent, ev)
         if ok then
             kc.failures = 0

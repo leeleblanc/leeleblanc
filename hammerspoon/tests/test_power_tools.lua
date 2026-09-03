@@ -301,18 +301,20 @@ check("the cheat sheet key cell is exactly ⇪;", (function()
     end
     return false
 end)())
-check("all seventeen tools are in the list", #pt.tools == 17, #pt.tools)
+check("all eighteen tools are in the list", #pt.tools == 18, #pt.tools)
 check("…and each has a stable id", (function()
     -- 6.132.0 added countclip and case; 6.133.0 added define; 6.139.0
     -- added backup and backupreport; 6.140.0 added the grayscale relay
     -- rows; 6.142.0 added freekeys (the future-options ledger); 6.145.0
     -- retired the grayscale setup row with its console door; 6.147.0
     -- added defaultapp — LL called the keyless 📎 tool "buried", and
-    -- ⇪; is where the act-now tools live. ids are what
+    -- ⇪; is where the act-now tools live; 6.152.0 added hspause (the
+    -- ⇪⇧1 pause-Hammerspoon switch). ids are what
     -- _G.powerReport() counts by and what ⇪space's run map points
     -- at, so they are checked by name rather than by number alone.
     local want = { plain = true, type = true, count = true, meta = true,
-                   pause = true, ghere = true, greveal = true, qr = true,
+                   pause = true, hspause = true,
+                   ghere = true, greveal = true, qr = true,
                    countclip = true, case = true, define = true,
                    backup = true, backupreport = true,
                    mono = true, invert = true,
@@ -366,6 +368,55 @@ check("each new key is attributed to what it does", (function()
        and BOUND["shift+`"].src == "reveal ghostty"
        and BOUND["+5"].src == "read a QR code"
 end)())
+
+-- =====================================================================
+out("\n=== 1b. ⏸ 6.152.0 — pause Hammerspoon itself (⇪⇧1) ===\n")
+-- =====================================================================
+-- LL: "Can I pause Hammerspoon using an empty key from my Cheat Sheet?"
+-- The key toggles _G.hsPaused; init.lua's hyperBind honours it for every
+-- OTHER shortcut, and the typing taps carry their own guards. What THIS
+-- module owes: the binding, the published combo, the flag's lifecycle,
+-- and a menu-bar marker with a way back.
+check("⇪⇧1 is bound to the pause switch", BOUND["shift+1"] ~= nil
+      and BOUND["shift+1"].src == "pause Hammerspoon")
+check("…its normalized combo is published for init.lua's wrap, hint too",
+      _G.hsPauseCombo == "shift+1"
+      and tostring(_G.hsPauseHint):find("1", 1, true) ~= nil, _G.hsPauseCombo)
+local MENUBARS = {}
+hs.menubar = { new = function()
+    local mb = { deleted = false }
+    function mb:setTitle(t) self.title = t ; return self end
+    function mb:setTooltip(t) self.tip = t ; return self end
+    function mb:setClickCallback(f) self.click = f ; return self end
+    function mb:delete() self.deleted = true end
+    MENUBARS[#MENUBARS + 1] = mb
+    return mb
+end }
+ALERTS = {}
+_G.hsPaused = false
+BOUND["shift+1"].fn()
+check("one press raises _G.hsPaused and SAYS so", _G.hsPaused == true
+      and (ALERTS[1] or ""):find("paused", 1, true) ~= nil, ALERTS[1])
+check("…and the alert names the way back", (ALERTS[1] or ""):find("resumes", 1, true) ~= nil)
+check("…with a ⏸ HS flag standing in the menu bar",
+      MENUBARS[1] and MENUBARS[1].title == "⏸ HS"
+      and MENUBARS[1].deleted == false)
+BOUND["shift+1"].fn()
+check("the second press resumes and takes the flag down",
+      _G.hsPaused == false and MENUBARS[1].deleted == true)
+check("clicking the menu-bar flag resumes too — no keyboard needed",
+      (function()
+    BOUND["shift+1"].fn()
+    local mb = MENUBARS[#MENUBARS]
+    if not (mb and mb.click) then return false end
+    mb.click()
+    return _G.hsPaused == false and mb.deleted
+end)())
+check("hspause is a palette row, so ⇪; finds it when the key is forgotten",
+      (function()
+    for _, t in ipairs(pt.tools) do if t.id == "hspause" then return true end end
+end)())
+_G.hsPaused = false
 
 -- =====================================================================
 out("\n=== 2. 🔢 the counters, which are pure functions of a string ===\n")
@@ -655,7 +706,7 @@ end)(), CLIP)
 
 pt.show()
 local pc = CHOOSERS[#CHOOSERS]
-check("the palette lists all seventeen tools", #pc.choices_ == 17, #pc.choices_)
+check("the palette lists all eighteen tools", #pc.choices_ == 18, #pc.choices_)
 check("every palette row value is a scalar too", (function()
     for _, c in ipairs(pc.choices_) do
         for _, v in pairs(c) do

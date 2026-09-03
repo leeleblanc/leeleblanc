@@ -171,6 +171,26 @@ local function splitCSVLine(line)
     return outT
 end
 
+-- 🚨 6.152.0 — THE ROWS TRAVEL BY FILE NOW, NOT BY PIPE. sqlite3's JSON
+-- for a 20,000-row profile is megabytes; the task pipe's 64 KB buffer is
+-- only read at exit, so the child blocked on write and never exited —
+-- the "hung at: querying Default" kill, every run. The script writes
+-- each profile's rows to a file and stdout carries only the markers.
+-- This helper plays the script's role: it writes the JSON files a real
+-- run would leave and returns the marker-only stdout that names them.
+local FEEDFILES = {}
+local function feed(profiles)      -- { { "label", "json" }, ... }
+    local lines = {}
+    for _, p in ipairs(profiles) do
+        local path = os.tmpname()
+        local fh = io.open(path, "w") ; fh:write(p[2]) ; fh:close()
+        FEEDFILES[#FEEDFILES + 1] = path
+        lines[#lines + 1] = "##PROFILE## " .. p[1]
+        lines[#lines + 1] = "##FILE## " .. path
+    end
+    return table.concat(lines, "\n") .. "\n"
+end
+
 local HOME = "/Users/lee"
 local CSV  = os.tmpname()
 local CORE = {
@@ -271,18 +291,22 @@ check("the path with a space in it is one argument, not two",
 -- =======================================================================
 out("3) parsing — one sorted list; a broken profile costs a warning\n")
 -- =======================================================================
-local stdout = table.concat({
-    "##PROFILE## Default",
-    '[{"url":"https://gmail.com/inbox","title":"Inbox - Gmail","visits":40,"ts":900},',
-    '{"url":"https://news.site/a","title":"Big\tNews\ttoday","visits":2,"ts":700}]',
-    "",
-    "##PROFILE## Profile 1",
-    '[{"url":"https://work.example.com/wiki","title":"Team Wiki","visits":9,"ts":800}]',
-    "",
-    "##PROFILE## Profile 12",
-    "[BROKEN",
-    "",
-}, "\n")
+-- 🚨 6.152.0 — the script must MOVE the data by file, never by stdout:
+-- a pipe read only at exit deadlocks at 64 KB, which was the whole
+-- "hung at: querying Default" saga. These pins are the sentries.
+check("🚨 the script redirects each profile's JSON to its own file",
+      T.args[2]:find('> "$tmp/hs-chrome-$n.json"', 1, true) ~= nil)
+check("🚨 …and stdout carries a ##FILE## marker naming that file",
+      T.args[2]:find("##FILE##", 1, true) ~= nil)
+
+local stdout = feed({
+    { "Default",
+      '[{"url":"https://gmail.com/inbox","title":"Inbox - Gmail","visits":40,"ts":900},'
+      .. '{"url":"https://news.site/a","title":"Big\tNews\ttoday","visits":2,"ts":700}]' },
+    { "Profile 1",
+      '[{"url":"https://work.example.com/wiki","title":"Team Wiki","visits":9,"ts":800}]' },
+    { "Profile 12", "[BROKEN" },
+})
 T.cb(0, stdout, "")
 check("export callback lowers the flag", chrome.exporting == false)
 check("two good profiles' rows survive the broken one", #chrome.entries == 3,
@@ -301,6 +325,14 @@ check("status counts pages and profiles",
 check("a completing export STOPS its deadline — the timer never fires "
       .. "on a healthy run", #WATCHDOGS >= 1
       and WATCHDOGS[#WATCHDOGS].stopped == true, #WATCHDOGS)
+check("6.152.0 — the per-profile JSON files are DELETED after parsing",
+      (function()
+    for _, p in ipairs(FEEDFILES) do
+        local fh = io.open(p, "r")
+        if fh then fh:close() ; return false end
+    end
+    return true
+end)())
 
 -- =======================================================================
 out("3b) 6.147.0 — the deadline: a hung export is killed, and says so\n")
@@ -371,21 +403,23 @@ check("…and 'finished cleanly' when the loop completes",
       SCRIPT2:find("finished cleanly", 1, true) ~= nil)
 
 check("a fresh export may start after the kill", chrome.export() == true)
-TASKS[#TASKS].cb(0, "##PROFILE## Default\n[]\n", "")   -- and completes clean
+TASKS[#TASKS].cb(0, feed({ { "Default", "" } }), "")   -- and completes clean
+-- sqlite3 -json prints NOTHING for zero rows, so an empty file is a
+-- quiet profile, not a parse failure
+check("6.152.0 — an EMPTY rows file (nothing in the window) is not a warning",
+      not warned("Default rows did not parse"))
 
 -- =======================================================================
 out("4) the CSV — written on export, quoting round-trips exactly\n")
 -- =======================================================================
 chrome.csvFile = CSV
-local tricky = {
-    "##PROFILE## Default",
-    '[{"url":"https://a.com/q?x=1,2","title":"Comma, and -quote- title","visits":3,"ts":1600000000},',
-    '{"url":"https://plain.org","title":"Plain","visits":1,"ts":1600000060}]',
-    "",
-}
 -- a second export, with data built to stress the quoting
 chrome.export()
-TASKS[#TASKS].cb(0, table.concat(tricky, "\n"), "")
+TASKS[#TASKS].cb(0, feed({
+    { "Default",
+      '[{"url":"https://a.com/q?x=1,2","title":"Comma, and -quote- title","visits":3,"ts":1600000000},'
+      .. '{"url":"https://plain.org","title":"Plain","visits":1,"ts":1600000060}]' },
+}), "")
 local f = io.open(CSV, "r")
 check("the CSV file exists after an export", f ~= nil)
 local content = f and f:read("*a") or ""
@@ -410,18 +444,21 @@ check("timestamps rebuild close enough to keep the order",
 -- =======================================================================
 out("5) the fuzzy match — substring beats sequence, title beats URL\n")
 -- =======================================================================
-local corpus = {
-    "##PROFILE## Default",
-    '[{"url":"https://mail.google.com/mail/u/0","title":"Inbox (3) - Gmail","visits":99,"ts":9000},',
-    '{"url":"https://calendar.google.com/r/week","title":"Google Calendar","visits":50,"ts":8000},',
-    '{"url":"https://en.wikipedia.org/wiki/Giant_panda","title":"Giant panda - Wikipedia","visits":2,"ts":7000},',
-    '{"url":"https://pandas.pydata.org/docs","title":"API reference","visits":8,"ts":6000},',
-    '{"url":"https://old.example.com/gmail-tips","title":"Ten tips","visits":1,"ts":5000},',
-    '{"url":"https://abc.example.com/x","title":"alpha beta card","visits":1,"ts":4000}]',
-    "",
-}
+-- Regenerated per call: parse() DELETES the files a feed writes, so a
+-- reused stdout string would point at files that no longer exist.
+local function corpusFeed()
+    return feed({
+        { "Default",
+          '[{"url":"https://mail.google.com/mail/u/0","title":"Inbox (3) - Gmail","visits":99,"ts":9000},'
+          .. '{"url":"https://calendar.google.com/r/week","title":"Google Calendar","visits":50,"ts":8000},'
+          .. '{"url":"https://en.wikipedia.org/wiki/Giant_panda","title":"Giant panda - Wikipedia","visits":2,"ts":7000},'
+          .. '{"url":"https://pandas.pydata.org/docs","title":"API reference","visits":8,"ts":6000},'
+          .. '{"url":"https://old.example.com/gmail-tips","title":"Ten tips","visits":1,"ts":5000},'
+          .. '{"url":"https://abc.example.com/x","title":"alpha beta card","visits":1,"ts":4000}]' },
+    })
+end
 chrome.export()
-TASKS[#TASKS].cb(0, table.concat(corpus, "\n"), "")
+TASKS[#TASKS].cb(0, corpusFeed(), "")
 check("six pages loaded", #chrome.entries == 6, #chrome.entries)
 
 local r = chrome.search("gmail")
@@ -503,7 +540,7 @@ chrome.loadedAt = NOW - chrome.staleSecs - 10
 chrome.show()
 check("a stale corpus quietly re-exports behind the picker",
       #TASKS == tasksBefore + 1, #TASKS - tasksBefore)
-TASKS[#TASKS].cb(0, table.concat(corpus, "\n"), "")
+TASKS[#TASKS].cb(0, corpusFeed(), "")
 
 ALERTS = {}
 chrome.entries = {}
@@ -514,7 +551,7 @@ check("no data: ⇪Y says so instead of opening an empty picker",
       shown == false and #ALERTS == 1 and ALERTS[1]:find("🕘"), ALERTS[1])
 check("…and kicks an export so the next press works",
       #TASKS == tasksBefore + 2)
-TASKS[#TASKS].cb(0, table.concat(corpus, "\n"), "")
+TASKS[#TASKS].cb(0, corpusFeed(), "")
 
 check("⇪Y and ⇪⇧Y are the module's only hyper claims",
       HYPER["|y"] ~= nil and HYPER["shift|y"] ~= nil, "missing claim")
@@ -524,7 +561,7 @@ check("exactly two claims — nothing else was touched", n == 2, n)
 ALERTS = {}
 HYPER["shift|y"]()
 check("⇪⇧Y announces the refresh", ALERTS[1] and ALERTS[1]:find("Reading"), ALERTS[1])
-TASKS[#TASKS].cb(0, table.concat(corpus, "\n"), "")
+TASKS[#TASKS].cb(0, corpusFeed(), "")
 check("…and reports pages saved with the file name",
       ALERTS[2] and ALERTS[2]:find("6 pages")
       and ALERTS[2]:find(CSV:match("[^/]+$"), 1, true), ALERTS[2])
@@ -536,7 +573,7 @@ local tasksB4 = #TASKS
 mod.warm()
 check("warm reads last session's CSV back first", #chrome.entries > 0)
 check("…then refreshes in the background", #TASKS == tasksB4 + 1)
-TASKS[#TASKS].cb(0, table.concat(corpus, "\n"), "")
+TASKS[#TASKS].cb(0, corpusFeed(), "")
 
 printed = {}
 FILES[chrome.sqlite] = "#!/bin/sqlite3"   -- present on a healthy Mac

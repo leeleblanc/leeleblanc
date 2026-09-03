@@ -73,9 +73,10 @@ _G.diag = { say = function() end, warn = function() end, err = function() end }
 
 -- the globals init.lua §4 publishes for this module
 local SUBMITS, SUBMIT_OK = {}, true
-_G.asanaSubmitTask = function(title, desc, assignee, attach)
+_G.asanaSubmitTask = function(title, desc, assignee, attach, extra)
     SUBMITS[#SUBMITS + 1] = { title = title, desc = desc,
-                              assignee = assignee, attach = attach }
+                              assignee = assignee, attach = attach,
+                              extra = extra }
     return SUBMIT_OK
 end
 _G.asanaNormalizePath = function(s)
@@ -215,6 +216,73 @@ msg("close", {})   -- clean up for the next section (also clears the draft
                    -- fields, since every message carries every field)
 check("closing after clearing the fields leaves an empty draft",
       F.draft.title == "")
+
+-- =====================================================================
+out("5b. 6.152.0 — the Details section: schedule + the project's fields\n")
+-- =====================================================================
+_G.asanaCustomFields = {
+    { gid = "F1", name = "Task Priority", subtype = "enum",
+      options = { { gid = "O1", name = "High" },
+                  { gid = "O2", name = "Low & <odd>" } } },
+    { gid = "F2", name = "SAC Values", subtype = "multi_enum",
+      options = { { gid = "M1", name = "Students First" },
+                  { gid = "M2", name = "Respect" } } },
+    { gid = "F3", name = "Supervisor", subtype = "people", options = {} },
+    { gid = "F9", name = "Some Formula", subtype = "formula", options = {} },
+}
+_G.taskFormShow()
+check("the schedule is on the page: date AND time inputs for both ends",
+      LAST_HTML:find('id="sd" type="date"', 1, true) ~= nil
+      and LAST_HTML:find('id="st" type="time"', 1, true) ~= nil
+      and LAST_HTML:find('id="ed" type="date"', 1, true) ~= nil
+      and LAST_HTML:find('id="et" type="time"', 1, true) ~= nil)
+check("each project field renders under its own permanent label",
+      LAST_HTML:find("Task Priority:", 1, true) ~= nil
+      and LAST_HTML:find("SAC Values:", 1, true) ~= nil
+      and LAST_HTML:find("Supervisor:", 1, true) ~= nil)
+check("enum options carry their Asana gids as values",
+      LAST_HTML:find('value="O1"', 1, true) ~= nil)
+check("…option names are ESCAPED, not injected",
+      LAST_HTML:find("Low &amp; &lt;odd&gt;", 1, true) ~= nil)
+check("a multi_enum renders as a MULTIPLE select",
+      LAST_HTML:find("multiple", 1, true) ~= nil)
+check("a people field types against the same team datalist as Assignee",
+      LAST_HTML:find('data-gid="F3" list="team"', 1, true) ~= nil)
+check("an unsupported subtype is SKIPPED whole, not half-drawn",
+      LAST_HTML:find("Some Formula", 1, true) == nil)
+check("say() carries the details on every message — same one-place rule",
+      LAST_HTML:find("m.startDate", 1, true) ~= nil
+      and LAST_HTML:find("m.custom", 1, true) ~= nil)
+
+BRIDGE({ body = { a = "submit", title = "Planned", desc = "", assignee = "",
+    attach = "", startDate = "2026-09-08", startTime = "09:00",
+    dueDate = "2026-09-08", dueTime = "10:30",
+    custom = { F1 = "O1", F2 = { "M1" } } } })
+local last = SUBMITS[#SUBMITS]
+check("submit hands asanaSubmitTask a FIFTH argument with the schedule",
+      last and last.extra and last.extra.startDate == "2026-09-08"
+      and last.extra.dueTime == "10:30")
+check("…and the custom picks, keyed by field gid (arrays survive)",
+      last.extra.custom and last.extra.custom.F1 == "O1"
+      and type(last.extra.custom.F2) == "table"
+      and last.extra.custom.F2[1] == "M1")
+check("a sent task clears the details with the rest of the draft",
+      F.draft.startDate == "" and F.draft.dueTime == ""
+      and next(F.draft.custom or {}) == nil)
+
+_G.taskFormShow()
+BRIDGE({ body = { a = "close", title = "x", desc = "", assignee = "",
+    attach = "", startDate = "2026-12-01", startTime = "", dueDate = "",
+    dueTime = "", custom = { F1 = "O2" } } })
+_G.taskFormShow()
+check("Esc keeps the details; reopening restores the pick as SELECTED",
+      F.draft.startDate == "2026-12-01"
+      and LAST_HTML:find('value="O2" selected', 1, true) ~= nil)
+msg("close", {})
+F.draft = { title = "", desc = "", assignee = "", attach = "",
+            startDate = "", startTime = "", dueDate = "", dueTime = "",
+            custom = {} }
+_G.asanaCustomFields = {}
 
 -- =====================================================================
 out("6. the 📸 newest-screenshot button\n")

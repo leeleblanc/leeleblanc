@@ -459,14 +459,78 @@ function M.setup(core)
     end
 
     -- =================================================================
+    -- PROJECT CUSTOM FIELDS (6.152.0) — fetched, never hard-coded
+    -- =================================================================
+    -- LL: "Can we add the metadata fields I'd like to include?" — ACD
+    -- Strategic Principle, SAC Values, Task Priority, Progress,
+    -- Supervisor… Those are the PROJECT'S custom fields, and their GIDs
+    -- and option lists belong to Asana, not to this file: hard-coding
+    -- them would break the day anyone edits a dropdown in Asana. So the
+    -- project's custom_field_settings are fetched once per boot (warm),
+    -- cached in _G.asanaCustomFields, and the ⇪T form builds its
+    -- dropdowns from whatever came back — a field added in Asana appears
+    -- on the next reload with zero code changes.
+    _G.asanaCustomFields = _G.asanaCustomFields or {}
+    function M.fetchCustomFields()
+        if not (core.asanaToken and core.asanaToken ~= ""
+                and core.asanaProjectId) then return end
+        local url = "https://app.asana.com/api/1.0/projects/"
+            .. core.asanaProjectId
+            .. "/custom_field_settings?opt_fields=custom_field.gid,"
+            .. "custom_field.name,custom_field.resource_subtype,"
+            .. "custom_field.enum_options.gid,custom_field.enum_options.name,"
+            .. "custom_field.enum_options.enabled"
+        pcall(function()
+            hs.http.asyncGet(url,
+                { ["Authorization"] = "Bearer " .. core.asanaToken },
+                function(status, body)
+                    if status ~= 200 then
+                        print("✅ Task Creator: could not fetch the project's "
+                              .. "custom fields (HTTP " .. tostring(status)
+                              .. ") — ⇪T shows the basic fields only")
+                        return
+                    end
+                    local parsed = core.safeJson(body, "asana/customfields")
+                    local list = {}
+                    for _, s in ipairs((parsed and parsed.data) or {}) do
+                        local f = s.custom_field
+                        if type(f) == "table" and f.gid and f.name then
+                            local opts = {}
+                            for _, o in ipairs(f.enum_options or {}) do
+                                if o.enabled ~= false and o.gid and o.name then
+                                    opts[#opts + 1] = { gid = o.gid, name = o.name }
+                                end
+                            end
+                            list[#list + 1] = {
+                                gid = f.gid, name = f.name,
+                                subtype = f.resource_subtype or "text",
+                                options = opts,
+                            }
+                        end
+                    end
+                    _G.asanaCustomFields = list
+                    if _G.diag then
+                        _G.diag.say("taskCreator",
+                            "fetched " .. #list .. " project custom fields")
+                    end
+                end)
+        end)
+    end
+
+    -- =================================================================
     -- TASK SUBMIT — shared by the chooser below AND the Task Form (6.86.0)
     -- =================================================================
     -- One submit path so the two front ends cannot drift.
     -- Returns TRUE = accepted for posting; FALSE = validation failed,
     -- AFTER alerting — callers keep their draft on false.
-    function _G.asanaSubmitTask(title, desc, assignee, attach)
+    -- 6.152.0 — `extra` (optional, the ⇪T form's Details section):
+    --   { startDate/startTime/dueDate/dueTime = "YYYY-MM-DD"/"HH:MM",
+    --     custom = { [field gid] = value } }
+    -- The pipe chooser passes nothing and keeps its old four-string call.
+    function _G.asanaSubmitTask(title, desc, assignee, attach, extra)
         title, desc     = title or "", desc or ""
         assignee, attach = assignee or "", attach or ""
+        extra = (type(extra) == "table") and extra or {}
 
         if title == "" then
             hs.alert.show("⚠️ Task title cannot be empty")
@@ -522,10 +586,82 @@ function M.setup(core)
         }
         table.insert(_G.asanaTaskHistory, historyEntry)
 
+        -- ---- the schedule (6.152.0, all four fields optional) -----------
+        -- Asana's own rules, enforced BEFORE the request so a doomed one
+        -- is a clear alert, not a Console 400: a start needs an end, a
+        -- time needs its date, and when both ends carry dates the times
+        -- come as a pair or not at all (start_at cannot ride with due_on).
+        local sd = tostring(extra.startDate or "")
+        local st = tostring(extra.startTime or "")
+        local ed = tostring(extra.dueDate or "")
+        local et = tostring(extra.dueTime or "")
+        if (st ~= "" and sd == "") or (et ~= "" and ed == "") then
+            hs.alert.show("⚠️ A time needs its date — fill the date beside it", 5)
+            return false
+        end
+        if sd ~= "" and ed == "" then
+            hs.alert.show("⚠️ Asana requires an END date whenever a start "
+                          .. "date is set — fill End, or clear Start", 6)
+            return false
+        end
+        if sd ~= "" and ed ~= "" and ((st == "") ~= (et == "")) then
+            hs.alert.show("⚠️ With both dates set, give BOTH times or "
+                          .. "neither — Asana cannot mix a timed end with "
+                          .. "an all-day start", 6)
+            return false
+        end
+        -- "2026-09-04T14:30:00-05:00" — local offset, spelled ±hh:mm
+        local function isoAt(d, t)
+            local off = os.date("%z"):gsub("^([%+%-]%d%d)(%d%d)$", "%1:%2")
+            return d .. "T" .. t .. ":00" .. off
+        end
+
+        -- ---- the custom fields (6.152.0) ---------------------------------
+        -- Values arrive keyed by field gid; the field's SUBTYPE (from the
+        -- fetched cache) decides the API shape: enum = option gid,
+        -- multi_enum = array of option gids, people = array of user gids
+        -- (a typed name resolves through the same roster as Assignee),
+        -- number = a number, text = the string.
+        local fieldMeta = {}
+        for _, f in ipairs(_G.asanaCustomFields or {}) do fieldMeta[f.gid] = f end
+        local customOut, customAny = {}, false
+        for gid, v in pairs(extra.custom or {}) do
+            local sub = (fieldMeta[gid] and fieldMeta[gid].subtype) or "text"
+            if type(v) == "table" then
+                if #v > 0 then customOut[gid] = v ; customAny = true end
+            elseif tostring(v) ~= "" then
+                v = tostring(v)
+                if sub == "people" then
+                    local g = resolveAssignee(v)
+                    if not g then
+                        hs.alert.show("⚠️ No team member matches \"" .. v
+                            .. "\" for " .. (fieldMeta[gid].name or "a people field")
+                            .. " — use their exact name or email", 6)
+                        return false
+                    end
+                    customOut[gid] = { g }
+                elseif sub == "number" then
+                    customOut[gid] = tonumber(v) or v
+                else
+                    customOut[gid] = v      -- enum option gid, or plain text
+                end
+                customAny = true
+            end
+        end
+
         -- Build Asana task payload
         local payloadData = { name = title, projects = { core.asanaProjectId } }
         if desc ~= "" then payloadData.notes = desc end
         if resolvedAssignee ~= "" then payloadData.assignee = resolvedAssignee end
+        if ed ~= "" then
+            if et ~= "" then payloadData.due_at = isoAt(ed, et)
+            else payloadData.due_on = ed end
+        end
+        if sd ~= "" then
+            if st ~= "" then payloadData.start_at = isoAt(sd, st)
+            else payloadData.start_on = sd end
+        end
+        if customAny then payloadData.custom_fields = customOut end
         local body = hs.json.encode({ data = payloadData })
 
         hs.http.asyncPost("https://app.asana.com/api/1.0/tasks", body, {
@@ -710,6 +846,10 @@ function M.setup(core)
 end
 
 function M.warm(core)
+    -- 6.152.0 — the ⇪T form's dropdowns: fetch the project's custom
+    -- fields once per boot. Async, pcall'd inside — a Mac with no token
+    -- or no network costs the Details section, never the boot.
+    if M.fetchCustomFields then pcall(M.fetchCustomFields) end
     -- Sweep any auth-header file a killed Hammerspoon left behind.
     -- Normally uploadAttachmentToTask deletes its own the moment curl's
     -- callback fires, but a crash or force-quit mid-upload skips that —

@@ -35,9 +35,12 @@
 -- /usr/bin/sqlite3, which ships with macOS. That runs as an hs.task,
 -- OFF the main thread: a 100 MB history file must never freeze the
 -- keyboard. `-json` output rather than delimited, because page titles
--- contain every delimiter anyone has ever chosen. Entries younger than
--- 90 days and not hidden (Chrome's own flag for redirect noise), one
--- row per page, newest first.
+-- contain every delimiter anyone has ever chosen — and 6.152.0: the
+-- JSON goes to a FILE per profile, never through the task's stdout
+-- pipe, because a pipe that is only read at exit deadlocks on the first
+-- 64 KB (the "hung at: querying" kills — see the note at SCRIPT).
+-- Entries younger than 90 days and not hidden (Chrome's own flag for
+-- redirect noise), one row per page, newest first.
 --
 -- FRESHNESS: the export re-runs when what is loaded is older than
 -- chrome.staleSecs, and ⇪⇧Y forces it. On boot, warm() reads BACK the
@@ -176,9 +179,25 @@ function M.setup(core)
     -- stdout only reaches Lua when the task EXITS, so a killed run is a
     -- run whose evidence died with it. The script now writes one line to
     -- a progress file BEFORE each step; the watchdog reads that file's
-    -- last line and names the step the run died in. Progress goes to a
-    -- FILE, not stdout, because stdout is the data channel — a marker
-    -- line inside a profile's block would break that block's JSON parse.
+    -- last line and names the step the run died in.
+    --
+    -- 🚨 6.152.0 — AND THAT SENTENCE ("stdout only reaches Lua when the
+    -- task EXITS") WAS THE HANG ITSELF. The recorder proved every killed
+    -- run died at "querying Default" — and the reason is mechanical, not
+    -- a slow query: sqlite3 was writing megabytes of JSON (20,000 rows a
+    -- profile) into a pipe whose 64 KB buffer nothing drains until the
+    -- task exits. The buffer fills, sqlite3 BLOCKS on write, the task
+    -- therefore never exits, and the watchdog kills it at 45s — every
+    -- single run, which is exactly what LL's Console showed. A pipe you
+    -- only read at exit deadlocks the moment a child writes more than one
+    -- buffer of it.
+    --
+    -- So the DATA never touches the pipe any more: each profile's JSON is
+    -- redirected to its own file and stdout carries only two tiny marker
+    -- lines per profile — the label, then the file that holds its rows —
+    -- which fit in the buffer a thousand times over. Lua reads the files
+    -- back in parse() and deletes them. Same reasoning as the progress
+    -- file, finally applied to the payload too.
     local SCRIPT = [[
 sq="$1"; tmp="$2"; cutoff="$3"; limit="$4"; shift 4
 pf="$tmp/hs-chrome-progress.txt"
@@ -191,10 +210,10 @@ while [ "$#" -ge 2 ]; do
   cp -f "$db" "$tmp/hs-chrome-$n.db" 2>/dev/null || continue
   cp -f "$db-wal" "$tmp/hs-chrome-$n.db-wal" 2>/dev/null
   cp -f "$db-shm" "$tmp/hs-chrome-$n.db-shm" 2>/dev/null
-  printf '##PROFILE## %s\n' "$lbl"
   printf 'querying %s\n' "$lbl" >> "$pf"
-  "$sq" -json "$tmp/hs-chrome-$n.db" "SELECT url, title, visit_count AS visits, CAST(last_visit_time/1000000 - 11644473600 AS INTEGER) AS ts FROM urls WHERE last_visit_time > $cutoff AND hidden = 0 ORDER BY last_visit_time DESC LIMIT $limit;"
-  printf '\n'
+  "$sq" -json "$tmp/hs-chrome-$n.db" "SELECT url, title, visit_count AS visits, CAST(last_visit_time/1000000 - 11644473600 AS INTEGER) AS ts FROM urls WHERE last_visit_time > $cutoff AND hidden = 0 ORDER BY last_visit_time DESC LIMIT $limit;" > "$tmp/hs-chrome-$n.json" 2>/dev/null
+  printf '##PROFILE## %s\n' "$lbl"
+  printf '##FILE## %s\n' "$tmp/hs-chrome-$n.json"
   rm -f "$tmp/hs-chrome-$n.db" "$tmp/hs-chrome-$n.db-wal" "$tmp/hs-chrome-$n.db-shm"
 done
 printf 'finished cleanly\n' >> "$pf"
@@ -217,34 +236,44 @@ printf 'finished cleanly\n' >> "$pf"
         return last
     end
 
-    -- stdout → entries. Each profile's block is a JSON array under its
-    -- ##PROFILE## marker; a profile whose block will not parse costs that
-    -- profile a warning, never the export.
+    -- stdout → entries. 6.152.0: stdout carries only MARKERS now — a
+    -- ##PROFILE## line naming the profile, then a ##FILE## line naming
+    -- the file that holds its JSON rows (see the pipe-deadlock note at
+    -- SCRIPT). Each file is read back, parsed, and DELETED here; a
+    -- profile whose file will not parse costs that profile a warning,
+    -- never the export. An empty file is a profile with nothing in the
+    -- 90-day window — sqlite3 -json prints nothing for zero rows — and
+    -- is not worth a warning.
     function chrome.parse(out)
-        local entries, label, buf = {}, nil, {}
-        local function flush()
-            local raw = table.concat(buf, "\n"):gsub("^%s+", ""):gsub("%s+$", "")
-            buf = {}
-            if not label or raw == "" then return end
-            local okDec, rows = pcall(function() return hs.json.decode(raw) end)
-            if not (okDec and type(rows) == "table") then
-                warn("the " .. label .. " block did not parse as JSON")
-                return
-            end
-            for _, r in ipairs(rows) do
-                if type(r) == "table" and type(r.url) == "string" and r.url ~= "" then
-                    entries[#entries + 1] = finish({
-                        url = r.url, title = r.title, visits = r.visits,
-                        ts = r.ts, profile = label,
-                    })
+        local entries, label = {}, nil
+        for line in (tostring(out or "") .. "\n"):gmatch("(.-)\n") do
+            local l = line:match("^##PROFILE## (.+)$")
+            local p = line:match("^##FILE## (.+)$")
+            if l then
+                label = l
+            elseif p and label then
+                local raw
+                local f = io.open(p, "r")
+                if f then raw = f:read("*a"); f:close() end
+                pcall(os.remove, p)
+                raw = tostring(raw or ""):gsub("^%s+", ""):gsub("%s+$", "")
+                if raw ~= "" then
+                    local okDec, rows = pcall(function() return hs.json.decode(raw) end)
+                    if okDec and type(rows) == "table" then
+                        for _, r in ipairs(rows) do
+                            if type(r) == "table" and type(r.url) == "string" and r.url ~= "" then
+                                entries[#entries + 1] = finish({
+                                    url = r.url, title = r.title, visits = r.visits,
+                                    ts = r.ts, profile = label,
+                                })
+                            end
+                        end
+                    else
+                        warn("the " .. label .. " rows did not parse as JSON")
+                    end
                 end
             end
         end
-        for line in (tostring(out or "") .. "\n"):gmatch("(.-)\n") do
-            local l = line:match("^##PROFILE## (.+)$")
-            if l then flush(); label = l else buf[#buf + 1] = line end
-        end
-        flush()
         table.sort(entries, function(a, b) return a.ts > b.ts end)
         return entries
     end

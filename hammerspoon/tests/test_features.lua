@@ -1738,26 +1738,26 @@ check("every ⇪ + pad TOOL key is claimed on the PRIMARY layer", (function()
     end
     return true
 end)())
-check("every ⇪⇧ + pad WINDOW key is claimed on the second layer", (function()
-    for i = 0, 9 do if not hyperFor({ "shift" }, "pad" .. i) then return false, i end end
+-- 🆓 6.152.0 — THE WINDOW MAP IS CLEARED, on LL's word ("Those should
+-- just say: 'Key available for use'"), the same instruction that cleared
+-- the ⇪⇧ number row in 6.142.0. What is pinned here is the CLEARING —
+-- a freed key's natural fate is to be quietly reclaimed.
+check("🚨 6.152.0 — NO ⇪⇧ + pad key is claimed any more", (function()
+    for i = 0, 9 do if hyperFor({ "shift" }, "pad" .. i) then return false, i end end
     for _, k in ipairs({ "pad+", "pad-", "pad*", "pad/", "pad.",
                          "padenter", "padclear" }) do
-        if not hyperFor({ "shift" }, k) then return false, k end
+        if hyperFor({ "shift" }, k) then return false, k end
     end
     return true
 end)())
--- 6.66.0 — the 6.50.0 split (⇪pad = tools, ⇪⇧pad = windows) is now
--- half a design: the tools half was cleared on request because every
--- entry duplicated a letter key. What still has to hold is that the
--- WINDOW map is intact and that the empty layer is empty by intent
--- rather than by accident.
-check("🚨 the window map is on the SHIFTED layer and the plain layer is "
-      .. "clear — the 6.50.0 split with its tools half deliberately empty",
-      numpad.actions.pad7 == nil and numpad.shiftActions.pad7 == "topLeft",
-      tostring(numpad.actions.pad7) .. " / " .. tostring(numpad.shiftActions.pad7))
-check("🚨 THE TWO LAYERS ARE STILL DISTINCT KEYS — ⇪pad7 and ⇪⇧pad7 are "
-      .. "different shortcuts, which is what makes the free layer usable",
-      hyperFor({}, "pad7") ~= hyperFor({ "shift" }, "pad7"))
+check("🚨 …and the table is EMPTY-but-claimable, the cmdShiftActions "
+      .. "posture — one line there brings a key back",
+      next(numpad.shiftActions) == nil
+      and numpad.actions.pad7 == nil,
+      tostring(next(numpad.shiftActions)))
+check("🚨 the clearing took ONLY the shifted layer — ⇪pad1 (capture row) "
+      .. "is still claimed while ⇪⇧pad1 is not",
+      hyperFor({}, "pad1") ~= nil and hyperFor({ "shift" }, "pad1") == nil)
 -- Strengthened in 6.70.0. This used to read the TITLE alone, and adding
 -- a third layer crowded the word out of it — which the check caught,
 -- correctly. But a title is a header; the promise being made is that the
@@ -1869,12 +1869,15 @@ check("every TOOL binding is a string service name, so the integration "
     return true
 end)())
 
--- The layout itself is still fully defined — parked means unbound, not
--- unwritten. Everything below drives it directly, without any key.
-check("pad7 is TOP-LEFT — the key's own position", numpad.shiftActions.pad7 == "topLeft")
-check("pad5 is the centre", numpad.shiftActions.pad5 == "centre")
-check("pad3 is BOTTOM-RIGHT", numpad.shiftActions.pad3 == "bottomRight")
-check("pad0, the widest key, maximises", numpad.shiftActions.pad0 == "full")
+-- The ZONES survive the clearing — 6.152.0 freed the keys, not the
+-- machinery: `pad7 = "topLeft"` in shiftActions revives that key in one
+-- line, so the zone table has to stay whole. Everything below drives it
+-- directly, without any key.
+check("the topLeft zone is still defined", numpad.zones.topLeft ~= nil)
+check("…and centre (computed from centreW/H at run time)",
+      numpad.zones.centre == nil and numpad.centreW ~= nil)
+check("…and bottomRight", numpad.zones.bottomRight ~= nil)
+check("…and full, the maximise zone", numpad.zones.full ~= nil)
 
 -- ---- and now the LIVE path -------------------------------------------
 -- Everything from here runs with the layer switched on, so parking it is
@@ -1953,19 +1956,15 @@ liveMod.setup(core)
 local live = liveMod.numpad
 live.bound = {}
 local boundCount = live.bindAll()
--- 6.66.0 cleared the tool layer (every entry duplicated a letter key);
--- 6.99.0 claims six of its keys back, on LL's instruction, for things
--- that exist NOWHERE else on the keyboard: the capture row (pad1 pad2
--- pad3 pad* pad- → quick append and the Note Pad) plus pad4 → split.
--- 17 window keys + 6 capture keys = 23.
--- 💻 6.114.0 added a LAPTOP layer (⇪⇧ + the number row — ten more, 33
--- in all) and 6.142.0 REMOVED it on LL's word: those keys are future
--- options now, and this count is how the clearing stays cleared.
-check("the WINDOW layer's 17 keys and the 6.99.0 capture row's 6 — 23 "
-      .. "bindings, nothing else now the 6.142.0 clearing stands",
-      boundCount == 23, boundCount)
-check("...including all ten digits, on the SHIFTED layer", (function()
-    for i = 0, 9 do if not hyperFor({ "shift" }, "pad" .. i) then return false end end
+-- 6.66.0 cleared the tool layer; 6.99.0 claimed six keys back for the
+-- capture row; 6.142.0 cleared the ⇪⇧ number row; 6.152.0 cleared the
+-- ⇪⇧pad window map, both on LL's word. What binds now is the capture
+-- row and NOTHING else — this count is how the clearings stay cleared.
+check("the 6.99.0 capture row's 6 keys bind — and nothing else, now the "
+      .. "6.142.0 AND 6.152.0 clearings both stand",
+      boundCount == 6, boundCount)
+check("...no shifted pad digit is among them", (function()
+    for i = 0, 9 do if hyperFor({ "shift" }, "pad" .. i) then return false end end
     return true
 end)())
 check("🚨 the capture row claims EXACTLY its six keys — pad1–4, pad*, "
@@ -1980,9 +1979,9 @@ check("🚨 the capture row claims EXACTLY its six keys — pad1–4, pad*, "
     end
     return true
 end)())
-check("...and the arithmetic keys, which live on the WINDOW layer",
-      hyperFor({ "shift" }, "pad+") and hyperFor({ "shift" }, "pad-")
-      and hyperFor({ "shift" }, "pad*") and hyperFor({ "shift" }, "pad/"))
+check("...and no shifted arithmetic key either — the whole layer is free",
+      not hyperFor({ "shift" }, "pad+") and not hyperFor({ "shift" }, "pad-")
+      and not hyperFor({ "shift" }, "pad*") and not hyperFor({ "shift" }, "pad/"))
 -- 6.99.0 — the tool layer holds the capture row and ONLY the capture
 -- row, every value a published SERVICE NAME (test_integration resolves
 -- each against the live registry — a function here would dodge that
@@ -2014,11 +2013,9 @@ end)())
 check("the pomodoro is NOT on a pad key — a key this keyboard may not "
       .. "have is a key that silently does nothing",
       live.actions["pad+"] == nil and live.shiftActions["pad+"] ~= "pomodoro.toggle")
-check("...and the window layer is untouched — clearing the tool layer must "
-      .. "not have taken the 3×3 map with it",
-      live.shiftActions["pad+"] == "grow"
-      and live.shiftActions.pad7 == "topLeft"
-      and live.shiftActions.pad5 == "centre")
+check("...and the 6.152.0 clearing stands on the live instance too — the "
+      .. "shifted table stays empty",
+      next(live.shiftActions) == nil, tostring(next(live.shiftActions)))
 check("binding twice does not double-claim anything", live.bindAll() == boundCount)
 
 check("an unmapped key name is SKIPPED, not bound to nil", (function()
@@ -2088,13 +2085,10 @@ check("⇪⇧9 is the ONE digit that left the row BOUND — to the veil's "
     local h = hyperFor({ "shift" }, "9")
     return h ~= nil and h.name == "invert colours", h and h.name
 end)())
-check("…and the zones the row mirrored are still where they always were — "
-      .. "the PAD window map is untouched by the clearing",
-      live.shiftActions.pad7 == "topLeft"
-      and live.shiftActions.pad9 == "topRight"
-      and live.shiftActions.pad5 == "centre"
-      and live.shiftActions["pad."] == "restore"
-      and live.shiftActions.padenter == "centreOnly")
+check("…and the zone MACHINERY the freed keys pointed at is still whole "
+      .. "(6.152.0: a one-line claim revives any of them)",
+      live.zones.topLeft ~= nil and live.zones.topRight ~= nil
+      and live.zones.full ~= nil and type(live.run) == "function")
 check("the cheat sheet's third group now IS the ledger — it names the "
       .. "freed keys and points at _G.freeKeys() instead of advertising "
       .. "bindings that no longer exist", (function()
@@ -2106,10 +2100,26 @@ check("the cheat sheet's third group now IS the ledger — it names the "
     local sawKeys, sawTool = false, false
     for _, e in ipairs(g.entries or {}) do
         local v = tostring(e[2])
-        if v:find("⇪⇧1 2 3 5 7 8", 1, true) then sawKeys = true end
+        if v:find("⇪⇧2 3 5 7 8", 1, true) then sawKeys = true end
         if v:find("_G.freeKeys()", 1, true) then sawTool = true end
     end
     return sawKeys and sawTool, tostring(sawKeys) .. "/" .. tostring(sawTool)
+end)())
+-- 🆓 6.152.0 — the SECOND group (the old window map) is a ledger now
+-- too, in LL's exact words: "Those should just say: 'Key available for
+-- use'." So they do — and no row advertises a window zone any more.
+check("the ⇪⇧pad group says “Key available for use”, in LL's words, and "
+      .. "advertises no zone rows", (function()
+    local g = numGroups[2]
+    if not g then return false, "no second group" end
+    local sawAvail, sawZone = false, false
+    for _, e in ipairs(g.entries or {}) do
+        local v = tostring(e[2])
+        if v:find("Key available for use", 1, true) then sawAvail = true end
+        if v:find("Top%-left quarter") or v:find("Maximise") then sawZone = true end
+    end
+    return sawAvail and not sawZone,
+           tostring(sawAvail) .. "/" .. tostring(sawZone)
 end)())
 -- 🔗 THE SHARED "PUT IT BACK" MEMORY. Before 6.114.0 this layer kept its
 -- own table, so ⇪⇧pad7 then ⇪↓ answered "No prior position remembered for

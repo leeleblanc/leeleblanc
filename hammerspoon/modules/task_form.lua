@@ -60,6 +60,8 @@ local M = {
         title = "✅ TASK FORM (⇪T — labeled Asana task entry)",
         entries = {
             { "⇪T",   "Open the form: Title · Description · Assignee · Attachment" },
+            { "dates", "Start/End date & time — all optional (a start needs an end)" },
+            { "fields","The PROJECT'S dropdowns — Priority, Progress… fetched live" },
             { "⏎",    "send the task (from any field)" },
             { "⇥",    "next field · ⇧⇥ previous" },
             { "⌥⏎",   "newline inside the Description box" },
@@ -82,8 +84,14 @@ function M.setup(core)
 
     -- The draft survives Esc, a stray click, and reopening — cleared only
     -- when a task is actually sent. In-memory, like the old _G.taskDraft:
-    -- a config reload starts fresh.
-    form.draft = { title = "", desc = "", assignee = "", attach = "" }
+    -- a config reload starts fresh. 6.152.0 adds the schedule fields and
+    -- `custom` (field gid → chosen value) for the project dropdowns.
+    local function freshDraft()
+        return { title = "", desc = "", assignee = "", attach = "",
+                 startDate = "", startTime = "", dueDate = "", dueTime = "",
+                 custom = {} }
+    end
+    form.draft = freshDraft()
 
     local function say(m)  if _G.diag then _G.diag.say("taskForm", m)  end end
     local function warn(m) if _G.diag then _G.diag.warn("taskForm", m) end end
@@ -114,6 +122,68 @@ function M.setup(core)
         -- 🎨 6.90.0 — shared card colors (ui_style.lua), cascade-last.
         local themeCss = (_G.uiStyle and _G.uiStyle.cssOverride
                           and _G.uiStyle.cssOverride()) or ""
+
+        -- 📋 6.152.0 — THE DETAILS SECTION: the schedule (start/end date
+        -- and time, all optional) and the PROJECT'S OWN custom fields,
+        -- built from _G.asanaCustomFields (fetched from Asana at boot —
+        -- task_creator.lua) so a dropdown edited in Asana appears here on
+        -- the next reload with no code change. Unsupported subtypes
+        -- (formula, date fields…) are skipped rather than half-drawn.
+        local cfRows = {}
+        for _, f in ipairs(_G.asanaCustomFields or {}) do
+            local cur = d.custom and d.custom[f.gid]
+            local label = '<div class="row"><label>' .. escapeHtml(f.name)
+                          .. ':</label>'
+            if f.subtype == "enum" or f.subtype == "multi_enum" then
+                local multi = (f.subtype == "multi_enum")
+                local sel = {}
+                if type(cur) == "table" then
+                    for _, g in ipairs(cur) do sel[g] = true end
+                elseif cur then sel[tostring(cur)] = true end
+                local o = { '<select class="cf" data-gid="'
+                            .. escapeHtml(f.gid) .. '"'
+                            .. (multi and (' multiple size="'
+                                .. math.min(4, math.max(2, #(f.options or {})))
+                                .. '" title="⌘-click for more than one"') or "")
+                            .. '>' }
+                if not multi then o[#o + 1] = '<option value="">—</option>' end
+                for _, opt in ipairs(f.options or {}) do
+                    o[#o + 1] = '<option value="' .. escapeHtml(opt.gid) .. '"'
+                                .. (sel[opt.gid] and " selected" or "") .. '>'
+                                .. escapeHtml(opt.name) .. '</option>'
+                end
+                o[#o + 1] = '</select></div>'
+                cfRows[#cfRows + 1] = label .. table.concat(o)
+            elseif f.subtype == "people" then
+                cfRows[#cfRows + 1] = label .. '<input class="cf" data-gid="'
+                    .. escapeHtml(f.gid) .. '" list="team" value="'
+                    .. escapeHtml(type(cur) == "string" and cur or "")
+                    .. '" placeholder="name or email — optional"></div>'
+            elseif f.subtype == "number" or f.subtype == "text" then
+                cfRows[#cfRows + 1] = label .. '<input class="cf"'
+                    .. (f.subtype == "number" and ' type="number"' or "")
+                    .. ' data-gid="' .. escapeHtml(f.gid) .. '" value="'
+                    .. escapeHtml(type(cur) ~= "table" and cur or "")
+                    .. '"></div>'
+            end
+        end
+        local cfHtml = table.concat(cfRows)
+        if cfHtml == "" then
+            cfHtml = '<div class="row"><label></label><span class="hint">'
+                .. 'project fields load shortly after boot — reopen ⇪T '
+                .. 'if this stays empty</span></div>'
+        end
+        local detailsHtml = [[
+  <div class="sect">Schedule — optional (a start needs an end)</div>
+  <div class="row"><label for="sd">Start:</label>
+    <input id="sd" type="date" value="]] .. escapeHtml(d.startDate) .. [[">
+    <input id="st" type="time" value="]] .. escapeHtml(d.startTime) .. [["></div>
+  <div class="row"><label for="ed">End:</label>
+    <input id="ed" type="date" value="]] .. escapeHtml(d.dueDate) .. [[">
+    <input id="et" type="time" value="]] .. escapeHtml(d.dueTime) .. [["></div>
+  <div class="sect">Project fields — optional</div>
+]] .. cfHtml
+
         return [[
 <meta charset="utf-8">
 <style>
@@ -149,6 +219,15 @@ function M.setup(core)
   button:hover { filter:brightness(1.18); }
   .bar { margin-top:6px; display:flex; gap:10px; align-items:center; }
   .bar .hint { margin-left:auto; }
+  .sect { color:#8a8a96; font-size:11px; letter-spacing:.5px;
+          text-transform:uppercase; margin:12px 0 8px 116px;
+          user-select:none; -webkit-user-select:none; }
+  select { flex:1; box-sizing:border-box; background:#1d1d24; color:#f2f2f6;
+           border:1px solid #33333e; border-radius:8px; padding:7px 10px;
+           font-size:14px; }
+  select[multiple] { padding:4px 6px; }
+  select:focus { outline:none; border-color:#4a7fe0; }
+  input[type=date], input[type=time] { color-scheme: dark; }
   ]] .. themeCss .. [[
 </style>
 <header>
@@ -170,6 +249,7 @@ function M.setup(core)
       .. [[" placeholder="/path/to/file — or use the 📸 button">
     <span class="after"><button type="button" onclick="say({a:'latest'})"
       title="Newest file from the ⇪4 screenshots folder (⌘L)">📸 newest</button></span></div>
+]] .. detailsHtml .. [[
   <div class="bar">
     <button class="go" onclick="submitIt()">Create task&nbsp;&nbsp;⏎</button>
     <span class="hint">only Title is required</span>
@@ -186,6 +266,24 @@ function M.setup(core)
     m.desc     = val('desc');
     m.assignee = val('assignee');
     m.attach   = val('attach');
+    // 6.152.0 — the Details section rides on every message, same rule
+    m.startDate = val('sd'); m.startTime = val('st');
+    m.dueDate   = val('ed'); m.dueTime   = val('et');
+    var cf = {};
+    document.querySelectorAll('.cf').forEach(function(el){
+      var g = el.getAttribute('data-gid');
+      if (!g) return;
+      if (el.tagName === 'SELECT' && el.multiple) {
+        var vals = [];
+        for (var i = 0; i < el.options.length; i++) {
+          if (el.options[i].selected && el.options[i].value) vals.push(el.options[i].value);
+        }
+        cf[g] = vals;
+      } else {
+        cf[g] = el.value || '';
+      }
+    });
+    m.custom = cf;
     window.webkit.messageHandlers.taskForm.postMessage(m);
   }
   function submitIt(){ say({a:'submit'}); }
@@ -221,6 +319,12 @@ function M.setup(core)
         if body.desc     ~= nil then d.desc     = tostring(body.desc)     end
         if body.assignee ~= nil then d.assignee = tostring(body.assignee) end
         if body.attach   ~= nil then d.attach   = tostring(body.attach)   end
+        -- 6.152.0 — the Details section is part of the draft too
+        if body.startDate ~= nil then d.startDate = tostring(body.startDate) end
+        if body.startTime ~= nil then d.startTime = tostring(body.startTime) end
+        if body.dueDate   ~= nil then d.dueDate   = tostring(body.dueDate)   end
+        if body.dueTime   ~= nil then d.dueTime   = tostring(body.dueTime)   end
+        if type(body.custom) == "table" then d.custom = body.custom end
 
         if body.a == "submit" then
             if not _G.asanaSubmitTask then
@@ -234,13 +338,18 @@ function M.setup(core)
             -- stripped, ~ expanded — published by §4 for exactly this call.
             local attach = d.attach
             if _G.asanaNormalizePath then attach = _G.asanaNormalizePath(attach) end
-            local ok = _G.asanaSubmitTask(d.title, d.desc, d.assignee, attach)
+            local ok = _G.asanaSubmitTask(d.title, d.desc, d.assignee, attach, {
+                startDate = d.startDate, startTime = d.startTime,
+                dueDate   = d.dueDate,   dueTime   = d.dueTime,
+                custom    = d.custom,
+            })
             if ok then
                 -- Sent: the draft's job is done. Validation failures
-                -- (empty title, unknown assignee) return false AFTER
-                -- alerting, and the form stays up with everything typed
-                -- still in it — fix the one field and hit ⏎ again.
-                form.draft = { title = "", desc = "", assignee = "", attach = "" }
+                -- (empty title, unknown assignee, a start without an
+                -- end) return false AFTER alerting, and the form stays
+                -- up with everything typed still in it — fix the one
+                -- field and hit ⏎ again.
+                form.draft = freshDraft()
                 form.hide()
             end
         elseif body.a == "latest" then
@@ -286,8 +395,21 @@ function M.setup(core)
                        or (hs.screen and hs.screen.mainScreen and hs.screen.mainScreen())
         local sf = { x = 0, y = 0, w = 1440, h = 900 }
         pcall(function() if screen then sf = screen:frame() end end)
+        -- 6.152.0 — the window grows with the Details section: two
+        -- schedule rows plus one row per supported project field (a
+        -- multi-select is taller), clamped to the screen as before.
+        local extra = 100
+        for _, f in ipairs(_G.asanaCustomFields or {}) do
+            if f.subtype == "multi_enum" then
+                extra = extra + 28
+                       + math.min(4, math.max(2, #(f.options or {}))) * 18
+            elseif f.subtype == "enum" or f.subtype == "people"
+                or f.subtype == "number" or f.subtype == "text" then
+                extra = extra + 44
+            end
+        end
         local w = math.min(form.width,  sf.w - 40)
-        local h = math.min(form.height, sf.h - 40)
+        local h = math.min(form.height + extra, sf.h - 40)
         local rect = { x = sf.x + (sf.w - w) / 2, y = sf.y + (sf.h - h) / 3,
                        w = w, h = h }
 

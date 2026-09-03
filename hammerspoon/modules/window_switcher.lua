@@ -25,10 +25,11 @@
 -- tool on a machine with a lot of apps open.
 --
 -- So this section never touches hs.window.filter. Instead:
---   • hs.window.orderedWindows() — one snapshot of visible windows,
---     already in front-to-back order, no watchers, no subscriptions.
---     Only GUI apps are asked, which is what keeps hidden/background
---     apps (the expensive ones) out of the call entirely.
+--   • ONE per-app sweep over GUI apps only (6.152.0 — it used to also
+--     call hs.window.orderedWindows(), which re-runs the same sweep
+--     internally: the whole cost, paid twice). Front-to-back order
+--     comes from hs.window._orderedwinids(), the raw CoreGraphics id
+--     list — milliseconds, no watchers, no subscriptions.
 --   • The enumeration IS TIMED, every single press. If it ever crosses
 --     altTab.slowWarnSeconds the Console prints how long it actually
 --     took, so a slow machine reports a number instead of a beachball.
@@ -65,7 +66,9 @@ local M = {
             { "Return", "Switch to the highlighted tile without waiting for ⌥ release" },
             { "tiles", "One thumbnail per WINDOW, with its title underneath" },
             { "Esc", "Cancels — no switch" },
-            { "shows", "EVERY window: all desktops/Spaces, all monitors, minimised too" },
+            { "shows", "Every window: all monitors, minimised too, other desktops" },
+            { "memory", "Another desktop's windows are REMEMBERED from the last press" },
+            { "",      "that saw them — one ⌥Tab on a desktop teaches it (per reload)" },
             { "also", "Running apps with no open window — selecting one activates it" },
             { "tuning", "altTab.includeOtherSpaces / includeApps / maxWindows (module file)" },
             { "no perms", "altTab.useSnapshots = false — icons not thumbnails, and macOS" },
@@ -81,10 +84,11 @@ function M.setup(core)
     -- ✏️ EDIT HERE ---------------------------------------------------------
     altTab.enabled          = true   -- false = ⌥Tab does nothing (panic switch)
     altTab.includeMinimized  = true  -- minimised windows are listed too
-    altTab.includeOtherSpaces = true -- windows on OTHER desktops/Spaces and
-                                     -- other monitors (see the note below —
-                                     -- this is the setting that fixes
-                                     -- "⌥Tab only shows this desktop")
+    altTab.includeOtherSpaces = true -- windows on OTHER desktops/Spaces —
+                                     -- 6.152.0: this now gates the MEMORY
+                                     -- (see the note at listWindows), which
+                                     -- is the only way such windows can be
+                                     -- listed at all
     altTab.includeApps       = true  -- also list running apps that have NO
                                      -- open window, so "every open program"
                                      -- really means every one
@@ -126,29 +130,73 @@ function M.setup(core)
     -- ⚠️ 6.39.0 — WHY THIS ASKS EVERY APPLICATION INSTEAD OF ASKING FOR
     -- "ALL WINDOWS". hs.window.orderedWindows() and hs.window.allWindows()
     -- report ONLY the current Mission Control Space. That is a documented
-    -- macOS limit, not a Hammerspoon bug, and it is exactly why ⌥Tab
-    -- showed nothing from your other desktops. Hammerspoon's own
-    -- documented answer is hs.window.filter — the module that froze this
-    -- Mac for 44 seconds in 6.33.0, so that door stays shut.
+    -- macOS limit, not a Hammerspoon bug. Hammerspoon's own documented
+    -- answer is hs.window.filter — the module that froze this Mac for 44
+    -- seconds in 6.33.0, so that door stays shut.
     --
-    -- The third route: ask each APPLICATION for its own windows. The
-    -- Accessibility API hands over an app's windows wherever they are —
-    -- other Spaces, other monitors, minimised — because AX has no concept
-    -- of a Space at all. That is the whole fix.
+    -- 🚨 6.152.0 — ONE SWEEP, A CHEAP Z-ORDER, AND A MEMORY. Two findings
+    -- off LL's Console rebuilt this function:
+    --
+    --   • THE OLD PHASE 1 WAS THE SAME SWEEP, PAID TWICE. It called
+    --     hs.window.orderedWindows(), which internally asks every GUI app
+    --     for its windows AGAIN (plus an isHidden per app and a
+    --     visibility check per window) just to learn the stacking order —
+    --     1.6s on LL's Air, every press, on top of the per-app pass's own
+    --     0.7s. The stacking order is available WITHOUT any of that:
+    --     hs.window._orderedwinids() is the raw CoreGraphics id list,
+    --     front-to-back, in milliseconds. So the per-app pass is now the
+    --     ONLY Accessibility sweep, and the id list ranks its results.
+    --     That is "⌥Tab is slow to display", roughly halved at the root.
+    --
+    --   • AX DOES NOT REPORT OTHER DESKTOPS, AND NEVER DID. The 6.39.0
+    --     comment above believed app:allWindows() returned windows on
+    --     every Space. It returns minimised windows (they belong to no
+    --     Space) — which is why 6.151.0 genuinely fixed those — but a
+    --     window parked on ANOTHER desktop is simply absent from the
+    --     answer: LL's sweep asked Chrome, Chrome answered in 0.00s, and
+    --     the Docs window on Desktop 2 was not in it. The private APIs
+    --     that can enumerate other Spaces return "a lot of false
+    --     positives" by their own documentation and need window.filter to
+    --     prune (banned), so the fix is a MEMORY instead: every window
+    --     this function ever lists is remembered (altTab.known, id →
+    --     window), and the AX element for a live window stays valid after
+    --     its Space stops being enumerated — only the LISTING forgets it,
+    --     the handle still answers role/title/focus. So windows the sweep
+    --     no longer sees are probed and, if still alive, added as tiles;
+    --     selecting one activates its app and focuses it, and macOS
+    --     itself carries you to its desktop. The one honest limit: a
+    --     window is remembered from the first ⌥Tab press that could see
+    --     its Space — press ⌥Tab once on a desktop and its windows are
+    --     known from then on (a reload starts the memory fresh).
     --
     -- ONLY GUI APPS ARE ASKED (app:kind() == 1). Background daemons and
     -- menu-bar agents are precisely the population whose AX timeouts made
-    -- window.filter unusable; they own no windows worth switching to, so
-    -- skipping them costs nothing and avoids all of that.
+    -- window.filter unusable; they own no windows worth switching to.
     --
-    -- Order: the CURRENT Space first, front-to-back, because that is the
-    -- order you are already thinking in — then everything else, appended.
-    -- Every phase is timed and the whole thing stays capped.
+    -- Order: this desktop front-to-back first (the CG id ranks), then the
+    -- unranked — minimised and remembered/other-desktop windows — in
+    -- sweep order, then app-only tiles. Sweep order is frontmost app,
+    -- then apps that had a visible window LAST listing, then the rest, so
+    -- the budget is spent on the apps you are most likely reaching for.
+    altTab.known    = {}   -- id -> { win, app, name }; survives between presses
+    altTab.lastHere = {}   -- app name -> true if it had a visible window last time
+
     function altTab.listWindows()
         local t0 = hs.timer.secondsSinceEpoch()
         local entries, seenWin, seenApp = {}, {}, {}
 
-        local function add(w)
+        -- 0. The stacking order, from CoreGraphics alone: id -> rank,
+        -- front-to-back, current desktop only. pcall'd and optional —
+        -- _orderedwinids is an hs.window internal, so a build without it
+        -- costs the z-order, never the switcher.
+        local zorder = {}
+        pcall(function()
+            local ids = (hs.window._orderedwinids and hs.window._orderedwinids()) or {}
+            for i, id in ipairs(ids) do zorder[id] = i end
+        end)
+
+        local seq = 0
+        local function add(w, remembered)
             local okId, id = pcall(function() return w:id() end)
             if not (okId and id) or seenWin[id] then return end
             local okStd, standard = pcall(function() return w:isStandard() end)
@@ -158,28 +206,96 @@ function M.setup(core)
                 if okMin and min then return end
             end
             seenWin[id] = true
-            table.insert(entries, { win = w })
+            seq = seq + 1
+            table.insert(entries, { win = w, id = id, rank = zorder[id],
+                                    seq = seq, remembered = remembered })
         end
 
-        -- 1. This Space, in front-to-back order.
-        local okSpace, spaceErr = pcall(function()
-            for _, w in ipairs(hs.window.orderedWindows() or {}) do add(w) end
-        end)
-        if not okSpace then
-            print("🔄 Window switcher: could not list windows on this Space — "
-                  .. tostring(spaceErr))
-            _G.diag.warn("altTab", "current-Space listing failed: " .. tostring(spaceErr))
+        local skip = {}
+        for _, n in ipairs(altTab.skipApps or {}) do skip[n] = true end
+
+        -- 1. THE sweep — the only Accessibility pass, budgeted. It ALWAYS
+        -- runs: since 6.152.0 it is the sole source of window objects, so
+        -- the include* flags gate what is done with its results (the
+        -- memory, the app-only tiles), never the sweep itself.
+        local appsSeen, withWindows = {}, {}
+        local truncated, slowestApp, slowestTime = false, nil, 0
+        do
+            local okApps, appErr = pcall(function()
+                local frontName
+                pcall(function()
+                    local fa = hs.application.frontmostApplication()
+                    if fa then frontName = fa:name() end
+                end)
+                -- kind() and name() are cheap properties off the bulk
+                -- enumeration (the app_watcher 6.16.22 lesson), so
+                -- ranking every app costs nothing next to one
+                -- allWindows() call.
+                local first, second, rest = {}, {}, {}
+                for _, app in ipairs(hs.application.runningApplications() or {}) do
+                    local okKind, kind = pcall(function() return app:kind() end)
+                    local okName, aname = pcall(function() return app:name() end)
+                    aname = okName and aname or "?"
+                    if okKind and kind == 1 and not skip[aname] then
+                        local a = { app = app, name = aname }
+                        if aname == frontName then table.insert(first, a)
+                        elseif altTab.lastHere[aname] then table.insert(second, a)
+                        else table.insert(rest, a) end
+                    end
+                end
+                local ordered = first
+                for _, a in ipairs(second) do table.insert(ordered, a) end
+                for _, a in ipairs(rest)   do table.insert(ordered, a) end
+
+                local t1 = hs.timer.secondsSinceEpoch()
+                for _, a in ipairs(ordered) do
+                    -- THE DEADLINE. Checked before each app rather than
+                    -- after, so the budget is a ceiling on what we ask
+                    -- for, not a report on what we already spent.
+                    if hs.timer.secondsSinceEpoch() - t1 > altTab.listBudget then
+                        truncated = true
+                        break
+                    end
+                    table.insert(appsSeen, a.app)
+                    -- Timed PER APP: when one application is the
+                    -- reason a press felt slow, the report has to
+                    -- be able to name it. A single culprit goes in
+                    -- altTab.skipApps and the problem is over.
+                    local a0 = hs.timer.secondsSinceEpoch()
+                    local okW, appWins = pcall(function() return a.app:allWindows() end)
+                    if okW then
+                        for _, w in ipairs(appWins or {}) do
+                            add(w, false)
+                            -- Feed the memory: any id add() accepted
+                            -- (now or earlier this pass) is a real,
+                            -- standard window worth remembering.
+                            local okId, id = pcall(function() return w:id() end)
+                            if okId and id and seenWin[id] then
+                                altTab.known[id] = { win = w, app = a.app,
+                                                     name = a.name }
+                            end
+                        end
+                    end
+                    local took = hs.timer.secondsSinceEpoch() - a0
+                    if took > slowestTime then slowestTime, slowestApp = took, a.name end
+                end
+            end)
+            if not okApps then
+                print("🔄 Window switcher: could not list windows per application — "
+                      .. tostring(appErr))
+                _G.diag.warn("altTab", "per-application listing failed: " .. tostring(appErr))
+            end
         end
 
         -- 1b. HAMMERSPOON'S OWN CONSOLE (6.147.0 — LL: "Can I use
-        -- alt+tab to land on the Hammerspoon console?"). It slips both
-        -- nets on purpose: Hammerspoon is a menu-bar app, so the
-        -- kind == 1 per-app pass below never asks it, and on some
-        -- builds the console window answers isStandard() = false, which
-        -- add() treats as "not a window you switch to". So it is asked
-        -- for BY NAME — hs.console.hswindow() hands it over when it is
-        -- open, and hands back nil when it is not (a closed console is
-        -- not a tile, it is a tool you have not opened).
+        -- alt+tab to land on the Hammerspoon console?"). It slips the
+        -- net on purpose: Hammerspoon is a menu-bar app, so the
+        -- kind == 1 sweep never asks it, and on some builds the console
+        -- window answers isStandard() = false, which add() treats as
+        -- "not a window you switch to". So it is asked for BY NAME —
+        -- hs.console.hswindow() hands it over when it is open, and
+        -- hands back nil when it is not (a closed console is not a
+        -- tile, it is a tool you have not opened).
         pcall(function()
             if not (hs.console and hs.console.hswindow) then return end
             local cw = hs.console.hswindow()
@@ -191,101 +307,53 @@ function M.setup(core)
                 if okMin and min then return end
             end
             seenWin[id] = true
-            table.insert(entries, { win = cw })
+            seq = seq + 1
+            table.insert(entries, { win = cw, id = id, rank = zorder[id], seq = seq })
         end)
-        local tOrdered = hs.timer.secondsSinceEpoch() - t0
 
-        -- 2. Every other window, app by app — the cross-Space part.
-        -- 🚨 6.151.0 — TWO FIXES FROM ONE REPORT. LL: "Alt+Tab is not
-        -- showing all windows. Example it shows one Chrome window but no
-        -- other Chrome windows I have open." The missing windows were
-        -- minimised or on other desktops — exactly the ones only THIS
-        -- pass can find (the on-screen listing above cannot, by macOS
-        -- design) — and this pass was being starved two ways at once:
-        --   • The deadline counted from t0, so a slow on-screen listing
-        --     (3.0s on this Mac — the 6.148.0 console paste) spent the
-        --     whole budget before the first application was asked and
-        --     the pass ran for ZERO apps. The budget now times THIS
-        --     sweep alone; a slow phase 1 is phase 1's problem.
-        --   • Within the sweep, apps were asked in whatever order macOS
-        --     returned them, so the budget (and the maxWindows cap) went
-        --     to whatever came first while Chrome waited at the back of
-        --     the line. Apps that own a window ON THIS DESKTOP are asked
-        --     first now: an app whose window you can see is exactly the
-        --     app whose OTHER windows you are most likely reaching for.
-        local appsSeen, withWindows = {}, {}
-        local truncated, slowestApp, slowestTime = false, nil, 0
-        if altTab.includeOtherSpaces or altTab.includeApps then
-            local okApps, appErr = pcall(function()
-                local skip = {}
-                for _, n in ipairs(altTab.skipApps or {}) do skip[n] = true end
-
-                -- Which apps own a window phase 1 already listed?
-                local hasHere = {}
-                for _, e in ipairs(entries) do
-                    local okA, a = pcall(function() return e.win:application() end)
-                    if okA and a then
-                        local okN, n = pcall(function() return a:name() end)
-                        if okN and n then hasHere[n] = true end
-                    end
-                end
-
-                local ordered, laterRank = {}, {}
-                for _, app in ipairs(hs.application.runningApplications() or {}) do
-                    local okKind, kind = pcall(function() return app:kind() end)
-                    local okName, aname = pcall(function() return app:name() end)
-                    aname = okName and aname or "?"
-                    -- ONLY GUI APPS, still: kind() and name() are cheap
-                    -- properties off the bulk enumeration (the app_watcher
-                    -- 6.16.22 lesson), so ranking every app costs nothing
-                    -- next to a single allWindows() call.
-                    if okKind and kind == 1 and not skip[aname] then
-                        table.insert(hasHere[aname] and ordered or laterRank,
-                                     { app = app, name = aname })
-                    end
-                end
-                for _, a in ipairs(laterRank) do table.insert(ordered, a) end
-
-                local t1 = hs.timer.secondsSinceEpoch()
-                for _, a in ipairs(ordered) do
-                    -- THE DEADLINE. Checked before each app rather than
-                    -- after, so the budget is a ceiling on what we ask
-                    -- for, not a report on what we already spent. Measured
-                    -- from t1 (6.151.0), so this sweep always gets its
-                    -- full budget no matter how long phase 1 took.
-                    if hs.timer.secondsSinceEpoch() - t1 > altTab.listBudget then
-                        truncated = true
-                        break
-                    end
-                    table.insert(appsSeen, a.app)
-                    if altTab.includeOtherSpaces then
-                        -- Timed PER APP: when one application is the
-                        -- reason a press felt slow, the report has to
-                        -- be able to name it. A single culprit goes in
-                        -- altTab.skipApps and the problem is over.
-                        local a0 = hs.timer.secondsSinceEpoch()
-                        local okW, appWins = pcall(function() return a.app:allWindows() end)
-                        if okW then
-                            for _, w in ipairs(appWins or {}) do add(w) end
+        -- 2. THE MEMORY — windows this function listed before that the
+        -- sweep no longer reports: parked on another desktop, or owned
+        -- by an app the budget cut off this press. Probed cheaply first
+        -- (a dead app by isRunning — no AX at all; then the element's
+        -- role, one attribute read); a window that fails the probe is
+        -- forgotten so closed windows cannot haunt the grid.
+        local remembered = 0
+        if altTab.includeOtherSpaces then
+            for id, k in pairs(altTab.known) do
+                if seenWin[id] then
+                    -- re-seen this press: memory already refreshed above
+                elseif skip[k.name] then
+                    altTab.known[id] = nil     -- skipApps means hands off
+                else
+                    local alive = false
+                    pcall(function()
+                        if k.app and k.app.isRunning and not k.app:isRunning() then
+                            return
                         end
-                        local took = hs.timer.secondsSinceEpoch() - a0
-                        if took > slowestTime then slowestTime, slowestApp = took, a.name end
+                        if k.win and k.win:role() == "AXWindow" then alive = true end
+                    end)
+                    if alive then
+                        local wasMin = false
+                        pcall(function() wasMin = k.win:isMinimized() or false end)
+                        if altTab.includeMinimized or not wasMin then
+                            seenWin[id] = true
+                            seq = seq + 1
+                            remembered = remembered + 1
+                            table.insert(entries, { win = k.win, id = id,
+                                                    seq = seq, remembered = true })
+                        end
+                    else
+                        altTab.known[id] = nil
                     end
                 end
-            end)
-            if not okApps then
-                print("🔄 Window switcher: could not list windows per application — "
-                      .. tostring(appErr))
-                _G.diag.warn("altTab", "per-application listing failed: " .. tostring(appErr))
             end
         end
 
         -- Which apps already own a listed window? Worked out from the
         -- ENTRIES, not from how many each app contributed: an app whose
-        -- windows were all picked up by the current-Space pass adds
-        -- nothing new in the per-app pass, and counting that as "has no
-        -- windows" gave every app on this desktop a second, bogus
-        -- "no open window" tile.
+        -- windows all arrived from the memory adds nothing new in the
+        -- sweep, and counting that as "has no windows" would give it a
+        -- second, bogus "no open window" tile.
         for _, e in ipairs(entries) do
             if e.win then
                 local okA, a = pcall(function() return e.win:application() end)
@@ -295,6 +363,32 @@ function M.setup(core)
                 end
             end
         end
+
+        -- Front-to-back for what is on this desktop (the CG ranks), then
+        -- everything unranked — minimised, other desktops — in the order
+        -- it was found. seq breaks ties so the sort is total and the
+        -- grid cannot shuffle between openings.
+        table.sort(entries, function(x, y)
+            local rx = x.rank or math.huge
+            local ry = y.rank or math.huge
+            if rx ~= ry then return rx < ry end
+            return x.seq < y.seq
+        end)
+
+        -- Remember which apps had a VISIBLE window this press — next
+        -- press's sweep asks them first, so the budget goes to the apps
+        -- whose other windows you are most likely reaching for.
+        local lastHere = {}
+        for _, e in ipairs(entries) do
+            if e.rank and e.win then
+                local okA, a = pcall(function() return e.win:application() end)
+                if okA and a then
+                    local okN, n = pcall(function() return a:name() end)
+                    if okN and n then lastHere[n] = true end
+                end
+            end
+        end
+        altTab.lastHere = lastHere
 
         -- 3. Apps that are running with NO window at all. Without these,
         --    "every open program" quietly means "every open window", and
@@ -311,33 +405,20 @@ function M.setup(core)
 
         local elapsed = hs.timer.secondsSinceEpoch() - t0
         _G.diag.say("altTab", string.format(
-            "listed %d entries in %.3fs (this Space %.3fs, %d apps%s%s)",
-            #entries, elapsed, tOrdered, #appsSeen,
+            "listed %d entries in %.3fs (%d apps, %d remembered%s%s)",
+            #entries, elapsed, #appsSeen, remembered,
             truncated and ", BUDGET SPENT" or "",
             slowestApp and string.format(", slowest: %s %.2fs", slowestApp, slowestTime) or ""))
         if truncated then
-            -- The budget died INSIDE the per-app pass, so there is a
-            -- culprit worth naming and skipApps is advice that helps.
-            -- (6.151.0: this can no longer mean "0 apps asked" — the
-            -- budget times the per-app pass alone, so the first app is
-            -- always reached. The 6.148.0 "the pass was skipped" message
-            -- retired with the starvation it described.)
+            -- The budget died inside the sweep, so there is a culprit
+            -- worth naming and skipApps is advice that helps. (The
+            -- memory softens the cut: windows of the apps the budget
+            -- skipped still appear, from the last press that saw them.)
             print(string.format(
                 "🔄 Window switcher: stopped after %.1fs / %d apps — showing what it had. "
                 .. "Slowest app: %s (%.2fs). Add it to altTab.skipApps in "
                 .. "modules/window_switcher.lua, or raise altTab.listBudget.",
                 elapsed, #appsSeen, tostring(slowestApp), slowestTime))
-        elseif tOrdered > altTab.listBudget then
-            -- Phase 1 alone outspent a whole budget (3.0s on this Mac,
-            -- 6.148.0) — macOS being slow to answer, no single app to
-            -- blame. Worth a line because the press FELT slow, and the
-            -- line should say the cross-Space sweep was not the cost.
-            print(string.format(
-                "🔄 Window switcher: the on-screen window list alone took %.1fs "
-                .. "— macOS was slow to answer, no single app is to blame. The "
-                .. "cross-Space sweep still ran with its own %.1fs budget "
-                .. "(%d apps); a press within %.0fs reuses the list.",
-                tOrdered, altTab.listBudget, #appsSeen, altTab.cacheFor))
         elseif elapsed > altTab.slowWarnSeconds then
             print(string.format(
                 "🔄 Window switcher: listing took %.2fs across %d apps (slowest: %s %.2fs)",
@@ -345,7 +426,7 @@ function M.setup(core)
         end
         _G.altTabLastListing = {
             seconds = elapsed, apps = #appsSeen, entries = #entries,
-            orderedSecs = tOrdered,
+            remembered = remembered,
             truncated = truncated, slowestApp = slowestApp, slowestTime = slowestTime,
         }
 
@@ -798,7 +879,12 @@ function M.setup(core)
             end
             table.insert(items, {
                 win = w, app = app, appOnly = entry.appOnly, image = img,
-                label = name, full = name .. " — " .. title,
+                remembered = entry.remembered, label = name,
+                -- A remembered tile says so in the caption: the sweep no
+                -- longer sees this window (another desktop, usually), so
+                -- selecting it rides the app activation across Spaces.
+                full = name .. " — " .. title
+                       .. (entry.remembered and "   · remembered (another desktop?)" or ""),
             })
         end
         local snapElapsed = hs.timer.secondsSinceEpoch() - snapStart

@@ -206,7 +206,11 @@ function M.setup(core)
             pcall(function() an = app:name() or "?" end)
             profile.apps[#profile.apps + 1] = { name = an, ms = ms }
             if ms > wr.slowAppMs then
-                warn(("%s took %dms to list its windows"):format(an, ms))
+                -- math.floor, because ms is a FLOAT (absoluteTime / 1e6)
+                -- and Lua 5.4's %d throws "number has no integer
+                -- representation" for 812.7 — a real crash off LL's
+                -- Console (6.152.0), on the once-a-cycle snapshot timer.
+                warn(("%s took %dms to list its windows"):format(an, math.floor(ms)))
             end
             -- HELD in wr: an unreferenced hs.timer is collected before it
             -- fires (the 6.16.18 lesson), and a collected step is a sweep

@@ -307,6 +307,116 @@ local doomed = _G.asanaTaskHistory[#_G.asanaTaskHistory]
 check("an HTTP failure alerts and the history row says ❌, kept not dropped",
       alerted("❌ Error: 500") and doomed.displaySub:find("❌", 1, true) == 1)
 
+out("\n=== C4b. 6.152.0 — the schedule and the project's custom fields ===\n")
+-- The cache as warm()'s fetch would fill it: LL's real fields, in shape.
+_G.asanaCustomFields = {
+    { gid = "F_PRIO", name = "Task Priority", subtype = "enum",
+      options = { { gid = "OPT_HI", name = "High" },
+                  { gid = "OPT_LO", name = "Low" } } },
+    { gid = "F_VALS", name = "SAC Values", subtype = "multi_enum",
+      options = { { gid = "V1", name = "Students First" },
+                  { gid = "V2", name = "Respect" } } },
+    { gid = "F_SUP",  name = "Supervisor", subtype = "people", options = {} },
+    { gid = "F_NUM",  name = "Progress",   subtype = "number", options = {} },
+}
+
+ALERTS, HTTP_POSTS = {}, {}
+check("a start date without an end date is refused BEFORE the request "
+      .. "(Asana's rule, alerted instead of a Console 400)",
+      _G.asanaSubmitTask("S", "", "", "", { startDate = "2026-09-08" }) == false
+      and alerted("END date") and #HTTP_POSTS == 0)
+ALERTS, HTTP_POSTS = {}, {}
+check("a time without its date is refused too",
+      _G.asanaSubmitTask("S", "", "", "", { dueTime = "14:00" }) == false
+      and alerted("A time needs its date") and #HTTP_POSTS == 0)
+ALERTS, HTTP_POSTS = {}, {}
+check("both dates but only one time: refused — _at cannot mix with _on",
+      _G.asanaSubmitTask("S", "", "", "", { startDate = "2026-09-08",
+          dueDate = "2026-09-10", dueTime = "14:00" }) == false
+      and alerted("BOTH times or neither"))
+
+HTTP_POSTS = {}
+_G.asanaSubmitTask("Dated", "", "", "", { dueDate = "2026-09-10" })
+check("an end date alone goes out as due_on",
+      HTTP_POSTS[1].body:find("due_on", 1, true) ~= nil
+      and HTTP_POSTS[1].body:find("2026-09-10", 1, true) ~= nil)
+
+HTTP_POSTS = {}
+_G.asanaSubmitTask("Timed", "", "", "",
+                   { dueDate = "2026-09-10", dueTime = "14:30" })
+check("an end date + time goes out as due_at — ISO 8601 with the LOCAL "
+      .. "offset spelled ±hh:mm",
+      HTTP_POSTS[1].body:find("due_at", 1, true) ~= nil
+      and HTTP_POSTS[1].body:match("2026%-09%-10T14:30:00[%+%-]%d%d:%d%d") ~= nil,
+      HTTP_POSTS[1].body)
+
+HTTP_POSTS = {}
+_G.asanaSubmitTask("Span", "", "", "",
+                   { startDate = "2026-09-08", dueDate = "2026-09-10" })
+check("start + end without times: start_on + due_on",
+      HTTP_POSTS[1].body:find("start_on", 1, true) ~= nil
+      and HTTP_POSTS[1].body:find("due_on", 1, true) ~= nil)
+
+HTTP_POSTS = {}
+_G.asanaSubmitTask("Meta", "", "", "", { custom = {
+    F_PRIO = "OPT_HI", F_VALS = { "V1", "V2" }, F_SUP = "sarah chen",
+    F_NUM = "60", F_GONE = "" } })
+local mb = HTTP_POSTS[1].body
+check("custom_fields rides on the payload", mb:find("custom_fields", 1, true) ~= nil)
+check("an enum pick travels as its option gid", mb:find("OPT_HI", 1, true) ~= nil)
+check("a multi-select travels as an ARRAY of option gids",
+      mb:find('{"V1","V2"}', 1, true) ~= nil or mb:find('{"V2","V1"}', 1, true) ~= nil, mb)
+check("a people field resolves the typed NAME through the same roster as "
+      .. "Assignee", mb:find("123456789012345", 1, true) ~= nil)
+check("a number field goes out as a number, not a string",
+      mb:find("]=60", 1, true) ~= nil, mb)
+check("an empty value is DROPPED, never sent as an empty string",
+      mb:find("F_GONE", 1, true) == nil)
+
+ALERTS, HTTP_POSTS = {}, {}
+check("an unresolvable people name is refused before posting",
+      _G.asanaSubmitTask("M2", "", "", "",
+          { custom = { F_SUP = "zorp" } }) == false
+      and alerted("No team member matches") and #HTTP_POSTS == 0)
+
+HTTP_POSTS = {}
+_G.asanaSubmitTask("Legacy", "", "", "")
+check("the four-string legacy call still posts, untouched — the pipe "
+      .. "chooser knows nothing of `extra` and must not have to",
+      #HTTP_POSTS == 1 and HTTP_POSTS[1].body:find("due_on", 1, true) == nil
+      and HTTP_POSTS[1].body:find("custom_fields", 1, true) == nil)
+
+out("\n=== C4c. the field cache is FETCHED from the project, never typed ===\n")
+HTTP_GETS = {}
+M.fetchCustomFields()
+local cfGet = HTTP_GETS[#HTTP_GETS]
+check("the fetch asks the project's custom_field_settings, options included",
+      cfGet and cfGet.url:find("/projects/PROJ1/custom_field_settings", 1, true) ~= nil
+      and cfGet.url:find("enum_options", 1, true) ~= nil, cfGet and cfGet.url)
+check("...with the token in a header", cfGet
+      and cfGet.headers["Authorization"] == "Bearer SECRET-TOKEN-abc123")
+NEXT_JSON = { data = {
+    { custom_field = { gid = "CF1", name = "Task Priority",
+        resource_subtype = "enum",
+        enum_options = { { gid = "O1", name = "High", enabled = true },
+                         { gid = "O2", name = "Retired", enabled = false } } } },
+    { custom_field = { gid = "CF2", name = "Supervisor",
+        resource_subtype = "people" } },
+} }
+cfGet.cb(200, "{}")
+check("the cache keeps each field's subtype and its ENABLED options only",
+      _G.asanaCustomFields[1] and _G.asanaCustomFields[1].gid == "CF1"
+      and #_G.asanaCustomFields[1].options == 1
+      and _G.asanaCustomFields[1].options[1].gid == "O1"
+      and _G.asanaCustomFields[2]
+      and _G.asanaCustomFields[2].subtype == "people",
+      _G.asanaCustomFields[1] and #_G.asanaCustomFields[1].options)
+local cachedBefore = _G.asanaCustomFields
+cfGet.cb(401, "denied")
+check("a failed refetch keeps the cache it had and says so in the Console",
+      _G.asanaCustomFields == cachedBefore)
+_G.asanaCustomFields = {}
+
 out("\n=== C5. 🔐 The attachment upload keeps the token out of argv ===\n")
 
 local attFile = TMP .. "/receipt.png"

@@ -150,6 +150,8 @@ local M = {
             { "ℹ️ meta",  "Every mdls attribute of the Finder selection, ⏎ copies" },
             { "⇪'",     "⏸ Pause all audio and video — media key + every" },
             { "",       "scriptable player that is already running" },
+            { "⇪⇧1",    "⏸ PAUSE HAMMERSPOON — ⇪ shortcuts and typing helpers" },
+            { "",       "off until pressed again · ⏸ HS in the menu bar meanwhile" },
             { "⇪`",     "👻 Ghostty at the front Finder window's folder" },
             { "⇪⇧`",    "📂 Finder at the front Ghostty window's folder" },
             { "⇪5",     "🔳 Read a QR code off the screen — needs zbar" },
@@ -194,6 +196,18 @@ function M.setup(core)
     -- ⏸ pause everything (6.120.0)
     pt.pauseKey     = "'"          -- ⇪'  — one key, no picker
     pt.pauseMods    = {}
+    -- ⏸ 6.152.0 — PAUSE HAMMERSPOON ITSELF. LL: "Can I pause Hammerspoon
+    -- using an empty key from my Cheat Sheet?" — ⇪⇧1, the first key of
+    -- the row 6.142.0 cleared for exactly this kind of ask. One press:
+    -- every OTHER ⇪ shortcut goes quiet (enforced centrally in init.lua's
+    -- hyperBind, so no shortcut can forget) and the typing interceptors
+    -- (autocorrect, expander, key caster) stand down via _G.hsPaused
+    -- guards at the top of their taps. Press it again: everything is
+    -- back. A ⏸ HS menu-bar flag shows while paused — clicking it
+    -- resumes too. Trackers and timers keep running: pause means "get
+    -- out of my keyboard", not "stop keeping my logs".
+    pt.hsPauseKey   = "1"          -- ⇪⇧1
+    pt.hsPauseMods  = { "shift" }
     -- ✏️ THE PLAYERS TOLD BY NAME, in addition to the media key. Order is
     -- irrelevant; each is asked only if it is already running, because
     -- naming an app in AppleScript LAUNCHES it, and "pause everything"
@@ -1440,6 +1454,39 @@ end tell]]
     end
 
     -- =====================================================================
+    -- ⏸ PAUSE HAMMERSPOON (6.152.0) — see the note at pt.hsPauseKey
+    -- =====================================================================
+    function pt.hsPauseToggle()
+        _G.hsPaused = not _G.hsPaused
+        if _G.hsPaused then
+            pcall(function()
+                if pt.hsPauseMenu then pt.hsPauseMenu:delete() end
+                pt.hsPauseMenu = hs.menubar.new()
+                if pt.hsPauseMenu then
+                    pt.hsPauseMenu:setTitle("⏸ HS")
+                    pt.hsPauseMenu:setTooltip("Hammerspoon is paused — "
+                        .. tostring(_G.hsPauseHint) .. " (or this click) resumes")
+                    pt.hsPauseMenu:setClickCallback(function() pt.hsPauseToggle() end)
+                end
+            end)
+            pcall(function()
+                hs.alert.show("⏸ Hammerspoon paused\n⇪ shortcuts and typing "
+                    .. "helpers are off — " .. tostring(_G.hsPauseHint)
+                    .. " resumes", 4)
+            end)
+            say("paused — every hyper shortcut but the pause key is quiet")
+        else
+            pcall(function()
+                if pt.hsPauseMenu then pt.hsPauseMenu:delete() end
+                pt.hsPauseMenu = nil
+            end)
+            pcall(function() hs.alert.show("▶️ Hammerspoon back on", 2.5) end)
+            say("resumed")
+        end
+        return _G.hsPaused
+    end
+
+    -- =====================================================================
     -- THE LIST
     -- =====================================================================
     -- ✏️ To add one: copy a row. `id` is what _G.powerReport() counts by,
@@ -1486,6 +1533,10 @@ end tell]]
         { id = "pause", icon = "⏸", title = "Pause all audio and video",
           sub = "Media key + every scriptable player that is running · ⇪'",
           run = function() return pt.pauseAll() end },
+        -- 6.152.0 — the OTHER pause: Hammerspoon itself.
+        { id = "hspause", icon = "⏸", title = "Pause Hammerspoon",
+          sub = "⇪ shortcuts + typing helpers off until pressed again · ⇪⇧1",
+          run = function() return pt.hsPauseToggle() end },
         { id = "ghere", icon = "👻", title = "Ghostty here",
           sub = "Open Ghostty at the front Finder window's folder · ⇪`",
           run = function() return pt.ghosttyHere() end },
@@ -1804,6 +1855,21 @@ end tell]]
                               function() pt.run("greveal") end, "reveal ghostty")
         core.hyperAddShortcut(pt.qrMods,      pt.qrKey,
                               function() pt.run("qr") end, "read a QR code")
+        -- ⏸ 6.152.0 — the pause switch. Its normalized combo is published
+        -- BEFORE binding so init.lua's hyperPauseWrap can recognise "this
+        -- is the one key that still works while paused". The combo string
+        -- must match hyperCombo's spelling: sorted mods + "+" + key.
+        do
+            local ms = {}
+            for _, m in ipairs(pt.hsPauseMods) do ms[#ms + 1] = tostring(m):lower() end
+            table.sort(ms)
+            _G.hsPauseCombo = (#ms == 0) and tostring(pt.hsPauseKey):lower()
+                or (table.concat(ms, "+") .. "+" .. tostring(pt.hsPauseKey):lower())
+            _G.hsPauseHint = "⇪" .. (#ms > 0 and "⇧" or "") .. tostring(pt.hsPauseKey)
+        end
+        core.hyperAddShortcut(pt.hsPauseMods, pt.hsPauseKey,
+                              function() pt.hsPauseToggle() end,
+                              "pause Hammerspoon")
     end
     core.provide("power.show",     function() return pt.show() end)
     core.provide("power.plain",    function() return pt.run("plain") end)

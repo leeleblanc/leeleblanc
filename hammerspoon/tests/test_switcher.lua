@@ -9,7 +9,8 @@ local HS   = (arg and arg[1]) or os.getenv("HAMMERSPOON_DIR")
 local bound, log = {}, {}
 local NOW = 1000
 local FAIL = { list = false, canvas = false, snapshot = false }
-local COUNT = { ordered = 0, all = 0, apps = 0, canvasNew = 0, deleted = 0, alerts = 0 }
+local COUNT = { ordered = 0, all = 0, apps = 0, canvasNew = 0, deleted = 0,
+                alerts = 0, legacy = 0 }
 local ACTIVATED = nil
 local MODS = { alt = true }
 local focused, unminimized = nil, nil
@@ -27,6 +28,10 @@ local function mkwin(id, app, title, minimized, standard, snap)
     return snap ~= false and ("snap:" .. id) or nil
   end
   function w:unminimize() unminimized = id end
+  -- 6.152.0 — the memory probes a remembered window's role to learn
+  -- whether it still exists. A live AX element answers "AXWindow"; a
+  -- destroyed one answers nil. w.dead = true models closing the window.
+  function w:role() if w.dead then return nil end return "AXWindow" end
   -- 6.68.0 — becomeMain/raise are what hs.window:focus() is actually made
   -- of, and the fix is that they are NOT a substitute for activating the
   -- owning app. Recorded separately so a test can tell the two apart.
@@ -69,7 +74,21 @@ function mkapp(name, wins, kind)
   function a:name() return name end
   function a:kind() return kind or 1 end
   function a:bundleID() return "com.test." .. name end
-  function a:allWindows() return wins or {} end
+  -- 🚨 6.152.0 — THE STUB NOW TELLS THE AX TRUTH. app:allWindows()
+  -- returns minimised windows (no Space owns them) but NOT windows
+  -- parked on another desktop — that is the real macOS behaviour the
+  -- old harness contradicted, and the contradiction let "windows on
+  -- ANOTHER Space are listed" pass for years while LL's real Chrome
+  -- windows were missing. Other-desktop windows can only reach the
+  -- grid through the module's memory now, here as on a real Mac.
+  function a:allWindows()
+    local out = {}
+    for _, w in ipairs(wins or {}) do
+      if w.space ~= "other" then table.insert(out, w) end
+    end
+    return out
+  end
+  function a:isRunning() return a.running ~= false end
   function a:activate() ACTIVATED = name end
   return a
 end
@@ -77,13 +96,25 @@ PENDING = {}        -- one-shot timers the module has queued but not run
 MAINED, RAISED, FRONTWIN = nil, nil, nil
 hs = {
   window = {
+    -- 6.152.0 — orderedWindows must NEVER be called any more: it re-runs
+    -- the whole per-app sweep internally (the 1.6s LL paid twice every
+    -- press). COUNT.legacy catches a regression that reintroduces it.
     orderedWindows = function()
-      COUNT.ordered = COUNT.ordered + 1
-      if FAIL.list then error("AX timeout") end
+      COUNT.legacy = COUNT.legacy + 1
       local out = {}
-      -- only windows flagged as being on the CURRENT space, and not minimised
       for _, w in ipairs(WINS) do
         if not w:isMinimized() and w.space ~= "other" then table.insert(out, w) end
+      end
+      return out
+    end,
+    -- The raw CoreGraphics id list: front-to-back, current desktop only,
+    -- no minimised windows — exactly what the real internal returns.
+    _orderedwinids = function()
+      COUNT.ordered = COUNT.ordered + 1
+      if FAIL.list then error("CG refused") end
+      local out = {}
+      for _, w in ipairs(WINS) do
+        if not w:isMinimized() and w.space ~= "other" then table.insert(out, w:id()) end
       end
       return out
     end,
@@ -94,7 +125,14 @@ hs = {
     -- default and keeps every pre-6.68 expectation intact.
     focusedWindow = function() return FRONTWIN end,
   },
-  application = { runningApplications = function() COUNT.apps = COUNT.apps + 1; return APPS end },
+  application = {
+    runningApplications = function() COUNT.apps = COUNT.apps + 1; return APPS end,
+    -- 6.152.0 — the sweep asks the frontmost app first; derived from
+    -- FRONTWIN so the anchor tests drive both with one handle.
+    frontmostApplication = function()
+      return FRONTWIN and FRONTWIN:application() or nil
+    end,
+  },
   timer = {
     secondsSinceEpoch = function() return NOW end,
     doEvery = function(interval, fn)
@@ -192,6 +230,8 @@ local function reset(n)
   AT.finish(false)
   APPS = appsFromWindows(WINS)
   COUNT.ordered, COUNT.all, COUNT.apps, COUNT.canvasNew, COUNT.deleted, COUNT.alerts = 0,0,0,0,0,0
+  COUNT.legacy = 0
+  AT.known, AT.lastHere = {}, {}   -- 6.152.0 — each scenario starts unlearned
   ACTIVATED = nil
   FAIL.list, FAIL.canvas, FAIL.snapshot = false, false, false
   SNAPSHOT_CALLS = 0
@@ -269,19 +309,42 @@ reset(4)
 combos["alt+shift+tab"]()
 check("⌥⇧Tab opens on the last window", AT.session.index == 4, AT.session.index)
 
-out("\n=== 7. EVERY window: other Spaces, monitors, minimised ===\n")
+out("\n=== 7. EVERY window: minimised via AX, other desktops via MEMORY ===\n")
+-- 🚨 6.152.0 — macOS's Accessibility API returns an app's minimised
+-- windows (no Space owns them) but NOT its windows on another desktop.
+-- The harness models that truth now (see mkapp), so the other-desktop
+-- promise must be met the way the module actually meets it: a window is
+-- REMEMBERED from the first press that could see its desktop, and served
+-- from that memory ever after — pruned the moment it dies.
 reset(3)
 local far = mkwin(90, "FarApp", "On another desktop"); far.space = "other"
 local mini = mkwin(91, "MiniApp", "Minimised one", true)
 table.insert(WINS, far); table.insert(WINS, mini)
 APPS = appsFromWindows(WINS)
+local function listedId(id)
+  for _, i in ipairs(AT.session.items) do
+    if i.win and i.win:id() == id then return i end
+  end
+end
 combos["alt+tab"]()
-check("windows on ANOTHER Space are listed (the 6.39.0 fix)", (function()
-  for _, i in ipairs(AT.session.items) do if i.win and i.win:id() == 90 then return true end end
-end)(), #AT.session.items .. " items")
-check("minimised windows are listed", (function()
-  for _, i in ipairs(AT.session.items) do if i.win and i.win:id() == 91 then return true end end
-end)())
+check("minimised windows are listed", listedId(91) ~= nil)
+check("🚨 a window on another desktop is NOT in AX's answer — a first, "
+   .. "unlearned press cannot see it (this is macOS, not a choice)",
+      listedId(90) == nil, #AT.session.items .. " items")
+AT.finish(false)
+-- One press on its own desktop is the whole lesson.
+far.space = nil
+AT.cache = nil
+combos["alt+tab"]()
+check("a press on its own desktop lists it normally", listedId(90) ~= nil)
+AT.finish(false)
+far.space = "other"          -- back on the first desktop: AX forgets it…
+AT.cache = nil
+combos["alt+tab"]()
+check("🧠 …and the MEMORY does not: it is a tile from wherever you are",
+      listedId(90) ~= nil)
+check("...its caption says it is remembered",
+      listedId(90) and listedId(90).remembered == true)
 check("this Space still comes FIRST", AT.session.items[1].win:id() == 1,
       AT.session.items[1].win and AT.session.items[1].win:id())
 check("no window is listed twice", (function()
@@ -292,6 +355,20 @@ check("no window is listed twice", (function()
   end
   return true
 end)())
+check("the timing line counts the remembered windows for ⇪⇧D",
+      _G.altTabLastListing and _G.altTabLastListing.remembered == 1,
+      _G.altTabLastListing and _G.altTabLastListing.remembered)
+AT.finish(false)
+-- A closed window must not haunt the grid: the probe finds the AX
+-- element dead and the memory forgets it, permanently.
+far.dead = true
+AT.cache = nil
+combos["alt+tab"]()
+check("a CLOSED remembered window is probed, found dead, and dropped",
+      listedId(90) == nil)
+check("...and forgotten outright, not re-probed forever",
+      AT.known[90] == nil)
+far.dead = false
 check("only GUI apps are asked (background agents skipped)", (function()
   APPS = { mkapp("Daemon", { mkwin(70, "Daemon", "hidden helper") }, 0) }
   reset(2)
@@ -303,11 +380,15 @@ check("only GUI apps are asked (background agents skipped)", (function()
   end
   return true
 end)())
-check("includeOtherSpaces = false goes back to this Space only", (function()
+check("includeOtherSpaces = false switches the memory off too", (function()
   reset(3)
-  local f2 = mkwin(92, "FarApp", "Other desktop"); f2.space = "other"
+  local f2 = mkwin(92, "FarApp", "Other desktop")
   table.insert(WINS, f2); APPS = appsFromWindows(WINS)
+  combos["alt+tab"]()                 -- learned while on this desktop
+  AT.finish(false)
+  f2.space = "other"
   AT.includeOtherSpaces, AT.includeApps = false, false
+  AT.cache = nil
   combos["alt+tab"]()
   for _, i in ipairs(AT.session.items) do if i.win and i.win:id() == 92 then return false end end
   return true
@@ -350,7 +431,7 @@ reset(4)
 -- stop early rather than paying it 15 times over
 local slowApps = {}
 for i = 1, 15 do
-  local w = mkwin(200 + i, "Slow" .. i, "W"); w.space = "other"
+  local w = mkwin(200 + i, "Slow" .. i, "W")
   local a = mkapp("Slow" .. i, { w })
   local realAll = a.allWindows
   a.allWindows = function(self) NOW = NOW + 0.5; return realAll(self) end
@@ -393,6 +474,7 @@ AT.skipApps = {}
 out("\n=== 8. Bounded cost ===\n")
 reset(0)
 for i = 1, 100 do table.insert(WINS, mkwin(i, "App" .. i, "W" .. i)) end
+APPS = appsFromWindows(WINS)
 combos["alt+tab"]()
 check("window list capped at maxWindows", #AT.session.items == AT.maxWindows, #AT.session.items)
 check("grid never exceeds maxCols", AT.session.cols <= AT.maxCols, AT.session.cols)
@@ -410,80 +492,84 @@ check("a slow enumeration is timed and reported",
       (log[#log] or ""):find("listing took", 1, true) ~= nil, log[#log])
 hs.timer.secondsSinceEpoch = realNow
 
-out("\n=== 9b. 6.151.0 — a slow ON-SCREEN pass no longer starves the sweep ===\n")
--- 🚨 The 6.148.0 console: the on-screen listing alone took 3.0s, the
--- budget counted from t0, and the per-app pass ran for ZERO apps. That
--- message was made honest in 6.148.0; the STARVATION itself is what
--- 6.151.0 removes — it was exactly why ⌥Tab showed one Chrome window
--- and none of the minimised / other-desktop ones (LL's report). The
--- budget now times the per-app pass alone, so a slow phase 1 costs a
--- warning line, not the cross-Space windows.
+out("\n=== 9b. 6.152.0 — one sweep, not two: orderedWindows is gone ===\n")
+-- 🚨 The old phase 1 called hs.window.orderedWindows(), which INTERNALLY
+-- re-runs the whole per-app sweep (plus extra attribute reads) just to
+-- learn the stacking order — 1.6s on LL's Air, on top of the sweep's own
+-- 0.7s, every press. That is "⌥Tab is slow to display". The order now
+-- comes from the raw CoreGraphics id list, which costs milliseconds.
 reset(3)
-AT.listBudget = 0.8
-local zt = 0
-hs.timer.secondsSinceEpoch = function() zt = zt + 1 ; return zt == 1 and 1000 or 1003 end
-AT.listWindows()
-hs.timer.secondsSinceEpoch = realNow
-check("the message still blames the on-screen listing, with its own timing",
-      (log[#log] or ""):find("on-screen window list alone took 3.0s", 1, true) ~= nil,
-      log[#log])
-check("...but the per-app pass RAN anyway — every app was still asked",
-      _G.altTabLastListing and _G.altTabLastListing.apps == 3,
-      _G.altTabLastListing and _G.altTabLastListing.apps)
-check("...and is not reported as truncated: nothing was cut",
-      _G.altTabLastListing and _G.altTabLastListing.truncated == false)
-check("...and the nonsense 'Slowest app: nil' line is gone for good", (function()
-    for _, l in ipairs(log) do
-        if l:find("Slowest app: nil", 1, true) then return false, l end
-    end
-    return true
-end)())
-check("phase 1's own time is published for ⇪⇧D",
-      _G.altTabLastListing and _G.altTabLastListing.orderedSecs == 3.0,
-      _G.altTabLastListing and _G.altTabLastListing.orderedSecs)
+combos["alt+tab"]()
+check("🚨 hs.window.orderedWindows is NEVER called — the double sweep is gone",
+      COUNT.legacy == 0, COUNT.legacy)
+check("...the CG id list is consulted instead, once per listing",
+      COUNT.ordered == 1, COUNT.ordered)
+AT.finish(false)
+-- The CG ranks decide the tile order, whatever order the sweep found
+-- the windows in.
+reset(3)
+local realIds = hs.window._orderedwinids
+hs.window._orderedwinids = function() return { 3, 1, 2 } end
+AT.cache = nil
+combos["alt+tab"]()
+check("tiles follow the CG front-to-back order, not the sweep order",
+      AT.session.items[1].win:id() == 3 and AT.session.items[2].win:id() == 1
+      and AT.session.items[3].win:id() == 2,
+      AT.session.items[1].win and AT.session.items[1].win:id())
+AT.finish(false)
+-- _orderedwinids is an hs.window INTERNAL: a build without it must cost
+-- the ordering, never the switcher.
+hs.window._orderedwinids = nil
+AT.cache = nil
+combos["alt+tab"]()
+check("a build without _orderedwinids still lists every window",
+      AT.session ~= nil and #AT.session.items == 3,
+      AT.session and #AT.session.items)
+hs.window._orderedwinids = realIds
+AT.finish(false)
 
-out("\n=== 9c. …but a genuinely slow APP is still named ===\n")
+out("\n=== 9c. a genuinely slow APP is still named ===\n")
 -- The classic message survives for the case it was built for: the
--- budget dies INSIDE the per-app pass, with a culprit worth naming.
--- (Clock sequence updated for 6.151.0: the pass takes its own t1
--- reading before the first deadline check.)
+-- budget dies inside the sweep, with a culprit worth naming. (Clock
+-- sequence rebuilt for 6.152.0's single-sweep call order.)
 reset(2)
 AT.listBudget = 0.8
 local seq = { 1000,     -- t0
-              1000.1,   -- tOrdered: the on-screen pass was quick
-              1000.2,   -- t1: the per-app pass starts its own clock
-              1000.3,   -- App1's deadline check — 0.1s in, within budget
-              1000.4,   -- App1's own timer starts
-              1001.3,   -- …and ends: App1 took 0.9s
-              1001.1,   -- App2's deadline check — 0.9s > 0.8s, break
+              1000.1,   -- t1: the sweep starts its own clock
+              1000.2,   -- App1's deadline check — 0.1s in, within budget
+              1000.3,   -- App1's own timer starts
+              1001.2,   -- …and ends: App1 took 0.9s
+              1001.1,   -- App2's deadline check — 1.0s > 0.8s, break
               1001.4, 1001.4 }
 local tick = 0
 hs.timer.secondsSinceEpoch = function() tick = tick + 1 ; return seq[tick] or 1001.4 end
 AT.listWindows()
 hs.timer.secondsSinceEpoch = realNow
-check("one slow app is still named, with its own time",
+check("one slow app is named, with its own time",
       (log[#log] or ""):find("Slowest app: App1", 1, true) ~= nil, log[#log])
 check("...and the skipApps advice appears only on THIS path",
       (log[#log] or ""):find("skipApps", 1, true) ~= nil)
 
-out("\n=== 9d. 6.151.0 — the other Chrome windows: visible apps are asked FIRST ===\n")
+out("\n=== 9d. the other Chrome windows: visible apps first + the memory ===\n")
 -- LL: "it shows one Chrome window but no other Chrome windows I have
--- open". The others were minimised or on other desktops — findable only
--- by the per-app pass — and Chrome sat at the BACK of macOS's running-
--- app order while background agents ate the budget at the front. An app
--- that owns a window on this desktop is asked before any app that does
--- not, so the windows you are most likely reaching for are collected
--- before the budget can run out.
+-- open". Rebuilt end to end: the minimised window comes from the sweep
+-- (asked FIRST, because Chrome had a visible window last press, while
+-- background agents eat the budget behind it), and the other-desktop
+-- window comes from the memory — AX will not hand it over at all.
 reset(0)
 local chromeHere = mkwin(500, "Chrome", "Docs")
 local chromeMin  = mkwin(501, "Chrome", "Mail", true)          -- minimised
-local chromeAway = mkwin(502, "Chrome", "Calendar"); chromeAway.space = "other"
+local chromeAway = mkwin(502, "Chrome", "Calendar")            -- for now, here
 WINS = { chromeHere, chromeMin, chromeAway }
 local chromeApp = mkapp("Chrome", { chromeHere, chromeMin, chromeAway })
+APPS = { chromeApp }
+combos["alt+tab"]()              -- the learning press: all three seen
+AT.finish(false)
+chromeAway.space = "other"       -- …then Calendar moves to Desktop 2
+WINS = { chromeHere, chromeMin, chromeAway }
 APPS = {}
 for i = 1, 10 do          -- background agents, each 0.5s of AX time,
-  local aw = mkwin(600 + i, "Agent" .. i, "W"); aw.space = "other"
-  local a = mkapp("Agent" .. i, { aw })
+  local a = mkapp("Agent" .. i, { mkwin(600 + i, "Agent" .. i, "W") })
   local realAll = a.allWindows
   a.allWindows = function(self) NOW = NOW + 0.5; return realAll(self) end
   table.insert(APPS, a)
@@ -497,7 +583,8 @@ for _, i in ipairs(AT.session.items) do
   if i.win then ids[i.win:id()] = true end
 end
 check("the minimised Chrome window is a tile", ids[501] == true)
-check("the other-desktop Chrome window is a tile", ids[502] == true)
+check("the other-desktop Chrome window is a tile — served by the memory",
+      ids[502] == true)
 check("...even though the budget still cut the agent queue short",
       _G.altTabLastListing.truncated == true)
 check("...because Chrome was asked before the agents that macOS listed first",
@@ -517,10 +604,9 @@ AT.finish(false)
 out("\n=== 10. Failures degrade, they don't hang or crash ===\n")
 reset(5); FAIL.list = true
 local ok = pcall(function() combos["alt+tab"]() end)
-check("an AX failure on this Space does not throw", ok)
-check("...is explained in the Console", logged("could not list windows on this Space"))
-check("...and the per-app sweep still supplies the list (6.39.0: degrades "
-      .. "to fewer windows rather than none)", AT.session ~= nil and #AT.session.items == 5,
+check("a CG id-list failure does not throw (6.152.0: it is pcall'd)", ok)
+check("...and costs only the ordering — the sweep still supplies every "
+      .. "window", AT.session ~= nil and #AT.session.items == 5,
       AT.session and #AT.session.items or "no session")
 AT.finish(false)
 reset(5); FAIL.canvas = true
@@ -553,6 +639,7 @@ out("\n=== 12. Titles are truncated, never clipped ===\n")
 reset(0)
 table.insert(WINS, mkwin(1, "App", string.rep("VeryLongWindowTitle", 20)))
 table.insert(WINS, mkwin(2, "Ünïcödé ⌘ App ⇪", "Second"))
+APPS = appsFromWindows(WINS)
 AT.enabled = true
 combos["alt+tab"]()
 local longest = 0
@@ -574,6 +661,7 @@ out("\n=== 13. Small laptop screen (the 1314pt overflow) ===\n")
 resolveBaseScreen = function() return { frame = function() return { x=0, y=0, w=1280, h=800 } end } end
 reset(0)
 for i = 1, 24 do table.insert(WINS, mkwin(i, "App" .. i, "W" .. i)) end
+APPS = appsFromWindows(WINS)
 combos["alt+tab"]()
 check("HUD fits inside a 1280x800 screen",
       AT.session.w <= 1280 and AT.session.h <= 800, AT.session.w .. "x" .. AT.session.h)
@@ -586,6 +674,7 @@ check("...and the footer admits it", (function()
 end)())
 reset(0)
 for i = 1, 4 do table.insert(WINS, mkwin(i, "App" .. i, "W" .. i)) end
+APPS = appsFromWindows(WINS)
 combos["alt+tab"]()
 check("a list that fits says nothing about hiding", (function()
   for _, e in ipairs(drawn) do

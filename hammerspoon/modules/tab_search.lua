@@ -130,6 +130,18 @@ function M.setup(core)
     -- compile. The using-terms block lends it Chrome's dictionary, which
     -- every Chromium browser answers to.
     --
+    -- 🚨 6.152.0 — AND THE SAFARI BRANCH NEEDED THE SAME LOAN, AND NEVER
+    -- HAD IT. Without `using terms from application "Safari"`, the bare
+    -- word `tab` in `tab ti of window wi` parses as AppleScript's built-in
+    -- tab CHARACTER constant, and the `ti` after it is "Expected end of
+    -- line but found identifier" — a COMPILE error at character ~577,
+    -- which kills the WHOLE script before any browser is asked. So every
+    -- single press exited 1 and the alert blamed Automation permission,
+    -- which was never the problem. Straight off LL's ⛔ errors section:
+    -- "osascript exited 1: 577:579: syntax error". The jump script had
+    -- the identical flaw (`current tab` / `tab ti`). Both branches now
+    -- borrow Safari's dictionary, which is installed on every Mac.
+    --
     -- Each window is wrapped in its own try: a browser with one window
     -- that refuses to describe itself must cost that window, not the
     -- browser, and certainly not the other browsers after it.
@@ -144,18 +156,20 @@ on run argv
         set bn to b as text
         if runningNames contains bn then
             if bn starts with "Safari" then
-                try
-                    tell application bn
-                        repeat with wi from 1 to (count of windows)
-                            try
-                                repeat with ti from 1 to (count of tabs of window wi)
-                                    set t to tab ti of window wi
-                                    set out to out & bn & sep & wi & sep & ti & sep & (URL of t) & sep & (name of t) & linefeed
-                                end repeat
-                            end try
-                        end repeat
-                    end tell
-                end try
+                using terms from application "Safari"
+                    try
+                        tell application bn
+                            repeat with wi from 1 to (count of windows)
+                                try
+                                    repeat with ti from 1 to (count of tabs of window wi)
+                                        set t to tab ti of window wi
+                                        set out to out & bn & sep & wi & sep & ti & sep & (URL of t) & sep & (name of t) & linefeed
+                                    end repeat
+                                end try
+                            end repeat
+                        end tell
+                    end try
+                end using terms from
             else
                 using terms from application "Google Chrome"
                     try
@@ -270,12 +284,14 @@ on run argv
     set wi to (item 2 of argv) as integer
     set ti to (item 3 of argv) as integer
     if bn starts with "Safari" then
-        tell application bn
-            set current tab of window wi to tab ti of window wi
-            set index of window wi to 1
-            activate
-            return URL of current tab of window wi
-        end tell
+        using terms from application "Safari"
+            tell application bn
+                set current tab of window wi to tab ti of window wi
+                set index of window wi to 1
+                activate
+                return URL of current tab of window wi
+            end tell
+        end using terms from
     else
         using terms from application "Google Chrome"
             tell application bn

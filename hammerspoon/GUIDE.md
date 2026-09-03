@@ -9,7 +9,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,550 lines)
+├── init.lua          the orchestrator (3,609 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (10 files)
 ├── modules/          one file per feature (60 files, ~39,600 lines)
@@ -185,9 +185,10 @@ module is listed even with no `cheatsheet` at all.
 
 **Two families in one module?** `M.cheatsheet` may be a **list** of groups,
 each with its own `family` — `modules/numpad_layer.lua` does this because
-`⇪ pad` captures text while `⇪⇧ pad` moves windows (and a third group: from
-6.114.0 the number-row laptop layer, since 6.142.0 the freed-keys ledger that
-replaced it). Each group gets its own slot automatically.
+`⇪ pad` captures text while `⇪⇧ pad` is a freed-keys ledger (the window map
+it carried was cleared in 6.152.0, like the number-row laptop layer before it
+in 6.142.0 — the third group is that row's own ledger). Each group gets its
+own slot automatically.
 
 ### What `core` gives you
 
@@ -254,7 +255,7 @@ since 6.30 and shares no code with the drag.
 
 🚨 **That independence is only useful if the person can find it.**
 6.126.0 through 6.128.0 were spent debugging the mouse path while the
-`WINDOW MOVE` cheatsheet group — the one screen you open at the moment a
+`PANEL MOVE` cheatsheet group (titled `WINDOW MOVE` until 6.152.0) — the one screen you open at the moment a
 picker will not move — listed the `⌃⌥⌘R` reset for a nudge whose ARROWS
 it never named. A working feature nobody can find is indistinguishable
 from a broken one, and it costs more, because the hunt for the bug
@@ -507,6 +508,7 @@ and `<logsDir>/diagnostics-<machine>.txt`.
 | Slow boot | `BOOT` section of ⇪⇧D — per-stage timings |
 | ⌥Tab feels heavy | Console names the SLOWEST APP and its time; put it in `altTab.skipApps` |
 | ⌥Tab says "list cut short" | the 0.8s budget tripped; raise `altTab.listBudget` or skip the slow app |
+| ⌥Tab misses another desktop's window | it is remembered from the first press that could SEE that desktop (6.152.0) — press ⌥Tab there once after a reload |
 | `attempt to call a nil value (global '…')` | something calls a function that moved into a module — publish it with `core.provide` and call it with `_G.service.call` |
 | `No provider for '…'` | that module didn't load; see `Modules:` in the boot report |
 | brew errors on every app at once | Homebrew's cache, not your list: `rm -rf "$(brew --cache)/api" && brew update --force` |
@@ -551,9 +553,9 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Sixty-two Lua suites, 6,032 checks, plus three more that run the Capture
+Sixty-two Lua suites, 6,099 checks, plus three more that run the Capture
 Pad's, the screenshot editor's and unified search's page JavaScript under
-`node` for a further 105 — **6,137 checks over sixty-seven stages** in
+`node` for a further 105 — **6,204 checks over sixty-seven stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 
@@ -769,11 +771,12 @@ entire config down rather than one feature.
 
 ## 8. The number pad, as a second keyboard
 
-Yes — the pad is a **separate key path**, and it is **live on two
-layers**: `⇪ + pad` is the capture row (6.99.0 — see below), `⇪⇧ + pad`
-drives windows. It
-sends its own key codes, so `⇪7`, `⇪pad7` and `⇪⇧pad7` are three
-different shortcuts and all three are free:
+Yes — the pad is a **separate key path**: `⇪ + pad` is the capture row
+(6.99.0 — see below); `⇪⇧ + pad` carried the 3×3 window map until LL had
+it cleared in 6.152.0 — those keys now read "Key available for use" on
+the sheet, and `pad7 = "topLeft"` in `numpad.shiftActions` revives one in
+a line. The pad sends its own key codes, so `⇪7`, `⇪pad7` and `⇪⇧pad7`
+are three different shortcuts:
 
 | | number row | number pad |
 |---|---|---|
@@ -786,18 +789,12 @@ Check any of them yourself in the Console: `hs.keycodes.map["pad7"]`.
 Hammerspoon knows `pad0`–`pad9`, `pad.`, `pad+`, `pad-`, `pad*`, `pad/`,
 `pad=`, `padenter`, `padclear`.
 
-The hard part is not binding them, it is remembering them. So
-`numpad_layer.lua` is a **map rather than a list**: the pad is a 3×3 grid
-and your screen is a 3×3 grid, so each key does what its own position
-looks like.
-
-```
-   7  8  9        top-left ·  top half  · top-right
-   4  5  6   →    left half ·  centre   · right half
-   1  2  3        bottom-left · bottom half · bottom-right
-   0              maximise        pad.  put it back
-   + -            grow / shrink   / *   previous / next monitor
-```
+The window map that lived on `⇪⇧ + pad` was a **map rather than a
+list** — the pad is a 3×3 grid and your screen is a 3×3 grid, each key
+doing what its own position looks like (pad7 = top-left quarter, pad0 =
+maximise). That design is kept in the module's comments; the keys
+themselves are free since 6.152.0, on LL's instruction, and the zone
+machinery in `numpad.run` waits for any of them to be claimed back.
 
 The plain `⇪ + pad` layer is the **capture row** (6.99.0, re-cut
 6.100.0):

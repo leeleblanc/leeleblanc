@@ -2,10 +2,77 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-02-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.151.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.152.0
 -- =====================================================================
+
+-- NEW IN 6.152.0 — NINE ASKS IN ONE PASS: ⌥TAB'S MEMORY AND SPEED ·
+-- THE PAUSE KEY · THE POMODORO LOG · ⇪T'S DETAILS · THREE BUGS DEAD:
+--   🧠 ⌥TAB REMEMBERS OTHER DESKTOPS. The truth 6.151.0 missed: macOS's
+--      Accessibility API returns an app's MINIMISED windows but simply
+--      omits windows parked on another desktop — LL's sweep asked
+--      Chrome, Chrome answered in 0.00s, and the Desktop-2 window was
+--      not in the answer. The private APIs that can enumerate other
+--      Spaces return "a lot of false positives" by their own docs, so
+--      the fix is a MEMORY: every window a press lists is remembered,
+--      the AX handle stays valid after its Space stops being
+--      enumerated, and remembered windows the sweep no longer sees are
+--      probed (dead ones forgotten) and shown as tiles — selecting one
+--      rides the app activation across desktops. One ⌥Tab on a desktop
+--      teaches it, per reload.
+--   ⚡ AND IT IS FASTER: the old phase 1 (hs.window.orderedWindows) was
+--      the SAME per-app sweep run a second time internally, just to
+--      learn the stacking order — 1.6s on this Air, every press, per
+--      LL's console. The order now comes from the raw CoreGraphics id
+--      list (milliseconds); the budgeted sweep runs ONCE.
+--   ⏸ PAUSE HAMMERSPOON — ⇪⇧1, the first spend from the 6.142.0 free
+--      row (LL: "Can I pause Hammerspoon using an empty key from my
+--      Cheat Sheet?"). One press: every other ⇪ shortcut goes quiet
+--      (honoured centrally in hyperBind) and autocorrect, the expander
+--      and the key caster pass keystrokes through untouched. A ⏸ HS
+--      menu-bar flag stands while paused — press again, or click it,
+--      to resume. Trackers and timers keep running: pause means "out
+--      of my keyboard", not "stop keeping my logs".
+--   🍅 THE POMODORO GROWS UP: 20% bigger (one pom.scale knob, type
+--      included); FAINT at 30% opacity until it matters — solid 90%
+--      for the last five minutes, under the mouse (instantly, off
+--      again on leave), and whenever it flashes or asks. And it KEEPS
+--      A LOG: every launch and every completed 25 minutes lands in
+--      pomodoro_log-<Mac>.csv (date,time,event,detail); the 4:30
+--      workday end shows the day's tally, Fridays add the week table,
+--      _G.pomodoroReport() answers any time.
+--   ✅ ⇪T LEARNS THE DETAILS: optional Start/End date AND time (Asana's
+--      rules enforced before the request — a start needs an end, times
+--      come in pairs), plus the PROJECT'S OWN custom fields — ACD
+--      Strategic Principle, SAC Values, Task Priority, Progress,
+--      Supervisor — fetched from Asana at boot with their live option
+--      lists, rendered as dropdowns (multi-selects included), sent as
+--      custom_fields. Edit a dropdown in Asana and ⇪T has it on the
+--      next reload; the pipe chooser's four-string call is untouched.
+--   🗂 TAB SEARCH NEVER WORKED, AND NOW DOES: the Safari branch of the
+--      scan script lacked `using terms from` — the bare word `tab`
+--      parsed as AppleScript's tab-character constant and the WHOLE
+--      script failed to compile ("osascript exited 1: 577:579", LL's
+--      ⛔ errors section) on every press, while the alert blamed
+--      Automation permission. Both scripts borrow Safari's dictionary
+--      now. (⇪⇧' still needs the Automation grant, once per browser —
+--      for real this time.)
+--   🕘 THE ⇪Y HANG, SOLVED AT THE ROOT: every kill died at "querying
+--      Default" because sqlite3 wrote megabytes of JSON into a pipe
+--      whose 64 KB buffer is only read at task exit — the child blocks,
+--      the task never exits, the watchdog kills it, forever. The rows
+--      travel by FILE now; stdout carries two marker lines a profile.
+--   🆓 THE ⇪⇧pad WINDOW MAP IS CLEARED — LL: those rows "should just
+--      say: 'Key available for use'". They do; the zones stay one
+--      claimed line away, and ⇪arrows still cover halves/maximise/
+--      put-back/monitors.
+--   🧲 WINDOW MOVE IS RETITLED "PANEL MOVE" — it moves HAMMERSPOON'S
+--      panels and pickers, not your apps' windows; the old name is why
+--      it read as a twin of the Window Arranger.
+--   🐛 AND THE CRASH OFF THE CONSOLE: window_return's slow-app warning
+--      fed a float to %d — "number has no integer representation",
+--      once per snapshot cycle. Floored.
 
 -- NEW IN 6.151.0 — ⌥TAB: THE OTHER CHROME WINDOWS, FOUND AT LAST:
 --   🪟 LL: "Alt+Tab is not showing all windows. Example it shows one
@@ -107,46 +174,10 @@
 --      own exit (sh exited 15, from our own terminate) no longer
 --      overwrites that status with the less honest "export failed".
 
--- NEW IN 6.147.0 — SIX ANSWERS: WHO'S TALKING · NAMES · CLOCK · CONSOLE:
---   🌐 NET WATCH (⇪⇧6, the ledger's free key) — LL: "list any
---      application that is communicating with some service … say what
---      it is doing … resolve where the application is pulling its data
---      from." One lsof snapshot per press, no polling: every app of
---      YOURS with a live connection, one row per app. Remote IPs
---      reverse-resolved through the system resolver, known services
---      explained (Microsoft AutoUpdate monitors Office updates; apsd
---      is every push notification), and an unknown one says
---      UNRECOGNIZED with its raw paths — never a confident guess.
---      ⌘1 copies the FULL report; ⏎ on an app copies that app's:
---      what · why · each path with both ends, state, and the resolved
---      name. _G.netWatchReport() is the console twin.
---   🕐 THE DATE PICKER GAINS A CLOCK AND A REPORT (⇪⇧0): the panel now
---      shows the time — 2:00:00 PM, live to the second — and R copies
---      a "Date report:" of the highlighted date in EVERY format, the
---      week/day line, and the time it was taken. C still copies the
---      one-format date; calendar.report serves other modules.
---   🏷 SCREENSHOTS ARE NAMED BY WHAT IS ON THEM: every ⇪4 capture is
---      OCR'd in the background and its filename gains the shot's own
---      words; ⌘9 in the ⇪⇧4 panel sweeps the backlog — SCR-XXXX files
---      (the other capture tool's naming) fold into "Screenshot … —
---      words.png". A name with words, or one a person chose, is never
---      touched. The words also land in the Finder comment via the OCR
---      engine (its never-overwrite rule intact).
---   🔄 ⌥TAB REACHES THE HAMMERSPOON CONSOLE: asked for BY NAME, since
---      it slips both of the switcher's nets (menu-bar app, and a
---      console window that answers isStandard() = false). Open =
---      a tile; closed = not.
---   🕘 ⇪Y'S EXPORT GETS A DEADLINE: on this Air the export hung and
---      "press ⇪Y again in a moment" became forever. A hung export is
---      now KILLED after 45s and says so; the waiting alert counts the
---      seconds so a healthy run and a hang read differently.
---   📎 DEFAULT APPS, UNBURIED: LL: "the tool to set default apps is
---      buried" — it now has a ⇪; power-tools row beside its @tool row.
-
--- (6.146.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.147.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.151.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.152.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -491,7 +522,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.151.0"
+_G.configVersion = "6.152.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -1996,6 +2027,31 @@ local function hyperCombo(mods, key)
     return table.concat(m, "+") .. "+" .. tostring(key):lower()
 end
 
+-- ⏸ 6.152.0 — THE PAUSE SWITCH, honoured HERE so no shortcut can forget
+-- it. power_tools binds ⇪⇧1 to flip _G.hsPaused; while it is up, every
+-- hyper shortcut EXCEPT the pause key itself does nothing — wrapped once
+-- at bind time, which covers migrations, modules and hyperActions alike.
+-- A pressed shortcut while paused says so (throttled to one alert per
+-- few seconds), because a silently dead keyboard reads as a broken one.
+local hsPausedSaidAt = 0
+local function hyperPauseWrap(combo, fn)
+    if not fn then return nil end
+    return function(...)
+        if _G.hsPaused and combo ~= _G.hsPauseCombo then
+            local now = hs.timer.secondsSinceEpoch()
+            if now - hsPausedSaidAt > 3 then
+                hsPausedSaidAt = now
+                pcall(function()
+                    hs.alert.show("⏸ Hammerspoon is paused — "
+                        .. (_G.hsPauseHint or "⇪⇧1") .. " resumes", 2.5)
+                end)
+            end
+            return
+        end
+        return fn(...)
+    end
+end
+
 local function hyperBind(mods, key, pressedFn, releasedFn, repeatFn, source)
     local combo = hyperCombo(mods, key)
     if _G.hyperBound[combo] then
@@ -2006,6 +2062,9 @@ local function hyperBind(mods, key, pressedFn, releasedFn, repeatFn, source)
     end
     _G.hyperBound[combo] = source or "?"
     _G.hyperBoundCount = _G.hyperBoundCount + 1
+    pressedFn  = hyperPauseWrap(combo, pressedFn)
+    releasedFn = hyperPauseWrap(combo, releasedFn)
+    repeatFn   = hyperPauseWrap(combo, repeatFn)
     _G.hyperModal:bind(mods, key, pressedFn, releasedFn, repeatFn)
     -- 6.76.0 — the same three functions, kept a second time in a plain
     -- table. This costs one table entry per shortcut and it is what makes

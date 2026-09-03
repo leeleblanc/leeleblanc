@@ -37,22 +37,16 @@
 --                                     │ left│ half│right│
 --                                     └─────┴─────┴─────┘
 --
--- ⇪⇧ + pad7 puts the front window in the top-left QUARTER. ⇪⇧ + pad4
--- puts it in the left HALF. ⇪⇧ + pad5 centres it. There is nothing to
--- remember: you are pointing at where you want the window, with a key
--- that is already in that shape. The remaining keys follow the same
--- logic — 0 is the widest key so it maximises, and the arithmetic keys
--- do arithmetic on the size.
+-- ⇪⇧ + pad7 PUT the front window in the top-left QUARTER — past tense:
+-- the map above is the DESIGN this layer shipped with, kept as history
+-- because it explains the module's name and shape. The window map was
+-- CLEARED in 6.152.0 (see the 🪟 block below); zone values still work if
+-- a key is ever claimed with one.
 --
--- 🔀 WHICH LAYER IS WHICH, AND WHY (changed in 6.50.0):
---        ⇪  + pad  →  TOOLS    focus, rename, grid, menu bar, links
---        ⇪⇧ + pad  →  WINDOWS  the 3×3 map drawn above
--- 6.49.0 had these the other way round, on the argument that the window
--- map deserved the easier layer because it needs no memory. That was the
--- wrong trade: the layer you press twenty times a day should be the one
--- without the extra modifier, and that is the tools. The window map is
--- just as memorable one modifier up — its mnemonic is spatial, not
--- positional-on-the-keyboard, so nothing about it degrades.
+-- 🔀 WHICH LAYER IS WHICH (as of 6.152.0):
+--        ⇪  + pad  →  TOOLS    the capture row (6.99.0)
+--        ⇪⇧ + pad  →  FREE     cleared 6.152.0, keys available for use
+--        ⌘⇧ + pad  →  FREE     a real macOS modifier, yours to assign
 --
 -- ⚠️ TWO THINGS THAT WILL STOP THIS WORKING, both outside Hammerspoon:
 --   • ACCESSIBILITY → POINTER CONTROL → MOUSE KEYS. When that is on,
@@ -158,29 +152,31 @@ local M = {
         },
         {
         family = "windows",
-        title = "🔢 NUMPAD — ⇪⇧ pad, THE WINDOW MAP (the pad IS the screen)",
+        title = "🆓 NUMPAD — ⇪⇧ pad, CLEARED 6.152.0 (future shortcut options)",
         entries = {
-            { "⇪⇧ pad7 8 9", "Top-left quarter · top half · top-right quarter" },
-            { "⇪⇧ pad4 5 6", "Left half · centre 70% · right half" },
-            { "⇪⇧ pad1 2 3", "Bottom-left qtr · bottom half · bottom-right qtr" },
-            { "⇪⇧ pad0",     "Maximise (the widest key does the widest thing)" },
-            { "⇪⇧ pad.",     "Put the window back where it was" },
-            { "⇪⇧ pad+ / -", "Grow / shrink around the centre" },
-            { "⇪⇧ pad/ *",   "Previous monitor / next monitor" },
-            { "⇪⇧ padenter", "Centre without resizing" },
-            { "why",         "The pad sends its OWN key codes — pad7 ≠ 7, both free" },
-            { "no pad?",     "Halves ⇪← ⇪→ · maximise ⇪↑ · put back ⇪↓ · monitors ⇪[ ⇪]" },
-            { "if dead",    "Accessibility → Pointer Control → Mouse Keys steals the pad" },
+            -- 6.152.0 — LL, of the old window-map rows: "Those should
+            -- just say: 'Key available for use'." So they do.
+            { "⇪⇧ pad0–9",    "Key available for use" },
+            { "⇪⇧ pad. + -",  "Key available for use" },
+            { "⇪⇧ pad/ *",    "Key available for use" },
+            { "⇪⇧ padenter",  "Key available for use (padclear too)" },
+            { "was",          "The 3×3 window map — cleared on request, like the" },
+            { "",             "⇪⇧ number row in 6.142.0" },
+            { "zones?",       "Halves ⇪← ⇪→ · maximise ⇪↑ · put back ⇪↓ · monitors ⇪[ ⇪]" },
+            { "claim",        "numpad.shiftActions in numpad_layer.lua — a zone name" },
+            { "",             "(pad7 = \"topLeft\" revives that key), service, or function" },
+            { "the list",     "_G.freeKeys() — every free key, from the LIVE registry" },
         },
         },
         {
         family = "windows",
         title = "🆓 THE ⇪⇧ NUMBER ROW — cleared 6.142.0, future shortcut options",
         entries = {
-            { "cleared",  "⇪⇧1 2 3 5 7 8 · ⇪⇧, ⇪⇧. ⇪⇧⏎ — all unbound now" },
+            { "cleared",  "⇪⇧2 3 5 7 8 · ⇪⇧, ⇪⇧. ⇪⇧⏎ — all unbound now" },
             { "why",      "LL: shortcuts \"cleaned, cleared and the keys listed" },
             { "",         "as future possible options for keyboard shortcuts\"" },
             { "except",   "⇪⇧9 = Invert colours — LL's 6.141.0 pick, unblocked" },
+            { "and",      "⇪⇧1 = ⏸ Pause Hammerspoon (6.152.0) — the first spend" },
             { "taken",    "⇪⇧0 mini calendar · ⇪⇧4 Screenshots stay where they are" },
             { "the list", "_G.freeKeys() — every free key, from the LIVE registry" },
             { "zones?",   "On the PAD (⇪⇧pad) · halves ⇪← ⇪→ · maximise ⇪↑ ·" },
@@ -280,35 +276,26 @@ function M.setup(core)
         ["pad-"] = "notes.typeLog",           -- note_pad, pre-typed "+ "
     }
 
-    -- ---- LAYER 2: ⇪⇧ + pad → WINDOWS ------------------------------------
-    -- The pad keys are their own key codes, and a modifier makes them
-    -- their own shortcuts again — ⇪pad7 and ⇪⇧pad7 are two distinct
-    -- combinations. That is what lets one small pad carry both maps
-    -- without costing a single letter on the main keyboard.
+    -- ---- LAYER 2: ⇪⇧ + pad → 🪟→🆓 CLEARED 6.152.0 ----------------------
+    -- The 3×3 window map lived here from 6.49.0. It came out on LL's
+    -- word, sent with a screenshot of its own cheat sheet box:
     --
-    -- The window map keeps its shape: THE KEY'S POSITION IS THE WINDOW'S
-    -- POSITION. pad7 is the top-left quarter because 7 is the top-left
-    -- key. Nothing to memorise, just point at where you want it.
+    --    "Why does the numpad section on the cheat sheet still list some
+    --     window arranging keys? Those should just say: 'Key available
+    --     for use'."
     --
-    --        ┌─────┬─────┬─────┐
-    --        │  7  │  8  │  9  │   quarter · half · quarter
-    --        ├─────┼─────┼─────┤
-    --        │  4  │  5  │  6  │   left half · centre · right half
-    --        ├─────┼─────┼─────┤
-    --        │  1  │  2  │  3  │   quarter · half · quarter
-    --        └─────┴─────┴─────┘
+    -- — the same instruction that cleared the ⇪⇧ number row in 6.142.0,
+    -- now applied to the pad: freed keys are FUTURE real estate, and the
+    -- map mostly duplicated routes that exist without a pad (halves
+    -- ⇪← ⇪→, maximise ⇪↑, put back ⇪↓, monitors ⇪[ ⇪]).
+    --
+    -- The table stays, EMPTY and claimable — same posture as
+    -- cmdShiftActions below. A value may be a zone name (the 3×3 zones
+    -- and the grow/shrink/restore verbs all still live in numpad.run,
+    -- so `pad7 = "topLeft"` brings that key back in one line), a
+    -- published service name, or a function.
     numpad.shiftActions = {
-        pad7 = "topLeft",    pad8 = "topHalf",    pad9 = "topRight",
-        pad4 = "leftHalf",   pad5 = "centre",     pad6 = "rightHalf",
-        pad1 = "bottomLeft", pad2 = "bottomHalf", pad3 = "bottomRight",
-        pad0 = "full",
-        ["pad."]  = "restore",
-        ["pad+"]  = "grow",
-        ["pad-"]  = "shrink",
-        ["pad/"]  = "prevScreen",
-        ["pad*"]  = "nextScreen",
-        padenter  = "centreOnly",
-        padclear  = "restore",
+        -- 🆓 EVERY ⇪⇧ + pad KEY IS FREE, yours to assign.
     }
 
     -- ---- LAYER 4 (⇪⇧ + number row): CLEARED in 6.142.0 ------------------

@@ -640,13 +640,17 @@ check("🚨 EVERY ⇪ pad KEY NAMES A SERVICE SOME MODULE REALLY PUBLISHES — "
     if #missing > 0 then return false, table.concat(missing, ", ") end
     return true
 end)())
-check("...and the shifted layer is still fully populated, so an empty "
-      .. "TOOL layer cannot be mistaken for a fixture that failed to load",
+check("...and the CAPTURE ROW is populated, so an empty shifted layer "
+      .. "cannot be mistaken for a fixture that failed to load (6.152.0: "
+      .. "the shifted layer is deliberately empty — LL cleared the window "
+      .. "map: “Those should just say: 'Key available for use'”)",
       (function()
     local np = _G.numpadLayer
     local n = 0
-    for _ in pairs((np or {}).shiftActions or {}) do n = n + 1 end
-    return n >= 17, n
+    for _ in pairs((np or {}).actions or {}) do n = n + 1 end
+    local nShift = 0
+    for _ in pairs((np or {}).shiftActions or {}) do nShift = nShift + 1 end
+    return n >= 6 and nShift == 0, n .. "/" .. nShift
 end)())
 check("...and no pad key means the same thing on both layers, which "
       .. "would waste a slot", (function()

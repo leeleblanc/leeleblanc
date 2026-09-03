@@ -147,6 +147,17 @@ check("🚨 the Chromium branch borrows Chrome's dictionary",
       ts.scanScript:find('using terms from application "Google Chrome"', 1, true) ~= nil)
 check("…and Safari is handled on its own branch, because its terms differ",
       ts.scanScript:find('bn starts with "Safari"', 1, true) ~= nil)
+-- 🚨 6.152.0 — THE SAFARI BRANCH NEEDS THE SAME LOAN. Without `using
+-- terms from application "Safari"`, the bare word `tab` in `tab ti of
+-- window wi` parses as AppleScript's built-in tab CHARACTER constant and
+-- the `ti` after it is a syntax error — a COMPILE failure that killed the
+-- WHOLE script on every press ("osascript exited 1: 577:579", LL's ⛔
+-- errors section) while the alert blamed Automation permission. These two
+-- pins are the regression sentries for that.
+check("🚨 the Safari SCAN branch borrows Safari's dictionary (6.152.0)",
+      ts.scanScript:find('using terms from application "Safari"', 1, true) ~= nil)
+check("🚨 the Safari JUMP branch borrows it too — same compile trap",
+      ts.jumpScript:find('using terms from application "Safari"', 1, true) ~= nil)
 check("Safari asks for `name of t`, which is what Safari calls a title",
       ts.scanScript:find("name of t", 1, true) ~= nil)
 check("…and Chromium asks for `title of t`",
