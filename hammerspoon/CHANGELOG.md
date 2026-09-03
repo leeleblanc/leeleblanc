@@ -4,6 +4,46 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.160.0 — THE POINTER GOES WHERE FOCUS GOES (⇪⇧3):
+  🖱 LL: "Set the mouse pointer to the center of the focused window
+     whenever focus changes. Additionally, if focused window moves when
+     no mouse buttons are pressed, set the mouse pointer to the new
+     center. This is intended to work with other utilities which warp
+     the focused window." That is MouseFollowsFocus.spoon's contract,
+     and the Spoon does it with hs.window.filter — the one API this
+     config bans (the 44-second beachball). So it is rebuilt on the
+     plumbing Dialog Home has used since 6.143.0: an hs.application.
+     watcher for the app switch, and ONE hs.axuielement.observer on the
+     frontmost app for AXFocusedWindowChanged and AXWindowMoved. The
+     previous app's observer stops when the next attaches. Nothing polls.
+  📐 Two rules. Focus changed (app switch, ⌘` cycling, a new window in
+     front) → the pointer lands on the centre of the focused window.
+     The focused window moved with no mouse button held (⇪← ⇪→ ⇪↑,
+     a window thrown to the other monitor, Window Return) → the pointer
+     lands on its new centre. AXWindowMoved arrives for ANY window of
+     the app and for every step of a drag, so the handler reads the
+     FOCUSED window's frame — a non-focused window moving changes
+     nothing — and a warp to the centre it was last sent to is a no-op
+     (mf.dedupePx), so one move reported twice is one jump.
+  🛡 The guards. Never with a mouse button down — not on a move (your
+     drag is yours) and not on a focus change either (a click that
+     focuses a window IS a button down when AX reports it). Never into
+     our own windows (a pointer landing in a chooser would hover-select
+     a row). Never while paused (⇪⇧1). Never at boot — a reload must not
+     move your pointer. No Accessibility: it stands down and records a
+     notice, the way Dialog Home does.
+  ⌨️ ⇪⇧3 turns it off and on for the session (starts on — the third
+     spend from the cleared number row; the ledger reads 5 7 8 now). A
+     profile can start it off: settings = { mouseFollows = { active =
+     false } }; mf.skipApps names apps never to follow; mf.followMoves =
+     false keeps rule 1 only. _G.mouseFollowsReport() has the last jump,
+     why the last candidate stood still, and who refused a watcher.
+  ✅ Gate: test_mouse_follows (49 checks) drives the real module against
+     a stubbed hs — both rules, every guard, the observer hand-over, the
+     toggle, refusal-once, the report, the AX-off stand-down, and source
+     sentries (no hs.window.filter, no orderedWindows, no polling timer).
+     test_features pins the new ledger. Gate: 6,609 → 6,660 checks, sixty-eight stages, green in the tree and inside the package.
+
 NEW IN 6.159.0 — THE THREE SNIPPETS SHIP · ⇪⇧; KNOWS WHAT IT MAY END:
   📌 LL: "Pick a free key yourself and create all three in this build."
      The key was ⇪⇧2 (6.158.0); the three were Console lines, and a

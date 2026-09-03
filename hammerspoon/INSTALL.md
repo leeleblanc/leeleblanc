@@ -27,7 +27,7 @@ with no admin password. The two steps that *can* use admin are marked
 │   ├── console.lua           the ⛔ ERRORS + ⚠️ NONBREAKING sections + repeat limiter
 │   ├── lag.lua               which tap is eating the keystroke — OFF unless ~/.hammerspoon/LAGPROBE exists (_G.lagOn())
 │   └── notices.lua           the failure ledger — nothing fails silently
-├── modules/              62 files, loaded by the §1.12 loader
+├── modules/              63 files, loaded by the §1.12 loader
 ├── tools/                hs-doctor.sh · hs-install.sh · run-tests.sh
 └── logs/                 only if there is no OneDrive on this Mac
 ```
@@ -183,7 +183,7 @@ Menu bar hammer → **Reload Config**.
 A healthy boot is two lines:
 
 ```
-🧭 Lees-MacBook-Air  ·  62 modules  ·  114 ⇪ shortcuts  ·  0.43s
+🧭 Lees-MacBook-Air  ·  63 modules  ·  114 ⇪ shortcuts  ·  0.43s
    All green.  ⇪⇧D diagnostic report  ·  _G.bootReport() for the full detail
 ```
 
@@ -314,7 +314,7 @@ Run it from the **unpacked zip, before Step 3**, not from `~/.hammerspoon`
 copy it reports every Lua stage as missing. That is a skip, not a pass,
 but it is also not a check.
 
-Syntax on `init.lua`, `core/` and all 62 modules, sixty-two Lua suites, then the
+Syntax on `init.lua`, `core/` and all 63 modules, sixty-three Lua suites, then the
 Capture Pad's page JavaScript **executed** against a DOM stub. One exit
 code. A skipped stage is reported as a skip, never as a pass.
 

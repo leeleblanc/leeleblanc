@@ -4,8 +4,26 @@
 -- =====================================================================
 -- 09-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.159.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.160.0
 -- =====================================================================
+
+-- NEW IN 6.160.0 — THE POINTER GOES WHERE FOCUS GOES (⇪⇧3):
+--   🖱 LL: "Set the mouse pointer to the center of the focused window
+--      whenever focus changes. Additionally, if focused window moves when
+--      no mouse buttons are pressed, set the mouse pointer to the new
+--      center. This is intended to work with other utilities which warp
+--      the focused window." That is MouseFollowsFocus.spoon's contract,
+--      rebuilt WITHOUT hs.window.filter (banned here) on the plumbing
+--      Dialog Home already uses: an app watcher for the switch, one AX
+--      observer on the front app for AXFocusedWindowChanged and
+--      AXWindowMoved. Two rules — focus changed → centre; the focused
+--      window warped → its new centre — and the guards that keep it
+--      polite: never with a mouse button down (your drag is yours; a
+--      click is a button down), never into our own pads and pickers,
+--      never while paused (⇪⇧1), never twice for one move. ⇪⇧3 turns it
+--      off and on (starts on; a profile can start it off with
+--      settings = { mouseFollows = { active = false } }).
+--      _G.mouseFollowsReport() has the last jump and why it stood still.
 
 -- NEW IN 6.159.0 — THE THREE SNIPPETS SHIP · ⇪⇧; KNOWS WHAT IT MAY END:
 --   📌 LL: "create all three in this build." They are in the code now,
@@ -70,38 +88,10 @@
 --      distraction, and the white-on-near-black text reads better for
 --      it. Nothing else changed.
 
--- NEW IN 6.156.0 — ⇪Y WITHOUT THE LOGINS · ⇪⇧T SHOWS WHAT IS IN IT · ⇪L
--- DELETES · THE ⌘-DRAG THAT DID NOTHING · ⌥TAB'S PHASES:
---   🙈 ⇪Y — "remove entries that are just logins": a URL matching
---      chrome.loginPatterns or a title that starts like a login page
---      stays out of the picker (the archive keeps it; chrome.hideLogins
---      = false shows all); the placeholder counts the hidden. "A
---      scrollable list of at least 30 days": the empty box holds
---      everything inside chrome.listDays (30), sixteen rows tall.
---   👁 ⇪⇧T — "show what is in the snippet collection": the ⇪V pane is a
---      service now (preview.open / suspend / close) and follows this
---      picker — a snippet's whole text, a heading's full list; ⏎ on a
---      heading re-opens the picker on that collection alone. Filtering
---      moved into the module (the pane needs the rows on screen), and
---      a snippet's TEXT is searchable for the first time.
---   🗑 ⇪L — "select and delete tasks in bulk or one line": select mode
---      (☑️ row, ✓ tags, 🗑 row) and ⌥⏎ on one row; both ask first;
---      DELETE /tasks/{gid} one at a time, token in the header; Asana's
---      trash keeps them 30 days.
---   🧲 ⌘-DRAG "doesn't seem to work" — the guess: the drag engine polled
---      checkMouseButtons(), and the mouse-down a picker drag CONSUMES
---      can read as "released" on the first tick. The events drive the
---      drag now (a dragged + up tap; the poll only as fallback); every
---      drag is recorded, and one that moved nothing says so in the
---      Console. _G.windowMoveReport() has the record.
---   ⏱ ⌥TAB — "listing took 1.64s … slowest 0.00s · memory 0": every
---      phase is timed and the slow line names the slowest; the owners
---      pass no longer asks AX for each window's app (the sweep knew).
-
--- (6.155.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.156.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.159.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.160.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -446,7 +436,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.159.0"
+_G.configVersion = "6.160.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -3117,6 +3107,7 @@ local BASE = {
     -- 6.116.0
     "write_ledger",       -- 💾 _G.saved() — proof the logs are saving (no key)
     "right_click",        -- 🖱 ⇪⇧F a real right-click at the pointer
+    "mouse_follows",      -- 🖱 ⇪⇧3 6.160.0 the pointer goes where focus goes
     -- 6.119.0 — THE PUNCTUATION TIER. Every ⇪ letter and every ⇪⇧ letter
     -- was already claimed (win_pin took the last one in 6.104.0), so these
     -- four land on punctuation instead. That is not a workaround: ⇪, sits

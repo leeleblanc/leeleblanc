@@ -158,3 +158,9 @@ mirrors draw order: "closes last" IS "drawn under".
   🔒 and the 🔒 reason reads right on the work Mac (no admin: root's rows
   say so). Tiers come from owner + path (`ak.systemPaths`,
   `ak.relaunches`), never a name list alone — keep it that way.
+- 6.160.0 verify with LL: ⇪⇧3 mouse-follows-focus — the pointer lands on
+  the focused window's centre on an app switch, ⌘` and a ⇪-arrow warp;
+  it stays put during a drag and after a click-to-focus (button down);
+  no jump on reload; a pad/picker never receives it. If an app refuses
+  the AX watcher the Console says so once (rule 1 still rides the app
+  watcher). Spoon contract rebuilt WITHOUT hs.window.filter — keep it so.

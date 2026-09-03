@@ -9,10 +9,10 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,700 lines)
+├── init.lua          the orchestrator (3,691 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (10 files)
-├── modules/          one file per feature (62 files, ~44,800 lines)
+├── modules/          one file per feature (63 files, ~45,200 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
 ├── snippets/         bundled.lua — 2,006 shipped snippets in one table,
 │                     in five collections. Since 6.117.0 the .json packs
@@ -521,6 +521,7 @@ and `<logsDir>/diagnostics-<machine>.txt`.
 | ⇪⇧2 typed nothing | the alert says which: secure input (a password field) beats synthetic keystrokes, or ⇧ was still down 0.6s after the press — let go of it |
 | ⇪⇧; shows 🔒 on the process I want to end | it runs as another user (root, mostly — this config never asks for admin) or it is part of macOS (`ak.systemPaths`); the reason leads the row's subtitle. 🔁 rows relaunch by themselves; 🖥 ⚙️ rows are yours (6.159.0) |
 | `;d/` `;d-` `;mp3` do nothing | a snippet of yours has the trigger — the Console says "built-in … stands aside" at load; rename the row in `exp.builtin`. Or the front app is Terminal, which is excluded (Ghostty is not) |
+| The pointer jumps into a window I didn't click | that is Mouse Follows Focus (6.160.0): focus changed, or the focused window was warped. ⇪⇧3 turns it off for the session; `settings = { mouseFollows = { active = false } }` starts it off. It never moves while a mouse button is down — `_G.mouseFollowsReport()` says why the last jump did or didn't happen |
 | `attempt to call a nil value (global '…')` | something calls a function that moved into a module — publish it with `core.provide` and call it with `_G.service.call` |
 | `No provider for '…'` | that module didn't load; see `Modules:` in the boot report |
 | brew errors on every app at once | Homebrew's cache, not your list: `rm -rf "$(brew --cache)/api" && brew update --force` |
@@ -565,9 +566,9 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Sixty-two Lua suites, 6,504 checks, plus three more that run the Capture
+Sixty-three Lua suites, 6,555 checks, plus three more that run the Capture
 Pad's, the screenshot editor's and unified search's page JavaScript under
-`node` for a further 105 — **6,609 checks over sixty-seven stages** in
+`node` for a further 105 — **6,660 checks over sixty-eight stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 
@@ -624,6 +625,10 @@ tests/test_win_pin.lua       📌 ⇪⇧U notes that follow one window — ancho
 tests/test_dialog_home.lua   🎯 dialogs land at your spot: the dialog-kind rule, the
                              PRIMARY-screen default, drag capture with self-move
                              suppression, and the Accessibility-off stand-down
+tests/test_mouse_follows.lua 🖱 ⇪⇧3 the pointer goes where focus goes: both rules,
+                             the button-down / own-window / paused guards, the
+                             observer hand-over on an app switch, the toggle,
+                             and the Accessibility-off stand-down (6.160.0)
 tests/test_battery_saver.lua 🔋 on battery the config slows itself: the debounced
                              flip, exact-cadence restore, the hog caller-out's
                              once-an-hour mute, and the desktop no-op — driving
