@@ -112,11 +112,13 @@ hs = {
             function c:width(n) return self end
             function c:searchSubText(b) return self end
             function c:queryChangedCallback(f) self.qcb = f ; return self end
+            function c:hideCallback(f) self.hideCb = f ; return self end
             CHOOSERS[#CHOOSERS + 1] = c
             return c
         end,
     },
 }
+local CALLS = {}     -- 6.157.0: every core.call (the preview pane services)
 _G.diag = { say = function() end, warn = function() end, err = function() end }
 
 -- The service bus, as define.lua sees it. REPLACED records every call to
@@ -151,6 +153,7 @@ local CORE = {
         BOUND[(mods and mods[1] or "") .. "+" .. key] = { fn = fn, src = src }
     end,
     provide = function(n, f) PROVIDED[n] = f end,
+    call    = function(n, ...) CALLS[#CALLS + 1] = { n = n, args = { ... } } ; return true end,
 }
 
 local f = assert(io.open(HS .. "/modules/define.lua", "r"))
@@ -822,5 +825,33 @@ if fail > 0 then
     io.write("FAILURES:\n")
     for _, f2 in ipairs(failures) do io.write("   ❌ " .. f2 .. "\n") end
 end
+-- =====================================================================
+-- 👁 6.157.0 — the preview pane shows a sense's whole gloss
+io.write("\n=== 9. the preview pane ===\n")
+d.render("light", {
+    { text = "1. the natural agent that stimulates sight…", subText = "noun",
+      kind = "definition", payload = "the natural agent that stimulates sight and makes things visible" },
+    { text = "bright", subText = "synonym", kind = "synonym", payload = "bright" },
+}, "“light”")
+local defRows = _G.choosers.define.choices_
+check("a definition row carries its whole gloss for the pane, headed by the word",
+      defRows[1].rawText == "the natural agent that stimulates sight and makes things visible"
+      and tostring(defRows[1].head):find("light", 1, true) ~= nil, defRows[1].head)
+check("...a synonym row (one word) shows no pane", defRows[2].rawText == nil)
+CALLS = {}
+d.show("light")
+check("opening the picker asks for the pane with THIS chooser", (function()
+    for _, c in ipairs(CALLS) do
+        if c.n == "preview.open" and c.args[1] == _G.choosers.define then return true end
+    end
+    return false
+end)())
+check("...and the picker suspends it when it hides", (function()
+    local c = _G.choosers.define
+    if not c.hideCb then return false end
+    c.hideCb()
+    return CALLS[#CALLS].n == "preview.suspend"
+end)())
+
 io.write(("── test_define: %d passed, %d failed\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

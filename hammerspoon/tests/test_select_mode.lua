@@ -67,6 +67,7 @@ local function newChooserStub(fn)
     end
     function c:choices(x) self.rows = x ; return self end
     function c:queryChangedCallback(f) self.qcb = f ; return self end
+    function c:hideCallback(f) self.hideCb = f ; return self end   -- 6.157.0: the pane
     return c
 end
 
@@ -300,6 +301,23 @@ check("⇪⇧O leads with the select-mode offer, then rows NEWEST FIRST",
       and oc.rows[2].text:find("newest", 1, true) ~= nil
       and oc.rows[4].text:find("oldest", 1, true) ~= nil,
       oc.rows[2] and oc.rows[2].text)
+-- 👁 6.157.0 — LL: "I need a preview window for the relevant pickers
+-- like hyper+o." Both OCR pickers' rows carry the whole text and the
+-- moment, for the pane; both are wired to suspend it when they hide.
+check("⇪⇧O's rows carry the WHOLE text and the moment for the preview pane",
+      oc.rows[2].rawText == "newest text" and oc.rows[2].when == "2026-08-15 11:00:00",
+      oc.rows[2].rawText)
+check("⇪O's rows do too", (function()
+    local items = _G.ocrEngine.history()
+    return items[1] and items[1].rawText == "newest text"
+       and items[1].when == "2026-08-15 11:00:00"
+end)())
+check("...and both pickers suspend the pane when they hide",
+      type(oc.hideCb) == "function" and type(_G.choosers.ocr.hideCb) == "function")
+check("⇪⇧W's document rows carry the name whole and the facts for the pane",
+      lst.rows[4] and type(lst.rows[4].rawText) == "string"
+      and lst.rows[4].rawText:find("\n", 1, true) ~= nil
+      and type(lst.hideCb) == "function", lst.rows[4] and lst.rows[4].rawText)
 
 oc.fn({ action = "selecton" })
 check("select mode: delete + never-mind rows, reopened for the next pick",

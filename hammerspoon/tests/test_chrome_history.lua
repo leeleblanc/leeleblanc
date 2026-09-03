@@ -132,9 +132,11 @@ hs = {
         function c:choices(x) self.lastRows = x ; return self end
         function c:query(q) self.q = q ; return self end
         function c:queryChangedCallback(f) self.qcb = f ; return self end
+        function c:hideCallback(f) self.hideCb = f ; return self end
         function c:show() self.shown = true ; return self end
         CHOOSERS[#CHOOSERS + 1] = c ; return c end },
 }
+local CALLS = {}     -- 6.157.0: every core.call (the preview pane services)
 _G.diag = { said = {},
     say = function(_, m) _G.diag.said[#_G.diag.said + 1] = "say " .. m end,
     warn = function(_, m) _G.diag.said[#_G.diag.said + 1] = "warn " .. m end,
@@ -221,6 +223,7 @@ local CORE = {
         local ms = {} ; for _, x in ipairs(mods or {}) do ms[#ms + 1] = x end
         table.sort(ms) ; HYPER[table.concat(ms, "+") .. "|" .. key] = fn end,
     provide = function(n, f) PROVIDED[n] = f end,
+    call    = function(n, ...) CALLS[#CALLS + 1] = { n = n, args = { ... } } ; return true end,
 }
 
 local CHROME_DIR = HOME .. "/Library/Application Support/Google/Chrome"
@@ -727,6 +730,27 @@ check("typing re-filters through OUR ranking, not the chooser's",
       C.lastRows and #C.lastRows)
 chrome.show()
 check("the chooser is built once and reused", #CHOOSERS == 1, #CHOOSERS)
+
+-- 👁 6.157.0 — the preview pane beside ⇪Y
+check("rows carry the whole title and the WHOLE url for the pane, headed by "
+      .. "when · profile · visits",
+      C.lastRows[1].rawText == "Inbox (3) - Gmail\nhttps://mail.google.com/mail/u/0"
+      and tostring(C.lastRows[1].head):find("99 visits", 1, true) ~= nil,
+      C.lastRows[1].head)
+check("...the rows on screen are recorded for the pane (our filter, our list)",
+      chrome.lastRows == C.lastRows)
+check("...opening asks for the pane with THIS chooser and that list", (function()
+    for _, c in ipairs(CALLS) do
+        if c.n == "preview.open" and c.args[1] == C and type(c.args[2]) == "function"
+           and c.args[2]() == chrome.lastRows then return true end
+    end
+    return false
+end)())
+check("...and the picker hiding suspends it", (function()
+    if not C.hideCb then return false end
+    C.hideCb()
+    return CALLS[#CALLS].n == "preview.suspend"
+end)())
 
 C.fn({ url = "https://mail.google.com/mail/u/0" })
 check("⏎ opens the page in Chrome by bundle id",

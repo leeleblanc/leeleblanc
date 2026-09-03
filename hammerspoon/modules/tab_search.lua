@@ -364,6 +364,10 @@ end run]]
                 text    = title,
                 subText = r.browser .. "   ·   " .. url,
                 idx     = i,
+                -- 👁 6.157.0 — the pane: the whole title and the WHOLE url
+                rawText = r.title .. "\n" .. r.url,
+                head    = "🗂 " .. r.browser
+                          .. (r.win and r.tab and ("  ·  window " .. r.win .. ", tab " .. r.tab) or ""),
             }
         end
         return out
@@ -393,6 +397,12 @@ end run]]
                     ts.chooser:searchSubText(true)
                     ts.chooser:width(45)
                 end)
+                -- 👁 6.157.0 — the preview pane goes down with the picker
+                pcall(function()
+                    ts.chooser:hideCallback(function()
+                        if core.call then pcall(core.call, "preview.suspend") end
+                    end)
+                end)
             end
             local names = {}
             for b, n in pairs(ts.lastCounts) do
@@ -409,6 +419,7 @@ end run]]
             -- could not be dragged at all until 6.127.0.
             if core.showPopup then core.showPopup(ts.chooser)
             else ts.chooser:show() end
+            if core.call then pcall(core.call, "preview.open", ts.chooser) end
         end)
     end
 

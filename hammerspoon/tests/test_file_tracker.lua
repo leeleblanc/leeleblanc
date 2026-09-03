@@ -73,6 +73,7 @@ hs = {
         local c = { cb = fn, rows = {} }
         function c:placeholderText() return self end
         function c:queryChangedCallback(f) self.qc = f; return self end
+        function c:hideCallback(f) self.hideCb = f; return self end
         function c:choices(v) self.rows = v; return self end
         function c:show() return self end
         return c
@@ -390,6 +391,32 @@ check("both writers share ONE row builder, so the column order cannot "
     local _, n = code:gsub("fileTrackerRow%(", "")
     return n >= 3   -- one definition, one append use, one rewrite use
 end)())
+
+-- =====================================================================
+out("\n=== 👁 6.157.0 — the preview pane beside the file list ===\n")
+-- =====================================================================
+do
+    boot()
+    local ch = _G.choosers.fileTracker
+    check("the picker suspends the pane when it hides", type(ch.hideCb) == "function")
+    _G.fileTrackerLog = _G.fileTrackerLog or {}
+    table.insert(_G.fileTrackerLog, {
+        fileName = "Quarterly numbers (final) (really final).xlsx", newName = "",
+        presentLoc = "/Users/lee/OneDrive/Reports", movedLoc = "/Users/lee/Archive",
+        event = "Moved", timestamp = "2026-09-03 10:00", epoch = 0,
+    })
+    ch.qc("Quarterly")
+    local r = ch.rows[1]
+    check("a row carries every field of the event, one per line, for the pane",
+          r and type(r.rawText) == "string"
+          and r.rawText:find("Moved  Quarterly numbers", 1, true) ~= nil
+          and r.rawText:find("\nin  /Users/lee/OneDrive/Reports", 1, true) ~= nil
+          and r.rawText:find("\nto  /Users/lee/Archive", 1, true) ~= nil
+          and r.when == "2026-09-03 10:00", r and r.rawText)
+    local src = get(HS .. "/modules/file_tracker.lua") or ""
+    check("...and the hotkey opens the pane after the picker shows",
+          src:find('"preview.open"', 1, true) ~= nil)
+end
 
 os.execute("rm -rf '" .. DIR .. "'")
 

@@ -532,6 +532,14 @@ function M.setup(core)
                 table.insert(choices, {
                     text    = text,
                     subText = e.event .. "  ·  " .. table.concat(locBits, "  ") .. "  ·  " .. e.timestamp,
+                    -- 👁 6.157.0 — the pane: every field on its own line,
+                    -- nothing truncated
+                    rawText = e.event .. "  " .. e.fileName
+                              .. (e.newName ~= "" and ("\n→ " .. e.newName) or "")
+                              .. (e.presentLoc ~= "" and ("\nin  " .. e.presentLoc) or "")
+                              .. (e.movedLoc ~= "" and ("\nto  " .. e.movedLoc) or "")
+                              .. "\n" .. e.timestamp,
+                    when    = e.timestamp,
                 })
             end
             if #choices >= 400 then break end
@@ -555,9 +563,16 @@ function M.setup(core)
         end
     end)
 
+    -- 👁 6.157.0 — the preview pane follows this picker too
+    pcall(function()
+        _G.choosers.fileTracker:hideCallback(function()
+            if core.call then pcall(core.call, "preview.suspend") end
+        end)
+    end)
     hs.hotkey.bind(fileTrackerMods, fileTrackerKey, function()
         renderFileTrackerChoices("")
         core.showPopup(_G.choosers.fileTracker)
+        if core.call then pcall(core.call, "preview.open", _G.choosers.fileTracker) end
     end)
 end
 

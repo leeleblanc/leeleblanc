@@ -283,6 +283,23 @@ function M.setup(core)
         return string.format("%.1f KB · last: %s", size / 1024, firstWords(last, 44))
     end
 
+    -- 👁 6.157.0 — the preview pane shows the END of the file: the last
+    -- lines, read from the tail exactly as tailOf does, so a 40 MB log
+    -- still costs one seek and a few KB.
+    local function tailText(path, bytes)
+        local f = io.open(path, "r")
+        if not f then return "(empty — the first append creates it)" end
+        local size = f:seek("end")
+        f:seek("set", math.max(0, size - bytes))
+        local blob = f:read("a") or ""
+        f:close()
+        if size > bytes then blob = blob:gsub("^[^\n]*\n", "", 1) end   -- drop the cut line
+        blob = blob:gsub("%s+$", "")
+        if blob == "" then return string.format("(%d bytes, nothing readable at the end)", size) end
+        return blob
+    end
+    qa.tailText = tailText
+
     function qa.chooseTarget()
         local choices = {
             { text = "✏️  Type a line instead…",
@@ -290,10 +307,13 @@ function M.setup(core)
               typeIt = true },
         }
         for i, t in ipairs(qa.targets) do
+            local path = qa.pathFor(t)
             table.insert(choices, {
                 text    = t.name .. (i == qa.defaultTarget and "   (default)" or ""),
-                subText = (t.note and (t.note .. " · ") or "") .. tailOf(qa.pathFor(t), 4096),
+                subText = (t.note and (t.note .. " · ") or "") .. tailOf(path, 4096),
                 index   = i,
+                rawText = tailText(path, 4096),
+                head    = "📝 " .. t.name .. "  ·  " .. (t.file or "") .. "  ·  the last lines",
             })
         end
 
@@ -320,12 +340,19 @@ function M.setup(core)
         chooser:placeholderText("Append the clipboard to…")
         chooser:searchSubText(true)
         chooser:rows(math.min(8, #choices))
+        -- 👁 6.157.0 — the preview pane goes down with the picker
+        pcall(function()
+            chooser:hideCallback(function()
+                if core.call then pcall(core.call, "preview.suspend") end
+            end)
+        end)
         -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the
         -- LAST picker's coordinates standing in _G.lastPopupPlacement,
         -- and window_move computes its grab box from that record. It
         -- could not be dragged at all until 6.127.0.
         if core.showPopup then core.showPopup(chooser)
         else chooser:show() end
+        if core.call then pcall(core.call, "preview.open", chooser) end
         qa.chooser = chooser   -- held: a collected chooser closes itself
         -- ⎋ 6.93.0: filed in _G.choosers so Esc closes it before the cheat sheet
         _G.choosers = _G.choosers or {}

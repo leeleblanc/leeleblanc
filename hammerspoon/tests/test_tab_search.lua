@@ -74,6 +74,7 @@ hs = {
             function c:show() SHOWS = SHOWS + 1 ; return self end
             function c:width(n) return self end
             function c:searchSubText(b) return self end
+            function c:hideCallback(f) self.hideCb = f ; return self end
             CHOOSERS[#CHOOSERS + 1] = c
             return c
         end,
@@ -82,12 +83,13 @@ hs = {
 _G.diag = { say = function() end, warn = function() end, err = function() end }
 _G.notices = { record = function() end }
 
-local BOUND, PROVIDED = {}, {}
+local BOUND, PROVIDED, CALLS = {}, {}, {}
 local CORE = {
     hyperAddShortcut = function(mods, key, fn, src)
         BOUND[(mods and mods[1] or "") .. "+" .. key] = { fn = fn, src = src }
     end,
     provide = function(n, f) PROVIDED[n] = f end,
+    call    = function(n, ...) CALLS[#CALLS + 1] = { n = n, args = { ... } } ; return true end,
 }
 
 local chunk = assert(loadfile(HS .. "/modules/tab_search.lua"))
@@ -397,6 +399,33 @@ check("with nothing answering it says what to check",
       rep:find("Automation", 1, true) ~= nil, rep)
 
 -- =====================================================================
+-- =====================================================================
+out("\n=== 👁 6.157.0 — the preview pane beside the tab list ===\n")
+-- LL: "I need a preview window for the relevant pickers … Can we
+-- correct all the picker tools that don't have one?"
+local paneRows = ts.choices({ { title = string.rep("a very long tab title ", 6),
+                                url = "https://example.com/a/very/long/path/that/the/row/cuts",
+                                browser = "Google Chrome", win = 2, tab = 5 } })
+check("a tab row carries the WHOLE title and url for the pane, headed by browser, "
+      .. "window and tab",
+      paneRows[1].rawText == string.rep("a very long tab title ", 6)
+                             .. "\nhttps://example.com/a/very/long/path/that/the/row/cuts"
+      and paneRows[1].head == "🗂 Google Chrome  ·  window 2, tab 5", paneRows[1].head)
+check("...the row itself still shows the cut versions", #paneRows[1].text < 200
+      and paneRows[1].text:find("…", 1, true) ~= nil)
+check("the picker asks for the pane after it shows", (function()
+    for _, c in ipairs(CALLS) do
+        if c.n == "preview.open" and c.args[1] == CHOOSERS[#CHOOSERS] then return true end
+    end
+    return false
+end)())
+check("...and suspends it when it hides", (function()
+    local c = CHOOSERS[#CHOOSERS]
+    if not (c and c.hideCb) then return false end
+    c.hideCb()
+    return CALLS[#CALLS].n == "preview.suspend"
+end)())
+
 out(("\n── test_tab_search: %d passed, %d failed\n"):format(pass, fail))
 if fail > 0 then
     out("\nFAILURES:\n")

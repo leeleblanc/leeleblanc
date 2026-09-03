@@ -485,7 +485,10 @@ function M.setup(core)
                     if timestamp and rawText then
                         local cleanText = rawText:gsub('^"', ''):gsub('"$', ''):gsub('""', '"'):gsub('\\n', '\n')
                         local shortTitle = cleanText:gsub("%s+", " "):sub(1, 65)
-                        table.insert(items, 1, { text = shortTitle, subText = "🕒 " .. timestamp, rawText = cleanText })
+                        -- rawText: ⏎ copies it and (6.157.0) the preview
+                        -- pane shows it whole; `when` heads the pane
+                        table.insert(items, 1, { text = shortTitle, subText = "🕒 " .. timestamp,
+                                                 rawText = cleanText, when = timestamp })
                     end
                 end
             end
@@ -535,9 +538,28 @@ function M.setup(core)
         end
     end):placeholderText("Search OCR Logs...")
 
+    -- 👁 6.157.0 — THE PREVIEW PANE. LL: "I need a preview window for the
+    -- relevant pickers like hyper+o." clipboard_history publishes the
+    -- pane as a service; a picker only has to put the whole text in each
+    -- row's rawText (⇪O always did — ⏎ copies it), suspend the pane when
+    -- it hides, and open it after it shows. The pane reads the rows the
+    -- chooser is showing (its own filter included) by itself.
+    local function paneFollows(chooser)
+        pcall(function()
+            chooser:hideCallback(function()
+                if core.call then pcall(core.call, "preview.suspend") end
+            end)
+        end)
+    end
+    local function paneOpen(chooser)
+        if core.call then pcall(core.call, "preview.open", chooser) end
+    end
+    paneFollows(_G.choosers.ocr)
+
     function ocr.show()
         _G.choosers.ocr:choices(ocr.history())
         showPopup(_G.choosers.ocr)
+        paneOpen(_G.choosers.ocr)
         return true
     end
 
@@ -584,6 +606,7 @@ function M.setup(core)
                               and (ocrEditTagged[i] and "PICKED — Enter unpicks it" or "Enter picks it")
                               or "Enter to edit or delete"),
                 idx     = i,
+                rawText = e.text, when = e.timestamp,     -- 👁 the pane (6.157.0)
             })
         end
         _G.choosers.ocrEdit:choices(choices)
@@ -872,7 +895,9 @@ function M.setup(core)
 
     _G.choosers.ocrEdit = hs.chooser.new(function(choice)
         if not choice then return end
-        local function reopen() ocrEditRender(); showPopup(_G.choosers.ocrEdit) end
+        local function reopen()
+            ocrEditRender(); showPopup(_G.choosers.ocrEdit); paneOpen(_G.choosers.ocrEdit)
+        end
         if choice.action == "selecton" then
             ocrEditSelect, ocrEditTagged = true, {}
             reopen(); return
@@ -907,6 +932,7 @@ function M.setup(core)
         ocr.openEditor(choice.idx)
     end)
     _G.choosers.ocrEdit:placeholderText("Select an OCR entry — Enter opens it to edit or delete")
+    paneFollows(_G.choosers.ocrEdit)
 
     function ocr.edit()
         -- 🚨 CLOSE ANY OPEN BOX FIRST. ocr.edit RE-READS the CSV into
@@ -924,6 +950,7 @@ function M.setup(core)
         ocrEditSelect, ocrEditTagged = false, {}
         ocrEditRender()
         showPopup(_G.choosers.ocrEdit)
+        paneOpen(_G.choosers.ocrEdit)
         return true
     end
 

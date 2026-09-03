@@ -132,8 +132,11 @@ mirrors draw order: "closes last" IS "drawn under".
   heading's contents, ⏎ on a heading narrows; ⇪L select mode + ⌥⏎ delete
   (asks first; Asana trash 30 days); ⌥Tab slow line names the phase.
   Preview pane is a SERVICE (preview.open/suspend/close from
-  clipboard_history); a picker using it must filter its own rows
-  (queryChangedCallback) so row indexes match what is on screen.
+  clipboard_history). 6.157.0: it reads rows via
+  chooser:selectedRowContents(r), so any chooser gets a pane with three
+  lines — `rawText` (+ optional `head`/`when`) on each row, hideCallback →
+  preview.suspend, preview.open after showPopup. Hand a rowsFn only when
+  the module filters for itself. Action/app-list pickers stay without one.
 - 6.155.0 verify with LL: an SCR- capture from another tool gets its words
   within seconds of landing (Console: "named on arrival"; ⌘9 row says
   "nothing waiting"); ⇪V pane survives a ⇪⇧-arrow nudge and rides a

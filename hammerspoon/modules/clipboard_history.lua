@@ -316,19 +316,25 @@ function M.setup(core)
     end
 
     -- Which row to show: the mouse while it is inside the picker's rows,
-    -- otherwise the keyboard's selection. nil = nothing to show.
+    -- otherwise the keyboard's selection. nil = nothing to show. The
+    -- third value is the keyboard's row when the mouse won, so a mouse
+    -- row that turns out to hold nothing (past the end of a filtered
+    -- list) can fall back to it.
     function clip.previewRow(chooser, box, n)
         local m
         pcall(function() m = hs.mouse.absolutePosition() end)
+        local mouseRow
         if type(m) == "table" and box
            and m.x >= box.x and m.x <= box.x + box.w
            and m.y >= box.y + pv.headH and m.y <= box.y + box.h then
             local r = math.floor((m.y - box.y - pv.headH) / pv.rowH) + 1
-            if r >= 1 and r <= n then return r, "mouse" end
+            if r >= 1 and r <= n then mouseRow = r end
         end
         local sel
         pcall(function() sel = chooser:selectedRow() end)
-        if type(sel) == "number" and sel >= 1 and sel <= n then return sel, "keys" end
+        if not (type(sel) == "number" and sel >= 1 and sel <= n) then sel = nil end
+        if mouseRow then return mouseRow, "mouse", sel end
+        if sel then return sel, "keys" end
         return nil
     end
 
@@ -401,9 +407,11 @@ function M.setup(core)
         local chars = #text
         local rawLines = select(2, text:gsub("\n", "")) + 1
         -- 6.156.0 — another picker's rows may bring their own header
-        -- (the snippet picker names the trigger and the collection)
-        local head = entry.head or string.format("📋 %s  ·  %d char%s  ·  %d line%s%s",
-            tostring(entry.when or ""), chars, chars == 1 and "" or "s",
+        -- (the snippet picker names the trigger and the collection);
+        -- 6.157.0 — or just a `when`, or nothing but the text
+        local head = entry.head or string.format("%s%d char%s  ·  %d line%s%s",
+            entry.when and ("📋 " .. tostring(entry.when) .. "  ·  ") or "",
+            chars, chars == 1 and "" or "s",
             rawLines, rawLines == 1 and "" or "s",
             chars > clip.previewMaxChars
                 and ("  ·  first " .. clip.previewMaxChars .. " shown") or "")
@@ -475,10 +483,30 @@ function M.setup(core)
         end
         pv.hiddenAt = nil
         local box, sf = clip.previewBox(ch)
-        local rows = (pv.rowsFn and pv.rowsFn()) or {}
-        local r, how = nil, nil
-        if box then r, how = clip.previewRow(ch, box, #rows) end
-        local entry = r and rows[r]
+        -- 👁 6.157.0 — TWO WAYS TO KNOW WHAT ROW r IS. A picker that
+        -- filters for itself hands over rowsFn (the rows AS SHOWN); any
+        -- other picker is asked directly — hs.chooser:selectedRowContents(r)
+        -- returns the r-th row of whatever list the chooser is showing,
+        -- its own filter included — so the pane needs nothing from the
+        -- module beyond a rawText on each row. LL: "I need a preview
+        -- window for the relevant pickers like hyper+o. Can we correct
+        -- all the picker tools that don't have one?"
+        local rows = pv.rowsFn and pv.rowsFn() or nil
+        local n = rows and #rows or 100000
+        local function rowAt(r)
+            if rows then return rows[r] end
+            local t
+            pcall(function() t = ch:selectedRowContents(r) end)
+            if type(t) == "table" and next(t) ~= nil then return t end
+            return nil
+        end
+        local r, how, alt = nil, nil, nil
+        if box then r, how, alt = clip.previewRow(ch, box, n) end
+        local entry = r and rowAt(r)
+        if not (entry and type(entry.rawText) == "string") and alt then
+            r, how = alt, "keys"          -- the mouse sat past the list's end
+            entry = rowAt(r)
+        end
         if not (entry and type(entry.rawText) == "string") then
             -- an action row, an empty list, or nowhere to put the pane:
             -- take it down (a fresh one is cheap) and keep polling
@@ -486,7 +514,7 @@ function M.setup(core)
             pv.lastKey, pv.shown = nil, nil
             return
         end
-        local key = pv.gen .. ":" .. r .. ":" .. #entry.rawText
+        local key = pv.gen .. ":" .. r .. ":" .. #entry.rawText .. ":" .. entry.rawText:sub(1, 48)
         if pv.lastKey ~= key then clip.previewDraw(entry, box, sf, key) end
         pv.shown = { row = r, how = how }
     end

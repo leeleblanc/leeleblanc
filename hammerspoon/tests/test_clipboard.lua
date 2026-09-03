@@ -105,6 +105,8 @@ hs = {
         function c:width(x) if x then return self end return 40 end
         function c:rows(x) if x then return self end return 10 end
         function c:selectedRow() return SEL end
+        -- 6.157.0: the r-th row AS SHOWN (the chooser's own filter included)
+        function c:selectedRowContents(r) return (self.rows or {})[r or SEL] end
         function c:isVisible() return VIS end
         function c:hideCallback(f) self.hideCb = f ; return self end
         function c:query() return self end
@@ -724,6 +726,36 @@ do
     check("...and its whole text is the body", bodyText() == "Kind regards,\nLee", bodyText())
     PROVIDED["preview.close"]()
     check("preview.close takes it down", C.pv.canvas == nil and C.pv.poll == nil)
+
+    -- 👁 6.157.0 — LL: "I need a preview window for the relevant pickers
+    -- like hyper+o. Can we correct all the picker tools that don't have
+    -- one?" A picker that hands over NO rows function is asked directly:
+    -- hs.chooser:selectedRowContents(r) is the r-th row as shown.
+    local other = hs.chooser.new(function() end)
+    other.rows = { { text = "a", rawText = "first entry, whole" },
+                   { text = "b", rawText = "second entry, whole" } }
+    _G.lastPopupPlacement = { screen = SCREEN, point = { x = 300, y = 180 }, chooser = other }
+    SEL = 2 ; MOUSE = { x = 0, y = 0 }
+    PROVIDED["preview.open"](other)              -- no rows function at all
+    check("a picker with no rows function still gets a pane — the row comes "
+          .. "from selectedRowContents", bodyText() == "second entry, whole", bodyText())
+    check("...headed by the text's size alone when the row has no `when` and no head",
+          (function()
+              for _, e in ipairs(pane().elements) do
+                  if e.type == "text" and e.text:find("^%d+ chars") then return true end
+              end
+          end)())
+    local box3 = C.previewBox(other)
+    MOUSE = { x = box3.x + 20, y = box3.y + C.pv.headH + 0 * C.pv.rowH + 10 }
+    C.pv.poll.fn()
+    check("the mouse over row 1 wins there too", bodyText() == "first entry, whole", bodyText())
+    MOUSE = { x = box3.x + 20, y = box3.y + C.pv.headH + 7 * C.pv.rowH + 10 }
+    C.pv.poll.fn()
+    check("the mouse past the END of a filtered list falls back to the keyboard's row",
+          bodyText() == "second entry, whole" and C.pv.shown.how == "keys", bodyText())
+    MOUSE = { x = 0, y = 0 }
+    PROVIDED["preview.close"]()
+    _G.lastPopupPlacement = { screen = SCREEN, point = { x = 300, y = 180 }, chooser = C.chooser }
 
     -- the wrap is arithmetic, and it keeps indentation
     local w = C.previewWrap("    indented code line that is fairly long indeed", 24)

@@ -1272,6 +1272,24 @@ check("the picker lists every target plus a type-it row",
       and #LAST_CHOOSER._choices == #qa.targets + 1)
 check("...and the type-it row is first",
       LAST_CHOOSER._choices[1].typeIt == true)
+-- 👁 6.157.0 — the preview pane shows the END of the file beside the row
+check("each target row carries the file's last lines for the preview pane, "
+      .. "headed by the target's name",
+      type(LAST_CHOOSER._choices[2].rawText) == "string"
+      and tostring(LAST_CHOOSER._choices[2].head):find(qa.targets[1].name, 1, true) ~= nil,
+      LAST_CHOOSER._choices[2].head)
+check("qa.tailText reads only the tail, and drops the line the cut fell inside", (function()
+    local p = qa.dir .. "/tail-probe.txt"
+    local f = io.open(p, "w")
+    for i = 1, 400 do f:write("line " .. i .. " of the probe file, padded out a little\n") end
+    f:close()
+    local t = qa.tailText(p, 500)
+    os.remove(p)
+    return t:find("line 400", 1, true) ~= nil and t:find("line 1 of", 1, true) == nil
+       and t:sub(1, 5) == "line "
+end)())
+check("...and says so for a file that does not exist yet",
+      qa.tailText(qa.dir .. "/never.txt", 500):find("first append creates it", 1, true) ~= nil)
 
 -- =====================================================================
 -- 4. SCREEN VEIL
@@ -2220,6 +2238,16 @@ do
   local S = MODDIR
   local ft = io.open(S .. "/file_tracker.lua"):read("a")
   local at = io.open(S .. "/activity_tracker.lua"):read("a")
+  local ch = io.open(S .. "/command_history.lua"):read("a")
+
+  -- 👁 6.157.0 — the preview pane, wired the same three ways everywhere
+  for name, src in pairs({ file_tracker = ft, activity_tracker = at, command_history = ch }) do
+    check(name .. " rows carry rawText for the preview pane",
+          src:find("rawText%s*=") ~= nil)
+    check(name .. " suspends the pane when its picker hides and opens it after showing",
+          src:find('"preview.suspend"', 1, true) ~= nil
+          and src:find('"preview.open"', 1, true) ~= nil)
+  end
 
   check("file tracker caches its search string on the entry",
         ft:find("e%._hay") ~= nil)

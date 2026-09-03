@@ -759,7 +759,8 @@ function M.setup(core)
                 subText = "Clear the box for today, or type 'month' for other views",
             })
             for _, e in ipairs(list) do
-                table.insert(choices, { text = e.name, subText = core.formatDuration(e.seconds) })
+                table.insert(choices, { text = e.name, subText = core.formatDuration(e.seconds),
+                                        rawText = e.name .. "\n" .. core.formatDuration(e.seconds) })
             end
 
         elseif qLower == "month" then
@@ -786,7 +787,8 @@ function M.setup(core)
                 table.insert(choices, { text = "No activity recorded yet today", subText = "" })
             end
             for _, e in ipairs(list) do
-                table.insert(choices, { text = e.name, subText = core.formatDuration(e.seconds) })
+                table.insert(choices, { text = e.name, subText = core.formatDuration(e.seconds),
+                                        rawText = e.name .. "\n" .. core.formatDuration(e.seconds) })
             end
 
         else
@@ -827,7 +829,10 @@ function M.setup(core)
                 for _, e in ipairs(list) do
                     local sub = core.formatDuration(e.seconds)
                     if matchURL[e.name] then sub = sub .. "  ·  " .. matchURL[e.name] end
-                    table.insert(choices, { text = e.name, subText = sub })
+                    table.insert(choices, { text = e.name, subText = sub,
+                                            -- 👁 6.157.0 — the pane: name, time, url, each whole
+                                            rawText = e.name .. "\n" .. core.formatDuration(e.seconds)
+                                                      .. (matchURL[e.name] and ("\n" .. matchURL[e.name]) or "") })
                 end
             end
         end
@@ -1224,6 +1229,10 @@ function M.setup(core)
                                               or "  ·  Enter adds it to the copy list")
                                   or "  ·  Enter copies this row"),
                     action  = "row", key = r.key,
+                    -- 👁 6.157.0 — the pane: the name whole, then the facts
+                    rawText = r.file .. "\n" .. r.date .. "  ·  " .. (r.app or "?")
+                              .. "  ·  " .. core.formatDuration(r.secs or 0),
+                    when    = r.date,
                 })
                 shown = shown + 1
                 if shown >= docMaxRows then break end
@@ -1307,6 +1316,9 @@ function M.setup(core)
                     text    = (picked and "✓ " or "✏️ ") .. docRowText(r),
                     subText = r.date .. "  ·  " .. hint,
                     action  = "edit", key = r.key,
+                    rawText = r.file .. "\n" .. r.date .. "  ·  " .. (r.app or "?")
+                              .. "  ·  " .. core.formatDuration(r.secs or 0),
+                    when    = r.date,
                 })
                 shown = shown + 1
                 if shown >= docMaxRows then break end
@@ -1402,16 +1414,34 @@ function M.setup(core)
     end)
 
     -- ---- wiring ----------------------------------------------------------
+    -- 👁 6.157.0 — the preview pane (clipboard_history's service) follows
+    -- the two document pickers: the pane reads the rows the chooser is
+    -- showing by itself, so this is a suspend on hide and an open on show.
+    local function paneFollows(ch)
+        pcall(function()
+            ch:hideCallback(function()
+                if core.call then pcall(core.call, "preview.suspend") end
+            end)
+        end)
+    end
+    local function paneOpen(ch)
+        if core.call then pcall(core.call, "preview.open", ch) end
+    end
+    paneFollows(_G.choosers.activityDocs)
+    paneFollows(_G.choosers.activityDocsEdit)
+
     core.hyperAddShortcut({ "shift" }, "w", function()
         docSelect, docTagged = false, {}
         renderDocList(""); _G.choosers.activityDocs:query("")
         core.showPopup(_G.choosers.activityDocs)
+        paneOpen(_G.choosers.activityDocs)
     end, "activity — documents")
 
     core.hyperAddShortcut({ "shift" }, "e", function()
         docEditSelect, docEditTagged = false, {}
         renderDocEdit(""); _G.choosers.activityDocsEdit:query("")
         core.showPopup(_G.choosers.activityDocsEdit)
+        paneOpen(_G.choosers.activityDocsEdit)
     end, "activity — document edit")
 
     core.provide("activity.docs",     function() return docRows() end)

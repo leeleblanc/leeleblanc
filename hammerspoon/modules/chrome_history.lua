@@ -853,6 +853,12 @@ printf 'finished cleanly\n' >> "$pf"
                 subText = e.when .. "  ·  " .. e.profile .. "  ·  "
                           .. e.url:sub(1, 90),
                 url     = e.url,
+                -- 👁 6.157.0 — the pane: the whole title and the WHOLE url
+                rawText = (e.title ~= "" and (e.title .. "\n") or "") .. e.url,
+                head    = "🕘 " .. e.when .. "  ·  " .. e.profile .. "  ·  "
+                          .. tostring(e.visits or 0) .. " visit"
+                          .. ((e.visits or 0) == 1 and "" or "s")
+                          .. (e.archived and "  ·  from the archive" or ""),
             }
         end
         return rows
@@ -894,13 +900,20 @@ printf 'finished cleanly\n' >> "$pf"
             -- ⎋ 6.93.0: filed in _G.choosers so Esc closes it before the cheat sheet
             _G.choosers = _G.choosers or {}
             _G.choosers.chromeHistory = c
+            -- 👁 6.157.0 — the preview pane goes down with the picker
+            pcall(function()
+                c:hideCallback(function()
+                    if core.call then pcall(core.call, "preview.suspend") end
+                end)
+            end)
             pcall(function()
                 c:rows(chrome.pickerRows or 12)
                 c:width(48)
                 c:searchSubText(false)   -- we filter for ourselves below
                 c:queryChangedCallback(function(query)
                     pcall(function()
-                        chrome.chooser:choices(choicesFor(chrome.search(query)))
+                        chrome.lastRows = choicesFor(chrome.search(query))
+                        chrome.chooser:choices(chrome.lastRows)
                     end)
                 end)
             end)
@@ -909,6 +922,7 @@ printf 'finished cleanly\n' >> "$pf"
             local altName = tostring(chrome.altBrowser or ""):match("[^.]+$")
                             or "other"
             local first = choicesFor(chrome.search(""))
+            chrome.lastRows = first          -- what the pane reads (rows AS SHOWN)
             chrome.chooser:placeholderText(#chrome.visible()
                 .. " pages, " .. tostring(chrome.days) .. " days — ⏎ opens · ⌥⏎ "
                 .. altName .. " · ⌘⏎ copies"
@@ -923,6 +937,10 @@ printf 'finished cleanly\n' >> "$pf"
             if core.showPopup then core.showPopup(chrome.chooser)
             else chrome.chooser:show() end
         end)
+        -- 👁 6.157.0 — the pane, fed by the chooser's own rows (see
+        -- clipboard_history: selectedRowContents), so its filter is ours
+        if core.call then pcall(core.call, "preview.open", chrome.chooser,
+                                function() return chrome.lastRows end) end
         return true
     end
 

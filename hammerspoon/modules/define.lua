@@ -583,7 +583,15 @@ function M.setup(core)
     function d.render(word, rows, headline)
         if not d.chooser then return end
         local all = {}
-        for _, r in ipairs(rows or {}) do all[#all + 1] = r end
+        for _, r in ipairs(rows or {}) do
+            -- 👁 6.157.0 — a definition row carries its whole gloss for
+            -- the preview pane (the row itself is one truncated line)
+            if r.kind == "definition" and r.rawText == nil then
+                r.rawText = tostring(r.payload or "")
+                r.head    = "📖 " .. word .. "  ·  " .. tostring(r.subText or "")
+            end
+            all[#all + 1] = r
+        end
         all[#all + 1] = d.dictRow(word)
         d.chooser:choices(all)
         d.chooser:placeholderText(headline)
@@ -602,6 +610,12 @@ function M.setup(core)
         pcall(function()
             d.chooser:searchSubText(true)
             d.chooser:width(46)
+        end)
+        -- 👁 6.157.0 — the preview pane goes down with the picker
+        pcall(function()
+            d.chooser:hideCallback(function()
+                if core.call then pcall(core.call, "preview.suspend") end
+            end)
         end)
         -- Nothing selected? Type a word. The row updates as you type and
         -- ⏎ looks it up — which is also how you look up a SECOND word
@@ -666,6 +680,8 @@ function M.setup(core)
         end
         if core.showPopup then core.showPopup(d.chooser)
         else d.chooser:show() end
+        -- 👁 6.157.0 — the pane shows a sense's whole gloss beside the list
+        if core.call then pcall(core.call, "preview.open", d.chooser) end
 
         if word == "" then return true end
         d.lookup(word, function(result)

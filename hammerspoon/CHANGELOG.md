@@ -4,6 +4,47 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.157.0 — THE PREVIEW PANE, ON EVERY PICKER THAT HOLDS TEXT:
+  👁 LL, with ⇪O open: "I need a preview window for the relevant pickers
+     like hyper+o. Can we correct all the picker tools that don't have
+     one?" Forty-odd pickers were read for this. The pane (6.154.0's,
+     beside ⇪V) used to need the picker to FILTER FOR ITSELF, so the
+     rows the pane read were the rows on screen — which is why only ⇪V,
+     ⇪⇧V and ⇪⇧T had one. hs.chooser answers that question directly:
+     selectedRowContents(r) is the r-th row of whatever list the chooser
+     is showing, its own filter included, so the pane now asks the
+     chooser when no rows function was handed over. Wiring a picker up
+     is three lines: a rawText on each row (and, if it likes, a head
+     line or a `when`), a suspend when the picker hides, an open after
+     it shows. The mouse row that turns out to be past the end of a
+     filtered list falls back to the keyboard's row; a row with neither
+     head nor when is headed by its size alone.
+     WIRED, and what each shows: ⇪O and ⇪⇧O — the OCR text whole, with
+     its moment (⇪O's rows always carried it: ⏎ copies it); ⇪H — the
+     command, whole; ⇪⇧N — the LAST LINES of that notes file, read from
+     the tail (one seek, 4 KB, never the 40 MB log); ⌃⌥⇧F — the file
+     event with every field on its own line; ⇪Y — the whole title and
+     the WHOLE url, headed by when · profile · visits and "from the
+     archive" when it is; ⇪⇧' tab search — title and url whole, with
+     window and tab; ⇪8 define — a sense's whole gloss; ⇪⇧W / ⇪⇧E — the
+     document name whole, then date · app · time; ⌘⌥⇧0 activity —
+     "app — title" whole, time, url; ⇪L — the task's whole name, its due
+     line and its link (select mode included).
+     LEFT ALONE, on purpose: pickers whose rows ARE the whole story —
+     the action lists (⇪6 network, ⇪⇧4 actions, power tools, universal
+     actions, the editor picker), app and window lists (⇪⇧A, ⌥-jump,
+     app kill, default apps, menu bar, menu search, settings panes,
+     Asana team, update tracker), the cheat sheet's two editors, bulk
+     rename, and the ⇪⇧4 history rows, whose thumbnails already are the
+     preview — and ⇪I, which is a page of its own, not a chooser. The
+     Task Creator keeps its own mirror panel.
+  ✅ Gate: 6,486 → 6,518 checks (test_clipboard 99 → 103;
+     test_chrome_history 130 → 134; test_tab_search 65 → 69;
+     test_file_tracker 35 → 38; test_define 129 → 133; test_select_mode
+     43 → 47; test_features 447 → 456), 67 stages, lint and the hostile
+     world green, in the tree and inside the package. The zip still
+     carries no snippets/ (see 6.155.0).
+
 NEW IN 6.156.1 — THE CHEAT SHEET, 20% LESS SEE-THROUGH:
   🪟 ⇪/ — LL: "Can we make the cheat sheet window less translucent by
      about 20%?" One knob, one number: cheatSheet.alpha in

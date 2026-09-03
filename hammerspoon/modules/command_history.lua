@@ -164,7 +164,8 @@ function M.setup(core)
                 table.insert(choices, {
                     text    = e.cmd:gsub("%s+", " "):sub(1, 160),
                     subText = e.when or "",
-                    rawText = e.cmd,
+                    rawText = e.cmd,        -- ⏎ copies it; the pane shows it whole
+                    when    = e.when or "",
                 })
                 if #choices >= commandHistoryMaxRows then break end
             end
@@ -187,6 +188,13 @@ function M.setup(core)
     end)
     _G.choosers.commandHistory:placeholderText(
         "Search your shell history — Enter copies the command")
+    -- 👁 6.157.0 — the preview pane (clipboard_history's service) shows
+    -- the whole command beside the picker; it goes down with the picker
+    pcall(function()
+        _G.choosers.commandHistory:hideCallback(function()
+            if core.call then pcall(core.call, "preview.suspend") end
+        end)
+    end)
     _G.choosers.commandHistory:queryChangedCallback(function(query)
         local ok, err = pcall(renderCommandHistory, query)
         if not ok then
@@ -217,6 +225,7 @@ function M.setup(core)
         renderCommandHistory("")
         _G.choosers.commandHistory:query("")
         core.showPopup(_G.choosers.commandHistory)
+        if core.call then pcall(core.call, "preview.open", _G.choosers.commandHistory) end
     end, "command history")
 
     _G.commandHistoryLoadForTest = commandHistoryLoad

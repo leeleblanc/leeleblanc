@@ -4,8 +4,24 @@
 -- =====================================================================
 -- 09-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.156.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.157.0
 -- =====================================================================
+
+-- NEW IN 6.157.0 — THE PREVIEW PANE, ON EVERY PICKER THAT HOLDS TEXT:
+--   👁 LL: "I need a preview window for the relevant pickers like
+--      hyper+o. Can we correct all the picker tools that don't have
+--      one?" The pane no longer needs a picker to filter for itself: it
+--      asks hs.chooser for the r-th row AS SHOWN (selectedRowContents),
+--      so wiring one up is a rawText on each row, a suspend on hide and
+--      an open on show. Wired: ⇪O and ⇪⇧O (the OCR text, whole), ⇪H
+--      (the command), ⇪⇧N (the last lines of the notes file), ⌃⌥⇧F
+--      (every field of the file event), ⇪Y (title and url whole, with
+--      visits), ⇪⇧' tab search (title and url), ⇪8 define (a sense's
+--      whole gloss), ⇪⇧W / ⇪⇧E documents, ⌘⌥⇧0 activity, ⇪L Asana
+--      (name, due, link) — on top of ⇪V, ⇪⇧V and ⇪⇧T. Left alone on
+--      purpose: pickers whose rows ARE the whole story (actions, app
+--      lists, settings panes, the ⇪⇧4 rows with their thumbnails) and
+--      ⇪I, which is a page of its own, not a chooser.
 
 -- NEW IN 6.156.1 — THE CHEAT SHEET, 20% LESS SEE-THROUGH:
 --   🪟 ⇪/ — LL: "Can we make the cheat sheet window less translucent by
@@ -120,39 +136,10 @@
 --      digits translucent copies (cardAlpha / inkAlpha); the flash
 --      keeps its full colours.
 
--- NEW IN 6.153.0 — ⌥TAB'S HIDDEN 1.5 SECONDS · THE ⇪T WINDOW GROWS UP ·
--- ⇪Y LEARNS TO COPY:
---   🐢 "⌥TAB IS VERY SLOW" — and the Console line could not explain
---      itself: "listing took 1.64s across 13 apps (slowest: 0.01s)".
---      Thirteen fast apps cannot add up to 1.64 seconds. The missing
---      1.5s was 6.152.0's MEMORY re-proving every remembered window —
---      two AX round-trips each, every press, outside every timer in
---      the file. The probes now stop at altTab.probeBudget (0.25s),
---      least recently verified first; a window the budget cannot reach
---      is still a tile and is probed FIRST next press, so a closed one
---      still vanishes within a press or two. The isMinimized read is
---      skipped when minimised windows are included anyway (the
---      default — that halves the AX cost by itself), and the timing
---      line now accounts for the phase: "· memory: N probed in X.XXs".
---   ✅ THE ⇪T WINDOW, THREE COMPLAINTS IN ONE SITTING: SAC Values is
---      CHECKBOX CHIPS now, not the one system-styled list box in a
---      dark form (its ⌘-click rule lived in a hover tooltip, and
---      WebKit's focus blue read as "already picked"). The TITLE BAR IS
---      A DRAG HANDLE — window_move drives it, the ⇪space recipe; ⌘-drag
---      anywhere still works. And the form asks for the non-activating
---      panel mask (the Capture Pad's recipe, verified by read-back), so
---      it TAKES TYPING THE MOMENT IT OPENS instead of after a click —
---      without yanking Hammerspoon's other windows forward.
---   🕘 ⇪Y GROWS TWO VERBS — LL: "I might want to copy it and open it
---      in another browser." ⌘⏎ copies the pick's URL to the clipboard
---      and opens nothing; ⌥⏎ opens it in Safari (chrome.altBrowser);
---      bare ⏎ is Chrome, unchanged. The placeholder teaches all three
---      on every open.
-
--- (6.152.1 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.153.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.156.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.157.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -497,7 +484,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.156.1"
+_G.configVersion = "6.157.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2353,6 +2340,19 @@ local coreKeys = {
 hs.hotkey.bind(coreKeys.activityTracker[1], coreKeys.activityTracker[2], function()
     _G.service.call("activity.renderChoices", "")
     showPopup(_G.choosers.appTracker)
+    -- 👁 6.157.0 — the preview pane (clipboard_history's service) shows
+    -- a row's whole "app — title" and url beside the list
+    if _G.service.has and _G.service.has("preview.open") then
+        if not _G.appTrackerPaneWired then
+            _G.appTrackerPaneWired = true
+            pcall(function()
+                _G.choosers.appTracker:hideCallback(function()
+                    pcall(_G.service.call, "preview.suspend")
+                end)
+            end)
+        end
+        pcall(_G.service.call, "preview.open", _G.choosers.appTracker)
+    end
 end)
 
 -- (⇪⇧O's EDIT/DELETE picker was here until 6.105.0 — the CSV snapshot,
@@ -2711,6 +2711,12 @@ local function fetchAsanaDashboard(mode)
             and "💬 Pick a task to comment on…"
             or  "Filter your current priority tasks… (⌥⏎ deletes one)"
 
+        -- 👁 6.157.0 — the preview pane: the whole task name, its due
+        -- line and its link, beside the picker
+        for _, c in ipairs(masterChoicesList) do
+            c.rawText = tostring(c.text or "") .. "\n" .. tostring(c.subText or "")
+                        .. (c.url and ("\n" .. c.url) or "")
+        end
         _G.asanaSelect.master = masterChoicesList
         local rows = _G.asanaSelect.rows(masterChoicesList)
         _G.choosers.asana:choices(rows)
@@ -2718,7 +2724,22 @@ local function fetchAsanaDashboard(mode)
         _G.choosers.asana:rows(math.min(#rows, 10))
         showPopup(_G.choosers.asana)
         asanaLegendShow()
+        _G.asanaSelect.pane()
     end)
+end
+
+-- 👁 6.157.0 — the pane, through the registry (clipboard_history provides
+-- it); the hideCallback is set once, the first time the picker opens.
+_G.asanaSelect.pane = function()
+    local svc = _G.service
+    if not (svc and svc.has and svc.has("preview.open") and _G.choosers.asana) then return end
+    if not _G.asanaSelect.paneWired then
+        _G.asanaSelect.paneWired = true
+        pcall(function()
+            _G.choosers.asana:hideCallback(function() pcall(svc.call, "preview.suspend") end)
+        end)
+    end
+    pcall(svc.call, "preview.open", _G.choosers.asana)
 end
 
 -- 🗑 6.156.0 — SELECT SEVERAL, DELETE. LL: "Can we use the Asana hyper+L
@@ -2768,6 +2789,7 @@ _G.asanaSelect.reshow = function()
     pcall(function() _G.choosers.asana:rows(math.min(#rows, 10)) end)
     showPopup(_G.choosers.asana)
     asanaLegendShow()
+    sel.pane()
 end
 
 _G.asanaSelect.delete = function(list)
