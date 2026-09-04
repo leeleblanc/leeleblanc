@@ -92,6 +92,10 @@ function M.setup(core)
     clip.previewGrace = 0.6         -- 6.155.0: seconds the pane waits for a
                                     -- NUDGED picker to come back (⇪⇧-arrows
                                     -- hide + re-show it) before it gives up
+    clip.previewMousePx = 2         -- 6.160.4: points the pointer must MOVE
+                                    -- between two polls to take the pane —
+                                    -- a pointer merely resting on the
+                                    -- picker never has it
     clip.file        = (core.logsDir or hs.configdir)
                        .. "/clipboard_history-" .. tostring(core.hostTag) .. ".json"
     -- ----------------------------------------------------------------------
@@ -235,8 +239,9 @@ function M.setup(core)
     --     picker's box — the placement record plus window_move's row
     --     constants, because macOS gives a chooser no frame getter. The
     --     mouse wins while it is inside the picker, the keyboard the rest
-    --     of the time. (One honest limit: the box maths assumes the list
-    --     is scrolled to its top, which it is until you wheel it.)
+    --     of the time — a rule 6.160.4 narrowed to the hand that MOVED,
+    --     see below. (One honest limit: the box maths assumed the list
+    --     was scrolled to its top; 6.160.4 estimates the scroll instead.)
     -- The pane is an hs.canvas beside the picker — to the RIGHT when it
     -- fits, else the left — sized to the text down to the screen's bottom
     -- edge ("automatically expand"); what will not fit ends in an honest
@@ -259,9 +264,40 @@ function M.setup(core)
     -- the next tick. A ⌘-drag never hides the picker at all (show(point)
     -- re-anchors it live) and window_move now moves the placement point
     -- with the hand, so the pane rides along at the poll's cadence.
+    --
+    -- 🖱 6.160.4 — THE LAST HAND THAT MOVED. LL: "In my Chrome history
+    -- list, the entry in the picker will say it's a particular line
+    -- while the pop-up to the right will list something different."
+    -- 6.154.0's rule — the mouse wins while it is INSIDE the picker —
+    -- counted a pointer that was merely resting there, and since 6.160.0
+    -- Mouse Follows Focus parks the pointer at the centre of the focused
+    -- window: on a big Chrome window that is the centre of the screen,
+    -- which is row 9 of the ⇪Y picker that opens around it. So the
+    -- highlight sat on row 1, the pane showed row 9, and the arrows moved
+    -- the highlight while the pane stayed put. Now the poll remembers
+    -- where the pointer was and what the keyboard had: the mouse takes
+    -- the pane only when it MOVES (clip.previewMousePx or more) onto a
+    -- row, the keyboard takes it back the moment the selection changes,
+    -- and a still pointer never overrules the highlight. While the mouse
+    -- is the hand the pane's header says so ("🖱 under the pointer") —
+    -- that is the one time the pane and the highlight are meant to
+    -- differ. The row maths also stops assuming an unscrolled list: the
+    -- first visible row is estimated from the keyboard — a new list is
+    -- taken to start at the top (the usual order is type, then arrow;
+    -- NSTableView keeps its scroll offset across a reload, and the
+    -- selection pulls the estimate back to wherever the arrows put it),
+    -- and an arrow that walks the selection past either edge scrolls
+    -- the list just far enough to show it (HSChooser.m: every arrow is
+    -- selectChoice, which is selectRowIndexes + scrollRowToVisible; it
+    -- has no hover code at all, which is why the pane polls). A wheel
+    -- scroll is still invisible (hs.chooser has no scroll getter), so it
+    -- stays the one honest limit.
     clip.pv = { canvas = nil, poll = nil, chooser = nil, rowsFn = nil,
                 lastKey = nil, gen = 0, hiddenAt = nil,
-                rowH = 44, headH = 56 }   -- window_move's chooserRowH / chooserHeadH
+                rowH = 44, headH = 56,    -- window_move's chooserRowH / chooserHeadH
+                -- 6.160.4: which hand has the pane, what each hand last
+                -- did, and the estimated first visible row
+                hand = "keys", lastMouse = nil, lastSel = nil, top = 1, lastN = nil }
     local pv = clip.pv
 
     local function now()
@@ -274,6 +310,7 @@ function M.setup(core)
         if pv.poll   then pcall(function() pv.poll:stop()     end) ; pv.poll = nil end
         if pv.canvas then pcall(function() pv.canvas:delete() end) ; pv.canvas = nil end
         pv.chooser, pv.rowsFn, pv.lastKey, pv.shown, pv.hiddenAt = nil, nil, nil, nil, nil
+        pv.hand, pv.lastMouse, pv.lastSel, pv.top, pv.lastN = "keys", nil, nil, 1, nil
     end
 
     -- The picker went away: the pane goes with it NOW (a pane over an
@@ -315,25 +352,55 @@ function M.setup(core)
                  h = pv.headH + rows * pv.rowH }, sf
     end
 
-    -- Which row to show: the mouse while it is inside the picker's rows,
-    -- otherwise the keyboard's selection. nil = nothing to show. The
-    -- third value is the keyboard's row when the mouse won, so a mouse
-    -- row that turns out to hold nothing (past the end of a filtered
-    -- list) can fall back to it.
+    -- Which row to show. 6.154.0 said "the mouse while it is inside the
+    -- picker's rows, otherwise the keyboard" and 6.160.4 found that rule
+    -- wrong the moment the pointer merely RESTS inside the picker (THE
+    -- LAST HAND THAT MOVED, above). Now the mouse takes the pane when it
+    -- MOVES onto a row, the keyboard takes it back when the selection
+    -- changes, and a still pointer never overrules the highlight. nil =
+    -- nothing to show. The second value names the hand; the third is the
+    -- keyboard's row when the mouse won, so a mouse row that turns out to
+    -- hold nothing (past the end of a filtered list) can fall back to it.
     function clip.previewRow(chooser, box, n)
-        local m
-        pcall(function() m = hs.mouse.absolutePosition() end)
-        local mouseRow
-        if type(m) == "table" and box
-           and m.x >= box.x and m.x <= box.x + box.w
-           and m.y >= box.y + pv.headH and m.y <= box.y + box.h then
-            local r = math.floor((m.y - box.y - pv.headH) / pv.rowH) + 1
-            if r >= 1 and r <= n then mouseRow = r end
-        end
         local sel
         pcall(function() sel = chooser:selectedRow() end)
         if not (type(sel) == "number" and sel >= 1 and sel <= n) then sel = nil end
-        if mouseRow then return mouseRow, "mouse", sel end
+        -- the first visible row, estimated: a new list is taken to start
+        -- at the top, an arrow past either edge scrolls just far enough to
+        -- show the selection (selectChoice → scrollRowToVisible), and the
+        -- selection pulls the estimate along from there
+        if n ~= pv.lastN then pv.top, pv.lastN = 1, n end
+        local vis = math.max(1, math.floor((box.h - pv.headH) / pv.rowH + 0.5))
+        if sel then
+            if sel < pv.top then pv.top = sel
+            elseif sel > pv.top + vis - 1 then pv.top = sel - vis + 1 end
+        end
+        local m
+        pcall(function() m = hs.mouse.absolutePosition() end)
+        if not (type(m) == "table" and type(m.x) == "number"
+                and type(m.y) == "number") then m = nil end
+        local moved = false
+        if m then
+            local last = pv.lastMouse
+            if not last then
+                pv.lastMouse = { x = m.x, y = m.y }      -- first look: resting
+            elseif math.abs(m.x - last.x) >= clip.previewMousePx
+                or math.abs(m.y - last.y) >= clip.previewMousePx then
+                moved, pv.lastMouse = true, { x = m.x, y = m.y }
+            end
+        end
+        local mouseRow
+        if m and m.x >= box.x and m.x <= box.x + box.w
+           and m.y >= box.y + pv.headH and m.y <= box.y + box.h then
+            local r = pv.top + math.floor((m.y - box.y - pv.headH) / pv.rowH)
+            if r >= 1 and r <= n then mouseRow = r end
+        end
+        local selChanged = pv.lastSel ~= nil and sel ~= pv.lastSel
+        pv.lastSel = sel
+        if not mouseRow then pv.hand = "keys"          -- off the rows: the keyboard's
+        elseif moved then pv.hand = "mouse"             -- onto a row: the mouse's
+        elseif selChanged then pv.hand = "keys" end     -- an arrow: the keyboard's
+        if pv.hand == "mouse" and mouseRow then return mouseRow, "mouse", sel end
         if sel then return sel, "keys" end
         return nil
     end
@@ -369,8 +436,9 @@ function M.setup(core)
     end
 
     -- Lay the entry out beside the picker. Returns true when a pane is
-    -- on screen for it.
-    function clip.previewDraw(entry, box, sf, key)
+    -- on screen for it. `how` names the hand (6.160.4): when it is the
+    -- mouse, the header says so.
+    function clip.previewDraw(entry, box, sf, key, how)
         if pv.canvas and pv.lastKey == key then return true end
         local sty = _G.uiStyle or {}
         local pad, fs = 14, 13
@@ -415,6 +483,7 @@ function M.setup(core)
             rawLines, rawLines == 1 and "" or "s",
             chars > clip.previewMaxChars
                 and ("  ·  first " .. clip.previewMaxChars .. " shown") or "")
+        if how == "mouse" then head = head .. "  ·  🖱 under the pointer" end
         local els = {
             { type = "rectangle", action = "strokeAndFill",
               fillColor   = sty.bg or { red = 0.09, green = 0.10, blue = 0.13, alpha = 0.92 },
@@ -514,8 +583,9 @@ function M.setup(core)
             pv.lastKey, pv.shown = nil, nil
             return
         end
-        local key = pv.gen .. ":" .. r .. ":" .. #entry.rawText .. ":" .. entry.rawText:sub(1, 48)
-        if pv.lastKey ~= key then clip.previewDraw(entry, box, sf, key) end
+        local key = pv.gen .. ":" .. r .. ":" .. how .. ":" .. #entry.rawText
+                    .. ":" .. entry.rawText:sub(1, 48)
+        if pv.lastKey ~= key then clip.previewDraw(entry, box, sf, key, how) end
         pv.shown = { row = r, how = how }
     end
 

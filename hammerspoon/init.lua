@@ -4,8 +4,25 @@
 -- =====================================================================
 -- 09-04-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.160.3
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.160.4
 -- =====================================================================
+
+-- NEW IN 6.160.4 — THE PANE FOLLOWS THE LAST HAND THAT MOVED:
+--   🖱 LL: "In my Chrome history list, the entry in the picker will say
+--      it's a particular line while the pop-up to the right will list
+--      something different." The pane's 6.154.0 rule — the mouse wins
+--      while it is INSIDE the picker — counted a pointer that was merely
+--      resting there, and since ⇪⇧3 went on the pointer rests at the
+--      centre of the focused window: with Chrome filling the screen,
+--      the centre of the screen — row 9 of the ⇪Y picker that opens
+--      around it. The highlight sat on row 1, the pane showed row 9, and
+--      the arrows moved one but not the other. Now the mouse takes the
+--      pane only when it MOVES onto a row (clip.previewMousePx), an
+--      arrow takes it back at once, a still pointer never overrules the
+--      highlight, and while the mouse has it the pane's header says
+--      "🖱 under the pointer". The row under the pointer is also right
+--      after the arrows have scrolled the list (the first visible row is
+--      estimated from the keyboard); a wheel scroll is still invisible.
 
 -- NEW IN 6.160.3 — ⌥TAB STOPS PAYING FOR THE CONSOLE TWICE:
 --   🔄 LL: "Opt+tab takes about a second or so to appear. Way longer
@@ -72,29 +89,10 @@
 --      settings = { mouseFollows = { active = false } }).
 --      _G.mouseFollowsReport() has the last jump and why it stood still.
 
--- NEW IN 6.159.0 — THE THREE SNIPPETS SHIP · ⇪⇧; KNOWS WHAT IT MAY END:
---   📌 LL: "create all three in this build." They are in the code now,
---      not in a Console line: ;d/ → 03/09/2026, ;d- → 03-09-2026, ;mp3
---      → yt-dlp -x --audio-format mp3 "<the copied link>". Built-ins sit
---      UNDER everything of yours — a Mine, import or pack snippet with
---      the same trigger wins and the load says so — under their own
---      ⇪⇧T heading. exp.builtin in text_expander.lua is the table.
---   🔒 "a 'Kill an app' tool that identifies anything running, that I
---      can kill, but that will not crash my MacBook." ⇪⇧; still lists
---      every process, and every row now wears its tier, read off the
---      process's OWNER and PATH: 🖥 ⚙️ yours (apps — Apple's in
---      /System/Applications included — helpers, shells, scripts,
---      Homebrew: offered), 🔁 relaunches (Finder, Dock, the menu-bar
---      agents: offered, launchd brings them back), 🔒 locked (another
---      user's, or yours but part of macOS — loginwindow, cfprefsd, tccd:
---      listed with the reason, never ended, not under ⌥, not on a
---      second pick). Yours first, then 🔁, then 🔒; the placeholder and
---      _G.killReport() count each. No sudo, ever.
-
--- (6.158.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.159.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.160.3
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.160.4
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -439,7 +437,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.160.3"
+_G.configVersion = "6.160.4"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

@@ -9,7 +9,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,742 lines)
+├── init.lua          the orchestrator (3,740 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (10 files)
 ├── modules/          one file per feature (63 files, ~45,300 lines)
@@ -525,6 +525,7 @@ and `<logsDir>/diagnostics-<machine>.txt`.
 | Mouse Follows Focus turned itself off | the watchdog (6.160.2): two jumps took over 250ms, which means an app is slow to answer Accessibility. `_G.mouseFollowsReport()` names the time and the app of the last jump; add that app to `mf.skipApps`, then ⇪⇧3 turns it back on |
 | ⌥Tab takes a second to appear | read the Console's "listing took … slowest phase: X" line — it names the phase. "console" was 6.160.3's fix (hs.console.hswindow() is a second full AX sweep; the switcher now asks its own process by pid). "sweep" is the per-app listing, and the same line's "slowest: X" names the app: put it in `altTab.skipApps`. "memory" is the probe budget |
 | A picker's preview pane sits ON the list instead of beside it | the placement record said the picker was off the screen (a runaway nudge/drag offset). 6.160.1 clamps every placement onto its screen and folds the offset back; the Console says "clamped" when it does. ⌃⌥⌘R resets the offset by hand |
+| The preview pane shows a different entry than the highlighted row | the mouse has it — the pane's header ends "🖱 under the pointer". 6.160.4: only a pointer that MOVED onto a row takes the pane, an arrow takes it back, a pointer merely resting on the picker never overrules the highlight. No tag and still different: the list was wheel-scrolled — hs.chooser has no scroll getter, so the hover maths estimates the scroll from the arrows alone; one arrow press hands the pane back to the highlight |
 | `attempt to call a nil value (global '…')` | something calls a function that moved into a module — publish it with `core.provide` and call it with `_G.service.call` |
 | `No provider for '…'` | that module didn't load; see `Modules:` in the boot report |
 | brew errors on every app at once | Homebrew's cache, not your list: `rm -rf "$(brew --cache)/api" && brew update --force` |
@@ -569,9 +570,9 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Sixty-three Lua suites, 6,583 checks, plus three more that run the Capture
+Sixty-three Lua suites, 6,598 checks, plus three more that run the Capture
 Pad's, the screenshot editor's and unified search's page JavaScript under
-`node` for a further 105 — **6,688 checks over sixty-eight stages** in
+`node` for a further 105 — **6,703 checks over sixty-eight stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 

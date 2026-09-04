@@ -115,8 +115,10 @@ mirrors draw order: "closes last" IS "drawn under".
   mask, read-back verified), drags by its header, SAC Values are checkbox
   chips; ⇪Y ⌘⏎ copies the URL, ⌥⏎ opens in Safari (chrome.altBrowser).
 - 6.154.0 verify with LL: ⇪V/⇪⇧V preview pane follows arrows AND the mouse
-  (hover maths assumes the list is unscrolled — hs.chooser has no scroll
-  getter); ⇪X lands on a button/tab inside the typed cell (needs
+  (6.160.4: only a hand that MOVED has the pane — a resting pointer never
+  overrules the highlight; the scroll is estimated from the arrows, a
+  wheel scroll stays invisible — hs.chooser has no scroll getter); ⇪X
+  lands on a button/tab inside the typed cell (needs
   Accessibility; the badge names it; `_G.mouseGridReport()` has a snap
   line); ⇪6 🩺 report's verdict reads right on both Macs (work Mac: the
   mDNS flush half needs admin, said honestly), 🚀 speed row finds
@@ -167,6 +169,10 @@ mirrors draw order: "closes last" IS "drawn under".
   in). Rule for ANY future AX-callback code: no hs.window calls, no
   untimed AX reads, no work in the callback. Verify with LL after a day
   ON: no strikes in `_G.mouseFollowsReport()`, no tap-disabled lines.
+- 6.160.4 verify with LL: with ⇪⇧3 on, ⇪Y's pane matches the highlight as
+  the arrows move; moving the mouse over a row shows that row with "🖱 under
+  the pointer" in the header; after arrowing past the bottom, hovering the
+  top visible row shows the right entry.
 - 6.160.1 verify with LL: ⇪Y (and every picker) opens fully ON the
   screen with the pane beside it; first open after install prints one
   "placement was off the screen … clamped" Console line (the runaway

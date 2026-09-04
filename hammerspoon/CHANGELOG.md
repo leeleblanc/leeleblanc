@@ -4,6 +4,56 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.160.4 — THE PANE FOLLOWS THE LAST HAND THAT MOVED:
+  🖱 LL: "I don't know how to get a screenshot of this for you. In my
+     Chrome history list, the entry in the picker will say it's a
+     particular line while the pop-up to the right will list something
+     different. How can we solve this?" No screenshot needed — the
+     arithmetic names it. The preview pane (6.154.0) reads two hands, the
+     keyboard's selectedRow() and the row under the pointer, and its rule
+     was "the mouse wins while it is inside the picker". That counted a
+     pointer that was merely RESTING there. Before 6.160.0 the pointer
+     was wherever LL last left it, rarely inside a picker; with Mouse
+     Follows Focus on (6.160.2, ⇪⇧3) it rests at the centre of the
+     focused window — with Chrome filling LL's 2560×1410 screen that is
+     (1280, 735), and the ⇪Y picker opens at 48% width with its top-left
+     near (665, 312) and its rows from y=368: row 9. So the highlight sat
+     on row 1, the pane showed row 9, and the arrows moved the highlight
+     while the pane stayed put — the report, exactly.
+  🩹 clip.previewRow remembers what each hand last did: the mouse takes
+     the pane only when it MOVES (clip.previewMousePx = 2 points between
+     two polls) onto a row; the keyboard takes it back the moment the
+     selection changes; a still pointer never overrules the highlight;
+     off the rows it is the keyboard's, as before. While the mouse is the
+     hand the header ends "🖱 under the pointer" — the one time the pane
+     and the highlight are meant to differ (hover was LL's own ask in
+     6.154.0: "or put my mouse cursor on an item"). previewClose forgets
+     both hands, so every picker opens keyboard-first.
+  📜 The row maths also stops assuming an unscrolled list — 6.154.0's
+     "one honest limit". The first visible row is estimated from the
+     keyboard: a new list is taken to start at the top — the usual order
+     is type, then arrow; NSTableView keeps its scroll offset across a
+     reload, and the selection pulls the estimate back to wherever the
+     arrows put it — and an arrow that walks the selection past either
+     edge scrolls the list just far enough to show it. Read off
+     HSChooser.m, not assumed: every arrow is selectChoice, which is
+     selectRowIndexes + scrollRowToVisible, and there is no hover code
+     in it at all, which is why the pane polls. A wheel scroll is still
+     invisible — hs.chooser has no scroll getter — so it remains the
+     honest limit, now a smaller one.
+  ✅ Gate: test_clipboard pins a pointer resting on row 3 when ⇪V opens
+     (row 1 shows, and still after more polls), an arrow with the pointer
+     still resting (the arrow wins), a one-point twitch (not a move), a
+     real move (the mouse wins and the header says so), an arrow taking
+     it back (tag gone), and the scrolled-list estimate: top row 3 after
+     ↓ to 12 of 23 in a ten-row picker, unchanged by an arrow among the
+     visible rows, the selected row as top row past the top edge, row 1
+     again on a new list, everything forgotten on close. Gate: 6,688 →
+     6,703 checks, sixty-eight stages, green in the tree and inside
+     the package. snippets/ is not in this build container, so the zip
+     carries no snippets folder — hs-install.sh leaves
+     ~/.hammerspoon/snippets alone when the download has none.
+
 NEW IN 6.160.3 — ⌥TAB STOPS PAYING FOR THE CONSOLE TWICE:
   🔄 LL: "Opt+tab takes about a second or so to appear. Way longer than
      it used to. Do you want me to run something in the Hammerspoon
