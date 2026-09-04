@@ -1,5 +1,5 @@
 -- =====================================================================
--- MODULE: TASK CREATOR — ⌃⌥⌘T create · ⇪⇧S search past · ⌃⌥⌘A format URL
+-- MODULE: TASK CREATOR — ⌃⌥⌘T create · ⌃⌥⌘A format URL (no ⇪⇧S since 6.161.0)
 -- =====================================================================
 -- Moved out of init.lua in 6.98.0 (it was the unnumbered section between
 -- §3.12 and §5). The code is the same code, taking its shared services
@@ -28,7 +28,9 @@
 -- WHAT IT PUBLISHES (all call-time, all guarded by their consumers):
 --   _G.asanaSubmitTask       — task_form.lua's ⏎ lands here
 --   _G.asanaNormalizePath    — task_form.lua cleans its Attachment field
---   _G.asanaOpenTaskChooser  — ⇪⇧S, and task_form's fallbacks
+--   _G.asanaOpenTaskChooser  — ⇪T's and task_form's fallbacks (the pipe
+--                              picker; its own key, ⇪⇧S, went to the
+--                              snippets panel in 6.161.0)
 --   _G.taskMirrorSync        — §1.5 nudging + window_move drag ride-along
 --   _G.taskDraft             — survives the popup being dismissed any way
 --   _G.asanaTaskHistory      — unified_search (⇪space) reads it
@@ -47,7 +49,7 @@ local M = {
     family = "capture",
     -- No cheatsheet group of its own: the static ✅ ASANA group in
     -- core/cheatsheet.lua tells the whole Asana story in one place
-    -- (⇪A · ⇪B · ⇪C · ⇪T · ⇪⇧S · ⇪L), same arrangement as asana_comments.
+    -- (⇪A · ⇪B · ⇪C · ⇪T · ⇪L), same arrangement as asana_comments.
     config = {
         -- 💬 AUTO-COMMENT — posted on every task you create. "" disables.
         -- Read at post time, so a machine profile can override it.
@@ -818,7 +820,11 @@ function M.setup(core)
     end)
 
     -- The pipe chooser, openable by name — reopens with the unsent DRAFT
-    -- (6.10.1). Used by ⇪⇧S, ⇪T's and task_form's fallbacks.
+    -- (6.10.1). Used by ⇪T's and task_form's fallbacks, and by hand from
+    -- the Console. It had ⇪⇧S from 6.86.0 to 6.160.4; LL kept reaching
+    -- for S and getting this "old picker" instead of the snippets — so
+    -- the key went to the snippets panel in 6.161.0 and this has none.
+    -- The 30-day history is still searched from ⇪space (@asana).
     _G.asanaOpenTaskChooser = function()
         local draft = _G.taskDraft or ""
         _G.choosers.task:query(draft)
@@ -837,11 +843,10 @@ function M.setup(core)
         _G.asanaOpenTaskChooser()
     end)
 
-    -- 6.86.0: past-task SEARCH on ⇪⇧S (⇪⇧T was the Text Expander's).
-    core.hyperAddShortcut({ "shift" }, "s", function()
-        if not core.requireAsana() then return end
-        _G.asanaOpenTaskChooser()
-    end, "task search — past Asana tasks")
+    -- 6.161.0: NO ⇪⇧S here any more — see _G.asanaOpenTaskChooser above.
+    -- A second claim on ⇪⇧S would beat the snippets panel (task_creator
+    -- loads after text_expander, and the later claim wins); the test
+    -- pins that this module registers no hyper shortcut at all.
 
 end
 

@@ -297,7 +297,8 @@ function M.setup(core)
                 rowH = 44, headH = 56,    -- window_move's chooserRowH / chooserHeadH
                 -- 6.160.4: which hand has the pane, what each hand last
                 -- did, and the estimated first visible row
-                hand = "keys", lastMouse = nil, lastSel = nil, top = 1, lastN = nil }
+                hand = "keys", lastMouse = nil, lastSel = nil, top = 1, lastN = nil,
+                lastQuery = nil }
     local pv = clip.pv
 
     local function now()
@@ -311,6 +312,7 @@ function M.setup(core)
         if pv.canvas then pcall(function() pv.canvas:delete() end) ; pv.canvas = nil end
         pv.chooser, pv.rowsFn, pv.lastKey, pv.shown, pv.hiddenAt = nil, nil, nil, nil, nil
         pv.hand, pv.lastMouse, pv.lastSel, pv.top, pv.lastN = "keys", nil, nil, 1, nil
+        pv.lastQuery = nil
     end
 
     -- The picker went away: the pane goes with it NOW (a pane over an
@@ -365,6 +367,19 @@ function M.setup(core)
         local sel
         pcall(function() sel = chooser:selectedRow() end)
         if not (type(sel) == "number" and sel >= 1 and sel <= n) then sel = nil end
+        -- 6.161.0: TYPING is keyboard activity too. A query rebuilds the
+        -- list with the highlight back on row 1 — which it usually already
+        -- was — so the selection never "changes" and a pointer resting on
+        -- row 3 kept the pane on the new list's third row while the
+        -- highlight sat on the first: the 6.160.4 symptom through a whole
+        -- typing session. The query text (and, for a picker that filters
+        -- for itself, the row count) is read alongside the selection.
+        local q
+        pcall(function() q = chooser:query() end)
+        if type(q) ~= "string" then q = nil end
+        local typed = (q ~= nil and pv.lastQuery ~= nil and q ~= pv.lastQuery)
+                      or (pv.lastN ~= nil and n ~= pv.lastN)
+        pv.lastQuery = q
         -- the first visible row, estimated: a new list is taken to start
         -- at the top, an arrow past either edge scrolls just far enough to
         -- show the selection (selectChoice → scrollRowToVisible), and the
@@ -391,7 +406,7 @@ function M.setup(core)
         end
         local mouseRow
         if m and m.x >= box.x and m.x <= box.x + box.w
-           and m.y >= box.y + pv.headH and m.y <= box.y + box.h then
+           and m.y >= box.y + pv.headH and m.y < box.y + box.h then   -- < : the edge pixel is no row
             local r = pv.top + math.floor((m.y - box.y - pv.headH) / pv.rowH)
             if r >= 1 and r <= n then mouseRow = r end
         end
@@ -399,7 +414,7 @@ function M.setup(core)
         pv.lastSel = sel
         if not mouseRow then pv.hand = "keys"          -- off the rows: the keyboard's
         elseif moved then pv.hand = "mouse"             -- onto a row: the mouse's
-        elseif selChanged then pv.hand = "keys" end     -- an arrow: the keyboard's
+        elseif selChanged or typed then pv.hand = "keys" end  -- an arrow, a letter: the keyboard's
         if pv.hand == "mouse" and mouseRow then return mouseRow, "mouse", sel end
         if sel then return sel, "keys" end
         return nil

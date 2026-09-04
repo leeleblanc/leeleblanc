@@ -109,7 +109,10 @@ hs = {
         function c:selectedRowContents(r) return (self.rows or {})[r or SEL] end
         function c:isVisible() return VIS end
         function c:hideCallback(f) self.hideCb = f ; return self end
-        function c:query() return self end
+        function c:query(q)                      -- setter AND getter, as the real one
+            if q ~= nil then self.q = q ; return self end
+            return self.q or ""
+        end
         return c end },
     canvas = {
         windowLevels = { mainMenu = 24, popUpMenu = 101, overlay = 25 },
@@ -804,6 +807,22 @@ do
           bodyText() == "first is short" and C.pv.shown.how == "keys", bodyText())
     check("…and the header drops the mouse tag",
           headText():find("under the pointer", 1, true) == nil, headText())
+    -- 🔤 6.161.0 — TYPING IS A HAND TOO. A query rebuilds the list with
+    -- the highlight on row 1, where it usually already was, so the
+    -- selection never "changed" and a resting pointer kept the pane.
+    MOUSE = { x = box4.x + 25, y = rowY(box4, 3) } ; C.pv.poll.fn()   -- moved onto row 3 again
+    check("(the mouse has row 3 again)", C.pv.shown.how == "mouse" and C.pv.shown.row == 3)
+    C.chooser:query("ab") ; C.pv.poll.fn()      -- a letter typed; the highlight stays on row 1
+    check("🔤 6.161.0 — typing a query hands the pane BACK to the keyboard even though "
+          .. "the selection never moved off row 1",
+          C.pv.shown.how == "keys" and C.pv.shown.row == 1 and bodyText() == "first is short",
+          bodyText())
+    C.pv.poll.fn()
+    check("…and the pointer still resting on row 3 does not take it back",
+          C.pv.shown.how == "keys" and C.pv.shown.row == 1)
+    MOUSE = { x = box4.x + 20, y = box4.y + box4.h } ; C.pv.poll.fn()
+    check("the picker's bottom edge pixel is no row (6.161.0: one past the last row before)",
+          C.pv.shown.how == "keys" and C.pv.shown.row == 1)
     MOUSE = { x = 0, y = 0 } ; C.previewClose()
 
     -- the row maths no longer assumes an unscrolled list: the first
@@ -841,6 +860,13 @@ do
     MOUSE = { x = box5.x + 40, y = rowY(box5, 1) } ; C.pv.poll.fn()
     check("a NEW list is taken to start at the top again: the top visible row is row 1",
           C.pv.shown.row == 1 and bodyText() == "row 1, whole", bodyText())
+    -- 6.161.0: for a picker that filters for itself the row COUNT is the
+    -- typing signal (its query is its own business)
+    SEL = 1 ; MOUSE = { x = box5.x + 30, y = rowY(box5, 2) } ; C.pv.poll.fn()   -- the mouse takes row 2
+    check("(the mouse has a row of the narrowed list)", C.pv.shown.how == "mouse")
+    shown = many ; C.pv.poll.fn()               -- the box emptied: 23 rows again, highlight on 1
+    check("a list that changed size under a resting pointer is the keyboard's again",
+          C.pv.shown.how == "keys" and C.pv.shown.row == 1, C.pv.shown.how)
     MOUSE = { x = 0, y = 0 }
     PROVIDED["preview.close"]()
     check("closing forgets the hand, the pointer and the scroll",

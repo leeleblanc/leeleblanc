@@ -1,5 +1,12 @@
 -- =====================================================================
--- MODULE: TEXT EXPANDER (⇪⇧T) — Alfred snippets, typed anywhere
+-- MODULE: TEXT EXPANDER (⇪⇧S) — Alfred snippets, typed anywhere
+-- =====================================================================
+-- 🔑 6.161.0 — THE PANEL LIVES ON ⇪⇧S NOW ("S for Snippets"). It was ⇪⇧T
+-- from 6.68.0, and ⇪⇧S opened the Asana past-task picker — LL kept
+-- pressing S for snippets and getting Asana ("that shouldn't be taken
+-- nor launch that tool"). The picker lost its key (task_creator.lua);
+-- ⇪⇧T is FREE — the first free ⇪⇧ letter since 6.104.0, and
+-- _G.freeKeys() lists it.
 -- =====================================================================
 -- LL: "Snippets attached. Some have a trigger convention and some are
 -- just three letter combos like gg1 … Not all my snippets require a
@@ -28,7 +35,7 @@
 -- baked into each keyword. Read both, apply the plist, and `;bd` and
 -- `gg1` come out the far end as equals. Nothing is hard-coded.
 --
---     ⇪⇧T                    search and insert a snippet by name
+--     ⇪⇧S                    search and insert a snippet by name
 --     _G.snippetsImport()    find and import every .alfredsnippets file
 --                            in ~/Downloads, ~/Desktop or ~
 --     _G.snippetsImport(p)   import one by path
@@ -51,7 +58,7 @@
 --   · The tap is revived when macOS disables it, on the same 30s
 --     watchdog autocorrect uses, because a silently dead expander is
 --     rule #7's exact failure mode.
---   · expander.enabled = false, or the ⏸ row in ⇪⇧T, stops it dead
+--   · expander.enabled = false, or the ⏸ row in ⇪⇧S, stops it dead
 --     while leaving the tap running — the flag is checked per keystroke.
 --
 -- ---- 🧨 WHY A BARE `gg1` DOES NOT FIRE INSIDE A WORD -----------------
@@ -72,8 +79,9 @@ local M = {
     cheatsheet = {
         title = "✂️ TEXT EXPANDER (Alfred snippets)",
         entries = {
-            { "⇪⇧T",   "Search your snippets and insert one" },
+            { "⇪⇧S",   "Search your snippets and insert one" },
             { "sections", "That list is grouped by collection — yours at the top" },
+            { "icons", "An emoji or symbol shows as itself; ✂️ yours · 📄 shipped · ⚙️ built in · ⚡ action" },
             { "type",  "A trigger expands as you type it — ;bd or gg1, both work" },
             { "add",   "_G.snippetAdd(\"gg1\", \"text\") in the Console" },
             { "import", "_G.snippetsImport() — finds .alfredsnippets in ~/Downloads" },
@@ -82,7 +90,7 @@ local M = {
             { "{clipboard}", "In a snippet: whatever is on the clipboard" },
             { "{date} {time}", "In a snippet: today, and now" },
             { "{date:…}", "In a snippet: {date:DD/MM/YYYY} — D, M and Y, any form" },
-            { "off",   "expander.enabled = false, or the ⏸ row in ⇪⇧T" },
+            { "off",   "expander.enabled = false, or the ⏸ row in ⇪⇧S" },
             { "never", "Nothing you type is ever logged — see the module header" },
         },
     },
@@ -93,7 +101,35 @@ function M.setup(core)
 
     -- ✏️ EDIT HERE ---------------------------------------------------------
     exp.enabled       = true
-    exp.key           = "t"       -- ⇪⇧T — the snippet chooser
+    exp.key           = "s"       -- ⇪⇧S — the snippet chooser (6.161.0; was T)
+    -- 🖼 6.161.0 — ICONS ON THE ROWS, the Alfred look LL asked for: an
+    -- emoji or a compose sequence is drawn as ITSELF beside its name, a
+    -- text snippet wears the mark of where it came from (exp.iconFor).
+    -- Each distinct glyph is rendered ONCE (an hs.canvas text element →
+    -- imageFromCanvas) and cached for the session; the cache is filled
+    -- in warm(), in slices of exp.iconBudget seconds with a held
+    -- continuation between them, so the 1,349 emoji never stall a
+    -- keystroke. An open pays at most exp.iconShowBudget for glyphs the
+    -- pre-render has not reached; a row past that opens without one and
+    -- gets it next time. Memory: ~2,000 small images, a few tens of MB —
+    -- exp.icons = false is the plain 6.160.x look.
+    exp.icons          = true
+    exp.iconSize       = 32       -- points; the chooser's image cell is 36 wide
+    exp.iconGlyphMax   = 8        -- a snippet whose whole text is this many
+                                  -- characters or fewer, with no whitespace
+                                  -- and not plain ASCII, is drawn as itself
+    exp.iconBudget     = 0.04     -- seconds of main thread per pre-render slice
+    exp.iconShowBudget = 0.05     -- seconds an open may spend on unrendered glyphs
+    exp.iconFor = {               -- the marks for rows that are not a picture
+        own       = "✂️",         -- yours: Mine, an import, a hand-written one
+        shipped   = "📄",         -- a shipped text snippet
+        builtin   = "⚙️",         -- exp.builtin (;d/ ;d- ;mp3)
+        action    = "⚡",         -- a module that borrowed a trigger
+        heading   = "🗂",         -- a section heading
+        toggleOn  = "⏸",         -- the pause row while expansion is on
+        toggleOff = "▶️",         -- …and while it is off
+        back      = "↩️",         -- "◂ All snippets"
+    }
     exp.dir           = core.logsDir .. "/snippets"
     -- 📦 SHIPPED SNIPPETS. The zip carries LL's five collections into
     -- ~/.hammerspoon/snippets, so unzipping IS the install — no import
@@ -114,7 +150,7 @@ function M.setup(core)
     -- harness without it must degrade to "no bundled snippets" rather
     -- than throw inside setup() — which took the whole module down.
     exp.bundledDir    = hs.configdir and (hs.configdir .. "/snippets") or nil
-    -- 🗂 6.118.0 — ⇪⇧T IS SECTIONED BY COLLECTION, YOURS AT THE TOP.
+    -- 🗂 6.118.0 — ⇪⇧S IS SECTIONED BY COLLECTION, YOURS AT THE TOP.
     -- LL: "Can you separate the snippets into sections with my textpanders
     -- first?" One flat A–Z list of 2,006 rows put your own 80 snippets
     -- among 1,349 emoji and 548 compose-key sequences — alphabetical is a
@@ -172,7 +208,7 @@ function M.setup(core)
         { ";mp3", 'yt-dlp -x --audio-format mp3 "{clipboard}"',
                   "yt-dlp · audio from the copied link" },
     }
-    exp.builtinSource = "built in"   -- the ⇪⇧T heading they sit under
+    exp.builtinSource = "built in"   -- the ⇪⇧S heading they sit under
     -- ----------------------------------------------------------------------
 
     local function say(m)  if _G.diag then _G.diag.say("expander", m)  end end
@@ -220,7 +256,7 @@ function M.setup(core)
     --     trigger, text, name, reason
     -- A loadable snippet returns a trigger; a snippet Alfred saved with NO
     -- keyword returns nil for the trigger but still returns its text, so
-    -- it is insertable from ⇪⇧T even though nothing can type it (that is a
+    -- it is insertable from ⇪⇧S even though nothing can type it (that is a
     -- legitimate Alfred snippet, not a fault); anything broken returns a
     -- reason and nothing else.
     --
@@ -286,7 +322,7 @@ function M.setup(core)
     -- `own` marks everything found under exp.dir — the snippets YOU
     -- imported or wrote, as opposed to the ones that shipped. It travels
     -- down the recursion because a collection is a subdirectory, and a
-    -- subdirectory of yours is still yours. Used only by the ⇪⇧T sections
+    -- subdirectory of yours is still yours. Used only by the ⇪⇧S sections
     -- (6.118.0); matching, expansion and collision order are untouched.
     local function scanDir(dir, label, into, problems, chooserOnly, own)
         local okIter, iter, dirObj = pcall(hs.fs.dir, dir)
@@ -363,7 +399,7 @@ function M.setup(core)
     -- (a test, a second Mac, a line in secret.lua) moves it, and then the
     -- table and the packs come from two different places.
     exp.bundledName = "bundled.lua"
-    exp.bundledFrom = nil          -- "table" | "packs" | nil, for ⇪⇧T and doctor
+    exp.bundledFrom = nil          -- "table" | "packs" | nil, for ⇪⇧S and doctor
     exp.bundledPath = nil          -- the file actually read, once one is
 
     local function bundledFilePath()
@@ -537,6 +573,8 @@ function M.setup(core)
                           exp.count, exp.loadSecs * 1000, exp.longest,
                           exp.indexNodes or 0, exp.ambiguousCount or 0,
                           #chooserOnly, #problems, exp.bundledFrom or "nothing"))
+        -- 🖼 6.161.0: the pictures follow the words, sliced (see warmIcons)
+        if exp.icons then pcall(exp.warmIcons) end
         -- 🚨 A SLOW SCAN IS REPORTED WITH ITS NUMBER, not left to be felt.
         -- The snippets live in the OneDrive Logs folder, shared with the
         -- other Mac like autocorrect.csv — and two thousand tiny files in
@@ -1393,7 +1431,149 @@ function M.setup(core)
         return #rows
     end
 
-    -- ---- ⇪⇧T, the chooser ------------------------------------------------
+    -- ---- 🖼 the icons (6.161.0) ------------------------------------------
+    -- A "glyph" snippet is one whose whole text is a small picture: an
+    -- emoji, a compose sequence's § or →, a 🇨🇦 — no whitespace, not
+    -- plain ASCII (a "--" is text), no ASCII letter in it (a "café" is a
+    -- word, not a picture; a keycap 1️⃣ has only a digit and passes), at
+    -- most exp.iconGlyphMax characters (a flag is two code points, a
+    -- family emoji seven; a nine-character shruggie is text).
+    function exp.glyphOf(s)
+        if type(s) ~= "table" or s.fn then return nil end
+        local t = s.text
+        if type(t) ~= "string" or t == "" then return nil end
+        if t:find("%s") or t:find("%a") then return nil end
+        if not t:find("[\128-\255]") then return nil end
+        if clen(t) > (exp.iconGlyphMax or 8) then return nil end
+        return t
+    end
+
+    -- The mark for a row that is not a picture.
+    function exp.markOf(s)
+        local f = exp.iconFor or {}
+        if type(s) ~= "table" then return f.shipped end
+        if s.fn then return f.action end
+        if s.own then return f.own end
+        if s.source == exp.builtinSource then return f.builtin end
+        return f.shipped
+    end
+
+    local function epoch()
+        local ok, t = pcall(function() return hs.timer.secondsSinceEpoch() end)
+        return (ok and type(t) == "number") and t or os.time()
+    end
+
+    exp.iconCache = {}                   -- glyph -> hs.image, or false (would not render)
+    exp.iconStats = { rendered = 0, failed = 0, slices = 0, secs = 0 }
+    exp.iconPending = 0                  -- glyphs the pre-render has not reached
+    exp.iconTimer   = nil                -- HELD: the pre-render continuation
+    exp.iconCanvas  = nil                -- ONE offscreen canvas, never shown, reused
+
+    -- Draw one glyph into an image. Every hs call is pcall'd: a Mac (or a
+    -- test) without hs.canvas simply has rows without pictures.
+    function exp.renderIcon(glyph)
+        local cached = exp.iconCache[glyph]
+        if cached ~= nil then return cached or nil end
+        local img
+        local ok = pcall(function()
+            local sz = exp.iconSize or 32
+            if not exp.iconCanvas then
+                -- 🎨 hs.canvas draws text WHITE unless told otherwise, and
+                -- hs.chooser follows the system appearance — a § or a ⌘
+                -- (Apple Color Emoji ignores the colour, text glyphs do
+                -- not) would vanish on a Light-mode picker. Ink follows the
+                -- appearance at first draw; the cache is per session.
+                local dark = false
+                pcall(function() dark = hs.host.interfaceStyle() == "Dark" end)
+                local c = hs.canvas.new({ x = 0, y = 0, w = sz, h = sz })
+                c:appendElements({
+                    type = "text", text = glyph, textSize = sz * 0.72,
+                    textAlignment = "center",
+                    textColor = dark and { white = 0.92 } or { white = 0.12 },
+                    frame = { x = 0, y = sz * 0.02, w = sz, h = sz },
+                })
+                exp.iconCanvas = c
+            else
+                exp.iconCanvas:elementAttribute(1, "text", glyph)
+            end
+            img = exp.iconCanvas:imageFromCanvas()
+        end)
+        if ok and img then
+            exp.iconCache[glyph] = img
+            exp.iconStats.rendered = exp.iconStats.rendered + 1
+            return img
+        end
+        exp.iconCache[glyph] = false
+        exp.iconStats.failed = exp.iconStats.failed + 1
+        return nil
+    end
+
+    -- The cached image, or a fresh render while `stop` (an epoch) is
+    -- still ahead. Past the deadline: no icon this time, not a wait.
+    function exp.icon(glyph, stop)
+        if not (exp.icons and glyph) then return nil end
+        local c = exp.iconCache[glyph]
+        if c ~= nil then return c or nil end
+        if stop and epoch() > stop then return nil end
+        return exp.renderIcon(glyph)
+    end
+
+    -- Pre-render every distinct glyph, sliced. Called at the tail of
+    -- exp.load(), so every path that loads — warm(), expander.reload, an
+    -- import, _G.snippetAdd — draws its new pictures right after.
+    function exp.warmIcons()
+        if not exp.icons then return false end
+        -- The ink was chosen for the appearance at the first draw; if the
+        -- Mac has switched Light/Dark since, every text glyph is in the
+        -- wrong ink — start over (emoji are unaffected but come along).
+        local style
+        pcall(function() style = hs.host.interfaceStyle() end)
+        style = style or "Light"
+        if exp.iconInk and exp.iconInk ~= style then
+            exp.iconCache, exp.iconCanvas = {}, nil
+            say("appearance changed to " .. style .. " — redrawing the icons")
+        end
+        exp.iconInk = style
+        local glyphs, seen = {}, {}
+        local function want(g)
+            if g and not seen[g] and exp.iconCache[g] == nil then
+                seen[g] = true; glyphs[#glyphs + 1] = g
+            end
+        end
+        for _, g in pairs(exp.iconFor or {}) do want(g) end
+        for _, s in pairs(exp.snippets) do want(exp.glyphOf(s)) end
+        for _, s in ipairs(exp.chooserOnly or {}) do want(exp.glyphOf(s)) end
+        table.sort(glyphs)
+        if exp.iconTimer then pcall(function() exp.iconTimer:stop() end); exp.iconTimer = nil end
+        exp.iconPending = #glyphs
+        if #glyphs == 0 then return true end
+        local i, t0 = 0, epoch()
+        local function turn()
+            local deadline = epoch() + (exp.iconBudget or 0.04)
+            exp.iconStats.slices = exp.iconStats.slices + 1
+            while i < #glyphs do
+                i = i + 1
+                exp.renderIcon(glyphs[i])
+                if epoch() >= deadline then break end
+            end
+            exp.iconPending = #glyphs - i
+            if i < #glyphs then
+                local ok, t = pcall(hs.timer.doAfter, 0, turn)
+                if ok and t then exp.iconTimer = t; return end  -- held
+                return turn()          -- no timers to park on: finish inline
+            end
+            exp.iconTimer = nil
+            exp.iconStats.secs = epoch() - t0
+            say(string.format("icons: %d glyphs drawn in %d slice%s (%.2fs)%s",
+                exp.iconStats.rendered, exp.iconStats.slices,
+                exp.iconStats.slices == 1 and "" or "s", exp.iconStats.secs,
+                exp.iconStats.failed > 0 and (" · " .. exp.iconStats.failed .. " would not draw") or ""))
+        end
+        turn()
+        return true
+    end
+
+    -- ---- ⇪⇧S, the chooser ------------------------------------------------
     -- Same reasoning as the tool picker: hs.chooser is a native panel
     -- built to be typed into. Insert-by-search covers the snippet you know
     -- you have and cannot remember the trigger for, which is most of them
@@ -1405,7 +1585,7 @@ function M.setup(core)
     -- key, then the row, then the WHOLE list —
     --     LuaSkin: dictionary key (fn) cannot be converted into a proper NSObject
     --     LuaSkin: hs.chooser:choices() table could not be parsed correctly.
-    -- — and ⇪⇧T opened an empty panel. The errors land in the Console, the
+    -- — and ⇪⇧S opened an empty panel. The errors land in the Console, the
     -- pcall around :choices() never sees them (LuaSkin logs, it does not
     -- throw), so the failure is silent from the keyboard.
     -- The row now carries a plain integer into a table that stays here.
@@ -1463,6 +1643,7 @@ function M.setup(core)
         return { text    = "▸  " .. tostring(name):upper(),
                  subText = string.format("%d  ·  %s  ·  ⏎ shows only these", n, what),
                  header  = true, sect = name,
+                 image   = exp.icon((exp.iconFor or {}).heading),
                  rawText = table.concat(members or {}, "\n"),
                  head    = string.format("🗂 %s  ·  %d snippet%s  ·  ⏎ shows only these",
                                          tostring(name):upper(), n, n == 1 and "" or "s") }
@@ -1513,6 +1694,7 @@ function M.setup(core)
     function exp.show(section)
         local picks   = {}      -- [n] = { trigger = ..., snip = ... }, Lua-side
         local rows, counts, members = {}, {}, {}
+        local iconStop = epoch() + (exp.iconShowBudget or 0.05)
         local function add(s, trigger)
             picks[#picks + 1] = { trigger = trigger, snip = s }
             local sect, rank = exp.sectionOf(s)
@@ -1521,8 +1703,26 @@ function M.setup(core)
                 and ("⚡ " .. tostring(s.name or trigger)
                      .. "\n\nAn action, not text: picking it runs it.")
                 or  tostring(s.text or "")
+            -- 🖼 6.161.0: a picture snippet is drawn as itself, and the
+            -- same picture is dropped from the front of its name ("💯
+            -- :100:" reads ":100:" beside a 💯) — once is enough. Only
+            -- when the picture IS there: a row that opens without its
+            -- icon (past the show budget, no hs.canvas) keeps the glyph
+            -- in its name, or the row would show nothing at all.
+            local name  = tostring(s.name or trigger)
+            local glyph = exp.icons and exp.glyphOf(s) or nil
+            local image = exp.icon(glyph or exp.markOf(s), iconStop)
+            if glyph and image and name ~= glyph and name:sub(1, #glyph) == glyph then
+                local rest = name:sub(#glyph + 1):gsub("^%s+", "")
+                if rest ~= "" then name = rest end
+            end
             rows[#rows + 1] = {
-                text    = tostring(s.name or trigger),
+                image   = image,
+                text    = name,
+                -- the name as written, glyph and all: what the rows SORT by
+                -- and what a heading's pane lists — neither may depend on
+                -- whether this open managed to draw the icon
+                fullName = tostring(s.name or trigger),
                 -- 🗂 THE PACK NAME IS ON EVERY ROW, not only in the
                 -- heading, and that is what makes a SEARCH still answer
                 -- "where did this come from" — see the ⚠️ at
@@ -1551,15 +1751,17 @@ function M.setup(core)
         table.sort(rows, function(a, b)
             if a.rank ~= b.rank then return a.rank < b.rank end
             if a.sect ~= b.sect then return a.sect < b.sect end
-            if a.text ~= b.text then return a.text < b.text end
+            if a.fullName ~= b.fullName then return a.fullName < b.fullName end
             return tostring(a.trigger) < tostring(b.trigger)
         end)
-        -- what each heading's pane lists: the section's rows, in this order
+        -- what each heading's pane lists: the section's rows, in this
+        -- order, names as written (the pane has no icons — the 💯 must
+        -- stay in the line)
         for _, r in ipairs(rows) do
             local m = members[r.sect] or {}
             members[r.sect] = m
             m[#m + 1] = string.format("%-14s %s",
-                                      r.trigger ~= "" and r.trigger or "—", r.text)
+                                      r.trigger ~= "" and r.trigger or "—", r.fullName)
         end
 
         -- The ON/OFF row stays FIRST, above every section: it is the one
@@ -1567,16 +1769,24 @@ function M.setup(core)
         -- the expander is misbehaving. In a narrowed view its place is
         -- taken by the way back.
         local choices = {}
+        -- (the mark moves into the icon cell when there is one — once is
+        -- enough, the same rule as the snippet rows)
+        local marks = exp.iconFor or {}
         if section then
-            choices[1] = { text = "◂  All snippets",
-                           subText = "back to every collection", back = true }
+            local img = exp.icon(marks.back)
+            choices[1] = { text = (img and "" or "◂  ") .. "All snippets",
+                           subText = "back to every collection", back = true,
+                           image = img }
         else
+            local img = exp.icon(exp.enabled and marks.toggleOn or marks.toggleOff)
             choices[1] = {
-                text    = exp.enabled and "⏸  Turn expansion OFF" or "▶️  Turn expansion ON",
+                text    = (img and "" or (exp.enabled and "⏸  " or "▶️  "))
+                          .. (exp.enabled and "Turn expansion OFF" or "Turn expansion ON"),
                 subText = exp.enabled
-                          and "Triggers stop firing; ⇪⇧T still inserts by hand"
+                          and "Triggers stop firing; ⇪⇧S still inserts by hand"
                           or  "Start expanding triggers as you type again",
                 toggle  = true,
+                image   = img,
             }
         end
         local cur
@@ -1707,9 +1917,9 @@ function M.setup(core)
     exp.status = "ON (snippets loading…)"
 
     function M.warm()
-        exp.load()
+        exp.load()               -- 6.161.0: …and the pictures, sliced, after the words
         exp.status = exp.count > 0
-            and string.format("ON (%d triggers, ⇪⇧T to search)", exp.count)
+            and string.format("ON (%d triggers, ⇪⇧S to search)", exp.count)
             or  "ON (no snippets yet — run _G.snippetsImport() in the Console)"
     end
 

@@ -338,8 +338,8 @@ check("declares its slot in the sheet", type(mod.order) == "number", mod.order)
 check("exposes setup() per the contract", type(mod.setup) == "function")
 check("exposes warm() — files are read AFTER boot, like autocorrect",
   type(mod.warm) == "function")
-check("binds ⇪⇧T and nothing else", #HYPER == 1 and HYPER[1].combo == "shift+t",
-  HYPER[1] and HYPER[1].combo)
+check("binds ⇪⇧S and nothing else (6.161.0: S for Snippets; T is free)",
+  #HYPER == 1 and HYPER[1].combo == "shift+s", HYPER[1] and HYPER[1].combo)
 check("publishes expander.show", type(PROVIDED["expander.show"]) == "function")
 check("publishes expander.reload", type(PROVIDED["expander.reload"]) == "function")
 check("publishes expander.toggle", type(PROVIDED["expander.toggle"]) == "function")
@@ -357,7 +357,7 @@ check("every snippet in all three collections loaded, plus the three built in",
 check("a ;-prefixed keyword survives verbatim", exp.snippets[";bd"] ~= nil,
   exp.snippets[";bd"])
 check("...with its text", exp.snippets[";bd"].text == "brew doctor")
-check("...and its name, for the ⇪⇧T list", exp.snippets[";bd"].name == "Brew doctor")
+check("...and its name, for the ⇪⇧S list", exp.snippets[";bd"].name == "Brew doctor")
 check("🚨 AN EMPTY PREFIX IS NOT APPLIED TWICE. LL's export has empty "
    .. "prefix/suffix because the ';' is already in each keyword; adding "
    .. "one would make every Ghostty trigger unreachable",
@@ -712,7 +712,7 @@ check("three ship in the code", type(exp.builtin) == "table" and #exp.builtin ==
 check("...and all three loaded", exp.builtinCount == 3
   and exp.snippets[";d/"] ~= nil and exp.snippets[";d-"] ~= nil
   and exp.snippets[";mp3"] ~= nil, exp.builtinCount)
-check("...under their own ⇪⇧T heading, ranked with the shipped packs, not "
+check("...under their own ⇪⇧S heading, ranked with the shipped packs, not "
    .. "above your own", (function()
     local sec, rank = exp.sectionOf(exp.snippets[";d/"])
     return sec == "built in" and rank == exp.rankShipped, sec .. "/" .. tostring(rank)
@@ -771,7 +771,7 @@ check("...and the reason names the actual size", logged("3000 characters"))
 check("every problem reaches the notices ledger too, not just a Console "
    .. "nobody has open", #_G.notices.recorded > 0)
 check("a keyword-less snippet is NOT an error — Alfred allows it and it "
-   .. "is insertable from ⇪⇧T", not logged("nokw.json"))
+   .. "is insertable from ⇪⇧S", not logged("nokw.json"))
 check("...and it IS offered in the chooser", (function()
   for _, s in ipairs(exp.chooserOnly or {}) do
     if s.name == "No keyword" then return true end
@@ -840,7 +840,7 @@ check("🔒 THE SOURCE CONTAINS NO PATH FROM THE BUFFER TO ANY OUTPUT. "
 end)())
 
 -- =====================================================================
-out("\n=== 11. ⇪⇧T, the chooser ===\n")
+out("\n=== 11. ⇪⇧S, the chooser ===\n")
 CHOOSERS = {}
 exp.show()
 local ch = CHOOSERS[#CHOOSERS]
@@ -888,8 +888,11 @@ check("...and A–Z runs INSIDE a section, not across the whole list",
       local r = ch.rows_[i]
       if r.header then prev = nil
       else
-        if prev and r.text < prev then return false, prev .. " then " .. r.text end
-        prev = r.text
+        -- 6.161.0: rows sort by the name AS WRITTEN (fullName); the shown
+        -- text may have lost a leading glyph to the icon
+        local key = r.fullName or r.text
+        if prev and key < prev then return false, prev .. " then " .. key end
+        prev = key
       end
     end
     return true
@@ -1692,7 +1695,7 @@ typeStr("begone")
 drain()
 check("...and it still fires after that rescan", RAN == 3, RAN)
 
-check("the ⇪⇧T chooser lists it without touching .text",
+check("the ⇪⇧S chooser lists it without touching .text",
   (function()
     local nC = #CHOOSERS
     local okShow = exp.show()
@@ -1723,10 +1726,11 @@ check("...and PICKING it runs it — no deletes, nothing typed",
 
 -- 🚨 6.109.0 REGRESSION GUARD. Every value in a chooser row is converted to
 -- an NSObject. Functions and nested tables cannot be, and LuaSkin does not
--- throw — it logs and discards THE ENTIRE LIST, so ⇪⇧T opens empty and the
+-- throw — it logs and discards THE ENTIRE LIST, so ⇪⇧S opens empty and the
 -- keyboard gives no sign. This is the check that catches it in the repo
 -- instead of in the Console.
-check("🚨 every ⇪⇧T row survives the Objective-C bridge",
+check("🚨 every ⇪⇧S row survives the Objective-C bridge (image is the one "
+   .. "object a row may carry — hs.chooser's own key for an hs.image)",
   (function()
     exp.show()
     local rows = CHOOSERS[#CHOOSERS].rows_ or {}
@@ -1734,7 +1738,11 @@ check("🚨 every ⇪⇧T row survives the Objective-C bridge",
     for _, row in ipairs(rows) do
       for k, v in pairs(row) do
         local t = type(v)
-        if t ~= "string" and t ~= "number" and t ~= "boolean" then
+        if k == "image" then
+          if t ~= "userdata" and t ~= "table" then
+            return false, ("row image is a %s"):format(t)
+          end
+        elseif t ~= "string" and t ~= "number" and t ~= "boolean" then
           return false, ("row field %s is a %s"):format(tostring(k), t)
         end
       end
@@ -1758,7 +1766,7 @@ check("...and the pick index still resolves to a real snippet",
   end)())
 
 -- =====================================================================
-out("\n=== 20. 🗂 THE ⇪⇧T SECTIONS, IN ORDER (6.118.0) ===\n")
+out("\n=== 20. 🗂 THE ⇪⇧S SECTIONS, IN ORDER (6.118.0) ===\n")
 -- LL: "Can you separate the snippets into sections with my textpanders
 -- first?" Four ranks, and this is the section that holds them apart:
 -- a pinned collection, then yours-by-construction, then the shipped
@@ -1869,6 +1877,254 @@ return {
   exp.bundledDir = nil
   exp.load()
 end
+
+out("\n=== 21. 🖼 ICONS ON THE ROWS (6.161.0) — the Alfred look ===\n")
+-- A stub hs.canvas that counts: the module must make ONE offscreen
+-- canvas and reuse it, never show it, and turn each glyph into an image
+-- exactly once.
+local CANVASES, RENDERS = 0, {}
+local function canvasStub()
+  return {
+    new = function(frame)
+      CANVASES = CANVASES + 1
+      local c = { frame = frame, els = {} }
+      function c:appendElements(e) self.els[#self.els + 1] = e; return self end
+      function c:elementAttribute(i, k, v) self.els[i][k] = v; return self end
+      function c:imageFromCanvas()
+        local g = self.els[1].text
+        RENDERS[#RENDERS + 1] = g
+        return { image = g }
+      end
+      function c:delete() end
+      function c:show() error("an offscreen render canvas must never be shown") end
+      return c
+    end,
+  }
+end
+hs.canvas = canvasStub()
+local function put(trigger, text, name, extra)
+  if not exp.snippets[trigger] then addSnippet(trigger, text, name) end
+  local sn = exp.snippets[trigger]
+  sn.text, sn.name = text, name
+  for k, v in pairs(extra or {}) do sn[k] = v end
+  return sn
+end
+local function rowFor(rows, pred)
+  for _, r in ipairs(rows or {}) do if pred(r) then return r end end
+  return nil
+end
+
+check("what is a glyph: an emoji, a compose symbol, a flag, an arrow",
+  exp.glyphOf({ text = "💯" }) == "💯" and exp.glyphOf({ text = "§" }) == "§"
+  and exp.glyphOf({ text = "🇨🇦" }) == "🇨🇦" and exp.glyphOf({ text = "→" }) == "→")
+check("what is not: ASCII, whitespace, an action, empty, too long",
+  exp.glyphOf({ text = "--" }) == nil and exp.glyphOf({ text = "Good morning," }) == nil
+  and exp.glyphOf({ text = "💯 💯" }) == nil and exp.glyphOf({ text = "💯", fn = function() end }) == nil
+  and exp.glyphOf({ text = "" }) == nil and exp.glyphOf({ text = string.rep("→", 9) }) == nil
+  and exp.glyphOf("💯") == nil)
+check("a word with an accent is a word, not a picture (no ASCII letter in a glyph)",
+  exp.glyphOf({ text = "café" }) == nil and exp.glyphOf({ text = "naïve" }) == nil
+  and exp.glyphOf({ text = "1️⃣" }) == "1️⃣")
+check("the marks: ✂️ yours · ⚙️ built in · ⚡ action · 📄 shipped",
+  exp.markOf({ text = "x", own = true }) == exp.iconFor.own
+  and exp.markOf({ text = "x", source = exp.builtinSource }) == exp.iconFor.builtin
+  and exp.markOf({ text = "x", fn = function() end }) == exp.iconFor.action
+  and exp.markOf({ text = "x", source = "Mac_symbols" }) == exp.iconFor.shipped)
+
+put(":100:", "💯", "💯 :100:", { source = "Emoji_Pack", own = nil })
+put("§§", "§", "§ section sign", { source = "ComposeKey", own = nil })
+put("zzdash", "--", "Two dashes", { source = "Mac_symbols", own = nil })
+exp.iconCache, exp.iconStats = {}, { rendered = 0, failed = 0, slices = 0, secs = 0 }
+CANVASES, RENDERS = 0, {}
+check("warmIcons draws every distinct glyph and mark, inline when the clock stands still",
+  exp.warmIcons() == true and exp.iconPending == 0 and exp.iconTimer == nil
+  and exp.iconCache["💯"] and exp.iconCache["💯"].image == "💯"
+  and exp.iconCache["§"] and exp.iconCache[exp.iconFor.own] and exp.iconCache[exp.iconFor.heading]
+  and exp.iconCache["--"] == nil and exp.iconStats.slices == 1,
+  exp.iconPending .. " pending, " .. exp.iconStats.rendered .. " rendered")
+check("ONE canvas, reused — not one per glyph", CANVASES == 1, CANVASES)
+check("🚨 the ink is set explicitly — hs.canvas would draw a § white, invisible on a light picker",
+  (function()
+    local el = exp.iconCanvas and exp.iconCanvas.els[1]
+    return el and type(el.textColor) == "table" and el.textColor.white ~= nil
+  end)())
+check("a glyph is drawn once: the second ask is the cached image",
+  (function()
+    local n = #RENDERS
+    local a = exp.renderIcon("💯")
+    return a == exp.iconCache["💯"] and #RENDERS == n
+  end)())
+
+exp.show()
+local rows21 = CHOOSERS[#CHOOSERS].rows_ or {}
+local r100 = rowFor(rows21, function(r) return r.trigger == ":100:" end)
+check("an emoji row is drawn as ITSELF, and the glyph is dropped from the front of its name",
+  r100 and r100.image and r100.image.image == "💯" and r100.text == ":100:",
+  r100 and (r100.text .. " / " .. tostring(r100.image and r100.image.image)))
+check("…while fullName keeps the name as written, for the sort and the pane",
+  r100 and r100.fullName == "💯 :100:")
+check("the EMOJI_PACK heading's pane lists the 💯, not the alias twice",
+  (function()
+    local h = rowFor(rows21, function(r) return r.header and r.sect == "Emoji_Pack" end)
+    return h and h.rawText:find("💯 :100:", 1, true) ~= nil, h and h.rawText:sub(1, 80)
+  end)())
+check("the pause row's mark moved into the icon cell — the text no longer starts with it",
+  rows21[1].toggle and rows21[1].text:sub(1, 4) == "Turn", rows21[1].text)
+check("…its subText still names the trigger and the pack",
+  r100 and r100.subText:find(":100:", 1, true) and r100.subText:find("Emoji_Pack", 1, true) ~= nil)
+local rsec = rowFor(rows21, function(r) return r.trigger == "§§" end)
+check("a compose row the same: § beside \"section sign\"",
+  rsec and rsec.image.image == "§" and rsec.text == "section sign", rsec and rsec.text)
+local rdash = rowFor(rows21, function(r) return r.trigger == "zzdash" end)
+check("plain ASCII is text, not a picture: 📄, name untouched",
+  rdash and rdash.image.image == exp.iconFor.shipped and rdash.text == "Two dashes")
+local rgg = rowFor(rows21, function(r) return r.trigger == "gg1" end)
+check("your own snippet wears ✂️", rgg and rgg.image and rgg.image.image == exp.iconFor.own,
+  rgg and tostring(rgg.image and rgg.image.image))
+local rbi = rowFor(rows21, function(r) return r.trigger == ";d/" end)
+check("a built-in wears ⚙️", rbi and rbi.image and rbi.image.image == exp.iconFor.builtin,
+  rbi and tostring(rbi.image and rbi.image.image))
+check("every heading wears 🗂 and the pause row ⏸",
+  (function()
+    if not (rows21[1].toggle and rows21[1].image and rows21[1].image.image == exp.iconFor.toggleOn) then
+      return false, "toggle row"
+    end
+    local n = 0
+    for _, r in ipairs(rows21) do
+      if r.header then
+        n = n + 1
+        if not (r.image and r.image.image == exp.iconFor.heading) then return false, r.text end
+      end
+    end
+    return n > 0
+  end)())
+check("🚨 every row still crosses the bridge: scalars, plus the one image",
+  (function()
+    for _, row in ipairs(rows21) do
+      for k, v in pairs(row) do
+        local t = type(v)
+        if k == "image" then
+          if t ~= "table" then return false, k end
+        elseif t ~= "string" and t ~= "number" and t ~= "boolean" then
+          return false, k .. " is a " .. t
+        end
+      end
+    end
+    return true
+  end)())
+exp.enabled = false
+exp.show()
+check("expansion off: the row says ▶️", (CHOOSERS[#CHOOSERS].rows_ or {})[1].image.image == exp.iconFor.toggleOff)
+exp.enabled = true
+exp.show("Emoji_Pack")
+check("a narrowed view: the way back wears ↩️, and its text dropped the ◂",
+  (CHOOSERS[#CHOOSERS].rows_ or {})[1].back == true
+  and (CHOOSERS[#CHOOSERS].rows_ or {})[1].image.image == exp.iconFor.back
+  and (CHOOSERS[#CHOOSERS].rows_ or {})[1].text == "All snippets")
+check("a picked emoji row still inserts the emoji (the pick index is untouched)",
+  (function()
+    KEYSTROKES = {}
+    local ch = CHOOSERS[#CHOOSERS]      -- the narrowed view: its own picks
+    ch.cb(rowFor(ch.rows_, function(r) return r.trigger == ":100:" end))
+    drain()
+    return KEYSTROKES[#KEYSTROKES] == "💯", KEYSTROKES[#KEYSTROKES]
+  end)())
+
+out("\n--- the pre-render is SLICED: a clock that moves parks a continuation ---\n")
+local NOW21 = 5000
+local stillClock = hs.timer.secondsSinceEpoch
+hs.timer.secondsSinceEpoch = function() NOW21 = NOW21 + 0.0001; return NOW21 end
+exp.iconCache, exp.iconStats = {}, { rendered = 0, failed = 0, slices = 0, secs = 0 }
+exp.iconBudget = 0.00005
+PENDING = {}
+exp.warmIcons()
+check("🚨 the first slice stops at the budget and PARKS a held doAfter(0) — it does not run on",
+  exp.iconPending > 0 and #PENDING == 1 and PENDING[1].delay == 0 and exp.iconTimer == PENDING[1],
+  exp.iconPending .. " pending, " .. #PENDING .. " timers")
+do
+  local rounds = 0
+  while #PENDING > 0 and rounds < 500 do
+    rounds = rounds + 1
+    local b = PENDING; PENDING = {}
+    for _, t in ipairs(b) do if t.running then t.fn() end end
+  end
+  check("…and the continuations finish the set: nothing pending, the timer let go, many slices",
+    exp.iconPending == 0 and exp.iconTimer == nil and exp.iconStats.slices > 1
+    and exp.iconCache["💯"] and exp.iconCache[exp.iconFor.own] ~= nil,
+    exp.iconPending .. " pending after " .. rounds .. " rounds, " .. exp.iconStats.slices .. " slices")
+end
+check("a second warm with everything drawn is a no-op", exp.warmIcons() == true and exp.iconPending == 0)
+exp.iconBudget = 0.04
+
+out("\n--- an open has a budget of its own ---\n")
+put("zznew", "🆕", "🆕 :new:", { source = "Emoji_Pack", own = nil })
+exp.iconShowBudget = 0
+exp.show()
+local rnew = rowFor(CHOOSERS[#CHOOSERS].rows_ or {}, function(r) return r.trigger == "zznew" end)
+local rold = rowFor(CHOOSERS[#CHOOSERS].rows_ or {}, function(r) return r.trigger == ":100:" end)
+check("past the show budget an undrawn glyph opens WITHOUT an icon — no wait — while drawn ones keep theirs",
+  rnew and rnew.image == nil and rold and rold.image and rold.image.image == "💯",
+  tostring(rnew and rnew.image))
+check("…and the name KEEPS its glyph when there is no icon to stand in for it",
+  rnew and rnew.text == "🆕 :new:", rnew and rnew.text)
+exp.iconShowBudget = 0.05
+exp.show()
+rnew = rowFor(CHOOSERS[#CHOOSERS].rows_ or {}, function(r) return r.trigger == "zznew" end)
+check("with budget again the next open draws it", rnew and rnew.image and rnew.image.image == "🆕")
+hs.timer.secondsSinceEpoch = stillClock
+
+out("\n--- without hs.canvas, or with icons off, the rows are the plain 6.160.x rows ---\n")
+hs.canvas = nil
+exp.iconCanvas = nil      -- as on a Mac where the first canvas never came
+exp.iconCache, exp.iconStats = {}, { rendered = 0, failed = 0, slices = 0, secs = 0 }
+check("no hs.canvas: warm does not throw, every glyph is marked as undrawable once",
+  (function()
+    local ok = pcall(exp.warmIcons)
+    return ok and exp.iconStats.failed > 0 and exp.iconCache["💯"] == false
+  end)())
+exp.show()
+check("…and the picker still opens, rows without pictures, names whole",
+  (function()
+    local ch = CHOOSERS[#CHOOSERS]
+    local r = rowFor(ch.rows_ or {}, function(r) return r.trigger == ":100:" end)
+    return ch.shown and r and r.image == nil and r.text == "💯 :100:", r and r.text
+  end)())
+hs.canvas = canvasStub()
+exp.iconCache = {}
+exp.icons = false
+exp.show()
+check("exp.icons = false: no image on any row, and the glyph stays in the name",
+  (function()
+    local r = rowFor(CHOOSERS[#CHOOSERS].rows_ or {}, function(r) return r.trigger == ":100:" end)
+    for _, row in ipairs(CHOOSERS[#CHOOSERS].rows_ or {}) do
+      if row.image ~= nil then return false, row.text end
+    end
+    return r and r.text == "💯 :100:" and exp.warmIcons() == false, r and r.text
+  end)())
+exp.icons = true
+exp.iconCache = {}
+PROVIDED["expander.reload"]()
+check("expander.reload re-warms the icons after the words", exp.iconCache[exp.iconFor.own] ~= nil
+  and exp.iconCache[exp.iconFor.own] ~= false)
+exp.iconCache = {}
+exp.load()
+check("…as does EVERY load — an import or a _G.snippetAdd draws its new pictures too",
+  exp.iconCache[exp.iconFor.own] ~= nil and exp.iconCache[exp.iconFor.own] ~= false)
+exp.show()
+check("with no icon to carry it the pause row keeps its ⏸ in the text",
+  (function()
+    hs.canvas = nil; exp.iconCanvas = nil; exp.iconCache = {}
+    exp.show()
+    local t = (CHOOSERS[#CHOOSERS].rows_ or {})[1].text
+    hs.canvas = canvasStub(); exp.iconCache = {}
+    return t:sub(1, #"⏸") == "⏸", t
+  end)())
+check("the render canvas is never shown (source sentry)",
+  (function()
+    local src = io.open(HS .. "/modules/text_expander.lua"):read("a")
+    return src:find("iconCanvas:show", 1, true) == nil
+           and src:find("iconCanvas:elementAttribute", 1, true) ~= nil
+  end)())
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.execute("rm -rf '" .. TMP .. "'")

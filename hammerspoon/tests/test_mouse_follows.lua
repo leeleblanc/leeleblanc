@@ -74,12 +74,19 @@ local function mkApp(name, bundle, pid, frame)
     return app
 end
 
+-- Fires the zero-delay hand-offs. A LONG timer (6.161.0: the rest) stays
+-- in TIMERS for the test to fire by hand — a real doAfter(300) does not
+-- fire because a notification arrived.
+local SETTINGS = {}       -- 6.161.0: the hs.settings the memory lives in
 local function drain()
     local n = 0
+    local keep = {}
     while #TIMERS > 0 do
         local t = table.remove(TIMERS, 1)
-        if not t.stopped then t.fn(); n = n + 1 end
+        if t.secs and t.secs >= 1 then keep[#keep + 1] = t
+        elseif not t.stopped then t.fn(); n = n + 1 end
     end
+    for _, t in ipairs(keep) do TIMERS[#TIMERS + 1] = t end
     return n
 end
 
@@ -108,6 +115,10 @@ hs = {
     },
     accessibilityState = function() return AX end,
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
+    settings = {
+        get = function(k) return SETTINGS[k] end,
+        set = function(k, v) SETTINGS[k] = v end,
+    },
     application = {
         frontmostApplication = function() return FRONT end,
         watcher = {
@@ -186,7 +197,10 @@ check("cheat sheet names ⇪⇧3", (function()
     return false
 end)())
 check("M.config is the live table", M.config == mf and _G.mouseFollows == mf)
-check("starts OFF (6.160.2) — ⇪⇧3 opts in", mf.enabled == true and mf.active == false)
+check("starts OFF on a fresh Mac (6.160.2) — ⇪⇧3 opts in, nothing remembered yet",
+      mf.enabled == true and mf.active == false and mf.remembered == nil)
+check("the memory is on, with a settings key of its own (6.161.0)",
+      mf.remember == true and type(mf.SETTINGS_KEY) == "string")
 check("safety knobs: an AX timeout and a watchdog",
       mf.axTimeout > 0 and mf.axTimeout <= 0.5 and mf.slowMs > 0 and mf.slowStrikes >= 1)
 mf.active = true      -- the rest of the file exercises it ON
@@ -322,6 +336,46 @@ check("on: says so and jumps to the focused window right away",
 check("the service toggles the same switch", PROVIDED["mouseFollows.toggle"]() == false
       and PROVIDED["mouseFollows.toggle"]() == true)
 
+out("\n=== 8b. ⇪⇧3 is remembered across a reload (6.161.0) ===\n")
+check("every press is written to hs.settings — ON now",
+      SETTINGS[mf.SETTINGS_KEY] == true)
+BOUND[1].fn()
+check("…off now", SETTINGS[mf.SETTINGS_KEY] == false and mf.active == false)
+BOUND[1].fn()
+check("…and on again", SETTINGS[mf.SETTINGS_KEY] == true and mf.active == true)
+do
+    local setsBefore = #SETS
+    local M2, mf2 = boot()
+    check("a reload with ON remembered starts ON — no ⇪⇧3 needed",
+          mf2.active == true and mf2.remembered == true)
+    check("…and still moves nothing at boot", #SETS == setsBefore)
+    check("the report says so", _G.mouseFollowsReport():find("ON at boot", 1, true) ~= nil)
+    SETTINGS[mf2.SETTINGS_KEY] = false
+    local _, mf3 = boot()
+    check("a reload with off remembered starts off", mf3.active == false and mf3.remembered == false)
+    SETTINGS[mf3.SETTINGS_KEY] = "garbage"
+    local _, mf4 = boot()
+    check("a corrupt memory is ignored — boot default, nothing remembered",
+          mf4.active == false and mf4.remembered == nil)
+    mf4.remember = false
+    check("mf.remember = false: the press is not stored", (function()
+        SETTINGS[mf4.SETTINGS_KEY] = nil
+        mf4.toggle()
+        return SETTINGS[mf4.SETTINGS_KEY] == nil and mf4.active == true
+    end)())
+    SETTINGS = {}
+    hs.settings.set = function() error("disk says no") end
+    local _, mf5 = boot()
+    check("hs.settings that throws: the press still lands, nothing else breaks",
+          mf5.toggle() == true and mf5.active == true)
+    hs.settings.set = function(k, v) SETTINGS[k] = v end
+    -- back to the suite's module: the fixture from here on is `mf`
+    M, mf = boot()
+    mf.active = true
+    FRONT = MAIL
+    activate(MAIL)
+end
+
 out("\n=== 9. An app that refuses a watcher is said ONCE ===\n")
 REFUSE_WATCH = true
 local TEAMS = mkApp("Teams", "com.microsoft.teams", 400, { x = 0, y = 0, w = 200, h = 200 })
@@ -351,14 +405,57 @@ check("strike one: the jump still happens, and its time is kept",
       mf.slowHits == 1 and mf.active == true and mf.lastMs and mf.lastMs >= 400)
 MAIL._frame = { x = 20, y = 20, w = 100, h = 100 }
 fire("AXFocusedWindowChanged")
-check("strike two: OFF for the session, on screen, in the notices",
-      mf.active == false and mf.stoodDown ~= nil
-      and #ALERTS == alertsW + 1 and ALERTS[#ALERTS]:find("OFF", 1, true)
-      and #NOTICES == noticesW + 1 and NOTICES[#NOTICES][2] == "stood down")
+check("strike two: it RESTS (6.161.0) — off, on screen, in the notices, the rest timer held",
+      mf.active == false and mf.stoodDown ~= nil and mf.restUntil ~= nil
+      and #ALERTS == alertsW + 1 and ALERTS[#ALERTS]:find("rest", 1, true)
+      and #NOTICES == noticesW + 1 and NOTICES[#NOTICES][2] == "resting"
+      and mf.restTimer ~= nil and #TIMERS == 1 and TIMERS[1].secs == mf.slowRest)
+check("the strikes are spent — the next rest needs two fresh ones", mf.slowHits == 0 and #mf.strikes == 0)
 MAIL._frame = { x = 30, y = 30, w = 100, h = 100 }
 fire("AXFocusedWindowChanged")
-check("…and nothing is even scheduled while it is off", #TIMERS == 0 and mf.pending == nil)
+check("…and nothing is even scheduled while it rests", #TIMERS == 1 and mf.pending == nil)
+check("the report names the rest", _G.mouseFollowsReport():find("resting until", 1, true) ~= nil)
 ASTEP = 1000000
+do
+    local rest = table.remove(TIMERS, 1)
+    rest.fn()
+    check("the rest ends on its own: ON again, and it says so",
+          mf.active == true and mf.restUntil == nil and mf.restTimer == nil
+          and ALERTS[#ALERTS]:find("back ON", 1, true) ~= nil)
+    check("…and the report files the rest as history, not as the state",
+          mf.stoodDown == nil and mf.lastRest ~= nil
+          and _G.mouseFollowsReport():find("last rest", 1, true) ~= nil
+          and _G.mouseFollowsReport():find("stood down", 1, true) == nil)
+end
+out("\n=== 9c. A rest cut short by ⇪⇧3, and strikes that expire ===\n")
+SETTINGS[mf.SETTINGS_KEY] = true       -- what a real ⇪⇧3 ON left behind
+ASTEP = 400 * 1000000
+MAIL._frame = { x = 40, y = 40, w = 100, h = 100 }
+fire("AXFocusedWindowChanged")
+MAIL._frame = { x = 50, y = 50, w = 100, h = 100 }
+fire("AXFocusedWindowChanged")
+check("resting again after two more slow jumps", mf.active == false and #TIMERS == 1)
+check("a rest never writes the memory — a reload mid-rest comes back ON",
+      SETTINGS[mf.SETTINGS_KEY] == true)
+ASTEP = 1000000
+-- BOUND[#BOUND]: the newest boot's ⇪⇧3 (8b rebooted the module)
+BOUND[#BOUND].fn()
+check("⇪⇧3 during a rest wakes it now — the rest timer is stopped, not left to fire",
+      mf.active == true and mf.restUntil == nil and TIMERS[1].stopped == true
+      and mf.restTimer == nil and SETTINGS[mf.SETTINGS_KEY] == true)
+TIMERS = {}
+BOUND[#BOUND].fn()
+check("…and an explicit off after that stays off", mf.active == false and #TIMERS == 0)
+BOUND[#BOUND].fn()
+mf.strikes = { os.time() - mf.slowWindow - 5 }
+mf.slowHits = 1
+ASTEP = 400 * 1000000
+MAIL._frame = { x = 60, y = 60, w = 100, h = 100 }
+fire("AXFocusedWindowChanged")
+check("a strike older than slowWindow is forgotten — one slow jump does not stand it down",
+      mf.active == true and mf.slowHits == 1 and #mf.strikes == 1)
+ASTEP = 1000000
+mf.strikes, mf.slowHits = {}, 0
 mf.active = true
 
 out("\n=== 10. The report ===\n")
@@ -366,22 +463,70 @@ local r = _G.mouseFollowsReport()
 check("names the state, the last jump and who refused",
       r:find("ON", 1, true) and r:find("last", 1, true) and r:find("Teams", 1, true)
       and r:find("jumped", 1, true) ~= nil)
-check("…and the watchdog's verdict and the timeout", r:find("stood down", 1, true)
+check("…and the watchdog's verdict (now history) and the timeout", r:find("last rest", 1, true)
       and r:find("AX timeout", 1, true) ~= nil)
 check("the service returns the same text", PROVIDED["mouseFollows.report"]() == r)
 
 out("\n=== 11. Accessibility off stands down, and says so ===\n")
 AX = false
 local boundBefore, watchersBefore = #BOUND, WATCHERS
+SETTINGS = {}
 local _, off = boot()
-check("nothing starts: no watcher, no key", WATCHERS == watchersBefore and #BOUND == boundBefore)
+local offKey = BOUND[#BOUND]           -- THIS instance's ⇪⇧3
+check("nothing starts: no watcher — but ⇪⇧3 IS bound (6.161.0)",
+      WATCHERS == watchersBefore and #BOUND == boundBefore + 1)
+check("…and the press explains where to grant Accessibility instead of doing nothing",
+      (function()
+          local n = #ALERTS
+          offKey.fn()
+          return off.active == false and off.appWatcher == nil and #ALERTS == n + 1
+                 and ALERTS[#ALERTS]:find("Accessibility", 1, true) ~= nil
+      end)())
 check("a notice records why", (function()
     local n = NOTICES[#NOTICES]
     return n and n[1] == "mouseFollows" and n[2] == "Accessibility off"
 end)())
 check("the report says OFF", _G.mouseFollowsReport():find("OFF", 1, true) ~= nil)
 check("…and the table is still published for a profile", _G.mouseFollows == off)
+check("…and the memory was still read, so the report knows it",
+      (function()
+          SETTINGS["mouseFollows.active"] = true
+          local _, off2 = boot()
+          local r = _G.mouseFollowsReport()
+          SETTINGS = {}
+          return off2.remembered == true and r:find("ON at boot", 1, true) ~= nil
+      end)())
+out("\n--- Accessibility granted AFTER boot: ⇪⇧3 starts the watcher itself (6.161.0) ---\n")
 AX = true
+do
+    local w0, setsBefore = WATCHERS, #SETS
+    FRONT = MAIL
+    MAIL._frame = { x = 700, y = 700, w = 200, h = 200 }   -- somewhere the pointer is not
+    offKey.fn()
+    check("the press turns it ON and starts the app watcher — no reload needed",
+          off.active == true and off.appWatcher ~= nil and WATCHERS == w0 + 1)
+    check("…the front app is observed and the first jump happened",
+          live() and live().pid == 200 and #SETS == setsBefore + 1)
+    check("a second press does not start a second watcher",
+          (function() offKey.fn(); offKey.fn(); return WATCHERS == w0 + 1 end)())
+end
+out("\n--- the memory, both ways, and a profile that turns it off ---\n")
+do
+    SETTINGS = {}
+    SETTINGS["mouseFollows.active"] = false
+    local _, m1 = boot()
+    m1.active = true            -- as a profile override would set the default
+    local _, m2 = boot()
+    check("a remembered OFF is honoured too, not only a remembered ON",
+          m2.active == false and m2.remembered == false)
+    SETTINGS["mouseFollows.active"] = true
+    local _, m3 = boot()
+    m3.remember = false         -- the profile override lands AFTER setup
+    m3.toggle()
+    check("remember = false from a profile: the first press wipes the stale memory",
+          SETTINGS["mouseFollows.active"] == nil)
+    SETTINGS = {}
+end
 
 out("\n=== 12. Source sentries ===\n")
 local src = io.open(HS .. "/modules/mouse_follows.lua"):read("a")

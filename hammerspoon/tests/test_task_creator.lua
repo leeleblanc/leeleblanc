@@ -511,15 +511,17 @@ check("a successful submit clears the draft",
 
 check("⌃⌥⌘T and ⌃⌥⌘A are bound (the §0.4 map turns them into ⇪T · ⇪A)",
       BOUND["ctrl+alt+cmd|T"] ~= nil and BOUND["cmd+ctrl+alt|A"] ~= nil)
-check("⇪⇧S is registered through core.hyperAddShortcut",
-      HYPER["shift|s"] ~= nil)
+check("🚨 NO ⇪⇧S here since 6.161.0 — it is the snippets panel's, and a claim "
+      .. "from this module (loaded later) would win and hide the snippets",
+      HYPER["shift|s"] == nil and next(HYPER) == nil)
+check("the pipe picker is still openable by name (⇪T's fallback, the Console)",
+      type(_G.asanaOpenTaskChooser) == "function")
 
 ASANA_OK = false
 ALERTS, POPUPS = {}, 0
 BOUND["ctrl+alt+cmd|T"]()
-HYPER["shift|s"]()
-check("no secret.lua: both keys explain instead of opening anything",
-      POPUPS == 0 and #ALERTS == 2)
+check("no secret.lua: ⌃⌥⌘T explains instead of opening anything",
+      POPUPS == 0 and #ALERTS == 1)
 ASANA_OK = true
 
 local FORM_CALLS = 0

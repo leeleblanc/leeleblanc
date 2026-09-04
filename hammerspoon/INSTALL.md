@@ -227,7 +227,7 @@ run and whether it exists here, and every path it writes to. Read-only.
 | type `begone` | every notification banner on screen closes; the word deletes itself |
 | ⇪Q | focus mode (Quiet) — mutes the mic and dims everything but the meeting |
 | ⇪R | bulk rename the Finder selection · undo is the picker's first row |
-| ⇪⇧S | search your past Asana tasks — 30 days, ⏎ reopens one |
+| ⇪⇧S | your snippets — emoji, compose sequences and your own, each with its icon; ⏎ inserts one |
 | ⇪⇧U | pin a note to the window in front — it follows that window |
 | ⇪⇧/ | the same ⇪space box, opened on the tools — ⏎ runs one |
 | ⇪⇧W | the documents you worked in · ⇪⇧E edits or deletes an entry |

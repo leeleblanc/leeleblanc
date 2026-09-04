@@ -4,6 +4,124 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.161.0 — ⇪⇧S IS THE SNIPPETS PANEL, WITH ICONS; ⇪⇧3 REMEMBERS:
+  ✂️ LL: "hyper+shift+s opens an old picker for Asana. Can't we clear
+     this?" — and, with two screenshots the day before: the Asana pipe
+     picker on ⇪⇧S "shouldn't be taken nor launch that tool"; what LL
+     reaches for on S is the snippets, and wants them the way Alfred
+     shows them — "🚚  Type e ⇥ to find relevant Emoji.  ⌘7": an icon,
+     a name, a ⌘N hint. Cleared. The snippets panel is on ⇪⇧S ("S for
+     Snippets"; it had been ⇪⇧T since 6.68.0). The past-task picker gave
+     the key up and has none: it is still ⇪T's fallback when the labeled
+     form cannot open, ⇪space (@asana) searches the same 30-day history,
+     and _G.asanaOpenTaskChooser() opens it from the Console. ⇪⇧T is
+     FREE — the first free ⇪⇧ letter since win_pin took the last one in
+     6.104.0 — and _G.freeKeys() lists it. Every document that said
+     otherwise moved with the key (init.lua's tool header and module
+     list, INSTALL.md's "confirm it works" table, the task form's cheat
+     row, the ⇪space run-map, the two "every ⇪⇧ letter is spoken for"
+     comments); test_task_creator now pins that the task creator claims
+     NO hyper key at all — it loads after the expander, and a second
+     claim on ⇪⇧S would have won and hidden the snippets silently (the
+     Console's HYPER CONFLICT line is the only witness to that).
+  🖼 ICONS ON THE ROWS. A snippet whose whole text is a small picture —
+     an emoji, a compose sequence's § or →, a flag — is drawn as ITSELF
+     beside its name, and the same picture is dropped from the front of
+     the name once the icon carries it ("💯 :100:" reads ":100:" by a 💯;
+     "§ section sign" reads "section sign" by a §). A text snippet wears
+     the mark of where it came from — ✂️ yours (Mine, an import, a
+     hand-written one) · 📄 shipped · ⚙️ built in · ⚡ an action — the
+     headings wear 🗂, the pause row ⏸/▶️, the way back ↩️. hs.chooser
+     already draws ⌘1–⌘9 on the first nine rows, so the hint half of
+     the Alfred look was there all along.
+     How: exp.glyphOf decides what is a picture (no whitespace, not plain
+     ASCII, no ASCII letter — "café" is a word — at most
+     exp.iconGlyphMax = 8 characters; a family emoji is seven code
+     points); exp.renderIcon draws one glyph into ONE reused offscreen
+     hs.canvas (a 32-point text element, never shown; its ink follows the
+     system appearance at first draw — hs.canvas draws text WHITE by
+     default and a § would vanish on a Light-mode picker, Apple Color
+     Emoji alone ignores the colour) and keeps the image in exp.iconCache
+     for the session. exp.warmIcons pre-draws every distinct glyph at the
+     tail of every exp.load — warm(), expander.reload, an import, a
+     _G.snippetAdd — in slices of exp.iconBudget (40ms) with
+     a HELD doAfter(0) continuation between them (chrome_history's
+     runSliced shape, 6.152.1), so the ~1,900 pictures never stall a
+     keystroke; the Console gets one "icons: N glyphs drawn in K slices"
+     line. An open pays at most exp.iconShowBudget (50ms) for glyphs the
+     pre-render has not reached; a row past that opens WITHOUT its icon
+     — and keeps the glyph in its name, so it shows something — and has
+     it next time. Rows SORT by the name as written (fullName) and a
+     heading's pane lists it the same way, so neither depends on which
+     rows managed an icon this open — the pane has no pictures of its
+     own, so the 💯 must stay in its line. No hs.canvas (a test, a Mac
+     that will not draw): the glyph is marked undrawable once and the
+     rows are 6.160.x's. The pause row and the way back carry their mark
+     in the icon cell only (once is enough, the same rule). Memory:
+     about two thousand small images, a few tens of MB; exp.icons = false
+     turns the whole thing off. The bridge sentry (6.109.0) admits one
+     non-scalar field, `image` — hs.chooser's own key for an hs.image —
+     and nothing else.
+  🖱 "MouseFocus no longer works." It did not break; three things made it
+     look dead, and each is closed: (1) it started OFF at EVERY reload
+     (6.160.2) — an update, a ⌘R, a reboot — until ⇪⇧3 was pressed again.
+     Now ⇪⇧3 is REMEMBERED (hs.settings "mouseFollows.active"): turned
+     on once, it is on at the next boot; turned off, it stays off; a
+     profile's settings = { mouseFollows = { active = true } } still wins.
+     (2) The watchdog turned it off for the WHOLE session after two slow
+     jumps — any two, a morning apart — and the one alert was easy to
+     miss. Now a strike is forgotten after mf.slowWindow (60s), and two
+     inside that are a REST of mf.slowRest (5 minutes): it comes back on
+     its own and says so, and ⇪⇧3 wakes it sooner (a press during a rest
+     is "wake up now", whichever way it lands; the rest timer is stopped,
+     never left to overrule an explicit off). Every read has carried a
+     timeout since 6.160.2, so the worst a rest prevents is a stutter,
+     never a hang — a permanent off was more caution than the risk
+     deserved. (3) With Accessibility off it bound NO key at all, so ⇪⇧3
+     did nothing, silently; the key is bound regardless now, and without
+     the grant the press says where to give it — and a grant given AFTER
+     boot needs no reload: the next ⇪⇧3 starts the app watcher itself
+     (mf.start, the same code boot runs). The memory works both ways (a
+     remembered off beats a profile default of on), and a profile that
+     sets remember = false — which lands after setup — has its first
+     press wipe whatever was stored. _G.mouseFollowsReport() gained
+     "remembered : ON at boot (hs.settings)", "state : resting until
+     HH:MM:SS", and "last rest : … — over" once a rest has ended.
+  🩺 The Chrome-history pane report from the same message is 6.160.4's
+     fix, which lands with this install — and the skeptic pass over it
+     found one gap, closed here: TYPING is a hand too. A query rebuilds
+     the list with the highlight on row 1, where it usually already was,
+     so the selection never "changed" and a pointer resting on row 3 kept
+     the pane on the new list's third row through a whole typing session
+     — the same symptom by another door. clip.previewRow now reads the
+     query beside the selection (and, for a picker that filters for
+     itself, the row count): a letter hands the pane back to the
+     keyboard exactly as an arrow does. Also the picker's bottom edge
+     pixel is no longer read as one row past the last.
+  🔁 Two more from the review: a remembered (or profile) ON while
+     Accessibility was off at boot is "ON in name only" — the report
+     says so — and the first ⇪⇧3 after the grant STARTS it and stays ON
+     instead of flipping it off and overwriting the memory; and a
+     Light/Dark switch mid-session redraws the text glyphs in the right
+     ink at the next load.
+  🧪 test_expander +35 (glyph rules incl. "café", the marks, one canvas
+     reused, the ink set, drawn once, the stripped name and the kept
+     fullName, the heading's pane keeps the 💯, every row still crosses
+     the bridge, the sliced pre-render parks a HELD continuation and
+     finishes, the show budget, no hs.canvas, icons off, every load
+     re-warms, the canvas is never shown); test_mouse_follows +20 (the
+     memory across reboots and both ways, a corrupt memory ignored, a
+     throwing hs.settings, remember = false wiping the store, the rest
+     with its held timer, a rest ended by the timer and one cut short by
+     ⇪⇧3, a rest filed as history, an expired strike, ⇪⇧3 bound with
+     Accessibility off and explaining, a live grant starting the
+     watcher); test_clipboard +6 (typing hands the pane back, a resting
+     pointer does not take it again, the bottom edge pixel, a list that
+     changed size); test_task_creator pins the missing claim. Gate: 6,703 → 6,772 checks, sixty-eight stages green in the tree and inside the package.
+  📦 snippets/ is not in this container: the zip carries no snippets
+     folder (hs-install.sh leaves ~/.hammerspoon/snippets alone), so the
+     2,006 shipped snippets on the Mac stay as they are.
+
 NEW IN 6.160.4 — THE PANE FOLLOWS THE LAST HAND THAT MOVED:
   🖱 LL: "I don't know how to get a screenshot of this for you. In my
      Chrome history list, the entry in the picker will say it's a

@@ -69,7 +69,7 @@ local M = {
             { "⌥⏎",   "newline inside the Description box" },
             { "📸",   "button (or ⌘L): newest screenshot into Attachment" },
             { "esc",  "close — the draft is kept for next time" },
-            { "⇪⇧S",  "search PAST tasks (the old pipe picker, search-only)" },
+            { "past",  "search PAST tasks from ⇪space (@asana) — the old pipe picker has no key since 6.161.0" },
         },
     },
 }

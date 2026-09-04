@@ -9,7 +9,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,740 lines)
+├── init.lua          the orchestrator (3,757 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (10 files)
 ├── modules/          one file per feature (63 files, ~45,300 lines)
@@ -18,7 +18,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 │                     in five collections. Since 6.117.0 the .json packs
 │                     it was built from do NOT ship: the expander skips
 │                     them whenever the table loads, so they were 797 KB
-│                     of ignored files. 6.118.0 sections ⇪⇧T by those
+│                     of ignored files. 6.118.0 sections ⇪⇧S by those
 │                     collections — see exp.sectionOrder
 └── tools/            hs-install.sh · hs-doctor.sh · run-tests.sh ·
                       build-snippets.lua
@@ -521,8 +521,8 @@ and `<logsDir>/diagnostics-<machine>.txt`.
 | ⇪⇧2 typed nothing | the alert says which: secure input (a password field) beats synthetic keystrokes, or ⇧ was still down 0.6s after the press — let go of it |
 | ⇪⇧; shows 🔒 on the process I want to end | it runs as another user (root, mostly — this config never asks for admin) or it is part of macOS (`ak.systemPaths`); the reason leads the row's subtitle. 🔁 rows relaunch by themselves; 🖥 ⚙️ rows are yours (6.159.0) |
 | `;d/` `;d-` `;mp3` do nothing | a snippet of yours has the trigger — the Console says "built-in … stands aside" at load; rename the row in `exp.builtin`. Or the front app is Terminal, which is excluded (Ghostty is not) |
-| The pointer jumps into a window I didn't click | that is Mouse Follows Focus (6.160.0): focus changed, or the focused window was warped. It starts OFF since 6.160.2; ⇪⇧3 toggles it for the session; `settings = { mouseFollows = { active = true } }` starts it on. It never moves while a mouse button is down — `_G.mouseFollowsReport()` says why the last jump did or didn't happen |
-| Mouse Follows Focus turned itself off | the watchdog (6.160.2): two jumps took over 250ms, which means an app is slow to answer Accessibility. `_G.mouseFollowsReport()` names the time and the app of the last jump; add that app to `mf.skipApps`, then ⇪⇧3 turns it back on |
+| The pointer jumps into a window I didn't click | that is Mouse Follows Focus (6.160.0): focus changed, or the focused window was warped. It starts OFF on a fresh install; ⇪⇧3 toggles it and the choice is REMEMBERED across reloads (6.161.0); `settings = { mouseFollows = { active = true } }` starts it on. It never moves while a mouse button is down — `_G.mouseFollowsReport()` says why the last jump did or didn't happen |
+| Mouse Follows Focus turned itself off | the watchdog (6.160.2; since 6.161.0 a 5-minute REST that ends by itself — ⇪⇧3 wakes it sooner): two jumps inside a minute took over 250ms, which means an app is slow to answer Accessibility. `_G.mouseFollowsReport()` names the time and the app of the last jump; add that app to `mf.skipApps`, then ⇪⇧3 turns it back on |
 | ⌥Tab takes a second to appear | read the Console's "listing took … slowest phase: X" line — it names the phase. "console" was 6.160.3's fix (hs.console.hswindow() is a second full AX sweep; the switcher now asks its own process by pid). "sweep" is the per-app listing, and the same line's "slowest: X" names the app: put it in `altTab.skipApps`. "memory" is the probe budget |
 | A picker's preview pane sits ON the list instead of beside it | the placement record said the picker was off the screen (a runaway nudge/drag offset). 6.160.1 clamps every placement onto its screen and folds the offset back; the Console says "clamped" when it does. ⌃⌥⌘R resets the offset by hand |
 | The preview pane shows a different entry than the highlighted row | the mouse has it — the pane's header ends "🖱 under the pointer". 6.160.4: only a pointer that MOVED onto a row takes the pane, an arrow takes it back, a pointer merely resting on the picker never overrules the highlight. No tag and still different: the list was wheel-scrolled — hs.chooser has no scroll getter, so the hover maths estimates the scroll from the arrows alone; one arrow press hands the pane back to the highlight |
@@ -532,6 +532,9 @@ and `<logsDir>/diagnostics-<machine>.txt`.
 | `Homebrew not found` but brew works in Terminal | a no-admin install in your home dir; the Console lists every path tried. Pin it: `M.config.brewPath = "…"` in `modules/update_tracker.lua` (`which brew` gives the path) |
 | The screen veil will not go away | `⌃⌥⌘⇧G` — a plain chord, bound outside hyper on purpose |
 | An empty rounded window is stuck on screen | a half-drawn alert — another app's popup made macOS throw mid-draw ("an alert could not draw" in the Console). Since 6.100.1 the config sweeps and retries these itself; for one that got through: `_G.phantom()` in the Console, and Reload Config clears it for certain |
+| ⇪⇧S opens an Asana picker, not the snippets | an older install — 6.161.0 moved the snippets panel to ⇪⇧S and took the key off the Asana pipe picker (⇪T's fallback; ⇪space @asana searches the same history). A "HYPER CONFLICT: ⇪shift+s" Console line means a stray module still claims it |
+| Snippet rows have no icons, or only some | the pictures are pre-drawn after the snippets load (Console: "icons: N glyphs drawn in K slices"); an open right after a boot may catch it mid-way and shows those rows without an icon, name whole, until the next open. No icons ever: `exp.icons` is false, or hs.canvas would not draw (the Console line ends "N would not draw") |
+| Mouse follows focus stopped | `_G.mouseFollowsReport()`: "state : resting until …" is the watchdog (two slow jumps inside a minute — back in 5 min, ⇪⇧3 wakes it now); "off — ⇪⇧3 turns it on" with "remembered : off at boot" is your own last press; "accessibility : OFF" needs the grant. Since 6.161.0 the switch survives a reload |
 | **No ⇪ shortcut works at all** | The config checks itself on your first Caps Lock press and says so. ⇪⇧D shows **hyper PROVEN** and which path carried it. If it never gets proven, F18 is not arriving — check the 🎹 line for what hidutil said, and Accessibility. `_G.hyperSelfTest()` prints what each layer saw, but a zero in its Carbon column proves nothing: a posted event does not reliably reach Carbon |
 | Volume changed my whole Mac, not the app | That is the 🌐 label in the alert, and it is a Hammerspoon limit, not a bug — from Lua only Music and Spotify (🎯) can move their own volume. For a REAL mixer use [Vorssaint](https://github.com/vorssaint/vorssaint-utils): free, open source, no driver, no admin — it uses Core Audio process taps (macOS 14.2+, Apple Silicon, System Audio Recording permission). BackgroundMusic and SoundSource also work but install an audio driver |
 | An app's volume keeps changing on its own | ⇪. / ⇪, remember a level per app and restore it when you switch back. Set `followFrontmost = false` in `modules/volume.lua`, or ⇪⇧. to see every level being remembered |
@@ -570,9 +573,9 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Sixty-three Lua suites, 6,598 checks, plus three more that run the Capture
+Sixty-three Lua suites, 6,667 checks, plus three more that run the Capture
 Pad's, the screenshot editor's and unified search's page JavaScript under
-`node` for a further 105 — **6,703 checks over sixty-eight stages** in
+`node` for a further 105 — **6,772 checks over sixty-eight stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 
@@ -616,7 +619,6 @@ tests/test_begone.lua        the typed keyword, the osascript sweep, the expande
 tests/test_recent_docs.lua   ⇪I: the Spotlight scan, learned types, ⇪F aliases, the 9-shelf
 tests/test_focus.lua         ⇪Q, over 500 generated meeting days — the mic is never stranded
 tests/test_rename.lua        ⇪R, over 400 generated messy folders — no file is ever lost
-tests/test_workspaces.lua    ⇪⇧S, 300 generated workspaces — the busy flag never sticks
 tests/test_notices.lua       the failure ledger — a notice is never lost, and never floods
 tests/test_console.lua       the ⛔ ERRORS + ⚠️ NONBREAKING banners, the repeat limiter
 tests/test_lag.lua           ⏱ the keystroke probe — the wrapper must be invisible to

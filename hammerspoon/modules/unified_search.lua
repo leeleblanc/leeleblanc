@@ -15,7 +15,8 @@
 --   ⌨️ command history      (⇪H's log, via the commands.entries service)
 --   📸 the screenshot folder (⇪⇧4's listing, WITH thumbnails)
 --   🗒 notes                (⇪J's files under <logs>/notes/)
---   ✅ asana tasks          (⇪⇧S's 30-day history)
+--   ✅ asana tasks          (the task creator's 30-day history; its pipe
+--                            picker lost ⇪⇧S to the snippets in 6.161.0)
 --   🔤 OCR log              (⇪O's image_text CSV)
 --   📄 documents            (⇪⇧W's doc_wather.csv)
 --   📁 file moves           (⇪F's file_changes CSV)
@@ -514,12 +515,13 @@ function M.setup(core)
         ["⇪⇧A"]   = "universalActions.show",
         ["⇪⇧P"]   = "pomodoro.toggle",
         ["⇪⇧L"]   = "mouseGrid.locate",
-        ["⇪⇧T"]   = "expander.show",
+        ["⇪⇧S"]   = "expander.show",   -- 6.161.0: was ⇪⇧T
         ["⇪⇧U"]   = "winPin.pin",
         -- 6.105.0
         ["⇪O"]    = "ocr.show",
         ["⇪⇧O"]   = "ocr.edit",
-        -- 📊 The rollup has NO KEY — every ⇪⇧ letter is spoken for. That
+        -- 📊 The rollup has NO KEY — every ⇪⇧ letter was spoken for when it
+        -- arrived (⇪⇧T came free in 6.161.0 and stays free on purpose). That
         -- makes this row the only way to open it by hand short of the
         -- Console, which is exactly what a tool list is for.
         ["📊"]    = "rollup.show",

@@ -4,8 +4,41 @@
 -- =====================================================================
 -- 09-04-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.160.4
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.161.0
 -- =====================================================================
+
+-- NEW IN 6.161.0 — ⇪⇧S IS THE SNIPPETS PANEL, WITH ICONS; ⇪⇧3 REMEMBERS:
+--   ✂️ LL: "hyper+shift+s opens an old picker for Asana. Can't we clear
+--      this?" Cleared. ⇪⇧S opens the snippets (it was ⇪⇧T since 6.68.0);
+--      the Asana pipe picker has no key any more — it is ⇪T's fallback,
+--      ⇪space (@asana) searches the same 30 days, and
+--      _G.asanaOpenTaskChooser() opens it by hand. ⇪⇧T is FREE — the
+--      first free ⇪⇧ letter since 6.104.0; _G.freeKeys() lists it.
+--   🖼 The panel has the Alfred look LL asked for: an emoji or a compose
+--      symbol is drawn as ITSELF beside its name ("💯 :100:" reads ":100:"
+--      by a 💯), a text snippet wears where it came from — ✂️ yours ·
+--      📄 shipped · ⚙️ built in · ⚡ action — and a heading 🗂. Each glyph
+--      is drawn once (an hs.canvas text element → image) and cached; the
+--      ~1,900 pictures are pre-drawn after the snippets load, in 40ms
+--      slices with a held continuation, so nothing stalls a keystroke.
+--      An open pays at most 50ms for stragglers; a row past that opens
+--      without its icon, name whole, and has it next time.
+--      exp.icons = false is the 6.160.x look.
+--   🖱 "MouseFocus no longer works": it started OFF at every reload
+--      (6.160.2), stood down for the WHOLE session after two slow jumps
+--      — any two — and with Accessibility off bound no key at all. Now
+--      ⇪⇧3 is REMEMBERED across reloads (hs.settings), a strike expires
+--      after 60s and two inside that are a 5-minute REST: it comes back
+--      on its own and says so, ⇪⇧3 wakes it sooner. The key is bound
+--      regardless; without Accessibility the press says where to grant
+--      it, and a grant given after boot needs no reload — the next ⇪⇧3
+--      starts the watcher. _G.mouseFollowsReport() gained "remembered",
+--      "resting until" and "last rest".
+--   🔤 6.160.4's pane, one gap closed: TYPING hands the pane back to the
+--      keyboard too (a query puts the highlight on row 1, where it already
+--      was, so no "selection change" ever fired and a resting pointer kept
+--      the pane on the new list's third row). A letter now counts like an
+--      arrow.
 
 -- NEW IN 6.160.4 — THE PANE FOLLOWS THE LAST HAND THAT MOVED:
 --   🖱 LL: "In my Chrome history list, the entry in the picker will say
@@ -71,28 +104,10 @@
 --      offset stops lying. ⌃⌥⌘R still resets it by hand; the Console
 --      says "placement was off the screen … clamped" when it happens.
 
--- NEW IN 6.160.0 — THE POINTER GOES WHERE FOCUS GOES (⇪⇧3):
---   🖱 LL: "Set the mouse pointer to the center of the focused window
---      whenever focus changes. Additionally, if focused window moves when
---      no mouse buttons are pressed, set the mouse pointer to the new
---      center. This is intended to work with other utilities which warp
---      the focused window." That is MouseFollowsFocus.spoon's contract,
---      rebuilt WITHOUT hs.window.filter (banned here) on the plumbing
---      Dialog Home already uses: an app watcher for the switch, one AX
---      observer on the front app for AXFocusedWindowChanged and
---      AXWindowMoved. Two rules — focus changed → centre; the focused
---      window warped → its new centre — and the guards that keep it
---      polite: never with a mouse button down (your drag is yours; a
---      click is a button down), never into our own pads and pickers,
---      never while paused (⇪⇧1), never twice for one move. ⇪⇧3 turns it
---      off and on (starts on; a profile can start it off with
---      settings = { mouseFollows = { active = false } }).
---      _G.mouseFollowsReport() has the last jump and why it stood still.
-
--- (6.159.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.160.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.160.4
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.161.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -242,7 +257,8 @@
 --    6.86.0: ⇪T opens a FORM — labeled Title/Description/Assignee/
 --    Attachment. ⏎ sends from any field, ⌥⏎ = newline, Esc keeps the
 --    draft; 📸/⌘L drops the newest ⇪4 screenshot into Attachment.
---    ⇪⇧S searches PAST tasks (the old pipe picker, 30-day history).
+--    Past tasks: ⇪space (@asana). The old pipe picker has no key since
+--    6.161.0 (⇪⇧S is the snippets panel); _G.asanaOpenTaskChooser() opens it.
 --
 -- 📸 ⇪4  SCREENSHOTS (modules/screenshots.lua + screenshot_editor.lua)
 --    ⇪4 = native crosshair capture (SPACE = window, Esc cancels) to
@@ -437,7 +453,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.160.4"
+_G.configVersion = "6.161.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2313,7 +2329,7 @@ end -- do...end (§3.12 Hyper Key locals)
 -- 📌 THE TASK CREATOR MOVED OUT in 6.98.0, to modules/task_creator.lua —
 -- the 30-day history, the attachment upload, the pipe parser, the draft
 -- mirror, the shared submit path (_G.asanaSubmitTask) and its three keys
--- (⌃⌥⌘T · ⇪⇧S · ⌃⌥⌘A) travel together. The dashboard (§6) stayed here.
+-- (⌃⌥⌘T · ⌃⌥⌘A; ⇪⇧S until 6.161.0) travel together. The dashboard (§6) stayed here.
 
 -- =====================================================================
 -- 5. HOTKEY INTEGRATIONS
@@ -3124,12 +3140,12 @@ local BASE = {
     --  tenant policy blocks the only route that worked. Do not re-add it
     --  without a new answer from IT, or you are writing 6.65.0 again.)
     -- 6.68.0
-    "text_expander",      -- ⇪⇧T  Alfred snippets, typed anywhere
+    "text_expander",      -- ⇪⇧S  Alfred snippets, typed anywhere (⇪⇧T until 6.161.0)
     -- 6.71.0
     "key_caster",         -- ⇪⇧K  show the shortcuts as you press them
     -- 6.86.0
     "screenshots",        -- ⇪4   capture → OneDrive + clipboard · ⇪⇧4 panel
-    "task_form",          -- ⇪T   labeled Asana task entry (pipe search → ⇪⇧S)
+    "task_form",          -- ⇪T   labeled Asana task entry (pipe picker: ⇪T's fallback)
     -- 6.87.0
     "screenshot_editor",  -- 🖌   blur boxes on a screenshot (via ⇪⇧4, no key)
     "window_move",        -- 🪟   6.89.0 ⌘-drag any panel or picker (no key)
@@ -3140,7 +3156,7 @@ local BASE = {
     "begone",             -- type `begone` (AFTER text_expander: registers there)
     "search_index", "doc_keywords",  -- 6.96.0 🗂 files behind ⇪D · 🏷 docx tags
     -- 6.98.0
-    "task_creator",       -- ⌃⌥⌘T create · ⇪⇧S search past · ⌃⌥⌘A format URL
+    "task_creator",       -- ⌃⌥⌘T create · ⌃⌥⌘A format URL (⇪⇧S given up in 6.161.0)
     -- 6.99.0 (rebuilt 6.100.0 as the combined Quick Append Pad)
     "note_pad",           -- ⇪pad2 one box: * idea + log ! task ? note
                           -- (AFTER quick_append AND capture_pad: it files
@@ -3158,7 +3174,8 @@ local BASE = {
     "right_click",        -- 🖱 ⇪⇧F a real right-click at the pointer
     "mouse_follows",      -- 🖱 ⇪⇧3 the pointer goes where focus goes (opt-in, 6.160.2)
     -- 6.119.0 — THE PUNCTUATION TIER. Every ⇪ letter and every ⇪⇧ letter
-    -- was already claimed (win_pin took the last one in 6.104.0), so these
+    -- was already claimed (win_pin took the last one in 6.104.0; ⇪⇧T came
+    -- free again in 6.161.0 and _G.freeKeys() lists it), so these
     -- four land on punctuation instead. That is not a workaround: ⇪, sits
     -- exactly where ⌘, does in every other Mac app, and the rest are one
     -- reach from the home row. All four are also runnable from ⇪⇧/ with

@@ -132,7 +132,7 @@ mirrors draw order: "closes last" IS "drawn under".
 - 6.156.0 verify with LL: ⌘-drag on a picker moves it (if not: the Console
   "ended before anything moved" line + `_G.windowMoveReport()` "last drag"
   line say why — engine tap vs timer); ⇪Y shows no login pages and the
-  empty box scrolls ~30 days; ⇪⇧T pane shows a snippet's text / a
+  empty box scrolls ~30 days; ⇪⇧S (was ⇪⇧T) pane shows a snippet's text / a
   heading's contents, ⏎ on a heading narrows; ⇪L select mode + ⌥⏎ delete
   (asks first; Asana trash 30 days); ⌥Tab slow line names the phase.
   Preview pane is a SERVICE (preview.open/suspend/close from
@@ -165,14 +165,27 @@ mirrors draw order: "closes last" IS "drawn under".
 - 🚨 6.160.0 mouse_follows HUNG LL's MAC (hs.window reads with no timeout
   inside the AX callback; taps "disabled by macOS"). 6.160.2: every window
   read via hs.axuielement + setTimeout, callback hands off to a held
-  timer, watchdog self-disables after 2 slow jumps, STARTS OFF (⇪⇧3 opts
-  in). Rule for ANY future AX-callback code: no hs.window calls, no
-  untimed AX reads, no work in the callback. Verify with LL after a day
-  ON: no strikes in `_G.mouseFollowsReport()`, no tap-disabled lines.
+  timer. 6.161.0 ("MouseFocus no longer works"): ⇪⇧3 is REMEMBERED in
+  hs.settings (mouseFollows.active) so it survives a reload; the watchdog
+  RESTS 5 min after 2 slow jumps within 60s and returns by itself (held
+  mf.restTimer; ⇪⇧3 wakes it sooner); ⇪⇧3 is bound even with
+  Accessibility off. Rule for ANY future AX-callback code: no hs.window
+  calls, no untimed AX reads, no work in the callback. Verify with LL:
+  still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
+  tap-disabled lines.
+- 6.161.0 verify with LL: ⇪⇧S opens the SNIPPETS (not Asana) with icons —
+  an emoji as itself, ✂️/📄/⚙️/⚡ marks; the first open right after a boot
+  may show a few rows without icons (pre-render still running; Console
+  "icons: N glyphs drawn in K slices"); icon size/placement to taste
+  (`exp.iconSize`, the 0.72/0.02 factors in exp.renderIcon); memory on
+  the work Mac (`exp.icons = false` if it hurts). ⇪⇧T is FREE — do not
+  spend it without LL. Past-task picker: ⇪T's fallback, ⇪space @asana,
+  `_G.asanaOpenTaskChooser()`.
 - 6.160.4 verify with LL: with ⇪⇧3 on, ⇪Y's pane matches the highlight as
   the arrows move; moving the mouse over a row shows that row with "🖱 under
   the pointer" in the header; after arrowing past the bottom, hovering the
-  top visible row shows the right entry.
+  top visible row shows the right entry; 6.161.0: typing a query with the
+  pointer resting on a row puts the pane back on the highlight (row 1).
 - 6.160.1 verify with LL: ⇪Y (and every picker) opens fully ON the
   screen with the pane beside it; first open after install prints one
   "placement was off the screen … clamped" Console line (the runaway
