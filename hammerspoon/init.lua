@@ -4,8 +4,24 @@
 -- =====================================================================
 -- 09-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.160.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.160.1
 -- =====================================================================
+
+-- NEW IN 6.160.1 — A PICKER IS NEVER PLACED OFF ITS SCREEN:
+--   🩹 LL: "When I use hyper+Y for my Chrome search, only one thing
+--      happens, a little panel pops-up on the side. That's it." The
+--      Console numbers said why: the picker was placed at x=2733 on a
+--      2560-wide screen. The nudge/drag offset had run away — every
+--      ⌘-drop ADDS land-minus-base, and once a drop lands past the edge
+--      macOS keeps the chooser on screen while the record keeps the
+--      number, so each drag compounds it. The preview pane (6.157.0)
+--      then laid itself out beside a picker that was not there: on top
+--      of the one that was, a rung above it, hiding the list. Now
+--      showPopup clamps every placement to the screen's frame using the
+--      picker's own width and rows, shows AND records the clamped
+--      point, and folds the difference back into _G.popupOffset so the
+--      offset stops lying. ⌃⌥⌘R still resets it by hand; the Console
+--      says "placement was off the screen … clamped" when it happens.
 
 -- NEW IN 6.160.0 — THE POINTER GOES WHERE FOCUS GOES (⇪⇧3):
 --   🖱 LL: "Set the mouse pointer to the center of the focused window
@@ -81,17 +97,10 @@
 --      lists, settings panes, the ⇪⇧4 rows with their thumbnails) and
 --      ⇪I, which is a page of its own, not a chooser.
 
--- NEW IN 6.156.1 — THE CHEAT SHEET, 20% LESS SEE-THROUGH:
---   🪟 ⇪/ — LL: "Can we make the cheat sheet window less translucent by
---      about 20%?" cheatSheet.alpha 0.75 → 0.90 (core/cheatsheet.lua,
---      the one knob): the window behind the sheet is a hint now, not a
---      distraction, and the white-on-near-black text reads better for
---      it. Nothing else changed.
-
--- (6.156.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.156.1 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.160.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.160.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -436,7 +445,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.160.0"
+_G.configVersion = "6.160.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -1281,6 +1290,54 @@ local function showPopup(chooser, atPoint)
     local screen = resolveBaseScreen()
     local pt = atPoint
     if not pt and screen then pt = chooserTopLeft(chooser, screen) end
+    -- 🚨 6.160.1 — A PICKER IS NEVER PLACED OFF ITS SCREEN. LL's ⇪Y
+    -- opened at x=2733 on a 2560-wide screen: the nudge/drag offset had
+    -- run away (every ⌘-drop ADDS land-minus-base, and once a drop lands
+    -- past the edge macOS keeps the chooser on screen while the record
+    -- keeps the number, so the next drag compounds the lie). The preview
+    -- pane then laid itself out beside a picker that was not there — on
+    -- top of the one that was. So: the point is clamped to the screen's
+    -- frame using the picker's own width and rows, the CLAMPED point is
+    -- what is shown AND recorded (the record is a promise to window_move
+    -- and the pane), and an automatic placement folds the difference back
+    -- into _G.popupOffset so the offset stops lying too. A caller's own
+    -- point (atPoint) is clamped but never rewrites the offset. No `math`
+    -- here on purpose: test_integration executes this block in a bare env.
+    if pt and screen then
+        local f
+        pcall(function() f = screen:frame() end)
+        if type(f) == "table" and f.w then
+            local pct, rows = 40, 10
+            pcall(function()
+                local w = chooser:width()
+                if type(w) == "number" and w > 0 and w <= 100 then pct = w end
+            end)
+            pcall(function()
+                local r = chooser:rows()
+                if type(r) == "number" and r > 0 then rows = r end
+            end)
+            local w, h = f.w * pct / 100, 56 + rows * 44
+            local x, y = pt.x, pt.y
+            if x + w > f.x + f.w then x = f.x + f.w - w end
+            if x < f.x then x = f.x end
+            if y + h > f.y + f.h then y = f.y + f.h - h end
+            if y < f.y then y = f.y end
+            if x ~= pt.x or y ~= pt.y then
+                if not atPoint and type(_G.popupOffset) == "table" then
+                    _G.popupOffset.x = _G.popupOffset.x + (x - pt.x)
+                    _G.popupOffset.y = _G.popupOffset.y + (y - pt.y)
+                end
+                _G.popupClamped = (_G.popupClamped or 0) + 1
+                pcall(function()
+                    _G.diag.say("popup", "placement was off the screen ("
+                        .. pt.x .. "," .. pt.y .. ") — clamped to " .. x .. "," .. y
+                        .. (atPoint and "" or "; the nudge offset is now "
+                            .. _G.popupOffset.x .. "," .. _G.popupOffset.y))
+                end)
+                pt = { x = x, y = y }
+            end
+        end
+    end
     if pt then
         _G.lastPopupPlacement = { screen = screen, point = pt,
                                   chooser = chooser }

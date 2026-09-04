@@ -486,6 +486,53 @@ do
                       and SHOWN[#SHOWN].x == 42,
                       _G.lastPopupPlacement.point.x)
                 _G.lastPopupPlacement = nil
+
+                -- 🚨 6.160.1 — NEVER OFF THE SCREEN. LL's ⇪Y opened at
+                -- x=2733 on a 2560-wide screen (a runaway nudge offset);
+                -- macOS kept the picker on screen, the record kept the
+                -- lie, and the preview pane drew itself over the list.
+                -- The env's screen is 1000x800; the picker is 40% wide.
+                local far = { show = function(_, pt) SHOWN[#SHOWN + 1] = pt end }
+                _G.popupOffset = { x = 2067, y = 0 }
+                env.chooserTopLeft = function() return { x = 2732, y = 584 } end
+                showPopup(far)
+                local rec = _G.lastPopupPlacement
+                check("🚨 an automatic placement past the right edge is CLAMPED "
+                      .. "onto the screen — and the record says where it "
+                      .. "really is", rec and rec.point.x == 600
+                      and SHOWN[#SHOWN].x == 600, rec and rec.point.x)
+                check("...the bottom edge too (56 + 10 rows × 44 = 496 tall)",
+                      rec and rec.point.y == 304 and SHOWN[#SHOWN].y == 304,
+                      rec and rec.point.y)
+                check("...and the nudge offset is folded back so it stops lying",
+                      _G.popupOffset.x == 2067 - 2132 and _G.popupOffset.y == -280,
+                      _G.popupOffset.x .. "," .. _G.popupOffset.y)
+                check("...counted, for the report", (_G.popupClamped or 0) >= 1)
+                -- a picker that says how wide it is gets clamped by THAT width
+                local wide = { show = function(_, pt) SHOWN[#SHOWN + 1] = pt end,
+                               width = function() return 48 end,
+                               rows = function() return 12 end }
+                _G.popupOffset = { x = 0, y = 0 }
+                env.chooserTopLeft = function() return { x = 900, y = 100 } end
+                showPopup(wide)
+                check("...using the picker's OWN width (48% of 1000 → x = 520)",
+                      _G.lastPopupPlacement.point.x == 520, _G.lastPopupPlacement.point.x)
+                check("...and that fold-back is exactly the clamp (520 - 900)",
+                      _G.popupOffset.x == -380, _G.popupOffset.x)
+                _G.popupOffset = { x = 0, y = 0 }
+                -- a caller's own point is clamped but never rewrites the offset
+                showPopup(own, { x = 990, y = 790 })
+                check("🚨 a caller-supplied point off the screen is clamped too, "
+                      .. "and the offset is left alone",
+                      _G.lastPopupPlacement.point.x == 600
+                      and _G.popupOffset.x == 0 and _G.popupOffset.y == 0,
+                      _G.lastPopupPlacement.point.x)
+                env.chooserTopLeft = function() return { x = 300, y = 200 } end
+                showPopup(picker)
+                check("...and an on-screen point is untouched", SHOWN[#SHOWN].x == 300
+                      and SHOWN[#SHOWN].y == 200 and _G.popupOffset.x == 0)
+                _G.lastPopupPlacement = nil
+                _G.popupOffset = nil
             end
         end
     end

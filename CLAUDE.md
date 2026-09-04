@@ -164,3 +164,8 @@ mirrors draw order: "closes last" IS "drawn under".
   no jump on reload; a pad/picker never receives it. If an app refuses
   the AX watcher the Console says so once (rule 1 still rides the app
   watcher). Spoon contract rebuilt WITHOUT hs.window.filter — keep it so.
+- 6.160.1 verify with LL: ⇪Y (and every picker) opens fully ON the
+  screen with the pane beside it; first open after install prints one
+  "placement was off the screen … clamped" Console line (the runaway
+  offset folding back), then none. showPopup runs in test_integration's
+  bare env — no `math`, no `print` inside that block.

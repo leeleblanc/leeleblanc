@@ -4,6 +4,36 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.160.1 — A PICKER IS NEVER PLACED OFF ITS SCREEN:
+  🩹 LL: "When I use hyper+Y for my Chrome search, only one thing
+     happens, a little panel pops-up on the side. That's it." The
+     screenshot showed the preview pane sitting ON the list, and the
+     Console numbers said why: _G.lastPopupPlacement.point was x=2733
+     on a screen 2560 wide. Nothing was wrong with ⇪Y's data — the pane
+     was showing a real row. The picker had been placed off the right
+     edge; macOS keeps a chooser on screen, so the picker was visible
+     at the edge, but the record kept 2733, and the pane — which cannot
+     ask a chooser where it is and so trusts the record — drew itself
+     beside a picker that was not there, a rung above the one that was.
+  🔁 How the number got there: _G.popupOffset is shared by the ⌃⌥⌘-arrow
+     nudge and the ⌘-drag, and every drop ADDS land-minus-base. Once a
+     drop lands past the edge the record and the real picker diverge,
+     and the next drag's delta is measured from the lie — it compounds.
+  🩹 The fix is at the one place every picker passes through: showPopup
+     clamps the point to the screen's frame using the picker's own
+     width (chooser:width(), 40% when unreadable) and rows (56 + rows ×
+     44 tall), shows AND records the clamped point — the record is a
+     promise to window_move and the pane — and, for an automatic
+     placement, folds the difference back into _G.popupOffset so the
+     offset is truthful again. A caller's own point (the app-monitor
+     alert) is clamped but never rewrites the offset. The Console says
+     "placement was off the screen (…) — clamped to …" when it fires;
+     _G.popupClamped counts. ⌃⌥⌘R still resets the offset by hand.
+  ✅ Gate: test_integration executes the shipped showPopup block in a
+     bare env (no math, by design) against the real numbers — past the
+     right edge, past the bottom, a 48%-wide picker, a caller's point,
+     an on-screen point untouched. Gate: 6,660 → 6,668 checks, sixty-eight stages, green in the tree and inside the package.
+
 NEW IN 6.160.0 — THE POINTER GOES WHERE FOCUS GOES (⇪⇧3):
   🖱 LL: "Set the mouse pointer to the center of the focused window
      whenever focus changes. Additionally, if focused window moves when
