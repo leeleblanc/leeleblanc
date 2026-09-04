@@ -4,8 +4,25 @@
 -- =====================================================================
 -- 09-03-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.160.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.160.2
 -- =====================================================================
+
+-- NEW IN 6.160.2 — MOUSE FOLLOWS FOCUS CAN NO LONGER HANG THE MAC:
+--   🚨 LL: "I couldn't type. Hammerspoon was locking up my Mac and any
+--      tool I would bring up would not go away until I quit Hammerspoon."
+--      6.160.0 read the focused window through hs.window inside the AX
+--      callback — no timeout, on the main thread, for every step of every
+--      window move. One app slow to answer Accessibility and Hammerspoon
+--      waited with it: no Esc for the picker on screen, no keystrokes
+--      through the taps. Now every window question goes through
+--      hs.axuielement WITH a timeout (mf.axTimeout, 150ms); the AX
+--      callback does no work at all — it hands off to a held zero-delay
+--      timer, and a drag's hundred notifications become one jump; and a
+--      watchdog turns the feature OFF for the session after two jumps
+--      over 250ms, on screen and in the Console. It also STARTS OFF now:
+--      ⇪⇧3 opts in for the session, settings = { mouseFollows = { active
+--      = true } } opts in for good. _G.mouseFollowsReport() shows the
+--      last jump's time and the watchdog's verdict.
 
 -- NEW IN 6.160.1 — A PICKER IS NEVER PLACED OFF ITS SCREEN:
 --   🩹 LL: "When I use hyper+Y for my Chrome search, only one thing
@@ -81,26 +98,10 @@
 --      to come up, bursts of 120). The ⇪⇧ number row 6.142.0 cleared
 --      spends its second key; the ledger (⇪/, _G.freeKeys()) says so.
 
--- NEW IN 6.157.0 — THE PREVIEW PANE, ON EVERY PICKER THAT HOLDS TEXT:
---   👁 LL: "I need a preview window for the relevant pickers like
---      hyper+o. Can we correct all the picker tools that don't have
---      one?" The pane no longer needs a picker to filter for itself: it
---      asks hs.chooser for the r-th row AS SHOWN (selectedRowContents),
---      so wiring one up is a rawText on each row, a suspend on hide and
---      an open on show. Wired: ⇪O and ⇪⇧O (the OCR text, whole), ⇪H
---      (the command), ⇪⇧N (the last lines of the notes file), ⌃⌥⇧F
---      (every field of the file event), ⇪Y (title and url whole, with
---      visits), ⇪⇧' tab search (title and url), ⇪8 define (a sense's
---      whole gloss), ⇪⇧W / ⇪⇧E documents, ⌘⌥⇧0 activity, ⇪L Asana
---      (name, due, link) — on top of ⇪V, ⇪⇧V and ⇪⇧T. Left alone on
---      purpose: pickers whose rows ARE the whole story (actions, app
---      lists, settings panes, the ⇪⇧4 rows with their thumbnails) and
---      ⇪I, which is a page of its own, not a chooser.
-
--- (6.156.1 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.157.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.160.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.160.2
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -445,7 +446,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.160.1"
+_G.configVersion = "6.160.2"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -3164,7 +3165,7 @@ local BASE = {
     -- 6.116.0
     "write_ledger",       -- 💾 _G.saved() — proof the logs are saving (no key)
     "right_click",        -- 🖱 ⇪⇧F a real right-click at the pointer
-    "mouse_follows",      -- 🖱 ⇪⇧3 6.160.0 the pointer goes where focus goes
+    "mouse_follows",      -- 🖱 ⇪⇧3 the pointer goes where focus goes (opt-in, 6.160.2)
     -- 6.119.0 — THE PUNCTUATION TIER. Every ⇪ letter and every ⇪⇧ letter
     -- was already claimed (win_pin took the last one in 6.104.0), so these
     -- four land on punctuation instead. That is not a workaround: ⇪, sits

@@ -43,19 +43,44 @@ local WATCHERS  = 0
 local REFUSE_WATCH = false
 local NOTICES   = {}
 
+local TIMEOUTS = 0        -- every setTimeout the module asks for
+local TIMERS   = {}       -- every doAfter, fired by hand via drain()
+local ATIME    = 0
+local ASTEP    = 1000000  -- 1ms per absoluteTime call; the watchdog test raises it
+
+-- 6.160.2 — the module reads windows through hs.axuielement WITH a
+-- timeout, never hs.window. The fake app's AX element answers
+-- AXFocusedWindow with a fake window element built from the frame.
 local function mkApp(name, bundle, pid, frame)
     local app = { _name = name, _bundle = bundle, _pid = pid, _frame = frame,
-                  _title = name .. " window", _ax = { app = name } }
+                  _title = name .. " window" }
     function app:name() return self._name end
     function app:bundleID() return self._bundle end
     function app:pid() return self._pid end
-    function app:focusedWindow()
-        if not self._frame then return nil end
-        local a = self
-        return { frame = function() return a._frame end,
-                 title = function() return a._title end }
+    app._ax = { app = name }
+    function app._ax:setTimeout() TIMEOUTS = TIMEOUTS + 1; return self end
+    function app._ax:attributeValue(k)
+        if k ~= "AXFocusedWindow" or not app._frame then return nil end
+        local w = {}
+        function w:setTimeout() TIMEOUTS = TIMEOUTS + 1; return self end
+        function w:attributeValue(kk)
+            local f = app._frame
+            if kk == "AXPosition" then return { x = f.x, y = f.y } end
+            if kk == "AXSize" then return { w = f.w, h = f.h } end
+            if kk == "AXTitle" then return app._title end
+        end
+        return w
     end
     return app
+end
+
+local function drain()
+    local n = 0
+    while #TIMERS > 0 do
+        local t = table.remove(TIMERS, 1)
+        if not t.stopped then t.fn(); n = n + 1 end
+    end
+    return n
 end
 
 local SAFARI = mkApp("Safari", "com.apple.Safari", 100, { x = 0,   y = 0,   w = 800, h = 600 })
@@ -72,6 +97,15 @@ hs = {
         end,
     },
     eventtap = { checkMouseButtons = function() return BTNS end },
+    timer = {
+        absoluteTime = function() ATIME = ATIME + ASTEP; return ATIME end,
+        doAfter = function(secs, fn)
+            local t = { secs = secs, fn = fn, stopped = false }
+            function t:stop() self.stopped = true end
+            TIMERS[#TIMERS + 1] = t
+            return t
+        end,
+    },
     accessibilityState = function() return AX end,
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
     application = {
@@ -119,6 +153,11 @@ end
 local function fire(notif)
     local o = live()
     if o and o.fn then o.fn(o, nil, notif) end
+    drain()
+end
+local function activate(app)
+    WATCH_FN(nil, hs.application.watcher.activated, app)
+    drain()
 end
 
 -- ---- boot --------------------------------------------------------------
@@ -147,7 +186,10 @@ check("cheat sheet names ⇪⇧3", (function()
     return false
 end)())
 check("M.config is the live table", M.config == mf and _G.mouseFollows == mf)
-check("starts ON", mf.enabled == true and mf.active == true)
+check("starts OFF (6.160.2) — ⇪⇧3 opts in", mf.enabled == true and mf.active == false)
+check("safety knobs: an AX timeout and a watchdog",
+      mf.axTimeout > 0 and mf.axTimeout <= 0.5 and mf.slowMs > 0 and mf.slowStrikes >= 1)
+mf.active = true      -- the rest of the file exercises it ON
 
 out("\n=== 2. Boot wires the watcher, the key, the observer — and does NOT jump ===\n")
 check("⇪⇧3 bound with a source", (function()
@@ -164,12 +206,22 @@ check("the frontmost app has the ONE observer, both notifications", (function()
     return o.pid == 100 and seen.AXFocusedWindowChanged and seen.AXWindowMoved
 end)())
 check("a reload does not move the pointer", #SETS == 0 and MOUSE.x == 10)
+check("boot asked no window question at all (nothing to time out on)", TIMEOUTS == 0)
 check("services provided", type(PROVIDED["mouseFollows.toggle"]) == "function"
       and type(PROVIDED["mouseFollows.warp"]) == "function")
 
 out("\n=== 3. Rule 1 — focus changes, pointer to the centre ===\n")
-fire("AXFocusedWindowChanged")
+do
+    local o = live()
+    o.fn(o, nil, "AXFocusedWindowChanged")
+    check("🚨 the AX callback does NO work — the jump waits for a timer (6.160.2)",
+          #SETS == 0 and #TIMERS == 1 and mf.pending ~= nil)
+    o.fn(o, nil, "AXWindowMoved")
+    check("…and a second notification while one waits is coalesced", #TIMERS == 1)
+    drain()
+end
 check("pointer at Safari's centre", MOUSE.x == 400 and MOUSE.y == 300, MOUSE.x .. "," .. MOUSE.y)
+check("🚨 every window question carried a timeout", TIMEOUTS >= 2, TIMEOUTS)
 check("counted, and the last line says why", mf.warps == 1 and mf.last
       and mf.last.why == "focus" and mf.last.app == "Safari")
 fire("AXFocusedWindowChanged")
@@ -179,12 +231,12 @@ check("the same centre again is a no-op (already there)",
 out("\n=== 4. An app switch hands the observer over and jumps ===\n")
 local first = live()
 FRONT = MAIL
-WATCH_FN(nil, hs.application.watcher.activated, MAIL)
+activate(MAIL)
 check("the old observer is stopped, the new one is Mail's",
       first.stopped == true and live() and live().pid == 200)
 check("pointer at Mail's centre", MOUSE.x == 1200 and MOUSE.y == 250, MOUSE.x .. "," .. MOUSE.y)
 check("why = activated", mf.last.why == "activated" and mf.currentApp == "Mail")
-WATCH_FN(nil, hs.application.watcher.deactivated, MAIL)
+WATCH_FN(nil, hs.application.watcher.deactivated, MAIL); drain()
 check("a deactivation does nothing", #SETS == 2)
 
 out("\n=== 5. Rule 2 — the focused window moves, no button down ===\n")
@@ -245,12 +297,12 @@ MAIL._frame = { x = 0, y = 0, w = 400, h = 300 }
 out("\n=== 7. Our own windows are never a target ===\n")
 local obsBefore = #OBSERVERS
 FRONT = OWN
-WATCH_FN(nil, hs.application.watcher.activated, OWN)
+activate(OWN)
 check("no observer on Hammerspoon itself", #OBSERVERS == obsBefore and live() == nil)
 check("no jump into a pad or a picker",
       MOUSE.x == 400 and mf.lastSkip == "own window")
 FRONT = MAIL
-WATCH_FN(nil, hs.application.watcher.activated, MAIL)
+activate(MAIL)
 check("back to Mail: observed and jumped", live() and live().pid == 200 and MOUSE.x == 200)
 
 out("\n=== 8. ⇪⇧3 toggles ===\n")
@@ -261,7 +313,7 @@ check("off: says so, and a focus change moves nothing", (function()
     fire("AXFocusedWindowChanged")
     return mf.active == false and #ALERTS == alertsBefore + 1
            and ALERTS[#ALERTS]:find("off", 1, true) and MOUSE.x == 200
-           and mf.lastSkip == "off"
+           and mf.pending == nil
 end)())
 BOUND[1].fn()
 check("on: says so and jumps to the focused window right away",
@@ -274,8 +326,8 @@ out("\n=== 9. An app that refuses a watcher is said ONCE ===\n")
 REFUSE_WATCH = true
 local TEAMS = mkApp("Teams", "com.microsoft.teams", 400, { x = 0, y = 0, w = 200, h = 200 })
 FRONT = TEAMS
-WATCH_FN(nil, hs.application.watcher.activated, TEAMS)
-WATCH_FN(nil, hs.application.watcher.activated, TEAMS)
+activate(TEAMS)
+activate(TEAMS)
 check("one Console line for two activations", (function()
     local n = 0
     for _, l in ipairs(PRINTED) do
@@ -288,11 +340,34 @@ check("…and the jump still happened (rule 1 rides the app watcher)",
 REFUSE_WATCH = false
 FRONT = MAIL
 
+out("\n=== 9b. The watchdog — a slow app turns it OFF, never hangs it ===\n")
+activate(MAIL)                 -- Teams refused, so Mail's observer must come back
+check("Mail is observed again after the refusal", live() and live().pid == 200)
+ASTEP = 400 * 1000000          -- every clock read is now 400ms later
+local alertsW, noticesW = #ALERTS, #NOTICES
+MAIL._frame = { x = 10, y = 10, w = 100, h = 100 }
+fire("AXFocusedWindowChanged")
+check("strike one: the jump still happens, and its time is kept",
+      mf.slowHits == 1 and mf.active == true and mf.lastMs and mf.lastMs >= 400)
+MAIL._frame = { x = 20, y = 20, w = 100, h = 100 }
+fire("AXFocusedWindowChanged")
+check("strike two: OFF for the session, on screen, in the notices",
+      mf.active == false and mf.stoodDown ~= nil
+      and #ALERTS == alertsW + 1 and ALERTS[#ALERTS]:find("OFF", 1, true)
+      and #NOTICES == noticesW + 1 and NOTICES[#NOTICES][2] == "stood down")
+MAIL._frame = { x = 30, y = 30, w = 100, h = 100 }
+fire("AXFocusedWindowChanged")
+check("…and nothing is even scheduled while it is off", #TIMERS == 0 and mf.pending == nil)
+ASTEP = 1000000
+mf.active = true
+
 out("\n=== 10. The report ===\n")
 local r = _G.mouseFollowsReport()
 check("names the state, the last jump and who refused",
       r:find("ON", 1, true) and r:find("last", 1, true) and r:find("Teams", 1, true)
       and r:find("jumped", 1, true) ~= nil)
+check("…and the watchdog's verdict and the timeout", r:find("stood down", 1, true)
+      and r:find("AX timeout", 1, true) ~= nil)
 check("the service returns the same text", PROVIDED["mouseFollows.report"]() == r)
 
 out("\n=== 11. Accessibility off stands down, and says so ===\n")
@@ -320,6 +395,9 @@ check("no hs.window.orderedWindows (a full sweep per call)",
       code:find("orderedWindows") == nil)
 check("no setAbsolutePosition (a deprecated shim)", code:find("setAbsolutePosition") == nil)
 check("no polling timer — it is event-driven", code:find("doEvery") == nil)
+check("🚨 no hs.window reads — every question goes through axuielement WITH setTimeout (6.160.2)",
+      code:find("focusedWindow%(") == nil and code:find(":frame%(") == nil
+      and code:find("setTimeout") ~= nil)
 check("honours the pause switch", code:find("_G%.hsPaused") ~= nil)
 check("checks the mouse buttons before every jump", code:find("checkMouseButtons") ~= nil)
 check("returns its module table and exposes config",

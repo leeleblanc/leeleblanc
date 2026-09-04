@@ -23,7 +23,7 @@
 --      A window YOU are dragging is skipped by that same rule — a button
 --      is down — so the pointer never fights your hand.
 --
---        ⇪⇧3        on / off (starts ON; a profile can start it off)
+--        ⇪⇧3        on / off (starts OFF since 6.160.2; a profile can start it on)
 --
 -- ---- HOW IT WATCHES ----------------------------------------------------
 -- The same shape Dialog Home uses (6.143.0): an hs.application.watcher
@@ -56,6 +56,28 @@
 --     only — no setAbsolutePosition fallback (see mouse_grid: it is a
 --     deprecated shim around the same call).
 --
+-- ---- 🚨 6.160.2 — THE FIRST DAY HUNG THE MAC -------------------------
+-- LL: "I couldn't type. Hammerspoon was locking up my Mac and any tool I
+-- would bring up would not go away until I quit Hammerspoon." 6.160.0
+-- read the focused window through hs.window inside the AX callback —
+-- calls with NO timeout, on Hammerspoon's main thread, fired for every
+-- step of every window move. One app slow to answer Accessibility (a
+-- Chrome with a 1 GB tab, VLC mid-frame) and Hammerspoon waits for it;
+-- while it waits nothing else runs: no Esc for the picker on screen, no
+-- keystrokes through the taps ("tap was disabled by macOS" is that).
+-- Now:
+--   · Every AX read goes through hs.axuielement with a timeout
+--     (mf.axTimeout) — the same withTimeout discipline Dialog Home uses.
+--     A slow app costs at most that long, then the jump is skipped.
+--   · The AX callback does NO work: it notes the reason and hands off to
+--     a zero-delay timer (held), so the notification returns at once.
+--     Moves are coalesced — a drag's hundred notifications are one.
+--   · A watchdog: a jump that takes longer than mf.slowMs, mf.slowStrikes
+--     times, turns the feature OFF for the session, on screen and in the
+--     Console, rather than letting it happen a third time.
+--   · It starts OFF. ⇪⇧3 turns it on when you want it; a profile can
+--     start it on with settings = { mouseFollows = { active = true } }.
+--
 -- No Accessibility, no feature: window frames cannot be read without it.
 -- It stands down and says so, the way Dialog Home and Window Pin do.
 -- =====================================================================
@@ -70,7 +92,8 @@ local M = {
             { "focus",  "Pointer jumps to the centre of the window that took focus" },
             { "moves",  "…and follows the focused window when something warps it" },
             { "not",    "While a mouse button is down — your drag is yours" },
-            { "⇪⇧3",   "On / off for this session (starts on)" },
+            { "⇪⇧3",   "On / off for this session (starts OFF since 6.160.2)" },
+            { "safe",   "Every window read has a timeout; a slow app never hangs you" },
             { "check",  "_G.mouseFollowsReport() — last jump, why it stood still" },
         },
     },
@@ -81,7 +104,7 @@ function M.setup(core)
 
     -- ✏️ EDIT HERE ---------------------------------------------------------
     mf.enabled      = true           -- the module loads at all
-    mf.active       = true           -- following ON at boot; ⇪⇧3 flips it
+    mf.active       = false          -- OFF at boot (6.160.2); ⇪⇧3 flips it
     mf.key          = "3"            -- ⇪⇧3
     mf.keyMods      = { "shift" }
     mf.followMoves  = true           -- rule 2: follow a warped window
@@ -94,6 +117,14 @@ function M.setup(core)
     -- what matters, and a name list is yours to grow if a specific app
     -- misbehaves — a screen-sharing viewer, say.
     mf.skipApps     = {}
+    -- ⏱ How long one Accessibility question may take (seconds). Past it
+    -- the answer is "no jump", never "wait".
+    mf.axTimeout    = 0.15
+    -- 🐕 A jump slower than this, this many times, turns the feature off
+    -- for the session — a Mac that hangs is worse than a pointer that
+    -- stays put.
+    mf.slowMs       = 250
+    mf.slowStrikes  = 2
     -- ----------------------------------------------------------------------
 
     mf.OWN_BUNDLE = "org.hammerspoon.Hammerspoon"
@@ -106,6 +137,11 @@ function M.setup(core)
     mf.appWatcher = nil      -- HELD
     mf.refused    = {}       -- apps that would not take an observer (said once)
     mf.currentApp = nil
+    mf.pending    = nil      -- HELD: the zero-delay hand-off timer
+    mf.pendingWhy = nil
+    mf.slowHits   = 0
+    mf.lastMs     = nil      -- how long the last jump took
+    mf.stoodDown  = nil      -- why the watchdog turned it off, if it did
 
     local function say(m)  if _G.diag then _G.diag.say("mousefollows", m)  end end
     local function warn(m) if _G.diag then _G.diag.warn("mousefollows", m) end end
@@ -139,10 +175,15 @@ function M.setup(core)
     end
 
     -- ---- where to ---------------------------------------------------------
-    -- The focused window of the FRONT app, its frame, and its centre.
-    -- Read through hs.window (which is AX underneath) rather than the
-    -- observer's element: the element that arrives with AXWindowMoved is
-    -- whichever window moved, and the rule is about the focused one.
+    -- The focused window of the FRONT app, its frame, and its centre —
+    -- through hs.axuielement WITH A TIMEOUT on every question. hs.window
+    -- asks the same questions with none, and a question with no timeout
+    -- is a hang waiting for a slow app (6.160.2).
+    local function withTimeout(el)
+        pcall(function() el:setTimeout(mf.axTimeout) end)
+        return el
+    end
+
     function mf.target()
         local app
         pcall(function() app = hs.application.frontmostApplication() end)
@@ -150,18 +191,24 @@ function M.setup(core)
         if mf.isOwn(app) then return nil, "own window" end
         local name = appName(app)
         if mf.skipApps[name] then return nil, "skipped app: " .. name end
+        local okAx, axApp = pcall(hs.axuielement.applicationElement, app)
+        if not (okAx and axApp) then return nil, "no AX element for " .. name end
+        withTimeout(axApp)
         local win
-        pcall(function() win = app:focusedWindow() end)
+        pcall(function() win = axApp:attributeValue("AXFocusedWindow") end)
         if not win then return nil, "no focused window in " .. name end
-        local f
-        pcall(function() f = win:frame() end)
-        if not (f and f.w and f.h and f.w > 0 and f.h > 0) then
-            return nil, "no frame for the focused window"
+        withTimeout(win)
+        local pos, size, title
+        pcall(function() pos   = win:attributeValue("AXPosition") end)
+        pcall(function() size  = win:attributeValue("AXSize") end)
+        pcall(function() title = win:attributeValue("AXTitle") end)
+        if not (type(pos) == "table" and type(size) == "table"
+                and pos.x and pos.y and size.w and size.h
+                and size.w > 0 and size.h > 0) then
+            return nil, "no frame for the focused window (slow or silent app)"
         end
-        local title
-        pcall(function() title = win:title() end)
-        return { x = f.x + f.w / 2, y = f.y + f.h / 2,
-                 app = name, title = title or "" }
+        return { x = pos.x + size.w / 2, y = pos.y + size.h / 2,
+                 app = name, title = tostring(title or "") }
     end
 
     function mf.pointer()
@@ -177,10 +224,42 @@ function M.setup(core)
 
     -- ---- the warp ---------------------------------------------------------
     -- why: "focus" | "moved" | "activated" — recorded, and only that.
+    local function nowMs()
+        local t
+        pcall(function() t = hs.timer.absoluteTime() / 1e6 end)
+        return t
+    end
+
     function mf.warp(why)
         if not (mf.enabled and mf.active) then
             mf.lastSkip = "off"; return false
         end
+        local t0 = nowMs()
+        local did = mf.warpNow(why)
+        local t1 = nowMs()
+        if t0 and t1 then
+            mf.lastMs = t1 - t0
+            if mf.lastMs > mf.slowMs then
+                mf.slowHits = mf.slowHits + 1
+                warn(string.format("a jump took %dms (strike %d of %d)",
+                     math.floor(mf.lastMs), mf.slowHits, mf.slowStrikes))
+                if mf.slowHits >= mf.slowStrikes then
+                    mf.active = false
+                    mf.stoodDown = string.format("%d jumps over %dms — turned itself off",
+                                                 mf.slowHits, mf.slowMs)
+                    hs.alert.show("🖱 Mouse follows focus turned itself OFF — "
+                                  .. "an app is slow to answer. ⇪⇧3 turns it back on.")
+                    warn(mf.stoodDown)
+                    if _G.notices then
+                        _G.notices.record("mouseFollows", "stood down", mf.stoodDown)
+                    end
+                end
+            end
+        end
+        return did
+    end
+
+    function mf.warpNow(why)
         if _G.hsPaused then
             mf.lastSkip = "paused (⇪⇧1)"; mf.skipped = mf.skipped + 1
             return false
@@ -215,6 +294,25 @@ function M.setup(core)
         return true
     end
 
+    -- The hand-off. One timer at a time: a drag's hundred AXWindowMoved
+    -- notifications become one jump; a focus change outranks a move.
+    function mf.schedule(why)
+        if not (mf.enabled and mf.active) then return false end
+        if mf.pending then
+            if why == "focus" then mf.pendingWhy = "focus" end
+            return true
+        end
+        mf.pendingWhy = why
+        local ok, t = pcall(hs.timer.doAfter, 0, function()
+            local w = mf.pendingWhy or why
+            mf.pending, mf.pendingWhy = nil, nil
+            local okW, err = pcall(mf.warp, w)
+            if not okW then warn("jump: " .. tostring(err)) end
+        end)
+        if ok and t then mf.pending = t ; return true end
+        return false
+    end
+
     -- ---- watching the front app -------------------------------------------
     local function stopObserver()
         if mf.observer then
@@ -238,14 +336,12 @@ function M.setup(core)
         if not (okObs and obs) then return false end
         local okWatch = pcall(function()
             obs:callback(function(_, _, notif)
-                local ok, err = pcall(function()
-                    if notif == "AXFocusedWindowChanged" then
-                        mf.warp("focus")
-                    elseif notif == "AXWindowMoved" and mf.followMoves then
-                        mf.warp("moved")
-                    end
-                end)
-                if not ok then warn("observer callback: " .. tostring(err)) end
+                -- NO work here (6.160.2): note why, return at once
+                if notif == "AXFocusedWindowChanged" then
+                    mf.schedule("focus")
+                elseif notif == "AXWindowMoved" and mf.followMoves then
+                    mf.schedule("moved")
+                end
             end)
             obs:addWatcher(axApp, "AXFocusedWindowChanged")
             obs:start()
@@ -268,7 +364,7 @@ function M.setup(core)
     function mf.onActivated(app)
         local ok, err = pcall(mf.attach, app)
         if not ok then warn("attach: " .. tostring(err)) end
-        mf.warp("activated")
+        mf.schedule("activated")     -- off the watcher's thread of events, too
     end
 
     -- ---- ⇪⇧3 -------------------------------------------------------------
@@ -289,6 +385,15 @@ function M.setup(core)
         L[#L + 1] = "   state         : " .. (not mf.enabled and "disabled (mf.enabled = false)"
                                               or mf.active and "ON" or "off — ⇪⇧3 turns it on")
         L[#L + 1] = "   follows moves : " .. (mf.followMoves and "yes (rule 2)" or "no")
+        L[#L + 1] = string.format("   AX timeout    : %dms per question · watchdog %dms × %d",
+                                  math.floor(mf.axTimeout * 1000 + 0.5), mf.slowMs, mf.slowStrikes)
+        if mf.lastMs then
+            L[#L + 1] = string.format("   last jump took: %dms · slow strikes %d",
+                                      math.floor(mf.lastMs), mf.slowHits)
+        end
+        if mf.stoodDown then
+            L[#L + 1] = "   stood down    : " .. mf.stoodDown
+        end
         L[#L + 1] = "   watching      : " .. (mf.currentApp or "nothing yet")
                     .. (mf.observer and "" or " (no observer)")
         L[#L + 1] = string.format("   jumped        : %d time%s · stood still %d",

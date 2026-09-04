@@ -158,12 +158,13 @@ mirrors draw order: "closes last" IS "drawn under".
   🔒 and the 🔒 reason reads right on the work Mac (no admin: root's rows
   say so). Tiers come from owner + path (`ak.systemPaths`,
   `ak.relaunches`), never a name list alone — keep it that way.
-- 6.160.0 verify with LL: ⇪⇧3 mouse-follows-focus — the pointer lands on
-  the focused window's centre on an app switch, ⌘` and a ⇪-arrow warp;
-  it stays put during a drag and after a click-to-focus (button down);
-  no jump on reload; a pad/picker never receives it. If an app refuses
-  the AX watcher the Console says so once (rule 1 still rides the app
-  watcher). Spoon contract rebuilt WITHOUT hs.window.filter — keep it so.
+- 🚨 6.160.0 mouse_follows HUNG LL's MAC (hs.window reads with no timeout
+  inside the AX callback; taps "disabled by macOS"). 6.160.2: every window
+  read via hs.axuielement + setTimeout, callback hands off to a held
+  timer, watchdog self-disables after 2 slow jumps, STARTS OFF (⇪⇧3 opts
+  in). Rule for ANY future AX-callback code: no hs.window calls, no
+  untimed AX reads, no work in the callback. Verify with LL after a day
+  ON: no strikes in `_G.mouseFollowsReport()`, no tap-disabled lines.
 - 6.160.1 verify with LL: ⇪Y (and every picker) opens fully ON the
   screen with the pane beside it; first open after install prints one
   "placement was off the screen … clamped" Console line (the runaway

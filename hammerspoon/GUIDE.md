@@ -9,10 +9,10 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,748 lines)
+├── init.lua          the orchestrator (3,749 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (10 files)
-├── modules/          one file per feature (63 files, ~45,200 lines)
+├── modules/          one file per feature (63 files, ~45,300 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
 ├── snippets/         bundled.lua — 2,006 shipped snippets in one table,
 │                     in five collections. Since 6.117.0 the .json packs
@@ -521,7 +521,8 @@ and `<logsDir>/diagnostics-<machine>.txt`.
 | ⇪⇧2 typed nothing | the alert says which: secure input (a password field) beats synthetic keystrokes, or ⇧ was still down 0.6s after the press — let go of it |
 | ⇪⇧; shows 🔒 on the process I want to end | it runs as another user (root, mostly — this config never asks for admin) or it is part of macOS (`ak.systemPaths`); the reason leads the row's subtitle. 🔁 rows relaunch by themselves; 🖥 ⚙️ rows are yours (6.159.0) |
 | `;d/` `;d-` `;mp3` do nothing | a snippet of yours has the trigger — the Console says "built-in … stands aside" at load; rename the row in `exp.builtin`. Or the front app is Terminal, which is excluded (Ghostty is not) |
-| The pointer jumps into a window I didn't click | that is Mouse Follows Focus (6.160.0): focus changed, or the focused window was warped. ⇪⇧3 turns it off for the session; `settings = { mouseFollows = { active = false } }` starts it off. It never moves while a mouse button is down — `_G.mouseFollowsReport()` says why the last jump did or didn't happen |
+| The pointer jumps into a window I didn't click | that is Mouse Follows Focus (6.160.0): focus changed, or the focused window was warped. It starts OFF since 6.160.2; ⇪⇧3 toggles it for the session; `settings = { mouseFollows = { active = true } }` starts it on. It never moves while a mouse button is down — `_G.mouseFollowsReport()` says why the last jump did or didn't happen |
+| Mouse Follows Focus turned itself off | the watchdog (6.160.2): two jumps took over 250ms, which means an app is slow to answer Accessibility. `_G.mouseFollowsReport()` names the time and the app of the last jump; add that app to `mf.skipApps`, then ⇪⇧3 turns it back on |
 | A picker's preview pane sits ON the list instead of beside it | the placement record said the picker was off the screen (a runaway nudge/drag offset). 6.160.1 clamps every placement onto its screen and folds the offset back; the Console says "clamped" when it does. ⌃⌥⌘R resets the offset by hand |
 | `attempt to call a nil value (global '…')` | something calls a function that moved into a module — publish it with `core.provide` and call it with `_G.service.call` |
 | `No provider for '…'` | that module didn't load; see `Modules:` in the boot report |
@@ -567,9 +568,9 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Sixty-three Lua suites, 6,563 checks, plus three more that run the Capture
+Sixty-three Lua suites, 6,574 checks, plus three more that run the Capture
 Pad's, the screenshot editor's and unified search's page JavaScript under
-`node` for a further 105 — **6,668 checks over sixty-eight stages** in
+`node` for a further 105 — **6,679 checks over sixty-eight stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 

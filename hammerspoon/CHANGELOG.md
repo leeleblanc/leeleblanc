@@ -4,6 +4,44 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.160.2 — MOUSE FOLLOWS FOCUS CAN NO LONGER HANG THE MAC:
+  🚨 LL: "I couldn't type. Hammerspoon was locking up my Mac and any
+     tool I would bring up would not go away until I quit Hammerspoon."
+     6.160.0's Mouse Follows Focus was the only change between a config
+     that worked and one that hung, and the Console had the signature an
+     hour later: "Autocorrect tap was disabled by macOS — revived", the
+     main-thread stall. The cause: mf.target() read the focused window
+     through hs.window (app:focusedWindow(), win:frame()) INSIDE the AX
+     observer's callback. Those calls carry no timeout, they run on
+     Hammerspoon's main thread, and AXWindowMoved fires for every step
+     of every window move. One app slow to answer Accessibility — a
+     Chrome with a 1 GB tab, VLC mid-frame — and Hammerspoon waits with
+     it. While it waits nothing else runs: no Esc for the picker on
+     screen ("would not go away"), no keystrokes through the autocorrect
+     and expander taps ("couldn't type"), until macOS pulls the taps.
+  🛡 Three fixes, and a default:
+     · Every window question goes through hs.axuielement with
+       setTimeout(mf.axTimeout, 150ms) — the withTimeout discipline
+       Dialog Home has used since 6.143.0. A slow app costs at most
+       150ms per question, then the jump is skipped with a reason.
+     · The AX callback does NO work: it notes why and hands off to a
+       held zero-delay hs.timer, so the notification returns at once. A
+       drag's hundred AXWindowMoved notifications coalesce into one
+       jump; a focus change outranks a move. The app-watcher path hands
+       off the same way.
+     · A watchdog times every jump (hs.timer.absoluteTime). Two over
+       mf.slowMs (250ms) turn the feature OFF for the session — an alert,
+       a Console line, a notice — rather than a third.
+     · It STARTS OFF. ⇪⇧3 opts in for the session; a profile opts in for
+       good with settings = { mouseFollows = { active = true } }. The
+       feature is unproven on LL's Mac until it has run a day without a
+       strike; the report's "last jump took" line is the evidence.
+  ✅ Gate: test_mouse_follows 49 → 60: the callback schedules and does
+     not jump, coalescing, every question carried a timeout, the watchdog's
+     two strikes (alert + notice, nothing scheduled while off), and a
+     source sentry — no focusedWindow()/frame() reads, setTimeout present.
+     Gate: 6,668 → 6,679 checks, sixty-eight stages, green in the tree and inside the package.
+
 NEW IN 6.160.1 — A PICKER IS NEVER PLACED OFF ITS SCREEN:
   🩹 LL: "When I use hyper+Y for my Chrome search, only one thing
      happens, a little panel pops-up on the side. That's it." The
