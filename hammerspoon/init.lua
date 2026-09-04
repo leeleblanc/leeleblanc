@@ -2,10 +2,24 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-03-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-04-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.160.2
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.160.3
 -- =====================================================================
+
+-- NEW IN 6.160.3 — ⌥TAB STOPS PAYING FOR THE CONSOLE TWICE:
+--   🔄 LL: "Opt+tab takes about a second or so to appear. Way longer
+--      than it used to." The slow line named the phase — "console
+--      2.60s" — and Hammerspoon's source says why: hs.console.hswindow()
+--      is hs.window.get(id) underneath, which is hs.window.find over
+--      hs.window.allWindows() — EVERY application's windows through
+--      Accessibility, unbudgeted, a second full sweep every press to
+--      find one window, open or not. After a wake, with apps slow to
+--      answer AX, that was the whole second. The console is now asked of
+--      the one process that owns it — ours, by pid (altTab.consoleWindow)
+--      — one application, no cross-app AX. test_switcher makes the old
+--      call throw. The "slowest phase" line is still the way to read a
+--      slow press.
 
 -- NEW IN 6.160.2 — MOUSE FOLLOWS FOCUS CAN NO LONGER HANG THE MAC:
 --   🚨 LL: "I couldn't type. Hammerspoon was locking up my Mac and any
@@ -77,31 +91,10 @@
 --      second pick). Yours first, then 🔁, then 🔒; the placeholder and
 --      _G.killReport() count each. No sudo, ever.
 
--- NEW IN 6.158.0 — DATES YOUR WAY IN A SNIPPET · ⇪⇧2 TYPES THE CLIPBOARD:
---   📅 LL: "insert dynamic content: 1. Date in this formats: DD/MM/YYYY
---      and DD-MM-YYYY." {date:PATTERN} in any snippet (text_expander):
---      D, M and Y are the date letters, a run's length picks the form
---      (D 3 · DD 03 · DDD Thu · DDDD Thursday, the same for M; YY 26 ·
---      YYYY 2026), case does not matter, everything else is kept as
---      typed. {date} alone stays ISO, so no older snippet changes. The
---      triggers are two Console lines, once (Mine lives in OneDrive):
---        _G.snippetAdd(";ds", "{date:DD/MM/YYYY}", "Date · slashes")
---        _G.snippetAdd(";dd", "{date:DD-MM-YYYY}", "Date · dashes")
---   🎬 "2. Take a YouTube url: yt-dlp -x --audio-format mp3 <url>" — no
---      new code: {clipboard} was already a placeholder. Copy the link,
---      type the trigger, the command lands with the URL quoted:
---        _G.snippetAdd(";yt",
---          'yt-dlp -x --audio-format mp3 "{clipboard}"', "yt-dlp audio")
---   ⌨️ "a simple automated shortcut to type the clipboard contents where
---      we can't use ⌘+V" — ⇪⇧2 (power_tools): the ⇪; row's own key, the
---      same guards in the same order (secure input first, waits for ⇧
---      to come up, bursts of 120). The ⇪⇧ number row 6.142.0 cleared
---      spends its second key; the ledger (⇪/, _G.freeKeys()) says so.
-
--- (6.157.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.158.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.160.2
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.160.3
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -446,7 +439,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.160.2"
+_G.configVersion = "6.160.3"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

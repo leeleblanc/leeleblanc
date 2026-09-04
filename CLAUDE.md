@@ -47,7 +47,9 @@ keyboard TAP handler must start with `if _G.hsPaused then return false end`
 `app:allWindows()` (minimised yes, other-Space no) — the switcher serves
 them from `altTab.known`, a memory fed by every listing; z-order comes from
 `hs.window._orderedwinids()`. `hs.window.orderedWindows()` is banned there
-(it re-runs the whole sweep internally; the test counts calls).
+(it re-runs the whole sweep internally; the test counts calls), and so is
+`hs.console.hswindow()` since 6.160.3 (it is hs.window.get → allWindows,
+a second full sweep; the console comes from applicationForPID(own pid)).
 
 ## Panel ladder (core/coexist.lua)
 

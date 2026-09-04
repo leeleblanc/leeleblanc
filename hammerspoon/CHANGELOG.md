@@ -4,6 +4,39 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.160.3 — ⌥TAB STOPS PAYING FOR THE CONSOLE TWICE:
+  🔄 LL: "Opt+tab takes about a second or so to appear. Way longer than
+     it used to. Do you want me to run something in the Hammerspoon
+     console?" No need — the switcher's own slow line (6.156.0) had
+     already named the phase: "listing took 2.63s across 9 apps
+     (slowest: Finder 0.00s · memory: 0 probed in 0.00s · slowest phase:
+     console 2.60s)", then 1.52s, then repeats. Earlier the same day
+     that phase cost 0.08s.
+  🔍 The phase is §1b of listWindows, added in 6.147.0 so the Console is
+     a tile: it called hs.console.hswindow(). Hammerspoon's source
+     (extensions/console/libconsole.m → window.lua): hswindow() takes the
+     console's CGWindowID and calls hs.window.windowForID, which IS
+     hs.window.get, which IS hs.window.find(id) over hs.window.allWindows()
+     — every running application's windows, through Accessibility, with
+     no budget, whether the console is open or not. The switcher had
+     already swept every app under altTab.listBudget in §1; §1b paid for
+     the same sweep a second time, outside the budget, to find one
+     window. Cheap while every app answers AX at once; the whole second
+     after a wake, when they do not.
+  🩹 altTab.consoleWindow(): hs.application.applicationForPID(our pid)
+     :allWindows(), the window titled altTab.consoleTitle ("Hammerspoon
+     Console"). One application, our own, no cross-app AX. nil when the
+     console is closed (not a tile) or on a build without
+     applicationForPID (no tile, no error). includeMinimized honoured as
+     before. hs.console.hswindow() is now banned in this module the way
+     hs.window.orderedWindows() has been since 6.152.0.
+  ✅ Gate: test_switcher's §14 stubs hswindow() to THROW and counts
+     hs.window.allWindows() — the console tile must come from the pid
+     lookup with zero sweep calls; only the window titled as the console
+     is a tile; a closed console, a minimised one, and a build without
+     applicationForPID are pinned; a source sentry forbids the word
+     hswindow in the module's code. Gate: 6,679 → 6,688 checks, sixty-eight stages, green in the tree and inside the package.
+
 NEW IN 6.160.2 — MOUSE FOLLOWS FOCUS CAN NO LONGER HANG THE MAC:
   🚨 LL: "I couldn't type. Hammerspoon was locking up my Mac and any
      tool I would bring up would not go away until I quit Hammerspoon."

@@ -1074,7 +1074,27 @@ out("\n=== 14. 6.147.0 — the Hammerspoon Console is a tile ===\n")
 -- answer isStandard() = false — so it is asked for BY NAME.
 reset(2)
 local CONSOLE = mkwin(999, "Hammerspoon", "Hammerspoon Console", false, false)
-hs.console = { hswindow = function() return CONSOLE end }
+-- Faithful to LL's Macs: Hammerspoon IS in runningApplications, kind 0
+-- (init.lua hides the dock icon), so the kind == 1 sweep must SKIP it
+-- and the console can only arrive through the pid path below.
+table.insert(APPS, mkapp("Hammerspoon", { CONSOLE }, 0))
+-- 🚨 6.160.3 — NEVER hs.console.hswindow(): underneath it is
+-- hs.window.get → hs.window.find → hs.window.allWindows(), a second
+-- full cross-app AX sweep every press ("slowest phase: console 2.60s"
+-- after a wake). The console is asked of OUR OWN process by pid. The
+-- stub makes the old call THROW so a regression cannot pass quietly,
+-- and counts hs.window.allWindows() so the sweep cannot come back
+-- through another door.
+hs.console = { hswindow = function() error("hswindow() is a full cross-app sweep — banned") end }
+hs.processInfo = { processID = 4242 }
+local PID_ASKED = {}
+local OWN_WINS = { CONSOLE, mkwin(997, "Hammerspoon", "Hammerspoon Preferences", false, true) }
+hs.application.applicationForPID = function(pid)
+  PID_ASKED[#PID_ASKED + 1] = pid
+  if pid ~= 4242 then return nil end
+  return mkapp("Hammerspoon", OWN_WINS, 0)
+end
+local allBefore = COUNT.all
 check("an open console is listed even though isStandard() is false and "
       .. "no kind-1 app owns it", (function()
     for _, e in ipairs(AT.listWindows()) do
@@ -1082,7 +1102,20 @@ check("an open console is listed even though isStandard() is false and "
     end
     return false
 end)())
-hs.console = { hswindow = function() return nil end }
+check("🚨 …found by asking OUR OWN process (by pid), not a cross-app sweep",
+      #PID_ASKED >= 1 and PID_ASKED[#PID_ASKED] == 4242 and COUNT.all == allBefore,
+      tostring(PID_ASKED[#PID_ASKED]) .. " / allWindows calls +" .. (COUNT.all - allBefore))
+check("…and only the window TITLED as the console — not every Hammerspoon window",
+      (function()
+    for _, e in ipairs(AT.listWindows()) do
+        if e.win and e.win:id() == 997 then return false end
+    end
+    return true
+end)())
+check("altTab.consoleWindow() is the one way in, and it names the title it matches",
+      type(AT.consoleWindow) == "function" and AT.consoleWindow() == CONSOLE
+      and AT.consoleTitle == "Hammerspoon Console")
+OWN_WINS = {}
 AT.cache = nil
 check("a CLOSED console is not a tile — it is a tool you have not opened",
       (function()
@@ -1092,7 +1125,7 @@ check("a CLOSED console is not a tile — it is a tool you have not opened",
     return true
 end)())
 local MINI_CONSOLE = mkwin(998, "Hammerspoon", "Hammerspoon Console", true, false)
-hs.console = { hswindow = function() return MINI_CONSOLE end }
+OWN_WINS = { MINI_CONSOLE }
 AT.cache = nil
 AT.includeMinimized = false
 check("a minimised console honours includeMinimized like every window",
@@ -1103,7 +1136,37 @@ check("a minimised console honours includeMinimized like every window",
     return true
 end)())
 AT.includeMinimized = true
+hs.application.applicationForPID = nil
+AT.cache = nil
+local allBefore2 = COUNT.all
+check("no applicationForPID on this build: no console tile, no error — and "
+      .. "NO fallback sweep either", (function()
+    local ok, list = pcall(AT.listWindows)
+    if not ok then return false end
+    for _, e in ipairs(list) do
+        if e.win and e.win:id() == 998 then return false end
+    end
+    return COUNT.all == allBefore2
+end)(), "allWindows calls +" .. (COUNT.all - allBefore2))
+hs.processInfo = nil
 hs.console = nil
+
+do
+  local fh = assert(io.open(HS .. "/modules/window_switcher.lua"), "module file")
+  local src = fh:read("a"); fh:close()
+  local code = {}
+  for line in (src .. "\n"):gmatch("([^\n]*)\n") do code[#code + 1] = (line:gsub("%-%-.*$", "")) end
+  code = table.concat(code, "\n")
+  check("🚨 SOURCE: the module never calls hs.console.hswindow() (6.160.3)",
+        code:find("hswindow") == nil)
+  -- …nor any other door onto the cross-app sweep: the console must come
+  -- from applicationForPID(own pid) and nothing else.
+  for _, banned in ipairs({ "hs%.window%.allWindows", "hs%.window%.find",
+                            "hs%.window%.get%(", "windowForID" }) do
+    check("🚨 SOURCE: no " .. banned:gsub("%%", "") .. " in the module's code",
+          code:find(banned) == nil)
+  end
+end
 
 -- =====================================================================
 out("\n=== 15. 🗂 6.154.0 — the ROLODEX ===\n")

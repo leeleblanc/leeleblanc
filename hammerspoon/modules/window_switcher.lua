@@ -221,6 +221,29 @@ function M.setup(core)
     altTab.known    = {}   -- id -> { win, app, name }; survives between presses
     altTab.lastHere = {}   -- app name -> true if it had a visible window last time
 
+    -- 🖥 6.160.3 — THE CONSOLE, FROM OUR OWN PROCESS ONLY. Hammerspoon's
+    -- windows come from hs.application.applicationForPID(our pid), which
+    -- asks one application; the console is the one titled
+    -- altTab.consoleTitle. nil when it is not open (a closed console is
+    -- not a tile). Never hs.console.hswindow(): see §1b in listWindows.
+    altTab.consoleTitle = "Hammerspoon Console"
+    function altTab.consoleWindow()
+        local pid
+        pcall(function() pid = hs.processInfo and hs.processInfo.processID end)
+        if not pid then return nil end
+        local me
+        pcall(function() me = hs.application.applicationForPID(pid) end)
+        if not me then return nil end
+        local wins
+        pcall(function() wins = me:allWindows() end)
+        for _, w in ipairs(type(wins) == "table" and wins or {}) do
+            local t
+            pcall(function() t = w:title() end)
+            if t == altTab.consoleTitle then return w end
+        end
+        return nil
+    end
+
     function altTab.listWindows()
         local t0 = hs.timer.secondsSinceEpoch()
         local entries, seenWin, seenApp = {}, {}, {}
@@ -359,13 +382,26 @@ function M.setup(core)
         -- net on purpose: Hammerspoon is a menu-bar app, so the
         -- kind == 1 sweep never asks it, and on some builds the console
         -- window answers isStandard() = false, which add() treats as
-        -- "not a window you switch to". So it is asked for BY NAME —
-        -- hs.console.hswindow() hands it over when it is open, and
-        -- hands back nil when it is not (a closed console is not a
-        -- tile, it is a tool you have not opened).
+        -- "not a window you switch to". So it is asked for BY NAME:
+        -- 6.147.0 asked hs.console.hswindow(); since 6.160.3 it is
+        -- altTab.consoleWindow() (below). Either way nil when the console
+        -- is closed — a closed console is not a tile, it is a tool you
+        -- have not opened.
+        --
+        -- 🚨 6.160.3 — NOT hs.console.hswindow(). LL: "Opt+tab takes
+        -- about a second or so to appear," and the slow line named the
+        -- phase: "console 2.60s". Read Hammerspoon's source: hswindow()
+        -- is hs.window.windowForID, which IS hs.window.get, which IS
+        -- hs.window.find over hs.window.allWindows() — EVERY running
+        -- application's windows through Accessibility, unbudgeted, a
+        -- second full sweep every press to find one window (and it runs
+        -- whether the console is open or not). After a wake, with apps
+        -- slow to answer AX, that was the whole second. So the console is
+        -- asked of the one process that owns it — ours — by pid: one
+        -- app, no cross-app AX, and altTab.consoleWindow() is the
+        -- only way in (test_switcher makes hswindow() throw).
         pcall(function()
-            if not (hs.console and hs.console.hswindow) then return end
-            local cw = hs.console.hswindow()
+            local cw = altTab.consoleWindow()
             if not cw then return end
             local okId, id = pcall(function() return cw:id() end)
             if not (okId and id) or seenWin[id] then return end
