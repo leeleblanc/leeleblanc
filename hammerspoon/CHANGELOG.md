@@ -4,6 +4,48 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.168.0 — MOUSE FOLLOWS FOCUS LEARNS ABOUT YOUR HAND:
+  ✋ LL: "the mouse focus/following tool seems to be very aggressive. I
+     can't seem to maintain control and instead it jumps or holds to
+     something." Both faults were the rules being blind to the hand
+     on the mouse. JUMPS: a click on another window focuses it; the AX
+     notification comes while the button is down (skipped, as
+     promised) — but the hand-off timer ran a moment later, button UP,
+     and the pointer teleported from the click to the window's centre.
+     Same on a Dock click, same the instant a dragged window is dropped
+     (its last AXWindowMoved lands after the mouseUp). Apps that refuse
+     a watcher (Chrome, Finder, Word in the log) got it on every
+     activation. HOLDS: an app re-announcing its focused window (iPhone
+     Mirroring, a window macOS is animating) sent the pointer back to
+     the same centre while LL dragged it away.
+     Three guards in mouse_follows, all about the hand, all cheap:
+     · CLICK GRACE (mf.clickGrace 0.6 s): one tiny eventtap stamps the
+       time of every mouse button down/up and lets it through; a warp
+       within the grace stands still ("you clicked 180ms ago — that
+       focus was yours"). The tap honours ⇪⇧1 and is HELD.
+     · SETTLE (mf.settle 0.12 s, mf.handPx 3): the hand-off waits a
+       beat instead of zero and compares where the pointer was when
+       the notification arrived with where it is now — moved more than
+       3 px, the hand is on the mouse, stand still.
+     · A CENTRE STAYS YOURS (mf.repeatGrace 2 s): sent to a centre,
+       moved away, the same centre announced again = a repeat.
+     A keyboard-driven focus change (⌘Tab, ⌘`, a numpad-layer window
+     warp) has no click, no moving hand and a new centre: it follows
+     as before, ~0.1 s later. _G.mouseFollowsReport() gains a
+     "your hand :" line (the knobs, clicks seen, or "click tap NOT
+     running") and "stood still :" now names which guard held it.
+     Knobs go through num(): "0.5" works, a negative or a word falls
+     back to the default, never a throw.
+     ALSO in that Console paste: init.lua reads 6.166.0 — the 6.167.0
+     zip was never installed (its card/ring verify still waits) — and
+     one "released by the watchdog" at 18:18 (release #1, no key
+     event, no F18 keyUp): the timed hold worked; the lost keyUp is
+     still unexplained (6.165.1 note).
+  ✅ Gate: test_mouse_follows 87 → 110 — the tap is built once and
+     held, click grace on/after, settle timer 0.12 s, a 30 px hand vs
+     a 2 px tremor, the repeat guard and its expiry, a new centre never
+     a repeat, bad knobs, paused tap, no eventtap.new at all, sentries.
+     6,887 → 6,910 checks, sixty-nine stages.
 NEW IN 6.167.0 — THE HINT CARD AND THE POINTER RING ARE SIZED BY THE SCREEN; THE RING STAYS 6 S:
   💡 LL, after 6.165.1 AND 6.166.0 each made the card bigger in points:
      "still small and does not seem to be taking new settings." The

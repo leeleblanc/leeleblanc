@@ -4,9 +4,51 @@
 -- =====================================================================
 -- 09-05-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.167.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.168.0
 -- =====================================================================
 
+-- NEW IN 6.168.0 — MOUSE FOLLOWS FOCUS LEARNS ABOUT YOUR HAND:
+--   ✋ LL: "the mouse focus/following tool seems to be very aggressive. I
+--      can't seem to maintain control and instead it jumps or holds to
+--      something." Both faults were the rules being blind to the hand
+--      on the mouse. JUMPS: a click on another window focuses it; the AX
+--      notification comes while the button is down (skipped, as
+--      promised) — but the hand-off timer ran a moment later, button UP,
+--      and the pointer teleported from the click to the window's centre.
+--      Same on a Dock click, same the instant a dragged window is dropped
+--      (its last AXWindowMoved lands after the mouseUp). Apps that refuse
+--      a watcher (Chrome, Finder, Word in the log) got it on every
+--      activation. HOLDS: an app re-announcing its focused window (iPhone
+--      Mirroring, a window macOS is animating) sent the pointer back to
+--      the same centre while LL dragged it away.
+--      Three guards in mouse_follows, all about the hand, all cheap:
+--      · CLICK GRACE (mf.clickGrace 0.6 s): one tiny eventtap stamps the
+--        time of every mouse button down/up and lets it through; a warp
+--        within the grace stands still ("you clicked 180ms ago — that
+--        focus was yours"). The tap honours ⇪⇧1 and is HELD.
+--      · SETTLE (mf.settle 0.12 s, mf.handPx 3): the hand-off waits a
+--        beat instead of zero and compares where the pointer was when
+--        the notification arrived with where it is now — moved more than
+--        3 px, the hand is on the mouse, stand still.
+--      · A CENTRE STAYS YOURS (mf.repeatGrace 2 s): sent to a centre,
+--        moved away, the same centre announced again = a repeat.
+--      A keyboard-driven focus change (⌘Tab, ⌘`, a numpad-layer window
+--      warp) has no click, no moving hand and a new centre: it follows
+--      as before, ~0.1 s later. _G.mouseFollowsReport() gains a
+--      "your hand :" line (the knobs, clicks seen, or "click tap NOT
+--      running") and "stood still :" now names which guard held it.
+--      Knobs go through num(): "0.5" works, a negative or a word falls
+--      back to the default, never a throw.
+--      ALSO in that Console paste: init.lua reads 6.166.0 — the 6.167.0
+--      zip was never installed (its card/ring verify still waits) — and
+--      one "released by the watchdog" at 18:18 (release #1, no key
+--      event, no F18 keyUp): the timed hold worked; the lost keyUp is
+--      still unexplained (6.165.1 note).
+--   ✅ Gate: test_mouse_follows 87 → 110 — the tap is built once and
+--      held, click grace on/after, settle timer 0.12 s, a 30 px hand vs
+--      a 2 px tremor, the repeat guard and its expiry, a new centre never
+--      a repeat, bad knobs, paused tap, no eventtap.new at all, sentries.
+--      6,887 → 6,910 checks, sixty-nine stages.
 -- NEW IN 6.167.0 — THE HINT CARD AND THE POINTER RING ARE SIZED BY THE SCREEN; THE RING STAYS 6 S:
 --   💡 LL, after 6.165.1 AND 6.166.0 each made the card bigger in points:
 --      "still small and does not seem to be taking new settings." The
@@ -131,55 +173,10 @@
 --      seed by prefix / text, filing on ⌘W and on pad close, the two
 --      failure shapes, the day task's exclusion, the store round-trip,
 --      the reroute sentries. 6,932 → 6,951 checks, seventy stages.
--- NEW IN 6.164.0 — ⇪1 SCRATCH PAD: TABS, SAVED AS YOU TYPE, A HISTORY UNDER IT:
---   📝 LL: "What I need is a very simple text editor that I can quickly
---      bring up using the shortcut key, type into it, have it
---      automatically saved so I don't lose any of that data, write that
---      data to a searchable database, be able to close it as fast as I
---      can open it … a running history under the main text editor area …
---      open tabs as I need more scratch space … at the end of my workday,
---      4 PM, an Asana task should be created with the contents … start
---      time of 7:30 AM and an end time of 4 PM, make me the assignee …
---      this tool must not lock up my keyboard or the operating system."
---      Asked, and answered: ⇪1 (one unshifted key, free); ⇪N and ⇪2 stay
---      as they are; ONE task per day with every tab; pin = stays up
---      beside the app, no window tracking.
---   🗂 modules/scratch_pad.lua — the Capture Pad / Task Form webview
---      recipe (allowTextEntry, read-back-verified non-activating mask,
---      held bridge, Lua-driven drag). A tab bar (⌘T new · ⌘W close ·
---      ⌘1–9 switch · 12 at most), the text, and under it the HISTORY:
---      every closed tab newest first, a filter box (⌘F), click a row
---      and it is a tab again. Every keystroke lands in Lua at once and
---      on disk 0.3 s after the last one (one held timer, re-armed per
---      key; written to a sibling and renamed over) — plus at once on
---      close, tab close, restore and the 4 PM send. Store:
---      Logs/scratch/scratch.json, in the write ledger. ⇪space searches
---      it live (tabs, then closed rows). 📌 in the header: Esc hands the
---      keys back instead of closing; ⇪1 and ✕ always close.
---   ✅ 16:00 (held hs.timer.doAt): one task "Scratch pad · Sat Sep 05",
---      every open tab with text under a ## heading, then anything
---      closed today; start 07:30 · due 16:00 on today; assignee "me";
---      the personal project — all through _G.asanaSubmitTask, so this
---      module owns no Asana request. The identifying comment travels as
---      extra.comment (task_creator, 6.164.0; "" still disables). An
---      empty day, or one unchanged since the last send, is skipped and
---      says so. Asana off: not sent, said, the text stays. Buttons:
---      "Asana" sends now; _G.scratchPadSend() from the Console.
---   🚨 What it deliberately lacks: no eventtap (the page's own keydown
---      handles ⌘T/⌘W/⌘1–9/Esc, so nothing can swallow a key system-
---      wide), no AX or window reads, no unheld timer. Without a webview
---      the plain hs.dialog box edits the current tab and still saves; a
---      broken store starts empty and leaves the file; a failed write
---      warns once and keeps the text in Lua. _G.scratchPadReport().
---   ✅ Gate: test_scratch_pad (80) — the doors in, keystroke-to-Lua /
---      debounce-to-disk, tabs, history + restore, pin + Esc, the 16:00
---      payload and its skips, the three degrade paths, source sentries.
---      6,850 → 6,932 checks, seventy stages. 6.163.0 and 6.162.1 verify
---      remain open.
--- (6.163.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.164.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.167.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.168.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -525,7 +522,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.167.0"
+_G.configVersion = "6.168.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

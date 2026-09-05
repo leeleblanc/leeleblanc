@@ -43,6 +43,7 @@ local WATCHERS  = 0
 local REFUSE_WATCH = false
 local NOTICES   = {}
 
+TAP = nil                 -- 6.168.0: the click tap the module built
 local TIMEOUTS = 0        -- every setTimeout the module asks for
 local TIMERS   = {}       -- every doAfter, fired by hand via drain()
 local ATIME    = 0
@@ -103,7 +104,19 @@ hs = {
             return { x = MOUSE.x, y = MOUSE.y }
         end,
     },
-    eventtap = { checkMouseButtons = function() return BTNS end },
+    eventtap = {
+        checkMouseButtons = function() return BTNS end,
+        -- 6.168.0: the click-stamping tap
+        event = { types = { leftMouseDown = 1, rightMouseDown = 3, otherMouseDown = 25,
+                            leftMouseUp = 2, rightMouseUp = 4, otherMouseUp = 26 } },
+        new = function(kinds, fn)
+            local t = { kinds = kinds, fn = fn, started = false }
+            function t:start() self.started = true; return self end
+            function t:stop() self.started = false; return self end
+            TAP = t
+            return t
+        end,
+    },
     timer = {
         absoluteTime = function() ATIME = ATIME + ASTEP; return ATIME end,
         doAfter = function(secs, fn)
@@ -528,6 +541,100 @@ do
     SETTINGS = {}
 end
 
+
+out("\n=== 11b. ✋ The hand on the mouse (6.168.0) ===\n")
+do
+    -- Fresh boot, Accessibility on, ON — the click tap is part of start().
+    AX = true; SETTINGS = {}; TAP = nil
+    MAIL._frame   = { x = 1000, y = 100, w = 400, h = 300 }   -- centre 1200,250
+    SAFARI._frame = { x = 0,    y = 0,   w = 800, h = 600 }   -- centre 400,300
+    local M2, m = boot()
+    m.active = true
+    check("start() builds ONE click tap and holds it", m.clickTap ~= nil and m.clickTap == TAP and TAP.started)
+    check("the tap listens for buttons down AND up, nothing else",
+          TAP and #TAP.kinds == 6 and TAP.kinds[1] == 1 and TAP.kinds[4] == 2)
+    check("a second start() keeps the same tap", (function()
+        local before = TAP; m.appWatcher = nil; m.start(); return TAP == before and m.clickTap == before
+    end)())
+    -- the module's warp target: Mail's centre
+    FRONT = MAIL; MOUSE = { x = 10, y = 10 }; SETS = {}
+    ASTEP = 1000000
+
+    -- CLICK GRACE: a click, then the focus notification the click caused
+    local passThrough = TAP.fn()
+    check("the tap lets the click through", passThrough == false and m.clicks == 1 and m.lastClickMs ~= nil)
+    activate(MAIL)
+    check("a focus change right after a click does NOT jump", #SETS == 0, #SETS)
+    check("…and says whose focus it was", tostring(m.lastSkip):find("you clicked %d+ms ago") ~= nil, m.lastSkip)
+    ATIME = ATIME + 700 * 1000000  -- the clock jumps past the grace (one leap: the watchdog times jumps)
+    activate(MAIL)
+    check("past the click grace it follows again", #SETS == 1 and MOUSE.x == 1200 and MOUSE.y == 250, #SETS .. " " .. tostring(m.lastSkip) .. " " .. MOUSE.x .. "," .. MOUSE.y)
+
+    -- SETTLE: the hand-off waits a beat, not zero
+    m.schedule("focus")
+    local t = TIMERS[#TIMERS]
+    check("the hand-off waits mf.settle (0.12 s), not 0", t and t.secs == 0.12, t and t.secs)
+    check("…and remembers where the pointer was", m.pendingFrom and m.pendingFrom.x == 1200)
+    -- the hand moves the mouse while it waits
+    MOUSE = { x = 1230, y = 250 }
+    SETS = {}
+    drain()
+    check("a hand that moved the mouse while it waited wins — no jump", #SETS == 0, #SETS)
+    check("…and the report knows why", tostring(m.lastSkip):find("your hand moved the mouse 30px") ~= nil, m.lastSkip)
+    ATIME = ATIME + 3000 * 1000000        -- well past the repeat grace
+    check("a 2px tremor is not a hand", (function()
+        MOUSE = { x = 10, y = 10 }; m.schedule("focus"); MOUSE = { x = 12, y = 11 }; SETS = {}; drain()
+        return #SETS == 1 and MOUSE.x == 1200
+    end)(), tostring(m.lastSkip))
+
+    -- A CENTRE STAYS YOURS: sent to Mail's centre, moved away, same centre again
+    MOUSE = { x = 900, y = 900 }; SETS = {}
+    fire("AXFocusedWindowChanged")
+    check("the same centre announced again within 2 s is a repeat — no jump", #SETS == 0, #SETS)
+    check("…said in words", tostring(m.lastSkip):find("sent there [%d%.]+s ago and you moved away") ~= nil, m.lastSkip)
+    ATIME = ATIME + 3000 * 1000000
+    fire("AXFocusedWindowChanged")
+    check("after mf.repeatGrace it is a real change again", #SETS == 1 and MOUSE.x == 1200,
+          #SETS .. " skip=" .. tostring(m.lastSkip))
+    check("none of that tripped the watchdog (the clock leapt between jumps, not inside one)",
+          m.active and m.slowHits == 0, m.slowHits)
+    check("a NEW centre is never a repeat", (function()
+        FRONT = SAFARI; MOUSE = { x = 900, y = 900 }; SETS = {}
+        activate(SAFARI)
+        return #SETS == 1 and MOUSE.x == 400 and MOUSE.y == 300
+    end)(), tostring(m.lastSkip) .. " " .. #SETS .. " " .. MOUSE.x)
+
+    -- knobs survive a profile's strings and nonsense
+    m.clickGrace = "0.5"; m.settle = -1; m.handPx = "three"; m.repeatGrace = nil
+    check("knobs as strings / nonsense fall back and never throw", (function()
+        local ok = pcall(function() m.schedule("focus"); drain() end)
+        return ok and TIMERS[#TIMERS] == nil or ok
+    end)())
+    local rep = _G.mouseFollowsReport()
+    check("report: the hand line with the defaults restored for bad values",
+          rep:find("your hand     : click grace 500ms · settles 120ms · hand 3px · a centre stays yours 2.0s · ", 1, true) ~= nil, rep)
+    check("report counts the clicks it saw", rep:find("1 click seen", 1, true) ~= nil, rep)
+    m.clickGrace, m.settle, m.handPx, m.repeatGrace = 0.6, 0.12, 3, 2
+
+    -- the pause switch: the tap stamps nothing while paused
+    _G.hsPaused = true
+    local before = m.clicks
+    TAP.fn()
+    check("paused: the tap lets the click through and stamps nothing", m.clicks == before)
+    _G.hsPaused = false
+
+    -- no tap at all (an hs without eventtap.new): the grace is off, nothing throws
+    local savedNew = hs.eventtap.new
+    hs.eventtap.new = nil
+    AX = true; SETTINGS = {}; TAP = nil
+    local _, m3 = boot()
+    check("no eventtap.new: boot survives, clickTap nil, report says so",
+          m3.clickTap == nil and _G.mouseFollowsReport():find("click tap NOT running", 1, true) ~= nil)
+    hs.eventtap.new = savedNew
+    AX = true; SETTINGS = {}
+    M, mf = boot()
+end
+
 out("\n=== 12. Source sentries ===\n")
 local src = io.open(HS .. "/modules/mouse_follows.lua"):read("a")
 local code = {}
@@ -545,6 +652,9 @@ check("🚨 no hs.window reads — every question goes through axuielement WITH 
       and code:find("setTimeout") ~= nil)
 check("honours the pause switch", code:find("_G%.hsPaused") ~= nil)
 check("checks the mouse buttons before every jump", code:find("checkMouseButtons") ~= nil)
+check("6.168.0: the click tap is HELD, the hand-off waits mf.settle, the tap honours the pause",
+      code:find("mf%.clickTap = tap") ~= nil and code:find("num%(mf%.settle") ~= nil
+      and code:find("if _G%.hsPaused then return false end") ~= nil)
 check("returns its module table and exposes config",
       src:find("\nreturn M", 1, true) ~= nil and src:find("M%.config") ~= nil)
 

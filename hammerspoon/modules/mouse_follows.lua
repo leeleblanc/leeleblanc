@@ -98,6 +98,35 @@
 --     silently. The key is bound regardless now; without Accessibility
 --     the press says where to grant it.
 --
+-- ---- ✋ 6.168.0 — "VERY AGGRESSIVE … IT JUMPS OR HOLDS" -----------------
+-- LL: "I can't seem to maintain control and instead it jumps or holds to
+-- something." Two faults, both in the rules above being blind to the
+-- HAND on the mouse:
+--   · JUMPS. A click on another window focuses it. The AX notification
+--     arrives while the button is down (skipped, as promised) — but the
+--     hand-off timer runs a moment later, after the button is UP, and
+--     the pointer teleports from where you clicked to the window's
+--     centre. Same on a Dock click, same after dropping a dragged window
+--     (its last AXWindowMoved lands after the mouseUp). Every click on a
+--     background window was a jump.
+--   · HOLDS. An app that keeps re-announcing its focused window (iPhone
+--     Mirroring, a window being animated by macOS) sent the pointer back
+--     to the same centre again and again while you tried to drag it away.
+-- Three guards, all cheap, all about the hand:
+--   · CLICK GRACE (mf.clickGrace): a tiny eventtap stamps every mouse
+--     button down/up; a warp within that many seconds of one is skipped —
+--     a focus change your click caused is not a focus change to follow.
+--   · SETTLE (mf.settle, mf.handPx): the hand-off waits a beat instead of
+--     zero, and compares where the pointer was when the notification
+--     arrived with where it is now. Moved more than a few pixels = your
+--     hand is on the mouse = stand still.
+--   · A CENTRE STAYS YOURS (mf.repeatGrace): the pointer was sent to a
+--     centre, you moved it away, and the app announces the same centre
+--     again within a couple of seconds — that is a repeat, not a change.
+-- A keyboard-driven focus change (⌘Tab, ⌘`, a window warp from the
+-- numpad layer) has no click, no moving hand, and a NEW centre: it
+-- follows exactly as before, ~0.1 s later than it did.
+--
 -- No Accessibility, no feature: window frames cannot be read without it.
 -- It stands down and says so, the way Dialog Home and Window Pin do.
 -- =====================================================================
@@ -112,6 +141,7 @@ local M = {
             { "focus",  "Pointer jumps to the centre of the window that took focus" },
             { "moves",  "…and follows the focused window when something warps it" },
             { "not",    "While a mouse button is down — your drag is yours" },
+            { "hand",   "Not after your click, not while your hand moves the mouse (6.168.0)" },
             { "⇪⇧3",   "On / off — remembered across reloads (6.161.0)" },
             { "safe",   "Every window read has a timeout; a slow app never hangs you" },
             { "rests",  "Two slow jumps in a minute: it rests 5 min, then returns by itself" },
@@ -136,6 +166,17 @@ function M.setup(core)
     -- (AX can report one move twice). Also: the pointer already at the
     -- centre stays put — no visible twitch.
     mf.dedupePx     = 2
+    -- ✋ 6.168.0 — the hand on the mouse outranks every rule:
+    -- · no warp within this many seconds of a mouse button going down or
+    --   up (your click focused that window — you are already there)
+    mf.clickGrace   = 0.6
+    -- · the hand-off waits this long, and a pointer that moved more than
+    --   mf.handPx in the meantime is a hand at work — stand still
+    mf.settle       = 0.12
+    mf.handPx       = 3
+    -- · a centre the pointer was sent to stays yours this long: moved away
+    --   from it, the same centre announced again is a repeat, not a change
+    mf.repeatGrace  = 2
     -- Apps whose windows are never followed, by name. Empty on purpose:
     -- the two built-in exclusions (our own windows; a button held) cover
     -- what matters, and a name list is yours to grow if a specific app
@@ -167,6 +208,11 @@ function M.setup(core)
     mf.currentApp = nil
     mf.pending    = nil      -- HELD: the zero-delay hand-off timer
     mf.pendingWhy = nil
+    mf.pendingFrom = nil     -- 6.168.0: where the pointer was when the notification came
+    mf.clickTap   = nil      -- HELD: the button-stamping tap (6.168.0)
+    mf.lastClickMs = nil     -- hs.timer.absoluteTime ms of the last button event
+    mf.lastWarpMs  = nil     -- …of the last warp
+    mf.clicks     = 0
     mf.slowHits   = 0        -- strikes inside the last mf.slowWindow seconds
     mf.strikes    = {}       -- os.time() of each strike still counted
     mf.lastMs     = nil      -- how long the last jump took
@@ -290,6 +336,41 @@ function M.setup(core)
         return t
     end
 
+    -- A knob a profile set to "0.5" or nothing is still a number here.
+    local function num(v, default)
+        local n = tonumber(v)
+        if n and n >= 0 then return n end
+        return default
+    end
+
+    -- ✋ 6.168.0 — the click stamp. The tap does ONE thing: notes the
+    -- time of a button down or up and lets the event through. It never
+    -- reads a window, never moves anything.
+    function mf.sinceClick(now)
+        if not (now and mf.lastClickMs) then return nil end
+        return now - mf.lastClickMs
+    end
+
+    function mf.startClickTap()
+        if mf.clickTap then return true end
+        local ok, tap = pcall(function()
+            local T = hs.eventtap.event.types
+            local kinds = { T.leftMouseDown, T.rightMouseDown, T.otherMouseDown,
+                            T.leftMouseUp, T.rightMouseUp, T.otherMouseUp }
+            local t = hs.eventtap.new(kinds, function()
+                if _G.hsPaused then return false end
+                mf.lastClickMs = nowMs()
+                mf.clicks = mf.clicks + 1
+                return false
+            end)
+            t:start()
+            return t
+        end)
+        if ok and tap then mf.clickTap = tap; return true end
+        warn("the click tap did not start — the click grace is off: " .. tostring(tap))
+        return false
+    end
+
     function mf.warp(why)
         if not (mf.enabled and mf.active) then
             mf.lastSkip = "off"; return false
@@ -363,14 +444,39 @@ function M.setup(core)
             mf.lastSkip = "a mouse button is down"; mf.skipped = mf.skipped + 1
             return false
         end
+        local now = nowMs()
+        -- ✋ 6.168.0: your click, your hand, your choice — in that order
+        local sinceClick = mf.sinceClick(now)
+        if sinceClick and sinceClick < num(mf.clickGrace, 0.6) * 1000 then
+            mf.lastSkip = string.format("you clicked %dms ago — that focus was yours",
+                                        math.floor(sinceClick))
+            mf.skipped = mf.skipped + 1
+            return false
+        end
+        local here = mf.pointer()
+        local from = mf.pendingFrom
+        mf.pendingFrom = nil
+        if here and from and (math.abs(here.x - from.x) > num(mf.handPx, 3)
+                              or math.abs(here.y - from.y) > num(mf.handPx, 3)) then
+            mf.lastSkip = string.format("your hand moved the mouse %dpx while it waited",
+                math.floor(math.max(math.abs(here.x - from.x), math.abs(here.y - from.y))))
+            mf.skipped = mf.skipped + 1
+            return false
+        end
         local t, reason = mf.target()
         if not t then
             mf.lastSkip = reason; mf.skipped = mf.skipped + 1
             return false
         end
-        local here = mf.pointer()
         if near(t, here) or (why == "moved" and near(t, mf.lastCentre)) then
             mf.lastSkip = "already there"
+            return false
+        end
+        if near(t, mf.lastCentre) and now and mf.lastWarpMs
+           and now - mf.lastWarpMs < num(mf.repeatGrace, 2) * 1000 then
+            mf.lastSkip = string.format("sent there %.1fs ago and you moved away — a repeat, not a change",
+                                        (now - mf.lastWarpMs) / 1000)
+            mf.skipped = mf.skipped + 1
             return false
         end
         local ok, err = pcall(function() hs.mouse.absolutePosition({ x = t.x, y = t.y }) end)
@@ -380,6 +486,7 @@ function M.setup(core)
             return false
         end
         mf.warps = mf.warps + 1
+        mf.lastWarpMs = now
         mf.lastCentre = { x = t.x, y = t.y }
         mf.lastSkip = nil
         mf.last = { app = t.app, title = t.title, x = t.x, y = t.y, why = why,
@@ -398,7 +505,8 @@ function M.setup(core)
             return true
         end
         mf.pendingWhy = why
-        local ok, t = pcall(hs.timer.doAfter, 0, function()
+        mf.pendingFrom = mf.pointer()      -- 6.168.0: where the hand had it
+        local ok, t = pcall(hs.timer.doAfter, num(mf.settle, 0.12), function()
             local w = mf.pendingWhy or why
             mf.pending, mf.pendingWhy = nil, nil
             local okW, err = pcall(mf.warp, w)
@@ -521,6 +629,12 @@ function M.setup(core)
                                               or mf.remembered == false and "off at boot (hs.settings)"
                                               or "nothing yet — ⇪⇧3 once and it sticks")
         L[#L + 1] = "   follows moves : " .. (mf.followMoves and "yes (rule 2)" or "no")
+        L[#L + 1] = string.format("   your hand     : click grace %dms · settles %dms · hand %dpx · a centre stays yours %.1fs · %s (6.168.0)",
+                                  math.floor(num(mf.clickGrace, 0.6) * 1000 + 0.5),
+                                  math.floor(num(mf.settle, 0.12) * 1000 + 0.5),
+                                  math.floor(num(mf.handPx, 3) + 0.5), num(mf.repeatGrace, 2),
+                                  mf.clickTap and string.format("%d click%s seen", mf.clicks, mf.clicks == 1 and "" or "s")
+                                              or "click tap NOT running")
         L[#L + 1] = string.format("   AX timeout    : %dms per question · watchdog %dms × %d in %ds, rests %ds",
                                   math.floor(mf.axTimeout * 1000 + 0.5), mf.slowMs, mf.slowStrikes,
                                   mf.slowWindow, mf.slowRest)
@@ -577,6 +691,7 @@ function M.setup(core)
             warn("hs.application.watcher failed — focus will not be followed")
             return false
         end
+        mf.startClickTap()
         pcall(function()
             local app = hs.application.frontmostApplication()
             if app then mf.attach(app) end

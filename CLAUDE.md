@@ -207,6 +207,17 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 6.168.0 verify with LL: mouse follows focus no longer jumps after a
+  click on another window / a Dock click / dropping a dragged window,
+  and no longer snaps back to a centre LL moved away from; ⌘Tab / ⌘` /
+  a numpad-layer window warp still follow (~0.1 s later).
+  `_G.mouseFollowsReport()` "your hand :" shows clicks seen (0 forever =
+  the click tap is not running) and "stood still :" names the guard.
+  Rule for mouse_follows: the HAND outranks every rule — click grace
+  (mf.clickGrace), settle + hand distance (mf.settle/mf.handPx), a centre
+  stays yours (mf.repeatGrace); keep any new warp path behind them.
+  NOTE: LL's 17:23 Console read init.lua 6.166.0 — 6.167.0 was never
+  installed; its two-outcome check below still waits.
 - 🚨 6.167.0 verify with LL — TWO OUTCOMES, read the Console either way:
   the boot line "💡 shortcut hints 6.167.0 — card … scale … (… tall ·
   <display> · WxH@1x|@2x)". (a) "@1x", scale 1.50, card 810 wide · 30 pt:
