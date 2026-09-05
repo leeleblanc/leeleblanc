@@ -4,8 +4,47 @@
 -- =====================================================================
 -- 09-05-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.162.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.163.0
 -- =====================================================================
+
+-- NEW IN 6.163.0 — AFTER A ⇪ KEY, A CARD OF ITS GROUP'S OTHER KEYS:
+--   💡 LL: "when I execute my hyper key plus necessary additional keys,
+--      I get a window that pops up with the shortcut keys that are also
+--      applicable. So the Asana section is a good example. I always use
+--      hyper key plus T, I should essentially get a tool tips window
+--      that reminds me what other tools I have in the Asana section. It
+--      should fade after 10 seconds or I should be able to hit escape and
+--      have an instant vanish." Asked, and answered: a named group per
+--      tool (not the broad family), only when the group has other keys,
+--      any key dismisses it while Esc still reaches the picker, and it
+--      sits bottom-right, small and translucent.
+--   🗂 modules/shortcut_hints.lua. Every one of the 98 hyper combos is
+--      filed in hint.groups under one of thirteen groups — Asana,
+--      Screenshots, Clipboard & OCR, Notes & capture, Windows, Mouse,
+--      Search & open, Browser & web, Text & snippets, Time & focus,
+--      This Mac, Power tools, Files, Config & help. After ⇪T the card
+--      reads ASANA · also, then ⇪A ⇪B ⇪C ⇪L with their cheat sheet
+--      lines (a terse line gets its tool's name in front: "Autocorrect:
+--      Toggle on/off"; a row's continuation lines fold in). Only keys
+--      BOUND on that Mac are listed — never a forwarded chord, never the
+--      key you pressed — plus ⌥Tab beside the window keys. A lone key
+--      draws nothing. hint.holdSecs (10) then a fade; the first key or
+--      click of any kind ends it at once, OBSERVED, never consumed. Not
+--      a dismissal: Caps Lock itself, a key's auto-repeat, and the
+--      shortcut's own synthetic clicks or keystrokes (hint.graceSecs).
+--   🔌 The hook is in §3.12's hyperBind — the one place every hyper
+--      shortcut passes — wrapped AFTER the shortcut runs, inside the
+--      pause wrap, both dispatch paths. The card never takes focus and
+--      never catches a click (⇪T's form keeps your typing); ladder rung
+--      "hint" above the picker, under the pomodoro; the screen comes
+--      from mainScreen(), never an AX read. Off: settings =
+--      { shortcut_hints = { enabled = false } }. _G.shortcutHintsReport()
+--      names the last press, the counts, and any bound key with no group.
+--   ✅ Gate: test_shortcut_hints (57) — the Asana rows, the card's place
+--      and levels, dismiss-without-consume, F18/auto-repeat/grace, the
+--      fade, one card at a time, lone key / chord / pause / off, the
+--      description rules, source sentries. 6,791 → 6,850 checks, sixty-
+--      nine stages. 6.162.1 verify remains open.
 
 -- NEW IN 6.162.1 — A LOST F18 keyUp CAN NO LONGER LATCH ⇪ FOR THE SESSION:
 --   🚨 LL, minutes after installing 6.162.0: "everything I would type or
@@ -104,24 +143,10 @@
 --      after the arrows have scrolled the list (the first visible row is
 --      estimated from the keyboard); a wheel scroll is still invisible.
 
--- NEW IN 6.160.3 — ⌥TAB STOPS PAYING FOR THE CONSOLE TWICE:
---   🔄 LL: "Opt+tab takes about a second or so to appear. Way longer
---      than it used to." The slow line named the phase — "console
---      2.60s" — and Hammerspoon's source says why: hs.console.hswindow()
---      is hs.window.get(id) underneath, which is hs.window.find over
---      hs.window.allWindows() — EVERY application's windows through
---      Accessibility, unbudgeted, a second full sweep every press to
---      find one window, open or not. After a wake, with apps slow to
---      answer AX, that was the whole second. The console is now asked of
---      the one process that owns it — ours, by pid (altTab.consoleWindow)
---      — one application, no cross-app AX. test_switcher makes the old
---      call throw. The "slowest phase" line is still the way to read a
---      slow press.
-
--- (6.160.2 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.160.3 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.162.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.163.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -467,7 +492,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.162.1"
+_G.configVersion = "6.163.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2102,6 +2127,20 @@ local function hyperBind(mods, key, pressedFn, releasedFn, repeatFn, source)
     end
     _G.hyperBound[combo] = source or "?"
     _G.hyperBoundCount = _G.hyperBoundCount + 1
+    -- 6.163.0 — after the shortcut has run, the hint card (modules/
+    -- shortcut_hints.lua) names the group's other keys. Wrapped HERE, the
+    -- one place every hyper shortcut passes, so both dispatch paths get
+    -- it; INSIDE the pause wrap, so a paused press never hints; never for
+    -- the forwarded chords. Nil-guarded and pcall'd: the module is
+    -- optional and this block runs bare in test_hyper_key's sandbox.
+    if pressedFn and source ~= "chord" then
+        local ranFn = pressedFn
+        pressedFn = function(...)
+            local r = ranFn(...)
+            if _G.shortcutHint then pcall(_G.shortcutHint, combo, source) end
+            return r
+        end
+    end
     pressedFn  = hyperPauseWrap(combo, pressedFn)
     releasedFn = hyperPauseWrap(combo, releasedFn)
     repeatFn   = hyperPauseWrap(combo, repeatFn)
@@ -3245,6 +3284,7 @@ local BASE = {
     "settings_panes",     -- ⚙️ ⇪,  System Settings, by name
     "app_kill",           -- 💀 ⇪⇧; end a process, politely then not · macOS's own 🔒
     "power_tools",        -- 🧰 ⇪;  type the clipboard · count · grayscale · free keys
+    "shortcut_hints",     -- 💡 after a ⇪ key, a card of the group's other keys (no key)
     -- 6.132.0 — no key of its own. It owns the six case transforms, and
     -- ⇪; and ⇪R both ask it for them through core.call at the moment you
     -- press the key. Order here is therefore irrelevant; it sits beside

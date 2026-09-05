@@ -4,6 +4,45 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.163.0 — AFTER A ⇪ KEY, A CARD OF ITS GROUP'S OTHER KEYS:
+  💡 LL: "when I execute my hyper key plus necessary additional keys,
+     I get a window that pops up with the shortcut keys that are also
+     applicable. So the Asana section is a good example. I always use
+     hyper key plus T, I should essentially get a tool tips window
+     that reminds me what other tools I have in the Asana section. It
+     should fade after 10 seconds or I should be able to hit escape and
+     have an instant vanish." Asked, and answered: a named group per
+     tool (not the broad family), only when the group has other keys,
+     any key dismisses it while Esc still reaches the picker, and it
+     sits bottom-right, small and translucent.
+  🗂 modules/shortcut_hints.lua. Every one of the 98 hyper combos is
+     filed in hint.groups under one of thirteen groups — Asana,
+     Screenshots, Clipboard & OCR, Notes & capture, Windows, Mouse,
+     Search & open, Browser & web, Text & snippets, Time & focus,
+     This Mac, Power tools, Files, Config & help. After ⇪T the card
+     reads ASANA · also, then ⇪A ⇪B ⇪C ⇪L with their cheat sheet
+     lines (a terse line gets its tool's name in front: "Autocorrect:
+     Toggle on/off"; a row's continuation lines fold in). Only keys
+     BOUND on that Mac are listed — never a forwarded chord, never the
+     key you pressed — plus ⌥Tab beside the window keys. A lone key
+     draws nothing. hint.holdSecs (10) then a fade; the first key or
+     click of any kind ends it at once, OBSERVED, never consumed. Not
+     a dismissal: Caps Lock itself, a key's auto-repeat, and the
+     shortcut's own synthetic clicks or keystrokes (hint.graceSecs).
+  🔌 The hook is in §3.12's hyperBind — the one place every hyper
+     shortcut passes — wrapped AFTER the shortcut runs, inside the
+     pause wrap, both dispatch paths. The card never takes focus and
+     never catches a click (⇪T's form keeps your typing); ladder rung
+     "hint" above the picker, under the pomodoro; the screen comes
+     from mainScreen(), never an AX read. Off: settings =
+     { shortcut_hints = { enabled = false } }. _G.shortcutHintsReport()
+     names the last press, the counts, and any bound key with no group.
+  ✅ Gate: test_shortcut_hints (57) — the Asana rows, the card's place
+     and levels, dismiss-without-consume, F18/auto-repeat/grace, the
+     fade, one card at a time, lone key / chord / pause / off, the
+     description rules, source sentries. 6,791 → 6,850 checks, sixty-
+     nine stages. 6.162.1 verify remains open.
+
 NEW IN 6.162.1 — A LOST F18 keyUp CAN NO LONGER LATCH ⇪ FOR THE SESSION:
   🚨 LL, minutes after installing 6.162.0: "everything I would type or
      click went haywire. I lost control of my MacBook. It was scary."

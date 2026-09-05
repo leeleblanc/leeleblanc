@@ -93,6 +93,8 @@ _G.panelLevels = {
     clippreview = 4,  -- ⇪V's preview pane sits BESIDE its chooser, and a
                       -- rung above it so no other panel can slide between
                       -- the list and the text it is showing (6.154.0)
+    hint       = 4,   -- the shortcut-hint card (6.163.0): over the picker
+                      -- the key just opened, under the pomodoro
     pomodoro   = 5,   -- the 6.68.0 ask, still the top of the ladder
 }
 

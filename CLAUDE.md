@@ -43,6 +43,11 @@ binaries as UPPERCASE constants; chooser row values are scalars. Profile
 `settings` overrides are applied AFTER setup into `mod.config` (init.lua's
 "apply settings" block), so a settings override needs zero module changes.
 
+Shortcut hints (6.163.0, modules/shortcut_hints.lua): hyperBind wraps every
+pressed fn to call `_G.shortcutHint(combo, source)` AFTER the shortcut. A
+NEW hyper key must be filed in `hint.groups` (combo → group) or the report
+lists it under "no group" and it never gets a card. Ladder rung `hint`.
+
 Pause switch (6.152.0): ⇪⇧1 toggles `_G.hsPaused` (power_tools). Hyper
 shortcuts are suppressed CENTRALLY in init.lua's hyperBind (the pause key
 itself is exempt via `_G.hsPauseCombo`, published before binding); every
@@ -178,6 +183,12 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 6.163.0 verify with LL: after ⇪T the card bottom-right reads ASANA · also
+  with ⇪A ⇪B ⇪C ⇪L, gone on the first key/click (Esc still closes the
+  form), fades by itself at 10s; ⇪V's card sits over the picker without
+  stealing typing; ⇪⇧F (right-click) and ⇪⇧2 keep their card (grace
+  window); the group filings read right to LL (hint.groups is a settings
+  override); `_G.shortcutHintsReport()` shows no "no group" row.
 - 🚨 6.162.1 verify with LL: rollback had left the home Mac on 6.160.0
   (the version that hung it; mouse follows starts ON there — LL was told
   ⇪⇧3 off). After installing 6.162.1: no "released by the watchdog" line
