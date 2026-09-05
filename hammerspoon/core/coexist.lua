@@ -85,7 +85,7 @@ _G.panelLevels = {
     taskcreator = -1, -- the Asana mirror card — same
     macpanel   = -1,  -- ⇪7 About-This-Mac card (6.120.0's ask, kept)
     switcher   = -1,  -- ⌥Tab HUD
-    pinbadge   = -1,  -- win_pin's stickers
+    pinbadge   = -1,  -- win_pin's stickers (module removed 6.166.0; rung kept)
     popup      = 0,   -- and a panel with no row lands here: above the
                       -- sheet, below the chooser — safe by default
     -- [chooser =  3]    macOS's fixed rung: written down, not ours to set

@@ -28,6 +28,8 @@ work Mac.
 - Battery saver never dims the screen, never touches pmset/sudo; the hog
   caller-out never kills/pauses/renices apps.
 - ⇪⇧Z is reserved for later — do not bind it.
+- ⇪⇧T (free since 6.161.0) and ⇪⇧U (free since 6.166.0, win_pin retired)
+  are unspent — do not bind either without LL.
 - The hyper hold is TIMED (6.162.1, init.lua §3.12): a lost F18 keyUp
   latched ⇪ and took LL's Mac. Any new path that enters the modal must go
   through hyperEnter (it arms `_G.hyperLatchTimer`); any tap that sees keys
@@ -197,6 +199,11 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 6.166.0 verify with LL: ⌃Tab cycles the pad's tabs; the hint card's
+  20 pt type reads at arm's length (hint.fontSize / hint.width to taste);
+  ⇪⇧U does nothing (win_pin gone; any old pins in hs.settings are inert);
+  ⇪⇧L shows three white rings pulsing outward over ~1 s; boot prints no
+  EmmyLua lines.
 - 🚨 6.165.1 verify with LL: after ⇪1 no "released by the watchdog"
   line — or one that says "the scratch pad had taken the keyboard" after
   ≤2 s, or "⇪ keyUp seen by the scratch pad"; typing goes into the pad

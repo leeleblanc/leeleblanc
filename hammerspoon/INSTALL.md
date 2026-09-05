@@ -27,7 +27,7 @@ with no admin password. The two steps that *can* use admin are marked
 │   ├── console.lua           the ⛔ ERRORS + ⚠️ NONBREAKING sections + repeat limiter
 │   ├── lag.lua               which tap is eating the keystroke — OFF unless ~/.hammerspoon/LAGPROBE exists (_G.lagOn())
 │   └── notices.lua           the failure ledger — nothing fails silently
-├── modules/              65 files, loaded by the §1.12 loader
+├── modules/              64 files, loaded by the §1.12 loader
 ├── tools/                hs-doctor.sh · hs-install.sh · run-tests.sh
 └── logs/                 only if there is no OneDrive on this Mac
 ```
@@ -61,7 +61,7 @@ Menu bar hammer → *Preferences* → it will prompt, or:
 
 **If IT blocks this, keep going.** You lose only the features that move or
 hide *other apps'* windows — Window Arranger, App Peek, app summon, Window
-Return, Window Pin. Every hotkey, picker, tracker and Asana feature still works. The
+Return. Every hotkey, picker, tracker and Asana feature still works. The
 config detects this and tells you.
 
 ---
@@ -183,7 +183,7 @@ Menu bar hammer → **Reload Config**.
 A healthy boot is two lines:
 
 ```
-🧭 Lees-MacBook-Air  ·  65 modules  ·  115 ⇪ shortcuts  ·  0.43s
+🧭 Lees-MacBook-Air  ·  64 modules  ·  114 ⇪ shortcuts  ·  0.43s
    All green.  ⇪⇧D diagnostic report  ·  _G.bootReport() for the full detail
 ```
 
@@ -314,7 +314,7 @@ Run it from the **unpacked zip, before Step 3**, not from `~/.hammerspoon`
 copy it reports every Lua stage as missing. That is a skip, not a pass,
 but it is also not a check.
 
-Syntax on `init.lua`, `core/` and all 65 modules, sixty-five Lua suites, then the
+Syntax on `init.lua`, `core/` and all 64 modules, sixty-four Lua suites, then the
 Capture Pad's page JavaScript **executed** against a DOM stub. One exit
 code. A skipped stage is reported as a skip, never as a pass.
 

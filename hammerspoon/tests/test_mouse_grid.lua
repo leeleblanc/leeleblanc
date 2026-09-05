@@ -245,6 +245,13 @@ hs = {
             TIMERS[#TIMERS + 1] = t
             return t
         end,
+        -- 6.166.0 — the pointer ring's frame timer
+        doEvery = function(secs, fn)
+            local t = { secs = secs, fn = fn, stopped = false, every = true }
+            function t:stop() self.stopped = true end
+            TIMERS[#TIMERS + 1] = t
+            return t
+        end,
     },
 }
 
@@ -2145,10 +2152,22 @@ do
     check("🚨 IT IS CLICK-THROUGH — without this the ring is a disc of glass "
           .. "over whatever you were about to click, for half a second",
           ring.mouseEvents ~= nil and ring.mouseEvents[1] == false)
-    check("it draws in rebeccapurple, as asked",
-          math.abs(G.locateColor.red - 0.4) < 0.001
-          and math.abs(G.locateColor.green - 0.2) < 0.001
-          and math.abs(G.locateColor.blue - 0.6) < 0.001)
+    check("6.166.0: it draws in WHITE, as asked",
+          G.locateColor.red == 1 and G.locateColor.green == 1 and G.locateColor.blue == 1)
+    check("...three rings, staggered, on a held frame timer",
+          G.locateRings == 3 and G.locateAnim ~= nil)
+    do
+        local f0 = G.locateFrame(0)
+        local fMid = G.locateFrame(G.locateStagger * 2 + 0.05)
+        local fEnd = G.locateFrame(G.locateSecs + 0.1)
+        check("at t=0 one ring has left, small and bright",
+              #f0 == 1 and f0[1].radius < 10 and f0[1].strokeColor.alpha > 0.9)
+        check("later all three are in flight, the first largest and faintest",
+              #fMid == 3 and fMid[1].radius > fMid[3].radius
+              and fMid[1].strokeColor.alpha < fMid[3].strokeColor.alpha)
+        check("after locateSecs the frame is empty (a skip element, never {})",
+              #fEnd == 1 and fEnd[1].action == "skip")
+    end
 
     -- 🚨 THE LEAK. A second press must REPLACE the first ring, not stack a
     -- second canvas that deletes itself on its own schedule.

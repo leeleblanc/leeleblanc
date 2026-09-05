@@ -4,6 +4,30 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.166.0 — ⌃TAB, A 20 PT HINT CARD, WIN_PIN RETIRED, A WIFI RING, A QUIET BOOT:
+  📝 ⌃Tab / ⌃⇧Tab cycle the scratch pad's tabs, wrapping (the page's
+     own keydown, like ⌘T/⌘W/⌘1–9 — still no eventtap).
+  💡 The shortcut-hint card: top-right (since 6.165.1), now 540 wide
+     with 20 pt type (hint.width / hint.fontSize), alpha 0.70.
+  📌 win_pin (⇪⇧U, 6.104.0–6.165.1) is RETIRED — LL: "remove the
+     Window Pin since we have this tool now." The scratch pad's 📌 is
+     the pin. ⇪⇧U is free again (_G.freeKeys() lists it beside ⇪⇧T);
+     the "pinbadge" ladder rung stays so nothing above it moves;
+     module count 65 → 64, sixty-four Lua suites.
+  🖱 ⇪⇧L's pointer ring is WHITE and pulses: three rings leave the
+     pointer one after another (grid.locateStagger 0.22 s), growing
+     from a dot to the edge and fading — a Wi-Fi mark in motion — on
+     a held 30 fps frame timer, all over in 1.2 s (grid.locateSecs).
+     grid.locateFrame(t) is pure and tested; a second press still
+     replaces the first; a Mac without doEvery shows the first frame.
+  🔇 Boot no longer prints the two EmmyLua lines when the Spoon is
+     absent (LL: "remove this code"). Present, it still loads.
+  ✅ ⇪T IS on the cheat sheet — under ✅ TASK FORM, first row. Nothing
+     was asked in error: what LL freed in 6.161.0 was ⇪⇧T (Shift),
+     which stays unspent.
+  ✅ Gate: test_scratch_pad 107 → 109, test_mouse_grid 343 → 348,
+     test_win_pin retired. 6,969 → 6,846 checks, sixty-nine stages.
+
 NEW IN 6.165.1 — THE PAD'S FIRST SESSION: A LOST F18 keyUp, TAB NAMES, A LOUD SAVE:
   🚨 LL: "It seems to lock up." The Console had it: "⇪ released by the
      watchdog — held 8s with no key event and no F18 keyUp". The pad

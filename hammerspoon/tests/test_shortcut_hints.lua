@@ -148,8 +148,8 @@ check("...drawn, shown, on the hint rung", c and c.shown and c.lvl == 28, c and 
 check("...top-right of the base screen (6.165.1; hint.corner)",
       c and c.rect.x + c.rect.w == 2560 - hint.margin
       and c.rect.y == 25 + hint.margin, c and (c.rect.x .. "," .. c.rect.y))
-check("...20% bigger and 20% more see-through than 6.163.0",
-      hint.width == 432 and hint.fontSize == 16 and hint.alpha == 0.70)
+check("...50% wider, 20 pt, 20% more see-through than 6.163.0 (6.166.0)",
+      hint.width == 540 and hint.fontSize == 20 and hint.alpha == 0.70)
 check("...click-through and non-activating",
       c and c.activating == false and c.mouse and c.mouse[1] == false)
 check("...over full-screen apps and every Space",

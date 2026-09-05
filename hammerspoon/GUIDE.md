@@ -9,10 +9,10 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,926 lines)
+├── init.lua          the orchestrator (3,920 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (10 files)
-├── modules/          one file per feature (65 files, ~46,900 lines)
+├── modules/          one file per feature (64 files, ~46,300 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
 ├── packs/            the four PUBLIC snippet packs as .json (1,926), in
 │                     git since 6.162.0 — the builder folds them into
@@ -575,9 +575,9 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Sixty-five Lua suites, 6,864 checks, plus three more that run the Capture
+Sixty-four Lua suites, 6,741 checks, plus three more that run the Capture
 Pad's, the screenshot editor's and unified search's page JavaScript under
-`node` for a further 105 — **6,969 checks over seventy stages** in
+`node` for a further 105 — **6,846 checks over sixty-nine stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 
@@ -628,8 +628,6 @@ tests/test_lag.lua           ⏱ the keystroke probe — the wrapper must be inv
 tests/test_search_index.lua  the ⇪D file index: nice'd find, atomic publish, narrowing search
 tests/test_doc_keywords.lua  .docx → keywords → Finder comment; a human's comment survives
 tests/test_clipboard.lua     ⇪V, and the writes that must never destroy the history file
-tests/test_win_pin.lua       📌 ⇪⇧U notes that follow one window — anchors, the
-                             adaptive follow timer, dead-vs-stale, rebind
 tests/test_dialog_home.lua   🎯 dialogs land at your spot: the dialog-kind rule, the
                              PRIMARY-screen default, drag capture with self-move
                              suppression, and the Accessibility-off stand-down

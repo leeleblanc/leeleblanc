@@ -956,7 +956,7 @@ local function slurp(p)
 end
 local MUST_REGISTER = {
     "capture_pad", "note_pad", "ocr_engine",
-    "clipboard_history", "win_pin", "screenshot_editor",
+    "clipboard_history", "screenshot_editor",
     "screenshots",   -- 6.130.0 — ⏎ on its row opens the FOLDER
 }
 local missing = {}
@@ -978,7 +978,7 @@ check("every editor-owning module registers into _G.editors",
 -- The two pads are correctly absent from this list: their entire content
 -- IS one draft, and the free `text` fallback is the whole truth for them.
 local MUST_SUPPLY_CSV = {
-    "clipboard_history", "ocr_engine", "win_pin", "screenshots",
+    "clipboard_history", "ocr_engine", "screenshots",
 }
 local noCSV = {}
 for _, name in ipairs(MUST_SUPPLY_CSV) do

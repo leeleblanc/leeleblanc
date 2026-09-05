@@ -539,7 +539,6 @@ function M.setup(core)
         ["⇪⇧P"]   = "pomodoro.toggle",
         ["⇪⇧L"]   = "mouseGrid.locate",
         ["⇪⇧S"]   = "expander.show",   -- 6.161.0: was ⇪⇧T
-        ["⇪⇧U"]   = "winPin.pin",
         -- 6.105.0
         ["⇪O"]    = "ocr.show",
         ["⇪⇧O"]   = "ocr.edit",

@@ -82,7 +82,7 @@ local M = {
         entries = {
             { "⇪1",        "Open / close the pad (tabs, text, history under it)" },
             { "⌘T · ⌘W",   "New tab · close tab (its text goes to the history)" },
-            { "⌘1…⌘9",     "Switch tab" },
+            { "⌘1…⌘9",     "Switch tab · ⌃Tab / ⌃⇧Tab cycle round them" },
             { "history",   "Under the text: every closed tab, filter box, click to reopen" },
             { "📌",        "Pin: stays up beside the app; Esc only hands the keys back" },
             { "⇪N · ⇪2",   "Open here as a 🗒 Capture / ➕ Append tab; ⌘W files it where it went before" },
@@ -522,7 +522,7 @@ textarea{flex:1;margin:0;padding:10px;border:0;outline:0;resize:none;background:
 .empty{opacity:.45;padding:8px 10px;font-size:12px}
 ]] .. theme .. [[</style></head><body><div id="wrap">
 <header id="bar"><span class="grip">⠿</span><span class="name">📝 Scratch Pad</span>
-<span class="hint">]] .. escapeHtml(sp.kindOf(cur) and sp.kindOf(cur).hint or "⌘T new · ⌘W close · ⌘1–9 switch · Esc") .. [[</span>
+<span class="hint">]] .. escapeHtml(sp.kindOf(cur) and sp.kindOf(cur).hint or "⌘T new · ⌘W close · ⌃Tab cycle · Esc") .. [[</span>
 ]] .. (sp.lastSaveErr and ('<span class="bad" title="' .. escapeHtml(sp.lastSaveErr) .. '">⚠ not saved</span>') or "") .. [[
 <button class="pin]] .. (sp.pinned and " on" or "") .. [[" id="pin" title="Pin: the pad stays up beside the app; Esc only hands the keyboard back">📌 ]] .. (sp.pinned and "Pinned" or "Pin") .. [[</button>
 <button id="send" title="Create today's Asana task now instead of waiting for 16:00">→ Asana now</button>
@@ -574,6 +574,7 @@ document.addEventListener('keydown', function(e){
   if (meta && (e.key === 't' || e.key === 'T')) { e.preventDefault(); say({a:'new'}); return; }
   if (meta && (e.key === 'w' || e.key === 'W')) { e.preventDefault(); say({a:'close', tid: ACTIVE}); return; }
   if (meta && e.key >= '1' && e.key <= '9') { e.preventDefault(); say({a:'nth', n: e.key}); return; }
+  if (e.ctrlKey && e.key === 'Tab') { e.preventDefault(); say({a:'cycle', d: e.shiftKey ? -1 : 1}); return; }
   if (meta && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); q.focus(); q.select(); return; }
 });
 t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
@@ -602,6 +603,15 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
         elseif a == "switch" then
             if sp.findTab(tostring(body.tid or "")) then
                 sp.active = tostring(body.tid); sp.caret = 0; sp.scheduleSave(); sp.render()
+            end
+        elseif a == "cycle" then
+            -- ⌃Tab / ⌃⇧Tab (6.166.0) — round the tabs, wrapping
+            local n = #sp.tabs
+            if n > 1 then
+                local _, i = sp.findTab(sp.active)
+                local d = (tonumber(body.d) or 1) < 0 and -1 or 1
+                local j = ((i or 1) - 1 + d) % n + 1
+                sp.active = sp.tabs[j].id; sp.caret = 0; sp.scheduleSave(); sp.render()
             end
         elseif a == "nth" then
             local t = sp.tabs[tonumber(body.n) or 0]

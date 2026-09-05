@@ -63,11 +63,11 @@ local hint = {
     fadeSecs  = 0.6,
     maxRows   = 16,        -- Windows is the biggest group (15 + ⌥Tab)
     graceSecs = 0.35,      -- a shortcut's OWN synthetic input must not dismiss it
-    width     = 432,       -- 6.165.1: 20% wider (was 360)
+    width     = 540,       -- 6.166.0: 50% wider than 6.163.0's 360
     margin    = 18,        -- from the corner
     corner    = "top-right",   -- 6.165.1 (was bottom-right): "top-right" | "bottom-right"
     alpha     = 0.70,      -- 6.165.1: 20% more see-through (was 0.88)
-    fontSize  = 16,        -- 6.165.1: 20% bigger (was 13)
+    fontSize  = 20,        -- 6.166.0: 20 pt (LL: "big enough to fit 20pt font")
     -- combo (init.lua hyperCombo spelling) → group. Curated from the
     -- cheat sheet; a combo missing here draws no card (report says so).
     groups = {
@@ -89,9 +89,9 @@ local hint = {
         ["\\"] = "Windows", w = "Windows", ["["] = "Windows", ["]"] = "Windows",
         ["shift+up"] = "Windows", ["shift+down"] = "Windows",
         ["shift+left"] = "Windows", ["shift+right"] = "Windows",
-        ["shift+r"] = "Windows", ["shift+u"] = "Windows", pad4 = "Windows", p = "Windows",
+        ["shift+r"] = "Windows", pad4 = "Windows", p = "Windows",
         -- Mouse
-        x = "Mouse", ["shift+x"] = "Mouse", ["shift+l"] = "Mouse",
+        x = "Mouse", ["shift+x"] = "Mouse", ["shift+l"] = "Mouse",   -- ⇪⇧U left with win_pin (6.166.0)
         ["shift+f"] = "Mouse", ["shift+3"] = "Mouse",
         -- Search & open
         space = "Search & open", ["shift+/"] = "Search & open", d = "Search & open",

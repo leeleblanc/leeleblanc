@@ -92,7 +92,7 @@ else
     [ "$n" = "init" ] && note="⚠️ STRAY init.lua — should NOT be in modules/"
     printf "   %-22s %7s  %-16s %s\n" "$n" "$b" "$m" "$note"
   done
-  echo "   count: $(ls -1 "$HS/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 65)"
+  echo "   count: $(ls -1 "$HS/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 64)"
 fi
 
 # ---- 4b. core ---------------------------------------------------------
@@ -297,7 +297,6 @@ check_marker pomodoro          "pom.answerSecs"   6.65.0
 # document_watcher.lua is gone.
 check_marker unified_search    "uni.runnable"     6.104.0
 check_marker activity_tracker  "docFileFromTitle" 6.104.0
-check_marker win_pin           "winPin.notes"     6.104.0
 
 # ---- 6. the hyper key remap ------------------------------------------
 # 🚨 6.59.0 — hidutil PRINTS THE MAPPING IN DECIMAL, NOT HEX. The check

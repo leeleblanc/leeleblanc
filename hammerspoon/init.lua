@@ -4,9 +4,32 @@
 -- =====================================================================
 -- 09-05-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.165.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.166.0
 -- =====================================================================
 
+-- NEW IN 6.166.0 — ⌃TAB, A 20 PT HINT CARD, WIN_PIN RETIRED, A WIFI RING, A QUIET BOOT:
+--   📝 ⌃Tab / ⌃⇧Tab cycle the scratch pad's tabs, wrapping (the page's
+--      own keydown, like ⌘T/⌘W/⌘1–9 — still no eventtap).
+--   💡 The shortcut-hint card: top-right (since 6.165.1), now 540 wide
+--      with 20 pt type (hint.width / hint.fontSize), alpha 0.70.
+--   📌 win_pin (⇪⇧U, 6.104.0–6.165.1) is RETIRED — LL: "remove the
+--      Window Pin since we have this tool now." The scratch pad's 📌 is
+--      the pin. ⇪⇧U is free again (_G.freeKeys() lists it beside ⇪⇧T);
+--      the "pinbadge" ladder rung stays so nothing above it moves;
+--      module count 65 → 64, sixty-four Lua suites.
+--   🖱 ⇪⇧L's pointer ring is WHITE and pulses: three rings leave the
+--      pointer one after another (grid.locateStagger 0.22 s), growing
+--      from a dot to the edge and fading — a Wi-Fi mark in motion — on
+--      a held 30 fps frame timer, all over in 1.2 s (grid.locateSecs).
+--      grid.locateFrame(t) is pure and tested; a second press still
+--      replaces the first; a Mac without doEvery shows the first frame.
+--   🔇 Boot no longer prints the two EmmyLua lines when the Spoon is
+--      absent (LL: "remove this code"). Present, it still loads.
+--   ✅ ⇪T IS on the cheat sheet — under ✅ TASK FORM, first row. Nothing
+--      was asked in error: what LL freed in 6.161.0 was ⇪⇧T (Shift),
+--      which stays unspent.
+--   ✅ Gate: test_scratch_pad 107 → 109, test_mouse_grid 343 → 348,
+--      test_win_pin retired. 6,969 → 6,846 checks, sixty-nine stages.
 -- NEW IN 6.165.1 — THE PAD'S FIRST SESSION: A LOST F18 keyUp, TAB NAMES, A LOUD SAVE:
 --   🚨 LL: "It seems to lock up." The Console had it: "⇪ released by the
 --      watchdog — held 8s with no key event and no F18 keyUp". The pad
@@ -152,37 +175,10 @@
 --      description rules, source sentries. 6,791 → 6,850 checks, sixty-
 --      nine stages. 6.162.1 verify remains open.
 
--- NEW IN 6.162.1 — A LOST F18 keyUp CAN NO LONGER LATCH ⇪ FOR THE SESSION:
---   🚨 LL, minutes after installing 6.162.0: "everything I would type or
---      click went haywire. I lost control of my MacBook. It was scary."
---      Killing Hammerspoon cured it. 6.162.0 changed no running code, so
---      the review went after the mechanism instead of the diff, and
---      found it: the hyper modal was exited by exactly two events — the
---      Carbon released callback and the tap's F18 keyUp — and a
---      main-thread stall is precisely when both can miss the release
---      (macOS pulls the tap; the keyUp that arrived meanwhile is gone).
---      With ⇪ latched, every letter runs one of 98 shortcuts or is
---      re-sent as ⌘⇧⌃⌥+key, pickers grab the clicks, nothing types,
---      and nothing but a real Caps Lock press or a kill ends it. The
---      test harness reproduced it (F18 down, keyUp lost: bare "d" runs
---      ⇪D forever). What stalled is unproven — the Console shows only
---      panels opening at 21:44 — but the latch is what took the Mac.
---   🩹 The hold is TIMED. Every F18 keyDown (autorepeats included) and
---      every key the tap sees while ⇪ is down stamps _G.hyperHeldAt; a
---      held watchdog (_G.hyperLatchTimer) looks after _G.hyperLatchSecs
---      (8s) of SILENCE and lets go: "⌨️ ⇪ released by the watchdog —
---      held Ns with no key event and no F18 keyUp". A real hold keeps
---      stamping, so it never expires under a finger; a phantom one
---      cannot outlive 8 seconds. _G.hyperLatchReleases counts them.
---   ✅ Gate: test_hyper_key §15 — the lost keyUp is released, said, and
---      counted; a bare letter types again; the next ⇪ works as ever; a
---      long hold with keys arriving is never cut short; the real release
---      still clears the timer. 6,781 → 6,791 checks.
-
--- (6.162.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.162.1 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.165.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.166.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -528,26 +524,23 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.165.1"
+_G.configVersion = "6.166.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
 -- Writes annotation files describing every hs.* function so an
 -- LSP-capable editor can autocomplete and underline wrong API usage AS
 -- YOU TYPE — the exact shape of several past bugs here. Zero runtime
--- cost: it generates files and stops. Not installed? One console line,
--- and the config carries on. ⚠️ The files alone do nothing — your
+-- cost: it generates files and stops. Not installed? Nothing is said
+-- (6.166.0), and the config carries on. ⚠️ The files alone do nothing — your
 -- EDITOR must be pointed at them (CotEditor cannot use them).
 (function()
     local home = os.getenv("HOME") or ""
     local spoonPath = home .. "/.hammerspoon/Spoons/EmmyLua.spoon"
     local there = false
     pcall(function() there = hs.fs.attributes(spoonPath) ~= nil end)
-    if not there then
-        print("💡 EmmyLua not installed — hs.* editor autocomplete is off.")
-        print("   Get it: https://www.hammerspoon.org/Spoons/EmmyLua.html — then point your editor at Spoons/EmmyLua.spoon/annotations")
-        return
-    end
+    -- 6.166.0 — LL: "remove this code": not installed is SILENT now.
+    if not there then return end
     local ok, err = pcall(hs.loadSpoon, "EmmyLua")
     if ok then
         print("💡 EmmyLua: hs.* annotations refreshed for your editor")
@@ -3330,8 +3323,8 @@ local BASE = {
                           --  through both of their services)
     -- 6.103.0
     "window_return",      -- 🔁 dock back in, windows go back (no key)
-    -- 6.104.0
-    "win_pin",            -- 📌 ⇪⇧U a note stuck to ONE window, following it
+    -- 6.104.0 win_pin (⇪⇧U) lived here until 6.166.0 — LL: "remove the
+    -- Window Pin since we have this tool now" (the ⇪1 scratch pad's 📌).
     -- 6.105.0
     "ocr_engine",         -- 🔍 ⇪O search · ⇪⇧O edit (was §2 of this file)
     "daily_rollup",       -- 📊 16:01 card over the tracker and the pad
@@ -3341,8 +3334,8 @@ local BASE = {
     "right_click",        -- 🖱 ⇪⇧F a real right-click at the pointer
     "mouse_follows",      -- 🖱 ⇪⇧3 the pointer goes where focus goes (opt-in, 6.160.2)
     -- 6.119.0 — THE PUNCTUATION TIER. Every ⇪ letter and every ⇪⇧ letter
-    -- was already claimed (win_pin took the last one in 6.104.0; ⇪⇧T came
-    -- free again in 6.161.0 and _G.freeKeys() lists it), so these
+    -- was already claimed (⇪⇧T came free again in 6.161.0, ⇪⇧U in 6.166.0
+    -- when win_pin left; _G.freeKeys() lists both), so these
     -- four land on punctuation instead. That is not a workaround: ⇪, sits
     -- exactly where ⌘, does in every other Mac app, and the rest are one
     -- reach from the home row. All four are also runnable from ⇪⇧/ with

@@ -1546,8 +1546,6 @@ do
           code("modules/task_creator.lua"):find('panelLevel("taskcreator")', 1, true) ~= nil)
     check("the ⇪Q dim asks for its level by name",
           code("modules/focus_mode.lua"):find('panelLevel("focus")', 1, true) ~= nil)
-    check("win_pin's stickers ask for their level by name",
-          code("modules/win_pin.lua"):find('panelLevel("pinbadge")', 1, true) ~= nil)
     check("the pomodoro claims Esc while it is asking",
           code("modules/pomodoro.lua"):find('claimEscape("pomodoro"', 1, true) ~= nil)
     check("🚨 AND THE CHEAT SHEET ASKS THE ROUTER BEFORE CLOSING ITSELF — "

@@ -149,7 +149,7 @@ local M = {
             { "space",    "Left click · ⇧space right click · 2 double click" },
             { "↑↓←→",     "Nudge 8pt · with ⇧ nudge 1pt for a tight target" },
             { "⎋",        "Done — leave the pointer where it is" },
-            { "⇪⇧L",      "Find the pointer — flashes a ring around it" },
+            { "⇪⇧L",      "Find the pointer — three white rings pulse out from it" },
             { "⌃⌥⌘⇧X",   "PANIC — tear the overlay down whatever state it is in" },
             { "check it", "_G.mouseGridReport() — cell size on THIS Mac" },
         },
@@ -1436,19 +1436,50 @@ function M.setup(core)
     -- service so you can put it on a free pad key the day you want it —
     -- ⇪pad+ and friends are unclaimed for exactly this.
     --       numpad.actions["pad+"] = "mouseGrid.locate"
-    grid.locateColor  = { red = 0.4, green = 0.2, blue = 0.6 }  -- rebeccapurple
+    -- 6.166.0 — LL: "make the mouse ring flash white and pulsate as three
+    -- rings outward, similar to a WiFi signal indicator." Three white
+    -- rings leave the pointer one after another, growing and fading, on a
+    -- held frame timer; the whole thing is over in locateSecs.
+    grid.locateColor  = { red = 1, green = 1, blue = 1 }         -- white
     grid.locateRadius = 60
-    grid.locateSecs   = 0.6
+    grid.locateSecs   = 1.2
+    grid.locateRings  = 3
+    grid.locateStagger = 0.22   -- seconds between one ring leaving and the next
+    grid.locateFps    = 30
     grid.locateCanvas = nil   -- HELD: an unreferenced canvas is collected
     grid.locateTimer  = nil   -- HELD: so is an unreferenced timer
+    grid.locateAnim   = nil   -- HELD: the frame timer
+
+    -- The rings at time t (seconds since the press): each starts
+    -- locateStagger after the one before, grows from a dot to the edge
+    -- over its life and fades as it goes. Pure, so the suite can check it.
+    function grid.locateFrame(t)
+        local r, els = grid.locateRadius, {}
+        local life = grid.locateSecs - grid.locateStagger * (grid.locateRings - 1)
+        for i = 0, grid.locateRings - 1 do
+            local p = (t - i * grid.locateStagger) / life
+            if p >= 0 and p <= 1 then
+                els[#els + 1] = {
+                    type = "circle", action = "stroke",
+                    strokeColor = { red = grid.locateColor.red, green = grid.locateColor.green,
+                                    blue = grid.locateColor.blue, alpha = 0.95 * (1 - p) },
+                    strokeWidth = 4 - 2 * p,
+                    center = { x = r, y = r }, radius = 4 + (r - 8) * p,
+                }
+            end
+        end
+        if #els == 0 then els[1] = { action = "skip" } end
+        return els
+    end
 
     function grid.locate()
         -- Idempotent: a second press replaces the first ring rather than
         -- stacking canvases that each delete themselves on their own
         -- schedule, which is how this kind of thing leaks.
         if grid.locateTimer  then pcall(function() grid.locateTimer:stop() end) end
+        if grid.locateAnim   then pcall(function() grid.locateAnim:stop() end) end
         if grid.locateCanvas then pcall(function() grid.locateCanvas:delete() end) end
-        grid.locateCanvas, grid.locateTimer = nil, nil
+        grid.locateCanvas, grid.locateTimer, grid.locateAnim = nil, nil, nil
 
         local okPos, pos = pcall(hs.mouse.absolutePosition)
         if not (okPos and pos) then return false end
@@ -1457,14 +1488,7 @@ function M.setup(core)
                                { x = pos.x - r, y = pos.y - r, w = r * 2, h = r * 2 })
         if not (okNew and c) then return false end
         pcall(function()
-            c:replaceElements({ {
-                type = "circle", action = "stroke",
-                strokeColor = { red = grid.locateColor.red,
-                                green = grid.locateColor.green,
-                                blue = grid.locateColor.blue, alpha = 0.9 },
-                strokeWidth = 5,
-                center = { x = r, y = r }, radius = r - 4,
-            } })
+            c:replaceElements(grid.locateFrame(0))
             -- 🚨 6.66.0 — MATCH THE GRID'S OWN LEVEL AND BEHAVIOUR.
             -- This ring was the odd one out: "overlay" level and
             -- "stationary" behaviour, while the grid itself uses
@@ -1491,7 +1515,19 @@ function M.setup(core)
         if _G.showCanvasSafely then _G.showCanvasSafely(c, "pointer ring")
         else pcall(function() c:show() end) end
         grid.locateCanvas = c
+        local t0 = hs.timer.secondsSinceEpoch()
+        local okA, anim = pcall(hs.timer.doEvery, 1 / grid.locateFps, function()
+            if grid.locateCanvas ~= c then
+                if grid.locateAnim then pcall(function() grid.locateAnim:stop() end) end
+                grid.locateAnim = nil
+                return
+            end
+            pcall(function() c:replaceElements(grid.locateFrame(hs.timer.secondsSinceEpoch() - t0)) end)
+        end)
+        grid.locateAnim = okA and anim or nil
         grid.locateTimer = hs.timer.doAfter(grid.locateSecs, function()
+            if grid.locateAnim then pcall(function() grid.locateAnim:stop() end) end
+            grid.locateAnim = nil
             pcall(function() c:delete() end)
             if grid.locateCanvas == c then grid.locateCanvas = nil end
         end)
