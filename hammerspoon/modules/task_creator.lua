@@ -681,7 +681,10 @@ function M.setup(core)
 
                 if taskGid then
                     -- 💬 Auto-comment (M.config.autoComment; "" disables)
-                    local autoComment = M.config.autoComment or ""
+                    -- 6.164.0 — a caller may name itself (extra.comment);
+                    -- the ⇪1 scratch pad does. "" still disables.
+                    local autoComment = (type(extra.comment) == "string" and extra.comment)
+                                        or M.config.autoComment or ""
                     if autoComment ~= "" then
                         core.call("asana.addComment", taskGid, autoComment)
                     end

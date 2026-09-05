@@ -4,9 +4,54 @@
 -- =====================================================================
 -- 09-05-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.163.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.164.0
 -- =====================================================================
 
+-- NEW IN 6.164.0 — ⇪1 SCRATCH PAD: TABS, SAVED AS YOU TYPE, A HISTORY UNDER IT:
+--   📝 LL: "What I need is a very simple text editor that I can quickly
+--      bring up using the shortcut key, type into it, have it
+--      automatically saved so I don't lose any of that data, write that
+--      data to a searchable database, be able to close it as fast as I
+--      can open it … a running history under the main text editor area …
+--      open tabs as I need more scratch space … at the end of my workday,
+--      4 PM, an Asana task should be created with the contents … start
+--      time of 7:30 AM and an end time of 4 PM, make me the assignee …
+--      this tool must not lock up my keyboard or the operating system."
+--      Asked, and answered: ⇪1 (one unshifted key, free); ⇪N and ⇪2 stay
+--      as they are; ONE task per day with every tab; pin = stays up
+--      beside the app, no window tracking.
+--   🗂 modules/scratch_pad.lua — the Capture Pad / Task Form webview
+--      recipe (allowTextEntry, read-back-verified non-activating mask,
+--      held bridge, Lua-driven drag). A tab bar (⌘T new · ⌘W close ·
+--      ⌘1–9 switch · 12 at most), the text, and under it the HISTORY:
+--      every closed tab newest first, a filter box (⌘F), click a row
+--      and it is a tab again. Every keystroke lands in Lua at once and
+--      on disk 0.3 s after the last one (one held timer, re-armed per
+--      key; written to a sibling and renamed over) — plus at once on
+--      close, tab close, restore and the 4 PM send. Store:
+--      Logs/scratch/scratch.json, in the write ledger. ⇪space searches
+--      it live (tabs, then closed rows). 📌 in the header: Esc hands the
+--      keys back instead of closing; ⇪1 and ✕ always close.
+--   ✅ 16:00 (held hs.timer.doAt): one task "Scratch pad · Sat Sep 05",
+--      every open tab with text under a ## heading, then anything
+--      closed today; start 07:30 · due 16:00 on today; assignee "me";
+--      the personal project — all through _G.asanaSubmitTask, so this
+--      module owns no Asana request. The identifying comment travels as
+--      extra.comment (task_creator, 6.164.0; "" still disables). An
+--      empty day, or one unchanged since the last send, is skipped and
+--      says so. Asana off: not sent, said, the text stays. Buttons:
+--      "Asana" sends now; _G.scratchPadSend() from the Console.
+--   🚨 What it deliberately lacks: no eventtap (the page's own keydown
+--      handles ⌘T/⌘W/⌘1–9/Esc, so nothing can swallow a key system-
+--      wide), no AX or window reads, no unheld timer. Without a webview
+--      the plain hs.dialog box edits the current tab and still saves; a
+--      broken store starts empty and leaves the file; a failed write
+--      warns once and keeps the text in Lua. _G.scratchPadReport().
+--   ✅ Gate: test_scratch_pad (80) — the doors in, keystroke-to-Lua /
+--      debounce-to-disk, tabs, history + restore, pin + Esc, the 16:00
+--      payload and its skips, the three degrade paths, source sentries.
+--      6,850 → 6,932 checks, seventy stages. 6.163.0 and 6.162.1 verify
+--      remain open.
 -- NEW IN 6.163.0 — AFTER A ⇪ KEY, A CARD OF ITS GROUP'S OTHER KEYS:
 --   💡 LL: "when I execute my hyper key plus necessary additional keys,
 --      I get a window that pops up with the shortcut keys that are also
@@ -126,27 +171,10 @@
 --      the pane on the new list's third row). A letter now counts like an
 --      arrow.
 
--- NEW IN 6.160.4 — THE PANE FOLLOWS THE LAST HAND THAT MOVED:
---   🖱 LL: "In my Chrome history list, the entry in the picker will say
---      it's a particular line while the pop-up to the right will list
---      something different." The pane's 6.154.0 rule — the mouse wins
---      while it is INSIDE the picker — counted a pointer that was merely
---      resting there, and since ⇪⇧3 went on the pointer rests at the
---      centre of the focused window: with Chrome filling the screen,
---      the centre of the screen — row 9 of the ⇪Y picker that opens
---      around it. The highlight sat on row 1, the pane showed row 9, and
---      the arrows moved one but not the other. Now the mouse takes the
---      pane only when it MOVES onto a row (clip.previewMousePx), an
---      arrow takes it back at once, a still pointer never overrules the
---      highlight, and while the mouse has it the pane's header says
---      "🖱 under the pointer". The row under the pointer is also right
---      after the arrows have scrolled the list (the first visible row is
---      estimated from the keyboard); a wheel scroll is still invisible.
-
--- (6.160.3 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.160.4 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.163.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.164.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -492,7 +520,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.163.0"
+_G.configVersion = "6.164.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -3285,6 +3313,7 @@ local BASE = {
     "app_kill",           -- 💀 ⇪⇧; end a process, politely then not · macOS's own 🔒
     "power_tools",        -- 🧰 ⇪;  type the clipboard · count · grayscale · free keys
     "shortcut_hints",     -- 💡 after a ⇪ key, a card of the group's other keys (no key)
+    "scratch_pad",        -- 📝 ⇪1 tabs, saved as you type, history under the text, 4 PM task
     -- 6.132.0 — no key of its own. It owns the six case transforms, and
     -- ⇪; and ⇪R both ask it for them through core.call at the moment you
     -- press the key. Order here is therefore irrelevant; it sits beside

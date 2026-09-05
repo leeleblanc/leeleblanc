@@ -316,6 +316,7 @@ _G.escapePriorities = {
                         -- so Esc here is always safe (6.102.0 — it ran on
                         -- the fallback 50 from 6.99.0 until the boot line
                         -- "'notepad' is not in _G.escapePriorities" told us)
+    scratchpad =  74,   -- ⇪1 pad — hiding never loses text (saved as typed)
     taskform   =  75,   -- ⇪T form: real keyboard focus, like a chooser
     shoteditor =  80,   -- ⇪⇧4's editor — mid-edit, most modal
     ocredit    =  82,   -- ⇪⇧O's OCR text editor (6.116.0 — it shipped in

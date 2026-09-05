@@ -79,7 +79,7 @@ local hint = {
         o = "Clipboard & OCR", ["shift+o"] = "Clipboard & OCR",
         ["shift+c"] = "Clipboard & OCR", ["shift+2"] = "Clipboard & OCR",
         -- Notes & capture
-        n = "Notes & capture", ["shift+n"] = "Notes & capture", ["2"] = "Notes & capture",
+        n = "Notes & capture", ["shift+n"] = "Notes & capture", ["1"] = "Notes & capture", ["2"] = "Notes & capture",
         j = "Notes & capture", ["shift+j"] = "Notes & capture",
         pad1 = "Notes & capture", pad2 = "Notes & capture", pad3 = "Notes & capture",
         ["pad*"] = "Notes & capture", ["pad-"] = "Notes & capture",

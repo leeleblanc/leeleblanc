@@ -48,6 +48,12 @@ pressed fn to call `_G.shortcutHint(combo, source)` AFTER the shortcut. A
 NEW hyper key must be filed in `hint.groups` (combo → group) or the report
 lists it under "no group" and it never gets a card. Ladder rung `hint`.
 
+Scratch pad (6.164.0, modules/scratch_pad.lua, ⇪1): a webview on the
+Capture Pad recipe — NO eventtap, NO AX/window reads, every timer held.
+Keystrokes land in `sp.tabs` at once, the store (Logs/scratch/scratch.json,
+write ledger) 0.3 s later. The 16:00 task goes through `_G.asanaSubmitTask`
+with `extra.comment` (the only Asana path); keep it that way.
+
 Pause switch (6.152.0): ⇪⇧1 toggles `_G.hsPaused` (power_tools). Hyper
 shortcuts are suppressed CENTRALLY in init.lua's hyperBind (the pause key
 itself is exempt via `_G.hsPauseCombo`, published before binding); every
@@ -183,6 +189,15 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 6.164.0 verify with LL: ⇪1 opens the pad with typing at once and ⇪1 /
+  Esc closes it as fast; text typed then closed is there on reopen and
+  after a reload (store Logs/scratch/scratch.json); ⌘T/⌘W/⌘1–9 work from
+  the page; a closed tab shows under the text and a click restores it;
+  📌 keeps it up across Esc; ⇪space finds pad text; at 16:00 ONE task
+  "Scratch pad · <day>" lands in the personal project, assignee LL,
+  07:30 → 16:00, with the "Sent by Hammerspoon Scratch Pad" comment
+  (`_G.scratchPadSend()` to try now); no "not armed" Console line;
+  nothing about it ever holds a key (no tap exists to do so).
 - 6.163.0 verify with LL: after ⇪T the card bottom-right reads ASANA · also
   with ⇪A ⇪B ⇪C ⇪L, gone on the first key/click (Esc still closes the
   form), fades by itself at 10s; ⇪V's card sits over the picker without

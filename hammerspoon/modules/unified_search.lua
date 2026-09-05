@@ -96,7 +96,7 @@ function M.setup(core)
     uni.groupCap = 8         -- rows per source in the nothing-typed view
     uni.maxPer  = { clip = 400, cmd = 400, shots = 30, note = 120,
                     asana = 200, ocr = 200, doc = 200, file = 200, pad = 60,
-                    web = 300 }
+                    web = 300, scratch = 200 }
     -- ----------------------------------------------------------------------
 
     local function say(m)  if _G.diag then _G.diag.say("unified", m)  end end
@@ -451,6 +451,29 @@ function M.setup(core)
         if type(pad.parked) == "table" then batch(pad.parked, "parked") end
     end
 
+    -- 📝 6.164.0 — the ⇪1 scratch pad: open tabs first, then closed ones.
+    local function srcScratch(add)
+        local sp = _G.scratchPad
+        if not (sp and type(sp.tabs) == "table") then return end
+        local added = 0
+        local function one(t, label, when)
+            if type(t) ~= "table" or type(t.text) ~= "string" or t.text:match("^%s*$") then return end
+            add{ tag = "scratch", icon = "📝", src = "Scratch pad",
+                 text = oneLine(t.text):sub(1, uni.preview),
+                 sub  = label .. " · " .. os.date("%b %d %H:%M", when or 0),
+                 full = t.text }
+            added = added + 1
+        end
+        for _, t in ipairs(sp.tabs) do
+            if added >= uni.maxPer.scratch then return end
+            one(t, "open tab", t.updatedAt)
+        end
+        for _, h in ipairs(type(sp.history) == "table" and sp.history or {}) do
+            if added >= uni.maxPer.scratch then return end
+            one(h, "closed", h.closedAt)
+        end
+    end
+
     local function srcWeb(add)
         -- ⇪Y's 90-day Chrome export, already sorted newest first. ⏎ here
         -- COPIES the URL — this is the clipboard picker's contract — and
@@ -664,6 +687,7 @@ function M.setup(core)
         { tag = "doc",   icon = "📄", label = "Documents",    fn = srcDocs      },
         { tag = "file",  icon = "📁", label = "File moves",   fn = srcFiles     },
         { tag = "pad",   icon = "🗒", label = "Capture Pad",  fn = srcPad       },
+        { tag = "scratch", icon = "📝", label = "Scratch pad", fn = srcScratch  },
         { tag = "web",   icon = "🕘", label = "Chrome",       fn = srcWeb       },
         -- 🔧 LAST ON PURPOSE. Rows are gathered in this order and the page
         -- lists them in it, so the things you SAVED stay above the tools
