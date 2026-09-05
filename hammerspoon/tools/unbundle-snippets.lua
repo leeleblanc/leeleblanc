@@ -59,11 +59,13 @@ local function fileFor(dir, base)
     local safe = base:gsub("[^%w]", "_")
     if safe == "" then safe = "snippet" end
     local n, name = 0, safe
-    while used[dir .. "/" .. name] do
+    -- macOS disks are case-insensitive: ";;aa" and ";;AA" must not share
+    -- a file, so uniqueness is checked on the lowercased name.
+    while used[(dir .. "/" .. name):lower()] do
         n = n + 1
         name = safe .. "_" .. n
     end
-    used[dir .. "/" .. name] = true
+    used[(dir .. "/" .. name):lower()] = true
     return dir .. "/" .. name .. ".json", name
 end
 
