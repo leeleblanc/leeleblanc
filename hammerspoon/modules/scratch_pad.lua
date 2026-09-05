@@ -43,6 +43,20 @@
 -- with no text, or whose text has not changed since the last send, is
 -- skipped and says so in the Console.
 --
+-- 🗒 ⇪N AND ⇪2 OPEN HERE (6.165.0). LL: "Could I just add these to my
+-- new tool? That way I am only opening one text edit tool." The Capture
+-- Pad and the Quick Append Pad keep their brains (queue, router, 16:00
+-- flush, 16:01 review, services); this pad is their window. ⇪N opens a
+-- 🗒 Capture tab, ⇪2 a ➕ Append tab (one of each at a time). Closing
+-- such a tab — ⌘W, its ×, or closing the pad — FILES its text where the
+-- old pad did: capturePad.add (the 4 PM Asana queue) or notePad.fileAll
+-- (* idea · + log · ! task · ? note). Failure keeps the tab and the
+-- text, exactly as the old pads kept their draft. Those tabs are NOT
+-- part of this pad's own 4 PM task — they have their own destinations.
+-- pad.viaScratch / np.viaScratch = false in a profile restores the old
+-- windows. ⇪⇧N (send now), ⇪pad2/⇪pad*/⇪pad- and the 16:01 review are
+-- untouched.
+--
 -- 📌 PIN. The header's pin keeps the pad up while you work in the app
 -- beside it: Esc no longer closes it (it only returns the keyboard),
 -- and it stays on every Space above the app. ⇪1 and ✕ always close.
@@ -71,6 +85,7 @@ local M = {
             { "⌘1…⌘9",     "Switch tab" },
             { "history",   "Under the text: every closed tab, filter box, click to reopen" },
             { "📌",        "Pin: stays up beside the app; Esc only hands the keys back" },
+            { "⇪N · ⇪2",   "Open here as a 🗒 Capture / ➕ Append tab; ⌘W files it where it went before" },
             { "16:00",     "One Asana task of the day: every tab, 07:30 → 16:00, you" },
             { "search",    "⇪space finds everything in the pad — tabs and history" },
             { "Console",   "_G.scratchPadReport() · _G.scratchPadSend()" },
@@ -153,6 +168,35 @@ function M.setup(core)
         return t
     end
 
+    -- ---- tab kinds: the old pads' text, filed where it always went ------------
+    sp.kinds = {
+        capture = {
+            badge = "🗒", label = "Capture", filed = "→ 4 PM Asana queue",
+            hint  = "⌘W queues this for the 4 PM send",
+            file  = function(text)
+                if not (_G.service and _G.service.has and _G.service.has("capturePad.add")) then
+                    return false, "the Capture Pad is not loaded"
+                end
+                local ok, res = _G.service.call("capturePad.add", text)
+                if not ok then return false, tostring(res or "not queued") end
+                return true, "queued for the 4 PM send", ""
+            end,
+        },
+        append = {
+            badge = "➕", label = "Append", filed = "→ Logs / Ideas / Asana",
+            hint  = "* idea · + log · ! task · ? note — ⌘W files it",
+            file  = function(text)
+                local np = _G.notePad
+                if not (np and type(np.fileAll) == "function") then
+                    return false, "the Quick Append Pad is not loaded"
+                end
+                local allOk, summary, leftover = np.fileAll(text)
+                return allOk, summary or "filed", leftover or ""
+            end,
+        },
+    }
+    function sp.kindOf(tab) return tab and tab.kind and sp.kinds[tab.kind] or nil end
+
     -- ---- the store ----------------------------------------------------------
     local function ensureDir()
         if type(hs.fs) == "table" and hs.fs.mkdir then
@@ -233,12 +277,13 @@ function M.setup(core)
     end
 
     -- ---- tabs ---------------------------------------------------------------
-    function sp.newTab(text)
+    function sp.newTab(text, kind)
         if #sp.tabs >= sp.maxTabs then
             pcall(function() hs.alert.show("📝 " .. sp.maxTabs .. " tabs already — close one (⌘W)", 2) end)
             return nil
         end
-        local t = { id = newId(), text = tostring(text or ""), createdAt = os.time(), updatedAt = os.time() }
+        local t = { id = newId(), text = tostring(text or ""), createdAt = os.time(), updatedAt = os.time(),
+                    kind = (kind and sp.kinds[kind]) and kind or nil }
         sp.tabs[#sp.tabs + 1] = t
         sp.active = t.id
         sp.scheduleSave()
@@ -258,14 +303,45 @@ function M.setup(core)
 
     -- A closed tab with text becomes the newest history row; an empty
     -- one simply goes. The last tab closing leaves one blank tab.
+    -- A Capture / Append tab is FILED first; a failure keeps the tab.
+    -- Returns ok, why. (why = the filing summary or the failure.)
+    function sp.fileTab(t)
+        local k = sp.kindOf(t)
+        if not k then return true end
+        if trim(t.text) == "" then return true, "empty" end
+        local ok, why, leftover = k.file(t.text)
+        if not ok then
+            t.text = (leftover and leftover ~= "") and leftover or t.text
+            t.updatedAt = os.time()
+            pcall(function() hs.alert.show("📝 Kept in its tab — " .. tostring(why), 4) end)
+            sp.scheduleSave()
+            return false, why
+        end
+        if leftover and leftover ~= "" then
+            -- Part filed, part not (the router's failed lines): keep those.
+            t.text, t.updatedAt = leftover, os.time()
+            pcall(function() hs.alert.show(tostring(why), 4) end)
+            sp.scheduleSave()
+            return false, why
+        end
+        return true, why
+    end
+
     function sp.closeTab(id)
         local t, i = sp.findTab(id)
         if not t then return false end
+        local k = sp.kindOf(t)
+        if k then
+            local ok, why = sp.fileTab(t)
+            if not ok then return false end
+            t.filedAs = k.filed .. (why and why ~= "" and (" · " .. tostring(why)) or "")
+        end
         table.remove(sp.tabs, i)
         if trim(t.text) ~= "" then
             table.insert(sp.history, 1, {
                 id = t.id, text = t.text, title = sp.titleOf(t),
                 createdAt = t.createdAt, closedAt = os.time(),
+                kind = t.kind, filedAs = t.filedAs,
             })
             while #sp.history > sp.historyKeep do table.remove(sp.history) end
         end
@@ -302,13 +378,13 @@ function M.setup(core)
         today = today or os.date("%Y-%m-%d")
         local parts, n = {}, 0
         for _, t in ipairs(sp.tabs) do
-            if trim(t.text) ~= "" then
+            if trim(t.text) ~= "" and not t.kind then
                 n = n + 1
                 parts[#parts + 1] = "## " .. sp.titleOf(t) .. "\n" .. trim(t.text)
             end
         end
         for _, h in ipairs(sp.history) do
-            if os.date("%Y-%m-%d", h.closedAt or 0) == today and trim(h.text) ~= "" then
+            if os.date("%Y-%m-%d", h.closedAt or 0) == today and trim(h.text) ~= "" and not h.kind then
                 n = n + 1
                 parts[#parts + 1] = "## " .. (h.title or "Untitled") .. " (closed "
                     .. os.date("%H:%M", h.closedAt or 0) .. ")\n" .. trim(h.text)
@@ -376,7 +452,8 @@ function M.setup(core)
         local rows = {}
         for i = 1, math.min(#sp.history, sp.historyRows) do
             local h = sp.history[i]
-            rows[#rows + 1] = "{id:" .. jstr(h.id) .. ",t:" .. jstr(h.title or "Untitled")
+            local k = h.kind and sp.kinds[h.kind]
+            rows[#rows + 1] = "{id:" .. jstr(h.id) .. ",t:" .. jstr((k and (k.badge .. " ") or "") .. (h.title or "Untitled"))
                 .. ",w:" .. jstr(os.date("%b %d %H:%M", h.closedAt or 0))
                 .. ",p:" .. jstr(oneLine(h.text):sub(1, sp.previewChars)) .. "}"
         end
@@ -389,6 +466,7 @@ function M.setup(core)
         for i, t in ipairs(sp.tabs) do
             tabsHtml[#tabsHtml + 1] = '<div class="tab' .. (t.id == cur.id and " on" or "")
                 .. '" data-id="' .. escapeHtml(t.id) .. '"><span class="tt">'
+                .. (sp.kindOf(t) and (sp.kindOf(t).badge .. " ") or "")
                 .. escapeHtml(sp.titleOf(t)) .. '</span><span class="x" title="Close ⌘W">×</span></div>'
         end
         local theme = (_G.uiStyle and _G.uiStyle.cssOverride and _G.uiStyle.cssOverride()) or ""
@@ -426,7 +504,7 @@ textarea{flex:1;margin:0;padding:10px;border:0;outline:0;resize:none;background:
 .empty{opacity:.45;padding:8px 10px;font-size:12px}
 ]] .. theme .. [[</style></head><body><div id="wrap">
 <header id="bar"><span class="grip">⠿</span><span class="name">📝 Scratch Pad</span>
-<span class="hint">⌘T new · ⌘W close · ⌘1–9 switch · Esc</span>
+<span class="hint">]] .. escapeHtml(sp.kindOf(cur) and sp.kindOf(cur).hint or "⌘T new · ⌘W close · ⌘1–9 switch · Esc") .. [[</span>
 <button class="pin]] .. (sp.pinned and " on" or "") .. [[" id="pin" title="Pin: stays up beside the app">📌</button>
 <button id="send" title="Send today's text to Asana now">Asana</button>
 <button id="close" title="Close (⇪1)">✕</button></header>
@@ -604,6 +682,12 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
 
     function sp.hide()
         sp.endDrag()
+        -- The old pads filed on close; their tabs still do. A failure
+        -- keeps that tab (and the text) for next time.
+        for i = #sp.tabs, 1, -1 do
+            local t = sp.tabs[i]
+            if sp.kindOf(t) then sp.closeTab(t.id) end
+        end
         if sp.webview then
             pcall(function() sp.webview:delete() end)
             sp.webview = nil
@@ -628,6 +712,30 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
     function sp.show()
         if not sp.enabled then return end
         if sp.webview then sp.hide() return end
+        return sp.open()
+    end
+
+    -- ⇪N / ⇪2 land here: one tab of that kind, made active, the pad up.
+    -- opts.text replaces the tab's text; opts.prefix seeds an empty one.
+    function sp.openKind(kind, opts)
+        if not sp.kinds[kind] then return false end
+        opts = opts or {}
+        local t
+        for _, x in ipairs(sp.tabs) do if x.kind == kind then t = x break end end
+        if not t then t = sp.newTab("", kind) end
+        if not t then return false end
+        if opts.text ~= nil then t.text = tostring(opts.text) end
+        if opts.prefix ~= nil and trim(t.text) == "" then t.text = tostring(opts.prefix) end
+        t.updatedAt = os.time()
+        sp.active, sp.caret = t.id, #t.text
+        sp.scheduleSave()
+        if sp.webview then sp.render() else sp.open() end
+        return true
+    end
+
+    function sp.open()
+        if not sp.enabled then return end
+        if sp.webview then return end
         if not (hs.webview and hs.webview.usercontent) then promptFallback() return end
         if #sp.tabs == 0 then sp.newTab("") end
 
@@ -701,7 +809,7 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
     table.insert(_G.editors, {
         name  = "Scratch Pad",
         key   = "⇪" .. sp.key,
-        what  = "tabs saved as you type; one Asana task at 4 PM",
+        what  = "tabs saved as you type; ⇪N / ⇪2 open here too",
         order = 22,
         view  = function() return sp.webview end,
         show  = function() if not sp.webview then sp.show() end end,

@@ -4,9 +4,38 @@
 -- =====================================================================
 -- 09-05-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.164.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.165.0
 -- =====================================================================
 
+-- NEW IN 6.165.0 — ⇪N AND ⇪2 OPEN AS TABS IN THE SCRATCH PAD:
+--   🗒 LL, on the 6.164.0 note that ⇪N and ⇪2 already did parts of this:
+--      "Could I just add these to my new tool? That way I am only
+--      opening one text edit tool. Then these open as tabs in my new
+--      tool." So they do. The Capture Pad and the Quick Append Pad keep
+--      their brains — the queue, the prefix router, the 16:00 flush, the
+--      16:01 review, every service — and the scratch pad is their
+--      window. ⇪N opens (or returns to) ONE 🗒 Capture tab; ⇪2, ⇪pad2,
+--      ⇪pad* / ⇪pad- and the clipboard door open ONE ➕ Append tab, seeded
+--      the way the old box was (* / + prefix, or the clipboard text).
+--      The header hint changes with the tab: "⌘W queues this for the
+--      4 PM send" / "* idea · + log · ! task · ? note — ⌘W files it".
+--   📬 FILED WHERE IT ALWAYS WENT. Closing such a tab — ⌘W, its ×, or
+--      closing the pad — hands its text to capturePad.add (the 4 PM
+--      Asana queue) or notePad.fileAll (Logs / Ideas / the queue). The
+--      history row then wears the badge and says where it went. A
+--      failure KEEPS the tab and the text and says so; the router's
+--      leftover lines stay in the tab alone, filed lines go. Those tabs
+--      are never part of the scratch pad's own 4 PM task — they have
+--      their own destinations. Plain scratch tabs are untouched by all
+--      of this: closing the pad keeps them, as before.
+--   🔙 pad.viaScratch = false / np.viaScratch = false (settings) bring
+--      the old windows back; the 16:01 review always uses its own box.
+--      ⇪⇧N (send now) is unchanged; the ⇪N window still exists for the
+--      editor picker's row (it is the one that takes pasted images).
+--   ✅ Gate: test_scratch_pad 80 → 99 — both doors, one tab per kind,
+--      seed by prefix / text, filing on ⌘W and on pad close, the two
+--      failure shapes, the day task's exclusion, the store round-trip,
+--      the reroute sentries. 6,932 → 6,951 checks, seventy stages.
 -- NEW IN 6.164.0 — ⇪1 SCRATCH PAD: TABS, SAVED AS YOU TYPE, A HISTORY UNDER IT:
 --   📝 LL: "What I need is a very simple text editor that I can quickly
 --      bring up using the shortcut key, type into it, have it
@@ -138,43 +167,10 @@
 --      LL's bundled.lua by tools/unbundle-snippets.lua (case-safe
 --      names: ;;aa and ;;AA are different files on APFS too).
 
--- NEW IN 6.161.0 — ⇪⇧S IS THE SNIPPETS PANEL, WITH ICONS; ⇪⇧3 REMEMBERS:
---   ✂️ LL: "hyper+shift+s opens an old picker for Asana. Can't we clear
---      this?" Cleared. ⇪⇧S opens the snippets (it was ⇪⇧T since 6.68.0);
---      the Asana pipe picker has no key any more — it is ⇪T's fallback,
---      ⇪space (@asana) searches the same 30 days, and
---      _G.asanaOpenTaskChooser() opens it by hand. ⇪⇧T is FREE — the
---      first free ⇪⇧ letter since 6.104.0; _G.freeKeys() lists it.
---   🖼 The panel has the Alfred look LL asked for: an emoji or a compose
---      symbol is drawn as ITSELF beside its name ("💯 :100:" reads ":100:"
---      by a 💯), a text snippet wears where it came from — ✂️ yours ·
---      📄 shipped · ⚙️ built in · ⚡ action — and a heading 🗂. Each glyph
---      is drawn once (an hs.canvas text element → image) and cached; the
---      ~1,900 pictures are pre-drawn after the snippets load, in 40ms
---      slices with a held continuation, so nothing stalls a keystroke.
---      An open pays at most 50ms for stragglers; a row past that opens
---      without its icon, name whole, and has it next time.
---      exp.icons = false is the 6.160.x look.
---   🖱 "MouseFocus no longer works": it started OFF at every reload
---      (6.160.2), stood down for the WHOLE session after two slow jumps
---      — any two — and with Accessibility off bound no key at all. Now
---      ⇪⇧3 is REMEMBERED across reloads (hs.settings), a strike expires
---      after 60s and two inside that are a 5-minute REST: it comes back
---      on its own and says so, ⇪⇧3 wakes it sooner. The key is bound
---      regardless; without Accessibility the press says where to grant
---      it, and a grant given after boot needs no reload — the next ⇪⇧3
---      starts the watcher. _G.mouseFollowsReport() gained "remembered",
---      "resting until" and "last rest".
---   🔤 6.160.4's pane, one gap closed: TYPING hands the pane back to the
---      keyboard too (a query puts the highlight on row 1, where it already
---      was, so no "selection change" ever fired and a resting pointer kept
---      the pane on the new list's third row). A letter now counts like an
---      arrow.
-
--- (6.160.4 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.161.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.164.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.165.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -520,7 +516,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.164.0"
+_G.configVersion = "6.165.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

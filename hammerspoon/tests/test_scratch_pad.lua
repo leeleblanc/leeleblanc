@@ -434,6 +434,99 @@ check("⇪1 is filed in the hint groups", hints:find('["1"] = "Notes & capture"'
 check("asanaSubmitTask honours extra.comment", tc:find("extra.comment", 1, true) ~= nil)
 check("run-tests lists this suite", rt:find("test_scratch_pad", 1, true) ~= nil)
 
+-- =======================================================================
+out("9) ⇪N and ⇪2 open here — Capture / Append tabs file where they always did\n")
+-- =======================================================================
+_G.editors, _G.movablePanels = {}, {}
+FILES = {}
+local mod3 = dofile(HS .. "/modules/scratch_pad.lua")
+mod3.setup(CORE)
+sp = _G.scratchPad
+local QUEUED, QUEUE_OK = {}, true
+_G.service = {
+    has  = function(n) return n == "capturePad.add" end,
+    call = function(n, text)
+        if n ~= "capturePad.add" then return nil end
+        QUEUED[#QUEUED + 1] = text
+        if not QUEUE_OK then return false, "queue full" end
+        return true, { text = text }
+    end,
+}
+local FILED, FILE_RESULT = {}, { true, "📝 1 Logs", "" }
+_G.notePad = { fileAll = function(text) FILED[#FILED + 1] = text
+    return FILE_RESULT[1], FILE_RESULT[2], FILE_RESULT[3] end }
+
+check("openKind on an unknown kind is refused", sp.openKind("nope") == false)
+check("⇪N with the pad closed opens it with a 🗒 Capture tab active",
+      sp.openKind("capture") == true and sp.webview ~= nil and sp.activeTab().kind == "capture")
+local cap = sp.activeTab()
+check("the tab bar shows the badge and the header shows the kind's hint",
+      WEBVIEWS[#WEBVIEWS].htmlSet:find("🗒 Untitled", 1, true) and WEBVIEWS[#WEBVIEWS].htmlSet:find("queues this for the 4 PM", 1, true))
+msg({ a = "edit", id = cap.id, text = "call Dana about the SAC values", sel = 5 })
+sp.openKind("capture")
+check("⇪N again reuses the one Capture tab (no second)",
+      #sp.tabs == 2 and sp.activeTab().id == cap.id and sp.tabs[2].text == "call Dana about the SAC values")
+check("⇪2 opens a ➕ Append tab seeded with the prefix",
+      sp.openKind("append", { prefix = "* " }) and sp.activeTab().kind == "append" and sp.activeTab().text == "* ")
+local app = sp.activeTab()
+msg({ a = "edit", id = app.id, text = "* an idea\n+ a log line", sel = 3 })
+check("openKind with text replaces the Append tab's text (the clipboard door)",
+      sp.openKind("append", { text = "clip text" }) and app.text == "clip text" and #sp.tabs == 3)
+msg({ a = "edit", id = app.id, text = "* an idea\n+ a log line", sel = 3 })
+
+msg({ a = "close", id = cap.id, text = "call Dana about the SAC values", tid = cap.id })
+check("⌘W on the Capture tab queues its text for the 4 PM send…", QUEUED[#QUEUED] == "call Dana about the SAC values")
+check("…and it is gone from the tabs and in the history marked filed",
+      sp.findTab(cap.id) == nil and sp.history[1].id == cap.id and sp.history[1].kind == "capture"
+      and sp.history[1].filedAs:find("4 PM Asana queue", 1, true) ~= nil)
+check("the history row wears the badge", WEBVIEWS[#WEBVIEWS].htmlSet:find('"🗒 call Dana', 1, true) ~= nil)
+
+sp.openKind("capture", { text = "second capture" })
+QUEUE_OK = false
+local cap2 = sp.activeTab()
+msg({ a = "close", id = cap2.id, text = "second capture", tid = cap2.id })
+check("a failed queue KEEPS the tab and its text, and says so",
+      sp.findTab(cap2.id) ~= nil and cap2.text == "second capture" and ALERTS[#ALERTS]:find("Kept in its tab", 1, true))
+QUEUE_OK = true
+
+FILE_RESULT = { false, "⚠️ Logs failed", "+ a log line" }
+msg({ a = "close", id = app.id, text = "* an idea\n+ a log line", tid = app.id })
+check("the Append tab routes through notePad.fileAll", FILED[#FILED] == "* an idea\n+ a log line")
+check("a partial failure keeps ONLY the leftover lines in the tab", sp.findTab(app.id) ~= nil and app.text == "+ a log line")
+FILE_RESULT = { true, "📝 1 Logs", "" }
+
+-- closing the PAD files every kind tab, keeps the scratch ones
+local plain = sp.tabs[1]
+sp.setText(plain.id, "plain scratch text")
+sp.hide()
+check("closing the pad files the Append tab…", FILED[#FILED] == "+ a log line" and sp.findTab(app.id) == nil)
+check("…and the Capture tab…", QUEUED[#QUEUED] == "second capture" and sp.findTab(cap2.id) == nil)
+check("…and leaves the plain scratch tab alone", sp.findTab(plain.id) ~= nil and plain.text == "plain scratch text")
+
+-- the pad's own 4 PM task never carries them
+sp.openKind("capture", { text = "not for the day task" })
+local _, notes = sp.dayBody(TODAY)
+check("dayBody skips Capture/Append tabs and their history rows",
+      notes:find("plain scratch text", 1, true) and not notes:find("not for the day task", 1, true)
+      and not notes:find("call Dana", 1, true))
+sp.hide()
+
+-- the store round-trips the kind
+_G.editors, _G.movablePanels = {}, {}
+local mod4 = dofile(HS .. "/modules/scratch_pad.lua")
+mod4.setup(CORE)
+local kinds = {}
+for _, h in ipairs(_G.scratchPad.history) do kinds[#kinds + 1] = tostring(h.kind) end
+check("history kinds survive a reload", table.concat(kinds, ","):find("capture", 1, true) ~= nil)
+
+local cp = slurp(HS .. "/modules/capture_pad.lua")
+local npS = slurp(HS .. "/modules/note_pad.lua")
+check("⇪N routes to scratchPad.openKind('capture') unless pad.viaScratch is off",
+      cp:find('_G.scratchPad.openKind("capture")', 1, true) and cp:find("pad.viaScratch = true", 1, true))
+check("np.show routes to openKind('append') — except the 16:01 review",
+      npS:find('_G.scratchPad.openKind("append"', 1, true) and npS:find("np.show({ review = true })", 1, true)
+      and npS:find("np.viaScratch = true", 1, true))
+
 print = realPrint
 io.open, os.rename = realIoOpen, realRename
 out(string.format("\n%d passed, %d failed\n", pass, fail))

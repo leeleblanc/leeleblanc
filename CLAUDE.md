@@ -53,6 +53,10 @@ Capture Pad recipe — NO eventtap, NO AX/window reads, every timer held.
 Keystrokes land in `sp.tabs` at once, the store (Logs/scratch/scratch.json,
 write ledger) 0.3 s later. The 16:00 task goes through `_G.asanaSubmitTask`
 with `extra.comment` (the only Asana path); keep it that way.
+6.165.0: ⇪N and ⇪2 open as 🗒 Capture / ➕ Append TABS in it (`sp.openKind`);
+closing such a tab files through capturePad.add / notePad.fileAll — the old
+modules keep their brains, `pad.viaScratch` / `np.viaScratch` restore their
+windows. Kind tabs never enter the pad's own 4 PM task.
 
 Pause switch (6.152.0): ⇪⇧1 toggles `_G.hsPaused` (power_tools). Hyper
 shortcuts are suppressed CENTRALLY in init.lua's hyperBind (the pause key
@@ -189,6 +193,12 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 6.165.0 verify with LL: ⇪N opens the scratch pad on a 🗒 Capture tab
+  (again = same tab); ⇪2 / ⇪pad2 a ➕ Append tab ("* " seeded by ⇪pad*);
+  ⌘W on each files it (Console/alert says where) and the history row
+  wears the badge; closing the pad with such tabs open files them and
+  keeps plain tabs; the 16:00 Capture flush and 16:01 review still run
+  from their own modules; the scratch task never carries kind tabs.
 - 6.164.0 verify with LL: ⇪1 opens the pad with typing at once and ⇪1 /
   Esc closes it as fast; text typed then closed is there on reopen and
   after a reload (store Logs/scratch/scratch.json); ⌘T/⌘W/⌘1–9 work from

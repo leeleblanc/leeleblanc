@@ -588,6 +588,13 @@ function M.setup(core)
     function np.show(opts)
         if not np.enabled then return end
         opts = opts or {}
+        -- 6.165.0 — every door but the 16:01 review opens a ➕ Append tab
+        -- in the scratch pad when it is loaded; the router and the
+        -- services stay here (np.viaScratch = false brings this box back).
+        if np.viaScratch and not opts.review and _G.scratchPad and _G.scratchPad.openKind then
+            _G.scratchPad.openKind("append", { text = opts.text, prefix = opts.prefix })
+            return
+        end
         -- A pad that is already open is CLOSED FIRST — which files it,
         -- per the close rule — before the new draft is seeded. Order
         -- matters: seeding first would file the NEW text, not the old.
@@ -668,7 +675,7 @@ function M.setup(core)
             say("review skipped — no entries today")
             return false
         end
-        np.show({})
+        np.show({ review = true })
         np.reviewMode, np.reviewList = true, list
         np.render()
         say("review opened — " .. #list .. " entr"
@@ -695,6 +702,7 @@ function M.setup(core)
     -- variants (⇪pad* / ⇪pad-) stay pad-only and are reachable from ⇪space
     -- instead, where they now appear as runnable tools.
     np.laptopKey = "2"
+    np.viaScratch = true
     core.hyperAddShortcut({}, np.laptopKey, function() np.show({}) end,
                           "quick append pad")
 

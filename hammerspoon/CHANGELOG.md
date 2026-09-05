@@ -4,6 +4,36 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.165.0 — ⇪N AND ⇪2 OPEN AS TABS IN THE SCRATCH PAD:
+  🗒 LL, on the 6.164.0 note that ⇪N and ⇪2 already did parts of this:
+     "Could I just add these to my new tool? That way I am only
+     opening one text edit tool. Then these open as tabs in my new
+     tool." So they do. The Capture Pad and the Quick Append Pad keep
+     their brains — the queue, the prefix router, the 16:00 flush, the
+     16:01 review, every service — and the scratch pad is their
+     window. ⇪N opens (or returns to) ONE 🗒 Capture tab; ⇪2, ⇪pad2,
+     ⇪pad* / ⇪pad- and the clipboard door open ONE ➕ Append tab, seeded
+     the way the old box was (* / + prefix, or the clipboard text).
+     The header hint changes with the tab: "⌘W queues this for the
+     4 PM send" / "* idea · + log · ! task · ? note — ⌘W files it".
+  📬 FILED WHERE IT ALWAYS WENT. Closing such a tab — ⌘W, its ×, or
+     closing the pad — hands its text to capturePad.add (the 4 PM
+     Asana queue) or notePad.fileAll (Logs / Ideas / the queue). The
+     history row then wears the badge and says where it went. A
+     failure KEEPS the tab and the text and says so; the router's
+     leftover lines stay in the tab alone, filed lines go. Those tabs
+     are never part of the scratch pad's own 4 PM task — they have
+     their own destinations. Plain scratch tabs are untouched by all
+     of this: closing the pad keeps them, as before.
+  🔙 pad.viaScratch = false / np.viaScratch = false (settings) bring
+     the old windows back; the 16:01 review always uses its own box.
+     ⇪⇧N (send now) is unchanged; the ⇪N window still exists for the
+     editor picker's row (it is the one that takes pasted images).
+  ✅ Gate: test_scratch_pad 80 → 99 — both doors, one tab per kind,
+     seed by prefix / text, filing on ⌘W and on pad close, the two
+     failure shapes, the day task's exclusion, the store round-trip,
+     the reroute sentries. 6,932 → 6,951 checks, seventy stages.
+
 NEW IN 6.164.0 — ⇪1 SCRATCH PAD: TABS, SAVED AS YOU TYPE, A HISTORY UNDER IT:
   📝 LL: "What I need is a very simple text editor that I can quickly
      bring up using the shortcut key, type into it, have it

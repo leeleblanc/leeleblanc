@@ -1388,7 +1388,17 @@ function M.setup(core)
     end
 
     -- ---- keys, timer, services -------------------------------------------
-    core.hyperAddShortcut({}, pad.key, function() pad.toggle() end, "capture pad")
+    -- 6.165.0 — ⇪N opens a 🗒 Capture tab in the scratch pad when it is
+    -- loaded (pad.viaScratch = false in a profile brings this window
+    -- back). ⇪⇧N, the queue, the 16:00 flush and every service stay here.
+    pad.viaScratch = true
+    core.hyperAddShortcut({}, pad.key, function()
+        if pad.viaScratch and _G.scratchPad and _G.scratchPad.openKind then
+            _G.scratchPad.openKind("capture")
+        else
+            pad.toggle()
+        end
+    end, "capture pad")
     core.hyperAddShortcut({ "shift" }, pad.key, function() pad.flush("manual") end,
                           "capture pad — send now")
 
