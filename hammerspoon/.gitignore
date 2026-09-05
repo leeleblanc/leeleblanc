@@ -1,11 +1,14 @@
-# LL's own snippet collections. Shipped in the release zip, NEVER in
-# git: textpanders holds real email addresses, phone numbers, an
-# employee ID and out-of-office text.
+# The generated snippet table and any PRIVATE packs. NEVER in git.
 #
-# 🚨 AND THAT COVERS snippets/bundled.lua TOO (6.105.0), which is the
-# whole point of naming it here. The generated table is the SAME data in
-# one file — every trigger, every expansion, textpanders included — so
-# committing it because "it is only build output" would put the phone
-# numbers in git by a side door. It is built at packaging time by
-# tools/build-snippets.lua and travels in the zip, like the packs.
+# Since 6.162.0 the public packs are committed under packs/ and this
+# folder is where tools/build-snippets.lua WRITES (snippets/bundled.lua)
+# plus any pack that must not be published — textpanders (real email
+# addresses, phone numbers, an employee ID, out-of-office text) used to
+# be here and now lives in LL's OneDrive snippets folder instead.
+#
+# 🚨 bundled.lua stays ignored too (6.105.0): it is whatever packs were
+# on this machine folded into one file, private ones included, so
+# committing it "because it is only build output" would put personal
+# data in git by a side door. It is built at packaging time and travels
+# in the zip.
 snippets/

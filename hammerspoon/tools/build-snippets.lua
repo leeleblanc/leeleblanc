@@ -5,6 +5,21 @@
 --     lua tools/build-snippets.lua .          ← writes snippets/bundled.lua
 --     lua tools/build-snippets.lua . --check  ← verifies it is up to date
 --
+-- SOURCES (6.162.0): packs/ first, then snippets/ — every .json pack
+-- under either, the later one winning a trigger collision.
+--   packs/     IS IN GIT. The public packs (ComposeKey, Emoji_Pack,
+--              Ghostty_or_Terminal, Mac_symbols) hold no personal data,
+--              so they are committed and every zip built from the repo
+--              carries them, on any machine, forever. LL asked for this
+--              after a container rebuild shipped a zip with no snippets.
+--   snippets/  STAYS GITIGNORED and is where the OUTPUT goes. Anything
+--              private that still lives here is folded in too (a
+--              working tree can hold packs the repo must not).
+-- The textpanders collection (real addresses, a phone number, an
+-- employee ID) is NOT a shipped pack any more: since 6.162.0 it lives in
+-- the OneDrive snippets folder (exp.dir) beside Mine/, which both Macs
+-- read directly and which wins over anything in the table.
+--
 -- WHY. The bundled packs are 2,006 files of about 150 bytes of content
 -- each, wrapped in JSON boilerplate, with names like
 --     swords (crossed) [6914E66E-8F4A-4E9A-9D2B-FF7CD0BB0E3C].json
@@ -15,15 +30,14 @@
 -- goes to 1.15 MB — and the expander opens ONE file at reload instead of
 -- two thousand and six.
 --
--- 🚨 NEITHER THE PACKS NOR THIS OUTPUT GO INTO GIT. .gitignore excludes
--- snippets/ because textpanders holds real email addresses, phone
--- numbers, an employee ID and out-of-office text — and bundled.lua is
--- that SAME data in one file, so "it is only build output" is not a
--- reason to commit it. Both live in the working tree and travel in the
--- release zip. Run this before packaging; tests/test_expander.lua §17c
--- verifies the table matches the packs WHEREVER THE PACKS EXIST, and
--- says it skipped when they do not — a fresh clone has no snippets/ and
--- must still go green.
+-- 🚨 THE OUTPUT STAYS OUT OF GIT. .gitignore excludes snippets/ because
+-- a working tree may still hold private packs there, and bundled.lua
+-- would be that SAME data in one file — "it is only build output" is
+-- not a reason to commit it. It is built at packaging time and travels
+-- in the release zip. Run this before packaging; tests/test_expander.lua
+-- §17c verifies the table matches the packs WHEREVER PACKS EXIST, and
+-- says it skipped when there are none (the shipped zip carries only the
+-- table) — that tree must still go green.
 --
 -- 🚨 THIS MIRRORS scanDir() IN modules/text_expander.lua, DELIBERATELY.
 -- Same recursion, same per-directory info.plist prefix/suffix, same
@@ -36,8 +50,9 @@ local root = arg[1] or "."
 local check = false
 for i = 2, #arg do if arg[i] == "--check" then check = true end end
 
-local SRC  = root .. "/snippets"
-local OUT  = SRC .. "/bundled.lua"
+local PACKS = root .. "/packs"        -- committed, public
+local SRC   = root .. "/snippets"     -- gitignored: private extras + OUT
+local OUT   = SRC .. "/bundled.lua"
 
 -- ---------------------------------------------------------------------
 -- a JSON reader, because this runs under plain lua with no hs.json
@@ -313,21 +328,25 @@ local function scanDir(dir, label)
     for _, d in ipairs(subdirs) do scanDir(d[1], d[2]) end
 end
 
--- 🚨 A MISSING snippets/ IS A SKIP FOR --check, NOT A FAILURE. The packs
--- are gitignored, so a fresh clone genuinely has none, and there is no
--- drift to find between a table and packs that are not there. Asked to
--- BUILD, though, this is a real error: you cannot generate a table from
--- nothing, and pretending otherwise would write an empty one over a good
--- file.
-if not isDir(SRC) then
+-- 🚨 NO SOURCE DIRECTORY AT ALL IS A SKIP FOR --check, NOT A FAILURE:
+-- there is no drift to find between a table and packs that are not
+-- there. Asked to BUILD, though, this is a real error: you cannot
+-- generate a table from nothing, and pretending otherwise would write an
+-- empty one over a good file. (Since 6.162.0 packs/ is committed, so a
+-- clone always has a source; the skip now mostly means "the shipped
+-- zip", which carries neither directory's packs.)
+if not isDir(PACKS) and not isDir(SRC) then
     if check then
-        print("⏭  no snippets/ here — nothing to check the table against")
+        print("⏭  no packs/ or snippets/ here — nothing to check the table against")
         os.exit(0)
     end
-    io.stderr:write("no snippets directory at " .. SRC .. "\n")
+    io.stderr:write("no packs or snippets directory under " .. root .. "\n")
     os.exit(1)
 end
-scanDir(SRC, "bundled")
+-- packs/ first, snippets/ second: a private pack in the working tree
+-- overrides a public one on a shared trigger, never the other way.
+if isDir(PACKS) then scanDir(PACKS, "bundled") end
+if isDir(SRC)   then scanDir(SRC,   "bundled") end
 
 -- 🚨 6.115.0 — AND A snippets/ THAT HOLDS ONLY THE TABLE IS ALSO A SKIP.
 -- The branch above catches a fresh clone, where snippets/ does not exist
@@ -351,11 +370,21 @@ scanDir(SRC, "bundled")
 if check and fileCount == 0 then
     local existing = read(OUT)
     if existing and #existing > 0 then
-        print("⏭  snippets/ has the table but no source packs — nothing to "
+        print("⏭  the table is here but no source packs — nothing to "
               .. "check it against (this is the shipped zip; the packs are "
               .. "deliberately not distributed)")
         os.exit(0)
     end
+end
+
+-- 🚨 6.162.0 — BUILDING FROM A SOURCE DIRECTORY THAT HOLDS NO PACKS IS
+-- A HARD ERROR. The guard above only catches a MISSING directory; an
+-- empty packs/ (sparse checkout, a stray folder in an unpacked zip)
+-- would otherwise write a 0-trigger table straight over a good one.
+if not check and fileCount == 0 then
+    io.stderr:write("no .json packs found under " .. PACKS .. " or " .. SRC
+                    .. " — refusing to overwrite " .. OUT .. " with an empty table\n")
+    os.exit(1)
 end
 
 -- ---------------------------------------------------------------------
@@ -369,29 +398,22 @@ local function w(s) out[#out + 1] = s end
 w("-- =====================================================================")
 w("-- BUNDLED SNIPPETS — GENERATED FILE, DO NOT EDIT BY HAND")
 w("-- =====================================================================")
-w("-- Built by tools/build-snippets.lua from the Alfred packs in the")
-w("-- snippets/ directory, which remain the source of truth. Edit a pack,")
-w("-- re-run the builder before packaging.")
+w("-- Built by tools/build-snippets.lua from the Alfred packs under")
+w("-- packs/ (committed, public) and then snippets/ (private extras),")
+w("-- which remain the source of truth. Edit a pack, re-run the builder")
+w("-- before packaging; test_expander.lua §17c runs --check on every")
+w("-- gate, and since 6.117.0 the zip no longer carries the .json packs,")
+w("-- so a stale table cannot be repaired from inside the download.")
 w("--")
-w("-- 🚨 DRIFT IS NOT CAUGHT BY THE SUITE. test_expander.lua proves the")
-w("-- --check MACHINERY works, against packs it builds in a temp tree; it")
-w("-- cannot check THIS file, because the real packs are gitignored and")
-w("-- are not there on a machine that only has the repo. The check that")
-w("-- matters is  build-snippets.lua <tree> --check  run against the real")
-w("-- tree at packaging time, and since 6.117.0 that is not optional: the")
-w("-- zip no longer carries the .json packs, so a stale table cannot be")
-w("-- repaired from anything inside the download.")
-w("--")
-w("-- Not in git. Neither are the packs — textpanders holds real email")
-w("-- addresses, phone numbers and an employee ID, and this file is that")
-w("-- same data in one place. It travels in the release zip only.")
+w("-- Not in git: it may fold in private packs left under snippets/, and")
+w("-- would then be that same data in one place. It travels in the zip.")
 w("--")
 w("-- modules/text_expander.lua prefers this file when it is present and")
 w("-- falls back to walking the .json files when it is not, so a build")
 w("-- without it still works — it just reads two thousand files to do it.")
 w("--")
-w("-- Your OWN snippets do not live here. ~/.hammerspoon/Logs/snippets is")
-w("-- still scanned as .json and still wins on a collision.")
+w("-- Your OWN snippets do not live here. The OneDrive Logs/snippets")
+w("-- folder (Mine/, textpanders/) is scanned as .json and wins collisions.")
 w("--")
 w("--   triggers[trigger] = { text, name, packIndex }")
 w("--   chooserOnly[i]    = { text, name, packIndex }   -- no keyword")
@@ -444,6 +466,14 @@ local text = table.concat(out, "\n")
 local nTrig = #order
 if check then
     local have = read(OUT)
+    -- A table that was never built is not drift: a fresh clone has the
+    -- committed packs/ and no snippets/ yet. Say so and pass; STALE is
+    -- for a table that exists and differs.
+    if have == nil then
+        print("⏭  the table is not built yet — run: lua5.4 tools/build-snippets.lua . "
+              .. "(" .. fileCount .. " pack files are here to build it from)")
+        os.exit(0)
+    end
     if have == text then
         print(string.format("✅ snippets/bundled.lua is current — %d triggers, "
                             .. "%d chooser-only, %d files", nTrig, #chooserOnly,
@@ -455,6 +485,7 @@ if check then
     os.exit(1)
 end
 
+os.execute("mkdir -p '" .. SRC .. "'")   -- a fresh clone has packs/ but no snippets/
 local f = io.open(OUT, "w")
 if not f then
     io.stderr:write("cannot write " .. OUT .. "\n")

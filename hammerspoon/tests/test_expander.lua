@@ -1530,10 +1530,10 @@ out("\n=== 17c. 📦 THE SHIPPED TABLE MATCHES THE SHIPPED PACKS ===\n")
 -- did nothing on LL's Mac. The builder's --check mode rebuilds from the
 -- packs and compares byte for byte.
 --
--- BOTH the packs and the table are gitignored (textpanders holds real
--- addresses and phone numbers), so a clone has neither and --check
--- reports a SKIP. That is a pass here, and the line below says which of
--- the two happened rather than quietly accepting either.
+-- The public packs are in git (packs/, 6.162.0) so a clone compares for
+-- real; the shipped zip has only the table and --check reports a SKIP.
+-- That is a pass here, and the line below says which of the two
+-- happened rather than quietly accepting either.
 check("snippets/bundled.lua is current for the packs on this machine",
   (function()
      local h = io.popen("cd '" .. HS .. "' && lua tools/build-snippets.lua . "
@@ -1629,6 +1629,90 @@ do
     o, c = sh(BUILD .. " '" .. TROOT .. "'")
     check("🚨 building from nothing is still a hard error — a skip must "
           .. "never become permission to write an empty table", c ~= 0, o)
+
+    os.execute("rm -rf '" .. TROOT .. "'")
+end
+
+-- =====================================================================
+out("\n=== 17e. 📦 packs/ IS A SOURCE, AND A PRIVATE snippets/ EXTRA WINS (6.162.0) ===\n")
+-- =====================================================================
+-- 🚨 6.161.0 SHIPPED WITH NO SNIPPETS because the packs lived only in a
+-- gitignored folder that every container rebuild erased. The public
+-- packs are committed under packs/ now, and the builder reads THAT
+-- first, then snippets/ (where private extras may still sit) — the
+-- later one winning a shared trigger, exactly as scanDir does. A fresh
+-- clone therefore has packs/ and no snippets/, and BUILDING must create
+-- the output folder rather than fail on it.
+do
+    local function sh(cmd)
+        local h = io.popen(cmd .. " 2>&1")
+        local o = h:read("*a") or ""
+        local ok, _, code = h:close()
+        return o, (ok and 0 or (code or 1))
+    end
+    local TROOT = (os.getenv("TMPDIR") or "/tmp"):gsub("/$", "")
+                  .. "/hs-packs-" .. tostring(os.time()) .. "-" .. tostring(math.random(9999))
+    local BUILD = "lua5.4 '" .. HS .. "/tools/build-snippets.lua'"
+    os.execute("mkdir -p '" .. TROOT .. "/packs/Public'")
+    local function put(path, keyword, text)
+        local f = io.open(path, "w")
+        if f then
+            f:write('{"alfredsnippet":{"snippet":"' .. text .. '","keyword":"'
+                    .. keyword .. '","name":"n"}}')
+            f:close()
+        end
+    end
+    put(TROOT .. "/packs/Public/a.json", "ppp", "from packs")
+    put(TROOT .. "/packs/Public/b.json", "qqq", "only in packs")
+
+    local o, c = sh(BUILD .. " '" .. TROOT .. "' --check")
+    check("--check on a clone whose table was never built is a SKIP that "
+          .. "says so, not STALE — nothing has drifted yet",
+          c == 0 and o:find("not built yet", 1, true) ~= nil, o)
+
+    o, c = sh(BUILD .. " '" .. TROOT .. "'")
+    local tbl = io.open(TROOT .. "/snippets/bundled.lua", "r")
+    check("a fresh clone — packs/ present, no snippets/ — BUILDS, creating "
+          .. "snippets/ for the output", c == 0 and tbl ~= nil, o)
+    local body = tbl and tbl:read("*a") or ""
+    if tbl then tbl:close() end
+    check("…and the table holds the public pack under its folder's name",
+          body:find('"Public"', 1, true) ~= nil
+          and body:find("only in packs", 1, true) ~= nil, body:sub(1, 400))
+    o, c = sh(BUILD .. " '" .. TROOT .. "' --check")
+    check("…and --check on that clone compares for real, not a skip",
+          c == 0 and o:find("current", 1, true) ~= nil, o)
+
+    -- A private pack left in snippets/ folds in too, and wins a collision.
+    os.execute("mkdir -p '" .. TROOT .. "/snippets/Private'")
+    put(TROOT .. "/snippets/Private/a.json", "ppp", "from snippets")
+    o, c = sh(BUILD .. " '" .. TROOT .. "' --check")
+    check("a pack added under snippets/ makes the table STALE",
+          c ~= 0 and o:find("STALE", 1, true) ~= nil, o)
+    o, c = sh(BUILD .. " '" .. TROOT .. "'")
+    tbl = io.open(TROOT .. "/snippets/bundled.lua", "r")
+    body = tbl and tbl:read("*a") or ""
+    if tbl then tbl:close() end
+    check("🔒 on a shared trigger the snippets/ (private) copy wins — "
+          .. "later scan, same rule as scanDir",
+          body:find("from snippets", 1, true) ~= nil
+          and body:find("from packs", 1, true) == nil, body:sub(1, 600))
+    check("…and both collections are named in the table",
+          body:find('"Public"', 1, true) ~= nil
+          and body:find('"Private"', 1, true) ~= nil)
+    check("…and the collision is recorded, never silent",
+          body:find("already used by", 1, true) ~= nil)
+
+    -- 🚨 An EMPTY source directory must never clobber a good table.
+    os.execute("rm -rf '" .. TROOT .. "/packs' '" .. TROOT .. "/snippets/Private'"
+               .. " && mkdir -p '" .. TROOT .. "/packs'")
+    o, c = sh(BUILD .. " '" .. TROOT .. "'")
+    local kept = io.open(TROOT .. "/snippets/bundled.lua", "r")
+    local keptBody = kept and kept:read("*a") or ""
+    if kept then kept:close() end
+    check("🚨 building from a packs/ that holds no .json refuses, and the "
+          .. "old table is untouched", c ~= 0 and o:find("refusing", 1, true) ~= nil
+          and keptBody == body, o)
 
     os.execute("rm -rf '" .. TROOT .. "'")
 end

@@ -3,10 +3,9 @@
 # The hammerspoonX.Y.Z.zip handed over for each release is a BUILD
 # ARTIFACT, not a source file. Committing it would put a ~1.4M binary in
 # the history for every release while adding nothing `git checkout`
-# cannot already reproduce — with one deliberate exception: snippets/ is
-# gitignored (it holds real email addresses, a phone number and an
-# employee ID) and ships in the zip only. That folder is the one part of
-# a release the repository cannot rebuild.
+# cannot already reproduce. (Until 6.162.0 snippets/ was the exception;
+# now the public packs are committed under hammerspoon/packs/ and the
+# table is rebuilt from them on any machine.)
 #
 # 🚨 THE ZIP HAS init.lua AT ITS ROOT, WITH NO WRAPPER FOLDER. This
 # recipe used to build one and contradicted INSTALL.md Step 3, which
@@ -14,17 +13,17 @@
 # `<that folder>/tools/hs-install.sh <that folder>` — a wrapper puts
 # everything one level down and both halves of that instruction miss.
 #
-# 🚨 SINCE 6.117.0 THE ZIP CARRIES snippets/bundled.lua AND NOT THE 2,006
-# .json PACKS IT WAS BUILT FROM. That is not a trim for its own sake:
-# text_expander.lua does not read the packs when the table loads, and it
-# has not since 6.105.0 — shipping them put 797 KB of deliberately
-# ignored files in every download. All 2,006 snippets are in the table.
-# The packs stay in the working tree because build-snippets.lua rebuilds
-# the table from them.
+# 🚨 SINCE 6.117.0 THE ZIP CARRIES snippets/bundled.lua AND NOT THE .json
+# PACKS IT WAS BUILT FROM. text_expander.lua does not read the packs when
+# the table loads. SINCE 6.162.0 the packs it is built from are the
+# COMMITTED hammerspoon/packs/ (1,926 public snippets in four
+# collections) plus anything private left in the gitignored snippets/;
+# textpanders is neither — it lives in LL's OneDrive snippets folder.
 #
 # To rebuild any release from source:
 #   git checkout <the tag or commit for that version>
 #   mkdir -p /tmp/pkg
+#   lua5.4 hammerspoon/tools/build-snippets.lua hammerspoon           ← builds the table
 #   cp -R hammerspoon/init.lua hammerspoon/core hammerspoon/modules \
 #         hammerspoon/tools hammerspoon/tests hammerspoon/snippets \
 #         hammerspoon/GUIDE.md hammerspoon/INSTALL.md \

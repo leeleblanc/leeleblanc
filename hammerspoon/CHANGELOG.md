@@ -4,6 +4,26 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.162.0 — THE PUBLIC PACKS LIVE IN GIT; THE PRIVATE ONE IN ONEDRIVE:
+  📦 LL, on 6.161.0 shipping with no snippets: "But is this wise? Can
+     we do better? Will that be alright on my work MacBook? Why don't
+     we put these in a file, in the zip like other files?" — the packs
+     were only ever in the working tree, gitignored because ONE of
+     them (textpanders) holds real addresses, a phone number and an
+     employee ID, so every container rebuild lost all five and the
+     next zip carried none. Split by what is actually private: the
+     four public packs (ComposeKey 548, Emoji_Pack 1,349,
+     Ghostty_or_Terminal 6, Mac_symbols 23) are now COMMITTED under
+     hammerspoon/packs/, build-snippets.lua folds packs/ (then any
+     private snippets/ extras, which win a collision) into
+     snippets/bundled.lua, and every zip carries all 1,926 of them on
+     any machine, forever. textpanders (80) moved OUT of the shipped
+     tier into the OneDrive snippets folder — the same place Mine/
+     lives — which both Macs read directly and which beats the table;
+     ⇪⇧S shows it under its own textpanders heading. Recovered from
+     LL's bundled.lua by tools/unbundle-snippets.lua (case-safe
+     names: ;;aa and ;;AA are different files on APFS too).
+
 NEW IN 6.161.0 — ⇪⇧S IS THE SNIPPETS PANEL, WITH ICONS; ⇪⇧3 REMEMBERS:
   ✂️ LL: "hyper+shift+s opens an old picker for Asana. Can't we clear
      this?" — and, with two screenshots the day before: the Asana pipe

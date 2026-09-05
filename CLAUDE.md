@@ -16,9 +16,11 @@ work Mac.
 - `secret.lua` is per-machine, deliberately never synced or backed up, and
   never deleted. The Asana token lives only there — never in the repo, never
   in a process argument list.
-- `snippets/` is gitignored because it holds real personal data (email
-  addresses, a phone number, an employee ID). Delivered zips carry ONLY
-  `snippets/bundled.lua`. Release zips are build artifacts — never committed.
+- `hammerspoon/packs/` (6.162.0) holds the four PUBLIC packs and IS in git;
+  `snippets/` stays gitignored (output + any private extras) and delivered
+  zips carry ONLY `snippets/bundled.lua`. textpanders (real addresses, a
+  phone number, an employee ID) lives in LL's OneDrive snippets folder —
+  never in the repo, never in a zip. Release zips are never committed.
 - Backups copy only `~/.ssh/config` — never the keys beside it, never the
   Keychain. daily_backup excludes `secret.lua` and `applock.json` from every
   rsync.
@@ -70,15 +72,14 @@ mirrors draw order: "closes last" IS "drawn under".
 3. GUIDE.md's numbers (init.lua line count, suite/check totals) are MEASURED
    off the test gate, never guessed or remembered.
 4. The zip recipe is documented in repo-root `.gitignore`. Non-negotiables:
-   run `lua5.4 hammerspoon/tools/build-snippets.lua hammerspoon --check`
+   build then `--check` with `tools/build-snippets.lua hammerspoon`
    first; init.lua sits at the zip ROOT (no wrapper folder); snippets pruned
    to bundled.lua only; re-run `tools/run-tests.sh` from INSIDE the unpacked
    package; zip named `hammerspoonX.Y.Z.zip` at repo root, gitignored.
-   🚨 `hammerspoon/snippets/` is NOT in git and is GONE whenever the build
-   container is rebuilt (it was for 6.155.0). A zip without `snippets/` is
-   safe — hs-install.sh touches `~/.hammerspoon/snippets` only when the
-   download has that folder — but SAY SO in the changelog and to LL. Any
-   snippets change needs the packs from LL's Mac first.
+   `hammerspoon/snippets/` is NOT in git: run the builder WITHOUT --check
+   first (`lua5.4 hammerspoon/tools/build-snippets.lua hammerspoon`) to
+   fold the committed `packs/` into `snippets/bundled.lua` — it exists on
+   every machine since 6.162.0, so a zip never ships without snippets.
    The container also lacks `lua5.4` after a rebuild: `apt-get install -y
    lua5.4` (root, no sudo needed) before the gate.
 5. Current version and check counts: read them off init.lua line 7 and the
@@ -173,6 +174,11 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 6.162.0 verify with LL: after installing, ⇪⇧S shows ▸ TEXTPANDERS · 80 ·
+  yours — pinned first (the 80 files MUST sit in a subfolder named
+  `textpanders` inside OneDrive Logs/snippets, beside Mine/ — loose files
+  get the top-level label and sort under SNIPPETS unpinned); a textpander
+  trigger expands; the work Mac shows the same once OneDrive syncs.
 - 6.161.0 verify with LL: ⇪⇧S opens the SNIPPETS (not Asana) with icons —
   an emoji as itself, ✂️/📄/⚙️/⚡ marks; the first open right after a boot
   may show a few rows without icons (pre-render still running; Console

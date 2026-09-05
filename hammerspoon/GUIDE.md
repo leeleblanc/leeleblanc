@@ -9,17 +9,19 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,757 lines)
+├── init.lua          the orchestrator (3,761 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (10 files)
 ├── modules/          one file per feature (63 files, ~45,300 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
-├── snippets/         bundled.lua — 2,006 shipped snippets in one table,
-│                     in five collections. Since 6.117.0 the .json packs
-│                     it was built from do NOT ship: the expander skips
-│                     them whenever the table loads, so they were 797 KB
-│                     of ignored files. 6.118.0 sections ⇪⇧S by those
-│                     collections — see exp.sectionOrder
+├── packs/            the four PUBLIC snippet packs as .json (1,926), in
+│                     git since 6.162.0 — the builder folds them into
+├── snippets/         bundled.lua, one table, which is what ships; the
+│                     .json packs themselves do NOT (the expander skips
+│                     them whenever the table loads). Your private
+│                     textpanders lives in the OneDrive snippets folder
+│                     beside Mine/. ⇪⇧S sections by collection —
+│                     see exp.sectionOrder
 └── tools/            hs-install.sh · hs-doctor.sh · run-tests.sh ·
                       build-snippets.lua
 ```
@@ -573,9 +575,9 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Sixty-three Lua suites, 6,667 checks, plus three more that run the Capture
+Sixty-three Lua suites, 6,676 checks, plus three more that run the Capture
 Pad's, the screenshot editor's and unified search's page JavaScript under
-`node` for a further 105 — **6,772 checks over sixty-eight stages** in
+`node` for a further 105 — **6,781 checks over sixty-eight stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 

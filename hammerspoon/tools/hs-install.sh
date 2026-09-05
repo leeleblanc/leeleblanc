@@ -202,7 +202,7 @@ if [ -d "$SRC/snippets" ]; then
     mkdir -p "$HS/snippets"
     cp -R "$SRC/snippets"/. "$HS/snippets/" || die "could not write snippets/"
     # 🚨 THE OLD PACKS ARE LEFT WHERE THEY ARE. A previous unzip may have
-    # put 2,006 .json files here; the expander ignores them once
+    # put thousands of .json files here; the expander ignores them once
     # bundled.lua loads, and deleting somebody's snippets folder to save
     # 8 MB is not a trade this script gets to make on its own. It says
     # where they are and lets you decide.
