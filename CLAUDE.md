@@ -32,6 +32,10 @@ work Mac.
   latched ⇪ and took LL's Mac. Any new path that enters the modal must go
   through hyperEnter (it arms `_G.hyperLatchTimer`); any tap that sees keys
   under ⇪ must call `_G.hyperTouch()`. Never add an untimed way in.
+  6.165.1: a shortcut that opens a TEXT PANEL calls
+  `_G.hyperExpectRelease(1.5, who)` after show (deadline 8 s → 1.5 s of
+  silence) and its page forwards an F18 keyup to `_G.hyperReleaseSeen(who)`.
+  Do the same in any new text panel.
 
 ## Module contract
 
@@ -193,6 +197,13 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 🚨 6.165.1 verify with LL: after ⇪1 no "released by the watchdog"
+  line — or one that says "the scratch pad had taken the keyboard" after
+  ≤2 s, or "⇪ keyUp seen by the scratch pad"; typing goes into the pad
+  from the first key. WHY the F18 keyUp is lost when the pad opens on
+  the home Mac is UNPROVEN (the old ⇪N pad opened the same way; the
+  6.162.0 haywire may have been this). Tab names read "Scratch 1" /
+  "Capture" / "Append"; the hint card sits top-right.
 - 6.165.0 verify with LL: ⇪N opens the scratch pad on a 🗒 Capture tab
   (again = same tab); ⇪2 / ⇪pad2 a ➕ Append tab ("* " seeded by ⇪pad*);
   ⌘W on each files it (Console/alert says where) and the history row

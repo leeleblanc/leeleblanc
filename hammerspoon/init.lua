@@ -4,9 +4,41 @@
 -- =====================================================================
 -- 09-05-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.165.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.165.1
 -- =====================================================================
 
+-- NEW IN 6.165.1 — THE PAD'S FIRST SESSION: A LOST F18 keyUp, TAB NAMES, A LOUD SAVE:
+--   🚨 LL: "It seems to lock up." The Console had it: "⇪ released by the
+--      watchdog — held 8s with no key event and no F18 keyUp". The pad
+--      took the keyboard on ⇪1 and the Caps Lock release never reached
+--      the hotkey, so for eight seconds every letter typed into the pad
+--      ran a hyper shortcut instead — the Sep 4 latch, caught by the
+--      6.162.1 guard this time. Two answers, neither a new way IN:
+--      (1) _G.hyperExpectRelease(secs, who) — a shortcut that opens a
+--      text field is one nobody holds ⇪ through, so the pad says so on
+--      open and the watchdog's deadline drops from 8 s to 1.5 s of
+--      silence (a real key under ⇪ still pushes it out); the Console
+--      line then names the panel. (2) _G.hyperReleaseSeen(who) — the
+--      pad's page listens for the F18 keyup itself (WebKit gets it even
+--      when the Carbon release never fires) and hands it over: "⇪ keyUp
+--      seen by the scratch pad — released there". Both tested in
+--      test_hyper_key §16. WHY the keyUp is lost on this Mac is still
+--      unproven; the hold is now bounded either way.
+--   🏷 "Untitled" told LL nothing. An empty tab is now named for what it
+--      is — "Scratch 1", "Scratch 2", "Capture", "Append" — and takes its
+--      first line as its name the moment there is one. The active tab
+--      is brighter with a blue underline; Capture tabs are teal, Append
+--      tabs amber. The buttons say what they do: "📌 Pin" / "📌 Pinned",
+--      "→ Asana now".
+--   💾 "Does it throw an error if it didn't save?" Now it does: the first
+--      failed write of a streak alerts on screen (NOT SAVED — why; your
+--      text is safe in memory; every keystroke retries), prints to the
+--      Console, and the header wears "⚠ not saved" until a write lands
+--      ("Saving again"). The report counts failed writes.
+--   💡 The shortcut-hint card sits TOP-right now (hint.corner), 20%
+--      wider (432), 20% larger type (16), 20% more see-through (0.70).
+--   ✅ Gate: test_scratch_pad 99 → 107, test_hyper_key 107 → 116,
+--      test_shortcut_hints 57 → 58. 6,951 → 6,969 checks, seventy stages.
 -- NEW IN 6.165.0 — ⇪N AND ⇪2 OPEN AS TABS IN THE SCRATCH PAD:
 --   🗒 LL, on the 6.164.0 note that ⇪N and ⇪2 already did parts of this:
 --      "Could I just add these to my new tool? That way I am only
@@ -147,30 +179,10 @@
 --      long hold with keys arriving is never cut short; the real release
 --      still clears the timer. 6,781 → 6,791 checks.
 
--- NEW IN 6.162.0 — THE PUBLIC PACKS LIVE IN GIT; THE PRIVATE ONE IN ONEDRIVE:
---   📦 LL, on 6.161.0 shipping with no snippets: "But is this wise? Can
---      we do better? Will that be alright on my work MacBook? Why don't
---      we put these in a file, in the zip like other files?" — the packs
---      were only ever in the working tree, gitignored because ONE of
---      them (textpanders) holds real addresses, a phone number and an
---      employee ID, so every container rebuild lost all five and the
---      next zip carried none. Split by what is actually private: the
---      four public packs (ComposeKey 548, Emoji_Pack 1,349,
---      Ghostty_or_Terminal 6, Mac_symbols 23) are now COMMITTED under
---      hammerspoon/packs/, build-snippets.lua folds packs/ (then any
---      private snippets/ extras, which win a collision) into
---      snippets/bundled.lua, and every zip carries all 1,926 of them on
---      any machine, forever. textpanders (80) moved OUT of the shipped
---      tier into the OneDrive snippets folder — the same place Mine/
---      lives — which both Macs read directly and which beats the table;
---      ⇪⇧S shows it under its own textpanders heading. Recovered from
---      LL's bundled.lua by tools/unbundle-snippets.lua (case-safe
---      names: ;;aa and ;;AA are different files on APFS too).
-
--- (6.161.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.162.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.165.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.165.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -516,7 +528,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.165.0"
+_G.configVersion = "6.165.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -2055,8 +2067,11 @@ local function hyperWatchLatch(delay)
         end
         _G.hyperLatchReleases = _G.hyperLatchReleases + 1
         print(string.format("⌨️ ⇪ released by the watchdog — held %.0fs with no "
-              .. "key event and no F18 keyUp (release #%d). Press Caps Lock "
-              .. "again as normal.", quiet, _G.hyperLatchReleases))
+              .. "key event and no F18 keyUp (release #%d)%s. Press Caps Lock "
+              .. "again as normal.", quiet, _G.hyperLatchReleases,
+              _G.hyperReleaseExpected
+                  and (" — " .. _G.hyperReleaseExpected .. " had taken the keyboard") or ""))
+        _G.hyperReleaseExpected = nil
         hyperExit()
     end)
 end
@@ -2064,6 +2079,33 @@ end
 -- Any key the tap sees while ⇪ is down proves the hold is real.
 _G.hyperTouch = function()
     if _G.hyperActive then _G.hyperHeldAt = hs.timer.secondsSinceEpoch() end
+end
+
+-- 6.165.1 — A TEXT PANEL JUST TOOK THE KEYBOARD. LL's first ⇪1 session
+-- ended in "⇪ released by the watchdog — held 8s": the F18 keyUp was
+-- lost as the pad opened and for eight seconds every letter typed into
+-- it went to a hyper shortcut instead. A shortcut that opens a text
+-- field is one nobody holds ⇪ through, so the panel says so and the
+-- deadline drops to `secs` of silence; a real key under ⇪ (hyperTouch)
+-- still pushes it out. Only the DEADLINE changes — never the way in.
+_G.hyperExpectRelease = function(secs, who)
+    if not _G.hyperActive then return false end
+    secs = tonumber(secs) or 1.5
+    _G.hyperHeldAt = hs.timer.secondsSinceEpoch() - math.max(0, _G.hyperLatchSecs - secs)
+    _G.hyperReleaseExpected = who or "a text panel"
+    if _G.hyperLatchTimer then _G.hyperLatchTimer:stop(); _G.hyperLatchTimer = nil end
+    hyperWatchLatch(secs)
+    return true
+end
+-- A panel's page saw the F18 keyUp itself (WebKit gets the keyup even
+-- when the Carbon release never fires): that is the release, take it.
+_G.hyperReleaseSeen = function(who)
+    if not _G.hyperActive then return false end
+    print("⌨️ ⇪ keyUp seen by " .. tostring(who or "a panel") .. " — released there "
+          .. "(the F18 release never reached the hotkey).")
+    _G.hyperLatchReleases = _G.hyperLatchReleases + 1
+    hyperExit()
+    return true
 end
 
 local function hyperEnter(via)
@@ -2083,6 +2125,7 @@ end
 
 hyperExit = function()
     _G.hyperActive = false
+    _G.hyperReleaseExpected = nil
     if _G.hyperLatchTimer then _G.hyperLatchTimer:stop(); _G.hyperLatchTimer = nil end
     if not _G.hyperDispatchEngaged then _G.hyperModal:exit() end
 end

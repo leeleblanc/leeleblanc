@@ -140,14 +140,16 @@ check("labels: shift+t → ⇪⇧T, left → ⇪←, pad1 → ⇪pad1, space →
       and M.labelOf("pad1") == "⇪pad1" and M.labelOf("space") == "⇪space")
 
 -- =====================================================================
-out("\n=== 2. The card: exists, sits bottom-right, never takes focus ===\n")
+out("\n=== 2. The card: exists, sits top-right, never takes focus ===\n")
 -- =====================================================================
 check("a press shows the card", _G.shortcutHint("t", "alt+cmd+ctrl+t") == true)
 local c = CANVASES[#CANVASES]
 check("...drawn, shown, on the hint rung", c and c.shown and c.lvl == 28, c and c.lvl)
-check("...bottom-right of the base screen",
+check("...top-right of the base screen (6.165.1; hint.corner)",
       c and c.rect.x + c.rect.w == 2560 - hint.margin
-      and c.rect.y + c.rect.h == 25 + 1385 - hint.margin, c and (c.rect.x .. "," .. c.rect.y))
+      and c.rect.y == 25 + hint.margin, c and (c.rect.x .. "," .. c.rect.y))
+check("...20% bigger and 20% more see-through than 6.163.0",
+      hint.width == 432 and hint.fontSize == 16 and hint.alpha == 0.70)
 check("...click-through and non-activating",
       c and c.activating == false and c.mouse and c.mouse[1] == false)
 check("...over full-screen apps and every Space",

@@ -63,10 +63,11 @@ local hint = {
     fadeSecs  = 0.6,
     maxRows   = 16,        -- Windows is the biggest group (15 + ⌥Tab)
     graceSecs = 0.35,      -- a shortcut's OWN synthetic input must not dismiss it
-    width     = 360,
-    margin    = 18,        -- from the bottom-right corner
-    alpha     = 0.88,      -- the card's translucency
-    fontSize  = 13,
+    width     = 432,       -- 6.165.1: 20% wider (was 360)
+    margin    = 18,        -- from the corner
+    corner    = "top-right",   -- 6.165.1 (was bottom-right): "top-right" | "bottom-right"
+    alpha     = 0.70,      -- 6.165.1: 20% more see-through (was 0.88)
+    fontSize  = 16,        -- 6.165.1: 20% bigger (was 13)
     -- combo (init.lua hyperCombo spelling) → group. Curated from the
     -- cheat sheet; a combo missing here draws no card (report says so).
     groups = {
@@ -263,8 +264,9 @@ function M.setup(core)
         local f
         pcall(function() f = scr and scr:frame() end)
         if not f then return nil end
-        return { x = f.x + f.w - hint.width - hint.margin,
-                 y = f.y + f.h - h - hint.margin, w = hint.width, h = h }
+        local y = (hint.corner == "bottom-right") and (f.y + f.h - h - hint.margin)
+                  or (f.y + hint.margin)
+        return { x = f.x + f.w - hint.width - hint.margin, y = y, w = hint.width, h = h }
     end
 
     local function elements(group, rows, more)

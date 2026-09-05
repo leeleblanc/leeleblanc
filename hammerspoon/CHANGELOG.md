@@ -4,6 +4,39 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.165.1 — THE PAD'S FIRST SESSION: A LOST F18 keyUp, TAB NAMES, A LOUD SAVE:
+  🚨 LL: "It seems to lock up." The Console had it: "⇪ released by the
+     watchdog — held 8s with no key event and no F18 keyUp". The pad
+     took the keyboard on ⇪1 and the Caps Lock release never reached
+     the hotkey, so for eight seconds every letter typed into the pad
+     ran a hyper shortcut instead — the Sep 4 latch, caught by the
+     6.162.1 guard this time. Two answers, neither a new way IN:
+     (1) _G.hyperExpectRelease(secs, who) — a shortcut that opens a
+     text field is one nobody holds ⇪ through, so the pad says so on
+     open and the watchdog's deadline drops from 8 s to 1.5 s of
+     silence (a real key under ⇪ still pushes it out); the Console
+     line then names the panel. (2) _G.hyperReleaseSeen(who) — the
+     pad's page listens for the F18 keyup itself (WebKit gets it even
+     when the Carbon release never fires) and hands it over: "⇪ keyUp
+     seen by the scratch pad — released there". Both tested in
+     test_hyper_key §16. WHY the keyUp is lost on this Mac is still
+     unproven; the hold is now bounded either way.
+  🏷 "Untitled" told LL nothing. An empty tab is now named for what it
+     is — "Scratch 1", "Scratch 2", "Capture", "Append" — and takes its
+     first line as its name the moment there is one. The active tab
+     is brighter with a blue underline; Capture tabs are teal, Append
+     tabs amber. The buttons say what they do: "📌 Pin" / "📌 Pinned",
+     "→ Asana now".
+  💾 "Does it throw an error if it didn't save?" Now it does: the first
+     failed write of a streak alerts on screen (NOT SAVED — why; your
+     text is safe in memory; every keystroke retries), prints to the
+     Console, and the header wears "⚠ not saved" until a write lands
+     ("Saving again"). The report counts failed writes.
+  💡 The shortcut-hint card sits TOP-right now (hint.corner), 20%
+     wider (432), 20% larger type (16), 20% more see-through (0.70).
+  ✅ Gate: test_scratch_pad 99 → 107, test_hyper_key 107 → 116,
+     test_shortcut_hints 57 → 58. 6,951 → 6,969 checks, seventy stages.
+
 NEW IN 6.165.0 — ⇪N AND ⇪2 OPEN AS TABS IN THE SCRATCH PAD:
   🗒 LL, on the 6.164.0 note that ⇪N and ⇪2 already did parts of this:
      "Could I just add these to my new tool? That way I am only

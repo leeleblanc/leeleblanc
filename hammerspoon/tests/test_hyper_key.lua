@@ -1038,6 +1038,54 @@ do
         w.SB.hyperActive == false and w.SB.hyperLatchTimer == nil)
 end
 
+do
+  -- 6.165.1 — A TEXT PANEL TOOK THE KEYBOARD: the deadline shortens, the
+  -- way in does not change. LL's first ⇪1 press: "held 8s with no key
+  -- event and no F18 keyUp" — eight seconds of letters going to shortcuts.
+  local w = world{ dropKeyUp = true }
+  loadHyperKey(w)
+  bindShortcuts(w)
+  runTimers(w)
+  w.now = 3000
+  w.mkEvent({}, "f18", true, false, false).post()      -- keyDown; keyUp is lost
+  check("(6.165.1) _G.hyperExpectRelease exists and answers true under a hold",
+        type(w.SB.hyperExpectRelease) == "function" and w.SB.hyperExpectRelease(1.5, "a pad") == true)
+  local t = w.SB.hyperLatchTimer
+  check("...it re-arms the held watchdog for the short deadline", t ~= nil and t.secs == 1.5, t and t.secs)
+  w.now = 3002                                           -- 2s after the press: silence
+  w.SB.hyperLatchTimer = nil
+  t.fn()
+  check("🚨 after 1.5s of silence the phantom hold is let go",
+        w.SB.hyperActive == false and w.modal.entered == false)
+  local said = false
+  for _, l in ipairs(w.printed) do if l:find("a pad had taken the keyboard", 1, true) then said = true end end
+  check("...and the Console line names the panel that took the keyboard", said)
+  check("...expectation cleared", w.SB.hyperReleaseExpected == nil)
+  check("with ⇪ up the call is a no-op (false)", w.SB.hyperExpectRelease(1.5) == false)
+
+  -- a key under the shortened hold still pushes the deadline out
+  w.now = 3010
+  w.mkEvent({}, "f18", true, false, false).post()
+  w.SB.hyperExpectRelease(1.5, "a pad")
+  w.now = 3011
+  w.mkEvent({}, "d", true, false, false).post()
+  w.mkEvent({}, "d", false, false, false).post()
+  t = w.SB.hyperLatchTimer; w.SB.hyperLatchTimer = nil
+  w.now = 3011.6
+  t.fn()
+  check("🔒 a key under the shortened hold keeps it (re-armed, not released)",
+        w.SB.hyperActive == true and w.SB.hyperLatchTimer ~= nil)
+  w.mkEvent({}, "f18", false, false, false).post()
+
+  -- the page saw the F18 keyUp itself
+  w.now = 3020
+  w.mkEvent({}, "f18", true, false, false).post()
+  check("_G.hyperReleaseSeen releases at once and counts it",
+        w.SB.hyperReleaseSeen("the scratch pad") == true and w.SB.hyperActive == false
+        and w.SB.hyperLatchTimer == nil and w.SB.hyperLatchReleases == 2)
+  check("...and is a no-op with ⇪ up", w.SB.hyperReleaseSeen("x") == false)
+end
+
 -- =====================================================================
 section("14. THE CHANGELOG CSV CANNOT GO STALE AGAIN")
 -- =====================================================================

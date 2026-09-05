@@ -150,10 +150,17 @@ function M.setup(core)
     local function trim(s) return (tostring(s or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
     local function oneLine(s) return (tostring(s or ""):gsub("%s+", " ")) end
 
+    -- An empty tab is named for what it IS (6.165.1 — "Untitled ×2 told
+    -- me nothing"): "Capture", "Append", or "Scratch N" by its place.
     function sp.titleOf(tab)
         local first = tostring(tab.text or ""):match("[^\r\n]*") or ""
         first = trim(first)
-        if first == "" then return "Untitled" end
+        if first == "" then
+            local k = tab.kind and sp.kinds and sp.kinds[tab.kind]
+            if k then return k.label end
+            local _, i = sp.findTab(tab.id)
+            return "Scratch " .. tostring(i or "")
+        end
         if #first > sp.titleChars then first = first:sub(1, sp.titleChars - 1) .. "…" end
         return first
     end
@@ -238,25 +245,33 @@ function M.setup(core)
             warn("store not written — encode failed")
             return false
         end
+        -- A failed write is SAID, once per streak, on screen and in the
+        -- Console — the text is safe in Lua and the next keystroke retries.
+        local function failed(why)
+            sp.lastSaveErr = why
+            sp.saveFails = (sp.saveFails or 0) + 1
+            if core.warnWriteFailed then core.warnWriteFailed("scratch pad store") end
+            if not sp.saveErrSaid then
+                sp.saveErrSaid = true
+                pcall(function()
+                    hs.alert.show("📝 NOT SAVED — " .. why .. "\nYour text is safe in memory; "
+                                  .. "every keystroke retries the write.", 5)
+                end)
+                print("📝 Scratch Pad: store not written — " .. why .. " (" .. sp.file .. ")")
+            end
+            return false
+        end
         local tmp = sp.file .. ".tmp"
         local f = io.open(tmp, "w")
-        if not f then
-            sp.lastSaveErr = "cannot open " .. tmp
-            if core.warnWriteFailed then core.warnWriteFailed("scratch pad store") end
-            return false
-        end
+        if not f then return failed("cannot open " .. tmp) end
         local okW = f:write(blob)
         f:close()
-        if not okW then
-            sp.lastSaveErr = "write failed"
-            if core.warnWriteFailed then core.warnWriteFailed("scratch pad store") end
-            return false
-        end
+        if not okW then return failed("write failed") end
         local okR = os.rename(tmp, sp.file)
-        if not okR then
-            sp.lastSaveErr = "rename failed"
-            if core.warnWriteFailed then core.warnWriteFailed("scratch pad store") end
-            return false
+        if not okR then return failed("rename failed") end
+        if sp.saveErrSaid then
+            sp.saveErrSaid = false
+            pcall(function() hs.alert.show("📝 Saving again", 2) end)
         end
         sp.dirty, sp.lastSaveErr = false, nil
         sp.saves = sp.saves + 1
@@ -464,7 +479,7 @@ function M.setup(core)
         local cur = sp.activeTab() or sp.newTab("")
         local tabsHtml = {}
         for i, t in ipairs(sp.tabs) do
-            tabsHtml[#tabsHtml + 1] = '<div class="tab' .. (t.id == cur.id and " on" or "")
+            tabsHtml[#tabsHtml + 1] = '<div class="tab' .. (t.kind and (" " .. t.kind) or "") .. (t.id == cur.id and " on" or "")
                 .. '" data-id="' .. escapeHtml(t.id) .. '"><span class="tt">'
                 .. (sp.kindOf(t) and (sp.kindOf(t).badge .. " ") or "")
                 .. escapeHtml(sp.titleOf(t)) .. '</span><span class="x" title="Close ⌘W">×</span></div>'
@@ -481,9 +496,12 @@ header .name{font-weight:600;flex:1}
 header .hint{opacity:.55;font-size:11px}
 header button{background:#2a2a33;color:#e8e8ec;border:0;border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer}
 header button.pin.on{background:#4a7fe0;color:#fff}
+header .bad{background:#7a2a2a;color:#ffd9d9;border-radius:6px;padding:3px 8px;font-size:11px}
 #tabs{display:flex;gap:4px;padding:6px 8px 0;background:#18181d;overflow-x:auto}
 .tab{display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:6px 6px 0 0;background:#202027;max-width:180px;cursor:default}
-.tab.on{background:#2b2b35}
+.tab.on{background:#3a3a48;box-shadow:inset 0 -3px 0 #4a7fe0;color:#fff}
+.tab.capture{background:#1f2a33}.tab.capture.on{background:#2b3f4d;box-shadow:inset 0 -3px 0 #4fb3d9}
+.tab.append{background:#2f2a1c}.tab.append.on{background:#4a4024;box-shadow:inset 0 -3px 0 #e0b04a}
 .tab .tt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tab .x{opacity:.5;cursor:pointer;padding:0 2px}
 .tab .x:hover{opacity:1}
@@ -505,8 +523,9 @@ textarea{flex:1;margin:0;padding:10px;border:0;outline:0;resize:none;background:
 ]] .. theme .. [[</style></head><body><div id="wrap">
 <header id="bar"><span class="grip">⠿</span><span class="name">📝 Scratch Pad</span>
 <span class="hint">]] .. escapeHtml(sp.kindOf(cur) and sp.kindOf(cur).hint or "⌘T new · ⌘W close · ⌘1–9 switch · Esc") .. [[</span>
-<button class="pin]] .. (sp.pinned and " on" or "") .. [[" id="pin" title="Pin: stays up beside the app">📌</button>
-<button id="send" title="Send today's text to Asana now">Asana</button>
+]] .. (sp.lastSaveErr and ('<span class="bad" title="' .. escapeHtml(sp.lastSaveErr) .. '">⚠ not saved</span>') or "") .. [[
+<button class="pin]] .. (sp.pinned and " on" or "") .. [[" id="pin" title="Pin: the pad stays up beside the app; Esc only hands the keyboard back">📌 ]] .. (sp.pinned and "Pinned" or "Pin") .. [[</button>
+<button id="send" title="Create today's Asana task now instead of waiting for 16:00">→ Asana now</button>
 <button id="close" title="Close (⇪1)">✕</button></header>
 <div id="tabs">]] .. table.concat(tabsHtml) .. [[<div class="tab add" id="add" title="New tab ⌘T">+</div></div>
 <textarea id="t" spellcheck="false" autofocus>]] .. escapeHtml(cur.text) .. [[</textarea>
@@ -547,6 +566,8 @@ var hdr = document.getElementById('bar');
 hdr.addEventListener('mousedown', function(e){ if (e.button !== 0 || e.target.tagName === 'BUTTON') return;
   e.preventDefault(); hdr.classList.add('dragging'); say({a:'dragStart'}); });
 window.addEventListener('mouseup', function(){ hdr.classList.remove('dragging'); });
+document.addEventListener('keyup', function(e){
+  if (e.key === 'F18' || e.keyCode === 79) say({a:'f18up'}); });
 document.addEventListener('keydown', function(e){
   var meta = e.metaKey || e.ctrlKey;
   if (e.key === 'Escape') { e.preventDefault(); say({a:'esc'}); return; }
@@ -602,6 +623,8 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
             sp.hide()
         elseif a == "dragStart" then
             sp.beginDrag()
+        elseif a == "f18up" then
+            if _G.hyperReleaseSeen then pcall(_G.hyperReleaseSeen, "the scratch pad") end
         end
     end
     sp.handleMessage = handleMessage   -- exposed for the test suite
@@ -777,6 +800,10 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
         sp.render()
         pcall(function() view:show() end)
         if sp.focusOnOpen then pcall(function() view:bringToFront(true) end) end
+        -- 6.165.1 — this pad has the keyboard now; nobody holds ⇪ through
+        -- that. If the F18 keyUp was lost on the way in, the watchdog
+        -- lets go after 1.5 s of silence instead of 8.
+        if _G.hyperExpectRelease then pcall(_G.hyperExpectRelease, 1.5, "the scratch pad") end
         sp.opens = sp.opens + 1
         say("pad opened — " .. #sp.tabs .. " tab" .. (#sp.tabs == 1 and "" or "s"))
     end
@@ -826,7 +853,8 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
         L[#L + 1] = "📝 Scratch Pad — ⇪" .. sp.key .. (sp.enabled and "" or " (disabled)")
         L[#L + 1] = "   store: " .. sp.file .. (sp.lastSaveErr and ("  ⚠️ " .. sp.lastSaveErr) or "")
         L[#L + 1] = "   tabs: " .. #sp.tabs .. " · history: " .. #sp.history
-                    .. " · saves: " .. sp.saves .. (sp.dirty and " · unsaved keystrokes pending" or "")
+                    .. " · saves: " .. sp.saves .. " · failed writes: " .. (sp.saveFails or 0)
+                    .. (sp.dirty and " · unsaved keystrokes pending" or "")
         L[#L + 1] = "   pad: " .. (sp.webview and "open" or "closed") .. (sp.pinned and " · 📌 pinned" or "")
                     .. " · opens: " .. sp.opens .. " · non-activating: " .. tostring(sp.nonActivatingWhy)
         L[#L + 1] = "   4 PM: at " .. sp.sendAt .. " · " .. sp.startTime .. " → " .. sp.dueTime

@@ -209,6 +209,9 @@ _G.asanaSubmitTask = function(title, desc, assignee, attach, extra)
 end
 
 local HYPER, WRITE_WARNS = {}, {}
+local EXPECTED, SEEN = {}, {}
+_G.hyperExpectRelease = function(secs, who) EXPECTED[#EXPECTED + 1] = { secs = secs, who = who } return true end
+_G.hyperReleaseSeen = function(who) SEEN[#SEEN + 1] = who return true end
 local CORE = {
     logsDir = "/logs",
     asanaEnabled = true,
@@ -253,6 +256,12 @@ out("2) typing — Lua at once, disk after the debounce, one held timer\n")
 sp.show()
 local view = WEBVIEWS[#WEBVIEWS]
 check("the pad opened one webview with the page in it", view and view.htmlSet and view.htmlSet:find("Scratch Pad", 1, true))
+check("an empty tab is named by its place, not 'Untitled'", view.htmlSet:find(">Scratch 1<", 1, true) ~= nil and view.htmlSet:find("Untitled", 1, true) == nil)
+check("opening told the hyper watchdog to expect the release within 1.5 s",
+      EXPECTED[#EXPECTED] and EXPECTED[#EXPECTED].secs == 1.5)
+msg({ a = "f18up" })
+check("an F18 keyUp seen by the page releases ⇪ through _G.hyperReleaseSeen", SEEN[#SEEN] == "the scratch pad")
+check("the header buttons say what they do", view.htmlSet:find("📌 Pin", 1, true) and view.htmlSet:find("→ Asana now", 1, true))
 check("allowTextEntry(true) so it takes typing", view.textEntry == true)
 check("closeOnEscape is OFF — the page decides what Esc means (pin)", view.closeOnEsc == false)
 check("floating level + every Space", view.lvl == 5 and view.behave and view.behave[1] == "canJoinAllSpaces")
@@ -399,9 +408,16 @@ WRITE_FAILS = true
 sp.setText(sp.active, "kept in memory")
 local okS = sp.saveNow()
 check("a failed write is reported once through core.warnWriteFailed", okS == false and WRITE_WARNS[#WRITE_WARNS] == "scratch pad store")
+check("...and SAID on screen, once per streak", ALERTS[#ALERTS]:find("NOT SAVED", 1, true) ~= nil)
+local nAl = #ALERTS
+sp.saveNow()
+check("...the second failure in the streak is silent", #ALERTS == nAl)
+check("...and the header wears the ⚠ badge on the next render", (function() sp.show(); local h = WEBVIEWS[#WEBVIEWS].htmlSet; sp.hide(); return h:find("⚠ not saved", 1, true) ~= nil end)())
 check("…and the text is still in Lua", sp.tabs[1].text == "kept in memory")
 check("…and the report shows the error", _G.scratchPadReport():find("⚠️", 1, true) ~= nil)
 WRITE_FAILS = false
+sp.saveNow()
+check("a write that succeeds again says so", ALERTS[#ALERTS]:find("Saving again", 1, true) ~= nil)
 
 -- a fresh module over a broken store starts empty and leaves the file
 FILES[sp.file] = "<<not json>>"
@@ -461,7 +477,7 @@ check("⇪N with the pad closed opens it with a 🗒 Capture tab active",
       sp.openKind("capture") == true and sp.webview ~= nil and sp.activeTab().kind == "capture")
 local cap = sp.activeTab()
 check("the tab bar shows the badge and the header shows the kind's hint",
-      WEBVIEWS[#WEBVIEWS].htmlSet:find("🗒 Untitled", 1, true) and WEBVIEWS[#WEBVIEWS].htmlSet:find("queues this for the 4 PM", 1, true))
+      WEBVIEWS[#WEBVIEWS].htmlSet:find("🗒 Capture", 1, true) and WEBVIEWS[#WEBVIEWS].htmlSet:find("queues this for the 4 PM", 1, true))
 msg({ a = "edit", id = cap.id, text = "call Dana about the SAC values", sel = 5 })
 sp.openKind("capture")
 check("⇪N again reuses the one Capture tab (no second)",
