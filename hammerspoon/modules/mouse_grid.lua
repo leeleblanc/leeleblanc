@@ -133,6 +133,7 @@
 -- doing nothing and looking broken.
 
 local M = {
+    version = "6.167.0",   -- printed by the report: which file is loaded
     name  = "Mouse Grid",
     order = 13.6,
     family = "windows",
@@ -149,12 +150,22 @@ local M = {
             { "space",    "Left click · ⇧space right click · 2 double click" },
             { "↑↓←→",     "Nudge 8pt · with ⇧ nudge 1pt for a tight target" },
             { "⎋",        "Done — leave the pointer where it is" },
-            { "⇪⇧L",      "Find the pointer — three white rings pulse out from it" },
+            { "⇪⇧L",      "Find the pointer — three white rings pulse out from it, again and again, for 5 s" },
+            { "",         "Sized to the screen (×1.5 on a 4K at full points); grid.locateRadius / locateSecs / locateScale to taste" },
             { "⌃⌥⌘⇧X",   "PANIC — tear the overlay down whatever state it is in" },
             { "check it", "_G.mouseGridReport() — cell size on THIS Mac" },
         },
     },
 }
+
+-- 6.167.0: a positive number from whatever a settings override holds
+-- ("2" is 2; 0, a negative or a word is `default`). Used by the pointer
+-- ring's scale, its frame function and the report alike.
+local function num(v, default)
+    v = tonumber(v)
+    if v and v > 0 then return v end
+    return default
+end
 
 function M.setup(core)
     local grid = {}
@@ -1297,6 +1308,19 @@ function M.setup(core)
                 and string.format("✅ a control inside the typed cell is landed on "
                                   .. "(≤5 hit-tests, %.0fms budget)", grid.snapBudget * 1000)
                 or  "⚪️ needs Accessibility — the cell centre stands in"))
+        -- 6.167.0: the ring's size IN EFFECT where the pointer is now, and
+        -- what the last press actually drew, for "still small".
+        do
+            local s = grid.locateScaleFor()
+            local last = grid.locateLast
+            out[#out + 1] = string.format(
+                "   ring    : ⇪⇧L (%s) · radius %d pt here (scale %.2f%s) · %s rings pulsing every %ss for %ss%s",
+                tostring(M.version), math.floor(num(grid.locateRadius, 110) * s + 0.5), s,
+                grid.locatePinned() and ", pinned by grid.locateScale" or " from the pointer's screen",
+                tostring(grid.locateRings), tostring(grid.locateCycle), tostring(grid.locateSecs),
+                last and string.format(" · last press drew radius %d at scale %.2f",
+                                       last.radius, last.scale) or "")
+        end
         print(table.concat(out, "\n"))
         return table.concat(out, "\n")
     end
@@ -1440,33 +1464,91 @@ function M.setup(core)
     -- rings outward, similar to a WiFi signal indicator." Three white
     -- rings leave the pointer one after another, growing and fading, on a
     -- held frame timer; the whole thing is over in locateSecs.
+    -- 6.167.0 — LL: "bigger, and stay up for at least 5 seconds." The
+    -- radius nearly doubles and is SIZED BY THE SCREEN (the same rule as
+    -- the hint card: ×1.5 on a 4K at full points, never below 1), the
+    -- pulse REPEATS every locateCycle seconds until locateSecs, and a
+    -- white dot flashes at the pointer with each pulse.
     grid.locateColor  = { red = 1, green = 1, blue = 1 }         -- white
-    grid.locateRadius = 60
-    grid.locateSecs   = 1.2
+    grid.locateRadius = 110     -- at scale 1 (was 60)
+    grid.locateSecs   = 6       -- how long the pointer is marked (was 1.2): five whole pulses
+    grid.locateCycle  = 1.2     -- one pulse of three rings; repeats until locateSecs
     grid.locateRings  = 3
     grid.locateStagger = 0.22   -- seconds between one ring leaving and the next
     grid.locateFps    = 30
+    grid.locateScale  = nil     -- nil = from the pointer's screen; a number pins it
+    grid.locateScaleBase = 1440 -- a screen this many points tall is scale 1
+    grid.locateScaleMax  = 2.5
     grid.locateCanvas = nil   -- HELD: an unreferenced canvas is collected
     grid.locateTimer  = nil   -- HELD: so is an unreferenced timer
     grid.locateAnim   = nil   -- HELD: the frame timer
 
-    -- The rings at time t (seconds since the press): each starts
-    -- locateStagger after the one before, grows from a dot to the edge
-    -- over its life and fades as it goes. Pure, so the suite can check it.
-    function grid.locateFrame(t)
-        local r, els = grid.locateRadius, {}
-        local life = grid.locateSecs - grid.locateStagger * (grid.locateRings - 1)
-        for i = 0, grid.locateRings - 1 do
-            local p = (t - i * grid.locateStagger) / life
-            if p >= 0 and p <= 1 then
-                els[#els + 1] = {
-                    type = "circle", action = "stroke",
-                    strokeColor = { red = grid.locateColor.red, green = grid.locateColor.green,
-                                    blue = grid.locateColor.blue, alpha = 0.95 * (1 - p) },
-                    strokeWidth = 4 - 2 * p,
-                    center = { x = r, y = r }, radius = 4 + (r - 8) * p,
-                }
+    -- The scale the ring is drawn at: pinned by grid.locateScale, else
+    -- the pointer's screen height over locateScaleBase, floor 1. A
+    -- CoreGraphics read (hs.mouse.getCurrentScreen is hs.screen), not AX.
+    -- A settings override is whatever LL typed: "2" is 2; 0, a negative
+    -- or a word is not a pin — one test (num, file scope) for the drawing
+    -- AND the report.
+    function grid.locatePinned() return num(grid.locateScale, nil) end
+    function grid.locateScaleFor()
+        local pin = grid.locatePinned()
+        if pin then return pin end
+        local f
+        pcall(function()
+            local scr = hs.mouse.getCurrentScreen()
+            if not scr then return end
+            -- fullFrame(), NOT frame(): frame() loses the menu bar and the
+            -- Dock, and a Dock that hides would resize the ring between
+            -- presses (the geometry rule this file already states).
+            local okFull, full = pcall(function() return scr:fullFrame() end)
+            f = (okFull and full) or scr:frame()
+        end)
+        local h = f and tonumber(f.h) or 0
+        local s = (h > 0) and (h / num(grid.locateScaleBase, 1440)) or 1
+        if s < 1 then s = 1 end
+        local max = num(grid.locateScaleMax, 2.5)
+        if s > max then s = max end
+        return s
+    end
+
+    -- The rings at time t (seconds since the press), drawn at radius r:
+    -- within each locateCycle the rings leave the pointer one after
+    -- another, locateStagger apart, grow from a dot to the edge over
+    -- their life and fade as they go; the cycle repeats until locateSecs,
+    -- with a white dot at the centre that flashes as each cycle starts.
+    -- Pure, so the suite can check it frame by frame.
+    function grid.locateFrame(t, r)
+        r = r or grid.locateRadius
+        local els = {}
+        -- Every knob is a settings override away from a typo: a bad one
+        -- falls back to the default rather than drawing NaN or nothing.
+        local secs, cycle = num(grid.locateSecs, 6), num(grid.locateCycle, 1.2)
+        local rings = math.floor(num(grid.locateRings, 3))
+        local stagger = tonumber(grid.locateStagger) or 0.22
+        if t >= 0 and t < secs then
+            local k = r / 60                        -- stroke and dot grow with the ring
+            if k < 1 then k = 1 end
+            local tc = t - math.floor(t / cycle) * cycle
+            local life = cycle - stagger * (rings - 1)
+            if life <= 0 then life = cycle end
+            for i = 0, rings - 1 do
+                local p = (tc - i * stagger) / life
+                if p >= 0 and p <= 1 then
+                    els[#els + 1] = {
+                        type = "circle", action = "stroke",
+                        strokeColor = { red = grid.locateColor.red, green = grid.locateColor.green,
+                                        blue = grid.locateColor.blue, alpha = 0.95 * (1 - p) },
+                        strokeWidth = (4 - 2 * p) * k,
+                        center = { x = r, y = r }, radius = 4 * k + (r - 8 * k) * p,
+                    }
+                end
             end
+            els[#els + 1] = {
+                type = "circle", action = "fill",
+                fillColor = { red = grid.locateColor.red, green = grid.locateColor.green,
+                              blue = grid.locateColor.blue, alpha = 0.9 - 0.6 * (tc / cycle) },
+                center = { x = r, y = r }, radius = 3 * k,
+            }
         end
         if #els == 0 then els[1] = { action = "skip" } end
         return els
@@ -1483,12 +1565,14 @@ function M.setup(core)
 
         local okPos, pos = pcall(hs.mouse.absolutePosition)
         if not (okPos and pos) then return false end
-        local r = grid.locateRadius
+        local s = grid.locateScaleFor()
+        local r = math.floor(grid.locateRadius * s + 0.5)
+        grid.locateLast = { scale = s, radius = r, at = os.time() }
         local okNew, c = pcall(hs.canvas.new,
                                { x = pos.x - r, y = pos.y - r, w = r * 2, h = r * 2 })
         if not (okNew and c) then return false end
         pcall(function()
-            c:replaceElements(grid.locateFrame(0))
+            c:replaceElements(grid.locateFrame(0, r))
             -- 🚨 6.66.0 — MATCH THE GRID'S OWN LEVEL AND BEHAVIOUR.
             -- This ring was the odd one out: "overlay" level and
             -- "stationary" behaviour, while the grid itself uses
@@ -1522,15 +1606,25 @@ function M.setup(core)
                 grid.locateAnim = nil
                 return
             end
-            pcall(function() c:replaceElements(grid.locateFrame(hs.timer.secondsSinceEpoch() - t0)) end)
+            pcall(function() c:replaceElements(grid.locateFrame(hs.timer.secondsSinceEpoch() - t0, r)) end)
         end)
         grid.locateAnim = okA and anim or nil
-        grid.locateTimer = hs.timer.doAfter(grid.locateSecs, function()
+        local okT, tmr = pcall(hs.timer.doAfter, num(grid.locateSecs, 6), function()
             if grid.locateAnim then pcall(function() grid.locateAnim:stop() end) end
             grid.locateAnim = nil
             pcall(function() c:delete() end)
             if grid.locateCanvas == c then grid.locateCanvas = nil end
         end)
+        if not (okT and tmr) then
+            -- No way to end it: take the ring down now rather than leave a
+            -- canvas and a 30 fps timer running until the next press.
+            if grid.locateAnim then pcall(function() grid.locateAnim:stop() end) end
+            grid.locateAnim = nil
+            pcall(function() c:delete() end)
+            grid.locateCanvas = nil
+            return false
+        end
+        grid.locateTimer = tmr
         return true
     end
 

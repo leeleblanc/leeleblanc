@@ -4,9 +4,49 @@
 -- =====================================================================
 -- 09-05-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.166.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.167.0
 -- =====================================================================
 
+-- NEW IN 6.167.0 — THE HINT CARD AND THE POINTER RING ARE SIZED BY THE SCREEN; THE RING STAYS 6 S:
+--   💡 LL, after 6.165.1 AND 6.166.0 each made the card bigger in points:
+--      "still small and does not seem to be taking new settings." The
+--      Console names the screen — an LG 4K — and at full points
+--      (3840 × 2160 @1x) a 20 pt line is 20 pixels. So hint.width (540)
+--      and hint.fontSize (20) are now for a screen hint.scaleBase (1440)
+--      points tall (fullFrame — a Dock that hides must not resize the
+--      card); a taller screen scales the WHOLE card up, margin included
+--      (×1.5 on that 4K → 810 wide, 30 pt), never down, capped at
+--      hint.scaleMax (2.5). settings = { shortcut_hints = { scale = 2 } }
+--      pins it ("2" pins too; 0, a negative or a word is not a pin, and
+--      the report never claims one the drawing ignores).
+--      THE THEORY IS UNPROVEN: a 4K at macOS's default "looks like
+--      1920×1080" reports ~1080 points tall and this release changes
+--      NOTHING there. So the config now says what it sees. One plain
+--      boot line, printed a turn after setup (init.lua applies a profile's
+--      settings AFTER setup; diag.say is verbose-only, which is why the
+--      6.163.0 "ready" line was never seen): "💡 shortcut hints 6.167.0 —
+--      card 810 wide · 30 pt · top-right · alpha 0.70 · scale 1.50
+--      (2160 pt tall, base 1440 · LG HDR 4K · 3840x2160@1x 60Hz)".
+--      _G.shortcutHintsReport() adds "file : 6.167.0 · <path> · modified"
+--      (an older shortcut_hints.lua still installed shows as one) and, on
+--      the "last" row, what the last press REALLY drew ("drawn 810×… at
+--      x,y · scale 1.50"), whatever screen the Console is on. If that line
+--      says @2x and scale 1.00, the screen is not the reason — then
+--      settings = { shortcut_hints = { scale = 1.5 } } is the knob.
+--   🖱 ⇪⇧L — LL: "bigger, and stay up for at least 5 seconds." The ring's
+--      radius is 110 at scale 1 (was 60) and follows the pointer's screen
+--      by the same rule (165 on that 4K; grid.locateScale pins it); the
+--      three-ring pulse REPEATS every grid.locateCycle (1.2 s) until
+--      grid.locateSecs — 6 s, five WHOLE pulses, so the last ring fades
+--      rather than blinking off — and a white dot at the pointer flashes
+--      with each pulse. grid.locateFrame(t, r) stays pure; a mistyped
+--      override (locateCycle 0, locateSecs "six") draws the defaults
+--      rather than NaN; a refused end-timer takes the ring down at once.
+--      _G.mouseGridReport() gains a "ring" line: version, the radius where
+--      the pointer is now, and what the last press drew.
+--   ✅ Gate: test_shortcut_hints 58 → 80, test_mouse_grid 343 → 362
+--      (6.166.0's note said 348; the gate said 343 — the 6,846 total was
+--      right). 6,846 → 6,887 checks, sixty-nine stages.
 -- NEW IN 6.166.0 — ⌃TAB, A 20 PT HINT CARD, WIN_PIN RETIRED, A WIFI RING, A QUIET BOOT:
 --   📝 ⌃Tab / ⌃⇧Tab cycle the scratch pad's tabs, wrapping (the page's
 --      own keydown, like ⌘T/⌘W/⌘1–9 — still no eventtap).
@@ -136,49 +176,10 @@
 --      payload and its skips, the three degrade paths, source sentries.
 --      6,850 → 6,932 checks, seventy stages. 6.163.0 and 6.162.1 verify
 --      remain open.
--- NEW IN 6.163.0 — AFTER A ⇪ KEY, A CARD OF ITS GROUP'S OTHER KEYS:
---   💡 LL: "when I execute my hyper key plus necessary additional keys,
---      I get a window that pops up with the shortcut keys that are also
---      applicable. So the Asana section is a good example. I always use
---      hyper key plus T, I should essentially get a tool tips window
---      that reminds me what other tools I have in the Asana section. It
---      should fade after 10 seconds or I should be able to hit escape and
---      have an instant vanish." Asked, and answered: a named group per
---      tool (not the broad family), only when the group has other keys,
---      any key dismisses it while Esc still reaches the picker, and it
---      sits bottom-right, small and translucent.
---   🗂 modules/shortcut_hints.lua. Every one of the 98 hyper combos is
---      filed in hint.groups under one of thirteen groups — Asana,
---      Screenshots, Clipboard & OCR, Notes & capture, Windows, Mouse,
---      Search & open, Browser & web, Text & snippets, Time & focus,
---      This Mac, Power tools, Files, Config & help. After ⇪T the card
---      reads ASANA · also, then ⇪A ⇪B ⇪C ⇪L with their cheat sheet
---      lines (a terse line gets its tool's name in front: "Autocorrect:
---      Toggle on/off"; a row's continuation lines fold in). Only keys
---      BOUND on that Mac are listed — never a forwarded chord, never the
---      key you pressed — plus ⌥Tab beside the window keys. A lone key
---      draws nothing. hint.holdSecs (10) then a fade; the first key or
---      click of any kind ends it at once, OBSERVED, never consumed. Not
---      a dismissal: Caps Lock itself, a key's auto-repeat, and the
---      shortcut's own synthetic clicks or keystrokes (hint.graceSecs).
---   🔌 The hook is in §3.12's hyperBind — the one place every hyper
---      shortcut passes — wrapped AFTER the shortcut runs, inside the
---      pause wrap, both dispatch paths. The card never takes focus and
---      never catches a click (⇪T's form keeps your typing); ladder rung
---      "hint" above the picker, under the pomodoro; the screen comes
---      from mainScreen(), never an AX read. Off: settings =
---      { shortcut_hints = { enabled = false } }. _G.shortcutHintsReport()
---      names the last press, the counts, and any bound key with no group.
---   ✅ Gate: test_shortcut_hints (57) — the Asana rows, the card's place
---      and levels, dismiss-without-consume, F18/auto-repeat/grace, the
---      fade, one card at a time, lone key / chord / pause / off, the
---      description rules, source sentries. 6,791 → 6,850 checks, sixty-
---      nine stages. 6.162.1 verify remains open.
-
--- (6.162.1 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.163.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.166.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.167.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -524,7 +525,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.166.0"
+_G.configVersion = "6.167.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

@@ -49,7 +49,8 @@ local M = {
     cheatsheet = {
         title = "💡 SHORTCUT HINTS (automatic — after a ⇪ key, its group's other keys)",
         entries = {
-            { "any ⇪ key", "A card bottom-right lists the group's other keys — Asana after ⇪T, and so on" },
+            { "any ⇪ key", "A card top-right lists the group's other keys — Asana after ⇪T, and so on" },
+            { "",           "Sized to the screen: 540 wide / 20 pt on a 1440-pt-tall screen, ×1.5 on a 4K at full points; settings shortcut_hints.scale pins it" },
             { "10 s",       "It fades by itself; any key or click makes it vanish at once (Esc included, and Esc still reaches the picker)" },
             { "settings",   "settings = { shortcut_hints = { enabled = false } } turns it off; hint.groups reshapes a group" },
             { "Console",    "_G.shortcutHintsReport() — what the last press resolved to" },
@@ -63,11 +64,22 @@ local hint = {
     fadeSecs  = 0.6,
     maxRows   = 16,        -- Windows is the biggest group (15 + ⌥Tab)
     graceSecs = 0.35,      -- a shortcut's OWN synthetic input must not dismiss it
-    width     = 540,       -- 6.166.0: 50% wider than 6.163.0's 360
+    width     = 540,       -- 6.166.0: 50% wider than 6.163.0's 360 — AT SCALE 1
     margin    = 18,        -- from the corner
     corner    = "top-right",   -- 6.165.1 (was bottom-right): "top-right" | "bottom-right"
     alpha     = 0.70,      -- 6.165.1: 20% more see-through (was 0.88)
-    fontSize  = 20,        -- 6.166.0: 20 pt (LL: "big enough to fit 20pt font")
+    fontSize  = 20,        -- 6.166.0: 20 pt (LL: "big enough to fit 20pt font") — AT SCALE 1
+    -- 🖥 6.167.0 — SIZED BY THE SCREEN. 6.165.1 and 6.166.0 each made the
+    -- card bigger in POINTS and LL saw no change: "still small and does
+    -- not seem to be taking new settings." The Console names the screen —
+    -- an LG 4K — and at full points (3840 × 2160) a 20 pt line is 20
+    -- pixels, a fifth of what it is on a Retina "looks like" setting.
+    -- width and fontSize above are for a screen scaleBase points tall;
+    -- a taller screen scales them up (×1.5 on that 4K), never down.
+    -- A number here pins it: settings = { shortcut_hints = { scale = 2 } }.
+    scale     = nil,
+    scaleBase = 1440,
+    scaleMax  = 2.5,
     -- combo (init.lua hyperCombo spelling) → group. Curated from the
     -- cheat sheet; a combo missing here draws no card (report says so).
     groups = {
@@ -147,10 +159,15 @@ local hint = {
     -- (the pause switch, read from _G.hsPauseCombo at press time too).
     silent = { ["shift+1"] = true },
     -- state
-    canvas = nil, tap = nil, holdTimer = nil, fadeTimer = nil, shownAt = 0,
+    canvas = nil, tap = nil, holdTimer = nil, fadeTimer = nil, readyTimer = nil, shownAt = 0,
     last = nil, shows = 0, dismissed = 0, faded = 0, tapWarned = false,
 }
 M.config = hint
+M.version = "6.167.0"
+-- The file this code came from, for the report: "which file is loaded"
+-- is the first question when a size change is not seen.
+M.file = "?"
+pcall(function() M.file = (debug.getinfo(1, "S").source:gsub("^@", "")) end)
 
 local GLYPH = { left = "←", right = "→", up = "↑", down = "↓", space = "space",
                 ["return"] = "⏎", escape = "esc", tab = "⇥", delete = "⌫" }
@@ -258,42 +275,99 @@ function M.setup(core)
     -- hs.screen.mainScreen() only: the screen with keyboard focus, no
     -- Accessibility question — this can run inside the tap callback on
     -- the work Mac, and an untimed AX read there is the 6.160.0 hang.
-    local function frameFor(h)
+    -- Returns the usable frame (placement: it clears the menu bar), the
+    -- FULL frame (the scale: frame() also loses the Dock, and a Dock that
+    -- hides would change the card between presses), the display's name
+    -- and its mode ("3840x2160@1x 60Hz" — the @1x/@2x that decides
+    -- whether points are pixels). All CoreGraphics, each read pcall'd.
+    local function screenInfo()
         local scr
         pcall(function() scr = hs.screen.mainScreen() end)
-        local f
+        local f, full, name, mode
         pcall(function() f = scr and scr:frame() end)
-        if not f then return nil end
-        local y = (hint.corner == "bottom-right") and (f.y + f.h - h - hint.margin)
-                  or (f.y + hint.margin)
-        return { x = f.x + f.w - hint.width - hint.margin, y = y, w = hint.width, h = h }
+        pcall(function() full = scr and scr:fullFrame() end)
+        pcall(function() name = scr and scr:name() end)
+        pcall(function() local m = scr and scr:currentMode(); mode = m and m.desc end)
+        return f, full or f, name, mode
     end
 
-    local function elements(group, rows, more)
+    -- 6.167.0: the factor everything on the card is drawn by — pinned
+    -- by hint.scale, else the screen's height over scaleBase, floor 1.
+    local function round(n) return math.floor(n + 0.5) end
+    -- A settings override is whatever LL typed: "2" is 2, and 0, a
+    -- negative or a word is not a pin — one test, used by scaleFor AND
+    -- the report, so the report never claims a pin the drawing ignores.
+    local function num(v, default)
+        v = tonumber(v)
+        if v and v > 0 then return v end
+        return default
+    end
+    function hint.pinned() return num(hint.scale, nil) end
+    function hint.scaleFor(f)
+        local pin = hint.pinned()
+        if pin then return pin end
+        local h = f and tonumber(f.h) or 0
+        local s = (h > 0) and (h / num(hint.scaleBase, 1440)) or 1
+        if s < 1 then s = 1 end
+        local max = num(hint.scaleMax, 2.5)
+        if s > max then s = max end
+        return s
+    end
+    -- The card's size in points at scale s, for the report and the tests.
+    function hint.sizeAt(s)
+        return round(num(hint.width, 540) * s), round(num(hint.fontSize, 20) * s)
+    end
+
+    local function frameFor(f, h, s)
+        local w = hint.sizeAt(s)
+        local m = round((tonumber(hint.margin) or 18) * s)
+        local y = (hint.corner == "bottom-right") and (f.y + f.h - h - m) or (f.y + m)
+        return { x = f.x + f.w - w - m, y = y, w = w, h = h }
+    end
+
+    -- One line saying what THIS file draws on THIS screen; the report's
+    -- "card" row and the boot line share it.
+    function hint.sizeLine()
+        local _, full, name, mode = screenInfo()
+        local s = hint.scaleFor(full)
+        local w, pt = hint.sizeAt(s)
+        local why = hint.pinned() and "pinned by hint.scale"
+                    or (full and (round(tonumber(full.h) or 0) .. " pt tall, base "
+                                  .. tostring(hint.scaleBase)))
+                    or "no screen"
+        return string.format("%d wide · %d pt · %s · alpha %.2f · scale %.2f (%s%s%s)",
+            w, pt, tostring(hint.corner), tonumber(hint.alpha) or 0, s, why,
+            name and (" · " .. tostring(name)) or "", mode and (" · " .. tostring(mode)) or "")
+    end
+
+    local function elements(group, rows, more, s)
         local bg, fg, dim = style()
-        local pad, line = 12, hint.fontSize + 7
+        local W, F = hint.sizeAt(s)
+        local pad, line = round(12 * s), F + round(7 * s)
+        local keyW, gap = round(78 * s), round(4 * s)
         local h = pad * 2 + line * (#rows + 1) + (more > 0 and line or 0)
         local els = {
             { type = "rectangle", action = "fill", fillColor = bg,
-              roundedRectRadii = { xRadius = 10, yRadius = 10 } },
+              roundedRectRadii = { xRadius = round(10 * s), yRadius = round(10 * s) } },
             { type = "text", text = group:upper() .. "  ·  also", textColor = dim,
-              textSize = hint.fontSize - 1,
-              frame = { x = pad, y = pad, w = hint.width - pad * 2, h = line } },
+              textSize = F - 1,
+              frame = { x = pad, y = pad, w = W - pad * 2, h = line } },
         }
         local y = pad + line
         for _, r in ipairs(rows) do
             els[#els + 1] = { type = "text", text = r[1], textColor = fg,
-                              textSize = hint.fontSize, textFont = "Menlo",
-                              frame = { x = pad, y = y, w = 78, h = line } }
+                              textSize = F, textFont = "Menlo",
+                              frame = { x = pad, y = y, w = keyW, h = line } }
             els[#els + 1] = { type = "text", text = r[2], textColor = fg,
-                              textSize = hint.fontSize, textLineBreak = "truncateTail",
-                              frame = { x = pad + 82, y = y, w = hint.width - pad * 2 - 82, h = line } }
+                              textSize = F, textLineBreak = "truncateTail",
+                              frame = { x = pad + keyW + gap, y = y,
+                                        w = W - pad * 2 - keyW - gap, h = line } }
             y = y + line
         end
         if more > 0 then
             els[#els + 1] = { type = "text", text = "… " .. more .. " more on ⇪/",
-                              textColor = dim, textSize = hint.fontSize - 1,
-                              frame = { x = pad, y = y, w = hint.width - pad * 2, h = line } }
+                              textColor = dim, textSize = F - 1,
+                              frame = { x = pad, y = y, w = W - pad * 2, h = line } }
         end
         return els, h
     end
@@ -365,9 +439,12 @@ function M.setup(core)
                       at = os.time() }
         if not rows then return false end
         hint.hide()   -- one card at a time; a new press restarts everything
-        local els, h = elements(group, rows, more)
-        local rect = frameFor(h)
-        if not rect then hint.last.why = "no screen"; return false end
+        local f, full = screenInfo()
+        if not f then hint.last.why = "no screen"; return false end
+        local s = hint.scaleFor(full)
+        local els, h = elements(group, rows, more, s)
+        local rect = frameFor(f, h, s)
+        hint.last.scale, hint.last.rect = s, rect
         local okNew, c = pcall(hs.canvas.new, rect)
         if not (okNew and c) then hint.last.why = "hs.canvas.new failed"; return false end
         hint.canvas = c
@@ -417,11 +494,28 @@ function M.setup(core)
                     .. hint.maxRows .. " rows max"
         L[#L + 1] = "   shown    : " .. hint.shows .. " · dismissed by a key/click " .. hint.dismissed
                     .. " · faded " .. hint.faded
+        -- 6.167.0: which file, and the size IN EFFECT on the Console's
+        -- screen — so "still small" is checked against what this file
+        -- actually draws, and an older file still installed shows as one.
+        do
+            local when = ""
+            pcall(function()
+                local t = hs.fs.attributes(M.file, "modification")
+                if t then when = " · modified " .. os.date("%Y-%m-%d %H:%M", t) end
+            end)
+            L[#L + 1] = "   file     : " .. tostring(M.version) .. " · " .. tostring(M.file) .. when
+            L[#L + 1] = "   card     : " .. hint.sizeLine()
+        end
         if hint.last then
-            L[#L + 1] = string.format("   last     : ⇪%s (%s) → %s · %d rows · %s%s",
+            local r = hint.last.rect
+            L[#L + 1] = string.format("   last     : ⇪%s (%s) → %s · %d rows · %s%s%s",
                 tostring(hint.last.combo), tostring(hint.last.source),
                 tostring(hint.last.group or "no group"), hint.last.rows or 0,
-                tostring(hint.last.why), hint.last.ended and (" · ended: " .. hint.last.ended) or "")
+                tostring(hint.last.why), hint.last.ended and (" · ended: " .. hint.last.ended) or "",
+                -- what was REALLY drawn, whatever screen the Console is on now
+                r and string.format(" · drawn %d×%d at %d,%d · scale %.2f",
+                                    round(r.w), round(r.h), round(r.x), round(r.y),
+                                    hint.last.scale or 1) or "")
         else
             L[#L + 1] = "   last     : nothing yet — press any ⇪ key"
         end
@@ -440,6 +534,18 @@ function M.setup(core)
     if core and core.provide then
         pcall(function() core.provide("shortcutHints.report", _G.shortcutHintsReport) end)
     end
+    -- 6.167.0 — ONE PLAIN CONSOLE LINE, A TURN LATER. init.lua applies a
+    -- profile's settings AFTER setup returns, and _G.diag.say prints
+    -- only in verbose mode — so the size in effect (a pinned hint.scale
+    -- included) goes through print once the overrides are in. LL reads
+    -- the boot log: this is the line that says what this file draws.
+    -- HELD, per the test_diagnostics sentry.
+    hint.readyTimer = hs.timer.doAfter(0, function()
+        hint.readyTimer = nil
+        pcall(function()
+            print("💡 shortcut hints " .. tostring(M.version) .. " — card " .. hint.sizeLine())
+        end)
+    end)
     say("ready — a card after each ⇪ key with group siblings; off with settings.shortcut_hints.enabled")
 end
 

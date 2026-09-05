@@ -53,6 +53,14 @@ Shortcut hints (6.163.0, modules/shortcut_hints.lua): hyperBind wraps every
 pressed fn to call `_G.shortcutHint(combo, source)` AFTER the shortcut. A
 NEW hyper key must be filed in `hint.groups` (combo → group) or the report
 lists it under "no group" and it never gets a card. Ladder rung `hint`.
+6.167.0: `hint.width`/`hint.fontSize` are for a screen `hint.scaleBase`
+(1440) points tall; `hint.scaleFor(fullFrame)` scales the card UP on a
+taller screen (LL's LG 4K at full points: ×1.5), never down; `hint.scale`
+pins it (`num()`: "2" pins, 0/negative/word does not — report and drawing
+share the test). The pointer ring (`grid.locateScaleFor`, mouse_grid)
+follows the same rule. Any NEW fixed-size canvas gets the same treatment.
+Boot lines meant for LL go through `print` (diag.say is verbose-only) and
+run a turn AFTER setup if they show a settings-overridable value.
 
 Scratch pad (6.164.0, modules/scratch_pad.lua, ⇪1): a webview on the
 Capture Pad recipe — NO eventtap, NO AX/window reads, every timer held.
@@ -199,11 +207,23 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
-- 6.166.0 verify with LL: ⌃Tab cycles the pad's tabs; the hint card's
-  20 pt type reads at arm's length (hint.fontSize / hint.width to taste);
-  ⇪⇧U does nothing (win_pin gone; any old pins in hs.settings are inert);
-  ⇪⇧L shows three white rings pulsing outward over ~1 s; boot prints no
-  EmmyLua lines.
+- 🚨 6.167.0 verify with LL — TWO OUTCOMES, read the Console either way:
+  the boot line "💡 shortcut hints 6.167.0 — card … scale … (… tall ·
+  <display> · WxH@1x|@2x)". (a) "@1x", scale 1.50, card 810 wide · 30 pt:
+  the 4K-at-full-points theory held and the card is visibly bigger.
+  (b) "@2x" / scale 1.00 / 540 wide: the screen was NOT the reason —
+  ship `settings = { shortcut_hints = { scale = 1.5 } }` (works either
+  way) and keep looking. No such line at all after a reload = an older
+  shortcut_hints.lua is still installed (hs-install.sh copies modules/;
+  a hand copy of init.lua alone does not) — `_G.shortcutHintsReport()`
+  "file :" names the loaded file and its mtime. Twice LL saw no change
+  from a size bump (6.165.1, 6.166.0); nothing is proven yet.
+  ⇪⇧L: a bigger ring (165 pt radius on the 4K @1x), three rings pulsing
+  five times over 6 s with a flashing centre dot; `_G.mouseGridReport()`
+  "ring :" line has the radius here and what the last press drew.
+- 6.166.0 verify with LL: ⌃Tab cycles the pad's tabs; ⇪⇧U does nothing
+  (win_pin gone; any old pins in hs.settings are inert); boot prints no
+  EmmyLua lines. (Card size and ring: superseded by 6.167.0.)
 - 🚨 6.165.1 verify with LL: after ⇪1 no "released by the watchdog"
   line — or one that says "the scratch pad had taken the keyboard" after
   ≤2 s, or "⇪ keyUp seen by the scratch pad"; typing goes into the pad

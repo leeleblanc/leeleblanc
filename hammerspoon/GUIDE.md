@@ -575,9 +575,9 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Sixty-four Lua suites, 6,741 checks, plus three more that run the Capture
+Sixty-four Lua suites, 6,782 checks, plus three more that run the Capture
 Pad's, the screenshot editor's and unified search's page JavaScript under
-`node` for a further 105 — **6,846 checks over sixty-nine stages** in
+`node` for a further 105 — **6,887 checks over sixty-nine stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 

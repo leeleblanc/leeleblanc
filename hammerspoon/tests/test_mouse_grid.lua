@@ -2157,16 +2157,45 @@ do
     check("...three rings, staggered, on a held frame timer",
           G.locateRings == 3 and G.locateAnim ~= nil)
     do
+        local function rings(f)
+            local r = {}
+            for _, e in ipairs(f) do if e.action == "stroke" then r[#r + 1] = e end end
+            return r
+        end
+        local function dot(f)
+            for _, e in ipairs(f) do if e.action == "fill" then return e end end
+            return nil
+        end
         local f0 = G.locateFrame(0)
         local fMid = G.locateFrame(G.locateStagger * 2 + 0.05)
         local fEnd = G.locateFrame(G.locateSecs + 0.1)
         check("at t=0 one ring has left, small and bright",
-              #f0 == 1 and f0[1].radius < 10 and f0[1].strokeColor.alpha > 0.9)
+              #rings(f0) == 1 and rings(f0)[1].radius < 12 and rings(f0)[1].strokeColor.alpha > 0.9)
         check("later all three are in flight, the first largest and faintest",
-              #fMid == 3 and fMid[1].radius > fMid[3].radius
-              and fMid[1].strokeColor.alpha < fMid[3].strokeColor.alpha)
+              #rings(fMid) == 3 and rings(fMid)[1].radius > rings(fMid)[3].radius
+              and rings(fMid)[1].strokeColor.alpha < rings(fMid)[3].strokeColor.alpha)
         check("after locateSecs the frame is empty (a skip element, never {})",
               #fEnd == 1 and fEnd[1].action == "skip")
+        -- 6.167.0 — LL: "make the mouse rings bigger and stay up for at
+        -- least 5 seconds."
+        check("6.167.0: the ring stays up at least 5 s and is nearly twice the size",
+              G.locateSecs >= 5 and G.locateRadius >= 100, G.locateSecs .. "/" .. G.locateRadius)
+        check("...for WHOLE pulses — locateSecs is a multiple of locateCycle, so the last ring fades, never blinks off",
+              math.abs(G.locateSecs / G.locateCycle - math.floor(G.locateSecs / G.locateCycle + 0.5)) < 1e-9)
+        local f2 = G.locateFrame(G.locateCycle + 0.01)
+        check("...the pulse REPEATS: just into the second cycle a fresh small ring has left",
+              #rings(f2) >= 1 and rings(f2)[1].radius < 12 and rings(f2)[1].strokeColor.alpha > 0.9)
+        local fLate = G.locateFrame(G.locateSecs - 0.05)
+        check("...and it is still pulsing just before locateSecs", #rings(fLate) >= 1)
+        check("...a white dot marks the pointer throughout, brightest as each pulse starts",
+              dot(f0) ~= nil and dot(f0).fillColor.alpha > 0.85
+              and dot(fMid) ~= nil and dot(fMid).fillColor.alpha < dot(f0).fillColor.alpha
+              and dot(fEnd) == nil)
+        local fBig = G.locateFrame(G.locateStagger * 2 + 0.05, 165)
+        check("...drawn at the radius asked for, strokes growing with it (a 4K ring is a 4K ring)",
+              rings(fBig)[1].radius > rings(fMid)[1].radius
+              and rings(fBig)[1].strokeWidth > rings(fMid)[1].strokeWidth
+              and rings(fBig)[1].center.x == 165)
     end
 
     -- 🚨 THE LEAK. A second press must REPLACE the first ring, not stack a
@@ -2195,6 +2224,68 @@ do
     hs.canvas.new = savedNew2
     check("a refused canvas allocation returns false instead of throwing",
           okNil and resNil == false)
+
+    -- 6.167.0 — SIZED BY THE SCREEN. LL's LG 4K at full points made a
+    -- 60-pt ring a speck; the radius follows the pointer's screen height
+    -- (scale 1 at locateScaleBase points tall, never below 1), and a
+    -- number in grid.locateScale pins it.
+    check("a 982-pt-tall screen is scale 1 — the ring never shrinks",
+          G.locateScaleFor() == 1, tostring(G.locateScaleFor()))
+    setScreens({ mkScreen(1, 0, 0, 3840, 2160) })
+    hs.mouse.absolutePosition({ x = 1000, y = 900 })
+    local s4 = G.locateScaleFor()
+    check("on a 4K at full points the scale is ×1.5 — from fullFrame (2160), not frame (menu bar and Dock gone)",
+          s4 == 1.5, tostring(s4))
+    check("...capped at locateScaleMax", (function()
+        setScreens({ mkScreen(1, 0, 0, 20000, 20000) })
+        local capped = G.locateScaleFor()
+        setScreens({ mkScreen(1, 0, 0, 3840, 2160) })
+        return capped == G.locateScaleMax
+    end)())
+    G.locate()
+    local big = CANVASES[#CANVASES]
+    local r4 = math.floor(G.locateRadius * s4 + 0.5)
+    check("...the canvas is that much bigger and still centred on the pointer",
+          big.frame.w == r4 * 2 and big.frame.x == 1000 - r4 and big.frame.y == 900 - r4,
+          tostring(big.frame.w))
+    check("...its first frame is drawn at that radius",
+          big.elements and big.elements[1] and big.elements[1].center
+          and big.elements[1].center.x == r4)
+    check("...and grid.locateLast says so for the report",
+          G.locateLast and G.locateLast.radius == r4 and G.locateLast.scale == s4)
+    G.locateScale = 2
+    G.locate()
+    check("grid.locateScale = 2 pins it (a settings override): radius 220",
+          CANVASES[#CANVASES].frame.w == 440 and G.locateScaleFor() == 2)
+    local rep = tostring(_G.mouseGridReport() or "")
+    check("the report's ring line names the version, the radius here and what the last press drew",
+          rep:find("ring    : ⇪⇧L (6.167.0) · radius 220 pt here (scale 2.00, pinned by grid.locateScale)", 1, true) ~= nil
+          and rep:find("last press drew radius 220 at scale 2.00", 1, true) ~= nil, rep:match("ring[^\n]*"))
+    G.locateScale = "1.5"
+    check("a pin typed as a string still pins", G.locateScaleFor() == 1.5)
+    G.locateScale = 0
+    check("locateScale = 0 is NOT a pin: the screen rule draws and the report says so",
+          G.locateScaleFor() == 1.5
+          and tostring(_G.mouseGridReport() or ""):find("from the pointer's screen", 1, true) ~= nil)
+    G.locateScale = nil
+    -- Mis-tuned overrides draw something sane, never NaN or nothing.
+    G.locateCycle = 0
+    local fz = G.locateFrame(0.3)
+    check("locateCycle = 0 falls back to the default instead of NaN frames",
+          #fz >= 2 and fz[#fz].fillColor.alpha == fz[#fz].fillColor.alpha)
+    G.locateCycle = 1.2
+    G.locateSecs = "six"
+    check("a non-numeric locateSecs neither throws nor leaves the ring up: locate() still returns true",
+          pcall(G.locate) and G.locateCanvas ~= nil)
+    G.locateSecs = 6
+    -- A doAfter that refuses must not leave a canvas and a 30 fps timer behind.
+    local savedAfter = hs.timer.doAfter
+    hs.timer.doAfter = function() error("no timers today") end
+    local okRef, resRef = pcall(G.locate)
+    hs.timer.doAfter = savedAfter
+    check("a refused end-timer takes the ring down at once and returns false",
+          okRef and resRef == false and G.locateCanvas == nil and G.locateAnim == nil)
+    setScreens(ONE)
 end
 
 -- =====================================================================

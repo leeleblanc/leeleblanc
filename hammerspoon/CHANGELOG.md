@@ -4,6 +4,47 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.167.0 — THE HINT CARD AND THE POINTER RING ARE SIZED BY THE SCREEN; THE RING STAYS 6 S:
+  💡 LL, after 6.165.1 AND 6.166.0 each made the card bigger in points:
+     "still small and does not seem to be taking new settings." The
+     Console names the screen — an LG 4K — and at full points
+     (3840 × 2160 @1x) a 20 pt line is 20 pixels. So hint.width (540)
+     and hint.fontSize (20) are now for a screen hint.scaleBase (1440)
+     points tall (fullFrame — a Dock that hides must not resize the
+     card); a taller screen scales the WHOLE card up, margin included
+     (×1.5 on that 4K → 810 wide, 30 pt), never down, capped at
+     hint.scaleMax (2.5). settings = { shortcut_hints = { scale = 2 } }
+     pins it ("2" pins too; 0, a negative or a word is not a pin, and
+     the report never claims one the drawing ignores).
+     THE THEORY IS UNPROVEN: a 4K at macOS's default "looks like
+     1920×1080" reports ~1080 points tall and this release changes
+     NOTHING there. So the config now says what it sees. One plain
+     boot line, printed a turn after setup (init.lua applies a profile's
+     settings AFTER setup; diag.say is verbose-only, which is why the
+     6.163.0 "ready" line was never seen): "💡 shortcut hints 6.167.0 —
+     card 810 wide · 30 pt · top-right · alpha 0.70 · scale 1.50
+     (2160 pt tall, base 1440 · LG HDR 4K · 3840x2160@1x 60Hz)".
+     _G.shortcutHintsReport() adds "file : 6.167.0 · <path> · modified"
+     (an older shortcut_hints.lua still installed shows as one) and, on
+     the "last" row, what the last press REALLY drew ("drawn 810×… at
+     x,y · scale 1.50"), whatever screen the Console is on. If that line
+     says @2x and scale 1.00, the screen is not the reason — then
+     settings = { shortcut_hints = { scale = 1.5 } } is the knob.
+  🖱 ⇪⇧L — LL: "bigger, and stay up for at least 5 seconds." The ring's
+     radius is 110 at scale 1 (was 60) and follows the pointer's screen
+     by the same rule (165 on that 4K; grid.locateScale pins it); the
+     three-ring pulse REPEATS every grid.locateCycle (1.2 s) until
+     grid.locateSecs — 6 s, five WHOLE pulses, so the last ring fades
+     rather than blinking off — and a white dot at the pointer flashes
+     with each pulse. grid.locateFrame(t, r) stays pure; a mistyped
+     override (locateCycle 0, locateSecs "six") draws the defaults
+     rather than NaN; a refused end-timer takes the ring down at once.
+     _G.mouseGridReport() gains a "ring" line: version, the radius where
+     the pointer is now, and what the last press drew.
+  ✅ Gate: test_shortcut_hints 58 → 80, test_mouse_grid 343 → 362
+     (6.166.0's note said 348; the gate said 343 — the 6,846 total was
+     right). 6,846 → 6,887 checks, sixty-nine stages.
+
 NEW IN 6.166.0 — ⌃TAB, A 20 PT HINT CARD, WIN_PIN RETIRED, A WIFI RING, A QUIET BOOT:
   📝 ⌃Tab / ⌃⇧Tab cycle the scratch pad's tabs, wrapping (the page's
      own keydown, like ⌘T/⌘W/⌘1–9 — still no eventtap).

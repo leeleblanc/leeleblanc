@@ -164,6 +164,95 @@ check("a dismiss tap exists and is running only while the card is up",
 check("the hold timer is HELD in the module table", hint.holdTimer ~= nil)
 
 -- =====================================================================
+out("\n=== 2b. Sized by the screen (6.167.0) ===\n")
+-- =====================================================================
+-- LL, twice: "still small and does not seem to be taking new settings".
+-- The Console named the screen — an LG 4K — and at full points 20 pt is
+-- 20 pixels. So width/fontSize are for a 1440-pt-tall screen and a
+-- taller one scales them up; hint.scale (a settings override) pins it.
+do
+    check("a 1385-pt-tall screen draws at scale 1 — never smaller than the numbers say",
+          hint.scaleFor({ x = 0, y = 25, w = 2560, h = 1385 }) == 1)
+    check("no screen at all is scale 1, not an error", hint.scaleFor(nil) == 1)
+    check("...and never past hint.scaleMax", hint.scaleFor({ h = 99999 }) == hint.scaleMax)
+    check("the module says which file and version it is",
+          M.version == "6.167.0" and type(M.file) == "string" and M.file:find("shortcut_hints.lua", 1, true) ~= nil)
+    local saved = hs.screen.mainScreen
+    hs.screen.mainScreen = function()
+        return { frame = function() return { x = 0, y = 25, w = 3840, h = 2135 } end,
+                 fullFrame = function() return { x = 0, y = 0, w = 3840, h = 2160 } end,
+                 name = function() return "LG HDR 4K" end,
+                 currentMode = function() return { w = 3840, h = 2160, scale = 1, desc = "3840x2160@1x 60Hz" } end }
+    end
+    local s = hint.scaleFor(hs.screen.mainScreen():fullFrame())
+    check("an LG 4K at full points is scale ×1.5 — from fullFrame (2160), not frame (menu bar and Dock gone)",
+          s == 1.5, tostring(s))
+    check("a press shows the card there", _G.shortcutHint("t", "alt+cmd+ctrl+t") == true)
+    local c4 = CANVASES[#CANVASES]
+    local w4, pt4 = hint.sizeAt(s)
+    check("...drawn 810 wide, flush with the top-right corner at a scaled margin (27, not 18)",
+          c4 and c4.rect.w == 810 and w4 == 810
+          and c4.rect.x + c4.rect.w == 3840 - 27 and c4.rect.y == 25 + 27,
+          c4 and (c4.rect.w .. " @ " .. c4.rect.x .. "," .. c4.rect.y))
+    local sizes = {}
+    for _, e in ipairs(c4 and c4.els or {}) do
+        if e.type == "text" and e.textFont == "Menlo" then sizes[#sizes + 1] = e.textSize end
+    end
+    check("...and the type is 30 pt, not 20", sizes[1] == pt4 and pt4 == 30, tostring(sizes[1]))
+    check("...the row frames grow with it (the key column is wider than 78)",
+          (function()
+              for _, e in ipairs(c4 and c4.els or {}) do
+                  if e.type == "text" and e.textFont == "Menlo" then return e.frame.w > 78 end
+              end
+              return false
+          end)())
+    check("...hint.last records the scale and the rect",
+          hint.last.scale == s and hint.last.rect and hint.last.rect.w == 810)
+    local rep = _G.shortcutHintsReport()
+    check("the report says the size in effect, so 'still small' is checked against it",
+          rep:find("card     : 810 wide · 30 pt · top-right", 1, true) ~= nil)
+    check("...names the display and its mode — @1x or @2x decides whether points are pixels",
+          rep:find("LG HDR 4K", 1, true) ~= nil and rep:find("3840x2160@1x", 1, true) ~= nil)
+    check("...says which file and version drew it",
+          rep:find("file     : 6.167.0 · ", 1, true) ~= nil)
+    check("...and what the last press REALLY drew, whatever screen the Console is on",
+          rep:find("drawn 810×", 1, true) ~= nil and rep:find("scale 1.50", 1, true) ~= nil)
+    hint.scale = 2
+    check("settings = { shortcut_hints = { scale = 2 } } pins it",
+          _G.shortcutHint("t", "alt+cmd+ctrl+t") == true and CANVASES[#CANVASES].rect.w == 1080
+          and select(2, hint.sizeAt(hint.scaleFor(nil))) == 40)
+    check("...and the report says so",
+          _G.shortcutHintsReport():find("pinned by hint.scale", 1, true) ~= nil)
+    hint.scale = "2"
+    check("a pin typed as a string (\"2\") still pins", hint.scaleFor(nil) == 2 and hint.pinned() == 2)
+    hint.scale = 0
+    check("scale = 0 (or a negative, or a word) is NOT a pin: the screen rule draws...",
+          hint.scaleFor(hs.screen.mainScreen():fullFrame()) == 1.5 and hint.pinned() == nil)
+    check("...and the report does not claim one",
+          _G.shortcutHintsReport():find("pinned by hint.scale", 1, true) == nil)
+    hint.scale = nil
+    hint.scaleMax = "2.5"
+    check("a scaleMax typed as a string does not throw", pcall(hint.scaleFor, { h = 99999 }))
+    hint.scaleMax = 2.5
+    -- The boot line: a plain print, one turn later — AFTER init.lua has
+    -- applied the profile's settings, and not behind diag.verbose.
+    local ready
+    for _, t in ipairs(TIMERS) do if t.secs == 0 and t.live then ready = t end end
+    check("setup armed a held 0-second timer for the boot line (hint.readyTimer)", ready ~= nil)
+    local savedPrint, got = print, {}
+    print = function(...) got[#got + 1] = table.concat({ ... }, " ") end
+    hint.scale = 2
+    if ready then ready.fn() end
+    print = savedPrint
+    hint.scale = nil
+    check("...it prints the size in effect with a pinned scale applied after setup — via print, not diag.say",
+          got[1] ~= nil and got[1]:find("💡 shortcut hints 6.167.0 — card 1080 wide · 40 pt", 1, true) ~= nil,
+          tostring(got[1]))
+    hint.hide()
+    hs.screen.mainScreen = saved
+end
+
+-- =====================================================================
 out("\n=== 3. Any key or click dismisses — observed, never consumed ===\n")
 -- =====================================================================
 _G.hyperActive = true
