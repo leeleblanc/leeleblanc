@@ -4,6 +4,33 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.162.1 — A LOST F18 keyUp CAN NO LONGER LATCH ⇪ FOR THE SESSION:
+  🚨 LL, minutes after installing 6.162.0: "everything I would type or
+     click went haywire. I lost control of my MacBook. It was scary."
+     Killing Hammerspoon cured it. 6.162.0 changed no running code, so
+     the review went after the mechanism instead of the diff, and
+     found it: the hyper modal was exited by exactly two events — the
+     Carbon released callback and the tap's F18 keyUp — and a
+     main-thread stall is precisely when both can miss the release
+     (macOS pulls the tap; the keyUp that arrived meanwhile is gone).
+     With ⇪ latched, every letter runs one of 98 shortcuts or is
+     re-sent as ⌘⇧⌃⌥+key, pickers grab the clicks, nothing types,
+     and nothing but a real Caps Lock press or a kill ends it. The
+     test harness reproduced it (F18 down, keyUp lost: bare "d" runs
+     ⇪D forever). What stalled is unproven — the Console shows only
+     panels opening at 21:44 — but the latch is what took the Mac.
+  🩹 The hold is TIMED. Every F18 keyDown (autorepeats included) and
+     every key the tap sees while ⇪ is down stamps _G.hyperHeldAt; a
+     held watchdog (_G.hyperLatchTimer) looks after _G.hyperLatchSecs
+     (8s) of SILENCE and lets go: "⌨️ ⇪ released by the watchdog —
+     held Ns with no key event and no F18 keyUp". A real hold keeps
+     stamping, so it never expires under a finger; a phantom one
+     cannot outlive 8 seconds. _G.hyperLatchReleases counts them.
+  ✅ Gate: test_hyper_key §15 — the lost keyUp is released, said, and
+     counted; a bare letter types again; the next ⇪ works as ever; a
+     long hold with keys arriving is never cut short; the real release
+     still clears the timer. 6,781 → 6,791 checks.
+
 NEW IN 6.162.0 — THE PUBLIC PACKS LIVE IN GIT; THE PRIVATE ONE IN ONEDRIVE:
   📦 LL, on 6.161.0 shipping with no snippets: "But is this wise? Can
      we do better? Will that be alright on my work MacBook? Why don't

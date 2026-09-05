@@ -28,6 +28,10 @@ work Mac.
 - Battery saver never dims the screen, never touches pmset/sudo; the hog
   caller-out never kills/pauses/renices apps.
 - ⇪⇧Z is reserved for later — do not bind it.
+- The hyper hold is TIMED (6.162.1, init.lua §3.12): a lost F18 keyUp
+  latched ⇪ and took LL's Mac. Any new path that enters the modal must go
+  through hyperEnter (it arms `_G.hyperLatchTimer`); any tap that sees keys
+  under ⇪ must call `_G.hyperTouch()`. Never add an untimed way in.
 
 ## Module contract
 
@@ -174,6 +178,12 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 🚨 6.162.1 verify with LL: rollback had left the home Mac on 6.160.0
+  (the version that hung it; mouse follows starts ON there — LL was told
+  ⇪⇧3 off). After installing 6.162.1: no "released by the watchdog" line
+  during normal use (one means a keyUp was lost and the guard worked);
+  holding ⇪ for a shortcut never drops mid-hold. What stalled at 21:44 on
+  Sep 4 is UNPROVEN — suspects: first ⇪⇧S icon pre-render on that Mac.
 - 6.162.0 verify with LL: after installing, ⇪⇧S shows ▸ TEXTPANDERS · 80 ·
   yours — pinned first (the 80 files MUST sit in a subfolder named
   `textpanders` inside OneDrive Logs/snippets, beside Mine/ — loose files

@@ -274,6 +274,9 @@ local function hyperTapCallback(ev)
             end
             return false
         end
+        -- 6.162.1: a key arriving while ⇪ is down proves the hold is real
+        -- (the latch watchdog in init.lua §3.12 lets a SILENT hold go).
+        if _G.hyperActive and _G.hyperTouch then _G.hyperTouch() end
         if not _G.hyperDispatchEngaged then return false end
         if _G.hyperActive then return _G.hyperTapDispatch(ev, t, code) end
         return _G.globalTapDispatch(ev, t, code)

@@ -974,6 +974,71 @@ do
 end
 
 -- =====================================================================
+section("15. A LOST F18 keyUp DOES NOT LATCH ⇪ FOR THE SESSION (6.162.1)")
+-- =====================================================================
+-- 🚨 LL: "everything I would type or click went haywire. I lost control
+-- of my MacBook." With the modal entered and no release ever arriving,
+-- every letter is a shortcut or a forwarded ⌘⇧⌃⌥ chord and nothing
+-- types until Hammerspoon dies. The watchdog lets a SILENT hold go; a
+-- real hold, which keeps producing key events, is never cut short.
+do
+  local w = world{ dropKeyUp = true }
+  loadHyperKey(w)
+  bindShortcuts(w)
+  runTimers(w)
+  w.now = 1000
+  w.mkEvent({}, "f18", true, false, false).post()     -- keyDown; keyUp is lost
+  check("⇪ is down after the press", w.SB.hyperActive == true and w.modal.entered)
+  check("...and a held watchdog timer exists for it",
+        w.SB.hyperLatchTimer ~= nil and w.SB.hyperLatchSecs == 8)
+  -- the release never comes; the clock passes the latch window
+  w.now = 1000 + w.SB.hyperLatchSecs + 1
+  runTimers(w)
+  check("🚨 the watchdog lets the phantom hold go — hyperActive false, modal exited",
+        w.SB.hyperActive == false and w.modal.entered == false,
+        tostring(w.SB.hyperActive) .. "/" .. tostring(w.modal.entered))
+  local said = false
+  for _, l in ipairs(w.printed) do if l:find("released by the watchdog", 1, true) then said = true end end
+  check("...and says so in the Console, counting the release",
+        said and w.SB.hyperLatchReleases == 1)
+  -- and typing is typing again: a bare 'd' must NOT run ⇪D
+  w.ran = {}
+  w.mkEvent({}, "d", true, false, false).post()
+  w.mkEvent({}, "d", false, false, false).post()
+  check("...so a bare letter afterwards is a letter, not a shortcut", #w.ran == 0, w.ran[1])
+  -- the next real press works as ever, and its release ends it
+  w.now = w.now + 1
+  w.dropKeyUp = false                                   -- the release arrives this time
+  pressCapsLock(w, nil)
+  check("the next ⇪ press enters and its release exits as before",
+        w.SB.hyperActive == false and w.SB.hyperLatchTimer == nil)
+end
+
+do
+  -- A REAL long hold with keys arriving is never cut short.
+  local w = world{}
+  loadHyperKey(w)
+  bindShortcuts(w)
+  runTimers(w)
+  w.now = 2000
+  w.mkEvent({}, "f18", true, false, false).post()
+  w.now = 2006
+  w.mkEvent({}, "d", true, false, false).post()        -- a key under the hold
+  w.mkEvent({}, "d", false, false, false).post()
+  check("a key seen under the hold restamps it", w.SB.hyperHeldAt == 2006)
+  w.now = 2009                                          -- 9s since the press, 3s since the key
+  local t = w.SB.hyperLatchTimer
+  w.SB.hyperLatchTimer = nil                            -- fire it by hand at THIS clock
+  t.fn()
+  check("🔒 the watchdog does NOT release a hold that is still producing keys",
+        w.SB.hyperActive == true and w.modal.entered == true)
+  check("...it re-arms for the remainder instead", w.SB.hyperLatchTimer ~= nil)
+  w.mkEvent({}, "f18", false, false, false).post()
+  check("the real release still ends it and clears the timer",
+        w.SB.hyperActive == false and w.SB.hyperLatchTimer == nil)
+end
+
+-- =====================================================================
 section("14. THE CHANGELOG CSV CANNOT GO STALE AGAIN")
 -- =====================================================================
 -- It sat on 6.63.0 for thirteen releases: version, date and the whole

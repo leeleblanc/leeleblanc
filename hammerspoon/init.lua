@@ -4,8 +4,35 @@
 -- =====================================================================
 -- 09-05-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.162.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.162.1
 -- =====================================================================
+
+-- NEW IN 6.162.1 — A LOST F18 keyUp CAN NO LONGER LATCH ⇪ FOR THE SESSION:
+--   🚨 LL, minutes after installing 6.162.0: "everything I would type or
+--      click went haywire. I lost control of my MacBook. It was scary."
+--      Killing Hammerspoon cured it. 6.162.0 changed no running code, so
+--      the review went after the mechanism instead of the diff, and
+--      found it: the hyper modal was exited by exactly two events — the
+--      Carbon released callback and the tap's F18 keyUp — and a
+--      main-thread stall is precisely when both can miss the release
+--      (macOS pulls the tap; the keyUp that arrived meanwhile is gone).
+--      With ⇪ latched, every letter runs one of 98 shortcuts or is
+--      re-sent as ⌘⇧⌃⌥+key, pickers grab the clicks, nothing types,
+--      and nothing but a real Caps Lock press or a kill ends it. The
+--      test harness reproduced it (F18 down, keyUp lost: bare "d" runs
+--      ⇪D forever). What stalled is unproven — the Console shows only
+--      panels opening at 21:44 — but the latch is what took the Mac.
+--   🩹 The hold is TIMED. Every F18 keyDown (autorepeats included) and
+--      every key the tap sees while ⇪ is down stamps _G.hyperHeldAt; a
+--      held watchdog (_G.hyperLatchTimer) looks after _G.hyperLatchSecs
+--      (8s) of SILENCE and lets go: "⌨️ ⇪ released by the watchdog —
+--      held Ns with no key event and no F18 keyUp". A real hold keeps
+--      stamping, so it never expires under a finger; a phantom one
+--      cannot outlive 8 seconds. _G.hyperLatchReleases counts them.
+--   ✅ Gate: test_hyper_key §15 — the lost keyUp is released, said, and
+--      counted; a bare letter types again; the next ⇪ works as ever; a
+--      long hold with keys arriving is never cut short; the real release
+--      still clears the timer. 6,781 → 6,791 checks.
 
 -- NEW IN 6.162.0 — THE PUBLIC PACKS LIVE IN GIT; THE PRIVATE ONE IN ONEDRIVE:
 --   📦 LL, on 6.161.0 shipping with no snippets: "But is this wise? Can
@@ -91,27 +118,10 @@
 --      call throw. The "slowest phase" line is still the way to read a
 --      slow press.
 
--- NEW IN 6.160.2 — MOUSE FOLLOWS FOCUS CAN NO LONGER HANG THE MAC:
---   🚨 LL: "I couldn't type. Hammerspoon was locking up my Mac and any
---      tool I would bring up would not go away until I quit Hammerspoon."
---      6.160.0 read the focused window through hs.window inside the AX
---      callback — no timeout, on the main thread, for every step of every
---      window move. One app slow to answer Accessibility and Hammerspoon
---      waited with it: no Esc for the picker on screen, no keystrokes
---      through the taps. Now every window question goes through
---      hs.axuielement WITH a timeout (mf.axTimeout, 150ms); the AX
---      callback does no work at all — it hands off to a held zero-delay
---      timer, and a drag's hundred notifications become one jump; and a
---      watchdog turns the feature OFF for the session after two jumps
---      over 250ms, on screen and in the Console. It also STARTS OFF now:
---      ⇪⇧3 opts in for the session, settings = { mouseFollows = { active
---      = true } } opts in for good. _G.mouseFollowsReport() shows the
---      last jump's time and the watchdog's verdict.
-
--- (6.160.1 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.160.2 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.162.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.162.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -457,7 +467,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.162.0"
+_G.configVersion = "6.162.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -1963,6 +1973,50 @@ _G.hyperCarbonPresses = 0    -- F18 arrived via hs.hotkey (Carbon)
 _G.hyperTapPresses    = 0    -- F18 arrived via the event tap
 _G.hyperDispatchEngaged = false   -- true once the dispatcher takes over
 
+-- 🚨 6.162.1 — A LOST F18 keyUp MUST NOT LATCH ⇪ FOR THE SESSION. LL:
+-- "everything I would type or click went haywire. I lost control of my
+-- MacBook." Until now the ONLY ways out of the modal were the Carbon
+-- released callback and the tap's F18 keyUp — and a main-thread stall is
+-- exactly when both can miss the release (macOS pulls the tap; the
+-- keyUp that arrived meanwhile is gone). With ⇪ latched, every letter
+-- runs a shortcut or is re-sent as ⌘⇧⌃⌥+key, pickers grab the clicks,
+-- and nothing types — until Hammerspoon is killed. So: the hold is TIMED.
+-- Every F18 keyDown (autorepeats included) and every key the tap sees
+-- while ⇪ is down stamps _G.hyperHeldAt; a held timer looks after
+-- _G.hyperLatchSecs of SILENCE and lets go, with a Console line. A real
+-- hold keeps stamping (F18 autorepeats), so it never expires under a
+-- finger; only a phantom one does. The next real ⇪ press works as ever.
+_G.hyperLatchSecs     = 8
+_G.hyperHeldAt        = 0
+_G.hyperLatchReleases = 0
+_G.hyperLatchTimer    = nil     -- HELD: an unreferenced timer is collected
+
+local hyperExit  -- forward: the watchdog calls it
+
+local function hyperWatchLatch(delay)
+    if _G.hyperLatchTimer then return end
+    _G.hyperLatchTimer = hs.timer.doAfter(delay, function()
+        _G.hyperLatchTimer = nil
+        if not _G.hyperActive then return end
+        local quiet = hs.timer.secondsSinceEpoch() - (_G.hyperHeldAt or 0)
+        if quiet < _G.hyperLatchSecs - 0.05 then
+            -- keys were still arriving under a real hold: look again
+            hyperWatchLatch(_G.hyperLatchSecs - quiet)
+            return
+        end
+        _G.hyperLatchReleases = _G.hyperLatchReleases + 1
+        print(string.format("⌨️ ⇪ released by the watchdog — held %.0fs with no "
+              .. "key event and no F18 keyUp (release #%d). Press Caps Lock "
+              .. "again as normal.", quiet, _G.hyperLatchReleases))
+        hyperExit()
+    end)
+end
+
+-- Any key the tap sees while ⇪ is down proves the hold is real.
+_G.hyperTouch = function()
+    if _G.hyperActive then _G.hyperHeldAt = hs.timer.secondsSinceEpoch() end
+end
+
 local function hyperEnter(via)
     if via == "carbon" then
         _G.hyperCarbonPresses = _G.hyperCarbonPresses + 1
@@ -1970,14 +2024,17 @@ local function hyperEnter(via)
         _G.hyperTapPresses = _G.hyperTapPresses + 1
     end
     _G.hyperActive = true
+    _G.hyperHeldAt = hs.timer.secondsSinceEpoch()
+    hyperWatchLatch(_G.hyperLatchSecs)
     -- When the tap is doing the dispatching, the modal is deliberately
     -- NOT entered: its bindings have been proven dead, and entering it
     -- would only re-register hotkeys that cannot fire.
     if not _G.hyperDispatchEngaged then _G.hyperModal:enter() end
 end
 
-local function hyperExit()
+hyperExit = function()
     _G.hyperActive = false
+    if _G.hyperLatchTimer then _G.hyperLatchTimer:stop(); _G.hyperLatchTimer = nil end
     if not _G.hyperDispatchEngaged then _G.hyperModal:exit() end
 end
 
