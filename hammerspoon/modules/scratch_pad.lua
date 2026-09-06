@@ -62,6 +62,17 @@
 -- and it stays on every Space above the app. ⇪1 and ✕ always close.
 -- No window is tracked, no Accessibility is read: nothing here can stall.
 --
+-- 🕸 ONE WINDOW WITH THE VAULT (6.173.0). LL: "Can I combine my Scorp
+-- Pad and this Vault Pad?" Yes: ⇪1 and ⇪3 now open the SAME window —
+-- the Vault's (modules/vault.lua). Its note list carries a 📝 SCRATCH
+-- section at the top with every tab here (Capture / Append tabs too),
+-- its text box edits them, and closed tabs sit under HISTORY on the
+-- right. This module keeps its brains: sp.tabs, the store, the history,
+-- the filing of kind tabs and the 4 PM task are all still here — the
+-- vault is only the window (sp.host()). `sp.viaVault = false` in a
+-- profile, or a Mac without the vault module, brings this module's own
+-- window back, unchanged.
+--
 -- 🚨 WHAT THIS MODULE DELIBERATELY DOES NOT DO. No eventtap (the page's
 -- own keydown handles ⌘T/⌘W/⌘1–9/Esc, so nothing can swallow a key
 -- system-wide). No AX or window-object reads. No timer that is not held. No
@@ -80,14 +91,15 @@ local M = {
     cheatsheet = {
         title = "📝 SCORP PAD (⇪1 — type, it saves; close as fast as you opened it)",
         entries = {
-            { "⇪1",        "Open / close the pad (tabs, text, history under it)" },
+            { "⇪1",        "Open the pad — inside the ⇪3 Vault window, on your scratch tabs (again closes)" },
             { "⌘T · ⌘W",   "New tab · close tab (its text goes to the history)" },
             { "⌘1…⌘9",     "Switch tab · ⌃Tab / ⌃⇧Tab cycle round them" },
-            { "history",   "Under the text: every closed tab, filter box, click to reopen" },
+            { "history",   "Right pane (in the vault): every closed tab, click to reopen" },
             { "📌",        "Pin: stays up beside the app; Esc only hands the keys back" },
             { "⇪N · ⇪2",   "Open here as a 🗒 Capture / ➕ Append tab; ⌘W files it where it went before" },
             { "16:00",     "One Asana task of the day: every tab, 07:30 → 16:00, you" },
             { "search",    "⇪space finds everything in the pad — tabs and history" },
+            { "own window","settings = { scratch_pad = { viaVault = false } } brings the old window back" },
             { "Console",   "_G.scratchPadReport() · _G.scratchPadSend()" },
         },
     },
@@ -110,6 +122,7 @@ function M.setup(core)
         focusOnOpen   = true,
         nonActivating = true,
         pinned        = false,
+        viaVault      = true,     -- 6.173.0 — ⇪1 opens inside the ⇪3 Vault window; false = this module's own window
 
         -- the 4 PM task
         sendAt        = "16:00",
@@ -205,6 +218,24 @@ function M.setup(core)
         },
     }
     function sp.kindOf(tab) return tab and tab.kind and sp.kinds[tab.kind] or nil end
+
+    -- 6.173.0 — the window that shows the tabs: the Vault's when it is
+    -- loaded and sp.viaVault is on, else this module's own (below).
+    function sp.host()
+        if not sp.viaVault then return nil end
+        local v = _G.vault
+        if type(v) == "table" and v.enabled ~= false and type(v.showScratch) == "function" then return v end
+        return nil
+    end
+    -- The host calls this as its window closes: kind tabs file where
+    -- they always did (a failure keeps the tab), the store is written.
+    function sp.onHostClose()
+        for i = #sp.tabs, 1, -1 do
+            local t = sp.tabs[i]
+            if sp.kindOf(t) then sp.closeTab(t.id) end
+        end
+        if sp.dirty then sp.saveNow() end
+    end
 
     -- ---- the store ----------------------------------------------------------
     local function ensureDir()
@@ -754,6 +785,8 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
     end
 
     function sp.hide()
+        local host = sp.host()
+        if not sp.webview and host and host.webview then host.hide() return end
         sp.endDrag()
         -- The old pads filed on close; their tabs still do. A failure
         -- keeps that tab (and the text) for next time.
@@ -785,6 +818,8 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
     function sp.show()
         if not sp.enabled then return end
         if sp.webview then sp.hide() return end
+        local host = sp.host()
+        if host then return host.toggleScratch() end
         return sp.open()
     end
 
@@ -802,6 +837,8 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
         t.updatedAt = os.time()
         sp.active, sp.caret = t.id, #t.text
         sp.scheduleSave()
+        local host = sp.host()
+        if host and not sp.webview then host.showScratch(t.id) return true end
         if sp.webview then sp.render() else sp.open() end
         return true
     end
@@ -892,8 +929,18 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
         key   = "⇪" .. sp.key,
         what  = "tabs saved as you type; ⇪N / ⇪2 open here too",
         order = 22,
-        view  = function() return sp.webview end,
-        show  = function() if not sp.webview then sp.show() end end,
+        view  = function()
+            if sp.webview then return sp.webview end
+            local host = sp.host()
+            if host and host.webview and host.doc and host.doc.scratch then return host.webview end
+            return nil
+        end,
+        show  = function()
+            local host = sp.host()
+            if sp.webview then return end
+            if host then if not (host.webview and host.doc and host.doc.scratch) then host.showScratch(nil) end
+            else sp.show() end
+        end,
         size  = function() local t = sp.activeTab(); return t and #(t.text or "") or 0 end,
         text  = function() local t = sp.activeTab(); return t and t.text or "" end,
     })
@@ -909,7 +956,9 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
         L[#L + 1] = "   tabs: " .. #sp.tabs .. " · history: " .. #sp.history
                     .. " · saves: " .. sp.saves .. " · failed writes: " .. (sp.saveFails or 0)
                     .. (sp.dirty and " · unsaved keystrokes pending" or "")
-        L[#L + 1] = "   pad: " .. (sp.webview and "open" or "closed") .. (sp.pinned and " · 📌 pinned" or "")
+        local host = sp.host()
+        L[#L + 1] = "   window: " .. (host and "the Vault's (⇪1 opens the tabs there; viaVault = false for its own)" or "its own")
+        L[#L + 1] = "   pad: " .. ((sp.webview or (host and host.webview)) and "open" or "closed") .. (sp.pinned and " · 📌 pinned" or "")
                     .. " · opens: " .. sp.opens .. " · non-activating: " .. tostring(sp.nonActivatingWhy)
         L[#L + 1] = "   4 PM: at " .. sp.sendAt .. " · " .. sp.startTime .. " → " .. sp.dueTime
                     .. " · assignee " .. sp.assignee .. " · "

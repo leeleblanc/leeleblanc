@@ -161,7 +161,8 @@ check("the escape router knows 'vault'", CLAIMED_ESC.vault ~= nil)
 check("an editors row and a movable panel row exist", #_G.editors == 1 and #_G.movablePanels == 1)
 check("vault.show / open / rescan / report are published",
       PROVIDED["vault.show"] and PROVIDED["vault.open"] and PROVIDED["vault.rescan"] and PROVIDED["vault.report"])
-check("the cheat sheet names ⇪3 and Obsidian", mod.cheatsheet.title:find("⇪3") and mod.cheatsheet.entries[8][1] == "Obsidian")
+check("the cheat sheet names ⇪3, ⇪1 and Obsidian", mod.cheatsheet.title:find("⇪3") and mod.cheatsheet.title:find("⇪1") and (function()
+    for _, e in ipairs(mod.cheatsheet.entries) do if e[1] == "Obsidian" then return true end end end)())
 do
     local src = io.open(HS .. "/modules/vault.lua") and "" or ""
     local f = io.open(HS .. "/modules/vault.lua", "r")
@@ -340,6 +341,87 @@ end
 do
     local r = _G.vaultReport()
     check("the report names the folder, the note count and Obsidian", r:find(VAULT, 1, true) and r:find("notes  : 7") and r:find("Obsidian"), r)
+end
+
+-- =======================================================================
+out("8) 6.173.0 — the Scorp Pad's tabs live in this window\n")
+-- =======================================================================
+do
+    -- a stand-in for scratch_pad's brain: tabs, history, the filing hooks
+    local PAD = { viaVault = true, tabs = {}, history = {}, historyRows = 200, active = nil, sets = {}, saves = 0,
+                  closedHost = 0, sent = 0, kinds = { capture = { badge = "🗒", label = "Capture", hint = "⌘W queues this" } } }
+    local n = 0
+    function PAD.newTab(text, kind) n = n + 1; local t = { id = "t" .. n, text = text or "", kind = kind }; PAD.tabs[#PAD.tabs + 1] = t; PAD.active = t.id; return t end
+    function PAD.findTab(id) for i, t in ipairs(PAD.tabs) do if t.id == id then return t, i end end end
+    function PAD.activeTab() return PAD.active and PAD.findTab(PAD.active) or PAD.tabs[1] end
+    function PAD.titleOf(t) local f = t.text:match("[^\n]*"); if f == "" then return (PAD.kinds[t.kind or ""] or {}).label or "Scratch" end return f end
+    function PAD.kindOf(t) return t and t.kind and PAD.kinds[t.kind] or nil end
+    function PAD.setText(id, text) local t = PAD.findTab(id); if t then t.text = text; PAD.sets[#PAD.sets + 1] = id .. "=" .. text end return t ~= nil end
+    function PAD.closeTab(id) local t, i = PAD.findTab(id); if not t then return false end table.remove(PAD.tabs, i)
+        if t.text ~= "" then table.insert(PAD.history, 1, { id = t.id, text = t.text, title = PAD.titleOf(t), closedAt = 0 }) end
+        if #PAD.tabs == 0 then PAD.newTab("") end
+        if PAD.active == id then PAD.active = PAD.tabs[math.min(i, #PAD.tabs)].id end return true end
+    function PAD.restore(id) for i, h in ipairs(PAD.history) do if h.id == id then table.remove(PAD.history, i); PAD.newTab(h.text); return true end end return false end
+    function PAD.onHostClose() PAD.closedHost = PAD.closedHost + 1 end
+    function PAD.send() PAD.sent = PAD.sent + 1; return true, "sent" end
+    function PAD.saveNow() PAD.saves = PAD.saves + 1 end
+    PAD.newTab("groceries\nmilk [[Alpha]]"); PAD.newTab("", "capture"); PAD.active = "t1"
+    _G.scratchPad = PAD
+
+    check("without the pad module, v.sp() is nil and nothing here changes", (function() local keep = _G.scratchPad; _G.scratchPad = nil; local r = v.sp(); _G.scratchPad = keep; return r == nil end)())
+    check("scratch_pad.viaVault = false keeps the pad's own window", (function() PAD.viaVault = false; local r = v.sp(); PAD.viaVault = true; return r == nil end)())
+    check("v.sp() finds the pad", v.sp() == PAD)
+
+    v.openNote("Gamma")
+    check("⇪1 (toggleScratch) with the window closed opens it on the active tab",
+          v.toggleScratch() and v.webview ~= nil and v.doc and v.doc.scratch == "t1" and v.doc.rel == "scratch:t1")
+    local h = v.webview.htmlSet
+    check("the list carries a 📝 SCRATCH section, the tab rows, + new tab, then 🕸 NOTES",
+          h:find("📝 SCRATCH", 1, true) and h:find('TABS = [{id:"t1",t:"groceries"', 1, true) and h:find("HASPAD = true", 1, true)
+          and h:find("🕸 NOTES", 1, true) and h:find("new tab ⌘T", 1, true))
+    check("a Capture tab row carries its badge and kind", h:find('{id:"t2",t:"Capture",b:"🗒",k:"capture"}', 1, true) ~= nil)
+    check("the header says Scorp Pad, offers ⌘W and → Asana now", h:find("📝 Scorp Pad", 1, true) and h:find("→ Asana now", 1, true) and h:find("a:'tabclose'", 1, true))
+    check("the right pane shows the tab's links out (Alpha) and HISTORY, not backlinks",
+          h:find("HISTORY", 1, true) and h:find('data-name="Alpha">→ Alpha', 1, true) and not h:find("BACKLINKS", 1, true))
+    check("the textarea holds the tab's text", h:find("<textarea", 1, true) and h:find(">groceries\nmilk [[Alpha]]</textarea>", 1, true))
+    local writes = 0
+    for k in pairs(FILES) do if k:find("scratch", 1, true) then writes = writes + 1 end end
+    msg({ a = "edit", rel = "scratch:t1", text = "groceries\nmilk, eggs", sel = 5 })
+    check("typing into a tab goes to the pad's setText, never to a file", PAD.sets[#PAD.sets] == "t1=groceries\nmilk, eggs" and v.doc.text == "groceries\nmilk, eggs" and not v.dirty and writes == 0)
+    check("v.links never learns a scratch rel", v.links["scratch:t1"] == nil)
+    msg({ a = "tabnew", rel = "scratch:t1", text = "groceries\nmilk, eggs", sel = 5 })
+    check("⌘T makes a new tab and opens it", #PAD.tabs == 3 and v.doc.scratch == "t3")
+    msg({ a = "tabnth", n = "1", rel = "scratch:t3", text = "", sel = 0 })
+    check("⌘1 opens the first tab", v.doc.scratch == "t1")
+    msg({ a = "tabcycle", d = 1, rel = "scratch:t1", text = v.doc.text, sel = 0 })
+    check("⌃Tab cycles to the next tab", v.doc.scratch == "t2")
+    msg({ a = "tabcycle", d = -1, rel = "scratch:t2", text = "", sel = 0 })
+    check("⌃⇧Tab cycles back", v.doc.scratch == "t1")
+    msg({ a = "tabclose", tid = "t1", rel = "scratch:t1", text = v.doc.text, sel = 0 })
+    check("⌘W closes the tab into the history and opens the pad's next active tab",
+          PAD.history[1] and PAD.history[1].id == "t1" and #PAD.tabs == 2 and v.doc.scratch == PAD.active and v.webview.htmlSet:find('data-hist="t1"', 1, true))
+    msg({ a = "restore", rid = "t1", rel = v.doc.rel, text = v.doc.text, sel = 0 })
+    check("a history click restores the tab and opens it", #PAD.history == 0 and #PAD.tabs == 3 and v.doc.text == "groceries\nmilk, eggs")
+    msg({ a = "send", rel = v.doc.rel, text = v.doc.text, sel = 0 })
+    check("→ Asana now is the pad's own send", PAD.sent == 1)
+    msg({ a = "open", name = "Gamma", rel = v.doc.rel, text = v.doc.text, sel = 0 })
+    check("a note row from a tab opens the note; the header is the Vault's again",
+          v.doc.rel == "Gamma.md" and v.webview.htmlSet:find("🕸 Vault", 1, true) and v.webview.htmlSet:find("BACKLINKS", 1, true))
+    check("…and the SCRATCH section is still listed", v.webview.htmlSet:find("📝 SCRATCH", 1, true) ~= nil)
+    check("⇪1 with a note open jumps to the tabs (no close)", v.toggleScratch() and v.webview ~= nil and v.doc.scratch ~= nil)
+    check("⇪1 with a tab open closes the window and lets the pad file its kind tabs",
+          v.toggleScratch() and v.webview == nil and PAD.closedHost == 1)
+    msg({ a = "pin" })
+    check("📌 pins: remembered, and the escape router stands aside", v.pinned == true and SETTINGS["vault.pinned"] == true)
+    v.show()
+    check("…while pinned, the router's present() is false with the window open", v.webview ~= nil and CLAIMED_ESC.vault.present() == false)
+    local before = v.webview
+    msg({ a = "esc", rel = v.doc.rel, text = v.doc.text, sel = 0 })
+    check("Esc on a pinned window only hands the keys back", v.webview == before)
+    msg({ a = "pin" })
+    v.hide()
+    check("the report has the scratch line", _G.vaultReport():find("scratch: 3 tabs of the Scorp Pad", 1, true) ~= nil)
+    _G.scratchPad = nil
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))

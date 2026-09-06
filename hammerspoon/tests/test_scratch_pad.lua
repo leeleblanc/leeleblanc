@@ -442,6 +442,53 @@ check("an unreadable store starts with one blank tab and leaves the file", #sp2.
 check("…and says so in the report", _G.scratchPadReport():find("unreadable", 1, true) ~= nil)
 
 -- =======================================================================
+out("7b) 6.173.0 — hosted in the Vault window\n")
+-- =======================================================================
+do
+    local HOST = { enabled = true, webview = nil, doc = nil, shows = {}, toggles = 0, hides = 0 }
+    function HOST.showScratch(id) HOST.shows[#HOST.shows + 1] = id or "active"; HOST.webview = HOST.webview or {}; HOST.doc = { scratch = id or sp2.active } return true end
+    function HOST.toggleScratch() HOST.toggles = HOST.toggles + 1; if HOST.webview then HOST.webview = nil; HOST.doc = nil else HOST.showScratch(nil) end return true end
+    function HOST.hide() HOST.hides = HOST.hides + 1; HOST.webview = nil; HOST.doc = nil end
+    _G.vault = HOST
+    check("sp.host() is the vault when it is loaded and viaVault is on", sp2.host() == HOST and sp2.viaVault == true)
+    sp2.viaVault = false
+    check("viaVault = false → no host (the pad's own window)", sp2.host() == nil)
+    sp2.viaVault = true
+    HOST.enabled = false
+    check("a disabled vault is no host", sp2.host() == nil)
+    HOST.enabled = true
+    sp2.show()
+    check("⇪1 opens the vault on the tabs, no window of its own", HOST.toggles == 1 and HOST.webview ~= nil and sp2.webview == nil)
+    sp2.show()
+    check("⇪1 again closes it through the host", HOST.toggles == 2 and HOST.webview == nil)
+    sp2.openKind("capture", { text = "from ⇪N" })
+    local ct
+    for _, t in ipairs(sp2.tabs) do if t.kind == "capture" then ct = t end end
+    check("⇪N makes the Capture tab and shows it in the vault", ct and ct.text == "from ⇪N" and HOST.shows[#HOST.shows] == ct.id and sp2.active == ct.id)
+    local ed
+    for _, e in ipairs(_G.editors) do if e.name == "Scorp Pad" then ed = e end end
+    check("the editors entry reports the host window while a tab is open there", ed and ed.view() == HOST.webview)
+    HOST.doc = { rel = "Alpha.md" }
+    check("…and nothing while the host shows a note", ed and ed.view() == nil)
+    local plainBefore = 0
+    for _, t in ipairs(sp2.tabs) do if not t.kind then plainBefore = plainBefore + 1 end end
+    local keepSvc = _G.service
+    local QUEUED = {}
+    _G.service = { has = function(n) return n == "capturePad.add" end,
+                   call = function(n, text) if n == "capturePad.add" then QUEUED[#QUEUED + 1] = text return true end end }
+    sp2.onHostClose()
+    _G.service = keepSvc
+    local plainAfter = 0
+    for _, t in ipairs(sp2.tabs) do if not t.kind then plainAfter = plainAfter + 1 end end
+    check("the host closing files the Capture tab (capturePad.add) and keeps plain tabs",
+          ct and sp2.findTab(ct.id) == nil and QUEUED[1] == "from ⇪N" and plainAfter == plainBefore)
+    sp2.hide()
+    check("sp.hide with the host open closes the host", HOST.hides == 1)
+    check("the report says whose window it is", _G.scratchPadReport():find("window: the Vault's", 1, true) ~= nil)
+    _G.vault = nil
+end
+
+-- =======================================================================
 out("8) the source itself — no tap, no AX, wired everywhere\n")
 -- =======================================================================
 local function slurp(p) local f = assert(realIoOpen(p)); local s = f:read("a"); f:close(); return s end

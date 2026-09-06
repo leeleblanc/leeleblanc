@@ -45,5 +45,19 @@ v.setNotes({ "Alpha.md", "Projects/Beta.md", "Gamma.md", "Long Name Here.md" })
 v.setLinkLines("/od/Vault/Alpha.md:[[Beta|B]]\n/od/Vault/Gamma.md:[[Alpha]]\n/od/Vault/Gamma.md:[[Delta]]\n")
 v.doc = { name = "Alpha", rel = "Alpha.md", path = "/od/Vault/Alpha.md", key = "alpha", text = "# Alpha\n\nsee [[Beta|B]] and [x](../Docs/x.pdf)\n" }
 v.links["Alpha.md"] = v.linksIn(v.doc.text)
+-- 6.173.0 — "pad" as the second argument: the Scorp Pad's tabs in the list, a tab open
+if arg[2] == "pad" then
+  local PAD = { viaVault = true, historyRows = 200, kinds = { capture = { badge = "🗒", label = "Capture", hint = "⌘W queues this" } },
+                tabs = { { id = "t1", text = "groceries\nmilk [[Alpha]]" }, { id = "t2", text = "", kind = "capture" } },
+                history = { { id = "h1", title = "old list", text = "old", closedAt = 0 } }, active = "t1" }
+  function PAD.findTab(id) for _, t in ipairs(PAD.tabs) do if t.id == id then return t end end end
+  function PAD.activeTab() return PAD.findTab(PAD.active) end
+  function PAD.titleOf(t) local f = t.text:match("[^\n]*"); if f == "" then return (PAD.kinds[t.kind or ""] or {}).label or "Scratch" end return f end
+  function PAD.kindOf(t) return t and t.kind and PAD.kinds[t.kind] or nil end
+  function PAD.setText(id, text) local t = PAD.findTab(id); if t then t.text = text end return t ~= nil end
+  function PAD.newTab() return nil end
+  _G.scratchPad = PAD
+  v.openScratch("t1")
+end
 v.open()
 io.write(out[#out] or "")

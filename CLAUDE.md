@@ -100,7 +100,15 @@ note it is not opening (OneDrive placeholders block on read). Links:
 case-insensitive; files elsewhere as RELATIVE Markdown links (⌘K). Same
 webview recipe as the Scorp Pad (no eventtap, held timers, text in Lua
 per key, .md written 0.3 s later). Page JS has its own gate stage (3d,
-test_vault_js). ⇪3 is now SPENT.
+test_vault_js — run on TWO dumps, plain and `pad`). ⇪3 is now SPENT.
+6.173.0: the Vault window HOSTS the Scorp Pad — ⇪1 and ⇪3 open the same
+window (`sp.host()` → `v.toggleScratch()` / `v.showScratch(id)`); a
+scratch tab is `v.doc = { scratch = id, rel = "scratch:<id>" }`, its
+text goes to `sp.setText` (never a file, never `v.links`), the pad keeps
+tabs/store/history/filing/4 PM; `v.hide` calls `sp.onHostClose()` so
+kind tabs still file. `v.sp()` is the ONLY bridge; `scratch_pad.viaVault
+= false` restores the pad's own window (all its old code is intact and
+still tested). 📌 pin = `v.pinned` in hs.settings "vault.pinned".
 
 Pause switch (6.152.0): ⇪⇧1 toggles `_G.hsPaused` (power_tools). Hyper
 shortcuts are suppressed CENTRALLY in init.lua's hyperBind (the pause key
@@ -237,13 +245,20 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 6.173.0 verify with LL: ⇪1 opens the Vault window on the scratch
+  tabs (📝 SCRATCH section on top, 🕸 NOTES under); typing into a tab
+  survives close + reopen + reload (store unchanged:
+  Logs/scratch/scratch.json); ⌘W sends a tab to HISTORY on the right
+  and a click brings it back; ⇪N / ⇪2 open Capture / Append tabs there
+  and ⌘W files them; the 4 PM task still lands ("Scorp pad · <day>");
+  ⇪1 with a note open jumps to the tabs, ⇪1 on a tab closes; 📌 pins;
+  no "released by the watchdog" line. If LL wants the old separate pad:
+  `settings = { scratch_pad = { viaVault = false } }`.
 - 6.172.1 verify with LL: ⇪X, land, HOLD ↓ — the pointer speeds up
   (8→64 pt); a tap still moves 8. ⇪4 a shot, then ⇪O — its words are the
   newest row (rule: OCR done outside ocr_engine calls `ocr.record`; that
-  is the only writer of the log). Scorp Pad solid. LL asked to MERGE the
-  Scorp Pad and the Vault into one window — shape not yet agreed (see
-  chat: scratch tabs as a section of the vault's note list vs. the vault
-  as a tab kind in the pad); do not build until LL picks.
+  is the only writer of the log). Scorp Pad solid. (The pad/vault MERGE LL asked for shipped as
+  6.173.0 — the vault absorbed the pad.)
 - 6.172.0 verify with LL: ⇪3 opens the Vault (1240×820) and creates
   <OneDrive>/Vault on first use (Console `_G.vaultReport()` "folder :"
   line; "no OneDrive found — local only" on a Mac without it); ⌘N a

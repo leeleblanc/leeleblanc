@@ -58,6 +58,19 @@
 -- write is said once and retried on the next key; the text is never
 -- only in the page.
 --
+-- 📝 THE SCORP PAD LIVES HERE TOO (6.173.0). LL: "Can I combine my
+-- Scorp Pad and this Vault Pad?" ⇪1 and ⇪3 open this one window. The
+-- note list starts with a 📝 SCRATCH section — every scratch tab
+-- (Capture / Append tabs too), × to close one, + for a new one — and
+-- the text box edits a tab exactly as it edits a note: every key lands
+-- in scratch_pad's sp.tabs, its store 0.3 s later. With a tab open the
+-- right pane shows its [[links]] and the HISTORY of closed tabs (click
+-- to bring one back). ⌘T / ⌘W / ⌘1–9 / ⌃Tab work the tabs from
+-- anywhere in the window; "→ Asana now" and the 4 PM task are the
+-- pad's own, untouched. 📌 pins the window (Esc only hands the keys
+-- back). scratch_pad keeps every brain; v.sp() is the only bridge, and
+-- with `scratch_pad.viaVault = false` the pad's own window returns.
+--
 -- 🚨 WHAT THIS MODULE DELIBERATELY DOES NOT DO. No eventtap (the page's
 -- own keydown handles ⌘N/⌘D/⌘G/⌘K/⌘⏎/Esc). No AX or hs.window read. No
 -- timer that is not held. No read of a note that is not open. No file
@@ -72,15 +85,17 @@ local M = {
     summary = "⇪3 linked Markdown notes in OneDrive: [[wikilinks]], backlinks, "
               .. "a graph of the connections, Obsidian-compatible files",
     cheatsheet = {
-        title = "🕸 VAULT (⇪3 — Markdown notes that link to each other, in OneDrive)",
+        title = "🕸 VAULT (⇪3 / ⇪1 — Markdown notes that link to each other, in OneDrive; the Scorp Pad's tabs too)",
         entries = {
-            { "⇪3",         "Open / close the vault (notes left, text middle, links right)" },
+            { "⇪3 · ⇪1",    "Open / close the window — ⇪3 on your last note, ⇪1 on your scratch tabs" },
+            { "📝 SCRATCH",  "Top of the list: the Scorp Pad's tabs · ⌘T new · ⌘W close · ⌘1–9 · ⌃Tab · history on the right" },
             { "[[",         "Type [[ and pick a note — [[Name]] links to Name.md, creating it on follow" },
             { "⌘⏎",         "Follow the link under the caret (a note, or a file link opens the file)" },
             { "⌘N · ⌘D",    "New note · today's daily note (Daily/YYYY-MM-DD.md)" },
             { "⌘G",         "Graph: every note a dot, every link a line; click a dot, drag to untangle" },
             { "⌘K",         "Link a file from anywhere in OneDrive (a relative Markdown link)" },
-            { "⌘F · ↑↓ ⏎",  "Filter the note list · walk it (⌥↑/⌥↓ from inside the text)" },
+            { "⌘F · ↑↓ ⏎",  "Filter the list · walk it (⌥↑/⌥↓ from inside the text)" },
+            { "📌",          "Pin: the window stays up beside the app; Esc only hands the keys back" },
             { "Obsidian",   "Open the same folder as a vault in Obsidian — plug-ins and all" },
             { "Console",    "_G.vaultReport() · _G.vaultRescan()" },
         },
@@ -115,7 +130,7 @@ function M.setup(core)
         scanErr = nil, linkLines = 0, partial = false,
         dragTimer = nil, dragOffset = nil, opens = 0,
         nonActivatingApplied = false, nonActivatingWhy = "not requested",
-        caret = 0, filter = "", view = "edit", pos = nil,
+        caret = 0, filter = "", view = "edit", pos = nil, pinned = false,
     }
     M.config = v
     _G.vault = v
@@ -143,6 +158,49 @@ function M.setup(core)
         end
     end
     local function keyOf(name) return trim(name):lower() end
+
+    -- ---- 6.173.0 — the Scorp Pad's tabs, shown and edited here ------------
+    -- The pad module owns the tabs, the store, the history, the filing
+    -- and the 4 PM task; this is the only way this module reaches them.
+    function v.sp()
+        local sp = _G.scratchPad
+        if type(sp) == "table" and sp.viaVault ~= false and type(sp.tabs) == "table"
+           and type(sp.setText) == "function" then return sp end
+        return nil
+    end
+    local function scratchRel(id) return "scratch:" .. tostring(id) end
+
+    -- Make a scratch tab the open document. nil = the pad's active tab
+    -- (a blank one is made if there are none).
+    function v.openScratch(id)
+        local sp = v.sp()
+        if not sp then return false, "the Scorp Pad is not loaded" end
+        if v.doc and v.dirty then v.saveNow() end
+        local t = id and sp.findTab(tostring(id)) or nil
+        if not t then t = sp.activeTab() end
+        if not t then t = sp.newTab("") end
+        if not t then return false, "no tab" end
+        sp.active = t.id
+        v.doc = { scratch = t.id, name = sp.titleOf(t), rel = scratchRel(t.id), text = tostring(t.text or ""),
+                  kind = t.kind }
+        v.dirty = false
+        v.caret = #v.doc.text
+        v.view = "edit"
+        say("scratch tab " .. tostring(t.id))
+        return true
+    end
+    function v.showScratch(id)
+        local ok, why = v.openScratch(id)
+        if not ok then return false, why end
+        if v.webview then v.render() else v.open() end
+        return true
+    end
+    -- ⇪1: closed → open on the tabs; open on a note → jump to the tabs;
+    -- open on a tab → close (the pad's open/close feel).
+    function v.toggleScratch()
+        if v.webview and v.doc and v.doc.scratch then v.hide() return true end
+        return v.showScratch(nil)
+    end
 
     -- ---- names and paths -----------------------------------------------------
     -- A note is known by its file name without .md, case-insensitively.
@@ -230,7 +288,7 @@ function M.setup(core)
         end
         v.linkLines = count
         -- the open note's own links are always the live ones
-        if v.doc then links[v.doc.rel] = v.linksIn(v.doc.text) end
+        if v.doc and not v.doc.scratch then links[v.doc.rel] = v.linksIn(v.doc.text) end
         v.links = links
         rebuildBacklinks()
     end
@@ -302,6 +360,7 @@ function M.setup(core)
         if v.saveTimer then pcall(function() v.saveTimer:stop() end); v.saveTimer = nil end
         local d = v.doc
         if not d then return true end
+        if d.scratch then v.dirty = false; return true end     -- the pad's store, on the pad's timer
         local function failed(why)
             v.lastSaveErr = why
             v.saveFails = v.saveFails + 1
@@ -345,6 +404,13 @@ function M.setup(core)
     function v.setText(text)
         if not v.doc then return end
         text = tostring(text or "")
+        if v.doc.scratch then
+            -- a tab: the pad's copy is the truth, its 0.3 s timer writes the store
+            local sp = v.sp()
+            if sp and text ~= v.doc.text then sp.setText(v.doc.scratch, text) end
+            v.doc.text = text
+            return
+        end
         if text ~= v.doc.text then
             v.doc.text = text
             v.dirty = true
@@ -489,8 +555,9 @@ function M.setup(core)
     function v.buildHtml()
         local d = v.doc
         local outs, backs = {}, {}
+        local sp = v.sp()
         if d then
-            for _, t in ipairs(v.links[d.rel] or {}) do
+            for _, t in ipairs(d.scratch and v.linksIn(d.text) or v.links[d.rel] or {}) do
                 local n = v.byKey[keyOf(t)]
                 outs[#outs + 1] = '<li class="lnk' .. (n and "" or " ghost") .. '" data-name="' .. escapeHtml(t) .. '">'
                     .. (n and "→ " or "→ ✚ ") .. escapeHtml(t) .. '</li>'
@@ -504,6 +571,24 @@ function M.setup(core)
         if fs < 8 then fs = 8 end
         local status = v.scanning and "scanning…" or (v.scanErr and ("⚠ " .. v.scanErr) or (#v.notes .. " notes"))
         if v.partial then status = status .. " (partial)" end
+        -- 6.173.0 — the pad's tabs and closed tabs, for the page
+        local tabsJs, histJs, hist = {}, {}, {}
+        if sp then
+            for _, t in ipairs(sp.tabs) do
+                local k = sp.kindOf and sp.kindOf(t)
+                tabsJs[#tabsJs + 1] = "{id:" .. jstr(t.id) .. ",t:" .. jstr(sp.titleOf(t)) .. ",b:" .. jstr(k and k.badge or "")
+                    .. ",k:" .. jstr(t.kind or "") .. "}"
+            end
+            for i = 1, math.min(#(sp.history or {}), tonumber(sp.historyRows) or 200) do
+                local h = sp.history[i]
+                local k = h.kind and sp.kinds and sp.kinds[h.kind]
+                hist[#hist + 1] = '<li class="hist" data-hist="' .. escapeHtml(h.id) .. '" title="' .. escapeHtml(os.date("%b %d %H:%M", h.closedAt or 0)) .. '">'
+                    .. escapeHtml((k and (k.badge .. " ") or "") .. (h.title or "Untitled")) .. '</li>'
+            end
+        end
+        local isTab = d and d.scratch and true or false
+        local kindHint = isTab and sp and sp.kindOf and d.kind and sp.kinds[d.kind] and sp.kinds[d.kind].hint or nil
+        if kindHint then status = kindHint .. " · " .. status end
         local theme = (_G.uiStyle and _G.uiStyle.cssOverride and _G.uiStyle.cssOverride()) or ""
         local html = [==[<!doctype html><html><head><meta charset="utf-8"><style>
 :root{color-scheme:dark}
@@ -538,6 +623,15 @@ textarea{flex:1;width:100%;box-sizing:border-box;resize:none;border:0;outline:0;
 #links li:hover{background:#22222a}
 #links li.ghost{opacity:.6}
 #links .none{opacity:.4;padding:2px 12px;font-size:FS2px}
+#rows li.sec{opacity:.55;font-size:FS2px;letter-spacing:.05em;font-weight:600;cursor:default;padding:8px 12px 3px}
+#rows li.tab{display:flex;align-items:center;gap:6px}
+#rows li.tab .tt{flex:1;overflow:hidden;text-overflow:ellipsis}
+#rows li.tab .x{opacity:.45;padding:0 3px}
+#rows li.tab .x:hover{opacity:1}
+#rows li.tab.capture{box-shadow:inset 3px 0 0 #4fb3d9}
+#rows li.tab.append{box-shadow:inset 3px 0 0 #e0b04a}
+#rows li.add{opacity:.6;font-size:FS1px}
+#links li.hist{opacity:.8}
 #graph{flex:1;display:none;position:relative;background:#101014}
 #graph canvas{width:100%;height:100%;display:block}
 #gtip{position:absolute;left:12px;bottom:10px;opacity:.55;font-size:FS2px;pointer-events:none}
@@ -545,20 +639,24 @@ body.graph #ed,body.graph #links{display:none}
 body.graph #graph{display:block}
 ]==] .. theme .. [==[
 </style></head><body class="]==] .. (v.view == "graph" and "graph" or "") .. [==["><div id="wrap">
-<header id="hdr"><span class="name">🕸 Vault</span><span class="doc" title="]==] .. escapeHtml(d and d.rel or "") .. [==[">]==] .. escapeHtml(d and d.name or "no note open") .. [==[</span>
+<header id="hdr"><span class="name">]==] .. (isTab and "📝 Scorp Pad" or "🕸 Vault") .. [==[</span><span class="doc" title="]==] .. escapeHtml(d and d.rel or "") .. [==[">]==] .. escapeHtml(d and d.name or "no note open") .. [==[</span>
 <span class="hint">]==] .. escapeHtml(status) .. [==[</span>
 ]==] .. (v.lastSaveErr and ('<span class="bad" title="' .. escapeHtml(v.lastSaveErr) .. '">⚠ not saved</span>') or "") .. [==[
+]==] .. (sp and '<button onclick="say({a:\'tabnew\'})" title="New scratch tab ⌘T">📝+</button>' or "") .. [==[
+]==] .. (isTab and '<button onclick="say({a:\'tabclose\', tid: CUR.slice(8)})" title="Close this tab ⌘W (its text goes to the history)">⌘W</button><button onclick="say({a:\'send\'})" title="Create today\'s Asana task now instead of waiting for 16:00">→ Asana now</button>' or "") .. [==[
 <button onclick="say({a:'new'})" title="New note ⌘N">✚</button>
 <button onclick="say({a:'daily'})" title="Today ⌘D">📅</button>
 <button onclick="say({a:'linkfile'})" title="Link a file ⌘K">📎</button>
 <button id="gbtn" class="]==] .. (v.view == "graph" and "on" or "") .. [==[" onclick="say({a:'graph'})" title="Graph ⌘G">🕸</button>
 <button onclick="say({a:'rescan'})" title="Rescan the folder">↻</button>
-<button onclick="say({a:'hide'})" title="Close ⇪3 / Esc">✕</button></header>
+<button id="pin" class="]==] .. (v.pinned and "on" or "") .. [==[" onclick="say({a:'pin'})" title="Pin: the window stays up beside the app; Esc only hands the keyboard back">📌</button>
+<button onclick="say({a:'hide'})" title="Close ⇪3 / ⇪1 / Esc">✕</button></header>
 <div id="main">
 <div id="side"><input id="q" placeholder="filter notes… ⌘F" value="]==] .. escapeHtml(v.filter) .. [==["><ul id="rows"></ul></div>
 <div id="ed"><textarea id="t" spellcheck="true" ]==] .. (d and "" or "disabled placeholder=\"⌘N a new note · ⌘D today · click a note on the left\"") .. [==[>]==] .. escapeHtml(d and d.text or "") .. [==[</textarea><div id="ac"></div></div>
 <div id="links"><h4>LINKS OUT</h4><ul id="outs">]==] .. (#outs > 0 and table.concat(outs) or '<div class="none">type [[ to link</div>') .. [==[</ul>
-<h4>BACKLINKS</h4><ul id="backs">]==] .. (#backs > 0 and table.concat(backs) or '<div class="none">nothing links here yet</div>') .. [==[</ul></div>
+]==] .. (isTab and ('<h4>HISTORY · closed tabs</h4><ul id="hist">' .. (#hist > 0 and table.concat(hist) or '<div class="none">closed tabs land here — ⌘W</div>') .. '</ul>')
+             or ('<h4>BACKLINKS</h4><ul id="backs">' .. (#backs > 0 and table.concat(backs) or '<div class="none">nothing links here yet</div>') .. '</ul>')) .. [==[</div>
 <div id="graph"><canvas id="cv"></canvas><div id="gtip">click a dot to open · drag to untangle · hollow = not written yet · ⌘G back</div></div>
 </div></div>
 <script>
@@ -567,6 +665,7 @@ var GRAPH = ]==] .. v.graphJson() .. [==[;
 var CUR = ]==] .. jstr(d and d.rel or "") .. [==[;
 var CARET = ]==] .. tostring(tonumber(v.caret) or 0) .. [==[;
 var VIEW = ]==] .. jstr(v.view) .. [==[;
+var TABS = []==] .. table.concat(tabsJs, ",") .. [==[], HASPAD = ]==] .. (sp and "true" or "false") .. [==[;
 var t = document.getElementById('t'), q = document.getElementById('q'), hdr = document.getElementById('hdr');
 var ac = document.getElementById('ac'), rowsEl = document.getElementById('rows');
 function say(m){ m.text = t.value; m.sel = t.selectionStart; m.rel = CUR;
@@ -581,18 +680,34 @@ document.addEventListener('keyup', function(e){
 // ---- the note list (filtered) ----
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
 function drawRows(){
-  var f = (q.value || '').toLowerCase().trim(), h = [], n = 0;
+  var f = (q.value || '').toLowerCase().trim(), h = [], n = 0, s = [];
+  // 6.173.0 — the Scorp Pad's tabs first, a section of their own
+  for (var j = 0; j < TABS.length; j++) {
+    var tb = TABS[j];
+    if (f && tb.t.toLowerCase().indexOf(f) < 0) continue;
+    s.push('<li class="tab' + (tb.k ? ' ' + esc(tb.k) : '') + ('scratch:' + tb.id === CUR ? ' cur' : '') + '" data-tab="' + esc(tb.id) + '"><span class="tt">' + (tb.b ? esc(tb.b) + ' ' : '') + esc(tb.t) + '</span><span class="x" title="Close ⌘W">×</span></li>');
+  }
+  if (HASPAD) { s.unshift('<li class="sec">📝 SCRATCH</li>'); if (!f) s.push('<li class="add" data-tab="+">+ new tab ⌘T</li>'); s.push('<li class="sec">🕸 NOTES</li>'); }
   for (var i = 0; i < NOTES.length; i++) {
     var x = NOTES[i];
     if (f && x.n.toLowerCase().indexOf(f) < 0 && x.r.toLowerCase().indexOf(f) < 0) continue;
     h.push('<li class="note' + (x.r === CUR ? ' cur' : '') + '" data-name="' + esc(x.n) + '" title="' + esc(x.r) + '">' + esc(x.n) + '</li>');
     if (++n >= 400) break;
   }
-  rowsEl.innerHTML = h.length ? h.join('') : '<li style="opacity:.4;cursor:default">' + (f ? 'no note matches — ⏎ creates &quot;' + esc(q.value.trim()) + '&quot;' : 'no notes yet — ⌘N') + '</li>';
+  if (!h.length) h.push('<li style="opacity:.4;cursor:default">' + (f ? 'no note matches — ⏎ creates &quot;' + esc(q.value.trim()) + '&quot;' : 'no notes yet — ⌘N') + '</li>');
+  rowsEl.innerHTML = s.join('') + h.join('');
   SEL = -1;
 }
-rowsEl.addEventListener('click', function(e){ var li = e.target.closest ? e.target.closest('li[data-name]') : null; if (li) say({a:'open', name: li.getAttribute('data-name')}); });
-document.getElementById('links').addEventListener('click', function(e){ var li = e.target.closest ? e.target.closest('li[data-name]') : null; if (li) say({a:'open', name: li.getAttribute('data-name')}); });
+rowsEl.addEventListener('click', function(e){
+  var li = e.target.closest ? e.target.closest('li[data-name],li[data-tab]') : null; if (!li) return;
+  var tid = li.getAttribute('data-tab');
+  if (tid === '+') say({a:'tabnew'});
+  else if (tid) { if (e.target.closest && e.target.closest('.x')) say({a:'tabclose', tid: tid}); else say({a:'tab', tid: tid}); }
+  else say({a:'open', name: li.getAttribute('data-name')}); });
+document.getElementById('links').addEventListener('click', function(e){
+  var li = e.target.closest ? e.target.closest('li[data-name],li[data-hist]') : null; if (!li) return;
+  if (li.getAttribute('data-hist')) say({a:'restore', rid: li.getAttribute('data-hist')});
+  else say({a:'open', name: li.getAttribute('data-name')}); });
 q.addEventListener('input', function(){ say({a:'filter', f: q.value}); drawRows(); });
 q.addEventListener('keydown', function(e){
   if (e.key === 'Enter' && SEL < 0 && q.value.trim()) { e.preventDefault(); say({a:'open', name: q.value.trim()}); }
@@ -600,7 +715,7 @@ q.addEventListener('keydown', function(e){
 
 // ⌨️ 6.170.0 — ARROW THROUGH THE ROWS. ⌥↑/⌥↓ always; plain ↑/↓ when the
 // caret is not in the text; ⏎ / ⌥⏎ acts on the highlighted row.
-var SEL = -1, ROWSEL = '#rows li[data-name]';
+var SEL = -1, ROWSEL = '#rows li[data-name],#rows li[data-tab]';
 function rowsList(){ try { return Array.prototype.slice.call(document.querySelectorAll(ROWSEL)); } catch(e){ return []; } }
 function inText(){ var a = null; try { a = document.activeElement; } catch(e){} return !!(a && a.tagName === 'TEXTAREA'); }
 function moveSel(d){
@@ -621,7 +736,11 @@ function rowKey(e){
   }
   return false;
 }
-function rowAct(r){ say({a:'open', name: r.getAttribute('data-name')}); }
+function rowAct(r){
+  var tid = r.getAttribute('data-tab');
+  if (tid === '+') say({a:'tabnew'}); else if (tid) say({a:'tab', tid: tid});
+  else say({a:'open', name: r.getAttribute('data-name')}); }
+function isTab(){ return CUR.indexOf('scratch:') === 0; }
 
 // ---- [[ autocomplete ----
 var ACSEL = 0, ACITEMS = [], ACSTART = -1;
@@ -683,6 +802,11 @@ document.addEventListener('keydown', function(e){
   }
   if (e.key === 'Escape') { e.preventDefault(); say({a:'esc'}); return; }
   if (rowKey(e)) return;
+  // 6.173.0 — the Scorp Pad's tab keys, from anywhere in the window
+  if (e.ctrlKey && e.key === 'Tab') { e.preventDefault(); if (HASPAD) say({a:'tabcycle', d: e.shiftKey ? -1 : 1}); return; }
+  if (meta && (e.key === 't' || e.key === 'T')) { e.preventDefault(); if (HASPAD) say({a:'tabnew'}); return; }
+  if (meta && (e.key === 'w' || e.key === 'W')) { e.preventDefault(); if (isTab()) say({a:'tabclose', tid: CUR.slice(8)}); return; }
+  if (meta && e.key >= '1' && e.key <= '9') { e.preventDefault(); if (HASPAD) say({a:'tabnth', n: e.key}); return; }
   if (meta && e.key === 'Enter') { e.preventDefault(); var l = linkAtCaret(); if (l) say({a:'follow', target: l.target, md: l.md}); return; }
   if (meta && (e.key === 'n' || e.key === 'N')) { e.preventDefault(); say({a:'new'}); return; }
   if (meta && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); say({a:'daily'}); return; }
@@ -796,7 +920,49 @@ if (VIEW === 'graph') { graphStart(); } else { t.focus(); try { t.setSelectionRa
             end
         elseif a == "rescan" then
             v.scan("button"); v.render()
-        elseif a == "esc" or a == "hide" then
+        -- 6.173.0 — the Scorp Pad's tabs (its module does the work)
+        elseif a == "tab" then
+            if v.openScratch(tostring(body.tid or "")) then v.render() end
+        elseif a == "tabnew" then
+            local sp = v.sp()
+            local t = sp and sp.newTab("")
+            if t and v.openScratch(t.id) then v.render() end
+        elseif a == "tabclose" then
+            local sp = v.sp()
+            local tid = tostring(body.tid or "")
+            if sp and sp.closeTab(tid) then
+                if v.doc and v.doc.scratch == tid then v.openScratch(sp.active) end
+                v.render()
+            end
+        elseif a == "tabnth" then
+            local sp = v.sp()
+            local t = sp and sp.tabs[tonumber(body.n) or 0]
+            if t and v.openScratch(t.id) then v.render() end
+        elseif a == "tabcycle" then
+            local sp = v.sp()
+            local n = sp and #sp.tabs or 0
+            if n > 0 then
+                local _, i = sp.findTab(sp.active)
+                local d = (tonumber(body.d) or 1) < 0 and -1 or 1
+                local j = (v.doc and v.doc.scratch) and (((i or 1) - 1 + d) % n + 1) or (i or 1)
+                if v.openScratch(sp.tabs[j].id) then v.render() end
+            end
+        elseif a == "restore" then
+            local sp = v.sp()
+            if sp and sp.restore(tostring(body.rid or "")) and v.openScratch(sp.active) then v.render() end
+        elseif a == "send" then
+            local sp = v.sp()
+            local ok, why = false, "the Scorp Pad is not loaded"
+            if sp then ok, why = sp.send("button") end
+            if not ok then pcall(function() hs.alert.show("📝 Not sent — " .. tostring(why), 2) end) end
+        elseif a == "pin" then
+            v.pinned = not v.pinned
+            pcall(function() hs.settings.set("vault.pinned", v.pinned) end)
+            v.render()
+            pcall(function() hs.alert.show(v.pinned and "📌 Pinned — Esc hands the keys back, ⇪3 / ⇪1 closes" or "📌 Unpinned", 1.5) end)
+        elseif a == "esc" then
+            if v.pinned then v.blur() else v.hide() end
+        elseif a == "hide" then
             v.hide()
         elseif a == "dragStart" then
             v.beginDrag()
@@ -867,8 +1033,19 @@ if (VIEW === 'graph') { graphStart(); } else { t.focus(); try { t.setSelectionRa
 
     function v.isOpen() return v.webview ~= nil end
 
+    -- Pinned + Esc: the window stays, the keyboard goes back to the app
+    -- (hide + show is the only hand-off a non-activating panel has).
+    function v.blur()
+        if not v.webview then return end
+        pcall(function() v.webview:hide() end)
+        pcall(function() v.webview:show() end)
+    end
+
     function v.hide()
         v.endDrag()
+        local sp = v.sp()
+        if sp and type(sp.onHostClose) == "function" then pcall(sp.onHostClose) end
+        if v.doc and v.doc.scratch and sp and not sp.findTab(v.doc.scratch) then v.doc = nil end
         if v.rescanTimer then pcall(function() v.rescanTimer:stop() end); v.rescanTimer = nil end
         if v.webview then pcall(function() v.webview:delete() end); v.webview = nil end
         v.uc = nil
@@ -959,8 +1136,9 @@ if (VIEW === 'graph') { graphStart(); } else { t.focus(); try { t.setSelectionRa
     core.hyperAddShortcut({}, v.key, function() v.toggle() end, "vault")
 
     if _G.claimEscape then
-        _G.claimEscape("vault", nil, function() return v.webview ~= nil end, function() v.hide() end)
+        _G.claimEscape("vault", nil, function() return v.webview ~= nil and not v.pinned end, function() v.hide() end)
     end
+    pcall(function() v.pinned = hs.settings.get("vault.pinned") == true end)
 
     _G.movablePanels = _G.movablePanels or {}
     table.insert(_G.movablePanels, {
@@ -1006,8 +1184,11 @@ if (VIEW === 'graph') { graphStart(); } else { t.focus(); try { t.setSelectionRa
         L[#L + 1] = "   open   : " .. (v.doc and (v.doc.rel .. " · " .. #(v.doc.text or "") .. " chars") or "no note")
                     .. (v.dirty and " · unsaved keystrokes pending" or "") .. " · saves: " .. v.saves
                     .. " · failed writes: " .. v.saveFails .. (v.lastSaveErr and ("  ⚠️ " .. v.lastSaveErr) or "")
-        L[#L + 1] = "   window : " .. (v.webview and "open" or "closed") .. " · opens: " .. v.opens
+        L[#L + 1] = "   window : " .. (v.webview and "open" or "closed") .. (v.pinned and " · 📌 pinned" or "") .. " · opens: " .. v.opens
                     .. " · non-activating: " .. tostring(v.nonActivatingWhy)
+        local sp = v.sp()
+        L[#L + 1] = "   scratch: " .. (sp and (#sp.tabs .. " tab" .. (#sp.tabs == 1 and "" or "s") .. " of the Scorp Pad shown here (⇪1)"
+                    .. ((v.doc and v.doc.scratch) and " · one is open" or "")) or "not hosted (the Scorp Pad is off or has its own window)")
         L[#L + 1] = "   Obsidian: open this folder as a vault in Obsidian on either Mac — same files, its plug-ins on top"
         local out = table.concat(L, "\n")
         print(out)

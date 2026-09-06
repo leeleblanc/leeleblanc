@@ -4,9 +4,31 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.172.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.173.0
 -- =====================================================================
 
+-- NEW IN 6.173.0 — ONE WINDOW: THE SCORP PAD'S TABS LIVE IN THE VAULT (⇪1 = ⇪3):
+--   📝🕸 LL: "Can I combine my Scorp Pad and this Vault Pad?" Yes — the
+--      Vault absorbs the pad. ⇪1 and ⇪3 open the SAME window: ⇪3 on your
+--      last note, ⇪1 on your scratch tabs (⇪1 with a note open jumps to
+--      the tabs; with a tab open it closes). The note list starts with a
+--      📝 SCRATCH section — every tab, × to close, + for a new one, the
+--      🗒 Capture / ➕ Append tabs of ⇪N / ⇪2 too — then 🕸 NOTES. The
+--      text box edits a tab as it edits a note; with a tab open the
+--      right pane shows its [[links]] and the HISTORY of closed tabs
+--      (click one to bring it back). ⌘T / ⌘W / ⌘1–9 / ⌃Tab work the
+--      tabs from anywhere in the window; ⌘N / ⌘D / ⌘G / ⌘K / ⌘⏎ are the
+--      Vault's as before. "→ Asana now" and the 4 PM task are untouched
+--      (scratch_pad.lua keeps every brain and its store; the vault only
+--      draws — `v.sp()` is the one bridge). 📌 on the header pins the
+--      window (Esc hands the keys back; ⇪1 / ⇪3 / ✕ close), remembered
+--      across reloads. `settings = { scratch_pad = { viaVault = false } }`
+--      brings the pad's own window back, unchanged.
+--   ℹ️ Obsidian is NOT needed and nothing here depends on it; the folder
+--      is simply in a shape Obsidian could also open on the home Mac.
+--   ✅ Gate: test_vault 67 → 93, test_scratch_pad 119 → 130, test_vault_js
+--      31 → 45 (a second page with the pad's tabs). 67 modules.
+--      7,175 → 7,226 checks, seventy-three stages.
 -- NEW IN 6.172.1 — ⇪X ARROWS SPEED UP WHEN HELD; ⇪4's OCR REACHES ⇪O; THE PAD IS SOLID:
 --   🏃 LL: "The arrow keys when using hyper+x … do not make enough
 --      jumps … cover more ground by holding the key down." A held arrow
@@ -78,25 +100,10 @@
 --      ever needs measuring; the probe wraps every tap and timer.
 --   ✅ Gate: test_scratch_pad 117 (two checks re-aimed). 66 modules.
 --      7,064 checks, seventy-one stages.
--- NEW IN 6.171.0 — THE SCRATCH PAD IS THE SCORP PAD, BIGGER AND SEE-THROUGH:
---   📝 ⇪1's pad is now called the Scorp Pad everywhere LL sees a name:
---      its header, window title, cheat sheet, boot and Console lines,
---      the ⇪space source label, and the 4 PM task ("Scorp pad · <day>",
---      "Sent by Hammerspoon Scorp Pad"). Files, store and services keep
---      their old ids (scratch_pad.lua, Logs/scratch/scratch.json,
---      `_G.scratchPad`) so nothing on disk moves.
---   📐 It opens at 1024×768 (was 720×540; still clamped to the screen)
---      and the window is 35% translucent — `sp.alpha = 0.65` on the
---      webview itself, the page's own colours untouched. All three are
---      `settings = { scratch_pad = { width=, height=, alpha= } }`
---      overrides; alpha 1 (or anything outside 0–1) = solid.
---   ✅ Gate: test_scratch_pad 115 → 117 (size, alpha applied to the
---      window, the new title prefix). 66 modules. 7,062 → 7,064 checks,
---      seventy-one stages.
--- (6.170.3 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.171.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.172.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.173.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -442,7 +449,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.172.1"
+_G.configVersion = "6.173.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

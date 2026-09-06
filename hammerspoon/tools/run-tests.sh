@@ -307,8 +307,9 @@ elif [ ! -f "$HS/tests/dump_vault_html.lua" ] || [ ! -f "$HS/tests/test_vault_js
     SKIPPED="$SKIPPED vault-js"
 else
     STAGES_RUN=$((STAGES_RUN + 1))
-    if "$LUA" "$HS/tests/dump_vault_html.lua" "$HS/modules" > "$WORK/vault.html" 2>"$WORK/vault.err"; then
-        out=$("$NODE" "$HS/tests/test_vault_js.js" "$WORK/vault.html" 2>&1)
+    if "$LUA" "$HS/tests/dump_vault_html.lua" "$HS/modules" > "$WORK/vault.html" 2>"$WORK/vault.err" \
+       && "$LUA" "$HS/tests/dump_vault_html.lua" "$HS/modules" pad > "$WORK/vault-pad.html" 2>>"$WORK/vault.err"; then
+        out=$("$NODE" "$HS/tests/test_vault_js.js" "$WORK/vault.html" "$WORK/vault-pad.html" 2>&1)
         line=$(echo "$out" | grep -E '[0-9]+ passed, [0-9]+ failed' | tail -1)
         if echo "$line" | grep -q ', 0 failed'; then
             echo "   ✅ test_vault_js — $line"

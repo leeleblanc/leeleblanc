@@ -31,8 +31,8 @@ function makeEnv() {
   // rows are re-rendered from innerHTML; expose them as fake <li>s
   function rowsFromHtml() {
     const out = [];
-    for (const m of rows.innerHTML.matchAll(/<li class="([^"]*)" data-name="([^"]*)"/g)) {
-      const r = el("LI"); r.attrs = { "data-name": m[2].replace(/&quot;/g, '"') }; r.className = m[1]; out.push(r);
+    for (const m of rows.innerHTML.matchAll(/<li class="([^"]*)" data-(name|tab)="([^"]*)"/g)) {
+      const r = el("LI"); r.attrs = {}; r.attrs["data-" + m[2]] = m[3].replace(/&quot;/g, '"'); r.className = m[1]; out.push(r);
     }
     return out;
   }
@@ -50,16 +50,19 @@ function makeEnv() {
   };
   return { sandbox, sent, t, q, ac, rows, docListeners, byId };
 }
+const padHtml = process.argv[3] ? fs.readFileSync(process.argv[3], "utf8") : null;
 const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
 check("the page carries exactly one script block", scripts.length === 1, scripts.length);
 const vm = require("vm");
-function load() {
+function load(src) {
+  src = src || html;
+  const script = [...src.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1])[0];
   const env = makeEnv();
   // the textarea starts with the note's text, as the browser would
-  const ta = html.match(/<textarea[^>]*>([\s\S]*?)<\/textarea>/);
+  const ta = src.match(/<textarea[^>]*>([\s\S]*?)<\/textarea>/);
   env.t.value = ta ? ta[1].replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&") : "";
   const ctx = vm.createContext(env.sandbox);
-  vm.runInContext(scripts[0], ctx, { filename: "vault-page.js" });
+  vm.runInContext(script, ctx, { filename: "vault-page.js" });
   env.call = (expr) => vm.runInContext(expr, ctx);
   env.key = (k, o) => env.docListeners.keydown(Object.assign({ key: k, metaKey: false, altKey: false, ctrlKey: false, shiftKey: false, preventDefault() {} }, o || {}));
   env.type = (text, caret) => { env.t.value = text; env.t.selectionStart = env.t.selectionEnd = caret == null ? text.length : caret; env.t.listeners.input({}); };
@@ -156,6 +159,38 @@ console.log("── Vault: page JavaScript, executed ──");
   check("graph nodes: 4 notes + 1 ghost (Delta)", g.nodes.length === 5 && g.nodes.some((n) => n.ghost && n.n === "Delta"));
   check("graph edges: Alpha→Beta, Gamma→Alpha, Gamma→Delta", g.edges.length === 3);
   check("the page forwards F18 keyup and has the drag header", scripts[0].includes("a:'f18up'") && scripts[0].includes("a:'dragStart'"));
+}
+// 8. 6.173.0 — the Scorp Pad's tabs in the same window
+if (!padHtml) { console.log("   (no pad page given — the scratch section is not exercised)"); }
+else {
+  const env = load(padHtml);
+  const bare = load();
+  check("without a pad the plain page draws no SCRATCH section", !bare.rows.innerHTML.includes("SCRATCH") && html.includes("HASPAD = false") && html.includes("TABS = []"));
+  check("two tabs reached the pad page, the first open", env.call("TABS.length") === 2 && env.call("CUR") === "scratch:t1" && env.call("HASPAD") === true);
+  check("the list: SCRATCH header, the open tab marked, a Capture row with its badge, + new tab, NOTES header, then the notes",
+        env.rows.innerHTML.includes("📝 SCRATCH") && env.rows.innerHTML.includes('class="tab cur" data-tab="t1"') && env.rows.innerHTML.includes('class="tab capture" data-tab="t2"')
+        && env.rows.innerHTML.includes("🗒 Capture") && env.rows.innerHTML.includes('data-tab="+"') && env.rows.innerHTML.indexOf("🕸 NOTES") < env.rows.innerHTML.indexOf('data-name="Alpha"'));
+  env.q.value = "gro"; env.q.listeners.input({});
+  check("the filter narrows the tabs too and drops the + row", env.rows.innerHTML.includes('data-tab="t1"') && !env.rows.innerHTML.includes('data-tab="t2"') && !env.rows.innerHTML.includes('data-tab="+"') && env.rows.innerHTML.includes("no note matches"));
+  env.q.value = ""; env.q.listeners.input({});
+  env.sent.length = 0;
+  env.key("ArrowDown", { altKey: true }); env.key("Enter", { altKey: true });
+  check("⌥↓ ⌥⏎ walks onto the first tab row and opens it", env.sent.some((m) => m.a === "tab" && m.tid === "t1"), JSON.stringify(env.sent));
+  env.sent.length = 0;
+  env.key("ArrowDown", { altKey: true }); env.key("ArrowDown", { altKey: true }); env.key("Enter", { altKey: true });
+  check("…the + row asks for a new tab", env.sent.some((m) => m.a === "tabnew"), JSON.stringify(env.sent));
+  for (const [k, o, a] of [["t", { metaKey: true }, "tabnew"], ["w", { metaKey: true }, "tabclose"], ["3", { metaKey: true }, "tabnth"], ["Tab", { ctrlKey: true }, "tabcycle"]]) {
+    env.sent.length = 0; env.key(k, o);
+    check("⌘/⌃ " + k + " → " + a, env.sent[0] && env.sent[0].a === a, JSON.stringify(env.sent[0]));
+  }
+  check("⌘W names the open tab", (env.sent.length = 0, env.key("w", { metaKey: true }), env.sent[0].tid === "t1"));
+  env.type("groceries\nmilk, eggs", 3);
+  const m = env.sent[env.sent.length - 1];
+  check("typing in a tab sends edit with rel scratch:t1", m.a === "edit" && m.rel === "scratch:t1" && m.text === "groceries\nmilk, eggs");
+  check("the right pane lists the closed tab under HISTORY", padHtml.includes("HISTORY") && padHtml.includes('data-hist="h1"') && !padHtml.includes("BACKLINKS"));
+  const plain = load();
+  plain.sent.length = 0; plain.key("w", { metaKey: true }); plain.key("t", { metaKey: true });
+  check("on a note without a pad, ⌘W and ⌘T send nothing", plain.sent.length === 0);
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
