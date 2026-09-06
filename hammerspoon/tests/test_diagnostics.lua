@@ -993,7 +993,8 @@ local ALLOWED_BINARIES = {
   ["/usr/sbin/system_profiler"] = "⇪7 the model's MARKETING name, async because it "
                               .. "takes 1-3 SECONDS (ships with macOS)",
   ["/usr/sbin/ioreg"]          = "⇪7 serial number (ships with macOS)",
-  ["/usr/bin/grep"]            = "⇪7 picks the serial line out of ioreg (ships with macOS)",
+  ["/usr/bin/grep"]            = "⇪7 picks the serial line out of ioreg; 6.172.0 the vault's [[link]] index (ships with macOS)",
+  ["/usr/bin/find"]            = "6.172.0 the vault's note list — in hs.task, so a OneDrive placeholder never blocks the main thread (ships with macOS)",
   -- 6.120.0 — ⇪⇧` REVEALS GHOSTTY'S FOLDER. A terminal's directory
   -- belongs to the SHELL, not the window, and is published nowhere a
   -- neighbouring process can read. The window title is tried first

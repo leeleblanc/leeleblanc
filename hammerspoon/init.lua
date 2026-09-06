@@ -4,9 +4,40 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.171.2
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.172.0
 -- =====================================================================
 
+-- NEW IN 6.172.0 — THE VAULT: LINKED MARKDOWN NOTES IN ONEDRIVE, WITH A GRAPH (⇪3):
+--   🕸 LL: "an Obsidian-like note taking app … link/reference the files
+--      in their OneDrive location … both Macs using OneDrive as the
+--      repository … plain text Markdown files … [[Note Name]] links …
+--      graph view." modules/vault.lua, ⇪3. The vault is the FOLDER
+--      <OneDrive>/Vault (`settings = { vault = { dir = "…" } }` moves
+--      it): plain .md files and nothing else — no index file, no
+--      database — which is exactly what Obsidian opens ("Open folder as
+--      vault"), so Obsidian and its plug-ins work on the same notes on
+--      either Mac while OneDrive carries the folder between them.
+--   📝 One window on the Scorp Pad recipe: notes left (filter box, ↑↓
+--      walk, ⏎ opens, a name with no match ⏎ creates), the text in the
+--      middle, LINKS OUT and BACKLINKS on the right. `[[` pops a list of
+--      note names (↑↓ ⏎/Tab); ⌘⏎ follows the link under the caret and
+--      creates the note if it is missing; ⌘N new, ⌘D today's note
+--      (Daily/YYYY-MM-DD.md), ⌘K links a file from anywhere in OneDrive
+--      as a RELATIVE Markdown link (Obsidian's own shape, so it resolves
+--      on the other Mac's different home folder) — ⌘⏎ opens it.
+--   🕸 ⌘G is the GRAPH: every note a dot, every link a line, a force
+--      layout in the page's canvas; a linked name with no file yet is a
+--      hollow dot; click opens, drag untangles. ⇪space has a 🕸 Vault
+--      source (names only); ⏎ on a row opens the note.
+--   ☁️ OneDrive placeholders BLOCK on read (the Sep 6 drag lag). So the
+--      index never reads the notes: names come from /usr/bin/find and
+--      links from /usr/bin/grep, both in held hs.tasks; only the note
+--      you open is read, once, at your request. Text lands in Lua on
+--      every key, the .md file 0.3 s after the last one (tmp + rename)
+--      and at once on switching, closing and reload.
+--   ✅ Gate: test_vault 67 + test_vault_js 31 (stage 3d — it caught the
+--      autocomplete swallowing ⌘⏎ inside an existing link before it
+--      shipped). 67 modules. 7,066 → 7,167 checks, seventy-three stages.
 -- NEW IN 6.171.2 — THE SCORP PAD: NEARLY SOLID, 16 PT TEXT:
 --   🔠 LL on 6.171.1: "I still need it less translucent and all the font
 --      needs to be bigger. Too small for my items. Aim for 16pt font."
@@ -69,30 +100,10 @@
 --      poll asks it BEFORE hs.pasteboard.readImage(). No decode unless
 --      image OCR is on and free.
 --   ✅ Gate: test_screenshots 155 → 160, test_ocr_tag 84 → 94 (T8).
--- NEW IN 6.170.2 — RAW CLIPBOARD IMAGE OCR GOES OFF; THE POLL GETS A BREAKER:
---   🚨 LL installed 6.170.1 and the Mac locked up again (beach ball, no
---      keyboard, Hammerspoon absent from Force Quit). 6.170.1 could no
---      longer SEND an empty image, but the clipboard poll still decoded
---      the pasteboard on the main thread every time it changed — and on
---      that Mac something was changing it every tick. Nothing in the
---      Console yet says what; this release stops trusting that path.
---   🛑 ocr.autoImage = false: a copied image (⌘C on pixels) is NOT sent
---      to the HS OCR Shortcut at all. Copied image FILES (Finder ⌘C)
---      and screenshots keep their OCR. Opt back in per machine:
---      settings = { ocr_engine = { autoImage = true } }.
---      `_G.ocrReport()` now opens with ON / OFF.
---   📋 The poll asks hs.pasteboard.typesAvailable() first and only calls
---      readImage() when an image is actually there.
---   🧯 Thrash breaker: the pasteboard changing on 6 ticks IN A ROW (3 s)
---      rests the poll for 60 s, prints one ⚠️ line and counts it —
---      `_G.clipboardPollReport()`; knobs `_G.clipboardThrashTicks` /
---      `_G.clipboardThrashRest`. The changeCount still advances, so a
---      real copy after the rest is seen once, never twice.
---   ✅ Gate: test_ocr_tag 77 → 84 (T7).
--- (6.170.1 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.170.2 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.171.2
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.172.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -438,7 +449,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.171.2"
+_G.configVersion = "6.172.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -3307,6 +3318,7 @@ local BASE = {
     "power_tools",        -- 🧰 ⇪;  type the clipboard · count · grayscale · free keys
     "shortcut_hints",     -- 💡 after a ⇪ key, a card of the group's other keys (no key)
     "scratch_pad",        -- 📝 ⇪1 tabs, saved as you type, history under the text, 4 PM task
+    "vault",              -- 🕸 ⇪3 linked Markdown notes in OneDrive, backlinks, graph (6.172.0)
     -- 6.132.0 — no key of its own. It owns the six case transforms, and
     -- ⇪; and ⇪R both ask it for them through core.call at the moment you
     -- press the key. Order here is therefore irrelevant; it sits beside

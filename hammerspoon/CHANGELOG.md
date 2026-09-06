@@ -4,6 +4,38 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.172.0 — THE VAULT: LINKED MARKDOWN NOTES IN ONEDRIVE, WITH A GRAPH (⇪3):
+  🕸 LL: "an Obsidian-like note taking app … link/reference the files
+     in their OneDrive location … both Macs using OneDrive as the
+     repository … plain text Markdown files … [[Note Name]] links …
+     graph view." modules/vault.lua, ⇪3. The vault is the FOLDER
+     <OneDrive>/Vault (`settings = { vault = { dir = "…" } }` moves
+     it): plain .md files and nothing else — no index file, no
+     database — which is exactly what Obsidian opens ("Open folder as
+     vault"), so Obsidian and its plug-ins work on the same notes on
+     either Mac while OneDrive carries the folder between them.
+  📝 One window on the Scorp Pad recipe: notes left (filter box, ↑↓
+     walk, ⏎ opens, a name with no match ⏎ creates), the text in the
+     middle, LINKS OUT and BACKLINKS on the right. `[[` pops a list of
+     note names (↑↓ ⏎/Tab); ⌘⏎ follows the link under the caret and
+     creates the note if it is missing; ⌘N new, ⌘D today's note
+     (Daily/YYYY-MM-DD.md), ⌘K links a file from anywhere in OneDrive
+     as a RELATIVE Markdown link (Obsidian's own shape, so it resolves
+     on the other Mac's different home folder) — ⌘⏎ opens it.
+  🕸 ⌘G is the GRAPH: every note a dot, every link a line, a force
+     layout in the page's canvas; a linked name with no file yet is a
+     hollow dot; click opens, drag untangles. ⇪space has a 🕸 Vault
+     source (names only); ⏎ on a row opens the note.
+  ☁️ OneDrive placeholders BLOCK on read (the Sep 6 drag lag). So the
+     index never reads the notes: names come from /usr/bin/find and
+     links from /usr/bin/grep, both in held hs.tasks; only the note
+     you open is read, once, at your request. Text lands in Lua on
+     every key, the .md file 0.3 s after the last one (tmp + rename)
+     and at once on switching, closing and reload.
+  ✅ Gate: test_vault 67 + test_vault_js 31 (stage 3d — it caught the
+     autocomplete swallowing ⌘⏎ inside an existing link before it
+     shipped). 67 modules. 7,066 → 7,167 checks, seventy-three stages.
+
 NEW IN 6.171.2 — THE SCORP PAD: NEARLY SOLID, 16 PT TEXT:
   🔠 LL on 6.171.1: "I still need it less translucent and all the font
      needs to be bigger. Too small for my items. Aim for 16pt font."

@@ -29,7 +29,8 @@ work Mac.
   caller-out never kills/pauses/renices apps.
 - ⇪⇧Z is reserved for later — do not bind it.
 - ⇪⇧T (free since 6.161.0) and ⇪⇧U (free since 6.166.0, win_pin retired)
-  are unspent — do not bind either without LL.
+  are unspent — do not bind either without LL. (⇪3 went to the vault in
+  6.172.0.)
 - The hyper hold is TIMED (6.162.1, init.lua §3.12): a lost F18 keyUp
   latched ⇪ and took LL's Mac. Any new path that enters the modal must go
   through hyperEnter (it arms `_G.hyperLatchTimer`); any tap that sees keys
@@ -89,6 +90,17 @@ with `extra.comment` (the only Asana path); keep it that way.
 closing such a tab files through capturePad.add / notePad.fileAll — the old
 modules keep their brains, `pad.viaScratch` / `np.viaScratch` restore their
 windows. Kind tabs never enter the pad's own 4 PM task.
+
+Vault (6.172.0, modules/vault.lua, ⇪3): the FOLDER <OneDrive>/Vault of
+plain .md files IS the database — no index file, no sidecar, so Obsidian
+opens the same folder on either Mac. Index = /usr/bin/find (names) +
+/usr/bin/grep (`[[links]]`) in HELD hs.tasks; the module NEVER reads a
+note it is not opening (OneDrive placeholders block on read). Links:
+`[[Name]]`/`[[Name|alias]]`/`[[Name#h]]` → <vault>/**/Name.md,
+case-insensitive; files elsewhere as RELATIVE Markdown links (⌘K). Same
+webview recipe as the Scorp Pad (no eventtap, held timers, text in Lua
+per key, .md written 0.3 s later). Page JS has its own gate stage (3d,
+test_vault_js). ⇪3 is now SPENT.
 
 Pause switch (6.152.0): ⇪⇧1 toggles `_G.hsPaused` (power_tools). Hyper
 shortcuts are suppressed CENTRALLY in init.lua's hyperBind (the pause key
@@ -225,6 +237,17 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 6.172.0 verify with LL: ⇪3 opens the Vault (1240×820) and creates
+  <OneDrive>/Vault on first use (Console `_G.vaultReport()` "folder :"
+  line; "no OneDrive found — local only" on a Mac without it); ⌘N a
+  note, type `[[` and pick, ⌘⏎ follows/creates, backlinks show on the
+  target; ⌘G draws the graph; ⌘K picks a file and inserts a relative
+  link that ⌘⏎ opens; ⌘D makes Daily/<date>.md; the same folder opened
+  in Obsidian shows the notes and links (Obsidian's .obsidian/ folder
+  is ignored here); no "released by the watchdog" line after ⇪3.
+  Not built yet, on purpose: Markdown preview, rename/delete (Finder or
+  Obsidian), tags/#hashtags, full-text search of note bodies (⇪space
+  has names only — bodies would mean reading every file).
 - 6.171.2 verify with LL: ⇪1 opens a portrait 768×1024 "Scorp Pad", 5%
   translucent (alpha 0.95; `settings = { scratch_pad = { alpha = 1 } }` =
   solid) with 16 px text (`fontSize = 18` etc. in the same override);

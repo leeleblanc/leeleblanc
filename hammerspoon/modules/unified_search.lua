@@ -96,7 +96,7 @@ function M.setup(core)
     uni.groupCap = 8         -- rows per source in the nothing-typed view
     uni.maxPer  = { clip = 400, cmd = 400, shots = 30, note = 120,
                     asana = 200, ocr = 200, doc = 200, file = 200, pad = 60,
-                    web = 300, scratch = 200 }
+                    web = 300, scratch = 200, vault = 300 }
     -- ----------------------------------------------------------------------
 
     local function say(m)  if _G.diag then _G.diag.say("unified", m)  end end
@@ -474,6 +474,20 @@ function M.setup(core)
         end
     end
 
+    -- 🕸 6.172.0 — the ⇪3 vault: note NAMES (the folder is the index;
+    -- contents are never read here — OneDrive placeholders block on read).
+    local function srcVault(add)
+        local v = _G.vault
+        if not (v and type(v.notes) == "table") then return end
+        local added = 0
+        for _, n in ipairs(v.notes) do
+            if added >= uni.maxPer.vault then return end
+            add{ tag = "vault", icon = "🕸", src = "Vault", text = n.name,
+                 sub = n.rel, full = n.name, vaultNote = n.name }
+            added = added + 1
+        end
+    end
+
     local function srcWeb(add)
         -- ⇪Y's 90-day Chrome export, already sorted newest first. ⏎ here
         -- COPIES the URL — this is the clipboard picker's contract — and
@@ -687,6 +701,7 @@ function M.setup(core)
         { tag = "file",  icon = "📁", label = "File moves",   fn = srcFiles     },
         { tag = "pad",   icon = "🗒", label = "Capture Pad",  fn = srcPad       },
         { tag = "scratch", icon = "📝", label = "Scorp pad", fn = srcScratch  },
+        { tag = "vault", icon = "🕸", label = "Vault",        fn = srcVault    },
         { tag = "web",   icon = "🕘", label = "Chrome",       fn = srcWeb       },
         -- 🔧 LAST ON PURPOSE. Rows are gathered in this order and the page
         -- lists them in it, so the things you SAVED stay above the tools
@@ -999,6 +1014,15 @@ if (q.focus) q.focus();
         -- kind acts, which is why it is checked before the copy paths and
         -- not folded into them.
         if row.kind == "tool" then uni.runTool(row) return end
+        -- 🕸 6.172.0 — a vault row OPENS the note in the ⇪3 window.
+        if row.vaultNote and _G.vault and _G.vault.openNote then
+            uni.hide()
+            pcall(function()
+                _G.vault.openNote(row.vaultNote)
+                if _G.vault.webview then _G.vault.render() else _G.vault.open() end
+            end)
+            return
+        end
         if a == "path" and row.path then
             pcall(function() hs.pasteboard.setContents(row.path) end)
             hs.alert.show("📋 Path copied — " .. (row.path:match("[^/]+$") or row.path))

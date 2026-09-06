@@ -179,7 +179,7 @@ if [ -z "$LUA" ]; then
     echo "   ⚠️  skipped — no lua interpreter on PATH"
     SKIPPED="$SKIPPED lua-suites"
 else
-    for t in test_features test_daily_backup test_window_return test_rollup test_switcher test_modules test_cheatsheet test_diagnostics test_mouse_grid test_url_cleaner test_health test_menubar test_app_launcher test_chrome_history test_begone test_recent_docs test_focus test_rename test_notices test_console test_search_index test_doc_keywords test_clipboard test_select_mode test_ocr_tag test_file_tracker test_app_watcher test_integration test_tools test_expander test_autocorrect test_keycaster test_keyboard_stack test_hyper_key test_screenshots test_taskform test_task_creator test_note_pad test_editor test_editor_picker test_right_click test_write_ledger test_window_move test_unified test_style test_menu_search test_settings_panes test_app_kill test_power_tools test_tab_search test_net_tools test_mac_panel test_arranger test_activity_url test_lag test_text_case test_define test_dialog_home test_mouse_follows test_battery_saver test_default_apps test_net_watch test_shortcut_hints test_scratch_pad test_master_log test_doc_memory; do
+    for t in test_features test_daily_backup test_window_return test_rollup test_switcher test_modules test_cheatsheet test_diagnostics test_mouse_grid test_url_cleaner test_health test_menubar test_app_launcher test_chrome_history test_begone test_recent_docs test_focus test_rename test_notices test_console test_search_index test_doc_keywords test_clipboard test_select_mode test_ocr_tag test_file_tracker test_app_watcher test_integration test_tools test_expander test_autocorrect test_keycaster test_keyboard_stack test_hyper_key test_screenshots test_taskform test_task_creator test_note_pad test_editor test_editor_picker test_right_click test_write_ledger test_window_move test_unified test_style test_menu_search test_settings_panes test_app_kill test_power_tools test_tab_search test_net_tools test_mac_panel test_arranger test_activity_url test_lag test_text_case test_define test_dialog_home test_mouse_follows test_battery_saver test_default_apps test_net_watch test_shortcut_hints test_scratch_pad test_master_log test_doc_memory test_vault; do
         f="$HS/tests/$t.lua"
         if [ ! -f "$f" ]; then
             echo "   ⚠️  $t — missing"
@@ -290,6 +290,36 @@ else
     else
         echo "   ❌ the search page's HTML could not be generated:"
         tail -5 "$WORK/unified.err" | sed 's/^/        /'
+        FAILED=$((FAILED + 1))
+    fi
+fi
+echo ""
+
+# ------------------------------------------- 3d. vault page JS
+echo "3d. VAULT — PAGE JAVASCRIPT, EXECUTED"
+if [ -z "$LUA" ] || [ -z "$NODE" ]; then
+    echo "   ⚠️  skipped — needs both lua and node"
+    echo "      The [[ autocomplete, link-at-caret and graph live in this"
+    echo "      page. If this is skipped, ⇪3's behaviour is UNTESTED this run."
+    SKIPPED="$SKIPPED vault-js"
+elif [ ! -f "$HS/tests/dump_vault_html.lua" ] || [ ! -f "$HS/tests/test_vault_js.js" ]; then
+    echo "   ⚠️  skipped — harness files missing from tests/"
+    SKIPPED="$SKIPPED vault-js"
+else
+    STAGES_RUN=$((STAGES_RUN + 1))
+    if "$LUA" "$HS/tests/dump_vault_html.lua" "$HS/modules" > "$WORK/vault.html" 2>"$WORK/vault.err"; then
+        out=$("$NODE" "$HS/tests/test_vault_js.js" "$WORK/vault.html" 2>&1)
+        line=$(echo "$out" | grep -E '[0-9]+ passed, [0-9]+ failed' | tail -1)
+        if echo "$line" | grep -q ', 0 failed'; then
+            echo "   ✅ test_vault_js — $line"
+        else
+            echo "   ❌ test_vault_js — ${line:-did not finish}"
+            echo "$out" | grep -E '^\s*(❌|FAIL)' | head -10 | sed 's/^/        /'
+            FAILED=$((FAILED + 1))
+        fi
+    else
+        echo "   ❌ the vault page's HTML could not be generated:"
+        tail -5 "$WORK/vault.err" | sed 's/^/        /'
         FAILED=$((FAILED + 1))
     fi
 fi
