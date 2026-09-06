@@ -99,7 +99,8 @@ function M.setup(core)
         key           = "1",
         width         = 768,
         height        = 1024,
-        alpha         = 0.85,     -- 6.171.1 — 15% translucent (6.171.0 shipped 35%, too see-through) (1 = solid); a settings override changes it
+        alpha         = 0.95,     -- 6.171.2 — 5% translucent (0.85 was still too see-through; 1 = solid); a settings override changes it
+        fontSize      = 16,       -- 6.171.2 — pt for the text; the chrome scales off it (LL: "aim for 16pt")
         saveDelay     = 0.3,      -- seconds after the last key before the disk write
         historyRows   = 200,      -- rows embedded in the page for the filter
         historyKeep   = 2000,     -- rows kept in the store (oldest drop past this)
@@ -486,18 +487,25 @@ function M.setup(core)
                 .. escapeHtml(sp.titleOf(t)) .. '</span><span class="x" title="Close ⌘W">×</span></div>'
         end
         local theme = (_G.uiStyle and _G.uiStyle.cssOverride and _G.uiStyle.cssOverride()) or ""
-        return [[<!doctype html><html><head><meta charset="utf-8"><style>
+        -- 6.171.2 — one number sizes the page: text at sp.fontSize, chrome 2–3 pt under it.
+        local fs = tonumber(sp.fontSize) or 16
+        if fs < 8 then fs = 8 end
+        local function sized(html)
+            return (html:gsub("FS1px", math.floor(fs - 2) .. "px"):gsub("FS2px", math.floor(fs - 3) .. "px")
+                        :gsub("FSpx", math.floor(fs) .. "px"))
+        end
+        return sized([[<!doctype html><html><head><meta charset="utf-8"><style>
 :root{color-scheme:dark}
-html,body{margin:0;height:100%;background:#141418;color:#e8e8ec;font-family:-apple-system,Helvetica,sans-serif;font-size:13px;overflow:hidden}
+html,body{margin:0;height:100%;background:#141418;color:#e8e8ec;font-family:-apple-system,Helvetica,sans-serif;font-size:FSpx;overflow:hidden}
 #wrap{display:flex;flex-direction:column;height:100%}
 header{display:flex;align-items:center;gap:8px;padding:6px 10px;background:#1c1c22;cursor:grab;user-select:none;-webkit-user-select:none}
 header.dragging{cursor:grabbing}
 header .grip{opacity:.5}
 header .name{font-weight:600;flex:1}
-header .hint{opacity:.55;font-size:11px}
-header button{background:#2a2a33;color:#e8e8ec;border:0;border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer}
+header .hint{opacity:.55;font-size:FS2px}
+header button{background:#2a2a33;color:#e8e8ec;border:0;border-radius:6px;padding:3px 8px;font-size:FS1px;cursor:pointer}
 header button.pin.on{background:#4a7fe0;color:#fff}
-header .bad{background:#7a2a2a;color:#ffd9d9;border-radius:6px;padding:3px 8px;font-size:11px}
+header .bad{background:#7a2a2a;color:#ffd9d9;border-radius:6px;padding:3px 8px;font-size:FS2px}
 #tabs{display:flex;gap:4px;padding:6px 8px 0;background:#18181d;overflow-x:auto}
 .tab{display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:6px 6px 0 0;background:#202027;max-width:180px;cursor:default}
 .tab.on{background:#3a3a48;box-shadow:inset 0 -3px 0 #4a7fe0;color:#fff}
@@ -508,20 +516,20 @@ header .bad{background:#7a2a2a;color:#ffd9d9;border-radius:6px;padding:3px 8px;f
 .tab .x:hover{opacity:1}
 .tab.add{padding:4px 10px;opacity:.7;cursor:pointer}
 textarea{flex:1;margin:0;padding:10px;border:0;outline:0;resize:none;background:#141418;color:#e8e8ec;
-  font-family:Menlo,monospace;font-size:13px;line-height:1.45;font-weight:normal;font-style:normal}
+  font-family:Menlo,monospace;font-size:FSpx;line-height:1.45;font-weight:normal;font-style:normal}
 #hist{height:34%;min-height:96px;display:flex;flex-direction:column;border-top:1px solid #2a2a33;background:#17171c}
 #hist .bar{display:flex;align-items:center;gap:8px;padding:5px 10px}
-#hist .bar .lab{opacity:.6;font-size:11px;letter-spacing:.04em}
-#hist input{flex:1;background:#202027;border:1px solid #2a2a33;border-radius:6px;color:#e8e8ec;padding:3px 8px;font-size:12px;outline:0}
+#hist .bar .lab{opacity:.6;font-size:FS2px;letter-spacing:.04em}
+#hist input{flex:1;background:#202027;border:1px solid #2a2a33;border-radius:6px;color:#e8e8ec;padding:3px 8px;font-size:FS1px;outline:0}
 #hist input:focus{border-color:#4a7fe0}
 #rows{overflow-y:auto;flex:1}
 .row{display:flex;gap:10px;padding:4px 10px;cursor:pointer;border-bottom:1px solid #1f1f26}
 .row:hover{background:#202027}
 .row.sel{background:#2a2f45;outline:1px solid #7aa2f7}
-.row .w{opacity:.5;white-space:nowrap;font-size:11px;min-width:86px}
+.row .w{opacity:.5;white-space:nowrap;font-size:FS2px;min-width:86px}
 .row .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40%}
 .row .p{opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
-.empty{opacity:.45;padding:8px 10px;font-size:12px}
+.empty{opacity:.45;padding:8px 10px;font-size:FS1px}
 ]] .. theme .. [[</style></head><body><div id="wrap">
 <header id="bar"><span class="grip">⠿</span><span class="name">📝 Scorp Pad</span>
 <span class="hint">]] .. escapeHtml(sp.kindOf(cur) and sp.kindOf(cur).hint or "⌘T new · ⌘W close · ⌃Tab cycle · Esc") .. [[</span>
@@ -610,7 +618,7 @@ document.addEventListener('keydown', function(e){
   if (meta && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); q.focus(); q.select(); return; }
 });
 t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
-</script></body></html>]]
+</script></body></html>]])
     end
 
     function sp.render()

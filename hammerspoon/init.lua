@@ -4,9 +4,20 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.171.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.171.2
 -- =====================================================================
 
+-- NEW IN 6.171.2 — THE SCORP PAD: NEARLY SOLID, 16 PT TEXT:
+--   🔠 LL on 6.171.1: "I still need it less translucent and all the font
+--      needs to be bigger. Too small for my items. Aim for 16pt font."
+--      Window alpha 0.95 (5% translucent; was 0.85). The page's text is
+--      16 px (was 13) and every other size on it — buttons, hints,
+--      history rows, the filter box — comes off that one number:
+--      `sp.fontSize`, overridable with
+--      `settings = { scratch_pad = { fontSize = 18 } }`; alpha likewise.
+--   ✅ Gate: test_scratch_pad 117 → 119 (alpha, 16 px text with no
+--      placeholder left, chrome sized off it). 66 modules. 7,064 →
+--      7,066 checks, seventy-one stages.
 -- NEW IN 6.171.1 — THE SCORP PAD STANDS UP: 768×1024, LESS SEE-THROUGH:
 --   📐 LL on 6.171.0: "Make it 768 by 1024 and it is too translucent."
 --      Portrait now (width 768, height 1024, still clamped to the
@@ -78,28 +89,10 @@
 --      `_G.clipboardThrashRest`. The changeCount still advances, so a
 --      real copy after the rest is seen once, never twice.
 --   ✅ Gate: test_ocr_tag 77 → 84 (T7).
--- NEW IN 6.170.1 — THE "ZERO-DIMENSIONED IMAGE" NOTIFICATION LOOP:
---   🔁 LL, with a screenshot: an "HS OCR · Zero-dimensioned image
---      (0.0 x 0.0)" macOS notification "popping up in an infinite loop".
---      The Shortcuts app posts that itself when handed an empty image —
---      and the clipboard OCR handed it one on EVERY pasteboard tick while
---      an app kept an undecodable image flavor on the clipboard
---      (hs.pasteboard.readImage() returns an hs.image that measures 0×0).
---      Nothing looked at the image, ran one Shortcut at a time, or
---      remembered a failure. ocr.image now guards in order: busy (one
---      `shortcuts` process, HELD), held (30 s of quiet after an empty
---      image or a failed run, ONE ⚠️ Console line per streak), empty (a
---      0×0 image is never sent), repeat (the same image within 10 s is
---      not sent twice). `_G.ocrReport()` prints the counters. The
---      Shortcut's own notification cannot be silenced from here; not
---      calling it is the fix. Which app keeps putting an empty image on
---      the pasteboard is still worth knowing — the Console line says
---      when it happens.
---
--- (6.170.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.170.1 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.171.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.171.2
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -445,7 +438,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.171.1"
+_G.configVersion = "6.171.2"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

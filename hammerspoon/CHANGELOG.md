@@ -4,6 +4,18 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.171.2 — THE SCORP PAD: NEARLY SOLID, 16 PT TEXT:
+  🔠 LL on 6.171.1: "I still need it less translucent and all the font
+     needs to be bigger. Too small for my items. Aim for 16pt font."
+     Window alpha 0.95 (5% translucent; was 0.85). The page's text is
+     16 px (was 13) and every other size on it — buttons, hints,
+     history rows, the filter box — comes off that one number:
+     `sp.fontSize`, overridable with
+     `settings = { scratch_pad = { fontSize = 18 } }`; alpha likewise.
+  ✅ Gate: test_scratch_pad 117 → 119 (alpha, 16 px text with no
+     placeholder left, chrome sized off it). 66 modules. 7,064 →
+     7,066 checks, seventy-one stages.
+
 NEW IN 6.171.1 — THE SCORP PAD STANDS UP: 768×1024, LESS SEE-THROUGH:
   📐 LL on 6.171.0: "Make it 768 by 1024 and it is too translucent."
      Portrait now (width 768, height 1024, still clamped to the
