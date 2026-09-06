@@ -295,6 +295,7 @@ local view = WEBVIEWS[#WEBVIEWS]
 check("⇪3 opens one webview, shown, non-activating applied",
       view and view.shown == 1 and v.nonActivatingApplied == true and view.title == "Vault")
 check("the hyper watchdog is told to expect a release", EXPECTED[#EXPECTED] and EXPECTED[#EXPECTED].who == "the vault")
+check("6.173.2: the window is 10% see-through by default (alpha 0.9 applied)", v.alpha == 0.9 and view.alphaSet == 0.9, tostring(view.alphaSet))
 check("a scan runs on open and a held rescan timer is armed", lastTask("find") and lastTask("find").started and v.rescanTimer and v.rescanTimer.kind == "every")
 local h = view.htmlSet or ""
 check("the page lists every note and the open one", h:find("NOTES = %[") and h:find('"Alpha"') and h:find('"New Idea"') and h:find('CUR = "Alpha.md"'))
@@ -341,6 +342,7 @@ end
 do
     local r = _G.vaultReport()
     check("the report names the folder, the note count and Obsidian", r:find(VAULT, 1, true) and r:find("notes  : 7") and r:find("Obsidian"), r)
+    check("the report shows the alpha and how to make it solid", r:find("alpha 0.90 (see-through; vault = { alpha = 1 } for solid)", 1, true) ~= nil, r)
 end
 
 -- =======================================================================

@@ -4,9 +4,19 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.173.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.173.2
 -- =====================================================================
 
+-- NEW IN 6.173.2 — THE VAULT WINDOW: SLIGHTLY SEE-THROUGH:
+--   🪟 LL: "I need the window to be slightly less opaque. It should allow
+--      me to get my bearings on what" is behind it. The Vault (⇪3 / ⇪1,
+--      the Scorp Pad's home since 6.173.0) opens at alpha 0.9 — 10%
+--      see-through, enough to place the app under it — where it was
+--      solid. `settings = { vault = { alpha = 1 } }` makes it solid
+--      again, any 0–1 number to taste; `_G.vaultReport()`'s "window"
+--      line shows the value in force and the override for solid.
+--   ✅ Gate: test_vault 93 → 95 (alpha applied to the window, report
+--      line). 67 modules. 7,228 → 7,230 checks, seventy-three stages.
 -- NEW IN 6.173.1 — ⇪4 / ⇪⇧4 OCR TEXT REACHES THE ⇪O LOG (FOR REAL THIS TIME):
 --   🔤 LL: "OCR Logs do not have what hyper+v or the system clipboard
 --      has after an OCR event using hyper+4 or hyper+shift+4." 6.172.1
@@ -88,21 +98,10 @@
 --   ✅ Gate: test_vault 67 + test_vault_js 31 (stage 3d — it caught the
 --      autocomplete swallowing ⌘⏎ inside an existing link before it
 --      shipped). 67 modules. 7,066 → 7,167 checks, seventy-three stages.
--- NEW IN 6.171.2 — THE SCORP PAD: NEARLY SOLID, 16 PT TEXT:
---   🔠 LL on 6.171.1: "I still need it less translucent and all the font
---      needs to be bigger. Too small for my items. Aim for 16pt font."
---      Window alpha 0.95 (5% translucent; was 0.85). The page's text is
---      16 px (was 13) and every other size on it — buttons, hints,
---      history rows, the filter box — comes off that one number:
---      `sp.fontSize`, overridable with
---      `settings = { scratch_pad = { fontSize = 18 } }`; alpha likewise.
---   ✅ Gate: test_scratch_pad 117 → 119 (alpha, 16 px text with no
---      placeholder left, chrome sized off it). 66 modules. 7,064 →
---      7,066 checks, seventy-one stages.
--- (6.171.1 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.171.2 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.173.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.173.2
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -448,7 +447,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.173.1"
+_G.configVersion = "6.173.2"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

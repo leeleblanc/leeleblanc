@@ -4,6 +4,16 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.173.2 — THE VAULT WINDOW: SLIGHTLY SEE-THROUGH:
+  🪟 LL: "I need the window to be slightly less opaque. It should allow
+     me to get my bearings on what" is behind it. The Vault (⇪3 / ⇪1,
+     the Scorp Pad's home since 6.173.0) opens at alpha 0.9 — 10%
+     see-through, enough to place the app under it — where it was
+     solid. `settings = { vault = { alpha = 1 } }` makes it solid
+     again, any 0–1 number to taste; `_G.vaultReport()`'s "window"
+     line shows the value in force and the override for solid.
+  ✅ Gate: test_vault 93 → 95 (alpha applied to the window, report
+     line). 67 modules. 7,228 → 7,230 checks, seventy-three stages.
 NEW IN 6.173.1 — ⇪4 / ⇪⇧4 OCR TEXT REACHES THE ⇪O LOG (FOR REAL THIS TIME):
   🔤 LL: "OCR Logs do not have what hyper+v or the system clipboard
      has after an OCR event using hyper+4 or hyper+shift+4." 6.172.1

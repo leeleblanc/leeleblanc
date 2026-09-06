@@ -245,6 +245,9 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 6.173.2 verify with LL: the Vault window (⇪3 / ⇪1) shows the app
+  behind it faintly; if 0.9 is not enough, a lower number in the vault
+  alpha override (0.85 = the old pad feel); 1 = solid.
 - 6.173.1 verify with LL: ⇪4, select text, then ⇪O — the words are the
   newest row (RULE, now complete: every text screenshots.lua puts on the
   pasteboard goes through `shots.recordText` → `ocr.record`; a new

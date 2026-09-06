@@ -108,7 +108,7 @@ function M.setup(core)
         key           = "3",
         width         = 1240,
         height        = 820,
-        alpha         = 1,
+        alpha         = 0.9,      -- 6.173.2 — 10% see-through so the app behind shows (LL: "slightly less opaque"); 1 = solid, in a settings override
         fontSize      = 16,
         dir           = nil,          -- set below; a settings override replaces it
         dailyDir      = "Daily",      -- subfolder for ⌘D notes
@@ -1185,6 +1185,7 @@ if (VIEW === 'graph') { graphStart(); } else { t.focus(); try { t.setSelectionRa
                     .. (v.dirty and " · unsaved keystrokes pending" or "") .. " · saves: " .. v.saves
                     .. " · failed writes: " .. v.saveFails .. (v.lastSaveErr and ("  ⚠️ " .. v.lastSaveErr) or "")
         L[#L + 1] = "   window : " .. (v.webview and "open" or "closed") .. (v.pinned and " · 📌 pinned" or "") .. " · opens: " .. v.opens
+            .. string.format(" · alpha %.2f%s", v.alpha, v.alpha >= 1 and " (solid)" or " (see-through; vault = { alpha = 1 } for solid)")
                     .. " · non-activating: " .. tostring(v.nonActivatingWhy)
         local sp = v.sp()
         L[#L + 1] = "   scratch: " .. (sp and (#sp.tabs .. " tab" .. (#sp.tabs == 1 and "" or "s") .. " of the Scorp Pad shown here (⇪1)"
