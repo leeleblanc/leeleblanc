@@ -4,6 +4,49 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.169.0 — ONE MASTER LOG FROM EVERY STORE, AND THE DOCUMENTS A QUIT APP HAD OPEN:
+  📄 LL brought a 33-page Gemini conversation of ideas and asked for
+     stable code from it without duplicating anything already built.
+     Two things were missing; the rest already existed (⇪space
+     searches every store, the App Monitor already relaunches, the
+     clipboard/OCR pipelines exist, and the "renice the background"
+     idea stays refused, as the hog caller-out always has).
+  🗂 MASTER LOG (modules/master_log.lua): every store's rows in ONE
+     chronological file, master_log-<Mac>.csv in Logs — fixed layout
+     timestamp,source,app,action,text,path,epoch, newest first — from
+     the file tracker, the activity log, Chrome's archive, the OCR
+     text, the app-update rows, the clipboard and 6.169.0's open-
+     documents CSV. It only READS the stores. Rebuilt every 15 min in
+     40 ms slices (ml.every / ml.sliceBudget; _G.masterLogBuild() now),
+     180-day window, 200k-row cap, write-ledger registered. Then an
+     SQLite FTS5 index of it, built by the same /usr/bin/sqlite3 the
+     Chrome archive uses, in an hs.task, in ~/Library/Application
+     Support/Hammerspoon/master_log.db — NEVER in OneDrive (a live
+     database in a syncing folder is how databases corrupt; the CSV is
+     the synced record). _G.masterLogSearch("budget q3") prints the
+     newest hits; masterLog.search(q, n, fn) is the service. No
+     sqlite3, no FTS5: the CSV still builds and the report says why.
+  📄 OPEN DOCUMENTS (modules/doc_memory.lua): remembers which
+     documents Word / Excel / PowerPoint / Preview / TextEdit / Pages /
+     Numbers / Keynote / Acrobat have open (dm.apps), from each
+     window's AXDocument — hs.axuielement reads WITH a timeout, on a
+     held timer 0.5 s after such an app comes to the front and every
+     60 s while it stays there, at most 8 windows, never in a callback
+     (the 6.160.2 rule). Memory in open_documents-<Mac>.json (survives
+     a reload), changes appended to open_documents-<Mac>.csv (opened /
+     closed / quit — the master log reads it). When IT's forced update
+     quits the app, the App Monitor's quit panel now offers "📂 Spawn
+     with its documents" and one "📄 Reopen …" row per document —
+     `open -a App doc…` in a task, exactly a Finder double-click.
+     Two slow samples in a minute → it rests 5 min (mouse_follows'
+     watchdog shape). No Accessibility: stands down, the disk memory
+     still serves the panel. _G.docMemoryReport() / _G.docMemorySample().
+  ✅ Gate: test_master_log 47 (seven readers, layout, newest first,
+     window, cap, slicing, ledger, the sqlite3 arguments, FTS query
+     shapes, search both ways, guards, sentries) + test_doc_memory 40
+     (timed reads, cap, diff → CSV, JSON round-trip, quit → offer →
+     reopen, watchdog, stand-downs, app_watcher wiring, sentries).
+     66 modules. 6,910 → 7,001 checks, seventy-one stages.
 NEW IN 6.168.0 — MOUSE FOLLOWS FOCUS LEARNS ABOUT YOUR HAND:
   ✋ LL: "the mouse focus/following tool seems to be very aggressive. I
      can't seem to maintain control and instead it jumps or holds to

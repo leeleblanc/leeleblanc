@@ -62,6 +62,17 @@ follows the same rule. Any NEW fixed-size canvas gets the same treatment.
 Boot lines meant for LL go through `print` (diag.say is verbose-only) and
 run a turn AFTER setup if they show a settings-overridable value.
 
+Master log (6.169.0, modules/master_log.lua): READS the stores listed in
+`ml.sources` and rewrites `master_log-<Mac>.csv` (fixed columns
+timestamp,source,app,action,text,path,epoch) in slices; the FTS5 .db is
+built by /usr/bin/sqlite3 in an hs.task and lives in ~/Library/Application
+Support — NEVER in OneDrive. A new store that should be searchable adds
+one `ml.sources` row (its columns mapped), nothing else. It never writes
+a store. Open documents (6.169.0, modules/doc_memory.lua): AXDocument
+per window, timed reads on held timers, `dm.apps` only; app_watcher's
+quit panel asks `docs.openFor` / `docs.reopen` — keep that the only
+reopen path.
+
 Scratch pad (6.164.0, modules/scratch_pad.lua, ⇪1): a webview on the
 Capture Pad recipe — NO eventtap, NO AX/window reads, every timer held.
 Keystrokes land in `sp.tabs` at once, the store (Logs/scratch/scratch.json,
@@ -207,6 +218,17 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 6.169.0 verify with LL: after ~2 min a "master_log-<Mac>.csv" appears
+  in Logs (Excel opens it; newest first) and `_G.masterLogReport()` says
+  "index : built …" — if it says "unavailable"/"failed", paste that line
+  (the work Mac may lack FTS5 or block ~/Library writes; the CSV still
+  builds either way). `_G.masterLogSearch("some words")` prints hits.
+  Open Word with a document, then `_G.docMemoryReport()` lists it under
+  "open now"; quit Word → the App Monitor panel shows "📂 Spawn with its
+  documents" + "📄 Reopen …" rows and ⏎ brings the document back. If the
+  report says "no window list (slow or silent app)" for Word, AXWindows
+  timed out — raise dm.axTimeout via settings. Gemini's other ideas were
+  judged duplicates or refused (renice, screen-flash nag, hs.focus panels).
 - 6.168.0 verify with LL: mouse follows focus no longer jumps after a
   click on another window / a Dock click / dropping a dragged window,
   and no longer snaps back to a centre LL moved away from; ⌘Tab / ⌘` /

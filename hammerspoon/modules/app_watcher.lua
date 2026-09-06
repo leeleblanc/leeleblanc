@@ -218,7 +218,18 @@ function M.setup(core)
         appMonitorCurrent = nil
         appMonitorStopTimers()
 
-        if choice and choice.action == "spawn" then
+        if choice and (choice.action == "spawnDocs" or choice.action == "doc") then
+            -- 6.169.0: `open -a App doc…` through doc_memory — the app
+            -- comes up with its documents, as a Finder double-click would.
+            local paths = (choice.action == "doc") and { choice.path } or nil
+            local ok, done, why = pcall(_G.service.call, "docs.reopen", appName, paths)
+            if ok and done then
+                hs.alert.show(string.format("📂 Relaunching %s with %d document%s", appName,
+                                            why or 1, (why or 1) == 1 and "" or "s"))
+            else
+                hs.alert.show("⚠️ Could not reopen: " .. tostring(ok and why or done))
+            end
+        elseif choice and choice.action == "spawn" then
             -- 6.16.1 FIX: launchOrFocus(name) silently failed for apps
             -- whose real /Applications bundle is versioned on disk (Alfred
             -- ships as "Alfred 5.app", Bartender as "Bartender 5.app" —
@@ -313,10 +324,28 @@ function M.setup(core)
         appMonitorCurrent = nextApp
 
         _G.appMonitorChooser:placeholderText("⚠️  " .. nextApp .. " just closed — Spawn, End, or Esc to dismiss")
-        _G.appMonitorChooser:choices({
-            { text = "🚀 Spawn", subText = "Relaunch " .. nextApp,            action = "spawn" },
-            { text = "🛑 End",   subText = "Acknowledge — leave it closed",   action = "end"   },
-        })
+        -- 6.169.0: the documents it had open (doc_memory, if it runs)
+        -- come back with it — one row for all, one row each.
+        local docs = {}
+        if _G.service and _G.service.has and _G.service.has("docs.openFor") then
+            local ok, list = pcall(_G.service.call, "docs.openFor", nextApp)
+            if ok and type(list) == "table" then docs = list end
+        end
+        local rows = {}
+        if #docs > 0 then
+            rows[#rows + 1] = { text = "📂 Spawn with its documents",
+                                subText = string.format("Relaunch %s with the %d document%s it had open",
+                                                        nextApp, #docs, #docs == 1 and "" or "s"),
+                                action = "spawnDocs" }
+        end
+        rows[#rows + 1] = { text = "🚀 Spawn", subText = "Relaunch " .. nextApp,            action = "spawn" }
+        rows[#rows + 1] = { text = "🛑 End",   subText = "Acknowledge — leave it closed",   action = "end"   }
+        for _, d in ipairs(docs) do
+            rows[#rows + 1] = { text = "📄 Reopen " .. tostring(d.title or d.path),
+                                subText = tostring(d.path), action = "doc", path = d.path }
+        end
+        _G.appMonitorChooser:choices(rows)
+        pcall(function() _G.appMonitorChooser:rows(math.min(#rows, 8)) end)
 
         -- A fresh question: the Esc that ended the LAST popup must not be
         -- able to dismiss this one (two apps closed together, Esc on the
