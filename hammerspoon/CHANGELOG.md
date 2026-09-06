@@ -4,6 +4,48 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.177.0 — 📤 THE SCORP PAD'S WAY OUT: EVERY TAB AS AN OBSIDIAN NOTE:
+  🚪 THE QUESTION. LL: "Will I be able to open my Scorp pad files in
+     Obsidian if I ever decide to move to it?" Half the answer was
+     already yes — the Vault's notes are plain .md files in a folder with
+     no index and no sidecar, so Obsidian opens that exact folder on
+     either Mac. The other half was no: the pad's tabs live as JSON
+     inside one rewritten store (Logs/scratch/scratch.json), which is
+     safe and readable but is not a note you can open.
+  📤 ⌘⇧S NOW WRITES THEM OUT. In the ⇪1 / ⇪3 window, ⌘⇧S exports every
+     tab — and, by default, every closed tab in the history — as a .md
+     file in <Vault>/Scratch: front matter Obsidian reads (title,
+     source, created, updated, tags: scorp-pad) and then the text
+     exactly as typed. No Markdown is invented for LL. The store stays
+     the source of truth; the notes are a copy you can walk away with.
+  🔁 A TAB KEEPS ITS FILE NAME FOREVER. The name is remembered in the
+     pad's own store, so a second export UPDATES the same note instead
+     of breeding copies. A title with a slash, a colon or a newline in
+     it is made safe; two tabs with one title become "Name" and
+     "Name 2"; a name too long is cut, never refused. Nothing on disk is
+     ever read to decide any of this — a OneDrive placeholder read
+     blocks the main thread, and the pad never blocks.
+  🛟 IT DEGRADES, IT NEVER BREAKS. LL: "build it so it degrades
+     gracefully and nothing breaks — and that's the same for all our
+     code going forward. It must work on my home Mac and my work Mac."
+     So: the vault module does not have to be loaded (the export works
+     out the same folder from core that the vault would have chosen);
+     OneDrive does not have to exist (a local folder takes its place and
+     the summary SAYS "no OneDrive found"); one unwritable file costs
+     that file, not the export; exportMax stops a runaway and says it
+     stopped; and a failed export never touches a tab, the store or a
+     keystroke. Every path returns ok, why — nothing throws.
+     Switches: settings = { scratch_pad = { exportToVault = false } }
+     turns it off, exportHistory = false leaves closed tabs behind,
+     exportSub names a folder other than "Scratch".
+  🔎 WHERE TO LOOK. `_G.scorpPadExport()` runs it from the Console and
+     prints the summary; `_G.scratchPadReport()` gained two lines — the
+     folder the notes go to (saying honestly when there is no OneDrive
+     or no vault module) and what the last export wrote.
+  ✅ Gate: test_scratch_pad 130 → 172, test_vault 266 → 270,
+     test_vault_js 173 → 175. 67 modules. 7,561 → 7,609 checks,
+     seventy-three stages.
+
 NEW IN 6.176.0 — ⇪X MOUSE GRID: SMALLER CELLS, SAME THREE KEYSTROKES:
   🎯 LL: "each cell is rather large … when I type the three letters I'm
      still rather far off from a dialogue, can we reduce the size of the

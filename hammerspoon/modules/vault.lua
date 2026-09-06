@@ -150,6 +150,7 @@ local M = {
             { "⌘⇧K · ⌘L",   "Every open - [ ] task in the vault (⏎ opens it there) · tick / untick the task on this line; ⏎ continues a list" },
             { "OUTLINE · ≈", "Right pane: the note's headings (click to jump) · ≈ notes that mention this name without linking it" },
             { "⌘⇧E · ⌘⇧R",  "Extract the selection into a new note, leaving [[Name]] behind · open a random note" },
+            { "⌘⇧S",       "Export the Scorp Pad's tabs into <Vault>/Scratch as .md notes" },
             { "⌘F · ⌘O · ↑↓ ⏎", "Filter the list · walk it (⌥↑/⌥↓ ⌥⏎ from inside the text)" },
             { "📌",          "Pin: the window stays up beside the app; Esc only hands the keys back" },
             { "Obsidian",   "Open the same folder as a vault in Obsidian — plug-ins and all" },
@@ -2323,6 +2324,8 @@ document.addEventListener('keydown', function(e){
     if (kk === 'n') { e.preventDefault(); tplPick('new'); return; }
     if (kk === 'e') { e.preventDefault(); say({a:'extract', head: t.value.slice(0, t.selectionStart), selText: t.value.slice(t.selectionStart, t.selectionEnd)}); return; }
     if (kk === 'r') { e.preventDefault(); say({a:'random'}); return; }
+    // 6.177.0 — the Scorp Pad's way out: every tab as a .md note
+    if (kk === 's') { e.preventDefault(); say({a:'export'}); return; }
     if (e.code === 'BracketLeft' || e.key === '[' || e.key === '{') { e.preventDefault(); say({a:'dayshift', d: -1}); return; }
     if (e.code === 'BracketRight' || e.key === ']' || e.key === '}') { e.preventDefault(); say({a:'dayshift', d: 1}); return; }
   }
@@ -2522,6 +2525,14 @@ else {
                 local j = (v.doc and v.doc.scratch) and (((i or 1) - 1 + d) % n + 1) or (i or 1)
                 if v.openScratch(sp.tabs[j].id) then v.render() end
             end
+        -- 6.177.0 — ⌘⇧S exports the pad's tabs as .md notes. The pad owns
+        -- the work; if it is not loaded this says so and changes nothing.
+        elseif a == "export" then
+            local sp = v.sp()
+            local ok, summary = false, "the Scorp Pad is not loaded"
+            if sp and type(sp.exportAll) == "function" then ok, summary = sp.exportAll("⌘⇧S") end
+            pcall(function() hs.alert.show((ok and "📤 Exported — " or "📤 ") .. tostring(summary), 4) end)
+            if ok then v.scan("export") end
         elseif a == "restore" then
             local sp = v.sp()
             if sp and sp.restore(tostring(body.rid or "")) and v.openScratch(sp.active) then v.render() end

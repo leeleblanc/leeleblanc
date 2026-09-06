@@ -4,9 +4,35 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.176.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.177.0
 -- =====================================================================
 
+-- NEW IN 6.177.0 — 📤 THE SCORP PAD'S WAY OUT: EVERY TAB AS AN OBSIDIAN NOTE:
+--   🚪 LL: "Will I be able to open my Scorp pad files in Obsidian if I
+--      ever decide to move to it?" The Vault's notes always could — they
+--      are plain .md files in a folder. The pad's tabs could not: they
+--      live as JSON inside one rewritten store. Now ⌘⇧S in the ⇪1 / ⇪3
+--      window writes every tab — and every closed tab in the history —
+--      out as a .md file in <Vault>/Scratch, with front matter (title,
+--      source, created, updated, tags: scorp-pad) and the text exactly as
+--      typed. Obsidian opens that folder and there they are.
+--   🔁 A TAB KEEPS ITS FILE NAME FOREVER. The name is remembered in the
+--      pad's own store, so a second export UPDATES the note instead of
+--      breeding copies; a title with a slash or a colon in it is made
+--      safe, and two tabs with one title get "Name" and "Name 2".
+--      Nothing on disk is ever read to decide this — a OneDrive
+--      placeholder read blocks the main thread, and the pad never blocks.
+--   🛟 IT DEGRADES, IT NEVER BREAKS — the rule for everything from here
+--      on, on BOTH Macs. The vault module need not be loaded (the folder
+--      is worked out the same way it would work it out), OneDrive need
+--      not exist (a local folder takes its place and the summary SAYS
+--      so), one unwritable file costs that file and not the export, and
+--      a failed export never touches a tab, the store or a keystroke.
+--      `_G.scorpPadExport()` in the Console does the same and prints the
+--      summary; `_G.scratchPadReport()` names the folder and the last run.
+--   ✅ Gate: test_scratch_pad 130 → 172, test_vault 266 → 270,
+--      test_vault_js 173 → 175. 67 modules. 7,561 → 7,609 checks,
+--      seventy-three stages.
 -- NEW IN 6.176.0 — ⇪X MOUSE GRID: SMALLER CELLS, SAME THREE KEYSTROKES:
 --   🎯 LL: "each cell is rather large … when I type the three letters
 --      I'm still rather far off from a dialogue, can we reduce the size
@@ -79,42 +105,10 @@
 --      trusting.
 --   ✅ Gate: test_vault_js 143 → 173, test_power_tools 248 → 250.
 --      67 modules. 7,519 → 7,551 checks, seventy-three stages.
--- NEW IN 6.174.0 — HAMMER-SIDIAN: TAGS, TEMPLATES, BODY SEARCH — AND A PANIC CHORD:
---   🏷 TAGS. `#tag` anywhere in a note and `tags: a, b` in the front
---      matter both count, nested `#a/b` counts under `#a` too. A 🏷 TAGS
---      section with counts sits under the note list (⇪3); a click filters
---      it, typing `#` in the filter box lists every tag, and the open
---      note wears its tags as chips that follow your typing.
---   📄 TEMPLATES. Every .md in <Vault>/Templates is one: ⌘⇧T inserts one
---      at the caret, ⌘⇧N makes a new note from one, and ⌘D uses
---      Templates/Daily.md when it exists. {{title}} {{date}} {{time}}
---      {{date:FMT}} {{cursor}} are filled in; Templater's <% %> is left
---      alone. A template's body is read by /bin/cat in an hs.task — a
---      OneDrive placeholder would stall a main-thread read.
---   🔎 ⌘⇧F SEARCHES THE WORDS, not just the names: grep across the vault,
---      with `tag:x`, `path:x` and "a quoted phrase"; ⏎ opens at the line.
---      ☑ ⌘⇧K lists every open task in the vault, ⌘L ticks the one on your
---      line, ⏎ continues a list. Plus OUTLINE and UNLINKED MENTIONS in the
---      right pane, a word count, ‹ › day arrows, ⌘⇧E extract, ⌘⇧R random.
---      No new hyper key was spent — ⇪⇧T, ⇪⇧U and ⇪⇧Z are still free.
---   🚨 ⌃⌥⌘⇧Esc IS THE PANIC CHORD. LL: "ensure our build has a way to
---      unfreeze if it locks up my Mac." One chord lets go of everything:
---      the ⇪ hold, the vault window (even pinned), the Scorp Pad, the
---      mouse grid, the screen veil, any open picker — then pauses
---      Hammerspoon so a runaway keyboard tap stops too (⇪⇧1 or the ⏸ HS
---      menu-bar flag brings it back). It is a PLAIN chord, never a ⇪
---      shortcut, because a hyper escape hatch is worthless on the day
---      hyper is what stuck; every step runs in its own pcall, so one
---      wedged tool costs one step and not the rescue. `_G.hsPanic()` in
---      the Console does the same, `_G.panicReport()` shows what it last
---      let go of.
---   ✅ Gate: test_vault 95 → 265, test_vault_js 31 → 143,
---      test_power_tools 231 → 248. 67 modules. 7,230 → 7,519 checks,
---      seventy-three stages.
--- (6.173.2 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.174.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.176.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.177.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -460,7 +454,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.176.0"
+_G.configVersion = "6.177.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

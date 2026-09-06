@@ -406,6 +406,10 @@ else {
   check("…without a selection it still sends (Lua says 'select some text first')", env.sent[0] && env.sent[0].a === "extract" && env.sent[0].head === "# A" && env.sent[0].selText === "");
   env.sent.length = 0; env.key("r", { metaKey: true, shiftKey: true });
   check("⌘⇧R → random", env.sent[0] && env.sent[0].a === "random");
+  env.sent.length = 0; env.key("s", { metaKey: true, shiftKey: true });
+  check("6.177.0: ⌘⇧S → export (the Scorp Pad's tabs as .md notes)", env.sent[0] && env.sent[0].a === "export", JSON.stringify(env.sent[0]));
+  env.sent.length = 0; env.key("s", { metaKey: true });
+  check("…plain ⌘S stays native — nothing is sent", env.sent.length === 0);
   env.sent.length = 0; env.key("[", { metaKey: true, shiftKey: true, code: "BracketLeft" });
   check("⌘⇧[ → dayshift -1", env.sent[0] && env.sent[0].a === "dayshift" && env.sent[0].d === -1, JSON.stringify(env.sent[0]));
   env.sent.length = 0; env.key("}", { metaKey: true, shiftKey: true });

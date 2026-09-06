@@ -103,7 +103,7 @@ local function jdec(s)
 end
 
 -- ---- a controllable world ------------------------------------------------
-local FILES, WRITE_FAILS = {}, false
+local FILES, WRITE_FAILS, WRITE_BLOCK = {}, false, nil
 local realIoOpen = io.open
 io.open = function(path, mode)
     if (mode or "r"):find("w") then
@@ -622,6 +622,207 @@ do
     check("the highlight has a style", src:find(".row.sel{", 1, true) ~= nil)
     check("the text box keeps plain arrows (inText checks TEXTAREA)",
           src:find("a.tagName === 'TEXTAREA'", 1, true) ~= nil)
+end
+
+out("\n=== 6.177.0 — the way out: every tab as a .md note Obsidian opens ===\n")
+do
+    -- the controllable world again (the sections above hand io.open back)
+    local READS = {}
+    io.open = function(path, mode)
+        if (mode or "r"):find("w") then
+            if WRITE_FAILS or (WRITE_BLOCK and path:find(WRITE_BLOCK, 1, true)) then return nil end
+            local buf = {}
+            return { write = function(_, s) buf[#buf + 1] = s return true end,
+                     close = function() FILES[path] = table.concat(buf) end }
+        end
+        READS[#READS + 1] = path
+        if FILES[path] == nil then return nil end
+        local content, done = FILES[path], false
+        return { read = function() if done then return nil end done = true return content end,
+                 close = function() end }
+    end
+    os.rename = function(a, b)
+        if FILES[a] == nil then return nil, "no such file" end
+        FILES[b] = FILES[a]; FILES[a] = nil
+        return true
+    end
+    local realExecute = os.execute
+    local EXEC = {}
+    os.execute = function(cmd) EXEC[#EXEC + 1] = cmd return true end
+
+    local function reset()
+        FILES = {}
+        sp.tabs, sp.history, sp.exported, sp.lastExport = {}, {}, {}, nil
+        sp.exportToVault, sp.exportHistory, sp.exportMax = true, true, 500
+        sp.active = nil
+        _G.vault = nil
+        sp.cloudDir = nil
+    end
+    local function md(name) return FILES["/logs/vault/Scratch/" .. name] end
+    local function mdNames()
+        local n = {}
+        for path in pairs(FILES) do
+            local f = path:match("^/logs/vault/Scratch/(.+)$")
+            if f then n[#n + 1] = f end
+        end
+        table.sort(n)
+        return n
+    end
+
+    -- ---- where the notes go, on either Mac -------------------------------
+    reset()
+    local dir, how = sp.exportDir()
+    check("with no vault module and no OneDrive the notes still have a home",
+          dir == "/logs/vault/Scratch" and how == "local", dir .. " / " .. tostring(how))
+    _G.vault = { dir = "/od/Vault" }
+    dir, how = sp.exportDir()
+    check("...the loaded vault's own folder is the truth when it is up",
+          dir == "/od/Vault/Scratch" and how == "vault", dir)
+    _G.vault = nil
+    sp.cloudDir = "/od"
+    dir, how = sp.exportDir()
+    check("...and without the module it works out the SAME folder from OneDrive",
+          dir == "/od/Vault/Scratch" and how == "cloud", dir)
+    _G.vault = { dir = "" }
+    check("an empty vault dir is not trusted — the fallback takes over",
+          (select(1, sp.exportDir())) == "/od/Vault/Scratch")
+
+    -- ---- names Finder, OneDrive and Obsidian all accept -------------------
+    reset()
+    check("a slash in a title never becomes a folder", sp.exportSafeName("costs 50/50 split") == "costs 50-50 split")
+    check("colons, stars and quotes go too", sp.exportSafeName('a:b*c"d?e') == "a-b-c-d-e")
+    check("a newline is not a file name", sp.exportSafeName("first line\nsecond") == "first line second")
+    check("a leading dot never makes a hidden file", sp.exportSafeName(".hidden") == "hidden")
+    check("nothing to name is still named", sp.exportSafeName("   ") == "Scratch")
+    check("a long title is cut, not refused", #sp.exportSafeName(string.rep("x", 200)) == sp.exportNameChars)
+
+    -- ---- the name a tab keeps forever ------------------------------------
+    reset()
+    local n1 = sp.exportNameFor("t1", "Shopping")
+    check("a tab's file is named for its first line", n1 == "Shopping.md")
+    check("...and asking again gives the SAME name, so a second export updates it",
+          sp.exportNameFor("t1", "Renamed since") == "Shopping.md")
+    check("a second tab with the same title gets its own file",
+          sp.exportNameFor("t2", "Shopping") == "Shopping 2.md")
+    check("the ledger lives in the store", sp.exported.t1 == "Shopping.md" and sp.exported.t2 == "Shopping 2.md")
+
+    -- ---- the export itself ------------------------------------------------
+    reset()
+    sp.newTab("Milk\nBread")
+    sp.newTab("")                     -- an empty tab is nothing to export
+    sp.history = { { id = "h1", title = "Old thought", text = "was thinking", closedAt = os.time() } }
+    local ok, summary = sp.exportAll("test")
+    check("the export says it worked", ok == true, summary)
+    check("one file per tab with text, and none for the empty one", #mdNames() == 2, table.concat(mdNames(), ", "))
+    check("the closed-tab history comes too", md("Old thought.md") ~= nil)
+    local body = md("Milk.md") or ""
+    check("the note opens as Markdown with front matter Obsidian reads",
+          body:find("^---\n") and body:find("\ntitle: Milk\n", 1, true) and body:find("\n---\n\n", 1, true))
+    check("...it says where it came from", body:find("\nsource: Scorp Pad\n", 1, true) ~= nil)
+    check("...and wears a tag, so the vault's tag list finds them all",
+          body:find("\ntags: scorp%-pad\n") ~= nil)
+    check("the text is the text — no Markdown is invented for LL",
+          body:find("\n\nMilk\nBread\n$") ~= nil, body)
+    check("no .tmp is left behind", (function()
+        for path in pairs(FILES) do if path:find("%.tmp$") then return false end end
+        return true
+    end)())
+    check("the summary names the folder", summary:find("/logs/vault/Scratch", 1, true) ~= nil, summary)
+    check("...and says honestly that this Mac had no OneDrive",
+          summary:find("no OneDrive found", 1, true) ~= nil, summary)
+    check("the report of the last run is kept", sp.lastExport and sp.lastExport.wrote == 2)
+    check("the ledger was saved with the store, so the names survive a reload",
+          (function() local st = store() return st and st.exported and st.exported ~= nil end)())
+    check("no file in the vault was READ — a OneDrive placeholder read can block", (function()
+        for _, p in ipairs(READS) do if p:find("/vault/", 1, true) then return false end end
+        return true
+    end)())
+
+    -- exporting twice updates the same files instead of breeding copies
+    local before = #mdNames()
+    sp.exportAll("again")
+    check("a second export updates the same files", #mdNames() == before, table.concat(mdNames(), ", "))
+
+    -- ---- the switches -----------------------------------------------------
+    reset()
+    sp.newTab("only the open one")
+    sp.history = { { id = "h1", title = "Closed", text = "closed text" } }
+    sp.exportHistory = false
+    sp.exportAll("no history")
+    check("exportHistory = false leaves the history behind", md("Closed.md") == nil and #mdNames() == 1)
+
+    reset()
+    sp.newTab("one"); sp.newTab("two"); sp.newTab("three")
+    sp.exportMax = 2
+    local okM, sumM = sp.exportAll("capped")
+    check("exportMax stops the export and SAYS it stopped",
+          #mdNames() == 2 and sumM:find("stopped at 2", 1, true) ~= nil, sumM)
+
+    reset()
+    sp.newTab("something")
+    sp.exportToVault = false
+    local okOff, whyOff = sp.exportAll("off")
+    check("with the export switched off nothing is written and the reason is named",
+          okOff == false and #mdNames() == 0 and whyOff:find("export is off", 1, true) ~= nil, whyOff)
+
+    -- ---- it degrades, it never breaks -------------------------------------
+    reset()
+    sp.newTab("keeps its text")
+    WRITE_BLOCK = "/logs/vault/Scratch/"
+    local okF, sumF = sp.exportAll("write fails")
+    WRITE_BLOCK = nil
+    check("an unwritable vault folder fails honestly", okF == false and sumF:find("could not be written", 1, true), sumF)
+    check("...and the tab still has every word of its text",
+          sp.tabs[1].text == "keeps its text" and #sp.tabs == 1)
+    check("...and the pad's own store is untouched by the failure", sp.lastSaveErr == nil)
+
+    reset()
+    sp.newTab("first"); sp.newTab("second")
+    WRITE_BLOCK = "/logs/vault/Scratch/first.md"
+    local okP, sumP = sp.exportAll("one fails")
+    WRITE_BLOCK = nil
+    check("one file failing costs that file, not the export",
+          md("second.md") ~= nil and okP == false and sumP:find("1 could not be written", 1, true), sumP)
+
+    -- ---- the doors in -----------------------------------------------------
+    reset()
+    sp.newTab("through the page")
+    local alertsBefore = #ALERTS
+    msg({ a = "export" })
+    check("⌘⇧S from the page exports and says what happened on screen",
+          md("through the page.md") ~= nil and #ALERTS > alertsBefore
+          and tostring(ALERTS[#ALERTS]):find("📤", 1, true), tostring(ALERTS[#ALERTS]))
+    reset()
+    sp.newTab("from the Console")
+    -- (an earlier section loaded a SECOND copy of the module, so the global
+    -- belongs to that one — here we prove the door exists and reports.)
+    local realP = print; print = function() end
+    local okC, sumC = _G.scorpPadExport()
+    print = realP
+    check("_G.scorpPadExport() is the Console door and always reports",
+          type(_G.scorpPadExport) == "function" and type(sumC) == "string"
+          and sumC:find("Scratch", 1, true) ~= nil, tostring(sumC))
+    check("...and the pad's own export writes the note", (function()
+        local okE = sp.exportAll("console")
+        return okE == true and md("from the Console.md") ~= nil
+    end)(), table.concat(mdNames(), ", "))
+
+    reset()
+    os.execute = realExecute
+    io.open, os.rename = realIoOpen, realRename
+end
+
+do
+    local f = io.open(HS .. "/modules/scratch_pad.lua", "r"); local src = f:read("a"); f:close()
+    check("the page sends ⌘⇧S as the export",
+          src:find("e.shiftKey && (e.key === 's' || e.key === 'S')", 1, true) ~= nil)
+    local vf = io.open(HS .. "/modules/vault.lua", "r"); local vsrc = vf:read("a"); vf:close()
+    check("the Vault window has the same key, and hands the work to the pad",
+          vsrc:find("say({a:'export'})", 1, true) and vsrc:find('elseif a == "export" then', 1, true))
+    check("...and the vault never assumes the pad is loaded",
+          vsrc:find('"the Scorp Pad is not loaded"', 1, true) ~= nil)
+    check("the report names the folder and the last run",
+          src:find('"   export: ⌘⇧S → "', 1, true) ~= nil)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))

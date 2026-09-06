@@ -475,6 +475,24 @@ do
     check("Esc on a pinned window only hands the keys back", v.webview == before)
     msg({ a = "pin" })
     v.hide()
+    -- 6.177.0 — ⌘⇧S hands the export to the pad, and survives its absence
+    PAD.exports = 0
+    function PAD.exportAll(why) PAD.exports = PAD.exports + 1; return true, "2 notes → /od/Vault/Scratch" end
+    msg({ a = "export" })
+    check("6.177.0: ⌘⇧S asks the pad to export — the vault does none of the work", PAD.exports == 1)
+    check("...and it says on screen where the notes went",
+          tostring(ALERTS[#ALERTS]):find("/od/Vault/Scratch", 1, true) ~= nil, tostring(ALERTS[#ALERTS]))
+    do
+        local keep = _G.scratchPad; _G.scratchPad = nil
+        local ok = pcall(msg, { a = "export" })
+        _G.scratchPad = keep
+        check("...and with no pad loaded it says so instead of throwing",
+              ok and tostring(ALERTS[#ALERTS]):find("not loaded", 1, true) ~= nil, tostring(ALERTS[#ALERTS]))
+    end
+    PAD.exportAll = nil
+    local okNo = pcall(msg, { a = "export" })
+    check("...an old pad without the export still costs nothing", okNo == true)
+
     check("the report has the scratch line", _G.vaultReport():find("scratch: 3 tabs of the Scorp Pad", 1, true) ~= nil)
     _G.scratchPad = nil
 end

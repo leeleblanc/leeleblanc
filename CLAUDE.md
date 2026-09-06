@@ -31,6 +31,16 @@ work Mac.
 - ⇪⇧T (free since 6.161.0) and ⇪⇧U (free since 6.166.0, win_pin retired)
   are unspent — do not bind either without LL. (⇪3 went to the vault in
   6.172.0.)
+- IT DEGRADES, IT NEVER BREAKS (6.177.0, LL: "build it so it degrades
+  gracefully and nothing breaks — and that's the same for all our code
+  going forward. It must work on my home Mac and my work Mac."). Every
+  new path assumes NOTHING: not that another module is loaded, not that
+  OneDrive exists, not that a folder is writable, not that a binary is
+  installed. Missing dependency → the feature says so and the rest still
+  works; one failed item → that item, never the batch; a failure never
+  touches the user's text, a store or a keystroke. Return ok, why — do
+  not throw. And SAY the degraded state in the report, honestly (the
+  export's "no OneDrive found — local only" line is the shape).
 - The hyper hold is TIMED (6.162.1, init.lua §3.12): a lost F18 keyUp
   latched ⇪ and took LL's Mac. Any new path that enters the modal must go
   through hyperEnter (it arms `_G.hyperLatchTimer`); any tap that sees keys
@@ -90,6 +100,16 @@ with `extra.comment` (the only Asana path); keep it that way.
 closing such a tab files through capturePad.add / notePad.fileAll — the old
 modules keep their brains, `pad.viaScratch` / `np.viaScratch` restore their
 windows. Kind tabs never enter the pad's own 4 PM task.
+
+6.177.0 — ⌘⇧S in the ⇪1 / ⇪3 window EXPORTS the Scorp Pad's tabs (and
+its history) as .md notes in <Vault>/Scratch, front matter + the text as
+typed. `sp.exportAll` does the work; the vault only forwards the key and
+says so when the pad is not loaded. The file name a tab gets is
+REMEMBERED in the pad's store (`sp.exported`), so a re-export updates
+instead of duplicating — and nothing on disk is ever READ to decide a
+name (a OneDrive placeholder read blocks the main thread). The folder is
+`_G.vault.dir` when the module is up, else the same path worked out from
+core. `_G.scorpPadExport()`.
 
 Vault (6.172.0, modules/vault.lua, ⇪3): the FOLDER <OneDrive>/Vault of
 plain .md files IS the database — no index file, no sidecar, so Obsidian
@@ -276,6 +296,13 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 6.177.0 verify with LL: ⇪1, then ⌘⇧S — an alert says how many notes
+  went to <OneDrive>/Vault/Scratch; open that folder in Obsidian (or
+  Finder) and the tabs are there as .md files, front matter on top.
+  Type into a tab, ⌘⇧S again — the SAME file updates, no copy appears.
+  `_G.scratchPadReport()` "export:" / "last  :" lines say where and
+  when. On a Mac without OneDrive the summary says "no OneDrive found —
+  local folder" and writes to Logs/vault/Scratch instead.
 - 6.176.0 verify with LL: ⇪X — the grid is much finer (16-key alphabet,
   4,096 cells, ~30 pt on the 4K where it was ~70); typing three letters
   lands ON a button more often than beside it. Read

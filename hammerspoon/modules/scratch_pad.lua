@@ -100,7 +100,8 @@ local M = {
             { "16:00",     "One Asana task of the day: every tab, 07:30 → 16:00, you" },
             { "search",    "⇪space finds everything in the pad — tabs and history" },
             { "own window","settings = { scratch_pad = { viaVault = false } } brings the old window back" },
-            { "Console",   "_G.scratchPadReport() · _G.scratchPadSend()" },
+            { "⌘⇧S",       "Export every tab to <Vault>/Scratch as .md — Obsidian opens them" },
+            { "Console",   "_G.scratchPadReport() · _G.scratchPadSend() · _G.scorpPadExport()" },
         },
     },
 }
@@ -122,6 +123,16 @@ function M.setup(core)
         focusOnOpen   = true,
         nonActivating = true,
         pinned        = false,
+        -- 📤 6.177.0 — the way out: the tabs as .md files Obsidian opens
+        exportToVault   = true,     -- ⌘⇧S (and _G.scorpPadExport()) writes them out
+        exportSub       = "Scratch",-- the folder inside the vault they land in
+        exportHistory   = true,     -- closed tabs too (false = open tabs only)
+        exportMax       = 500,      -- most files one export writes
+        exportNameChars = 60,       -- longest file name before it is cut
+        exportTag       = "scorp-pad",  -- the front-matter tag every exported note wears
+        exported        = {},       -- tab id → the file name it keeps forever
+        lastExport      = nil,
+
         viaVault      = true,     -- 6.173.0 — ⇪1 opens inside the ⇪3 Vault window; false = this module's own window
 
         -- the 4 PM task
@@ -152,6 +163,10 @@ function M.setup(core)
     end
 
     sp.dir  = (core.logsDir or core.homeDir or ".") .. "/scratch"
+    -- 6.177.0 — kept so the export can find the vault's folder even on a
+    -- Mac where the vault module never loaded.
+    sp.cloudDir = core.cloudDir
+    sp.baseDir  = core.logsDir or core.homeDir
     sp.file = sp.dir .. "/scratch.json"
     _G.rewrittenFiles = _G.rewrittenFiles or {}
     _G.rewrittenFiles[sp.file] = "the ⇪1 Scorp Pad — rewritten after every edit"
@@ -259,6 +274,7 @@ function M.setup(core)
         sp.tabs    = type(data.tabs) == "table" and data.tabs or {}
         sp.history = type(data.history) == "table" and data.history or {}
         sp.sent    = type(data.sent) == "table" and data.sent or {}
+        sp.exported = type(data.exported) == "table" and data.exported or {}
         sp.active  = data.active
         sp.pinned  = data.pinned == true
         return true
@@ -272,6 +288,7 @@ function M.setup(core)
         local okE, blob = pcall(hs.json.encode, {
             tabs = sp.tabs, history = sp.history, sent = sp.sent,
             active = sp.active, pinned = sp.pinned, savedAt = os.time(),
+            exported = sp.exported,
         }, true)
         if not (okE and type(blob) == "string") then
             sp.lastSaveErr = "encode failed"
@@ -411,6 +428,193 @@ function M.setup(core)
             end
         end
         return false
+    end
+
+    -- ---- 📤 export to the vault (6.177.0) ------------------------------------
+    -- LL: "Will I be able to open my Scorp pad files in Obsidian if I ever
+    -- decide to move to it?" On their own the tabs are JSON inside one
+    -- rewritten store, so: no. This writes every tab — and, by default, the
+    -- closed-tab history — out as plain .md files in <Vault>/Scratch, the
+    -- same folder Obsidian opens. The store stays the source of truth; the
+    -- .md files are a copy you can walk away with.
+    --
+    -- IT DEGRADES, IT NEVER BREAKS. The vault module does not have to be
+    -- loaded (the folder is worked out the same way it would work it out);
+    -- OneDrive does not have to exist (a local folder takes its place and
+    -- the summary SAYS so); a single unwritable tab costs that one file,
+    -- not the export; a failed export never touches a tab, a store or a
+    -- keystroke. Every path returns ok, why — nothing here ever throws.
+    local BADCHARS = '[/\\:%*%?"<>|]'
+
+    -- The vault's folder: its own if the module is up (that is the truth),
+    -- else the very same path it would have chosen from core (work Mac
+    -- profiles may not load vault at all).
+    function sp.vaultDir()
+        local v = _G.vault
+        if type(v) == "table" and type(v.dir) == "string" and v.dir ~= "" then
+            return v.dir, "vault"
+        end
+        if sp.cloudDir and sp.cloudDir ~= "" then return sp.cloudDir .. "/Vault", "cloud" end
+        return (sp.baseDir or ".") .. "/vault", "local"
+    end
+    function sp.exportDir()
+        local dir, how = sp.vaultDir()
+        local sub = trim(tostring(sp.exportSub or ""))
+        if sub ~= "" then dir = dir .. "/" .. sub end
+        return dir, how
+    end
+
+    -- A file name Finder, OneDrive and Obsidian all accept: no slashes,
+    -- no colons, no control characters, no leading dot, not endless.
+    function sp.exportSafeName(title)
+        local s = oneLine(tostring(title or ""))
+        s = s:gsub("%c", " "):gsub(BADCHARS, "-")
+        s = trim(s:gsub("%s+", " "))
+        s = s:gsub("^[%.%-]+", "")
+        s = trim(s)
+        if #s > sp.exportNameChars then s = trim(s:sub(1, sp.exportNameChars)) end
+        if s == "" then s = "Scratch" end
+        return s
+    end
+
+    -- The name a tab keeps FOREVER, remembered in the store (sp.exported):
+    -- a second export of the same tab updates its file instead of leaving
+    -- a copy behind. Nothing on disk is ever read to decide this — a
+    -- OneDrive placeholder read can block the main thread, and the pad
+    -- never blocks.
+    function sp.exportNameFor(id, title)
+        id = tostring(id or "")
+        sp.exported = type(sp.exported) == "table" and sp.exported or {}
+        local had = sp.exported[id]
+        if type(had) == "string" and had ~= "" then return had end
+        local base, taken = sp.exportSafeName(title), {}
+        for other, name in pairs(sp.exported) do
+            if other ~= id and type(name) == "string" then taken[name:lower()] = true end
+        end
+        local name, n = base .. ".md", 1
+        while taken[name:lower()] do
+            n = n + 1
+            name = base .. " " .. n .. ".md"
+        end
+        sp.exported[id] = name
+        return name
+    end
+
+    -- Front matter Obsidian reads (and this vault's own tag scan reads):
+    -- the title, where it came from, when it was written. Then the text,
+    -- exactly as typed — no Markdown is invented for LL.
+    function sp.exportBody(rec)
+        local when = tonumber(rec.updatedAt or rec.closedAt or rec.createdAt) or os.time()
+        local made = tonumber(rec.createdAt) or when
+        local L = {
+            "---",
+            "title: " .. tostring(rec.title or "Scratch"),
+            "source: Scorp Pad",
+            "created: " .. os.date("%Y-%m-%d %H:%M", made),
+            "updated: " .. os.date("%Y-%m-%d %H:%M", when),
+            "tags: " .. tostring(sp.exportTag or "scorp-pad"),
+            "---",
+            "",
+            "",
+        }
+        local text = tostring(rec.text or "")
+        return table.concat(L, "\n") .. text .. (text:sub(-1) == "\n" and "" or "\n")
+    end
+
+    local function mkdirpFor(dir)
+        local made = false
+        if type(hs.fs) == "table" and type(hs.fs.mkdir) == "function" then
+            local up, chain = dir, {}
+            while up and up ~= "" and up ~= "/" do
+                chain[#chain + 1] = up
+                up = up:match("^(.*)/[^/]+$")
+            end
+            for i = #chain, 1, -1 do pcall(hs.fs.mkdir, chain[i]) end
+            made = true
+        end
+        if type(hs.fs) == "table" and type(hs.fs.attributes) == "function" then
+            local ok, a = pcall(hs.fs.attributes, dir)
+            if ok and type(a) == "table" then return true end
+        elseif made then
+            return true          -- made what we could and cannot check; the write will say
+        end
+        pcall(os.execute, "mkdir -p '" .. dir:gsub("'", "'\\''") .. "'")
+        return true
+    end
+
+    -- One file, written to a sibling and renamed over it — the same
+    -- contract as the store: a crash can lose the write, never the file.
+    local function writeOne(path, body)
+        local tmp = path .. ".tmp"
+        local f = io.open(tmp, "w")
+        if not f then return false, "cannot write " .. tmp end
+        local okW = f:write(body)
+        f:close()
+        if not okW then return false, "write failed" end
+        if not os.rename(tmp, path) then
+            pcall(os.remove, tmp)
+            return false, "rename failed"
+        end
+        return true
+    end
+
+    -- Everything, in one go. Returns ok, summary — and never raises.
+    function sp.exportAll(why)
+        if sp.exportToVault == false then
+            return false, "export is off (settings: scratch_pad.exportToVault)"
+        end
+        local dir, how = sp.exportDir()
+        local okDir = pcall(mkdirpFor, dir)
+        if not okDir then return false, "could not make " .. dir end
+
+        local recs = {}
+        for _, t in ipairs(sp.tabs) do
+            if trim(t.text or "") ~= "" then
+                recs[#recs + 1] = { id = t.id, title = sp.titleOf(t), text = t.text,
+                                    createdAt = t.createdAt, updatedAt = t.updatedAt }
+            end
+        end
+        if sp.exportHistory ~= false then
+            for _, h in ipairs(sp.history) do
+                if trim(h.text or "") ~= "" then
+                    recs[#recs + 1] = { id = h.id, title = h.title or "Scratch", text = h.text,
+                                        createdAt = h.createdAt, closedAt = h.closedAt }
+                end
+            end
+        end
+
+        local wrote, failed, firstWhy, capped = 0, 0, nil, false
+        for i, rec in ipairs(recs) do
+            if i > (tonumber(sp.exportMax) or 500) then capped = true break end
+            local ok, err = pcall(function()
+                local name = sp.exportNameFor(rec.id, rec.title)
+                local okW, whyW = writeOne(dir .. "/" .. name, sp.exportBody(rec))
+                if not okW then error(whyW, 0) end
+            end)
+            if ok then wrote = wrote + 1
+            else
+                failed = failed + 1
+                firstWhy = firstWhy or tostring(err)
+            end
+        end
+        sp.saveNow()   -- the names it just handed out are part of the store
+
+        local parts = { wrote .. " note" .. (wrote == 1 and "" or "s") .. " → " .. dir }
+        if how == "local" then parts[#parts + 1] = "no OneDrive found — local folder" end
+        if capped then parts[#parts + 1] = "stopped at " .. tostring(sp.exportMax) .. " (exportMax)" end
+        if failed > 0 then parts[#parts + 1] = failed .. " could not be written (" .. tostring(firstWhy) .. ")" end
+        local summary = table.concat(parts, " · ")
+        sp.lastExport = { at = os.time(), why = tostring(why or "export"), dir = dir,
+                          wrote = wrote, failed = failed, how = how, summary = summary }
+        say("exported " .. summary)
+        return failed == 0 and wrote > 0, summary
+    end
+
+    -- The Console door. Prints what happened either way.
+    _G.scorpPadExport = function()
+        local ok, summary = sp.exportAll("console")
+        print("📤 Scorp Pad export — " .. tostring(summary))
+        return ok, summary
     end
 
     -- ---- the 4 PM task --------------------------------------------------------
@@ -646,6 +850,7 @@ document.addEventListener('keydown', function(e){
   if (meta && (e.key === 'w' || e.key === 'W')) { e.preventDefault(); say({a:'close', tid: ACTIVE}); return; }
   if (meta && e.key >= '1' && e.key <= '9') { e.preventDefault(); say({a:'nth', n: e.key}); return; }
   if (e.ctrlKey && e.key === 'Tab') { e.preventDefault(); say({a:'cycle', d: e.shiftKey ? -1 : 1}); return; }
+  if (meta && e.shiftKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); say({a:'export'}); return; }
   if (meta && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); q.focus(); q.select(); return; }
 });
 t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
@@ -695,6 +900,9 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
             sp.render()
             pcall(function() hs.alert.show(sp.pinned and "📌 Pinned — Esc hands the keys back, ⇪1 closes"
                                            or "📌 Unpinned", 1.5) end)
+        elseif a == "export" then
+            local ok, summary = sp.exportAll("⌘⇧S")
+            pcall(function() hs.alert.show((ok and "📤 Exported — " or "📤 ") .. tostring(summary), 4) end)
         elseif a == "send" then
             local ok, why = sp.send("button")
             if not ok then pcall(function() hs.alert.show("📝 Not sent — " .. tostring(why), 2) end) end
@@ -956,6 +1164,20 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
         L[#L + 1] = "   tabs: " .. #sp.tabs .. " · history: " .. #sp.history
                     .. " · saves: " .. sp.saves .. " · failed writes: " .. (sp.saveFails or 0)
                     .. (sp.dirty and " · unsaved keystrokes pending" or "")
+        -- 6.177.0 — the way out, and whether it has been taken
+        if sp.exportToVault == false then
+            L[#L + 1] = "   export: off (settings: scratch_pad.exportToVault)"
+        else
+            local dir, how = sp.exportDir()
+            L[#L + 1] = "   export: ⌘⇧S → " .. dir
+                        .. (how == "local" and "  (no OneDrive found — local only)" or "")
+                        .. (how == "cloud" and "  (the vault module is not loaded)" or "")
+            local e = sp.lastExport
+            L[#L + 1] = "   last  : " .. (e and (e.wrote .. " written " .. os.date("%b %d %H:%M", e.at)
+                        .. " (" .. tostring(e.why) .. ")"
+                        .. (e.failed > 0 and (" · " .. e.failed .. " failed") or ""))
+                        or "never — _G.scorpPadExport() writes them now")
+        end
         local host = sp.host()
         L[#L + 1] = "   window: " .. (host and "the Vault's (⇪1 opens the tabs there; viaVault = false for its own)" or "its own")
         L[#L + 1] = "   pad: " .. ((sp.webview or (host and host.webview)) and "open" or "closed") .. (sp.pinned and " · 📌 pinned" or "")
