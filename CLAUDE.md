@@ -122,6 +122,14 @@ note is new — the index is asynchronous and a seed over an existing note
 is data loss. A name that becomes both a file and a `[[link]]` goes
 through `linkSafe`. KNOWN LIMIT: the index keys notes by NAME, so a root
 `Daily.md` and `Templates/Daily.md` cannot both be indexed.
+6.175.0 (LL does not write Markdown): a FORMAT BAR over the editor
+(`v.formatBar`), `wrapSel`/`blockAt` shared by the buttons, ⌘B/⌘I/⌘E and
+the "/" menu — one behaviour, one place to test. "/" opens ONLY on an
+otherwise empty line (a slash in a date or path must open nothing) and
+its rows show the name AND the raw markdown. `mdHint(line)` names the
+caret's line in the footer. RULE: any new syntax the vault understands
+gets a row in BLOCKS, a branch in mdHint, or both — the teaching layer
+is not optional decoration.
 
 🚨 Panic chord (6.174.0, power_tools): ⌃⌥⌘⇧Esc = `pt.panic()` /
 `_G.hsPanic()` — releases the ⇪ hold FIRST, then the vault window (even
@@ -268,6 +276,11 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 6.175.0 verify with LL: ⇪3 — the bar over the text (H1 B I • ☑ …),
+  hovering a button explains what it types; ⌘B on a selected word bolds
+  and ⌘B again unbolds; "/" on an empty line lists the blocks with the
+  markdown beside each; the footer names the line you are on. If the bar
+  is in the way: `settings = { vault = { formatBar = false } }`.
 - 6.174.0 verify with LL: ⇪3 — a `#tag` typed in a note shows in the 🏷
   TAGS list within a scan; ⌘⇧T offers the files in <Vault>/Templates and
   ⌘D uses Templates/Daily.md; ⌘⇧F finds words INSIDE notes and ⏎ lands

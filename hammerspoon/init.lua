@@ -4,9 +4,37 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.174.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.175.0
 -- =====================================================================
 
+-- NEW IN 6.175.0 — THE VAULT TEACHES YOU MARKDOWN AS YOU TYPE:
+--   ✍️ LL: "I don't write markdown. Are there tool tips or autocompletes
+--      that will teach and help me." Three, and every one SHOWS the
+--      syntax instead of hiding it, so they work themselves out of a job.
+--   🔠 A FORMAT BAR above the text: H1 H2 · B I <> · • 1. ☑ ❝ · [[ ]] #.
+--      Each button types the characters for you AND its tooltip names
+--      them ("Bold ⌘B — wraps the words in **stars**"). ⌘B ⌘I ⌘E do the
+--      same from the keyboard and press again to undo. A block button
+--      SWAPS a line's marker rather than stacking on it, and a selection
+--      gets the marker on every line. `settings = { vault =
+--      { formatBar = false } }` hides the bar; the rest stays.
+--   ／ "/" ON AN EMPTY LINE lists every block — Heading, Task, Quote,
+--      Divider, Code block, Link to a note — each row with its plain
+--      English name and, greyed beside it, the raw markdown it types.
+--      Type after the / to filter by name. A slash inside a date or a
+--      path (2026/09/06, and/or) opens nothing.
+--   👣 THE FOOTER NAMES THE LINE THE CARET IS ON: "Heading 2 — the ##
+--      does that", "Task — ⌘L ticks it, ⏎ starts the next one", "Tagged
+--      — the #word joins the 🏷 TAGS list". No click, it is just there;
+--      with nothing to explain it points at the / menu.
+--   🚨 6.174.1 folded in: the panic chord counted a mouse grid it had not
+--      cleared (grid.hide is idempotent and always succeeds, so calling
+--      it blind made the alert claim a rescue it had not made — LL's
+--      first press read "4 released" with no grid on screen). It checks
+--      grid.shown now. A rescue that overstates itself is one you stop
+--      trusting.
+--   ✅ Gate: test_vault_js 143 → 173, test_power_tools 248 → 250.
+--      67 modules. 7,519 → 7,551 checks, seventy-three stages.
 -- NEW IN 6.174.0 — HAMMER-SIDIAN: TAGS, TEMPLATES, BODY SEARCH — AND A PANIC CHORD:
 --   🏷 TAGS. `#tag` anywhere in a note and `tags: a, b` in the front
 --      matter both count, nested `#a/b` counts under `#a` too. A 🏷 TAGS
@@ -81,28 +109,10 @@
 --   ✅ Gate: test_vault 67 → 93, test_scratch_pad 119 → 130, test_vault_js
 --      31 → 45 (a second page with the pad's tabs). 67 modules.
 --      7,175 → 7,226 checks, seventy-three stages.
--- NEW IN 6.172.1 — ⇪X ARROWS SPEED UP WHEN HELD; ⇪4's OCR REACHES ⇪O; THE PAD IS SOLID:
---   🏃 LL: "The arrow keys when using hyper+x … do not make enough
---      jumps … cover more ground by holding the key down." A held arrow
---      still repeats at the OS rate, and now the step DOUBLES every
---      three repeats of one hold (8 → 16 → 32 → 64 pt, grid.nudgeAccel*).
---      A tap is one plain step; a pause resets; ⇧ fine nudges unchanged.
---   🔤 LL: "the screenshot tool … OCR … posts to my clipboard but not
---      to the hyper+o Search OCR logs." Found: ⇪4's words came from
---      the screenshots module's own Shortcut run and only ever reached
---      the Finder comment — the OCR log ⇪O and ⇪space read is written by
---      ocr_engine alone, and the clipboard-image path that used to catch
---      it has been OFF since 6.170.2. New `ocr.record` service is the one
---      door into that log; screenshots' name-on-arrival calls it.
---   📝 Scorp Pad alpha 1 — solid. (0.95 still read as see-through.)
---   ✅ Gate: test_mouse_grid 362 → 367, test_screenshots 160 → 161,
---      test_ocr_tag 94 → 96; test_master_log's "ml.days shrinks the
---      window" 6% flake fixed (minute-resolution fixture vs an 8.64 s
---      window). 67 modules. 7,167 → 7,175 checks, seventy-three stages.
--- (6.172.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.172.1 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.174.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.175.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -448,7 +458,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.174.0"
+_G.configVersion = "6.175.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

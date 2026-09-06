@@ -1466,7 +1466,8 @@ do
     _G.scratchPad = { webview = true,
                       hide = function() hidden[#hidden + 1] = "scratch" end }
     -- 🚨 THE BROKEN ONE, on purpose. It sits in the middle of the list.
-    _G.mouseGrid = { hide = function() error("the grid is wedged") end }
+    _G.mouseGrid = { shown = { "a canvas" },
+                     hide = function() error("the grid is wedged") end }
     _G.screenVeil = { on = true, hide = function() hidden[#hidden + 1] = "veil" end }
     _G.visibleChooser = function()
         return { hide = function() hidden[#hidden + 1] = "chooser" end }
@@ -1509,6 +1510,22 @@ do
     check("…and counts the presses and remembers the last one",
           rep:find("pressed : 3", 1, true) ~= nil
           and rep:find("threw: grid", 1, true) ~= nil, rep)
+    -- 6.174.1 — LL's first press reported "4 released ... grid" with no
+    -- grid on the screen: grid.hide is idempotent and always succeeds, so
+    -- calling it blind made the panic key take credit for nothing. A
+    -- rescue that overstates what it did is a rescue you stop trusting.
+    do
+        local called = false
+        _G.mouseGrid = { shown = {},
+                         hide = function() called = true end }
+        local d = pt.panic("grid down")
+        local got = false
+        for _, s2 in ipairs(d) do if s2.id == "grid" then got = true end end
+        check("a grid that is not up is not counted as released…", not got)
+        check("…though hide is still called, because idempotent teardown "
+              .. "is free and a half-shown grid must go too", called)
+    end
+
     check("panicPauses = false leaves the pause switch alone",
           (function()
               pt.panicPauses = false

@@ -4,6 +4,45 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.175.0 — THE VAULT TEACHES YOU MARKDOWN AS YOU TYPE:
+  ✍️ LL: "I don't write markdown. Are there tool tips or autocompletes
+     that will teach and help me." Three of them, and every one SHOWS
+     the syntax rather than hiding it — the point is that LL stops
+     needing them.
+  🔠 A FORMAT BAR above the text: H1 H2 · B I <> · • 1. ☑ ❝ · [[ ]] #
+     · "/ …". Each button types the characters for you AND its tooltip
+     names them ("Bold ⌘B — wraps the words in **stars**"; "Heading 1 —
+     types # at the start of the line"). ⌘B ⌘I ⌘E do the same from the
+     keyboard, and pressing again takes the formatting off, whether the
+     markers sit inside the selection or just outside it. A block
+     button SWAPS a line's marker rather than stacking on it ("# > -
+     hello" is nobody's intention) and a selection gets the marker on
+     every line. `settings = { vault = { formatBar = false } }` hides
+     the bar; ⌘B, "/" and the footer hint stay.
+  ／ "/" ON AN EMPTY LINE opens a list of every block — Heading 1/2/3,
+     Bullet list, Numbered list, Task, Quote, Bold, Italic, Code, Link
+     to a note, Tag, Divider, Code block — each row carrying its plain
+     English name and, greyed beside it, the raw markdown it will type.
+     Reading the list once is how the syntax is learned. Type after the
+     / to filter by name; ⏎ removes the slash and applies the block, so
+     nothing is left behind. A slash inside ordinary typing — a date, a
+     path, and/or — opens nothing, because a menu over that is a menu
+     you turn off.
+  👣 THE FOOTER NAMES THE LINE THE CARET IS ON, beside the word count:
+     "Heading 2 — the ## does that", "Task — ⌘L ticks it, ⏎ starts the
+     next one", "Tagged — the #word joins the 🏷 TAGS list", "Links to
+     another note — ⌘⏎ opens it". No click and no menu; it is the quiet
+     half of the teaching. With nothing to explain it points at the /
+     menu instead of going blank.
+  🚨 6.174.1 folded in: the panic chord took credit for a mouse grid it
+     had not cleared. grid.hide is idempotent and always succeeds, so
+     calling it blind made the alert claim a rescue it had not made —
+     LL's very first press read "4 released ... grid" with no grid on
+     the screen. It checks grid.shown now and reports only what was
+     really up. A rescue that overstates itself is one you stop
+     trusting.
+  ✅ Gate: test_vault_js 143 → 173, test_power_tools 248 → 250. 67
+     modules. 7,519 → 7,551 checks, seventy-three stages.
 NEW IN 6.174.0 — HAMMER-SIDIAN: TAGS, TEMPLATES, BODY SEARCH — AND A PANIC CHORD:
   🏷 LL: "I want only these items that truly work, tags and templates
      first. Keep in mind I want to use my tool for what people actually

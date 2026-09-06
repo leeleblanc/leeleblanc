@@ -1565,7 +1565,15 @@ end tell]]
         { id = "grid", what = "mouse grid cleared", run = function()
             local g = _G.mouseGrid
             if not (g and g.hide) then return nil end
+            -- 6.174.1 — grid.hide is idempotent and always succeeds, so
+            -- calling it blind made the alert claim it had cleared a grid
+            -- that was never up (LL's first press: "4 released" with no
+            -- grid on screen). grid.shown is the list of canvases
+            -- actually displayed — an empty one means there is nothing
+            -- here to let go of, and the panic key must not take credit.
+            local up = g.shown and #g.shown > 0
             g.hide("panic chord")
+            if not up then return nil end
             return true
         end },
         { id = "veil", what = "screen veil removed", run = function()

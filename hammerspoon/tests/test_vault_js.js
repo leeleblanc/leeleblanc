@@ -318,10 +318,12 @@ else {
   check("a leading front-matter block is skipped, the heading after it counted on its real line", env.outline.innerHTML.includes('data-line="4"') && env.outline.innerHTML.includes(">Real<"));
   const env2 = load();
   const v = env2.t.value, words = (v.match(/\S+/g) || []).length, lines = v.split("\n").length;
-  check("the footer counts words · chars · lines of the fixture", env2.foot.textContent === words + " words · " + v.length + " chars · " + lines + " lines", env2.foot.textContent);
-  check("…in the promised shape", /^\d+ words · [\d ]+ chars · \d+ lines$/.test(env2.foot.textContent));
+  // 6.175.0 — the counts moved into innerHTML so the line can carry the
+  // markdown hint beside them. The counts themselves are unchanged.
+  check("the footer counts words · chars · lines of the fixture", env2.foot.innerHTML.startsWith(words + " words · " + v.length + " chars · " + lines + " lines"), env2.foot.innerHTML);
+  check("…in the promised shape", /^\d+ words · [\d ]+ chars · \d+ lines · /.test(env2.foot.innerHTML));
   env2.t.selectionStart = 0; env2.t.selectionEnd = 7; env2.t.listeners.select({});
-  check("a selection adds its word count", /· 2 words selected$/.test(env2.foot.textContent), env2.foot.textContent);
+  check("a selection adds its word count", /· 2 words selected · /.test(env2.foot.innerHTML), env2.foot.innerHTML);
   check("thousands get a thin space", env2.call("thou(1840)") === "1 840" && env2.call("thou(312)") === "312");
 }
 // 12. 6.174.0 — 🔎 search mode
@@ -457,10 +459,111 @@ if (padHtml) {
   check("…and ⏎ sends tplinsert", env.sent.some((x) => x.a === "tplinsert" && x.name === "Meeting"));
   env.type("- a"); env.key("Enter");
   check("smart-list ⏎ works in a tab", env.t.value === "- a\n- ");
-  check("the footer counts the tab's words (- a - = 3)", env.foot.textContent === "3 words · 6 chars · 2 lines", env.foot.textContent);
+  check("the footer counts the tab's words (- a - = 3)", env.foot.innerHTML.startsWith("3 words · 6 chars · 2 lines"), env.foot.innerHTML);
   check("the pad page lists the tags too, after the tabs and notes", env.rows.innerHTML.indexOf("🏷 TAGS") > env.rows.innerHTML.indexOf("📝 SCRATCH"));
   env.q.value = "#work"; env.q.listeners.input({});
   check("a # filter hides the scratch tabs and templates, keeps the tagged notes", !env.rows.innerHTML.includes('data-tab="t1"') && env.rows.innerHTML.includes('data-name="Alpha"') && !env.rows.innerHTML.includes("📄 TEMPLATES"));
 }
+// =====================================================================
+// 18. 6.175.0 — THE MARKDOWN TEACHER
+// =====================================================================
+// LL: "I don't write markdown. Are there tool tips or autocompletes that
+// will teach and help me." So the syntax is never something LL has to
+// remember — and the checks here are about TEACHING as much as typing:
+// a button's tooltip must name the characters it types, and the / menu's
+// rows must carry the raw markdown beside the plain-English name.
+{
+  const env = load();
+  // ---- the bar, and its tooltips ----
+  const bar = html.slice(html.indexOf('id="fmt"'), html.indexOf('<textarea'));
+  check("the format bar is on the page, above the text", bar.includes("wrapSel('**')") && bar.includes("blockAt('# ')"));
+  check("every button carries a tooltip — a bar that does not explain "
+        + "itself is a bar LL still cannot read",
+        (bar.match(/<button/g) || []).length === (bar.match(/title="/g) || []).length);
+  check("…and the tooltips show the SYNTAX, not just the name",
+        bar.includes("**stars**") && bar.includes("# ") && bar.includes("`back ticks`"));
+
+  // ---- ⌘B / ⌘I / ⌘E wrap, and unwrap again ----
+  env.type("make me bold", 12);
+  env.t.selectionStart = 8; env.t.selectionEnd = 12;
+  env.key("b", { metaKey: true });
+  check("⌘B wraps the selection in stars", env.t.value === "make me **bold**", env.t.value);
+  check("…and leaves the WORD selected, not the stars, so ⌘I can follow",
+        env.t.value.slice(env.t.selectionStart, env.t.selectionEnd) === "bold");
+  env.key("b", { metaKey: true });
+  check("⌘B again takes the bold off — the same key both ways", env.t.value === "make me bold", env.t.value);
+  env.t.selectionStart = env.t.selectionEnd = 4;
+  env.key("i", { metaKey: true });
+  check("⌘I with nothing selected types the pair…", env.t.value === "make** me bold", env.t.value);
+  check("…and leaves the caret BETWEEN them, ready to type the word",
+        env.t.selectionStart === 5 && env.t.selectionEnd === 5, env.t.selectionStart);
+  const env3 = load();
+  env3.type("plain", 5);
+  env3.t.selectionStart = 0; env3.t.selectionEnd = 5;
+  env3.key("e", { metaKey: true });
+  check("⌘E is code, in back ticks", env3.t.value === "`plain`", env3.t.value);
+
+  // ---- the block buttons ----
+  const e2 = load();
+  e2.type("a heading", 3);
+  e2.call("blockAt('# ')");
+  check("H1 puts # at the START of the line, wherever the caret was", e2.t.value === "# a heading", e2.t.value);
+  e2.call("blockAt('# ')");
+  check("…and pressing it again takes it off", e2.t.value === "a heading", e2.t.value);
+  e2.call("blockAt('> ')"); e2.call("blockAt('- ')");
+  check("a line that already has a block marker SWAPS rather than stacking "
+        + "— \"# > - hello\" is nobody's intention", e2.t.value === "- a heading", e2.t.value);
+  const e3 = load();
+  e3.type("one\ntwo\nthree", 0);
+  e3.t.selectionStart = 0; e3.t.selectionEnd = 9;
+  e3.call("blockAt('- ')");
+  check("a selection gets the marker on EVERY line", e3.t.value === "- one\n- two\n- three", e3.t.value);
+
+  // ---- the / menu ----
+  const e4 = load();
+  e4.type("", 0);
+  e4.type("/");
+  check("\"/\" on an empty line opens the block menu", e4.ac.style.display === "block");
+  check("…and every row shows the plain-English name AND the markdown it types",
+        e4.ac.innerHTML.includes("Heading 1") && e4.ac.innerHTML.includes('class="md"')
+        && e4.ac.innerHTML.includes("- [ ] "), e4.ac.innerHTML);
+  e4.key("Enter");
+  check("⏎ takes the / away and applies the block — no stray slash left",
+        e4.t.value === "# ", e4.t.value);
+  const e5 = load();
+  e5.type("");
+  e5.type("/task");
+  check("typing after the / filters the list by NAME, not by syntax",
+        e5.ac.style.display === "block" && e5.ac.innerHTML.includes("Task"));
+  e5.key("Enter");
+  check("…and the task block lands clean", e5.t.value === "- [ ] ", e5.t.value);
+  const e6 = load();
+  e6.type("2026/09/06 and/or a/b", 21);
+  check("a slash inside a DATE or a path opens nothing — a menu over "
+        + "ordinary typing is a menu LL turns off", e6.ac.style.display !== "block");
+  const e7 = load();
+  e7.type("- [ ] milk\n/", 12);
+  check("…but a / on a new empty line under a list still opens it", e7.ac.style.display === "block");
+
+  // ---- the footer names the line you are on ----
+  const e8 = load();
+  const hint = (line) => e8.call("mdHint(" + JSON.stringify(line) + ")");
+  check("the footer explains a heading", hint("## Plans") === "Heading 2 — the ## does that");
+  check("…an unticked task, and says how to tick it", /^Task — ⌘L ticks it/.test(hint("- [ ] milk")));
+  check("…a ticked one differently", /unticks/.test(hint("- [x] milk")));
+  check("…a bullet, a number and a quote",
+        /Bullet list/.test(hint("- milk")) && /Numbered list/.test(hint("1. milk")) && /Quote/.test(hint("> said")));
+  check("…a tag, and where it goes", /🏷 TAGS list/.test(hint("bought milk #shopping")));
+  check("…a link, and how to open it", /⌘⏎ opens it/.test(hint("see [[Alpha]]")));
+  check("…bold and italic", /Bold/.test(hint("a **word** here")) && /Italic/.test(hint("a *word* here")));
+  check("a plain line says nothing rather than inventing something", hint("just some words") === "");
+  e8.type("## Plans", 8);
+  check("and it is actually IN the footer, beside the counts",
+        e8.foot.innerHTML.includes("Heading 2") && e8.foot.innerHTML.includes("words ·"), e8.foot.innerHTML);
+  e8.type("just some words", 4);
+  check("with nothing to explain it points at the / menu instead of going blank",
+        e8.foot.innerHTML.includes("/ for a list of blocks"), e8.foot.innerHTML);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

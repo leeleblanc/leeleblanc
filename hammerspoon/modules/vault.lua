@@ -190,6 +190,11 @@ function M.setup(core)
         tagRows         = 15,            -- 🏷 rows shown before "… N more"
         maxTagLines     = 40000,         -- like maxLinkLines, for the tag + frontmatter greps together
         smartLists      = true,          -- ⏎ continues a list line (page-side)
+        -- 6.175.0 — LL: "I don't write markdown. Are there tool tips or
+        -- autocompletes that will teach and help me." The format bar
+        -- above the text types the syntax and its tooltips name it;
+        -- false hides the bar (⌘B, "/" and the footer hint stay).
+        formatBar       = true,
         CAT             = "/bin/cat",    -- template bodies, off the main thread
 
         -- state
@@ -1631,6 +1636,16 @@ body.graph #graph{display:block}
 .hl{opacity:.5;margin:0 6px}
 .hx{opacity:.8}
 #foot{padding:3px 14px;font-size:FS2px;opacity:.5;border-top:1px solid #26262e}
+#foot .tip{opacity:1;color:#9fb6e8}
+/* 6.175.0 — the format bar. LL: "I don't write markdown." Every button
+   types the syntax for you AND its tooltip shows what it typed, so the
+   bar teaches itself out of a job. */
+#fmt{display:flex;gap:2px;padding:4px 10px;border-bottom:1px solid #26262e;background:#191920;flex-wrap:wrap}
+#fmt button{background:#22222a;border:1px solid #32323c;color:#c8c8d4;border-radius:6px;padding:2px 8px;font-size:FS2px;cursor:pointer;font-family:inherit}
+#fmt button:hover{background:#2c3a5a;color:#fff}
+#fmt .gap{width:8px}
+#fmt b{font-weight:700}#fmt i{font-style:italic}
+#ac .md{opacity:.55;margin-left:10px;font-family:Menlo,monospace}
 #chips{padding:2px 12px 6px}
 .chip{display:inline-block;background:#2c3a5a;border-radius:10px;padding:1px 8px;margin:2px 4px 2px 0;cursor:pointer;font-size:FS2px}
 #outline li.l2{padding-left:24px}
@@ -1657,7 +1672,23 @@ body.graph #graph{display:block}
 <button onclick="say({a:'hide'})" title="Close ⇪3 / ⇪1 / Esc">✕</button></header>
 <div id="main">
 <div id="side"><div id="mode" hidden></div><input id="q" placeholder="filter notes… ⌘F" value="]==] .. escapeHtml(v.mode == "notes" and v.filter or "") .. [==["><ul id="rows"></ul></div>
-<div id="ed"><textarea id="t" spellcheck="true" ]==] .. (d and "" or "disabled placeholder=\"⌘N a new note · ⌘D today · click a note on the left\"") .. [==[>]==] .. "\n" .. escapeHtml(d and d.text or "") .. [==[</textarea><div id="ac"></div><div id="foot"></div></div>
+<div id="ed">]==] .. (v.formatBar == false and "" or [==[<div id="fmt">
+<button onclick="blockAt('# ')" title="Heading 1 — types &quot;# &quot; at the start of the line">H1</button>
+<button onclick="blockAt('## ')" title="Heading 2 — types &quot;## &quot;">H2</button>
+<span class="gap"></span>
+<button onclick="wrapSel('**')" title="Bold ⌘B — wraps the words in **stars**"><b>B</b></button>
+<button onclick="wrapSel('*')" title="Italic ⌘I — wraps the words in *one star*"><i>I</i></button>
+<button onclick="wrapSel('`')" title="Code ⌘E — wraps the words in `back ticks`">&lt;/&gt;</button>
+<span class="gap"></span>
+<button onclick="blockAt('- ')" title="Bullet list — types &quot;- &quot;; ⏎ keeps the list going">•</button>
+<button onclick="blockAt('1. ')" title="Numbered list — types &quot;1. &quot;; ⏎ counts on for you">1.</button>
+<button onclick="toggleTask()" title="Task ⌘L — types &quot;- [ ] &quot;, and ⌘L again ticks it">☑</button>
+<button onclick="blockAt('&gt; ')" title="Quote — types &quot;&gt; &quot; at the start of the line">&#10077;</button>
+<span class="gap"></span>
+<button onclick="insertAtCaret('[[', ']]')" title="Link to another note — types [[ ]] and lists your notes to pick from">[[ ]]</button>
+<button onclick="insertAtCaret('#')" title="Tag — type a word after the # and it joins the 🏷 TAGS list">#</button>
+<button onclick="slashMenu()" title="Every block, in a list — or just type / at the start of an empty line">/ …</button>
+</div>]==]) .. [==[<textarea id="t" spellcheck="true" ]==] .. (d and "" or "disabled placeholder=\"⌘N a new note · ⌘D today · click a note on the left\"") .. [==[>]==] .. "\n" .. escapeHtml(d and d.text or "") .. [==[</textarea><div id="ac"></div><div id="foot"></div></div>
 <div id="links">]==] .. (isTab and "" or '<div id="chips" hidden></div>') .. [==[<h4>LINKS OUT</h4><ul id="outs">]==] .. (#outs > 0 and table.concat(outs) or '<div class="none">type [[ to link</div>') .. [==[</ul>
 ]==] .. (isTab and ('<h4>HISTORY · closed tabs</h4><ul id="hist">' .. (#hist > 0 and table.concat(hist) or '<div class="none">closed tabs land here — ⌘W</div>') .. '</ul>')
              or ('<h4>BACKLINKS</h4><ul id="backs">' .. (#backs > 0 and table.concat(backs) or '<div class="none">nothing links here yet</div>') .. '</ul>' .. unlBlock .. '<h4>OUTLINE</h4><ul id="outline"></ul>')) .. [==[</div>
@@ -1966,7 +1997,13 @@ function drawFoot(){
   var v = t.value || '', s = thou((v.match(/\S+/g) || []).length) + ' words · ' + thou(v.length) + ' chars · ' + thou(v.split('\n').length) + ' lines';
   var a = t.selectionStart, b = t.selectionEnd;
   if (b > a) s += ' · ' + thou((v.slice(a, b).match(/\S+/g) || []).length) + ' words selected';
-  foot.textContent = s;
+  // 6.175.0 — and what the caret's line is doing, in words. This is the
+  // quiet half of the teaching: no click, it is just always there.
+  var ls = a > 0 ? v.lastIndexOf('\n', a - 1) + 1 : 0;
+  var le = v.indexOf('\n', a); if (le < 0) le = v.length;
+  var hint = t.disabled ? '' : mdHint(v.slice(ls, le));
+  foot.innerHTML = esc(s) + (hint ? ' · <span class="tip">' + esc(hint) + '</span>'
+                                  : ' · <span class="tip">/ for a list of blocks</span>');
 }
 // the panes follow the typing a beat later (the page's own timer, not an hs.timer)
 function paneSoon(){
@@ -1977,12 +2014,20 @@ t.addEventListener('select', drawFoot); t.addEventListener('keyup', drawFoot); t
 
 // ---- one popup, three kinds: [[ links, #tags, 📄 templates ----
 var ACSEL = 0, ACITEMS = [], ACSTART = -1, ACKIND = 'link', ACDONE = null;
+var ACBLOCKS = [];   // 6.175.0 — the / menu's rows, parallel to ACITEMS
 function acOpen(){ return ac.style.display === 'block'; }
-function acClose(){ ac.style.display = 'none'; ACITEMS = []; ACSTART = -1; ACKIND = 'link'; ACDONE = null; }
+function acClose(){ ac.style.display = 'none'; ACITEMS = []; ACBLOCKS = []; ACSTART = -1; ACKIND = 'link'; ACDONE = null; }
 function acShow(kind, items, start, header){
   ACKIND = kind; ACITEMS = items; ACSEL = 0; ACSTART = start;
   var h = header ? ['<div class="sec">' + esc(header) + '</div>'] : [];
-  for (var j = 0; j < items.length; j++) h.push('<div class="' + (j === 0 ? 'sel' : '') + '" data-i="' + j + '">' + esc(items[j]) + '</div>');
+  for (var j = 0; j < items.length; j++) {
+    // 6.175.0 — a block row shows the NAME and, greyed beside it, the raw
+    // markdown it will type. Reading the list is how LL learns the syntax.
+    var body = (kind === 'block' && items[j] && items[j].n)
+      ? esc(items[j].n) + '<span class="md">' + esc(items[j].md) + '</span>'
+      : esc(items[j]);
+    h.push('<div class="' + (j === 0 ? 'sel' : '') + '" data-i="' + j + '">' + body + '</div>');
+  }
   ac.innerHTML = h.join('');
   ac.style.display = 'block';
   ac.style.left = '20px';
@@ -2005,6 +2050,17 @@ function autocomplete(){
     acShow('link', items, i + 2);
     return;
   }
+  // 6.175.0 — "/" on an otherwise EMPTY line opens the block menu. Only
+  // an empty line, because a slash is an ordinary character in a date, a
+  // path or and/or, and a menu that opens over those is a menu LL turns
+  // off. Typing after it filters by name.
+  var sl = head.match(/(^|\n)[ \t]*\/([a-zA-Z ]*)$/);
+  if (sl && !inLink) {
+    var tail1 = t.value.slice(pos).split('\n')[0];
+    if (/^\s*$/.test(tail1)) {
+      if (slashMenu(sl[2], pos - sl[2].length - 1)) return;
+    }
+  }
   // 6.174.0 — #wo (a # at the line start or after a space, at least one character) → known tags
   var m = head.match(/(^|\s)#([^\s#\[\]]+)$/);
   if (m && !inLink) {
@@ -2018,6 +2074,18 @@ function acDraw(){ var ds = ac.children; for (var i = 0; i < ds.length; i++) { v
 function acAccept(i){
   var name = ACITEMS[i]; if (name == null) return;
   if (ACKIND === 'tpl') { var fn = ACDONE; acClose(); if (fn) fn(name); return; }
+  // 6.175.0 — the / menu. The "/" (and anything typed after it to filter)
+  // is removed FIRST, then the block is applied to the clean line, or the
+  // marker would land after a stray slash.
+  if (ACKIND === 'block') {
+    var x = ACBLOCKS[i];
+    if (ACSTART >= 0) {
+      var pos0 = t.selectionStart;
+      t.value = t.value.slice(0, ACSTART) + t.value.slice(pos0);
+      try { t.setSelectionRange(ACSTART, ACSTART); } catch(e){}
+    }
+    acClose(); blockApply(x); return;
+  }
   var pos = t.selectionStart, after = t.value.slice(pos), np;
   if (ACKIND === 'tag') {
     t.value = t.value.slice(0, ACSTART) + name + after;
@@ -2056,6 +2124,138 @@ function insertAtCaret(str, tail){
   try { t.setSelectionRange(a + str.length, a + str.length); } catch(e){}
   say({a:'edit'}); paneSoon(); drawFoot();
 }
+// =====================================================================
+// 6.175.0 — THE MARKDOWN TEACHER. LL: "I don't write markdown. Are there
+// tool tips or autocompletes that will teach and help me."
+//
+// Three ways in, and every one of them SHOWS the syntax rather than
+// hiding it — the point is that LL stops needing them:
+//   · the format bar above the text, each button's tooltip naming the
+//     characters it is about to type and the shortcut for it;
+//   · "/" at the start of an empty line: a list of every block, each row
+//     with its plain-English name AND its raw markdown beside it;
+//   · the footer, which names the line the caret is on ("Heading 1 —
+//     the # does that") so the syntax gets explained as it is used.
+// =====================================================================
+
+// Wrap the selection in a marker — or UNWRAP it, so the same button (and
+// ⌘B) is also how you take bold off. With nothing selected it types the
+// pair and puts the caret between them, which is how a person expects a
+// bold button to behave in an empty line.
+function wrapSel(mark){
+  var a = t.selectionStart, b = t.selectionEnd, v = t.value, n = mark.length;
+  var sel = v.slice(a, b);
+  if (sel && sel.slice(0, n) === mark && sel.slice(-n) === mark && sel.length >= n * 2) {
+    t.value = v.slice(0, a) + sel.slice(n, sel.length - n) + v.slice(b);
+    try { t.setSelectionRange(a, b - n * 2); } catch(e){}
+  } else if (v.slice(a - n, a) === mark && v.slice(b, b + n) === mark) {
+    // the markers are just OUTSIDE the selection — the common case after
+    // double-clicking a word that is already bold
+    t.value = v.slice(0, a - n) + sel + v.slice(b + n);
+    try { t.setSelectionRange(a - n, b - n); } catch(e){}
+  } else {
+    t.value = v.slice(0, a) + mark + sel + mark + v.slice(b);
+    try { t.setSelectionRange(a + n, a + n + sel.length); } catch(e){}
+  }
+  say({a:'edit'}); paneSoon(); drawFoot();
+}
+
+// Put a marker at the START of the caret's line (or of every line of the
+// selection). Pressing the same one again takes it off, and a line that
+// already carries a DIFFERENT block marker swaps rather than stacking —
+// "# > - hello" is nobody's intention.
+var BLOCKRE = /^(\s*)(#{1,6} |> |- \[[ xX]\] |- |\* |\+ |\d+\. )?/;
+function blockAt(mark){
+  var v = t.value, a = t.selectionStart, b = t.selectionEnd;
+  var ls = a > 0 ? v.lastIndexOf('\n', a - 1) + 1 : 0;
+  var le = v.indexOf('\n', b); if (le < 0) le = v.length;
+  var lines = v.slice(ls, le).split('\n'), off = 0, first = null;
+  for (var i = 0; i < lines.length; i++) {
+    var m = lines[i].match(BLOCKRE), had = m[2] || '';
+    if (first === null) first = (had === mark);
+    var put = first ? '' : mark;      // every line follows the first one
+    lines[i] = m[1] + put + lines[i].slice(m[0].length);
+    if (i === 0) off = put.length - had.length;
+  }
+  t.value = v.slice(0, ls) + lines.join('\n') + v.slice(le);
+  var na = Math.max(ls, a + off);
+  try { t.setSelectionRange(na, na); } catch(e){}
+  say({a:'edit'}); paneSoon(); drawFoot();
+}
+
+// ---- the / menu ------------------------------------------------------
+// Name first, syntax second, on every row: read the list once and you
+// have learned the syntax, which is the whole point.
+var BLOCKS = [
+  { n: 'Heading 1',      md: '# ',        kind: 'line' },
+  { n: 'Heading 2',      md: '## ',       kind: 'line' },
+  { n: 'Heading 3',      md: '### ',      kind: 'line' },
+  { n: 'Bullet list',    md: '- ',        kind: 'line' },
+  { n: 'Numbered list',  md: '1. ',       kind: 'line' },
+  { n: 'Task',           md: '- [ ] ',    kind: 'line' },
+  { n: 'Quote',          md: '> ',        kind: 'line' },
+  { n: 'Bold',           md: '**',        kind: 'wrap' },
+  { n: 'Italic',         md: '*',         kind: 'wrap' },
+  { n: 'Code',           md: '`',         kind: 'wrap' },
+  { n: 'Link to a note', md: '[[ ]]',     kind: 'link' },
+  { n: 'Tag',            md: '#',         kind: 'type' },
+  { n: 'Divider',        md: '---',       kind: 'rule' },
+  { n: 'Code block',     md: '``` ```',   kind: 'fence' },
+];
+function blockRows(typed){
+  var out = [];
+  typed = (typed || '').toLowerCase();
+  for (var i = 0; i < BLOCKS.length; i++) {
+    var x = BLOCKS[i];
+    if (!typed || x.n.toLowerCase().indexOf(typed) >= 0) out.push(x);
+  }
+  return out;
+}
+// Applying one is deliberately shared with the buttons above: whatever
+// the / menu does, the bar does the same, so there is one behaviour to
+// learn and one to test.
+function blockApply(x){
+  if (!x) return;
+  if (x.kind === 'line')  { blockAt(x.md); return; }
+  if (x.kind === 'wrap')  { wrapSel(x.md); return; }
+  if (x.kind === 'link')  { insertAtCaret('[[', ']]'); autocomplete(); return; }
+  if (x.kind === 'type')  { insertAtCaret('#'); return; }
+  if (x.kind === 'rule')  { insertAtCaret('---\n'); return; }
+  if (x.kind === 'fence') { insertAtCaret('```\n', '\n```\n'); return; }
+}
+function slashMenu(typed, start){
+  var rows = blockRows(typed);
+  if (!rows.length) { acClose(); return false; }
+  ACBLOCKS = rows;
+  var items = [];
+  for (var i = 0; i < rows.length; i++) items.push(rows[i]);
+  acShow('block', items, start == null ? -1 : start, 'Insert…  (the grey part is the markdown it types)');
+  return true;
+}
+
+// ---- what line am I on? the footer explains it ----------------------
+// Passive teaching: no click, no menu, it just says what the characters
+// at the start of this line are doing.
+function mdHint(line){
+  line = line || '';
+  var m = line.match(/^\s*(#{1,6}) /);
+  if (m) return 'Heading ' + m[1].length + ' — the ' + m[1] + ' does that';
+  if (/^\s*- \[[xX]\] /.test(line)) return 'Task, ticked — ⌘L unticks it';
+  if (/^\s*- \[ \] /.test(line))    return 'Task — ⌘L ticks it, ⏎ starts the next one';
+  if (/^\s*\d+\. /.test(line))      return 'Numbered list — ⏎ counts on for you';
+  if (/^\s*[-*+] /.test(line))      return 'Bullet list — ⏎ keeps it going, ⏎ on an empty one ends it';
+  if (/^\s*> /.test(line))          return 'Quote — the > does that';
+  if (/^\s*(---|\*\*\*|___)\s*$/.test(line)) return 'Divider — a line across the page';
+  if (/^\s*```/.test(line))         return 'Code block — everything until the next ``` is left alone';
+  if (/^\s*(tags|title|date):/i.test(line)) return 'Front matter — tags: here join the 🏷 list';
+  if (/\[\[[^\]]*\]\]/.test(line))  return 'Links to another note — ⌘⏎ opens it';
+  if (/`[^`]+`/.test(line))         return 'Code — the `back ticks` do that';
+  if (/\*\*[^*]+\*\*/.test(line))   return 'Bold — the **stars** do that';
+  if (/(^|\s)#[^\s#]/.test(line))   return 'Tagged — the #word joins the 🏷 TAGS list';
+  if (/\*[^*]+\*/.test(line))       return 'Italic — one *star* each side';
+  return '';
+}
+
 // ⌘L — the caret line (or every line of the selection): - [ ] ↔ - [x]; a
 // list line gets a box; a plain line becomes an item. Marker and indent
 // stay, the caret keeps its place in the text, native ⌘Z undoes it.
@@ -2130,6 +2330,11 @@ document.addEventListener('keydown', function(e){
   if (meta && !e.shiftKey && kk === 'g') { e.preventDefault(); say({a:'graph'}); return; }
   if (meta && !e.shiftKey && kk === 'k') { e.preventDefault(); say({a:'linkfile'}); return; }
   if (meta && !e.shiftKey && kk === 'l') { e.preventDefault(); toggleTask(); return; }
+  // 6.175.0 — the three every word processor has, so LL never has to
+  // type a star. They wrap the selection and unwrap it again.
+  if (meta && !e.shiftKey && kk === 'b') { e.preventDefault(); wrapSel('**'); return; }
+  if (meta && !e.shiftKey && kk === 'i') { e.preventDefault(); wrapSel('*'); return; }
+  if (meta && !e.shiftKey && kk === 'e') { e.preventDefault(); wrapSel('`'); return; }
   // ⌘F · ⌘O (Obsidian's quick switcher): the notes list, the box selected
   if (meta && !e.shiftKey && (kk === 'f' || kk === 'o')) { e.preventDefault(); if (MODE !== 'notes') setMode('notes'); q.focus(); q.select(); return; }
   if (e.key === 'Enter' && !meta && !e.altKey && !e.shiftKey && inText() && !acOpen()) { smartEnter(e); return; }
@@ -2593,6 +2798,9 @@ else {
                     .. (v.mode ~= "notes" and (" · mode: " .. v.mode) or "")
                     .. (v.dirty and " · unsaved keystrokes pending" or "") .. " · saves: " .. v.saves
                     .. " · failed writes: " .. v.saveFails .. (v.lastSaveErr and ("  ⚠️ " .. v.lastSaveErr) or "")
+        L[#L + 1] = "   help   : format bar " .. (v.formatBar == false and "off (formatBar)" or "on")
+                    .. " · \"/\" on an empty line lists every block · ⌘B ⌘I ⌘E "
+                    .. "· the footer names the line you are on"
         L[#L + 1] = "   window : " .. (v.webview and "open" or "closed") .. (v.pinned and " · 📌 pinned" or "") .. " · opens: " .. v.opens
             .. string.format(" · alpha %.2f%s", v.alpha, v.alpha >= 1 and " (solid)" or " (see-through; vault = { alpha = 1 } for solid)")
                     .. " · non-activating: " .. tostring(v.nonActivatingWhy)
