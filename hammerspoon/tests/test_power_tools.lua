@@ -69,8 +69,24 @@ local GETCALLS   = 0            -- hs.application.get calls — must stay 0
 local SERVICE_HAS = true        -- is screenshots loaded?
 local ZBAR       = "/opt/homebrew/bin/zbarimg"
 
+local HOTKEYS    = {}           -- every PLAIN chord bound, by combo
+
 hs = {
     accessibilityState = function() return AX end,
+    -- 🚨 6.174.0 — the panic chord is bound here, NOT through
+    -- core.hyperAddShortcut, and that is the whole point of it: it has
+    -- to survive a broken ⇪. The stub keeps them apart so §12 can prove
+    -- the binding never went near the hyper registry.
+    hotkey = {
+        bind = function(mods, key, fn)
+            local ms = {}
+            for _, m in ipairs(mods or {}) do ms[#ms + 1] = tostring(m):lower() end
+            table.sort(ms)
+            local combo = table.concat(ms, "+") .. "+" .. tostring(key):lower()
+            HOTKEYS[combo] = fn
+            return { combo = combo, delete = function() end }
+        end,
+    },
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
     pasteboard = {
         getContents    = function() return CLIP end,
@@ -1387,6 +1403,122 @@ do
     check("the ⇪; row runs the same report and counts as a run",
           pt.run("freekeys") == true and (pt.ran.freekeys or 0) >= 1)
     _G.hyperBound = savedBound
+end
+
+-- =====================================================================
+out("\n=== 17. 🚨 the panic chord (6.174.0) ===\n")
+-- =====================================================================
+-- LL: "ensure our build has a way to unfreeze if it locks up my Mac."
+--
+-- THE TEETH HERE:
+--
+--   (a) IT IS NOT A ⇪ SHORTCUT. Every escape hatch in this config that
+--       is reached through hyper is worthless on the day hyper is what
+--       broke — a lost F18 keyUp latches ⇪ and eats every key. So the
+--       chord must be in hs.hotkey and NOT in the hyper registry, and
+--       the test asserts both halves.
+--
+--   (b) ONE BROKEN STEP MUST NOT COST THE REST. On the day this runs,
+--       something is already wrong. A step that throws is caught, named
+--       and stepped over — the checks below break a step on purpose and
+--       expect every later one to have run anyway.
+--
+--   (c) THE ⇪ HOLD GOES FIRST. Releasing a panel while the modal still
+--       has the keyboard just hands it back to the thing eating keys.
+do
+    reset()
+    local combo = "alt+cmd+ctrl+shift+escape"
+    check("the chord is bound as a PLAIN hotkey, not a ⇪ shortcut",
+          type(HOTKEYS[combo]) == "function")
+    local inHyper = false
+    for k in pairs(BOUND) do
+        if tostring(k):find("escape", 1, true) then inHyper = true end
+    end
+    check("…and nothing named it to core.hyperAddShortcut — a hyper "
+          .. "escape hatch is no escape hatch", not inHyper)
+    check("the ⇪ hold is the FIRST step — a panel released under a "
+          .. "latched ⇪ just hands the keyboard back",
+          pt.panicSteps[1].id == "hyper")
+    check("…and the pause switch is the LAST", pt.panicSteps[#pt.panicSteps].id == "pause")
+    check("the Console door exists for the day the chord cannot be pressed",
+          type(_G.hsPanic) == "function")
+
+    -- Nothing is up: the chord must still be safe to press, and honest.
+    _G.hyperActive, _G.hsPaused = false, false
+    _G.vault, _G.scratchPad, _G.mouseGrid, _G.screenVeil = nil, nil, nil, nil
+    _G.visibleChooser = function() return nil end
+    pt.panicPauses = false
+    local did, failed = pt.panic("empty")
+    check("pressed with nothing open it releases nothing and throws nothing",
+          #did == 0 and #failed == 0)
+    check("…and says so on screen rather than claiming a rescue",
+          (ALERTS[#ALERTS] or ""):find("nothing was holding on", 1, true) ~= nil,
+          ALERTS[#ALERTS])
+    pt.panicPauses = true
+
+    -- Now the real thing: everything up at once, and one step broken.
+    reset()
+    local hidden = {}
+    _G.hyperActive = true
+    _G.hyperExit   = function() hidden[#hidden + 1] = "hyper"; _G.hyperActive = false end
+    _G.vault = { webview = true, pinned = true,
+                 hide = function() hidden[#hidden + 1] = "vault" end }
+    _G.scratchPad = { webview = true,
+                      hide = function() hidden[#hidden + 1] = "scratch" end }
+    -- 🚨 THE BROKEN ONE, on purpose. It sits in the middle of the list.
+    _G.mouseGrid = { hide = function() error("the grid is wedged") end }
+    _G.screenVeil = { on = true, hide = function() hidden[#hidden + 1] = "veil" end }
+    _G.visibleChooser = function()
+        return { hide = function() hidden[#hidden + 1] = "chooser" end }
+    end
+    _G.hsPaused = false
+    did, failed = pt.panic("chord")
+    local ids = {}
+    for _, s2 in ipairs(did) do ids[#ids + 1] = s2.id end
+    local list = table.concat(ids, ",")
+    check("the ⇪ hold is let go first", ids[1] == "hyper")
+    check("the vault window closes EVEN WHEN PINNED — 📌 is a preference, "
+          .. "not a reason to keep the keyboard",
+          list:find("vault", 1, true) ~= nil and _G.vault.pinned == false)
+    check("the Scorp Pad closes with it", list:find("scratch", 1, true) ~= nil)
+    check("the screen veil comes off", list:find("veil", 1, true) ~= nil)
+    check("an open picker is dismissed", list:find("chooser", 1, true) ~= nil)
+    check("the broken step is caught and NAMED, not swallowed",
+          #failed == 1 and failed[1] == "grid")
+    check("…and every step AFTER it still ran — one wedged tool must not "
+          .. "cost LL the rest of the rescue",
+          list:find("veil", 1, true) ~= nil
+          and list:find("chooser", 1, true) ~= nil
+          and _G.hsPaused == true, list)
+    check("Hammerspoon ends up paused, so a runaway TAP stops too",
+          _G.hsPaused == true and list:find("pause", 1, true) ~= nil)
+    check("the alert says how to come back", (ALERTS[#ALERTS] or ""):find("back on", 1, true) ~= nil,
+          ALERTS[#ALERTS])
+
+    -- Pressed twice: the second press must not un-pause what the first
+    -- press paused. A panic key that toggles is a panic key that hurts.
+    local before = _G.hsPaused
+    pt.panic("chord")
+    check("a second press does NOT un-pause — panic never toggles",
+          _G.hsPaused == true and before == true)
+
+    local rep = _G.panicReport()
+    check("the report names the chord and the Console door",
+          rep:find("escape", 1, true) ~= nil and rep:find("_G.hsPanic()", 1, true) ~= nil,
+          rep)
+    check("…and counts the presses and remembers the last one",
+          rep:find("pressed : 3", 1, true) ~= nil
+          and rep:find("threw: grid", 1, true) ~= nil, rep)
+    check("panicPauses = false leaves the pause switch alone",
+          (function()
+              pt.panicPauses = false
+              _G.hsPaused = false
+              local d = pt.panic("no pause")
+              local got = false
+              for _, s2 in ipairs(d) do if s2.id == "pause" then got = true end end
+              pt.panicPauses = true
+              return (not got) and _G.hsPaused == false
+          end)())
 end
 
 -- =====================================================================

@@ -4,9 +4,41 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.173.2
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.174.0
 -- =====================================================================
 
+-- NEW IN 6.174.0 — HAMMER-SIDIAN: TAGS, TEMPLATES, BODY SEARCH — AND A PANIC CHORD:
+--   🏷 TAGS. `#tag` anywhere in a note and `tags: a, b` in the front
+--      matter both count, nested `#a/b` counts under `#a` too. A 🏷 TAGS
+--      section with counts sits under the note list (⇪3); a click filters
+--      it, typing `#` in the filter box lists every tag, and the open
+--      note wears its tags as chips that follow your typing.
+--   📄 TEMPLATES. Every .md in <Vault>/Templates is one: ⌘⇧T inserts one
+--      at the caret, ⌘⇧N makes a new note from one, and ⌘D uses
+--      Templates/Daily.md when it exists. {{title}} {{date}} {{time}}
+--      {{date:FMT}} {{cursor}} are filled in; Templater's <% %> is left
+--      alone. A template's body is read by /bin/cat in an hs.task — a
+--      OneDrive placeholder would stall a main-thread read.
+--   🔎 ⌘⇧F SEARCHES THE WORDS, not just the names: grep across the vault,
+--      with `tag:x`, `path:x` and "a quoted phrase"; ⏎ opens at the line.
+--      ☑ ⌘⇧K lists every open task in the vault, ⌘L ticks the one on your
+--      line, ⏎ continues a list. Plus OUTLINE and UNLINKED MENTIONS in the
+--      right pane, a word count, ‹ › day arrows, ⌘⇧E extract, ⌘⇧R random.
+--      No new hyper key was spent — ⇪⇧T, ⇪⇧U and ⇪⇧Z are still free.
+--   🚨 ⌃⌥⌘⇧Esc IS THE PANIC CHORD. LL: "ensure our build has a way to
+--      unfreeze if it locks up my Mac." One chord lets go of everything:
+--      the ⇪ hold, the vault window (even pinned), the Scorp Pad, the
+--      mouse grid, the screen veil, any open picker — then pauses
+--      Hammerspoon so a runaway keyboard tap stops too (⇪⇧1 or the ⏸ HS
+--      menu-bar flag brings it back). It is a PLAIN chord, never a ⇪
+--      shortcut, because a hyper escape hatch is worthless on the day
+--      hyper is what stuck; every step runs in its own pcall, so one
+--      wedged tool costs one step and not the rescue. `_G.hsPanic()` in
+--      the Console does the same, `_G.panicReport()` shows what it last
+--      let go of.
+--   ✅ Gate: test_vault 95 → 265, test_vault_js 31 → 143,
+--      test_power_tools 231 → 248. 67 modules. 7,230 → 7,519 checks,
+--      seventy-three stages.
 -- NEW IN 6.173.2 — THE VAULT WINDOW: SLIGHTLY SEE-THROUGH:
 --   🪟 LL: "I need the window to be slightly less opaque. It should allow
 --      me to get my bearings on what" is behind it. The Vault (⇪3 / ⇪1,
@@ -67,41 +99,10 @@
 --      test_ocr_tag 94 → 96; test_master_log's "ml.days shrinks the
 --      window" 6% flake fixed (minute-resolution fixture vs an 8.64 s
 --      window). 67 modules. 7,167 → 7,175 checks, seventy-three stages.
--- NEW IN 6.172.0 — THE VAULT: LINKED MARKDOWN NOTES IN ONEDRIVE, WITH A GRAPH (⇪3):
---   🕸 LL: "an Obsidian-like note taking app … link/reference the files
---      in their OneDrive location … both Macs using OneDrive as the
---      repository … plain text Markdown files … [[Note Name]] links …
---      graph view." modules/vault.lua, ⇪3. The vault is the FOLDER
---      <OneDrive>/Vault (`settings = { vault = { dir = "…" } }` moves
---      it): plain .md files and nothing else — no index file, no
---      database — which is exactly what Obsidian opens ("Open folder as
---      vault"), so Obsidian and its plug-ins work on the same notes on
---      either Mac while OneDrive carries the folder between them.
---   📝 One window on the Scorp Pad recipe: notes left (filter box, ↑↓
---      walk, ⏎ opens, a name with no match ⏎ creates), the text in the
---      middle, LINKS OUT and BACKLINKS on the right. `[[` pops a list of
---      note names (↑↓ ⏎/Tab); ⌘⏎ follows the link under the caret and
---      creates the note if it is missing; ⌘N new, ⌘D today's note
---      (Daily/YYYY-MM-DD.md), ⌘K links a file from anywhere in OneDrive
---      as a RELATIVE Markdown link (Obsidian's own shape, so it resolves
---      on the other Mac's different home folder) — ⌘⏎ opens it.
---   🕸 ⌘G is the GRAPH: every note a dot, every link a line, a force
---      layout in the page's canvas; a linked name with no file yet is a
---      hollow dot; click opens, drag untangles. ⇪space has a 🕸 Vault
---      source (names only); ⏎ on a row opens the note.
---   ☁️ OneDrive placeholders BLOCK on read (the Sep 6 drag lag). So the
---      index never reads the notes: names come from /usr/bin/find and
---      links from /usr/bin/grep, both in held hs.tasks; only the note
---      you open is read, once, at your request. Text lands in Lua on
---      every key, the .md file 0.3 s after the last one (tmp + rename)
---      and at once on switching, closing and reload.
---   ✅ Gate: test_vault 67 + test_vault_js 31 (stage 3d — it caught the
---      autocomplete swallowing ⌘⏎ inside an existing link before it
---      shipped). 67 modules. 7,066 → 7,167 checks, seventy-three stages.
--- (6.171.2 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.172.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.173.2
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.174.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -447,7 +448,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.173.2"
+_G.configVersion = "6.174.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

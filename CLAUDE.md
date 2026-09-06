@@ -109,6 +109,29 @@ tabs/store/history/filing/4 PM; `v.hide` calls `sp.onHostClose()` so
 kind tabs still file. `v.sp()` is the ONLY bridge; `scratch_pad.viaVault
 = false` restores the pad's own window (all its old code is intact and
 still tested). 📌 pin = `v.pinned` in hs.settings "vault.pinned".
+6.174.0: TAGS (`#tag` + front-matter `tags:`, nested `a/b`), TEMPLATES
+(`<vault>/Templates/*.md`, `{{title}} {{date}} {{time}} {{date:FMT}}
+{{cursor}}`; a body is read by /bin/cat in an hs.task, never on the main
+thread), BODY SEARCH ⌘⇧F, TASKS ⌘⇧K/⌘L, outline, unlinked mentions,
+⌘⇧E extract, ⌘⇧R random. The tag greps hang off the END of the scan
+chain and are OPTIONAL — their failure never fails the links. A KILLED
+RUN EXITS TOO: `stopTask` marks every terminate in a weak `dead` table
+and `startTask`'s wrapper drops that late callback, or a kill is
+recorded as a grep failure. `openNote` READS the file before deciding a
+note is new — the index is asynchronous and a seed over an existing note
+is data loss. A name that becomes both a file and a `[[link]]` goes
+through `linkSafe`. KNOWN LIMIT: the index keys notes by NAME, so a root
+`Daily.md` and `Templates/Daily.md` cannot both be indexed.
+
+🚨 Panic chord (6.174.0, power_tools): ⌃⌥⌘⇧Esc = `pt.panic()` /
+`_G.hsPanic()` — releases the ⇪ hold FIRST, then the vault window (even
+pinned), the Scorp Pad, the mouse grid, the screen veil, any visible
+chooser, and finally flips `_G.hsPaused` on (never off — panic does not
+toggle). Bound with hs.hotkey DIRECTLY, never hyperAddShortcut: a hyper
+escape hatch is worthless when hyper is what stuck. Every step runs in
+its OWN pcall and failures are named, not swallowed. ANY new panel that
+can take the screen or the keyboard adds a row to `pt.panicSteps`.
+Report: `_G.panicReport()`.
 
 Pause switch (6.152.0): ⇪⇧1 toggles `_G.hsPaused` (power_tools). Hyper
 shortcuts are suppressed CENTRALLY in init.lua's hyperBind (the pause key
@@ -245,6 +268,13 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 6.174.0 verify with LL: ⇪3 — a `#tag` typed in a note shows in the 🏷
+  TAGS list within a scan; ⌘⇧T offers the files in <Vault>/Templates and
+  ⌘D uses Templates/Daily.md; ⌘⇧F finds words INSIDE notes and ⏎ lands
+  on the line; ⌘⇧K lists open tasks and ⌘L ticks one. 🚨 And the one to
+  try on purpose: ⌃⌥⌘⇧Esc with the vault open — everything closes, an
+  alert lists what was released, and ⇪⇧1 (or the ⏸ HS menu flag) brings
+  Hammerspoon back. `_G.panicReport()` says what it let go of.
 - 6.173.2 verify with LL: the Vault window (⇪3 / ⇪1) shows the app
   behind it faintly; if 0.9 is not enough, a lower number in the vault
   alpha override (0.85 = the old pad feel); 1 = solid.

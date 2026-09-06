@@ -155,6 +155,10 @@ local M = {
             { "",       "scriptable player that is already running" },
             { "⇪⇧1",    "⏸ PAUSE HAMMERSPOON — ⇪ shortcuts and typing helpers" },
             { "",       "off until pressed again · ⏸ HS in the menu bar meanwhile" },
+            { "⌃⌥⌘⇧Esc", "🚨 PANIC — lets go of everything: the ⇪ hold, the vault" },
+            { "",        "window, the pad, the grid, the veil, any picker, then" },
+            { "",        "pauses HS. A plain chord, so it works when ⇪ does not" },
+            { "",        "(_G.hsPanic() from the Console does the same)" },
             { "⇪`",     "👻 Ghostty at the front Finder window's folder" },
             { "⇪⇧`",    "📂 Finder at the front Ghostty window's folder" },
             { "⇪5",     "🔳 Read a QR code off the screen — needs zbar" },
@@ -221,6 +225,29 @@ function M.setup(core)
     -- out of my keyboard", not "stop keeping my logs".
     pt.hsPauseKey   = "1"          -- ⇪⇧1
     pt.hsPauseMods  = { "shift" }
+    -- 🚨 6.174.0 — THE PANIC CHORD. LL: "ensure our build has a way to
+    -- unfreeze if it locks up my Mac." Everything else in this config
+    -- that can take the screen or the keyboard already has one (Screen
+    -- Veil ⌃⌥⌘⇧G, Mouse Grid ⌃⌥⌘⇧X); this is the one that lets go of
+    -- ALL of them at once, so there is a single chord to remember.
+    --
+    -- It is a PLAIN GLOBAL CHORD, not a ⇪ shortcut, for the same reason
+    -- theirs are: if ⇪ is what stuck — a lost F18 keyUp, a remap that
+    -- refused, a webview holding the keyboard — then a ⇪ escape hatch is
+    -- no escape hatch. It is also exempt from the pause switch (it is
+    -- not a hyper shortcut, so hyperBind never sees it) and every step
+    -- runs inside its own pcall, because a panic key that stops at the
+    -- first error is a panic key that does not work on the day it is
+    -- needed. hs.hotkey is the LAST thing standing in a stalled config;
+    -- if even that is gone, `_G.hsPanic()` in the Console does the same
+    -- thing, and Hammerspoon's own menu-bar Reload does it harder.
+    pt.panicKey     = "escape"     -- ⌃⌥⌘⇧Esc
+    pt.panicMods    = { "ctrl", "alt", "cmd", "shift" }
+    -- ✏️ Whether the panic chord also flips the pause switch on. It does
+    -- by default: if something is eating your keystrokes, the taps are
+    -- the likeliest culprit, and pausing is instantly reversible (⇪⇧1,
+    -- or click the ⏸ HS flag). false = release the panels only.
+    pt.panicPauses  = true
     -- ✏️ THE PLAYERS TOLD BY NAME, in addition to the media key. Order is
     -- irrelevant; each is asked only if it is already running, because
     -- naming an app in AppleScript LAUNCHES it, and "pause everything"
@@ -1500,6 +1527,147 @@ end tell]]
     end
 
     -- =====================================================================
+    -- 🚨 PANIC (6.174.0) — see the note at pt.panicKey
+    -- =====================================================================
+    -- ✏️ To add a step: copy a row. `id` is what _G.panicReport() counts
+    -- by, so keep it stable. `run` returns truthy when it actually let
+    -- go of something — a step with nothing to release says so by
+    -- returning nil, and the alert names only the ones that acted.
+    pt.panicSteps = {
+        -- FIRST, always: the hyper latch. Every other step below opens or
+        -- closes a panel, and a panel released while ⇪ is still latched
+        -- hands the keyboard back to a modal that eats it again.
+        { id = "hyper", what = "⇪ hold released", run = function()
+            if not _G.hyperActive then return nil end
+            if type(_G.hyperExit) ~= "function" then return nil end
+            _G.hyperExit()
+            return true
+        end },
+        -- The webview panels, in the order they sit on the screen. The
+        -- vault window is the big one since 6.173.0: it hosts the Scorp
+        -- Pad too, so hiding it lets go of both.
+        { id = "vault", what = "vault window closed", run = function()
+            local v = _G.vault
+            if not (v and v.webview) then return nil end
+            v.pinned = false            -- a pinned window must still go
+            v.hide()
+            return true
+        end },
+        { id = "scratch", what = "Scorp Pad closed", run = function()
+            local sp = _G.scratchPad
+            if not (sp and sp.webview) then return nil end
+            sp.hide()
+            return true
+        end },
+        -- The two canvas overlays that already own panic keys of their
+        -- own. Calling them here does not replace those — it means LL
+        -- only has to remember one chord.
+        { id = "grid", what = "mouse grid cleared", run = function()
+            local g = _G.mouseGrid
+            if not (g and g.hide) then return nil end
+            g.hide("panic chord")
+            return true
+        end },
+        { id = "veil", what = "screen veil removed", run = function()
+            local veil = _G.screenVeil
+            if not (veil and veil.on) then return nil end
+            veil.hide()
+            return true
+        end },
+        -- Any chooser that is up. coexist.lua already keeps the registry;
+        -- this is the same call its Esc claim makes.
+        { id = "chooser", what = "picker closed", run = function()
+            if type(_G.visibleChooser) ~= "function" then return nil end
+            local c = _G.visibleChooser()
+            if not c then return nil end
+            c:hide()
+            return true
+        end },
+        -- LAST: the pause switch. Once the panels are gone, the only
+        -- thing left that can still be eating keystrokes is a keyboard
+        -- tap, and _G.hsPaused stands every one of them down.
+        { id = "pause", what = "Hammerspoon paused", run = function()
+            if not pt.panicPauses or _G.hsPaused then return nil end
+            pt.hsPauseToggle()
+            return true
+        end },
+    }
+
+    pt.panicCount, pt.panicLast = 0, nil
+
+    -- The one entry point. Returns the list of steps that actually did
+    -- something, so the tests (and _G.panicReport) can see the work.
+    function pt.panic(why)
+        pt.panicCount = pt.panicCount + 1
+        local did, failed = {}, {}
+        for _, step in ipairs(pt.panicSteps) do
+            -- Each step in its OWN pcall: on the day this is needed,
+            -- something in the config is already broken, and step three
+            -- throwing must not cost LL steps four through seven.
+            local ok, res = pcall(step.run)
+            if not ok then
+                failed[#failed + 1] = step.id
+                print("🚨 panic: the \"" .. step.id .. "\" step threw — "
+                      .. tostring(res))
+            elseif res then
+                did[#did + 1] = step
+            end
+        end
+        pt.panicLast = { why = why or "panic chord", did = did, failed = failed }
+        local lines = {}
+        for _, step in ipairs(did) do lines[#lines + 1] = "· " .. step.what end
+        if #lines == 0 then lines[1] = "· nothing was holding on" end
+        pcall(function()
+            hs.alert.show("🚨 Released\n" .. table.concat(lines, "\n")
+                .. (_G.hsPaused and ("\n" .. tostring(_G.hsPauseHint or "⇪⇧1")
+                    .. " turns Hammerspoon back on") or ""), 5)
+        end)
+        print("🚨 panic (" .. tostring(why or "chord") .. ") — "
+              .. #did .. " released, " .. #failed .. " threw"
+              .. (#did > 0 and (": " .. (function()
+                    local ids = {}
+                    for _, s2 in ipairs(did) do ids[#ids + 1] = s2.id end
+                    return table.concat(ids, ", ")
+                 end)()) or ""))
+        return did, failed
+    end
+
+    -- The Console door, for the case where even the chord cannot be
+    -- pressed (a full-screen app swallowing hotkeys, hs.hotkey itself
+    -- wedged). Documented in the report and the cheatsheet.
+    _G.hsPanic = function(why) return pt.panic(why or "console") end
+
+    _G.panicReport = function()
+        local out = { "🚨 PANIC CHORD" }
+        local ms = {}
+        for _, m in ipairs(pt.panicMods) do ms[#ms + 1] = tostring(m) end
+        out[#out + 1] = "   chord   : " .. table.concat(ms, "+") .. "+"
+                        .. tostring(pt.panicKey) .. "  (a plain chord — it does "
+                        .. "not go through ⇪ and the pause switch cannot mute it)"
+        out[#out + 1] = "   console : _G.hsPanic()"
+        out[#out + 1] = "   steps   : " .. #pt.panicSteps
+                        .. (pt.panicPauses and " (the last one pauses Hammerspoon)"
+                            or " (pausing is off — panicPauses)")
+        out[#out + 1] = "   pressed : " .. pt.panicCount
+        local last = pt.panicLast
+        if last then
+            local ids = {}
+            for _, s2 in ipairs(last.did) do ids[#ids + 1] = s2.id end
+            out[#out + 1] = "   last    : " .. tostring(last.why) .. " — released "
+                            .. (#ids > 0 and table.concat(ids, ", ") or "nothing")
+                            .. (#last.failed > 0
+                                and ("; threw: " .. table.concat(last.failed, ", "))
+                                or "")
+        else
+            out[#out + 1] = "   last    : never pressed"
+        end
+        out[#out + 1] = "   paused  : " .. tostring(_G.hsPaused and true or false)
+        local s2 = table.concat(out, "\n")
+        print(s2)
+        return s2
+    end
+
+    -- =====================================================================
     -- THE LIST
     -- =====================================================================
     -- ✏️ To add one: copy a row. `id` is what _G.powerReport() counts by,
@@ -1891,6 +2059,12 @@ end tell]]
                               function() pt.hsPauseToggle() end,
                               "pause Hammerspoon")
     end
+
+    -- 🚨 THE PANIC CHORD — bound DIRECTLY, never through hyperAddShortcut.
+    -- See the note at pt.panicKey: the whole point is that it still works
+    -- when ⇪ does not, so it must not live inside the hyper modal.
+    pt.panicHotkey = hs.hotkey.bind(pt.panicMods, pt.panicKey,
+                                    function() pt.panic("panic chord") end)
     core.provide("power.show",     function() return pt.show() end)
     core.provide("power.plain",    function() return pt.run("plain") end)
     core.provide("power.type",     function() return pt.run("type")  end)

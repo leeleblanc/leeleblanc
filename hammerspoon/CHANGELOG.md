@@ -4,6 +4,60 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.174.0 — HAMMER-SIDIAN: TAGS, TEMPLATES, BODY SEARCH — AND A PANIC CHORD:
+  🏷 LL: "I want only these items that truly work, tags and templates
+     first. Keep in mind I want to use my tool for what people actually
+     use Obsidian for." So the vault grew the four things every Obsidian
+     power user reaches for first, and nothing that only half works.
+     TAGS: `#tag` anywhere in a note and `tags: a, b` in the front matter
+     both count, nested `#a/b` counts under `#a` too. A 🏷 TAGS section
+     with counts sits under the note list (⇪3); a click filters it,
+     typing `#` in the filter box lists every tag, and the open note
+     wears its tags as chips that follow your typing. The tag scan is two
+     more greps on the end of the existing chain and they are OPTIONAL —
+     a tag grep that fails never costs you the links.
+  📄 TEMPLATES: every .md in <Vault>/Templates is one (and still an
+     ordinary note). ⌘⇧T inserts one at the caret, ⌘⇧N makes a new note
+     from one, ⌘D uses Templates/Daily.md when it exists. {{title}}
+     {{date}} {{time}} {{date:FMT}} {{cursor}} are filled in; Templater's
+     <% %> is left alone rather than half-supported. A template's body is
+     read by /bin/cat in an hs.task, never on the main thread — a
+     OneDrive placeholder would stall the read and take the Mac.
+  🔎 ⌘⇧F SEARCHES THE WORDS, not just the names: grep across the vault
+     with `tag:x`, `path:x` and "a quoted phrase", 0.3 s after you stop
+     typing; ⏎ opens the note at that line. ☑ ⌘⇧K lists every open task
+     in the vault, ⌘L ticks the one on your line, ⏎ continues a list.
+     Plus OUTLINE and UNLINKED MENTIONS in the right pane, a word count
+     in the footer, ‹ › day arrows on daily notes (⌘⇧[ / ⌘⇧]), ⌘⇧E to
+     extract a selection into its own note, ⌘⇧R for a random note, and
+     ⌘O as an alias for the quick switcher. No new hyper key was spent:
+     ⇪⇧T, ⇪⇧U and ⇪⇧Z are all still free.
+  🚨 ⌃⌥⌘⇧Esc IS THE PANIC CHORD. LL: "ensure our build has a way to
+     unfreeze if it locks up my Mac." Screen Veil and Mouse Grid each had
+     one already; this is the one that lets go of EVERYTHING, so there is
+     a single chord to remember: the ⇪ hold first (a panel released under
+     a latched ⇪ just hands the keyboard back), then the vault window —
+     even when 📌 pinned — the Scorp Pad, the mouse grid, the screen
+     veil and any open picker, and finally the pause switch, so a runaway
+     keyboard tap stops too. ⇪⇧1 or the ⏸ HS menu-bar flag brings it
+     back; pressing the chord twice never un-pauses. It is a PLAIN chord
+     bound through hs.hotkey, never a ⇪ shortcut — a hyper escape hatch
+     is worthless on the day hyper is what stuck — and every step runs
+     inside its own pcall, because on the day this is needed something is
+     already broken and one wedged tool must not cost the rest of the
+     rescue. `_G.hsPanic()` from the Console does the same thing;
+     `_G.panicReport()` names the chord, counts the presses and says what
+     the last one let go of and what threw.
+  🔍 Reviewed adversarially before release; eight findings applied. The
+     two that mattered: a terminated hs.task still delivers its callback
+     with the signal's exit code (the 6.148.0 chrome_history lesson), so
+     closing the window mid-grep wrote "grep exited 15" into the panes —
+     every kill is now marked and its late answer dropped; and openNote
+     decided a note was NEW from the asynchronous index alone, so a ⌘D or
+     ⌘⇧N moments after a reload could seed a template over a note the
+     other Mac had already written. It reads the file first now.
+  ✅ Gate: test_vault 95 → 265, test_vault_js 31 → 143, test_power_tools
+     231 → 248. 67 modules. 7,230 → 7,519 checks, seventy-three stages.
 NEW IN 6.173.2 — THE VAULT WINDOW: SLIGHTLY SEE-THROUGH:
   🪟 LL: "I need the window to be slightly less opaque. It should allow
      me to get my bearings on what" is behind it. The Vault (⇪3 / ⇪1,
