@@ -99,7 +99,7 @@ function M.setup(core)
         key           = "1",
         width         = 768,
         height        = 1024,
-        alpha         = 0.95,     -- 6.171.2 — 5% translucent (0.85 was still too see-through; 1 = solid); a settings override changes it
+        alpha         = 1,        -- 6.172.1 — SOLID (LL: 0.95 was still not opaque enough); 0–1 in a settings override makes it see-through
         fontSize      = 16,       -- 6.171.2 — pt for the text; the chrome scales off it (LL: "aim for 16pt")
         saveDelay     = 0.3,      -- seconds after the last key before the disk write
         historyRows   = 200,      -- rows embedded in the page for the filter

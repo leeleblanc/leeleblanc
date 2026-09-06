@@ -148,7 +148,7 @@ local M = {
             { "⎋",        "Cancel — the pointer does not move" },
             { "-- after it lands --", "" },
             { "space",    "Left click · ⇧space right click · 2 double click" },
-            { "↑↓←→",     "Nudge 8pt · with ⇧ nudge 1pt for a tight target" },
+            { "↑↓←→",     "Nudge 8pt; HOLD and it speeds up to 64pt · with ⇧ nudge 1pt for a tight target" },
             { "⎋",        "Done — leave the pointer where it is" },
             { "⇪⇧L",      "Find the pointer — three white rings pulse out from it, again and again, for 5 s" },
             { "",         "Sized to the screen (×1.5 on a 4K at full points); grid.locateRadius / locateSecs / locateScale to taste" },
@@ -250,6 +250,15 @@ function M.setup(core)
     grid.landedMode  = true
     grid.nudgeStep   = 8            -- arrows, in points
     grid.nudgeFine   = 1            -- ⇧ + arrows
+    -- 🏃 6.172.1 — HOLD AN ARROW AND IT SPEEDS UP. LL: "the arrow keys …
+    -- do not make enough jumps … cover more ground by holding the key
+    -- down." Repeats arriving within nudgeAccelWindow of each other count
+    -- as one hold; every nudgeAccelEvery repeats the step doubles, up to
+    -- nudgeAccelMax × nudgeStep (8 → 64 pt). A tap is still one plain
+    -- step, and a pause resets the run — fine placement is unchanged.
+    grid.nudgeAccelEvery  = 3
+    grid.nudgeAccelMax    = 8
+    grid.nudgeAccelWindow = 0.25    -- seconds between repeats that still count as a hold
 
     -- 🚨 Watchdogs. Neither of these is a nicety.
     grid.timeoutSecs = 12           -- overlay up, nothing typed
@@ -1397,10 +1406,25 @@ function M.setup(core)
     -- If the badge can't be redrawn it tears the overlay down rather than
     -- capturing keys invisibly — which holds on the hundredth repeat
     -- exactly as it does on the first.
+    -- 6.172.1 — the multiplier for THIS call of a held arrow: 1 on a tap
+    -- or after a pause, doubling every nudgeAccelEvery repeats of one hold.
+    grid.accelRun = { key = nil, at = 0, n = 0 }
+    function grid.accelFor(key)
+        local now = 0
+        pcall(function() now = hs.timer.secondsSinceEpoch() end)
+        local r = grid.accelRun
+        if r.key == key and (now - r.at) <= (grid.nudgeAccelWindow or 0.25) then r.n = r.n + 1
+        else r.key, r.n = key, 0 end
+        r.at = now
+        local every = math.max(1, tonumber(grid.nudgeAccelEvery) or 3)
+        local mult = 2 ^ math.floor(r.n / every)
+        return math.min(mult, math.max(1, tonumber(grid.nudgeAccelMax) or 8))
+    end
     local dirs = { up = { 0, -1 }, down = { 0, 1 }, left = { -1, 0 }, right = { 1, 0 } }
     for key, d in pairs(dirs) do
         local coarse = function()
-            nudge(d[1] * grid.nudgeStep, d[2] * grid.nudgeStep)
+            local step = grid.nudgeStep * grid.accelFor(key)
+            nudge(d[1] * step, d[2] * step)
         end
         local fine = function()
             nudge(d[1] * grid.nudgeFine, d[2] * grid.nudgeFine)

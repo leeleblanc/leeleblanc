@@ -4,6 +4,25 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.172.1 — ⇪X ARROWS SPEED UP WHEN HELD; ⇪4's OCR REACHES ⇪O; THE PAD IS SOLID:
+  🏃 LL: "The arrow keys when using hyper+x … do not make enough
+     jumps … cover more ground by holding the key down." A held arrow
+     still repeats at the OS rate, and now the step DOUBLES every
+     three repeats of one hold (8 → 16 → 32 → 64 pt, grid.nudgeAccel*).
+     A tap is one plain step; a pause resets; ⇧ fine nudges unchanged.
+  🔤 LL: "the screenshot tool … OCR … posts to my clipboard but not
+     to the hyper+o Search OCR logs." Found: ⇪4's words came from
+     the screenshots module's own Shortcut run and only ever reached
+     the Finder comment — the OCR log ⇪O and ⇪space read is written by
+     ocr_engine alone, and the clipboard-image path that used to catch
+     it has been OFF since 6.170.2. New `ocr.record` service is the one
+     door into that log; screenshots' name-on-arrival calls it.
+  📝 Scorp Pad alpha 1 — solid. (0.95 still read as see-through.)
+  ✅ Gate: test_mouse_grid 362 → 367, test_screenshots 160 → 161,
+     test_ocr_tag 94 → 96; test_master_log's "ml.days shrinks the
+     window" 6% flake fixed (minute-resolution fixture vs an 8.64 s
+     window). 67 modules. 7,167 → 7,175 checks, seventy-three stages.
+
 NEW IN 6.172.0 — THE VAULT: LINKED MARKDOWN NOTES IN ONEDRIVE, WITH A GRAPH (⇪3):
   🕸 LL: "an Obsidian-like note taking app … link/reference the files
      in their OneDrive location … both Macs using OneDrive as the

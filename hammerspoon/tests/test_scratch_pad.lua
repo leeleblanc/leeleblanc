@@ -259,7 +259,7 @@ local view = WEBVIEWS[#WEBVIEWS]
 check("the pad opened one webview with the page in it", view and view.htmlSet and view.htmlSet:find("Scorp Pad", 1, true))
 -- 6.171.0 — 1024×768, 35% translucent, both from sp.* so a profile can change them
 check("6.171.1: the pad is 768×1024 (portrait) by default", sp.width == 768 and sp.height == 1024)
-check("6.171.2: the window is 5% translucent (alpha 0.95)", sp.alpha == 0.95 and view and view.alphaSet == 0.95, view and tostring(view.alphaSet))
+check("6.172.1: the window is SOLID (alpha 1 — never applied to the view)", sp.alpha == 1 and view and view.alphaSet == nil, view and tostring(view.alphaSet))
 check("6.171.2: the page text is 16 px and no FS placeholder survives",
       sp.fontSize == 16 and view and view.htmlSet and view.htmlSet:find("font%-size:16px") ~= nil
       and view.htmlSet:find("FS%d?px") == nil, view and view.htmlSet and view.htmlSet:match("font%-size:[^;]+"))

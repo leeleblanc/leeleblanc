@@ -296,6 +296,7 @@ do
 
     -- Two entries, the second deliberately multi-line and quote-bearing —
     -- the exact content the one-line field could not show.
+    local PROV2 = {}
     putCsv('2026-08-18 09:00:00,"short one"\n'
            .. '2026-08-19 11:17:32,"All Snippets\\nsecond line\\nthird ""quoted"" line"\n')
 
@@ -347,9 +348,15 @@ do
         warnWriteFailed  = function() end,
         showPopup        = function() end,
         hyperAddShortcut = function() end,
-        provide          = function() end,
+        provide          = function(n, f) PROV2[n] = f end,
     })
     local E = _G.ocrEngine
+    -- 6.172.1 — ocr.record: the one door into the log for OCR done elsewhere (⇪4)
+    check("ocr.record is published", type(PROV2["ocr.record"]) == "function")
+    check("ocr.record appends a row ⇪O will read, stripped to plain text, and refuses an empty one",
+          PROV2["ocr.record"]("Fr\xE2\x80\x99om a screenshot\nline two") == true
+          and PROV2["ocr.record"]("   ") == false
+          and (getCsv() or ""):find(',"From a screenshot\\nline two"\n$') ~= nil, getCsv())
     check("the editor API is exposed", type(E.openEditor) == "function"
           and type(E.applyEdit) == "function"
           and type(E.editorHtml) == "function")

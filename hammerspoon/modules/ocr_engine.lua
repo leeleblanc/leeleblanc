@@ -1153,6 +1153,17 @@ function M.setup(core)
         return ocr.writeFinderComment(p, text)
     end)
     core.provide("ocr.image",          function(i) return ocr.image(i) end)
+    -- 6.172.1 — LL: "the screenshot tool … OCR … posts to my clipboard
+    -- but not to the hyper+o Search OCR logs." ⇪4's words came from the
+    -- screenshots module's own Shortcut run and only ever reached the
+    -- Finder comment. This is the one door into the log ⇪O and ⇪space
+    -- read; anyone who OCRs outside this module calls it.
+    core.provide("ocr.record",         function(text)
+        text = stripToQwerty(tostring(text or ""):gsub("%z", ""):gsub("\x1A", ""))
+        text = text:gsub("^%s+", ""):gsub("%s+$", "")
+        if #text == 0 then return false end
+        return appendRow(text)
+    end)
     -- 6.170.3: the clipboard poll asks THIS before decoding the pasteboard
     -- — no decode when image OCR is off, busy or resting.
     core.provide("ocr.imageWanted",    function() return ocr.imageWanted() end)

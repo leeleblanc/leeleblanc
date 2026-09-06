@@ -81,7 +81,7 @@ reopen path.
 
 Scratch pad — named the SCORP PAD to LL since 6.171.0 (visible strings only;
 file, store, `_G.scratchPad` and service ids unchanged; 768×1024 portrait, window
-alpha 0.95 via `sp.alpha`, 16 px text via `sp.fontSize`) — (6.164.0, modules/scratch_pad.lua, ⇪1): a webview on the
+alpha 1 via `sp.alpha`, 16 px text via `sp.fontSize`) — (6.164.0, modules/scratch_pad.lua, ⇪1): a webview on the
 Capture Pad recipe — NO eventtap, NO AX/window reads, every timer held.
 Keystrokes land in `sp.tabs` at once, the store (Logs/scratch/scratch.json,
 write ledger) 0.3 s later. The 16:00 task goes through `_G.asanaSubmitTask`
@@ -237,6 +237,13 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 6.172.1 verify with LL: ⇪X, land, HOLD ↓ — the pointer speeds up
+  (8→64 pt); a tap still moves 8. ⇪4 a shot, then ⇪O — its words are the
+  newest row (rule: OCR done outside ocr_engine calls `ocr.record`; that
+  is the only writer of the log). Scorp Pad solid. LL asked to MERGE the
+  Scorp Pad and the Vault into one window — shape not yet agreed (see
+  chat: scratch tabs as a section of the vault's note list vs. the vault
+  as a tab kind in the pad); do not build until LL picks.
 - 6.172.0 verify with LL: ⇪3 opens the Vault (1240×820) and creates
   <OneDrive>/Vault on first use (Console `_G.vaultReport()` "folder :"
   line; "no OneDrive found — local only" on a Mac without it); ⌘N a

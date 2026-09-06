@@ -911,6 +911,11 @@ function M.setup(core)
                             _G.service.call("ocr.comment", newPath, text)
                         end)
                     end
+                    -- 6.172.1 — the words also go into the OCR log ⇪O
+                    -- reads (they never did: only the Finder comment).
+                    if _G.service and _G.service.has and _G.service.has("ocr.record") then
+                        pcall(function() _G.service.call("ocr.record", text) end)
+                    end
                 end
                 if onDone then onDone(newPath) end
             end, { "run", shots.ocrShortcut, "-i", path })

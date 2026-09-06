@@ -872,7 +872,7 @@ end
 local SVC = {}
 local savedService = _G.service
 _G.service = {
-    has  = function(n) return n == "ocr.comment" end,
+    has  = function(n) return n == "ocr.comment" or n == "ocr.record" end,
     call = function(n, p, txt) SVC[#SVC + 1] = { n = n, p = p, txt = txt }
            return true end,
 }
@@ -918,8 +918,11 @@ check("…and the file now carries its words",
             .. "Q3 numbers final.png"] ~= nil, RENAMES[#RENAMES]
             and RENAMES[#RENAMES].new)
 check("…with the text handed to the OCR engine for the Finder comment",
-      #SVC == 1 and SVC[1].n == "ocr.comment"
+      #SVC == 2 and SVC[1].n == "ocr.comment"
       and SVC[1].txt:find("Quarterly", 1, true) ~= nil)
+check("6.172.1: …and handed to ocr.record so ⇪O's log has the words too",
+      SVC[2] and SVC[2].n == "ocr.record" and tostring(SVC[2].p):find("Quarterly", 1, true) ~= nil,
+      SVC[2] and SVC[2].n)
 local edited = NDIR .. "/Screenshot 2026-09-01 at 04.50.00.png"
 FILES[edited] = { mode = "file", size = 999, modification = mt1 }
 before = #TASKS

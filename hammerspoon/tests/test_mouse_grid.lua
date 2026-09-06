@@ -669,6 +669,31 @@ local landedAt = { x = MOUSE_AT.x, y = MOUSE_AT.y }
 landKey("up"); checkInv("nudged up")
 check("↑ nudges by nudgeStep", math.abs(MOUSE_AT.y - (landedAt.y - grid.nudgeStep)) < 0.01,
       MOUSE_AT.y)
+do
+    -- 6.172.1 — a HELD arrow accelerates; a tap after a pause is one step
+    local y0 = MOUSE_AT.y
+    for _ = 1, 2 do landKey("up") end          -- repeats 1,2 of the same hold
+    check("6.172.1: the first three presses of a hold are plain steps",
+          math.abs((y0 - MOUSE_AT.y) - 2 * grid.nudgeStep) < 0.01, y0 - MOUSE_AT.y)
+    y0 = MOUSE_AT.y
+    landKey("up")                              -- repeat 3 → ×2
+    check("6.172.1: the fourth repeat doubles the step",
+          math.abs((y0 - MOUSE_AT.y) - 2 * grid.nudgeStep) < 0.01, y0 - MOUSE_AT.y)
+    for _ = 1, 40 do landKey("up") end
+    y0 = MOUSE_AT.y; landKey("up")
+    check("6.172.1: the step caps at nudgeAccelMax × nudgeStep",
+          math.abs((y0 - MOUSE_AT.y) - grid.nudgeAccelMax * grid.nudgeStep) < 0.01, y0 - MOUSE_AT.y)
+    NOW = NOW + 1                              -- a pause: the run resets
+    y0 = MOUSE_AT.y; landKey("up")
+    check("6.172.1: after a pause a press is one plain step again",
+          math.abs((y0 - MOUSE_AT.y) - grid.nudgeStep) < 0.01, y0 - MOUSE_AT.y)
+    y0 = MOUSE_AT.x; landKey("left")
+    check("6.172.1: a different arrow starts its own run at one step",
+          math.abs((y0 - MOUSE_AT.x) - grid.nudgeStep) < 0.01, y0 - MOUSE_AT.x)
+    -- put the pointer back where the next checks expect it
+    grid.state.point = { x = landedAt.x, y = landedAt.y - grid.nudgeStep }
+    MOUSE_AT.x, MOUSE_AT.y = landedAt.x, landedAt.y - grid.nudgeStep
+end
 check("nudging does NOT close the overlay — nudge-then-click is the whole "
       .. "point of landed mode", grid.state ~= nil and grid.state.phase == "landed")
 landKey("right", "shift"); checkInv("fine nudge")

@@ -4,9 +4,27 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.172.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.172.1
 -- =====================================================================
 
+-- NEW IN 6.172.1 — ⇪X ARROWS SPEED UP WHEN HELD; ⇪4's OCR REACHES ⇪O; THE PAD IS SOLID:
+--   🏃 LL: "The arrow keys when using hyper+x … do not make enough
+--      jumps … cover more ground by holding the key down." A held arrow
+--      still repeats at the OS rate, and now the step DOUBLES every
+--      three repeats of one hold (8 → 16 → 32 → 64 pt, grid.nudgeAccel*).
+--      A tap is one plain step; a pause resets; ⇧ fine nudges unchanged.
+--   🔤 LL: "the screenshot tool … OCR … posts to my clipboard but not
+--      to the hyper+o Search OCR logs." Found: ⇪4's words came from
+--      the screenshots module's own Shortcut run and only ever reached
+--      the Finder comment — the OCR log ⇪O and ⇪space read is written by
+--      ocr_engine alone, and the clipboard-image path that used to catch
+--      it has been OFF since 6.170.2. New `ocr.record` service is the one
+--      door into that log; screenshots' name-on-arrival calls it.
+--   📝 Scorp Pad alpha 1 — solid. (0.95 still read as see-through.)
+--   ✅ Gate: test_mouse_grid 362 → 367, test_screenshots 160 → 161,
+--      test_ocr_tag 94 → 96; test_master_log's "ml.days shrinks the
+--      window" 6% flake fixed (minute-resolution fixture vs an 8.64 s
+--      window). 67 modules. 7,167 → 7,175 checks, seventy-three stages.
 -- NEW IN 6.172.0 — THE VAULT: LINKED MARKDOWN NOTES IN ONEDRIVE, WITH A GRAPH (⇪3):
 --   🕸 LL: "an Obsidian-like note taking app … link/reference the files
 --      in their OneDrive location … both Macs using OneDrive as the
@@ -75,35 +93,10 @@
 --   ✅ Gate: test_scratch_pad 115 → 117 (size, alpha applied to the
 --      window, the new title prefix). 66 modules. 7,062 → 7,064 checks,
 --      seventy-one stages.
--- NEW IN 6.170.3 — ⇪4 LET GO OF THE KEYBOARD AND THE COPY LEFT THE MAIN THREAD:
---   🚨 LL's Console after ⇪4 on 6.170.0: "⇪ released by the watchdog —
---      held 29s with no key event and no F18 keyUp", then both taps
---      "disabled by macOS — revived". Two faults in one line. (1)
---      `screencapture -i` takes every input event, so the Caps Lock
---      keyUp never reaches Hammerspoon and ⇪ stays latched: every key
---      typed runs a shortcut — the "dead keyboard". (2) An 8 s watchdog
---      that fires at 29 s means the main thread stalled ~20 s: finish()
---      decoded the 4K screenshot with hs.image, re-encoded it through
---      hs.pasteboard.writeObjects, and the clipboard poll decoded the
---      pasteboard AGAIN half a second later (6.170.2 still did, only to
---      throw it away). Three passes over 15 million pixels.
---   ⌨️ screenshots.runCapture with -i and the area selector call
---      `_G.hyperExpectRelease(1.5, "the screenshot tool")` — the
---      6.165.1 cure: only the deadline changes, never the way in.
---   📋 The clipboard copy is now an hs.task: /usr/bin/osascript reads
---      the PNG straight onto the pasteboard ("as «class PNGf»"), HELD in
---      shots.copyTask; the poll sits the change out
---      (`_G.pasteboardSuppressUntil`, shots.copySuppressSecs 10 s cap).
---      The blur editor's save uses the same service
---      (screenshots.copyToPasteboard). writeObjects is the fallback only.
---   🔤 New service `ocr.imageWanted` (off / busy / resting → false); the
---      poll asks it BEFORE hs.pasteboard.readImage(). No decode unless
---      image OCR is on and free.
---   ✅ Gate: test_screenshots 155 → 160, test_ocr_tag 84 → 94 (T8).
--- (6.170.2 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.170.3 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.172.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.172.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -449,7 +442,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.172.0"
+_G.configVersion = "6.172.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

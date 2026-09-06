@@ -253,7 +253,10 @@ ml.maxRows = 3
 ml.build("cap"); drain()
 check("ml.maxRows keeps the newest N", #ml.rows == 3 and ml.rows[1].source == "clipboard")
 ml.maxRows = 200000
-ml.days = 0.0001
+-- 6.172.1 — a 3 s window, not 8.64 s: the clipboard fixture's date has
+-- MINUTE resolution (floored to :00), so any window ≥ 5 s caught it when
+-- the suite started between :05 and :08 past a minute (a 6% flake).
+ml.days = 3 / 86400
 ml.build("window"); drain()
 check("ml.days shrinks the window", #ml.rows == 0, #ml.rows)
 ml.days = 180
