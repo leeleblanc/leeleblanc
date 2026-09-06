@@ -4,9 +4,18 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.175.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.175.1
 -- =====================================================================
 
+-- NEW IN 6.175.1 — THE PAD/VAULT WINDOW IS MORE SOLID AGAIN:
+--   🪟 LL: "Make the pad more opaque." 6.173.2 took the window from
+--      solid to 0.9 on LL's "slightly less opaque"; seen on the screen,
+--      that was too far. 0.97 now — a hint of the app behind it for
+--      bearings, without the text swimming. `settings = { vault =
+--      { alpha = 1 } }` is still solid, and any 0–1 number to taste;
+--      `_G.vaultReport()`'s "window" line shows the value in force.
+--   ✅ Gate: test_vault unchanged at 265 (the two alpha checks now
+--      expect 0.97). 67 modules. 7,551 checks, seventy-three stages.
 -- NEW IN 6.175.0 — THE VAULT TEACHES YOU MARKDOWN AS YOU TYPE:
 --   ✍️ LL: "I don't write markdown. Are there tool tips or autocompletes
 --      that will teach and help me." Three, and every one SHOWS the
@@ -87,32 +96,10 @@
 --      shots.recordText → `ocr.record`, so ⇪O has what ⇪V has.
 --   ✅ Gate: test_screenshots 161 → 163. 67 modules. 7,226 → 7,228
 --      checks, seventy-three stages.
--- NEW IN 6.173.0 — ONE WINDOW: THE SCORP PAD'S TABS LIVE IN THE VAULT (⇪1 = ⇪3):
---   📝🕸 LL: "Can I combine my Scorp Pad and this Vault Pad?" Yes — the
---      Vault absorbs the pad. ⇪1 and ⇪3 open the SAME window: ⇪3 on your
---      last note, ⇪1 on your scratch tabs (⇪1 with a note open jumps to
---      the tabs; with a tab open it closes). The note list starts with a
---      📝 SCRATCH section — every tab, × to close, + for a new one, the
---      🗒 Capture / ➕ Append tabs of ⇪N / ⇪2 too — then 🕸 NOTES. The
---      text box edits a tab as it edits a note; with a tab open the
---      right pane shows its [[links]] and the HISTORY of closed tabs
---      (click one to bring it back). ⌘T / ⌘W / ⌘1–9 / ⌃Tab work the
---      tabs from anywhere in the window; ⌘N / ⌘D / ⌘G / ⌘K / ⌘⏎ are the
---      Vault's as before. "→ Asana now" and the 4 PM task are untouched
---      (scratch_pad.lua keeps every brain and its store; the vault only
---      draws — `v.sp()` is the one bridge). 📌 on the header pins the
---      window (Esc hands the keys back; ⇪1 / ⇪3 / ✕ close), remembered
---      across reloads. `settings = { scratch_pad = { viaVault = false } }`
---      brings the pad's own window back, unchanged.
---   ℹ️ Obsidian is NOT needed and nothing here depends on it; the folder
---      is simply in a shape Obsidian could also open on the home Mac.
---   ✅ Gate: test_vault 67 → 93, test_scratch_pad 119 → 130, test_vault_js
---      31 → 45 (a second page with the pad's tabs). 67 modules.
---      7,175 → 7,226 checks, seventy-three stages.
--- (6.172.1 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.173.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.175.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.175.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -458,7 +445,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.175.0"
+_G.configVersion = "6.175.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

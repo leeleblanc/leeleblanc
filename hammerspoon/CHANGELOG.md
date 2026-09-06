@@ -4,6 +4,19 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.175.1 — THE PAD/VAULT WINDOW IS MORE SOLID AGAIN:
+  🪟 LL: "Make the pad more opaque." In 6.173.2 LL asked for "slightly
+     less opaque" and the window went from solid to alpha 0.9; on the
+     screen that turned out to be too far — the app behind was showing
+     through the text rather than just placing the window. 0.97 now:
+     enough to get your bearings, not enough to read through. The knob
+     is unchanged — `settings = { vault = { alpha = 1 } }` for solid,
+     any 0–1 number to taste, and `_G.vaultReport()`'s "window" line
+     shows what is in force. Same window either way: ⇪1 and ⇪3 have
+     been one window since 6.173.0.
+  ✅ Gate: test_vault stays at 265 (its two alpha checks now expect
+     0.97 — the number is asserted, not "< 1", because which number it
+     is IS the change). 67 modules. 7,551 checks, seventy-three stages.
 NEW IN 6.175.0 — THE VAULT TEACHES YOU MARKDOWN AS YOU TYPE:
   ✍️ LL: "I don't write markdown. Are there tool tips or autocompletes
      that will teach and help me." Three of them, and every one SHOWS

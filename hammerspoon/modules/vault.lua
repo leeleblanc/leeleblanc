@@ -164,7 +164,12 @@ function M.setup(core)
         key           = "3",
         width         = 1240,
         height        = 820,
-        alpha         = 0.9,      -- 6.173.2 — 10% see-through so the app behind shows (LL: "slightly less opaque"); 1 = solid, in a settings override
+        -- 6.175.1 — LL asked for "slightly less opaque" in 6.173.2 (1 →
+        -- 0.9) and then "make the pad more opaque" once it was on the
+        -- screen: 0.9 was too far. 0.97 keeps a hint of the app behind
+        -- for bearings without the text swimming. Any 0–1 number in a
+        -- settings override, 1 = solid.
+        alpha         = 0.97,
         fontSize      = 16,
         dir           = nil,          -- set below; a settings override replaces it
         dailyDir      = "Daily",      -- subfolder for ⌘D notes
