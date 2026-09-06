@@ -380,5 +380,17 @@ check("…and the summary SAYS the intent was lost",
       tostring(summary2):find("Capture Pad not loaded", 1, true) ~= nil,
       summary2)
 
+
+out("\n=== 6.170.0 — arrow through the review rows ===\n")
+do
+    local f = io.open(HS .. "/modules/note_pad.lua", "r"); local src = f:read("a"); f:close()
+    check("the page carries the row walker over li",
+          src:find("ROWSEL = 'li'", 1, true) and src:find("function rowKey(e)", 1, true))
+    check("⏎ on a highlighted review row presses its → Task button",
+          src:find("var b = r.querySelector('.totask'); if (b) b.click();", 1, true) ~= nil)
+    check("the keydown handler asks the walker first", src:find("if (rowKey(e)) return;", 1, true) ~= nil)
+    check("the highlight has a style", src:find("li.sel {", 1, true) ~= nil)
+end
+
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

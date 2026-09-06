@@ -4,6 +4,34 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.170.0 — ARROW THROUGH THE ROWS IN EVERY PAD; THE AIR PINS ITS HINT CARD:
+  ⌨️ LL: "I can up/down arrow on my cheatsheet. But in any window that
+     has a list, we need to be able to arrow up and down." Inventory:
+     every hs.chooser picker has native arrows; ⇪space and ⇪I already
+     had their own (.row.sel); ⌥Tab and the calendar have theirs; the
+     cheat sheet's ↑↓ scroll. Three pages had rows and no keys: the
+     Capture Pad's queue (⇪N), the Note Pad's review list (⇪⇧N) and
+     the Scratch Pad's history (⇪1). All three now carry one row
+     walker: ⌥↑ / ⌥↓ move a highlight (and scroll it into view) from
+     anywhere; plain ↑ / ↓ do the same whenever the caret is NOT in
+     the text box (the text box keeps its own arrows — in the scratch
+     pad, ⌘F puts you in the history filter, where plain arrows walk
+     the rows). ⏎ (⌥⏎ from the text box) acts on the highlighted row:
+     Scratch Pad → restores that tab, Note Pad → its "→ Task" button,
+     Capture Pad → a PARKED row puts the parked notes back (a queued
+     note has no per-row action; ⌘⏎ still files everything). No wrap
+     at the ends; a new filter clears the highlight; every DOM call
+     is guarded so a page without rows never throws.
+  💡 6.167.0's boot line came back: "2560x1440@2x" — outcome (b): the
+     LG runs at "looks like 1440", so the screen was never why the
+     card read small. The Air's profile now pins it:
+     settings = { shortcut_hints = { scale = 1.5 } } → 810 wide, 30 pt
+     on that Mac; the work Mac keeps the rule. Turn the number to taste.
+  ✅ Gate: test_pad_js 35 → 46 (the walker driven in node: text-box
+     arrows left alone, ⌥↓/⌥↑, the ends, one .sel, plain arrows once
+     the caret leaves, ⏎ on a queued row, ⌘⏎ still files, ⌥⏎ on a
+     parked row), test_scratch_pad 109 → 115, test_note_pad 56 → 60,
+     test_shortcut_hints 80 → 81. 7,001 → 7,023 checks, seventy-one stages.
 NEW IN 6.169.0 — ONE MASTER LOG FROM EVERY STORE, AND THE DOCUMENTS A QUIT APP HAD OPEN:
   📄 LL brought a 33-page Gemini conversation of ideas and asked for
      stable code from it without duplicating anything already built.

@@ -549,5 +549,24 @@ check("np.show routes to openKind('append') — except the 16:01 review",
 
 print = realPrint
 io.open, os.rename = realIoOpen, realRename
+out("\n=== 6.170.0 — arrow through the history rows ===\n")
+do
+    local f = io.open(HS .. "/modules/scratch_pad.lua", "r"); local src = f:read("a"); f:close()
+    check("the page carries the row walker over #rows .row",
+          src:find("ROWSEL = '#rows .row'", 1, true) and src:find("function rowKey(e)", 1, true)
+          and src:find("function moveSel(d)", 1, true))
+    check("⏎ on a highlighted row restores it, the same message a click sends",
+          src:find("function rowAct(r){ say({a:'restore', rid: r.getAttribute('data-id')}); }", 1, true) ~= nil)
+    check("the keydown handler asks the walker first, after Esc", (function()
+        local a = src:find("say({a:'esc'}); return; }", 1, true)
+        local b = src:find("if (rowKey(e)) return;", 1, true)
+        return a and b and b > a and b - a < 80
+    end)())
+    check("a new filter resets the highlight", src:find("SEL = -1; draw();", 1, true) ~= nil)
+    check("the highlight has a style", src:find(".row.sel{", 1, true) ~= nil)
+    check("the text box keeps plain arrows (inText checks TEXTAREA)",
+          src:find("a.tagName === 'TEXTAREA'", 1, true) ~= nil)
+end
+
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

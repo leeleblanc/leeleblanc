@@ -39,10 +39,23 @@ function makeEnv() {
   };
   const byId = { t: textarea, bar: bar };
 
+  // 6.170.0 — the queued rows the arrow keys walk. Each fake <li> has a
+  // classList (for .sel), a className and a scrollIntoView that counts.
+  const rows = []; let scrolled = 0;
+  function mkRow(cls) {
+    const r = { className: cls, _s: new Set(),
+                scrollIntoView() { scrolled++; } };
+    r.classList = { add(c) { r._s.add(c); }, remove(c) { r._s.delete(c); },
+                    contains(c) { return r._s.has(c); } };
+    return r;
+  }
+  rows.push(mkRow("note"), mkRow("action"), mkRow("parkedrow"));
   const sandbox = {
     document: {
       getElementById: (id) => byId[id] || null,
       addEventListener: () => {},
+      querySelectorAll: (sel) => (sel === "li" ? rows : []),
+      activeElement: null,
     },
     window: {
       webkit: { messageHandlers: { capturePad: { postMessage: (m) => sent.push(m) } } },
@@ -52,7 +65,9 @@ function makeEnv() {
     __confirmAnswer: true,
   };
   sandbox.window.confirm = sandbox.confirm;
-  return { sandbox, sent, listeners, textarea, bar };
+  sandbox.document.activeElement = textarea;   // the caret starts in the text box
+  textarea.tagName = "TEXTAREA";
+  return { sandbox, sent, listeners, textarea, bar, rows, scrolledCount: () => scrolled };
 }
 
 // Pull the page's <script> out and run it in that environment.
@@ -208,5 +223,44 @@ console.log("── Capture Pad: page JavaScript, executed ──");
 }
 
 // =====================================================================
+
+// ---- 6.170.0: arrow through the rows ---------------------------------
+{
+  console.log("── 6.170.0 — ⌥↑ / ⌥↓ walk the rows, ⏎ acts on one ──");
+  const env = load();
+  const keydown = env.listeners.window["keydown"];
+  const sel = () => env.rows.findIndex(r => r.classList.contains("sel"));
+  const evk = (o) => Object.assign({ preventDefault() { this.prevented = true; } }, o);
+  let e = evk({ key: "ArrowDown" }); keydown(e);
+  check("plain ↓ with the caret in the text box is left to the text box", sel() === -1 && !e.prevented);
+  e = evk({ key: "ArrowDown", altKey: true }); keydown(e);
+  check("⌥↓ highlights the first row and scrolls it into view", sel() === 0 && e.prevented && env.scrolledCount() === 1, sel());
+  keydown(evk({ key: "ArrowDown", altKey: true }));
+  keydown(evk({ key: "ArrowDown", altKey: true }));
+  check("⌥↓ twice more reaches the last row", sel() === 2, sel());
+  keydown(evk({ key: "ArrowDown", altKey: true }));
+  check("…and stops there (no wrap)", sel() === 2, sel());
+  keydown(evk({ key: "ArrowUp", altKey: true }));
+  check("⌥↑ goes back up one", sel() === 1, sel());
+  check("exactly one row wears .sel", env.rows.filter(r => r.classList.contains("sel")).length === 1);
+  env.sandbox.document.activeElement = null;
+  keydown(evk({ key: "ArrowUp" }));
+  check("plain ↑ works once the caret has left the text box", sel() === 0, sel());
+  env.sent.length = 0;
+  e = evk({ key: "Enter" }); keydown(e);
+  check("⏎ on a queued row does nothing (the queue files with ⌘⏎)", env.sent.length === 0 && e.prevented);
+  env.sent.length = 0;
+  keydown(evk({ key: "Enter", metaKey: true }));
+  check("⌘⏎ still files the pad, highlight or not", env.sent.length >= 1);
+  keydown(evk({ key: "ArrowDown", altKey: true })); keydown(evk({ key: "ArrowDown", altKey: true }));
+  env.sent.length = 0;
+  keydown(evk({ key: "Enter", altKey: true }));
+  check("⌥⏎ on the PARKED row puts the parked notes back (its button's action)",
+        env.sent.length >= 1 && JSON.stringify(env.sent[0]).indexOf("retry") >= 0, JSON.stringify(env.sent[0]));
+  check("the page carries the walker (rowKey / moveSel / rowAct)",
+        scripts[0].indexOf("function rowKey(e)") >= 0 && scripts[0].indexOf("function moveSel(d)") >= 0
+        && scripts[0].indexOf("function rowAct(r)") >= 0);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) { failures.forEach(f => console.log("  ✗ " + f)); process.exit(1); }

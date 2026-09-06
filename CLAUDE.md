@@ -62,6 +62,11 @@ follows the same rule. Any NEW fixed-size canvas gets the same treatment.
 Boot lines meant for LL go through `print` (diag.say is verbose-only) and
 run a turn AFTER setup if they show a settings-overridable value.
 
+Row walker (6.170.0): any webview page that shows rows carries the
+`rowKey/moveSel/rowAct` block (capture_pad, note_pad, scratch_pad —
+copy it): ⌥↑/⌥↓ always, plain ↑/↓ when the caret is not in a TEXTAREA,
+⏎/⌥⏎ → `rowAct(row)`. A NEW page with a list gets the same block.
+
 Master log (6.169.0, modules/master_log.lua): READS the stores listed in
 `ml.sources` and rewrites `master_log-<Mac>.csv` (fixed columns
 timestamp,source,app,action,text,path,epoch) in slices; the FTS5 .db is
@@ -218,6 +223,13 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 6.170.0 verify with LL: ⇪N / ⇪⇧N / ⇪1 — ⌥↓ highlights a row, ⌥⏎
+  acts on it (scratch: restores; note pad: → Task; capture: a parked
+  row goes back); plain ↓ inside the text box still moves the caret;
+  in ⇪1, ⌘F then ↓/⏎ restores a tab. The hint card now reads 810 wide ·
+  30 pt on the Air ("scale 1.50 (pinned…)" in the boot line) — number
+  to taste in the Air profile. 6.167.0's two-outcome check is CLOSED:
+  outcome (b), the LG is 2560×1440@2x.
 - 6.169.0 verify with LL: after ~2 min a "master_log-<Mac>.csv" appears
   in Logs (Excel opens it; newest first) and `_G.masterLogReport()` says
   "index : built …" — if it says "unavailable"/"failed", paste that line

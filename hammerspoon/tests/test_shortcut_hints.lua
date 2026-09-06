@@ -381,6 +381,13 @@ check("hyperBind calls the hook after the shortcut, nil-guarded and pcall'd",
 local cx = io.open(HS .. "/core/coexist.lua", "r"); local cxs = cx:read("*a"); cx:close()
 check("the panel ladder has the hint rung", cxs:find("\n%s*hint%s*=%s*4,") ~= nil)
 
+out("\n=== 6.170.0 — the Air pins the card scale (6.167.0 outcome b) ===\n")
+do
+    local f = io.open(HS .. "/init.lua", "r"); local src = f:read("a"); f:close()
+    check("Lees-MacBook-Air profile carries settings.shortcut_hints.scale = 1.5",
+          src:find('["Lees-MacBook-Air"] = profileFrom{ settings = { shortcut_hints = { scale = 1.5 } } }', 1, true) ~= nil)
+end
+
 print = realPrint
 out(("\n%d passed, %d failed\n"):format(pass, fail))
 for _, fl in ipairs(failures) do io.write("  ❌ " .. fl .. "\n") end

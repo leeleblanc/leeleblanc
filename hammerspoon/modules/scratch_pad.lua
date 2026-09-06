@@ -516,6 +516,7 @@ textarea{flex:1;margin:0;padding:10px;border:0;outline:0;resize:none;background:
 #rows{overflow-y:auto;flex:1}
 .row{display:flex;gap:10px;padding:4px 10px;cursor:pointer;border-bottom:1px solid #1f1f26}
 .row:hover{background:#202027}
+.row.sel{background:#2a2f45;outline:1px solid #7aa2f7}
 .row .w{opacity:.5;white-space:nowrap;font-size:11px;min-width:86px}
 .row .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40%}
 .row .p{opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
@@ -549,7 +550,7 @@ function draw(){
   document.getElementById('cnt').textContent = n + ' / ' + ROWS.length;
 }
 draw();
-q.addEventListener('input', function(){ draw(); });
+q.addEventListener('input', function(){ SEL = -1; draw(); });
 t.addEventListener('input', function(){ say({a:'edit'}); });
 document.getElementById('rows').addEventListener('click', function(e){
   var el = e.target.closest('.row'); if (el) say({a:'restore', rid: el.getAttribute('data-id')}); });
@@ -568,9 +569,39 @@ hdr.addEventListener('mousedown', function(e){ if (e.button !== 0 || e.target.ta
 window.addEventListener('mouseup', function(){ hdr.classList.remove('dragging'); });
 document.addEventListener('keyup', function(e){
   if (e.key === 'F18' || e.keyCode === 79) say({a:'f18up'}); });
+
+// ⌨️ 6.170.0 — ARROW THROUGH THE ROWS. LL: "in any window that has a
+// list, we need to be able to arrow up and down." ⌥↑ / ⌥↓ always move
+// the highlight; plain ↑ / ↓ do too whenever the caret is NOT in the
+// text box (the text box keeps its own arrows). ⏎ (⌥⏎ from the text
+// box) acts on the highlighted row. Every DOM call is guarded so a
+// page without rows, or a test shim without a DOM, never throws.
+var SEL = -1, ROWSEL = '#rows .row';
+function rowsList(){ try { return Array.prototype.slice.call(document.querySelectorAll(ROWSEL)); } catch(e){ return []; } }
+function inText(){ var a = null; try { a = document.activeElement; } catch(e){} return !!(a && a.tagName === 'TEXTAREA'); }
+function moveSel(d){
+  var rows = rowsList(); if (!rows.length) return false;
+  var from = SEL < 0 ? (d > 0 ? -1 : rows.length) : SEL;
+  SEL = Math.max(0, Math.min(rows.length - 1, from + d));
+  for (var i = 0; i < rows.length; i++) { try { if (i === SEL) rows[i].classList.add('sel'); else rows[i].classList.remove('sel'); } catch(e){} }
+  try { rows[SEL].scrollIntoView({ block: 'nearest' }); } catch(e){}
+  return true;
+}
+function selRow(){ var rows = rowsList(); return (SEL >= 0 && SEL < rows.length) ? rows[SEL] : null; }
+function rowKey(e){
+  var arrow = e.key === 'ArrowDown' ? 1 : (e.key === 'ArrowUp' ? -1 : 0);
+  if (arrow && (e.altKey || !inText())) { e.preventDefault(); moveSel(arrow); return true; }
+  if (e.key === 'Enter' && !e.metaKey && (e.altKey || !inText())) {
+    var r = selRow(); if (r) { e.preventDefault(); rowAct(r); return true; }
+  }
+  return false;
+}
+// ⏎ on a highlighted history row restores it (a click does the same).
+function rowAct(r){ say({a:'restore', rid: r.getAttribute('data-id')}); }
 document.addEventListener('keydown', function(e){
   var meta = e.metaKey || e.ctrlKey;
   if (e.key === 'Escape') { e.preventDefault(); say({a:'esc'}); return; }
+  if (rowKey(e)) return;
   if (meta && (e.key === 't' || e.key === 'T')) { e.preventDefault(); say({a:'new'}); return; }
   if (meta && (e.key === 'w' || e.key === 'W')) { e.preventDefault(); say({a:'close', tid: ACTIVE}); return; }
   if (meta && e.key >= '1' && e.key <= '9') { e.preventDefault(); say({a:'nth', n: e.key}); return; }

@@ -4,9 +4,37 @@
 -- =====================================================================
 -- 09-05-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.169.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.170.0
 -- =====================================================================
 
+-- NEW IN 6.170.0 — ARROW THROUGH THE ROWS IN EVERY PAD; THE AIR PINS ITS HINT CARD:
+--   ⌨️ LL: "I can up/down arrow on my cheatsheet. But in any window that
+--      has a list, we need to be able to arrow up and down." Inventory:
+--      every hs.chooser picker has native arrows; ⇪space and ⇪I already
+--      had their own (.row.sel); ⌥Tab and the calendar have theirs; the
+--      cheat sheet's ↑↓ scroll. Three pages had rows and no keys: the
+--      Capture Pad's queue (⇪N), the Note Pad's review list (⇪⇧N) and
+--      the Scratch Pad's history (⇪1). All three now carry one row
+--      walker: ⌥↑ / ⌥↓ move a highlight (and scroll it into view) from
+--      anywhere; plain ↑ / ↓ do the same whenever the caret is NOT in
+--      the text box (the text box keeps its own arrows — in the scratch
+--      pad, ⌘F puts you in the history filter, where plain arrows walk
+--      the rows). ⏎ (⌥⏎ from the text box) acts on the highlighted row:
+--      Scratch Pad → restores that tab, Note Pad → its "→ Task" button,
+--      Capture Pad → a PARKED row puts the parked notes back (a queued
+--      note has no per-row action; ⌘⏎ still files everything). No wrap
+--      at the ends; a new filter clears the highlight; every DOM call
+--      is guarded so a page without rows never throws.
+--   💡 6.167.0's boot line came back: "2560x1440@2x" — outcome (b): the
+--      LG runs at "looks like 1440", so the screen was never why the
+--      card read small. The Air's profile now pins it:
+--      settings = { shortcut_hints = { scale = 1.5 } } → 810 wide, 30 pt
+--      on that Mac; the work Mac keeps the rule. Turn the number to taste.
+--   ✅ Gate: test_pad_js 35 → 46 (the walker driven in node: text-box
+--      arrows left alone, ⌥↓/⌥↑, the ends, one .sel, plain arrows once
+--      the caret leaves, ⏎ on a queued row, ⌘⏎ still files, ⌥⏎ on a
+--      parked row), test_scratch_pad 109 → 115, test_note_pad 56 → 60,
+--      test_shortcut_hints 80 → 81. 7,001 → 7,023 checks, seventy-one stages.
 -- NEW IN 6.169.0 — ONE MASTER LOG FROM EVERY STORE, AND THE DOCUMENTS A QUIT APP HAD OPEN:
 --   📄 LL brought a 33-page Gemini conversation of ideas and asked for
 --      stable code from it without duplicating anything already built.
@@ -155,42 +183,10 @@
 --      which stays unspent.
 --   ✅ Gate: test_scratch_pad 107 → 109, test_mouse_grid 343 → 348,
 --      test_win_pin retired. 6,969 → 6,846 checks, sixty-nine stages.
--- NEW IN 6.165.1 — THE PAD'S FIRST SESSION: A LOST F18 keyUp, TAB NAMES, A LOUD SAVE:
---   🚨 LL: "It seems to lock up." The Console had it: "⇪ released by the
---      watchdog — held 8s with no key event and no F18 keyUp". The pad
---      took the keyboard on ⇪1 and the Caps Lock release never reached
---      the hotkey, so for eight seconds every letter typed into the pad
---      ran a hyper shortcut instead — the Sep 4 latch, caught by the
---      6.162.1 guard this time. Two answers, neither a new way IN:
---      (1) _G.hyperExpectRelease(secs, who) — a shortcut that opens a
---      text field is one nobody holds ⇪ through, so the pad says so on
---      open and the watchdog's deadline drops from 8 s to 1.5 s of
---      silence (a real key under ⇪ still pushes it out); the Console
---      line then names the panel. (2) _G.hyperReleaseSeen(who) — the
---      pad's page listens for the F18 keyup itself (WebKit gets it even
---      when the Carbon release never fires) and hands it over: "⇪ keyUp
---      seen by the scratch pad — released there". Both tested in
---      test_hyper_key §16. WHY the keyUp is lost on this Mac is still
---      unproven; the hold is now bounded either way.
---   🏷 "Untitled" told LL nothing. An empty tab is now named for what it
---      is — "Scratch 1", "Scratch 2", "Capture", "Append" — and takes its
---      first line as its name the moment there is one. The active tab
---      is brighter with a blue underline; Capture tabs are teal, Append
---      tabs amber. The buttons say what they do: "📌 Pin" / "📌 Pinned",
---      "→ Asana now".
---   💾 "Does it throw an error if it didn't save?" Now it does: the first
---      failed write of a streak alerts on screen (NOT SAVED — why; your
---      text is safe in memory; every keystroke retries), prints to the
---      Console, and the header wears "⚠ not saved" until a write lands
---      ("Saving again"). The report counts failed writes.
---   💡 The shortcut-hint card sits TOP-right now (hint.corner), 20%
---      wider (432), 20% larger type (16), 20% more see-through (0.70).
---   ✅ Gate: test_scratch_pad 99 → 107, test_hyper_key 107 → 116,
---      test_shortcut_hints 57 → 58. 6,951 → 6,969 checks, seventy stages.
--- (6.165.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.165.1 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.169.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.170.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -536,7 +532,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.169.0"
+_G.configVersion = "6.170.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -3430,7 +3426,9 @@ end
 --      settings = { … }             -- per-machine config overrides
 _G.moduleProfiles = {
     -- ---- personal Mac: everything on ----
-    ["Lees-MacBook-Air"] = profileFrom(),
+    -- 6.170.0: the LG runs 2560×1440@2x ("looks like 1440") — outcome (b)
+    -- of 6.167.0: the screen was NOT why the card read small, so pin it.
+    ["Lees-MacBook-Air"] = profileFrom{ settings = { shortcut_hints = { scale = 1.5 } } },
 
     -- ---- work Mac ----
     -- ✏️ PUT YOUR WORK MACHINE'S NAME HERE. Find it by running

@@ -332,6 +332,7 @@ function M.setup(core)
   ul { list-style:none; margin:0; padding:0; }
   li { display:flex; gap:10px; align-items:baseline; padding:8px 10px;
        border-radius:7px; background:#1b1b22; margin-bottom:5px; font-size:14px; }
+  li.sel { outline:1px solid #7aa2f7; background:#26304a; }
   .k { font-size:10px; font-weight:700; letter-spacing:.06em; padding:2px 6px;
        border-radius:4px; flex:none; }
   li.idea .k { background:#3a3550; color:#c3b6ee; }
@@ -381,7 +382,37 @@ function M.setup(core)
     say({a:'dragStart'});
   });
   window.addEventListener('mouseup', function(){ bar.classList.remove('dragging'); });
+
+  // ⌨️ 6.170.0 — ARROW THROUGH THE ROWS. LL: "in any window that has a
+  // list, we need to be able to arrow up and down." ⌥↑ / ⌥↓ always move
+  // the highlight; plain ↑ / ↓ do too whenever the caret is NOT in the
+  // text box (the text box keeps its own arrows). ⏎ (⌥⏎ from the text
+  // box) acts on the highlighted row. Every DOM call is guarded so a
+  // page without rows, or a test shim without a DOM, never throws.
+  var SEL = -1, ROWSEL = 'li';
+  function rowsList(){ try { return Array.prototype.slice.call(document.querySelectorAll(ROWSEL)); } catch(e){ return []; } }
+  function inText(){ var a = null; try { a = document.activeElement; } catch(e){} return !!(a && a.tagName === 'TEXTAREA'); }
+  function moveSel(d){
+    var rows = rowsList(); if (!rows.length) return false;
+    var from = SEL < 0 ? (d > 0 ? -1 : rows.length) : SEL;
+    SEL = Math.max(0, Math.min(rows.length - 1, from + d));
+    for (var i = 0; i < rows.length; i++) { try { if (i === SEL) rows[i].classList.add('sel'); else rows[i].classList.remove('sel'); } catch(e){} }
+    try { rows[SEL].scrollIntoView({ block: 'nearest' }); } catch(e){}
+    return true;
+  }
+  function selRow(){ var rows = rowsList(); return (SEL >= 0 && SEL < rows.length) ? rows[SEL] : null; }
+  function rowKey(e){
+    var arrow = e.key === 'ArrowDown' ? 1 : (e.key === 'ArrowUp' ? -1 : 0);
+    if (arrow && (e.altKey || !inText())) { e.preventDefault(); moveSel(arrow); return true; }
+    if (e.key === 'Enter' && !e.metaKey && (e.altKey || !inText())) {
+      var r = selRow(); if (r) { e.preventDefault(); rowAct(r); return true; }
+    }
+    return false;
+  }
+  // ⏎ on a review row = its "→ Task" button (a row already queued has none).
+  function rowAct(r){ try { var b = r.querySelector('.totask'); if (b) b.click(); } catch(e){} }
   window.addEventListener('keydown', function(e){
+    if (rowKey(e)) return;
     if (e.metaKey && e.key === 'Enter') { e.preventDefault(); fileIt(); }
     else if (e.metaKey && e.shiftKey && (e.key === 'v' || e.key === 'V')) {
       e.preventDefault(); say({a:'insertClip'});

@@ -993,6 +993,7 @@ function M.setup(core)
   .m { color:#75757f; font-size:13px; flex:none; }
   .parked { color:#e8b06a; font-size:13px; }
   li.parkedrow { background:#241d12; }
+  li.sel { outline:1px solid #7aa2f7; background:#26304a; }
   .k.pk { background:#6b4a15; color:#f5d9a3; }
   button.retry { margin-left:8px; padding:3px 9px; font-size:12px;
                  background:#4a3a1e; border-color:#6b5528; color:#f0d5a8; }
@@ -1066,7 +1067,39 @@ function M.setup(core)
     say({a:'dragStart'});
   });
   window.addEventListener('mouseup', function(){ bar.classList.remove('dragging'); });
+
+  // ⌨️ 6.170.0 — ARROW THROUGH THE ROWS. LL: "in any window that has a
+  // list, we need to be able to arrow up and down." ⌥↑ / ⌥↓ always move
+  // the highlight; plain ↑ / ↓ do too whenever the caret is NOT in the
+  // text box (the text box keeps its own arrows). ⏎ (⌥⏎ from the text
+  // box) acts on the highlighted row. Every DOM call is guarded so a
+  // page without rows, or a test shim without a DOM, never throws.
+  var SEL = -1, ROWSEL = 'li';
+  function rowsList(){ try { return Array.prototype.slice.call(document.querySelectorAll(ROWSEL)); } catch(e){ return []; } }
+  function inText(){ var a = null; try { a = document.activeElement; } catch(e){} return !!(a && a.tagName === 'TEXTAREA'); }
+  function moveSel(d){
+    var rows = rowsList(); if (!rows.length) return false;
+    var from = SEL < 0 ? (d > 0 ? -1 : rows.length) : SEL;
+    SEL = Math.max(0, Math.min(rows.length - 1, from + d));
+    for (var i = 0; i < rows.length; i++) { try { if (i === SEL) rows[i].classList.add('sel'); else rows[i].classList.remove('sel'); } catch(e){} }
+    try { rows[SEL].scrollIntoView({ block: 'nearest' }); } catch(e){}
+    return true;
+  }
+  function selRow(){ var rows = rowsList(); return (SEL >= 0 && SEL < rows.length) ? rows[SEL] : null; }
+  function rowKey(e){
+    var arrow = e.key === 'ArrowDown' ? 1 : (e.key === 'ArrowUp' ? -1 : 0);
+    if (arrow && (e.altKey || !inText())) { e.preventDefault(); moveSel(arrow); return true; }
+    if (e.key === 'Enter' && !e.metaKey && (e.altKey || !inText())) {
+      var r = selRow(); if (r) { e.preventDefault(); rowAct(r); return true; }
+    }
+    return false;
+  }
+  // The queue has no per-row action yet: ⏎ on a highlighted queued note
+  // does nothing (the whole queue files with ⌘⏎). A parked row's ⏎ puts
+  // the parked notes back, the same as its button.
+  function rowAct(r){ try { if (r.className && r.className.indexOf('parkedrow') >= 0) retryParked(); } catch(e){} }
   window.addEventListener('keydown', function(e){
+    if (rowKey(e)) return;
     if (e.metaKey && e.key === 'Enter') { e.preventDefault(); fileIt(); }
     else if (e.metaKey && e.shiftKey && (e.key === 'v' || e.key === 'V')) {
       e.preventDefault(); say({a:'image'});
