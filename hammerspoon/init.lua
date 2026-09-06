@@ -4,9 +4,19 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.173.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.173.1
 -- =====================================================================
 
+-- NEW IN 6.173.1 — ⇪4 / ⇪⇧4 OCR TEXT REACHES THE ⇪O LOG (FOR REAL THIS TIME):
+--   🔤 LL: "OCR Logs do not have what hyper+v or the system clipboard
+--      has after an OCR event using hyper+4 or hyper+shift+4." 6.172.1
+--      wired only the name-on-arrival path. The RECOGNIZE path — the
+--      one that puts the words on the clipboard (⇪4's text, the panel's
+--      OCR row, a decoded QR code) — never told the log. Every text the
+--      screenshots module puts on the pasteboard now goes through
+--      shots.recordText → `ocr.record`, so ⇪O has what ⇪V has.
+--   ✅ Gate: test_screenshots 161 → 163. 67 modules. 7,226 → 7,228
+--      checks, seventy-three stages.
 -- NEW IN 6.173.0 — ONE WINDOW: THE SCORP PAD'S TABS LIVE IN THE VAULT (⇪1 = ⇪3):
 --   📝🕸 LL: "Can I combine my Scorp Pad and this Vault Pad?" Yes — the
 --      Vault absorbs the pad. ⇪1 and ⇪3 open the SAME window: ⇪3 on your
@@ -89,21 +99,10 @@
 --   ✅ Gate: test_scratch_pad 117 → 119 (alpha, 16 px text with no
 --      placeholder left, chrome sized off it). 66 modules. 7,064 →
 --      7,066 checks, seventy-one stages.
--- NEW IN 6.171.1 — THE SCORP PAD STANDS UP: 768×1024, LESS SEE-THROUGH:
---   📐 LL on 6.171.0: "Make it 768 by 1024 and it is too translucent."
---      Portrait now (width 768, height 1024, still clamped to the
---      screen) and the window alpha is 0.85 (15% translucent; was
---      0.65). Same three settings overrides as 6.171.0.
---   🔎 The Finder drag lag LL saw was NOT this config: the lag probe
---      was disarmed (no data) and LL traced it to VLC streaming a file
---      out of OneDrive. `_G.lagOn()` then reload is the switch if it
---      ever needs measuring; the probe wraps every tap and timer.
---   ✅ Gate: test_scratch_pad 117 (two checks re-aimed). 66 modules.
---      7,064 checks, seventy-one stages.
--- (6.171.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.171.1 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.173.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.173.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -449,7 +448,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.173.0"
+_G.configVersion = "6.173.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

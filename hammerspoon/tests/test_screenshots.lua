@@ -569,6 +569,10 @@ check("…and finds the brew install when it exists",
 
 local rp = DIR .. "/recognize-me.png"
 FILES[rp] = { size = 500, modification = 1600 }
+-- 6.173.1 — whatever lands on the clipboard here lands in ⇪O's log too
+local REC, savedSvc11 = {}, _G.service
+_G.service = { has = function(n) return n == "ocr.record" end,
+               call = function(n, t) if n == "ocr.record" then REC[#REC + 1] = t end return true end }
 tBefore = #TASKS
 S.recognizeFile(rp)
 check("with zbar present the QR decode runs FIRST", #TASKS == tBefore + 1
@@ -578,6 +582,7 @@ TASKS[#TASKS].cb(0, "https://example.com/qr-payload\n")
 check("a decoded code lands on the clipboard, verbatim",
       CLIP.kind == "text" and CLIP.v == "https://example.com/qr-payload",
       tostring(CLIP.v))
+check("6.173.1: …and in the OCR log (ocr.record)", REC[1] == "https://example.com/qr-payload", REC[1])
 
 tBefore = #TASKS
 S.recognizeFile(rp)
@@ -589,6 +594,9 @@ check("no code → falls through to the HS OCR Shortcut",
 TASKS[#TASKS].cb(0, "  Hello from OCR  ")
 check("…whose text is trimmed onto the clipboard",
       CLIP.kind == "text" and CLIP.v == "Hello from OCR", tostring(CLIP.v))
+check("6.173.1: ⇪4's recognized text reaches ocr.record — ⇪O has what ⇪V has",
+      REC[2] == "Hello from OCR", REC[2])
+_G.service = savedSvc11
 FILES["/opt/homebrew/bin/zbarimg"] = nil
 S._zbar = nil
 

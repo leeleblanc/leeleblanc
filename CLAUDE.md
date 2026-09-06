@@ -245,6 +245,12 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 6.173.1 verify with LL: ⇪4, select text, then ⇪O — the words are the
+  newest row (RULE, now complete: every text screenshots.lua puts on the
+  pasteboard goes through `shots.recordText` → `ocr.record`; a new
+  clipboard write there must call it). If ⇪O is still empty after this,
+  paste the Console lines after ⇪4 — the Shortcut may be failing before
+  any text exists.
 - 6.173.0 verify with LL: ⇪1 opens the Vault window on the scratch
   tabs (📝 SCRATCH section on top, 🕸 NOTES under); typing into a tab
   survives close + reopen + reload (store unchanged:

@@ -4,6 +4,16 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.173.1 — ⇪4 / ⇪⇧4 OCR TEXT REACHES THE ⇪O LOG (FOR REAL THIS TIME):
+  🔤 LL: "OCR Logs do not have what hyper+v or the system clipboard
+     has after an OCR event using hyper+4 or hyper+shift+4." 6.172.1
+     wired only the name-on-arrival path. The RECOGNIZE path — the
+     one that puts the words on the clipboard (⇪4's text, the panel's
+     OCR row, a decoded QR code) — never told the log. Every text the
+     screenshots module puts on the pasteboard now goes through
+     shots.recordText → `ocr.record`, so ⇪O has what ⇪V has.
+  ✅ Gate: test_screenshots 161 → 163. 67 modules. 7,226 → 7,228
+     checks, seventy-three stages.
 NEW IN 6.173.0 — ONE WINDOW: THE SCORP PAD'S TABS LIVE IN THE VAULT (⇪1 = ⇪3):
   📝🕸 LL: "Can I combine my Scorp Pad and this Vault Pad?" Yes — the
      Vault absorbs the pad. ⇪1 and ⇪3 open the SAME window: ⇪3 on your

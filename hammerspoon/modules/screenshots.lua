@@ -738,6 +738,18 @@ function M.setup(core)
         return nil
     end
 
+    -- 6.173.1 — LL: "OCR Logs do not have what hyper+v or the system
+    -- clipboard has after an OCR event using hyper+4 or hyper+shift+4."
+    -- 6.172.1 wired only the name-on-arrival path; the RECOGNIZE path
+    -- (⇪4's text-to-clipboard, the panel's OCR row) put words on the
+    -- pasteboard and nowhere else. Every text this module puts on the
+    -- clipboard now goes through here — the one door into ⇪O's log.
+    function shots.recordText(text)
+        if _G.service and _G.service.has and _G.service.has("ocr.record") then
+            pcall(function() _G.service.call("ocr.record", text) end)
+        end
+    end
+
     function shots.recognizeFile(path)
         local function ocr()
             if _G.ocrShortcutAvailable == false then
@@ -754,6 +766,7 @@ function M.setup(core)
                     local text = tostring(sout or ""):match("^%s*(.-)%s*$") or ""
                     if code == 0 and text ~= "" then
                         pcall(function() hs.pasteboard.setContents(text) end)
+                        shots.recordText(text)
                         pcall(function()
                             hs.alert.show("📝 Text copied: "
                                           .. text:gsub("%s+", " "):sub(1, 60), 3)
@@ -776,6 +789,7 @@ function M.setup(core)
                 local payload = tostring(sout or ""):match("^%s*(.-)%s*$") or ""
                 if code == 0 and payload ~= "" then
                     pcall(function() hs.pasteboard.setContents(payload) end)
+                    shots.recordText(payload)
                     pcall(function()
                         hs.alert.show("🔳 Code copied: " .. payload:sub(1, 60), 3)
                     end)
@@ -913,9 +927,7 @@ function M.setup(core)
                     end
                     -- 6.172.1 — the words also go into the OCR log ⇪O
                     -- reads (they never did: only the Finder comment).
-                    if _G.service and _G.service.has and _G.service.has("ocr.record") then
-                        pcall(function() _G.service.call("ocr.record", text) end)
-                    end
+                    shots.recordText(text)
                 end
                 if onDone then onDone(newPath) end
             end, { "run", shots.ocrShortcut, "-i", path })
