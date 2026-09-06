@@ -79,8 +79,8 @@ quit panel asks `docs.openFor` / `docs.reopen` — keep that the only
 reopen path.
 
 Scratch pad — named the SCORP PAD to LL since 6.171.0 (visible strings only;
-file, store, `_G.scratchPad` and service ids unchanged; 1024×768, window
-alpha 0.65 via `sp.alpha`) — (6.164.0, modules/scratch_pad.lua, ⇪1): a webview on the
+file, store, `_G.scratchPad` and service ids unchanged; 768×1024 portrait, window
+alpha 0.85 via `sp.alpha`) — (6.164.0, modules/scratch_pad.lua, ⇪1): a webview on the
 Capture Pad recipe — NO eventtap, NO AX/window reads, every timer held.
 Keystrokes land in `sp.tabs` at once, the store (Logs/scratch/scratch.json,
 write ledger) 0.3 s later. The 16:00 task goes through `_G.asanaSubmitTask`
@@ -225,10 +225,11 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
-- 6.171.0 verify with LL: ⇪1 opens a 1024×768 "Scorp Pad" at 35%
-  translucency (text still readable over a busy window; if not, raise
-  `settings = { scratch_pad = { alpha = 0.8 } }` to taste); the 4 PM task
-  reads "Scorp pad · <day>".
+- 6.171.1 verify with LL: ⇪1 opens a portrait 768×1024 "Scorp Pad" at
+  15% translucency (alpha 0.85; `settings = { scratch_pad = { alpha = 1 } }`
+  = solid); the 4 PM task reads "Scorp pad · <day>". The Sep 6 Finder
+  drag lag was VLC streaming from OneDrive, not this config (lag probe is
+  DISARMED by default — `_G.lagOn()` + reload to measure).
 - 🚨 6.170.3 verify with LL: ⇪4 then type — no "released by the
   watchdog" line (or one saying "the screenshot tool had taken the
   keyboard" after ≤2 s), no "disabled by macOS" tap lines, no beach

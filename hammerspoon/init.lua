@@ -4,9 +4,20 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.171.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.171.1
 -- =====================================================================
 
+-- NEW IN 6.171.1 — THE SCORP PAD STANDS UP: 768×1024, LESS SEE-THROUGH:
+--   📐 LL on 6.171.0: "Make it 768 by 1024 and it is too translucent."
+--      Portrait now (width 768, height 1024, still clamped to the
+--      screen) and the window alpha is 0.85 (15% translucent; was
+--      0.65). Same three settings overrides as 6.171.0.
+--   🔎 The Finder drag lag LL saw was NOT this config: the lag probe
+--      was disarmed (no data) and LL traced it to VLC streaming a file
+--      out of OneDrive. `_G.lagOn()` then reload is the switch if it
+--      ever needs measuring; the probe wraps every tap and timer.
+--   ✅ Gate: test_scratch_pad 117 (two checks re-aimed). 66 modules.
+--      7,064 checks, seventy-one stages.
 -- NEW IN 6.171.0 — THE SCRATCH PAD IS THE SCORP PAD, BIGGER AND SEE-THROUGH:
 --   📝 ⇪1's pad is now called the Scorp Pad everywhere LL sees a name:
 --      its header, window title, cheat sheet, boot and Console lines,
@@ -85,38 +96,10 @@
 --      the pasteboard is still worth knowing — the Console line says
 --      when it happens.
 --
--- NEW IN 6.170.0 — ARROW THROUGH THE ROWS IN EVERY PAD; THE AIR PINS ITS HINT CARD:
---   ⌨️ LL: "I can up/down arrow on my cheatsheet. But in any window that
---      has a list, we need to be able to arrow up and down." Inventory:
---      every hs.chooser picker has native arrows; ⇪space and ⇪I already
---      had their own (.row.sel); ⌥Tab and the calendar have theirs; the
---      cheat sheet's ↑↓ scroll. Three pages had rows and no keys: the
---      Capture Pad's queue (⇪N), the Note Pad's review list (⇪⇧N) and
---      the Scratch Pad's history (⇪1). All three now carry one row
---      walker: ⌥↑ / ⌥↓ move a highlight (and scroll it into view) from
---      anywhere; plain ↑ / ↓ do the same whenever the caret is NOT in
---      the text box (the text box keeps its own arrows — in the scratch
---      pad, ⌘F puts you in the history filter, where plain arrows walk
---      the rows). ⏎ (⌥⏎ from the text box) acts on the highlighted row:
---      Scratch Pad → restores that tab, Note Pad → its "→ Task" button,
---      Capture Pad → a PARKED row puts the parked notes back (a queued
---      note has no per-row action; ⌘⏎ still files everything). No wrap
---      at the ends; a new filter clears the highlight; every DOM call
---      is guarded so a page without rows never throws.
---   💡 6.167.0's boot line came back: "2560x1440@2x" — outcome (b): the
---      LG runs at "looks like 1440", so the screen was never why the
---      card read small. The Air's profile now pins it:
---      settings = { shortcut_hints = { scale = 1.5 } } → 810 wide, 30 pt
---      on that Mac; the work Mac keeps the rule. Turn the number to taste.
---   ✅ Gate: test_pad_js 35 → 46 (the walker driven in node: text-box
---      arrows left alone, ⌥↓/⌥↑, the ends, one .sel, plain arrows once
---      the caret leaves, ⏎ on a queued row, ⌘⏎ still files, ⌥⏎ on a
---      parked row), test_scratch_pad 109 → 115, test_note_pad 56 → 60,
---      test_shortcut_hints 80 → 81. 7,001 → 7,023 checks, seventy-one stages.
--- (6.169.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.170.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.171.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.171.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -462,7 +445,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.171.0"
+_G.configVersion = "6.171.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

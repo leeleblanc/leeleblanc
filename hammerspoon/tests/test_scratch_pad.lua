@@ -258,8 +258,8 @@ sp.show()
 local view = WEBVIEWS[#WEBVIEWS]
 check("the pad opened one webview with the page in it", view and view.htmlSet and view.htmlSet:find("Scorp Pad", 1, true))
 -- 6.171.0 — 1024×768, 35% translucent, both from sp.* so a profile can change them
-check("6.171.0: the pad is 1024×768 by default", sp.width == 1024 and sp.height == 768)
-check("6.171.0: the window is 35% translucent (alpha 0.65)", sp.alpha == 0.65 and view and view.alphaSet == 0.65, view and tostring(view.alphaSet))
+check("6.171.1: the pad is 768×1024 (portrait) by default", sp.width == 768 and sp.height == 1024)
+check("6.171.1: the window is 15% translucent (alpha 0.85)", sp.alpha == 0.85 and view and view.alphaSet == 0.85, view and tostring(view.alphaSet))
 check("an empty tab is named by its place, not 'Untitled'", view.htmlSet:find(">Scratch 1<", 1, true) ~= nil and view.htmlSet:find("Untitled", 1, true) == nil)
 check("opening told the hyper watchdog to expect the release within 1.5 s",
       EXPECTED[#EXPECTED] and EXPECTED[#EXPECTED].secs == 1.5)

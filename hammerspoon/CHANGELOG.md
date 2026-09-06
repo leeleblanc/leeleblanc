@@ -4,6 +4,18 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.171.1 — THE SCORP PAD STANDS UP: 768×1024, LESS SEE-THROUGH:
+  📐 LL on 6.171.0: "Make it 768 by 1024 and it is too translucent."
+     Portrait now (width 768, height 1024, still clamped to the
+     screen) and the window alpha is 0.85 (15% translucent; was
+     0.65). Same three settings overrides as 6.171.0.
+  🔎 The Finder drag lag LL saw was NOT this config: the lag probe
+     was disarmed (no data) and LL traced it to VLC streaming a file
+     out of OneDrive. `_G.lagOn()` then reload is the switch if it
+     ever needs measuring; the probe wraps every tap and timer.
+  ✅ Gate: test_scratch_pad 117 (two checks re-aimed). 66 modules.
+     7,064 checks, seventy-one stages.
+
 NEW IN 6.171.0 — THE SCRATCH PAD IS THE SCORP PAD, BIGGER AND SEE-THROUGH:
   📝 ⇪1's pad is now called the Scorp Pad everywhere LL sees a name:
      its header, window title, cheat sheet, boot and Console lines,

@@ -97,9 +97,9 @@ function M.setup(core)
     local sp = {
         enabled       = true,
         key           = "1",
-        width         = 1024,
-        height        = 768,
-        alpha         = 0.65,     -- 6.171.0 — 35% translucent (1 = solid); a settings override changes it
+        width         = 768,
+        height        = 1024,
+        alpha         = 0.85,     -- 6.171.1 — 15% translucent (6.171.0 shipped 35%, too see-through) (1 = solid); a settings override changes it
         saveDelay     = 0.3,      -- seconds after the last key before the disk write
         historyRows   = 200,      -- rows embedded in the page for the filter
         historyKeep   = 2000,     -- rows kept in the store (oldest drop past this)
