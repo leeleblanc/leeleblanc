@@ -115,8 +115,9 @@ hs = {
     eventtap = { checkMouseButtons = function() return { left = false } end },
     settings = { get = function(k) return SETTINGS[k] end, set = function(k, x) SETTINGS[k] = x end },
     task = { new = function(bin, cb, args)
-        local t = { bin = bin, cb = cb, args = args, started = false }
+        local t = { bin = bin, cb = cb, args = args, started = false, terminated = false }
         function t:start() self.started = true return true end
+        function t:terminate() self.terminated = true end     -- 6.174.0 — a superseded task is stopped
         TASKS[#TASKS + 1] = t
         return t
     end },
@@ -150,6 +151,27 @@ local function lastTimer(kind)
 end
 local function lastTask(bin)
     for i = #TASKS, 1, -1 do if TASKS[i].bin:match(bin) then return TASKS[i] end end
+end
+-- 6.174.0 — the newest task of a binary whose ARGS carry a flag (find /
+-- the link grep / the tag greps / search / tasks / mentions share bins)
+local function taskArgs(t) return t and table.concat(t.args, " ") or "" end
+local function lastTaskWith(bin, needle)
+    for i = #TASKS, 1, -1 do
+        if TASKS[i].bin:match(bin) and taskArgs(TASKS[i]):find(needle, 1, true) then return TASKS[i] end
+    end
+end
+local function countTasks(bin)
+    local n = 0
+    for _, t in ipairs(TASKS) do if t.bin:match(bin) then n = n + 1 end end
+    return n
+end
+-- the scan chain since 6.174.0: after the LINK grep answers, a TAG grep and
+-- then a FRONT-MATTER grep follow; this feeds both "no match"
+local function finishTagGreps(tagOut, fmOut)
+    local tg = lastTaskWith("grep", "-rHoIE")
+    if tg then tg.cb(tagOut and 0 or 1, tagOut or "", "") end
+    local fg = lastTaskWith("grep", "^tags?:")
+    if fg then fg.cb(fmOut and 0 or 1, fmOut or "", "") end
 end
 
 -- =======================================================================
@@ -207,6 +229,19 @@ check("three notes indexed, sorted by name, found case-insensitively",
 check("the grep task followed, excluding .obsidian", lastTask("grep") and lastTask("grep").started
       and table.concat(lastTask("grep").args, " "):find("exclude%-dir=%.obsidian") ~= nil)
 lastTask("grep").cb(0, VAULT .. "/Alpha.md:[[Beta|B]]\n" .. VAULT .. "/Alpha.md:[[Gamma]]\n" .. VAULT .. "/Projects/Beta.md:[[alpha]]\n" .. VAULT .. "/Gamma.md:[[Delta]]\n", "")
+do  -- 6.174.0 — two more greps follow the links: #tags (-o, the wide shape), then front-matter tags:
+    local tg = lastTask("grep")
+    check("6.174.0: a TAG grep follows the link grep (-rHoIE, the wide #shape, not the [[ pattern)",
+          tg and tg.started and taskArgs(tg):find("-rHoIE", 1, true) and taskArgs(tg):find("#[^[:space:]#]+", 1, true)
+          and taskArgs(tg):find("exclude-dir=.obsidian", 1, true) and not taskArgs(tg):find("\\[\\[", 1, true), taskArgs(tg))
+    check("…the scan is still running while it does", v.scanning == true and v.tagTask == tg)
+    tg.cb(1, "", "")
+    local fg = lastTask("grep")
+    check("…then a FRONT-MATTER grep (-m 1 -A 12, ^tags?:)", fg and fg ~= tg and fg.started
+          and taskArgs(fg):find("-m 1 -A 12", 1, true) and taskArgs(fg):find("^tags?:", 1, true) and v.fmTask == fg, taskArgs(fg))
+    fg.cb(1, "", "")
+    check("…and both fields are released when the chain ends", v.tagTask == nil and v.fmTask == nil)
+end
 check("scan finished: links per note", v.scanning == false and v.scanErr == nil and #v.links["Alpha.md"] == 2 and v.links["Projects/Beta.md"][1] == "alpha")
 check("backlinks are the inverse (Alpha ← Beta, Beta ← Alpha)",
       v.backlinks.alpha and v.backlinks.alpha[1] == "Projects/Beta.md" and v.backlinks.beta and v.backlinks.beta[1] == "Alpha.md")
@@ -224,11 +259,13 @@ do
     v.scan("no links")
     lastTask("find").cb(0, VAULT .. "/Alpha.md\n" .. VAULT .. "/Projects/Beta.md\n" .. VAULT .. "/Gamma.md\n", "")
     lastTask("grep").cb(1, "", "")
+    finishTagGreps()
     check("grep exit 1 (no matches) is a clean empty scan", v.scanErr == nil and next(v.links) == nil)
     lastTask("find").cb(0, "", "")   -- restore the earlier links for the rest
     v.scan("restore")
     lastTask("find").cb(0, VAULT .. "/Alpha.md\n" .. VAULT .. "/Projects/Beta.md\n" .. VAULT .. "/Gamma.md\n", "")
     lastTask("grep").cb(0, VAULT .. "/Alpha.md:[[Beta|B]]\n" .. VAULT .. "/Alpha.md:[[Gamma]]\n" .. VAULT .. "/Projects/Beta.md:[[alpha]]\n" .. VAULT .. "/Gamma.md:[[Delta]]\n", "")
+    finishTagGreps()
 end
 
 -- =======================================================================

@@ -71,11 +71,60 @@
 -- back). scratch_pad keeps every brain; v.sp() is the only bridge, and
 -- with `scratch_pad.viaVault = false` the pad's own window returns.
 --
+-- 🏷 6.174.0 — TAGS, TEMPLATES, SEARCH INSIDE NOTES, TASKS, MENTIONS.
+-- LL wanted the rest of what a daily Obsidian user reaches for, without
+-- giving up the one rule above (the folder is the database, nothing is
+-- read that is not open). Every new key is a ⌘ key INSIDE the page —
+-- no hyper key was spent. What arrived, in Obsidian's own grammar so a
+-- user of both tools notices nothing: `#tag` anywhere (letters, digits,
+-- _ - /, at least one non-digit; `#2024` is a number, `#y2024` a tag;
+-- trailing punctuation dropped; `# Heading`, `[[Note#h]]` and a URL's
+-- `#frag` are not tags) and `tags: a, b` / `tags: [a, b]` / a YAML
+-- list in a note's front matter; nested `#a/b` counts under `#a` too.
+-- Templates are the .md files in <vault>/Templates — ordinary notes,
+-- listed under 📄 TEMPLATES, inserted at the caret (⌘⇧T) or used for a
+-- new note (⌘⇧N) with Obsidian's core variables `{{title}}` `{{date}}`
+-- `{{time}}` `{{date:FMT}}` (moment tokens, case-sensitive: MM month,
+-- mm minute; `dd`/`d` alone are NOT supported — `D` is the day) and
+-- Templater's `{{cursor}}` for the caret; Templater's `<% %>` is left
+-- verbatim and said in the Console. ⌘D seeds a NEW daily note from
+-- Templates/Daily.md when it exists (`{{title}}` = the date); ⌘⇧[ ⌘⇧]
+-- step a day. ⌘⇧F searches every note's TEXT (words, "a phrase",
+-- tag:x, path:x — every word required, plain text, no regex); ⌘⇧K
+-- lists every open `- [ ]` task; ≈ UNLINKED MENTIONS names the notes
+-- that say this note's name without linking it; ⌘⇧E extracts the
+-- selection into a new note, leaving [[Name]] behind; ⌘⇧R opens a
+-- random note.
+--
+-- HOW, WITHOUT READING THE VAULT. The scan became FOUR held tasks in a
+-- chain: find (names) → grep links → grep `#tags` → grep front-matter
+-- `tags:` lines (-m 1 -A 12). The two tag greps are OPTIONAL: a failure
+-- warns and finishes the scan with the links intact, and a half-built
+-- tag index is never assigned (the pending table lands only at the end
+-- of the chain). Search, tasks and mentions are one held grep each
+-- (`v.searchTask`, `v.tasksTask`, `v.mentionTask`); a superseded one is
+-- terminated before its field is reused, and every callback begins with
+-- a staleness guard (a sequence number, the query, the open note's key,
+-- the mode), so a late answer can never overwrite newer state. A
+-- template's body comes through `/bin/cat` in a held task with a held
+-- 10 s timer that terminates it and says so — a OneDrive placeholder
+-- would otherwise stall Hammerspoon on the main thread. Line targets
+-- travel to the page as LINE NUMBERS and template carets as a HEAD
+-- STRING, so no byte-vs-UTF-16 arithmetic crosses the bridge. The
+-- vault-wide tag grep sees one line at a time and cannot tell a code
+-- fence (the open note's own tags are exact, parsed in Lua).
+--
 -- 🚨 WHAT THIS MODULE DELIBERATELY DOES NOT DO. No eventtap (the page's
 -- own keydown handles ⌘N/⌘D/⌘G/⌘K/⌘⏎/Esc). No AX or hs.window read. No
--- timer that is not held. No read of a note that is not open. No file
--- delete or rename — Finder and Obsidian do those better. Without a
--- webview it falls back to hs.dialog and still saves.
+-- timer that is not held. No read of a note that is not open. No read
+-- of a template on the main thread. No write of any note but the open
+-- one (a NEW note is created, never another rewritten — so no rename,
+-- no link rewrite, no "link it" on a mention, no ticking a task that
+-- lives in another note). No `✅` stamps, no `📅` due dates (the Tasks
+-- plug-in's syntax, not Obsidian's). No fence awareness in the
+-- vault-wide grep. No file delete or rename — Finder and Obsidian do
+-- those better. No Markdown preview. Without a webview it falls back to
+-- hs.dialog and still saves.
 -- =====================================================================
 
 local M = {
@@ -83,7 +132,7 @@ local M = {
     order   = 13.38,
     family  = "capture",
     summary = "⇪3 linked Markdown notes in OneDrive: [[wikilinks]], backlinks, "
-              .. "a graph of the connections, Obsidian-compatible files",
+              .. "a graph of the connections, Obsidian-compatible files, tags, templates, full-text search, tasks",
     cheatsheet = {
         title = "🕸 VAULT (⇪3 / ⇪1 — Markdown notes that link to each other, in OneDrive; the Scorp Pad's tabs too)",
         entries = {
@@ -91,10 +140,17 @@ local M = {
             { "📝 SCRATCH",  "Top of the list: the Scorp Pad's tabs · ⌘T new · ⌘W close · ⌘1–9 · ⌃Tab · history on the right" },
             { "[[",         "Type [[ and pick a note — [[Name]] links to Name.md, creating it on follow" },
             { "⌘⏎",         "Follow the link under the caret (a note, or a file link opens the file)" },
-            { "⌘N · ⌘D",    "New note · today's daily note (Daily/YYYY-MM-DD.md)" },
+            { "⌘N · ⌘D",    "New note · today's daily note (Daily/YYYY-MM-DD.md, from Templates/Daily.md when it exists) · ⌘⇧[ ⌘⇧] the day before / after" },
             { "⌘G",         "Graph: every note a dot, every link a line; click a dot, drag to untangle" },
             { "⌘K",         "Link a file from anywhere in OneDrive (a relative Markdown link)" },
-            { "⌘F · ↑↓ ⏎",  "Filter the list · walk it (⌥↑/⌥↓ from inside the text)" },
+            -- 6.174.0
+            { "⌘⇧N · ⌘⇧T",  "New note FROM a template · insert a template at the caret — Templates/*.md with {{title}} {{date}} {{time}} {{date:FMT}} {{cursor}}" },
+            { "#tag",       "Type #word anywhere (or tags: a, b up top): 🏷 TAGS counts them, click one to filter, # in the box lists them all; chips on the right" },
+            { "⌘⇧F",        "Search INSIDE every note — words, \"a phrase\", tag:x, path:x; rows are note · line · text, ⏎ opens at that line, Esc back" },
+            { "⌘⇧K · ⌘L",   "Every open - [ ] task in the vault (⏎ opens it there) · tick / untick the task on this line; ⏎ continues a list" },
+            { "OUTLINE · ≈", "Right pane: the note's headings (click to jump) · ≈ notes that mention this name without linking it" },
+            { "⌘⇧E · ⌘⇧R",  "Extract the selection into a new note, leaving [[Name]] behind · open a random note" },
+            { "⌘F · ⌘O · ↑↓ ⏎", "Filter the list · walk it (⌥↑/⌥↓ ⌥⏎ from inside the text)" },
             { "📌",          "Pin: the window stays up beside the app; Esc only hands the keys back" },
             { "Obsidian",   "Open the same folder as a vault in Obsidian — plug-ins and all" },
             { "Console",    "_G.vaultReport() · _G.vaultRescan()" },
@@ -121,6 +177,20 @@ function M.setup(core)
         skipDirs      = { ".obsidian", ".trash", ".git" },
         FIND          = "/usr/bin/find",
         GREP          = "/usr/bin/grep",
+        -- 6.174.0 — tags, templates, search, tasks, mentions (settings overrides land here)
+        templatesDir    = "Templates",   -- subfolder of the vault; its .md files are the templates
+        dailyTemplate   = "Daily",       -- Templates/<this>.md seeds a NEW daily note when it exists
+        templateTimeout = 10,            -- seconds to wait for /bin/cat before giving up (OneDrive)
+        searchDelay     = 0.3,           -- ⌘⇧F: seconds of silence before the grep runs
+        searchMax       = 200,           -- rows kept from one search
+        searchPerFile   = 20,            -- grep -m: lines kept per note
+        tasksMax        = 300,           -- rows kept in the ☑ view
+        mentionsMax     = 50,            -- ≈ rows under BACKLINKS
+        mentionsMinLen  = 3,             -- a shorter name is not searched for
+        tagRows         = 15,            -- 🏷 rows shown before "… N more"
+        maxTagLines     = 40000,         -- like maxLinkLines, for the tag + frontmatter greps together
+        smartLists      = true,          -- ⏎ continues a list line (page-side)
+        CAT             = "/bin/cat",    -- template bodies, off the main thread
 
         -- state
         notes = {}, byKey = {}, links = {}, backlinks = {}, unresolved = {},
@@ -131,6 +201,15 @@ function M.setup(core)
         dragTimer = nil, dragOffset = nil, opens = 0,
         nonActivatingApplied = false, nonActivatingWhy = "not requested",
         caret = 0, filter = "", view = "edit", pos = nil, pinned = false,
+        -- 6.174.0
+        tags = {}, tagsOf = {}, tagList = {}, tagLines = 0, tagsPartial = false, tagTask = nil, fmTask = nil,
+        mode = "notes",
+        searchQuery = "", searchRows = {}, searchMore = false, searchTask = nil, searchTimer = nil, searchSeq = 0,
+        searching = false, searchErr = nil, lastSearch = nil, searches = 0,
+        taskRows = {}, taskMore = false, tasksTask = nil, tasksSeq = 0, tasksListing = false, tasksErr = nil, lastTasks = nil,
+        unlinked = { key = nil, rels = {}, pending = false, why = nil, more = false }, mentionTask = nil, mentionSeq = 0,
+        catTask = nil, catTimer = nil, tplSeq = 0,
+        caretLine = nil, caretHead = nil, extracts = 0, randoms = 0,
     }
     M.config = v
     _G.vault = v
@@ -158,6 +237,62 @@ function M.setup(core)
         end
     end
     local function keyOf(name) return trim(name):lower() end
+    local function alert(m, secs) pcall(function() hs.alert.show(m, secs or 2) end) end
+
+    -- ---- 6.174.0 — the small shared pieces ------------------------------------
+    -- Everything Lua says to the page without a rebuild goes through here
+    -- (rows, mentions, hints) — a full render would wipe what LL is typing.
+    function v.eval(js)
+        if v.webview then pcall(function() v.webview:evaluateJavaScript(js) end) end
+    end
+    -- rows → a JS array literal, keys n r l x only, in that order. Never hs.json.
+    local function jarr(rows)
+        local out = {}
+        for _, r in ipairs(rows or {}) do
+            local f = {}
+            if r.n ~= nil then f[#f + 1] = "n:" .. jstr(r.n) end
+            if r.r ~= nil then f[#f + 1] = "r:" .. jstr(r.r) end
+            if r.l ~= nil then f[#f + 1] = "l:" .. tostring(math.floor(tonumber(r.l) or 0)) end
+            if r.x ~= nil then f[#f + 1] = "x:" .. jstr(r.x) end
+            out[#out + 1] = "{" .. table.concat(f, ",") .. "}"
+        end
+        return "[" .. table.concat(out, ",") .. "]"
+    end
+    -- an absolute path under the vault → its rel; anything else → nil
+    local function relOf(path)
+        path = tostring(path or "")
+        if path:sub(1, #v.dir + 1) == v.dir .. "/" then return path:sub(#v.dir + 2) end
+        return nil
+    end
+    -- the flags every NEW grep shares (the link grep keeps its own literal args)
+    local function grepBase(flags)
+        local args = { flags, "--include=*.md" }
+        for _, d in ipairs(v.skipDirs) do args[#args + 1] = "--exclude-dir=" .. d end
+        return args
+    end
+    -- A superseded task is terminated before its field is reused; a task
+    -- that outlived its purpose (the window closed) the same way.
+    local function stopTask(field)
+        if v[field] then pcall(function() v[field]:terminate() end); v[field] = nil end
+    end
+    -- One held hs.task on a named field. The callback clears the field
+    -- (only if it is still ours) and never lets an error escape to the
+    -- event loop.
+    local function startTask(field, bin, args, cb)
+        if not (hs.task and hs.task.new) then return false, "no hs.task" end
+        local t
+        local ok, made = pcall(hs.task.new, bin, function(...)
+            if v[field] == t then v[field] = nil end
+            local okC, err = pcall(cb, ...)
+            if not okC then warn(field .. ": " .. tostring(err)) end
+        end, args)
+        if not (ok and made) then return false, tostring(made) end
+        t = made
+        v[field] = t     -- HELD
+        local okS, started = pcall(t.start, t)
+        if not (okS and started) then v[field] = nil; return false, bin .. " would not start" end
+        return true
+    end
 
     -- ---- 6.173.0 — the Scorp Pad's tabs, shown and edited here ------------
     -- The pad module owns the tabs, the store, the history, the filing
@@ -231,6 +366,238 @@ function M.setup(core)
         return name
     end
 
+    -- ---- 6.174.0 — templates: the .md files under <vault>/Templates ----------
+    local function isTemplateRel(rel)
+        local td = v.templatesDir
+        if type(td) ~= "string" or td == "" then return false end
+        return tostring(rel or ""):lower():sub(1, #td + 1) == td:lower() .. "/"
+    end
+    v.isTemplateRel = isTemplateRel
+    -- the template records, from the name index (no file is read)
+    function v.templates()
+        local out = {}
+        for _, n in ipairs(v.notes) do if isTemplateRel(n.rel) then out[#out + 1] = n end end
+        return out
+    end
+    function v.templatesJson()
+        local rows = {}
+        for _, n in ipairs(v.templates()) do rows[#rows + 1] = "{n:" .. jstr(n.name) .. ",r:" .. jstr(n.rel) .. "}" end
+        return "[" .. table.concat(rows, ",") .. "]"
+    end
+    -- By REL under Templates/ only — a root note named "Daily" never
+    -- shadows Templates/Daily.md (and is never read for it).
+    function v.templateByName(name)
+        local td = v.templatesDir
+        if type(td) ~= "string" or td == "" then return nil end
+        local want = td:lower() .. "/" .. safeName(name):lower() .. ".md"
+        for _, n in ipairs(v.notes) do if n.rel:lower() == want then return n end end
+        return nil
+    end
+    -- Daily/YYYY-MM-DD.md → that day at noon (DST-safe); anything else → nil
+    function v.dailyEpochOf(rel)
+        local dd = tostring(v.dailyDir or ""):lower()
+        rel = tostring(rel or ""):lower()
+        if dd == "" or rel:sub(1, #dd + 1) ~= dd .. "/" then return nil end
+        local y, m, d = rel:sub(#dd + 2):match("^(%d%d%d%d)%-(%d%d)%-(%d%d)%.md$")
+        if not y then return nil end
+        return os.time({ year = tonumber(y), month = tonumber(m), day = tonumber(d), hour = 12 })
+    end
+    function v.dayOf(rel)
+        local e = v.dailyEpochOf(rel)
+        return e and os.date("%Y-%m-%d", e) or nil
+    end
+
+    -- ---- 6.174.0 — tags: Obsidian's grammar, validated in Lua ------------------
+    -- (the grep only finds the wide shape `#[^space#]+`; Lua decides)
+    function v.tagOk(s)
+        s = tostring(s or ""):gsub("[%.,;:!%?%)%]}'\"/]+$", "")
+        if s == "" then return nil end
+        if not s:match("^[%w_/%-\128-\255]+$") then return nil end
+        if not s:find("[^%d]") then return nil end
+        return s
+    end
+    local function collectTag(list, seen, cand)
+        local t = v.tagOk(cand)
+        if t and not seen[t:lower()] then seen[t:lower()] = true; list[#list + 1] = t end
+    end
+    -- a front-matter value: quotes and a leading # off, then the grammar
+    local function fmValue(raw)
+        raw = trim(raw):gsub('^"(.*)"$', "%1"):gsub("^'(.*)'$", "%1")
+        raw = trim(raw):gsub("^#", "")
+        return trim(raw)
+    end
+    local function fmInlineValues(list, seen, value)
+        value = trim(value)
+        if value == "" then return end
+        local items = {}
+        if value:sub(1, 1) == "[" then
+            for item in value:gsub("^%[", ""):gsub("%]$", ""):gmatch("[^,]+") do items[#items + 1] = item end
+        else
+            for item in value:gmatch("[^,%s]+") do items[#items + 1] = item end
+        end
+        for _, item in ipairs(items) do collectTag(list, seen, fmValue(item)) end
+    end
+    -- every tag in a text: the front-matter forms (F2) then #tags in the
+    -- body outside ``` / ~~~ fences; display case, deduped by lowercase
+    function v.tagsIn(text)
+        text = tostring(text or "")
+        local list, seen = {}, {}
+        local lines = {}
+        for line in (text .. "\n"):gmatch("([^\n]*)\n") do lines[#lines + 1] = (line:gsub("\r$", "")) end
+        local i = 1
+        if lines[1] == "---" then
+            i = 2
+            local inList = false
+            while lines[i] and lines[i] ~= "---" do
+                local value = lines[i]:match("^tags?:%s*(.*)$")
+                if value then
+                    fmInlineValues(list, seen, value); inList = true
+                else
+                    local item = inList and lines[i]:match("^%s*%-%s+(.+)$")
+                    if item then collectTag(list, seen, fmValue(item)) else inList = false end
+                end
+                i = i + 1
+            end
+            if lines[i] == "---" then i = i + 1 else i = 2 end   -- no closing ---: not front matter, read as body
+        end
+        local inFence = false
+        while lines[i] do
+            local line = lines[i]
+            if line:match("^%s*```") or line:match("^%s*~~~") then inFence = not inFence
+            elseif not inFence then
+                for cand in (" " .. line):gmatch("%s#([^%s#]+)") do collectTag(list, seen, cand) end
+            end
+            i = i + 1
+        end
+        return list
+    end
+    -- open task lines of a text: `- [ ] x`, `* [ ] x`, `+ [ ] x`, `1. [ ] x`
+    function v.tasksIn(text)
+        local out, n = {}, 0
+        for line in (tostring(text or "") .. "\n"):gmatch("([^\n]*)\n") do
+            n = n + 1
+            local x = line:match("^%s*[%-%*%+]%s+%[ %]%s?(.*)$") or line:match("^%s*%d+%.%s+%[ %]%s?(.*)$")
+            if x then out[#out + 1] = { line = n, text = (x:gsub("\r$", "")) } end
+        end
+        return out
+    end
+
+    -- ---- 6.174.0 — search: Obsidian's query grammar (F5) --------------------------
+    -- terms (every one required), "a phrase", tag:x, path:x / file:x
+    function v.searchTerms(q)
+        q = tostring(q or ""):gsub("[\r\n]", " ")
+        local T = { terms = {}, tag = nil, path = nil }
+        local i, n = 1, #q
+        while i <= n do
+            local c = q:sub(i, i)
+            if c:match("%s") then i = i + 1
+            elseif c == '"' then
+                local j = q:find('"', i + 1, true)
+                local tok = q:sub(i + 1, (j or (n + 1)) - 1)
+                if trim(tok) ~= "" then T.terms[#T.terms + 1] = tok end
+                i = (j or n) + 1
+            else
+                local tok = q:match("^%S+", i)
+                local op, val = tok:match("^(%a+):(.*)$")
+                if op == "tag" and val ~= "" then T.tag = val:gsub("^#", ""):lower()
+                elseif (op == "path" or op == "file") and val ~= "" then T.path = val:lower()
+                else T.terms[#T.terms + 1] = tok end
+                i = i + #tok
+            end
+        end
+        return T
+    end
+    -- the line trimmed, a window of ≤120 bytes starting ≤30 before the term,
+    -- never cut inside a UTF-8 sequence, … where it was cut
+    local function cutSnippet(text, term)
+        text = trim(text)
+        local at = term ~= "" and text:lower():find(term:lower(), 1, true) or nil
+        local start = 1
+        if at and at > 31 then
+            start = at - 30
+            while start > 1 and text:byte(start) >= 128 and text:byte(start) < 192 do start = start - 1 end
+        end
+        local cut = text:sub(start, start + 119)
+        if utf8.len(cut) == nil then cut = cut:gsub("[\192-\255][\128-\191]*$", "") end
+        if start > 1 then cut = "…" .. cut end
+        if start + 119 < #text then cut = cut .. "…" end
+        return cut
+    end
+    v.cutSnippet = cutSnippet
+
+    -- ---- 6.174.0 — the template engine (Obsidian core variables, F7) -----------
+    -- moment tokens, longest first at each position; [literal] copied
+    -- without the brackets; anything else (dd, d, Q, -, :) copies through.
+    local MOMENT = {
+        { "YYYY", "%Y" }, { "MMMM", "%B" }, { "dddd", "%A" }, { "YY", "%y" }, { "MMM", "%b" }, { "ddd", "%a" },
+        { "DD", "%d" }, { "HH", "%H" }, { "hh", "%I" }, { "MM", "%m" }, { "mm", "%M" }, { "ss", "%S" },
+        { "D", "%d", true }, { "M", "%m", true }, { "H", "%H", true }, { "h", "%I", true }, { "m", "%M", true }, { "s", "%S", true },
+        { "A", "%p", "upper" }, { "a", "%p", "lower" },
+    }
+    function v.momentFormat(fmt, when)
+        fmt, when = tostring(fmt or ""), when or os.time()
+        local out, i, n = {}, 1, #fmt
+        while i <= n do
+            local c = fmt:sub(i, i)
+            if c == "[" then
+                local j = fmt:find("]", i + 1, true)
+                if j then out[#out + 1] = fmt:sub(i + 1, j - 1); i = j + 1
+                else out[#out + 1] = fmt:sub(i); i = n + 1 end
+            else
+                local hit = nil
+                for _, tk in ipairs(MOMENT) do
+                    if fmt:sub(i, i + #tk[1] - 1) == tk[1] then hit = tk break end
+                end
+                if hit then
+                    local s = os.date(hit[2], when)
+                    if hit[3] == true then s = tostring(tonumber(s) or s)
+                    elseif hit[3] == "upper" then s = s:upper()
+                    elseif hit[3] == "lower" then s = s:lower() end
+                    out[#out + 1] = s
+                    i = i + #hit[1]
+                else
+                    out[#out + 1] = c; i = i + 1
+                end
+            end
+        end
+        return table.concat(out)
+    end
+    -- {{title}} {{date}} {{time}} {{date:FMT}} {{time:FMT}} {{cursor}}; any
+    -- other {{x}} and an unclosed {{ stay literal. Hand scanner, output by
+    -- table.concat — a % in the template or a value is never a pattern.
+    -- Returns the filled text and the byte offset of the FIRST {{cursor}}.
+    function v.fillTemplate(text, ctx)
+        text, ctx = tostring(text or ""), ctx or {}
+        local when = ctx.when or os.time()
+        if text:find("<%", 1, true) then
+            print("📄 Vault: Templater syntax (<% … %>) left as-is in " .. (ctx.name or "the template") .. " — it runs only in Obsidian")
+        end
+        local out, len, caret, pos = {}, 0, nil, 1
+        local function put(s) out[#out + 1] = s; len = len + #s end
+        while true do
+            local i = text:find("{{", pos, true)
+            if not i then put(text:sub(pos)) break end
+            local j = text:find("}}", i + 2, true)
+            if not j then put(text:sub(pos)) break end
+            local k = text:find("{{", i + 2, true)
+            if k and k < j then put(text:sub(pos, k - 1)); pos = k
+            else
+                put(text:sub(pos, i - 1))
+                local inner = text:sub(i + 2, j - 1)
+                local key, fmt = inner:match("^%s*(%a+)%s*:%s*(.-)%s*$")
+                if not key then key, fmt = trim(inner), nil end
+                if fmt == "" then fmt = nil end
+                if key == "title" then put(tostring(ctx.title or ""))
+                elseif key == "date" then put(fmt and v.momentFormat(fmt, when) or os.date("%Y-%m-%d", when))
+                elseif key == "time" then put(fmt and v.momentFormat(fmt, when) or os.date("%H:%M", when))
+                elseif key == "cursor" then if not caret then caret = len end
+                else put(text:sub(i, j + 1)) end
+                pos = j + 2
+            end
+        end
+        return table.concat(out), caret
+    end
+
     -- ---- the index ---------------------------------------------------------------
     local function rebuildBacklinks()
         v.backlinks, v.unresolved = {}, {}
@@ -249,6 +616,48 @@ function M.setup(core)
         for _, list in pairs(v.backlinks) do table.sort(list) end
     end
 
+    -- 6.174.0 — v.tagsOf (rel → display tags) → v.tags (key → name, rels,
+    -- count; a nested #a/b/c also counts under a/b and a) and v.tagList
+    -- (by count, then name). Memory only; the folder is still the database.
+    local function rebuildTags()
+        local tags, rels = {}, {}
+        for rel in pairs(v.tagsOf) do rels[#rels + 1] = rel end
+        table.sort(rels)
+        local function add(key, name, rel)
+            local e = tags[key]
+            if not e then e = { name = name, rels = {}, seen = {}, count = 0 }; tags[key] = e end
+            if not e.seen[rel] then e.seen[rel] = true; e.rels[#e.rels + 1] = rel; e.count = e.count + 1 end
+        end
+        for _, rel in ipairs(rels) do
+            for _, t in ipairs(v.tagsOf[rel]) do add(t:lower(), t, rel) end
+        end
+        for _, rel in ipairs(rels) do
+            for _, t in ipairs(v.tagsOf[rel]) do
+                local parent = t:match("^(.*)/[^/]+$")
+                while parent and parent ~= "" do
+                    add(parent:lower(), parent, rel)
+                    parent = parent:match("^(.*)/[^/]+$")
+                end
+            end
+        end
+        local list = {}
+        for key, e in pairs(tags) do
+            e.seen = nil
+            table.sort(e.rels)
+            list[#list + 1] = { key = key, name = e.name, count = e.count }
+        end
+        table.sort(list, function(a, b) if a.count ~= b.count then return a.count > b.count end return a.key < b.key end)
+        v.tags, v.tagList = tags, list
+    end
+    v.rebuildTags = rebuildTags
+    function v.tagsJson()
+        local rows = {}
+        for _, t in ipairs(v.tagList) do
+            rows[#rows + 1] = "{k:" .. jstr(t.key) .. ",n:" .. jstr(t.name) .. ",c:" .. tostring(t.count) .. "}"
+        end
+        return "[" .. table.concat(rows, ",") .. "]"
+    end
+
     function v.setNotes(rels)
         local notes, byKey = {}, {}
         for _, rel in ipairs(rels) do
@@ -258,25 +667,24 @@ function M.setup(core)
         end
         table.sort(notes, function(a, b) return a.key < b.key end)
         v.notes, v.byKey = notes, byKey
-        -- links of notes that vanished go with them
-        for rel in pairs(v.links) do
-            local keep = false
-            for _, n in ipairs(notes) do if n.rel == rel then keep = true break end end
-            if not keep then v.links[rel] = nil end
-        end
+        -- links (and 6.174.0: tags) of notes that vanished go with them
+        local have = {}
+        for _, n in ipairs(notes) do have[n.rel] = true end
+        for rel in pairs(v.links) do if not have[rel] then v.links[rel] = nil end end
+        for rel in pairs(v.tagsOf) do if not have[rel] then v.tagsOf[rel] = nil end end
         rebuildBacklinks()
+        rebuildTags()
     end
 
     -- "path:[[Target|x]]" lines from grep → v.links
     function v.setLinkLines(out)
         local links, count = {}, 0
-        local prefix = v.dir .. "/"
         for line in tostring(out or ""):gmatch("[^\n]+") do
             count = count + 1
             if count > v.maxLinkLines then v.partial = true break end
             local path, inner = line:match("^(.-):%[%[(.-)%]%]$")
             if path and inner then
-                local rel = path:sub(1, #prefix) == prefix and path:sub(#prefix + 1) or path
+                local rel = relOf(path) or path
                 local t = v.linkTarget(inner)
                 if t ~= "" then
                     links[rel] = links[rel] or {}
@@ -293,8 +701,74 @@ function M.setup(core)
         rebuildBacklinks()
     end
 
-    -- Two hs.tasks, held, one after the other. Nothing on the main thread
-    -- touches a note file here — that is the whole point (see the header).
+    -- 6.174.0 — "path: #tag" / "path:#tag" lines from the tag grep (-o) →
+    -- a PENDING rel → tags table. It becomes v.tagsOf only at the end of
+    -- the chain (assignTags), so a failed later step never leaves half an
+    -- index. Lines over maxTagLines are dropped and said in the report.
+    local function addTag(inline, rel, cand)
+        local t = v.tagOk(cand)
+        if not t then return end
+        inline[rel] = inline[rel] or {}
+        for _, x in ipairs(inline[rel]) do if x:lower() == t:lower() then return end end
+        table.insert(inline[rel], t)
+    end
+    function v.setTagLines(out)
+        local inline, count = {}, 0
+        v.tagsPartial = false
+        for line in tostring(out or ""):gmatch("[^\n]+") do
+            count = count + 1
+            if count > v.maxTagLines then v.tagsPartial = true break end
+            local path, rest = line:match("^(.-):(%s?#[^%s#]+)$")
+            local rel = path and relOf(path)
+            if rel then addTag(inline, rel, rest:match("^%s?#(.+)$")) end
+        end
+        v.tagLines = count
+        return inline
+    end
+    -- Lines from the front-matter grep (-n -m 1 -A 12): "path:N:tags: value"
+    -- opens a block when N is within the first 60 lines; "path-N-  - item"
+    -- context lines for the SAME path add list items; anything else, "--"
+    -- or another path closes it. Without -A (no context) only the inline
+    -- forms are read — nothing breaks.
+    function v.setFrontmatterLines(out, inline)
+        inline = inline or {}
+        local cur, curRel, count = nil, nil, v.tagLines or 0
+        for line in tostring(out or ""):gmatch("[^\n]+") do
+            count = count + 1
+            if count > v.maxTagLines then v.tagsPartial = true break end
+            local path, n, value = line:match("^(.-):(%d+):tags?:%s*(.*)$")
+            if path then
+                local rel = relOf(path)
+                n = tonumber(n) or 0
+                if rel and n >= 2 and n <= 60 then
+                    cur, curRel = path, rel
+                    local list, seen = {}, {}
+                    fmInlineValues(list, seen, value)
+                    for _, t in ipairs(list) do addTag(inline, rel, t) end
+                else
+                    cur, curRel = nil, nil
+                end
+            elseif cur and line:sub(1, #cur + 1) == cur .. "-" then
+                local item = line:sub(#cur + 2):match("^%d+%-%s*%-%s+(.+)$")
+                if item then addTag(inline, curRel, fmValue(item)) else cur, curRel = nil, nil end
+            else
+                cur, curRel = nil, nil
+            end
+        end
+        v.tagLines = count
+        return inline
+    end
+    -- the end of the chain: the open note is reinstated live, then the
+    -- pending table IS the index
+    local function assignTags(inline)
+        if v.doc and not v.doc.scratch then inline[v.doc.rel] = v.tagsIn(v.doc.text) end
+        v.tagsOf = inline
+        rebuildTags()
+    end
+
+    -- Four hs.tasks, held, one after the other (6.174.0: the two tag greps
+    -- joined find and the link grep). Nothing on the main thread touches
+    -- a note file here — that is the whole point (see the header).
     function v.scan(reason)
         if v.scanning then return false, "already scanning" end
         if not (hs.task and hs.task.new) then v.scanErr = "no hs.task"; return false, v.scanErr end
@@ -312,16 +786,49 @@ function M.setup(core)
             findArgs[#findArgs + 1] = a
         end
         local function finish(err)
-            v.scanning, v.findTask, v.grepTask = false, nil, nil
+            v.scanning, v.findTask, v.grepTask, v.tagTask, v.fmTask = false, nil, nil, nil, nil
             v.scanErr, v.lastScan, v.scans = err, os.time(), v.scans + 1
-            if err then warn("scan: " .. err) else say("scan: " .. #v.notes .. " notes, " .. v.linkLines .. " link lines (" .. tostring(reason) .. ")") end
+            if err then warn("scan: " .. err)
+            else say("scan: " .. #v.notes .. " notes, " .. v.linkLines .. " link lines, " .. #v.tagList .. " tags (" .. tostring(reason) .. ")") end
             if v.webview then v.render() end
+        end
+        -- 6.174.0 — the tag half of the chain. OPTIONAL: any failure here
+        -- warns, keeps what exists and finishes the scan with the links
+        -- intact. Exit 1 is "no match", a clean empty answer.
+        local function tagsFailed(what, inline)
+            warn("tags: " .. what)
+            if inline then assignTags(inline) end
+            finish(nil)
+        end
+        local function scanTags()
+            local tagArgs = grepBase("-rHoIE")
+            for _, a in ipairs({ "-e", "(^|[[:space:]])#[^[:space:]#]+", v.dir }) do tagArgs[#tagArgs + 1] = a end
+            local okT, tt = pcall(hs.task.new, v.GREP, function(tcode, tout, terr)
+                if tcode ~= 0 and tcode ~= 1 then tagsFailed("grep exited " .. tostring(tcode) .. ": " .. trim(terr or "")) return end
+                local inline = v.setTagLines(tout)
+                local fmArgs = grepBase("-rHnIE")
+                for _, a in ipairs({ "-m", "1", "-A", "12", "-e", "^tags?:", v.dir }) do fmArgs[#fmArgs + 1] = a end
+                local okF2, ft2 = pcall(hs.task.new, v.GREP, function(fcode, fout, ferr)
+                    if fcode ~= 0 and fcode ~= 1 then tagsFailed("frontmatter grep exited " .. tostring(fcode) .. ": " .. trim(ferr or ""), inline) return end
+                    v.setFrontmatterLines(fout, inline)
+                    assignTags(inline)
+                    finish(nil)
+                end, fmArgs)
+                if not (okF2 and ft2) then tagsFailed("frontmatter grep task: " .. tostring(ft2), inline) return end
+                v.fmTask = ft2     -- HELD
+                local okS2, started2 = pcall(function() return ft2:start() end)
+                if not okS2 or started2 == false then v.fmTask = nil; tagsFailed("frontmatter grep would not start", inline) end
+            end, tagArgs)
+            if not (okT and tt) then tagsFailed("grep task: " .. tostring(tt)) return end
+            v.tagTask = tt     -- HELD
+            local okS, started = pcall(function() return tt:start() end)
+            if not okS or started == false then v.tagTask = nil; tagsFailed("grep would not start") end
         end
         local okF, ft = pcall(hs.task.new, v.FIND, function(code, out, serr)
             local rels = {}
-            local prefix = v.dir .. "/"
             for line in tostring(out or ""):gmatch("[^\n]+") do
-                if line:sub(1, #prefix) == prefix then rels[#rels + 1] = line:sub(#prefix + 1) end
+                local rel = relOf(line)
+                if rel then rels[#rels + 1] = rel end
             end
             v.setNotes(rels)
             if code ~= 0 and #rels == 0 then finish("find exited " .. tostring(code) .. ": " .. trim(serr or "")) return end
@@ -333,7 +840,7 @@ function M.setup(core)
                 -- grep exits 1 when nothing matched: a vault with no links yet
                 if gcode ~= 0 and gcode ~= 1 then finish("grep exited " .. tostring(gcode) .. ": " .. trim(gerr or "")) return end
                 v.setLinkLines(gout)
-                finish(nil)
+                scanTags()     -- 6.174.0 — the links are in; the tags follow, optional
             end, grepArgs)
             if not (okG and gt) then finish("grep task: " .. tostring(gt)) return end
             v.grepTask = gt     -- HELD
@@ -392,6 +899,9 @@ function M.setup(core)
         end
         v.links[d.rel] = v.linksIn(d.text)
         rebuildBacklinks()
+        v.tagsOf[d.rel] = v.tagsIn(d.text)     -- 6.174.0
+        rebuildTags()
+        v.refreshOpenTasks()
         return true
     end
 
@@ -415,6 +925,7 @@ function M.setup(core)
             v.doc.text = text
             v.dirty = true
             v.links[v.doc.rel] = v.linksIn(text)
+            v.tagsOf[v.doc.rel] = v.tagsIn(text)     -- 6.174.0 — the open note's tags are live too
             v.scheduleSave()
         end
     end
@@ -449,15 +960,42 @@ function M.setup(core)
         v.view = "edit"
         v.links[n.rel] = v.linksIn(n.text)
         rebuildBacklinks()
+        v.tagsOf[n.rel] = v.tagsIn(n.text)     -- 6.174.0
+        rebuildTags()
+        v.caretLine, v.caretHead = nil, nil    -- callers set them AFTER a successful open
         if v.dirty then v.saveNow() end
         pcall(function() hs.settings.set("vault.lastNote", n.rel) end)
         say("opened " .. n.rel)
+        v.findMentions()                       -- 6.174.0 — ≈ notes that say this name without linking it
         return true
     end
 
-    function v.openDaily()
-        local day = os.date("%Y-%m-%d")
-        return v.openNote(day, v.dailyDir, "# " .. os.date("%A %d %B %Y") .. "\n\n")
+    -- 6.174.0 — a daily note for ANY day. An existing one simply opens
+    -- (never re-templated); a new one is seeded from Templates/Daily.md
+    -- when it exists ({{title}} = the date, {{date}}/{{time}} for THAT
+    -- day; the body arrives from /bin/cat, so the open is "pending"),
+    -- else with the old weekday heading, at once.
+    function v.openDailyFor(epoch)
+        epoch = epoch or os.time()
+        local day = os.date("%Y-%m-%d", epoch)
+        if v.find(day) then return v.openNote(day, v.dailyDir) end
+        local rec = v.templateByName(v.dailyTemplate or "")
+        if not rec then return v.openNote(day, v.dailyDir, "# " .. os.date("%A %d %B %Y", epoch) .. "\n\n") end
+        v.readTemplate(rec, function(text)
+            local body, caret = v.fillTemplate(text, { title = day, when = epoch, name = rec.rel })
+            if v.openNote(day, v.dailyDir, body) then
+                v.caretHead = caret and body:sub(1, caret) or nil
+                v.render()
+            end
+        end)
+        return true, "pending"
+    end
+    function v.openDaily() return v.openDailyFor(os.time()) end
+    -- ⌘⇧[ / ⌘⇧]: the day before / after the OPEN daily note
+    function v.openDailyOffset(days)
+        local e = v.doc and not v.doc.scratch and v.dailyEpochOf(v.doc.rel) or nil
+        if not e then alert("📅 open a daily note first (⌘D)", 1) return false end
+        return v.openDailyFor(e + ((tonumber(days) or 1) < 0 and -1 or 1) * 86400)
     end
 
     -- Follow what the page found under the caret: a [[note]] or a
@@ -522,10 +1060,366 @@ function M.setup(core)
         return "[" .. name .. "](" .. enc .. ")"
     end
 
+    -- ---- 6.174.0 — templates: read through /bin/cat, never io.open ----------
+    -- A template is a note in OneDrive like any other, so its body can be
+    -- a placeholder that BLOCKS on read. The body arrives from a held
+    -- task; a held timer gives up after templateTimeout and says so. A
+    -- second request supersedes the first (sequence number + terminate).
+    local function stopCatTimer()
+        if v.catTimer then pcall(function() v.catTimer:stop() end); v.catTimer = nil end
+    end
+    function v.readTemplate(rec, fn)
+        stopTask("catTask"); stopCatTimer()
+        v.tplSeq = v.tplSeq + 1
+        local seq = v.tplSeq
+        v.eval("vaultHint(" .. jstr("fetching " .. rec.rel .. "…") .. ")")
+        local ok, why = startTask("catTask", v.CAT, { rec.path }, function(code, out, err)
+            if seq ~= v.tplSeq then return end
+            stopCatTimer()
+            v.eval('vaultHint("")')
+            if code ~= 0 then alert("📄 could not read " .. rec.rel .. " — " .. trim(err), 3) return end
+            fn(tostring(out or ""))
+        end)
+        if not ok then
+            v.eval('vaultHint("")')
+            alert(why == "no hs.task" and "📄 templates need hs.task" or ("📄 could not start " .. v.CAT .. " — " .. tostring(why)), 3)
+            return false, why
+        end
+        local okT, tm = pcall(hs.timer.doAfter, v.templateTimeout, function()
+            v.catTimer = nil
+            if v.catTask then
+                stopTask("catTask")
+                v.eval('vaultHint("")')
+                alert("📄 " .. rec.rel .. " did not arrive — is OneDrive online?", 3)
+            end
+        end)
+        v.catTimer = okT and tm or nil     -- HELD
+        return true
+    end
+    -- ⌘⇧T: the template's text lands at the caret as head + tail around
+    -- {{cursor}} — two strings, no offset crosses the bridge.
+    function v.insertTemplate(name)
+        if not v.doc then alert("📄 open a note first") return false end
+        local rec = v.templateByName(name)
+        if not rec then alert("📄 no template named \"" .. tostring(name) .. "\"") return false end
+        local forRel = v.doc.rel
+        return v.readTemplate(rec, function(text)
+            if not (v.doc and v.doc.rel == forRel) then say("template arrived after you switched — not inserted") return end
+            local body, caret = v.fillTemplate(text, { title = v.doc.name, name = rec.rel })
+            local head = caret and body:sub(1, caret) or body
+            local tail = caret and body:sub(caret + 1) or ""
+            v.eval("insertAtCaret(" .. jstr(head) .. "," .. jstr(tail) .. ")")
+        end)
+    end
+    -- ⌘N (and ⌘⇧N's "— blank —" row)
+    function v.newNote()
+        local okP, button, typed = pcall(hs.dialog.textPrompt, "New note", "Name of the note:", "", "Create", "Cancel")
+        if okP and button == "Create" and trim(typed) ~= "" then
+            if v.openNote(typed) then v.render() return true end
+        end
+        return false
+    end
+    -- ⌘⇧N: a new note from a template ({{title}} = the typed name)
+    function v.newFromTemplate(name)
+        if name == "" then return v.newNote() end
+        local rec = v.templateByName(name)
+        if not rec then alert("📄 no template named \"" .. tostring(name) .. "\"") return false end
+        local okP, button, typed = pcall(hs.dialog.textPrompt, "New note from " .. rec.name, "Name of the note:", "", "Create", "Cancel")
+        if not (okP and button == "Create") then return false end
+        local want = safeName(typed)
+        if want == "" then return false end
+        if v.find(want) then
+            alert("📄 a note named \"" .. want .. "\" already exists — opening it", 2)
+            if v.openNote(want) then v.render() end
+            return false
+        end
+        return v.readTemplate(rec, function(text)
+            local body, caret = v.fillTemplate(text, { title = want, name = rec.rel })
+            if v.openNote(want, nil, body) then
+                v.caretHead = caret and body:sub(1, caret) or nil
+                v.render()
+            end
+        end)
+    end
+
+    -- ---- 6.174.0 — the left column's modes: notes / search / tasks ------------
+    local function leaveSearch()
+        stopTask("searchTask")
+        if v.searchTimer then pcall(function() v.searchTimer:stop() end); v.searchTimer = nil end
+        v.searchQuery, v.searchRows, v.searchMore, v.searching = "", {}, false, false
+    end
+    function v.setMode(m)
+        if m ~= "search" and m ~= "tasks" then m = "notes" end
+        if v.mode == "search" and m ~= "search" then leaveSearch() end
+        v.mode = m
+        if m == "tasks" then v.listTasks() end
+        if m == "notes" then v.filter = "" end
+        return m
+    end
+
+    -- ⌘⇧F: one held grep after searchDelay of silence; the longest term
+    -- goes to grep (-F, plain), the rest are checked in Lua.
+    function v.search(q)
+        q = tostring(q or "")
+        v.searchQuery = q
+        if v.searchTimer then pcall(function() v.searchTimer:stop() end); v.searchTimer = nil end
+        if trim(q) == "" then
+            stopTask("searchTask")
+            v.searchRows, v.searchMore, v.searching = {}, false, false
+            v.eval('setRows("search", [], false, "")')
+            return false
+        end
+        local ok, tm = pcall(hs.timer.doAfter, v.searchDelay, function() v.searchTimer = nil; v.runSearch() end)
+        v.searchTimer = ok and tm or nil     -- HELD
+        return true
+    end
+    local function taggedWith(rel, tag)
+        for _, t in ipairs(v.tagsOf[rel] or {}) do
+            local k = t:lower()
+            if k == tag or k:sub(1, #tag + 1) == tag .. "/" then return true end
+        end
+        return false
+    end
+    local function pushSearch(rows, more, q)
+        v.eval("setRows(\"search\", " .. jarr(rows) .. ", " .. tostring(more) .. ", " .. jstr(q) .. ")")
+    end
+    function v.runSearch()
+        local q = v.searchQuery
+        if trim(q) == "" then return false end
+        stopTask("searchTask")
+        v.searchSeq = v.searchSeq + 1
+        local seq = v.searchSeq
+        local T = v.searchTerms(q)
+        if #T.terms == 0 then
+            -- operators only: the NOTE NAMES that pass, no grep
+            local rows, more = {}, false
+            for _, n in ipairs(v.notes) do
+                if (not T.tag or taggedWith(n.rel, T.tag)) and (not T.path or n.rel:lower():find(T.path, 1, true)) then
+                    if #rows >= v.searchMax then more = true break end
+                    rows[#rows + 1] = { n = n.name, r = n.rel, l = 0, x = "" }
+                end
+            end
+            v.searchRows, v.searchMore, v.searching, v.searchErr = rows, more, false, nil
+            v.lastSearch = { q = q, hits = #rows, files = #rows, when = os.time() }
+            pushSearch(rows, more, q)
+            return true
+        end
+        local first = T.terms[1]
+        for _, t in ipairs(T.terms) do if #t > #first then first = t end end
+        v.searching = true
+        v.searches = v.searches + 1
+        local args = grepBase("-rniIHF")
+        for _, a in ipairs({ "-m", tostring(v.searchPerFile), "-e", first, v.dir }) do args[#args + 1] = a end
+        local ok, why = startTask("searchTask", v.GREP, args, function(code, out, err)
+            if seq ~= v.searchSeq or v.searchQuery ~= q or v.mode ~= "search" then return end
+            local rows, more, files = {}, false, {}
+            if code ~= 0 and code ~= 1 then
+                v.searchErr = "grep exited " .. tostring(code) .. ": " .. trim(err)
+            else
+                v.searchErr = nil
+                for line in tostring(out or ""):gmatch("[^\n]+") do
+                    local path, ln, text = line:match("^(.-):(%d+):(.*)$")
+                    local rel = path and relOf(path)
+                    if rel then
+                        local low, keep = text:lower(), true
+                        for _, t in ipairs(T.terms) do
+                            if not low:find(t:lower(), 1, true) then keep = false break end
+                        end
+                        if keep and T.tag and not taggedWith(rel, T.tag) then keep = false end
+                        if keep and T.path and not rel:lower():find(T.path, 1, true) then keep = false end
+                        if keep then
+                            if #rows >= v.searchMax then more = true break end
+                            rows[#rows + 1] = { n = rel:match("([^/]+)%.md$") or rel, r = rel, l = tonumber(ln), x = cutSnippet(text, first) }
+                            files[rel] = true
+                        end
+                    end
+                end
+            end
+            local nf = 0
+            for _ in pairs(files) do nf = nf + 1 end
+            v.searchRows, v.searchMore, v.searching = rows, more, false
+            v.lastSearch = { q = q, hits = #rows, files = nf, when = os.time() }
+            pushSearch(rows, more, q)
+        end)
+        if not ok then
+            v.searching, v.searchErr = false, why
+            pushSearch({}, false, q)
+            return false, why
+        end
+        return true
+    end
+
+    -- ⌘⇧K: every open task line in the vault, one held grep. Templates
+    -- are skipped; rows sort by note then line.
+    local function sortTaskRows(rows)
+        table.sort(rows, function(a, b)
+            local ar, br = a.r:lower(), b.r:lower()
+            if ar ~= br then return ar < br end
+            return (a.l or 0) < (b.l or 0)
+        end)
+    end
+    local function taskText(text)
+        text = text:gsub("^%s*[%-%*%+]%s+%[ %]%s?", "")
+        text = text:gsub("^%s*%d+%.%s+%[ %]%s?", "")
+        return (text:gsub("\r$", ""))
+    end
+    function v.parseTaskLines(out)
+        local rows, more = {}, false
+        for line in tostring(out or ""):gmatch("[^\n]+") do
+            local path, ln, text = line:match("^(.-):(%d+):(.*)$")
+            local rel = path and relOf(path)
+            if rel and not isTemplateRel(rel) then
+                rows[#rows + 1] = { n = rel:match("([^/]+)%.md$") or rel, r = rel, l = tonumber(ln), x = taskText(text) }
+            end
+        end
+        sortTaskRows(rows)
+        if #rows > v.tasksMax then
+            more = true
+            for i = #rows, v.tasksMax + 1, -1 do rows[i] = nil end
+        end
+        return rows, more
+    end
+    local function pushTasks()
+        v.eval("setRows(\"tasks\", " .. jarr(v.taskRows) .. ", " .. tostring(v.taskMore) .. ", \"\")")
+    end
+    function v.listTasks()
+        stopTask("tasksTask")
+        v.tasksSeq = v.tasksSeq + 1
+        local seq = v.tasksSeq
+        v.tasksListing = true
+        local args = grepBase("-rnHIE")
+        for _, a in ipairs({ "-e", "^[[:space:]]*([-*+]|[0-9]+\\.) \\[ \\]", v.dir }) do args[#args + 1] = a end
+        local ok, why = startTask("tasksTask", v.GREP, args, function(code, out, err)
+            if seq ~= v.tasksSeq then return end
+            local rows, more = {}, false
+            if code ~= 0 and code ~= 1 then v.tasksErr = "grep exited " .. tostring(code) .. ": " .. trim(err)
+            else v.tasksErr = nil; rows, more = v.parseTaskLines(out) end
+            v.taskRows, v.taskMore, v.tasksListing, v.lastTasks = rows, more, false, os.time()
+            if v.mode == "tasks" then pushTasks() end
+        end)
+        if not ok then
+            v.tasksErr, v.tasksListing = why, false
+            v.eval('setRows("tasks", [], false, "")')
+            return false, why
+        end
+        return true
+    end
+    -- after a save while ☑ is up: the OPEN note's rows come from its text — no grep
+    function v.refreshOpenTasks()
+        local d = v.doc
+        if not (d and not d.scratch and v.mode == "tasks" and v.lastTasks) then return false end
+        local rows = {}
+        for _, r in ipairs(v.taskRows) do if r.r ~= d.rel then rows[#rows + 1] = r end end
+        if not isTemplateRel(d.rel) then
+            for _, t in ipairs(v.tasksIn(d.text)) do rows[#rows + 1] = { n = d.name, r = d.rel, l = t.line, x = t.text } end
+        end
+        sortTaskRows(rows)
+        v.taskRows = rows
+        pushTasks()
+        return true
+    end
+
+    -- ---- 6.174.0 — ≈ unlinked mentions: files that say this note's name -----
+    -- (whole word, case-insensitive, -l) minus itself, its backlinkers and
+    -- the templates. A note created this instant starts no grep; an answer
+    -- for a note that is no longer open is dropped.
+    function v.findMentions()
+        local d = v.doc
+        if not d or d.scratch or d.created then return false end
+        stopTask("mentionTask")
+        v.mentionSeq = v.mentionSeq + 1
+        local seq = v.mentionSeq
+        v.unlinked = { key = d.key, rels = {}, pending = true, why = nil, more = false }
+        if #d.name < (tonumber(v.mentionsMinLen) or 3) then
+            v.unlinked.pending, v.unlinked.why = false, "too short"
+            return false
+        end
+        local args = grepBase("-rliwIF")
+        for _, a in ipairs({ "-e", d.name, v.dir }) do args[#args + 1] = a end
+        local ok = startTask("mentionTask", v.GREP, args, function(code, out, err)
+            if seq ~= v.mentionSeq or not (v.doc and v.doc.key == d.key) then return end
+            local rels, more, why = {}, false, nil
+            if code ~= 0 and code ~= 1 then why = "grep exited " .. tostring(code) .. ": " .. trim(err)
+            else
+                local linked = {}
+                for _, r in ipairs(v.backlinks[d.key] or {}) do linked[r] = true end
+                for line in tostring(out or ""):gmatch("[^\n]+") do
+                    local rel = relOf(line)
+                    if rel and rel ~= d.rel and not linked[rel] and not isTemplateRel(rel) then rels[#rels + 1] = rel end
+                end
+                table.sort(rels)
+                if #rels > v.mentionsMax then
+                    more = true
+                    for i = #rels, v.mentionsMax + 1, -1 do rels[i] = nil end
+                end
+            end
+            v.unlinked = { key = d.key, rels = rels, pending = false, why = why, more = more }
+            local rows = {}
+            for _, rel in ipairs(rels) do rows[#rows + 1] = { n = rel:match("([^/]+)%.md$") or rel, r = rel } end
+            v.eval("setMentions(" .. jarr(rows) .. ", " .. jstr(d.key) .. ", " .. jstr(why or (more and "more" or "")) .. ")")
+        end)
+        if not ok then v.unlinked.pending, v.unlinked.why = false, "unavailable" end
+        return ok
+    end
+
+    -- ---- 6.174.0 — ⌘⇧E: the selection becomes a new note, [[Name]] stays --
+    -- The page sends the text BEFORE the selection and the selection; Lua
+    -- checks both against its own copy and refuses when they disagree, so
+    -- nothing is written on a stale page.
+    local function cutChars(s, n)
+        local out, count = {}, 0
+        for _, c in utf8.codes(s) do
+            count = count + 1
+            if count > n then break end
+            out[#out + 1] = utf8.char(c)
+        end
+        return table.concat(out)
+    end
+    function v.extract(head, selText)
+        head, selText = tostring(head or ""), tostring(selText or "")
+        if not v.doc or v.doc.scratch then alert("✂️ extract works in a note, not a scratch tab") return false end
+        if trim(selText) == "" then alert("✂️ select some text first") return false end
+        if v.doc.text:sub(#head + 1, #head + #selText) ~= selText then alert("✂️ the text changed — try again") return false end
+        local firstLine = selText:match("[^\n]*[^%s\n][^\n]*") or ""
+        local default = firstLine:gsub("^[#>%-%*%+%s]*%[?[ xX]?%]?%s*", "")
+        default = utf8.len(safeName(default)) and cutChars(safeName(default), 60) or safeName(default):sub(1, 60)
+        local okP, button, typed = pcall(hs.dialog.textPrompt, "Extract to a new note", "Name of the new note:", default, "Create", "Cancel")
+        if not (okP and button == "Create") then return false end
+        local name = safeName(typed)
+        if name == "" then name = default end     -- the untouched default field
+        if name == "" then return false end
+        if v.find(name) then alert("✂️ a note named \"" .. name .. "\" already exists — pick another name", 3) return false end
+        v.setText(head .. "[[" .. name .. "]]" .. v.doc.text:sub(#head + #selText + 1))
+        v.saveNow()
+        v.openNote(name, nil, "# " .. name .. "\n\n" .. selText .. (selText:sub(-1) == "\n" and "" or "\n"))
+        v.extracts = v.extracts + 1
+        v.render()
+        return true
+    end
+
+    -- ---- 6.174.0 — ⌘⇧R: a random note (not a template, not this one) ------
+    function v.openRandom()
+        local c = {}
+        for _, n in ipairs(v.notes) do
+            if not isTemplateRel(n.rel) and not (v.doc and v.doc.rel == n.rel) then c[#c + 1] = n end
+        end
+        if #c == 0 then alert("🎲 nothing else to open") return false end
+        local pick = c[math.random(#c)]
+        if not v.openNote(pick.name) then return false end
+        v.randoms = v.randoms + 1
+        return true
+    end
+
     -- ---- the page ------------------------------------------------------------------
     function v.notesJson()
         local rows = {}
-        for _, n in ipairs(v.notes) do rows[#rows + 1] = "{n:" .. jstr(n.name) .. ",r:" .. jstr(n.rel) .. "}" end
+        for _, n in ipairs(v.notes) do
+            -- 6.174.0 — g: the note's tag keys (the page filters on them), tpl: a template
+            local g = {}
+            for _, t in ipairs(v.tagsOf[n.rel] or {}) do g[#g + 1] = jstr(t:lower()) end
+            rows[#rows + 1] = "{n:" .. jstr(n.name) .. ",r:" .. jstr(n.rel) .. ",g:[" .. table.concat(g, ",") .. "]"
+                .. (isTemplateRel(n.rel) and ",tpl:1" or "") .. "}"
+        end
         return "[" .. table.concat(rows, ",") .. "]"
     end
     function v.graphJson()
@@ -567,6 +1461,39 @@ function M.setup(core)
                 backs[#backs + 1] = '<li class="lnk" data-name="' .. escapeHtml(name) .. '">← ' .. escapeHtml(name) .. '</li>'
             end
         end
+        -- 6.174.0 — ≈ UNLINKED MENTIONS pre-filled from Lua when the answer is
+        -- for THIS note, so a rebuild does not lose it; later answers arrive
+        -- through setMentions without a rebuild.
+        local unlHtml, unlCount = '<div class="none">looking…</div>', nil
+        if d and not d.scratch then
+            local u = v.unlinked
+            if u.key == d.key and not u.pending then
+                if u.why == "too short" then unlHtml = '<div class="none">too short a name to search</div>'
+                elseif u.why == "unavailable" then unlHtml = '<div class="none">unavailable on this Hammerspoon</div>'
+                elseif u.why then unlHtml = '<div class="none">⚠ ' .. escapeHtml(u.why) .. '</div>'
+                elseif #u.rels == 0 then unlHtml = '<div class="none">no other note mentions "' .. escapeHtml(d.name) .. '"</div>'
+                else
+                    local rows = {}
+                    for _, rel in ipairs(u.rels) do
+                        local name = rel:match("([^/]+)%.md$") or rel
+                        rows[#rows + 1] = '<li class="lnk" data-name="' .. escapeHtml(name) .. '" title="' .. escapeHtml(rel) .. '">≈ ' .. escapeHtml(name) .. '</li>'
+                    end
+                    if u.more then rows[#rows + 1] = '<div class="none">(first ' .. #u.rels .. ')</div>' end
+                    unlHtml, unlCount = table.concat(rows), #u.rels
+                end
+            elseif u.key == d.key and u.pending then unlHtml = '<div class="none">looking…</div>'
+            elseif d.created then unlHtml = '<div class="none">a new note — nothing mentions it yet</div>' end
+        end
+        local unlBlock = '<h4 id="unlh">UNLINKED MENTIONS' .. (unlCount and (" · " .. unlCount) or "") .. '</h4><ul id="unl">' .. unlHtml .. '</ul>'
+        -- DAILY ‹ ›: the days either side of an open daily note
+        local dailyJs = "null"
+        if d and not d.scratch then
+            local e = v.dailyEpochOf(d.rel)
+            if e then dailyJs = "{prev:" .. jstr(os.date("%Y-%m-%d", e - 86400)) .. ",next:" .. jstr(os.date("%Y-%m-%d", e + 86400)) .. "}" end
+        end
+        local u = v.unlinked
+        local unlRows = {}
+        for _, rel in ipairs(u.rels or {}) do unlRows[#unlRows + 1] = { n = rel:match("([^/]+)%.md$") or rel, r = rel } end
         local fs = tonumber(v.fontSize) or 16
         if fs < 8 then fs = 8 end
         local status = v.scanning and "scanning…" or (v.scanErr and ("⚠ " .. v.scanErr) or (#v.notes .. " notes"))
@@ -656,7 +1583,7 @@ body.graph #graph{display:block}
 <div id="ed"><textarea id="t" spellcheck="true" ]==] .. (d and "" or "disabled placeholder=\"⌘N a new note · ⌘D today · click a note on the left\"") .. [==[>]==] .. escapeHtml(d and d.text or "") .. [==[</textarea><div id="ac"></div></div>
 <div id="links"><h4>LINKS OUT</h4><ul id="outs">]==] .. (#outs > 0 and table.concat(outs) or '<div class="none">type [[ to link</div>') .. [==[</ul>
 ]==] .. (isTab and ('<h4>HISTORY · closed tabs</h4><ul id="hist">' .. (#hist > 0 and table.concat(hist) or '<div class="none">closed tabs land here — ⌘W</div>') .. '</ul>')
-             or ('<h4>BACKLINKS</h4><ul id="backs">' .. (#backs > 0 and table.concat(backs) or '<div class="none">nothing links here yet</div>') .. '</ul>')) .. [==[</div>
+             or ('<h4>BACKLINKS</h4><ul id="backs">' .. (#backs > 0 and table.concat(backs) or '<div class="none">nothing links here yet</div>') .. '</ul>' .. unlBlock)) .. [==[</div>
 <div id="graph"><canvas id="cv"></canvas><div id="gtip">click a dot to open · drag to untangle · hollow = not written yet · ⌘G back</div></div>
 </div></div>
 <script>
@@ -666,6 +1593,20 @@ var CUR = ]==] .. jstr(d and d.rel or "") .. [==[;
 var CARET = ]==] .. tostring(tonumber(v.caret) or 0) .. [==[;
 var VIEW = ]==] .. jstr(v.view) .. [==[;
 var TABS = []==] .. table.concat(tabsJs, ",") .. [==[], HASPAD = ]==] .. (sp and "true" or "false") .. [==[;
+// 6.174.0 — Lua's state for the page (page: setMode/drawRows/setRows/setMentions/vaultHint/gotoLine read these)
+var MODE = ]==] .. jstr(v.mode) .. [==[;
+var TAGS = ]==] .. v.tagsJson() .. [==[;
+var TAGROWS = ]==] .. tostring(math.floor(tonumber(v.tagRows) or 15)) .. [==[;
+var TEMPLATES = ]==] .. v.templatesJson() .. [==[;
+var TPLDIR = ]==] .. jstr(v.templatesDir or "") .. [==[;
+var SEARCH = {q:]==] .. jstr(v.searchQuery) .. [==[, rows:]==] .. jarr(v.searchRows) .. [==[, more:]==] .. tostring(v.searchMore == true) .. [==[, err:]==] .. jstr(v.searchErr or "") .. [==[, busy:]==] .. tostring(v.searching == true) .. [==[};
+var TASKS = {rows:]==] .. jarr(v.taskRows) .. [==[, more:]==] .. tostring(v.taskMore == true) .. [==[, err:]==] .. jstr(v.tasksErr or "") .. [==[, listed:]==] .. tostring(v.lastTasks ~= nil) .. [==[};
+var UNL = {key:]==] .. jstr(u.key or "") .. [==[, rows:]==] .. jarr(unlRows) .. [==[, pending:]==] .. tostring(u.pending == true) .. [==[, why:]==] .. jstr(u.why or (u.more and "more" or "")) .. [==[};
+var CARETLINE = ]==] .. tostring(math.floor(tonumber(v.caretLine) or 0)) .. [==[;
+var CARETHEAD = ]==] .. (v.caretHead and jstr(v.caretHead) or "null") .. [==[;
+var DAILY = ]==] .. dailyJs .. [==[;
+var SMARTLISTS = ]==] .. tostring(v.smartLists ~= false) .. [==[;
+var LINEH = FSNUM * 1.5;
 var t = document.getElementById('t'), q = document.getElementById('q'), hdr = document.getElementById('hdr');
 var ac = document.getElementById('ac'), rowsEl = document.getElementById('rows');
 function say(m){ m.text = t.value; m.sel = t.selectionStart; m.rel = CUR;
@@ -785,12 +1726,17 @@ function linkAtCaret(){
   while ((m = re.exec(s))) { if (pos >= m.index && pos <= m.index + m[0].length) return { target: m[2], md: true }; }
   return null;
 }
-function insertAtCaret(str){
+// 6.174.0 — a second string lands AFTER the caret (a template's {{cursor}} split)
+function insertAtCaret(str, tail){
+  tail = tail || '';
   var a = t.selectionStart, b = t.selectionEnd;
-  t.value = t.value.slice(0, a) + str + t.value.slice(b);
+  t.value = t.value.slice(0, a) + str + tail + t.value.slice(b);
   try { t.setSelectionRange(a + str.length, a + str.length); } catch(e){}
   say({a:'edit'});
 }
+// 6.174.0 page: setRows(kind, rows, more, q), setMentions(rows, key, why), vaultHint(s),
+// gotoLine(n), setMode(m), tplPick(what), toggleTask() and the CARETLINE / CARETHEAD
+// load step are the page engineer's — Lua already calls the first three by v.eval.
 
 document.addEventListener('keydown', function(e){
   var meta = e.metaKey || e.ctrlKey;
@@ -874,7 +1820,9 @@ function graphStart(){
 drawRows();
 if (VIEW === 'graph') { graphStart(); } else { t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){} }
 </script></body></html>]==]
-        return (html:gsub("FSLABEL", tostring(math.floor(fs - 3))):gsub("FS1px", math.floor(fs - 2) .. "px")
+        v.caretLine, v.caretHead = nil, nil     -- 6.174.0 — emitted once; a later render never re-selects
+        return (html:gsub("FSLABEL", tostring(math.floor(fs - 3))):gsub("FSNUM", tostring(math.floor(fs)))
+                    :gsub("FS1px", math.floor(fs - 2) .. "px")
                     :gsub("FS2px", math.floor(fs - 3) .. "px"):gsub("FSpx", math.floor(fs) .. "px"))
     end
 
@@ -895,14 +1843,17 @@ if (VIEW === 'graph') { graphStart(); } else { t.focus(); try { t.setSelectionRa
         elseif a == "filter" then
             v.filter = tostring(body.f or "")
         elseif a == "open" then
-            if v.openNote(tostring(body.name or "")) then v.filter = ""; v.render() end
-        elseif a == "new" then
-            local okP, button, typed = pcall(hs.dialog.textPrompt, "New note", "Name of the note:", "", "Create", "Cancel")
-            if okP and button == "Create" and trim(typed) ~= "" then
-                if v.openNote(typed) then v.render() end
+            if v.openNote(tostring(body.name or "")) then
+                -- 6.174.0 — a search / task row names the line; the filter is only the notes list's
+                if body.line then v.caretLine = tonumber(body.line) end
+                if v.mode == "notes" then v.filter = "" end
+                v.render()
             end
+        elseif a == "new" then
+            v.newNote()
         elseif a == "daily" then
-            if v.openDaily() then v.render() end
+            local ok, why = v.openDaily()
+            if ok and why ~= "pending" then v.render() end     -- 6.174.0 — a templated day renders when /bin/cat answers
         elseif a == "follow" then
             if v.follow(tostring(body.target or ""), body.md == true) and not body.md then v.render()
             elseif body.md then say("opened " .. tostring(body.target)) end
@@ -912,14 +1863,34 @@ if (VIEW === 'graph') { graphStart(); } else { t.focus(); try { t.setSelectionRa
         elseif a == "linkfile" then
             local link, why = v.linkFile()
             if link then
-                if v.webview then
-                    pcall(function() v.webview:evaluateJavaScript("insertAtCaret(" .. jstr(link) .. ")") end)
-                end
+                v.eval("insertAtCaret(" .. jstr(link) .. ")")
             elseif why ~= "cancelled" then
                 pcall(function() hs.alert.show("🕸 " .. tostring(why), 2) end)
             end
         elseif a == "rescan" then
-            v.scan("button"); v.render()
+            v.scan("button")
+            if v.mode == "tasks" then v.listTasks() end     -- 6.174.0 — ↻ refreshes the ☑ list too
+            v.render()
+        -- 6.174.0 — modes, search, tasks, templates, daily ‹ ›, extract, random
+        elseif a == "mode" then
+            v.setMode(tostring(body.m or "notes"))
+        elseif a == "search" then
+            v.search(tostring(body.q or ""))
+        elseif a == "tasks" then
+            v.listTasks()
+        elseif a == "tplinsert" then
+            v.insertTemplate(tostring(body.name or ""))
+        elseif a == "tplnew" then
+            v.newFromTemplate(tostring(body.name or ""))
+        elseif a == "tplnone" then
+            alert("📄 No templates yet — put .md files in " .. v.dir .. "/" .. tostring(v.templatesDir), 3)
+        elseif a == "dayshift" then
+            local ok, why = v.openDailyOffset(tonumber(body.d) or 1)
+            if ok and why ~= "pending" then v.render() end
+        elseif a == "extract" then
+            v.extract(body.head, body.selText)
+        elseif a == "random" then
+            if v.openRandom() then v.render() end
         -- 6.173.0 — the Scorp Pad's tabs (its module does the work)
         elseif a == "tab" then
             if v.openScratch(tostring(body.tid or "")) then v.render() end
@@ -1043,6 +2014,12 @@ if (VIEW === 'graph') { graphStart(); } else { t.focus(); try { t.setSelectionRa
 
     function v.hide()
         v.endDrag()
+        -- 6.174.0 — back to the notes list; every task but the index scan
+        -- goes (a search, the ☑ list, a mentions probe, a template fetch)
+        if v.mode == "search" then leaveSearch() end
+        v.mode = "notes"
+        stopCatTimer()
+        for _, f in ipairs({ "searchTask", "tasksTask", "mentionTask", "catTask" }) do stopTask(f) end
         local sp = v.sp()
         if sp and type(sp.onHostClose) == "function" then pcall(sp.onHostClose) end
         if v.doc and v.doc.scratch and sp and not sp.findTab(v.doc.scratch) then v.doc = nil end
@@ -1168,6 +2145,9 @@ if (VIEW === 'graph') { graphStart(); } else { t.focus(); try { t.setSelectionRa
     core.provide("vault.open",   function(name) return v.openNote(tostring(name or "")) end)
     core.provide("vault.rescan", function() return v.scan("service") end)
     core.provide("vault.report", function() return _G.vaultReport() end)
+    -- 6.174.0
+    core.provide("vault.search", function(q) v.mode = "search"; v.searchQuery = tostring(q or ""); return v.runSearch() end)
+    core.provide("vault.tasks",  function() v.mode = "tasks"; return v.listTasks() end)
 
     function _G.vaultRescan() return v.scan("console") end
     function _G.vaultReport()
@@ -1179,9 +2159,46 @@ if (VIEW === 'graph') { graphStart(); } else { t.focus(); try { t.setSelectionRa
         for _ in pairs(v.backlinks) do nb = nb + 1 end
         for _ in pairs(v.unresolved) do nu = nu + 1 end
         L[#L + 1] = "   links  : " .. nb .. " notes linked to · " .. nu .. " linked names with no file yet"
+        -- 6.174.0 — tags, templates, search, tasks, mentions
+        if #v.tagList == 0 then
+            L[#L + 1] = "   tags   : none yet — type #word in a note"
+        else
+            local tagged, top = 0, {}
+            for _, list in pairs(v.tagsOf) do if #list > 0 then tagged = tagged + 1 end end
+            for i = 1, math.min(3, #v.tagList) do top[#top + 1] = "#" .. v.tagList[i].key .. " " .. v.tagList[i].count end
+            L[#L + 1] = "   tags   : " .. #v.tagList .. " tags on " .. tagged .. " notes · top " .. table.concat(top, " · ")
+                        .. (v.tagsPartial and " (PARTIAL — over the cap)" or "")
+        end
+        local tpls, dailyT = v.templates(), v.templateByName(v.dailyTemplate or "")
+        L[#L + 1] = "   templates: " .. (#tpls > 0 and (#tpls .. " in " .. tostring(v.templatesDir) .. "/")
+                        or ("none — put .md files in " .. tostring(v.templatesDir) .. "/"))
+                    .. " · daily template: " .. (dailyT and dailyT.rel or "none")
+        local ls = v.lastSearch
+        L[#L + 1] = "   search : " .. (ls and ("\"" .. ls.q .. "\" → " .. ls.hits .. " hits in " .. ls.files .. " notes · "
+                        .. os.date("%b %d %H:%M", ls.when) .. " · " .. v.searches .. " searches") or "never (⌘⇧F)")
+                    .. (v.searchErr and ("  ⚠️ " .. v.searchErr) or "")
+        if v.lastTasks then
+            local files = {}
+            for _, r in ipairs(v.taskRows) do files[r.r] = true end
+            local nf = 0
+            for _ in pairs(files) do nf = nf + 1 end
+            L[#L + 1] = "   tasks  : " .. #v.taskRows .. (v.taskMore and "+" or "") .. " open in " .. nf .. " notes · listed "
+                        .. os.date("%b %d %H:%M", v.lastTasks) .. (v.tasksErr and ("  ⚠️ " .. v.tasksErr) or "")
+        else
+            L[#L + 1] = "   tasks  : not listed yet (⌘⇧K)" .. (v.tasksErr and ("  ⚠️ " .. v.tasksErr) or "")
+        end
+        local m, u = "no note open", v.unlinked
+        if v.doc and v.doc.scratch then m = "not for a scratch tab"
+        elseif v.doc and u.key ~= v.doc.key then m = "not searched for " .. v.doc.rel .. (v.doc.created and " (new note)" or "")
+        elseif v.doc and u.pending then m = "looking for " .. v.doc.rel
+        elseif v.doc and u.why == "too short" then m = "not searched for " .. v.doc.rel .. " (name too short)"
+        elseif v.doc and u.why then m = "not searched for " .. v.doc.rel .. " (" .. u.why .. ")"
+        elseif v.doc then m = (#u.rels == 0 and "none" or tostring(#u.rels) .. " unlinked") .. " for " .. v.doc.rel end
+        L[#L + 1] = "   mentions: " .. m .. " · extracts: " .. v.extracts .. " · random: " .. v.randoms
         L[#L + 1] = "   scan   : " .. (v.scanning and "running" or (v.lastScan and os.date("%b %d %H:%M", v.lastScan) or "never"))
                     .. " · " .. v.scans .. " so far" .. (v.scanErr and ("  ⚠️ " .. v.scanErr) or "")
         L[#L + 1] = "   open   : " .. (v.doc and (v.doc.rel .. " · " .. #(v.doc.text or "") .. " chars") or "no note")
+                    .. (v.mode ~= "notes" and (" · mode: " .. v.mode) or "")
                     .. (v.dirty and " · unsaved keystrokes pending" or "") .. " · saves: " .. v.saves
                     .. " · failed writes: " .. v.saveFails .. (v.lastSaveErr and ("  ⚠️ " .. v.lastSaveErr) or "")
         L[#L + 1] = "   window : " .. (v.webview and "open" or "closed") .. (v.pinned and " · 📌 pinned" or "") .. " · opens: " .. v.opens
