@@ -4,6 +4,31 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.170.3 — ⇪4 LET GO OF THE KEYBOARD AND THE COPY LEFT THE MAIN THREAD:
+  🚨 LL's Console after ⇪4 on 6.170.0: "⇪ released by the watchdog —
+     held 29s with no key event and no F18 keyUp", then both taps
+     "disabled by macOS — revived". Two faults in one line. (1)
+     `screencapture -i` takes every input event, so the Caps Lock
+     keyUp never reaches Hammerspoon and ⇪ stays latched: every key
+     typed runs a shortcut — the "dead keyboard". (2) An 8 s watchdog
+     that fires at 29 s means the main thread stalled ~20 s: finish()
+     decoded the 4K screenshot with hs.image, re-encoded it through
+     hs.pasteboard.writeObjects, and the clipboard poll decoded the
+     pasteboard AGAIN half a second later (6.170.2 still did, only to
+     throw it away). Three passes over 15 million pixels.
+  ⌨️ screenshots.runCapture with -i and the area selector call
+     `_G.hyperExpectRelease(1.5, "the screenshot tool")` — the
+     6.165.1 cure: only the deadline changes, never the way in.
+  📋 The clipboard copy is now an hs.task: /usr/bin/osascript reads
+     the PNG straight onto the pasteboard ("as «class PNGf»"), HELD in
+     shots.copyTask; the poll sits the change out
+     (`_G.pasteboardSuppressUntil`, shots.copySuppressSecs 10 s cap).
+     The blur editor's save uses the same service
+     (screenshots.copyToPasteboard). writeObjects is the fallback only.
+  🔤 New service `ocr.imageWanted` (off / busy / resting → false); the
+     poll asks it BEFORE hs.pasteboard.readImage(). No decode unless
+     image OCR is on and free.
+  ✅ Gate: test_screenshots 155 → 160, test_ocr_tag 84 → 94 (T8).
 NEW IN 6.170.2 — RAW CLIPBOARD IMAGE OCR GOES OFF; THE POLL GETS A BREAKER:
   🚨 LL installed 6.170.1 and the Mac locked up again (beach ball, no
      keyboard, Hammerspoon absent from Force Quit). 6.170.1 could no

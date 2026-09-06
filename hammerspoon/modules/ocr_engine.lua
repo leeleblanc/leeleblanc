@@ -289,6 +289,12 @@ function M.setup(core)
     end
 
     -- 🩺 6.170.1 — the image-OCR counters, for the Console.
+    function ocr.imageWanted()
+        if not ocr.autoImage then return false end
+        if ocr.imageTask then return false end
+        return nowS() >= (ocr.imageHoldUntil or 0)
+    end
+
     function _G.ocrReport()
         local st = ocr.imageStats
         local hold = (ocr.imageHoldUntil or 0) - nowS()
@@ -1147,6 +1153,9 @@ function M.setup(core)
         return ocr.writeFinderComment(p, text)
     end)
     core.provide("ocr.image",          function(i) return ocr.image(i) end)
+    -- 6.170.3: the clipboard poll asks THIS before decoding the pasteboard
+    -- — no decode when image OCR is off, busy or resting.
+    core.provide("ocr.imageWanted",    function() return ocr.imageWanted() end)
     core.provide("ocr.show",           function() return ocr.show() end)
     core.provide("ocr.edit",           function() return ocr.edit() end)
     core.provide("ocr.history",        function() return ocr.history() end)

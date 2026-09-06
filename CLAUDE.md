@@ -223,6 +223,20 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 🚨 6.170.3 verify with LL: ⇪4 then type — no "released by the
+  watchdog" line (or one saying "the screenshot tool had taken the
+  keyboard" after ≤2 s), no "disabled by macOS" tap lines, no beach
+  ball; the shot is on the clipboard (paste it). ROOT CAUSE of the
+  ⇪4 lock-ups (Console 00:54:53 Sep 6): `screencapture -i` eats the
+  F18 keyUp (⇪ latched) AND finish() decoded + re-encoded the 4K shot
+  on the main thread (8 s watchdog fired at 29 s). Rules: any path
+  that hands the screen to screencapture -i or the area selector
+  calls shots.expectHyperRelease(); a screenshot reaches the
+  pasteboard via shots.copyToPasteboard (osascript hs.task), never a
+  sync writeObjects of a decoded image; the poll asks
+  `ocr.imageWanted` before readImage(). Panel ⏎ copies (screenshots
+  1180/1358, unified_search) still use writeObjects — next if they
+  stall.
 - 🚨 6.170.2 verify with LL: after installing, no lock-up; the Console
   after a few minutes shows no "⚠️ clipboard: the pasteboard changed on
   N ticks in a row" line (one = something rewrites the pasteboard

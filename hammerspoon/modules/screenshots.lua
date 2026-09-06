@@ -156,6 +156,7 @@ function M.setup(core)
 
     -- ✏️ EDIT HERE ---------------------------------------------------------
     shots.enabled   = true
+    shots.copySuppressSecs = 10  -- 6.170.3: the poll sits out our own copy this long at most
     shots.key       = "4"     -- ⇪4 capture · ⇪⇧4 panel (mnemonic: ⌘⇧4)
     shots.dir       = (core.homeDir or os.getenv("HOME") or "")
                       .. "/Library/CloudStorage/OneDrive-Personal/2026 Screenshots"
@@ -287,12 +288,11 @@ function M.setup(core)
             say("capture cancelled")
             return false
         end
-        local img
-        pcall(function() img = hs.image.imageFromPath(path) end)
-        local copied = false
-        if img then
-            pcall(function() copied = hs.pasteboard.writeObjects(img) and true end)
-        end
+        shots.copyToPasteboard(path, function(copied) shots.afterCopy(path, thenEdit, copied) end)
+        return true
+    end
+
+    function shots.afterCopy(path, thenEdit, copied)
         if thenEdit then
             -- panel-initiated capture: straight into the blur editor.
             -- The file + clipboard above already happened, so a missing
@@ -328,6 +328,9 @@ function M.setup(core)
         end
         return true
     end
+    core.provide("screenshots.copyToPasteboard", function(p, cb)
+        return shots.copyToPasteboard(p, cb or function() end)
+    end)
 
     -- One task-runner for every screencapture variant: same holding
     -- pattern, same failure alerts, different argument lists.
@@ -356,7 +359,68 @@ function M.setup(core)
             pcall(function() hs.alert.show("📸 could not start screencapture", 3) end)
             return false
         end
+        -- 🚨 6.170.3 — `screencapture -i` TAKES THE KEYBOARD. LL's Console
+        -- after ⇪4: "⇪ released by the watchdog — held 29s with no key
+        -- event and no F18 keyUp". The crosshair grabs every event, the
+        -- Caps Lock keyUp never reaches Hammerspoon, and until the
+        -- watchdog lets go every key LL types runs a hyper shortcut —
+        -- the "dead keyboard". Same cure as the scratch pad (6.165.1):
+        -- nobody holds ⇪ through a crosshair, so the deadline drops to
+        -- 1.5 s of silence. Only the DEADLINE changes, never the way in.
+        if args[1] == "-i" then shots.expectHyperRelease() end
         return true
+    end
+
+    function shots.expectHyperRelease()
+        if _G.hyperExpectRelease then
+            pcall(_G.hyperExpectRelease, 1.5, "the screenshot tool")
+        end
+    end
+
+    -- 🚨 6.170.3 — THE CLIPBOARD COPY LEAVES THE MAIN THREAD. Until now
+    -- finish() decoded the whole screenshot (a 5120×2880 PNG on the 4K)
+    -- with hs.image.imageFromPath and pushed the pixels through
+    -- hs.pasteboard.writeObjects — a second full encode — on the main
+    -- thread, and the clipboard poll then decoded the pasteboard AGAIN
+    -- half a second later. Three passes over 15 million pixels while
+    -- ⇪ was latched (see runCapture) is the beach ball LL saw. Now
+    -- /usr/bin/osascript reads the PNG straight onto the pasteboard in
+    -- an hs.task (HELD), and the poll is asked to sit out the change
+    -- (`_G.pasteboardSuppressUntil`): the file's OCR already runs from
+    -- the file. writeObjects stays only as the fallback when no task
+    -- can be made.
+    function shots.copyToPasteboard(path, done)
+        local script = ('set the clipboard to (read (POSIX file "%s") as «class PNGf»)')
+                       :format(path:gsub('"', '\\"'))
+        local t
+        local okNew = pcall(function()
+            t = hs.task.new("/usr/bin/osascript", function(exitCode)
+                shots.copyTask = nil
+                local now = 0
+                pcall(function() now = hs.timer.secondsSinceEpoch() end)
+                _G.pasteboardSuppressUntil = now + 1
+                done(exitCode == 0)
+            end, { "-e", script })
+        end)
+        local started = false
+        if okNew and t then
+            shots.copyTask = t   -- HELD
+            pcall(function() started = t:start() end)
+        end
+        if started then
+            local now = 0
+            pcall(function() now = hs.timer.secondsSinceEpoch() end)
+            _G.pasteboardSuppressUntil = now + shots.copySuppressSecs
+            return true
+        end
+        shots.copyTask = nil
+        local copied = false
+        pcall(function()
+            local img = hs.image.imageFromPath(path)
+            if img then copied = hs.pasteboard.writeObjects(img) and true end
+        end)
+        done(copied)
+        return false
     end
 
     function shots.capture(thenEdit)
@@ -463,6 +527,7 @@ function M.setup(core)
             canvas:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" })
         end)
         pcall(function() canvas:canvasMouseEvents(true, true, false, true) end)
+        shots.expectHyperRelease()   -- 6.170.3: the selector takes the keyboard like -i does
 
         local startPt = nil
         pcall(function()

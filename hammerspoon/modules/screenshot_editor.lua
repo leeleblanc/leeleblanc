@@ -602,15 +602,25 @@ function M.setup(core)
             end
             f:write(bytes)
             f:close()
-            local copied = false
-            pcall(function()
-                local img = hs.image.imageFromPath(outPath)
-                if img then copied = hs.pasteboard.writeObjects(img) and true end
-            end)
-            pcall(function()
-                hs.alert.show(copied and "🖌 Saved (edited) · on the clipboard"
-                                      or "🖌 Saved (edited) — clipboard copy failed", 2.5)
-            end)
+            -- 6.170.3: the copy runs off the main thread (screenshots'
+            -- osascript task) when that module is here; the old sync
+            -- decode + writeObjects stays as the fallback.
+            local function tell(copied)
+                pcall(function()
+                    hs.alert.show(copied and "🖌 Saved (edited) · on the clipboard"
+                                          or "🖌 Saved (edited) — clipboard copy failed", 2.5)
+                end)
+            end
+            if core.has and core.has("screenshots.copyToPasteboard") then
+                core.call("screenshots.copyToPasteboard", outPath, tell)
+            else
+                local copied = false
+                pcall(function()
+                    local img = hs.image.imageFromPath(outPath)
+                    if img then copied = hs.pasteboard.writeObjects(img) and true end
+                end)
+                tell(copied)
+            end
             say("saved " .. (outPath:match("[^/]+$") or outPath))
             ed.close()
         elseif body.a == "cancel" then

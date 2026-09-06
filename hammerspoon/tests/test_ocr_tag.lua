@@ -611,5 +611,34 @@ do
                       local b = body:find("nowT < thrashUntil", 1, true); return a and b and a < b end)())
 end
 
+do
+    out("\n=== T8. 6.170.3 — the poll asks ocr.imageWanted before it decodes anything ===\n")
+    local M4 = dofile(HS .. "/modules/ocr_engine.lua"); M4.setup(CORE); local o4 = M4.config
+    check("imageWanted is false while autoImage is off", o4.imageWanted() == false)
+    o4.autoImage = true
+    check("…true once a profile turns image OCR on", o4.imageWanted() == true)
+    o4.imageTask = {}
+    check("…false while a Shortcut run is in flight (busy)", o4.imageWanted() == false)
+    o4.imageTask = nil; o4.imageHoldUntil = os.time() + 1e6
+    check("…false while resting after a failure / empty image", o4.imageWanted() == false)
+    o4.imageHoldUntil = 0
+    check("…and true again after the rest", o4.imageWanted() == true)
+    local h = io.open(HS .. "/init.lua", "r"); local src = h:read("*a"); h:close()
+    local body = src:match("local function clipboardPoll%(%).-\nend\n_G%.clipboardTimer") or ""
+    local a = body:find('_G.service.call("ocr.imageWanted")', 1, true)
+    local b = body:find("hs.pasteboard.readImage(", 1, true)
+    check("init.lua's poll consults ocr.imageWanted BEFORE readImage()", a and b and a < b)
+    check("…and readImage() is gated on that answer", body:find("wanted and hs.pasteboard.readImage(", 1, true) ~= nil)
+    local sh = io.open(HS .. "/modules/screenshots.lua", "r"); local ss = sh:read("*a"); sh:close()
+    check("screenshots.lua no longer pushes a decoded shot through writeObjects in finish()",
+          (ss:match("function shots%.finish%(.-\n    end\n") or ""):find("writeObjects", 1, true) == nil)
+    check("…the osascript copy is an hs.task, never hs.execute / hs.osascript",
+          ss:find('hs.task.new("/usr/bin/osascript"', 1, true) ~= nil
+          and ss:find("hs.osascript", 1, true) == nil and ss:find("hs.execute(", 1, true) == nil)
+    check("…an interactive capture (-i) and the area selector both call shots.expectHyperRelease()",
+          select(2, ss:gsub("shots%.expectHyperRelease%(%)", "")) >= 2
+          and ss:find('_G.hyperExpectRelease, 1.5, "the screenshot tool"', 1, true) ~= nil)
+end
+
 out(("\n── test_ocr_tag: %d passed, %d failed\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

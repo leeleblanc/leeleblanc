@@ -41,6 +41,8 @@ local ALERTS, TASKS, CHOICES_SET = {}, {}, nil
 local DEFER_TIMERS = false   -- §12 turns this on to hold the debounce
 local PENDING       = {}     -- timers queued while DEFER_TIMERS is true
 local CLIP  = { kind = "empty" }
+local COPIES, HYPERREL = {}, {}
+_G.hyperExpectRelease = function(secs, who) HYPERREL[#HYPERREL + 1] = { secs = secs, who = who } end
 local MODS  = {}       -- what checkKeyboardModifiers answers
 local WATCHERS = {}    -- 6.155.0: every hs.pathwatcher asked for
 
@@ -84,6 +86,20 @@ hs = {
     },
     task = {
         new = function(cmd, cb, args)
+            -- 6.170.3: the clipboard copy is an osascript task; the stub
+            -- completes it the moment it starts and keeps it OUT of TASKS
+            -- (those count screencapture / OCR runs).
+            if cmd == "/usr/bin/osascript" and args and args[1] == "-e"
+               and (args[2] or ""):find("set the clipboard", 1, true) then
+                local t = { cmd = cmd, cb = cb, args = args }
+                function t:start()
+                    COPIES[#COPIES + 1] = args[2]
+                    CLIP = { kind = "image", v = { __path = args[2]:match('POSIX file "(.-)"') } }
+                    cb(0, "", "")
+                    return true
+                end
+                return t
+            end
             local t = { cmd = cmd, cb = cb, args = args, started = false,
                         terminated = false }
             function t:start() self.started = true; return true end
@@ -94,6 +110,7 @@ hs = {
     },
     image = {
         imageFromPath = function(p)
+            IMG_DECODED = IMG_DECODED or {}; IMG_DECODED[p] = (IMG_DECODED[p] or 0) + 1
             if not FILES[p] then return nil end
             local img = { __path = p }
             function img:setSize() return self end
@@ -262,6 +279,18 @@ check("…and the alert says saved AND copied",
       (ALERTS[#ALERTS] or ""):find("Saved") ~= nil
       and (ALERTS[#ALERTS] or ""):find("clipboard") ~= nil,
       ALERTS[#ALERTS])
+-- 6.170.3 — the copy left the main thread and ⇪ was told to let go
+check("6.170.3: the copy is ONE osascript task reading the PNG onto the pasteboard",
+      #COPIES == 1 and COPIES[1]:find(shot1, 1, true) ~= nil
+      and COPIES[1]:find("«class PNGf»", 1, true) ~= nil, COPIES[1])
+check("…the clipboard poll was asked to sit the change out",
+      type(_G.pasteboardSuppressUntil) == "number" and _G.pasteboardSuppressUntil > 0,
+      tostring(_G.pasteboardSuppressUntil))
+check("…and the interactive capture told the hyper hold to expect a release (1.5 s)",
+      #HYPERREL == 1 and HYPERREL[1].secs == 1.5 and HYPERREL[1].who == "the screenshot tool",
+      HYPERREL[1] and HYPERREL[1].who)
+check("…no sync decode of the shot: hs.image was not asked for it",
+      not IMG_DECODED or IMG_DECODED[shot1] == nil)
 
 -- =====================================================================
 out("4. capture — cancelled with Esc\n")
@@ -273,6 +302,7 @@ TASKS[#TASKS].cb()
 check("no alert on a cancelled capture — a cancel is not an event",
       #ALERTS == alertsBefore, ALERTS[#ALERTS])
 check("clipboard untouched", CLIP == clipBefore)
+check("…and no copy task was started for a cancelled capture", #COPIES == 1, #COPIES)
 
 -- =====================================================================
 out("5. two captures in one second\n")
