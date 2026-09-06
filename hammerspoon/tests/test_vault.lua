@@ -339,11 +339,14 @@ local view = WEBVIEWS[#WEBVIEWS]
 check("⇪3 opens one webview, shown, non-activating applied",
       view and view.shown == 1 and v.nonActivatingApplied == true and view.title == "Vault")
 check("the hyper watchdog is told to expect a release", EXPECTED[#EXPECTED] and EXPECTED[#EXPECTED].who == "the vault")
--- 6.175.1 — LL asked for less opaque (1 → 0.9), saw it, and asked for
--- more again. 0.97 is the answer to both: a hint of the app behind for
--- bearings, without the text swimming. The number is asserted rather
--- than "< 1" because the whole point is which number it is.
-check("6.175.1: the window is 3% see-through by default (alpha 0.97 applied)", v.alpha == 0.97 and view.alphaSet == 0.97, tostring(view.alphaSet))
+-- 6.175.2 — SOLID. LL asked for less opaque (1 → 0.9), saw it, asked
+-- for more (0.9 → 0.97), saw that, and asked for fully solid. So the
+-- window is solid again — and the check has teeth the "< 1" version
+-- did not: at alpha 1 the module must NOT call view:alpha() at all,
+-- because asking macOS for an alpha of exactly 1 is how a window ends
+-- up rendered on the translucency path it does not need.
+check("6.175.2: the window is solid by default", v.alpha == 1)
+check("…and at 1 the alpha is never SET on the window at all", view.alphaSet == nil, tostring(view.alphaSet))
 check("a scan runs on open and a held rescan timer is armed", lastTask("find") and lastTask("find").started and v.rescanTimer and v.rescanTimer.kind == "every")
 local h = view.htmlSet or ""
 check("the page lists every note and the open one", h:find("NOTES = %[") and h:find('"Alpha"') and h:find('"New Idea"') and h:find('CUR = "Alpha.md"'))
@@ -390,7 +393,7 @@ end
 do
     local r = _G.vaultReport()
     check("the report names the folder, the note count and Obsidian", r:find(VAULT, 1, true) and r:find("notes  : 7") and r:find("Obsidian"), r)
-    check("the report shows the alpha and how to make it solid", r:find("alpha 0.97 (see-through; vault = { alpha = 1 } for solid)", 1, true) ~= nil, r)
+    check("the report shows the alpha and, now that it is solid, how to see through it", r:find("alpha 1.00 (solid; vault = { alpha = 0.95 } to see through it)", 1, true) ~= nil, r)
 end
 
 -- =======================================================================

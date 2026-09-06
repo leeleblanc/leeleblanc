@@ -4,9 +4,21 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.175.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.175.2
 -- =====================================================================
 
+-- NEW IN 6.175.2 — THE PAD/VAULT WINDOW IS SOLID:
+--   🪟 LL: "Make it fully solid." Alpha 1, and the module now leaves the
+--      window's alpha alone entirely rather than setting it to 1 — a
+--      window asked for an alpha of exactly 1 still goes down the
+--      translucency path it does not need. Three passes at the same
+--      window (1 → 0.9 in 6.173.2, → 0.97 in 6.175.1, → 1 here) and the
+--      answer is that see-through was never worth anything in a window
+--      you WRITE in. `settings = { vault = { alpha = 0.95 } }` brings it
+--      back for anyone who wants it, and the report's "window" line now
+--      says how to get there instead of how to get solid.
+--   ✅ Gate: test_vault 265 → 266 (solid by default, AND view:alpha is
+--      never called). 67 modules. 7,552 checks, seventy-three stages.
 -- NEW IN 6.175.1 — THE PAD/VAULT WINDOW IS MORE SOLID AGAIN:
 --   🪟 LL: "Make the pad more opaque." 6.173.2 took the window from
 --      solid to 0.9 on LL's "slightly less opaque"; seen on the screen,
@@ -86,20 +98,10 @@
 --      line shows the value in force and the override for solid.
 --   ✅ Gate: test_vault 93 → 95 (alpha applied to the window, report
 --      line). 67 modules. 7,228 → 7,230 checks, seventy-three stages.
--- NEW IN 6.173.1 — ⇪4 / ⇪⇧4 OCR TEXT REACHES THE ⇪O LOG (FOR REAL THIS TIME):
---   🔤 LL: "OCR Logs do not have what hyper+v or the system clipboard
---      has after an OCR event using hyper+4 or hyper+shift+4." 6.172.1
---      wired only the name-on-arrival path. The RECOGNIZE path — the
---      one that puts the words on the clipboard (⇪4's text, the panel's
---      OCR row, a decoded QR code) — never told the log. Every text the
---      screenshots module puts on the pasteboard now goes through
---      shots.recordText → `ocr.record`, so ⇪O has what ⇪V has.
---   ✅ Gate: test_screenshots 161 → 163. 67 modules. 7,226 → 7,228
---      checks, seventy-three stages.
--- (6.173.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.173.1 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.175.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.175.2
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -445,7 +447,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.175.1"
+_G.configVersion = "6.175.2"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

@@ -4,6 +4,22 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.175.2 — THE PAD/VAULT WINDOW IS SOLID:
+  🪟 LL: "Make it fully solid." Alpha 1 — and the module now leaves the
+     window's alpha ALONE rather than setting it to 1, because a window
+     handed an alpha of exactly 1 still renders down the translucency
+     path it has no use for; the test asserts that view:alpha() is
+     never called at all, not merely that the number is right.
+     Three passes at the same window — solid → 0.9 (6.173.2, "slightly
+     less opaque") → 0.97 (6.175.1, "make the pad more opaque") → solid
+     — and the answer is that see-through was never worth anything in a
+     window you WRITE in: it costs legibility and buys a glimpse of an
+     app you are not looking at. The knob stays for anyone who wants
+     the old feel: `settings = { vault = { alpha = 0.95 } }`, any 0–1
+     number. `_G.vaultReport()`'s "window" line now names THAT, instead
+     of telling you how to reach the solid you already have.
+  ✅ Gate: test_vault 265 → 266. 67 modules. 7,551 → 7,552 checks,
+     seventy-three stages.
 NEW IN 6.175.1 — THE PAD/VAULT WINDOW IS MORE SOLID AGAIN:
   🪟 LL: "Make the pad more opaque." In 6.173.2 LL asked for "slightly
      less opaque" and the window went from solid to alpha 0.9; on the

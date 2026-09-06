@@ -164,12 +164,14 @@ function M.setup(core)
         key           = "3",
         width         = 1240,
         height        = 820,
-        -- 6.175.1 — LL asked for "slightly less opaque" in 6.173.2 (1 →
-        -- 0.9) and then "make the pad more opaque" once it was on the
-        -- screen: 0.9 was too far. 0.97 keeps a hint of the app behind
-        -- for bearings without the text swimming. Any 0–1 number in a
-        -- settings override, 1 = solid.
-        alpha         = 0.97,
+        -- 6.175.2 — SOLID, and back where it started. The window went
+        -- 1 → 0.9 in 6.173.2 ("slightly less opaque"), 0.9 → 0.97 in
+        -- 6.175.1 ("make the pad more opaque"), and then LL said "make
+        -- it fully solid". Three readings of the same window, and the
+        -- answer is that translucency was never worth anything here:
+        -- this is a window you WRITE in. Any 0–1 number still works as
+        -- a settings override for anyone who wants the old feel.
+        alpha         = 1,
         fontSize      = 16,
         dir           = nil,          -- set below; a settings override replaces it
         dailyDir      = "Daily",      -- subfolder for ⌘D notes
@@ -2807,7 +2809,12 @@ else {
                     .. " · \"/\" on an empty line lists every block · ⌘B ⌘I ⌘E "
                     .. "· the footer names the line you are on"
         L[#L + 1] = "   window : " .. (v.webview and "open" or "closed") .. (v.pinned and " · 📌 pinned" or "") .. " · opens: " .. v.opens
-            .. string.format(" · alpha %.2f%s", v.alpha, v.alpha >= 1 and " (solid)" or " (see-through; vault = { alpha = 1 } for solid)")
+            -- 6.175.2 — solid is the default now, so the hint points the
+            -- other way: a report that tells you how to get what you
+            -- already have is a report nobody reads twice.
+            .. string.format(" · alpha %.2f%s", v.alpha,
+                   v.alpha >= 1 and " (solid; vault = { alpha = 0.95 } to see through it)"
+                                 or " (see-through; vault = { alpha = 1 } for solid)")
                     .. " · non-activating: " .. tostring(v.nonActivatingWhy)
         local sp = v.sp()
         L[#L + 1] = "   scratch: " .. (sp and (#sp.tabs .. " tab" .. (#sp.tabs == 1 and "" or "s") .. " of the Scorp Pad shown here (⇪1)"

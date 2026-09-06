@@ -276,10 +276,11 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
-- 6.175.1 verify with LL: the ⇪3 / ⇪1 window is nearly solid again
-  (alpha 0.97) — the app behind places it without showing through the
-  text. 0.9 (6.173.2) was too far; `settings = { vault = { alpha = 1 } }`
-  is fully solid if even 0.97 is too much.
+- 6.175.2 verify with LL: the ⇪3 / ⇪1 window is SOLID. Three passes got
+  here (1 → 0.9 → 0.97 → 1); translucency is settled, do not reintroduce
+  it. At alpha 1 the module must never call view:alpha() at all (the
+  test asserts it). `settings = { vault = { alpha = 0.95 } }` brings the
+  see-through back for anyone who wants it.
 - 6.175.0 verify with LL: ⇪3 — the bar over the text (H1 B I • ☑ …),
   hovering a button explains what it types; ⌘B on a selected word bolds
   and ⌘B again unbolds; "/" on an empty line lists the blocks with the
