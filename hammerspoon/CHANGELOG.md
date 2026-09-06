@@ -4,6 +4,22 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.171.0 — THE SCRATCH PAD IS THE SCORP PAD, BIGGER AND SEE-THROUGH:
+  📝 ⇪1's pad is now called the Scorp Pad everywhere LL sees a name:
+     its header, window title, cheat sheet, boot and Console lines,
+     the ⇪space source label, and the 4 PM task ("Scorp pad · <day>",
+     "Sent by Hammerspoon Scorp Pad"). Files, store and services keep
+     their old ids (scratch_pad.lua, Logs/scratch/scratch.json,
+     `_G.scratchPad`) so nothing on disk moves.
+  📐 It opens at 1024×768 (was 720×540; still clamped to the screen)
+     and the window is 35% translucent — `sp.alpha = 0.65` on the
+     webview itself, the page's own colours untouched. All three are
+     `settings = { scratch_pad = { width=, height=, alpha= } }`
+     overrides; alpha 1 (or anything outside 0–1) = solid.
+  ✅ Gate: test_scratch_pad 115 → 117 (size, alpha applied to the
+     window, the new title prefix). 66 modules. 7,062 → 7,064 checks,
+     seventy-one stages.
+
 NEW IN 6.170.3 — ⇪4 LET GO OF THE KEYBOARD AND THE COPY LEFT THE MAIN THREAD:
   🚨 LL's Console after ⇪4 on 6.170.0: "⇪ released by the watchdog —
      held 29s with no key event and no F18 keyUp", then both taps

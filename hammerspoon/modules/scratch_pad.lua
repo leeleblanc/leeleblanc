@@ -1,5 +1,5 @@
 -- =====================================================================
--- 📝 SCRATCH PAD — ⇪1: TABS, SAVED AS YOU TYPE, A HISTORY YOU CAN SEARCH
+-- 📝 SCORP PAD — ⇪1: TABS, SAVED AS YOU TYPE, A HISTORY YOU CAN SEARCH
 -- =====================================================================
 -- 6.164.0 — LL: "I use the Sublime text editor to hold snippets of text
 -- or code or anything you can think of as a scratch space. But it's
@@ -72,13 +72,13 @@
 -- =====================================================================
 
 local M = {
-    name    = "Scratch Pad",
+    name    = "Scorp Pad",
     order   = 13.37,
     family  = "capture",
     summary = "⇪1 a scratch editor: tabs, saved as you type, a searchable "
               .. "history under the text, one Asana task of the day at 4 PM",
     cheatsheet = {
-        title = "📝 SCRATCH PAD (⇪1 — type, it saves; close as fast as you opened it)",
+        title = "📝 SCORP PAD (⇪1 — type, it saves; close as fast as you opened it)",
         entries = {
             { "⇪1",        "Open / close the pad (tabs, text, history under it)" },
             { "⌘T · ⌘W",   "New tab · close tab (its text goes to the history)" },
@@ -97,8 +97,9 @@ function M.setup(core)
     local sp = {
         enabled       = true,
         key           = "1",
-        width         = 720,
-        height        = 540,
+        width         = 1024,
+        height        = 768,
+        alpha         = 0.65,     -- 6.171.0 — 35% translucent (1 = solid); a settings override changes it
         saveDelay     = 0.3,      -- seconds after the last key before the disk write
         historyRows   = 200,      -- rows embedded in the page for the filter
         historyKeep   = 2000,     -- rows kept in the store (oldest drop past this)
@@ -114,8 +115,8 @@ function M.setup(core)
         startTime     = "07:30",
         dueTime       = "16:00",
         assignee      = "me",
-        titlePrefix   = "Scratch pad · ",
-        comment       = "Sent by Hammerspoon Scratch Pad \"⇪1\", file init.lua",
+        titlePrefix   = "Scorp pad · ",
+        comment       = "Sent by Hammerspoon Scorp Pad \"⇪1\", file init.lua",
         sendOnlyIfChanged = true,
 
         -- state
@@ -139,7 +140,7 @@ function M.setup(core)
     sp.dir  = (core.logsDir or core.homeDir or ".") .. "/scratch"
     sp.file = sp.dir .. "/scratch.json"
     _G.rewrittenFiles = _G.rewrittenFiles or {}
-    _G.rewrittenFiles[sp.file] = "the ⇪1 scratch pad — rewritten after every edit"
+    _G.rewrittenFiles[sp.file] = "the ⇪1 Scorp Pad — rewritten after every edit"
 
     -- ---- small helpers ----------------------------------------------------
     local counter = 0
@@ -257,7 +258,7 @@ function M.setup(core)
                     hs.alert.show("📝 NOT SAVED — " .. why .. "\nYour text is safe in memory; "
                                   .. "every keystroke retries the write.", 5)
                 end)
-                print("📝 Scratch Pad: store not written — " .. why .. " (" .. sp.file .. ")")
+                print("📝 Scorp Pad: store not written — " .. why .. " (" .. sp.file .. ")")
             end
             return false
         end
@@ -427,7 +428,7 @@ function M.setup(core)
         end
         if not (core.asanaEnabled and _G.asanaSubmitTask) then
             sp.lastSend = { at = os.time(), reason = reason, outcome = "Asana is off on this Mac" }
-            print("📝 Scratch Pad: " .. sp.sendAt .. " task not sent — Asana is off on this Mac "
+            print("📝 Scorp Pad: " .. sp.sendAt .. " task not sent — Asana is off on this Mac "
                   .. "(secret.lua); the text is safe in " .. sp.file)
             return false, "asana off"
         end
@@ -522,7 +523,7 @@ textarea{flex:1;margin:0;padding:10px;border:0;outline:0;resize:none;background:
 .row .p{opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
 .empty{opacity:.45;padding:8px 10px;font-size:12px}
 ]] .. theme .. [[</style></head><body><div id="wrap">
-<header id="bar"><span class="grip">⠿</span><span class="name">📝 Scratch Pad</span>
+<header id="bar"><span class="grip">⠿</span><span class="name">📝 Scorp Pad</span>
 <span class="hint">]] .. escapeHtml(sp.kindOf(cur) and sp.kindOf(cur).hint or "⌘T new · ⌘W close · ⌃Tab cycle · Esc") .. [[</span>
 ]] .. (sp.lastSaveErr and ('<span class="bad" title="' .. escapeHtml(sp.lastSaveErr) .. '">⚠ not saved</span>') or "") .. [[
 <button class="pin]] .. (sp.pinned and " on" or "") .. [[" id="pin" title="Pin: the pad stays up beside the app; Esc only hands the keyboard back">📌 ]] .. (sp.pinned and "Pinned" or "Pin") .. [[</button>
@@ -765,7 +766,7 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
     -- the active tab and saves it the same way.
     local function promptFallback()
         local cur = sp.activeTab() or sp.newTab("")
-        local okP, button, typed = pcall(hs.dialog.textPrompt, "Scratch Pad",
+        local okP, button, typed = pcall(hs.dialog.textPrompt, "Scorp Pad",
             "No web view on this Hammerspoon — this box edits the current tab.",
             cur.text or "", "Save", "Cancel")
         if not okP or button ~= "Save" then return end
@@ -819,22 +820,26 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
         pcall(function()
             uc:setCallback(function(msg)
                 local ok, err = pcall(handleMessage, msg and msg.body)
-                if not ok then print("📝 Scratch Pad: message handler — " .. tostring(err)) end
+                if not ok then print("📝 Scorp Pad: message handler — " .. tostring(err)) end
             end)
         end)
         local okV, view = pcall(hs.webview.new, rect, {}, uc)
         if not (okV and view) then sp.uc = nil; promptFallback() return end
         sp.webview = view
-        pcall(function() view:windowTitle("Scratch Pad") end)
+        pcall(function() view:windowTitle("Scorp Pad") end)
         pcall(function() view:allowTextEntry(true) end)
         pcall(function() view:closeOnEscape(false) end)
         pcall(function() view:level(hs.drawing.windowLevels.floating) end)
+        -- 6.171.0 — the window itself is translucent (LL: 35%); the page keeps its own colours.
+        if type(sp.alpha) == "number" and sp.alpha > 0 and sp.alpha < 1 then
+            pcall(function() view:alpha(sp.alpha) end)
+        end
         pcall(function() view:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" }) end)
         sp.nonActivatingApplied, sp.nonActivatingWhy = false, "not requested"
         if sp.nonActivating then
             sp.nonActivatingApplied, sp.nonActivatingWhy = sp.applyNonActivating(view)
             if not sp.nonActivatingApplied then
-                print("📝 Scratch Pad: non-activating panel unavailable — "
+                print("📝 Scorp Pad: non-activating panel unavailable — "
                       .. tostring(sp.nonActivatingWhy) .. "; opening the pad will bring Hammerspoon forward.")
             end
         end
@@ -875,7 +880,7 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
 
     _G.editors = _G.editors or {}
     table.insert(_G.editors, {
-        name  = "Scratch Pad",
+        name  = "Scorp Pad",
         key   = "⇪" .. sp.key,
         what  = "tabs saved as you type; ⇪N / ⇪2 open here too",
         order = 22,
@@ -891,7 +896,7 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
 
     function _G.scratchPadReport()
         local L = {}
-        L[#L + 1] = "📝 Scratch Pad — ⇪" .. sp.key .. (sp.enabled and "" or " (disabled)")
+        L[#L + 1] = "📝 Scorp Pad — ⇪" .. sp.key .. (sp.enabled and "" or " (disabled)")
         L[#L + 1] = "   store: " .. sp.file .. (sp.lastSaveErr and ("  ⚠️ " .. sp.lastSaveErr) or "")
         L[#L + 1] = "   tabs: " .. #sp.tabs .. " · history: " .. #sp.history
                     .. " · saves: " .. sp.saves .. " · failed writes: " .. (sp.saveFails or 0)
@@ -920,7 +925,7 @@ function M.warm(core)
     local ok, t = pcall(hs.timer.doAt, sp.sendAt, "1d", function() pcall(sp.send, "scheduled") end)
     if ok and t then sp.sendTimer = t     -- HELD
     else
-        print("📝 Scratch Pad: the " .. sp.sendAt .. " send is not armed — " .. tostring(t))
+        print("📝 Scorp Pad: the " .. sp.sendAt .. " send is not armed — " .. tostring(t))
         if _G.notices and _G.notices.record then
             pcall(_G.notices.record, "scratch", "the 4 PM task is not armed", tostring(t))
         end

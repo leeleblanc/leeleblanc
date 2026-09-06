@@ -458,7 +458,7 @@ function M.setup(core)
         local added = 0
         local function one(t, label, when)
             if type(t) ~= "table" or type(t.text) ~= "string" or t.text:match("^%s*$") then return end
-            add{ tag = "scratch", icon = "📝", src = "Scratch pad",
+            add{ tag = "scratch", icon = "📝", src = "Scorp pad",
                  text = oneLine(t.text):sub(1, uni.preview),
                  sub  = label .. " · " .. os.date("%b %d %H:%M", when or 0),
                  full = t.text }
@@ -686,7 +686,7 @@ function M.setup(core)
         { tag = "doc",   icon = "📄", label = "Documents",    fn = srcDocs      },
         { tag = "file",  icon = "📁", label = "File moves",   fn = srcFiles     },
         { tag = "pad",   icon = "🗒", label = "Capture Pad",  fn = srcPad       },
-        { tag = "scratch", icon = "📝", label = "Scratch pad", fn = srcScratch  },
+        { tag = "scratch", icon = "📝", label = "Scorp pad", fn = srcScratch  },
         { tag = "web",   icon = "🕘", label = "Chrome",       fn = srcWeb       },
         -- 🔧 LAST ON PURPOSE. Rows are gathered in this order and the page
         -- lists them in it, so the things you SAVED stay above the tools

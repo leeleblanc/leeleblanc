@@ -138,6 +138,7 @@ local function newWebviewStub(rect)
     local v = { rect = rect, _style = 0, deleted = false, shown = 0, hidden = 0, htmlSet = nil }
     function v:windowTitle(t) self.title = t return self end
     function v:allowTextEntry(x) self.textEntry = x return self end
+    function v:alpha(a) self.alphaSet = a return self end
     function v:closeOnEscape(x) self.closeOnEsc = x return self end
     function v:level(l) self.lvl = l return self end
     function v:behaviorAsLabels(b) self.behave = b return self end
@@ -255,7 +256,10 @@ out("2) typing — Lua at once, disk after the debounce, one held timer\n")
 -- =======================================================================
 sp.show()
 local view = WEBVIEWS[#WEBVIEWS]
-check("the pad opened one webview with the page in it", view and view.htmlSet and view.htmlSet:find("Scratch Pad", 1, true))
+check("the pad opened one webview with the page in it", view and view.htmlSet and view.htmlSet:find("Scorp Pad", 1, true))
+-- 6.171.0 — 1024×768, 35% translucent, both from sp.* so a profile can change them
+check("6.171.0: the pad is 1024×768 by default", sp.width == 1024 and sp.height == 768)
+check("6.171.0: the window is 35% translucent (alpha 0.65)", sp.alpha == 0.65 and view and view.alphaSet == 0.65, view and tostring(view.alphaSet))
 check("an empty tab is named by its place, not 'Untitled'", view.htmlSet:find(">Scratch 1<", 1, true) ~= nil and view.htmlSet:find("Untitled", 1, true) == nil)
 check("opening told the hyper watchdog to expect the release within 1.5 s",
       EXPECTED[#EXPECTED] and EXPECTED[#EXPECTED].secs == 1.5)
@@ -353,7 +357,7 @@ SUBMITS = {}
 local ok, why = sp.send("scheduled")
 check("with text the send is accepted", ok == true and #SUBMITS == 1, why)
 local s = SUBMITS[1]
-check("title is the prefix + the day", s and s.title:find("^Scratch pad · ") ~= nil, s and s.title)
+check("title is the prefix + the day", s and s.title:find("^Scorp pad · ") ~= nil, s and s.title)
 check("notes hold the open tab under a ## heading", s and s.desc:find("## second\nsecond\nline two!", 1, true) ~= nil, s and s.desc)
 check("notes hold the row closed today too", s and s.desc:find("## hello w (closed", 1, true) ~= nil)
 check("assignee is me, no attachment", s and s.assignee == "me" and s.attach == "")
