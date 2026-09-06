@@ -117,7 +117,14 @@ hs = {
     task = { new = function(bin, cb, args)
         local t = { bin = bin, cb = cb, args = args, started = false, terminated = false }
         function t:start() self.started = true return true end
-        function t:terminate() self.terminated = true end     -- 6.174.0 — a superseded task is stopped
+        -- 6.174.0 — A KILLED RUN EXITS TOO (chrome_history's 6.148.0
+        -- lesson): terminate() still delivers the callback, with the
+        -- signal's exit code. The stub does the same, so the suite sees
+        -- what the real hs.task would do.
+        function t:terminate()
+            self.terminated = true
+            if self.cb then pcall(self.cb, 15, "", "") end
+        end
         TASKS[#TASKS + 1] = t
         return t
     end },
@@ -422,7 +429,9 @@ do
     check("the header says Scorp Pad, offers ⌘W and → Asana now", h:find("📝 Scorp Pad", 1, true) and h:find("→ Asana now", 1, true) and h:find("a:'tabclose'", 1, true))
     check("the right pane shows the tab's links out (Alpha) and HISTORY, not backlinks",
           h:find("HISTORY", 1, true) and h:find('data-name="Alpha">→ Alpha', 1, true) and not h:find("BACKLINKS", 1, true))
-    check("the textarea holds the tab's text", h:find("<textarea", 1, true) and h:find(">groceries\nmilk [[Alpha]]</textarea>", 1, true))
+    -- 6.174.0 — the spare newline after the start tag: HTML discards one
+    -- there, so a note beginning with a blank line reaches the page whole
+    check("the textarea holds the tab's text", h:find("<textarea", 1, true) and h:find(">\ngroceries\nmilk [[Alpha]]</textarea>", 1, true))
     local writes = 0
     for k in pairs(FILES) do if k:find("scratch", 1, true) then writes = writes + 1 end end
     msg({ a = "edit", rel = "scratch:t1", text = "groceries\nmilk, eggs", sel = 5 })
@@ -929,6 +938,9 @@ msg({ a = "dayshift", d = 1, rel = v.doc.rel, text = v.doc.text, sel = 0 })
 check("› from there opens today's note unchanged", v.doc.rel == "Daily/" .. today .. ".md" and FILES[VAULT .. "/Daily/" .. today .. ".md"] == todayText)
 local hd = WEBVIEWS[#WEBVIEWS].htmlSet
 check("a daily note's page knows the days either side", hd:find('DAILY = {prev:"' .. yesterday .. '",next:"' .. os.date("%Y-%m-%d", os.time() + 86400) .. '"}', 1, true) ~= nil, hd:match("var DAILY[^\n]*"))
+check("…and its header wears ‹ yesterday · tomorrow › (dayshift buttons)",
+      hd:find('title="Previous day ⌘⇧[">‹ ' .. yesterday .. '</button>', 1, true) ~= nil
+      and hd:find('title="Next day ⌘⇧]">' .. os.date("%Y-%m-%d", os.time() + 86400) .. ' ›</button>', 1, true) ~= nil)
 v.openNote("Alpha"); v.render()
 msg({ a = "dayshift", d = -1 })
 check("‹ › with a plain note open only alerts", v.doc.rel == "Alpha.md" and ALERTS[#ALERTS]:find("open a daily note first", 1, true) ~= nil)
@@ -983,6 +995,117 @@ do
           hp:find('var SEARCH = {q:"", rows:[], more:false, err:"", busy:false}', 1, true) and hp:find("var TASKS = {rows:[", 1, true)
           and hp:find('var UNL = {key:"alpha"', 1, true) and hp:find('id="unlh"', 1, true) and hp:find('id="unl"', 1, true)
           and hp:find("function insertAtCaret(str, tail)", 1, true) and select(2, hp:gsub("<script", "")) == 1 and not hp:find("FS%d?px") and not hp:find("FSNUM"))
+    -- the page itself (6.174.0): the ids, the globals and the functions Lua and the JS suite rely on
+    local function has(...) for _, needle in ipairs({ ... }) do if not hp:find(needle, 1, true) then return false, needle end end return true end
+    check("the page has the mode strip, the 🔎 ☑ buttons, the footer, chips and outline", has('id="mode"', 'id="sbtn"', 'id="kbtn"', 'id="foot"', 'id="chips"', 'id="outline"', 'id="hint"'))
+    check("…the page-side globals", has('MODE = "notes"', 'TEMPLATES = [', 'TPLDIR = "Templates"', 'SMARTLISTS = true', 'LINEH = 16 * 1.5', 'TAGROWS = 15', 'CURKEY = "alpha"', 'DAILY = '))
+    check("…the Lua → page entry points and the page's own helpers", has("function setRows", "function setMentions", "function vaultHint", "function gotoLine", "function toggleTask", "function tplPick", "function setMode", "function tagsOf", "function drawOutline", "function drawFoot"))
+    check("…the messages the new keys send", has("a:'tplnew'", "a:'tplinsert'", "a:'search'", "a:'dayshift'", "a:'extract'", "a:'random'", "a:'mode'", "a:'tplnone'"))
+    check("tag rows walk with the ONE row walker (ROWSEL)", hp:find("ROWSEL = '#rows li[data-name],#rows li[data-tab],#rows li[data-tag]'", 1, true) ~= nil)
+    check("the chips sit first in the right pane, the OUTLINE last, after the mentions",
+          hp:find('<div id="links"><div id="chips" hidden></div><h4>LINKS OUT</h4>', 1, true) ~= nil and hp:find('</ul><h4>OUTLINE</h4><ul id="outline"></ul></div>', 1, true) ~= nil
+          and hp:find('<ul id="unl">', 1, true) < hp:find('<h4>OUTLINE</h4>', 1, true))
+    -- BOTH DIRECTIONS of the bridge, read off the code: every a:'x' the page can send has a
+    -- handleMessage branch; every function Lua evals exists on the page
+    local missing = {}
+    for act in hp:gmatch("a:'([%w_]+)'") do
+        if not real:find('a == "' .. act .. '"', 1, true) then missing[#missing + 1] = act end
+    end
+    check("every action the page sends has a Lua branch", #missing == 0, table.concat(missing, ","))
+    local noFn = {}
+    for fn in real:gmatch("v%.eval%([\"']([%a_]+)%(") do
+        if not hp:find("function " .. fn .. "(", 1, true) then noFn[#noFn + 1] = fn end
+    end
+    check("every function Lua evals is defined on the page", #noFn == 0, table.concat(noFn, ","))
+    -- a scratch tab's page: no note panes, the footer and the tag rows still there
+    if v.sp() then
+        v.openScratch(nil); v.render()
+        local hs17 = WEBVIEWS[#WEBVIEWS].htmlSet
+        local markup = hs17:match("^(.-)<script>") or ""
+        check("a scratch tab's page has no chips, outline or mentions pane — the footer stays",
+              not markup:find('id="chips"', 1, true) and not markup:find("OUTLINE", 1, true) and not markup:find("UNLINKED", 1, true) and markup:find('id="foot"', 1, true) ~= nil)
+        v.openNote("Alpha"); v.render()
+    end
+end
+
+-- =======================================================================
+out("18) 6.174.0 review — the killed task, the note the index has not seen,\n")
+out("    link-safe names, the stale filter and the page handshake\n")
+-- =======================================================================
+do
+    v.openNote("Alpha"); v.render()
+    -- (a) a terminated task's exit (15) is not an answer
+    v.setMode("tasks")                       -- starts the ☑ grep
+    local tt = v.tasksTask
+    v.tasksErr, v.lastTasks = nil, nil
+    v.hide()                                 -- terminates it: the stub fires cb(15, …)
+    check("closing the window mid-☑-grep is not reported as a grep failure",
+          v.tasksErr == nil and v.lastTasks == nil and tt ~= nil and tt.terminated == true, tostring(v.tasksErr))
+    v.open(); v.openNote("Alpha")
+    local mt = lastTaskWith("grep", "-rliwIF")
+    v.hide()
+    check("…nor is a terminated mentions grep", v.unlinked.why == nil and mt ~= nil and mt.terminated == true, tostring(v.unlinked.why))
+    v.open(); v.openNote("Alpha"); v.render()
+    local before = #ALERTS
+    v.insertTemplate("Meeting")
+    local ct, tm = lastTask("cat"), v.catTimer
+    if tm then tm.fn() end                   -- the 10 s timeout fires and kills the read
+    check("a template that never arrives says so ONCE, not twice",
+          ct ~= nil and ct.terminated == true and #ALERTS == before + 1
+          and ALERTS[#ALERTS]:find("did not arrive", 1, true) ~= nil, table.concat(ALERTS, " | ", before + 1))
+
+    -- (b) a note the index has not seen yet is OPENED, never seeded over
+    local rel = VAULT .. "/Daily/2026-09-05.md"
+    FILES[rel] = "# Friday\n\nyesterday's words\n"
+    v.notes, v.byKey = {}, {}                -- as after a reload, before the find lands
+    v.openNote("2026-09-05", "Daily", "# seeded\n\n")
+    check("a note the index does not know is read off disk, not overwritten",
+          v.doc.text == "# Friday\n\nyesterday's words\n" and v.doc.created ~= true
+          and FILES[rel] == "# Friday\n\nyesterday's words\n", v.doc.text)
+    v.scan("restore"); lastTask("find").cb(0, table.concat({
+        VAULT .. "/Alpha.md", VAULT .. "/Beta.md", VAULT .. "/Templates/Meeting.md" }, "\n"), "")
+    local lg = lastTaskWith("grep", "%[%[") ; if lg then lg.cb(1, "", "") end
+    finishTagGreps()
+
+    -- (c)(d) a name that has to survive [[ ]]
+    v.openNote("Alpha"); v.setText("keep ## Q3 plan #work\nmore\n")
+    PROMPT_ANSWERS[1] = { "Create", "" }     -- take the offered default
+    v.extract("keep ", "## Q3 plan #work\nmore\n")
+    check("an extracted name keeps no character that [[links]] cannot address",
+          PROMPTS[#PROMPTS].dflt == "Q3 plan work" and v.doc.name == "Q3 plan work"
+          and FILES[VAULT .. "/Alpha.md"]:find("[[Q3 plan work]]", 1, true) ~= nil, PROMPTS[#PROMPTS].dflt)
+    check("…and the link resolves to the note that was just created",
+          v.linkTarget("Q3 plan work") == v.doc.name, v.linkTarget("Q3 plan work"))
+    v.openNote("Alpha"); v.setText("Xcode tips\nrest\n")
+    PROMPT_ANSWERS[1] = { "Cancel", "" }
+    v.extract("", "Xcode tips\nrest\n")
+    check("a selection starting with an X keeps it (the [ ] box comes off whole)",
+          PROMPTS[#PROMPTS].dflt == "Xcode tips", PROMPTS[#PROMPTS].dflt)
+    v.openNote("Alpha"); v.setText("- [x] done thing\n")
+    PROMPT_ANSWERS[1] = { "Cancel", "" }
+    v.extract("", "- [x] done thing\n")
+    check("…and a ticked task line still loses its box", PROMPTS[#PROMPTS].dflt == "done thing", PROMPTS[#PROMPTS].dflt)
+
+    -- (e) the notes filter never reaches the ☑ box
+    v.openNote("Alpha"); v.filter = "alp"; v.setMode("tasks"); v.render()
+    check("a rebuild in ☑ TASKS mode leaves the box empty, not on the notes filter",
+          WEBVIEWS[#WEBVIEWS].htmlSet:find('id="q" placeholder="filter notes… ⌘F" value=""', 1, true) ~= nil)
+    v.setMode("notes"); v.render()
+
+    -- (f) a note that starts with a blank line reaches the page whole
+    v.openNote("Alpha"); v.setText("\n# after a blank line\n"); v.render()
+    check("a leading blank line survives the textarea (the spare newline HTML eats)",
+          WEBVIEWS[#WEBVIEWS].htmlSet:find(">\n\n# after a blank line", 1, true) ~= nil)
+
+    -- (g) the page says when it is ready, and gets what arrived meanwhile
+    v.openNote("Alpha")
+    v.unlinked = { key = v.doc.key, rels = { "Gamma.md" }, pending = false, why = nil, more = false }
+    EVALS[#EVALS + 1] = "sentinel"
+    msg({ a = "ready" })
+    check("the page's ready handshake re-sends the mentions answer it missed",
+          EVALS[#EVALS]:find('setMentions([{n:"Gamma",r:"Gamma.md"}], "alpha"', 1, true) ~= nil, EVALS[#EVALS])
+    check("the page announces itself when its load sequence ends",
+          WEBVIEWS[#WEBVIEWS].htmlSet:find("say({a:'ready'})", 1, true) ~= nil)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))

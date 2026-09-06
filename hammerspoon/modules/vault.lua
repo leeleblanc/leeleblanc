@@ -272,8 +272,17 @@ function M.setup(core)
     end
     -- A superseded task is terminated before its field is reused; a task
     -- that outlived its purpose (the window closed) the same way.
+    -- 6.174.0 — A KILLED RUN EXITS TOO (the 6.148.0 lesson in
+    -- chrome_history): terminate() still delivers the callback, with the
+    -- signal's exit code. Every kill marks its task here, and the wrapper
+    -- below drops that late answer — so closing the window mid-grep never
+    -- writes "grep exited 15" into the report or the panes.
+    local dead = setmetatable({}, { __mode = "k" })
     local function stopTask(field)
-        if v[field] then pcall(function() v[field]:terminate() end); v[field] = nil end
+        if v[field] then
+            dead[v[field]] = true
+            pcall(function() v[field]:terminate() end); v[field] = nil
+        end
     end
     -- One held hs.task on a named field. The callback clears the field
     -- (only if it is still ours) and never lets an error escape to the
@@ -282,6 +291,7 @@ function M.setup(core)
         if not (hs.task and hs.task.new) then return false, "no hs.task" end
         local t
         local ok, made = pcall(hs.task.new, bin, function(...)
+            if t and dead[t] then dead[t] = nil; return end   -- 6.174.0 — we killed it
             if v[field] == t then v[field] = nil end
             local okC, err = pcall(cb, ...)
             if not okC then warn(field .. ": " .. tostring(err)) end
@@ -364,6 +374,14 @@ function M.setup(core)
     local function safeName(name)
         name = trim(name):gsub("[/\\:]", "-"):gsub("%.md$", "")
         return name
+    end
+
+    -- 6.174.0 — a name that a [[link]] must address: linkTarget stops at
+    -- "|" and "#", and linksIn's own match stops at "]". A note called
+    -- "Fix #42" would be created, linked, and never found again — Obsidian
+    -- refuses the same characters in a file name.
+    local function linkSafe(name)
+        return trim((safeName(name):gsub("[%[%]|#%^]", " "):gsub("%s+", " ")))
     end
 
     -- ---- 6.174.0 — templates: the .md files under <vault>/Templates ----------
@@ -943,10 +961,21 @@ function M.setup(core)
         if v.doc and v.dirty then v.saveNow() end
         local n = v.find(name)
         if not n then
+            -- 6.174.0 — the index is asynchronous (empty after a reload,
+            -- stale for anything OneDrive delivered since the last scan).
+            -- Look on disk before deciding this note is new: ⌘⇧[ on a day
+            -- written by the other Mac must OPEN it, never seed over it.
+            -- Reading the file we are about to open is the one read this
+            -- module makes.
             local rel = (sub and sub ~= "") and (sub .. "/" .. name .. ".md") or (name .. ".md")
             n = v.noteFromRel(rel)
-            n.text = seed or ("# " .. name .. "\n\n")
-            n.created = true
+            local onDisk = readFile(n.path)
+            if onDisk ~= nil then
+                n.text = onDisk
+            else
+                n.text = seed or ("# " .. name .. "\n\n")
+                n.created = true
+            end
         else
             n = { name = n.name, rel = n.rel, path = n.path, key = n.key }
             local s = readFile(n.path)
@@ -1359,10 +1388,24 @@ function M.setup(core)
             v.unlinked = { key = d.key, rels = rels, pending = false, why = why, more = more }
             local rows = {}
             for _, rel in ipairs(rels) do rows[#rows + 1] = { n = rel:match("([^/]+)%.md$") or rel, r = rel } end
-            v.eval("setMentions(" .. jarr(rows) .. ", " .. jstr(d.key) .. ", " .. jstr(why or (more and "more" or "")) .. ")")
+            v.pushMentions()
         end)
         if not ok then v.unlinked.pending, v.unlinked.why = false, "unavailable" end
         return ok
+    end
+
+    -- 6.174.0 — hand the page the mentions answer Lua already holds. The
+    -- grep usually finishes BEFORE the new page has run its script, so the
+    -- answer lands in the old page (dropped by its key guard) or before
+    -- setMentions exists; the page says "ready" when its load sequence
+    -- ends and gets the answer then.
+    function v.pushMentions()
+        local u = v.unlinked
+        if u.pending or not u.key then return false end
+        local rows = {}
+        for _, rel in ipairs(u.rels or {}) do rows[#rows + 1] = { n = rel:match("([^/]+)%.md$") or rel, r = rel } end
+        v.eval("setMentions(" .. jarr(rows) .. ", " .. jstr(u.key) .. ", " .. jstr(u.why or (u.more and "more" or "")) .. ")")
+        return true
     end
 
     -- ---- 6.174.0 — ⌘⇧E: the selection becomes a new note, [[Name]] stays --
@@ -1384,11 +1427,14 @@ function M.setup(core)
         if trim(selText) == "" then alert("✂️ select some text first") return false end
         if v.doc.text:sub(#head + 1, #head + #selText) ~= selText then alert("✂️ the text changed — try again") return false end
         local firstLine = selText:match("[^\n]*[^%s\n][^\n]*") or ""
-        local default = firstLine:gsub("^[#>%-%*%+%s]*%[?[ xX]?%]?%s*", "")
-        default = utf8.len(safeName(default)) and cutChars(safeName(default), 60) or safeName(default):sub(1, 60)
+        -- the box comes off only as a whole: "%[?[ xX]?%]?" would eat the
+        -- leading X of "Xcode tips"
+        local default = firstLine:gsub("^[#>%-%*%+%s]*", ""):gsub("^%[[ xX]%]%s*", "")
+        default = linkSafe(default)
+        default = utf8.len(default) and cutChars(default, 60) or default:sub(1, 60)
         local okP, button, typed = pcall(hs.dialog.textPrompt, "Extract to a new note", "Name of the new note:", default, "Create", "Cancel")
         if not (okP and button == "Create") then return false end
-        local name = safeName(typed)
+        local name = linkSafe(typed)
         if name == "" then name = default end     -- the untouched default field
         if name == "" then return false end
         if v.find(name) then alert("✂️ a note named \"" .. name .. "\" already exists — pick another name", 3) return false end
@@ -1489,10 +1535,16 @@ function M.setup(core)
         end
         local unlBlock = '<h4 id="unlh">UNLINKED MENTIONS' .. (unlCount and (" · " .. unlCount) or "") .. '</h4><ul id="unl">' .. unlHtml .. '</ul>'
         -- DAILY ‹ ›: the days either side of an open daily note
-        local dailyJs = "null"
+        local dailyJs, dailyBtns = "null", ""
         if d and not d.scratch then
             local e = v.dailyEpochOf(d.rel)
-            if e then dailyJs = "{prev:" .. jstr(os.date("%Y-%m-%d", e - 86400)) .. ",next:" .. jstr(os.date("%Y-%m-%d", e + 86400)) .. "}" end
+            if e then
+                local prev, nxt = os.date("%Y-%m-%d", e - 86400), os.date("%Y-%m-%d", e + 86400)
+                dailyJs = "{prev:" .. jstr(prev) .. ",next:" .. jstr(nxt) .. "}"
+                -- the header's ‹ › live only on a daily note (⌘⇧[ ⌘⇧] always send; Lua says no otherwise)
+                dailyBtns = '<button onclick="say({a:\'dayshift\',d:-1})" title="Previous day ⌘⇧[">‹ ' .. prev .. '</button>'
+                         .. '<button onclick="say({a:\'dayshift\',d:1})" title="Next day ⌘⇧]">' .. nxt .. ' ›</button>'
+            end
         end
         local u = v.unlinked
         local unlRows = {}
@@ -1567,32 +1619,55 @@ textarea{flex:1;width:100%;box-sizing:border-box;resize:none;border:0;outline:0;
 #gtip{position:absolute;left:12px;bottom:10px;opacity:.55;font-size:FS2px;pointer-events:none}
 body.graph #ed,body.graph #links{display:none}
 body.graph #graph{display:block}
+[hidden]{display:none!important}
+#mode{padding:6px 12px 0;font-size:FS2px;opacity:.7}
+#mode.search{color:#8fb4ff}
+#mode.tasks{color:#e0b04a}
+#rows li.tag{display:flex}
+#rows li.tag .ct{opacity:.5;margin-left:auto}
+#rows li.tpl{opacity:.75}
+#rows li.hit,#rows li.task{white-space:normal;font-size:FS1px}
+.hn{font-weight:600}
+.hl{opacity:.5;margin:0 6px}
+.hx{opacity:.8}
+#foot{padding:3px 14px;font-size:FS2px;opacity:.5;border-top:1px solid #26262e}
+#chips{padding:2px 12px 6px}
+.chip{display:inline-block;background:#2c3a5a;border-radius:10px;padding:1px 8px;margin:2px 4px 2px 0;cursor:pointer;font-size:FS2px}
+#outline li.l2{padding-left:24px}
+#outline li.l3{padding-left:36px}
+#outline li.l4{padding-left:48px}
+#outline li.l5{padding-left:60px}
+#outline li.l6{padding-left:72px}
+#unl li{opacity:.85}
+#ac div.sec{opacity:.55;font-size:FS2px;cursor:default}
 ]==] .. theme .. [==[
 </style></head><body class="]==] .. (v.view == "graph" and "graph" or "") .. [==["><div id="wrap">
 <header id="hdr"><span class="name">]==] .. (isTab and "📝 Scorp Pad" or "🕸 Vault") .. [==[</span><span class="doc" title="]==] .. escapeHtml(d and d.rel or "") .. [==[">]==] .. escapeHtml(d and d.name or "no note open") .. [==[</span>
-<span class="hint">]==] .. escapeHtml(status) .. [==[</span>
+<span class="hint" id="hint">]==] .. escapeHtml(status) .. [==[</span>
 ]==] .. (v.lastSaveErr and ('<span class="bad" title="' .. escapeHtml(v.lastSaveErr) .. '">⚠ not saved</span>') or "") .. [==[
 ]==] .. (sp and '<button onclick="say({a:\'tabnew\'})" title="New scratch tab ⌘T">📝+</button>' or "") .. [==[
 ]==] .. (isTab and '<button onclick="say({a:\'tabclose\', tid: CUR.slice(8)})" title="Close this tab ⌘W (its text goes to the history)">⌘W</button><button onclick="say({a:\'send\'})" title="Create today\'s Asana task now instead of waiting for 16:00">→ Asana now</button>' or "") .. [==[
 <button onclick="say({a:'new'})" title="New note ⌘N">✚</button>
-<button onclick="say({a:'daily'})" title="Today ⌘D">📅</button>
+<button onclick="say({a:'daily'})" title="Today ⌘D">📅</button>]==] .. dailyBtns .. [==[<button onclick="tplPick('insert')" title="Insert a template ⌘⇧T">📄</button>
 <button onclick="say({a:'linkfile'})" title="Link a file ⌘K">📎</button>
+<button id="sbtn" onclick="setMode('search')" title="Search inside every note ⌘⇧F">🔎</button><button id="kbtn" class="]==] .. (v.mode == "tasks" and "on" or "") .. [==[" onclick="setMode(MODE==='tasks'?'notes':'tasks')" title="Every open task ⌘⇧K">☑</button>
 <button id="gbtn" class="]==] .. (v.view == "graph" and "on" or "") .. [==[" onclick="say({a:'graph'})" title="Graph ⌘G">🕸</button>
 <button onclick="say({a:'rescan'})" title="Rescan the folder">↻</button>
 <button id="pin" class="]==] .. (v.pinned and "on" or "") .. [==[" onclick="say({a:'pin'})" title="Pin: the window stays up beside the app; Esc only hands the keyboard back">📌</button>
 <button onclick="say({a:'hide'})" title="Close ⇪3 / ⇪1 / Esc">✕</button></header>
 <div id="main">
-<div id="side"><input id="q" placeholder="filter notes… ⌘F" value="]==] .. escapeHtml(v.filter) .. [==["><ul id="rows"></ul></div>
-<div id="ed"><textarea id="t" spellcheck="true" ]==] .. (d and "" or "disabled placeholder=\"⌘N a new note · ⌘D today · click a note on the left\"") .. [==[>]==] .. escapeHtml(d and d.text or "") .. [==[</textarea><div id="ac"></div></div>
-<div id="links"><h4>LINKS OUT</h4><ul id="outs">]==] .. (#outs > 0 and table.concat(outs) or '<div class="none">type [[ to link</div>') .. [==[</ul>
+<div id="side"><div id="mode" hidden></div><input id="q" placeholder="filter notes… ⌘F" value="]==] .. escapeHtml(v.mode == "notes" and v.filter or "") .. [==["><ul id="rows"></ul></div>
+<div id="ed"><textarea id="t" spellcheck="true" ]==] .. (d and "" or "disabled placeholder=\"⌘N a new note · ⌘D today · click a note on the left\"") .. [==[>]==] .. "\n" .. escapeHtml(d and d.text or "") .. [==[</textarea><div id="ac"></div><div id="foot"></div></div>
+<div id="links">]==] .. (isTab and "" or '<div id="chips" hidden></div>') .. [==[<h4>LINKS OUT</h4><ul id="outs">]==] .. (#outs > 0 and table.concat(outs) or '<div class="none">type [[ to link</div>') .. [==[</ul>
 ]==] .. (isTab and ('<h4>HISTORY · closed tabs</h4><ul id="hist">' .. (#hist > 0 and table.concat(hist) or '<div class="none">closed tabs land here — ⌘W</div>') .. '</ul>')
-             or ('<h4>BACKLINKS</h4><ul id="backs">' .. (#backs > 0 and table.concat(backs) or '<div class="none">nothing links here yet</div>') .. '</ul>' .. unlBlock)) .. [==[</div>
+             or ('<h4>BACKLINKS</h4><ul id="backs">' .. (#backs > 0 and table.concat(backs) or '<div class="none">nothing links here yet</div>') .. '</ul>' .. unlBlock .. '<h4>OUTLINE</h4><ul id="outline"></ul>')) .. [==[</div>
 <div id="graph"><canvas id="cv"></canvas><div id="gtip">click a dot to open · drag to untangle · hollow = not written yet · ⌘G back</div></div>
 </div></div>
 <script>
 var NOTES = ]==] .. v.notesJson() .. [==[;
 var GRAPH = ]==] .. v.graphJson() .. [==[;
 var CUR = ]==] .. jstr(d and d.rel or "") .. [==[;
+var CURKEY = ]==] .. jstr(d and d.key or "") .. [==[, CURNAME = ]==] .. jstr(d and d.name or "") .. [==[;
 var CARET = ]==] .. tostring(tonumber(v.caret) or 0) .. [==[;
 var VIEW = ]==] .. jstr(v.view) .. [==[;
 var TABS = []==] .. table.concat(tabsJs, ",") .. [==[], HASPAD = ]==] .. (sp and "true" or "false") .. [==[;
@@ -1614,52 +1689,161 @@ var t = document.getElementById('t'), q = document.getElementById('q'), hdr = do
 var ac = document.getElementById('ac'), rowsEl = document.getElementById('rows');
 function say(m){ m.text = t.value; m.sel = t.selectionStart; m.rel = CUR;
   try { window.webkit.messageHandlers.vault.postMessage(m); } catch(e){} }
-t.addEventListener('input', function(){ say({a:'edit'}); autocomplete(); });
+t.addEventListener('input', function(){ say({a:'edit'}); autocomplete(); paneSoon(); });
 hdr.addEventListener('mousedown', function(e){ if (e.button !== 0 || e.target.tagName === 'BUTTON') return;
   e.preventDefault(); hdr.classList.add('dragging'); say({a:'dragStart'}); });
 window.addEventListener('mouseup', function(){ hdr.classList.remove('dragging'); });
 document.addEventListener('keyup', function(e){
   if (e.key === 'F18' || e.keyCode === 79) say({a:'f18up'}); });
 
+// ---- 6.174.0 — the page's other elements (looked up once, every use guarded) ----
+var modeEl = document.getElementById('mode'), foot = document.getElementById('foot'), chips = document.getElementById('chips');
+var outlineEl = document.getElementById('outline'), unl = document.getElementById('unl'), unlh = document.getElementById('unlh');
+var hint = document.getElementById('hint'), kbtn = document.getElementById('kbtn');
+var HINT0 = (hint && hint.textContent) || '', PANE_T = null;
+var PLACEHOLDER = { notes: 'filter notes… ⌘F', search: 'words… ("a phrase", tag:x, path:x) — ⏎ opens at the line', tasks: 'filter the tasks…' };
+
 // ---- the note list (filtered) ----
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+// "#work" in the box → "work"; a plain filter → null
+function tagFilter(){ var f = (q.value || '').trim(); return f.charAt(0) === '#' ? f.slice(1).toLowerCase() : null; }
+// tagged x, or x/…; while typing (no tag equals x yet) a prefix counts too
+function noteHasTag(x, tag, exact){
+  var g = x.g || [];
+  for (var i = 0; i < g.length; i++) { var tg = g[i]; if (tg === tag || tg.indexOf(tag + '/') === 0 || (!exact && tg.indexOf(tag) === 0)) return true; }
+  return false;
+}
 function drawRows(){
-  var f = (q.value || '').toLowerCase().trim(), h = [], n = 0, s = [];
-  // 6.173.0 — the Scorp Pad's tabs first, a section of their own
-  for (var j = 0; j < TABS.length; j++) {
-    var tb = TABS[j];
-    if (f && tb.t.toLowerCase().indexOf(f) < 0) continue;
-    s.push('<li class="tab' + (tb.k ? ' ' + esc(tb.k) : '') + ('scratch:' + tb.id === CUR ? ' cur' : '') + '" data-tab="' + esc(tb.id) + '"><span class="tt">' + (tb.b ? esc(tb.b) + ' ' : '') + esc(tb.t) + '</span><span class="x" title="Close ⌘W">×</span></li>');
-  }
-  if (HASPAD) { s.unshift('<li class="sec">📝 SCRATCH</li>'); if (!f) s.push('<li class="add" data-tab="+">+ new tab ⌘T</li>'); s.push('<li class="sec">🕸 NOTES</li>'); }
+  if (MODE === 'search') { drawSearchRows(); return; }
+  if (MODE === 'tasks') { drawTaskRows(); return; }
+  var f = (q.value || '').toLowerCase().trim(), h = [], n = 0, s = [], tag = tagFilter();
+  if (tag !== null) f = '';
+  // 6.173.0 — the Scorp Pad's tabs first, a section of their own (hidden under a # filter)
+  if (HASPAD && tag === null) {
+    for (var j = 0; j < TABS.length; j++) {
+      var tb = TABS[j];
+      if (f && tb.t.toLowerCase().indexOf(f) < 0) continue;
+      s.push('<li class="tab' + (tb.k ? ' ' + esc(tb.k) : '') + ('scratch:' + tb.id === CUR ? ' cur' : '') + '" data-tab="' + esc(tb.id) + '"><span class="tt">' + (tb.b ? esc(tb.b) + ' ' : '') + esc(tb.t) + '</span><span class="x" title="Close ⌘W">×</span></li>');
+    }
+    s.unshift('<li class="sec">📝 SCRATCH</li>'); if (!f) s.push('<li class="add" data-tab="+">+ new tab ⌘T</li>'); s.push('<li class="sec">🕸 NOTES</li>');
+  } else if (HASPAD) s.push('<li class="sec">🕸 NOTES</li>');
+  var exact = false;
+  if (tag !== null) for (var e2 = 0; e2 < TAGS.length; e2++) if (TAGS[e2].k === tag) { exact = true; break; }
   for (var i = 0; i < NOTES.length; i++) {
     var x = NOTES[i];
-    if (f && x.n.toLowerCase().indexOf(f) < 0 && x.r.toLowerCase().indexOf(f) < 0) continue;
+    if (x.tpl) continue;                                   // 6.174.0 — templates sit in their own section below
+    if (tag !== null) { if (!noteHasTag(x, tag, exact)) continue; }
+    else if (f && x.n.toLowerCase().indexOf(f) < 0 && x.r.toLowerCase().indexOf(f) < 0) continue;
     h.push('<li class="note' + (x.r === CUR ? ' cur' : '') + '" data-name="' + esc(x.n) + '" title="' + esc(x.r) + '">' + esc(x.n) + '</li>');
     if (++n >= 400) break;
   }
-  if (!h.length) h.push('<li style="opacity:.4;cursor:default">' + (f ? 'no note matches — ⏎ creates &quot;' + esc(q.value.trim()) + '&quot;' : 'no notes yet — ⌘N') + '</li>');
-  rowsEl.innerHTML = s.join('') + h.join('');
+  if (!h.length) h.push('<li style="opacity:.4;cursor:default">' + (tag !== null ? 'no note carries #' + esc(tag) : (f ? 'no note matches — ⏎ creates &quot;' + esc(q.value.trim()) + '&quot;' : 'no notes yet — ⌘N')) + '</li>');
+  // 6.174.0 — 📄 TEMPLATES (never under a # filter), then 🏷 TAGS
+  var tp = [];
+  if (tag === null) for (var k = 0; k < NOTES.length; k++) {
+    var y = NOTES[k];
+    if (!y.tpl || (f && y.n.toLowerCase().indexOf(f) < 0 && y.r.toLowerCase().indexOf(f) < 0)) continue;
+    tp.push('<li class="tpl' + (y.r === CUR ? ' cur' : '') + '" data-name="' + esc(y.n) + '" title="' + esc(y.r) + '">📄 ' + esc(y.n) + '</li>');
+  }
+  if (tp.length) tp.unshift('<li class="sec">📄 TEMPLATES</li>');
+  var tg = [];
+  if (TAGS.length) {
+    var list = TAGS, more = 0;
+    if (tag !== null) list = TAGS.filter(function(z){ return z.k.indexOf(tag) >= 0; }).sort(function(a, b){ return a.k < b.k ? -1 : (a.k > b.k ? 1 : 0); });
+    else if (TAGS.length > TAGROWS) { list = TAGS.slice(0, TAGROWS); more = TAGS.length - TAGROWS; }
+    if (list.length) {
+      tg.push('<li class="sec">🏷 TAGS · ' + (tag !== null ? list.length : TAGS.length) + '</li>');
+      for (var m2 = 0; m2 < list.length; m2++) tg.push('<li class="tag" data-tag="' + esc(list[m2].k) + '"><span class="tt">#' + esc(list[m2].n) + '</span><span class="ct">' + list[m2].c + '</span></li>');
+      if (more) tg.push('<li class="sec">… ' + more + ' more — type # in the box</li>');
+    }
+  }
+  rowsEl.innerHTML = s.join('') + h.join('') + tp.join('') + tg.join('');
+  SEL = -1;
+}
+// 6.174.0 — 🔎 SEARCH: the rows Lua sent (note · line · snippet), the status in the strip
+function drawSearchRows(){
+  var h = [], rows = SEARCH.rows || [], files = {}, nf = 0, st;
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    if (!files[r.r]) { files[r.r] = true; nf++; }
+    h.push('<li class="hit" data-name="' + esc(r.n) + '" data-line="' + (r.l || 0) + '" title="' + esc(r.r) + '"><span class="hn">' + esc(r.n) + '</span>' + (r.l ? '<span class="hl">' + r.l + '</span>' : '') + '<span class="hx">' + esc(r.x || '') + '</span></li>');
+  }
+  if (SEARCH.more) h.push('<li class="sec">… more than ' + rows.length + ' hits — narrow the words</li>');
+  if (!(q.value || '').trim()) st = 'type words — every note is searched';
+  else if (SEARCH.busy) st = 'searching…';
+  else if (SEARCH.err) st = '⚠ ' + SEARCH.err;
+  else st = rows.length ? rows.length + ' hit' + (rows.length === 1 ? '' : 's') + ' in ' + nf + ' note' + (nf === 1 ? '' : 's') : 'no hit';
+  if (modeEl) modeEl.textContent = '🔎 SEARCH every note · Esc back · ' + st;
+  rowsEl.innerHTML = h.join('');
+  SEL = -1;
+}
+// 6.174.0 — ☑ TASKS: every open task Lua listed, the box filters them here
+function drawTaskRows(){
+  var f = (q.value || '').toLowerCase().trim(), h = [], rows = TASKS.rows || [];
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    if (f && r.n.toLowerCase().indexOf(f) < 0 && (r.x || '').toLowerCase().indexOf(f) < 0) continue;
+    h.push('<li class="task" data-name="' + esc(r.n) + '" data-line="' + (r.l || 0) + '" title="' + esc(r.r) + '">☐ ' + esc(r.x || '') + '<span class="hl">' + esc(r.n) + '</span></li>');
+  }
+  if (TASKS.more) h.push('<li class="sec">… more than ' + rows.length + ' tasks</li>');
+  if (!h.length) h.push('<li style="opacity:.4;cursor:default">' + (!TASKS.listed ? 'loading…' : (rows.length ? 'no task matches' : 'no open task — ⌘L makes one')) + '</li>');
+  if (modeEl) modeEl.textContent = '☑ TASKS · ' + rows.length + (TASKS.more ? '+' : '') + ' open · Esc back' + (TASKS.err ? ' · ⚠ ' + TASKS.err : '');
+  rowsEl.innerHTML = h.join('');
   SEL = -1;
 }
 rowsEl.addEventListener('click', function(e){
-  var li = e.target.closest ? e.target.closest('li[data-name],li[data-tab]') : null; if (!li) return;
+  var li = e.target.closest ? e.target.closest('li[data-name],li[data-tab],li[data-tag]') : null; if (!li) return;
   var tid = li.getAttribute('data-tab');
-  if (tid === '+') say({a:'tabnew'});
-  else if (tid) { if (e.target.closest && e.target.closest('.x')) say({a:'tabclose', tid: tid}); else say({a:'tab', tid: tid}); }
-  else say({a:'open', name: li.getAttribute('data-name')}); });
+  if (tid && tid !== '+' && e.target.closest && e.target.closest('.x')) say({a:'tabclose', tid: tid});
+  else rowAct(li); });
 document.getElementById('links').addEventListener('click', function(e){
   var li = e.target.closest ? e.target.closest('li[data-name],li[data-hist]') : null; if (!li) return;
   if (li.getAttribute('data-hist')) say({a:'restore', rid: li.getAttribute('data-hist')});
   else say({a:'open', name: li.getAttribute('data-name')}); });
-q.addEventListener('input', function(){ say({a:'filter', f: q.value}); drawRows(); });
+if (outlineEl) outlineEl.addEventListener('click', function(e){
+  var li = e.target.closest ? e.target.closest('li[data-line]') : null; if (li) gotoLine(+li.getAttribute('data-line')); });
+if (chips) chips.addEventListener('click', function(e){
+  var c = e.target.closest ? e.target.closest('[data-tag]') : null; if (c) setFilter('#' + c.getAttribute('data-tag')); });
+q.addEventListener('input', function(){
+  if (MODE === 'search') { SEARCH.q = q.value; SEARCH.busy = !!q.value.trim(); SEARCH.err = ''; say({a:'search', q: q.value}); drawRows(); }
+  else if (MODE === 'tasks') drawRows();
+  else { say({a:'filter', f: q.value}); drawRows(); } });
 q.addEventListener('keydown', function(e){
-  if (e.key === 'Enter' && SEL < 0 && q.value.trim()) { e.preventDefault(); say({a:'open', name: q.value.trim()}); }
+  if (e.key !== 'Enter' || SEL >= 0) return;
+  // notes: ⏎ creates the typed name — never one called "#x"; search / tasks: the first hit
+  if (MODE === 'notes') { var f = q.value.trim(); if (f && f.charAt(0) !== '#') { e.preventDefault(); say({a:'open', name: f}); } return; }
+  var r = rowsList()[0]; if (r) { e.preventDefault(); rowAct(r); }
 });
+// a tag row / chip → the notes list narrowed to that tag
+function setFilter(s){
+  if (MODE !== 'notes') setMode('notes');
+  q.value = s; say({a:'filter', f: s}); drawRows();
+}
+// the left column's three faces; Lua is told unless `quiet` (the load sequence)
+function setMode(m, quiet){
+  if (m !== 'search' && m !== 'tasks') m = 'notes';
+  var was = MODE; MODE = m;
+  if (was === 'search' && m !== 'search') { SEARCH.q = ''; SEARCH.rows = []; SEARCH.more = false; SEARCH.busy = false; SEARCH.err = ''; }
+  if (m === 'search') q.value = SEARCH.q || ''; else if (was !== m) q.value = '';
+  q.placeholder = PLACEHOLDER[m];
+  if (modeEl) { modeEl.hidden = (m === 'notes'); modeEl.className = m; }
+  if (kbtn) kbtn.classList.toggle('on', m === 'tasks');
+  if (!quiet) say({a:'mode', m: m});
+  drawRows();
+  q.focus();
+}
+// ---- Lua → page, without a rebuild (v.eval) ----
+function setRows(kind, rows, more, qq){
+  if (kind === 'search') { if (MODE !== 'search' || qq !== SEARCH.q) return; SEARCH.rows = rows || []; SEARCH.more = !!more; SEARCH.busy = false; drawRows(); }
+  else if (kind === 'tasks') { TASKS.rows = rows || []; TASKS.more = !!more; TASKS.listed = true; if (MODE === 'tasks') drawRows(); }
+}
+function setMentions(rows, key, why){ if (key !== UNL.key) return; UNL.rows = rows || []; UNL.pending = false; UNL.why = why || ''; drawUnlinked(); }
+function vaultHint(s){ if (hint) hint.textContent = s || HINT0; }
 
 // ⌨️ 6.170.0 — ARROW THROUGH THE ROWS. ⌥↑/⌥↓ always; plain ↑/↓ when the
 // caret is not in the text; ⏎ / ⌥⏎ acts on the highlighted row.
-var SEL = -1, ROWSEL = '#rows li[data-name],#rows li[data-tab]';
+// 6.174.0 — tag rows, template rows, search hits and tasks are rows too.
+var SEL = -1, ROWSEL = '#rows li[data-name],#rows li[data-tab],#rows li[data-tag]';
 function rowsList(){ try { return Array.prototype.slice.call(document.querySelectorAll(ROWSEL)); } catch(e){ return []; } }
 function inText(){ var a = null; try { a = document.activeElement; } catch(e){} return !!(a && a.tagName === 'TEXTAREA'); }
 function moveSel(d){
@@ -1681,45 +1865,180 @@ function rowKey(e){
   return false;
 }
 function rowAct(r){
-  var tid = r.getAttribute('data-tab');
+  var tid = r.getAttribute('data-tab'), tag = r.getAttribute('data-tag');
   if (tid === '+') say({a:'tabnew'}); else if (tid) say({a:'tab', tid: tid});
-  else say({a:'open', name: r.getAttribute('data-name')}); }
+  else if (tag) setFilter('#' + tag);
+  else { var l = +(r.getAttribute('data-line') || 0), name = r.getAttribute('data-name'); say(l ? {a:'open', name: name, line: l} : {a:'open', name: name}); } }
 function isTab(){ return CUR.indexOf('scratch:') === 0; }
 
-// ---- [[ autocomplete ----
-var ACSEL = 0, ACITEMS = [], ACSTART = -1;
-function acOpen(){ return ac.style.display === 'block'; }
-function acClose(){ ac.style.display = 'none'; ACITEMS = []; ACSTART = -1; }
-function autocomplete(){
-  var pos = t.selectionStart, head = t.value.slice(0, pos);
-  var i = head.lastIndexOf('[[');
-  if (i < 0 || head.indexOf(']]', i) >= 0 || head.slice(i).indexOf('\n') >= 0) { acClose(); return; }
-  // the caret is INSIDE a finished link (its ]] is ahead on this line): no list
-  var tail = t.value.slice(pos).split('\n')[0], c2 = tail.indexOf(']]'), o2 = tail.indexOf('[[');
-  if (c2 >= 0 && (o2 < 0 || c2 < o2)) { acClose(); return; }
-  var typed = head.slice(i + 2).toLowerCase(), items = [];
-  for (var k = 0; k < NOTES.length && items.length < 8; k++) {
-    if (!typed || NOTES[k].n.toLowerCase().indexOf(typed) >= 0) items.push(NOTES[k].n);
+// ---- the right pane (notes only): chips, outline, ≈ mentions; the footer for every doc ----
+// the JS twin of Lua's v.tagsIn: front matter, fences skipped, Obsidian's grammar
+function tagOk(s){
+  s = s.replace(/[.,;:!?)\]}'"\/]+$/, '');
+  if (!s || !/^[\w\/\-\u0080-\uffff]+$/.test(s) || !/[^\d]/.test(s)) return null;
+  return s;
+}
+function tagsOf(text){
+  var lines = String(text || '').split('\n').map(function(l){ return l.replace(/\r$/, ''); }), list = [], seen = {}, i = 0;
+  function add(c){ var tg = tagOk(c); if (tg && !seen[tg.toLowerCase()]) { seen[tg.toLowerCase()] = true; list.push(tg); } }
+  function fmValue(raw){ raw = raw.trim().replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1'); return raw.trim().replace(/^#/, '').trim(); }
+  if (lines[0] === '---') {
+    var j = 1; while (j < lines.length && lines[j] !== '---') j++;
+    if (j < lines.length) {
+      var inList = false;
+      for (var f = 1; f < j; f++) {
+        var m = lines[f].match(/^tags?:\s*(.*)$/);
+        if (m) {
+          var value = m[1].trim(); inList = true;
+          if (value) {
+            var items = value.charAt(0) === '[' ? value.replace(/^\[/, '').replace(/\]$/, '').split(',') : value.split(/[,\s]+/);
+            for (var k = 0; k < items.length; k++) if (items[k].trim()) add(fmValue(items[k]));
+          }
+        } else { var it = inList && lines[f].match(/^\s*-\s+(.+)$/); if (it) add(fmValue(it[1])); else inList = false; }
+      }
+      i = j + 1;
+    }
   }
-  if (!items.length) { acClose(); return; }
-  ACITEMS = items; ACSEL = 0; ACSTART = i + 2;
-  var h = [];
+  var fence = false, re = /(^|\s)#([^\s#]+)/g, mm;
+  for (; i < lines.length; i++) {
+    var L = lines[i];
+    if (/^\s*(```|~~~)/.test(L)) { fence = !fence; continue; }
+    if (fence) continue;
+    re.lastIndex = 0;
+    while ((mm = re.exec(L))) add(mm[2]);
+  }
+  return list;
+}
+function drawChips(){
+  if (!chips || isTab()) return;
+  var tags = tagsOf(t.value || ''), h = [];
+  for (var i = 0; i < tags.length; i++) h.push('<span class="chip" data-tag="' + esc(tags[i].toLowerCase()) + '">#' + esc(tags[i]) + '</span>');
+  chips.innerHTML = h.join(''); chips.hidden = !h.length;
+}
+// headings, one row each; fenced code and a leading front-matter block skipped
+function outlineOf(v){
+  var lines = v.split('\n'), out = [], fence = false, i = 0;
+  if (lines[0] === '---') { var j = 1; while (j < lines.length && lines[j] !== '---') j++; if (j < lines.length) i = j + 1; }
+  for (; i < lines.length; i++) {
+    var L = lines[i];
+    if (/^\s*(```|~~~)/.test(L)) { fence = !fence; continue; }
+    if (fence) continue;
+    var m = L.match(/^(#{1,6})\s+(.+?)\s*#*\s*$/);
+    if (m) out.push({ line: i + 1, level: m[1].length, text: m[2] });
+  }
+  return out;
+}
+function drawOutline(){
+  if (!outlineEl || isTab()) return;
+  var hd = outlineOf(t.value || ''), h = [];
+  for (var i = 0; i < hd.length; i++) h.push('<li class="hd l' + hd[i].level + '" data-line="' + hd[i].line + '" title="line ' + hd[i].line + '">' + esc(hd[i].text) + '</li>');
+  outlineEl.innerHTML = h.length ? h.join('') : '<div class="none">no headings — start a line with #</div>';
+}
+// the caret to the start of line n (1-based), scrolled a third from the top
+function gotoLine(n){
+  var lines = t.value.split('\n'), pos = 0;
+  for (var i = 0; i < n - 1 && i < lines.length; i++) pos += lines[i].length + 1;
+  try { t.setSelectionRange(pos, pos); } catch(e){}
+  try { t.scrollTop = Math.max(0, (n - 1) * LINEH - (t.clientHeight || 0) / 3); } catch(e){}
+  t.focus();
+}
+// ≈ UNLINKED MENTIONS — drawn only for the open note's own answer (Lua's
+// pre-fill stands otherwise)
+function drawUnlinked(){
+  if (!unl || isTab() || UNL.key !== CURKEY) return;
+  var h = [], rows = UNL.rows || [], why = UNL.why || '', listed = false;
+  if (UNL.pending) h.push('<div class="none">looking…</div>');
+  else if (why === 'too short') h.push('<div class="none">too short a name to search</div>');
+  else if (why === 'unavailable') h.push('<div class="none">unavailable on this Hammerspoon</div>');
+  else if (why.indexOf('grep exited') === 0) h.push('<div class="none">⚠ ' + esc(why) + '</div>');
+  else if (!rows.length) h.push('<div class="none">no other note mentions "' + esc(CURNAME) + '"</div>');
+  else {
+    listed = true;
+    for (var i = 0; i < rows.length; i++) h.push('<li class="lnk" data-name="' + esc(rows[i].n) + '" title="' + esc(rows[i].r) + '">≈ ' + esc(rows[i].n) + '</li>');
+    if (why === 'more') h.push('<div class="none">(first ' + rows.length + ')</div>');
+  }
+  unl.innerHTML = h.join('');
+  if (unlh) unlh.textContent = 'UNLINKED MENTIONS' + (listed ? ' · ' + rows.length : '');
+}
+function thou(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '\u2009'); }
+function drawFoot(){
+  if (!foot) return;
+  var v = t.value || '', s = thou((v.match(/\S+/g) || []).length) + ' words · ' + thou(v.length) + ' chars · ' + thou(v.split('\n').length) + ' lines';
+  var a = t.selectionStart, b = t.selectionEnd;
+  if (b > a) s += ' · ' + thou((v.slice(a, b).match(/\S+/g) || []).length) + ' words selected';
+  foot.textContent = s;
+}
+// the panes follow the typing a beat later (the page's own timer, not an hs.timer)
+function paneSoon(){
+  try { clearTimeout(PANE_T); } catch(e){}
+  PANE_T = setTimeout(function(){ if (!isTab()) { drawOutline(); drawChips(); } drawFoot(); }, 150);
+}
+t.addEventListener('select', drawFoot); t.addEventListener('keyup', drawFoot); t.addEventListener('mouseup', drawFoot);
+
+// ---- one popup, three kinds: [[ links, #tags, 📄 templates ----
+var ACSEL = 0, ACITEMS = [], ACSTART = -1, ACKIND = 'link', ACDONE = null;
+function acOpen(){ return ac.style.display === 'block'; }
+function acClose(){ ac.style.display = 'none'; ACITEMS = []; ACSTART = -1; ACKIND = 'link'; ACDONE = null; }
+function acShow(kind, items, start, header){
+  ACKIND = kind; ACITEMS = items; ACSEL = 0; ACSTART = start;
+  var h = header ? ['<div class="sec">' + esc(header) + '</div>'] : [];
   for (var j = 0; j < items.length; j++) h.push('<div class="' + (j === 0 ? 'sel' : '') + '" data-i="' + j + '">' + esc(items[j]) + '</div>');
   ac.innerHTML = h.join('');
   ac.style.display = 'block';
-  ac.style.left = '20px'; ac.style.top = Math.min(t.clientHeight - 80, 40 + 24 * (head.split('\n').length)) + 'px';
+  ac.style.left = '20px';
+  var line = t.disabled ? 0 : t.value.slice(0, t.selectionStart).split('\n').length;
+  ac.style.top = (t.disabled ? 40 : Math.min(t.clientHeight - 80, 40 + 24 * line)) + 'px';
 }
-function acDraw(){ var ds = ac.children; for (var i = 0; i < ds.length; i++) ds[i].className = i === ACSEL ? 'sel' : ''; }
+function autocomplete(){
+  var pos = t.selectionStart, head = t.value.slice(0, pos);
+  // the caret INSIDE a finished link (its ]] is ahead on this line): no list of any kind
+  var tail = t.value.slice(pos).split('\n')[0], c2 = tail.indexOf(']]'), o2 = tail.indexOf('[[');
+  var inLink = c2 >= 0 && (o2 < 0 || c2 < o2);
+  var i = head.lastIndexOf('[[');
+  if (i >= 0 && head.indexOf(']]', i) < 0 && head.slice(i).indexOf('\n') < 0) {
+    if (inLink) { acClose(); return; }
+    var typed = head.slice(i + 2).toLowerCase(), items = [];
+    for (var k = 0; k < NOTES.length && items.length < 8; k++) {
+      if (!typed || NOTES[k].n.toLowerCase().indexOf(typed) >= 0) items.push(NOTES[k].n);
+    }
+    if (!items.length) { acClose(); return; }
+    acShow('link', items, i + 2);
+    return;
+  }
+  // 6.174.0 — #wo (a # at the line start or after a space, at least one character) → known tags
+  var m = head.match(/(^|\s)#([^\s#\[\]]+)$/);
+  if (m && !inLink) {
+    var typed2 = m[2].toLowerCase(), items2 = [];
+    for (var k2 = 0; k2 < TAGS.length && items2.length < 8; k2++) if (TAGS[k2].k.indexOf(typed2) >= 0) items2.push(TAGS[k2].n);
+    if (items2.length) { acShow('tag', items2, head.length - m[2].length); return; }
+  }
+  acClose();
+}
+function acDraw(){ var ds = ac.children; for (var i = 0; i < ds.length; i++) { var k = ds[i].getAttribute ? ds[i].getAttribute('data-i') : null; if (k != null) ds[i].className = (+k === ACSEL) ? 'sel' : ''; } }
 function acAccept(i){
   var name = ACITEMS[i]; if (name == null) return;
-  var pos = t.selectionStart, after = t.value.slice(pos);
-  var close = after.indexOf(']]') === 0 ? '' : ']]';
-  t.value = t.value.slice(0, ACSTART) + name + close + after;
-  var np = ACSTART + name.length + 2;
+  if (ACKIND === 'tpl') { var fn = ACDONE; acClose(); if (fn) fn(name); return; }
+  var pos = t.selectionStart, after = t.value.slice(pos), np;
+  if (ACKIND === 'tag') {
+    t.value = t.value.slice(0, ACSTART) + name + after;
+    np = ACSTART + name.length;
+  } else {
+    var close = after.indexOf(']]') === 0 ? '' : ']]';
+    t.value = t.value.slice(0, ACSTART) + name + close + after;
+    np = ACSTART + name.length + 2;
+  }
   try { t.setSelectionRange(np, np); } catch(e){}
-  acClose(); say({a:'edit'});
+  acClose(); say({a:'edit'}); paneSoon();
 }
 ac.addEventListener('mousedown', function(e){ var d = e.target; if (d && d.getAttribute && d.getAttribute('data-i') != null) { e.preventDefault(); acAccept(+d.getAttribute('data-i')); } });
+// 📄 ⌘⇧T inserts at the caret, ⌘⇧N makes a new note ("— blank —" = ⌘N)
+function tplPick(what){
+  if (!TEMPLATES.length) { say({a:'tplnone'}); return; }
+  var items = what === 'new' ? ['— blank —'] : [];
+  for (var i = 0; i < TEMPLATES.length; i++) items.push(TEMPLATES[i].n);
+  ACDONE = function(name){ var nm = name === '— blank —' ? '' : name; if (what === 'new') say({a:'tplnew', name: nm}); else say({a:'tplinsert', name: nm}); };
+  acShow('tpl', items, -1, what === 'new' ? '📄 New note from…' : '📄 Insert at the caret…');
+}
 
 // ---- the link under the caret: [[wiki]] first, then [text](target) ----
 function linkAtCaret(){
@@ -1735,33 +2054,85 @@ function insertAtCaret(str, tail){
   var a = t.selectionStart, b = t.selectionEnd;
   t.value = t.value.slice(0, a) + str + tail + t.value.slice(b);
   try { t.setSelectionRange(a + str.length, a + str.length); } catch(e){}
-  say({a:'edit'});
+  say({a:'edit'}); paneSoon(); drawFoot();
 }
-// 6.174.0 page: setRows(kind, rows, more, q), setMentions(rows, key, why), vaultHint(s),
-// gotoLine(n), setMode(m), tplPick(what), toggleTask() and the CARETLINE / CARETHEAD
-// load step are the page engineer's — Lua already calls the first three by v.eval.
+// ⌘L — the caret line (or every line of the selection): - [ ] ↔ - [x]; a
+// list line gets a box; a plain line becomes an item. Marker and indent
+// stay, the caret keeps its place in the text, native ⌘Z undoes it.
+function toggleTask(){
+  if (t.disabled) return;
+  var v = t.value, a = t.selectionStart, b = t.selectionEnd;
+  var ls = a > 0 ? v.lastIndexOf('\n', a - 1) + 1 : 0, le = v.indexOf('\n', b); if (le < 0) le = v.length;
+  var lines = v.slice(ls, le).split('\n'), out = [], delta0 = 0, total = 0;
+  for (var i = 0; i < lines.length; i++) {
+    var L = lines[i], m = L.match(/^(\s*)([-*+]|\d+\.)\s+\[( |x|X)\]\s?(.*)$/), n;
+    if (m) n = m[1] + m[2] + ' [' + (m[3] === ' ' ? 'x' : ' ') + '] ' + m[4];
+    else if ((m = L.match(/^(\s*)([-*+]|\d+\.)\s+(.*)$/))) n = m[1] + m[2] + ' [ ] ' + m[3];
+    else { m = L.match(/^(\s*)(.*)$/); n = m[1] + '- [ ] ' + m[2]; }
+    if (i === 0) delta0 = n.length - L.length;
+    total += n.length - L.length;
+    out.push(n);
+  }
+  t.value = v.slice(0, ls) + out.join('\n') + v.slice(le);
+  var na = Math.max(ls, a + delta0), nb = Math.max(na, b + total);
+  try { t.setSelectionRange(na, nb); } catch(e){}
+  say({a:'edit'}); paneSoon(); drawFoot();
+}
+// ⏎ on a list line continues it (- * + 1. and their boxes); on an EMPTY
+// item it drops the marker; any other line keeps the native ⏎
+function smartEnter(e){
+  if (!SMARTLISTS || t.disabled) return false;
+  var v = t.value, a = t.selectionStart, ls = a > 0 ? v.lastIndexOf('\n', a - 1) + 1 : 0, le = v.indexOf('\n', a); if (le < 0) le = v.length;
+  var m = v.slice(ls, le).match(/^(\s*)([-*+]|\d+\.)(\s+\[[ xX]\])?\s+(.*)$/);
+  if (!m) return false;
+  var np;
+  if (m[4] === '') { t.value = v.slice(0, ls) + m[1] + v.slice(le); np = ls + m[1].length; }
+  else {
+    var mk = /^\d+\.$/.test(m[2]) ? (parseInt(m[2], 10) + 1) + '.' : m[2];
+    var ins = '\n' + m[1] + mk + ' ' + (m[3] ? '[ ] ' : '');
+    t.value = v.slice(0, a) + ins + v.slice(t.selectionEnd); np = a + ins.length;
+  }
+  try { t.setSelectionRange(np, np); } catch(e2){}
+  e.preventDefault(); say({a:'edit'}); paneSoon();
+  return true;
+}
 
 document.addEventListener('keydown', function(e){
-  var meta = e.metaKey || e.ctrlKey;
+  var meta = e.metaKey || e.ctrlKey, kk = (e.key || '').toLowerCase();
   if (acOpen() && !meta) {
     if (e.key === 'ArrowDown') { e.preventDefault(); ACSEL = (ACSEL + 1) % ACITEMS.length; acDraw(); return; }
     if (e.key === 'ArrowUp') { e.preventDefault(); ACSEL = (ACSEL + ACITEMS.length - 1) % ACITEMS.length; acDraw(); return; }
     if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); acAccept(ACSEL); return; }
     if (e.key === 'Escape') { e.preventDefault(); acClose(); return; }
   }
-  if (e.key === 'Escape') { e.preventDefault(); say({a:'esc'}); return; }
+  // Esc: a search / task view goes back to the notes first; then the window
+  if (e.key === 'Escape') { e.preventDefault(); if (MODE !== 'notes') setMode('notes'); else say({a:'esc'}); return; }
   if (rowKey(e)) return;
+  // 6.174.0 — the ⌘⇧ chords sit BEFORE the plain ⌘ letters (⌘⇧T is not ⌘T)
+  if (meta && e.shiftKey) {
+    if (kk === 'f') { e.preventDefault(); setMode('search'); return; }
+    if (kk === 'k') { e.preventDefault(); setMode(MODE === 'tasks' ? 'notes' : 'tasks'); return; }
+    if (kk === 't') { e.preventDefault(); tplPick('insert'); return; }
+    if (kk === 'n') { e.preventDefault(); tplPick('new'); return; }
+    if (kk === 'e') { e.preventDefault(); say({a:'extract', head: t.value.slice(0, t.selectionStart), selText: t.value.slice(t.selectionStart, t.selectionEnd)}); return; }
+    if (kk === 'r') { e.preventDefault(); say({a:'random'}); return; }
+    if (e.code === 'BracketLeft' || e.key === '[' || e.key === '{') { e.preventDefault(); say({a:'dayshift', d: -1}); return; }
+    if (e.code === 'BracketRight' || e.key === ']' || e.key === '}') { e.preventDefault(); say({a:'dayshift', d: 1}); return; }
+  }
   // 6.173.0 — the Scorp Pad's tab keys, from anywhere in the window
   if (e.ctrlKey && e.key === 'Tab') { e.preventDefault(); if (HASPAD) say({a:'tabcycle', d: e.shiftKey ? -1 : 1}); return; }
-  if (meta && (e.key === 't' || e.key === 'T')) { e.preventDefault(); if (HASPAD) say({a:'tabnew'}); return; }
-  if (meta && (e.key === 'w' || e.key === 'W')) { e.preventDefault(); if (isTab()) say({a:'tabclose', tid: CUR.slice(8)}); return; }
+  if (meta && !e.shiftKey && kk === 't') { e.preventDefault(); if (HASPAD) say({a:'tabnew'}); return; }
+  if (meta && !e.shiftKey && kk === 'w') { e.preventDefault(); if (isTab()) say({a:'tabclose', tid: CUR.slice(8)}); return; }
   if (meta && e.key >= '1' && e.key <= '9') { e.preventDefault(); if (HASPAD) say({a:'tabnth', n: e.key}); return; }
   if (meta && e.key === 'Enter') { e.preventDefault(); var l = linkAtCaret(); if (l) say({a:'follow', target: l.target, md: l.md}); return; }
-  if (meta && (e.key === 'n' || e.key === 'N')) { e.preventDefault(); say({a:'new'}); return; }
-  if (meta && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); say({a:'daily'}); return; }
-  if (meta && (e.key === 'g' || e.key === 'G')) { e.preventDefault(); say({a:'graph'}); return; }
-  if (meta && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); say({a:'linkfile'}); return; }
-  if (meta && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); q.focus(); q.select(); return; }
+  if (meta && !e.shiftKey && kk === 'n') { e.preventDefault(); say({a:'new'}); return; }
+  if (meta && !e.shiftKey && kk === 'd') { e.preventDefault(); say({a:'daily'}); return; }
+  if (meta && !e.shiftKey && kk === 'g') { e.preventDefault(); say({a:'graph'}); return; }
+  if (meta && !e.shiftKey && kk === 'k') { e.preventDefault(); say({a:'linkfile'}); return; }
+  if (meta && !e.shiftKey && kk === 'l') { e.preventDefault(); toggleTask(); return; }
+  // ⌘F · ⌘O (Obsidian's quick switcher): the notes list, the box selected
+  if (meta && !e.shiftKey && (kk === 'f' || kk === 'o')) { e.preventDefault(); if (MODE !== 'notes') setMode('notes'); q.focus(); q.select(); return; }
+  if (e.key === 'Enter' && !meta && !e.altKey && !e.shiftKey && inText() && !acOpen()) { smartEnter(e); return; }
 });
 
 // ---- the graph: a small force layout in a canvas ----
@@ -1820,8 +2191,19 @@ function graphStart(){
   cv.onmouseleave = function(){ G.drag = null; };
   tick();
 }
-drawRows();
-if (VIEW === 'graph') { graphStart(); } else { t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){} }
+// 6.174.0 — the load sequence: the list in its mode, the panes, then the caret
+// (a line from a search / task row, a template's {{cursor}} head, else where it was)
+setMode(MODE, true);
+if (VIEW === 'graph') { graphStart(); }
+else {
+  if (!isTab()) { drawChips(); drawOutline(); drawUnlinked(); }
+  drawFoot();
+  if (CARETLINE > 0) gotoLine(CARETLINE);
+  else if (CARETHEAD !== null) { var p0 = CARETHEAD.length; t.focus(); try { t.setSelectionRange(p0, p0); } catch(e){} }
+  else if (MODE !== 'notes') { q.focus(); try { q.selectionStart = q.selectionEnd = q.value.length; } catch(e){} }
+  else { t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){} }
+  say({a:'ready'});   /* 6.174.0 — answers that arrived while this page loaded */
+}
 </script></body></html>]==]
         v.caretLine, v.caretHead = nil, nil     -- 6.174.0 — emitted once; a later render never re-selects
         return (html:gsub("FSLABEL", tostring(math.floor(fs - 3))):gsub("FSNUM", tostring(math.floor(fs)))
@@ -1869,6 +2251,13 @@ if (VIEW === 'graph') { graphStart(); } else { t.focus(); try { t.setSelectionRa
                 v.eval("insertAtCaret(" .. jstr(link) .. ")")
             elseif why ~= "cancelled" then
                 pcall(function() hs.alert.show("🕸 " .. tostring(why), 2) end)
+            end
+        -- 6.174.0 — the page finished loading: hand it anything that
+        -- arrived while it was still being built.
+        elseif a == "ready" then
+            if v.doc and not v.doc.scratch and v.unlinked.key == v.doc.key then v.pushMentions() end
+            if v.mode == "tasks" and v.lastTasks then
+                v.eval("setRows(\"tasks\", " .. jarr(v.taskRows) .. ", " .. tostring(v.taskMore) .. ", \"\")")
             end
         elseif a == "rescan" then
             v.scan("button")

@@ -41,10 +41,18 @@ _G.diag = { say = function() end, warn = function() end }
 local mod = dofile(MODDIR .. "/vault.lua")
 mod.setup({ cloudDir = "/od", logsDir = "/od/Logs", provide = function() end, hyperAddShortcut = function() end })
 local v = _G.vault
-v.setNotes({ "Alpha.md", "Projects/Beta.md", "Gamma.md", "Long Name Here.md" })
+-- 6.174.0 — a template and a daily note in the index; tags, a task list and
+-- a mentions answer, so the page has every pane's data to draw
+v.setNotes({ "Alpha.md", "Projects/Beta.md", "Gamma.md", "Long Name Here.md", "Templates/Meeting.md", "Daily/2026-09-06.md" })
 v.setLinkLines("/od/Vault/Alpha.md:[[Beta|B]]\n/od/Vault/Gamma.md:[[Alpha]]\n/od/Vault/Gamma.md:[[Delta]]\n")
-v.doc = { name = "Alpha", rel = "Alpha.md", path = "/od/Vault/Alpha.md", key = "alpha", text = "# Alpha\n\nsee [[Beta|B]] and [x](../Docs/x.pdf)\n" }
+v.tagsOf = { ["Alpha.md"] = { "Work" }, ["Gamma.md"] = { "work/deep" }, ["Projects/Beta.md"] = { "Home" } }
+v.rebuildTags()
+v.doc = { name = "Alpha", rel = "Alpha.md", path = "/od/Vault/Alpha.md", key = "alpha",
+          text = "# Alpha\n\nsee [[Beta|B]] and [x](../Docs/x.pdf) #Work\n\n## Part two\n- [ ] a task\n- done\n" }
 v.links["Alpha.md"] = v.linksIn(v.doc.text)
+v.taskRows = { { n = "Gamma", r = "Gamma.md", l = 4, x = "call" } }
+v.lastTasks = 0
+v.unlinked = { key = "alpha", rels = { "Gamma.md" }, pending = false }
 -- 6.173.0 — "pad" as the second argument: the Scorp Pad's tabs in the list, a tab open
 if arg[2] == "pad" then
   local PAD = { viaVault = true, historyRows = 200, kinds = { capture = { badge = "🗒", label = "Capture", hint = "⌘W queues this" } },
