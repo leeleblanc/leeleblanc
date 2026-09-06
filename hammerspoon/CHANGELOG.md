@@ -4,6 +4,42 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.176.0 — ⇪X MOUSE GRID: SMALLER CELLS, SAME THREE KEYSTROKES:
+  🎯 LL: "each cell is rather large … when I type the three letters I'm
+     still rather far off from a dialogue, can we reduce the size of the
+     cells so I have a better chance of hitting a button." The grid's
+     alphabet is now the home row PLUS the row below it — asdfghjkl
+     zxcvbnm, 16 keys instead of 9 — so capacity goes from 9³ = 729
+     cells to 16³ = 4,096. On LL's 2560×1440 that is roughly a 30 pt
+     cell where it was 70: SMALLER than Apple's own 44 pt minimum
+     control size, which means the cell is usually smaller than the
+     button inside it and the first landing is a hit rather than a
+     near miss. It is still THREE keystrokes — the fingers travel one
+     row down, and that is the entire price of the change. The
+     snap-to-control pass (6.154.0) and the arrow nudge still work as
+     before; they now have far less distance to make up.
+  ✏️ The trade is a knob, both ways. Back to the old feel — bigger
+     cells, no travel: `settings = { mouse_grid = { alphabet =
+     "asdfghjkl" } }`. Finer still: `{ labelLength = 4 }` for 6,561
+     cells at four keystrokes. `_G.mouseGridReport()` prints the REAL
+     cols × rows and cell size in points for every display on THIS Mac
+     — read it after any change here instead of guessing, because two
+     displays split the capacity by area and halve the benefit.
+  ⏱ 4,096 cells is about five times the canvas elements 729 was, and
+     the layout is built on the main thread. It is cached per DISPLAY
+     LAYOUT, so the cost lands once — on the first press after a reload
+     or a monitor change — never on a press. But "once" is still a
+     stall LL would feel with no explanation, so a build slower than
+     `mouse_grid.buildSlowMs` (120 ms) now prints one plain line naming
+     the cost, saying it happens once per display layout, and giving
+     the smaller-grid override. A stall nobody can explain gets blamed
+     on the whole config.
+  ✅ Gate: test_mouse_grid 350 → 376 (the shipped alphabet asserted, the
+     narrow one kept working as an override, and the slow-build line
+     tested from both sides). The suite's geometry and snap checks are
+     PINNED to the old 9-key alphabet — their arithmetic is what is
+     under test, not which alphabet ships. 67 modules. 7,552 → 7,561
+     checks, seventy-three stages.
 NEW IN 6.175.2 — THE PAD/VAULT WINDOW IS SOLID:
   🪟 LL: "Make it fully solid." Alpha 1 — and the module now leaves the
      window's alpha ALONE rather than setting it to 1, because a window

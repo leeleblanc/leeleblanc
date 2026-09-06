@@ -84,13 +84,16 @@
 --
 --        #alphabet ^ labelLength
 --
--- Default: 9 home-row keys, 3 deep = 729 cells, and your fingers never
--- leave asdfghjkl. On one 1512×982 display that is ~34×21 cells of about
--- 45pt — near Apple's own 44pt minimum control size, so most targets are
--- a straight hit.
+-- Default since 6.176.0: 16 keys (home row + the row below), 3 deep =
+-- 4,096 cells. On one 2560×1440 display that is ~85×48 cells of about
+-- 30pt — under Apple's 44pt minimum control size, so a cell is usually
+-- SMALLER than the button in it and the first landing is a hit. The old
+-- default was the 9 home-row keys, 729 cells, ~45pt on a 1512×982 panel
+-- and ~70pt on a 4K — comfortable to type, but coarser than a toolbar
+-- button, which is what LL kept running into.
 --
--- ⚠️ TWO OR MORE DISPLAYS SPLIT THAT 729. Two screens gives roughly
--- 85pt cells, which is coarser than many buttons — the arrow-key nudge in
+-- ⚠️ TWO OR MORE DISPLAYS SPLIT THAT 4,096 BY AREA. Two screens roughly
+-- doubles the cell, which can be coarser than a button — the nudge in
 -- landed mode exists for exactly that. If you run multiple displays and
 -- want the fine grid back, buy capacity by widening the alphabet:
 --
@@ -184,8 +187,25 @@ function M.setup(core)
     -- Capacity is alphabet^labelLength — see the arithmetic block above.
     -- These two are ONE decision, not two: changing either changes how
     -- many cells exist and therefore how precise the grid is.
-    grid.alphabet    = "asdfghjkl"  -- home row only; never leave it
+    -- 6.176.0 — LL: "each cell is rather large … when I type the three
+    -- letters I'm still rather far off from a dialogue, can we reduce
+    -- the size of the cells so I have a better chance of hitting a
+    -- button." The bottom row joins the home row: 16 characters cubed is
+    -- 4,096 cells instead of 729, which on LL's 2560×1440 is roughly a
+    -- 30 pt cell where it was 70 — smaller than most buttons, so the
+    -- first landing is usually ON the thing. Still THREE keystrokes; the
+    -- fingers travel one row, which is the whole price.
+    -- ✏️ Back to the pure home row (bigger cells, less travel):
+    --    settings = { mouse_grid = { alphabet = "asdfghjkl" } }
+    --    and 4,096 → 6,561 with { labelLength = 4 } if you want finer
+    --    still. `_G.mouseGridReport()` prints the REAL cell size on this
+    --    Mac — read it after any change here rather than guessing.
+    grid.alphabet    = "asdfghjklzxcvbnm"  -- home row + the row below it
     grid.labelLength = 3
+    -- ✏️ How slow a geometry build has to be before the Console says so
+    -- (milliseconds). See the note where it is used: the cost is once
+    -- per display layout, never per press.
+    grid.buildSlowMs = 120
 
     -- 🎨 The look you asked for. Read as COVERAGE and BRIGHTNESS, which is
     -- the only reading that works: a 30% *opaque* grey would hide the very
@@ -530,6 +550,20 @@ function M.setup(core)
         end
         say(string.format("geometry: %d screens, %d cells of %d capacity, %.1fms",
             #plan, index, capacity, ms))
+        -- 6.176.0 — 4,096 cells is ~5x the canvas elements 729 was, and
+        -- this build runs on the MAIN thread. It is cached per display
+        -- layout, so the cost lands once, on the first press after a
+        -- reload or a monitor change — but "once" is still a stall LL
+        -- would feel and have no explanation for. So a slow build says
+        -- so ONCE, in plain words, with the knob that fixes it. This is
+        -- a print, not a warn: it is a tuning note, not a fault.
+        if ms > grid.buildSlowMs then
+            print(string.format("🎯 mouse grid: laying out %d cells took %.0f ms on "
+                .. "this Mac — that happens once per display layout, not per press. "
+                .. "If the first ⇪X after a reload feels slow, a smaller grid is "
+                .. "settings = { mouse_grid = { alphabet = \"asdfghjkl\" } } "
+                .. "(729 cells, bigger cells).", index, ms))
+        end
         return { screens = plan, used = index, capacity = capacity,
                  truncated = truncated, chars = chars }
     end

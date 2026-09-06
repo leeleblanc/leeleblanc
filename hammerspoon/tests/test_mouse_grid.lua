@@ -303,6 +303,8 @@ local function said(needle)
 end
 
 -- Load the SHIPPED file. `src` lets section 8 hand in a mutated copy.
+DEFAULT_ALPHABET = nil
+PIN_ALPHABET = "asdfghjkl"   -- 6.176.0: the alphabet the checks below assume
 local function loadModule(src)
     resetWorld()
     local chunk, err
@@ -319,6 +321,17 @@ local function loadModule(src)
     local okS, sErr = pcall(M.setup, CORE)
     if not okS then return nil, sErr end
     grid = _G.mouseGrid
+    -- 6.176.0 — THE SHIPPED DEFAULT WIDENED (9 home-row keys → 16, the
+    -- row below joins in) so a cell is smaller than the button in it.
+    -- Every geometry and snap check below was written against the 9-key
+    -- grid and its ~45 pt cell, and their arithmetic is what is under
+    -- test, not which alphabet ships — so they are PINNED to the old one
+    -- here. The default itself is asserted once, in section 3, from
+    -- DEFAULT_ALPHABET captured before the pin. The modal was bound with
+    -- the real (wider) alphabet during setup, so every pinned letter is
+    -- still a bound key.
+    DEFAULT_ALPHABET = grid.alphabet
+    grid.alphabet = PIN_ALPHABET or grid.alphabet
     return M
 end
 
@@ -496,6 +509,43 @@ loadModule()
 grid.show(false)
 checkInv("after show")
 local cache = grid.cache
+-- 6.176.0 — LL: "each cell is rather large … when I type the three
+-- letters I'm still rather far off from a dialogue." The shipped
+-- alphabet is the home row PLUS the row below it: 16^3 = 4,096 cells
+-- instead of 729, which is roughly a 30 pt cell on LL's 2560×1440
+-- where it was 70 — smaller than most buttons. Still three keystrokes.
+check("6.176.0: the SHIPPED alphabet is 16 keys, not 9 — a cell has to "
+      .. "be smaller than the button in it",
+      DEFAULT_ALPHABET == "asdfghjklzxcvbnm" and #DEFAULT_ALPHABET == 16,
+      DEFAULT_ALPHABET)
+check("…which is 4,096 cells, and it is still THREE keystrokes",
+      (#DEFAULT_ALPHABET) ^ 3 == 4096 and grid.labelLength == 3)
+check("…and every one of those keys is on the two easiest rows",
+      DEFAULT_ALPHABET:match("^[asdfghjklzxcvbnm]+$") ~= nil, DEFAULT_ALPHABET)
+-- 4,096 cells is ~5x the canvas elements 729 was, and the layout runs on
+-- the MAIN thread. It is cached per display layout — once per reload or
+-- monitor change, never per press — but a stall LL cannot explain is a
+-- stall LL blames on the whole config, so a slow build has to say so
+-- itself, with the knob that fixes it.
+check("a slow geometry build has a threshold to be judged against",
+      type(grid.buildSlowMs) == "number" and grid.buildSlowMs > 0, grid.buildSlowMs)
+do
+    local saidBefore = #printed
+    grid.buildSlowMs = 1e9              -- nothing is ever this slow
+    grid.cache = nil; grid.show(false); grid.hide("test")
+    check("…and a build under it says NOTHING — a tuning note on every "
+          .. "press is noise", #printed == saidBefore)
+    grid.buildSlowMs = -1               -- everything is slower than this
+    grid.cache = nil; grid.show(false); grid.hide("test")
+    local said = table.concat(printed, "\n")
+    check("…while a slow one names the cost, says it is once per display "
+          .. "layout, and gives the smaller-grid override",
+          said:find("took", 1, true) ~= nil
+          and said:find("once per display layout", 1, true) ~= nil
+          and said:find('alphabet = "asdfghjkl"', 1, true) ~= nil, said)
+    grid.buildSlowMs = 120
+    grid.cache = nil
+end
 check("capacity is exactly alphabet^length", cache.capacity == 9 ^ 3, cache.capacity)
 check("cells never exceed the label capacity", cache.used <= cache.capacity, cache.used)
 check("no cell is left unlabelled and therefore unreachable",
@@ -1437,6 +1487,17 @@ check("widening the alphabet really does buy capacity (16^3 = 4096)",
       grid.cache.capacity == 16 ^ 3, grid.cache.capacity)
 check("...and it buys finer cells, which is the whole reason to do it",
       grid.cache.screens[1].cellW < 45, grid.cache.screens[1].cellW)
+
+out("   -- 6.176.0: back to the home row, for anyone who wants the travel back --\n")
+setScreens(ONE); loadModule()
+grid.alphabet = "asdfghjkl"          -- the pre-6.176.0 default, as a settings override
+grid.show(false); checkInv("narrow alphabet override")
+check("6.176.0: the narrow home row still works as an override — the "
+      .. "trade is bigger cells for less finger travel",
+      grid.cache.capacity == 9 ^ 3, grid.cache.capacity)
+check("…and it really does give back the COARSER cell, which is the "
+      .. "trade being made, not a regression",
+      grid.cache.screens[1].cellW > 40, grid.cache.screens[1].cellW)
 check("labels stay unique with the new alphabet", (function()
     local seen = {}
     for _, p in ipairs(grid.cache.screens) do

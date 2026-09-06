@@ -276,6 +276,15 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 6.176.0 verify with LL: ⇪X — the grid is much finer (16-key alphabet,
+  4,096 cells, ~30 pt on the 4K where it was ~70); typing three letters
+  lands ON a button more often than beside it. Read
+  `_G.mouseGridReport()` for the real cols × rows and cell size per
+  display. If the first ⇪X after a reload stalls, the Console says so
+  once with the fix (`settings = { mouse_grid = { alphabet =
+  "asdfghjkl" } }` = the old 729-cell grid); RULE: the grid alphabet and
+  labelLength are ONE decision — capacity is alphabet^labelLength, and
+  two displays split it by area.
 - 6.175.2 verify with LL: the ⇪3 / ⇪1 window is SOLID. Three passes got
   here (1 → 0.9 → 0.97 → 1); translucency is settled, do not reintroduce
   it. At alpha 1 the module must never call view:alpha() at all (the

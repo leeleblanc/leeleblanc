@@ -4,9 +4,32 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.175.2
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.176.0
 -- =====================================================================
 
+-- NEW IN 6.176.0 — ⇪X MOUSE GRID: SMALLER CELLS, SAME THREE KEYSTROKES:
+--   🎯 LL: "each cell is rather large … when I type the three letters
+--      I'm still rather far off from a dialogue, can we reduce the size
+--      of the cells so I have a better chance of hitting a button." The
+--      alphabet is now the home row PLUS the row below it — 16 keys
+--      instead of 9, so 16³ = 4,096 cells where there were 729. On the
+--      4K that is roughly a 30 pt cell where it was 70: SMALLER than
+--      most buttons, so the first landing is usually on the thing
+--      rather than near it. Still three keystrokes; the fingers travel
+--      one row, and that is the whole price.
+--   ✏️ Back to the old feel (bigger cells, no travel): `settings =
+--      { mouse_grid = { alphabet = "asdfghjkl" } }`. Finer still:
+--      `{ labelLength = 4 }` = 6,561 cells. `_G.mouseGridReport()`
+--      prints the REAL cell size in points on THIS Mac — read it after
+--      any change rather than guessing.
+--   ⏱ 4,096 cells is ~5× the canvas elements, laid out on the main
+--      thread. It is cached per DISPLAY LAYOUT — once per reload or
+--      monitor change, never per press — and a build slower than
+--      mouse_grid.buildSlowMs (120 ms) now says so once in the Console,
+--      in plain words, with the smaller-grid override. A stall nobody
+--      can explain gets blamed on the whole config.
+--   ✅ Gate: test_mouse_grid 350 → 376. 67 modules. 7,552 → 7,561
+--      checks, seventy-three stages.
 -- NEW IN 6.175.2 — THE PAD/VAULT WINDOW IS SOLID:
 --   🪟 LL: "Make it fully solid." Alpha 1, and the module now leaves the
 --      window's alpha alone entirely rather than setting it to 1 — a
@@ -88,20 +111,10 @@
 --   ✅ Gate: test_vault 95 → 265, test_vault_js 31 → 143,
 --      test_power_tools 231 → 248. 67 modules. 7,230 → 7,519 checks,
 --      seventy-three stages.
--- NEW IN 6.173.2 — THE VAULT WINDOW: SLIGHTLY SEE-THROUGH:
---   🪟 LL: "I need the window to be slightly less opaque. It should allow
---      me to get my bearings on what" is behind it. The Vault (⇪3 / ⇪1,
---      the Scorp Pad's home since 6.173.0) opens at alpha 0.9 — 10%
---      see-through, enough to place the app under it — where it was
---      solid. `settings = { vault = { alpha = 1 } }` makes it solid
---      again, any 0–1 number to taste; `_G.vaultReport()`'s "window"
---      line shows the value in force and the override for solid.
---   ✅ Gate: test_vault 93 → 95 (alpha applied to the window, report
---      line). 67 modules. 7,228 → 7,230 checks, seventy-three stages.
--- (6.173.1 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.173.2 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.175.2
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.176.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -447,7 +460,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.175.2"
+_G.configVersion = "6.176.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
