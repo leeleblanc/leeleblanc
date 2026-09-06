@@ -223,6 +223,15 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 🚨 6.170.2 verify with LL: after installing, no lock-up; the Console
+  after a few minutes shows no "⚠️ clipboard: the pasteboard changed on
+  N ticks in a row" line (one = something rewrites the pasteboard
+  nonstop — `_G.clipboardPollReport()` has the counts; find the app).
+  Raw clipboard image OCR is OFF (`ocr.autoImage`); switch it back on
+  per machine (`settings = { ocr_engine = { autoImage = true } }`) only
+  once the thrash source is known. Rule: the clipboard poll never
+  decodes the pasteboard without typesAvailable() first, and the breaker
+  stays.
 - 6.170.1 verify with LL: the "HS OCR · Zero-dimensioned image"
   notification stops; if it still shows, `_G.ocrReport()` — "empty N"
   climbing with no notification = the guard works and some app keeps

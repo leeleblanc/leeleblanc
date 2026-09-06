@@ -508,6 +508,8 @@ do
     local M2 = dofile(HS .. "/modules/ocr_engine.lua")
     assert(pcall(M2.setup, CORE))
     local ocr = M2.config
+    ocr.autoImage = true                  -- 6.170.2: off by default; T6 tests the guards
+
     local CLOCK = 1000
     local TASKS = {}
     hs.timer = { secondsSinceEpoch = function() return CLOCK end,
@@ -573,7 +575,7 @@ do
     printed = {}
     local st = _G.ocrReport()
     check("_G.ocrReport() prints the counters", type(st) == "table" and #printed == 1
-          and said("empty 2") and said("failed 1") and said("6.170.1"), printed[1])
+          and said("empty 2") and said("failed 1") and said("6.170.2"), printed[1])
     check("the poll in init.lua still routes images through ocr.image (the only caller)",
           (function()
               local h = io.open(HS .. "/init.lua", "r"); local src = h:read("*a"); h:close()
@@ -581,6 +583,32 @@ do
           end)())
 
     hs.fs.attributes, os.remove = realAttr, realRemove
+
+    out("\n=== T7. 🛑 6.170.2 — raw clipboard image OCR is OFF unless a profile turns it on ===\n")
+    local M3 = dofile(HS .. "/modules/ocr_engine.lua"); M3.setup(CORE); local o3 = M3.config
+    check("ocr.autoImage defaults to false", o3.autoImage == false)
+    TASKS = {}; printed = {}
+    check("with it off, ocr.image returns \"off\", starts no task and prints nothing",
+          o3.image(img(800, 600)) == "off" and #TASKS == 0 and #printed == 0 and o3.imageStats.off == 1)
+    check("_G.ocrReport() says OFF and names the settings knob",
+          (function() _G.ocrReport(); return said("OFF") and said("ocr_engine = { autoImage = true }") end)(), printed[1])
+    o3.autoImage = true; CLOCK = CLOCK + 100
+    check("a profile override (settings = { ocr_engine = { autoImage = true } }) turns it back on",
+          o3.image(img(800, 600)) == "ran" and #TASKS == 1)
+    local h = io.open(HS .. "/init.lua", "r"); local src = h:read("*a"); h:close()
+    local body = src:match("local function clipboardPoll%(%).-\nend\n_G%.clipboardTimer") or ""
+    check("init.lua's poll asks typesAvailable() before readImage()",
+          (function() local a = body:find("hs.pasteboard.typesAvailable(", 1, true); local b = body:find("hs.pasteboard.readImage(", 1, true)
+                      return a and b and a < b end)())
+    check("...and carries the thrash breaker (ticks in a row → rest, one ⚠️ line, a report)",
+          body:find("_G.clipboardThrashTicks", 1, true) ~= nil
+          and body:find("_G.clipboardThrashRest", 1, true) ~= nil
+          and body:find("ticks in a row", 1, true) ~= nil
+          and src:find("function _G.clipboardPollReport()", 1, true) ~= nil
+          and body:find("thrashRun = 0", 1, true) ~= nil)
+    check("...the counter is advanced BEFORE the breaker returns, so nothing is filed twice",
+          (function() local a = body:find("lastChangeCount = currentChangeCount", 1, true)
+                      local b = body:find("nowT < thrashUntil", 1, true); return a and b and a < b end)())
 end
 
 out(("\n── test_ocr_tag: %d passed, %d failed\n"):format(pass, fail))

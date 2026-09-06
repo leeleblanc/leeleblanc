@@ -4,6 +4,27 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.170.2 — RAW CLIPBOARD IMAGE OCR GOES OFF; THE POLL GETS A BREAKER:
+  🚨 LL installed 6.170.1 and the Mac locked up again (beach ball, no
+     keyboard, Hammerspoon absent from Force Quit). 6.170.1 could no
+     longer SEND an empty image, but the clipboard poll still decoded
+     the pasteboard on the main thread every time it changed — and on
+     that Mac something was changing it every tick. Nothing in the
+     Console yet says what; this release stops trusting that path.
+  🛑 ocr.autoImage = false: a copied image (⌘C on pixels) is NOT sent
+     to the HS OCR Shortcut at all. Copied image FILES (Finder ⌘C)
+     and screenshots keep their OCR. Opt back in per machine:
+     settings = { ocr_engine = { autoImage = true } }.
+     `_G.ocrReport()` now opens with ON / OFF.
+  📋 The poll asks hs.pasteboard.typesAvailable() first and only calls
+     readImage() when an image is actually there.
+  🧯 Thrash breaker: the pasteboard changing on 6 ticks IN A ROW (3 s)
+     rests the poll for 60 s, prints one ⚠️ line and counts it —
+     `_G.clipboardPollReport()`; knobs `_G.clipboardThrashTicks` /
+     `_G.clipboardThrashRest`. The changeCount still advances, so a
+     real copy after the rest is seen once, never twice.
+  ✅ Gate: test_ocr_tag 77 → 84 (T7).
+
 NEW IN 6.170.1 — THE "ZERO-DIMENSIONED IMAGE" NOTIFICATION LOOP:
   🔁 LL, with a screenshot: an "HS OCR · Zero-dimensioned image
      (0.0 x 0.0)" macOS notification "popping up in an infinite loop".

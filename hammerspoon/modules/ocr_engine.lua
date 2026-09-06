@@ -183,12 +183,19 @@ function M.setup(core)
     --            is not sent twice
     -- The Shortcut's own notification cannot be silenced from here; not
     -- calling it is the fix. `_G.ocrReport()` shows the counters.
+    -- 🛑 6.170.2 — RAW CLIPBOARD IMAGE OCR IS OFF BY DEFAULT. 6.170.1 was
+    -- installed and the Mac locked up again. Until the Console says why,
+    -- a copied image (⌘C on pixels) is NOT sent to the Shortcut at all;
+    -- copied image FILES (Finder ⌘C) and screenshots keep their OCR.
+    -- Opt back in per machine:
+    --     settings = { ocr_engine = { autoImage = true } }
+    ocr.autoImage   = false
     ocr.failGrace   = 30    -- s of quiet after an empty image / a failed run
     ocr.repeatGrace = 10    -- s within which the same image is not re-sent
     ocr.imageTask   = nil   -- HELD while a run is in flight
     ocr.imageHoldUntil = 0
     ocr.imageStats  = { ran = 0, busy = 0, held = 0, empty = 0, ["repeat"] = 0,
-                        failed = 0, lastWhy = "" }
+                        failed = 0, off = 0, lastWhy = "" }
     local function nowS()
         local ok, v = pcall(function() return hs.timer.secondsSinceEpoch() end)
         return (ok and type(v) == "number") and v or os.time()
@@ -214,6 +221,7 @@ function M.setup(core)
     function ocr.image(img)
         if _G.ocrShortcutAvailable == false then return end
         if not img then return end
+        if not ocr.autoImage then return imageSkip("off") end
         local now = nowS()
         if ocr.imageTask then return imageSkip("busy") end
         if now < (ocr.imageHoldUntil or 0) then return imageSkip("held") end
@@ -284,8 +292,9 @@ function M.setup(core)
     function _G.ocrReport()
         local st = ocr.imageStats
         local hold = (ocr.imageHoldUntil or 0) - nowS()
-        print(string.format("🔤 OCR (image) — ran %d · busy %d · held %d · empty %d · repeat %d · failed %d · last: %s%s (6.170.1)",
-            st.ran, st.busy, st.held, st.empty, st["repeat"], st.failed,
+        print(string.format("🔤 OCR (image) — %s · ran %d · busy %d · held %d · empty %d · repeat %d · failed %d · off %d · last: %s%s (6.170.2)",
+            ocr.autoImage and "ON" or "OFF (settings = { ocr_engine = { autoImage = true } } turns it on)",
+            st.ran, st.busy, st.held, st.empty, st["repeat"], st.failed, st.off or 0,
             st.lastWhy ~= "" and st.lastWhy or "nothing yet",
             hold > 0 and string.format(" · quiet for another %ds", math.ceil(hold)) or ""))
         return st

@@ -4,9 +4,29 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.170.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.170.2
 -- =====================================================================
 
+-- NEW IN 6.170.2 — RAW CLIPBOARD IMAGE OCR GOES OFF; THE POLL GETS A BREAKER:
+--   🚨 LL installed 6.170.1 and the Mac locked up again (beach ball, no
+--      keyboard, Hammerspoon absent from Force Quit). 6.170.1 could no
+--      longer SEND an empty image, but the clipboard poll still decoded
+--      the pasteboard on the main thread every time it changed — and on
+--      that Mac something was changing it every tick. Nothing in the
+--      Console yet says what; this release stops trusting that path.
+--   🛑 ocr.autoImage = false: a copied image (⌘C on pixels) is NOT sent
+--      to the HS OCR Shortcut at all. Copied image FILES (Finder ⌘C)
+--      and screenshots keep their OCR. Opt back in per machine:
+--      settings = { ocr_engine = { autoImage = true } }.
+--      `_G.ocrReport()` now opens with ON / OFF.
+--   📋 The poll asks hs.pasteboard.typesAvailable() first and only calls
+--      readImage() when an image is actually there.
+--   🧯 Thrash breaker: the pasteboard changing on 6 ticks IN A ROW (3 s)
+--      rests the poll for 60 s, prints one ⚠️ line and counts it —
+--      `_G.clipboardPollReport()`; knobs `_G.clipboardThrashTicks` /
+--      `_G.clipboardThrashRest`. The changeCount still advances, so a
+--      real copy after the rest is seen once, never twice.
+--   ✅ Gate: test_ocr_tag 77 → 84 (T7).
 -- NEW IN 6.170.1 — THE "ZERO-DIMENSIONED IMAGE" NOTIFICATION LOOP:
 --   🔁 LL, with a screenshot: an "HS OCR · Zero-dimensioned image
 --      (0.0 x 0.0)" macOS notification "popping up in an infinite loop".
@@ -138,50 +158,10 @@
 --      a 2 px tremor, the repeat guard and its expiry, a new centre never
 --      a repeat, bad knobs, paused tap, no eventtap.new at all, sentries.
 --      6,887 → 6,910 checks, sixty-nine stages.
--- NEW IN 6.167.0 — THE HINT CARD AND THE POINTER RING ARE SIZED BY THE SCREEN; THE RING STAYS 6 S:
---   💡 LL, after 6.165.1 AND 6.166.0 each made the card bigger in points:
---      "still small and does not seem to be taking new settings." The
---      Console names the screen — an LG 4K — and at full points
---      (3840 × 2160 @1x) a 20 pt line is 20 pixels. So hint.width (540)
---      and hint.fontSize (20) are now for a screen hint.scaleBase (1440)
---      points tall (fullFrame — a Dock that hides must not resize the
---      card); a taller screen scales the WHOLE card up, margin included
---      (×1.5 on that 4K → 810 wide, 30 pt), never down, capped at
---      hint.scaleMax (2.5). settings = { shortcut_hints = { scale = 2 } }
---      pins it ("2" pins too; 0, a negative or a word is not a pin, and
---      the report never claims one the drawing ignores).
---      THE THEORY IS UNPROVEN: a 4K at macOS's default "looks like
---      1920×1080" reports ~1080 points tall and this release changes
---      NOTHING there. So the config now says what it sees. One plain
---      boot line, printed a turn after setup (init.lua applies a profile's
---      settings AFTER setup; diag.say is verbose-only, which is why the
---      6.163.0 "ready" line was never seen): "💡 shortcut hints 6.167.0 —
---      card 810 wide · 30 pt · top-right · alpha 0.70 · scale 1.50
---      (2160 pt tall, base 1440 · LG HDR 4K · 3840x2160@1x 60Hz)".
---      _G.shortcutHintsReport() adds "file : 6.167.0 · <path> · modified"
---      (an older shortcut_hints.lua still installed shows as one) and, on
---      the "last" row, what the last press REALLY drew ("drawn 810×… at
---      x,y · scale 1.50"), whatever screen the Console is on. If that line
---      says @2x and scale 1.00, the screen is not the reason — then
---      settings = { shortcut_hints = { scale = 1.5 } } is the knob.
---   🖱 ⇪⇧L — LL: "bigger, and stay up for at least 5 seconds." The ring's
---      radius is 110 at scale 1 (was 60) and follows the pointer's screen
---      by the same rule (165 on that 4K; grid.locateScale pins it); the
---      three-ring pulse REPEATS every grid.locateCycle (1.2 s) until
---      grid.locateSecs — 6 s, five WHOLE pulses, so the last ring fades
---      rather than blinking off — and a white dot at the pointer flashes
---      with each pulse. grid.locateFrame(t, r) stays pure; a mistyped
---      override (locateCycle 0, locateSecs "six") draws the defaults
---      rather than NaN; a refused end-timer takes the ring down at once.
---      _G.mouseGridReport() gains a "ring" line: version, the radius where
---      the pointer is now, and what the last press drew.
---   ✅ Gate: test_shortcut_hints 58 → 80, test_mouse_grid 343 → 362
---      (6.166.0's note said 348; the gate said 343 — the 6,846 total was
---      right). 6,846 → 6,887 checks, sixty-nine stages.
--- (6.166.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.167.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.170.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.170.2
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -527,7 +507,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.170.1"
+_G.configVersion = "6.170.2"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -1857,10 +1837,44 @@ local lastChangeCount = hs.pasteboard.changeCount()
 -- 🔋 6.144.0 — the poll body is a NAMED function now, because on battery
 -- the eco registry rebuilds this timer at a slower pace and needs the
 -- same body to hand to the new one. Behaviour is unchanged at 0.5s.
+-- 🛑 6.170.2 — THE THRASH BREAKER. Twice a Mac locked up while the
+-- pasteboard changed on EVERY tick (something rewrote it 0.5 s after
+-- 0.5 s); each change made this poll decode the pasteboard on the main
+-- thread. Now a change on `_G.clipboardThrashTicks` ticks IN A ROW rests
+-- the poll for `_G.clipboardThrashRest` seconds (the counter still
+-- advances, so nothing is filed twice), prints ONE line, and counts it.
+-- `_G.clipboardPollReport()` shows the counters.
+_G.clipboardThrashTicks = 6      -- 3 s of nonstop pasteboard changes
+_G.clipboardThrashRest  = 60     -- s the poll sleeps after that
+local thrashRun, thrashUntil = 0, 0
+_G.clipboardPollStats = { changes = 0, rests = 0, lastRestAt = 0, longestRun = 0 }
+function _G.clipboardPollReport()
+    local st = _G.clipboardPollStats
+    local left = thrashUntil - hs.timer.secondsSinceEpoch()
+    print(string.format("📋 clipboard poll — changes %d · thrash rests %d · longest run %d ticks · breaker %d ticks / %ds%s (6.170.2)",
+        st.changes, st.rests, st.longestRun, _G.clipboardThrashTicks, _G.clipboardThrashRest,
+        left > 0 and string.format(" · RESTING for another %ds", math.ceil(left)) or ""))
+    return st
+end
 local function clipboardPoll()
     local currentChangeCount = hs.pasteboard.changeCount()
     if currentChangeCount ~= lastChangeCount then
         lastChangeCount = currentChangeCount
+        local st = _G.clipboardPollStats
+        st.changes = st.changes + 1
+        thrashRun = thrashRun + 1
+        if thrashRun > st.longestRun then st.longestRun = thrashRun end
+        local nowT = hs.timer.secondsSinceEpoch()
+        if nowT < thrashUntil then return end
+        if thrashRun >= _G.clipboardThrashTicks then
+            thrashUntil = nowT + _G.clipboardThrashRest
+            st.rests = st.rests + 1
+            st.lastRestAt = nowT
+            print(string.format("⚠️ clipboard: the pasteboard changed on %d ticks in a row — "
+                .. "some app or Shortcut is rewriting it nonstop; the clipboard poll rests %ds "
+                .. "(`_G.clipboardPollReport()`)", thrashRun, _G.clipboardThrashRest))
+            return
+        end
 
         -- 📋 6.69.0 — SOMEONE BORROWED THE CLIPBOARD. The text expander
         -- pastes multi-line snippets and puts your clipboard straight
@@ -1891,7 +1905,12 @@ local function clipboardPoll()
             print("🏷 OCR tag: " .. #copiedImageFiles .. " copied image file(s) detected — running OCR on each")
             _G.service.call("ocr.tagFiles", copiedImageFiles)
         else
-        local img = hs.pasteboard.readImage()
+        -- 6.170.2 — ask what TYPES are on the pasteboard before decoding
+        -- pixels: readImage() is a main-thread decode of whatever sits
+        -- there, and it only ever mattered when an image was present.
+        local types = {}
+        pcall(function() types = hs.pasteboard.typesAvailable() or {} end)
+        local img = types.image and hs.pasteboard.readImage() or nil
         if img then
             if _G.service.has("ocr.image") then
                 _G.service.call("ocr.image", img)
@@ -1911,6 +1930,8 @@ local function clipboardPoll()
             end
         end
         end  -- closes the copied-image-files branch (6.11.0)
+    else
+        thrashRun = 0            -- a quiet tick ends the run (6.170.2)
     end
 end
 _G.clipboardTimer = hs.timer.doEvery(0.5, clipboardPoll)
