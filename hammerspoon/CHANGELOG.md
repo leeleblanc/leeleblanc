@@ -4,6 +4,30 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.170.1 — THE "ZERO-DIMENSIONED IMAGE" NOTIFICATION LOOP:
+  🔁 LL, with a screenshot: an "HS OCR · Zero-dimensioned image
+     (0.0 x 0.0)" macOS notification "popping up in an infinite loop".
+     The Shortcuts app posts that notification itself when it is handed
+     an empty image — and modules/ocr_engine.lua's clipboard OCR handed
+     it one on EVERY pasteboard tick while an app kept an undecodable
+     image flavor on the clipboard (hs.pasteboard.readImage() returns an
+     hs.image for it, and that image measures 0×0). ocr.image never
+     looked at the image, never ran one Shortcut at a time (the hs.task
+     was not even held), and never remembered a failure, so each
+     counter tick was one more notification.
+     Four guards now, in this order, each returning a word the report
+     and the tests read: "busy" (one `shortcuts` process at a time, HELD
+     in ocr.imageTask), "held" (after an empty image or a failed run
+     nothing runs for ocr.failGrace = 30 s; a streak prints ONE ⚠️
+     Console line), "empty" (a 0×0 image is never sent — that is the
+     notification), "repeat" (the same image, by size + bytes, within
+     ocr.repeatGrace = 10 s is not sent twice). A failed run also keeps
+     the Shortcut's first stderr line in the Console. `_G.ocrReport()`
+     prints ran/busy/held/empty/repeat/failed and how long the quiet
+     lasts. test_ocr_tag T6 drives ten ticks of a 0×0 image through the
+     real function (zero tasks started, one line printed), then the
+     busy, repeat, failed and recovered paths (76 → 77 checks).
+
 NEW IN 6.170.0 — ARROW THROUGH THE ROWS IN EVERY PAD; THE AIR PINS ITS HINT CARD:
   ⌨️ LL: "I can up/down arrow on my cheatsheet. But in any window that
      has a list, we need to be able to arrow up and down." Inventory:

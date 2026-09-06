@@ -163,14 +163,95 @@ function M.setup(core)
         return false
     end
 
+    -- 🔁 6.170.1 — "THIS IS POPPING UP IN AN INFINITE LOOP": a macOS
+    -- notification, "HS OCR · Zero-dimensioned image (0.0 x 0.0)", over
+    -- and over. The Shortcuts app posts that itself when it is handed an
+    -- empty image — and this function handed it one every time the
+    -- pasteboard counter moved while an app kept a 0×0 image on the
+    -- clipboard (hs.pasteboard.readImage() returns an hs.image for an
+    -- image flavor it cannot decode; that image measures 0×0). Nothing
+    -- here ever looked at the image, ran one Shortcut at a time, or
+    -- remembered a failure, so every counter tick was one more
+    -- notification. Four guards now, in this order — each returns a
+    -- word the report and the tests read:
+    --   "busy"   one `shortcuts` process at a time (the task is HELD in
+    --            ocr.imageTask — an unheld hs.task is a GC gotcha)
+    --   "held"   after an empty image or a failed run, nothing runs for
+    --            ocr.failGrace seconds (a streak prints ONE ⚠️ line)
+    --   "empty"  a 0×0 image is never sent — that is the notification
+    --   "repeat" the same image (size + bytes) within ocr.repeatGrace
+    --            is not sent twice
+    -- The Shortcut's own notification cannot be silenced from here; not
+    -- calling it is the fix. `_G.ocrReport()` shows the counters.
+    ocr.failGrace   = 30    -- s of quiet after an empty image / a failed run
+    ocr.repeatGrace = 10    -- s within which the same image is not re-sent
+    ocr.imageTask   = nil   -- HELD while a run is in flight
+    ocr.imageHoldUntil = 0
+    ocr.imageStats  = { ran = 0, busy = 0, held = 0, empty = 0, ["repeat"] = 0,
+                        failed = 0, lastWhy = "" }
+    local function nowS()
+        local ok, v = pcall(function() return hs.timer.secondsSinceEpoch() end)
+        return (ok and type(v) == "number") and v or os.time()
+    end
+    function ocr.imageSize(img)
+        local ok, sz = pcall(function() return img:size() end)
+        if ok and type(sz) == "table" then
+            return tonumber(sz.w) or 0, tonumber(sz.h) or 0
+        end
+        return nil, nil
+    end
+    local function imageSkip(why, line)
+        local st = ocr.imageStats
+        st[why] = (st[why] or 0) + 1
+        st.lastWhy = why
+        if line and not ocr.imageSaid then
+            ocr.imageSaid = true            -- one line per streak
+            print("⚠️ OCR: " .. line)
+        end
+        return why
+    end
+
     function ocr.image(img)
         if _G.ocrShortcutAvailable == false then return end
         if not img then return end
+        local now = nowS()
+        if ocr.imageTask then return imageSkip("busy") end
+        if now < (ocr.imageHoldUntil or 0) then return imageSkip("held") end
+        local w, h = ocr.imageSize(img)
+        if not w or w < 1 or h < 1 then
+            ocr.imageHoldUntil = now + ocr.failGrace
+            return imageSkip("empty", string.format(
+                "the clipboard holds a 0×0 image — not sent to the “%s” Shortcut, "
+                .. "and no image OCR for %ds (an app keeps putting an empty image "
+                .. "on the pasteboard; `_G.ocrReport()` counts them)",
+                ocr.shortcutName, ocr.failGrace))
+        end
         local imgPath = "/tmp/hs_auto_ocr.png"
+        if not img:saveToFile(imgPath) then return imageSkip("empty") end
+        local bytes = 0
+        pcall(function() bytes = hs.fs.attributes(imgPath, "size") or 0 end)
+        local fp = string.format("%dx%d:%d", w, h, bytes)
+        if fp == ocr.lastImageFp and (now - (ocr.lastImageAt or 0)) < ocr.repeatGrace then
+            os.remove(imgPath)
+            return imageSkip("repeat")
+        end
+        ocr.lastImageFp, ocr.lastImageAt = fp, now
 
-        if img:saveToFile(imgPath) then
-            hs.task.new("/usr/bin/shortcuts", function(exitCode, stdOut, stdErr)
+        local t
+        local okNew = pcall(function()
+            t = hs.task.new("/usr/bin/shortcuts", function(exitCode, stdOut, stdErr)
+                ocr.imageTask = nil
                 os.remove(imgPath)
+                if exitCode ~= 0 then
+                    ocr.imageHoldUntil = nowS() + ocr.failGrace
+                    local first = tostring(stdErr or ""):match("[^\r\n]+") or ""
+                    imageSkip("failed", string.format(
+                        "the “%s” Shortcut failed (exit %s%s) — no image OCR for %ds",
+                        ocr.shortcutName, tostring(exitCode),
+                        first ~= "" and (": " .. first) or "", ocr.failGrace))
+                    return
+                end
+                ocr.imageSaid = false          -- a clean run ends the streak
 
                 local extractedText = stdOut
                 if not extractedText or #extractedText == 0 then
@@ -189,8 +270,25 @@ function M.setup(core)
                         appendRow(extractedText)
                     end
                 end
-            end, {"run", ocr.shortcutName, "-i", imgPath}):start()
-        end
+            end, {"run", ocr.shortcutName, "-i", imgPath})
+            t:start()
+        end)
+        if not (okNew and t) then os.remove(imgPath); return imageSkip("failed") end
+        ocr.imageTask = t
+        ocr.imageStats.ran = ocr.imageStats.ran + 1
+        ocr.imageStats.lastWhy = "ran"
+        return "ran"
+    end
+
+    -- 🩺 6.170.1 — the image-OCR counters, for the Console.
+    function _G.ocrReport()
+        local st = ocr.imageStats
+        local hold = (ocr.imageHoldUntil or 0) - nowS()
+        print(string.format("🔤 OCR (image) — ran %d · busy %d · held %d · empty %d · repeat %d · failed %d · last: %s%s (6.170.1)",
+            st.ran, st.busy, st.held, st.empty, st["repeat"], st.failed,
+            st.lastWhy ~= "" and st.lastWhy or "nothing yet",
+            hold > 0 and string.format(" · quiet for another %ds", math.ceil(hold)) or ""))
+        return st
     end
 
     -- ---- FILE-TAGGING OCR (6.11.0) --------------------------------------

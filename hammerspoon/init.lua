@@ -2,11 +2,29 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-05-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.170.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.170.1
 -- =====================================================================
 
+-- NEW IN 6.170.1 — THE "ZERO-DIMENSIONED IMAGE" NOTIFICATION LOOP:
+--   🔁 LL, with a screenshot: an "HS OCR · Zero-dimensioned image
+--      (0.0 x 0.0)" macOS notification "popping up in an infinite loop".
+--      The Shortcuts app posts that itself when handed an empty image —
+--      and the clipboard OCR handed it one on EVERY pasteboard tick while
+--      an app kept an undecodable image flavor on the clipboard
+--      (hs.pasteboard.readImage() returns an hs.image that measures 0×0).
+--      Nothing looked at the image, ran one Shortcut at a time, or
+--      remembered a failure. ocr.image now guards in order: busy (one
+--      `shortcuts` process, HELD), held (30 s of quiet after an empty
+--      image or a failed run, ONE ⚠️ Console line per streak), empty (a
+--      0×0 image is never sent), repeat (the same image within 10 s is
+--      not sent twice). `_G.ocrReport()` prints the counters. The
+--      Shortcut's own notification cannot be silenced from here; not
+--      calling it is the fix. Which app keeps putting an empty image on
+--      the pasteboard is still worth knowing — the Console line says
+--      when it happens.
+--
 -- NEW IN 6.170.0 — ARROW THROUGH THE ROWS IN EVERY PAD; THE AIR PINS ITS HINT CARD:
 --   ⌨️ LL: "I can up/down arrow on my cheatsheet. But in any window that
 --      has a list, we need to be able to arrow up and down." Inventory:
@@ -160,33 +178,10 @@
 --   ✅ Gate: test_shortcut_hints 58 → 80, test_mouse_grid 343 → 362
 --      (6.166.0's note said 348; the gate said 343 — the 6,846 total was
 --      right). 6,846 → 6,887 checks, sixty-nine stages.
--- NEW IN 6.166.0 — ⌃TAB, A 20 PT HINT CARD, WIN_PIN RETIRED, A WIFI RING, A QUIET BOOT:
---   📝 ⌃Tab / ⌃⇧Tab cycle the scratch pad's tabs, wrapping (the page's
---      own keydown, like ⌘T/⌘W/⌘1–9 — still no eventtap).
---   💡 The shortcut-hint card: top-right (since 6.165.1), now 540 wide
---      with 20 pt type (hint.width / hint.fontSize), alpha 0.70.
---   📌 win_pin (⇪⇧U, 6.104.0–6.165.1) is RETIRED — LL: "remove the
---      Window Pin since we have this tool now." The scratch pad's 📌 is
---      the pin. ⇪⇧U is free again (_G.freeKeys() lists it beside ⇪⇧T);
---      the "pinbadge" ladder rung stays so nothing above it moves;
---      module count 65 → 64, sixty-four Lua suites.
---   🖱 ⇪⇧L's pointer ring is WHITE and pulses: three rings leave the
---      pointer one after another (grid.locateStagger 0.22 s), growing
---      from a dot to the edge and fading — a Wi-Fi mark in motion — on
---      a held 30 fps frame timer, all over in 1.2 s (grid.locateSecs).
---      grid.locateFrame(t) is pure and tested; a second press still
---      replaces the first; a Mac without doEvery shows the first frame.
---   🔇 Boot no longer prints the two EmmyLua lines when the Spoon is
---      absent (LL: "remove this code"). Present, it still loads.
---   ✅ ⇪T IS on the cheat sheet — under ✅ TASK FORM, first row. Nothing
---      was asked in error: what LL freed in 6.161.0 was ⇪⇧T (Shift),
---      which stays unspent.
---   ✅ Gate: test_scratch_pad 107 → 109, test_mouse_grid 343 → 348,
---      test_win_pin retired. 6,969 → 6,846 checks, sixty-nine stages.
--- (6.165.1 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.166.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.170.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.170.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -532,7 +527,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.170.0"
+_G.configVersion = "6.170.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------

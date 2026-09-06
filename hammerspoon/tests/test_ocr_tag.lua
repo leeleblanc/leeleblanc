@@ -492,5 +492,96 @@ end)())
 check("the editor html is built by the module, not borrowed from another "
       .. "window's channel", CODE:find("messageHandlers.ocrEdit", 1, true) ~= nil)
 
+
+-- =====================================================================
+out("\n=== T6. 🔁 6.170.1 — a 0×0 clipboard image must NEVER reach the Shortcut ===\n")
+-- =====================================================================
+-- LL, with a screenshot: an "HS OCR · Zero-dimensioned image (0.0 x 0.0)"
+-- macOS notification "popping up in an infinite loop". The Shortcuts app
+-- posts that when it is handed an empty image, and ocr.image handed it
+-- one on EVERY pasteboard tick while an app kept an undecodable image
+-- flavor on the clipboard. Guards, in order: busy → held → empty →
+-- repeat; a failure holds too; one ⚠️ line per streak.
+do
+    -- a fresh setup(): T4 loaded the module again, so _G.ocrReport and
+    -- the table below must come from the SAME setup
+    local M2 = dofile(HS .. "/modules/ocr_engine.lua")
+    assert(pcall(M2.setup, CORE))
+    local ocr = M2.config
+    local CLOCK = 1000
+    local TASKS = {}
+    hs.timer = { secondsSinceEpoch = function() return CLOCK end,
+                 doEvery = function() return { stop = function() end } end }
+    hs.task  = { new = function(bin, cb, args)
+        local t = { bin = bin, cb = cb, args = args }
+        function t:start() TASKS[#TASKS + 1] = self ; return true end
+        return t
+    end }
+    local FILEBYTES = 1234
+    local realAttr = hs.fs.attributes
+    hs.fs.attributes = function(path, field)
+        if path == "/tmp/hs_auto_ocr.png" and field == "size" then return FILEBYTES end
+        return realAttr(path, field)
+    end
+    local realRemove = os.remove
+    os.remove = function() return true end
+    local function img(w, h, saves)
+        return { size = function() return { w = w, h = h } end,
+                 saveToFile = function() return saves ~= false end }
+    end
+    _G.ocrShortcutAvailable = true
+    printed = {}
+
+    -- the loop itself: ten pasteboard ticks with a 0×0 image
+    local words = {}
+    for _ = 1, 10 do words[#words + 1] = ocr.image(img(0, 0)) end
+    check("🚨 a 0×0 image is never sent to the Shortcut (that IS the notification)",
+          #TASKS == 0, #TASKS)
+    check("...the first tick says 'empty'", words[1] == "empty", words[1])
+    check("...the next nine are 'held' — the quiet lasts ocr.failGrace",
+          words[2] == "held" and words[10] == "held", words[2] .. "/" .. words[10])
+    check("...and the streak prints ONE ⚠️ line, not ten", #printed == 1
+          and said("0×0 image") and said("⚠️"), #printed)
+    check("...which names the report", said("_G.ocrReport"))
+    CLOCK = CLOCK + ocr.failGrace + 1
+    check("after the grace a real image runs", ocr.image(img(800, 600)) == "ran"
+          and #TASKS == 1 and TASKS[1].args[4] == "/tmp/hs_auto_ocr.png", #TASKS)
+    check("...while it runs a second image is 'busy' — one process at a time",
+          ocr.image(img(800, 600)) == "busy" and #TASKS == 1)
+    check("...and the task is HELD in ocr.imageTask", ocr.imageTask == TASKS[1])
+    TASKS[1].cb(0, "hello world", "")
+    check("a clean exit frees the slot and files the words", ocr.imageTask == nil
+          and ocr.imageStats.ran == 1)
+    printed = {}
+    check("the SAME image again within repeatGrace is 'repeat', not sent",
+          ocr.image(img(800, 600)) == "repeat" and #TASKS == 1)
+    FILEBYTES = 4321
+    check("...a different image (other bytes) is sent",
+          ocr.image(img(800, 600)) == "ran" and #TASKS == 2)
+    TASKS[2].cb(1, "", "Error: Zero-dimensioned image (0.0 x 0.0)")
+    check("a failed Shortcut run holds too, with the Shortcut's first line",
+          ocr.imageStats.failed == 1 and ocr.image(img(640, 480)) == "held"
+          and said("Zero-dimensioned") and said("exit 1"), printed[1])
+    check("...one ⚠️ line for that streak", #printed == 1, #printed)
+    CLOCK = CLOCK + ocr.failGrace + 1
+    check("...and it runs again after the grace", ocr.image(img(640, 480)) == "ran")
+    check("an image whose size cannot be read counts as empty",
+          (function() ocr.imageTask = nil; CLOCK = CLOCK + 100
+                      return ocr.image({ size = function() error("no") end,
+                                         saveToFile = function() return true end }) end)()
+          == "empty")
+    printed = {}
+    local st = _G.ocrReport()
+    check("_G.ocrReport() prints the counters", type(st) == "table" and #printed == 1
+          and said("empty 2") and said("failed 1") and said("6.170.1"), printed[1])
+    check("the poll in init.lua still routes images through ocr.image (the only caller)",
+          (function()
+              local h = io.open(HS .. "/init.lua", "r"); local src = h:read("*a"); h:close()
+              return src:find('_G.service.call("ocr.image", img)', 1, true) ~= nil
+          end)())
+
+    hs.fs.attributes, os.remove = realAttr, realRemove
+end
+
 out(("\n── test_ocr_tag: %d passed, %d failed\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

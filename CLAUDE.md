@@ -223,6 +223,14 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 6.170.1 verify with LL: the "HS OCR · Zero-dimensioned image"
+  notification stops; if it still shows, `_G.ocrReport()` — "empty N"
+  climbing with no notification = the guard works and some app keeps
+  an undecodable image on the pasteboard (find it: what was copied /
+  which app was front). Rule for ANY caller of the HS OCR Shortcut:
+  never hand it an image without a size check, one process at a time,
+  hold the task, back off after a failure (screenshots' arrival queue
+  already does all four; ocr.image does since 6.170.1).
 - 6.170.0 verify with LL: ⇪N / ⇪⇧N / ⇪1 — ⌥↓ highlights a row, ⌥⏎
   acts on it (scratch: restores; note pad: → Task; capture: a parked
   row goes back); plain ↓ inside the text box still moves the caret;
