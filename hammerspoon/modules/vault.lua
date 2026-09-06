@@ -245,7 +245,7 @@ function M.setup(core)
     function v.eval(js)
         if v.webview then pcall(function() v.webview:evaluateJavaScript(js) end) end
     end
-    -- rows → a JS array literal, keys n r l x only, in that order. Never hs.json.
+    -- rows → a JS array literal, keys n r l x only, in that order (no JSON library).
     local function jarr(rows)
         local out = {}
         for _, r in ipairs(rows or {}) do
@@ -447,18 +447,21 @@ function M.setup(core)
         local i = 1
         if lines[1] == "---" then
             i = 2
-            local inList = false
+            local inList, fm, fmSeen = false, {}, {}
             while lines[i] and lines[i] ~= "---" do
                 local value = lines[i]:match("^tags?:%s*(.*)$")
                 if value then
-                    fmInlineValues(list, seen, value); inList = true
+                    fmInlineValues(fm, fmSeen, value); inList = true
                 else
                     local item = inList and lines[i]:match("^%s*%-%s+(.+)$")
-                    if item then collectTag(list, seen, fmValue(item)) else inList = false end
+                    if item then collectTag(fm, fmSeen, fmValue(item)) else inList = false end
                 end
                 i = i + 1
             end
-            if lines[i] == "---" then i = i + 1 else i = 2 end   -- no closing ---: not front matter, read as body
+            if lines[i] == "---" then
+                for _, t in ipairs(fm) do collectTag(list, seen, t) end
+                i = i + 1
+            else i = 2 end   -- no closing ---: not front matter, the lines are body
         end
         local inFence = false
         while lines[i] do

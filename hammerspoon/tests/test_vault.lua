@@ -463,5 +463,527 @@ do
     _G.scratchPad = nil
 end
 
+-- =======================================================================
+out("9) 6.174.0 — tags: the grammar, the front matter, the index from two more greps\n")
+-- =======================================================================
+local WARNS = {}
+_G.diag.warn = function(_, m) WARNS[#WARNS + 1] = tostring(m) end
+local function same(a, b)
+    if #a ~= #b then return false end
+    for i = 1, #a do if a[i] ~= b[i] then return false end end
+    return true
+end
+check("tagOk: letters, digits with a non-digit, nested, trailing punctuation off, Unicode",
+      v.tagOk("Work") == "Work" and v.tagOk("2024") == nil and v.tagOk("2024-plan") == "2024-plan" and v.tagOk("a/b.") == "a/b"
+      and v.tagOk("café") == "café" and v.tagOk("") == nil and v.tagOk("x)") == "x" and v.tagOk("a b") == nil)
+do
+    local got = v.tagsIn("---\ntags: [Work, home/x]\n  - extra\n---\n# H\ntext #Work #2024 a#b [[N#h]] https://x/y#z #café.\n```\n#code\n```\n#Done\n")
+    check("tagsIn: front matter (inline + list item), body tags, no heading / number / [[N#h]] / URL / fenced tag, first-seen case",
+          same(got, { "Work", "home/x", "extra", "café", "Done" }), table.concat(got, ","))
+    check("tagsIn: `tags: a, b`, `tags: a b`, `tag: a`, quotes and a leading # stripped, YAML list form",
+          same(v.tagsIn("---\ntags: a, b\n---\n"), { "a", "b" }) and same(v.tagsIn("---\ntags: a b\n---\n"), { "a", "b" })
+          and same(v.tagsIn("---\ntag: '#solo'\n---\n"), { "solo" }) and same(v.tagsIn("---\ntags:\n  - one\n  - \"two\"\nother: x\n  - three\n---\n"), { "one", "two" }))
+    check("tagsIn: no closing --- means no front matter (the lines are body)", same(v.tagsIn("---\ntags: a\n#b\n"), { "b" }))
+    check("tagsIn: a ~~~ fence hides tags too; case-insensitive dedupe keeps the first spelling",
+          same(v.tagsIn("~~~\n#hidden\n~~~\n#Tag #tag #TAG\n"), { "Tag" }))
+end
+-- the scan, with tags: Alpha open and carrying #Work live
+FILES[VAULT .. "/Alpha.md"] = "# Alpha\n\nsee [[Beta|B]] and [[Gamma]] #Work\n"
+v.openNote("Alpha")
+READS = {}
+local NOTES9 = VAULT .. "/Alpha.md\n" .. VAULT .. "/Projects/Beta.md\n" .. VAULT .. "/Gamma.md\n" .. VAULT .. "/Delta.md\n"
+    .. VAULT .. "/New Idea.md\n" .. VAULT .. "/Daily.md\n" .. VAULT .. "/Templates/Meeting.md\n" .. VAULT .. "/Daily/" .. today .. ".md\n"
+local LINKS9 = VAULT .. "/Alpha.md:[[Beta|B]]\n" .. VAULT .. "/Alpha.md:[[Gamma]]\n" .. VAULT .. "/Projects/Beta.md:[[alpha]]\n" .. VAULT .. "/Gamma.md:[[Delta]]\n"
+v.scanning = false
+check("a scan starts (find → link grep → tag grep)", v.scan("tags") == true)
+lastTask("find").cb(0, NOTES9, "")
+lastTaskWith("grep", "\\[\\[").cb(0, LINKS9, "")
+local tg = lastTaskWith("grep", "-rHoIE")
+check("the tag grep is HELD and started", tg and v.tagTask == tg and tg.started)
+tg.cb(0, VAULT .. "/Alpha.md: #Work\n" .. VAULT .. "/Gamma.md:#work/deep\n" .. VAULT .. "/Gamma.md: #2024\n/elsewhere/x.md:#no\n", "")
+check("the tag index is NOT assigned before the chain ends (only the open note's live #Work exists)", v.tags["work/deep"] == nil and v.tags.work.count == 1 and v.scanning == true)
+local fg = lastTaskWith("grep", "^tags?:")
+check("the front-matter grep is HELD and started", fg and v.fmTask == fg and fg.started)
+fg.cb(0, VAULT .. "/Projects/Beta.md:2:tags: [Home, \"#Work\"]\n" .. VAULT .. "/Projects/Beta.md-3-  - listed\n" .. VAULT .. "/Projects/Beta.md-4---\n--\n" .. VAULT .. "/Gamma.md:70:tags: late\n", "")
+check("scan finished with tags: #work counts Alpha, Beta (front matter) and Gamma (nested child)",
+      v.scanning == false and v.scanErr == nil and v.tags.work and v.tags.work.count == 3, v.tags.work and v.tags.work.count)
+check("work/deep is its own tag on Gamma only", v.tags["work/deep"] and #v.tags["work/deep"].rels == 1 and v.tags["work/deep"].rels[1] == "Gamma.md")
+check("front matter: the inline list and the `- listed` item both count", v.tags.home and v.tags.home.count == 1 and v.tags.listed and v.tags.listed.count == 1)
+check("#2024 is a number, `tags:` on line 70 is not front matter, /elsewhere is not the vault",
+      v.tags["2024"] == nil and v.tags.late == nil and v.tags.no == nil)
+check("the display name is the first-seen spelling and the list is by count", v.tags.work.name == "Work" and v.tagList[1].key == "work" and v.tagList[1].count == 3)
+check("no note file was READ for the tags", #READS == 0, #READS)
+check("tagsOf never learns a scratch rel and the open note's entry is live", v.tagsOf["Alpha.md"] and v.tagsOf["Alpha.md"][1] == "Work")
+check("the two greps share one line counter (4 tag lines + 5 front-matter lines)", v.tagLines == 9, v.tagLines)
+do
+    -- a failed tag grep is optional: links stay, the scan finishes, a warn line says so
+    local before = v.tags.work.count
+    v.scan("tags fail")
+    lastTask("find").cb(0, NOTES9, "")
+    lastTaskWith("grep", "\\[\\[").cb(0, LINKS9, "")
+    lastTaskWith("grep", "-rHoIE").cb(2, "", "grep: boom")
+    check("tag grep exit 2: a warn line, no scanErr, links intact, scan finished, tags untouched",
+          v.scanning == false and v.scanErr == nil and #v.links["Alpha.md"] == 2 and WARNS[#WARNS]:find("tags: grep exited 2", 1, true)
+          and v.tags.work.count == before, WARNS[#WARNS])
+    -- a failed front-matter grep keeps what the tag grep found
+    v.scan("fm fail")
+    lastTask("find").cb(0, NOTES9, "")
+    lastTaskWith("grep", "\\[\\[").cb(0, LINKS9, "")
+    lastTaskWith("grep", "-rHoIE").cb(0, VAULT .. "/Gamma.md:#only\n", "")
+    lastTaskWith("grep", "^tags?:").cb(2, "", "grep: boom")
+    check("front-matter grep exit 2: the inline tags are kept, the scan finishes", v.scanning == false and v.tags.only and v.tags.home == nil, WARNS[#WARNS])
+    -- back to the full index
+    v.scan("tags again")
+    lastTask("find").cb(0, NOTES9, "")
+    lastTaskWith("grep", "\\[\\[").cb(0, LINKS9, "")
+    lastTaskWith("grep", "-rHoIE").cb(0, VAULT .. "/Alpha.md: #Work\n" .. VAULT .. "/Gamma.md:#work/deep\n", "")
+    lastTaskWith("grep", "^tags?:").cb(0, VAULT .. "/Projects/Beta.md:2:tags: [Home, \"#Work\"]\n" .. VAULT .. "/Projects/Beta.md-3-  - listed\n", "")
+    check("…restored", v.tags.work.count == 3 and v.tags.home ~= nil)
+end
+-- live: a keystroke changes the open note's tags at once, the index on save
+msg({ a = "edit", rel = "Alpha.md", text = "# Alpha\n#Fresh\n", sel = 3 })
+check("typing #Fresh into Alpha is in tagsOf before any save", same(v.tagsOf["Alpha.md"], { "Fresh" }))
+lastTimer("after"):fire()
+check("the save rebuilds the index: #fresh exists, #work dropped to 2", v.tags.fresh and v.tags.fresh.count == 1 and v.tags.work.count == 2)
+check("tagsJson is the list in count order", v.tagsJson():find('^%[{k:"work",n:"Work",c:2}'), v.tagsJson())
+check("notesJson rows carry g:[tags] and tpl:1 for a template",
+      v.notesJson():find('{n:"Alpha",r:"Alpha.md",g:["fresh"]}', 1, true) and v.notesJson():find('{n:"Meeting",r:"Templates/Meeting.md",g:[],tpl:1}', 1, true), v.notesJson())
+check("setNotes drops the tags of a note that vanished", (function()
+    local keep = v.tagsOf["Gamma.md"]
+    v.setNotes({ "Alpha.md", "Projects/Beta.md" })
+    local gone = v.tagsOf["Gamma.md"] == nil and v.tags["work/deep"] == nil
+    local rels = {}
+    for line in NOTES9:gmatch("[^\n]+") do rels[#rels + 1] = line:sub(#VAULT + 2) end
+    v.setNotes(rels); v.tagsOf["Gamma.md"] = keep; v.rebuildTags()
+    return gone and v.tags["work/deep"] ~= nil
+end)())
+v.show()
+local h9 = WEBVIEWS[#WEBVIEWS].htmlSet or ""
+check("the page carries TAGS, TAGROWS, TEMPLATES, TPLDIR, MODE and the new load state",
+      h9:find('TAGS = [{k:"work",n:"Work",c:2}', 1, true) and h9:find("TAGROWS = 15", 1, true)
+      and h9:find('TEMPLATES = [{n:"Meeting",r:"Templates/Meeting.md"}]', 1, true) and h9:find('TPLDIR = "Templates"', 1, true)
+      and h9:find('MODE = "notes"', 1, true) and h9:find("SMARTLISTS = true", 1, true) and h9:find("LINEH = 16 * 1.5", 1, true)
+      and h9:find("CARETLINE = 0", 1, true) and h9:find("CARETHEAD = null", 1, true) and h9:find("DAILY = null", 1, true)
+      and not h9:find("FSNUM", 1, true), h9:match("var TAGS[^\n]*"))
+check("the report counts the tags and names the top ones", _G.vaultReport():find("tags   : 5 tags on 3 notes · top #work 2 · #fresh 1 · #home 1", 1, true) ~= nil, _G.vaultReport():match("tags   :[^\n]*"))
+check("…and says so when there are none", (function()
+    local keep = v.tagsOf; v.tagsOf = {}; v.rebuildTags()
+    local r = _G.vaultReport():find("tags   : none yet — type #word in a note", 1, true) ~= nil
+    v.tagsOf = keep; v.rebuildTags()
+    return r
+end)())
+check("search and tasks report lines before any use", _G.vaultReport():find("search : never (⌘⇧F)", 1, true) and _G.vaultReport():find("tasks  : not listed yet (⌘⇧K)", 1, true))
+
+-- =======================================================================
+out("10) 6.174.0 — templates: Templates/*.md, moment tokens, {{cursor}}, /bin/cat in a task\n")
+-- =======================================================================
+check("v.templates() lists Templates/Meeting.md and nothing else", #v.templates() == 1 and v.templates()[1].rel == "Templates/Meeting.md")
+check("templateByName matches by rel under Templates/ (case-insensitive)", v.templateByName("meeting") and v.templateByName("meeting").rel == "Templates/Meeting.md")
+check("a ROOT note named Daily never shadows a template", v.find("daily") ~= nil and v.templateByName("Daily") == nil)
+check("isTemplateRel is case-insensitive", v.isTemplateRel("templates/x.md") == true and v.isTemplateRel("Alpha.md") == false)
+local T = os.time({ year = 2026, month = 9, day = 6, hour = 14, min = 5, sec = 9 })
+check("momentFormat: YYYY-MM-DD", v.momentFormat("YYYY-MM-DD", T) == "2026-09-06", v.momentFormat("YYYY-MM-DD", T))
+check("momentFormat: dddd D MMMM YYYY", v.momentFormat("dddd D MMMM YYYY", T) == "Sunday 6 September 2026", v.momentFormat("dddd D MMMM YYYY", T))
+check("momentFormat: ddd DD MMM YY", v.momentFormat("ddd DD MMM YY", T) == "Sun 06 Sep 26", v.momentFormat("ddd DD MMM YY", T))
+check("momentFormat: HH:mm:ss and h:mm A", v.momentFormat("HH:mm:ss", T) == "14:05:09" and v.momentFormat("h:mm A", T) == "2:05 PM", v.momentFormat("h:mm A", T))
+check("momentFormat: [literal], m/s, Q and dd copy through", v.momentFormat("[Day] D, YY", T) == "Day 6, 26" and v.momentFormat("m/s", T) == "5/9"
+      and v.momentFormat("Q", T) == "Q" and v.momentFormat("dd", T) == "dd" and v.momentFormat("[open", T) == "[open")
+do
+    local filled, caret = v.fillTemplate("# {{title}}\n{{date}} {{time}} {{ date }} {{date:}} {{date:YYYY}} {{nope}} {{title\n100%\n{{cursor}}x{{cursor}}", { title = "Meeting", when = T })
+    local want = "# Meeting\n2026-09-06 14:05 2026-09-06 2026-09-06 2026 {{nope}} {{title\n100%\nx"
+    check("fillTemplate: title, date, time, spaces, empty format, a format, unknown and unclosed stay, % survives, cursors vanish",
+          filled == want, filled)
+    check("…the caret is where the FIRST {{cursor}} was", caret == #"# Meeting\n2026-09-06 14:05 2026-09-06 2026-09-06 2026 {{nope}} {{title\n100%\n", caret)
+    local f2, c2 = v.fillTemplate("{{cursor}}")
+    check("a lone {{cursor}} → empty text, caret 0", f2 == "" and c2 == 0)
+    local f3, c3 = v.fillTemplate("plain")
+    check("no cursor → nil caret", f3 == "plain" and c3 == nil)
+    local n = #PRINTED
+    check("Templater <% %> is left verbatim and said once in the Console",
+          v.fillTemplate("<% tp.x %>", { name = "Templates/Meeting.md" }) == "<% tp.x %>" and #PRINTED == n + 1 and PRINTED[#PRINTED]:find("Templater", 1, true) and PRINTED[#PRINTED]:find("Templates/Meeting.md", 1, true))
+end
+-- ⌘⇧T: insert at the caret
+v.openNote("Alpha")
+READS = {}
+local catsBefore = countTasks("cat")
+msg({ a = "tplinsert", name = "Meeting", rel = "Alpha.md", text = v.doc.text, sel = 0 })
+local ct = lastTask("cat")
+check("⌘⇧T starts /bin/cat on the template, HELD, with a 10 s held timer and a hint on the page",
+      countTasks("cat") == catsBefore + 1 and ct.args[1] == VAULT .. "/Templates/Meeting.md" and ct.started and v.catTask == ct
+      and v.catTimer and v.catTimer.kind == "after" and v.catTimer.delay == 10 and EVALS[#EVALS]:find('^vaultHint%("fetching'), EVALS[#EVALS])
+local tm = v.catTimer
+ct.cb(0, "## {{title}}\n{{cursor}}- ", "")
+check("the body lands as insertAtCaret(head, tail) split at {{cursor}}, {{title}} = the note's name",
+      EVALS[#EVALS] == 'insertAtCaret("## Alpha\\n","- ")', EVALS[#EVALS])
+check("…task released, timer stopped, no file read on the main thread", v.catTask == nil and v.catTimer == nil and tm.stopped and #READS == 0)
+msg({ a = "tplinsert", name = "Meeting", rel = "Alpha.md", text = v.doc.text, sel = 0 })
+ct = lastTask("cat")
+v.catTimer:fire()
+check("no answer in 10 s: the task is terminated and LL is told", ct.terminated and v.catTask == nil and ALERTS[#ALERTS]:find("did not arrive", 1, true), ALERTS[#ALERTS])
+msg({ a = "tplinsert", name = "Meeting", rel = "Alpha.md", text = v.doc.text, sel = 0 })
+local first = lastTask("cat")
+msg({ a = "tplinsert", name = "Meeting", rel = "Alpha.md", text = v.doc.text, sel = 0 })
+local n = #EVALS
+first.cb(0, "late", "")
+check("a superseded fetch is terminated and its late answer changes nothing", first.terminated and #EVALS == n)
+lastTask("cat").cb(0, "x", "")
+v.openNote("Alpha")
+msg({ a = "tplinsert", name = "Meeting", rel = "Alpha.md", text = v.doc.text, sel = 0 })
+ct = lastTask("cat")
+v.openNote("Gamma")
+ct.cb(0, "## late", "")
+check("a template that arrives after switching notes is not inserted", not EVALS[#EVALS]:find("insertAtCaret", 1, true), EVALS[#EVALS])
+check("⌘⇧T with an unknown template alerts", (function() msg({ a = "tplinsert", name = "Nope" }); return ALERTS[#ALERTS]:find('no template named "Nope"', 1, true) ~= nil end)())
+do
+    local keep = v.doc; v.doc = nil
+    msg({ a = "tplinsert", name = "Meeting" })
+    check("⌘⇧T with no note open alerts", ALERTS[#ALERTS]:find("open a note first", 1, true) ~= nil, ALERTS[#ALERTS])
+    v.doc = keep
+end
+-- ⌘⇧N: a new note from a template
+PROMPT_ANSWERS = { { "Create", "Standup" } }
+msg({ a = "tplnew", name = "Meeting", rel = v.doc.rel, text = v.doc.text, sel = 0 })
+check("⌘⇧N prompts 'New note from Meeting' and fetches the template", PROMPTS[#PROMPTS].title == "New note from Meeting" and lastTask("cat").args[1] == VAULT .. "/Templates/Meeting.md")
+lastTask("cat").cb(0, "## {{title}}\n{{cursor}}- ", "")
+check("the note is created from the filled template and opened", FILES[VAULT .. "/Standup.md"] == "## Standup\n- " and v.doc.rel == "Standup.md")
+check("the page gets the caret as CARETHEAD once", WEBVIEWS[#WEBVIEWS].htmlSet:find('CARETHEAD = "## Standup\\n"', 1, true) ~= nil)
+v.render()
+check("…and the next render has CARETHEAD = null", WEBVIEWS[#WEBVIEWS].htmlSet:find("CARETHEAD = null", 1, true) ~= nil)
+msg({ a = "tplnew", name = "" })
+check("⌘⇧N's '— blank —' row is the plain ⌘N prompt", PROMPTS[#PROMPTS].title == "New note")
+msg({ a = "tplnone" })
+check("no templates yet → an alert naming the folder", ALERTS[#ALERTS]:find("No templates yet", 1, true) and ALERTS[#ALERTS]:find("/Templates", 1, true))
+PROMPT_ANSWERS = { { "Create", "Alpha" } }
+catsBefore = countTasks("cat")
+msg({ a = "tplnew", name = "Meeting" })
+check("an existing name is refused: alert, the note opens untouched, no fetch",
+      ALERTS[#ALERTS]:find("already exists", 1, true) and v.doc.rel == "Alpha.md" and countTasks("cat") == catsBefore)
+-- ⌘D and ‹ › with Templates/Daily.md
+do
+    -- the index keys notes by NAME (one Daily per vault): the root Daily.md must go first
+    local rels = {}
+    for _, nn in ipairs(v.notes) do if nn.rel ~= "Daily.md" then rels[#rels + 1] = nn.rel end end
+    rels[#rels + 1] = "Templates/Daily.md"
+    v.setNotes(rels)
+    check("the report names the daily template once it is indexed", _G.vaultReport():find("templates: 2 in Templates/ · daily template: Templates/Daily.md", 1, true) ~= nil, _G.vaultReport():match("templates:[^\n]*"))
+    catsBefore = countTasks("cat")
+    msg({ a = "daily" })
+    check("⌘D on an EXISTING daily note opens it as is — never re-templated", v.doc.rel == "Daily/" .. today .. ".md" and countTasks("cat") == catsBefore)
+    local tomorrow = os.date("%Y-%m-%d", os.time() + 86400)
+    msg({ a = "dayshift", d = 1, rel = v.doc.rel, text = v.doc.text, sel = 0 })
+    check("› onto a day with no note fetches Templates/Daily.md", countTasks("cat") == catsBefore + 1 and lastTask("cat").args[1] == VAULT .. "/Templates/Daily.md")
+    lastTask("cat").cb(0, "# {{title}}\n{{date:dddd}}\n", "")
+    check("the new daily note is the filled template: {{title}} = the date, {{date:}} for THAT day",
+          FILES[VAULT .. "/Daily/" .. tomorrow .. ".md"] == "# " .. tomorrow .. "\n" .. os.date("%A", os.time() + 86400) .. "\n" and v.doc.rel == "Daily/" .. tomorrow .. ".md",
+          FILES[VAULT .. "/Daily/" .. tomorrow .. ".md"])
+    rels[#rels] = nil
+    v.setNotes(rels)
+    check("without a daily template the report says none", _G.vaultReport():find("daily template: none", 1, true) ~= nil)
+    local keep = v.templatesDir; v.templatesDir = "Nowhere"
+    check("no templates at all → the report says where to put them", _G.vaultReport():find("templates: none — put .md files in Nowhere/", 1, true) ~= nil, _G.vaultReport():match("templates:[^\n]*"))
+    v.templatesDir = keep
+end
+
+-- =======================================================================
+out("11) 6.174.0 — search inside every note: debounce, one held grep, terms in Lua\n")
+-- =======================================================================
+do
+    local Tq = v.searchTerms('quarterly "big plan" tag:#Work path:Daily')
+    check("searchTerms: terms, a quoted phrase, tag: (# off, lowercased), path:", same(Tq.terms, { "quarterly", "big plan" }) and Tq.tag == "work" and Tq.path == "daily")
+    check("searchTerms: file: is path:, an unclosed quote runs to the end", v.searchTerms("file:X").path == "x" and v.searchTerms('"a b').terms[1] == "a b")
+end
+v.openNote("Alpha")
+local grepsBefore = countTasks("grep")
+msg({ a = "mode", m = "search" })
+check("entering search mode starts no grep", v.mode == "search" and countTasks("grep") == grepsBefore)
+msg({ a = "search", q = "plan" })
+check("a keystroke arms a held 0.3 s timer, no grep yet", countTasks("grep") == grepsBefore and v.searchTimer and v.searchTimer.kind == "after" and v.searchTimer.delay == 0.3)
+local st1 = v.searchTimer
+msg({ a = "search", q = "plan " })
+check("the next keystroke stops the first timer and arms a new one", st1.stopped and v.searchTimer ~= st1)
+v.searchTimer:fire()
+local sg = lastTask("grep")
+check("the grep: -rniIHF, -m 20, -e plan, the vault, not the [[ pattern; HELD; searching",
+      countTasks("grep") == grepsBefore + 1 and taskArgs(sg):find("-rniIHF", 1, true) and taskArgs(sg):find("-m 20", 1, true)
+      and taskArgs(sg):find("-e plan " .. VAULT, 1, true) and not taskArgs(sg):find("\\[\\[", 1, true) and v.searchTask == sg and v.searching == true, taskArgs(sg))
+sg.cb(0, VAULT .. "/Alpha.md:3:the big plan\n" .. VAULT .. "/Gamma.md:9:no plan here\n/elsewhere/x.md:1:plan\n", "")
+check("two rows (the stray path skipped), note · line · text", #v.searchRows == 2 and v.searchRows[1].n == "Alpha" and v.searchRows[1].r == "Alpha.md"
+      and v.searchRows[1].l == 3 and v.searchRows[1].x == "the big plan")
+check("the rows reach the page by eval, no rebuild, with the query they answer",
+      EVALS[#EVALS]:find('^setRows%("search", %[{n:"Alpha",r:"Alpha.md",l:3,x:"the big plan"}') and EVALS[#EVALS]:find(', false, "plan "%)$'), EVALS[#EVALS])
+check("lastSearch and the counters", v.lastSearch.hits == 2 and v.lastSearch.files == 2 and v.searches == 1 and v.searching == false and v.searchTask == nil)
+v.searchQuery = 'plan "big"'; v.runSearch()
+check("AND: the longest term goes to grep", taskArgs(lastTask("grep")):find("-e plan ", 1, true) ~= nil)
+lastTask("grep").cb(0, VAULT .. "/Alpha.md:3:the big plan\n" .. VAULT .. "/Gamma.md:9:no plan here\n", "")
+check("…the other terms are checked in Lua: Alpha only", #v.searchRows == 1 and v.searchRows[1].r == "Alpha.md")
+v.searchQuery = "plan tag:fresh"; v.runSearch()
+lastTask("grep").cb(0, VAULT .. "/Alpha.md:3:the big plan\n" .. VAULT .. "/Gamma.md:9:no plan here\n", "")
+check("tag:fresh keeps only notes tagged fresh", #v.searchRows == 1 and v.searchRows[1].r == "Alpha.md")
+v.searchQuery = "plan path:gam"; v.runSearch()
+lastTask("grep").cb(0, VAULT .. "/Alpha.md:3:the big plan\n" .. VAULT .. "/Gamma.md:9:no plan here\n", "")
+check("path:gam keeps only rels containing it", #v.searchRows == 1 and v.searchRows[1].r == "Gamma.md")
+grepsBefore = countTasks("grep")
+v.searchQuery = "tag:fresh"; v.runSearch()
+check("operators only: no grep, the note NAMES that pass, line 0", countTasks("grep") == grepsBefore and #v.searchRows == 1 and v.searchRows[1].n == "Alpha" and v.searchRows[1].l == 0)
+v.searchQuery = "plan"; v.runSearch()
+local s1 = lastTask("grep")
+v.runSearch()
+check("a second search terminates the first grep", s1.terminated and v.searchTask ~= s1)
+s1.cb(0, VAULT .. "/Alpha.md:3:late\n", "")
+check("…and its late answer changes nothing", v.searching == true and #v.searchRows == 1)
+v.setMode("notes")
+check("leaving search mode clears the rows and the task", v.searchRows[1] == nil and v.searchTask == nil and v.mode == "notes")
+msg({ a = "mode", m = "search" })
+msg({ a = "search", q = "  " })
+check("an empty box: no timer, an empty list on the page", v.searchTimer == nil and EVALS[#EVALS] == 'setRows("search", [], false, "")', EVALS[#EVALS])
+do
+    local lines = {}
+    for i = 1, 205 do lines[#lines + 1] = VAULT .. "/Alpha.md:" .. i .. ":plan " .. i end
+    v.searchQuery = "plan"; v.runSearch()
+    lastTask("grep").cb(0, table.concat(lines, "\n") .. "\n", "")
+    check("205 hits → 200 rows and a 'more' flag on the page", #v.searchRows == 200 and v.searchMore == true and EVALS[#EVALS]:find(', true, "plan"%)$'))
+    local long = "plan " .. string.rep("a", 114) .. "🙂" .. string.rep("b", 180)
+    v.runSearch()
+    lastTask("grep").cb(0, VAULT .. "/Alpha.md:1:" .. long .. "\n", "")
+    local x = v.searchRows[1].x
+    check("a snippet is cut to ≤120 bytes without splitting a UTF-8 character", #x <= 122 and utf8.len(x) ~= nil and x:sub(-3) == "…", #x)
+    v.searchQuery = "zzz"; v.runSearch()
+    lastTask("grep").cb(0, VAULT .. "/Alpha.md:1:" .. string.rep("x", 100) .. " zzz tail\n", "")
+    check("…and starts ≤30 chars before the term, with … where it was cut", v.searchRows[1].x:find("^…") and v.searchRows[1].x:find("zzz", 1, true) ~= nil, v.searchRows[1].x)
+    v.searchQuery = "plan"; v.runSearch()
+    lastTask("grep").cb(2, "", "grep: boom")
+    check("grep exit 2 → searchErr, no rows, the report shows ⚠️", v.searchErr and v.searchErr:find("grep exited 2", 1, true) and #v.searchRows == 0
+          and _G.vaultReport():find("search : \"plan\" → 0 hits in 0 notes", 1, true) and _G.vaultReport():find("⚠️ grep exited 2", 1, true), _G.vaultReport():match("search :[^\n]*"))
+    v.runSearch()
+    lastTask("grep").cb(1, "", "")
+    check("grep exit 1 is a clean 'no hit'", v.searchErr == nil and #v.searchRows == 0)
+end
+msg({ a = "open", name = "Gamma", line = 9 })
+check("⏎ on a hit opens the note with CARETLINE = 9 on the page, still in search mode",
+      v.doc.rel == "Gamma.md" and WEBVIEWS[#WEBVIEWS].htmlSet:find("CARETLINE = 9", 1, true) and v.mode == "search"
+      and WEBVIEWS[#WEBVIEWS].htmlSet:find('MODE = "search"', 1, true) and _G.vaultReport():find("· mode: search", 1, true))
+v.render()
+check("…and the next render has CARETLINE = 0", WEBVIEWS[#WEBVIEWS].htmlSet:find("CARETLINE = 0", 1, true) ~= nil)
+msg({ a = "search", q = "x" })
+v.hide()
+check("closing the window leaves search mode and drops its task and timer", v.mode == "notes" and v.searchTask == nil and v.searchTimer == nil and v.searchQuery == "")
+v.show()
+check("the vault.search service runs a search from the Console", (function()
+    local ok = PROVIDED["vault.search"]("plan")
+    return ok == true and v.mode == "search" and lastTask("grep") and taskArgs(lastTask("grep")):find("-e plan", 1, true)
+end)())
+v.setMode("notes")
+
+-- =======================================================================
+out("12) 6.174.0 — tasks: every open - [ ] in one grep, the open note refreshed from its text\n")
+-- =======================================================================
+do
+    local ts = v.tasksIn("- [ ] a\n  * [ ] b\n+ [ ] c\n3. [ ] d\n- [x] done\n-[ ] no\n")
+    check("tasksIn: -, *, + and 1. markers with [ ]; [x] and a missing space are not open",
+          #ts == 4 and ts[1].line == 1 and ts[2].line == 2 and ts[3].line == 3 and ts[4].line == 4
+          and ts[1].text == "a" and ts[2].text == "b" and ts[3].text == "c" and ts[4].text == "d")
+end
+msg({ a = "mode", m = "tasks" })
+local tk = lastTask("grep")
+check("entering ☑ starts the task grep: -rnHIE with the ERE, HELD, listing",
+      v.mode == "tasks" and taskArgs(tk):find("-rnHIE", 1, true) and taskArgs(tk):find("^[[:space:]]*([-*+]|[0-9]+\\.) \\[ \\]", 1, true)
+      and v.tasksTask == tk and v.tasksListing == true, taskArgs(tk))
+local TASKOUT = VAULT .. "/Groceries.md:4:- [ ] buy milk\n" .. VAULT .. "/Alpha.md:2:  * [ ] call\n" .. VAULT .. "/Templates/Meeting.md:3:- [ ] agenda\n" .. VAULT .. "/Alpha.md:5:1. [ ] later\n"
+tk.cb(0, TASKOUT, "")
+check("3 rows (the template skipped), sorted by note then line, the marker stripped",
+      #v.taskRows == 3 and v.taskRows[1].r == "Alpha.md" and v.taskRows[1].l == 2 and v.taskRows[2].l == 5 and v.taskRows[3].r == "Groceries.md" and v.taskRows[3].x == "buy milk")
+check("the rows reach the page and the listing is stamped", EVALS[#EVALS]:find('^setRows%("tasks", %[{n:"Alpha"') and v.lastTasks ~= nil and v.tasksListing == false and v.tasksTask == nil, EVALS[#EVALS])
+msg({ a = "tasks" })
+local tk2 = lastTask("grep")
+check("↻ inside the view runs a new grep and terminates the old one", tk2 ~= tk and v.tasksTask == tk2)
+local nRows = #v.taskRows
+tk.cb(0, VAULT .. "/Stale.md:1:- [ ] stale\n", "")
+check("a stale answer changes nothing", #v.taskRows == nRows and v.taskRows[1].r ~= "Stale.md")
+tk2.cb(0, TASKOUT, "")
+v.openNote("Alpha")
+msg({ a = "edit", rel = "Alpha.md", text = "# Alpha\n- [ ] one\n- [x] done\n- [ ] two\n", sel = 3 })
+local evalsBefore = #EVALS
+lastTimer("after"):fire()
+check("a save while ☑ is up refreshes the OPEN note's rows from its text — no grep",
+      #v.taskRows == 3 and v.taskRows[1].r == "Alpha.md" and v.taskRows[1].l == 2 and v.taskRows[1].x == "one" and v.taskRows[2].l == 4
+      and v.taskRows[3].r == "Groceries.md" and #EVALS == evalsBefore + 1 and EVALS[#EVALS]:find('^setRows%("tasks"') and countTasks("grep") == countTasks("grep"))
+v.setMode("notes")
+msg({ a = "edit", rel = "Alpha.md", text = "# Alpha\n- [ ] one\n", sel = 3 })
+evalsBefore = #EVALS
+lastTimer("after"):fire()
+check("…in notes mode the same save evaluates nothing", #EVALS == evalsBefore)
+msg({ a = "mode", m = "tasks" })
+lastTask("grep").cb(0, TASKOUT, "")
+grepsBefore = countTasks("grep")
+msg({ a = "rescan" })
+check("↻ (rescan) in tasks mode starts a task grep", countTasks("grep") == grepsBefore + 1 and taskArgs(lastTask("grep")):find("-rnHIE", 1, true) ~= nil)
+lastTask("grep").cb(1, "", "")
+check("exit 1: no tasks, no error", #v.taskRows == 0 and v.tasksErr == nil)
+lastTask("grep").cb(2, "", "grep: boom")
+msg({ a = "tasks" })
+lastTask("grep").cb(2, "", "grep: boom")
+check("exit 2: tasksErr, shown in the report", v.tasksErr and _G.vaultReport():find("tasks  : 0 open in 0 notes · listed", 1, true) and _G.vaultReport():find("⚠️ grep exited 2", 1, true))
+msg({ a = "tasks" })
+lastTask("grep").cb(0, TASKOUT, "")
+check("the report counts open tasks and notes", _G.vaultReport():find("tasks  : 3 open in 2 notes · listed", 1, true) ~= nil, _G.vaultReport():match("tasks  :[^\n]*"))
+check("the vault.tasks service lists from the Console", PROVIDED["vault.tasks"]() == true and v.mode == "tasks")
+v.setMode("notes")
+
+-- =======================================================================
+out("13) 6.174.0 — unlinked mentions: whole-word grep -l, minus self, backlinkers and templates\n")
+-- =======================================================================
+v.openNote("Alpha")
+local mg = lastTask("grep")
+check("opening Alpha starts a mentions grep (-rliwIF -e Alpha), HELD, pending for key alpha",
+      taskArgs(mg):find("-rliwIF", 1, true) and taskArgs(mg):find("-e Alpha " .. VAULT, 1, true) and v.mentionTask == mg
+      and v.unlinked.pending == true and v.unlinked.key == "alpha", taskArgs(mg))
+mg.cb(0, VAULT .. "/Alpha.md\n" .. VAULT .. "/Projects/Beta.md\n" .. VAULT .. "/Gamma.md\n" .. VAULT .. "/Templates/Meeting.md\n", "")
+check("Gamma is the one unlinked mention (Alpha itself, Beta the backlinker and the template drop out)",
+      same(v.unlinked.rels, { "Gamma.md" }) and v.unlinked.pending == false and v.mentionTask == nil)
+check("…and the page gets it by eval, keyed to the note", EVALS[#EVALS] == 'setMentions([{n:"Gamma",r:"Gamma.md"}], "alpha", "")', EVALS[#EVALS])
+v.render()
+check("a rebuild pre-fills the pane from Lua", WEBVIEWS[#WEBVIEWS].htmlSet:find('UNLINKED MENTIONS · 1</h4><ul id="unl"><li class="lnk" data-name="Gamma" title="Gamma.md">≈ Gamma</li>', 1, true) ~= nil)
+check("the report has the mentions line", _G.vaultReport():find("mentions: 1 unlinked for Alpha.md · extracts: 0 · random: 0", 1, true) ~= nil, _G.vaultReport():match("mentions:[^\n]*"))
+v.openNote("Alpha")
+mg = lastTask("grep")
+v.openNote("Gamma")
+check("opening another note terminates the probe", mg.terminated and v.unlinked.key == "gamma" and v.unlinked.pending == true)
+local n13 = #EVALS
+mg.cb(0, VAULT .. "/Delta.md\n", "")
+check("…and its answer is discarded", v.unlinked.key == "gamma" and v.unlinked.rels[1] == nil and #EVALS == n13)
+check("the report says it is looking", _G.vaultReport():find("mentions: looking for Gamma.md", 1, true) ~= nil)
+grepsBefore = countTasks("grep")
+v.openNote("Brand New")
+check("a note created this instant starts no probe", countTasks("grep") == grepsBefore and v.unlinked.key ~= "brand new")
+check("…and the report says so", _G.vaultReport():find("mentions: not searched for Brand New.md (new note)", 1, true) ~= nil, _G.vaultReport():match("mentions:[^\n]*"))
+do
+    FILES[VAULT .. "/Bo.md"] = "# Bo\n"
+    local rels = {}
+    for _, nn in ipairs(v.notes) do rels[#rels + 1] = nn.rel end
+    rels[#rels + 1] = "Bo.md"
+    v.setNotes(rels)
+    grepsBefore = countTasks("grep")
+    v.openNote("Bo")
+    check("a two-letter name is not searched for", countTasks("grep") == grepsBefore and v.unlinked.why == "too short" and v.unlinked.pending == false)
+    check("…said in the report", _G.vaultReport():find("mentions: not searched for Bo.md (name too short)", 1, true) ~= nil)
+end
+v.openNote("Alpha")
+do
+    local lines = {}
+    for i = 1, 51 do lines[#lines + 1] = VAULT .. "/M" .. string.format("%02d", i) .. ".md" end
+    lastTask("grep").cb(0, table.concat(lines, "\n") .. "\n", "")
+    check("51 files → the first 50, marked 'more'", #v.unlinked.rels == 50 and v.unlinked.more == true and EVALS[#EVALS]:find(', "alpha", "more"%)$'))
+end
+v.openNote("Alpha")
+lastTask("grep").cb(2, "", "grep: boom")
+check("a grep error is kept, not alerted", v.unlinked.why and v.unlinked.why:find("grep exited 2", 1, true) and EVALS[#EVALS]:find('"grep exited 2: grep: boom"%)$'))
+v.openNote("Alpha")
+lastTask("grep").cb(1, "", "")
+check("no mention: an empty answer", v.unlinked.rels[1] == nil and v.unlinked.why == nil and _G.vaultReport():find("mentions: none for Alpha.md", 1, true))
+
+-- =======================================================================
+out("14) 6.174.0 — extract the selection into a new note\n")
+-- =======================================================================
+msg({ a = "edit", rel = "Alpha.md", text = "# Alpha\n\nkeep this\nmove me\n", sel = 3 })
+lastTimer("after"):fire()
+PROMPT_ANSWERS = { { "Create", "" } }
+msg({ a = "extract", head = "# Alpha\n\nkeep this\n", selText = "move me" })
+check("the prompt offers the first line as the name", PROMPTS[#PROMPTS].title == "Extract to a new note" and PROMPTS[#PROMPTS].dflt == "move me", PROMPTS[#PROMPTS].dflt)
+check("the source keeps [[move me]] where the selection was, saved at once", FILES[VAULT .. "/Alpha.md"] == "# Alpha\n\nkeep this\n[[move me]]\n", FILES[VAULT .. "/Alpha.md"])
+check("the new note is # name + the selection, and it opens", FILES[VAULT .. "/move me.md"] == "# move me\n\nmove me\n" and v.doc.rel == "move me.md" and v.extracts == 1)
+msg({ a = "extract", head = "", selText = "  " })
+check("no selection → an alert", ALERTS[#ALERTS]:find("select some text first", 1, true) ~= nil)
+local snap = FILES[VAULT .. "/move me.md"]
+msg({ a = "extract", head = "wrong", selText = "move me" })
+check("a page whose text disagrees with Lua's copy is refused, nothing written", ALERTS[#ALERTS]:find("the text changed", 1, true) and FILES[VAULT .. "/move me.md"] == snap)
+PROMPT_ANSWERS = { { "Create", "Gamma" } }
+msg({ a = "extract", head = "# move me\n\n", selText = "move me" })
+check("an existing name is refused, nothing written", ALERTS[#ALERTS]:find('a note named "Gamma" already exists', 1, true) and FILES[VAULT .. "/move me.md"] == snap and v.doc.rel == "move me.md")
+PROMPT_ANSWERS = { { "Cancel", "" } }
+msg({ a = "extract", head = "# move me\n\n", selText = "move me" })
+check("Cancel writes nothing", FILES[VAULT .. "/move me.md"] == snap and v.extracts == 1)
+do
+    local keep = v.doc
+    v.doc = { scratch = "x", rel = "scratch:x", name = "x", text = "hello" }
+    msg({ a = "extract", head = "", selText = "hello" })
+    check("a scratch tab cannot extract", ALERTS[#ALERTS]:find("not a scratch tab", 1, true) ~= nil)
+    v.doc = keep
+end
+msg({ a = "edit", rel = "move me.md", text = "# move me\n\n- [ ] Buy list\nmilk\n", sel = 3 })
+PROMPT_ANSWERS = { { "Cancel", "" } }
+msg({ a = "extract", head = "# move me\n\n", selText = "- [ ] Buy list\nmilk" })
+check("the default name strips the list marker and box", PROMPTS[#PROMPTS].dflt == "Buy list", PROMPTS[#PROMPTS].dflt)
+
+-- =======================================================================
+out("15) 6.174.0 — daily ‹ ›: the day before / after, no template\n")
+-- =======================================================================
+check("dailyEpochOf reads Daily/YYYY-MM-DD.md and nothing else",
+      os.date("%Y-%m-%d", v.dailyEpochOf("Daily/2026-09-06.md")) == "2026-09-06" and v.dailyEpochOf("Alpha.md") == nil and v.dayOf("daily/2026-09-06.md") == "2026-09-06")
+msg({ a = "daily" })
+local yesterday = os.date("%Y-%m-%d", os.time() - 86400)
+msg({ a = "dayshift", d = -1, rel = v.doc.rel, text = v.doc.text, sel = 0 })
+check("‹ opens the day before, created with the weekday heading",
+      v.doc.rel == "Daily/" .. yesterday .. ".md" and FILES[VAULT .. "/Daily/" .. yesterday .. ".md"] == "# " .. os.date("%A %d %B %Y", os.time() - 86400) .. "\n\n", v.doc.rel)
+local todayText = FILES[VAULT .. "/Daily/" .. today .. ".md"]
+msg({ a = "dayshift", d = 1, rel = v.doc.rel, text = v.doc.text, sel = 0 })
+check("› from there opens today's note unchanged", v.doc.rel == "Daily/" .. today .. ".md" and FILES[VAULT .. "/Daily/" .. today .. ".md"] == todayText)
+local hd = WEBVIEWS[#WEBVIEWS].htmlSet
+check("a daily note's page knows the days either side", hd:find('DAILY = {prev:"' .. yesterday .. '",next:"' .. os.date("%Y-%m-%d", os.time() + 86400) .. '"}', 1, true) ~= nil, hd:match("var DAILY[^\n]*"))
+v.openNote("Alpha"); v.render()
+msg({ a = "dayshift", d = -1 })
+check("‹ › with a plain note open only alerts", v.doc.rel == "Alpha.md" and ALERTS[#ALERTS]:find("open a daily note first", 1, true) ~= nil)
+check("…and its page has DAILY = null", WEBVIEWS[#WEBVIEWS].htmlSet:find("DAILY = null", 1, true) ~= nil)
+
+-- =======================================================================
+out("16) 6.174.0 — a random note, never a template, never this one\n")
+-- =======================================================================
+math.randomseed(1)
+do
+    local okAll, prev = true, v.doc.rel
+    for _ = 1, 10 do
+        msg({ a = "random" })
+        if v.doc.rel == prev or v.isTemplateRel(v.doc.rel) then okAll = false end
+        prev = v.doc.rel
+    end
+    check("ten ⌘⇧R never reopen the same note nor a template", okAll and v.randoms == 10, v.doc.rel)
+    local rels = {}
+    for _, nn in ipairs(v.notes) do rels[#rels + 1] = nn.rel end
+    v.setNotes({ "Alpha.md", "Templates/Meeting.md" })
+    v.openNote("Alpha")
+    msg({ a = "random" })
+    check("only templates and the open note left → an alert", ALERTS[#ALERTS]:find("nothing else to open", 1, true) and v.doc.rel == "Alpha.md" and v.randoms == 10)
+    v.setNotes(rels)
+    check("the report counts extracts and randoms", _G.vaultReport():find("· extracts: 1 · random: 10", 1, true) ~= nil)
+end
+
+-- =======================================================================
+out("17) 6.174.0 — the doors: no new hyper key, the source sentries, the page's contract\n")
+-- =======================================================================
+do
+    local n17 = 0
+    for k in pairs(HYPER) do n17 = n17 + 1 end
+    check("still ONE hyper key (⇪3) — ⇪⇧T / ⇪⇧U / ⇪⇧Z untouched", n17 == 1 and HYPER["|3"] ~= nil)
+    local rf = io.popen("cat '" .. HS .. "/modules/vault.lua'")
+    local real = rf and rf:read("a") or ""
+    if rf then rf:close() end
+    local _, taskNews = real:gsub("pcall%(hs%.task%.new", "")
+    check("exactly five task births: find, link grep, tag grep, front-matter grep, startTask", taskNews == 5, taskNews)
+    check("no hs.json, no eventtap, no hs.window, every timer held", not real:find("hs%.json") and not real:find("hs%.eventtap%.new")
+          and not real:find("hs%.window%.") and not real:find("\n%s*hs%.timer%.do"))
+    check("templates are read by /bin/cat in a task, never io.open", real:find('CAT             = "/bin/cat"', 1, true) and not real:find("io%.open%(rec"))
+    check("vault.search and vault.tasks are published", PROVIDED["vault.search"] ~= nil and PROVIDED["vault.tasks"] ~= nil)
+    local names = {}
+    for _, e in ipairs(mod.cheatsheet.entries) do names[e[1]] = e[2] end
+    check("the cheat sheet names the new keys", names["#tag"] and names["⌘⇧F"] and names["⌘⇧K · ⌘L"] and names["⌘⇧N · ⌘⇧T"] and names["⌘⇧E · ⌘⇧R"]
+          and names["⌘F · ⌘O · ↑↓ ⏎"] and names["OUTLINE · ≈"] and names["⌘N · ⌘D"]:find("Templates/Daily.md", 1, true))
+    check("the summary grew", mod.summary:find("tags, templates, full-text search, tasks", 1, true) ~= nil)
+    v.render()
+    local hp = WEBVIEWS[#WEBVIEWS].htmlSet
+    check("the page has the Lua → page state and the mentions pane; one script block; insertAtCaret takes a tail",
+          hp:find('var SEARCH = {q:"", rows:[], more:false, err:"", busy:false}', 1, true) and hp:find("var TASKS = {rows:[", 1, true)
+          and hp:find('var UNL = {key:"alpha"', 1, true) and hp:find('id="unlh"', 1, true) and hp:find('id="unl"', 1, true)
+          and hp:find("function insertAtCaret(str, tail)", 1, true) and select(2, hp:gsub("<script", "")) == 1 and not hp:find("FS%d?px") and not hp:find("FSNUM"))
+end
+
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)
