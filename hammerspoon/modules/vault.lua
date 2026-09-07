@@ -188,6 +188,7 @@ function M.setup(core)
         -- 6.174.0 — tags, templates, search, tasks, mentions (settings overrides land here)
         templatesDir    = "Templates",   -- subfolder of the vault; its .md files are the templates
         dailyTemplate   = "Daily",       -- Templates/<this>.md seeds a NEW daily note when it exists
+        linkSection     = "## Linked",   -- 6.180.0 — where ⇪⇧U puts an anchor
         templateTimeout = 10,            -- seconds to wait for /bin/cat before giving up (OneDrive)
         searchDelay     = 0.3,           -- ⌘⇧F: seconds of silence before the grep runs
         searchMax       = 200,           -- rows kept from one search
@@ -1054,7 +1055,20 @@ function M.setup(core)
             pcall(function() hs.urlevent.openURL(target) end)
             return true
         end
+        -- 6.180.0 — a ⇪⇧U anchor writes an ABSOLUTE link: file:// for a
+        -- document, or a scheme only its own app understands (message://
+        -- for a Mail message, asana:// …). Before this, "file:///Users/…"
+        -- did not match https, did not start with "/", and was therefore
+        -- joined onto the note's folder as if it were relative — it could
+        -- never open. Schemes we do not know are handed to macOS, which
+        -- does know.
+        local scheme = target:match("^([%a][%w+.-]*)://")
+        if scheme and scheme ~= "file" then
+            pcall(function() hs.urlevent.openURL(target) end)
+            return true
+        end
         local decoded = target:gsub("%%(%x%x)", function(h) return string.char(tonumber(h, 16)) end)
+        if scheme == "file" then decoded = decoded:gsub("^file://", "") end
         local path = decoded
         if path:sub(1, 1) ~= "/" then
             local base = (v.doc and v.doc.path:match("^(.*)/[^/]*$")) or v.dir
@@ -1069,6 +1083,33 @@ function M.setup(core)
         if path:match("%.md$") then
             local rel = path:sub(1, #v.dir + 1) == v.dir .. "/" and path:sub(#v.dir + 2) or nil
             if rel then return v.openNote(rel:gsub("%.md$", ""):match("([^/]+)$"), rel:match("^(.*)/[^/]*$")) end
+        end
+        -- 🔎 MOVE SURVIVAL (6.180.0). A path breaks the moment the file is
+        -- renamed or filed somewhere else, which is the one thing a link
+        -- to a document has to survive. If the path has gone, the anchors
+        -- module is asked to find the file by NAME (it uses the file index
+        -- that ⇪D already builds). It is asked through the service
+        -- registry, so a Mac without that module simply gets the honest
+        -- "it has moved" message instead of a silent failure.
+        local gone = false
+        if type(hs.fs) == "table" and type(hs.fs.attributes) == "function" then
+            local okA, a = pcall(hs.fs.attributes, path)
+            gone = not (okA and type(a) == "table")
+        end
+        if gone then
+            local found = nil
+            if _G.service and _G.service.has and _G.service.has("anchors.resolve") then
+                local okS, res = _G.service.call("anchors.resolve", path)
+                if okS and type(res) == "string" and res ~= "" then found = res end
+            end
+            if found then
+                path = found
+                pcall(function() hs.alert.show("🕸 Moved — opening " .. found:match("[^/]+$"), 2) end)
+            else
+                pcall(function() hs.alert.show("🕸 " .. (path:match("[^/]+$") or path)
+                      .. " is not where the link says.\nIt may have moved or be offline.", 4) end)
+                return false
+            end
         end
         local ok = pcall(function() return hs.open(path) end)
         if not ok then pcall(function() hs.alert.show("🕸 Could not open " .. decoded, 2) end) end
@@ -2763,6 +2804,38 @@ else {
     -- 6.174.0
     core.provide("vault.search", function(q) v.mode = "search"; v.searchQuery = tostring(q or ""); return v.runSearch() end)
     core.provide("vault.tasks",  function() v.mode = "tasks"; return v.listTasks() end)
+    -- 6.180.0 — what ⇪⇧U needs from the vault, and nothing more.
+    -- vault.names() lists the notes the index knows (for "put it in an
+    -- existing note"); vault.link(note, line) appends ONE line under a
+    -- heading, creating the note if it is new, and never twice.
+    core.provide("vault.names", function()
+        local names = {}
+        for _, n in ipairs(v.notes or {}) do names[#names + 1] = n.name end
+        table.sort(names)
+        return names
+    end)
+    core.provide("vault.link", function(name, line, sub)
+        name, line = tostring(name or ""), tostring(line or "")
+        if name == "" or line == "" then return false, "nothing to link" end
+        local ok, why = v.openNote(name, sub)
+        if not ok then return false, tostring(why or "could not open the note") end
+        local text = (v.doc and v.doc.text) or ""
+        if text:find(line, 1, true) then
+            return true, "already linked"     -- idempotent: press it twice, one line
+        end
+        local head = tostring(v.linkSection or "## Linked")
+        if not text:find(head, 1, true) then
+            if text ~= "" and text:sub(-1) ~= "\n" then text = text .. "\n" end
+            text = text .. "\n" .. head .. "\n"
+        end
+        -- put the line directly under the heading, so the newest is first
+        local at = text:find(head, 1, true) + #head
+        local before, after = text:sub(1, at), text:sub(at + 1)
+        if before:sub(-1) ~= "\n" then before = before .. "\n" end
+        v.setText(before .. line .. "\n" .. after)
+        v.saveNow()
+        return true, "linked"
+    end)
 
     function _G.vaultRescan() return v.scan("console") end
     function _G.vaultReport()

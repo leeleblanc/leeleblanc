@@ -29,7 +29,7 @@ with no admin password. The two steps that *can* use admin are marked
 │   ├── console.lua           the ⛔ ERRORS + ⚠️ NONBREAKING sections + repeat limiter
 │   ├── lag.lua               which tap is eating the keystroke — OFF unless ~/.hammerspoon/LAGPROBE exists (_G.lagOn())
 │   └── notices.lua           the failure ledger — nothing fails silently
-├── modules/              67 files, loaded by the §1.12 loader
+├── modules/              68 files, loaded by the §1.12 loader
 ├── tools/                hs-doctor.sh · hs-install.sh · run-tests.sh
 └── logs/                 only if there is no OneDrive on this Mac
 ```

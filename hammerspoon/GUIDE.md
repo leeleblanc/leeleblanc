@@ -9,10 +9,10 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,998 lines)
+├── init.lua          the orchestrator (3,677 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
-├── core/             dofile'd at a fixed point, NOT loader-managed (10 files)
-├── modules/          one file per feature (64 files, ~46,300 lines)
+├── core/             dofile'd at a fixed point, NOT loader-managed (12 files)
+├── modules/          one file per feature (68 files, ~51,400 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
 ├── packs/            the four PUBLIC snippet packs as .json (1,926), in
 │                     git since 6.162.0 — the builder folds them into
@@ -574,12 +574,276 @@ the module's name from your profile and reload.
 
 ---
 
+## 5b. What each tool does
+
+Moved here from `init.lua`'s header in 6.180.0 — 259 lines of prose that
+belonged in the guide, not in the orchestrator. This is the catalogue as it
+stood, kept verbatim.
+
+```text
+
+🧭 PORTABILITY LAYER (§0.1)
+   One identical init.lua runs on any Mac. Auto-detects your
+   OneDrive folder (OneDrive-Personal preferred, even on the work
+   Mac where a company OneDrive is also signed in), tags every
+   per-machine data file with the Mac's name so two Macs sharing
+   one OneDrive never overwrite each other, and falls back to
+   local storage when no OneDrive is found. ALL log, note &
+   history files live in <OneDrive>/Logs — the only things left
+   in ~/.hammerspoon are init.lua and secret.lua.
+   Zero edits needed when you copy the file to the work Mac.
+
+🔐 CREDENTIALS (§0.2)  ·  no key: Asana features politely off
+   Your Asana token lives only in ~/.hammerspoon/secret.lua —
+   never in this file, never in OneDrive (the nightly backup
+   excludes it) — so init.lua can be shared, backed up, or
+   pasted in chat without exposing anything. Missing secret.lua
+   just turns Asana off; everything else keeps running.
+
+🔑 HOTKEY CONFLICT SENTRY (§0.3)
+   Every key binding registers through a watchdog. If the same
+   combo is claimed twice (the later one silently kills the
+   earlier feature), the Console names it at boot. Also flags
+   combos that match known macOS defaults like Spotlight or
+   Spaces so a dead key is never a mystery.
+
+⇪⇧D  DIAGNOSTICS (§1.11)
+   Writes a full report — versions, boot timings, screens,
+   hotkeys, feature states, a live window-enumeration timing,
+   recent errors and the last 25 internal events — to the
+   Console, your clipboard AND <logsDir>/diagnostics-<machine>.txt.
+   Paste it into chat when something misbehaves. Verbose live
+   logging: type  _G.diag.verbose = true  in the Console.
+
+⌥Tab  WINDOW SWITCHER (§1.10)
+   The Windows-style Alt+Tab macOS doesn't have: hold ⌥ and tap
+   Tab to walk every open WINDOW — one thumbnail tile each, title
+   underneath — ⌥⇧Tab to walk back, release ⌥ to switch. Lists
+   minimised windows and hidden apps across all Spaces. ⌘Tab is
+   left alone: macOS reserves it, and it switches apps not windows.
+
+⇪/  SHORTCUT CHEAT SHEET (§1.6)
+   One tall translucent column listing every hotkey in this
+   config — scroll it with ↑↓, PgUp/PgDn, Home/End or the wheel.
+   Press ⇪/ again or Esc to close; a click does NOT close it and
+   passes through to whatever is underneath. Add your own
+   entries with ⇪= (pipe format: Keys | Description | Group),
+   edit them with ⇪E, remove with ⇪-.
+   Custom entries live in <OneDrive>/Logs/custom_shortcuts.json —
+   SHARED between both Macs, so an entry added on one appears on
+   the other after its next reload.
+
+⇪⇧ ARROWS  POPUP NUDGING (§1.5) · 6.89.0: or just ⌘-DRAG it
+   Every popup opens centered on your frontmost app's monitor. Want
+   it elsewhere? Hold ⌘ and DRAG it (modules/window_move.lua — every
+   picker and panel; where you drop a picker STICKS), or nudge with
+   ⇪⇧ + arrow keys (hold to walk it). ⇪⇧R = back to automatic.
+
+☁️ DAILY BACKUP (§1.7)  ·  the rebuild kit, automatic at 5:00 PM
+   rsync copies your ~/.hammerspoon folder (EXCEPT secret.lua —
+   the token never leaves this Mac) to
+   OneDrive/Backups/Hammerspoon/<MachineName>/ every day, and
+   6.139.0 added the RebuildKit/ folder beside it: dotfiles,
+   LaunchAgents, Fonts, Documents, Desktop, a Brewfile, an apps.csv
+   naming every installed app and how to reinstall it, and a
+   README.md restore guide rewritten after every run.
+   _G.backupNow() runs it by hand; _G.backupReport() explains;
+   _G.backupAdopt() names the apps Homebrew could take over.
+   Quiet on success; on-screen alert if something goes wrong.
+
+🔋 BATTERY SAVER (modules/battery_saver.lua)  ·  automatic, no key
+   On battery, the config's own pollers slow down (clipboard poll,
+   the watchdogs, activity and focus detection) and the Spotlight
+   boot scan waits for AC; every cadence is restored the moment
+   the cord is back. An app holding serious CPU on battery is
+   NAMED in a notification — once per app per hour, never killed.
+   _G.eco() says what is slowed; _G.battReport() charge and drain;
+   _G.ecoOn()/_G.ecoOff()/_G.ecoAuto() force it either way. A Mac
+   with no battery loads it and sleeps.
+
+📎 DEFAULT APPS (modules/default_apps.lua)  ·  no key — ⇪space, @tool
+   Pick a file type (any extension), pick the app that opens it —
+   only apps that CLAIM the type are offered, today's default
+   starred. The change is written to LaunchServices out of process
+   and then READ BACK through two independent APIs before the ✅ is
+   believed; a re-check two seconds later catches a write that a
+   racing LS refresh undid. _G.defaultAppsReport() lists every
+   change this session with its verdict. Per-file "Always Open
+   With" overrides and the default browser are out of scope — the
+   report says why.
+
+🌐 ⇪⇧6  NET WATCH (modules/net_watch.lua)
+   Who's talking: every app of yours with a live network
+   connection, one row per app — remote IPs reverse-resolved,
+   known services explained (an unknown one says UNRECOGNIZED,
+   never a guess). ⌘1 copies the full report, ⏎ copies one app's:
+   what · why · each path with both ends, state and resolved name.
+   One lsof snapshot per press, nothing in the background.
+   _G.netWatchReport() prints the same report to the Console.
+
+⇪P  APP PEEK (§1.8)
+   Hides the frontmost app instantly so you can see what's
+   behind it. Same key brings it back and refocuses it.
+   Closest thing to "make a window transparent" that macOS allows.
+
+⇪ ARROWS / \\ / W / ⇪[ ]  WINDOW ARRANGER (§1.9)
+   ⇪←/→    snap to left or right half of the screen
+   ⇪↑       fill the screen (not native full-screen mode)
+   ⇪\\       split the two most recent windows side by side
+   ⇪⇧W      picker: summon any running app to this monitor
+   ⇪↓       return the window to where it was before you moved it
+   ⌃⌥⌘[ ]   throw the window to the next monitor right or left
+   🎬 6.123.0 — every one of these now READS THE FRAME BACK and nudges
+   the window in if the app answered with a size of its own (VLC does).
+   A window too big for the monitor keeps its top-left corner on screen
+   and says so, rather than showing a success alert over a window whose
+   sidebar is off the edge.
+
+🔎 ⇪space  UNIFIED SEARCH (modules/unified_search.lua) — 6.89.0
+   One typed search over EVERY store: clipboard, commands, shots,
+   notes, Asana, OCR, docs, moves, pad. @tag pins one source;
+   ⏎ copies, ⌘⏎ the path. ⇪⇧space = big-thumbnail shot browser.
+
+⇪V  CLIPBOARD HISTORY (§2 / §3)
+   Keeps your last 1,000 copied texts, saved per-machine to
+   <OneDrive>/Logs/clipboard_history-<Mac>.json. Search matches
+   the FULL content of every item, not just what a row displays.
+   Copying something you've copied before moves it to the front
+   instead of using a second slot. Select any row to put it back
+   on the clipboard. Images go to the OCR engine instead.
+   ⌘⌃⌥⇧V opens the same history to EDIT or DELETE an entry instead —
+   Save with the text cleared deletes it.
+
+⇪O  OCR LOG SEARCH (modules/ocr_engine.lua — was §2 until 6.105.0)
+   When an image lands on the clipboard, Hammerspoon runs your
+   "HS OCR" Apple Shortcut automatically and indexes the extracted
+   text. ⇪O searches everything ever OCR'd; selecting a row
+   copies the text. NEW: copy image FILES in Finder (⌘C) and the
+   OCR text is also written into each file's Finder comment —
+   Spotlight-searchable, so meaningless filenames stop mattering.
+   ⇪⇧O opens the same history to EDIT or DELETE an entry instead —
+   fixes a bad OCR read in place, or clears out junk. Save with the
+   text cleared deletes it.
+
+✅ ⇪T  ASANA TASK CREATOR (§4 / §5 + modules/task_form.lua)
+   6.86.0: ⇪T opens a FORM — labeled Title/Description/Assignee/
+   Attachment. ⏎ sends from any field, ⌥⏎ = newline, Esc keeps the
+   draft; 📸/⌘L drops the newest ⇪4 screenshot into Attachment.
+   Past tasks: ⇪space (@asana). The old pipe picker has no key since
+   6.161.0 (⇪⇧S is the snippets panel); _G.asanaOpenTaskChooser() opens it.
+
+📸 ⇪4  SCREENSHOTS (modules/screenshots.lua + screenshot_editor.lua)
+   ⇪4 = native crosshair capture (SPACE = window, Esc cancels) to
+   OneDrive's "2026 Screenshots" AND the clipboard. ⇪⇧4 = the
+   PANEL: ⌘1–⌘8 (⌘8 = BIG thumbnails) and TYPING searches. ⏎ image
+   · ⌘⏎ path · ⌃⏎ compress · ⌥⏎ EDITOR (blur/text/arrows; ⌘Z).
+
+📅 ⌃⌥⌘L / ⌃⌥⌘C  ASANA DASHBOARD (§6)
+   Fetches your incomplete Asana tasks and shows them in five
+   color-coded buckets with a legend strip above the list:
+   🔴 Overdue (40)  🟡 Due today (10)  🔵 Due this week (30)
+   🟠 Due later (10)  🟣 No due date (10) — newest created first
+   ⌃⌥⌘L lists tasks, opening one in the browser.
+   ⌃⌥⌘C prompts for a comment and posts it to Asana.
+
+📊 ⌘⌥⇧0  ACTIVITY TRACKER (§3.6)
+   Tracks which app and which document/window you're in, persisted
+   to OneDrive as a CSV. Only real Dock apps are counted (loginwindow
+   and ScreenSaverEngine are never logged), and a lock/sleep watcher
+   closes the open session the instant the screen locks — no more
+   inflated durations after a locked weekend. Open the picker and type:
+   (empty)   today's apps ranked most→least time
+   week      this week's totals
+   month     top apps AND top documents/windows this month
+   anything  searches all history by app name, window title OR URL
+   Automatic reports pop up daily at 4:00 PM and Monday at 7:30 AM.
+   Selecting any row copies the name + time to the clipboard.
+   🌐 6.123.0 — the CSV's columns are date,app,title,seconds,url. When
+   the window in front is Chrome the row records the page, so this one
+   file says what you were looking at, what it was called and for how
+   long. Incognito windows are never recorded and named secrets are
+   stripped from the address first. _G.urlReport() says why the column
+   is empty when it is — usually macOS has not been told to allow
+   Hammerspoon to control Chrome (Privacy & Security → Automation).
+
+👁 APP WATCHER (§3.7)  ·  automatic, no key needed
+   Monitors apps you care about (edit the list in §3.7).
+   When one quits or crashes, a popup appears with 🚀 Spawn
+   (relaunch) or 🛑 End (leave closed), pinging every 2 seconds.
+   No response in 30 seconds → dismisses and posts a notification.
+
+⇪F  FILE TRACKER (§3.8)
+   Watches your home folder and OneDrive for renames, moves,
+   copies, and new files. Logs them straight to
+   <OneDrive>/Logs/file_changes-<Mac>.csv with 90-day history —
+   it's already in OneDrive, so no separate daily copy exists
+   anymore. ⌃⌥⇧F opens a searchable picker; Enter copies a row.
+
+📦 ⌃⌥⇧U  APP UPDATE TRACKER (§3.10 / §3.10.1)
+   Compares each tracked app's installed version against the latest
+   Homebrew knows about. ⌃⌥⇧U opens a picker (always re-checks fresh
+   on open, plus a daily 9am pass), "update available" rows sorted
+   first. Enter acts on the row: installs via `brew upgrade` when
+   Homebrew actually manages that app, opens the vendor's download
+   page otherwise — an "⬆️ Upgrade ALL" row batches every brew-
+   manageable update into one shot. No predicted dates — a live
+   "what's stale right now" report you can act on immediately.
+
+✏️ AUTOCORRECT (§3.9)  ·  ⇪S toggle · ⇪Z undo & learn
+   Fixes typos the instant you end a word (space, punctuation,
+   apostrophe, return) — system-wide, in any app:
+   Dictionary  10,970 entries: teh→the, Mna→Man, dont→don't,
+               alot→"a lot", thier→their, libary→library…
+               Case is preserved: Mna→Man, MNA→MAN, mna→man.
+   TWo-caps    MAn→Man, THe→The — one rule covers everything;
+               80 real exceptions (IDs, TVs, MHz…) in the CSV.
+   ⌃⌥⌘Z       if a fix was wrong: rewinds the text AND (for
+               two-caps fixes) permanently adds the word to your
+               exceptions so it never fires again.
+   The dictionary is SHARED: <OneDrive>/Logs/autocorrect.csv —
+   an exception learned on one Mac works on the other after its
+   next reload. Password fields, pasted text, and Terminal are
+   never touched.
+
+=====================================================================
+=====================================================================
+REQUIRED on every Mac (this is the whole install):
+   • Hammerspoon app (runs fine from ~/Applications — no admin)
+   • ~/.hammerspoon/init.lua            ← this file, identical everywhere
+   • Accessibility permission for Hammerspoon (System Settings →
+     Privacy & Security → Accessibility) — needed by the Window
+     Arranger, App Peek & app summon; everything degrades politely
+     without it, but grant it if the Mac allows
+PER-MACHINE, one-time:
+   • ~/.hammerspoon/secret.lua          ← Asana token (see §0.2);
+     omit on a Mac where Asana isn't used. NEVER put this in
+     OneDrive — each Mac keeps its own, and the nightly backup
+     deliberately skips it.
+SHARED DATA (lives in <OneDrive>/Logs — arrives via OneDrive sync,
+nothing to copy by hand once the first Mac has run 6.10.0):
+   • autocorrect.csv                    ← typo dictionary (§3.9);
+     auto-seeded with a starter list if somehow missing
+   • custom_shortcuts.json              ← your ⭐ cheat-sheet entries
+CREATED AUTOMATICALLY (never make these yourself):
+   • <OneDrive>/Logs/clipboard_history-<MachineName>.json,
+     asana_history-<MachineName>.json,
+     file_changes-<MachineName>.csv,
+     activity_history-<MachineName>.csv,
+     image_text-<MachineName>.csv,
+     app_updates-<MachineName>.csv  (per-machine, so two Macs
+     sharing one OneDrive never fight over files) and
+     <OneDrive>/Backups/Hammerspoon/<MachineName>/ — or
+     ~/.hammerspoon/logs/ for all of it when the Mac has no
+     OneDrive (§0.1)
+=====================================================================
+```
+
 ## 6. Tests
 
-Sixty-seven Lua suites, 7,421 checks, plus four more that run the Capture
+Sixty-eight Lua suites, 7,485 checks, plus four more that run the Capture
 Pad's, the screenshot editor's, unified search's and the vault's page
-JavaScript under `node` for a further 291 — **7,712 checks over
-seventy-three stages** in
+JavaScript under `node` for a further 291 — **7,776 checks over
+seventy-four stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 

@@ -493,6 +493,40 @@ do
     local okNo = pcall(msg, { a = "export" })
     check("...an old pad without the export still costs nothing", okNo == true)
 
+    -- 6.180.0 — the anchors half: vault.link writes ONE line under the
+    -- heading, vault.names lists the notes, and follow() opens an
+    -- absolute link (including one whose file has moved).
+    do
+        local ok, why = PROVIDED["vault.link"]("Anchored", "- [Contract](file:///a/b.docx)")
+        check("6.180.0: vault.link creates the note and writes the line under the heading", (function()
+            local t = v.doc and v.doc.text or ""
+            return ok and t:find("## Linked", 1, true) and t:find("- [Contract](file:///a/b.docx)", 1, true)
+        end)(), v.doc and v.doc.text)
+        local again = select(2, PROVIDED["vault.link"]("Anchored", "- [Contract](file:///a/b.docx)"))
+        check("...and the SAME link twice is one line, not two",
+              again == "already linked"
+              and select(2, (v.doc.text):gsub("%- %[Contract%]", "")) == 1, again)
+        PROVIDED["vault.link"]("Anchored", "- [Second](file:///a/c.docx)")
+        check("...a second link goes under the same heading, newest first",
+              v.doc.text:find("## Linked\n%- %[Second%]") ~= nil, v.doc.text)
+        check("...and it refuses politely with nothing to link",
+              PROVIDED["vault.link"]("Anchored", "") == false)
+        local names = PROVIDED["vault.names"]()
+        check("vault.names lists the notes for the anchors picker",
+              type(names) == "table" and #names > 0, names and #names)
+    end
+    do
+        OPENED = {}
+        v.follow("file:///tmp/does-not-matter.txt", true)
+        check("6.180.0: an absolute file:// link is opened as a FILE, not joined onto the note's folder",
+              (OPENED[#OPENED] or ""):find("^/tmp/does%-not%-matter%.txt") ~= nil
+              or (ALERTS[#ALERTS] or ""):find("not where the link says", 1, true) ~= nil,
+              tostring(OPENED[#OPENED] or ALERTS[#ALERTS]))
+        v.follow("message://%3Cabc@example.com%3E", true)
+        check("...and a scheme only its own app understands is handed to macOS",
+              (OPENED[#OPENED] or ""):find("^message://") ~= nil, OPENED[#OPENED])
+    end
+
     check("the report has the scratch line", _G.vaultReport():find("scratch: 3 tabs of the Scorp Pad", 1, true) ~= nil)
     _G.scratchPad = nil
 end

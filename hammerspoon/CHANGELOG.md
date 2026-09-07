@@ -4,6 +4,74 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.180.0 — 🔗 ANCHORS (⇪⇧U) · AND init.lua GETS ITS BUDGET BACK:
+  🔗 LL: "I like Hookmark. Is there some kind of tool we can build out
+     into hammer-sidian? Or can I build this as a tool that is very
+     similar to Hookmark?" Hookmark is one idea done well: link the thing
+     you are looking at to another thing, in both directions. The vault
+     already had half of it — [[wikilinks]] between notes, backlinks, ⌘K
+     for a file. The missing half was outward: the document, the tab, the
+     page in front of you RIGHT NOW, and a way back to the note about it.
+     ⇪⇧U is that half. It works out what is in front — a browser tab
+     (osascript, in a held task, killed on its own timer if the browser
+     never answers), the document in the front window (through
+     doc_memory's new docs.front, which stays the only AXDocument reader
+     in the config), or failing both the app itself — and offers: the
+     notes that ALREADY link it, a new note named after it, or any
+     existing note to link it into. Press it again on the same document
+     and those first rows are Hookmark's "hooked" list.
+  📄 THE LINK IS PLAIN MARKDOWN, IN THE NOTE, under a "## Linked"
+     heading: `- [Contract.docx](file:///Users/…/Contract.docx)  · Word ·
+     2026-09-07`. Not a sidecar, not a database, not an id only this
+     config understands — Obsidian opens those links itself. That keeps
+     the promise the vault was built on (6.172.0) and that 6.177.0
+     extended to the Scorp Pad: the FOLDER is the database and you can
+     walk away with it. Hookmark's links live in Hookmark; these live in
+     your notes.
+  🔎 AND THE REVERSE DIRECTION NEEDS NO STORE AT ALL. "Which notes
+     mention this document?" is /usr/bin/grep -rlF over the vault in a
+     held hs.task — the same machinery the [[link]] index already uses.
+     Nothing to keep in sync, nothing to corrupt, nothing to migrate. If
+     the full path finds nothing, the file's NAME is tried next, which is
+     what finds a note written before the file moved.
+  🚚 MOVE SURVIVAL — the one thing Hookmark does that a path cannot, and
+     LL asked for it in v1. When the vault follows an anchor whose file
+     has gone, it asks `anchors.resolve` through the service registry,
+     and that asks the file index ⇪D already builds for the same NAME.
+     The filename is in the link already, so nothing extra had to be
+     written to make this work. No file index loaded → it says the file
+     has moved instead of guessing, and the vault says so on screen.
+     The vault also learned to follow an absolute link at all: before
+     this, `file:///Users/…` did not match http, did not start with "/",
+     and was joined onto the note's own folder — it could never open. A
+     scheme it does not know (message://, asana://) now goes to macOS,
+     which does know.
+  🛟 IT DEGRADES ALL THE WAY DOWN. No Vault module → ⇪⇧U says so and does
+     nothing else. No Accessibility → no document path, but the browser
+     tab and the app name still anchor. No file index → a moved file is
+     reported, not guessed. A browser that refuses Automation, or never
+     answers → named, with the task killed on its own held timer. And it
+     reads a window title, a document PATH and a URL — never your text,
+     never a file's contents, never the clipboard. The gate asserts that
+     against the source.
+  ✂️ init.lua LOST 321 LINES AND GAINED ITS HEADROOM BACK. LL: "trim
+     init.lua down to a length that is fail-proof." It stood at 3,998
+     lines of its own 4,000-line budget, and the last two releases had to
+     be trimmed mid-flight to ship at all. Two things moved out, neither
+     of them code: the 259-line WHAT EACH TOOL DOES catalogue went to
+     GUIDE.md (§5b) where prose belongs and where the zip already carries
+     it, and the inline NEW IN blocks dropped from FIVE to TWO —
+     CHANGELOG.md is the complete record, and the gate proves that for
+     every entry still inline. 3,998 → 3,677, and a new check fails the
+     build if it ever creeps back over 3,800. The version stamp stays in
+     the catalogue's place, because the ceremony counts three of them.
+  ✅ Gate: a new suite — test_anchors (53 checks: the identify paths, the
+     Markdown the link must be, the grep and its name fallback, move
+     survival, every degrade path, and the two promises read off the
+     source) — plus test_vault 270 → 277 and test_integration 198 → 200.
+     68 modules, 12 core files. 7,712 → 7,776 checks, and the gate is
+     SEVENTY-FOUR stages for the first time since 6.169.0.
+
 NEW IN 6.179.1 — THE REPORTS SURVIVE THE CONSOLE GATE, AND THREE TESTS THAT LIED:
   🚨 _G.keyTrailReport() AND _G.bootCostReport() WERE BEING EATEN BY THE
      CONSOLE GATE. Both printed one line per row. core/console.lua's gate

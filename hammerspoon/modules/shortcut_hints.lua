@@ -94,6 +94,7 @@ local hint = {
         -- Notes & capture
         n = "Notes & capture", ["shift+n"] = "Notes & capture", ["1"] = "Notes & capture", ["2"] = "Notes & capture",
         ["3"] = "Notes & capture",   -- 6.172.0 the vault
+        ["shift+u"] = "Notes & capture",   -- 6.180.0 the ⇪⇧U anchors
         j = "Notes & capture", ["shift+j"] = "Notes & capture",
         pad1 = "Notes & capture", pad2 = "Notes & capture", pad3 = "Notes & capture",
         ["pad*"] = "Notes & capture", ["pad-"] = "Notes & capture",

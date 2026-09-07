@@ -28,9 +28,9 @@ work Mac.
 - Battery saver never dims the screen, never touches pmset/sudo; the hog
   caller-out never kills/pauses/renices apps.
 - ⇪⇧Z is reserved for later — do not bind it.
-- ⇪⇧T (free since 6.161.0) and ⇪⇧U (free since 6.166.0, win_pin retired)
-  are unspent — do not bind either without LL. (⇪3 went to the vault in
-  6.172.0.)
+- ⇪⇧T (free since 6.161.0) is unspent — do not bind it without LL.
+  (⇪3 went to the vault in 6.172.0; ⇪⇧U went to the anchors in 6.180.0,
+  LL's choice; ⇪⇧Z stays reserved.)
 - IT DEGRADES, IT NEVER BREAKS (6.177.0, LL: "build it so it degrades
   gracefully and nothing breaks — and that's the same for all our code
   going forward. It must work on my home Mac and my work Mac."). Every
@@ -110,6 +110,21 @@ instead of duplicating — and nothing on disk is ever READ to decide a
 name (a OneDrive placeholder read blocks the main thread). The folder is
 `_G.vault.dir` when the module is up, else the same path worked out from
 core. `_G.scorpPadExport()`.
+
+Anchors (6.180.0, modules/anchors.lua, ⇪⇧U — Hookmark's idea, natively):
+identify what is in FRONT (browser tab via osascript in a held task with
+a killer timer; the front document via `docs.front`, doc_memory's new
+service and STILL the only AXDocument reader; else the app alone) → the
+notes that already link it (grep -rlF over the vault, path then
+BASENAME) → open one, or write the link into a new/chosen note through
+`vault.link`. The link is PLAIN MARKDOWN under `## Linked` so Obsidian
+opens it; there is no anchors store, by design. 🚚 Move survival:
+`anchors.resolve` looks the basename up in ⇪D's file index; vault's
+`follow` calls it when a file:// path is gone (and now handles file://
+and unknown schemes at all — before 6.180.0 an absolute link was joined
+onto the note's folder and could never open). It reads a title, a path
+and a URL — never text, contents or the clipboard; the gate asserts that
+against the source.
 
 Vault (6.172.0, modules/vault.lua, ⇪3): the FOLDER <OneDrive>/Vault of
 plain .md files IS the database — no index file, no sidecar, so Obsidian
@@ -239,8 +254,13 @@ mirrors draw order: "closes last" IS "drawn under".
 
 1. Version stamps ×3 in init.lua: line 7, the WHAT EACH TOOL DOES header,
    and `_G.configVersion`.
-2. Five most recent NEW IN blocks stay inline in init.lua; older ones drop
-   into the trailing "see CHANGELOG.md" note. Full narrative entry goes at
+2. TWO most recent NEW IN blocks stay inline in init.lua (was five until
+   6.180.0 — five had grown to 135 lines and the file was two lines under
+   its budget); older ones drop into the trailing "see CHANGELOG.md" note.
+   Prose that is not orchestration belongs in GUIDE.md, not init.lua: the
+   WHAT EACH TOOL DOES catalogue moved there (§5b) in 6.180.0. init.lua
+   must stay under 3,800 lines — the gate fails below 4,000 AND at 3,800,
+   so there is real headroom rather than a ceiling to fight. Full narrative entry goes at
    the top of CHANGELOG.md's text block.
 3. GUIDE.md's numbers (init.lua line count, suite/check totals) are MEASURED
    off the test gate, never guessed or remembered.
@@ -354,6 +374,15 @@ mirrors draw order: "closes last" IS "drawn under".
   it — but if a post-boot stall is ever traced there, move the read and
   the append into an hs.task (/bin/cat, /usr/bin/tail). Never move it
   back onto the boot line.
+- 6.180.0 verify with LL: open a Word document, press ⇪⇧U — the picker
+  names the document and offers a new note; ⏎ writes `## Linked` +
+  a Markdown link into it and opens the Vault there. Press ⇪⇧U on the
+  same document again: the note is now the FIRST row. In a browser it
+  anchors the front tab (the first press per browser may raise the macOS
+  Automation prompt). Then MOVE or rename the file in Finder and ⌘⏎ the
+  link in the note — it should say "Moved — opening <name>" and open it
+  (that needs the ⇪D index; `_G.anchorsReport()` says whether it is
+  loaded). Obsidian must open the same link from the same note.
 - 6.179.1 verify with LL: `_G.keyTrailReport()` and
   `_G.bootCostReport()` print WHOLE in the real Console — no
   "↻ that line is repeating" swallowing a row, no ⛔/⚠️ banner spliced

@@ -977,8 +977,17 @@ do
 
     local inline = {}
     for v in init:gmatch("\n%-%- NEW IN ([%d%.]+)") do inline[#inline + 1] = v end
-    check("init.lua keeps at most FIVE changelog entries inline, which is "
-          .. "the rule the file states for itself", #inline <= 5, #inline)
+    -- 6.180.0 — was FIVE. Five entries had grown to 135 lines of release
+    -- notes inside the orchestrator and the file was two lines under its
+    -- own budget; the catalogue (259 more) moved to GUIDE.md in the same
+    -- pass. CHANGELOG.md is the complete record, which is what makes both
+    -- trims safe — the check below proves it for every entry still here.
+    check("init.lua keeps at most TWO changelog entries inline, which is "
+          .. "the rule the file states for itself", #inline <= 2, #inline)
+    check("...and it has real headroom under the 4,000-line budget, so a "
+          .. "release never has to fight the ceiling to ship",
+          select(2, init:gsub("\n", "")) + 1 < 3800,
+          select(2, init:gsub("\n", "")) + 1)
 
     -- 🚨 THE IMPORTANT ONE. Trimming the header is only safe while
     -- CHANGELOG.md is the complete record. When this cleanup was done,

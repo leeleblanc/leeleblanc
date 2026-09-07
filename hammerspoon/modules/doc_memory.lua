@@ -221,6 +221,37 @@ function M.setup(core)
         return docs, n
     end
 
+    -- ---- docs.front() — the document in FRONT of you, right now ----------
+    -- 6.180.0, for ⇪⇧U. dm.read walks every window of an app in dm.apps on
+    -- a timer; this answers one question about one window, on demand, and
+    -- it is the ONLY other AX-document path in the config (CLAUDE.md keeps
+    -- that promise: doc_memory owns AXDocument, nothing else reads it).
+    -- Same rules as everything here: timed reads, no hs.window, no work in
+    -- a callback. Returns { path, title, app } or nil, why.
+    function dm.front()
+        local okApp, app = pcall(hs.application.frontmostApplication)
+        if not (okApp and app) then return nil, "no front app" end
+        local name = "?"
+        pcall(function() name = app:name() end)
+        local okAx, axApp = pcall(hs.axuielement.applicationElement, app)
+        if not (okAx and axApp) then return nil, "no AX element for " .. name end
+        withTimeout(axApp)
+        local win
+        pcall(function() win = axApp:attributeValue("AXFocusedWindow") end)
+        if not win then return nil, name .. " has no focused window" end
+        withTimeout(win)
+        local url, title
+        pcall(function() url = win:attributeValue("AXDocument") end)
+        pcall(function() title = win:attributeValue("AXTitle") end)
+        local path = dm.pathFromUrl(url)
+        if not path then
+            -- not a document window: still worth the title (a dialog, a
+            -- palette, a browser — the caller decides what to do with it)
+            return nil, "no document in the front window", { app = name, title = title and tostring(title) or nil }
+        end
+        return { path = path, title = tostring(title or path:match("[^/]+$") or path), app = name }
+    end
+
     function dm.diff(app, docs)
         local before = dm.open[app] or {}
         local changed = false
@@ -418,6 +449,8 @@ function M.setup(core)
     core.provide("docs.quit",    function(name) return dm.onQuit(name) end)
     core.provide("docs.sample",  function(why) return dm.sample(why or "service") end)
     core.provide("docs.report",  function() return _G.docMemoryReport() end)
+    -- 6.180.0 — one window, on demand, for the ⇪⇧U anchors
+    core.provide("docs.front",   function() return dm.front() end)
     _G.docMemory = dm
     M.dm = dm
     M.config = dm

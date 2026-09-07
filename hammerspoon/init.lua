@@ -4,9 +4,44 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.179.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.180.0
 -- =====================================================================
 
+-- NEW IN 6.180.0 — 🔗 ANCHORS (⇪⇧U) · AND init.lua GETS ITS BUDGET BACK:
+--   🔗 LL: "I like Hookmark. Is there some kind of tool we can build out
+--      into hammer-sidian?" ⇪⇧U works out what is in FRONT of you — a
+--      browser tab, the document in the front window, or failing both the
+--      app itself — and either opens the note that already links it, or
+--      writes the link into one. Press it again on the same document and
+--      the notes that mention it are the top rows: that is Hookmark's
+--      "hooked" list, without Hookmark's database.
+--   📄 THE LINK IS PLAIN MARKDOWN IN THE NOTE, under "## Linked":
+--      `- [Contract.docx](file:///Users/…/Contract.docx) · Word · date`.
+--      Obsidian opens those itself, so the 6.172.0 promise holds — the
+--      FOLDER is still the whole thing and you can still walk away with
+--      it. And the reverse direction needs NO STORE: "which notes mention
+--      this?" is /usr/bin/grep -rl over the vault in a held task.
+--   🚚 MOVE SURVIVAL, which is the thing Hookmark does that a path
+--      cannot. When the vault follows an anchor whose file has gone, it
+--      asks anchors.resolve, which asks the file index ⇪D already builds
+--      for the same NAME — the filename is in the link already, so
+--      nothing extra had to be written to make this work. No index
+--      loaded? It says the file has moved rather than guessing.
+--   🛟 And it degrades all the way down: no Vault → ⇪⇧U says so; no
+--      Accessibility → the tab and the app still anchor; a browser that
+--      never answers is killed on its own timer and named. It reads a
+--      title, a path and a URL — never your text, never the clipboard.
+--   ✂️ init.lua LOST 321 LINES AND GAINED ITS HEADROOM BACK. LL: "trim
+--      init.lua down to a length that is fail-proof." It was 3,998 of its
+--      own 4,000-line budget, and the last two releases had to fight the
+--      ceiling to ship. The 259-line WHAT EACH TOOL DOES catalogue moved
+--      to GUIDE.md, where prose belongs, and the inline NEW IN blocks
+--      dropped from five to TWO (CHANGELOG.md has every word of them, and
+--      the gate proves it for each one still here). 3,998 → 3,677, and a
+--      new check fails if it ever creeps back over 3,800.
+--   ✅ Gate: a new suite, test_anchors (53), + vault 270 → 277,
+--      test_integration 198 → 200. 68 modules, 12 core files.
+--      7,712 → 7,776 checks, SEVENTY-FOUR stages.
 -- NEW IN 6.179.1 — THE REPORTS SURVIVE THE CONSOLE GATE, AND THREE TESTS THAT LIED:
 --   🚨 _G.keyTrailReport() AND _G.bootCostReport() WERE BEING EATEN. Both
 --      printed a line per row, and core/console.lua's gate silences a
@@ -28,378 +63,20 @@
 --   ✅ Gate: test_console 56 → 64, test_hyper_key 123 → 125,
 --      test_diagnostics 535 → 537. 7,700 → 7,712 checks, seventy-three
 --      stages.
--- NEW IN 6.179.0 — ⌨️ WHAT DID I JUST PRESS · IS IT GETTING SLOWER · EMMYLUA GONE:
---   ⌨️ THE KEY TRAIL (core/key_trail.lua). Every hard bug here was
---      reconstructed from memory days later: the 6.160.0 hang, the ⇪4
---      lock-ups, the latched ⇪. Now the last two dozen ⇪ shortcuts are
---      remembered with how long each took — `_G.keyTrailReport()` prints
---      them newest-first, marks anything over 250 ms ⚠️ slow, marks one
---      that ⛔ THREW, and marks a press the ⏸ pause switch swallowed so a
---      dead keyboard is EXPLAINED instead of leaving a gap. The panic
---      chord records itself too (hyperBind never sees it).
---   🔒 IT RECORDS COMBOS, NEVER TEXT, AND WRITES NOTHING. Not one typed
---      character: the trail holds the name a shortcut was filed under,
---      the module that claimed it, its milliseconds. Memory only — no
---      file, no store, nothing to sync. The test asserts both promises
---      against the source, so neither can be lost by accident.
---   📈 IS IT GETTING SLOWER? boot_cost now appends ONE row per boot to
---      Logs/boot_cost-<Mac>.csv (Excel opens it; append-only, so it can
---      never shrink) and compares this boot against the MEDIAN of the
---      last ten. A boot at over twice the usual is now worth a line even
---      when it is under every absolute threshold — "it got slower" is
---      the fault you would otherwise never notice.
---   🧹 EMMYLUA IS GONE. LL: "I don't think I've used it once… did we ever
---      take it out?" 6.166.0 silenced its two boot lines; the block
---      stayed. It generated editor annotation files that do nothing
---      until an editor is pointed at them, and CotEditor cannot read
---      them at all. Deleted — no dependents, and CHANGELOG 6.64.0 keeps
---      the story if it is ever wanted back.
---   🔍 ITS OWN REVIEW FOUND NINE THINGS, ALL FIXED BEFORE IT SHIPPED —
---      among them a main-thread read of a OneDrive file on the boot path,
---      an O(N²) read of an uncapped file, a report that claimed "first
---      boot recorded" on a Mac that could not write at all, and a held
---      key that flooded the trail and evicted the rows it exists to keep.
---      The full account is in CHANGELOG.md.
---   ✅ Gate: test_diagnostics 476 → 535, test_hyper_key 116 → 123 (the
---      trail is fed through the REAL hyperBind wrapper, not a copy).
---      67 modules, 12 core files. 7,634 → 7,700 checks, seventy-three
---      stages.
--- NEW IN 6.178.0 — ⏱ BOOT COST: WHERE THE LOAD TIME ACTUALLY GOES:
---   📏 LL, seeing the 6.177.0 zip at 2.1 MB: "have we reviewed the code
---      for size?" Measured, not guessed: of 6.2 MB unpacked, tests/
---      (2.3 MB) is never installed and CHANGELOG.md (0.7 MB) is never
---      read — about 3 MB is live. A third of the Lua is comments, and
---      Lua throws those away at parse: they cost a little disk and
---      nothing at runtime, while they are the reason six months of
---      decisions do not get re-broken. So nothing was stripped.
---   ⏱ WHAT WAS MISSING WAS THE MEASUREMENT. Every module's load time
---      was already recorded (rec.ms, rec.warmMs) and only ever shown one
---      line at a time under bootVerbose — nothing summed it or ranked it.
---      core/boot_cost.lua now does: `_G.bootCostReport()` prints every
---      module slowest-first with its warm time and its file size, and a
---      boot line names the total and the worst three — but ONLY when a
---      module took over 150 ms or the whole load took over 1.5 s. A fast
---      boot stays silent, like the boot report beside it.
---   🔬 IT MEASURES, IT DOES NOT DECIDE. It loads nothing, defers
---      nothing, and reads _G.moduleStatus after the fact; init.lua loads
---      it in its own pcall, so a broken measurer costs the measurement
---      and never the boot. Missing timings, missing hs.fs, missing
---      hs.timer.doAfter: each degrades to less output, never an error.
---      The report says out loud that size and speed are different
---      things — trim on the milliseconds, never on the kilobytes.
---   ✅ Gate: test_diagnostics 451 → 476 (the boot-cost file is RUN, not
---      grepped). 67 modules, 11 core files. 7,609 → 7,634 checks,
---      seventy-three stages.
--- NEW IN 6.177.0 — 📤 THE SCORP PAD'S WAY OUT: EVERY TAB AS AN OBSIDIAN NOTE:
---   🚪 LL: "Will I be able to open my Scorp pad files in Obsidian if I
---      ever decide to move to it?" The Vault's notes always could — they
---      are plain .md files in a folder. The pad's tabs could not: they
---      live as JSON inside one rewritten store. Now ⌘⇧S in the ⇪1 / ⇪3
---      window writes every tab — and every closed tab in the history —
---      out as a .md file in <Vault>/Scratch, with front matter (title,
---      source, created, updated, tags: scorp-pad) and the text exactly as
---      typed. Obsidian opens that folder and there they are.
---   🔁 A TAB KEEPS ITS FILE NAME FOREVER. The name is remembered in the
---      pad's own store, so a second export UPDATES the note instead of
---      breeding copies; a title with a slash or a colon in it is made
---      safe, and two tabs with one title get "Name" and "Name 2".
---      Nothing on disk is ever read to decide this — a OneDrive
---      placeholder read blocks the main thread, and the pad never blocks.
---   🛟 IT DEGRADES, IT NEVER BREAKS — the rule for everything from here
---      on, on BOTH Macs. The vault module need not be loaded (the folder
---      is worked out the same way it would work it out), OneDrive need
---      not exist (a local folder takes its place and the summary SAYS
---      so), one unwritable file costs that file and not the export, and
---      a failed export never touches a tab, the store or a keystroke.
---      `_G.scorpPadExport()` in the Console does the same and prints the
---      summary; `_G.scratchPadReport()` names the folder and the last run.
---   ✅ Gate: test_scratch_pad 130 → 172, test_vault 266 → 270,
---      test_vault_js 173 → 175. 67 modules. 7,561 → 7,609 checks,
---      seventy-three stages.
--- NEW IN 6.176.0 — ⇪X MOUSE GRID: SMALLER CELLS, SAME THREE KEYSTROKES:
---   🎯 LL: "each cell is rather large … when I type the three letters
---      I'm still rather far off from a dialogue, can we reduce the size
---      of the cells so I have a better chance of hitting a button." The
---      alphabet is now the home row PLUS the row below it — 16 keys
---      instead of 9, so 16³ = 4,096 cells where there were 729. On the
---      4K that is roughly a 30 pt cell where it was 70: SMALLER than
---      most buttons, so the first landing is usually on the thing
---      rather than near it. Still three keystrokes; the fingers travel
---      one row, and that is the whole price.
---   ✏️ Back to the old feel (bigger cells, no travel): `settings =
---      { mouse_grid = { alphabet = "asdfghjkl" } }`. Finer still:
---      `{ labelLength = 4 }` = 6,561 cells. `_G.mouseGridReport()`
---      prints the REAL cell size in points on THIS Mac — read it after
---      any change rather than guessing.
---   ⏱ 4,096 cells is ~5× the canvas elements, laid out on the main
---      thread. It is cached per DISPLAY LAYOUT — once per reload or
---      monitor change, never per press — and a build slower than
---      mouse_grid.buildSlowMs (120 ms) now says so once in the Console,
---      in plain words, with the smaller-grid override. A stall nobody
---      can explain gets blamed on the whole config.
---   ✅ Gate: test_mouse_grid 350 → 376. 67 modules. 7,552 → 7,561
---      checks, seventy-three stages.
--- (6.175.2 and earlier: see CHANGELOG.md. Only the five most recent
---  versions stay inline here.)
+-- (6.179.0 and earlier: see CHANGELOG.md — the complete record, and the
+--  reason trimming this header is safe. 6.180.0 dropped the inline count
+--  from five entries to TWO: five had grown to 135 lines of release notes
+--  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.179.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.180.0
 -- =====================================================================
---
--- 🧭 PORTABILITY LAYER (§0.1)
---    One identical init.lua runs on any Mac. Auto-detects your
---    OneDrive folder (OneDrive-Personal preferred, even on the work
---    Mac where a company OneDrive is also signed in), tags every
---    per-machine data file with the Mac's name so two Macs sharing
---    one OneDrive never overwrite each other, and falls back to
---    local storage when no OneDrive is found. ALL log, note &
---    history files live in <OneDrive>/Logs — the only things left
---    in ~/.hammerspoon are init.lua and secret.lua.
---    Zero edits needed when you copy the file to the work Mac.
---
--- 🔐 CREDENTIALS (§0.2)  ·  no key: Asana features politely off
---    Your Asana token lives only in ~/.hammerspoon/secret.lua —
---    never in this file, never in OneDrive (the nightly backup
---    excludes it) — so init.lua can be shared, backed up, or
---    pasted in chat without exposing anything. Missing secret.lua
---    just turns Asana off; everything else keeps running.
---
--- 🔑 HOTKEY CONFLICT SENTRY (§0.3)
---    Every key binding registers through a watchdog. If the same
---    combo is claimed twice (the later one silently kills the
---    earlier feature), the Console names it at boot. Also flags
---    combos that match known macOS defaults like Spotlight or
---    Spaces so a dead key is never a mystery.
---
--- ⇪⇧D  DIAGNOSTICS (§1.11)
---    Writes a full report — versions, boot timings, screens,
---    hotkeys, feature states, a live window-enumeration timing,
---    recent errors and the last 25 internal events — to the
---    Console, your clipboard AND <logsDir>/diagnostics-<machine>.txt.
---    Paste it into chat when something misbehaves. Verbose live
---    logging: type  _G.diag.verbose = true  in the Console.
---
--- ⌥Tab  WINDOW SWITCHER (§1.10)
---    The Windows-style Alt+Tab macOS doesn't have: hold ⌥ and tap
---    Tab to walk every open WINDOW — one thumbnail tile each, title
---    underneath — ⌥⇧Tab to walk back, release ⌥ to switch. Lists
---    minimised windows and hidden apps across all Spaces. ⌘Tab is
---    left alone: macOS reserves it, and it switches apps not windows.
---
--- ⇪/  SHORTCUT CHEAT SHEET (§1.6)
---    One tall translucent column listing every hotkey in this
---    config — scroll it with ↑↓, PgUp/PgDn, Home/End or the wheel.
---    Press ⇪/ again or Esc to close; a click does NOT close it and
---    passes through to whatever is underneath. Add your own
---    entries with ⇪= (pipe format: Keys | Description | Group),
---    edit them with ⇪E, remove with ⇪-.
---    Custom entries live in <OneDrive>/Logs/custom_shortcuts.json —
---    SHARED between both Macs, so an entry added on one appears on
---    the other after its next reload.
---
--- ⇪⇧ ARROWS  POPUP NUDGING (§1.5) · 6.89.0: or just ⌘-DRAG it
---    Every popup opens centered on your frontmost app's monitor. Want
---    it elsewhere? Hold ⌘ and DRAG it (modules/window_move.lua — every
---    picker and panel; where you drop a picker STICKS), or nudge with
---    ⇪⇧ + arrow keys (hold to walk it). ⇪⇧R = back to automatic.
---
--- ☁️ DAILY BACKUP (§1.7)  ·  the rebuild kit, automatic at 5:00 PM
---    rsync copies your ~/.hammerspoon folder (EXCEPT secret.lua —
---    the token never leaves this Mac) to
---    OneDrive/Backups/Hammerspoon/<MachineName>/ every day, and
---    6.139.0 added the RebuildKit/ folder beside it: dotfiles,
---    LaunchAgents, Fonts, Documents, Desktop, a Brewfile, an apps.csv
---    naming every installed app and how to reinstall it, and a
---    README.md restore guide rewritten after every run.
---    _G.backupNow() runs it by hand; _G.backupReport() explains;
---    _G.backupAdopt() names the apps Homebrew could take over.
---    Quiet on success; on-screen alert if something goes wrong.
---
--- 🔋 BATTERY SAVER (modules/battery_saver.lua)  ·  automatic, no key
---    On battery, the config's own pollers slow down (clipboard poll,
---    the watchdogs, activity and focus detection) and the Spotlight
---    boot scan waits for AC; every cadence is restored the moment
---    the cord is back. An app holding serious CPU on battery is
---    NAMED in a notification — once per app per hour, never killed.
---    _G.eco() says what is slowed; _G.battReport() charge and drain;
---    _G.ecoOn()/_G.ecoOff()/_G.ecoAuto() force it either way. A Mac
---    with no battery loads it and sleeps.
---
--- 📎 DEFAULT APPS (modules/default_apps.lua)  ·  no key — ⇪space, @tool
---    Pick a file type (any extension), pick the app that opens it —
---    only apps that CLAIM the type are offered, today's default
---    starred. The change is written to LaunchServices out of process
---    and then READ BACK through two independent APIs before the ✅ is
---    believed; a re-check two seconds later catches a write that a
---    racing LS refresh undid. _G.defaultAppsReport() lists every
---    change this session with its verdict. Per-file "Always Open
---    With" overrides and the default browser are out of scope — the
---    report says why.
---
--- 🌐 ⇪⇧6  NET WATCH (modules/net_watch.lua)
---    Who's talking: every app of yours with a live network
---    connection, one row per app — remote IPs reverse-resolved,
---    known services explained (an unknown one says UNRECOGNIZED,
---    never a guess). ⌘1 copies the full report, ⏎ copies one app's:
---    what · why · each path with both ends, state and resolved name.
---    One lsof snapshot per press, nothing in the background.
---    _G.netWatchReport() prints the same report to the Console.
---
--- ⇪P  APP PEEK (§1.8)
---    Hides the frontmost app instantly so you can see what's
---    behind it. Same key brings it back and refocuses it.
---    Closest thing to "make a window transparent" that macOS allows.
---
--- ⇪ ARROWS / \\ / W / ⇪[ ]  WINDOW ARRANGER (§1.9)
---    ⇪←/→    snap to left or right half of the screen
---    ⇪↑       fill the screen (not native full-screen mode)
---    ⇪\\       split the two most recent windows side by side
---    ⇪⇧W      picker: summon any running app to this monitor
---    ⇪↓       return the window to where it was before you moved it
---    ⌃⌥⌘[ ]   throw the window to the next monitor right or left
---    🎬 6.123.0 — every one of these now READS THE FRAME BACK and nudges
---    the window in if the app answered with a size of its own (VLC does).
---    A window too big for the monitor keeps its top-left corner on screen
---    and says so, rather than showing a success alert over a window whose
---    sidebar is off the edge.
---
--- 🔎 ⇪space  UNIFIED SEARCH (modules/unified_search.lua) — 6.89.0
---    One typed search over EVERY store: clipboard, commands, shots,
---    notes, Asana, OCR, docs, moves, pad. @tag pins one source;
---    ⏎ copies, ⌘⏎ the path. ⇪⇧space = big-thumbnail shot browser.
---
--- ⇪V  CLIPBOARD HISTORY (§2 / §3)
---    Keeps your last 1,000 copied texts, saved per-machine to
---    <OneDrive>/Logs/clipboard_history-<Mac>.json. Search matches
---    the FULL content of every item, not just what a row displays.
---    Copying something you've copied before moves it to the front
---    instead of using a second slot. Select any row to put it back
---    on the clipboard. Images go to the OCR engine instead.
---    ⌘⌃⌥⇧V opens the same history to EDIT or DELETE an entry instead —
---    Save with the text cleared deletes it.
---
--- ⇪O  OCR LOG SEARCH (modules/ocr_engine.lua — was §2 until 6.105.0)
---    When an image lands on the clipboard, Hammerspoon runs your
---    "HS OCR" Apple Shortcut automatically and indexes the extracted
---    text. ⇪O searches everything ever OCR'd; selecting a row
---    copies the text. NEW: copy image FILES in Finder (⌘C) and the
---    OCR text is also written into each file's Finder comment —
---    Spotlight-searchable, so meaningless filenames stop mattering.
---    ⇪⇧O opens the same history to EDIT or DELETE an entry instead —
---    fixes a bad OCR read in place, or clears out junk. Save with the
---    text cleared deletes it.
---
--- ✅ ⇪T  ASANA TASK CREATOR (§4 / §5 + modules/task_form.lua)
---    6.86.0: ⇪T opens a FORM — labeled Title/Description/Assignee/
---    Attachment. ⏎ sends from any field, ⌥⏎ = newline, Esc keeps the
---    draft; 📸/⌘L drops the newest ⇪4 screenshot into Attachment.
---    Past tasks: ⇪space (@asana). The old pipe picker has no key since
---    6.161.0 (⇪⇧S is the snippets panel); _G.asanaOpenTaskChooser() opens it.
---
--- 📸 ⇪4  SCREENSHOTS (modules/screenshots.lua + screenshot_editor.lua)
---    ⇪4 = native crosshair capture (SPACE = window, Esc cancels) to
---    OneDrive's "2026 Screenshots" AND the clipboard. ⇪⇧4 = the
---    PANEL: ⌘1–⌘8 (⌘8 = BIG thumbnails) and TYPING searches. ⏎ image
---    · ⌘⏎ path · ⌃⏎ compress · ⌥⏎ EDITOR (blur/text/arrows; ⌘Z).
---
--- 📅 ⌃⌥⌘L / ⌃⌥⌘C  ASANA DASHBOARD (§6)
---    Fetches your incomplete Asana tasks and shows them in five
---    color-coded buckets with a legend strip above the list:
---    🔴 Overdue (40)  🟡 Due today (10)  🔵 Due this week (30)
---    🟠 Due later (10)  🟣 No due date (10) — newest created first
---    ⌃⌥⌘L lists tasks, opening one in the browser.
---    ⌃⌥⌘C prompts for a comment and posts it to Asana.
---
--- 📊 ⌘⌥⇧0  ACTIVITY TRACKER (§3.6)
---    Tracks which app and which document/window you're in, persisted
---    to OneDrive as a CSV. Only real Dock apps are counted (loginwindow
---    and ScreenSaverEngine are never logged), and a lock/sleep watcher
---    closes the open session the instant the screen locks — no more
---    inflated durations after a locked weekend. Open the picker and type:
---    (empty)   today's apps ranked most→least time
---    week      this week's totals
---    month     top apps AND top documents/windows this month
---    anything  searches all history by app name, window title OR URL
---    Automatic reports pop up daily at 4:00 PM and Monday at 7:30 AM.
---    Selecting any row copies the name + time to the clipboard.
---    🌐 6.123.0 — the CSV's columns are date,app,title,seconds,url. When
---    the window in front is Chrome the row records the page, so this one
---    file says what you were looking at, what it was called and for how
---    long. Incognito windows are never recorded and named secrets are
---    stripped from the address first. _G.urlReport() says why the column
---    is empty when it is — usually macOS has not been told to allow
---    Hammerspoon to control Chrome (Privacy & Security → Automation).
---
--- 👁 APP WATCHER (§3.7)  ·  automatic, no key needed
---    Monitors apps you care about (edit the list in §3.7).
---    When one quits or crashes, a popup appears with 🚀 Spawn
---    (relaunch) or 🛑 End (leave closed), pinging every 2 seconds.
---    No response in 30 seconds → dismisses and posts a notification.
---
--- ⇪F  FILE TRACKER (§3.8)
---    Watches your home folder and OneDrive for renames, moves,
---    copies, and new files. Logs them straight to
---    <OneDrive>/Logs/file_changes-<Mac>.csv with 90-day history —
---    it's already in OneDrive, so no separate daily copy exists
---    anymore. ⌃⌥⇧F opens a searchable picker; Enter copies a row.
---
--- 📦 ⌃⌥⇧U  APP UPDATE TRACKER (§3.10 / §3.10.1)
---    Compares each tracked app's installed version against the latest
---    Homebrew knows about. ⌃⌥⇧U opens a picker (always re-checks fresh
---    on open, plus a daily 9am pass), "update available" rows sorted
---    first. Enter acts on the row: installs via `brew upgrade` when
---    Homebrew actually manages that app, opens the vendor's download
---    page otherwise — an "⬆️ Upgrade ALL" row batches every brew-
---    manageable update into one shot. No predicted dates — a live
---    "what's stale right now" report you can act on immediately.
---
--- ✏️ AUTOCORRECT (§3.9)  ·  ⇪S toggle · ⇪Z undo & learn
---    Fixes typos the instant you end a word (space, punctuation,
---    apostrophe, return) — system-wide, in any app:
---    Dictionary  10,970 entries: teh→the, Mna→Man, dont→don't,
---                alot→"a lot", thier→their, libary→library…
---                Case is preserved: Mna→Man, MNA→MAN, mna→man.
---    TWo-caps    MAn→Man, THe→The — one rule covers everything;
---                80 real exceptions (IDs, TVs, MHz…) in the CSV.
---    ⌃⌥⌘Z       if a fix was wrong: rewinds the text AND (for
---                two-caps fixes) permanently adds the word to your
---                exceptions so it never fires again.
---    The dictionary is SHARED: <OneDrive>/Logs/autocorrect.csv —
---    an exception learned on one Mac works on the other after its
---    next reload. Password fields, pasted text, and Terminal are
---    never touched.
---
--- =====================================================================
--- =====================================================================
--- REQUIRED on every Mac (this is the whole install):
---    • Hammerspoon app (runs fine from ~/Applications — no admin)
---    • ~/.hammerspoon/init.lua            ← this file, identical everywhere
---    • Accessibility permission for Hammerspoon (System Settings →
---      Privacy & Security → Accessibility) — needed by the Window
---      Arranger, App Peek & app summon; everything degrades politely
---      without it, but grant it if the Mac allows
--- PER-MACHINE, one-time:
---    • ~/.hammerspoon/secret.lua          ← Asana token (see §0.2);
---      omit on a Mac where Asana isn't used. NEVER put this in
---      OneDrive — each Mac keeps its own, and the nightly backup
---      deliberately skips it.
--- SHARED DATA (lives in <OneDrive>/Logs — arrives via OneDrive sync,
--- nothing to copy by hand once the first Mac has run 6.10.0):
---    • autocorrect.csv                    ← typo dictionary (§3.9);
---      auto-seeded with a starter list if somehow missing
---    • custom_shortcuts.json              ← your ⭐ cheat-sheet entries
--- CREATED AUTOMATICALLY (never make these yourself):
---    • <OneDrive>/Logs/clipboard_history-<MachineName>.json,
---      asana_history-<MachineName>.json,
---      file_changes-<MachineName>.csv,
---      activity_history-<MachineName>.csv,
---      image_text-<MachineName>.csv,
---      app_updates-<MachineName>.csv  (per-machine, so two Macs
---      sharing one OneDrive never fight over files) and
---      <OneDrive>/Backups/Hammerspoon/<MachineName>/ — or
---      ~/.hammerspoon/logs/ for all of it when the Mac has no
---      OneDrive (§0.1)
--- =====================================================================
-
+-- The catalogue that used to sit here — every tool, its key and what it
+-- is for, in prose — moved to GUIDE.md ("What each tool does") in
+-- 6.180.0. It was 259 lines of documentation inside the orchestrator,
+-- and it had pushed this file to within two lines of its own 4,000-line
+-- budget. Nothing was lost: GUIDE.md is in the zip, in git, and is where
+-- a person looks for prose. The version stamp stays here because the
+-- release ceremony counts three of them in this file.
 -- =====================================================================
 -- 🗺 FILE MAP — the sections below, in the order they actually RUN
 -- =====================================================================
@@ -488,7 +165,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.179.1"
+_G.configVersion = "6.180.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------
@@ -3387,6 +3064,7 @@ local BASE = {
     "shortcut_hints",     -- 💡 after a ⇪ key, a card of the group's other keys (no key)
     "scratch_pad",        -- 📝 ⇪1 tabs, saved as you type, history under the text, 4 PM task
     "vault",              -- 🕸 ⇪3 linked Markdown notes in OneDrive, backlinks, graph (6.172.0)
+    "anchors",            -- 🔗 6.180.0 ⇪⇧U links the front document or tab to a vault note
     -- 6.132.0 — no key of its own. It owns the six case transforms, and
     -- ⇪; and ⇪R both ask it for them through core.call at the moment you
     -- press the key. Order here is therefore irrelevant; it sits beside

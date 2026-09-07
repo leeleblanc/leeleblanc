@@ -329,6 +329,8 @@ _G.escapePriorities = {
                         -- are unsaved-text windows and the one you are
                         -- typing into is the one Esc should cancel.
     chooser    =  70,   -- has real keyboard focus, so it goes near the top
+    anchors    =  71,   -- ⇪⇧U's picker (6.180.0) — a chooser, opened over
+    anchorsPick =  71,  -- whatever you were looking at, so it closes first
     pomodoro   = 100,
     mousegrid  = 900,   -- drawn at screenSaver level, above everything
 }
