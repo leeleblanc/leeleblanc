@@ -443,12 +443,16 @@ mirrors draw order: "closes last" IS "drawn under".
   "asdfghjkl" } }` = the old 729-cell grid); RULE: the grid alphabet and
   labelLength are ONE decision — capacity is alphabet^labelLength, and
   two displays split it by area.
-- 6.175.2 → SUPERSEDED BY 6.181.0. Four passes now (1 → 0.9 → 0.97 → 1
-  → 0.9); LL asked for "90% black" in those words, so 0.9 is the
-  default. The GUARD is what was durable, not the number: at alpha
-  exactly 1 the module must never call view:alpha() at all, and below 1
-  it must really set it — both directions are asserted. `settings =
-  { vault = { alpha = 1 } }` is solid again for anyone who wants it.
+- VAULT/PAD ALPHA — SIX PASSES: 1 → 0.9 → 0.97 → 1 → 0.9 → 0.97
+  (6.181.1). LL asked for "90% black", saw 0.9, then said "only 10%
+  translucent, much less transparent — still too see through": the same
+  number, described as its opposite. What LL judges is how much of the
+  app BEHIND shows, not a percentage. If 0.97 is still too much the
+  answer is 1 and it needs NO release — `settings = { vault = { alpha =
+  1 } }`. Do not spend another release on this number; offer the
+  setting. The GUARD is the durable part: at exactly 1 the module must
+  never call view:alpha() at all, and below 1 it must really set it —
+  both directions are asserted.
 - 6.175.0 verify with LL: ⇪3 — the bar over the text (H1 B I • ☑ …),
   hovering a button explains what it types; ⌘B on a selected word bolds
   and ⌘B again unbolds; "/" on an empty line lists the blocks with the

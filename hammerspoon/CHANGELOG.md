@@ -5,6 +5,29 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.181.1 — THE PAD WINDOW: 3% TRANSLUCENT, NOT 10%:
+  🖤 LL asked for the Scorp Pad "90% black". That shipped as alpha 0.9 in
+     6.181.0, and the reply was: "make it only 10% translucent, so much
+     less transparent — still too see through." Ten per cent translucent
+     IS 0.9, so the two sentences ask for the same number and describe
+     opposite things. That contradiction is the useful part: what is
+     being judged here is not a percentage, it is how much of the app
+     BEHIND the window comes through, and over a bright window 0.9 shows
+     a great deal of it. So this release moves in the direction LL
+     pointed rather than the number he named: 0.97, 3% translucent.
+     For the record this window has now been 1 → 0.9 → 0.97 → 1 → 0.9 →
+     0.97, and 6.175.1 stood on exactly this value before LL asked for
+     fully solid. If 0.97 still reads as see-through then the answer is
+     1, and it needs no release at all:
+         settings = { vault = { alpha = 1 } }
+     What is durable here is the GUARD, not the number: at exactly 1 the
+     module must never call view:alpha() at all (asking macOS for an
+     alpha of 1 puts the window on a translucency path it does not
+     need), and below 1 it must really set it — a default that quietly
+     did nothing would look identical to solid. Both directions are
+     asserted, so any future pass over this value stays honest.
+  ✅ Gate: unchanged at 7,795 checks over seventy-four stages.
+
 NEW IN 6.181.0 — 📐 WHAT LL ACTUALLY SEES: THE SHEET, THE PAD, THE GRID:
   Four things LL looked at and told me were wrong, and none of them
   needed a new tool — they needed the tools that exist to behave the way

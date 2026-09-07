@@ -4,9 +4,23 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.181.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.181.1
 -- =====================================================================
 
+-- NEW IN 6.181.1 — THE PAD WINDOW: 3% TRANSLUCENT, NOT 10%:
+--   🖤 LL asked for "90% black", got 0.9, and said: "make it only 10%
+--      translucent, so much less transparent — still too see through."
+--      Those two are the same number, which is the tell — what is being
+--      judged is how much of the app BEHIND comes through, and over a
+--      bright window 0.9 shows a lot of it. So this is the next step in
+--      the direction pointed at, not a rounding of the words: 0.97.
+--      This window has now been 1 → 0.9 → 0.97 → 1 → 0.9 → 0.97, and
+--      6.175.1 stood exactly here. If it still reads as see-through the
+--      answer is 1 and one line does it, no release needed:
+--          settings = { vault = { alpha = 1 } }
+--      The GUARD is the durable part, not the number: at exactly 1 the
+--      module never calls view:alpha() at all, and below 1 it must
+--      really set it. Both directions are asserted.
 -- NEW IN 6.181.0 — 📐 WHAT LL ACTUALLY SEES: THE SHEET, THE PAD, THE GRID:
 --   ✂️ THE CHEAT SHEET WAS PRINTING HALF-SENTENCES, and LL spotted it:
 --      "some entries seem incomplete and have more of the sentence. Am I
@@ -51,47 +65,12 @@
 --   ✅ Gate: test_cheatsheet 183 → 193, test_mouse_grid 374 → 383,
 --      test_vault 277 → 281, test_begone 42 → 44. 7,776 → 7,795 checks,
 --      seventy-four stages.
--- NEW IN 6.180.0 — 🔗 ANCHORS (⇪⇧U) · AND init.lua GETS ITS BUDGET BACK:
---   🔗 LL: "I like Hookmark. Is there some kind of tool we can build out
---      into hammer-sidian?" ⇪⇧U works out what is in FRONT of you — a
---      browser tab, the document in the front window, or failing both the
---      app itself — and either opens the note that already links it, or
---      writes the link into one. Press it again on the same document and
---      the notes that mention it are the top rows: that is Hookmark's
---      "hooked" list, without Hookmark's database.
---   📄 THE LINK IS PLAIN MARKDOWN IN THE NOTE, under "## Linked":
---      `- [Contract.docx](file:///Users/…/Contract.docx) · Word · date`.
---      Obsidian opens those itself, so the 6.172.0 promise holds — the
---      FOLDER is still the whole thing and you can still walk away with
---      it. And the reverse direction needs NO STORE: "which notes mention
---      this?" is /usr/bin/grep -rl over the vault in a held task.
---   🚚 MOVE SURVIVAL, which is the thing Hookmark does that a path
---      cannot. When the vault follows an anchor whose file has gone, it
---      asks anchors.resolve, which asks the file index ⇪D already builds
---      for the same NAME — the filename is in the link already, so
---      nothing extra had to be written to make this work. No index
---      loaded? It says the file has moved rather than guessing.
---   🛟 And it degrades all the way down: no Vault → ⇪⇧U says so; no
---      Accessibility → the tab and the app still anchor; a browser that
---      never answers is killed on its own timer and named. It reads a
---      title, a path and a URL — never your text, never the clipboard.
---   ✂️ init.lua LOST 321 LINES AND GAINED ITS HEADROOM BACK. LL: "trim
---      init.lua down to a length that is fail-proof." It was 3,998 of its
---      own 4,000-line budget, and the last two releases had to fight the
---      ceiling to ship. The 259-line WHAT EACH TOOL DOES catalogue moved
---      to GUIDE.md, where prose belongs, and the inline NEW IN blocks
---      dropped from five to TWO (CHANGELOG.md has every word of them, and
---      the gate proves it for each one still here). 3,998 → 3,677, and a
---      new check fails if it ever creeps back over 3,800.
---   ✅ Gate: a new suite, test_anchors (53), + vault 270 → 277,
---      test_integration 198 → 200. 68 modules, 12 core files.
---      7,712 → 7,776 checks, SEVENTY-FOUR stages.
--- (6.179.1 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.180.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.181.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.181.1
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -188,7 +167,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.181.0"
+_G.configVersion = "6.181.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

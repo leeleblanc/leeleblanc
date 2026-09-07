@@ -346,15 +346,15 @@ check("the hyper watchdog is told to expect a release", EXPECTED[#EXPECTED] and 
 -- module must still not call view:alpha() at all — asking macOS for an
 -- alpha of 1 is how a window ends up on a translucency path it does not
 -- need — and below 1 it must actually set it, or the number is a lie.
-check("6.181.0: the window is 90% opaque by default", v.alpha == 0.9, tostring(v.alpha))
+check("6.181.1: the window is 97% opaque by default", v.alpha == 0.97, tostring(v.alpha))
 check("…and below 1 the alpha is really SET on the window",
-      math.abs((view.alphaSet or 0) - 0.9) < 0.001, tostring(view.alphaSet))
+      math.abs((view.alphaSet or 0) - 0.97) < 0.001, tostring(view.alphaSet))
 do
     v.hide("t"); v.alpha = 1; v.show()
     local solid = WEBVIEWS[#WEBVIEWS]
     check("…and at exactly 1 it is never set at all (the 6.175.2 guard holds)",
           solid.alphaSet == nil, tostring(solid.alphaSet))
-    v.hide("t"); v.alpha = 0.9; v.show()
+    v.hide("t"); v.alpha = 0.97; v.show()
     view = WEBVIEWS[#WEBVIEWS]
 end
 check("a scan runs on open and a held rescan timer is armed", lastTask("find") and lastTask("find").started and v.rescanTimer and v.rescanTimer.kind == "every")
@@ -421,7 +421,7 @@ do
     local r = _G.vaultReport()
     check("the report names the folder, the note count and Obsidian", r:find(VAULT, 1, true) and r:find("notes  : 7") and r:find("Obsidian"), r)
     check("the report shows the alpha and how to make it solid again",
-          r:find("alpha 0.90 (see-through; vault = { alpha = 1 } for solid)", 1, true) ~= nil, r)
+          r:find("alpha 0.97 (see-through; vault = { alpha = 1 } for solid)", 1, true) ~= nil, r)
 end
 
 -- =======================================================================

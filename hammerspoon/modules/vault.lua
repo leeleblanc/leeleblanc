@@ -177,12 +177,21 @@ function M.setup(core)
         -- answer is that translucency was never worth anything here:
         -- this is a window you WRITE in. Any 0–1 number still works as
         -- a settings override for anyone who wants the old feel.
-        -- 6.181.0 — 0.9 AGAIN, and this time it is LL asking for it in
-        -- those words ("make the Scorp pad 90% black"). 6.175.2's note
-        -- said translucency was settled; it is settled the other way now.
-        -- The guard below still holds: at exactly 1 the module never
-        -- calls view:alpha() at all, so the solid override is unharmed.
-        alpha         = 0.9,
+        -- 6.181.1 — 0.97. LL asked for "90% black", saw 0.9, and said
+        -- "make it only 10% translucent, so much less transparent —
+        -- still too see through". Those two numbers are the same number,
+        -- which is the tell: what LL is judging is how much of the app
+        -- BEHIND comes through, and over a bright window 0.9 shows a lot
+        -- of it. So this is not a rounding of his words, it is the next
+        -- step in the direction he pointed: 3% instead of 10%.
+        -- This window has now been 1 → 0.9 → 0.97 → 1 → 0.9 → 0.97, and
+        -- 6.175.1 was here before. If 0.97 still reads as see-through
+        -- the answer is 1, and one word does it:
+        --     settings = { vault = { alpha = 1 } }
+        -- The GUARD is the durable part, not the number: at exactly 1
+        -- the module must never call view:alpha() at all, and below 1 it
+        -- must really set it. Both are asserted.
+        alpha         = 0.97,
         fontSize      = 13,
         dir           = nil,          -- set below; a settings override replaces it
         dailyDir      = "Daily",      -- subfolder for ⌘D notes
