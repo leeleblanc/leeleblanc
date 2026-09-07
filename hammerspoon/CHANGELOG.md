@@ -4,6 +4,103 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.179.0 — ⌨️ WHAT DID I JUST PRESS · IS IT GETTING SLOWER · EMMYLUA GONE:
+  ⌨️ THE KEY TRAIL (core/key_trail.lua). Every hard bug in this config's
+     history has the same shape: something stalled or locked the Mac, and
+     by the time the Console was open nobody could say what the last few
+     keystrokes had been. 6.160.0's hang, the ⇪4 lock-ups, the 6.162.0
+     latched ⇪ — each was reconstructed from memory, days later, from a
+     log that recorded the CONSEQUENCE and not the sequence. Now the last
+     two dozen ⇪ shortcuts are remembered with how long each one took.
+     `_G.keyTrailReport()` prints them newest-first with "40s ago", the
+     module that owns each, its milliseconds, ⚠️ slow over 250 ms, ⛔ THREW
+     if it failed — and ⏸ paused for a press the pause switch stood down,
+     so a dead keyboard is explained instead of leaving a gap in the
+     record. The panic chord records itself as well: it is bound with
+     hs.hotkey directly, so hyperBind never sees it, and a rescue missing
+     from the record is exactly the hole the trail exists to close.
+  🔒 COMBOS ONLY. NEVER TEXT. NEVER A FILE. The trail holds the name a
+     shortcut was filed under, who claimed it, its milliseconds and
+     whether it threw — not one typed character, ever. The expander,
+     autocorrect and the key caster all see real keystrokes; this
+     deliberately does not, and a troubleshooting aid that becomes a
+     keylogger is not a trade worth making. It is memory only: no file,
+     no store, no ledger row, nothing to sync, gone on reload. Both
+     promises are asserted against the source in the gate (no eventtap,
+     no keycodes, no pasteboard, no io.open, no hs.settings), so neither
+     can be lost by accident later.
+  ⏱ AND IT COSTS THE KEYBOARD NOTHING. init.lua's hyperBind — the one
+     function every hyper shortcut in the config passes through — times
+     the call and hands the result over, nil-guarded and pcall'd exactly
+     as it already did for the hint card. A shortcut that throws still
+     throws: the timing wrapper re-raises, it does not swallow. With
+     core/key_trail.lua absent the shortcut runs unchanged. All of that
+     is tested through the REAL wrapper in test_hyper_key, not a copy of
+     the logic.
+  📈 IS IT GETTING SLOWER? 6.178.0 measured this boot; it could not tell
+     you whether that was normal. boot_cost now appends ONE row per boot
+     to Logs/boot_cost-<Mac>.csv — when, version, profile, modules,
+     loadMs, warmMs, the slowest module and its ms. Appended, never
+     rewritten (an append cannot shrink a file, so this store needs no
+     write ledger), written on a held timer AFTER the warm phase so it
+     carries those milliseconds and costs the boot nothing, and read only
+     when the report is asked for. The report compares this boot against
+     the MEDIAN of the last ten — a median, so one pathological boot does
+     not move the line everything is judged by — and a boot at over twice
+     the usual now earns a Console line even when it is under every
+     absolute threshold. A normal boot is still silent.
+  🧹 EMMYLUA IS GONE. LL: "do I really need to bother with EmmyLua? I
+     don't think I've used it once… at one point I asked for it to be
+     taken out." What happened in 6.166.0 was that its two boot lines
+     went quiet, not that the block went away — so it sat in init.lua for
+     thirteen versions doing nothing. It generated hs.* annotation files
+     that do nothing until an editor is pointed at them, and CotEditor
+     cannot read them at all. Deleted: no dependents, no tests, nothing
+     else referenced it. NEW IN 6.64.0 below keeps the full story, and it
+     is a hs.loadSpoon call plus eight lines of guard if it is ever
+     wanted back.
+  🔍 AND THE REVIEW OF THIS RELEASE FOUND FOUR THINGS, ALL FIXED HERE.
+     (a) The drift comparison read the history file 0.1 s into the boot —
+     a main-thread read of a OneDrive file, which is the exact stall that
+     beachballed this Mac in 6.152.x and 6.160.0. It moved off the boot
+     path entirely: it now runs with the history write, seconds later.
+     (b) The file is append-only and uncapped — one row per boot, and
+     every reload is a boot — and the reader parsed the WHOLE file and
+     then trimmed with table.remove(rows, 1), which is O(N²). Measured:
+     10,000 rows took 561 ms, 20,000 took 2.2 s, on the main thread,
+     growing forever. It now seeks to the END and reads the last 16 KB,
+     keeping the rows in a ring while it scans: bounded work no matter
+     how long the file gets, and the report says when the file has grown
+     past half a megabyte. (c) The writer escaped quotes RFC-style while
+     the reader's pattern could not read them back, so a row could vanish
+     in silence; the writer now flattens what the reader cannot parse,
+     and clamps a duration that a backwards NTP step made negative. (d)
+     `pcall(cost.record)` read only two of its three returns, so a
+     REFUSAL (an unwritable Logs folder on the work Mac) looked like a
+     success and the report then said "first boot recorded" every boot,
+     forever. It now says "history: NOT being written — <reason>", which
+     is the rule: the report SAYS the degraded state, honestly.
+  🔍 AND TWO MORE IN THE KEY TRAIL ITSELF. (e) The pause wrap is applied
+     to the pressed, released AND repeat handlers, and to every forwarded
+     chord — so while paused, one held key wrote a trail row per
+     autorepeat, about fifteen a second, and two seconds of that evicted
+     all twenty-four rows. The trail would have erased the evidence it
+     exists to keep, at exactly the moment it was needed: paused is the
+     state right after the panic chord. Now only the PRESSED handler of a
+     real shortcut records, and the trail itself merges the same key
+     again within two seconds into one row with a ×count — so a stuck key
+     on any path costs one line, not the record. (f) pcall unwinds the
+     stack before the re-raise, so a shortcut that threw would have shown
+     a traceback stopping at the wrapper, losing the module frames
+     between the key and the throw. It uses xpcall with debug.traceback
+     now, and falls back to pcall where debug is not there.
+  ✅ Gate: test_diagnostics 476 → 535 (the trail and the history are RUN,
+     including every degrade path: no Logs folder, an unwritable folder,
+     a mangled CSV, no hs.fs, no timer — and a 4,000-boot history, which
+     must still read in under 50 ms), test_hyper_key 116 → 123.
+     67 modules, 12 core files. 7,634 → 7,700 checks, seventy-three
+     stages.
+
 NEW IN 6.178.0 — ⏱ BOOT COST: WHERE THE LOAD TIME ACTUALLY GOES:
   📏 THE QUESTION. LL, seeing the 6.177.0 zip come in at 2.1 MB: "have
      we reviewed the code for size? Is there anything that could be

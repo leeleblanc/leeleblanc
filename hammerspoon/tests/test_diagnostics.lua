@@ -968,9 +968,396 @@ if bcChunk then
   check("...and init.lua loads it in its own pcall, so a broken measurer never costs the boot",
         initLive("core/boot_cost.lua") ~= nil and initLive("bcOK") ~= nil)
 
+  -- ---- 6.179.0: the history, one row per boot --------------------------
+  -- The point of the history is the question "is it getting slower?", so
+  -- what is under test is that a row is written once, read back, and
+  -- COMPARED — and that every way the file can be missing, unwritable or
+  -- mangled costs the comparison and nothing else.
+  do
+    local FILES, WRITES, BLOCK = {}, 0, false
+    local realIo = io.open
+    -- the degrade tests above left hs.timer without doAfter; the history
+    -- rides a timer, so put the stub back before measuring it
+    hs.timer = { secondsSinceEpoch = realTimer.secondsSinceEpoch,
+                 doAfter = function(_, fn) FIRED[#FIRED + 1] = fn; return { id = 2 } end }
+    -- and a truthful fs: a file EXISTS only once something wrote it, which
+    -- is how the header-once rule is decided
+    local realFs2 = hs.fs
+    hs.fs = { attributes = function(pth)
+        if FILES[pth] then return { mode = "file", size = #FILES[pth] } end
+        return nil
+    end }
+    io.open = function(path, mode)
+      if (mode or "r"):find("[wa]") then
+        if BLOCK then return nil, "read-only file system" end
+        WRITES = WRITES + 1
+        local buf = { (mode or ""):find("a") and (FILES[path] or "") or "" }
+        return { write = function(_, x) buf[#buf + 1] = x return true end,
+                 -- a real append handle answers its own size, which is how
+                 -- record() decides whether the header is already there
+                 seek = function() return #table.concat(buf) end,
+                 close = function() FILES[path] = table.concat(buf) end }
+      end
+      if FILES[path] == nil then return nil end
+      local done = false
+      return { read = function() if done then return nil end done = true return FILES[path] end,
+               close = function() end }
+    end
+
+    local function fresh(over)
+      lines, FIRED = {}, {}
+      _G.moduleStatus = slow
+      local api = bcChunk()(over or { moduleDir = "/m", logsDir = "/logs", hostTag = "TestMac" })
+      for _, fn in ipairs(FIRED) do fn() end
+      return api
+    end
+
+    local api = fresh()
+    local FILE = "/logs/boot_cost-TestMac.csv"
+    check("6.179.0: a boot appends one row to Logs/boot_cost-<Mac>.csv",
+          type(FILES[FILE]) == "string" and select(2, FILES[FILE]:gsub("\n", "")) == 2,
+          tostring(FILES[FILE]))
+    check("...with a header first, so Excel opens it",
+          FILES[FILE]:find("^when,version,profile,modules,loadMs,warmMs,slowest,slowestMs,epoch") ~= nil)
+    check("...naming the slowest module of that boot",
+          FILES[FILE]:find('"text_expander",420', 1, true) ~= nil, FILES[FILE])
+    check("...and it is written a few seconds LATER, after the warm phase, on a held timer",
+          _G.bootCostHistoryTimer ~= nil)
+
+    local before = WRITES
+    fresh()
+    check("a second boot APPENDS — the header is not repeated and the first row survives",
+          select(2, FILES[FILE]:gsub("\n", "")) == 3
+          and select(2, FILES[FILE]:gsub("when,version", "")) == 1, FILES[FILE])
+    check("...and appending is the only write, so the file can never shrink", WRITES == before + 1)
+
+    local rows = api.readHistory(10)
+    check("the history reads back", #rows == 2 and rows[1].loadMs == 454, #rows)
+    check("...knowing which module was slowest", rows[1].slowest == "text_expander")
+    check("the usual boot is a MEDIAN, so one bad boot does not move it", (function()
+        local usual, n = api.usualMs({ { loadMs = 100 }, { loadMs = 110 }, { loadMs = 9000 } })
+        return usual == 110 and n == 3
+    end)())
+
+    -- the drift line: slower than usual, even when under every threshold
+    for i = 1, 6 do
+      FILES[FILE] = FILES[FILE] .. string.format('"2026-09-0%d 08:00:00","6.179.0","Home",3,100,0,"vault",30,%d\n', i, i)
+    end
+    -- two modules at 120 ms: 240 ms total — under slowTotalMs (1500) and
+    -- neither over slowModuleMs (150), so ONLY the drift can speak here
+    _G.moduleStatus = { { name = "vault", ok = true, ms = 120 },
+                        { name = "expander", ok = true, ms = 120 } }
+    lines, FIRED = {}, {}
+    bcChunk()({ moduleDir = "/m", logsDir = "/logs", hostTag = "TestMac" })
+    for _, fn in ipairs(FIRED) do fn() end
+    local drift = table.concat(lines, "\n")
+    check("a boot well over what this Mac usually takes is reported even when it is under every absolute threshold",
+          drift:find("usually takes 100", 1, true) ~= nil, drift)
+    check("...and that comparison is made SECONDS after the boot, never on the boot path — "
+          .. "reading a OneDrive file at boot is what blocks the main thread",
+          (function()
+              lines, FIRED = {}, {}
+              bcChunk()({ moduleDir = "/m", logsDir = "/logs", hostTag = "TestMac" })
+              local atBoot = table.concat(lines, "\n")     -- before any timer fires
+              for _, fn in ipairs(FIRED) do fn() end
+              return atBoot == "" and table.concat(lines, "\n"):find("usually takes", 1, true) ~= nil
+          end)())
+
+    -- ...and it stays quiet when the boot is normal for this Mac
+    _G.moduleStatus = { { name = "vault", ok = true, ms = 120 } }
+    lines, FIRED = {}, {}
+    bcChunk()({ moduleDir = "/m", logsDir = "/logs", hostTag = "TestMac" })
+    for _, fn in ipairs(FIRED) do fn() end
+    check("a normal boot for this Mac still says nothing", table.concat(lines, "\n") == "",
+          table.concat(lines, "\n"))
+
+    -- ---- it degrades, it never breaks ----------------------------------
+    lines, FIRED = {}, {}
+    _G.moduleStatus = slow
+    local noLogs = bcChunk()({ moduleDir = "/m" })
+    for _, fn in ipairs(FIRED) do fn() end
+    check("no Logs folder → no history, no error, and the report says so", (function()
+        local okR, why = noLogs.record()
+        lines = {}
+        _G.bootCostReport()
+        return okR == false and tostring(why):find("no Logs", 1, true)
+               and table.concat(lines, "\n"):find("history: off", 1, true) ~= nil
+    end)())
+
+    BLOCK = true
+    local api2 = fresh()
+    check("an unwritable Logs folder costs the row, not the boot", (function()
+        local okR, why = api2.record()
+        return okR == false and tostring(why):find("read%-only")
+    end)(), "no error surfaced")
+    BLOCK = false
+
+    check("...and the report SAYS it is not being written rather than claiming a first boot", (function()
+        lines = {}
+        _G.bootCostReport()
+        local o = table.concat(lines, "\n")
+        return o:find("NOT being written", 1, true) and o:find("read%-only")
+    end)(), table.concat(lines, "\n"))
+
+    FILES[FILE] = "not a csv at all\nnor is this\n"
+    check("a mangled history file reads as no history rather than throwing",
+          #api2.readHistory(10) == 0)
+    check("...and a clean instance with no rows yet says there is nothing to compare", (function()
+        lines, FIRED = {}, {}
+        local clean = bcChunk()({ moduleDir = "/m", logsDir = "/logs", hostTag = "TestMac" })
+        lines = {}
+        _G.bootCostReport()
+        return table.concat(lines, "\n"):find("nothing to compare", 1, true) ~= nil
+    end)(), table.concat(lines, "\n"))
+
+    -- 🚨 the file is append-only and uncapped, so the READ has to be bounded
+    do
+        local rows = {}
+        for i = 1, 4000 do
+            rows[#rows + 1] = string.format('"2026-01-01 00:00:00","6.179.0","Home",67,%d,0,"vault",30,%d', 100 + i, i)
+        end
+        FILES[FILE] = "when,version,profile,modules,loadMs,warmMs,slowest,slowestMs,epoch\n"
+                      .. table.concat(rows, "\n") .. "\n"
+        -- a file handle that can SEEK, which is what the real io.open gives
+        local realIo2 = io.open
+        io.open = function(path, mode)
+            if (mode or "r"):find("[wa]") then return realIo2(path, mode) end
+            local blob = FILES[path]
+            if blob == nil then return nil end
+            local pos = 0
+            return {
+                seek = function(_, whence, off)
+                    if whence == "end" then pos = #blob + (off or 0)
+                    elseif whence == "set" then pos = off or 0
+                    end
+                    return pos
+                end,
+                read = function() local r = blob:sub(pos + 1); pos = #blob; return r end,
+                close = function() end,
+            }
+        end
+        local t0 = os.clock()
+        local got = api2.readHistory(10)
+        local secs = os.clock() - t0
+        io.open = realIo2
+        check("a history of 4,000 boots still reads only its TAIL — the cost cannot grow with the file",
+              #got == 10 and secs < 0.05, #got .. " rows in " .. string.format("%.3fs", secs))
+        check("...and the ten it returns are the ten most RECENT, in order",
+              got[10].loadMs == 4100 and got[1].loadMs == 4091,
+              tostring(got[1] and got[1].loadMs) .. ".." .. tostring(got[10] and got[10].loadMs))
+    end
+
+    -- the header goes in ONCE, and that must not depend on hs.fs
+    do
+      local realFs3 = hs.fs
+      hs.fs = nil
+      FILES[FILE] = nil
+      local api4 = fresh()
+      api4.record(); api4.record()
+      hs.fs = realFs3
+      check("with no hs.fs at all the header is still written ONCE — the handle "
+            .. "itself answers whether the file is empty",
+            select(2, (FILES[FILE] or ""):gsub("when,version", "")) == 1,
+            tostring(FILES[FILE]))
+    end
+
+    -- the writer must never emit a row the reader cannot read back
+    do
+        _G.moduleProfileName = 'we"ird, name'
+        _G.moduleStatus = { { name = "a,b\nc", ok = true, ms = 12 } }
+        FILES[FILE] = nil
+        local api3 = fresh()
+        _G.moduleProfileName = "TestMac"
+        check("a name with a quote, a comma or a newline in it still reads back — "
+              .. "the writer flattens what the reader cannot parse",
+              #api3.readHistory(10) == 1, tostring(FILES[FILE]))
+    end
+
+    FILES[FILE] = nil
+    check("no history file yet (a first boot) is not an error", #api2.readHistory(10) == 0)
+
+    io.open = realIo
+    hs.fs = realFs2
+  end
+
   hs.timer = realTimer
   _G.moduleStatus = {}
   print = realPrint3
+end
+
+
+-- =====================================================================
+-- 8c. THE KEY TRAIL, EXECUTED (6.179.0)
+-- =====================================================================
+-- Every hard bug in this config was reconstructed from memory days
+-- later. The trail exists so the last few presses can be READ instead.
+-- Under test: the ring really is a ring, a slow press is marked, a press
+-- swallowed by the pause switch is marked as such rather than missing,
+-- and — the promise that matters — no typed text can ever get in.
+out("\n=== 8c. Key trail, executed ===\n")
+local KT_PATH = HS .. "/core/key_trail.lua"
+local ktChunk = loadfile(KT_PATH)
+check("core/key_trail.lua loads", ktChunk ~= nil, select(2, loadfile(KT_PATH)))
+
+if ktChunk then
+  local lines = {}
+  local realPrint4 = print
+  print = function(...)
+    local t = {}
+    for i = 1, select("#", ...) do t[#t+1] = tostring((select(i, ...))) end
+    lines[#lines+1] = table.concat(t, " ")
+  end
+  local CLOCK = 1000
+  local realTimer2 = hs.timer
+  hs.timer = { secondsSinceEpoch = function() return CLOCK end }
+
+  local trail = ktChunk()({})
+  check("it publishes the recorder init.lua calls", type(_G.keyTrailRecord) == "function")
+  check("...and the report", type(_G.keyTrailReport) == "function")
+
+  lines = {}
+  local none = _G.keyTrailReport()
+  check("with nothing pressed it says so and returns 0",
+        none == 0 and table.concat(lines, "\n"):find("nothing pressed yet", 1, true) ~= nil)
+
+  _G.keyTrailRecord("1", "scratch pad", 18)
+  CLOCK = CLOCK + 30
+  _G.keyTrailRecord("x", "mouse grid", 1420)
+  CLOCK = CLOCK + 5
+  _G.keyTrailRecord("shift+1", "paused", 0, "paused")
+  CLOCK = CLOCK + 5
+  _G.keyTrailRecord("y", "chrome history", 12, "threw")
+
+  check("newest is FIRST — the last thing pressed is the first thing read",
+        trail.rows[1].combo == "y" and trail.rows[#trail.rows].combo == "1")
+  check("it counts what matters", trail.seen == 4 and trail.slow == 1
+        and trail.threw == 1 and trail.paused == 1,
+        trail.seen .. "/" .. trail.slow .. "/" .. trail.threw .. "/" .. trail.paused)
+
+  lines = {}
+  local n = _G.keyTrailReport()
+  local report = table.concat(lines, "\n")
+  check("the report prints every row", n == 4)
+  check("a slow press is marked, with its milliseconds",
+        report:find("1420 ms", 1, true) and report:find("⚠️ slow", 1, true), report)
+  check("a press the PAUSE switch swallowed says so — a dead keyboard is explained, not a gap",
+        report:find("⏸ paused — it did nothing", 1, true) ~= nil, report)
+  check("a shortcut that threw is marked", report:find("⛔ THREW", 1, true) ~= nil)
+  check("...and each row says how long ago it was, not a timestamp",
+        report:find("40s ago", 1, true) and report:find("0s ago", 1, true), report)
+  check("the summary counts the session", report:find("4 presses this session", 1, true) ~= nil)
+
+  check("ages read in minutes and hours once they are older", (function()
+      return trail.ago(59) == "59s ago" and trail.ago(134) == "2m 14s ago"
+             and trail.ago(7300) == "2h 01m ago"
+  end)(), trail.ago(134) .. " / " .. trail.ago(7300))
+
+  check("a duration is never negative — the wall clock steps at login and on wake", (function()
+      local t3 = ktChunk()({})
+      local r1 = _G.keyTrailRecord("q", "test", -1200)
+      local r2 = _G.keyTrailRecord("w", "test", 0 / 0)
+      local ok = r1.ms == 0 and r2.ms == 0 and t3.slow == 0
+      ktChunk()({})   -- back to a clean trail for the rows below
+      trail = _G.keyTrail
+      _G.keyTrailRecord("1", "scratch pad", 18)
+      CLOCK = CLOCK + 30
+      _G.keyTrailRecord("x", "mouse grid", 1420)
+      CLOCK = CLOCK + 5
+      _G.keyTrailRecord("shift+1", "paused", 0, "paused")
+      CLOCK = CLOCK + 5
+      _G.keyTrailRecord("y", "chrome history", 12, "threw")
+      return ok
+  end)())
+
+  -- 🚨 the review's finding: a held key must not erase the incident
+  do
+    local t2 = ktChunk()({})
+    _G.keyTrailRecord("shift+escape", "panic chord", 0)
+    CLOCK = CLOCK + 1
+    for _ = 1, 40 do _G.keyTrailRecord("x", "mouse grid", 0, "paused") end
+    check("a key held down collapses to ONE row with a ×count, not forty",
+          #t2.rows == 2 and t2.rows[1].times == 40, #t2.rows)
+    check("...so the press that led up to the incident is still there to read",
+          t2.rows[2].combo == "shift+escape", t2.rows[2] and t2.rows[2].combo)
+    check("...and the session counts still count every one of them", t2.seen == 41)
+    CLOCK = CLOCK + 60
+    _G.keyTrailRecord("x", "mouse grid", 0, "paused")
+    check("...while the same key LATER is a new row — the merge is a burst, not a lifetime",
+          #t2.rows == 3 and t2.rows[1].times == 1)
+    lines = {}
+    _G.keyTrailReport()
+    check("...and the report shows the ×count", table.concat(lines, "\n"):find("×40", 1, true) ~= nil)
+    -- back to the trail this section has been building
+    ktChunk()({})
+    _G.keyTrailRecord("1", "scratch pad", 18)
+    CLOCK = CLOCK + 30
+    _G.keyTrailRecord("x", "mouse grid", 1420)
+    CLOCK = CLOCK + 5
+    _G.keyTrailRecord("shift+1", "paused", 0, "paused")
+    CLOCK = CLOCK + 5
+    _G.keyTrailRecord("y", "chrome history", 12, "threw")
+    trail = _G.keyTrail
+  end
+
+  -- the ring is a ring
+  trail.keep = 5
+  for i = 1, 20 do _G.keyTrailRecord("k" .. i, "test", 1) end
+  check("the ring never grows past keep — it is memory, not a log",
+        #trail.rows == 5 and trail.rows[1].combo == "k20" and trail.rows[5].combo == "k16",
+        #trail.rows)
+  check("...while the running counts keep counting", trail.seen == 24)
+
+  -- 🔒 the promise
+  local src = (function() local f = realopen(KT_PATH, "r"); local t = f:read("*a"); f:close(); return t end)()
+  check("🔒 the trail never reads a keystroke: no eventtap, no keycodes, no pasteboard",
+        not src:find("eventtap", 1, true) and not src:find("keyStroke", 1, true)
+        and not src:find("pasteboard", 1, true) and not src:find("getCharacters", 1, true))
+  check("🔒 ...and never writes anything: no file, no store, no settings",
+        not src:find("io.open", 1, true) and not src:find("hs.settings", 1, true)
+        and not src:find("os.remove", 1, true))
+  check("🔒 ...and says both promises out loud, where the next reader will see them",
+        src:find("no typed text", 1, true) and src:find("NEVER WRITES ANYTHING", 1, true) ~= nil)
+
+  -- a caller that knows less still gets a row rather than an error
+  check("a record with no arguments at all is a row, not a crash", (function()
+      local ok, row = pcall(_G.keyTrailRecord)
+      return ok and row.combo == "?" and row.source == "?" and row.ms == 0
+  end)())
+
+  -- and init.lua really calls it, on both paths
+  check("init.lua records every hyper shortcut AFTER it has run, timed",
+        initLive("_G.keyTrailRecord, combo, source, ms") ~= nil)
+  check("...and records a press the pause switch swallowed, named by the module that owns the key",
+        initLive('_G.hyperBound[combo]) or "paused", 0, "paused"') ~= nil)
+  check("...both nil-guarded, so a Mac without the file keeps every shortcut", (function()
+      local guards = 0
+      for line in initText:gmatch("[^\n]+") do
+        if not line:match("^%s*%-%-")
+           and (line:find("if _G.keyTrailRecord then", 1, true)
+                or line:find("if record and _G.keyTrailRecord then", 1, true)) then
+          guards = guards + 1
+        end
+      end
+      return guards == 2, guards
+  end)())
+  check("⏸ only the PRESSED handler of a real shortcut records a paused press — "
+        .. "released, repeat and the forwarded chords do not, or one held key "
+        .. "would write fifteen rows a second",
+        initLive("hyperPauseWrap(combo, pressedFn, source ~= \"chord\")") ~= nil
+        and initLive("hyperPauseWrap(combo, releasedFn)") ~= nil
+        and initLive("if record and _G.keyTrailRecord then") ~= nil)
+  check("🔎 a shortcut that throws keeps its full traceback — xpcall, not a bare "
+        .. "pcall, or the module frames between the key and the throw are gone",
+        initLive("xpcall(ranFn, debug.traceback, ...)") ~= nil
+        and initLive("ok, r = pcall(ranFn, ...)") ~= nil)
+    check("...and the panic chord, which hyperBind never sees, records itself", (function()
+      local f = realopen(HS .. "/modules/power_tools.lua", "r")
+      local pt = f:read("*a"); f:close()
+      return pt:find("_G.keyTrailRecord", 1, true) ~= nil
+  end)())
+
+  hs.timer = realTimer2
+  print = realPrint4
 end
 
 

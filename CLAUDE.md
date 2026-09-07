@@ -175,6 +175,16 @@ them from `altTab.known`, a memory fed by every listing; z-order comes from
 `hs.console.hswindow()` since 6.160.3 (it is hs.window.get → allWindows,
 a second full sweep; the console comes from applicationForPID(own pid)).
 
+Key trail (6.179.0, core/key_trail.lua): a ring of the last
+`trail.keep` (24) ⇪ shortcuts — combo, source, ms, why ("threw" /
+"paused"). `_G.keyTrailReport()`. init.lua's hyperBind TIMES the pressed
+fn (pcall + re-raise; a throw must still throw) and calls
+`_G.keyTrailRecord` nil-guarded, as it does `_G.shortcutHint`; the pause
+wrap records a swallowed press; power_tools' panic chord records itself
+(hyperBind never sees it). 🔒 TWO PROMISES THE GATE ENFORCES AGAINST THE
+SOURCE: combos only — never typed text (no eventtap/keycodes/pasteboard)
+— and it never writes (no io.open/hs.settings). Do not break either.
+
 Boot cost (6.178.0, core/boot_cost.lua): `_G.bootCostReport()` ranks
 every module by load ms (with warm ms and file size); a boot line names
 the total and the worst three ONLY when a module took >150 ms or the
@@ -186,7 +196,22 @@ kilobytes — comments are discarded at parse and are the project's
 memory; tests/ and CHANGELOG.md never reach ~/.hammerspoon. A NEW core
 file must be added to hs-doctor.sh, hs-install.sh (BOTH loops) and
 INSTALL.md, counts included — three sentries in test_diagnostics enforce
-it.
+it. 6.179.0: one CSV row per boot in Logs/boot_cost-<Mac>.csv, APPENDED
+(an append cannot shrink, so no write-ledger row), written on a held
+timer after the warm phase, read only for the report; the report and the
+boot line compare against the MEDIAN of the last ten and say "slower
+than usual" past `driftFactor` (2×) even when under the absolute
+thresholds — that comparison runs with the WRITE, seconds after boot,
+never on the boot path (a main-thread read of a OneDrive file is the
+6.152.x/6.160.0 stall). The file is uncapped, so `readHistory` seeks to
+the END and reads `historyTail` (16 KB) into a ring — never the whole
+file, never `table.remove(rows, 1)`. The writer flattens quotes, commas
+and newlines and clamps negative/non-finite numbers, because the reader
+is a pattern and a row it cannot parse vanishes in silence. RULE for any
+`pcall(fn)` where fn returns `false, why`: read THREE values — reading
+two makes a refusal look like success (that is how the report came to
+claim "first boot recorded" on a Mac that could not write at all). EmmyLua was deleted from init.lua in 6.179.0 — never
+configured, no dependents; the story is CHANGELOG 6.64.0.
 
 ## Panel ladder (core/coexist.lua)
 
@@ -309,6 +334,21 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 6.179.0 KNOWN LIMIT (stated in core/boot_cost.lua, not hidden): the
+  history step does a 16 KB tail read + ~90 byte append on the OneDrive
+  CSV, main thread, 4 s AFTER boot. Bounded and off the boot path, and
+  the file is written every boot so OneDrive is unlikely to dehydrate
+  it — but if a post-boot stall is ever traced there, move the read and
+  the append into an hs.task (/bin/cat, /usr/bin/tail). Never move it
+  back onto the boot line.
+- 6.179.0 verify with LL: press a few ⇪ shortcuts, then
+  `_G.keyTrailReport()` — the last two dozen, newest first, with how
+  long each took; ⇪⇧1 (pause) then any shortcut shows a ⏸ row rather
+  than nothing. After a few reloads, `_G.bootCostReport()` grows a
+  "history:" line comparing this boot with the usual, and
+  Logs/boot_cost-<Mac>.csv opens in Excel. Nothing about the trail is
+  ever written to disk — if a future ask is "keep the trail across a
+  reload", that is a NEW decision (a file), not a tweak.
 - 6.178.0 verify with LL: reload and read the Console — most likely
   NOTHING new appears (that means the boot was under 1.5 s and no module
   over 150 ms, which is the good outcome). Then run

@@ -4,9 +4,54 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.178.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.179.0
 -- =====================================================================
 
+-- NEW IN 6.179.0 — ⌨️ WHAT DID I JUST PRESS · IS IT GETTING SLOWER · EMMYLUA GONE:
+--   ⌨️ THE KEY TRAIL (core/key_trail.lua). Every hard bug here was
+--      reconstructed from memory days later: the 6.160.0 hang, the ⇪4
+--      lock-ups, the latched ⇪. Now the last two dozen ⇪ shortcuts are
+--      remembered with how long each took — `_G.keyTrailReport()` prints
+--      them newest-first, marks anything over 250 ms ⚠️ slow, marks one
+--      that ⛔ THREW, and marks a press the ⏸ pause switch swallowed so a
+--      dead keyboard is EXPLAINED instead of leaving a gap. The panic
+--      chord records itself too (hyperBind never sees it).
+--   🔒 IT RECORDS COMBOS, NEVER TEXT, AND WRITES NOTHING. Not one typed
+--      character: the trail holds the name a shortcut was filed under,
+--      the module that claimed it, its milliseconds. Memory only — no
+--      file, no store, nothing to sync. The test asserts both promises
+--      against the source, so neither can be lost by accident.
+--   📈 IS IT GETTING SLOWER? boot_cost now appends ONE row per boot to
+--      Logs/boot_cost-<Mac>.csv (Excel opens it; append-only, so it can
+--      never shrink) and compares this boot against the MEDIAN of the
+--      last ten. A boot at over twice the usual is now worth a line even
+--      when it is under every absolute threshold — "it got slower" is
+--      the fault you would otherwise never notice.
+--   🧹 EMMYLUA IS GONE. LL: "I don't think I've used it once… did we ever
+--      take it out?" 6.166.0 silenced its two boot lines; the block
+--      stayed. It generated editor annotation files that do nothing
+--      until an editor is pointed at them, and CotEditor cannot read
+--      them at all. Deleted — no dependents, and CHANGELOG 6.64.0 keeps
+--      the story if it is ever wanted back.
+--   🔍 ITS OWN REVIEW FOUND SIX THINGS, ALL FIXED HERE: the drift check
+--      read the history 0.1 s into the boot (a main-thread read of a
+--      OneDrive file — the 6.152.x / 6.160.0 stall; moved off the boot
+--      path); the reader parsed the WHOLE uncapped file and trimmed with
+--      table.remove(rows, 1) — O(N²), 2.2 s at 20,000 rows (it reads the
+--      last 16 KB into a ring now); the writer could emit a row the
+--      reader could not read back; pcall read two of record's three
+--      returns, so an unwritable Logs folder looked like success and the
+--      report claimed "first boot recorded" forever; while paused one
+--      HELD key wrote a row per autorepeat and evicted all 24 — the
+--      trail erasing the evidence it exists to keep, in the state right
+--      after the panic chord (pressed-handler only now, and a repeat
+--      merges into one ×N row); and a bare pcall lost the traceback of a
+--      shortcut that threw (xpcall + debug.traceback). Full account in
+--      CHANGELOG.md.
+--   ✅ Gate: test_diagnostics 476 → 535, test_hyper_key 116 → 123 (the
+--      trail is fed through the REAL hyperBind wrapper, not a copy).
+--      67 modules, 12 core files. 7,634 → 7,700 checks, seventy-three
+--      stages.
 -- NEW IN 6.178.0 — ⏱ BOOT COST: WHERE THE LOAD TIME ACTUALLY GOES:
 --   📏 LL, seeing the 6.177.0 zip at 2.1 MB: "have we reviewed the code
 --      for size?" Measured, not guessed: of 6.2 MB unpacked, tests/
@@ -94,19 +139,10 @@
 --      says how to get there instead of how to get solid.
 --   ✅ Gate: test_vault 265 → 266 (solid by default, AND view:alpha is
 --      never called). 67 modules. 7,552 checks, seventy-three stages.
--- NEW IN 6.175.1 — THE PAD/VAULT WINDOW IS MORE SOLID AGAIN:
---   🪟 LL: "Make the pad more opaque." 6.173.2 took the window from
---      solid to 0.9 on LL's "slightly less opaque"; seen on the screen,
---      that was too far. 0.97 now — a hint of the app behind it for
---      bearings, without the text swimming. `settings = { vault =
---      { alpha = 1 } }` is still solid, and any 0–1 number to taste;
---      `_G.vaultReport()`'s "window" line shows the value in force.
---   ✅ Gate: test_vault unchanged at 265 (the two alpha checks now
---      expect 0.97). 67 modules. 7,551 checks, seventy-three stages.
--- (6.175.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.175.1 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.178.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.179.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -373,7 +409,7 @@
 -- code to make them tidy is how definitions get lost (NEW IN 6.40.0) —
 -- so navigate by this map, not by the numbering:
 --
---   §0     core environment · dock icon · EmmyLua
+--   §0     core environment · dock icon
 --   §0.1   portability — every path and folder resolved, per Mac
 --   §0.2   credentials — secret.lua loader (no token lives here)
 --   §0.3   hotkey conflict sentry    §0.4   hyper migration map
@@ -452,31 +488,18 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.178.0"
+_G.configVersion = "6.179.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
--- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
--- Writes annotation files describing every hs.* function so an
--- LSP-capable editor can autocomplete and underline wrong API usage AS
--- YOU TYPE — the exact shape of several past bugs here. Zero runtime
--- cost: it generates files and stops. Not installed? Nothing is said
--- (6.166.0), and the config carries on. ⚠️ The files alone do nothing — your
--- EDITOR must be pointed at them (CotEditor cannot use them).
-(function()
-    local home = os.getenv("HOME") or ""
-    local spoonPath = home .. "/.hammerspoon/Spoons/EmmyLua.spoon"
-    local there = false
-    pcall(function() there = hs.fs.attributes(spoonPath) ~= nil end)
-    -- 6.166.0 — LL: "remove this code": not installed is SILENT now.
-    if not there then return end
-    local ok, err = pcall(hs.loadSpoon, "EmmyLua")
-    if ok then
-        print("💡 EmmyLua: hs.* annotations refreshed for your editor")
-    else
-        -- Never fatal. A dev convenience must not take the config down.
-        print("⚠️ EmmyLua present but failed to load: " .. tostring(err))
-    end
-end)()
+-- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------
+-- It wrote hs.* annotation files for an LSP-capable editor. LL asked in
+-- 6.166.0 to "remove this code"; what happened then was that its two
+-- boot lines went quiet, not that the block went away — so it sat here
+-- for thirteen versions doing nothing, because the files it generates
+-- are useless until an editor is pointed at them and CotEditor cannot
+-- read them at all. Never configured, never used, no dependents. Gone.
+-- Full story: NEW IN 6.64.0 in CHANGELOG.md; it is a hs.loadSpoon call
+-- and eight lines of guard if it is ever wanted back.
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
 -- §1.11. Sections earlier in the file log through _G.diag, and a section
@@ -2133,10 +2156,27 @@ end
 -- A pressed shortcut while paused says so (throttled to one alert per
 -- few seconds), because a silently dead keyboard reads as a broken one.
 local hsPausedSaidAt = 0
-local function hyperPauseWrap(combo, fn)
+-- `record` is true for the PRESSED handler of a real shortcut only.
+-- 6.179.0 review: this wrap is applied to pressed, released AND repeat,
+-- and to the forwarded chords — recording all of them meant that while
+-- paused, one held key wrote a trail row per autorepeat (~15 a second)
+-- and evicted every row that led up to the incident. The ⏸ alert above
+-- has been throttled since 6.152.0 for the same reason.
+local function hyperPauseWrap(combo, fn, record)
     if not fn then return nil end
     return function(...)
         if _G.hsPaused and combo ~= _G.hsPauseCombo then
+            -- 6.179.0 — a press that did nothing because of the pause is
+            -- the single most confusing thing this config can do. It goes
+            -- in the trail, marked, so the report explains the dead
+            -- keyboard instead of showing a gap.
+            if record and _G.keyTrailRecord then
+                -- named by the module that OWNS the key, not by the pause:
+                -- "⇪1 · scratch pad · ⏸ paused" is the row that explains
+                -- itself. hyperBind filed that owner under the combo.
+                pcall(_G.keyTrailRecord, combo,
+                      (_G.hyperBound and _G.hyperBound[combo]) or "paused", 0, "paused")
+            end
             local now = hs.timer.secondsSinceEpoch()
             if now - hsPausedSaidAt > 3 then
                 hsPausedSaidAt = now
@@ -2167,15 +2207,40 @@ local function hyperBind(mods, key, pressedFn, releasedFn, repeatFn, source)
     -- it; INSIDE the pause wrap, so a paused press never hints; never for
     -- the forwarded chords. Nil-guarded and pcall'd: the module is
     -- optional and this block runs bare in test_hyper_key's sandbox.
+    -- 6.179.0 — and the KEY TRAIL is timed around the same call: how
+    -- long the shortcut took, and whether it threw. core/key_trail.lua
+    -- keeps the last two dozen in memory (combos only, never text).
+    -- Nil-guarded and pcall'd like the hint above, for the same reason.
     if pressedFn and source ~= "chord" then
         local ranFn = pressedFn
         pressedFn = function(...)
-            local r = ranFn(...)
+            local t0 = hs.timer.secondsSinceEpoch()
+            -- xpcall + debug.traceback, not a bare pcall: pcall unwinds
+            -- the stack before the re-raise, so the Console would have
+            -- shown a traceback that stopped at THIS wrapper and lost the
+            -- module frames between the key and the throw — the exact
+            -- forensic detail this release is about (6.179.0 review).
+            local ok, r
+            if type(debug) == "table" and type(debug.traceback) == "function" then
+                ok, r = xpcall(ranFn, debug.traceback, ...)
+            else
+                ok, r = pcall(ranFn, ...)
+            end
+            local ms = (hs.timer.secondsSinceEpoch() - t0) * 1000
+            if _G.keyTrailRecord then
+                pcall(_G.keyTrailRecord, combo, source, ms, (not ok) and "threw" or nil)
+            end
+            -- A shortcut that throws must still SAY so, exactly as it did
+            -- when it was unwrapped: the pcall here is for the timing, not
+            -- a place to swallow a fault. And it must not gain a hint card
+            -- it never had — before 6.179.0 the error left this function
+            -- BEFORE the hint line, so a failed shortcut showed none.
+            if not ok then error(r, 0) end
             if _G.shortcutHint then pcall(_G.shortcutHint, combo, source) end
             return r
         end
     end
-    pressedFn  = hyperPauseWrap(combo, pressedFn)
+    pressedFn  = hyperPauseWrap(combo, pressedFn, source ~= "chord")
     releasedFn = hyperPauseWrap(combo, releasedFn)
     repeatFn   = hyperPauseWrap(combo, repeatFn)
     _G.hyperModal:bind(mods, key, pressedFn, releasedFn, repeatFn)
@@ -3862,6 +3927,23 @@ local brOK, brErr = pcall(function()
               secretsStatus = secretsStatus, axOK = axOK })
 end)
 -- =====================================================================
+-- KEY TRAIL — what did I just press? (6.179.0)
+-- =====================================================================
+-- A ring buffer of the last two dozen ⇪ shortcuts and how long each one
+-- took, so a stall can be described instead of remembered. Combos only,
+-- never typed text; memory only, never a file. hyperBind above calls
+-- _G.keyTrailRecord if this loaded, and carries on if it did not.
+local ktOK, ktErr = pcall(function()
+    local path = hs.configdir .. '/core/key_trail.lua'
+    local chunk, loadErr = loadfile(path)
+    if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
+    chunk()({})
+end)
+if not ktOK then
+    print('⚠️ core/key_trail.lua failed — no key trail this session. ' .. tostring(ktErr))
+end
+
+-- =====================================================================
 -- BOOT COST — where the load time went (6.178.0)
 -- =====================================================================
 -- LL: "have we reviewed the code for size?" Nobody had measured it. The
@@ -3872,7 +3954,7 @@ local bcOK, bcErr = pcall(function()
     local path = hs.configdir .. '/core/boot_cost.lua'
     local chunk, loadErr = loadfile(path)
     if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
-    chunk()({ moduleDir = _G.moduleDir })
+    chunk()({ moduleDir = _G.moduleDir, logsDir = logsDir, hostTag = hostTag })
 end)
 if not bcOK then
     -- A measuring tool failing must cost nothing but the measurement.

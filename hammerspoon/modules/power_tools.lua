@@ -1622,6 +1622,14 @@ end tell]]
             end
         end
         pt.panicLast = { why = why or "panic chord", did = did, failed = failed }
+        -- 6.179.0 — the chord goes in the key trail too. It is bound with
+        -- hs.hotkey directly, so init.lua's hyperBind never sees it, and
+        -- a rescue missing from the record of what was pressed is exactly
+        -- the gap the trail exists to close.
+        if _G.keyTrailRecord then
+            pcall(_G.keyTrailRecord, "⌃⌥⌘⇧esc", "panic chord", 0,
+                  #failed > 0 and "threw" or nil)
+        end
         local lines = {}
         for _, step in ipairs(did) do lines[#lines + 1] = "· " .. step.what end
         if #lines == 0 then lines[1] = "· nothing was holding on" end

@@ -497,10 +497,57 @@ do
   check("a held key runs the REPEAT handler, not the press handler again",
         w.ran[1] == "d-repeat" and #w.ran == 1, w.ran[1])
 
+  -- ⌨️ 6.179.0 — THE KEY TRAIL. hyperBind times the shortcut and hands
+  -- the result to core/key_trail.lua. Recorded here against the REAL
+  -- wrapper: a trail fed by a copy of the logic proves nothing.
+  local TRAIL = {}
+  w.SB.keyTrailRecord = function(combo, source, ms, why)
+    TRAIL[#TRAIL + 1] = { combo = combo, source = source, ms = ms, why = why }
+  end
+  w.ran = {}
+  tap.fn(w.mkEvent({}, "d", true))
+  check("⌨️ a shortcut that ran is in the key trail, under the combo it was bound as",
+        #TRAIL == 1 and TRAIL[1].combo == "d" and TRAIL[1].source == "test"
+        and TRAIL[1].why == nil, TRAIL[1] and TRAIL[1].combo)
+  check("...with a duration, so a four-second press can be seen afterwards",
+        type(TRAIL[1].ms) == "number" and TRAIL[1].ms >= 0)
+
+  TRAIL = {}
   w.ran = {}
   check("🛟 a shortcut that THROWS does not throw into the event system",
         tap.fn(w.mkEvent({}, "a", true)) == true, "threw out of the tap")
   check("...and the tap is still running afterwards", tap.on == true)
+  check("⌨️ ...and the throw is IN the trail rather than lost — the timing "
+     .. "wrapper records the fault, it does not swallow it",
+        #TRAIL == 1 and TRAIL[1].combo == "a" and TRAIL[1].why == "threw",
+        TRAIL[1] and tostring(TRAIL[1].why))
+  check("⌨️ ...and a shortcut that threw gains NO hint card it never had before",
+        (function()
+            local hints = {}
+            w.SB.shortcutHint = function(c) hints[#hints + 1] = c end
+            tap.fn(w.mkEvent({}, "a", true))          -- throws
+            local afterThrow = #hints
+            tap.fn(w.mkEvent({}, "d", true))          -- runs
+            w.SB.shortcutHint = nil
+            return afterThrow == 0 and #hints == 1 and hints[1] == "d"
+        end)())
+
+  -- and a press the pause switch stands down is recorded as such
+  TRAIL, w.ran = {}, {}
+  w.SB.hsPaused, w.SB.hsPauseCombo = true, "shift+1"
+  tap.fn(w.mkEvent({}, "d", true))
+  w.SB.hsPaused = false
+  check("⏸ a press swallowed by the pause switch is in the trail, marked — "
+     .. "the dead keyboard is explained instead of leaving a gap",
+        #TRAIL == 1 and TRAIL[1].why == "paused" and #w.ran == 0,
+        TRAIL[1] and tostring(TRAIL[1].why))
+  check("...named by the module that OWNS the key, not by the pause itself",
+        TRAIL[1] and TRAIL[1].source == "test", TRAIL[1] and TRAIL[1].source)
+  w.SB.keyTrailRecord = nil
+  TRAIL, w.ran = {}, {}
+  tap.fn(w.mkEvent({}, "d", true))
+  check("⌨️ ...and with no trail loaded at all the shortcut still runs",
+        w.ran[1] == "d-pressed" and #TRAIL == 0, w.ran[1])
 
   w.ran = {}
   check("nothing dispatches when ⇪ is not held", (function()
