@@ -4,9 +4,35 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.177.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.178.0
 -- =====================================================================
 
+-- NEW IN 6.178.0 — ⏱ BOOT COST: WHERE THE LOAD TIME ACTUALLY GOES:
+--   📏 LL, seeing the 6.177.0 zip at 2.1 MB: "have we reviewed the code
+--      for size?" Measured, not guessed: of 6.2 MB unpacked, tests/
+--      (2.3 MB) is never installed and CHANGELOG.md (0.7 MB) is never
+--      read — about 3 MB is live. A third of the Lua is comments, and
+--      Lua throws those away at parse: they cost a little disk and
+--      nothing at runtime, while they are the reason six months of
+--      decisions do not get re-broken. So nothing was stripped.
+--   ⏱ WHAT WAS MISSING WAS THE MEASUREMENT. Every module's load time
+--      was already recorded (rec.ms, rec.warmMs) and only ever shown one
+--      line at a time under bootVerbose — nothing summed it or ranked it.
+--      core/boot_cost.lua now does: `_G.bootCostReport()` prints every
+--      module slowest-first with its warm time and its file size, and a
+--      boot line names the total and the worst three — but ONLY when a
+--      module took over 150 ms or the whole load took over 1.5 s. A fast
+--      boot stays silent, like the boot report beside it.
+--   🔬 IT MEASURES, IT DOES NOT DECIDE. It loads nothing, defers
+--      nothing, and reads _G.moduleStatus after the fact; init.lua loads
+--      it in its own pcall, so a broken measurer costs the measurement
+--      and never the boot. Missing timings, missing hs.fs, missing
+--      hs.timer.doAfter: each degrades to less output, never an error.
+--      The report says out loud that size and speed are different
+--      things — trim on the milliseconds, never on the kilobytes.
+--   ✅ Gate: test_diagnostics 451 → 476 (the boot-cost file is RUN, not
+--      grepped). 67 modules, 11 core files. 7,609 → 7,634 checks,
+--      seventy-three stages.
 -- NEW IN 6.177.0 — 📤 THE SCORP PAD'S WAY OUT: EVERY TAB AS AN OBSIDIAN NOTE:
 --   🚪 LL: "Will I be able to open my Scorp pad files in Obsidian if I
 --      ever decide to move to it?" The Vault's notes always could — they
@@ -77,38 +103,10 @@
 --      `_G.vaultReport()`'s "window" line shows the value in force.
 --   ✅ Gate: test_vault unchanged at 265 (the two alpha checks now
 --      expect 0.97). 67 modules. 7,551 checks, seventy-three stages.
--- NEW IN 6.175.0 — THE VAULT TEACHES YOU MARKDOWN AS YOU TYPE:
---   ✍️ LL: "I don't write markdown. Are there tool tips or autocompletes
---      that will teach and help me." Three, and every one SHOWS the
---      syntax instead of hiding it, so they work themselves out of a job.
---   🔠 A FORMAT BAR above the text: H1 H2 · B I <> · • 1. ☑ ❝ · [[ ]] #.
---      Each button types the characters for you AND its tooltip names
---      them ("Bold ⌘B — wraps the words in **stars**"). ⌘B ⌘I ⌘E do the
---      same from the keyboard and press again to undo. A block button
---      SWAPS a line's marker rather than stacking on it, and a selection
---      gets the marker on every line. `settings = { vault =
---      { formatBar = false } }` hides the bar; the rest stays.
---   ／ "/" ON AN EMPTY LINE lists every block — Heading, Task, Quote,
---      Divider, Code block, Link to a note — each row with its plain
---      English name and, greyed beside it, the raw markdown it types.
---      Type after the / to filter by name. A slash inside a date or a
---      path (2026/09/06, and/or) opens nothing.
---   👣 THE FOOTER NAMES THE LINE THE CARET IS ON: "Heading 2 — the ##
---      does that", "Task — ⌘L ticks it, ⏎ starts the next one", "Tagged
---      — the #word joins the 🏷 TAGS list". No click, it is just there;
---      with nothing to explain it points at the / menu.
---   🚨 6.174.1 folded in: the panic chord counted a mouse grid it had not
---      cleared (grid.hide is idempotent and always succeeds, so calling
---      it blind made the alert claim a rescue it had not made — LL's
---      first press read "4 released" with no grid on screen). It checks
---      grid.shown now. A rescue that overstates itself is one you stop
---      trusting.
---   ✅ Gate: test_vault_js 143 → 173, test_power_tools 248 → 250.
---      67 modules. 7,519 → 7,551 checks, seventy-three stages.
--- (6.174.0 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.175.0 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.177.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.178.0
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -454,7 +452,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.177.0"
+_G.configVersion = "6.178.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: editor autocomplete for the hs.* API -----------------
@@ -3863,6 +3861,25 @@ local brOK, brErr = pcall(function()
               backupDir = backupDir, asanaEnabled = asanaEnabled,
               secretsStatus = secretsStatus, axOK = axOK })
 end)
+-- =====================================================================
+-- BOOT COST — where the load time went (6.178.0)
+-- =====================================================================
+-- LL: "have we reviewed the code for size?" Nobody had measured it. The
+-- per-module timings already existed (rec.ms / rec.warmMs above); this
+-- ranks them. It reads _G.moduleStatus AFTER the fact and changes
+-- nothing about what loads — and it prints only when the boot was slow.
+local bcOK, bcErr = pcall(function()
+    local path = hs.configdir .. '/core/boot_cost.lua'
+    local chunk, loadErr = loadfile(path)
+    if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
+    chunk()({ moduleDir = _G.moduleDir })
+end)
+if not bcOK then
+    -- A measuring tool failing must cost nothing but the measurement.
+    print('⚠️ core/boot_cost.lua failed — no boot-cost line this session. '
+          .. tostring(bcErr))
+end
+
 if not brOK then
     -- The report failing must not cost you the boot, but it must not be
     -- silent either: a missing report looks exactly like a healthy one.

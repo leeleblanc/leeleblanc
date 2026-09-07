@@ -9,7 +9,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,899 lines)
+├── init.lua          the orchestrator (3,916 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (10 files)
 ├── modules/          one file per feature (64 files, ~46,300 lines)
@@ -558,7 +558,8 @@ leisure. A line that keeps repeating goes quiet after two showings —
 one ↻ notice says so, and the copies are **counted, not lost**. Type
 `_G.errorsReport()` in the Console for every unique error this session,
 breaking first, nonbreaking after, each with its ×count. Reports you
-ask for (⇪⇧D, `_G.bootReport()`, `_G.noticesReport()`) are never gated.
+ask for (⇪⇧D, `_G.bootReport()`, `_G.bootCostReport()`,
+`_G.noticesReport()`) are never gated.
 Want the firehose back? `_G.consoleGate.enabled = false` — no reload
 needed.
 The grey `-- Loading extension:` lines are Hammerspoon itself loading
@@ -575,9 +576,9 @@ the module's name from your profile and reload.
 
 ## 6. Tests
 
-Sixty-seven Lua suites, 7,318 checks, plus four more that run the Capture
+Sixty-seven Lua suites, 7,343 checks, plus four more that run the Capture
 Pad's, the screenshot editor's, unified search's and the vault's page
-JavaScript under `node` for a further 291 — **7,609 checks over
+JavaScript under `node` for a further 291 — **7,634 checks over
 seventy-three stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:

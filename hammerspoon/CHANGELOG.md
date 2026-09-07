@@ -4,6 +4,51 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.178.0 — ⏱ BOOT COST: WHERE THE LOAD TIME ACTUALLY GOES:
+  📏 THE QUESTION. LL, seeing the 6.177.0 zip come in at 2.1 MB: "have
+     we reviewed the code for size? Is there anything that could be
+     refined but not altered so it breaks." Measured rather than
+     guessed: of 6.2 MB unpacked, tests/ (2.3 MB) is never installed —
+     hs-install.sh does not copy it — and CHANGELOG.md (0.7 MB) is never
+     read by the config. About 3 MB is live: modules 2.4, core 0.27,
+     init.lua 0.19, snippets 0.12. Roughly a third of the Lua is comment
+     and blank lines, and Lua discards comments at parse time: they cost
+     a little disk and a fraction of a second, and they are the reason
+     six months of decisions do not get re-litigated or re-broken.
+     Nothing was stripped, and nothing was merged.
+  ⏱ WHAT WAS ACTUALLY MISSING WAS THE MEASUREMENT. Every module's load
+     time has been recorded since the loader was written (rec.ms, and
+     rec.warmMs for the warm phase) — but it only ever appeared one line
+     at a time under bootVerbose, and nothing summed it or ranked it. So
+     no one could say which module was expensive, and any decision to
+     trim would have been taste. core/boot_cost.lua now turns those
+     numbers into a ranking: `_G.bootCostReport()` prints every module
+     slowest-first with its warm time and its file size, and a boot line
+     names the total and the worst three — but only when a single module
+     took over 150 ms (bootCost.slowModuleMs) or the whole load took
+     over 1.5 s (slowTotalMs). A fast boot prints nothing at all, on the
+     same principle as the boot report beside it: a line you always see
+     is a line you stop reading.
+  🔬 IT MEASURES, IT DOES NOT DECIDE. It loads nothing, unloads nothing,
+     defers nothing — it reads _G.moduleStatus after the fact, and the
+     test asserts the file contains no loadfile/dofile/loadModules at
+     all. init.lua loads it in its own pcall, so a broken measurer costs
+     the measurement and never the boot. Missing timings, missing hs.fs
+     (no sizes), missing hs.timer.doAfter (prints straight away instead
+     of a turn later): each degrades to less output, never an error. And
+     the report says out loud what the numbers mean — size and speed are
+     not the same thing, a big file full of comments parses fast while a
+     small one that talks to macOS at setup does not. Trim on the
+     milliseconds, never on the kilobytes; a slow module is a candidate
+     for warm() (which runs after the boot instead of inside it) or for
+     leaving out of a profile that does not need it.
+  ✅ Gate: test_diagnostics 451 → 476 — the new core file is RUN, not
+     grepped, including its silent-when-fast contract and all four
+     degrade paths. Its three sentries (hs-doctor.sh, hs-install.sh,
+     INSTALL.md all know the core list and its count) caught the
+     omission before the commit did. 67 modules, 11 core files.
+     7,609 → 7,634 checks, seventy-three stages.
+
 NEW IN 6.177.0 — 📤 THE SCORP PAD'S WAY OUT: EVERY TAB AS AN OBSIDIAN NOTE:
   🚪 THE QUESTION. LL: "Will I be able to open my Scorp pad files in
      Obsidian if I ever decide to move to it?" Half the answer was

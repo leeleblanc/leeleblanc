@@ -175,6 +175,19 @@ them from `altTab.known`, a memory fed by every listing; z-order comes from
 `hs.console.hswindow()` since 6.160.3 (it is hs.window.get → allWindows,
 a second full sweep; the console comes from applicationForPID(own pid)).
 
+Boot cost (6.178.0, core/boot_cost.lua): `_G.bootCostReport()` ranks
+every module by load ms (with warm ms and file size); a boot line names
+the total and the worst three ONLY when a module took >150 ms or the
+load >1.5 s — a fast boot is silent. It MEASURES, never decides: no
+loadfile/dofile/loadModules in it (the test asserts that), read from
+`_G.moduleStatus` after the fact, loaded in its own pcall. RULE for the
+size question, settled 6.178.0: trim on the milliseconds, never on the
+kilobytes — comments are discarded at parse and are the project's
+memory; tests/ and CHANGELOG.md never reach ~/.hammerspoon. A NEW core
+file must be added to hs-doctor.sh, hs-install.sh (BOTH loops) and
+INSTALL.md, counts included — three sentries in test_diagnostics enforce
+it.
+
 ## Panel ladder (core/coexist.lua)
 
 `hs.chooser` is PINNED by macOS at mainMenu+3 and exposes no level API — the
@@ -296,6 +309,13 @@ mirrors draw order: "closes last" IS "drawn under".
   calls, no untimed AX reads, no work in the callback. Verify with LL:
   still ON after a reload, no strikes in `_G.mouseFollowsReport()`, no
   tap-disabled lines.
+- 6.178.0 verify with LL: reload and read the Console — most likely
+  NOTHING new appears (that means the boot was under 1.5 s and no module
+  over 150 ms, which is the good outcome). Then run
+  `_G.bootCostReport()`: the ranking, slowest first. If one module is a
+  large share of the total, that is the evidence for moving its work
+  into warm() or off the work Mac's profile — that decision is LL's, not
+  a silent change.
 - 6.177.0 verify with LL: ⇪1, then ⌘⇧S — an alert says how many notes
   went to <OneDrive>/Vault/Scratch; open that folder in Obsidian (or
   Finder) and the tabs are there as .md files, front matter on top.

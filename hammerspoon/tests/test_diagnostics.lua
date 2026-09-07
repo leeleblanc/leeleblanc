@@ -838,6 +838,143 @@ end
 
 
 -- =====================================================================
+-- 8b. THE BOOT COST REPORT, EXECUTED (6.178.0)
+-- =====================================================================
+-- LL asked whether the config could be trimmed for size. It could not be
+-- answered, because nothing measured the boot. This file turns the
+-- per-module timings that already existed into a ranking. What is under
+-- test is the CONTRACT: it must be silent on a fast boot, loud on a slow
+-- one, must never change what loads, and must survive a Mac where the
+-- timings, the file sizes or hs.timer are not there at all.
+out("\n=== 8b. Boot cost, executed ===\n")
+local BC_PATH = HS .. "/core/boot_cost.lua"
+local bcChunk = loadfile(BC_PATH)
+check("core/boot_cost.lua loads", bcChunk ~= nil, select(2, loadfile(BC_PATH)))
+
+if bcChunk then
+  local lines = {}
+  local realPrint3 = print
+  print = function(...)
+    local t = {}
+    for i = 1, select("#", ...) do t[#t+1] = tostring((select(i, ...))) end
+    lines[#lines+1] = table.concat(t, " ")
+  end
+  local FIRED = {}
+  local realTimer = hs.timer
+  hs.timer = { secondsSinceEpoch = realTimer.secondsSinceEpoch,
+               doAfter = function(_, fn) FIRED[#FIRED + 1] = fn; return { id = 1 } end }
+
+  local function run(status, over)
+    lines, FIRED = {}, {}
+    _G.moduleStatus = status
+    local api = bcChunk()(over or { moduleDir = "/m" })
+    for _, fn in ipairs(FIRED) do fn() end
+    return table.concat(lines, "\n"), api
+  end
+
+  -- a fast boot: nothing to say, so nothing is said
+  local fast = {
+    { name = "ui_style", ok = true, ms = 4 },
+    { name = "vault",    ok = true, ms = 22, warmMs = 5, warmed = true },
+    { name = "mouse_grid", ok = true, ms = 9 },
+  }
+  local quiet, api = run(fast)
+  check("a fast boot prints NOTHING — a line you always see is a line you stop reading",
+        quiet == "", quiet)
+  check("...and the timer that would have printed it is held, not dropped",
+        _G.bootCostTimer ~= nil)
+  check("...while the numbers are still there to ask for", type(api) == "table" and type(api.gather) == "function")
+
+  -- one slow module is enough to speak up
+  local slow = {
+    { name = "ui_style", ok = true, ms = 4 },
+    { name = "text_expander", ok = true, ms = 420, warmMs = 900, warmed = true },
+    { name = "vault", ok = true, ms = 30 },
+  }
+  local loud = run(slow)
+  check("one slow module IS reported, even when the total is fine",
+        loud:find("text_expander 420ms", 1, true) ~= nil, loud)
+  check("...and the line points at the full ranking", loud:find("bootCostReport", 1, true) ~= nil)
+
+  -- a slow total, with no single offender
+  local many = {}
+  for i = 1, 40 do many[i] = { name = "m" .. i, ok = true, ms = 60 } end
+  local heavy = run(many)
+  check("a slow TOTAL is reported even when no single module stands out",
+        heavy:find("2400 ms across 40 modules", 1, true) ~= nil, heavy)
+
+  -- the full report
+  run(slow)
+  lines = {}
+  local n = _G.bootCostReport()
+  local full = table.concat(lines, "\n")
+  check("the report ranks every module, slowest first", n == 3
+        and full:find("text_expander") < full:find("vault"), full)
+  check("...and carries the warm phase, which runs AFTER the boot line",
+        full:find("+900 ms warm", 1, true) ~= nil, full)
+  check("...and the file size beside the time (42 bytes from the fs stub)",
+        full:find("0K", 1, true) ~= nil)
+  check("...and says plainly that size and speed are not the same thing",
+        full:find("NOT the same thing", 1, true) ~= nil)
+
+  -- a module that FAILED is still counted and marked, not quietly dropped
+  lines = {}
+  run({ { name = "broken", ok = false, ms = 12, err = "syntax error" } })
+  lines = {}
+  _G.bootCostReport()
+  check("a module that failed to load is still in the ranking, marked",
+        table.concat(lines, "\n"):find("⚠️ FAILED", 1, true) ~= nil)
+
+  -- ---- it degrades, it never breaks ------------------------------------
+  lines = {}
+  run({})
+  lines = {}
+  local zero = _G.bootCostReport()
+  check("no timings at all → it says so and returns 0, it does not throw",
+        zero == 0 and table.concat(lines, "\n"):find("no module timings", 1, true) ~= nil)
+  check("...and the boot line stays silent with nothing to measure",
+        (function() local o = run({}) return o == "" end)())
+
+  local realFs = hs.fs
+  hs.fs = nil
+  local okNoFs = pcall(function() run(slow); lines = {}; _G.bootCostReport() end)
+  check("no hs.fs → the timings still rank, the sizes say '?' instead of failing",
+        okNoFs and table.concat(lines, "\n"):find("sizes unavailable", 1, true) ~= nil)
+  hs.fs = realFs
+
+  hs.timer = { secondsSinceEpoch = realTimer.secondsSinceEpoch }
+  local okNoTimer, outNoTimer = pcall(function()
+    lines = {}
+    _G.moduleStatus = slow
+    bcChunk()({ moduleDir = "/m" })
+    return table.concat(lines, "\n")
+  end)
+  check("no hs.timer.doAfter → it prints the line straight away rather than losing it",
+        okNoTimer and outNoTimer:find("Boot cost", 1, true) ~= nil, tostring(outNoTimer))
+
+  local okNoStatus = pcall(function()
+    lines = {}
+    _G.moduleStatus = nil
+    bcChunk()({})
+    _G.bootCostReport()
+  end)
+  check("no _G.moduleStatus at all (an older init.lua) costs nothing", okNoStatus)
+
+  -- and the standing promise: it MEASURES, it does not decide
+  local bcSrc = (function() local f = realopen(BC_PATH, "r"); local t = f:read("*a"); f:close(); return t end)()
+  check("boot_cost.lua never loads, unloads or defers a module — it only reads",
+        not bcSrc:find("loadfile", 1, true) and not bcSrc:find("loadModules", 1, true)
+        and not bcSrc:find("dofile", 1, true))
+  check("...and init.lua loads it in its own pcall, so a broken measurer never costs the boot",
+        initLive("core/boot_cost.lua") ~= nil and initLive("bcOK") ~= nil)
+
+  hs.timer = realTimer
+  _G.moduleStatus = {}
+  print = realPrint3
+end
+
+
+-- =====================================================================
 -- 9. WORK-MAC SAFETY: NO ADMIN, NO SYSTEM WRITES, NO SURPRISES
 -- =====================================================================
 -- The work MacBook is the primary machine and carries NO admin rights.

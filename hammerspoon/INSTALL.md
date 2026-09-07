@@ -16,10 +16,11 @@ with no admin password. The two steps that *can* use admin are marked
 ~/.hammerspoon/
 ├── init.lua              the orchestrator — profiles, hyper key, pickers
 ├── secret.lua            YOUR Asana token. Per-machine. Never synced.
-├── core/                 10 files, loaded directly by init.lua
+├── core/                 11 files, loaded directly by init.lua
 │   ├── diagnostics.lua       ⇪⇧D
 │   ├── cheatsheet.lua        ⇪/
 │   ├── boot_report.lua       the Console's first two lines
+│   ├── boot_cost.lua         where the boot time went (silent unless it was slow)
 │   ├── capabilities.lua      what works on THIS Mac
 │   ├── coexist.lua           who gets Esc, the screen, the keyboard
 │   ├── hyper_key.lua         ⇪'s second way in, and the proof it works
