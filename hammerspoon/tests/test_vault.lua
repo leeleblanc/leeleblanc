@@ -636,6 +636,11 @@ end)())
 check("v.fmIn refuses a block with no closing --- — that is body text, not front matter",
       next(v.fmIn("---\nstatus: reading\nand then prose\n")) == nil)
 check("v.fmIn refuses a --- that is not the first line", next(v.fmIn("# Title\n---\nstatus: x\n---\n")) == nil)
+-- 6.186.0 — and the shape that actually proves the line-1 rule: a note with
+-- NO front matter whose second line reads like a field and which has a ---
+-- divider further down. Drop the line-1 test and this one grows a field.
+check("…and a heading, a colon line and a divider below are not front matter either",
+      next(v.fmIn("# Title\nstatus: x\n---\nprose\n")) == nil)
 check("a value longer than fmMaxLen is CLAMPED, so one paragraph cannot bloat the page",
       #(v.fmIn("---\nnote: " .. string.rep("x", 400) .. "\n---\n").note or "") == v.fmMaxLen)
 check("a note with more than fmMaxFields keys keeps the first fmMaxFields, and does not grow", (function()
@@ -1266,6 +1271,148 @@ do
           EVALS[#EVALS]:find('setMentions([{n:"Gamma",r:"Gamma.md"}], "alpha"', 1, true) ~= nil, EVALS[#EVALS])
     check("the page announces itself when its load sequence ends",
           WEBVIEWS[#WEBVIEWS].htmlSet:find("say({a:'ready'})", 1, true) ~= nil)
+end
+
+-- =====================================================================
+-- 6.186.0 — 🗂 THE BOARD WRITES. withField is pure (text in, text out) so
+-- every shape it must survive is provable without a disk; setField is the
+-- only place the vault rewrites a note it is not editing, so it is held to
+-- one field of one file, and to refusing anything it should not touch.
+-- =====================================================================
+out("\n6.186.0 — the board's write\n")
+do
+    local W = v.withField
+    check("a note with no front matter gets a block, and keeps every byte it had",
+          W("# Alpha\n\nbody\n", "status", "doing") == "---\nstatus: doing\n---\n\n# Alpha\n\nbody\n",
+          W("# Alpha\n\nbody\n", "status", "doing"))
+    check("an existing key is REPLACED in place — the other keys and the body do not move",
+          W("---\nstatus: todo\nrating: 5\n---\n\n# A\n", "status", "done")
+              == "---\nstatus: done\nrating: 5\n---\n\n# A\n",
+          W("---\nstatus: todo\nrating: 5\n---\n\n# A\n", "status", "done"))
+    check("a key the block has not got is ADDED before the closing ---",
+          W("---\nrating: 5\n---\n\n# A\n", "status", "done") == "---\nrating: 5\nstatus: done\n---\n\n# A\n",
+          W("---\nrating: 5\n---\n\n# A\n", "status", "done"))
+    check("an empty value REMOVES the key — the 'no status' column really clears it",
+          W("---\nstatus: todo\nrating: 5\n---\n\n# A\n", "status", "") == "---\nrating: 5\n---\n\n# A\n",
+          W("---\nstatus: todo\nrating: 5\n---\n\n# A\n", "status", ""))
+    check("…and when it was the only key the whole block goes, not an empty --- ---",
+          W("---\nstatus: todo\n---\n\n# A\n", "status", "") == "# A\n",
+          W("---\nstatus: todo\n---\n\n# A\n", "status", ""))
+    check("clearing a field a note has not got changes NOTHING — no block is written to delete from",
+          W("# A\n\nbody\n", "status", "") == "# A\n\nbody\n")
+    check("a --- further down is a divider, not front matter — the file is left alone",
+          W("# A\n\n---\n\nmore\n", "status", "done"):find("^%-%-%-\nstatus: done") ~= nil
+              and W("# A\n\n---\n\nmore\n", "status", "done"):find("# A\n\n---\n\nmore\n", 1, true) ~= nil)
+    check("an opening --- with no closing one is not front matter and is not rewritten",
+          W("---\nstatus: todo\n\n# A\n", "status", "done") == "---\nstatus: todo\n\n# A\n")
+    check("a tags: LIST under the key it replaces is not left behind as orphan items",
+          W("---\nstatus: todo\n  - one\n  - two\nrating: 5\n---\n", "status", "done")
+              == "---\nstatus: done\nrating: 5\n---\n",
+          W("---\nstatus: todo\n  - one\n  - two\nrating: 5\n---\n", "status", "done"))
+    check("a value YAML would read as structure is QUOTED, and fmIn reads it back whole",
+          W("---\na: 1\n---\n", "status", "in: progress"):find('status: "in: progress"', 1, true) ~= nil
+              and v.fmIn(W("---\na: 1\n---\n", "status", "in: progress")).status == "in: progress",
+          W("---\na: 1\n---\n", "status", "in: progress"))
+    check("a value can never break the block open — a newline in it becomes a space",
+          select(2, W("---\na: 1\n---\n", "status", "one\n---\nnot a block"):gsub("\n%-%-%-", "")) == 1,
+          W("---\na: 1\n---\n", "status", "one\n---\nnot a block"))
+    check("a value longer than fmMaxLen is clamped there too, not only on the way in",
+          #(v.fmIn(W("---\na: 1\n---\n", "status", string.rep("x", 400))).status or "") == v.fmMaxLen)
+    check("a key that is not a field name is refused and the text comes back untouched",
+          W("---\na: 1\n---\n", "sta tus", "x") == "---\na: 1\n---\n")
+
+    -- ---- setField: the write itself ------------------------------------
+    FILES[VAULT .. "/Projects/Beta.md"] = "---\nstatus: todo\n---\n\n# Beta\n\nbody\n"
+    v.openNote("Alpha")
+    local writes0, moves00 = v.saves, v.moves
+    local ok = v.setField("Projects/Beta.md", "status", "done")
+    check("a card moved on ANOTHER note rewrites that file, and only that line",
+          ok and FILES[VAULT .. "/Projects/Beta.md"] == "---\nstatus: done\n---\n\n# Beta\n\nbody\n",
+          FILES[VAULT .. "/Projects/Beta.md"])
+    check("…the note you were editing is untouched and still open",
+          v.doc.rel == "Alpha.md" and v.saves == writes0)
+    check("…and the index knows AT ONCE, so the board redraws without a rescan",
+          v.fmOf["Projects/Beta.md"].status == "done")
+    check("…and the move is COUNTED, which is what lets the report say the board writes",
+          v.moves == moves00 + 1, v.moves .. " vs " .. moves00)
+    check("…no half-written file is left behind", FILES[VAULT .. "/Projects/Beta.md.tmp"] == nil)
+    do
+        local rep = {}
+        local old_print = print
+        print = function(s) rep[#rep + 1] = tostring(s) end
+        _G.vaultReport()
+        print = old_print
+        check("the report says the board writes, how often, and what it last moved",
+              rep[1]:find("board  : groups by status", 1, true) ~= nil
+                  and rep[1]:find("Projects/Beta.md · status = done", 1, true) ~= nil, rep[1])
+    end
+
+    -- moving the note that is OPEN goes through the editor, not behind it
+    v.openNote("Alpha")
+    v.setText("---\nstatus: todo\n---\n\n# Alpha\n")
+    v.saveNow()
+    check("moving the card of the note you have OPEN changes the text you are looking at",
+          v.setField("Alpha.md", "status", "doing") and v.doc.text:find("status: doing", 1, true) ~= nil
+              and FILES[VAULT .. "/Alpha.md"]:find("status: doing", 1, true) ~= nil, v.doc.text)
+
+    -- refusals: named, counted, and nothing written
+    local fails0 = v.moveFails
+    local before = FILES[VAULT .. "/Projects/Beta.md"]
+    -- the traversal target EXISTS and is readable: a refusal that only
+    -- happens because the file was missing would prove nothing at all
+    FILES["/Users/ll/OneDrive/secret.md"] = "---\nstatus: private\n---\n"
+    local okT, whyT = v.setField("../secret.md", "status", "x")
+    check("a path that climbs out of the vault is refused BY THE PATH, and the file it aimed at is untouched",
+          okT == false and tostring(whyT):find("not a note in the vault", 1, true) ~= nil
+              and FILES["/Users/ll/OneDrive/secret.md"] == "---\nstatus: private\n---\n", tostring(whyT))
+    check("a path that is not a note is refused", v.setField("Projects/Beta.txt", "status", "x") == false)
+    check("tags are refused here — they are written in the note, not dragged",
+          v.setField("Projects/Beta.md", "tags", "x") == false)
+    check("a field name that is not one is refused", v.setField("Projects/Beta.md", "sta tus", "x") == false)
+    check("…and not one of those refusals wrote anything",
+          FILES[VAULT .. "/Projects/Beta.md"] == before)
+    local okR, whyR = v.setField("Nowhere/Missing.md", "status", "x")
+    check("a note that is not on disk is refused BY NAME, never created behind your back",
+          okR == false and tostring(whyR):find("could not read") ~= nil
+              and FILES[VAULT .. "/Nowhere/Missing.md"] == nil, tostring(whyR))
+    check("every refusal is counted, so the report can say so", v.moveFails > fails0)
+
+    -- a refused write on a real note does not lie about having moved
+    v.openNote("Gamma")
+    local moves0 = v.moves
+    WRITE_FAILS = true
+    local okW, whyW = v.setField("Projects/Beta.md", "status", "todo")
+    WRITE_FAILS = false
+    check("a file that will not open is a refusal, not a silent success",
+          okW == false and tostring(whyW):find("cannot open") ~= nil and v.moves == moves0, tostring(whyW))
+
+    -- the message path: the page names the note, Lua decides
+    v.openNote("Alpha")
+    FILES[VAULT .. "/Projects/Beta.md"] = "---\nstatus: todo\n---\n"
+    msg({ a = "kmove", rel = "Projects/Beta.md", field = "status", value = "done" })
+    check("a kmove message from the page moves exactly that one card",
+          FILES[VAULT .. "/Projects/Beta.md"]:find("status: done", 1, true) ~= nil)
+    local alerts0 = #ALERTS
+    msg({ a = "kmove", rel = "Projects/Beta.md", field = "tags", value = "x" })
+    check("a kmove the module refuses SAYS so rather than failing quietly", #ALERTS > alerts0)
+
+    -- ⌘⇧B and the view itself
+    v.openNote("Alpha")
+    msg({ a = "board" })
+    check("the board takes the whole window — the note list and the panes stand down",
+          v.view == "board" and WEBVIEWS[#WEBVIEWS].htmlSet:find('<body class="board"', 1, true) ~= nil
+              and WEBVIEWS[#WEBVIEWS].htmlSet:find("body.board #ed,body.board #links,body.board #side{display:none}", 1, true) ~= nil)
+    msg({ a = "board" })
+    check("…and ⌘⇧B again puts the note back", v.view == "edit")
+
+    -- the standing promise, restated where it can break
+    local rf = io.popen and io.popen("cat '" .. HS .. "/modules/vault.lua'")
+    local real = rf and rf:read("a") or ""
+    if rf then rf:close() end
+    check("the board's write is the ONLY new one: no path here touches the note's body",
+          real:find("function v%.setField") ~= nil and real:find("v%.withField") ~= nil)
+    check("the cheat sheet knows ⌘⇧B, so a key that moved can never go stale here",
+          real:find("⌘⇧B", 1, true) ~= nil)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))

@@ -5,6 +5,84 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.186.0 — 🗂 A KANBAN BOARD YOU CAN DRAG CARDS ON (⇪3, ⌘⇧B):
+  🗂 LL's list, in his order, said Kanban columns next. Here they are,
+     and they are not a new file format: your NOTES are the cards.
+     Every distinct value of one front-matter field is a COLUMN, and
+     every note carrying that value is a card in it. A ```kanban block
+     in a note says which field and which notes —
+
+         ```kanban
+         BY status
+         FROM #project
+         COLUMNS todo, doing, done
+         SORT name
+         ```
+
+     — and ⌘⇧B draws it across the WHOLE window. The right pane was
+     the cheap answer and the wrong one: at ~300 pt, three columns are
+     90 pt each and the cards are unreadable stacks.
+  ⚡ It costs nothing to draw. FROM, WHERE, SORT and LIMIT are 6.183.0's
+     and 6.185.0's, unchanged, and the board runs in the PAGE off the
+     same index — the note rows that already carry every name, path,
+     tag, link and field. So no file is read, no grep runs, nothing is
+     scanned, and the board is live: change `status:` in a note and the
+     card has moved by the time you look.
+  ✍️ AND IT WRITES. This is the one view in the vault that does, and it
+     is deliberate: a board you cannot move a card on is a report, not
+     a Kanban. Drag a card into another column and Lua rewrites THAT
+     note's `status:` line — one line, one file, never the body, never
+     the note you happen to be editing unless it IS that note (then it
+     goes through the editor so the text you are looking at stays true).
+     The page does not write and does not assume the move took: it
+     sends the note, the field and the column, Lua decides, Lua
+     re-renders. A refused move puts the card back where it was.
+  🛡 What the write may not do, every one of them asserted against the
+     mutation that breaks it: it may not leave the vault (a path with
+     `..` is refused BY THE PATH, with a real readable file sitting at
+     the other end of it to prove the refusal is not just a missing
+     file); it may not touch anything that is not a .md note; it may
+     not write `tags:` (those are typed in the note, where you can see
+     them); it may not create a note that is not there; and it may not
+     turn a failed write into a silence — every refusal is named in an
+     alert, printed, and counted in `_G.vaultReport()`'s new
+     "board  :" line beside the count of cards actually moved and what
+     the last one was.
+  🧪 The rewriter is PURE — text in, text out — so every shape it must
+     survive is provable without a disk: a note with no front matter
+     (a block is created), a key already there (replaced in place, the
+     other keys and the body byte-identical), a key that is not
+     (inserted before the closing ---), an empty value (the key is
+     removed, and if it was the only one the block goes too rather
+     than leaving `---` `---`), a `---` further down that is really a
+     divider (left alone), an opening `---` with no closing one (not
+     front matter, not rewritten), a value with a colon in it (quoted,
+     and read back whole), and a value with a newline in it (flattened,
+     because a value must never be able to break the block open).
+     Writing those tests found a real bug: the line splitter added a
+     phantom empty line to any text ending in a newline AND dropped the
+     last line of any text that did not — one newline per drag, and
+     nobody would have noticed for weeks.
+  ➖ A column of the notes that have not got the field at all is drawn
+     LAST, and dropping a card there CLEARS the field. That is 6.185.0's
+     rule — missing is missing, not empty and not zero — now something
+     you can drag to. COLUMNS fixes the order and draws its columns even
+     when they are EMPTY, so there is somewhere to drag to on day one;
+     a value COLUMNS does not name still gets a column after them,
+     because a note quietly vanishing off a board is the failure mode
+     this whole config keeps refusing.
+  ✏️ Still never typed: "/" on an empty line has a row, "Board — a
+     Kanban of your notes", that writes a working block with COLUMNS
+     already in it, and the footer names a ```kanban fence, a BY line
+     and a COLUMNS line. The cheat sheet gained ⌘⇧B — and the
+     ```dataview entry 6.183.0 never got.
+  🧪 One test-harness fix worth recording: a throw inside a test section
+     used to DELETE the checks after it while the run still said "0
+     failed". The board's section is now fail-loud — a throw is a failed
+     check, and the section asserts its own check count.
+     test_vault 297 → 332, test_vault_js 230 → 258. 7,894 → 7,957
+     checks over seventy-four stages.
+
 NEW IN 6.185.0 — 🔎 WHERE: A QUERY CAN ASK ABOUT YOUR FRONT MATTER:
   🔎 6.183.0's queries could ask about tags, folders and links, and the
      pane said plainly that a WHERE was the part it could not do yet.

@@ -204,6 +204,32 @@ fields". RULE learned here: match a function call BEFORE stripping
 wrapping brackets — the negation stripper ate contains()'s own closing
 bracket and the clause died silently.
 
+6.186.0 — 🗂 THE BOARD (⌘⇧B), and THE ONE VIEW THAT WRITES. A
+```kanban block (`BY <field>`, plus FROM / WHERE / SORT / LIMIT from
+6.183.0-6.185.0, and `COLUMNS a, b, c`) draws the notes as Kanban
+columns across the WHOLE window (`v.view == "board"`, body.board hides
+#ed/#links/#side — the right pane is too narrow for columns). Columns
+ARE the distinct values of the field; cards are the notes; it runs in
+the PAGE off the same index, so still no read, no grep, no scan.
+DRAGGING A CARD REWRITES that note's field: `v.setField(rel, key,
+value)` → `v.withField(text, key, value)`, which is PURE and carries
+every shape (no front matter, key present/absent, empty value =
+remove, a `---` divider further down, an unclosed block, a colon or a
+newline in the value). Bounds, all mutation-proven: never outside the
+vault, never a non-.md file, never `tags`, never creates a missing
+note, never a silent failed write — refusals are alerted, printed and
+counted on `_G.vaultReport()`'s "board  :" line. The page NEVER writes
+and never assumes: it posts `kmove` and Lua re-renders, so a refusal
+puts the card back; the drop compares column VALUES, not element
+identity (a re-draw mid-drag must not become a rewrite). The last
+column is the notes WITHOUT the field and dropping there CLEARS it
+(6.185.0's missing-is-missing, made draggable); COLUMNS draws empty
+columns so there is somewhere to drag on day one, and a value it does
+not name still gets a column — nothing vanishes. RULE learned here: a
+throw inside a test section deletes the checks after it while the run
+still says "0 failed" — a section that can throw wraps itself and
+asserts its own check count.
+
 6.175.0 (LL does not write Markdown): a FORMAT BAR over the editor
 (`v.formatBar`), `wrapSel`/`blockAt` shared by the buttons, ⌘B/⌘I/⌘E and
 the "/" menu — one behaviour, one place to test. "/" opens ONLY on an
@@ -421,6 +447,28 @@ mirrors draw order: "closes last" IS "drawn under".
   it — but if a post-boot stall is ever traced there, move the read and
   the append into an hs.task (/bin/cat, /usr/bin/tail). Never move it
   back onto the boot line.
+- 6.186.0 verify with LL: ⇪3, then ⌘⇧B — the board. With no ```kanban
+  block in the note it shows every note by `status` and SAYS so under
+  the columns; that is the degrade, not a bug. Then "/" on an empty
+  line has a "Board — a Kanban of your notes" row: choose it, change
+  the tag to one you use, ⌘⇧B. The columns todo / doing / done are
+  drawn EMPTY on purpose so there is somewhere to drag to. Now the
+  thing to actually try: DRAG A CARD to another column and open that
+  note — its `status:` line has been rewritten. Drag one to the last
+  column ("no status") and the field is gone from the note entirely.
+  A click that does not drag opens the note; a card dropped on nothing,
+  or back where it started, writes nothing at all.
+  `_G.vaultReport()`'s new "board  :" line counts the moves and names
+  the last one — and names any refusal, which is where to look if a
+  drag ever appears to do nothing. Worth knowing: the board writes ONE
+  line of ONE file and never the body, and it is the only view here
+  that writes at all — the queries still never touch a note.
+  STILL OPEN (LL's list, in his priority order after this): @images /
+  @shots in ⇪space; the screenshot editor's text-box handles; and the
+  ⇪⇧O image history beach ball (a stall — diagnose before touching).
+  Judged already covered, do not build without LL asking again:
+  Templater (6.174.0 templates), QuickAdd (⇪N + ⇪2), Linter (the
+  format bar), Folder Note (outline + backlinks).
 - 6.185.0 verify with LL: ⇪3 — put a front matter block at the top of a
   couple of notes (--- on line 1, then `status: reading`, `rating: 5`,
   then ---). `_G.vaultReport()`'s new "fields :" line should name them

@@ -187,7 +187,8 @@ local M = {
     order   = 13.38,
     family  = "capture",
     summary = "⇪3 linked Markdown notes in OneDrive: [[wikilinks]], backlinks, "
-              .. "a graph of the connections, Obsidian-compatible files, tags, templates, full-text search, tasks",
+              .. "a graph of the connections, Obsidian-compatible files, tags, templates, full-text search, tasks, "
+              .. "live queries and a Kanban board you can drag cards on",
     cheatsheet = {
         title = "🕸 VAULT (⇪3 / ⇪1 — Markdown notes that link to each other, in OneDrive; the Scorp Pad's tabs too)",
         entries = {
@@ -204,6 +205,9 @@ local M = {
             { "⌘⇧F",        "Search INSIDE every note — words, \"a phrase\", tag:x, path:x; rows are note · line · text, ⏎ opens at that line, Esc back" },
             { "⌘⇧K · ⌘L",   "Every open - [ ] task in the vault (⏎ opens it there) · tick / untick the task on this line; ⏎ continues a list" },
             { "OUTLINE · ≈", "Right pane: the note's headings (click to jump) · ≈ notes that mention this name without linking it" },
+            -- 6.183.0 / 6.185.0 / 6.186.0
+            { "```dataview", "A live list: LIST or TABLE, FROM #tag / [[note]] / \"Folder\", WHERE status != \"done\", SORT, LIMIT — drawn in 🔎 QUERY, never written into the note. \"/\" writes the block for you" },
+            { "⌘⇧B",        "🗂 Board: your notes as Kanban columns, grouped by a front-matter field (```kanban BY status). DRAGGING A CARD REWRITES that note's status: line — the one view here that writes" },
             { "⌘⇧E · ⌘⇧R",  "Extract the selection into a new note, leaving [[Name]] behind · open a random note" },
             { "⌘⇧S",       "Export the Scorp Pad's tabs into <Vault>/Scratch as .md notes" },
             { "⌘F · ⌘O · ↑↓ ⏎", "Filter the list · walk it (⌥↑/⌥↓ ⌥⏎ from inside the text)" },
@@ -279,6 +283,13 @@ function M.setup(core)
         fmLines         = 30,            -- grep -A: front-matter lines read per note
         fmMaxFields     = 16,            -- keys kept per note (the rest are dropped)
         fmMaxLen        = 120,           -- characters kept per value
+        -- 6.186.0 — 🗂 BOARD. The one place in the vault where a rendered
+        -- view WRITES: a card dragged to another column rewrites that
+        -- note's front-matter field, one line, never the body. A board you
+        -- cannot move a card on is a report, not a Kanban.
+        boardField      = "status",      -- the field a ```kanban block groups by when it does not say
+        boardCols       = 8,             -- columns drawn before the rest are folded into "… N more"
+        boardMax        = 300,           -- cards drawn in total
         smartLists      = true,          -- ⏎ continues a list line (page-side)
         -- 6.175.0 — LL: "I don't write markdown. Are there tool tips or
         -- autocompletes that will teach and help me." The format bar
@@ -302,6 +313,8 @@ function M.setup(core)
         -- same grep the tags come from. fmFields is every key seen, by
         -- count then name, for the report and the query hints.
         fmOf = {}, fmFields = {}, fmPending = nil, fmErr = nil,
+        -- 6.186.0
+        moves = 0, moveFails = 0, lastMove = nil, moveErr = nil,
         mode = "notes",
         searchQuery = "", searchRows = {}, searchMore = false, searchTask = nil, searchTimer = nil, searchSeq = 0,
         searching = false, searchErr = nil, lastSearch = nil, searches = 0,
@@ -1176,6 +1189,122 @@ function M.setup(core)
         end
     end
 
+    -- ---- 6.186.0 — writing ONE front-matter field ---------------------------
+    -- 🚨 This is the only place the vault rewrites a note it is not editing,
+    -- and it is deliberate: a Kanban board you cannot move a card on is a
+    -- report. The blast radius is one line of one file. withField is PURE —
+    -- text in, text out — so every shape it must survive (no front matter, a
+    -- block with the key, a block without it, a `---` that is really a
+    -- divider) is provable without a disk.
+    local function fmQuote(value)
+        value = tostring(value or ""):gsub("[\r\n]", " ")
+        value = value:gsub("^%s+", ""):gsub("%s+$", "")
+        local cap = tonumber(v.fmMaxLen) or 120
+        if #value > cap then value = value:sub(1, cap) end
+        -- a plain word needs no quotes; anything YAML would read as
+        -- structure gets them, and fmValue strips them again on the way back
+        if value == "" then return "" end
+        if value:find('^[%w][%w%s%-_%./]*$') then return value end
+        return '"' .. value:gsub('"', '\\"') .. '"'
+    end
+    -- Set (or, with an empty value, REMOVE) one key in `text`'s front matter.
+    -- Returns the new text. Everything else in the file is byte-identical.
+    function v.withField(text, key, value)
+        text = tostring(text or "")
+        key = tostring(key or ""):lower()
+        if not key:find("^[%w_][%w_%-%.]*$") then return text end
+        local nl = text:find("\r\n") and "\r\n" or "\n"
+        -- split so that a text ending in a newline does NOT gain a phantom
+        -- empty line (that is one newline added to the file per drag), and a
+        -- text that does not end in one does not lose its last line
+        local ending = text:sub(-1) == "\n"
+        local lines, body = {}, ending and text:sub(1, -2) or text
+        for line in (body .. "\n"):gmatch("([^\n]*)\n") do lines[#lines + 1] = (line:gsub("\r$", "")) end
+        local quoted = fmQuote(value)
+        if lines[1] ~= "---" then
+            -- no front matter at all. Removing a field it has not got changes
+            -- nothing — never write a block just to delete from it.
+            if quoted == "" then return text end
+            return "---" .. nl .. key .. ": " .. quoted .. nl .. "---" .. nl .. nl .. text
+        end
+        local close = nil
+        for i = 2, #lines do if lines[i] == "---" then close = i break end end
+        if not close then return text end          -- an opening --- with no closing one is not front matter
+        local at = nil
+        for i = 2, close - 1 do
+            local k = lines[i]:match("^([%w_][%w_%-%.]*):")
+            if k and k:lower() == key then at = i break end
+        end
+        if quoted == "" then
+            if not at then return text end
+            -- drop the key AND the indented list items that belong to it
+            local last = at
+            while lines[last + 1] and last + 1 < close and lines[last + 1]:find("^%s+%-%s") do last = last + 1 end
+            for _ = at, last do table.remove(lines, at) end
+            close = close - (last - at + 1)
+            if close == 2 then                      -- nothing left: the block goes too
+                table.remove(lines, 1); table.remove(lines, 1)
+                while lines[1] == "" do table.remove(lines, 1) end
+            end
+        elseif at then
+            local last = at
+            while lines[last + 1] and last + 1 < close and lines[last + 1]:find("^%s+%-%s") do last = last + 1 end
+            for _ = at + 1, last do table.remove(lines, at + 1) end
+            lines[at] = key .. ": " .. quoted
+        else
+            table.insert(lines, close, key .. ": " .. quoted)
+        end
+        local out = table.concat(lines, nl)
+        if ending then out = out .. nl end
+        return out
+    end
+
+    -- One field, one note, named by its rel. The note may be the open one
+    -- (then it goes through setText and the editor stays true), any indexed
+    -- note (read, rewrite, atomic rename — the same one-file read openNote
+    -- makes, because you asked for this file), or neither (refused, named).
+    function v.setField(rel, key, value)
+        rel = tostring(rel or "")
+        key = tostring(key or ""):lower()
+        if rel == "" or not key:find("^[%w_][%w_%-%.]*$") then return false, "no note or no field" end
+        if key == "tag" or key == "tags" then return false, "tags are written in the note, not here" end
+        if rel:find("%.%.") or rel:sub(1, 1) == "/" or not rel:find("%.md$") then return false, "not a note in the vault" end
+        local function fail(why)
+            v.moveFails, v.moveErr = v.moveFails + 1, why
+            return false, why
+        end
+        if v.doc and not v.doc.scratch and v.doc.rel == rel then
+            v.setText(v.withField(v.doc.text or "", key, value))
+            if not v.saveNow() then return fail(tostring(v.lastSaveErr or "not saved")) end
+        else
+            local n = v.noteFromRel(rel)
+            local text = readFile(n.path)
+            if text == nil then return fail("could not read " .. rel) end
+            local out = v.withField(text, key, value)
+            if out == text then
+                v.fmOf[rel] = v.fmIn(out); rebuildFields()
+                return true, "already there"
+            end
+            mkdirp(n.path:match("^(.*)/[^/]*$") or v.dir)
+            local tmp = n.path .. ".tmp"
+            local f = io.open(tmp, "w")
+            if not f then return fail("cannot open " .. tmp) end
+            local okW = f:write(out)
+            f:close()
+            if not okW then return fail("write failed for " .. rel) end
+            if not os.rename(tmp, n.path) then return fail("rename failed for " .. rel) end
+            -- the index knows at once: the board redraws without a rescan
+            v.fmOf[rel] = v.fmIn(out)
+            v.tagsOf[rel] = v.tagsIn(out)
+            rebuildTags()
+            rebuildFields()
+        end
+        v.moves = v.moves + 1
+        v.lastMove = rel .. " · " .. key .. " = " .. ((tostring(value or "") ~= "") and tostring(value) or "(cleared)")
+        v.moveErr = nil
+        return true
+    end
+
     -- Open a note by name. A missing one is CREATED (in the vault root,
     -- or under `sub` — "Daily" for ⌘D) with a heading of its name. The
     -- only main-thread file read in the module happens here, for one
@@ -1901,6 +2030,30 @@ textarea{flex:1;width:100%;box-sizing:border-box;resize:none;border:0;outline:0;
 #gtip{position:absolute;left:12px;bottom:10px;opacity:.55;font-size:FS2px;pointer-events:none}
 body.graph #ed,body.graph #links{display:none}
 body.graph #graph{display:block}
+/* 6.186.0 — the board takes the WHOLE window. Columns need width and the
+   right pane has none; the notes list would only halve what is left. */
+#board{flex:1;display:none;flex-direction:column;background:#141419;min-width:0}
+body.board #ed,body.board #links,body.board #side{display:none}
+body.board #board{display:flex}
+#bcols{flex:1;display:flex;gap:10px;overflow-x:auto;padding:10px 12px;align-items:flex-start}
+#bcols .col{flex:0 0 240px;max-height:100%;display:flex;flex-direction:column;background:#1b1b22;
+  border:1px solid #2b2b35;border-radius:8px;min-height:80px}
+#bcols .col.over{border-color:#5a7fd0;background:#20242f}
+#bcols .col.more{opacity:.6;flex:0 0 200px}
+#bcols .ch{padding:7px 10px;font-size:FS2px;font-weight:600;letter-spacing:.04em;border-bottom:1px solid #2b2b35;
+  display:flex;gap:6px;align-items:center}
+#bcols .ch .cn{opacity:.5;margin-left:auto;font-weight:400}
+#bcols .col.empty .ch{opacity:.55}
+#bcols .cards{overflow-y:auto;padding:6px;display:flex;flex-direction:column;gap:6px}
+#bcols .card{background:#23232c;border:1px solid #33333f;border-radius:6px;padding:6px 8px;cursor:grab;
+  font-size:FS1px;line-height:1.35;user-select:none}
+#bcols .card:hover{background:#2c3a5a;border-color:#4a5c86}
+#bcols .card .cf{display:block;opacity:.55;font-size:FS2px;padding-top:2px}
+#bcols .card.ghost{opacity:.3}
+#bdrag{position:fixed;z-index:98;pointer-events:none;background:#2c3a5a;border:1px solid #6a83bd;border-radius:6px;
+  padding:6px 8px;font-size:FS1px;max-width:230px;box-shadow:0 8px 22px rgba(0,0,0,.6);display:none}
+#btip{padding:5px 14px;font-size:FS2px;opacity:.55;border-top:1px solid #26262e}
+#btip .bad{color:#e0b04a;opacity:1}
 [hidden]{display:none!important}
 #mode{padding:6px 12px 0;font-size:FS2px;opacity:.7}
 #mode.search{color:#8fb4ff}
@@ -1943,7 +2096,7 @@ body.graph #graph{display:block}
   border-radius:6px;padding:4px 9px;font-size:FS2px;max-width:340px;pointer-events:none;
   box-shadow:0 6px 18px rgba(0,0,0,.55)}
 ]==] .. theme .. [==[
-</style></head><body class="]==] .. (v.view == "graph" and "graph" or "") .. [==["><div id="wrap">
+</style></head><body class="]==] .. ((v.view == "graph" or v.view == "board") and v.view or "") .. [==["><div id="wrap">
 <header id="hdr"><span class="name">]==] .. (isTab and "📝 Scorp Pad" or "🕸 Vault") .. [==[</span><span class="doc" title="]==] .. escapeHtml(d and d.rel or "") .. [==[">]==] .. escapeHtml(d and d.name or "no note open") .. [==[</span>
 <span class="hint" id="hint">]==] .. escapeHtml(status) .. [==[</span>
 ]==] .. (v.lastSaveErr and ('<span class="bad" title="' .. escapeHtml(v.lastSaveErr) .. '">⚠ not saved</span>') or "") .. [==[
@@ -1954,6 +2107,7 @@ body.graph #graph{display:block}
 <button onclick="say({a:'linkfile'})" title="Link a file ⌘K">📎</button>
 <button id="sbtn" onclick="setMode('search')" title="Search inside every note ⌘⇧F">🔎</button><button id="kbtn" class="]==] .. (v.mode == "tasks" and "on" or "") .. [==[" onclick="setMode(MODE==='tasks'?'notes':'tasks')" title="Every open task ⌘⇧K">☑</button>
 <button id="gbtn" class="]==] .. (v.view == "graph" and "on" or "") .. [==[" onclick="say({a:'graph'})" title="Graph ⌘G">🕸</button>
+<button id="bbtn" class="]==] .. (v.view == "board" and "on" or "") .. [==[" onclick="say({a:'board'})" title="Board ⌘⇧B — your notes as Kanban columns, grouped by a front-matter field. Drag a card and it rewrites that note's field.">🗂</button>
 <button onclick="say({a:'rescan'})" title="Rescan the folder">↻</button>
 <button id="pin" class="]==] .. (v.pinned and "on" or "") .. [==[" onclick="say({a:'pin'})" title="Pin: the window stays up beside the app; Esc only hands the keyboard back">📌</button>
 <button onclick="say({a:'hide'})" title="Close ⇪3 / ⇪1 / Esc">✕</button></header>
@@ -1981,6 +2135,7 @@ body.graph #graph{display:block}
 ]==] .. (isTab and ('<h4>HISTORY · closed tabs</h4><ul id="hist">' .. (#hist > 0 and table.concat(hist) or '<div class="none">closed tabs land here — ⌘W</div>') .. '</ul>')
              or ('<h4>BACKLINKS</h4><ul id="backs">' .. (#backs > 0 and table.concat(backs) or '<div class="none">nothing links here yet</div>') .. '</ul>' .. unlBlock .. '<div id="qbox" hidden><h4 id="qh">\240\159\148\142 QUERY</h4><ul id="qres"></ul></div><h4>OUTLINE</h4><ul id="outline"></ul>')) .. [==[</div>
 <div id="graph"><canvas id="cv"></canvas><div id="gtip">click a dot to open · drag to untangle · hollow = not written yet · ⌘G back</div></div>
+<div id="board"><div id="bcols"></div><div id="btip"></div></div><div id="bdrag"></div>
 </div></div>
 <script>
 // 6.181.0 — the tooltip layer. Delegated, so buttons drawn later (the
@@ -2040,6 +2195,8 @@ var CARETLINE = ]==] .. tostring(math.floor(tonumber(v.caretLine) or 0)) .. [==[
 var CARETHEAD = ]==] .. (v.caretHead and jstr(v.caretHead) or "null") .. [==[;
 var DAILY = ]==] .. dailyJs .. [==[;
 var SMARTLISTS = ]==] .. tostring(v.smartLists ~= false) .. [==[;
+var BOARDFIELD = ]==] .. jstr(tostring(v.boardField or "status"):lower()) .. [==[;
+var BOARDCOLS = ]==] .. tostring(math.floor(tonumber(v.boardCols) or 8)) .. [==[, BMAX = ]==] .. tostring(math.floor(tonumber(v.boardMax) or 300)) .. [==[;
 var LINEH = FSNUM * 1.5;
 var t = document.getElementById('t'), q = document.getElementById('q'), hdr = document.getElementById('hdr');
 var ac = document.getElementById('ac'), rowsEl = document.getElementById('rows');
@@ -2057,6 +2214,7 @@ var modeEl = document.getElementById('mode'), foot = document.getElementById('fo
 var outlineEl = document.getElementById('outline'), unl = document.getElementById('unl'), unlh = document.getElementById('unlh');
 var hint = document.getElementById('hint'), kbtn = document.getElementById('kbtn');
 var qbox = document.getElementById('qbox'), qres = document.getElementById('qres'), qh = document.getElementById('qh');
+var bcols = document.getElementById('bcols'), btip = document.getElementById('btip'), bdrag = document.getElementById('bdrag');
 var HINT0 = (hint && hint.textContent) || '', PANE_T = null;
 var PLACEHOLDER = { notes: 'filter notes… ⌘F', search: 'words… ("a phrase", tag:x, path:x) — ⏎ opens at the line', tasks: 'filter the tasks…' };
 
@@ -2357,7 +2515,7 @@ function queryBlocks(text){
     i++;
     while (i < lines.length && !/^\s*(?:```|~~~)\s*$/.test(lines[i])) { body.push(lines[i]); i++; }
     i++;                                   // past the closing fence
-    if (info.indexOf('dataview') === 0) out.push({ kind: info, body: body });
+    if (info.indexOf('dataview') === 0 || info === 'kanban') out.push({ kind: info, body: body });
   }
   return out;
 }
@@ -2482,8 +2640,10 @@ function parseCols(src, bad){
   }
   return out;
 }
-function parseQuery(body){
-  var spec = { kind: 'list', from: '', groups: [], wheres: [], cols: [], sort: 'name', dir: 1, limit: QMAX, ignored: [] };
+function parseQuery(body, board){
+  var cap = board ? BMAX : QMAX;
+  var spec = { kind: board ? 'board' : 'list', from: '', groups: [], wheres: [], cols: [], sort: 'name', dir: 1,
+               limit: cap, by: BOARDFIELD, columns: null, ignored: [] };
   for (var i = 0; i < body.length; i++) {
     var line = String(body[i] || '').trim(), m;
     if (!line || line.charAt(0) === '/' && line.charAt(1) === '/') continue;
@@ -2493,6 +2653,16 @@ function parseQuery(body){
       if (parts.length > 1) spec.from = parts.slice(1).join(' from ').trim();
       if (cols) { var badc = []; spec.cols = parseCols(cols, badc);
                   for (var c = 0; c < badc.length; c++) spec.ignored.push('the column "' + badc[c] + '" — a plain field name, or "field AS Label"'); }
+      continue;
+    }
+    // 6.186.0 — the board's own two clauses. BY names the front-matter
+    // field the columns ARE; COLUMNS fixes their order (a value it does
+    // not name still gets a column after them — nothing vanishes quietly).
+    if (board && (m = line.match(/^by\s+([A-Za-z_][\w.\-]*)$/i))) { spec.by = m[1].toLowerCase(); continue; }
+    if (board && (m = line.match(/^columns\s+([\s\S]+)$/i))) {
+      var cs = m[1].split(','), keep = [];
+      for (var y = 0; y < cs.length; y++) { var cv = unq(cs[y].trim()); if (cv) keep.push(cv); }
+      spec.columns = keep.length ? keep : null;
       continue;
     }
     if ((m = line.match(/^from\s+([\s\S]+)$/i))) { spec.from = m[1].trim(); continue; }
@@ -2513,7 +2683,7 @@ function parseQuery(body){
       if (/^desc/i.test(sv[1] || '')) spec.dir = -1;
       continue;
     }
-    if ((m = line.match(/^limit\s+(\d+)$/i))) { spec.limit = Math.max(1, Math.min(QMAX, +m[1])); continue; }
+    if ((m = line.match(/^limit\s+(\d+)$/i))) { spec.limit = Math.max(1, Math.min(cap, +m[1])); continue; }
     spec.ignored.push(line);
   }
   spec.groups = parseFrom(spec.from);
@@ -2557,7 +2727,10 @@ function runQuery(spec){
 }
 function drawQueries(){
   if (!qbox || !qres) return;
-  var blocks = isTab() ? [] : queryBlocks(t.value || '');
+  var all = isTab() ? [] : queryBlocks(t.value || ''), blocks = [];
+  // 6.186.0 — a ```kanban block belongs to the BOARD (⌘⇧B). It is not an
+  // unsupported query and must not be reported as one.
+  for (var z = 0; z < all.length; z++) if (all[z].kind !== 'kanban') blocks.push(all[z]);
   if (!blocks.length) { qres.innerHTML = ''; qbox.hidden = true; return; }
   var h = [], total = 0;
   for (var b = 0; b < blocks.length; b++) {
@@ -2587,6 +2760,163 @@ function drawQueries(){
   if (qh) qh.textContent = '🔎 QUERY · ' + total;
   qbox.hidden = false;
 }
+// ---- 6.186.0 — 🗂 THE BOARD ------------------------------------------------
+// A Kanban of the notes themselves: every distinct value of one front-matter
+// field is a COLUMN and every note carrying it is a CARD. It runs in the page
+// off the same index the queries use, so it costs no file read, no grep and
+// no scan — and it is live: change status: in a note and the card has moved
+// by the time you look.
+//
+// 🚨 AND IT WRITES. This is the ONE view in the vault that does, deliberately:
+// dragging a card sends Lua the note, the field and the column it landed in,
+// and Lua rewrites THAT ONE LINE of that one file. The body is never touched.
+// The page does not write anything itself and does not assume the move took —
+// Lua re-renders, so a refused move puts the card back where it was.
+function boardSpec(){
+  var blocks = isTab() ? [] : queryBlocks(t.value || '');
+  for (var i = 0; i < blocks.length; i++) if (blocks[i].kind === 'kanban') return parseQuery(blocks[i].body, true);
+  return null;
+}
+// the columns, in order: the ones COLUMNS names, then any other value that
+// actually exists, then the notes that have not got the field at all
+function boardColumns(spec, rows){
+  var out = [], seen = {}, counts = {}, order = [], none = 0;
+  for (var i = 0; i < rows.length; i++) {
+    var val = fieldOf(rows[i], spec.by);
+    if (val === '') { none++; continue; }
+    var k = val.toLowerCase();
+    if (counts[k] === undefined) { counts[k] = 0; order.push({ k: k, label: val }); }
+    counts[k]++;
+  }
+  if (spec.columns) {
+    for (var c = 0; c < spec.columns.length; c++) {
+      var ck = String(spec.columns[c]).toLowerCase();
+      if (seen[ck]) continue;
+      seen[ck] = 1;
+      out.push({ k: ck, label: spec.columns[c], n: counts[ck] || 0 });
+    }
+  } else {
+    order.sort(function(a, b){ return counts[b.k] - counts[a.k] || (a.k < b.k ? -1 : a.k > b.k ? 1 : 0); });
+  }
+  for (var j = 0; j < order.length; j++) if (!seen[order[j].k]) {
+    seen[order[j].k] = 1;
+    out.push({ k: order[j].k, label: order[j].label, n: counts[order[j].k] });
+  }
+  // last, always: missing is missing. Dropping a card here CLEARS the field.
+  out.push({ k: '', label: 'no ' + spec.by, n: none, none: true });
+  return out;
+}
+function boardCard(x, spec){
+  var extra = '';
+  for (var c = 0; c < spec.cols.length; c++) {
+    if (spec.cols[c].f.toLowerCase() === spec.by) continue;   // that is the column it is in
+    var val = fieldOf(x, spec.cols[c].f);
+    if (val !== '') extra += (extra ? ' · ' : '') + esc(spec.cols[c].label) + ': ' + esc(val);
+  }
+  return '<div class="card" data-rel="' + esc(x.r) + '" data-name="' + esc(x.n) + '" title="' + esc(x.r) + '">'
+       + esc(x.n) + (extra ? '<span class="cf">' + extra + '</span>' : '') + '</div>';
+}
+function drawBoard(){
+  if (!bcols || !btip) return;
+  var spec = boardSpec(), why = '';
+  if (!spec) {
+    // no block in this note: show every note by the default field and SAY so,
+    // rather than an empty window that looks broken
+    spec = parseQuery(['BY ' + BOARDFIELD], true);
+    why = 'no ```kanban block in this note — showing every note by ' + BOARDFIELD + '. Press / for a Board row that writes one.';
+  }
+  var rows = runQuery(spec).slice(0, spec.limit), cols = boardColumns(spec, rows), h = [], drawn = 0;
+  var shown = cols.slice(0, Math.max(1, BOARDCOLS)), hidden = cols.slice(Math.max(1, BOARDCOLS));
+  for (var c = 0; c < shown.length; c++) {
+    var col = shown[c], cards = [];
+    for (var i = 0; i < rows.length; i++) {
+      if (fieldOf(rows[i], spec.by).toLowerCase() === col.k) { cards.push(boardCard(rows[i], spec)); drawn++; }
+    }
+    h.push('<div class="col' + (cards.length ? '' : ' empty') + '" data-val="' + esc(col.label) + '" data-none="'
+           + (col.none ? '1' : '') + '"><div class="ch">' + esc(col.label)
+           + '<span class="cn">' + cards.length + '</span></div><div class="cards">' + cards.join('') + '</div></div>');
+  }
+  if (hidden.length) {
+    var names = [];
+    for (var k = 0; k < hidden.length; k++) names.push(esc(hidden[k].label) + ' ' + hidden[k].n);
+    h.push('<div class="col more"><div class="ch">… ' + hidden.length + ' more</div><div class="cards">'
+           + '<div class="card" style="cursor:default">' + names.join('<br>') + '</div></div></div>');
+  }
+  bcols.innerHTML = h.join('');
+  var tips = [];
+  if (why) tips.push('<span class="bad">⚠ ' + esc(why) + '</span>');
+  for (var g = 0; g < spec.ignored.length; g++) tips.push('<span class="bad">⚠ ignored: ' + esc(spec.ignored[g]) + '</span>');
+  tips.push(drawn + ' card' + (drawn === 1 ? '' : 's') + ' · grouped by ' + esc(spec.by)
+            + (spec.from ? ' · FROM ' + esc(spec.from) : ''));
+  tips.push('drag a card to another column and that note’s <b>' + esc(spec.by)
+            + ':</b> line is rewritten · click to open it · ⌘⇧B back to the note');
+  btip.innerHTML = tips.join(' · ');
+  BSPEC = spec;
+}
+// ---- the drag. Pointer events, not native drag-and-drop: this panel never
+// activates and a WKWebView's own DnD is not dependable in one. A press that
+// never moves 4 px is a CLICK and opens the note.
+var BSPEC = null, BDRAG = null;
+function colUnder(x, y){
+  if (bdrag) bdrag.style.display = 'none';
+  var el = document.elementFromPoint(x, y);
+  if (bdrag && BDRAG) bdrag.style.display = 'block';
+  while (el && el !== document.body) {
+    if (el.className && String(el.className).indexOf('col') === 0) return el.className.indexOf('more') >= 0 ? null : el;
+    el = el.parentNode;
+  }
+  return null;
+}
+// the VALUE a column stands for — '' for the last one, which clears the field.
+// The drop compares values, never element identity: a board that re-drew
+// between the press and the release must not turn "back where it was" into
+// a rewrite.
+function colVal(col){
+  if (!col) return null;
+  return col.getAttribute('data-none') ? '' : col.getAttribute('data-val');
+}
+function bClear(){
+  var cs = bcols ? bcols.getElementsByClassName('col') : [];
+  for (var i = 0; i < cs.length; i++) cs[i].classList.remove('over');
+}
+if (bcols) {
+  bcols.addEventListener('mousedown', function(e){
+    if (e.button !== 0) return;
+    var el = e.target;
+    while (el && el !== bcols && !(el.className && String(el.className).indexOf('card') === 0)) el = el.parentNode;
+    if (!el || el === bcols || !el.getAttribute('data-rel')) return;
+    e.preventDefault();
+    BDRAG = { el: el, rel: el.getAttribute('data-rel'), name: el.getAttribute('data-name'),
+              fromVal: colVal(el.parentNode.parentNode), x0: e.clientX, y0: e.clientY, moved: false };
+  });
+  window.addEventListener('mousemove', function(e){
+    if (!BDRAG) return;
+    if (!BDRAG.moved) {
+      if (Math.abs(e.clientX - BDRAG.x0) < 4 && Math.abs(e.clientY - BDRAG.y0) < 4) return;
+      BDRAG.moved = true;
+      BDRAG.el.classList.add('ghost');
+      if (bdrag) { bdrag.textContent = BDRAG.name; bdrag.style.display = 'block'; }
+    }
+    if (bdrag) { bdrag.style.left = (e.clientX + 10) + 'px'; bdrag.style.top = (e.clientY + 10) + 'px'; }
+    bClear();
+    var col = colUnder(e.clientX, e.clientY);
+    if (col && colVal(col) !== BDRAG.fromVal) col.classList.add('over');
+  });
+  window.addEventListener('mouseup', function(e){
+    if (!BDRAG) return;
+    var d = BDRAG;
+    BDRAG = null;
+    if (bdrag) bdrag.style.display = 'none';
+    d.el.classList.remove('ghost');
+    bClear();
+    if (!d.moved) { say({ a: 'open', name: d.name }); return; }     // a press that never moved is a click
+    var col = colUnder(e.clientX, e.clientY), to = colVal(col);
+    // dropped nowhere, or back where it started: nothing written, nothing said
+    if (col === null || to === d.fromVal) return;
+    // the column tells Lua the value; an empty one CLEARS the field
+    say({ a: 'kmove', rel: d.rel, field: (BSPEC && BSPEC.by) || BOARDFIELD, value: to });
+  });
+}
 function thou(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '\u2009'); }
 function drawFoot(){
   if (!foot) return;
@@ -2604,7 +2934,7 @@ function drawFoot(){
 // the panes follow the typing a beat later (the page's own timer, not an hs.timer)
 function paneSoon(){
   try { clearTimeout(PANE_T); } catch(e){}
-  PANE_T = setTimeout(function(){ if (!isTab()) { drawOutline(); drawChips(); drawQueries(); } drawFoot(); }, 150);
+  PANE_T = setTimeout(function(){ if (!isTab()) { drawOutline(); drawChips(); drawQueries(); if (VIEW === 'board') drawBoard(); } drawFoot(); }, 150);
 }
 t.addEventListener('select', drawFoot); t.addEventListener('keyup', drawFoot); t.addEventListener('mouseup', drawFoot);
 
@@ -2799,6 +3129,7 @@ var BLOCKS = [
   { n: 'Code block',     md: '``` ```',   kind: 'fence' },
   { n: 'Query — a live list of notes', md: '```dataview LIST FROM #tag```', kind: 'query' },
   { n: 'Query — filtered by a field', md: '```dataview TABLE … WHERE …```', kind: 'queryw' },
+  { n: 'Board — a Kanban of your notes', md: '```kanban BY status```', kind: 'board' },
 ];
 function blockRows(typed){
   var out = [];
@@ -2824,6 +3155,11 @@ function blockApply(x){
   // thing LL does is name it rather than learn the grammar
   if (x.kind === 'query') { insertAtCaret('```dataview\nLIST FROM #', '\nSORT name\n```\n'); return; }
   // 6.185.0 — the WHERE shape, filled in and working, caret on the tag
+  // 6.186.0 — a working board, caret on the tag. COLUMNS is written in so
+  // the empty ones are there to drag INTO from the first press: a board
+  // whose columns only appear once a note already has that value is no use.
+  if (x.kind === 'board') { insertAtCaret('```kanban\nBY status\nFROM #',
+                                          '\nCOLUMNS todo, doing, done\nSORT name\n```\n'); return; }
   if (x.kind === 'queryw') { insertAtCaret('```dataview\nTABLE status FROM #',
                                            '\nWHERE status != "done"\nSORT status\n```\n'); return; }
 }
@@ -2853,6 +3189,9 @@ function mdHint(line){
   if (/^\s*(?:```|~~~)\s*dataview/i.test(line)) return 'Query — the notes it names are listed in \ud83d\udd0e QUERY, never written here';
   if (/^\s*(list|table)\b.*\bfrom\b/i.test(line)) return 'Query — FROM #tag, [[a note]] or "a folder", joined with AND / OR';
   if (/^\s*where\b/i.test(line)) return 'Query filter — field, field = "x", field > 3, contains(field, "x"), AND / OR';
+  if (/^\s*(?:```|~~~)\s*kanban/i.test(line)) return 'Board — press ⌘⇧B to see it; dragging a card rewrites that note\u2019s field';
+  if (/^\s*by\s+[A-Za-z_][\w.\-]*\s*$/i.test(line)) return 'Board — BY names the front-matter field the columns are (status, stage, priority…)';
+  if (/^\s*columns\s+[A-Za-z_"'][^|]*$/i.test(line)) return 'Board — COLUMNS fixes the order; a value it does not name still gets a column after them';
   if (/^\s*(sort|limit)\b/i.test(line)) return 'Query — SORT by name, path or any front-matter field; LIMIT caps the rows';
   if (/^\s*```/.test(line))         return 'Code block — everything until the next ``` is left alone';
   if (/^\s*(tags|title|date):/i.test(line)) return 'Front matter — tags: here join the 🏷 list';
@@ -2924,6 +3263,7 @@ document.addEventListener('keydown', function(e){
     if (kk === 'n') { e.preventDefault(); tplPick('new'); return; }
     if (kk === 'e') { e.preventDefault(); say({a:'extract', head: t.value.slice(0, t.selectionStart), selText: t.value.slice(t.selectionStart, t.selectionEnd)}); return; }
     if (kk === 'r') { e.preventDefault(); say({a:'random'}); return; }
+    if (kk === 'b') { e.preventDefault(); say({a:'board'}); return; }
     // 6.177.0 — the Scorp Pad's way out: every tab as a .md note
     if (kk === 's') { e.preventDefault(); say({a:'export'}); return; }
     if (e.code === 'BracketLeft' || e.key === '[' || e.key === '{') { e.preventDefault(); say({a:'dayshift', d: -1}); return; }
@@ -3010,6 +3350,7 @@ function graphStart(){
 // (a line from a search / task row, a template's {{cursor}} head, else where it was)
 setMode(MODE, true);
 if (VIEW === 'graph') { graphStart(); }
+if (VIEW === 'board') { drawBoard(); }
 else {
   if (!isTab()) { drawChips(); drawOutline(); drawUnlinked(); drawQueries(); }
   drawFoot();
@@ -3059,6 +3400,21 @@ else {
             elseif body.md then say("opened " .. tostring(body.target)) end
         elseif a == "graph" then
             v.view = (v.view == "graph") and "edit" or "graph"
+            v.render()
+        -- 6.186.0 — 🗂 the board takes the whole window (columns need width)
+        elseif a == "board" then
+            v.view = (v.view == "board") and "edit" or "board"
+            v.render()
+        -- 6.186.0 — a card was dragged into another column. ONE field of ONE
+        -- note; the page tells us where it landed and Lua decides whether
+        -- that is allowed. A refusal is said out loud and the board redraws
+        -- from the index, so a card that did not move snaps back.
+        elseif a == "kmove" then
+            local ok, why = v.setField(body.rel, body.field, body.value)
+            if not ok then
+                pcall(function() hs.alert.show("🗂 Not moved — " .. tostring(why), 3) end)
+                print("🕸 Vault: card not moved — " .. tostring(why))
+            end
             v.render()
         elseif a == "linkfile" then
             local link, why = v.linkFile()
@@ -3442,6 +3798,13 @@ else {
             L[#L + 1] = "   fields : " .. #v.fmFields .. " on " .. withFm .. " notes · " .. table.concat(top, " · ")
                         .. " — a query can WHERE on any of them"
         end
+        -- 6.186.0 — the board is the one view that WRITES, so it says so:
+        -- how many cards it has moved and what the last one was. A refused
+        -- move is named here too, not only in an alert that has gone.
+        L[#L + 1] = "   board  : groups by " .. tostring(v.boardField) .. " · " .. v.moves .. " card"
+                    .. (v.moves == 1 and "" or "s") .. " moved"
+                    .. (v.lastMove and (" · last: " .. v.lastMove) or "")
+                    .. (v.moveFails > 0 and ("  ⚠️ " .. v.moveFails .. " refused" .. (v.moveErr and (" — " .. v.moveErr) or "")) or "")
         local tpls, dailyT = v.templates(), v.templateByName(v.dailyTemplate or "")
         L[#L + 1] = "   templates: " .. (#tpls > 0 and (#tpls .. " in " .. tostring(v.templatesDir) .. "/")
                         or ("none — put .md files in " .. tostring(v.templatesDir) .. "/"))

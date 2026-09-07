@@ -35,8 +35,29 @@ function makeEnv() {
   const mode = el("DIV"), foot = el("DIV"), chips = el("DIV"), outline = el("UL"), unl = el("UL"), unlh = el("H4"), hint = el("SPAN"), sbtn = el("BUTTON"), kbtn = el("BUTTON");
   // 6.183.0 — the 🔎 QUERY block in the right pane
   const qbox = el("DIV"), qres = el("UL"), qh = el("H4");
-  const byId = { t, q, hdr, ac, rows, links, cv, gbtn, mode, foot, chips, outline, unl, unlh, hint, sbtn, kbtn, qbox, qres, qh };
-  const docListeners = {};
+  // 6.186.0 — the 🗂 board: its columns, its footer, the card that follows the pointer
+  const bcols = el("DIV"), btip = el("DIV"), bdrag = el("DIV"), bbtn = el("BUTTON");
+  const byId = { t, q, hdr, ac, rows, links, cv, gbtn, mode, foot, chips, outline, unl, unlh, hint, sbtn, kbtn, qbox, qres, qh, bcols, btip, bdrag, bbtn };
+  const docListeners = {}, winListeners = {};
+  // 6.186.0 — the board's columns, parsed out of bcols.innerHTML into elements
+  // the page's own drag code can walk: a card's parentNode is .cards and its
+  // parent is the .col that will name the value. Only the GEOMETRY is faked.
+  let hit = null;
+  function boardCols() {
+    const out = [];
+    for (const m of bcols.innerHTML.matchAll(/<div class="(col[^"]*)" data-val="([^"]*)" data-none="([^"]*)">([\s\S]*?)(?=<div class="col|$)/g)) {
+      const col = el("DIV"); col.className = m[1]; col.attrs = { "data-val": m[2].replace(/&quot;/g, '"'), "data-none": m[3] || null };
+      const cards = el("DIV"); cards.className = "cards"; cards.parentNode = col;
+      col.cards = [];
+      for (const c of m[4].matchAll(/<div class="(card[^"]*)" data-rel="([^"]*)" data-name="([^"]*)"/g)) {
+        const card = el("DIV"); card.className = c[1]; card.attrs = { "data-rel": c[2], "data-name": c[3] };
+        card.parentNode = cards; col.cards.push(card);
+      }
+      out.push(col);
+    }
+    return out;
+  }
+  bcols.getElementsByClassName = (c) => boardCols().filter((x) => x.className.indexOf(c) === 0);
   // rows are re-rendered from innerHTML; expose them as fake <li>s (every data-* attribute kept)
   function liRows(html) {
     const out = [];
@@ -55,9 +76,13 @@ function makeEnv() {
       addEventListener: (ev, fn) => { docListeners[ev] = fn; },
       querySelectorAll: (sel) => { if (!cached || cached.html !== rows.innerHTML) cached = { html: rows.innerHTML, rows: rowsFromHtml() }; return cached.rows; },
       activeElement: t,
+      // 6.186.0 — the one thing a fake DOM cannot do for real. The test says
+      // what the pointer is over; every other step of the drag is the page's.
+      elementFromPoint: () => hit,
+      body: {},
     },
     window: { webkit: { messageHandlers: { vault: { postMessage: (m) => sent.push(m) } } },
-              addEventListener() {}, devicePixelRatio: 1 },
+              addEventListener: (ev, fn) => { winListeners[ev] = fn; }, devicePixelRatio: 1 },
     requestAnimationFrame() {}, Math, String, Array,
     setTimeout: (fn) => { fn(); return 1; }, clearTimeout() {},     // the page's pane debounce runs at once here
   };
@@ -73,7 +98,24 @@ function makeEnv() {
       return null; } };
     elm.listeners.click({ target });
   }
-  return { sandbox, sent, t, q, ac, rows, docListeners, byId, liRows, click, mode, foot, chips, outline, unl, unlh, hint, kbtn, qbox, qres, qh, links };
+  // 6.186.0 — drag a card by name from one column onto another, exactly as
+  // the page sees it: mousedown on the card, a move past the 4 px threshold,
+  // mouseup over `onto` (null = dropped nowhere).
+  function drag(cardName, onto, opts) {
+    const cols = boardCols();
+    let card = null;
+    for (const c of cols) for (const k of c.cards) if (k.attrs["data-name"] === cardName) card = k;
+    if (!card) return null;
+    hit = card;
+    bcols.listeners.mousedown({ button: 0, target: card, preventDefault() {} });
+    if (!(opts && opts.still)) { hit = onto; winListeners.mousemove({ clientX: 90, clientY: 90 }); }
+    hit = onto;
+    winListeners.mouseup({ clientX: 90, clientY: 90 });
+    return card;
+  }
+  return { sandbox, sent, t, q, ac, rows, docListeners, winListeners, byId, liRows, click, mode, foot, chips,
+           outline, unl, unlh, hint, kbtn, qbox, qres, qh, links, bcols, btip, bdrag, boardCols, drag,
+           setHit: (h) => { hit = h; } };
 }
 const padHtml = process.argv[3] ? fs.readFileSync(process.argv[3], "utf8") : null;
 const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
@@ -760,6 +802,162 @@ if (padHtml) {
   check("the footer names a WHERE line and what can go in it",
         /contains\(field, "x"\)/.test(hint3('WHERE status = "reading"')), hint3('WHERE status = "reading"'));
   check("…and a SORT line", /front-matter field/.test(hint3("SORT rating DESC")));
+}
+
+// =====================================================================
+// 6.186.0 — 🗂 THE BOARD. Columns ARE the values of one front-matter
+// field; cards are the notes. And this is the one view that WRITES: the
+// checks below hold it to exactly one message, naming exactly one note,
+// one field and one value — and to sending nothing at all when the drag
+// did not land anywhere.
+// =====================================================================
+{
+  const B = (src) => {
+    const e = load();
+    if (src != null) { e.t.value = src; e.t.selectionStart = e.t.selectionEnd = 0; }
+    e.sent.length = 0;
+    e.call("drawBoard()");
+    return e;
+  };
+  const K = (body) => "```kanban\n" + body + "\n```\n";
+  const colNames = (e) => e.boardCols().map((c) => c.attrs["data-val"]);
+  // an absent column is an EMPTY list, never null: a check must FAIL on a
+  // missing column, not throw and take the rest of the section with it
+  const cardsIn = (e, val) => {
+    for (const c of e.boardCols()) if (c.attrs["data-val"] === val) return c.cards.map((k) => k.attrs["data-name"]);
+    return [];
+  };
+
+  const RAN = pass + fail;
+  try {
+  // ---- the columns -------------------------------------------------------
+  {
+    const e = B(K("BY status"));
+    check("6.186.0: the columns are the values of the field, commonest first",
+          colNames(e).slice(0, 2).join("|") === "reading|done", JSON.stringify(colNames(e)));
+    check("…and 'no status' is LAST — missing is missing, never a value",
+          colNames(e)[colNames(e).length - 1] === "no status", JSON.stringify(colNames(e)));
+    check("every card is in ITS column, not merely on the board",
+          cardsIn(e, "reading").sort().join("|") === "Alpha|Gamma" && cardsIn(e, "done").join("|") === "Beta",
+          JSON.stringify([cardsIn(e, "reading"), cardsIn(e, "done")]));
+    check("a note without the field is a card in the last column, not dropped",
+          cardsIn(e, "no status").includes("Long Name Here"), JSON.stringify(cardsIn(e, "no status")));
+    check("a template is never a card", !JSON.stringify(colNames(e).concat(e.bcols.innerHTML)).includes("Meeting"));
+    check("each card carries the note's REL — that is what Lua rewrites",
+          e.bcols.innerHTML.includes('data-rel="Projects/Beta.md" data-name="Beta"'));
+    check("the footer counts the cards and names the field", /5 cards · grouped by status/.test(e.btip.innerHTML), e.btip.innerHTML);
+  }
+  {
+    const e = B(K("BY rating"));
+    check("BY names any field — the columns become the ratings",
+          colNames(e).slice(0, 3).sort().join("|") === "10|3|5", JSON.stringify(colNames(e)));
+  }
+  {
+    const e = B(K("BY status\nCOLUMNS todo, doing, done"));
+    const n = colNames(e);
+    check("COLUMNS fixes the order, EMPTY ones included — there is somewhere to drag to on day one",
+          n[0] === "todo" && n[1] === "doing" && n[2] === "done" && cardsIn(e, "todo").length === 0,
+          JSON.stringify(n));
+    check("a value COLUMNS does not name still gets a column — nothing vanishes quietly",
+          n.includes("reading") && cardsIn(e, "reading").length === 2, JSON.stringify(n));
+  }
+  {
+    const e = B(K("BY status\nFROM #work\nWHERE rating > 3"));
+    check("FROM and WHERE narrow the board exactly as they narrow a query",
+          cardsIn(e, "reading").join("|") === "Alpha" && !JSON.stringify(colNames(e)).includes("done"),
+          JSON.stringify([colNames(e), cardsIn(e, "reading")]));
+  }
+  {
+    const e = B(K("BY status\nWOBBLE 3"));
+    check("a clause it cannot read is NAMED under the board and the board still draws",
+          e.btip.innerHTML.includes("ignored: WOBBLE 3") && cardsIn(e, "reading").length === 2, e.btip.innerHTML);
+  }
+  {
+    const e = B("# just a note\n\nnothing to see\n");
+    check("a note with no ```kanban block still gets a board, and is TOLD why",
+          e.btip.innerHTML.includes("no ```kanban block") && cardsIn(e, "reading").length === 2, e.btip.innerHTML);
+  }
+  {
+    const e = B(K("BY status"));
+    check("the query pane does not report a ```kanban block as an unsupported query",
+          !e.qres.innerHTML.includes("kanban") && e.qbox.hidden === true, e.qres.innerHTML);
+  }
+
+  // ---- the drag: the one place the vault writes --------------------------
+  {
+    const e = B(K("BY status\nCOLUMNS todo, doing, done"));
+    const target = e.boardCols().find((c) => c.attrs["data-val"] === "done");
+    e.sent.length = 0;
+    e.drag("Alpha", target);
+    check("dragging a card sends ONE move, naming the note, the field and the column",
+          e.sent.length === 1 && e.sent[0].a === "kmove" && e.sent[0].rel === "Alpha.md"
+          && e.sent[0].field === "status" && e.sent[0].value === "done", JSON.stringify(e.sent));
+    check("the page wrote nothing into the note — the board draws beside it, as the query does",
+          !e.t.value.includes("done\n```") === false ? e.t.value === K("BY status\nCOLUMNS todo, doing, done") : true,
+          JSON.stringify(e.t.value));
+  }
+  {
+    const e = B(K("BY status"));
+    const none = e.boardCols().find((c) => c.attrs["data-none"] === "1");
+    e.sent.length = 0;
+    e.drag("Alpha", none);
+    check("dropping a card in the 'no status' column CLEARS the field (an empty value)",
+          e.sent.length === 1 && e.sent[0].a === "kmove" && e.sent[0].value === "", JSON.stringify(e.sent));
+  }
+  {
+    const e = B(K("BY status"));
+    e.sent.length = 0;
+    e.drag("Alpha", null, { still: true });
+    check("a press that never moved is a CLICK — it opens the note and moves nothing",
+          e.sent.length === 1 && e.sent[0].a === "open" && e.sent[0].name === "Alpha", JSON.stringify(e.sent));
+  }
+  {
+    const e = B(K("BY status"));
+    e.sent.length = 0;
+    e.drag("Alpha", null);
+    check("a card dropped on nothing writes nothing and says nothing",
+          e.sent.filter((m) => m.a === "kmove").length === 0, JSON.stringify(e.sent));
+  }
+  {
+    const e = B(K("BY status"));
+    const own = e.boardCols().find((c) => c.attrs["data-val"] === "reading");
+    e.sent.length = 0;
+    e.drag("Alpha", own);
+    check("a card dropped back in its OWN column writes nothing — no rewrite for no change",
+          e.sent.filter((m) => m.a === "kmove").length === 0, JSON.stringify(e.sent));
+  }
+  {
+    const e = B(K("BY status"));
+    const more = e.boardCols().find((c) => c.className.indexOf("more") >= 0);
+    check("the folded '… N more' column is not a real column to drop on", more === undefined);
+  }
+
+  // ---- the way in, and the way it is taught ------------------------------
+  {
+    const e = load();
+    const k = e.key("b", { metaKey: true, shiftKey: true });
+    check("⌘⇧B asks Lua for the board", k.prevented && e.sent.some((m) => m.a === "board"), JSON.stringify(e.sent));
+  }
+  {
+    const e = load();
+    e.call("blockApply({kind:'board'})");
+    check("the / menu writes a WORKING board block, columns and all",
+          /```kanban\nBY status\nFROM #/.test(e.t.value) && e.t.value.includes("COLUMNS todo, doing, done"),
+          JSON.stringify(e.t.value));
+    const h = (line) => e.call("mdHint(" + JSON.stringify(line) + ")");
+    check("the footer names a kanban fence", /⌘⇧B/.test(h("```kanban")), h("```kanban"));
+    check("…a BY line", /front-matter field/.test(h("BY status")), h("BY status"));
+    check("…and a COLUMNS line", /order/.test(h("COLUMNS todo, doing")), h("COLUMNS todo, doing"));
+    check("a sentence that merely starts with 'by' is not called a board clause",
+          h("by the way this is prose") !== h("BY status"), h("by the way this is prose"));
+  }
+  } catch (err) {
+    // 6.186.0 — without this a throw here would DELETE the checks after it
+    // and the run would still say "0 failed". Silence is the failure mode
+    // this whole file exists to avoid.
+    check("the board section ran to the end", false, (err && err.message) || err);
+  }
+  check("…and every board check actually ran", pass + fail - RAN >= 27, pass + fail - RAN);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

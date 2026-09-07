@@ -2,11 +2,42 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-07-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.185.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.186.0
 -- =====================================================================
 
+-- NEW IN 6.186.0 — 🗂 A KANBAN BOARD YOU CAN DRAG CARDS ON (⇪3, ⌘⇧B):
+--   🗂 Your notes as COLUMNS: every distinct value of one front-matter
+--      field is a column and every note carrying it is a card. A
+--      ```kanban block in a note says which — BY status, FROM #project,
+--      COLUMNS todo, doing, done — and ⌘⇧B draws it across the whole
+--      window, because columns need width and the right pane has none.
+--      It runs in the page off the same index the queries use: no file
+--      is read, no grep runs, nothing is scanned, and it is live.
+--   ✍️ AND IT WRITES — the one view in the vault that does, on purpose.
+--      Drag a card to another column and THAT note's `status:` line is
+--      rewritten: one line, one file, never the body. A board you
+--      cannot move a card on is a report, not a Kanban. The page never
+--      writes anything itself and never assumes the move took; Lua
+--      re-renders, so a refused move puts the card back.
+--   🛡 What the write may not do, all asserted: it may not leave the
+--      vault, may not touch a file that is not a .md note, may not
+--      write tags (those are typed in the note), may not create a note
+--      that is not there, and may not turn a failed write into a
+--      silence — every refusal is named in an alert and counted in
+--      `_G.vaultReport()`'s new "board  :" line. The rewriter itself is
+--      PURE (text in, text out), so a --- that is really a divider, an
+--      unclosed block, a value with a colon or a newline in it and a
+--      note with no front matter at all are all provable without a disk.
+--   ➖ A column of notes that have not got the field at all is drawn
+--      LAST, and dropping a card there CLEARS the field. Missing stays
+--      missing — the 6.185.0 rule, now something you can drag to.
+--   ✏️ Still never typed: "/" has a row, "Board — a Kanban of your
+--      notes", that writes a working block with its COLUMNS already in
+--      it, so the empty columns are there to drag into on day one.
+--      test_vault 297 → 332, test_vault_js 230 → 258. 7,894 → 7,957
+--      checks, seventy-four stages.
 -- NEW IN 6.185.0 — 🔎 WHERE: A QUERY CAN ASK ABOUT YOUR FRONT MATTER:
 --   🔎 6.183.0 could ask about tags, folders and links. It can now ask
 --      about the FIELDS at the top of a note — the `status:` / `rating:`
@@ -43,38 +74,12 @@
 --      footer names a WHERE and a SORT line.
 --      test_vault 283 → 297, test_vault_js 205 → 230. 7,855 → 7,894
 --      checks, seventy-four stages.
--- NEW IN 6.184.0 — 🎯 THE HOME ROW IS THE GRID AGAIN:
---   🎯 LL, on ⇪X: "HOLY SHIT! The grid is insane. Way too small."
---      6.176.0 had widened the alphabet to sixteen keys — the home row
---      plus the row below — for 4,096 cells of about 30 pt, chosen to
---      come in under Apple's 44 pt minimum control size so that a cell
---      would be smaller than the button in it. It worked as arithmetic
---      and failed as a thing to look at: labels too small to read and a
---      finger leaving the home row on every press.
---      It is the nine home-row keys again — 729 cells, ~45 pt on the
---      Air and ~70 pt on the 4K, three keystrokes without reaching.
---   🧠 WHY THAT IS SAFE NOW, and was not in 6.176.0: 6.181.0 moved the
---      precision into the SNAP. A control whose frame CONTAINS the
---      landing point wins on a second pass, so a cell WIDER than the
---      button still puts the pointer on it. Fine cells were buying
---      accuracy you now get for free, and charging for it in reading
---      and typing. `_G.mouseGridReport()` "snap :" says the second
---      chance is on; the trail says "wider than the cell" when it fires.
---   ✏️ Finer again is one line and no release, in either direction:
---          settings = { mouse_grid = { alphabet = "asdfghjklzxcvbnm" } }
---            16 keys -> the 4,096-cell 6.176.0 grid
---          settings = { mouse_grid = { labelLength = 4 } }
---            9 keys, four keystrokes -> 6,561 cells
---      The gate asserts BOTH the shipped nine and that the wide
---      alphabet still buys its capacity, so neither drifts.
---      test_mouse_grid 383 → 384. 7,854 → 7,855 checks, seventy-four
---      stages.
--- (6.183.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.184.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.185.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.186.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -171,7 +176,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.185.0"
+_G.configVersion = "6.186.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------
