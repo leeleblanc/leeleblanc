@@ -1138,7 +1138,22 @@ pad.show()
 check("...and a cancelled box queues nothing", #pad.queue == 0)
 
 -- keys and services
-check("⇪N is claimed", hyperFor({}, "n") ~= nil)
+-- 🔑 6.182.0 — ⇪N BELONGS TO THE SCORP PAD NOW. LL: "I think hyper+N is
+-- enough to open the Scorp Pad." A 🗒 Capture tab is a row in the SCRATCH
+-- NOTES section, opened through pad.openHere() → openKind — the same call
+-- this key used to make. ⇪⇧N (send now) never moved.
+check("🔑 ⇪N is NOT claimed here any more — the Scorp Pad has it",
+      hyperFor({}, "n") == nil)
+check("…but the route it used to take is still here and still routes",
+      type(pad.openHere) == "function" and pad.viaScratch == true)
+check("…and calling it opens a Capture TAB rather than this window",
+      (function()
+          local asked, real = nil, _G.scratchPad
+          _G.scratchPad = { openKind = function(k) asked = k return true end }
+          pad.openHere()
+          _G.scratchPad = real
+          return asked == "capture"
+      end)())
 check("⇪⇧N is claimed", hyperFor({ "shift" }, "n") ~= nil)
 check("capturePad.add is published", _G.service.has("capturePad.add"))
 check("capturePad.title is published", _G.service.has("capturePad.title"))

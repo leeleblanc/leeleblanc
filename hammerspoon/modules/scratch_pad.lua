@@ -89,14 +89,15 @@ local M = {
     summary = "⇪1 a scratch editor: tabs, saved as you type, a searchable "
               .. "history under the text, one Asana task of the day at 4 PM",
     cheatsheet = {
-        title = "📝 SCORP PAD (⇪1 — type, it saves; close as fast as you opened it)",
+        title = "📝 SCRATCH NOTES (⇪N — type, it saves; close as fast as you opened it)",
         entries = {
-            { "⇪1",        "Open the pad — inside the ⇪3 Vault window, on your scratch tabs (again closes)" },
+            { "⇪N",        "Open the pad — inside the ⇪3 Vault window, on your SCRATCH NOTES (again closes). ⇪1 no longer opens it and is free" },
             { "⌘T · ⌘W",   "New tab · close tab (its text goes to the history)" },
             { "⌘1…⌘9",     "Switch tab · ⌃Tab / ⌃⇧Tab cycle round them" },
             { "history",   "Right pane (in the vault): every closed tab, click to reopen" },
             { "📌",        "Pin: stays up beside the app; Esc only hands the keys back" },
-            { "⇪N · ⇪2",   "Open here as a 🗒 Capture / ➕ Append tab; ⌘W files it where it went before" },
+            { "+ 🗒 · + ➕", "New Capture / Append tabs are rows in the section now, not their own keys; ⌘W still files each where it always went" },
+            { "⇪2",        "SEQUENTIAL COPY: select text, press it, select more, press again — each grab is appended to a 📎 Collect tab AND the whole block goes on the clipboard, so ⌘V pastes the lot" },
             { "16:00",     "One Asana task of the day: every tab, 07:30 → 16:00, you" },
             { "search",    "⇪space finds everything in the pad — tabs and history" },
             { "own window","settings = { scratch_pad = { viaVault = false } } brings the old window back" },
@@ -109,7 +110,14 @@ local M = {
 function M.setup(core)
     local sp = {
         enabled       = true,
-        key           = "1",
+        -- 🔑 6.182.0 — ⇪N, was ⇪1. LL: "I think hyper+N is enough to open
+        -- the Scorp Pad. Do you?" He is right: FOUR keys reached this one
+        -- window (⇪1 the pad, ⇪N a Capture tab, ⇪2 an Append tab, ⇪3 the
+        -- vault side of it), which is three doors too many into a room
+        -- you are already in. ⇪N is the door now, ⇪3 still opens the
+        -- vault side, ⇪2 became the sequential copy, and ⇪1 IS FREE — do
+        -- not spend it without LL.
+        key           = "n",
         width         = 768,
         height        = 1024,
         alpha         = 1,        -- 6.172.1 — SOLID (LL: 0.95 was still not opaque enough); 0–1 in a settings override makes it see-through
@@ -275,6 +283,9 @@ function M.setup(core)
         sp.history = type(data.history) == "table" and data.history or {}
         sp.sent    = type(data.sent) == "table" and data.sent or {}
         sp.exported = type(data.exported) == "table" and data.exported or {}
+        -- 6.182.0 — which tab the ⇪2 block lives in, so a reload keeps
+        -- appending to it instead of starting a second Collect tab.
+        sp.collectId = type(data.collectId) == "string" and data.collectId or nil
         sp.active  = data.active
         sp.pinned  = data.pinned == true
         return true
@@ -288,7 +299,7 @@ function M.setup(core)
         local okE, blob = pcall(hs.json.encode, {
             tabs = sp.tabs, history = sp.history, sent = sp.sent,
             active = sp.active, pinned = sp.pinned, savedAt = os.time(),
-            exported = sp.exported,
+            exported = sp.exported, collectId = sp.collectId,
         }, true)
         if not (okE and type(blob) == "string") then
             sp.lastSaveErr = "encode failed"
@@ -1051,6 +1062,60 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
         return true
     end
 
+    -- =====================================================================
+    -- 📎 SEQUENTIAL COPY (6.182.0, ⇪2)
+    -- =====================================================================
+    -- LL: "Can I select some text, and then immediately select some more
+    -- text and have it append the text I just copied a few seconds before
+    -- … so I can build a block of text that I can then edit quickly
+    -- instead of having to make multiple copy/pastes to gather all the
+    -- info."
+    --
+    -- Each press appends the selection to ONE tab — the 📎 Collect tab,
+    -- found by id so a second press never starts a second one — and puts
+    -- THE WHOLE BLOCK SO FAR on the clipboard. That is the pair that makes
+    -- it useful: ⌘V pastes everything you have gathered without opening
+    -- anything, and ⇪N is there when you want to tidy the block first.
+    --
+    -- 🪟 IT NEVER RAISES THE WINDOW. The whole point is that you stay in
+    -- the page you are reading; an alert names the running count instead.
+    --
+    -- 🛟 DEGRADES: no power_tools → it says the selection cannot be read
+    -- and does nothing. A pasteboard that refuses the write is REPORTED,
+    -- not swallowed, and the tab still has the text — the grab is never
+    -- lost because the clipboard half failed.
+    sp.collectTitle = "Collect"
+    sp.collectJoin  = "\n\n"     -- between grabs; a settings override changes it
+    sp.collectId    = nil        -- the tab holding the block, remembered in the store
+    sp.collectCount = 0          -- grabs in the CURRENT block, for the alert
+
+    -- The tab the block lives in: the remembered one while it still
+    -- exists (⌘W may have sent it to the history), else a new one.
+    function sp.collectTab()
+        if sp.collectId then
+            for _, t in ipairs(sp.tabs) do if t.id == sp.collectId then return t end end
+        end
+        local t = sp.newTab(sp.collectTitle .. "\n")
+        if not t then return nil, "no room for another tab" end
+        sp.collectId, sp.collectCount = t.id, 0
+        return t
+    end
+
+    -- text → ok, block-or-why. Pure enough to test: no window, no alert.
+    function sp.collect(text)
+        text = trim(text)
+        if text == "" then return false, "nothing was selected" end
+        local t, why = sp.collectTab()
+        if not t then return false, why or "no tab" end
+        local sep = (trim(t.text) == "") and "" or tostring(sp.collectJoin or "\n\n")
+        t.text      = t.text .. sep .. text
+        t.updatedAt = os.time()
+        sp.collectCount = (sp.collectCount or 0) + 1
+        sp.scheduleSave()
+        if sp.webview or sp.host() then pcall(sp.render) end
+        return true, t.text
+    end
+
     function sp.open()
         if not sp.enabled then return end
         if sp.webview then return end
@@ -1113,6 +1178,39 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
     if #sp.tabs == 0 then sp.tabs = { { id = newId(), text = "", createdAt = os.time(), updatedAt = os.time() } }; sp.active = sp.tabs[1].id end
 
     core.hyperAddShortcut({}, sp.key, function() sp.toggle() end, "scratch pad")
+
+    -- 📎 6.182.0 — ⇪2, the sequential copy. The selection is read through
+    -- power_tools' one reader (accessibility first, ⌘C as the fallback,
+    -- and it is the thing that says so honestly when an app answers
+    -- neither), so this module never grows a second way to read a
+    -- selection. No power_tools → the key says so and does nothing.
+    sp.collectKey = "2"
+    function sp.collectFromSelection()
+        if not (_G.service and _G.service.has and _G.service.has("power.readSelection")) then
+            pcall(function() hs.alert.show("📎 Sequential copy needs Power Tools\n(it is what reads the selection)", 3) end)
+            return false, "power_tools is not loaded"
+        end
+        _G.service.call("power.readSelection", "📎", function(text)
+            local ok, blockOrWhy = sp.collect(text)
+            if not ok then
+                pcall(function() hs.alert.show("📎 " .. tostring(blockOrWhy), 2) end)
+                return
+            end
+            -- The clipboard half is the point of the pair, but the grab is
+            -- already safe in the tab — so a pasteboard that refuses is
+            -- REPORTED and the count still stands.
+            local copied = pcall(function() hs.pasteboard.setContents(blockOrWhy) end)
+            local words = select(2, tostring(blockOrWhy):gsub("%S+", ""))
+            pcall(function()
+                hs.alert.show(string.format("📎 %d %s · %d words%s", sp.collectCount,
+                    sp.collectCount == 1 and "grab" or "grabs", words,
+                    copied and "  ·  ⌘V pastes the block" or "\n⚠️ the clipboard refused — the block is in ⇪N"), 2)
+            end)
+        end)
+        return true
+    end
+    core.hyperAddShortcut({}, sp.collectKey, function() sp.collectFromSelection() end,
+                          "sequential copy")
 
     if _G.claimEscape then
         _G.claimEscape("scratchpad", nil, function() return sp.webview ~= nil and not sp.pinned end,

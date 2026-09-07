@@ -57,7 +57,7 @@ local M = {
     family = "capture",       -- between Quick Append (13.3), whose files it
                          -- writes, and the numpad layer (13.5) that keys it
     cheatsheet = {
-        title = "🗒 QUICK APPEND PAD (⇪2 or ⇪pad2 — one box, four destinations)",
+        title = "🗒 QUICK APPEND PAD (via ⇪N or ⇪J — one box, four destinations)",
         entries = {
             -- 🔤 6.114.0 — ⇪pad2 AND ⇪pad* NO LONGER APPEAR AS KEY CELLS HERE.
             -- numpad_layer BINDS every pad key, so under the 6.102.0 rule
@@ -65,7 +65,7 @@ local M = {
             -- having them in both groups put one shortcut on the sheet twice
             -- and gave ⇪space two rows for one tool. The keys are unchanged
             -- and still documented — one group over.
-            { "⇪2",    "Open the pad — type entries, one per line" },
+            { "in ⇪N", "The \"+ ➕ Append\" row in SCRATCH NOTES opens an Append tab — type entries, one per line (⇪2 was this pad's key until 6.182.0; it is the sequential copy now)" },
             { "* …",   "The line is an IDEA → ideas.txt + the CSV" },
             { "+ …",   "The line is a LOG → log.txt + the CSV" },
             { "! …",   "The line is an Asana TASK → the Capture Pad queue" },
@@ -732,10 +732,18 @@ function M.setup(core)
     -- fourth key. One key, one true statement about it. The pre-typed
     -- variants (⇪pad* / ⇪pad-) stay pad-only and are reachable from ⇪space
     -- instead, where they now appear as runnable tools.
-    np.laptopKey = "2"
+    -- 🔑 6.182.0 — ⇪2 IS THE SEQUENTIAL COPY NOW, not this pad's door.
+    -- Same reason ⇪N stopped being the Capture Pad's: four keys opened
+    -- one window. An ➕ Append tab is a ROW in the SCRATCH NOTES section
+    -- (it calls the same openKind this did), ⇪J still opens this module's
+    -- own window, and every filing rule — * idea, + log, ! task, ? note,
+    -- fileAll, the services — is untouched.
+    np.laptopKey = nil
     np.viaScratch = true
-    core.hyperAddShortcut({}, np.laptopKey, function() np.show({}) end,
-                          "quick append pad")
+    if np.laptopKey then
+        core.hyperAddShortcut({}, np.laptopKey, function() np.show({}) end,
+                              "quick append pad")
+    end
 
     core.provide("notes.openPad", function() np.show({}) return true end)
     core.provide("notes.typeIdeas", function()

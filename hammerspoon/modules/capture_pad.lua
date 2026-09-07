@@ -84,9 +84,9 @@ local M = {
     order = 13.1,
     family = "capture",
     cheatsheet = {
-        title = "🗒 CAPTURE PAD (⇪N — collect now, Asana at 4 PM)",
+        title = "🗒 CAPTURE PAD (via ⇪N — collect now, Asana at 4 PM)",
         entries = {
-            { "⇪N",   "Open / close the pad" },
+            { "in ⇪N", "The \"+ 🗒 Capture\" row in SCRATCH NOTES opens a Capture tab (⇪N was this pad's own key until 6.182.0; the brain and the queue never moved)" },
             { "⌘⏎",   "File the note you are typing" },
             { "⌘⇧V",  "Attach the clipboard image to the note you are typing" },
             { "✕",     "On a pinned thumbnail — removes just that image before you file" },
@@ -1421,17 +1421,33 @@ function M.setup(core)
     end
 
     -- ---- keys, timer, services -------------------------------------------
-    -- 6.165.0 — ⇪N opens a 🗒 Capture tab in the scratch pad when it is
-    -- loaded (pad.viaScratch = false in a profile brings this window
+    -- 6.165.0 — ⇪N opened a 🗒 Capture tab in the scratch pad when it was
+    -- loaded (pad.viaScratch = false in a profile brought this window
     -- back). ⇪⇧N, the queue, the 16:00 flush and every service stay here.
+    --
+    -- 🔑 6.182.0 — AND ⇪N IS NOT THIS MODULE'S KEY ANY MORE. LL: "I think
+    -- hyper+N is enough to open the Scorp Pad." Four keys reached one
+    -- window; ⇪N is now the pad's own door and a Capture tab is a ROW in
+    -- the SCRATCH NOTES section (the "+ 🗒 Capture" row calls the same
+    -- openKind this used to). Nothing about this module's brain moved:
+    -- addNote, the queue, the retries, the 16:00 flush, every service and
+    -- ⇪⇧N are exactly where they were, and the standalone window is still
+    -- here for pad.viaScratch = false — it just is not on ⇪N.
     pad.viaScratch = true
-    core.hyperAddShortcut({}, pad.key, function()
+    -- The ROUTE is unchanged and still lives here — anything that asks
+    -- this module to open (⇪space, a service, a profile with viaScratch
+    -- off) gets the Capture TAB while the pad is hosted, and this
+    -- window when it is not. Only the KEY went away.
+    function pad.openHere()
         if pad.viaScratch and _G.scratchPad and _G.scratchPad.openKind then
-            _G.scratchPad.openKind("capture")
-        else
-            pad.toggle()
+            return _G.scratchPad.openKind("capture")
         end
-    end, "capture pad")
+        pad.toggle()
+        return true
+    end
+    if not pad.viaScratch then
+        core.hyperAddShortcut({}, pad.key, function() pad.openHere() end, "capture pad")
+    end
     core.hyperAddShortcut({ "shift" }, pad.key, function() pad.flush("manual") end,
                           "capture pad — send now")
 

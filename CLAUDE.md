@@ -28,9 +28,9 @@ work Mac.
 - Battery saver never dims the screen, never touches pmset/sudo; the hog
   caller-out never kills/pauses/renices apps.
 - ⇪⇧Z is reserved for later — do not bind it.
-- ⇪⇧T (free since 6.161.0) is unspent — do not bind it without LL.
-  (⇪3 went to the vault in 6.172.0; ⇪⇧U went to the anchors in 6.180.0,
-  LL's choice; ⇪⇧Z stays reserved.)
+- ⇪⇧T (free since 6.161.0) and ⇪1 (free since 6.182.0) are unspent — do
+  not bind either without LL. (⇪3 went to the vault in 6.172.0; ⇪⇧U to
+  the anchors in 6.180.0; ⇪⇧Z stays reserved.)
 - IT DEGRADES, IT NEVER BREAKS (6.177.0, LL: "build it so it degrades
   gracefully and nothing breaks — and that's the same for all our code
   going forward. It must work on my home Mac and my work Mac."). Every
@@ -96,10 +96,22 @@ Capture Pad recipe — NO eventtap, NO AX/window reads, every timer held.
 Keystrokes land in `sp.tabs` at once, the store (Logs/scratch/scratch.json,
 write ledger) 0.3 s later. The 16:00 task goes through `_G.asanaSubmitTask`
 with `extra.comment` (the only Asana path); keep it that way.
-6.165.0: ⇪N and ⇪2 open as 🗒 Capture / ➕ Append TABS in it (`sp.openKind`);
+6.165.0: 🗒 Capture / ➕ Append open as TABS in it (`sp.openKind`);
 closing such a tab files through capturePad.add / notePad.fileAll — the old
 modules keep their brains, `pad.viaScratch` / `np.viaScratch` restore their
 windows. Kind tabs never enter the pad's own 4 PM task.
+6.182.0 — 🔑 ONE DOOR: the pad is ⇪N (was ⇪1), the vault side is ⇪3, ⇪2
+is the sequential copy, ⇪1 is FREE. 🗒 Capture and ➕ Append lost their
+keys and became the "+ 🗒 Capture" / "+ ➕ Append" ROWS in the vault's
+📝 SCRATCH NOTES section — same `openKind`, `pad.openHere()` keeps the
+route for ⇪space/services, `np.laptopKey = nil`. RULE: a tool that lives
+inside another tool's window does not also get its own hyper key.
+📎 ⇪2 SEQUENTIAL COPY (`sp.collect` / `sp.collectFromSelection`): appends
+the selection to the ONE 📎 Collect tab (`sp.collectId`, remembered in the
+store) AND puts the whole block on the clipboard, so ⌘V pastes the lot.
+It NEVER raises the window. The selection comes from
+`power.readSelection` — do not grow a second selection reader. A refused
+pasteboard is reported and the grab still stands.
 
 6.177.0 — ⌘⇧S in the ⇪1 / ⇪3 window EXPORTS the Scorp Pad's tabs (and
 its history) as .md notes in <Vault>/Scratch, front matter + the text as
@@ -374,6 +386,24 @@ mirrors draw order: "closes last" IS "drawn under".
   it — but if a post-boot stall is ever traced there, move the read and
   the append into an hs.task (/bin/cat, /usr/bin/tail). Never move it
   back onto the boot line.
+- 6.182.0 verify with LL: ⇪N opens the pad (⇪1 does nothing now — that
+  is deliberate, it is free); the section reads 📝 SCRATCH NOTES with
+  "+ 🗒 Capture" and "+ ➕ Append" rows under "+ new tab ⌘T", and ⌘W on
+  each still files where it always did (the 4 PM Asana task must still
+  land, and * idea / + log / ! task / ? note must still sort). Then the
+  one to actually try: select a sentence anywhere, press ⇪2, select
+  another, ⇪2 again — an alert counts the grabs, ⌘V pastes BOTH, and
+  ⇪N shows them stacked in a 📎 Collect tab. Reload and grab a third:
+  it must join the same block, not start a second Collect tab.
+  STILL OPEN (LL's list, in his priority order after this): Dataview-style
+  live queries in the vault — a ```query block that builds a list/table
+  from tags and front matter, which is the one that serves "see the
+  relationships to jog my memory"; then Kanban columns; @images / @shots
+  in ⇪space; the screenshot editor's text-box handles; and the ⇪⇧O image
+  history beach ball (a stall — diagnose before touching). Judged already
+  covered, do not build without LL asking again: Templater (6.174.0
+  templates), QuickAdd (⇪N + ⇪2), Linter (the format bar), Folder Note
+  (outline + backlinks).
 - 6.181.0 verify with LL: ⇪/ — the sheet is 1,024 wide and no entry
   ends mid-sentence any more (the old "…screenshots it. For real" row
   under MENU BAR ITEMS is the one to look at). begone's row says ⇪⇧S,

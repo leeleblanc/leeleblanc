@@ -92,7 +92,10 @@ local hint = {
         o = "Clipboard & OCR", ["shift+o"] = "Clipboard & OCR",
         ["shift+c"] = "Clipboard & OCR", ["shift+2"] = "Clipboard & OCR",
         -- Notes & capture
-        n = "Notes & capture", ["shift+n"] = "Notes & capture", ["1"] = "Notes & capture", ["2"] = "Notes & capture",
+        -- 6.182.0 — "1" came OUT: ⇪1 is free (the Scorp Pad moved to ⇪N),
+        -- and a group row for an unbound key is dead config. ⇪2 stays —
+        -- it is the sequential copy now, which is squarely notes & capture.
+        n = "Notes & capture", ["shift+n"] = "Notes & capture", ["2"] = "Notes & capture",
         ["3"] = "Notes & capture",   -- 6.172.0 the vault
         ["shift+u"] = "Notes & capture",   -- 6.180.0 the ⇪⇧U anchors
         j = "Notes & capture", ["shift+j"] = "Notes & capture",

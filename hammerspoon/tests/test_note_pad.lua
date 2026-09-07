@@ -165,23 +165,36 @@ check("notes.typeLog is published (⇪pad-)",   PROVIDED["notes.typeLog"] ~= nil
 check("notes.editClipboard stays published for choosers and the Console",
       PROVIDED["notes.editClipboard"] ~= nil)
 check("notes.review is published",            PROVIDED["notes.review"] ~= nil)
--- 💻 6.114.0 — THE PAD'S FIRST KEY OF ITS OWN. Until now it had none:
--- ⇪pad2, ⇪pad* and ⇪pad- are all bound by numpad_layer, so on a MacBook
--- with no external keyboard the most-used capture window in the config
--- could not be opened at all. 2 is the same digit as ⇪pad2, which is the
--- entire mnemonic and the reason it is not an arbitrary free key.
-check("💻 the pad claims ⇪2 — the one door that works with no number pad",
-      HYPER["|2"] ~= nil, table.concat((function()
+-- 💻 6.114.0 gave this pad ⇪2, its first key of its own: ⇪pad2, ⇪pad*
+-- and ⇪pad- are all bound by numpad_layer, so on a MacBook with no
+-- external keyboard the most-used capture window in the config could not
+-- be opened at all.
+-- 🔑 6.182.0 TOOK ⇪2 BACK for the sequential copy, and the reason above
+-- is still satisfied — by a different route. An ➕ Append tab is a ROW in
+-- the SCRATCH NOTES section of ⇪N, which needs no number pad either, and
+-- it opens through the SAME openKind ⇪2 called. What this suite has to
+-- prove is that the module binds NO hyper key of its own now and that
+-- the route that replaced it is real (viaScratch + openKind).
+check("🔑 6.182.0: the pad no longer claims ⇪2 — nor any hyper key",
+      next(HYPER) == nil, table.concat((function()
           local t = {} for k in pairs(HYPER) do t[#t + 1] = k end
           table.sort(t) return t
       end)(), ","))
-check("…and pressing it opens the pad", (function()
-    if not HYPER["|2"] then return false end
-    np.draft = ""
-    local before = np.webview
-    HYPER["|2"].fn()
-    return np.webview ~= nil and before == nil
-end)())
+check("…and np.laptopKey is cleared, not merely left unbound",
+      np.laptopKey == nil, tostring(np.laptopKey))
+check("…and the replacement route is on: np.show hands off to openKind",
+      np.viaScratch == true)
+do
+    -- the ➕ row's call, exactly as the vault page makes it
+    local asked = nil
+    local realSp = _G.scratchPad
+    _G.scratchPad = { openKind = function(kind, opts) asked = { kind, opts } return true end }
+    np.show({})
+    check("…so an Append tab is opened rather than this module's window",
+          asked ~= nil and asked[1] == "append" and np.webview == nil,
+          tostring(asked and asked[1]))
+    _G.scratchPad = realSp
+end
 np.hide()
 check("the pad claims Esc through the router", CLAIMED_ESC["notepad"] ~= nil)
 check("…and registers with the ⌘-drag layer",

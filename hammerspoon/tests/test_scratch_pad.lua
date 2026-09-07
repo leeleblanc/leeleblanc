@@ -125,6 +125,7 @@ os.rename = function(a, b)
 end
 
 local ALERTS, PROVIDED, WEBVIEWS, PROMPTS, TIMERS, PRINTED = {}, {}, {}, {}, {}, {}
+local PASTED, PB_FAIL = {}, false
 local PROMPT_ANSWER = { "Cancel", "" }
 local UC_CALLBACK = nil
 local realPrint = print
@@ -192,6 +193,12 @@ hs = {
     fs = { mkdir = function() return true end },
     mouse = { absolutePosition = function() return { x = 300, y = 300 } end },
     eventtap = { checkMouseButtons = function() return { left = false } end },
+    -- 6.182.0 — the sequential copy's other half. PB_FAIL makes the write
+    -- refuse, which is the path where the grab must still be safe.
+    pasteboard = { setContents = function(t)
+        if PB_FAIL then error("pasteboard refused") end
+        PASTED[#PASTED + 1] = tostring(t); return true
+    end },
 }
 
 _G.diag = { say = function() end, warn = function() end, err = function() end, mark = function() end }
@@ -236,9 +243,17 @@ local function msg(m) sp.handleMessage(m) end
 local function store() return FILES[sp.file] and jdec(FILES[sp.file]) end
 
 -- =======================================================================
-out("1) the doors in — ⇪1, escape claim, editors row, services, the store\n")
+out("1) the doors in — ⇪N, ⇪2, escape claim, editors row, services, the store\n")
 -- =======================================================================
-check("⇪1 is claimed for the pad", HYPER["|1"] ~= nil and HYPER["|1"].src == "scratch pad")
+-- 🔑 6.182.0 — ⇪N, was ⇪1. LL: "I think hyper+N is enough to open the
+-- Scorp Pad. Do you?" Four keys reached this one window; now one does,
+-- ⇪2 is the sequential copy, and ⇪1 is FREE. Asserted as a pair — the
+-- key that arrived AND the key that left — because a check that only
+-- looked for ⇪N would pass with ⇪1 still bound beside it.
+check("⇪N is claimed for the pad", HYPER["|n"] ~= nil and HYPER["|n"].src == "scratch pad")
+check("…and ⇪1 is not bound by this module at all", HYPER["|1"] == nil)
+check("⇪2 is claimed for the sequential copy",
+      HYPER["|2"] ~= nil and HYPER["|2"].src == "sequential copy")
 check("the escape router knows 'scratchpad'", CLAIMED_ESC.scratchpad ~= nil)
 check("an editors row exists with view AND show (show never toggles)",
       #_G.editors == 1 and _G.editors[1].view and _G.editors[1].show)
@@ -506,7 +521,12 @@ check("every hs.timer result is assigned (held)", not src:find("\n%s*hs%.timer%.
 check("init.lua loads scratch_pad", init:find('"scratch_pad"', 1, true) ~= nil)
 check("the escape ladder has a scratchpad rung under taskform", coex:find("scratchpad =  74", 1, true) ~= nil)
 check("⇪space has a Scratch pad source", uni:find('tag = "scratch"', 1, true) ~= nil and uni:find("scratch = 200", 1, true) ~= nil)
-check("⇪1 is filed in the hint groups", hints:find('["1"] = "Notes & capture"', 1, true) ~= nil)
+-- 6.182.0 — ⇪N and ⇪2 are filed; ⇪1 came OUT, because a group row for a
+-- key nothing binds is dead config that outlives the key it described.
+check("⇪N and ⇪2 are filed in the hint groups",
+      hints:find('n = "Notes & capture"', 1, true) ~= nil
+      and hints:find('["2"] = "Notes & capture"', 1, true) ~= nil)
+check("…and ⇪1's row is gone with the key", hints:find('["1"] = "Notes & capture"', 1, true) == nil)
 check("asanaSubmitTask honours extra.comment", tc:find("extra.comment", 1, true) ~= nil)
 check("run-tests lists this suite", rt:find("test_scratch_pad", 1, true) ~= nil)
 
@@ -597,11 +617,21 @@ check("history kinds survive a reload", table.concat(kinds, ","):find("capture",
 
 local cp = slurp(HS .. "/modules/capture_pad.lua")
 local npS = slurp(HS .. "/modules/note_pad.lua")
-check("⇪N routes to scratchPad.openKind('capture') unless pad.viaScratch is off",
+-- 6.182.0 — both pads still route into this one through openKind; what
+-- changed is the DOOR, from a hyper key each to a row in the section.
+-- So the routing assertions stay and a new one says the keys are gone:
+-- if either module bound its old key again, two modules would fight for
+-- it and the cheat sheet would show it twice.
+check("capture_pad still routes to scratchPad.openKind('capture')",
       cp:find('_G.scratchPad.openKind("capture")', 1, true) and cp:find("pad.viaScratch = true", 1, true))
+check("…and no longer binds ⇪N itself while viaScratch is on",
+      cp:find("if not pad.viaScratch then", 1, true) ~= nil
+      and cp:find('core.hyperAddShortcut({}, pad.key, function() pad.openHere() end', 1, true) ~= nil)
 check("np.show routes to openKind('append') — except the 16:01 review",
       npS:find('_G.scratchPad.openKind("append"', 1, true) and npS:find("np.show({ review = true })", 1, true)
       and npS:find("np.viaScratch = true", 1, true))
+check("…and note_pad's laptop key is cleared, not just unbound",
+      npS:find("np.laptopKey = nil", 1, true) ~= nil)
 
 print = realPrint
 io.open, os.rename = realIoOpen, realRename
@@ -823,6 +853,116 @@ do
           vsrc:find('"the Scorp Pad is not loaded"', 1, true) ~= nil)
     check("the report names the folder and the last run",
           src:find('"   export: ⌘⇧S → "', 1, true) ~= nil)
+end
+
+
+-- =======================================================================
+out("\n=== 6.182.0 — ⇪2, the sequential copy ===\n")
+-- =======================================================================
+-- LL: "Can I select some text, and then immediately select some more text
+-- and have it append the text I just copied a few seconds before … so I
+-- can build a block of text that I can then edit quickly instead of
+-- having to make multiple copy/pastes."
+do
+    sp.tabs, sp.history, sp.collectId, sp.collectCount = {}, {}, nil, 0
+    PASTED, ALERTS = {}, {}
+
+    local ok1, block1 = sp.collect("first piece")
+    check("the first grab makes ONE Collect tab and holds the text",
+          ok1 and #sp.tabs == 1 and sp.collectId == sp.tabs[1].id
+          and sp.tabs[1].text:find("first piece", 1, true) ~= nil, tostring(block1))
+    local madeOne = sp.tabs[1].id
+
+    local ok2, block2 = sp.collect("second piece")
+    check("the second grab APPENDS to the same tab — no second Collect tab "
+          .. "(this is the row that fails if the id is not remembered)",
+          ok2 and #sp.tabs == 1 and sp.tabs[1].id == madeOne
+          and block2:find("first piece", 1, true) and block2:find("second piece", 1, true),
+          tostring(block2))
+    check("…separated by the join, so the pieces do not run together",
+          block2:find("first piece" .. sp.collectJoin .. "second piece", 1, true) ~= nil, block2)
+    check("…and the count is what the alert will say", sp.collectCount == 2, sp.collectCount)
+
+    check("an empty selection is refused and changes nothing",
+          (function()
+              local okE, why = sp.collect("   \n  ")
+              return okE == false and why:find("nothing", 1, true) and sp.collectCount == 2
+          end)())
+
+    -- The tab id is what survives a reload; without it a restart would
+    -- silently start a SECOND Collect tab beside the first, and the block
+    -- would quietly split in half. (io.open is the real one by this point
+    -- in the suite, so this is asserted against the source: both halves,
+    -- the write and the read back — one without the other is useless.)
+    do
+        local src = slurp(HS .. "/modules/scratch_pad.lua")
+        check("the Collect tab's id is written to the store AND read back",
+              src:find("collectId = sp.collectId", 1, true) ~= nil
+              and src:find('sp.collectId = type(data.collectId) == "string"', 1, true) ~= nil)
+    end
+
+    -- ⌘W can send the Collect tab to the history; the next grab must
+    -- start a fresh one rather than resurrect a tab that is not there
+    sp.tabs = {}
+    local ok3 = sp.collect("after it was closed")
+    check("…and if that tab has gone, the next grab starts a new one",
+          ok3 and #sp.tabs == 1 and sp.collectId == sp.tabs[1].id
+          and sp.collectId ~= madeOne)
+end
+
+do
+    -- the key: selection in, tab + clipboard + alert out
+    sp.tabs, sp.collectId, sp.collectCount = {}, nil, 0
+    PASTED, ALERTS, PB_FAIL = {}, {}, false
+    local keepSvc = _G.service
+    _G.service = {
+        has  = function(n) return n == "power.readSelection" end,
+        call = function(_, _, done) done("a sentence from the page") return true end,
+    }
+    sp.collectFromSelection()
+    check("⇪2 reads the selection through power_tools' ONE reader and appends it",
+          #sp.tabs == 1 and sp.tabs[1].text:find("a sentence from the page", 1, true) ~= nil)
+    check("…and the WHOLE block goes on the clipboard, so ⌘V pastes the lot",
+          PASTED[#PASTED] == sp.tabs[1].text, tostring(PASTED[#PASTED]))
+    check("…and the alert names the running count and the ⌘V",
+          ALERTS[#ALERTS]:find("1 grab", 1, true) and ALERTS[#ALERTS]:find("⌘V", 1, true),
+          ALERTS[#ALERTS])
+
+    -- 🛟 the clipboard half may fail; the grab must NOT be lost with it
+    PB_FAIL = true
+    sp.collectFromSelection()
+    check("🛟 a pasteboard that refuses does not lose the grab",
+          sp.collectCount == 2 and select(2, sp.tabs[1].text:gsub("a sentence from the page", "")) == 2)
+    check("…and it SAYS so rather than claiming the copy worked",
+          ALERTS[#ALERTS]:find("clipboard refused", 1, true) ~= nil
+          and ALERTS[#ALERTS]:find("⌘V pastes", 1, true) == nil, ALERTS[#ALERTS])
+    PB_FAIL = false
+
+    -- 🛟 no power_tools at all
+    _G.service = { has = function() return false end }
+    ALERTS = {}
+    local okNo, whyNo = sp.collectFromSelection()
+    check("🛟 without Power Tools it says so and does nothing",
+          okNo == false and whyNo:find("power_tools", 1, true)
+          and ALERTS[#ALERTS]:find("needs Power Tools", 1, true) ~= nil, ALERTS[#ALERTS])
+    _G.service = keepSvc
+end
+
+do
+    local src = slurp(HS .. "/modules/scratch_pad.lua")
+    check("🚨 the sequential copy NEVER raises the window — the point is "
+          .. "that you stay in the page you are reading",
+          src:find("function sp.collectFromSelection", 1, true) ~= nil
+          and src:match("function sp%.collectFromSelection.-\n    end"):find("sp.open()", 1, true) == nil)
+    local vsrc = slurp(HS .. "/modules/vault.lua")
+    check("the vault section is SCRATCH NOTES, with the two + rows in it",
+          vsrc:find("📝 SCRATCH NOTES", 1, true) and vsrc:find('data-tab="+capture"', 1, true)
+          and vsrc:find('data-tab="+append"', 1, true))
+    check("…and those rows route through the same openKind the old keys used",
+          vsrc:find("a:'tabkind'", 1, true) and vsrc:find('elseif a == "tabkind" then', 1, true)
+          and vsrc:find("pcall(sp.openKind, kind)", 1, true))
+    check("…and a × on a + row can never be read as closing a tab",
+          vsrc:find("tid.charAt(0) !== '+'", 1, true) ~= nil)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))

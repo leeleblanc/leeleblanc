@@ -4,9 +4,41 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.181.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.182.0
 -- =====================================================================
 
+-- NEW IN 6.182.0 — 📝 ONE SECTION, ONE DOOR, AND ⇪2 COLLECTS AS YOU READ:
+--   📝 SCRATCH NOTES. LL: "can we remove Scratch and Capture, and have a
+--      combined section called Scratch notes?" They were already ONE
+--      section of tabs — what made them feel like separate things is that
+--      🗒 Capture and ➕ Append each had a hyper key of their own, so the
+--      way in taught you they were three tools. They are rows now:
+--      "+ 🗒 Capture" and "+ ➕ Append" sit under "+ new tab ⌘T" and call
+--      the SAME openKind those keys called. Both pads keep every bit of
+--      their brains — the queue, the 4 PM send, * idea / + log / ! task /
+--      ? note, fileAll, every service. Neither keeps a key.
+--   🔑 FOUR KEYS BECAME ONE. LL: "I think hyper+N is enough to open the
+--      Scorp Pad. Do you?" He is right, and it was worse than it looked:
+--      ⇪1, ⇪N, ⇪2 and ⇪3 all opened the same window. ⇪N is the door,
+--      ⇪3 still opens the vault side of it, ⇪2 became the collector
+--      below, and ⇪1 IS FREE — do not spend it without LL.
+--   📎 ⇪2 — SEQUENTIAL COPY. LL: "can I select some text, and then
+--      immediately select some more and have it append the text I just
+--      copied … so I can build a block instead of multiple copy/pastes."
+--      Each press appends the selection to one 📎 Collect tab AND puts
+--      THE WHOLE BLOCK SO FAR on the clipboard, so ⌘V pastes everything
+--      you have gathered and ⇪N opens it when you want to tidy it first.
+--      It never raises the window — the point is that you stay in the
+--      page you are reading — and an alert names the running count.
+--      The selection is read through power_tools' ONE reader
+--      (accessibility, then ⌘C), so no second selection reader exists.
+--   🛟 Degrades: no Power Tools → it says so and does nothing; a
+--      pasteboard that refuses is REPORTED and the grab is still safe in
+--      the tab; the Collect tab's id is remembered in the store, so a
+--      reload keeps appending instead of quietly starting a second block.
+--   ✅ Gate: test_scratch_pad 175 → 194, test_note_pad 60 → 62,
+--      test_features 456 → 458. 7,795 → 7,822 checks, seventy-four
+--      stages.
 -- NEW IN 6.181.1 — THE PAD WINDOW: 3% TRANSLUCENT, NOT 10%:
 --   🖤 LL asked for "90% black", got 0.9, and said: "make it only 10%
 --      translucent, so much less transparent — still too see through."
@@ -21,56 +53,12 @@
 --      The GUARD is the durable part, not the number: at exactly 1 the
 --      module never calls view:alpha() at all, and below 1 it must
 --      really set it. Both directions are asserted.
--- NEW IN 6.181.0 — 📐 WHAT LL ACTUALLY SEES: THE SHEET, THE PAD, THE GRID:
---   ✂️ THE CHEAT SHEET WAS PRINTING HALF-SENTENCES, and LL spotted it:
---      "some entries seem incomplete and have more of the sentence. Am I
---      right?" He was. Before 6.31.0 taught the panel to WRAP, a long
---      description had to be split by hand across a second row with an
---      EMPTY key — and once real wrapping arrived those halves stayed
---      put, so a sentence broke wherever its author had broken it and
---      the tail read as a fragment ("…screenshots it. For real").
---      Fifty-one of them, across twenty-two modules. They are joined back
---      together in ONE place now, as the sheet is built, so a module can
---      simply write the long sentence and no future one can reintroduce
---      the fault.
---   📏 …and it is 1,024 pt wide again, because LL asked for it. The
---      6.94.0 monitor fraction is still there as the fallback and still
---      tested; the number just wins while it is a number.
---   🔑 begone's row said ⇪⇧T. The snippet panel moved to ⇪⇧S in 6.161.0
---      and this row never followed, so LL read the sheet, pressed the
---      key, got nothing, and asked whether begone was working at all. A
---      stale key on the cheat sheet IS a broken feature; the gate now
---      checks that row against the key.
---   🖤 THE SCORP PAD: 90% opaque, 13 pt text, and a bigger window to
---      carry it (1240×820 → 1440×940). Smaller type in the same box
---      would have been half the ask — the point is more text at once.
---      6.175.2 had settled on solid after three passes; this is the
---      fourth and LL asked for it in those words. The 6.175.2 guard
---      holds either way: at exactly 1 the window's alpha is still never
---      set at all.
---   🏷 AND IT HAS TOOL TIPS. Every icon in that window has carried a
---      title="" since the day it was drawn — but a webview panel that
---      never activates does not reliably raise the native yellow box, so
---      the page paints its own from the titles that were already there.
---      Nothing had to be written twice.
---   🎯 THE MOUSE GRID: the cells were never the problem. Snap only
---      accepted a control whose CENTRE fell inside the typed cell, so
---      every button WIDER than a cell — which, at 4,096 cells, is most of
---      them — was found, identified, and then refused. The report said so
---      in as many words: "AXButton under the cell, but its centre is
---      outside it". A control that CONTAINS the point you typed is now a
---      second-tier answer, taken when nothing centres inside the cell and
---      only up to grid.snapMaxArea, so a scroll area carrying a control's
---      role cannot drag the pointer across the screen.
---   ✅ Gate: test_cheatsheet 183 → 193, test_mouse_grid 374 → 383,
---      test_vault 277 → 281, test_begone 42 → 44. 7,776 → 7,795 checks,
---      seventy-four stages.
--- (6.180.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.181.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.181.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.182.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -167,7 +155,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.181.1"
+_G.configVersion = "6.182.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------
@@ -3064,7 +3052,7 @@ local BASE = {
     "app_kill",           -- 💀 ⇪⇧; end a process, politely then not · macOS's own 🔒
     "power_tools",        -- 🧰 ⇪;  type the clipboard · count · grayscale · free keys
     "shortcut_hints",     -- 💡 after a ⇪ key, a card of the group's other keys (no key)
-    "scratch_pad",        -- 📝 ⇪1 tabs, saved as you type, history under the text, 4 PM task
+    "scratch_pad",        -- 📝 ⇪N tabs (⇪1 until 6.182.0), saved as you type, history under the text, 4 PM task
     "vault",              -- 🕸 ⇪3 linked Markdown notes in OneDrive, backlinks, graph (6.172.0)
     "anchors",            -- 🔗 6.180.0 ⇪⇧U links the front document or tab to a vault note
     -- 6.132.0 — no key of its own. It owns the six case transforms, and

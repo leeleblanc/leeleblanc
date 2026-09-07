@@ -137,7 +137,7 @@ local M = {
         title = "🕸 VAULT (⇪3 / ⇪1 — Markdown notes that link to each other, in OneDrive; the Scorp Pad's tabs too)",
         entries = {
             { "⇪3 · ⇪1",    "Open / close the window — ⇪3 on your last note, ⇪1 on your scratch tabs" },
-            { "📝 SCRATCH",  "Top of the list: the Scorp Pad's tabs · ⌘T new · ⌘W close · ⌘1–9 · ⌃Tab · history on the right" },
+            { "📝 SCRATCH NOTES", "Top of the list: every scratch tab, plain or 🗒 Capture or ➕ Append · ⌘T new · the + rows make the other two · ⌘W close · ⌘1–9 · ⌃Tab · history on the right" },
             { "[[",         "Type [[ and pick a note — [[Name]] links to Name.md, creating it on follow" },
             { "⌘⏎",         "Follow the link under the caret (a note, or a file link opens the file)" },
             { "⌘N · ⌘D",    "New note · today's daily note (Daily/YYYY-MM-DD.md, from Templates/Daily.md when it exists) · ⌘⇧[ ⌘⇧] the day before / after" },
@@ -1872,7 +1872,17 @@ function drawRows(){
       if (f && tb.t.toLowerCase().indexOf(f) < 0) continue;
       s.push('<li class="tab' + (tb.k ? ' ' + esc(tb.k) : '') + ('scratch:' + tb.id === CUR ? ' cur' : '') + '" data-tab="' + esc(tb.id) + '"><span class="tt">' + (tb.b ? esc(tb.b) + ' ' : '') + esc(tb.t) + '</span><span class="x" title="Close ⌘W">×</span></li>');
     }
-    s.unshift('<li class="sec">📝 SCRATCH</li>'); if (!f) s.push('<li class="add" data-tab="+">+ new tab ⌘T</li>'); s.push('<li class="sec">🕸 NOTES</li>');
+    // 6.182.0 — ONE section, and the two old doors are rows in it. LL:
+    // "can we remove Scratch and Capture, and have a combined section
+    // called Scratch notes?" They were already one section of tabs — what
+    // made them feel separate was that 🗒 Capture and ➕ Append each had
+    // their own hyper key. These rows call the same openKind those keys
+    // called, so both pads keep their brains and neither keeps a key.
+    s.unshift('<li class="sec">📝 SCRATCH NOTES</li>');
+    if (!f) { s.push('<li class="add" data-tab="+">+ new tab ⌘T</li>');
+              s.push('<li class="add" data-tab="+capture">+ 🗒 Capture — ⌘W queues it for the 4 PM Asana send</li>');
+              s.push('<li class="add" data-tab="+append">+ ➕ Append — * idea · + log · ! task · ? note</li>'); }
+    s.push('<li class="sec">🕸 NOTES</li>');
   } else if (HASPAD) s.push('<li class="sec">🕸 NOTES</li>');
   var exact = false;
   if (tag !== null) for (var e2 = 0; e2 < TAGS.length; e2++) if (TAGS[e2].k === tag) { exact = true; break; }
@@ -1941,7 +1951,7 @@ function drawTaskRows(){
 rowsEl.addEventListener('click', function(e){
   var li = e.target.closest ? e.target.closest('li[data-name],li[data-tab],li[data-tag]') : null; if (!li) return;
   var tid = li.getAttribute('data-tab');
-  if (tid && tid !== '+' && e.target.closest && e.target.closest('.x')) say({a:'tabclose', tid: tid});
+  if (tid && tid.charAt(0) !== '+' && e.target.closest && e.target.closest('.x')) say({a:'tabclose', tid: tid});
   else rowAct(li); });
 document.getElementById('links').addEventListener('click', function(e){
   var li = e.target.closest ? e.target.closest('li[data-name],li[data-hist]') : null; if (!li) return;
@@ -2013,7 +2023,9 @@ function rowKey(e){
 }
 function rowAct(r){
   var tid = r.getAttribute('data-tab'), tag = r.getAttribute('data-tag');
-  if (tid === '+') say({a:'tabnew'}); else if (tid) say({a:'tab', tid: tid});
+  if (tid === '+') say({a:'tabnew'});
+  else if (tid === '+capture' || tid === '+append') say({a:'tabkind', kind: tid.slice(1)});
+  else if (tid) say({a:'tab', tid: tid});
   else if (tag) setFilter('#' + tag);
   else { var l = +(r.getAttribute('data-line') || 0), name = r.getAttribute('data-name'); say(l ? {a:'open', name: name, line: l} : {a:'open', name: name}); } }
 function isTab(){ return CUR.indexOf('scratch:') === 0; }
@@ -2613,6 +2625,18 @@ else {
             local sp = v.sp()
             local t = sp and sp.newTab("")
             if t and v.openScratch(t.id) then v.render() end
+        -- 6.182.0 — the "+ 🗒 Capture" / "+ ➕ Append" rows. openKind is
+        -- the SAME call ⇪N and ⇪2 made until 6.182.0, so the two pads'
+        -- filing brains are reached exactly as they always were. It shows
+        -- the tab itself, hence no openScratch here.
+        elseif a == "tabkind" then
+            local sp = v.sp()
+            local kind = tostring(body.kind or "")
+            if not (sp and sp.openKind and sp.kinds and sp.kinds[kind]) then
+                pcall(function() hs.alert.show("📝 that tab kind is not loaded", 2) end)
+            else
+                pcall(sp.openKind, kind)
+            end
         elseif a == "tabclose" then
             local sp = v.sp()
             local tid = tostring(body.tid or "")

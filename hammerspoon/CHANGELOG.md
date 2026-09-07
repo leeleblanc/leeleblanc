@@ -5,6 +5,65 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.182.0 — 📝 ONE SECTION, ONE DOOR, AND ⇪2 COLLECTS AS YOU READ:
+  📝 SCRATCH NOTES. LL: "can we remove Scratch and Capture, and have a
+     combined section called Scratch notes? Could this section actually
+     exist within Hammer-sidian so that it's part of my notetaking tool?"
+     The second half was already true — since 6.173.0 the pad's tabs have
+     lived in the vault window, in one 📝 SCRATCH section above the notes.
+     So what actually made them feel like three separate tools was not the
+     list, it was the WAY IN: 🗒 Capture had ⇪N, ➕ Append had ⇪2, and the
+     pad itself had ⇪1, so the keyboard taught you they were three things
+     that happened to share a window.
+     They are ROWS now. "+ 🗒 Capture" and "+ ➕ Append" sit under
+     "+ new tab ⌘T" in the section, and each calls the SAME openKind its
+     key called — so both pads keep every bit of their brains (the Asana
+     queue, the retries, the 16:00 flush, * idea / + log / ! task / ?
+     note, fileAll, every published service, both standalone windows
+     under viaScratch = false) and neither keeps a key. The section is
+     titled 📝 SCRATCH NOTES, which is what LL asked it to be called.
+  🔑 FOUR KEYS BECAME ONE. LL: "I think hyper+N is enough to open the
+     Scorp Pad. Do you?" Yes, and it was worse than it looked from
+     outside: ⇪1, ⇪N, ⇪2 and ⇪3 all opened the SAME WINDOW. ⇪N is the
+     door now, ⇪3 still opens the vault side of it, ⇪2 became the
+     collector below, and ⇪1 IS FREE — it is not to be spent without LL,
+     and its row came out of the shortcut-hint groups with it, because a
+     group row for a key nothing binds is dead config that outlives the
+     thing it described.
+     The gate holds the whole shape: no ⇪ key documented in two groups, no
+     single-letter key claimed by two modules, note_pad's laptopKey
+     CLEARED rather than merely unbound, and capture_pad's route asserted
+     to still exist while its key is asserted gone.
+  📎 ⇪2 — SEQUENTIAL COPY. LL: "Can I select some text, and then
+     immediately select some more text and have it append the text I just
+     copied a few seconds before … This would allow me to build a block of
+     text that I can then edit quickly instead of having to make multiple
+     copy/pastes to gather all the info."
+     Each press appends the selection to ONE tab — the 📎 Collect tab —
+     and puts THE WHOLE BLOCK SO FAR on the clipboard. That pair is what
+     makes it worth having: ⌘V pastes everything you have gathered without
+     opening anything, and ⇪N is there when you want to tidy the block
+     before you use it. An alert names the running count and word total.
+     🪟 IT NEVER RAISES THE WINDOW. The whole point is that you stay in
+     the page you are reading; a window appearing on every grab would
+     undo the thing being asked for.
+     The selection is read through power_tools' `power.readSelection` —
+     accessibility first, ⌘C as the fallback, and the one place in this
+     config that says honestly when an app answers neither. No second
+     selection reader exists, and that is deliberate.
+  🛟 DEGRADES, AS EVERYTHING MUST: no Power Tools → ⇪2 says so and does
+     nothing; a pasteboard that refuses the write is REPORTED and the grab
+     is still safe in the tab (the alert changes to say where it is, and
+     does not claim a copy that did not happen); the Collect tab's id is
+     remembered in the store, so a reload keeps appending to the same
+     block instead of quietly starting a second one beside it; and if ⌘W
+     has sent that tab to the history, the next grab starts a fresh one
+     rather than resurrecting something that is not there.
+  ✅ Gate: test_scratch_pad 175 → 194, test_note_pad 60 → 62, test_features
+     456 → 458. 7,795 → 7,822 checks, seventy-four stages. The Collect
+     tab's identity and the clipboard half were each run against the
+     mutation that removes them and fail there.
+
 NEW IN 6.181.1 — THE PAD WINDOW: 3% TRANSLUCENT, NOT 10%:
   🖤 LL asked for the Scorp Pad "90% black". That shipped as alpha 0.9 in
      6.181.0, and the reply was: "make it only 10% translucent, so much
