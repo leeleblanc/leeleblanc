@@ -374,6 +374,30 @@ mirrors draw order: "closes last" IS "drawn under".
   it — but if a post-boot stall is ever traced there, move the read and
   the append into an hs.task (/bin/cat, /usr/bin/tail). Never move it
   back onto the boot line.
+- 6.181.0 verify with LL: ⇪/ — the sheet is 1,024 wide and no entry
+  ends mid-sentence any more (the old "…screenshots it. For real" row
+  under MENU BAR ITEMS is the one to look at). begone's row says ⇪⇧S,
+  which is where the snippet panel has been since 6.161.0 — if the
+  banners still do not clear from there, `_G.begone()` in the Console
+  says what it found and pressed and `_G.begoneProbe()` maps the window
+  for the next address. ⇪3 / ⇪1 — 13 pt text in a 1440×940 window, 90%
+  opaque, and HOVERING any icon in the header or the format bar shows
+  what it does (that is the new tooltip layer; the titles were always
+  there, macOS just never drew them in a non-activating panel). ⇪X —
+  land on a wide button (a toolbar button, a tab, a Save button) and the
+  pointer should now be ON it rather than beside it; `_G.mouseGridReport()`
+  "snap :" line says the second chance is on and the trail says "wider
+  than the cell" when it fires.
+  RULE from 6.181.0: a cheat sheet entry is written as ONE long string —
+  core/cheatsheet.lua joins a blank-key continuation row onto the entry
+  above it before wrapping, so hand-splitting is never needed again. And
+  a stale key on the cheat sheet IS a broken feature: when a shortcut
+  moves, grep the sheets.
+  STILL OPEN from that message, NOT built: merging 🗒 Capture and 📝
+  Scratch into one "Scratch notes" section inside the vault with the
+  other tools' histories reachable from a row; @images / @shots in ⇪space;
+  the screenshot editor's text-box handles being hard to grab; and the
+  ⇪⇧O image history beach ball (a stall — diagnose before touching).
 - 6.180.0 verify with LL: open a Word document, press ⇪⇧U — the picker
   names the document and offers a new note; ⏎ writes `## Linked` +
   a Markdown link into it and opens the Vault there. Press ⇪⇧U on the
@@ -419,11 +443,12 @@ mirrors draw order: "closes last" IS "drawn under".
   "asdfghjkl" } }` = the old 729-cell grid); RULE: the grid alphabet and
   labelLength are ONE decision — capacity is alphabet^labelLength, and
   two displays split it by area.
-- 6.175.2 verify with LL: the ⇪3 / ⇪1 window is SOLID. Three passes got
-  here (1 → 0.9 → 0.97 → 1); translucency is settled, do not reintroduce
-  it. At alpha 1 the module must never call view:alpha() at all (the
-  test asserts it). `settings = { vault = { alpha = 0.95 } }` brings the
-  see-through back for anyone who wants it.
+- 6.175.2 → SUPERSEDED BY 6.181.0. Four passes now (1 → 0.9 → 0.97 → 1
+  → 0.9); LL asked for "90% black" in those words, so 0.9 is the
+  default. The GUARD is what was durable, not the number: at alpha
+  exactly 1 the module must never call view:alpha() at all, and below 1
+  it must really set it — both directions are asserted. `settings =
+  { vault = { alpha = 1 } }` is solid again for anyone who wants it.
 - 6.175.0 verify with LL: ⇪3 — the bar over the text (H1 B I • ☑ …),
   hovering a button explains what it types; ⌘B on a selected word bolds
   and ⌘B again unbolds; "/" on an empty line lists the blocks with the

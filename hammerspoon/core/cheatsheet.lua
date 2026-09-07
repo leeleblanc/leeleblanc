@@ -84,7 +84,13 @@ return function(core)
     -- ✏️ Prefer the old behaviour? Put a NUMBER (points) in either of
     -- these and it pins that dimension exactly as 6.57.0 did — the
     -- fractions only apply while these are nil.
-    cheatSheet.width     = nil
+    -- 📐 6.181.0 — LL: "make the cheat sheet window only 1024px wide."
+    -- So the WIDTH is pinned again and the height stays a fraction of
+    -- whichever screen it opens on. 1024 is still clamped to 90% of the
+    -- display below, so a small laptop narrows it rather than hanging it
+    -- off the edge. `settings = { cheatsheet = { width = false } }` — any
+    -- non-number — puts the 55% fraction back.
+    cheatSheet.width     = 1024
     cheatSheet.height    = nil
     cheatSheet.key       = "/"   -- toggle key; same mods as everything above
     -- 🖐 6.106.0 — WHERE YOU LEFT IT, ACROSS RELOADS. Dragging the sheet
@@ -1213,7 +1219,7 @@ return function(core)
         -- cheatSheet.width pins the old fixed size instead. Still clamped
         -- to 90% of the screen and floored at 360, so neither a wild
         -- fraction nor a wild number can hang it off the display.
-        local wantW    = cheatSheet.width
+        local wantW    = (type(cheatSheet.width) == "number" and cheatSheet.width)
                          or math.floor(sf.w * (cheatSheet.widthFrac or 0.55))
         local panelW   = math.max(360, math.min(wantW, sf.w * 0.90))
         local contentX = pad
@@ -1322,8 +1328,35 @@ return function(core)
                 if ft then table.insert(lines, { kind = "family", text = ft }) end
             end
             table.insert(lines, { kind = "header", text = g.title, sec = gi })
+            -- ✂️ 6.181.0 — HAND-WRAPPED ROWS ARE JOINED BACK TOGETHER.
+            -- LL: "some cheat sheet entries seem incomplete and have more
+            -- of the sentence." They were. Before 6.31.0 taught this
+            -- panel to wrap, a long description had to be split by hand
+            -- across rows with an EMPTY key — and once real wrapping
+            -- arrived those halves stayed, so a sentence broke wherever
+            -- its author had happened to break it and the tail read as a
+            -- fragment ("Bartender covers the bar and screenshots it. For
+            -- real"). Fifty-one of them across twenty-two modules. Fixing
+            -- them one by one would have been fifty-one chances to typo
+            -- and no rule; joining them HERE is one behaviour in one
+            -- place, and a module can still write the long sentence as
+            -- one entry from now on. An empty-key row with nothing above
+            -- it is left exactly as it is — that is a deliberate blank
+            -- key, not a continuation.
+            local entries = {}
             for _, e in ipairs(g.entries) do
-                for _, seg in ipairs(wrapEntry(tostring(e[1]), tostring(e[2]))) do
+                local keys, desc = tostring(e[1] or ""), tostring(e[2] or "")
+                local prev = entries[#entries]
+                if keys:match("^%s*$") ~= nil and desc:match("^%s*$") ~= nil then
+                    -- both blank: nothing to say and no key to say it under
+                elseif keys:match("^%s*$") ~= nil and prev then
+                    prev[2] = prev[2] .. " " .. desc
+                else
+                    entries[#entries + 1] = { keys, desc }
+                end
+            end
+            for _, e in ipairs(entries) do
+                for _, seg in ipairs(wrapEntry(e[1], e[2])) do
                     table.insert(lines, { kind = "entry", text = seg, sec = gi })
                 end
             end

@@ -4,9 +4,53 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.180.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.181.0
 -- =====================================================================
 
+-- NEW IN 6.181.0 — 📐 WHAT LL ACTUALLY SEES: THE SHEET, THE PAD, THE GRID:
+--   ✂️ THE CHEAT SHEET WAS PRINTING HALF-SENTENCES, and LL spotted it:
+--      "some entries seem incomplete and have more of the sentence. Am I
+--      right?" He was. Before 6.31.0 taught the panel to WRAP, a long
+--      description had to be split by hand across a second row with an
+--      EMPTY key — and once real wrapping arrived those halves stayed
+--      put, so a sentence broke wherever its author had broken it and
+--      the tail read as a fragment ("…screenshots it. For real").
+--      Fifty-one of them, across twenty-two modules. They are joined back
+--      together in ONE place now, as the sheet is built, so a module can
+--      simply write the long sentence and no future one can reintroduce
+--      the fault.
+--   📏 …and it is 1,024 pt wide again, because LL asked for it. The
+--      6.94.0 monitor fraction is still there as the fallback and still
+--      tested; the number just wins while it is a number.
+--   🔑 begone's row said ⇪⇧T. The snippet panel moved to ⇪⇧S in 6.161.0
+--      and this row never followed, so LL read the sheet, pressed the
+--      key, got nothing, and asked whether begone was working at all. A
+--      stale key on the cheat sheet IS a broken feature; the gate now
+--      checks that row against the key.
+--   🖤 THE SCORP PAD: 90% opaque, 13 pt text, and a bigger window to
+--      carry it (1240×820 → 1440×940). Smaller type in the same box
+--      would have been half the ask — the point is more text at once.
+--      6.175.2 had settled on solid after three passes; this is the
+--      fourth and LL asked for it in those words. The 6.175.2 guard
+--      holds either way: at exactly 1 the window's alpha is still never
+--      set at all.
+--   🏷 AND IT HAS TOOL TIPS. Every icon in that window has carried a
+--      title="" since the day it was drawn — but a webview panel that
+--      never activates does not reliably raise the native yellow box, so
+--      the page paints its own from the titles that were already there.
+--      Nothing had to be written twice.
+--   🎯 THE MOUSE GRID: the cells were never the problem. Snap only
+--      accepted a control whose CENTRE fell inside the typed cell, so
+--      every button WIDER than a cell — which, at 4,096 cells, is most of
+--      them — was found, identified, and then refused. The report said so
+--      in as many words: "AXButton under the cell, but its centre is
+--      outside it". A control that CONTAINS the point you typed is now a
+--      second-tier answer, taken when nothing centres inside the cell and
+--      only up to grid.snapMaxArea, so a scroll area carrying a control's
+--      role cannot drag the pointer across the screen.
+--   ✅ Gate: test_cheatsheet 183 → 193, test_mouse_grid 374 → 383,
+--      test_vault 277 → 281, test_begone 42 → 44. 7,776 → 7,795 checks,
+--      seventy-four stages.
 -- NEW IN 6.180.0 — 🔗 ANCHORS (⇪⇧U) · AND init.lua GETS ITS BUDGET BACK:
 --   🔗 LL: "I like Hookmark. Is there some kind of tool we can build out
 --      into hammer-sidian?" ⇪⇧U works out what is in FRONT of you — a
@@ -42,33 +86,12 @@
 --   ✅ Gate: a new suite, test_anchors (53), + vault 270 → 277,
 --      test_integration 198 → 200. 68 modules, 12 core files.
 --      7,712 → 7,776 checks, SEVENTY-FOUR stages.
--- NEW IN 6.179.1 — THE REPORTS SURVIVE THE CONSOLE GATE, AND THREE TESTS THAT LIED:
---   🚨 _G.keyTrailReport() AND _G.bootCostReport() WERE BEING EATEN. Both
---      printed a line per row, and core/console.lua's gate silences a
---      short single line after two showings and opens ⛔ / ⚠️ banners
---      around any line carrying those marks. So the third slow press of
---      the same key — the row LL would be hunting — was dropped as a
---      repeat, and banners were spliced through the middle of the report.
---      Both build ONE string and print it once now, which passes the gate
---      untouched (that is why _G.noticesReport() has always been built
---      that way). RULE: a report prints as one string, never row by row.
---   🧪 AND THREE CHECKS THAT COULD NOT FAIL: the duration was asserted as
---      "a number ≥ 0" (`local ms = 0` passed it); the re-raise that stops
---      the timing pcall becoming an error sink had no assertion at all,
---      so swallowing every hyper-shortcut error stayed green; and the
---      xpcall branch never ran, because the sandbox had no `debug`. All
---      three now fail against the mutation they exist to catch.
---   ⌨️ The panic chord's row no longer prints with a ⇪ in front of it: it
---      is a hs.hotkey chord, which is exactly what a ⇪ shortcut is not.
---   ✅ Gate: test_console 56 → 64, test_hyper_key 123 → 125,
---      test_diagnostics 535 → 537. 7,700 → 7,712 checks, seventy-three
---      stages.
--- (6.179.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.179.1 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.180.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.181.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -165,7 +188,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.180.0"
+_G.configVersion = "6.181.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

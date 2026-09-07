@@ -12,7 +12,7 @@
 -- WHY A TYPED WORD AND NOT A HOTKEY. Banners arrive precisely when you
 -- are typing — that is what makes them maddening — so the dismissal
 -- lives where your hands already are. No reaching for ⇪, no mouse trip
--- to hover each ✕. (It is in the ⇪⇧T chooser too, and _G.begone() runs
+-- to hover each ✕. (It is in the ⇪⇧S chooser too, and _G.begone() runs
 -- it from the Console.)
 --
 -- HOW THE CLOSING WORKS. Every banner on screen lives inside one
@@ -61,7 +61,11 @@ local M = {
             { "begone",  "Type it anywhere — every notification banner closes" },
             { "typed",   "The word deletes itself; nothing lands in your document" },
             { "history", "Open Notification Center (click the clock) first and it empties that too" },
-            { "via ⇪⇧T", "It is in the snippet chooser too — pick it to run it" },
+            -- 6.181.0 — this row said ⇪⇧T until now. The panel moved to
+            -- ⇪⇧S in 6.161.0 and this line was never followed; LL read it,
+            -- pressed ⇪⇧T, got nothing and asked whether begone was even
+            -- working. A stale key on the cheat sheet is a broken feature.
+            { "via ⇪⇧S", "It is in the snippet chooser too — pick it to run it" },
             { "console", "_G.begone() runs it · _G.begoneProbe() maps the banner window" },
             { "needs",   "Accessibility — the same permission the window tools use" },
         },

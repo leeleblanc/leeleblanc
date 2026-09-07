@@ -163,8 +163,13 @@ function M.setup(core)
     local v = {
         enabled       = true,
         key           = "3",
-        width         = 1240,
-        height        = 820,
+        -- 6.181.0 — BIGGER, because the text got smaller. LL asked for
+        -- 13pt text "and increase the size of the pad to account for all
+        -- text". Smaller glyphs in the same box would have been half the
+        -- ask: the point is MORE text on screen at once, so the window
+        -- grows with the type going down.
+        width         = 1440,
+        height        = 940,
         -- 6.175.2 — SOLID, and back where it started. The window went
         -- 1 → 0.9 in 6.173.2 ("slightly less opaque"), 0.9 → 0.97 in
         -- 6.175.1 ("make the pad more opaque"), and then LL said "make
@@ -172,8 +177,13 @@ function M.setup(core)
         -- answer is that translucency was never worth anything here:
         -- this is a window you WRITE in. Any 0–1 number still works as
         -- a settings override for anyone who wants the old feel.
-        alpha         = 1,
-        fontSize      = 16,
+        -- 6.181.0 — 0.9 AGAIN, and this time it is LL asking for it in
+        -- those words ("make the Scorp pad 90% black"). 6.175.2's note
+        -- said translucency was settled; it is settled the other way now.
+        -- The guard below still holds: at exactly 1 the module never
+        -- calls view:alpha() at all, so the solid override is unharmed.
+        alpha         = 0.9,
+        fontSize      = 13,
         dir           = nil,          -- set below; a settings override replaces it
         dailyDir      = "Daily",      -- subfolder for ⌘D notes
         saveDelay     = 0.3,
@@ -1704,6 +1714,16 @@ body.graph #graph{display:block}
 #outline li.l6{padding-left:72px}
 #unl li{opacity:.85}
 #ac div.sec{opacity:.55;font-size:FS2px;cursor:default}
+/* 6.181.0 — OUR OWN TOOLTIPS. Every button in this window already
+   carried a title="", and LL still asked for tool tips — because a
+   WKWebView panel that never activates does not reliably raise the
+   native yellow box. So the page reads each title into data-tip on
+   first hover, removes the attribute (no double tooltip if macOS does
+   draw one) and paints its own. It degrades: if the script never runs
+   the titles are simply left where they were. */
+#tip{position:fixed;display:none;z-index:99;background:#2a2a33;color:#f0f0f4;border:1px solid #3f3f4c;
+  border-radius:6px;padding:4px 9px;font-size:FS2px;max-width:340px;pointer-events:none;
+  box-shadow:0 6px 18px rgba(0,0,0,.55)}
 ]==] .. theme .. [==[
 </style></head><body class="]==] .. (v.view == "graph" and "graph" or "") .. [==["><div id="wrap">
 <header id="hdr"><span class="name">]==] .. (isTab and "📝 Scorp Pad" or "🕸 Vault") .. [==[</span><span class="doc" title="]==] .. escapeHtml(d and d.rel or "") .. [==[">]==] .. escapeHtml(d and d.name or "no note open") .. [==[</span>
@@ -1719,6 +1739,7 @@ body.graph #graph{display:block}
 <button onclick="say({a:'rescan'})" title="Rescan the folder">↻</button>
 <button id="pin" class="]==] .. (v.pinned and "on" or "") .. [==[" onclick="say({a:'pin'})" title="Pin: the window stays up beside the app; Esc only hands the keyboard back">📌</button>
 <button onclick="say({a:'hide'})" title="Close ⇪3 / ⇪1 / Esc">✕</button></header>
+<div id="tip"></div>
 <div id="main">
 <div id="side"><div id="mode" hidden></div><input id="q" placeholder="filter notes… ⌘F" value="]==] .. escapeHtml(v.mode == "notes" and v.filter or "") .. [==["><ul id="rows"></ul></div>
 <div id="ed">]==] .. (v.formatBar == false and "" or [==[<div id="fmt">
@@ -1744,6 +1765,43 @@ body.graph #graph{display:block}
 <div id="graph"><canvas id="cv"></canvas><div id="gtip">click a dot to open · drag to untangle · hollow = not written yet · ⌘G back</div></div>
 </div></div>
 <script>
+// 6.181.0 — the tooltip layer. Delegated, so buttons drawn later (the
+// day-shift pair, the format bar, a row with a title) get it too.
+(function(){
+  var tip = null;
+  function box(){ if (!tip) tip = document.getElementById('tip'); return tip; }
+  function textFor(el){
+    while (el && el !== document.body) {
+      if (el.getAttribute) {
+        var t = el.getAttribute('data-tip');
+        if (t === null) {
+          var native = el.getAttribute('title');
+          if (native) { el.setAttribute('data-tip', native); el.removeAttribute('title'); t = native; }
+        }
+        if (t) return t;
+      }
+      el = el.parentNode;
+    }
+    return null;
+  }
+  document.addEventListener('mouseover', function(e){
+    var b = box(); if (!b) return;
+    var t = textFor(e.target);
+    if (!t) { b.style.display = 'none'; return; }
+    b.textContent = t;
+    b.style.display = 'block';
+    // Measured only once it is VISIBLE, so the size is the real one,
+    // then folded back inside the window rather than off its edge.
+    var r = b.getBoundingClientRect();
+    var x = e.clientX + 12, y = e.clientY + 18;
+    if (x + r.width  > window.innerWidth  - 6) x = window.innerWidth  - r.width  - 6;
+    if (y + r.height > window.innerHeight - 6) y = e.clientY - r.height - 10;
+    b.style.left = Math.max(4, x) + 'px';
+    b.style.top  = Math.max(4, y) + 'px';
+  }, true);
+  document.addEventListener('mouseout', function(){ var b = box(); if (b) b.style.display = 'none'; }, true);
+  window.addEventListener('blur', function(){ var b = box(); if (b) b.style.display = 'none'; });
+})();
 var NOTES = ]==] .. v.notesJson() .. [==[;
 var GRAPH = ]==] .. v.graphJson() .. [==[;
 var CUR = ]==] .. jstr(d and d.rel or "") .. [==[;

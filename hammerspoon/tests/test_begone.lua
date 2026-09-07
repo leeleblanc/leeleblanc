@@ -231,5 +231,18 @@ check("disabled by hand: nothing registers",
           return #ACTIONS == 1
       end)())
 
+-- 🔑 6.181.0 — the cheat sheet said ⇪⇧T, and had since 6.161.0 moved the
+-- snippet panel to ⇪⇧S. LL read the row, pressed the key, got nothing
+-- and asked whether begone was working at all. A stale key on the sheet
+-- is a broken feature, so the sheet is checked against the key.
+do
+    local cs = (mod.cheatsheet and mod.cheatsheet.entries) or {}
+    local joined = ""
+    for _, e in ipairs(cs) do joined = joined .. tostring(e[1]) .. " " .. tostring(e[2]) .. "\n" end
+    check("the cheat sheet points at ⇪⇧S, the key the snippet panel is on",
+          joined:find("⇪⇧S", 1, true) ~= nil, joined)
+    check("...and no longer at ⇪⇧T, which is unspent", joined:find("⇪⇧T", 1, true) == nil, joined)
+end
+
 out(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

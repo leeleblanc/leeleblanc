@@ -1,9 +1,103 @@
 # Hammerspoon config — changelog
 
-Full version history for `init.lua`. The five most recent entries are
-also kept inline at the top of the file; everything older lives only here.
+Full version history for `init.lua`. The two most recent entries are
+also kept inline at the top of the file (five until 6.180.0); everything
+older lives only here.
 
 ```text
+NEW IN 6.181.0 — 📐 WHAT LL ACTUALLY SEES: THE SHEET, THE PAD, THE GRID:
+  Four things LL looked at and told me were wrong, and none of them
+  needed a new tool — they needed the tools that exist to behave the way
+  the screen implies they do.
+
+  ✂️ THE CHEAT SHEET WAS PRINTING HALF-SENTENCES. LL: "some cheat sheet
+     entries seem incomplete and have more of the sentence. Am I right?"
+     He was, and the cause is old. Before 6.31.0 taught this panel to
+     WRAP, an entry longer than the column was silently CUT OFF, so the
+     way to write a long description was to split it by hand across a
+     second row with an EMPTY key. 6.31.0 fixed the clipping; nobody went
+     back for the splits. So a sentence broke wherever its author had
+     happened to break it, and the tail read as a fragment — the row LL
+     screenshotted was "Bartender covers the bar and screenshots it. For
+     real", which is not a sentence, it is the front half of one and the
+     back half of the one before.
+     Fifty-one such rows, across twenty-two modules. Editing them one by
+     one would have been fifty-one chances to typo and no rule at the end
+     of it, so the JOIN happens where the sheet is built: an entry with a
+     blank key is appended to the one above it before anything wraps. A
+     module can now simply write the long sentence, the old ones read
+     correctly without being touched, and a new one cannot reintroduce
+     the fault. A blank key with nothing above it is still a blank key —
+     that is deliberate, not a continuation — and a row blank on both
+     sides is dropped rather than drawn as a bare dash.
+  📏 …AND THE SHEET IS 1,024 pt WIDE AGAIN. LL: "please make the cheat
+     sheet window only 1024px wide." 6.94.0 made the width a FRACTION of
+     whichever monitor it opens on, which is right in general and not
+     what LL wants on this monitor. The number wins while it is a number;
+     clear it (settings = { cheatsheet = { width = false } }) and the
+     55% fraction comes straight back. Both halves are in the gate: the
+     pin has to hold on a 4K, where the fraction would have been 2,112 —
+     a check that only said "under 90% of the screen" would have passed
+     either way and proved nothing.
+  🔑 A STALE KEY ON THE CHEAT SHEET IS A BROKEN FEATURE. begone's row
+     said "via ⇪⇧T". The snippet panel moved to ⇪⇧S in 6.161.0 and this
+     row never followed. LL read the sheet, pressed ⇪⇧T, got nothing, and
+     asked whether the notification banners should be gone at all — "I
+     thought I was doing it right per the cheat sheet." He was doing it
+     right; the sheet was wrong. Fixed, and the gate now reads that row
+     and checks it against the key.
+  🖤 THE SCORP PAD: 90% OPAQUE, 13 pt TEXT, BIGGER WINDOW. LL asked for
+     "90% black" and 13 pt type "and increase the size of the pad to
+     account for all text". Smaller glyphs in the same box would have
+     been half the ask — the point of smaller type is MORE of it on
+     screen — so the window grew with it, 1240×820 → 1440×940.
+     On the alpha: 6.175.2 settled on solid after three passes (1 → 0.9 →
+     0.97 → 1) and its note said not to reintroduce translucency. This is
+     the fourth pass and LL asked for it in those words, so 0.9 it is.
+     The 6.175.2 TEETH stay and are now tested from both sides: at
+     exactly 1 the module must still never call view:alpha() at all, and
+     below 1 it must really set it — a default of 0.9 that quietly did
+     nothing would look identical to the old solid window.
+  🏷 AND THE PAD HAS TOOL TIPS. LL: "can you give me tool tips for each
+     icon on the Scorp pad?" Every icon in that window has carried a
+     title="" since the day it was drawn — the text was already written,
+     one line per button, saying what the button types. What was missing
+     is that a WKWebView panel which never activates does not reliably
+     raise the native tooltip, so none of it was ever seen. The page now
+     paints its own box from the titles that were already there: it reads
+     each title on first hover, moves it to data-tip, removes the
+     attribute so macOS cannot double up, and places the box inside the
+     window rather than off its edge. Delegated, so buttons drawn later —
+     the day-shift pair, the whole format bar, a row with a path in its
+     title — get it for free. Nothing had to be written twice.
+  🎯 THE MOUSE GRID: THE CELLS WERE NEVER THE PROBLEM. LL: "can we make
+     the grid a bit smaller again? I am still a bit too far off from
+     buttons and have to use the arrow keys more than I should have to."
+     6.176.0 had already taken it to 4,096 cells (~30 pt on the 4K), and
+     making them smaller again would have made the labels unreadable
+     before it made the aim better. The real fault was in the SNAP: it
+     accepted a control only if the control's CENTRE fell inside the
+     typed cell. At 30 pt cells, most real buttons are wider than a cell,
+     so most real buttons were found by the hit-test, identified by role,
+     and then REFUSED — the report has been saying so in as many words
+     all along: "AXButton under the cell, but its centre is outside it".
+     The pointer was left in the middle of the cell and the arrows had to
+     finish the job, which is exactly what LL described.
+     A control that CONTAINS the point you typed is now a second-tier
+     answer: taken only when nothing centres inside the cell, and only up
+     to grid.snapMaxArea (60,000 pt², about 300×200) — a scroll area or a
+     toolbar carrying a control's role contains the point too, and
+     snapping to the middle of one would move the pointer FURTHER from
+     the target than not snapping at all. Smallest containing control
+     wins, because a button inside a toolbar inside a group all contain
+     the same point and the innermost is the thing you were aiming at.
+     grid.snapContains = false restores the old behaviour exactly, and
+     the gate proves both directions plus the size guard.
+  ✅ Gate: test_cheatsheet 183 → 193, test_mouse_grid 374 → 383,
+     test_vault 277 → 281, test_begone 42 → 44. 7,776 → 7,795 checks,
+     seventy-four stages. Every new check was run against the mutation it
+     exists to catch and fails there.
+
 NEW IN 6.180.0 — 🔗 ANCHORS (⇪⇧U) · AND init.lua GETS ITS BUDGET BACK:
   🔗 LL: "I like Hookmark. Is there some kind of tool we can build out
      into hammer-sidian? Or can I build this as a tool that is very

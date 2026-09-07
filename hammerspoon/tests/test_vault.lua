@@ -339,14 +339,24 @@ local view = WEBVIEWS[#WEBVIEWS]
 check("⇪3 opens one webview, shown, non-activating applied",
       view and view.shown == 1 and v.nonActivatingApplied == true and view.title == "Vault")
 check("the hyper watchdog is told to expect a release", EXPECTED[#EXPECTED] and EXPECTED[#EXPECTED].who == "the vault")
--- 6.175.2 — SOLID. LL asked for less opaque (1 → 0.9), saw it, asked
--- for more (0.9 → 0.97), saw that, and asked for fully solid. So the
--- window is solid again — and the check has teeth the "< 1" version
--- did not: at alpha 1 the module must NOT call view:alpha() at all,
--- because asking macOS for an alpha of exactly 1 is how a window ends
--- up rendered on the translucency path it does not need.
-check("6.175.2: the window is solid by default", v.alpha == 1)
-check("…and at 1 the alpha is never SET on the window at all", view.alphaSet == nil, tostring(view.alphaSet))
+-- 6.181.0 — 0.9, because LL asked for it in those words ("make the
+-- Scorp pad 90% black"). 6.175.2 had settled on solid after three
+-- passes; this is the fourth and it is settled the other way. The
+-- 6.175.2 TEETH stay, tested from the other side: at exactly 1 the
+-- module must still not call view:alpha() at all — asking macOS for an
+-- alpha of 1 is how a window ends up on a translucency path it does not
+-- need — and below 1 it must actually set it, or the number is a lie.
+check("6.181.0: the window is 90% opaque by default", v.alpha == 0.9, tostring(v.alpha))
+check("…and below 1 the alpha is really SET on the window",
+      math.abs((view.alphaSet or 0) - 0.9) < 0.001, tostring(view.alphaSet))
+do
+    v.hide("t"); v.alpha = 1; v.show()
+    local solid = WEBVIEWS[#WEBVIEWS]
+    check("…and at exactly 1 it is never set at all (the 6.175.2 guard holds)",
+          solid.alphaSet == nil, tostring(solid.alphaSet))
+    v.hide("t"); v.alpha = 0.9; v.show()
+    view = WEBVIEWS[#WEBVIEWS]
+end
 check("a scan runs on open and a held rescan timer is armed", lastTask("find") and lastTask("find").started and v.rescanTimer and v.rescanTimer.kind == "every")
 local h = view.htmlSet or ""
 check("the page lists every note and the open one", h:find("NOTES = %[") and h:find('"Alpha"') and h:find('"New Idea"') and h:find('CUR = "Alpha.md"'))
@@ -354,8 +364,25 @@ check("the page carries the row walker block", h:find("function rowKey") and h:f
 check("the page forwards an F18 keyup", h:find("a:'f18up'"))
 check("the page has the [[ autocomplete and ⌘⏎ follow", h:find("function autocomplete") and h:find("function linkAtCaret") and h:find("a:'follow'"))
 check("the page has the graph canvas and force layout", h:find('id="cv"') and h:find("function graphStart") and h:find("GRAPH = {nodes:"))
-check("text is 16 px and no placeholder survives", h:find("font%-size:16px") and not h:find("FS%d?px") and not h:find("FSLABEL"))
+-- 6.181.0 — 13 px (LL asked for 13pt), and the window grew to carry it.
+-- The derived sizes come off it, so a placeholder left unreplaced would
+-- show up as a literal FS1px/FS2px in the page.
+check("text is 13 px and no placeholder survives",
+      h:find("font%-size:13px") and h:find("font%-size:11px") and h:find("font%-size:10px")
+      and not h:find("FS%d?px") and not h:find("FSLABEL"))
+check("…and the window grew with the smaller type", v.width == 1440 and v.height == 940,
+      tostring(v.width) .. "x" .. tostring(v.height))
 check("backlinks pane lists Beta for Alpha", h:find('← Beta'))
+-- 🏷 6.181.0 — LL asked for tool tips on the pad's icons. Every button
+-- already carried a title="", and a non-activating WKWebView panel does
+-- not reliably raise the native box, so the page paints its own. These
+-- check the layer exists AND that there is something for it to show.
+check("the page has its own tooltip layer, fed by the titles already there",
+      h:find('id="tip"', 1, true) and h:find("getAttribute('data-tip')", 1, true)
+      and h:find("removeAttribute('title')", 1, true) and h:find("#tip{position:fixed", 1, true))
+check("...and every header icon has a title for it to show",
+      select(2, h:gsub('<button[^>]-title="', "")) >= 8,
+      tostring(select(2, h:gsub('<button[^>]-title="', ""))))
 msg({ a = "f18up", rel = "Alpha.md", text = v.doc.text, sel = 0 })
 check("f18up reaches hyperReleaseSeen", SEEN[#SEEN] == "the vault")
 msg({ a = "graph", rel = "Alpha.md", text = v.doc.text, sel = 0 })
@@ -393,7 +420,8 @@ end
 do
     local r = _G.vaultReport()
     check("the report names the folder, the note count and Obsidian", r:find(VAULT, 1, true) and r:find("notes  : 7") and r:find("Obsidian"), r)
-    check("the report shows the alpha and, now that it is solid, how to see through it", r:find("alpha 1.00 (solid; vault = { alpha = 0.95 } to see through it)", 1, true) ~= nil, r)
+    check("the report shows the alpha and how to make it solid again",
+          r:find("alpha 0.90 (see-through; vault = { alpha = 1 } for solid)", 1, true) ~= nil, r)
 end
 
 -- =======================================================================
@@ -630,7 +658,7 @@ local h9 = WEBVIEWS[#WEBVIEWS].htmlSet or ""
 check("the page carries TAGS, TAGROWS, TEMPLATES, TPLDIR, MODE and the new load state",
       h9:find('TAGS = [{k:"work",n:"Work",c:2}', 1, true) and h9:find("TAGROWS = 15", 1, true)
       and h9:find('TEMPLATES = [{n:"Meeting",r:"Templates/Meeting.md"}]', 1, true) and h9:find('TPLDIR = "Templates"', 1, true)
-      and h9:find('MODE = "notes"', 1, true) and h9:find("SMARTLISTS = true", 1, true) and h9:find("LINEH = 16 * 1.5", 1, true)
+      and h9:find('MODE = "notes"', 1, true) and h9:find("SMARTLISTS = true", 1, true) and h9:find("LINEH = 13 * 1.5", 1, true)
       and h9:find("CARETLINE = 0", 1, true) and h9:find("CARETHEAD = null", 1, true) and h9:find("DAILY = null", 1, true)
       and not h9:find("FSNUM", 1, true), h9:match("var TAGS[^\n]*"))
 check("the report counts the tags and names the top ones", _G.vaultReport():find("tags   : 5 tags on 3 notes · top #work 2 · #fresh 1 · #home 1", 1, true) ~= nil, _G.vaultReport():match("tags   :[^\n]*"))
@@ -1057,7 +1085,7 @@ do
     -- the page itself (6.174.0): the ids, the globals and the functions Lua and the JS suite rely on
     local function has(...) for _, needle in ipairs({ ... }) do if not hp:find(needle, 1, true) then return false, needle end end return true end
     check("the page has the mode strip, the 🔎 ☑ buttons, the footer, chips and outline", has('id="mode"', 'id="sbtn"', 'id="kbtn"', 'id="foot"', 'id="chips"', 'id="outline"', 'id="hint"'))
-    check("…the page-side globals", has('MODE = "notes"', 'TEMPLATES = [', 'TPLDIR = "Templates"', 'SMARTLISTS = true', 'LINEH = 16 * 1.5', 'TAGROWS = 15', 'CURKEY = "alpha"', 'DAILY = '))
+    check("…the page-side globals", has('MODE = "notes"', 'TEMPLATES = [', 'TPLDIR = "Templates"', 'SMARTLISTS = true', 'LINEH = 13 * 1.5', 'TAGROWS = 15', 'CURKEY = "alpha"', 'DAILY = '))
     check("…the Lua → page entry points and the page's own helpers", has("function setRows", "function setMentions", "function vaultHint", "function gotoLine", "function toggleTask", "function tplPick", "function setMode", "function tagsOf", "function drawOutline", "function drawFoot"))
     check("…the messages the new keys send", has("a:'tplnew'", "a:'tplinsert'", "a:'search'", "a:'dayshift'", "a:'extract'", "a:'random'", "a:'mode'", "a:'tplnone'"))
     check("tag rows walk with the ONE row walker (ROWSEL)", hp:find("ROWSEL = '#rows li[data-name],#rows li[data-tab],#rows li[data-tag]'", 1, true) ~= nil)

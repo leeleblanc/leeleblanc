@@ -1126,6 +1126,11 @@ out("   -- the report --\n")
 setScreens(TWO); loadModule()
 local rep = _G.mouseGridReport()
 check("_G.mouseGridReport() exists and returns its text", type(rep) == "string")
+-- 6.181.0 — the report has to SAY the second chance is on, or LL cannot
+-- tell a snap that refused a wide button from one that never looked.
+check("...and the snap line names the second chance and its size guard",
+      rep:find("WIDER than the cell up to 60000 pt", 1, true) ~= nil,
+      rep:match("   snap[^\n]*"))
 check("it names the alphabet and the capacity arithmetic",
       rep:find("729", 1, true) ~= nil)
 check("it prints the REAL cell size per display, which is the only number "
@@ -1184,14 +1189,45 @@ check("every element asked was given a timeout first — a wedged app must "
       .. "not hold the keyboard", SYSWIDE.timedOut == true)
 grid.hide("t"); checkInv("cleanup")
 
--- 'within the box': a control that merely OVERLAPS the cell, its centre
--- outside, does not pull the pointer out of the cell you chose
+-- 🎯 6.181.0 — THE SECOND-CHANCE SNAP. Until now a control that merely
+-- OVERLAPPED the cell, its centre outside, was found and then refused,
+-- and the pointer was left in the middle of the cell for the arrows to
+-- finish. LL: "I am still a bit too far off from buttons and have to use
+-- the arrow keys more than I should have to." At 4,096 cells most real
+-- buttons are wider than a cell, so that was most buttons.
 loadModule()
 AXELEMS = { { role = "AXButton", title = "Wide", pid = 999,
               frame = { x = 30, y = 5, w = 120, h = 16 } } }   -- centre x = 90
 grid.show(false); typeLabel("aaa"); checkInv("overlap")
-check("a control whose centre is OUTSIDE the cell is left alone — the "
-      .. "pointer stays inside the box you typed",
+check("a control WIDER than the cell, containing the point you typed, is "
+      .. "now snapped onto — this is the row that fails if the second "
+      .. "chance is removed",
+      math.abs(MOUSE_AT.x - 90) < 0.01, MOUSE_AT.x)
+check("...and the trail says the control was wider than the cell",
+      said("wider than the cell"))
+grid.hide("t")
+
+-- ...but only for something BUTTON-SIZED. A scroll area or a toolbar
+-- carrying a control's role contains the point too, and snapping to the
+-- middle of one would move the pointer further from the target than not
+-- snapping at all. grid.snapMaxArea is what tells them apart.
+loadModule()
+AXELEMS = { { role = "AXButton", title = "Everything", pid = 999,
+              frame = { x = 0, y = 0, w = 1000, h = 800 } } }   -- 800,000 pt²
+grid.show(false); typeLabel("aaa"); checkInv("huge")
+check("a control far too big to be a control leaves the pointer in the "
+      .. "cell you typed", math.abs(MOUSE_AT.x - cellW / 2) < 0.01, MOUSE_AT.x)
+check("...and the trail names the size guard", said("too big to be a control"))
+grid.hide("t")
+
+-- and with the second chance switched off the old behaviour is exactly
+-- what it was — the setting is real, not decoration
+loadModule()
+grid.snapContains = false
+AXELEMS = { { role = "AXButton", title = "Wide", pid = 999,
+              frame = { x = 30, y = 5, w = 120, h = 16 } } }
+grid.show(false); typeLabel("aaa"); checkInv("overlap off")
+check("grid.snapContains = false restores 'centre inside the cell only'",
       math.abs(MOUSE_AT.x - cellW / 2) < 0.01, MOUSE_AT.x)
 check("...and the trail says why", said("centre is outside"))
 grid.hide("t")

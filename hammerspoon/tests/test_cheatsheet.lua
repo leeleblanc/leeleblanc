@@ -264,16 +264,27 @@ check("one column only (no colGap / no second x)", (function()
   local n = 0; for _ in pairs(xs) do n = n + 1 end
   return n <= 1
 end)(), "more than one text column x found")
--- 📐 6.94.0 — the width is a FRACTION of the screen (widthFrac), so the
--- sheet scales with the monitor. On this 4K stub that means WIDER than
--- the old fixed 1024 — which is the point, and also the check that would
--- have passed for free if the fraction quietly did nothing.
-check("panel scales with the monitor — widthFrac of a 4K display is wider "
-      .. "than the old fixed 1024, and never past 90% of the screen",
-      canvasRect.w == math.floor(SCR.w * (CS.widthFrac or 0))
-      and canvasRect.w > 1024
-      and canvasRect.w <= SCR.w * 0.90 + 0.01,
+-- 📐 6.181.0 — LL asked for 1024, so the width is PINNED again and the
+-- 6.94.0 fraction is the fallback. Both halves are checked: the pin has
+-- to hold on a 4K (where the fraction would have been far wider — 2160,
+-- so a check that only said "≤ 90% of the screen" would pass either
+-- way), and clearing it has to put the fraction back rather than
+-- leaving a dead number in the module.
+check("6.181.0: the width is pinned at 1024 on a 4K, not the 55% fraction",
+      CS.width == 1024 and canvasRect.w == 1024
+      and math.floor(SCR.w * (CS.widthFrac or 0)) > 1024,
       canvasRect.w)
+do
+  local pinned = CS.width
+  CS.width = nil
+  CS.show(); CS.show()   -- toggle shut, then open with the fraction
+  check("...and clearing it goes back to the monitor fraction, never past 90%",
+        canvasRect.w == math.floor(SCR.w * (CS.widthFrac or 0))
+        and canvasRect.w <= SCR.w * 0.90 + 0.01, canvasRect.w)
+  CS.width = pinned
+  CS.show(); CS.show()
+  check("...and putting the number back pins it again", canvasRect.w == 1024, canvasRect.w)
+end
 check("panel height within 86% of screen", canvasRect.h <= SCR.h * 0.86 + 0.01, canvasRect.h)
 check("...and on a big display it USES that allowance rather than stopping "
       .. "at the old fixed 768 — height scales too",
@@ -400,8 +411,7 @@ CS.show()
 check("300 extra entries are all in the list", #st().lines > 300, #st().lines)
 check("but the painted row count barely moves",
   textEls() <= baseTexts + 2, textEls() .. " vs " .. baseTexts)
-check("still one column, still the same monitor-scaled width",
-  canvasRect.w == math.floor(SCR.w * (CS.widthFrac or 0)), canvasRect.w)
+check("still one column, still the pinned 1024", canvasRect.w == 1024, canvasRect.w)
 _G.customShortcuts = {}
 
 print("\n=== 9. Redraw keeps your place; a fresh open does not ===")
@@ -428,13 +438,54 @@ CS.show(true)
 check("a shortened list clamps back into range instead of showing blanks",
   st().first <= st().maxFirst, st().first .. " > " .. st().maxFirst)
 
+print("\n=== 9b. 6.181.0 — hand-wrapped rows are joined back together ===")
+-- LL: "some cheat sheet entries seem incomplete and have more of the
+-- sentence. Am I right?" He was. Fifty-one rows across twenty-two
+-- modules were split by hand across an empty-key continuation row,
+-- from before this panel could wrap, and the tail read as a fragment.
+do
+  SCR = { x = 0, y = 0, w = 3840, h = 2160 }
+  local realGroups = CS.groups
+  CS.groups = function()
+    return { { title = "🧪 JOIN", order = 1, entries = {
+                { "k",  "Bartender covers the bar and screenshots it. For" },
+                { "",   "real hiding use Ice" },
+                { "",   "" },                      -- blank tail: dropped, not joined
+                { "z",  "stands alone" },
+              } },
+              -- an empty key with NOTHING above it in its own group is a
+              -- deliberate blank key, not a continuation, and survives
+              { title = "🧪 FIRST", order = 2, entries = {
+                { "", "orphan line" },
+              } } }
+  end
+  CS.query = ""
+  CS.show(true)
+  local body = {}
+  for _, l in ipairs(st().lines) do body[#body + 1] = l.text end
+  local all = table.concat(body, "\n")
+  check("the two halves are ONE entry now — this row fails if the join goes",
+        all:find("Bartender covers the bar and screenshots it. For real hiding use Ice", 1, true) ~= nil,
+        all)
+  check("...and the tail never appears under an empty key of its own",
+        all:find("—  real hiding", 1, true) == nil, all)
+  check("...a row that is blank on both sides is dropped, not drawn as a bare dash",
+        all:find("\n  —  \n") == nil and all:find("k  —  Bartender") ~= nil, all)
+  check("...an unrelated entry is untouched", all:find("z  —  stands alone", 1, true) ~= nil)
+  check("...and an empty key with nothing above it is left exactly as it was",
+        all:find("orphan line", 1, true) ~= nil, all)
+  CS.groups = realGroups
+  CS.show(true)
+end
+
 print("\n=== 10. Small laptop screen ===")
 SCR = { x = 0, y = 0, w = 1280, h = 800 }
 CS.show()
 check("panel still fits the screen", canvasRect.w <= 1280 and canvasRect.h <= 800 * 0.86 + 0.01)
-check("...and is proportionally SMALLER here — the same fraction of a "
-      .. "smaller monitor, which is what 'scales' means in both directions",
-      canvasRect.w == math.floor(1280 * (CS.widthFrac or 0)), canvasRect.w)
+-- 1024 asked for, 1152 allowed (90% of 1280) — the pin survives, and it
+-- is the CLAMP that would take over on anything narrower.
+check("...and 1024 still fits a 1280 laptop, under the 90% clamp",
+      canvasRect.w == 1024 and canvasRect.w <= 1280 * 0.90 + 0.01, canvasRect.w)
 check("still readable — at least 8 rows visible", st().visible >= 8, st().visible)
 local ok10 = true
 for _, e in ipairs(texts()) do

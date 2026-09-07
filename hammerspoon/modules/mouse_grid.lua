@@ -146,7 +146,7 @@ local M = {
             { "⇪X",       "Overlay the labelled grid on every display" },
             { "⇪⇧X",      "Same, but click the moment you finish typing" },
             { "asdfghjkl","Type a cell's 3 letters — the pointer jumps there" },
-            { "snap",     "A button/field INSIDE that cell? The pointer lands ON it" },
+            { "snap",     "A button under the cell? The pointer lands ON it — including one WIDER than the cell (6.181.0), which is most of them" },
             { "⌫",        "Undo one letter while typing" },
             { "⎋",        "Cancel — the pointer does not move" },
             { "-- after it lands --", "" },
@@ -257,6 +257,20 @@ function M.setup(core)
     grid.snapToControls = true
     grid.snapBudget     = 0.08      -- seconds of hit-testing per landing
     grid.snapTimeout    = 0.05      -- per AX question (setTimeout)
+    -- 🎯 6.181.0 — THE SECOND-CHANCE SNAP. LL: "I am still a bit too far
+    -- off from buttons and have to use the arrow keys more than I should
+    -- have to." The cells were not the problem. Snap only accepted a
+    -- control whose CENTRE fell inside the typed cell, so every button
+    -- WIDER than a cell — which, at 4,096 cells, is most of them — was
+    -- found, identified, and then refused: the report literally said
+    -- "AXButton under the cell, but its centre is outside it", and the
+    -- pointer was left in the middle of the cell for the arrows to
+    -- finish. A control that CONTAINS the point you typed is now a
+    -- second-tier answer: taken only when nothing centres inside the
+    -- cell, and only when it is small enough to be a control rather than
+    -- a container that happens to carry a control's role.
+    grid.snapContains   = true
+    grid.snapMaxArea    = 60000     -- pt² (≈300×200) — bigger is furniture, not a button
     grid.snapRoles      = {
         AXButton = true, AXTextField = true, AXTextArea = true,
         AXCheckBox = true, AXRadioButton = true, AXPopUpButton = true,
@@ -990,6 +1004,11 @@ function M.setup(core)
         local right, bottom = left + cell.rw, top + cell.rh
         local t0 = hs.timer.secondsSinceEpoch()
         local best, bestD, asked = nil, math.huge, 0
+        -- the second-tier candidate: the SMALLEST control whose frame
+        -- contains the point we asked about. Smallest, because a button
+        -- inside a toolbar inside a group all contain the same point and
+        -- the innermost one is the thing you were aiming at.
+        local near, nearArea = nil, math.huge
         local why, seen = "nothing under the cell", {}
         for i, p in ipairs(samplePoints(cell)) do
             -- the budget is a ceiling on what is ASKED, checked before
@@ -1031,6 +1050,22 @@ function M.setup(core)
                                         best, bestD = { x = fx, y = fy, role = role,
                                                         title = title }, d
                                     end
+                                elseif grid.snapContains
+                                       and p.x >= frame.x and p.x <= frame.x + frame.w
+                                       and p.y >= frame.y and p.y <= frame.y + frame.h then
+                                    local area = frame.w * frame.h
+                                    if area > 0 and area <= (grid.snapMaxArea or 0)
+                                       and area < nearArea then
+                                        local title
+                                        pcall(function()
+                                            title = el:attributeValue("AXTitle")
+                                        end)
+                                        near, nearArea = { x = fx, y = fy, role = role,
+                                                           title = title, wide = true }, area
+                                    elseif not near then
+                                        why = role .. " under the cell, but it is too "
+                                              .. "big to be a control (grid.snapMaxArea)"
+                                    end
                                 else
                                     why = role .. " under the cell, but its centre "
                                           .. "is outside it"
@@ -1045,11 +1080,13 @@ function M.setup(core)
         end
         -- ⚠️ %.0f, never %d: these are screen coordinates (see layoutKey)
         local ms = (hs.timer.secondsSinceEpoch() - t0) * 1000
+        -- tier 1 wins outright; tier 2 only when nothing centred in the cell
+        if not best and near then best = near end
         if best then
-            say(string.format("snapped to %s%s at %.0f,%.0f (%d asked, %.0fms)",
+            say(string.format("snapped to %s%s at %.0f,%.0f (%d asked, %.0fms%s)",
                 best.role,
                 best.title and (" '" .. tostring(best.title):sub(1, 30) .. "'") or "",
-                best.x, best.y, asked, ms))
+                best.x, best.y, asked, ms, best.wide and ", wider than the cell" or ""))
             return best
         end
         say(string.format("no snap: %s (%d asked, %.0fms)", why, asked, ms))
@@ -1349,7 +1386,12 @@ function M.setup(core)
             and "off (grid.snapToControls)"
             or (axAvailable()
                 and string.format("✅ a control inside the typed cell is landed on "
-                                  .. "(≤5 hit-tests, %.0fms budget)", grid.snapBudget * 1000)
+                                  .. "(≤5 hit-tests, %.0fms budget)%s", grid.snapBudget * 1000,
+                                  grid.snapContains
+                                    and string.format(", and one WIDER than the cell up to %d pt² "
+                                        .. "(6.181.0 — grid.snapContains / snapMaxArea)",
+                                        math.floor(num(grid.snapMaxArea, 0)))
+                                    or  ", centre inside the cell only (grid.snapContains is off)")
                 or  "⚪️ needs Accessibility — the cell centre stands in"))
         -- 6.167.0: the ring's size IN EFFECT where the pointer is now, and
         -- what the last press actually drew, for "still small".
