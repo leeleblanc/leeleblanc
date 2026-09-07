@@ -175,15 +175,28 @@ them from `altTab.known`, a memory fed by every listing; z-order comes from
 `hs.console.hswindow()` since 6.160.3 (it is hs.window.get → allWindows,
 a second full sweep; the console comes from applicationForPID(own pid)).
 
+RULE (6.179.1, learned the hard way): a REPORT PRINTS AS ONE STRING —
+build the lines in a table and `print(table.concat(L, "\n"))` once, like
+`_G.noticesReport()`. core/console.lua's gate silences a short single
+line after two showings (digits normalised, so near-identical rows share
+a key) and opens ⛔/⚠️ banners around marked lines, so a report printed
+row by row loses rows and gets banners spliced through it. Assert it in
+test_console against the REAL gate; a print stub cannot see suppression.
+
 Key trail (6.179.0, core/key_trail.lua): a ring of the last
 `trail.keep` (24) ⇪ shortcuts — combo, source, ms, why ("threw" /
 "paused"). `_G.keyTrailReport()`. init.lua's hyperBind TIMES the pressed
 fn (pcall + re-raise; a throw must still throw) and calls
 `_G.keyTrailRecord` nil-guarded, as it does `_G.shortcutHint`; the pause
 wrap records a swallowed press; power_tools' panic chord records itself
-(hyperBind never sees it). 🔒 TWO PROMISES THE GATE ENFORCES AGAINST THE
-SOURCE: combos only — never typed text (no eventtap/keycodes/pasteboard)
-— and it never writes (no io.open/hs.settings). Do not break either.
+(hyperBind never sees it — it records `plain = true`, so the report does
+not draw a ⇪ in front of a hs.hotkey chord). 🔒 TWO PROMISES THE GATE
+ENFORCES AGAINST THE SOURCE: combos only — never typed text (no
+eventtap/keycodes/pasteboard) — and it never writes (no
+io.open/hs.settings). Do not break either. 6.179.1: the duration, the
+re-raise and the xpcall branch each have a check that FAILS against the
+mutation it exists to catch — keep them that way; "a number ≥ 0" passed
+with the timing deleted.
 
 Boot cost (6.178.0, core/boot_cost.lua): `_G.bootCostReport()` ranks
 every module by load ms (with warm ms and file size); a boot line names
@@ -341,6 +354,11 @@ mirrors draw order: "closes last" IS "drawn under".
   it — but if a post-boot stall is ever traced there, move the read and
   the append into an hs.task (/bin/cat, /usr/bin/tail). Never move it
   back onto the boot line.
+- 6.179.1 verify with LL: `_G.keyTrailReport()` and
+  `_G.bootCostReport()` print WHOLE in the real Console — no
+  "↻ that line is repeating" swallowing a row, no ⛔/⚠️ banner spliced
+  through the middle. Press the same shortcut three times first; all
+  three rows (or one merged ×3 row) must be there.
 - 6.179.0 verify with LL: press a few ⇪ shortcuts, then
   `_G.keyTrailReport()` — the last two dozen, newest first, with how
   long each took; ⇪⇧1 (pause) then any shortcut shows a ⏸ row rather

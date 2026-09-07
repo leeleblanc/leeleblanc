@@ -58,7 +58,10 @@ return function(core)
     -- combo, who claimed it, how long it ran, and why it did not run if
     -- it did not. Every argument is optional: a caller that knows less
     -- still gets a row rather than an error.
-    function _G.keyTrailRecord(combo, source, ms, why)
+    -- `plain` marks a row that is NOT a ⇪ shortcut (the panic chord is
+    -- bound with hs.hotkey directly): the report must not print it with a
+    -- ⇪ in front, because that is precisely what it is not.
+    function _G.keyTrailRecord(combo, source, ms, why, plain)
         -- 6.179.0 review — the caller times with the WALL clock, and macOS
         -- steps that at login and on wake. A shortcut that "took -1200 ms"
         -- would sort wrong, dodge the slow count and poison the ×N merge's
@@ -71,6 +74,7 @@ return function(core)
             source = tostring(source or "?"),
             ms = ms,
             why = why and tostring(why) or nil,
+            plain = plain == true or nil,
             at = now(),
         }
         trail.seen = trail.seen + 1
@@ -106,25 +110,46 @@ return function(core)
     end
     trail.ago = ago
 
+    -- 🚨 ONE print, not one per row (6.179.1). core/console.lua's gate
+    -- de-duplicates short single lines after two showings and opens ⛔ /
+    -- ⚠️ banners around any line carrying those marks — so a report
+    -- printed row by row loses its repeated rows (the third slow press of
+    -- the same key: exactly the row LL would be hunting) and gets banners
+    -- spliced through the middle of it. A string containing newlines
+    -- passes the gate untouched, which is why _G.noticesReport() has
+    -- always been built this way. Any report added here does the same.
+    -- %-15s counts BYTES, and ⇪ (and the panic chord's glyphs) are three
+    -- bytes each, so string.format alone leaves the columns ragged.
+    local function pad(str, w)
+        str = tostring(str or "")
+        local n = (type(utf8) == "table" and utf8.len and utf8.len(str)) or #str
+        if not n or n >= w then return str end
+        return str .. string.rep(" ", w - n)
+    end
+
     function _G.keyTrailReport()
-        print("⌨️  KEY TRAIL — the last " .. tostring(trail.keep)
-              .. " ⇪ shortcuts (combos only; no typed text is ever recorded)")
+        local L = { "⌨️  KEY TRAIL — the last " .. tostring(trail.keep)
+                    .. " ⇪ shortcuts (combos only; no typed text is ever recorded)" }
         if #trail.rows == 0 then
-            print("   nothing pressed yet this session")
+            L[#L + 1] = "   nothing pressed yet this session"
+            local s = table.concat(L, "\n")
+            print(s)
             return 0
         end
         local t = now()
         for _, r in ipairs(trail.rows) do
-            print(string.format("   %-12s ⇪%-14s %-20s %6.0f ms%s%s",
-                  ago(t - r.at), r.combo, r.source, r.ms,
+            L[#L + 1] = string.format("   %s %s %s %6.0f ms%s%s",
+                  pad(ago(t - r.at), 12), pad((r.plain and "" or "⇪") .. r.combo, 15),
+                  pad(r.source, 20), r.ms,
                   (r.times or 1) > 1 and ("  ×" .. r.times) or "",
                   r.why == "paused" and "  ⏸ paused — it did nothing"
                   or (r.why == "threw" and "  ⛔ THREW"
-                  or (r.ms >= trail.slowMs and "  ⚠️ slow" or ""))))
+                  or (r.ms >= trail.slowMs and "  ⚠️ slow" or "")))
         end
-        print(string.format("   %d press%s this session · %d over %d ms · %d threw · %d while paused",
+        L[#L + 1] = string.format("   %d press%s this session · %d over %d ms · %d threw · %d while paused",
               trail.seen, trail.seen == 1 and "" or "es", trail.slow,
-              trail.slowMs, trail.threw, trail.paused))
+              trail.slowMs, trail.threw, trail.paused)
+        print(table.concat(L, "\n"))
         return #trail.rows
     end
 

@@ -249,6 +249,10 @@ local function newWorld(opts)
     tostring = tostring, tonumber = tonumber, table = table, math = math,
     string = string, error = error, select = select, loadfile = loadfile,
     setmetatable = setmetatable,
+    -- 6.179.1: the real environment has both, and hyperBind's timing
+    -- wrapper takes the xpcall + debug.traceback branch when they exist —
+    -- leaving them out of the sandbox meant that branch never ran here.
+    xpcall = xpcall, debug = debug,
     print = function(...)
       local p = {}
       for i = 1, select("#", ...) do p[#p + 1] = tostring((select(i, ...))) end
@@ -509,8 +513,19 @@ do
   check("⌨️ a shortcut that ran is in the key trail, under the combo it was bound as",
         #TRAIL == 1 and TRAIL[1].combo == "d" and TRAIL[1].source == "test"
         and TRAIL[1].why == nil, TRAIL[1] and TRAIL[1].combo)
-  check("...with a duration, so a four-second press can be seen afterwards",
-        type(TRAIL[1].ms) == "number" and TRAIL[1].ms >= 0)
+  -- ⏱ THE DURATION IS THE FEATURE, so it is measured, not merely typed:
+  -- the shortcut moves the sandbox clock while it runs, and the recorded
+  -- ms has to be that gap in MILLISECONDS. Asserting ms >= 0 would pass
+  -- with `local ms = 0` in the shipped code, and the trail would then
+  -- report "0 ms" for the four-second press it exists to catch.
+  TRAIL = {}
+  w.SB.hyperBindForTest({}, "s", function() w.now = (w.now or 1000) + 1.5 end,
+      nil, nil, "slow one")
+  w.SB.hyperDispatch["s"].pressed()      -- the real wrapper, called directly
+  check("⏱ the recorded duration is the time the shortcut actually took",
+        #TRAIL == 1 and math.abs(TRAIL[1].ms - 1500) < 1,
+        #TRAIL .. " rows; " .. (TRAIL[1] and (TRAIL[1].combo .. "=" .. tostring(TRAIL[1].ms)) or "none"))
+  w.now = 1000
 
   TRAIL = {}
   w.ran = {}
@@ -521,7 +536,26 @@ do
      .. "wrapper records the fault, it does not swallow it",
         #TRAIL == 1 and TRAIL[1].combo == "a" and TRAIL[1].why == "threw",
         TRAIL[1] and tostring(TRAIL[1].why))
-  check("⌨️ ...and a shortcut that threw gains NO hint card it never had before",
+  -- 🛟 AND THE RE-RAISE ITSELF. The wrapper pcalls the shortcut to time
+  -- it; if it then returned quietly instead of re-raising, every module
+  -- bug behind a ⇪ key would become an invisible no-op with nothing in
+  -- the Console — a dead shortcut that still answers. The tap-level check
+  -- above cannot see that (the tap pcalls either way), so the wrapper is
+  -- called DIRECTLY here.
+  check("🛟 the error really leaves the wrapper — the timing pcall is not an error sink",
+        (function()
+            local entry = w.SB.hyperDispatch["a"]
+            if not (entry and entry.pressed) then return false end
+            local ok, err = pcall(entry.pressed)
+            return ok == false and tostring(err):find("this shortcut throws", 1, true) ~= nil
+        end)())
+  check("🔎 ...and it carries the traceback, so the frames between the key and "
+     .. "the throw are still in the log",
+        (function()
+            local ok, err = pcall(w.SB.hyperDispatch["a"].pressed)
+            return ok == false and tostring(err):find("stack traceback", 1, true) ~= nil
+        end)(), select(2, pcall(w.SB.hyperDispatch["a"].pressed)))
+    check("⌨️ ...and a shortcut that threw gains NO hint card it never had before",
         (function()
             local hints = {}
             w.SB.shortcutHint = function(c) hints[#hints + 1] = c end

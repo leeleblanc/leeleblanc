@@ -341,6 +341,65 @@ check("no hs.timer on this Mac still ticks (os.time fallback)", (function()
 end)())
 
 -- =====================================================================
+realPrint("-- 9. 6.179.1 — a REPORT YOU ASKED FOR survives this gate -----")
+-- =====================================================================
+-- The gate's own header says "a report you ASKED for must never be
+-- suppressed", and GUIDE.md lists the reports that are never gated. That
+-- is a claim about THOSE FILES, so it is tested here, against the real
+-- gate — not against a print stub that cannot suppress anything. A report
+-- printed row by row would lose its repeated rows (con.repeatLimit) and
+-- have ⛔ / ⚠️ banners spliced through the middle of it; one string with
+-- newlines in it passes untouched. _G.noticesReport() has always been
+-- built that way; 6.179.0 shipped two that were not, and this is the
+-- check that would have caught them.
+do
+    local ktChunk = loadfile(HS .. "/core/key_trail.lua")
+    check("core/key_trail.lua loads here too", ktChunk ~= nil)
+    if ktChunk then
+        ktChunk()({})
+        -- the case the gate eats: the SAME shortcut, slow, three times
+        for _ = 1, 3 do
+            _G.keyTrailRecord("1", "scratch pad", 905)
+            CLOCK = CLOCK + 10
+        end
+        _G.keyTrailRecord("y", "chrome history", 12, "threw")
+        reset()
+        local n = _G.keyTrailReport()
+        check("the key trail report reaches the console as ONE entry, whole",
+              #OUT == 1, #OUT .. " entries")
+        check("...and every row it counted is really in it", (function()
+            local rows = 0
+            for _ in (OUT[1] or ""):gmatch("\n   %d") do rows = rows + 1 end
+            return n == 4 and rows >= 4
+        end)(), n)
+        check("...the third repeat of the same key is NOT eaten as a repeat",
+              select(2, (OUT[1] or ""):gsub("scratch pad", "")) == 3,
+              select(2, (OUT[1] or ""):gsub("scratch pad", "")))
+        check("...and its ⛔ / ⚠️ marks open NO banner through the middle of it",
+              not outHas("⛔ ERRORS") and not outHas("NONBREAKING"), OUT[2])
+    end
+
+    local bcChunk = loadfile(HS .. "/core/boot_cost.lua")
+    check("core/boot_cost.lua loads here too", bcChunk ~= nil)
+    if bcChunk then
+        _G.moduleStatus = {
+            { name = "vault", ok = true, ms = 300 },
+            { name = "expander", ok = true, ms = 300 },
+        }
+        local api = bcChunk()({ moduleDir = "/m" })   -- no logsDir: history off
+        reset()
+        api = api or {}
+        local n = _G.bootCostReport()
+        check("the boot cost report reaches the console as ONE entry, whole",
+              #OUT == 1 and n == 2, #OUT .. " entries, " .. tostring(n) .. " modules")
+        check("...with both modules in it and no banner",
+              (OUT[1] or ""):find("vault", 1, true) and (OUT[1] or ""):find("expander", 1, true)
+              and not outHas("NONBREAKING"), OUT[1])
+        _G.moduleStatus = {}
+    end
+end
+
+-- =====================================================================
 print = realPrint
 print(string.format("%d passed, %d failed", pass, fail))
 for _, f in ipairs(failures) do print("   ❌ " .. f) end

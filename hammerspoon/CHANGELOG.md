@@ -4,6 +4,49 @@ Full version history for `init.lua`. The five most recent entries are
 also kept inline at the top of the file; everything older lives only here.
 
 ```text
+NEW IN 6.179.1 — THE REPORTS SURVIVE THE CONSOLE GATE, AND THREE TESTS THAT LIED:
+  🚨 _G.keyTrailReport() AND _G.bootCostReport() WERE BEING EATEN BY THE
+     CONSOLE GATE. Both printed one line per row. core/console.lua's gate
+     silences a short single line after two showings within two minutes
+     (keyed on the line with its digits normalised, so "0s ago ⇪1 scratch
+     pad 905 ms" and "20s ago ⇪1 scratch pad 910 ms" are the SAME key),
+     and it opens ⛔ ERRORS / ⚠️ NONBREAKING banners around any line
+     carrying those marks. So a key trail with the same shortcut pressed
+     three times printed it twice and swallowed the third — the repeated
+     slow press being exactly the row you would be hunting — and spliced
+     banners through the middle of the report. Both now build ONE string
+     and print it once, which passes the gate untouched. That is why
+     _G.noticesReport() has always been built that way, and it is now the
+     RULE for every report in this config: one string, never row by row.
+     The check lives in test_console, against the REAL gate — a report
+     asserted against a print stub cannot see a gate that suppresses.
+     Proven by mutation: restoring the per-row print fails four checks,
+     including "the third repeat of the same key is NOT eaten".
+  🧪 AND THREE CHECKS THAT COULD NOT FAIL. Its own review found them.
+     (a) The DURATION — the whole point of the key trail — was asserted
+     as "a number ≥ 0", which `local ms = 0` satisfies; the sandbox clock
+     never moved during a dispatch, so the recorded value was always
+     exactly 0 and the suite stayed green with the timing removed. The
+     shortcut now advances the clock while it runs and the check asserts
+     the recorded milliseconds ARE that gap. (b) The re-raise that stops
+     the timing pcall from becoming an error sink had no assertion at
+     all: replacing `error(r, 0)` with `return nil` — which would turn
+     every module bug behind a ⇪ key into an invisible no-op — passed all
+     seventy-three stages. The wrapper is now called directly and the
+     error must come back out of it, carrying its original text. (c) The
+     xpcall branch never executed, because the test sandbox had no
+     `debug`; it has one now, and a thrown shortcut's message must carry
+     a stack traceback. All three fail against the mutation they exist to
+     catch, which is the only evidence a test is worth having.
+  ⌨️ THE PANIC CHORD'S ROW no longer prints with a ⇪ in front of it. It
+     is bound with hs.hotkey directly — a ⇪ shortcut is precisely what it
+     is not — so it is recorded as a plain row and drawn as ⌃⌥⌘⇧Esc. The
+     report's columns are padded by CHARACTER now, not by byte, so the
+     multi-byte glyphs no longer push the columns out of line.
+  ✅ Gate: test_console 56 → 64, test_hyper_key 123 → 125,
+     test_diagnostics 535 → 537. 67 modules, 12 core files.
+     7,700 → 7,712 checks, seventy-three stages.
+
 NEW IN 6.179.0 — ⌨️ WHAT DID I JUST PRESS · IS IT GETTING SLOWER · EMMYLUA GONE:
   ⌨️ THE KEY TRAIL (core/key_trail.lua). Every hard bug in this config's
      history has the same shape: something stalled or locked the Mac, and

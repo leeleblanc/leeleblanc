@@ -1627,8 +1627,10 @@ end tell]]
         -- a rescue missing from the record of what was pressed is exactly
         -- the gap the trail exists to close.
         if _G.keyTrailRecord then
-            pcall(_G.keyTrailRecord, "⌃⌥⌘⇧esc", "panic chord", 0,
-                  #failed > 0 and "threw" or nil)
+            -- plain = true: this is a hs.hotkey chord, not a ⇪ shortcut,
+            -- and the report must not draw it as one.
+            pcall(_G.keyTrailRecord, "⌃⌥⌘⇧Esc", "panic chord", 0,
+                  #failed > 0 and "threw" or nil, true)
         end
         local lines = {}
         for _, step in ipairs(did) do lines[#lines + 1] = "· " .. step.what end

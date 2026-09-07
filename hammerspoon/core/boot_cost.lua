@@ -84,24 +84,30 @@ return function(core)
         return string.format("%5.0fK", bytes / 1024)
     end
 
-    -- The full table, newest-first by cost. Printed on demand only.
+    -- The full table, newest-first by cost. Printed on demand only — and
+    -- as ONE string (6.179.1): core/console.lua's gate de-duplicates short
+    -- single lines and opens ⚠️ banners around marked ones, so a report
+    -- printed row by row can lose rows. A string with newlines in it
+    -- passes the gate untouched.
     function _G.bootCostReport()
         local g = gather()
-        print("⏱  BOOT COST — where the load time went")
+        local L = { "⏱  BOOT COST — where the load time went" }
+        local function say(x) L[#L + 1] = x end
         if g.count == 0 then
-            print("   no module timings this session (nothing loaded, or an older init.lua)")
+            say("   no module timings this session (nothing loaded, or an older init.lua)")
+            print(table.concat(L, "\n"))
             return 0
         end
-        print(string.format("   %d modules · %.0f ms to load%s",
+        say(string.format("   %d modules · %.0f ms to load%s",
               g.count, g.totalLoad,
               g.warmed > 0 and string.format(" · %.0f ms more warming %d of them",
                                              g.totalWarm, g.warmed) or ""))
         if g.sized == 0 then
-            print("   (file sizes unavailable here — timings only)")
+            say("   (file sizes unavailable here — timings only)")
         end
-        print("   ── slowest first ──────────────────────────────────")
+        say("   ── slowest first ──────────────────────────────────")
         for _, r in ipairs(g.rows) do
-            print(string.format("   %6.0f ms  %s  %-22s%s%s",
+            say(string.format("   %6.0f ms  %s  %-22s%s%s",
                   r.ms, kb(r.bytes), tostring(r.name),
                   r.warmMs > 0 and string.format("  +%.0f ms warm", r.warmMs) or "",
                   (not r.ok) and "  ⚠️ FAILED" or ""))
@@ -109,19 +115,19 @@ return function(core)
         local rows = cost.readHistory(cost.historyShow)
         local usual, n = cost.usualMs(rows)
         if not cost.historyFile then
-            print("   history: off — no Logs folder on this Mac")
+            say("   history: off — no Logs folder on this Mac")
         elseif cost.lastRecordErr then
-            print("   history: NOT being written — " .. tostring(cost.lastRecordErr))
-            print("   file    : " .. cost.historyFile .. "  (nothing has landed there)")
+            say("   history: NOT being written — " .. tostring(cost.lastRecordErr))
+            say("   file    : " .. cost.historyFile .. "  (nothing has landed there)")
         elseif n == 0 then
-            print("   history: " .. cost.historyFile .. "  (nothing to compare yet — this may be the first boot)")
+            say("   history: " .. cost.historyFile .. "  (nothing to compare yet — this may be the first boot)")
         else
-            print(string.format("   history: %d recent boots · usually %.0f ms · this one %.0f ms%s",
+            say(string.format("   history: %d recent boots · usually %.0f ms · this one %.0f ms%s",
                   n, usual, g.totalLoad,
                   usual > 0 and g.totalLoad > usual * cost.driftFactor and "  ⚠️ slower than usual" or ""))
             local last = rows[#rows]
             if last then
-                print("   last row: " .. tostring(last.when) .. " · " .. tostring(last.version)
+                say("   last row: " .. tostring(last.when) .. " · " .. tostring(last.version)
                       .. " · slowest was " .. tostring(last.slowest))
             end
             local big = nil
@@ -129,17 +135,18 @@ return function(core)
                 local okA, a = pcall(hs.fs.attributes, cost.historyFile)
                 if okA and type(a) == "table" and tonumber(a.size) then big = tonumber(a.size) end
             end
-            print("   file    : " .. cost.historyFile .. "  (Excel opens it)"
+            say("   file    : " .. cost.historyFile .. "  (Excel opens it)"
                   .. (big and string.format("  %.0f KB", big / 1024) or "")
                   .. ((big and big > cost.historyBig)
                       and " — it has grown; delete it and it starts again" or ""))
         end
-        print("   Size and speed are NOT the same thing: a big file full of"
+        say("   Size and speed are NOT the same thing: a big file full of"
               .. " comments parses fast, a small one that talks to macOS at")
-        print("   setup does not. Trim on the milliseconds, never on the"
+        say("   setup does not. Trim on the milliseconds, never on the"
               .. " kilobytes. A slow module is a candidate for warm(),")
-        print("   which runs after the boot instead of inside it — or for"
+        say("   which runs after the boot instead of inside it — or for"
               .. " leaving out of a profile that does not need it.")
+        print(table.concat(L, "\n"))
         return g.count
     end
 
@@ -321,6 +328,8 @@ return function(core)
     local okT, t = pcall(hs.timer.doAfter, 0.1, function()
         local ok, line = pcall(cost.line)
         if ok and line then print(line) end
+        local okD2, l2 = pcall(cost.driftLine)
+        if okD2 and l2 then print(l2) end
     end)
     _G.bootCostTimer = okT and t or nil
     if not okT then

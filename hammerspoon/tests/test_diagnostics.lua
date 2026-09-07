@@ -1053,8 +1053,9 @@ if bcChunk then
     local drift = table.concat(lines, "\n")
     check("a boot well over what this Mac usually takes is reported even when it is under every absolute threshold",
           drift:find("usually takes 100", 1, true) ~= nil, drift)
-    check("...and that comparison is made SECONDS after the boot, never on the boot path — "
-          .. "reading a OneDrive file at boot is what blocks the main thread",
+    check("...and that comparison is made SECONDS after the boot, off the boot path — "
+          .. "it is still a main-thread read of a OneDrive file, which the module says "
+          .. "out loud as a known limit; what must never happen is doing it AT boot",
           (function()
               lines, FIRED = {}, {}
               bcChunk()({ moduleDir = "/m", logsDir = "/logs", hostTag = "TestMac" })
@@ -1350,10 +1351,27 @@ if ktChunk then
         .. "pcall, or the module frames between the key and the throw are gone",
         initLive("xpcall(ranFn, debug.traceback, ...)") ~= nil
         and initLive("ok, r = pcall(ranFn, ...)") ~= nil)
-    check("...and the panic chord, which hyperBind never sees, records itself", (function()
+    check("...and the panic chord, which hyperBind never sees, records itself — "
+        .. "as a PLAIN row, because a hs.hotkey chord is not a ⇪ shortcut", (function()
       local f = realopen(HS .. "/modules/power_tools.lua", "r")
       local pt = f:read("*a"); f:close()
-      return pt:find("_G.keyTrailRecord", 1, true) ~= nil
+      return pt:find('_G.keyTrailRecord, "⌃⌥⌘⇧Esc", "panic chord", 0', 1, true) ~= nil
+             and pt:find('#failed > 0 and "threw" or nil, true)', 1, true) ~= nil
+  end)())
+  check("...and a plain row really prints without a ⇪ in front of it", (function()
+      local t4 = ktChunk()({})
+      _G.keyTrailRecord("⌃⌥⌘⇧Esc", "panic chord", 0, nil, true)
+      _G.keyTrailRecord("1", "scratch pad", 5)
+      lines = {}
+      _G.keyTrailReport()
+      local o = table.concat(lines, "\n")
+      return o:find("⇪1", 1, true) and not o:find("⇪⌃⌥⌘⇧Esc", 1, true)
+  end)())
+  check("...and the report is ONE print, so core/console.lua's gate cannot eat a row "
+        .. "(test_console proves it against the real gate)", (function()
+      lines = {}
+      _G.keyTrailReport()
+      return #lines == 1, #lines
   end)())
 
   hs.timer = realTimer2

@@ -4,9 +4,30 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.179.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.179.1
 -- =====================================================================
 
+-- NEW IN 6.179.1 — THE REPORTS SURVIVE THE CONSOLE GATE, AND THREE TESTS THAT LIED:
+--   🚨 _G.keyTrailReport() AND _G.bootCostReport() WERE BEING EATEN. Both
+--      printed a line per row, and core/console.lua's gate silences a
+--      short single line after two showings and opens ⛔ / ⚠️ banners
+--      around any line carrying those marks. So the third slow press of
+--      the same key — the row LL would be hunting — was dropped as a
+--      repeat, and banners were spliced through the middle of the report.
+--      Both build ONE string and print it once now, which passes the gate
+--      untouched (that is why _G.noticesReport() has always been built
+--      that way). RULE: a report prints as one string, never row by row.
+--   🧪 AND THREE CHECKS THAT COULD NOT FAIL: the duration was asserted as
+--      "a number ≥ 0" (`local ms = 0` passed it); the re-raise that stops
+--      the timing pcall becoming an error sink had no assertion at all,
+--      so swallowing every hyper-shortcut error stayed green; and the
+--      xpcall branch never ran, because the sandbox had no `debug`. All
+--      three now fail against the mutation they exist to catch.
+--   ⌨️ The panic chord's row no longer prints with a ⇪ in front of it: it
+--      is a hs.hotkey chord, which is exactly what a ⇪ shortcut is not.
+--   ✅ Gate: test_console 56 → 64, test_hyper_key 123 → 125,
+--      test_diagnostics 535 → 537. 7,700 → 7,712 checks, seventy-three
+--      stages.
 -- NEW IN 6.179.0 — ⌨️ WHAT DID I JUST PRESS · IS IT GETTING SLOWER · EMMYLUA GONE:
 --   ⌨️ THE KEY TRAIL (core/key_trail.lua). Every hard bug here was
 --      reconstructed from memory days later: the 6.160.0 hang, the ⇪4
@@ -33,21 +54,12 @@
 --      until an editor is pointed at them, and CotEditor cannot read
 --      them at all. Deleted — no dependents, and CHANGELOG 6.64.0 keeps
 --      the story if it is ever wanted back.
---   🔍 ITS OWN REVIEW FOUND SIX THINGS, ALL FIXED HERE: the drift check
---      read the history 0.1 s into the boot (a main-thread read of a
---      OneDrive file — the 6.152.x / 6.160.0 stall; moved off the boot
---      path); the reader parsed the WHOLE uncapped file and trimmed with
---      table.remove(rows, 1) — O(N²), 2.2 s at 20,000 rows (it reads the
---      last 16 KB into a ring now); the writer could emit a row the
---      reader could not read back; pcall read two of record's three
---      returns, so an unwritable Logs folder looked like success and the
---      report claimed "first boot recorded" forever; while paused one
---      HELD key wrote a row per autorepeat and evicted all 24 — the
---      trail erasing the evidence it exists to keep, in the state right
---      after the panic chord (pressed-handler only now, and a repeat
---      merges into one ×N row); and a bare pcall lost the traceback of a
---      shortcut that threw (xpcall + debug.traceback). Full account in
---      CHANGELOG.md.
+--   🔍 ITS OWN REVIEW FOUND NINE THINGS, ALL FIXED BEFORE IT SHIPPED —
+--      among them a main-thread read of a OneDrive file on the boot path,
+--      an O(N²) read of an uncapped file, a report that claimed "first
+--      boot recorded" on a Mac that could not write at all, and a held
+--      key that flooded the trail and evicted the rows it exists to keep.
+--      The full account is in CHANGELOG.md.
 --   ✅ Gate: test_diagnostics 476 → 535, test_hyper_key 116 → 123 (the
 --      trail is fed through the REAL hyperBind wrapper, not a copy).
 --      67 modules, 12 core files. 7,634 → 7,700 checks, seventy-three
@@ -127,22 +139,10 @@
 --      can explain gets blamed on the whole config.
 --   ✅ Gate: test_mouse_grid 350 → 376. 67 modules. 7,552 → 7,561
 --      checks, seventy-three stages.
--- NEW IN 6.175.2 — THE PAD/VAULT WINDOW IS SOLID:
---   🪟 LL: "Make it fully solid." Alpha 1, and the module now leaves the
---      window's alpha alone entirely rather than setting it to 1 — a
---      window asked for an alpha of exactly 1 still goes down the
---      translucency path it does not need. Three passes at the same
---      window (1 → 0.9 in 6.173.2, → 0.97 in 6.175.1, → 1 here) and the
---      answer is that see-through was never worth anything in a window
---      you WRITE in. `settings = { vault = { alpha = 0.95 } }` brings it
---      back for anyone who wants it, and the report's "window" line now
---      says how to get there instead of how to get solid.
---   ✅ Gate: test_vault 265 → 266 (solid by default, AND view:alpha is
---      never called). 67 modules. 7,552 checks, seventy-three stages.
--- (6.175.1 and earlier: see CHANGELOG.md. Only the five most recent
+-- (6.175.2 and earlier: see CHANGELOG.md. Only the five most recent
 --  versions stay inline here.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.179.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.179.1
 -- =====================================================================
 --
 -- 🧭 PORTABILITY LAYER (§0.1)
@@ -488,7 +488,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.179.0"
+_G.configVersion = "6.179.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------
