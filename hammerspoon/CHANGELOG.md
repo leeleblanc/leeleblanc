@@ -72,6 +72,26 @@ NEW IN 6.180.0 — 🔗 ANCHORS (⇪⇧U) · AND init.lua GETS ITS BUDGET BACK:
      68 modules, 12 core files. 7,712 → 7,776 checks, and the gate is
      SEVENTY-FOUR stages for the first time since 6.169.0.
 
+NEW IN 6.179.2 — TAKE THE DRIFT CALL BACK OFF THE BOOT PATH:
+  🚨 A stray edit landed in core/boot_cost.lua between the 6.179.1
+     package being built and its commit, putting the "slower than usual"
+     comparison back inside the 0.1 s boot timer:
+         local okD2, l2 = pcall(cost.driftLine)
+         if okD2 and l2 then print(l2) end
+     cost.driftLine() with no rows argument calls readHistory, so that is
+     a main-thread read of a file in OneDrive a tenth of a second into
+     login — the exact stall class that beachballed this Mac in 6.152.x
+     and 6.160.0, and the thing 6.179.0's own review had already had
+     removed once. The drift comparison belongs with the history write,
+     four seconds later, where it takes its rows as an argument.
+  ✅ The DELIVERED 6.179.1 package never carried it — the zip was built
+     before the edit, and the unpacked zip and the working tree are
+     identical now. Only the commit was wrong; this restores the tree
+     that was tested and shipped. Gate: 7,712 checks, seventy-three
+     stages. (This entry was written in 6.180.0: the fix was committed
+     without one, and CHANGELOG.md being the COMPLETE record is what
+     makes trimming init.lua's header safe.)
+
 NEW IN 6.179.1 — THE REPORTS SURVIVE THE CONSOLE GATE, AND THREE TESTS THAT LIED:
   🚨 _G.keyTrailReport() AND _G.bootCostReport() WERE BEING EATEN BY THE
      CONSOLE GATE. Both printed one line per row. core/console.lua's gate
