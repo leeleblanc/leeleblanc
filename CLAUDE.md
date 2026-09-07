@@ -268,6 +268,21 @@ caret's line in the footer. RULE: any new syntax the vault understands
 gets a row in BLOCKS, a branch in mdHint, or both — the teaching layer
 is not optional decoration.
 
+Screenshot editor handles (6.188.0, modules/screenshot_editor.lua):
+the canvas is DISPLAYED scaled to fit the window, so a hit target sized
+in IMAGE pixels shrinks as the screenshot grows (a 4K shot in a 1,000 pt
+window is 4:1 — a 35 px handle was a 9 px target). `viewScale()` is
+image px per screen px; `handleR()` floors at `ed.handlePx` (12) SCREEN
+points converted through it; `handleRFor(n)` then CLAMPS that against
+the object's own size, because a handle bigger than its object is the
+opposite bug (a short arrow's two ends become one target). Handles are
+DRAWN at the radius they are HIT — 0.6× taught the eye to aim small. A
+text note's box is padded by the handle radius and its bottom-right
+corner is a SIZE handle; `snapNote` carries `size` so ⌘Z undoes a
+resize through the existing generic 'set' op. RULE for any new hit
+target in a scaled canvas: measure it in screen points, convert at hit
+time, and clamp it against what it belongs to.
+
 🚨 Panic chord (6.174.0, power_tools): ⌃⌥⌘⇧Esc = `pt.panic()` /
 `_G.hsPanic()` — releases the ⇪ hold FIRST, then the vault window (even
 pinned), the Scorp Pad, the mouse grid, the screen veil, any visible
@@ -476,6 +491,35 @@ mirrors draw order: "closes last" IS "drawn under".
   it — but if a post-boot stall is ever traced there, move the read and
   the append into an hs.task (/bin/cat, /usr/bin/tail). Never move it
   back onto the boot line.
+- 6.188.0 verify with LL: ⇪⇧4, add a text note, click it — a blue dot
+  sits at its bottom-right. DRAG THAT DOT: the text grows and shrinks,
+  and ⌘Z puts the size back. Then the thing that was actually broken:
+  click just OUTSIDE a small label, down its side — it should still
+  take, where before it did nothing. Handles should feel the same size
+  whatever screenshot is loaded; that is the whole fix (they used to
+  shrink as the image grew). Bigger targets if wanted, no release:
+  `settings = { screenshot_editor = { handlePx = 16 } }`.
+  STILL OPEN (LL's list): the ⇪⇧O image history beach ball (a stall —
+  diagnose before touching; the Console lines straight after it happens
+  are what is needed), and CANVAS (LL's Obsidian screenshot, 6.188.0 —
+  scoped and NOT yet started; see the note below). Judged already
+  covered, do not build without LL asking again: Templater (6.174.0
+  templates), QuickAdd (⇪N + ⇪2), Linter (the format bar), Folder Note
+  (outline + backlinks).
+- CANVAS (asked 6.188.0, NOT built — LL sent Obsidian's Canvas page).
+  The right architecture is settled and worth keeping: Obsidian Canvas
+  files are the OPEN **JSON Canvas** format (jsoncanvas.org) — a
+  `.canvas` file of `nodes` (text / file / link / group, each with
+  x/y/width/height/color) and `edges` (fromNode/fromSide → toNode).
+  Writing that format means the same file opens in Obsidian, exactly as
+  the vault's .md files already do: THE FOLDER IS STILL THE DATABASE.
+  Do NOT invent a private format. Open question for LL before building:
+  whether v1 is a READ/arrange surface (open a .canvas, pan/zoom, move
+  cards, follow a card into its note) or also an authoring surface
+  (draw edges, embed images/PDF/video). The vault window already has
+  the webview recipe, the note index, and 6.186.0's drag-and-write, so
+  a card that IS a note is close; embeds and edge-drawing are the
+  expensive half.
 - 6.187.0 verify with LL: ⇪space, then type `@images` — every picture
   the Mac has OCR'd, newest first, with a thumbnail. Type a word that
   is IN one of them (not in its file name) and it should come up: that

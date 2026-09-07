@@ -55,7 +55,7 @@ local M = {
             { "open",  "⇪⇧4 menu captures open it · ⌥⏎ on a history row" },
             { "B T A", "tools: Blur box · Text box · Arrow (buttons too)" },
             { "text",  "click, type, ⏎ — white text, white outline box" },
-            { "move",  "drag text/arrows around · arrow ENDS stretch + rotate" },
+            { "move",  "drag text/arrows around · arrow ENDS stretch + rotate · a selected text box has a corner dot — drag it to make the text bigger or smaller (⌘Z undoes it)" },
             { "⌫",     "delete the selected note · double-click text re-edits" },
             { "⌘Z",    "undo anything: blur, add, move, edit, delete" },
             { "⌘⏎",   "save “… (edited).png” + clipboard · ⌘⇧⏎ small JPEG" },
@@ -73,6 +73,12 @@ function M.setup(core)
     ed.blurPasses = 3      -- 3 box passes ≈ gaussian
     ed.maxUndo    = 20
     ed.jpegQuality = 0.7   -- ⌘⇧⏎ "small JPEG" quality, 0–1
+    -- 6.188.0 — LL: the text boxes are hard to grab. A handle was sized in
+    -- IMAGE pixels, and the canvas is displayed SCALED DOWN to fit the
+    -- window — so on a 4K screenshot in a 1,000 pt window a 35 px handle
+    -- was a 9 px target. This is the radius LL's mouse actually sees, in
+    -- SCREEN points, and it is converted into image space at hit time.
+    ed.handlePx   = 12
     -- ----------------------------------------------------------------------
 
     local function say(m)  if _G.diag then _G.diag.say("shotEditor", m)  end end
@@ -177,6 +183,7 @@ function M.setup(core)
   var RADIUS = ]] .. tostring(math.floor(ed.blurRadius)) .. [[;
   var PASSES = ]] .. tostring(math.floor(ed.blurPasses)) .. [[;
   var MAXUNDO = ]] .. tostring(math.floor(ed.maxUndo)) .. [[;
+  var HANDLEPX = ]] .. tostring(math.floor(tonumber(ed.handlePx) or 12)) .. [[;
   var JPEGQ = ]] .. tostring(ed.jpegQuality) .. [[;
 
   function say(m){ window.webkit.messageHandlers.shotEditor.postMessage(m || {}); }
@@ -241,7 +248,34 @@ function M.setup(core)
   // screenshot gets text you can read once pasted at full size
   function tsize(){ return Math.max(16, Math.round(cv.width / 42)); }
   function lwidth(){ return Math.max(4, Math.round(cv.width / 260)); }
-  function handleR(){ return Math.max(10, lwidth() * 2.5); }
+  // 6.188.0 — IMAGE pixels per SCREEN pixel. The canvas is displayed at
+  // whatever width fits the window, so on a 4K shot this is around 4:
+  // every hit target measured in image pixels is a QUARTER of that on
+  // screen. Anything the mouse has to hit goes through here.
+  function viewScale(){
+    if (!cv || !cv.getBoundingClientRect) return 1;
+    var r = cv.getBoundingClientRect();
+    if (!r || !r.width) return 1;               // before layout, or hidden
+    return cv.width / r.width;
+  }
+  // the grab radius: never smaller than HANDLEPX points of real screen,
+  // and never smaller than the line it belongs to
+  function handleR(){
+    return Math.max(10, lwidth() * 2.5, HANDLEPX * viewScale());
+  }
+  // …and never BIGGER than the thing it belongs to. A radius that swallows
+  // its own note is the opposite bug and just as real: a short arrow whose
+  // two ends are one target, or a small label that can only ever be
+  // resized because the corner handle covers the whole box.
+  function handleRFor(n){
+    var r = handleR();
+    if (n.kind === 'arrow'){
+      var len = distPt(n.x1, n.y1, n.x2, n.y2);
+      return Math.max(4, Math.min(r, len * 0.35));
+    }
+    var b = noteBox(n);
+    return Math.max(4, Math.min(r, Math.min(b.w, b.h) * 0.45));
+  }
 
   function pushUndo(u){
     undoStack.push(u);
@@ -339,10 +373,19 @@ function M.setup(core)
       if (g.setLineDash) g.setLineDash([4, 3]);
       g.strokeRect(bb.x - 4, bb.y - 4, bb.w + 8, bb.h + 8);
       if (g.setLineDash) g.setLineDash([]);
-      if (n.kind === 'arrow' && g.arc){
+      // 6.188.0 — DRAWN THE SIZE THEY ARE HIT. They used to be drawn at
+      // 0.6× the grab radius, which teaches the eye to aim at a dot
+      // smaller than the target and reads as "it did not take".
+      if (g.arc){
         g.fillStyle = 'rgba(116,168,255,0.95)';
-        g.beginPath(); g.arc(n.x1, n.y1, handleR() * 0.6, 0, 6.2832); g.fill();
-        g.beginPath(); g.arc(n.x2, n.y2, handleR() * 0.6, 0, 6.2832); g.fill();
+        g.strokeStyle = 'rgba(10,14,26,0.85)';
+        g.lineWidth = Math.max(1, handleR() * 0.12);
+        var hr = handleRFor(n);
+        var dot = function(x, y){
+          g.beginPath(); g.arc(x, y, hr, 0, 6.2832); g.fill(); g.stroke();
+        };
+        if (n.kind === 'arrow'){ dot(n.x1, n.y1); dot(n.x2, n.y2); }
+        else { dot(bb.x + bb.w, bb.y + bb.h); }   // text: the resize corner
       }
     }
     g.restore();
@@ -371,20 +414,31 @@ function M.setup(core)
     for (var i = notes.length - 1; i >= 0; i--){
       var n = notes[i];
       if (n.kind === 'arrow'){
-        if (distPt(p.x, p.y, n.x1, n.y1) <= handleR()) return { note: n, part: 'p1' };
-        if (distPt(p.x, p.y, n.x2, n.y2) <= handleR()) return { note: n, part: 'p2' };
+        var hr = handleRFor(n);
+        if (distPt(p.x, p.y, n.x1, n.y1) <= hr) return { note: n, part: 'p1' };
+        if (distPt(p.x, p.y, n.x2, n.y2) <= hr) return { note: n, part: 'p2' };
         if (segDist(p, n) <= handleR()) return { note: n, part: 'move' };
       } else {
         var b = noteBox(n);
-        if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h)
+        // 6.188.0 — the SIZE handle, bottom-right, checked before the box
+        // so a small note is still resizable rather than only movable
+        if (distPt(p.x, p.y, b.x + b.w, b.y + b.h) <= handleRFor(n))
+          return { note: n, part: 'size' };
+        // …and the box itself is grown to the handle radius, so a one-word
+        // label on a 4K shot is a target rather than a dare
+        var pad = handleR() * 0.5;
+        if (p.x >= b.x - pad && p.x <= b.x + b.w + pad
+            && p.y >= b.y - pad && p.y <= b.y + b.h + pad)
           return { note: n, part: 'move' };
       }
     }
     return null;
   }
   function snapNote(n){
+    // 6.188.0 — `size` rides along for a text note, so ⌘Z undoes a resize
+    // through the same generic 'set' op a move already used
     return n.kind === 'arrow' ? { x1: n.x1, y1: n.y1, x2: n.x2, y2: n.y2 }
-                              : { x: n.x, y: n.y };
+                              : { x: n.x, y: n.y, size: n.size };
   }
 
   // ---- the floating text input ----
@@ -469,8 +523,9 @@ function M.setup(core)
       var hit = hitAt(p);
       if (hit){
         sel = hit.note;
-        drag = { mode: hit.part === 'move' ? 'move' : 'end', note: hit.note,
-                 part: hit.part, sx: p.x, sy: p.y, before: snapNote(hit.note) };
+        drag = { mode: (hit.part === 'move' || hit.part === 'size') ? hit.part : 'end',
+                 note: hit.note, part: hit.part, sx: p.x, sy: p.y,
+                 before: snapNote(hit.note) };
         redraw();
         return;
       }
@@ -506,6 +561,12 @@ function M.setup(core)
           n.x1 = drag.before.x1 + dx; n.y1 = drag.before.y1 + dy;
           n.x2 = drag.before.x2 + dx; n.y2 = drag.before.y2 + dy;
         } else { n.x = drag.before.x + dx; n.y = drag.before.y + dy; }
+      } else if (drag.mode === 'size'){
+        // 6.188.0 — drag the corner away from the note to grow it. The
+        // anchor (n.x, n.y) does not move, so the text grows where it is
+        // rather than wandering off under the pointer.
+        var d2 = ((p.x - drag.sx) + (p.y - drag.sy)) / 2;
+        n.size = Math.max(10, Math.min(600, Math.round(drag.before.size + d2)));
       } else {   // 'end' — one endpoint follows the mouse: stretch + rotate
         if (drag.part === 'p1'){ n.x1 = p.x; n.y1 = p.y; }
         else { n.x2 = p.x; n.y2 = p.y; }

@@ -5,6 +5,47 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.188.0 — ✋ THE TEXT BOXES ARE GRABBABLE (⇪⇧4 editor):
+  ✋ LL: "the screenshot editor's text-box handles are hard to grab."
+     They were, and the reason is worth writing down because it is a
+     whole class of bug: every hit target in the editor was measured in
+     IMAGE pixels, while the mouse works in SCREEN pixels — and the
+     canvas is displayed scaled DOWN to fit the window. On a 4K
+     screenshot in a 1,000 pt window that is four image pixels per
+     screen pixel, so a 35 px handle was a 9 px target. The bigger the
+     screenshot, the smaller the handle. The grab radius is now a floor
+     in SCREEN points (`ed.handlePx`, 12) converted into image space at
+     hit time, so it is the same size under the hand whatever is loaded.
+  ⬛ A text note had no handle at all — you had to click inside the
+     glyphs. Its box is now padded by the handle radius, so a near-miss
+     down the side is still a grab; a real miss is still a miss.
+  ↔️ AND IT RESIZES, which the editor never could. A selected text box
+     has a corner dot: drag it out and the text grows, in and it
+     shrinks, anchored at the point you placed it rather than wandering
+     under the pointer. The size rides in the same undo snapshot a move
+     already used, so ⌘Z restores it with no new machinery. There is a
+     floor, because a note that can be dragged to nothing is a note you
+     can lose by accident.
+  🎯 The handles are DRAWN the size they are HIT. They were drawn at
+     0.6× the grab radius — which teaches the eye to aim at a dot
+     smaller than the real target, and makes a hit that did land read
+     as a miss.
+  🚫 AND THE OPPOSITE BUG, found by writing the tests: a handle must
+     never be BIGGER than the thing it belongs to. At the new radius a
+     short arrow's two ends became one target, and a small label's
+     corner handle covered the whole box so it could be resized and
+     never moved. Both radii are now clamped against the object's own
+     size — a fraction of the arrow's length, a fraction of the box.
+  🧪 The test harness could not see any of this: it displayed its
+     canvas at 1:1, where the bug does not exist. It can now put a big
+     image in a small window, which is what every new check runs at.
+     Nine of ten mutations were caught at once; the tenth check was
+     proving the corner handle rather than the padded box and was
+     rewritten to aim down the side, where the near-miss actually was.
+          settings = { screenshot_editor = { handlePx = 16 } }
+     test_editor_js 39 → 52. 7,995 → 8,008 checks over seventy-four
+     stages.
+
 NEW IN 6.187.0 — 🖼 @images: FIND THE PICTURE BY THE WORDS INSIDE IT:
   🖼 LL: "do the @images @shots in @space". @shots has listed the
      screenshots FOLDER by file name since it was written, and ⇪O has

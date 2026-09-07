@@ -4,9 +4,30 @@
 -- =====================================================================
 -- 09-07-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.187.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.188.0
 -- =====================================================================
 
+-- NEW IN 6.188.0 — ✋ THE TEXT BOXES ARE GRABBABLE (⇪⇧4 editor):
+--   ✋ LL: the text boxes are hard to grab. They were. Every hit target
+--      in the editor was measured in IMAGE pixels, and the canvas is
+--      displayed SCALED DOWN to fit the window — so on a 4K screenshot
+--      in a 1,000 pt window a 35 px handle was a 9 px target, and the
+--      bigger the screenshot the worse it got. The grab radius is now a
+--      floor in SCREEN points, converted into image space at hit time.
+--   ⬛ A text note also had NO handle at all: you had to click inside
+--      the glyphs themselves. Its box is now padded by the handle
+--      radius, so a near-miss down the side still takes.
+--   ↔️ AND IT RESIZES. A selected text box has a corner dot — drag it
+--      and the text grows or shrinks, anchored where you put it. ⌘Z
+--      undoes a resize exactly as it undoes a move.
+--   🎯 The handles are DRAWN the size they are HIT. They were drawn at
+--      0.6× the grab radius, which teaches the eye to aim at a dot
+--      smaller than the target and reads as "it did not take". And a
+--      handle can never be bigger than the thing it belongs to, which
+--      is the opposite bug and just as real: a short arrow whose two
+--      ends are one target, a small label that can only ever be resized.
+--          settings = { screenshot_editor = { handlePx = 16 } }
+--      test_editor_js 39 → 52. 7,995 → 8,008 checks, seventy-four stages.
 -- NEW IN 6.187.0 — 🖼 @images: FIND THE PICTURE BY THE WORDS INSIDE IT:
 --   🖼 LL asked for "@images / @shots in ⇪space". @shots has always
 --      listed the screenshots FOLDER by file name, and ⇪O has always
@@ -42,43 +63,12 @@
 --      test_unified 86 → 107, test_ocr_tag 96 → 103, test_screenshots
 --      165 → 166, test_unified_js 31 → 37. 7,957 → 7,995 checks,
 --      seventy-four stages.
--- NEW IN 6.186.0 — 🗂 A KANBAN BOARD YOU CAN DRAG CARDS ON (⇪3, ⌘⇧B):
---   🗂 Your notes as COLUMNS: every distinct value of one front-matter
---      field is a column and every note carrying it is a card. A
---      ```kanban block in a note says which — BY status, FROM #project,
---      COLUMNS todo, doing, done — and ⌘⇧B draws it across the whole
---      window, because columns need width and the right pane has none.
---      It runs in the page off the same index the queries use: no file
---      is read, no grep runs, nothing is scanned, and it is live.
---   ✍️ AND IT WRITES — the one view in the vault that does, on purpose.
---      Drag a card to another column and THAT note's `status:` line is
---      rewritten: one line, one file, never the body. A board you
---      cannot move a card on is a report, not a Kanban. The page never
---      writes anything itself and never assumes the move took; Lua
---      re-renders, so a refused move puts the card back.
---   🛡 What the write may not do, all asserted: it may not leave the
---      vault, may not touch a file that is not a .md note, may not
---      write tags (those are typed in the note), may not create a note
---      that is not there, and may not turn a failed write into a
---      silence — every refusal is named in an alert and counted in
---      `_G.vaultReport()`'s new "board  :" line. The rewriter itself is
---      PURE (text in, text out), so a --- that is really a divider, an
---      unclosed block, a value with a colon or a newline in it and a
---      note with no front matter at all are all provable without a disk.
---   ➖ A column of notes that have not got the field at all is drawn
---      LAST, and dropping a card there CLEARS the field. Missing stays
---      missing — the 6.185.0 rule, now something you can drag to.
---   ✏️ Still never typed: "/" has a row, "Board — a Kanban of your
---      notes", that writes a working block with its COLUMNS already in
---      it, so the empty columns are there to drag into on day one.
---      test_vault 297 → 332, test_vault_js 230 → 258. 7,894 → 7,957
---      checks, seventy-four stages.
--- (6.185.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.186.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.187.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.188.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -175,7 +165,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.187.0"
+_G.configVersion = "6.188.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

@@ -64,7 +64,11 @@ function drawStubs(base, calls) {
   return base;
 }
 
-function makeEnv() {
+// 6.188.0 — the canvas is DISPLAYED at whatever width fits the window, and
+// until 6.188.0 every hit target was measured in image pixels regardless.
+// `shownW` lets a test put a big image in a small window, which is the only
+// way to see that bug at all: at 1:1 it does not exist.
+function makeEnv(shownW) {
   const sent = [];
   const store = new Uint8ClampedArray(W * H * 4);
   const cvCalls = [], ovCalls = [];
@@ -76,7 +80,8 @@ function makeEnv() {
     getContext: () => cvCtx,
     toDataURL: (fmt) => (fmt === "image/jpeg" ? "data:image/jpeg;base64,RENDERED"
                                               : "data:image/png;base64,RENDERED"),
-    getBoundingClientRect: () => ({ left: 0, top: 0, width: W, height: H }),
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: shownW || W,
+                                   height: (shownW || W) * (H / W) }),
     addEventListener: () => {},
   };
   const ov = {
@@ -111,8 +116,8 @@ const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m
 check("the page carries exactly one script block", scripts.length === 1, scripts.length);
 
 const vm = require("vm");
-function load() {
-  const env = makeEnv();
+function load(shownW) {
+  const env = makeEnv(shownW);
   const ctx = vm.createContext(env.sandbox);
   vm.runInContext(scripts[0], ctx, { filename: "screenshot_editor-page.js" });
   env.ctx = ctx;
@@ -366,6 +371,101 @@ console.log("── Screenshot Editor: page JavaScript, executed ──");
 }
 
 // =====================================================================
+// 6.188.0 — LL: the text box handles are hard to grab. They were sized in
+// IMAGE pixels while the mouse works in SCREEN pixels, and the canvas is
+// displayed scaled DOWN to fit the window — so the bigger the screenshot,
+// the smaller the target. Every check below runs the image at 4:1, which
+// is roughly a 4K shot in a 1,000 pt window; at 1:1 the bug is invisible,
+// which is exactly why it survived this long.
+{
+  const SHOWN = W / 4;                       // 4 image pixels per screen pixel
+
+  const e1 = load();                         // 1:1
+  const e4 = load(SHOWN);                    // 4:1
+  const r1 = e1.call("handleR()"), r4 = e4.call("handleR()");
+  check("the grab radius GROWS with the display scale — it is a screen target",
+        r4 > r1 * 3, r1 + " → " + r4);
+  check("…and at 1:1 the floor is the screen radius, so it never drops below it",
+        r1 >= e1.call("HANDLEPX"), r1 + " vs " + e1.call("HANDLEPX"));
+  check("the scale is read live and survives a canvas with no layout yet",
+        e1.call("viewScale()") === 1 && e4.call("viewScale()") === 4,
+        e1.call("viewScale()") + " / " + e4.call("viewScale()"));
+
+  // a small text note in a scaled-down window: the thing LL could not grab
+  const mk = (env) => {
+    env.call("notes.push({kind:'text', text:'Hi', x:20, y:20, size:12}); sel=null;");
+    return env.call("noteBox(notes[0])");
+  };
+  {
+    const env = load(SHOWN);
+    const b = mk(env);
+    // a point just OUTSIDE the glyph box — where a hand aiming at a small
+    // label in a scaled window actually lands
+    const px = b.x + b.w + 2, py = b.y + b.h + 2;
+    const hit = env.call(`hitAt({x:${px}, y:${py}})`);
+    check("a click just outside a small text box still finds it",
+          hit !== null, JSON.stringify(hit));
+    // and specifically the SIDE of the box, nowhere near the corner handle:
+    // this is the near-miss that used to do nothing at all
+    const near = env.call(`hitAt({x:${b.x - 3}, y:${b.y + b.h / 2}})`);
+    check("…including a near-miss down the SIDE, which is a move not a resize",
+          near && near.part === "move", JSON.stringify(near));
+    const far = env.call(`hitAt({x:${b.x - 500}, y:${b.y + b.h / 2}})`);
+    check("…but a real miss is still a miss — the box did not become the canvas",
+          far === null, JSON.stringify(far));
+  }
+  {
+    const env = load(SHOWN);
+    const b = mk(env);
+    const hit = env.call(`hitAt({x:${b.x + b.w}, y:${b.y + b.h}})`);
+    check("the bottom-right corner is a SIZE handle, not just more box",
+          hit && hit.part === "size", JSON.stringify(hit));
+    const inside = env.call(`hitAt({x:${b.x + 1}, y:${b.y + 1}})`);
+    check("…and the box itself still MOVES, so resizing did not eat the drag",
+          inside && inside.part === "move", JSON.stringify(inside));
+  }
+  {
+    // drag the corner: the text grows, the anchor does not move, ⌘Z undoes it
+    const env = load(SHOWN);
+    const b = mk(env);
+    // a synthesised event carries SCREEN coordinates; toCanvas scales them
+    // back up, so an image point must be divided by the scale on the way in
+    const S = (v) => v / 4;
+    env.listeners.ov.mousedown(mouse(S(b.x + b.w), S(b.y + b.h)));
+    env.listeners.window.mousemove(mouse(S(b.x + b.w) + 10, S(b.y + b.h) + 10));
+    env.listeners.window.mouseup(mouse(S(b.x + b.w) + 10, S(b.y + b.h) + 10));
+    check("dragging the corner makes the text BIGGER",
+          env.call("notes[0].size") > 12, env.call("notes[0].size"));
+    check("…and the note stays where it was put",
+          env.call("notes[0].x") === 20 && env.call("notes[0].y") === 20,
+          env.call("notes[0].x") + "," + env.call("notes[0].y"));
+    env.call("undoLast()");
+    check("…and ⌘Z puts the size back — a resize is undoable like a move",
+          env.call("notes[0].size") === 12, env.call("notes[0].size"));
+  }
+  {
+    // shrinking, and the floor: a note can never be dragged out of existence
+    const env = load(SHOWN);
+    const b = mk(env);
+    const S2 = (v) => v / 4;
+    env.listeners.ov.mousedown(mouse(S2(b.x + b.w), S2(b.y + b.h)));
+    env.listeners.window.mousemove(mouse(S2(b.x + b.w) - 4000, S2(b.y + b.h) - 4000));
+    env.listeners.window.mouseup(mouse(S2(b.x + b.w) - 4000, S2(b.y + b.h) - 4000));
+    check("dragging the corner inwards shrinks it, but never past a floor",
+          env.call("notes[0].size") >= 10, env.call("notes[0].size"));
+  }
+  {
+    // an ARROW keeps its endpoints — the same radius change must not make
+    // the two ends of a short arrow indistinguishable
+    const env = load(SHOWN);
+    env.call("notes.push({kind:'arrow', x1:5, y1:5, x2:35, y2:25}); sel=null;");
+    const h1 = env.call("hitAt({x:5, y:5})"), h2 = env.call("hitAt({x:35, y:25})");
+    check("an arrow's two ends are still told apart at the bigger radius",
+          h1 && h1.part === "p1" && h2 && h2.part === "p2",
+          JSON.stringify([h1, h2]));
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 for (const f of failures) console.log("    ❌ " + f);
 process.exit(fail === 0 ? 0 : 1);
