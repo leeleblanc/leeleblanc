@@ -4,9 +4,44 @@
 -- =====================================================================
 -- 09-07-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.186.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.187.0
 -- =====================================================================
 
+-- NEW IN 6.187.0 — 🖼 @images: FIND THE PICTURE BY THE WORDS INSIDE IT:
+--   🖼 LL asked for "@images / @shots in ⇪space". @shots has always
+--      listed the screenshots FOLDER by file name, and ⇪O has always
+--      searched the words OCR'd out of images — with no way back to the
+--      image. @images is the half that was missing: every picture this
+--      Mac has READ, found by what is written in it, thumbnail beside
+--      the row. ⏎ copies the image, ⌥⏎ OPENS it, ⌘⏎ copies its path.
+--   🔎 WHY IT DID NOT EXIST: the OCR log recorded WHAT was read and
+--      WHEN, and threw away WHICH FILE it was read from. It now carries
+--      the image as a third column — and every row already on disk has
+--      two, so both shapes are valid forever and the parsers are never
+--      allowed to assume which they are holding.
+--   🧹 That column had FOUR readers, three of them a copy of the same
+--      greedy pattern that would have glued the path onto the end of
+--      every entry — and one of those feeds the ⇪⇧O editor, which
+--      rewrites the WHOLE file, so a single typo fix would have stripped
+--      the image off every row at once (and the write ledger lists this
+--      file as rewritten-whole, so the loss would not even have been
+--      reported). All four now go through the quote-aware CSV splitter
+--      their own file already had. The path is quoted, because a
+--      screenshot may be called "Screenshot 1, cropped.png".
+--   🔤 AND THE SEARCH GOT DEEPER. Until now only a row's PREVIEW was in
+--      the haystack, so a word in the middle of an OCR'd page was
+--      indexed and unfindable. A bounded slice of the full text now
+--      joins it — which also makes @clip and @note searchable past
+--      their first line.
+--   ☁️ What it must not cost: a thumbnail is a full decode on the main
+--      thread, and on a cloud-evicted file that decode is a download —
+--      the 6.152.x / 6.170.3 beachball class. So the decodes are
+--      BUDGETED (the newest few), an image that has moved keeps its
+--      words, loses its picture and says so, and the thumbnail cache
+--      finally has a ceiling; it had none.
+--      test_unified 86 → 107, test_ocr_tag 96 → 103, test_screenshots
+--      165 → 166, test_unified_js 31 → 37. 7,957 → 7,995 checks,
+--      seventy-four stages.
 -- NEW IN 6.186.0 — 🗂 A KANBAN BOARD YOU CAN DRAG CARDS ON (⇪3, ⌘⇧B):
 --   🗂 Your notes as COLUMNS: every distinct value of one front-matter
 --      field is a column and every note carrying it is a card. A
@@ -38,48 +73,12 @@
 --      it, so the empty columns are there to drag into on day one.
 --      test_vault 297 → 332, test_vault_js 230 → 258. 7,894 → 7,957
 --      checks, seventy-four stages.
--- NEW IN 6.185.0 — 🔎 WHERE: A QUERY CAN ASK ABOUT YOUR FRONT MATTER:
---   🔎 6.183.0 could ask about tags, folders and links. It can now ask
---      about the FIELDS at the top of a note — the `status:` / `rating:`
---      lines between the --- markers:
---          ```dataview
---          TABLE status, rating FROM #book
---          WHERE status != "done" AND rating >= 4
---          SORT rating DESC
---          ```
---      WHERE takes `field` (has it at all), `field = "x"` and
---      `!= > < >= <=`, `contains(field, "x")`, AND / OR with AND binding
---      tighter, and `!` to negate; several WHERE lines are ANDed.
---      `file.name`, `file.path`, `file.folder` and `tags` ask about the
---      file itself. A TABLE's columns appear as a second line under each
---      name — the pane is narrow and a real grid there would be
---      unreadable — and `field AS Label` renames one. SORT now takes any
---      field, not just name and path.
---   🧮 NUMBERS ARE NUMBERS. A comparison where both sides are numeric is
---      done numerically, so 10 beats 3 instead of sorting under it. And
---      a note that HAS NOT GOT the field never satisfies a comparison
---      and sorts LAST — it is missing, not zero, and an empty string
---      would quietly join every result.
---   ⚙️ ONE GREP, TWO INDEXES. The front-matter grep in the scan chain
---      used to ask for `^tags?:`; it now asks for the opening `---` and
---      reads the whole block, so the same task that built the tags
---      builds the fields. No second pass over the vault, no note read,
---      and front matter must start at LINE 1 — stricter and more correct
---      than the line-2-to-60 guess it replaced. `_G.vaultReport()` grew
---      a "fields :" line naming what a query can ask about, and it says
---      so honestly when the grep FAILED rather than reading as "this
---      vault has no fields".
---   ✏️ Still never typed: "/" has a second row, "Query — filtered by a
---      field", that writes a working TABLE + WHERE + SORT block, and the
---      footer names a WHERE and a SORT line.
---      test_vault 283 → 297, test_vault_js 205 → 230. 7,855 → 7,894
---      checks, seventy-four stages.
--- (6.184.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.185.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.186.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.187.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -176,7 +175,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.186.0"
+_G.configVersion = "6.187.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

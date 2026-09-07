@@ -65,8 +65,9 @@ function load() {
   env.ctx = ctx;
   env.call = (expr) => vm.runInContext(expr, ctx);
   env.type = (s) => { env.q.value = s; env.listeners.q.input({}); };
-  env.key = (k, meta) =>
-    env.listeners.window.keydown({ key: k, metaKey: meta === true, preventDefault() {} });
+  env.key = (k, meta, alt) =>
+    env.listeners.window.keydown({ key: k, metaKey: meta === true, altKey: alt === true,
+                                   preventDefault() {} });
   return env;
 }
 
@@ -196,6 +197,41 @@ console.log("── Unified Search: page JavaScript, executed ──");
   check("…and shows the grabbing cursor", env.barClasses[0] === "+dragging");
   env.listeners.window.mouseup({});
   check("…released on mouse up", env.barClasses[1] === "-dragging");
+}
+
+// =====================================================================
+// 6. 🖼 6.187.0 — ⌥⏎ OPENS the file. A 40 px thumbnail tells you WHICH
+// picture a row is; it does not tell you what is in it.
+// =====================================================================
+{
+  const env = load();
+  env.key("Enter", false, true);
+  check("⌥⏎ asks Lua to OPEN the row, not to copy it",
+        env.sent[0] && env.sent[0].a === "open", JSON.stringify(env.sent[0]));
+  const env2 = load();
+  env2.key("Enter", true, false);
+  check("⌘⏎ still copies the PATH — ⌥ did not steal it",
+        env2.sent[0] && env2.sent[0].a === "path", JSON.stringify(env2.sent[0]));
+  const env3 = load();
+  env3.key("Enter", false, false);
+  check("…and a plain ⏎ still picks", env3.sent[0] && env3.sent[0].a === "pick");
+  const env4 = load();
+  env4.key("Enter", true, true);
+  check("⌘⌥⏎ opens rather than doing both — one keypress, one verb",
+        env4.sent[0] && env4.sent[0].a === "open", JSON.stringify(env4.sent[0]));
+  const env5 = load();
+  env5.listeners.list.click({
+    target: { getAttribute: (k) => (k === "data-id" ? "3" : null) },
+    metaKey: false, altKey: true,
+  });
+  check("⌥-click opens too — the mouse and the keyboard agree",
+        env5.sent[0] && env5.sent[0].a === "open" && env5.sent[0].id === 3,
+        JSON.stringify(env5.sent[0]));
+  const env6 = load();
+  check("the row hint tells you both extra keys exist",
+        env6.call("rowHtml({id:1,tag:'images',icon:'\u{1F5BC}',src:'Images',t:'a.png',s:'',h:'',p:1}, 0)")
+            .indexOf("\u2325\u23ce open") >= 0,
+        env6.call("rowHtml({id:1,tag:'images',icon:'x',src:'Images',t:'a.png',s:'',h:'',p:1}, 0)"));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

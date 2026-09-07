@@ -150,12 +150,45 @@ function M.setup(core)
     -- One row of the log. The escaping is the CSV's own convention and is
     -- read back by loadOCRHistory below and by ⇪space's OCR source — it
     -- is not free to change on one side only.
-    local function appendRow(text)
+    -- 6.187.0 — A THIRD COLUMN: THE IMAGE THE WORDS CAME FROM.
+    -- Until now this log said WHAT was read and WHEN, and threw away
+    -- WHICH PICTURE it was read from — which is why ⇪O could find the
+    -- words and never show you the image. The row is now
+    --     timestamp,"text","/path/to/image.png"
+    -- and the path is OPTIONAL: raw clipboard pixels have no file, and
+    -- every row already on disk has two columns. Both shapes are valid
+    -- forever, which is what `ocr.parseRow` below exists to guarantee.
+    local function csvField(s)
+        return '"' .. tostring(s or ""):gsub('"', '""')
+                        :gsub('\r\n', '\\n'):gsub('\r', '\\n'):gsub('\n', '\\n') .. '"'
+    end
+    -- ONE ROW IN, THREE VALUES OUT — timestamp, text, path (path nil on
+    -- an old two-column row). It splits with core.splitCSVLine, the
+    -- quote-aware splitter init.lua already exports and master_log already
+    -- uses, rather than a pattern of its own: the greedy `(.*)` this
+    -- replaces glued the new column onto the end of every entry, and a
+    -- fourth hand-rolled CSV parser is how that happens again.
+    -- 🔗 modules/unified_search.lua parses the same rows for ⇪space with
+    -- its own splitter (it cannot depend on this module being loaded), so
+    -- the gate runs BOTH over the same fixtures and fails if they ever
+    -- disagree — a comment alone has never stopped a drift.
+    function ocr.parseRow(line)
+        line = tostring(line or "")
+        if line == "" then return nil end
+        local f = core.splitCSVLine(line)
+        local ts = f and f[1]
+        if not ts or ts == "" then return nil end
+        local text = (f[2] or ""):gsub('\\n', '\n')
+        local path = f[3]
+        if path == "" then path = nil end
+        return ts, text, path
+    end
+
+    local function appendRow(text, path)
         local f = io.open(ocr.csvFile, "a")
         if f then
-            f:write(os.date("%Y-%m-%d %H:%M:%S") .. ',"' ..
-                text:gsub('"', '""'):gsub('\r\n', '\\n'):gsub('\r', '\\n'):gsub('\n', '\\n')
-                .. '"\n')
+            f:write(os.date("%Y-%m-%d %H:%M:%S") .. "," .. csvField(text)
+                    .. ((path and path ~= "") and ("," .. core.csvQuote(path)) or "") .. "\n")
             f:close()
             return true
         end
@@ -594,14 +627,19 @@ function M.setup(core)
             if content then
                 content = content:gsub("%z", "")
                 for line in content:gmatch("([^\r\n]+)") do
-                    local timestamp, rawText = line:match("^([^,]+),(.*)$")
-                    if timestamp and rawText then
-                        local cleanText = rawText:gsub('^"', ''):gsub('"$', ''):gsub('""', '"'):gsub('\\n', '\n')
+                    -- 6.187.0 — ⇪O's own reader, through the same parser.
+                    -- It was the last greedy one: it would have shown the
+                    -- image path glued to the end of every entry and copied
+                    -- that to the clipboard on ⏎.
+                    local timestamp, cleanText, imgPath = ocr.parseRow(line)
+                    if timestamp and cleanText then
                         local shortTitle = cleanText:gsub("%s+", " "):sub(1, 65)
                         -- rawText: ⏎ copies it and (6.157.0) the preview
                         -- pane shows it whole; `when` heads the pane
-                        table.insert(items, 1, { text = shortTitle, subText = "🕒 " .. timestamp,
-                                                 rawText = cleanText, when = timestamp })
+                        table.insert(items, 1, { text = shortTitle,
+                                                 subText = "🕒 " .. timestamp
+                                                     .. (imgPath and ("  🖼 " .. (imgPath:match("[^/]+$") or imgPath)) or ""),
+                                                 rawText = cleanText, when = timestamp, path = imgPath })
                     end
                 end
             end
@@ -621,10 +659,11 @@ function M.setup(core)
             if content then
                 content = content:gsub("%z", "")
                 for line in content:gmatch("([^\r\n]+)") do
-                    local timestamp, rawText = line:match("^([^,]+),(.*)$")
-                    if timestamp and rawText then
-                        local cleanText = rawText:gsub('^"', ''):gsub('"$', ''):gsub('""', '"'):gsub('\\n', '\n')
-                        table.insert(items, { timestamp = timestamp, text = cleanText })
+                    -- 6.187.0 — one parser for both shapes, and the path
+                    -- rides with the entry so ⇪⇧O cannot lose it
+                    local timestamp, cleanText, path = ocr.parseRow(line)
+                    if timestamp and cleanText then
+                        table.insert(items, { timestamp = timestamp, text = cleanText, path = path })
                     end
                 end
             end
@@ -636,8 +675,12 @@ function M.setup(core)
         local f = io.open(ocr.csvFile, "w")
         if not f then warnWriteFailed("OCR log"); return end
         for _, e in ipairs(entries) do
-            local escaped = e.text:gsub('"', '""'):gsub('\r\n', '\\n'):gsub('\r', '\\n'):gsub('\n', '\\n')
-            f:write(e.timestamp .. ',"' .. escaped .. '"\n')
+            -- 6.187.0 — the path is WRITTEN BACK. Editing one entry in
+            -- ⇪⇧O rewrites the whole file, so a rewriter that knew only
+            -- two columns would quietly strip every image off every row
+            -- the first time LL fixed a typo.
+            f:write(e.timestamp .. "," .. csvField(e.text)
+                    .. ((e.path and e.path ~= "") and ("," .. core.csvQuote(e.path)) or "") .. "\n")
         end
         f:close()
     end
@@ -1158,12 +1201,18 @@ function M.setup(core)
     -- screenshots module's own Shortcut run and only ever reached the
     -- Finder comment. This is the one door into the log ⇪O and ⇪space
     -- read; anyone who OCRs outside this module calls it.
-    core.provide("ocr.record",         function(text)
+    -- 6.187.0 — the optional second argument is the image the text was
+    -- read FROM. A caller that has not got one passes nothing and the row
+    -- is the two-column row it always was.
+    core.provide("ocr.record",         function(text, path)
         text = stripToQwerty(tostring(text or ""):gsub("%z", ""):gsub("\x1A", ""))
         text = text:gsub("^%s+", ""):gsub("%s+$", "")
         if #text == 0 then return false end
-        return appendRow(text)
+        path = tostring(path or ""):gsub("[\r\n]", " ")
+        if path ~= "" and path:sub(1, 1) ~= "/" then path = "" end   -- an absolute path or none
+        return appendRow(text, path ~= "" and path or nil)
     end)
+
     -- 6.170.3: the clipboard poll asks THIS before decoding the pasteboard
     -- — no decode when image OCR is off, busy or resting.
     core.provide("ocr.imageWanted",    function() return ocr.imageWanted() end)

@@ -138,6 +138,35 @@ onto the note's folder and could never open). It reads a title, a path
 and a URL — never text, contents or the clipboard; the gate asserts that
 against the source.
 
+OCR log + ⇪space images (6.187.0): the log
+`<logs>/image_text-<Mac>.csv` gained a THIRD column — the image the
+words were read from — written QUOTED (`core.csvQuote`) because a
+screenshot name may hold a comma. `ocr.record(text, path)`; the path is
+OPTIONAL and every pre-6.187.0 row has two columns, so BOTH shapes are
+valid forever and adoptLegacyFile guarantees one file holds both. FOUR
+readers parse it and every one goes through a quote-aware splitter —
+`ocr.parseRow` (core.splitCSVLine) serves ⇪O's `ocr.history` AND
+`loadOCRHistoryRaw`; `uni.parseOcrRow` (the module's own `csvSplit`)
+serves ⇪space. NEVER re-introduce `^([^,]+),(.*)$` here: it glues the
+path onto the text, and `saveOCRHistoryRaw` rewrites the WHOLE file, so
+one ⇪⇧O typo fix would strip the image off every row while write_ledger
+reported the shrink as normal. The snapshot and the rewriter BOTH carry
+the path. Two readers are unavoidable (⇪space cannot depend on the OCR
+engine), so the gate runs both over shared fixtures and fails on drift
+or on either being renamed away. `shots.recordText(text, path)` passes
+`newPath or path` — the naming route RENAMES before it logs, and a
+pre-rename path is a permanent dead link because a file carrying " — "
+is never re-OCR'd. ⇪space's @images source lists one card per IMAGE
+(newest reading wins), and its costs are bounded on purpose: thumbnails
+are a main-thread decode (a download on an evicted file), so
+`uni.thumbMax` budgets DECODES not rows, `uni.thumbCacheMax` caps a
+cache that had no ceiling, a missing file is a stat never a read, and
+⌥⏎ opens via /usr/bin/open in a task. `uni.hayFull` puts a bounded
+slice of each row's FULL text in the haystack — before this only the
+preview was searchable. RULE learned here: a check that asserts a
+budget EXISTS does not assert that it BITES; two such checks passed
+under the mutation they were written to catch.
+
 Vault (6.172.0, modules/vault.lua, ⇪3): the FOLDER <OneDrive>/Vault of
 plain .md files IS the database — no index file, no sidecar, so Obsidian
 opens the same folder on either Mac. Index = /usr/bin/find (names) +
@@ -447,6 +476,33 @@ mirrors draw order: "closes last" IS "drawn under".
   it — but if a post-boot stall is ever traced there, move the read and
   the append into an hs.task (/bin/cat, /usr/bin/tail). Never move it
   back onto the boot line.
+- 6.187.0 verify with LL: ⇪space, then type `@images` — every picture
+  the Mac has OCR'd, newest first, with a thumbnail. Type a word that
+  is IN one of them (not in its file name) and it should come up: that
+  is the whole feature. ⏎ copies the image, ⌥⏎ opens it, ⌘⏎ copies its
+  path. Then the honest bits to look for: an image that has been moved
+  or deleted still shows its words with "⚠️ the file has moved" and no
+  thumbnail; only the newest two dozen get pictures (a thumbnail is a
+  main-thread decode, and on a OneDrive-evicted file that is a
+  download), so older rows are deliberately picture-less. ⇪O itself now
+  names the image beside each timestamp. WORTH TRYING ON PURPOSE: edit
+  an entry in ⇪⇧O and check another entry still knows its image — that
+  path rewrites the whole file and used to be able to strip every one.
+  Note only NEW readings carry an image; everything OCR'd before
+  6.187.0 has words and no picture, and that is permanent, not a bug.
+  STILL OPEN (LL's list, in his priority order after this): the
+  screenshot editor's text-box handles; and the ⇪⇧O image history beach
+  ball (a stall — diagnose before touching; the Console lines straight
+  after it happens are what is needed). Judged already covered, do not
+  build without LL asking again: Templater (6.174.0 templates),
+  QuickAdd (⇪N + ⇪2), Linter (the format bar), Folder Note (outline +
+  backlinks).
+  KNOWN LIMIT, stated not hidden: a shot OCR'd by ⇪4 and later renamed
+  by the ⌘9 sweep leaves its first row pointing at the old name. The
+  row keeps its words and is marked as moved; the newer row is the live
+  one. Fixing it means changing the sweep's naming, which is where the
+  6.170.x beachballs lived — not in the same release that moved the
+  column.
 - 6.186.0 verify with LL: ⇪3, then ⌘⇧B — the board. With no ```kanban
   block in the note it shows every note by `status` and SAYS so under
   the columns; that is the degrade, not a bug. Then "/" on an empty

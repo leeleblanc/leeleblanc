@@ -744,9 +744,13 @@ function M.setup(core)
     -- (⇪4's text-to-clipboard, the panel's OCR row) put words on the
     -- pasteboard and nowhere else. Every text this module puts on the
     -- clipboard now goes through here — the one door into ⇪O's log.
-    function shots.recordText(text)
+    -- 6.187.0 — and WHICH IMAGE it came from. Every caller here has the
+    -- file in hand; passing it is what lets ⇪space's @images show you the
+    -- picture instead of only the words. A caller without one passes
+    -- nothing and the row is the two-column row it always was.
+    function shots.recordText(text, path)
         if _G.service and _G.service.has and _G.service.has("ocr.record") then
-            pcall(function() _G.service.call("ocr.record", text) end)
+            pcall(function() _G.service.call("ocr.record", text, path) end)
         end
     end
 
@@ -766,7 +770,7 @@ function M.setup(core)
                     local text = tostring(sout or ""):match("^%s*(.-)%s*$") or ""
                     if code == 0 and text ~= "" then
                         pcall(function() hs.pasteboard.setContents(text) end)
-                        shots.recordText(text)
+                        shots.recordText(text, path)
                         pcall(function()
                             hs.alert.show("📝 Text copied: "
                                           .. text:gsub("%s+", " "):sub(1, 60), 3)
@@ -789,7 +793,7 @@ function M.setup(core)
                 local payload = tostring(sout or ""):match("^%s*(.-)%s*$") or ""
                 if code == 0 and payload ~= "" then
                     pcall(function() hs.pasteboard.setContents(payload) end)
-                    shots.recordText(payload)
+                    shots.recordText(payload, path)
                     pcall(function()
                         hs.alert.show("🔳 Code copied: " .. payload:sub(1, 60), 3)
                     end)
@@ -927,7 +931,11 @@ function M.setup(core)
                     end
                     -- 6.172.1 — the words also go into the OCR log ⇪O
                     -- reads (they never did: only the Finder comment).
-                    shots.recordText(text)
+                    -- 6.187.0 — with the file they were read from, and it
+                    -- must be the NEW name: this path renames the shot to
+                    -- match its contents, so recording the old name would
+                    -- file every arrival against a file that is already gone.
+                    shots.recordText(text, newPath or path)
                 end
                 if onDone then onDone(newPath) end
             end, { "run", shots.ocrShortcut, "-i", path })

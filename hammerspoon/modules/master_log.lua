@@ -89,8 +89,11 @@ function M.setup(core)
           kind = "csv", ts = 1, app = 2, text = 3, path = 5, action = "active" },
         { name = "chrome",    file = logs .. "/chrome_history-" .. host .. ".csv",
           kind = "csv", ts = 1, time = 2, text = 3, path = 4, app = "Google Chrome", action = "visited" },
+        -- 6.187.0 — column 3 is the image the words were read from, when
+        -- the reader knew it. It is quote-aware here already, so an older
+        -- two-column row simply has no path — mapping it is the whole wiring.
         { name = "ocr",       file = logs .. "/image_text-" .. host .. ".csv",
-          kind = "csv", ts = 1, text = 2, app = "Screenshots", action = "read" },
+          kind = "csv", ts = 1, text = 2, path = 3, app = "Screenshots", action = "read" },
         { name = "updates",   file = logs .. "/app_updates-" .. host .. ".csv",
           kind = "csv", ts = 1, app = 2, text = 4, action = 5 },
         { name = "documents", file = logs .. "/open_documents-" .. host .. ".csv",

@@ -5,6 +5,79 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.187.0 — 🖼 @images: FIND THE PICTURE BY THE WORDS INSIDE IT:
+  🖼 LL: "do the @images @shots in @space". @shots has listed the
+     screenshots FOLDER by file name since it was written, and ⇪O has
+     searched the words OCR'd out of images — with no way back to the
+     image the words came from. @images is the half that was missing:
+     every picture this Mac has READ, found by what is written in it,
+     with a thumbnail beside the row. ⏎ copies the image, ⌥⏎ OPENS it
+     (new — a 40 px thumbnail tells you which picture a row is, not
+     what is in it), ⌘⏎ copies its path.
+  🔎 WHY IT COULD NOT EXIST BEFORE: the OCR log recorded WHAT was read
+     and WHEN, and threw away WHICH FILE it was read from. Every row is
+     now `timestamp,"text","/path/to/image.png"` — and the path is
+     optional, because raw clipboard pixels have no file and because
+     every row already on LL's Macs has two columns. Both shapes are
+     valid forever; adoptLegacyFile still folds an older machine's log
+     into the current one, so a single file holds both shapes and a
+     parser is never allowed to assume which it is reading.
+  🧹 THE COLUMN HAD FOUR READERS, and three were separate copies of the
+     same greedy `^([^,]+),(.*)$`. Each would have left the path, a
+     stray quote and a comma glued onto the end of every entry — on the
+     clipboard, in the preview pane, in ⇪space. One of the three feeds
+     the ⇪⇧O editor, which rewrites the WHOLE file from its snapshot:
+     a single typo fix would have stripped the image off every row at
+     once, and because write_ledger lists this file as rewritten-whole,
+     the loss would have been reported as normal. All four now go
+     through the quote-aware CSV splitter their own file already had —
+     `core.splitCSVLine` in the engine, the module's own `csvSplit` in
+     ⇪space — rather than a fourth hand-rolled pattern. The path is
+     written QUOTED, because a screenshot may be saved as
+     "Screenshot 1, cropped.png".
+  🔗 Two modules must read this log (⇪space cannot depend on the OCR
+     engine being loaded), so there are two readers by necessity. The
+     gate now runs BOTH over the same fixtures — plain rows, quoted
+     rows, a comma in the text, a comma in the path, an escaped
+     newline, an empty third field, an unquoted row, an empty line —
+     and fails if they ever disagree. It also fails if either function
+     is renamed away, so the check cannot quietly stop running.
+  🚚 THE DEAD-LINK TRAP, caught by writing the test: an arriving
+     screenshot is RENAMED to match its own words and only then are the
+     words logged. Logging the path it came in with would have filed
+     every capture against a name that no longer exists — and nothing
+     ever re-OCRs it, because a file already carrying " — " is not a
+     candidate again. Every one of those rows would have shown no
+     thumbnail, said "the file has moved", and failed to open: broken
+     on exactly the captures the feature was built for.
+  🔤 AND THE SEARCH GOT DEEPER. Until now only a row's PREVIEW was in
+     the haystack, so a word in the middle of an OCR'd page was indexed
+     and unfindable — which is most of the point of having OCR'd the
+     page. A bounded slice of the full text now joins it, which also
+     makes @clip and @note searchable past their first line.
+  ☁️ WHAT IT MUST NOT COST. A thumbnail is a full decode on the main
+     thread, and on a OneDrive-evicted file that decode is a download —
+     the 6.152.x / 6.170.3 beachball class. So: the decodes are
+     BUDGETED (the newest few get pictures, the rest are rows without
+     one), the budget counts DECODES rather than rows so an image that
+     has moved cannot spend it, a missing file is a stat and never a
+     read, ⌥⏎ hands the file to /usr/bin/open in a task rather than
+     decoding anything, and the thumbnail cache finally has a ceiling —
+     it had none, and @images feeds it images from anywhere on disk
+     rather than one folder.
+  ➕ Smaller, in the same change: an image read twice is ONE card (its
+     newest reading), a row whose file has moved keeps its words and
+     says so rather than vanishing, ⌥⏎ on a row with no file falls
+     through and does what ⏎ does rather than dead-ending, the master
+     log maps the new column so images are searchable there too, and
+     ⇪O's own rows now name the image beside the timestamp.
+     test_unified 86 → 107, test_ocr_tag 96 → 103, test_screenshots
+     165 → 166, test_unified_js 31 → 37. 7,957 → 7,995 checks over
+     seventy-four stages, with twenty-three mutations run against the
+     new checks and all twenty-three caught — two of them only after
+     the check was rewritten, because asserting that a budget EXISTS is
+     not asserting that it bites.
+
 NEW IN 6.186.0 — 🗂 A KANBAN BOARD YOU CAN DRAG CARDS ON (⇪3, ⌘⇧B):
   🗂 LL's list, in his order, said Kanban columns next. Here they are,
      and they are not a new file format: your NOTES are the cards.

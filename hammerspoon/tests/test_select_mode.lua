@@ -98,8 +98,38 @@ _G.choosers = {}
 _G.diag = { say = function() end, warn = function() end }
 
 local HYPER = {}
+-- 6.187.0 — the OCR log is quote-aware CSV now, and the module parses it
+-- through core's splitter. A stub core without these is a stub that lies
+-- about what every module is really handed.
+local function csvQuote(value)
+    local s = tostring(value or "")
+    s = s:gsub('[\r\n]+', ' '):gsub('"', '""')
+    return '"' .. s .. '"'
+end
+local function splitCSVLine(line)
+    local out, i, n = {}, 1, #line
+    while i <= n + 1 do
+        if line:sub(i, i) == '"' then
+            local j, buf = i + 1, {}
+            while j <= n do
+                local c = line:sub(j, j)
+                if c == '"' then
+                    if line:sub(j + 1, j + 1) == '"' then buf[#buf + 1] = '"'; j = j + 2
+                    else break end
+                else buf[#buf + 1] = c; j = j + 1 end
+            end
+            out[#out + 1] = table.concat(buf)
+            i = j + 2
+        else
+            local j = line:find(",", i, true) or (n + 1)
+            out[#out + 1] = line:sub(i, j - 1)
+            i = j + 1
+        end
+    end
+    return out
+end
 local CORE = {
-    logsDir = "/logs",
+    logsDir = "/logs", csvQuote = csvQuote, splitCSVLine = splitCSVLine,
     hostTag = "Test",
     adoptLegacyFile = function() end,
     warnWriteFailed = function() end,

@@ -44,7 +44,7 @@
 -- rows that have one — the same convention the ⇪⇧4 panel taught.
 --
 -- 🔎 EVERY WORD MUST MATCH ("aug receipt" finds August receipts), and a
--- @tag word pins the source: @clip @cmd @shots @note @asana @ocr @doc
+-- @tag word pins the source: @clip @cmd @shots @images @note @asana @ocr @doc
 -- @file @pad @web @tool. Tags ride in each row's haystack, so they cost
 -- nothing.
 --
@@ -71,6 +71,7 @@ local M = {
             { "⇪⇧space", "Same panel opened as the BIG-thumbnail screenshot browser (@shots)" },
             { "⇪⇧/",     "Same panel opened on the TOOLS (@tool) — every shortcut, searchable" },
             { "type",    "Every word must match · a @tag word pins one source — each section header shows its tag" },
+            { "@images", "🖼 Find a PICTURE by the words inside it — every image the OCR log has read, thumbnail and all. ⏎ copies the image, ⌥⏎ opens it, ⌘⏎ copies its path" },
             { "⏎",       "COPY the row — text its full text, a screenshot the image, a Chrome page its URL (⇪Y reopens)" },
             { "⏎ on 🔧", "RUNS the tool instead — the one row kind that acts (else copies its key)" },
             { "⌘⏎",      "Copy the file PATH instead (rows that have one)" },
@@ -96,7 +97,15 @@ function M.setup(core)
     uni.groupCap = 8         -- rows per source in the nothing-typed view
     uni.maxPer  = { clip = 400, cmd = 400, shots = 30, note = 120,
                     asana = 200, ocr = 200, doc = 200, file = 200, pad = 60,
-                    web = 300, scratch = 200, vault = 300 }
+                    web = 300, scratch = 200, vault = 300, images = 150 }
+    -- 6.187.0 — how many @images rows get a real picture. A thumbnail is a
+    -- full decode on the main thread, so this is a budget, not a preference.
+    uni.thumbMax = 24
+    -- 6.187.0 — how much of a row's FULL text joins the haystack. Until now
+    -- only the truncated preview was searchable, so a word in the middle of
+    -- an OCR'd page could not be found — which is most of the point of
+    -- having OCR'd the page. Bounded because the haystack ships to the page.
+    uni.hayFull = 1500
     -- ----------------------------------------------------------------------
 
     local function say(m)  if _G.diag then _G.diag.say("unified", m)  end end
@@ -104,6 +113,13 @@ function M.setup(core)
 
     -- ---- tiny shared helpers ----------------------------------------------
     local function oneLine(s) return (tostring(s or ""):gsub("%s+", " ")) end
+
+    -- a stat, never a read: an mtime does not fetch a cloud-evicted file
+    local function mtimeOf(path)
+        local mt
+        pcall(function() mt = hs.fs.attributes(path, "modification") end)
+        return tonumber(mt) or 0
+    end
 
     local function prettySize(bytes)
         bytes = tonumber(bytes) or 0
@@ -160,9 +176,21 @@ function M.setup(core)
     -- ⇪⇧4 panel's cache — an edited file re-reads, an unchanged one never
     -- decodes twice in a session.
     uni.thumbCache = {}
+    uni.thumbCount = 0
+    uni.thumbCacheMax = 200
     function uni.thumbFor(entry)
         local c = uni.thumbCache[entry.path]
         if c and c.mtime == entry.mtime then return c.uri end
+        -- 6.187.0 — the cache had no ceiling. One entry is a whole encoded
+        -- PNG as a string, and @images feeds it images from anywhere on
+        -- disk rather than one folder, so an unbounded cache is a session
+        -- that grows all day. Past the cap it is emptied rather than
+        -- pruned by age: the next gather re-decodes what is still on
+        -- screen, which is bounded work, and nothing has to remember an
+        -- order that would itself need keeping.
+        if uni.thumbCount >= uni.thumbCacheMax then
+            uni.thumbCache, uni.thumbCount = {}, 0
+        end
         local uri
         pcall(function()
             local full = hs.image.imageFromPath(entry.path)
@@ -174,7 +202,10 @@ function M.setup(core)
             end
         end)
         if type(uri) ~= "string" or not uri:find("^data:image") then uri = nil end
-        if uri then uni.thumbCache[entry.path] = { mtime = entry.mtime, uri = uri } end
+        if uri then
+            uni.thumbCache[entry.path] = { mtime = entry.mtime, uri = uri }
+            uni.thumbCount = uni.thumbCount + 1
+        end
         return uri
     end
 
@@ -291,20 +322,48 @@ function M.setup(core)
         end
     end
 
-    local function srcOCR(add)
+    -- 6.187.0 — ONE ROW OF THE OCR LOG. The log gained a third column in
+    -- 6.187.0 — the image the words were read from — and the old
+    -- two-column rows are still on disk and still valid. Both shapes parse
+    -- here.
+    -- 🔗 This is the TWIN of ocr.parseRow in modules/ocr_engine.lua. Two
+    -- modules must read this file (⇪space cannot depend on the OCR engine
+    -- being loaded), so there are two readers by necessity — but each now
+    -- goes through the quote-aware splitter its own file already had,
+    -- rather than a pattern of its own, and the gate runs BOTH over the
+    -- same fixtures and fails if they ever disagree. The greedy `(.*)`
+    -- this replaced would have swallowed the new column into the text and
+    -- shown LL a path glued to the end of every entry.
+    function uni.parseOcrRow(line)
+        line = tostring(line or "")
+        if line == "" then return nil end
+        local f = csvSplit(line)
+        local ts = f and f[1]
+        if not ts or ts == "" then return nil end
+        local text = (f[2] or ""):gsub('\\n', '\n')
+        local path = f[3]
+        if path == "" then path = nil end
+        return ts, text, path
+    end
+
+    -- the log, oldest first, as the file has it. A tail read of a file
+    -- that is APPENDED to can begin mid-row, so the first line is dropped
+    -- unless the read started at the beginning of the file.
+    local function ocrEntries()
         local file = (core.logsDir or "") .. "/image_text-"
                      .. tostring(core.hostTag) .. ".csv"
         local content = tailRead(file, 256 * 1024)
-        if not content then return end
-        local collected = {}
+        if not content then return {} end
+        local out = {}
         for line in content:gmatch("[^\r\n]+") do
-            local when, raw = line:match("^([^,]+),(.*)$")
-            if when and raw then
-                local clean = raw:gsub('^"', ''):gsub('"$', '')
-                                 :gsub('""', '"'):gsub('\\n', '\n')
-                collected[#collected + 1] = { when = when, text = clean }
-            end
+            local when, text, path = uni.parseOcrRow(line)
+            if when and text then out[#out + 1] = { when = when, text = text, path = path } end
         end
+        return out
+    end
+
+    local function srcOCR(add)
+        local collected = ocrEntries()
         local added = 0
         for i = #collected, 1, -1 do       -- appended → newest last
             local e = collected[i]
@@ -313,6 +372,56 @@ function M.setup(core)
                  sub  = e.when, full = e.text }
             added = added + 1
             if added >= uni.maxPer.ocr then break end
+        end
+    end
+
+    -- 🖼 6.187.0 — @images. LL: "@images / @shots in ⇪space". @shots has
+    -- always listed the screenshots FOLDER by file name, and ⇪O has always
+    -- searched OCR'd words with no way back to the picture. This is the
+    -- half that was missing: every image we have READ, found by the words
+    -- inside it, with the picture beside the row.
+    --
+    -- It is not a new scan of anything. The words and now the path are
+    -- already in the OCR log, so this costs one tail read of a file
+    -- ⇪space already reads — and NOT a second one, because @ocr and
+    -- @images share `ocrEntries`.
+    --
+    -- ☁️ THE ONE COST IT MUST NOT PAY: a thumbnail is a full decode on the
+    -- main thread, and a OneDrive-evicted file decodes by downloading it
+    -- (the 6.152.x / 6.170.3 beachball class). So only the newest
+    -- `uni.thumbMax` rows are ever decoded; the rest are rows without a
+    -- picture, which is a fair trade and is said in the report. An image
+    -- that has been deleted or moved keeps its words and loses its
+    -- thumbnail — the row still finds the text, and ⏎ says the file is gone.
+    local function srcImages(add)
+        local collected = ocrEntries()
+        local seen, rows = {}, {}
+        for i = #collected, 1, -1 do              -- newest first
+            local e = collected[i]
+            if e.path and e.path ~= "" and not seen[e.path] then
+                seen[e.path] = true               -- one row per image, its newest reading
+                rows[#rows + 1] = e
+                if #rows >= uni.maxPer.images then break end
+            end
+        end
+        local drawn = 0        -- DECODES, not rows: an image that has moved
+                               -- costs nothing, so it must not spend the budget
+        for i = 1, #rows do
+            local e = rows[i]
+            local name = e.path:match("[^/]+$") or e.path
+            local words = oneLine(e.text)
+            local exists = false
+            pcall(function() exists = hs.fs.attributes(e.path, "mode") ~= nil end)
+            local thumb
+            if exists and drawn < uni.thumbMax then
+                thumb = uni.thumbFor({ path = e.path, mtime = mtimeOf(e.path) })
+                drawn = drawn + 1
+            end
+            add{ tag = "images", icon = "🖼", src = "Images",
+                 text = name,
+                 sub  = e.when .. " · " .. words:sub(1, uni.preview)
+                        .. (exists and "" or " · ⚠️ the file has moved"),
+                 full = e.text, path = e.path, kind = "image", img = thumb }
         end
     end
 
@@ -697,6 +806,7 @@ function M.setup(core)
         { tag = "note",  icon = "🗒", label = "Notes",        fn = srcNotes     },
         { tag = "asana", icon = "✅", label = "Asana tasks",  fn = srcAsana     },
         { tag = "ocr",   icon = "🔤", label = "OCR",          fn = srcOCR       },
+        { tag = "images", icon = "🖼", label = "Images",       fn = srcImages    },
         { tag = "doc",   icon = "📄", label = "Documents",    fn = srcDocs      },
         { tag = "file",  icon = "📁", label = "File moves",   fn = srcFiles     },
         { tag = "pad",   icon = "🗒", label = "Capture Pad",  fn = srcPad       },
@@ -747,8 +857,14 @@ function M.setup(core)
     function uni.rowsJson()
         local parts = {}
         for _, r in ipairs(uni.rows) do
+            -- 6.187.0 — the FULL text joins the haystack, bounded. Before
+            -- this only the preview did, so a word buried in an OCR'd page
+            -- or a long clipboard entry was in the index and unfindable.
+            local full = tostring(r.full or "")
+            if full == (r.text or "") then full = "" end
             local hay = string.lower((r.text or "") .. " " .. (r.sub or "")
-                        .. " @" .. r.tag .. " " .. (r.src or ""))
+                        .. " @" .. r.tag .. " " .. (r.src or "")
+                        .. " " .. full:sub(1, uni.hayFull))
             parts[#parts + 1] = "{\"id\":" .. r.id
                 .. ",\"tag\":" .. jstr(r.tag)
                 .. ",\"icon\":" .. jstr(r.icon)
@@ -857,7 +973,7 @@ function rowHtml(row, visIndex){
   h += '<div class="mid"><div class="t">' + esc(row.t) + '</div>' +
        '<div class="s"><span class="src">' + row.icon + ' ' + esc(row.src) +
        '</span>' + (row.s ? ' · ' + esc(row.s) : '') + '</div></div>';
-  if (row.p) h += '<span class="pp">⌘⏎ path</span>';
+  if (row.p) h += '<span class="pp">⌘⏎ path · ⌥⏎ open</span>';
   return h + '</div>';
 }
 
@@ -910,9 +1026,11 @@ function move(d){
   sel = Math.max(0, Math.min(visible.length - 1, sel + d));
   render();
 }
-function pick(id, wantPath){
+function pick(id, wantPath, wantOpen){
   if (id == null) return;
-  say({ a: wantPath ? 'path' : 'pick', id: id });
+  // 6.187.0 — ⌥⏎ OPENS the thing. For an image that is the whole point:
+  // a 40 px thumbnail tells you which picture it is, not what is in it.
+  say({ a: wantOpen ? 'open' : (wantPath ? 'path' : 'pick'), id: id });
 }
 
 q.addEventListener('input', function(){ sel = 0; rebuild(); });
@@ -921,7 +1039,7 @@ window.addEventListener('keydown', function(ev){
   else if (ev.key === 'ArrowUp') { if (ev.preventDefault) ev.preventDefault(); move(-1); }
   else if (ev.key === 'Enter') {
     if (ev.preventDefault) ev.preventDefault();
-    pick(visible[sel], ev.metaKey === true);
+    pick(visible[sel], ev.metaKey === true, ev.altKey === true);
   }
   else if (ev.key === 'Escape') { say({ a: 'close' }); }
 });
@@ -930,7 +1048,7 @@ list.addEventListener('click', function(ev){
   while (n && n !== list && !(n.getAttribute && n.getAttribute('data-id')))
     n = n.parentNode;
   if (n && n !== list && n.getAttribute)
-    pick(parseInt(n.getAttribute('data-id'), 10), ev.metaKey === true);
+    pick(parseInt(n.getAttribute('data-id'), 10), ev.metaKey === true, ev.altKey === true);
 });
 var bar = el('bar');
 bar.addEventListener('mousedown', function(ev){
@@ -1010,6 +1128,24 @@ if (q.focus) q.focus();
         end
         local row = uni.rows and uni.rows[tonumber(body.id or 0)]
         if not row then return end
+        -- 6.187.0 — ⌥⏎ hands the file to macOS and gets out of the way.
+        -- /usr/bin/open in a task: never a decode, never a main-thread read,
+        -- so a cloud-evicted file is OneDrive's problem and not a stall here.
+        -- guarded on `path`, and DELIBERATELY not an else: a row with no
+        -- file (a tool, a vault note) falls through and ⌥⏎ does what ⏎ does,
+        -- rather than dead-ending on "nothing to open".
+        if a == "open" and row.path then
+            local ok = false
+            pcall(function()
+                local t = hs.task.new("/usr/bin/open", nil, { row.path })
+                ok = t and t:start() and true or false
+                uni.openTask = t          -- HELD
+            end)
+            hs.alert.show(ok and ("📂 Opening " .. (row.path:match("[^/]+$") or row.path))
+                          or "⚠️ Could not open that file", ok and 2 or 3)
+            uni.hide()
+            return
+        end
         -- 🔧 A TOOL ROW RUNS. Everything else on this panel copies; this one
         -- kind acts, which is why it is checked before the copy paths and
         -- not folded into them.

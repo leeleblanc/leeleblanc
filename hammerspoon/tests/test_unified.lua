@@ -64,6 +64,7 @@ end
 
 -- ---- the stub Mac -------------------------------------------------------
 local ALERTS, PB, CLIPOBJ = {}, nil, nil
+local OPENED = nil          -- 6.187.0 — what ⌥⏎ handed to /usr/bin/open
 local TIMERS = {}
 local function drain()
     local list = TIMERS
@@ -141,7 +142,22 @@ hs = {
             return t
         end,
     },
-    fs = { attributes = function() return nil end },
+    -- 6.187.0 — @images asks whether the file is still there (a stat, never
+    -- a read). A stub that always says "gone" could never exercise the
+    -- branch that draws a thumbnail.
+    -- 6.187.0 — ⌥⏎ opens a file through a task, never a main-thread read
+    task = {
+        new = function(bin, cb, args)
+            local t = { bin = bin, args = args }
+            function t:start() if self.bin == "/usr/bin/open" then OPENED = self.args[1] end return true end
+            return t
+        end,
+    },
+    fs = { attributes = function(path, what)
+        if FILES[path] == nil then return nil end
+        if what == "modification" then return 1000 end
+        return "file"
+    end },
 }
 -- 🖐 6.107.0 — hs.settings, where the dragged position now survives a
 -- reload. A plain table stands in for the plist; what is under test is
@@ -186,9 +202,25 @@ _G.asanaTaskHistory = {
     { title = "Old task",    timestamp = 100, desc = "",        assignee = "" },
     { title = "Newest task", timestamp = 200, desc = "the why", assignee = "Lee" },
 }
-FILES["/logs/image_text-TestMac.csv"] =
+-- 🖼 6.187.0 — DELIBERATELY MIXED, like the real file. Rows written before
+-- 6.187.0 have two columns and no image; rows written since carry the file
+-- the words were read from as a third, quoted column (quoted because a
+-- screenshot name may contain a comma). Both shapes live in one file
+-- forever — adoptLegacyFile folds an old machine's log into the new one —
+-- so the parser is never allowed to assume which it is holding.
+local OCRCSV =
     '2026-08-14 10:00:00,"Hello ""OCR"" line\\nsecond"\n'
     .. '2026-08-15 09:00:00,"Receipt total 42.50"\n'
+    .. '2026-08-16 09:00:00,"Invoice from Acme","/shots/invoice.png"\n'
+    .. '2026-08-17 09:00:00,"Bank statement, March","/shots/Screenshot 1, cropped.png"\n'
+    .. '2026-08-18 09:00:00,"' .. ("filler word " .. ""):rep(40) .. 'buriedneedle at the end"'
+    .. ',"/shots/long.png"\n'
+    .. '2026-08-19 09:00:00,"a newer reading of the same file","/shots/invoice.png"\n'
+    .. '2026-08-20 09:00:00,"words from a file that has since moved","/shots/gone.png"\n'
+FILES["/logs/image_text-TestMac.csv"] = OCRCSV
+FILES["/shots/invoice.png"] = "PNG"
+FILES["/shots/Screenshot 1, cropped.png"] = "PNG"
+FILES["/shots/long.png"] = "PNG"
 FILES["/logs/doc_wather.csv"] =
     "Date,Time of day,File name,Working time\n"
     .. '2026-08-14,09:12,"Report.docx",1h 05m\n'
@@ -358,9 +390,18 @@ check("asana tasks newest first, description carried in full",
       and byTag.asana[1].full == "Newest task\nthe why"
       and (byTag.asana[1].sub or ""):find("Lee") ~= nil)
 check("OCR rows un-escape the CSV (quotes and newlines), newest first",
-      byTag.ocr[1].full == "Receipt total 42.50"
-      and byTag.ocr[2].full == 'Hello "OCR" line\nsecond',
-      byTag.ocr[2].full)
+      byTag.ocr[1].full == "words from a file that has since moved"
+      and byTag.ocr[#byTag.ocr].full == 'Hello "OCR" line\nsecond',
+      byTag.ocr[1].full .. " / " .. byTag.ocr[#byTag.ocr].full)
+-- 6.187.0 — the row that would have proved the old greedy parser wrong:
+-- with `^([^,]+),(.*)$` this came out as `Invoice from Acme","/shots/invoice.png`
+check("…and a row WITH an image keeps its text clean — no path glued on the end",
+      (function()
+          for _, r in ipairs(byTag.ocr) do
+              if r.full == "Invoice from Acme" then return true end
+          end
+          return false, byTag.ocr[3] and byTag.ocr[3].full
+      end)())
 check("documents newest first, worked time in the sub line",
       byTag.doc[1].text == "notes.md"
       and (byTag.doc[1].sub or ""):find("worked 12m") ~= nil, byTag.doc[1].sub)
@@ -734,6 +775,226 @@ U.hide()
 _G.cheatSheet = savedSheet
 
 -- =====================================================================
+-- =====================================================================
+out("\n7. 🖼 6.187.0 — @images: find the PICTURE by the words inside it\n")
+-- =====================================================================
+do
+    -- Section 6 emptied every store on purpose. Put back ONLY the OCR log
+    -- and the files it points at: @images must work with every other store
+    -- missing, which is the degrade rule stated as a fixture.
+    FILES["/logs/image_text-TestMac.csv"] = OCRCSV
+    FILES["/shots/invoice.png"] = "PNG"
+    FILES["/shots/Screenshot 1, cropped.png"] = "PNG"
+    FILES["/shots/long.png"] = "PNG"
+    U.gather()
+    byTag = {}
+    for _, r in ipairs(U.rows) do
+        byTag[r.tag] = byTag[r.tag] or {}
+        table.insert(byTag[r.tag], r)
+    end
+    local img = byTag.images or {}
+    check("@images works with every other store gone — it needs only the log",
+          #img > 0 and (byTag.clip == nil or #byTag.clip == 0))
+    check("@images is a source, so it gets a section of its own and a @tag",
+          (function()
+              for _, sc in ipairs(U.sources) do if sc.tag == "images" then return true end end
+              return false
+          end)())
+    check("…and it is capped like every other source (an unregistered tag kills the source)",
+          type(U.maxPer.images) == "number" and U.maxPer.images > 0)
+    check("only the rows that KNOW their image become an image row",
+          #img == 4, #img)
+    check("the newest reading of an image wins and the older one is not a second card",
+          (function()
+              local n = 0
+              for _, r in ipairs(img) do if r.path == "/shots/invoice.png" then n = n + 1 end end
+              return n == 1 and (img[2] and img[2].full) == "a newer reading of the same file", n
+          end)())
+    check("the row is named by the FILE and carries the words for ⏎",
+          (function()
+              for _, r in ipairs(img) do
+                  if r.path == "/shots/invoice.png" then
+                      return r.text == "invoice.png" and r.full == "a newer reading of the same file"
+                             and r.kind == "image"
+                  end
+              end
+              return false
+          end)())
+    check("a path with a comma in it survives — the column is quoted for exactly this",
+          (function()
+              for _, r in ipairs(img) do
+                  if r.text == "Screenshot 1, cropped.png" then
+                      return r.full == "Bank statement, March"
+                  end
+              end
+              return false, (img[3] or {}).text
+          end)())
+    check("an image still on disk gets a thumbnail",
+          (function()
+              for _, r in ipairs(img) do
+                  if r.path == "/shots/invoice.png" then
+                      return (r.img or ""):find("THUMB-/shots/invoice.png", 1, true) ~= nil
+                  end
+              end
+              return false
+          end)())
+    check("an image that has MOVED keeps its words, loses its picture, and SAYS so",
+          (function()
+              for _, r in ipairs(img) do
+                  if r.path == "/shots/gone.png" then
+                      return r.img == nil and (r.sub or ""):find("has moved") ~= nil
+                             and r.full == "words from a file that has since moved"
+                  end
+              end
+              return false
+          end)())
+    check("a two-column row from before 6.187.0 is NOT an image row — it never knew one",
+          (function()
+              for _, r in ipairs(img) do
+                  if r.full == "Receipt total 42.50" then return false end
+              end
+              return true
+          end)())
+    check("@ocr still lists every reading, images and all — the two sources do not compete",
+          #byTag.ocr == 7, #byTag.ocr)
+
+    -- the haystack: this is what makes "find the picture by its words" true
+    local json = U.rowsJson()
+    check("a word buried deep in an OCR'd page is SEARCHABLE, not just stored",
+          json:find("buriedneedle", 1, true) ~= nil)
+    check("…and the haystack is bounded, so one enormous entry cannot bloat the page",
+          type(U.hayFull) == "number" and U.hayFull > 0
+          and (function()
+              -- the fixture's long row is longer than the cap only if the cap bites;
+              -- prove the cap by a text that exceeds it
+              local hay = ("x"):rep(U.hayFull + 500)
+              U.rows[#U.rows + 1] = { id = #U.rows + 1, tag = "images", icon = "🖼",
+                                      src = "Images", text = "big.png", sub = "", full = hay }
+              local j2 = U.rowsJson()
+              U.rows[#U.rows] = nil
+              return j2:find(("x"):rep(U.hayFull + 1), 1, true) == nil
+          end)())
+
+    -- 🖼 A THUMBNAIL IS A MAIN-THREAD DECODE, and on a cloud-evicted file
+    -- that decode is a download. So the budget is not a preference, and
+    -- these two checks prove it BITES rather than merely being declared.
+    local savedMax = U.thumbMax
+    U.thumbMax = 1
+    U.thumbCache, U.thumbCount = {}, 0
+    U.gather()
+    local decoded, live = 0, 0
+    for _, r in ipairs(U.rows) do
+        if r.tag == "images" then
+            if r.img then decoded = decoded + 1 end
+            if (r.sub or ""):find("has moved") == nil then live = live + 1 end
+        end
+    end
+    check("past the budget an image row is drawn WITHOUT a picture, not decoded anyway",
+          decoded == 1 and live > 1, decoded .. " decoded of " .. live .. " still on disk")
+    U.thumbMax = savedMax
+
+    local savedCache = U.thumbCacheMax
+    U.thumbCacheMax = 2
+    U.thumbCache, U.thumbCount = {}, 0
+    U.thumbFor({ path = "/shots/invoice.png", mtime = 1 })
+    U.thumbFor({ path = "/shots/long.png", mtime = 1 })
+    check("the cache fills to its ceiling", U.thumbCount == 2, U.thumbCount)
+    U.thumbFor({ path = "/shots/Screenshot 1, cropped.png", mtime = 1 })
+    check("…and at the ceiling it is EMPTIED — before 6.187.0 it grew all day",
+          U.thumbCount == 1 and U.thumbCache["/shots/invoice.png"] == nil, U.thumbCount)
+    U.thumbCacheMax = savedCache
+    U.thumbCache, U.thumbCount = {}, 0
+    U.gather()
+
+    -- ⌥⏎ OPENS
+    local before = #ALERTS
+    BRIDGE({ body = { a = "open", id = (function()
+        for _, r in ipairs(U.rows) do if r.path == "/shots/invoice.png" then return r.id end end
+    end)() } })
+    check("⌥⏎ hands the file to /usr/bin/open — never a decode on the main thread",
+          OPENED == "/shots/invoice.png" and #ALERTS > before, tostring(OPENED))
+    local pbBefore = PB
+    local toolId
+    for _, r in ipairs(U.rows) do if r.kind == "tool" then toolId = r.id break end end
+    if toolId then
+        BRIDGE({ body = { a = "open", id = toolId } })
+        check("⌥⏎ on a row with no file falls through and does what ⏎ does",
+              OPENED == "/shots/invoice.png", tostring(OPENED))
+    end
+
+    -- 🔗 THE PROMISE IN THE COMMENT: two modules read this CSV, so the gate
+    -- runs BOTH parsers over the same rows and fails if they ever disagree.
+    local function lift(file, name)
+        local f = realOpen(HS .. "/" .. file)
+        local src = f and f:read("a") or ""
+        if f then f:close() end
+        local body = src:match("(function " .. name .. "%(line%)\n.-\n    end)")
+        return body
+    end
+    local twinA = lift("modules/ocr_engine.lua", "ocr%.parseRow")
+    local twinB = lift("modules/unified_search.lua", "uni%.parseOcrRow")
+    check("both parsers are still there to compare (a rename must not skip this check)",
+          twinA ~= nil and twinB ~= nil)
+    if twinA and twinB then
+        local function mk(body, holder)
+            local env = { core = { splitCSVLine = _G.__split }, csvSplit = _G.__split,
+                          tostring = tostring, string = string }
+            env[holder] = {}
+            local chunk = load("local " .. holder .. " = ... " .. body .. " return " .. holder,
+                               "twin", "t", setmetatable(env, { __index = _G }))
+            return chunk({})
+        end
+        _G.__split = (function()
+            -- the same splitter both modules are handed, so what is compared
+            -- is the WRAPPER logic each one adds — which is where a drift lives
+            return function(line)
+                local out, i, n = {}, 1, #line
+                while i <= n + 1 do
+                    if line:sub(i, i) == '"' then
+                        local j, buf = i + 1, {}
+                        while j <= n do
+                            local c = line:sub(j, j)
+                            if c == '"' then
+                                if line:sub(j + 1, j + 1) == '"' then buf[#buf + 1] = '"'; j = j + 2
+                                else break end
+                            else buf[#buf + 1] = c; j = j + 1 end
+                        end
+                        out[#out + 1] = table.concat(buf); i = j + 2
+                    else
+                        local j = line:find(",", i, true) or (n + 1)
+                        out[#out + 1] = line:sub(i, j - 1); i = j + 1
+                    end
+                end
+                return out
+            end
+        end)()
+        local A, B = mk(twinA, "ocr"), mk(twinB, "uni")
+        local FIX = {
+            '2026-01-01 00:00:00,"plain"',
+            '2026-01-01 00:00:00,"plain","/a/b.png"',
+            '2026-01-01 00:00:00,"has ""quotes"", and a comma","/a/b,c.png"',
+            '2026-01-01 00:00:00,"line one\\nline two"',
+            '2026-01-01 00:00:00,"trailing empty",',
+            '2026-01-01 00:00:00,unquoted text',
+            '',
+        }
+        local agree, why = true, nil
+        for _, line in ipairs(FIX) do
+            local a1, a2, a3 = A.parseRow(line)
+            local b1, b2, b3 = B.parseOcrRow(line)
+            if a1 ~= b1 or a2 ~= b2 or a3 ~= b3 then
+                agree, why = false, line .. " → " .. tostring(a2) .. "|" .. tostring(a3)
+                              .. "  vs  " .. tostring(b2) .. "|" .. tostring(b3)
+                break
+            end
+        end
+        check("the two readers of the OCR log agree on every row shape, old and new", agree, why)
+        local ts, text, path = A.parseRow('2026-01-01 00:00:00,"words","/a/b.png"')
+        check("…and they really do split off the path (not swallow it into the text)",
+              text == "words" and path == "/a/b.png", tostring(text) .. " | " .. tostring(path))
+    end
+end
+
 io.write(("\n%d passed, %d failed\n"):format(pass, fail))
 if fail > 0 then
     io.write("FAILURES:\n")

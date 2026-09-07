@@ -97,8 +97,38 @@ hs.chooser = { new = function()
 end }
 _G.choosers = {}
 
+-- 6.187.0 — the OCR log is quote-aware CSV now, and the module parses it
+-- through core's splitter. A stub core without these is a stub that lies
+-- about what every module is really handed.
+local function csvQuote(value)
+    local s = tostring(value or "")
+    s = s:gsub('[\r\n]+', ' '):gsub('"', '""')
+    return '"' .. s .. '"'
+end
+local function splitCSVLine(line)
+    local out, i, n = {}, 1, #line
+    while i <= n + 1 do
+        if line:sub(i, i) == '"' then
+            local j, buf = i + 1, {}
+            while j <= n do
+                local c = line:sub(j, j)
+                if c == '"' then
+                    if line:sub(j + 1, j + 1) == '"' then buf[#buf + 1] = '"'; j = j + 2
+                    else break end
+                else buf[#buf + 1] = c; j = j + 1 end
+            end
+            out[#out + 1] = table.concat(buf)
+            i = j + 2
+        else
+            local j = line:find(",", i, true) or (n + 1)
+            out[#out + 1] = line:sub(i, j - 1)
+            i = j + 1
+        end
+    end
+    return out
+end
 local CORE = {
-    logsDir = "/logs",
+    logsDir = "/logs", csvQuote = csvQuote, splitCSVLine = splitCSVLine,
     hostTag = "Test",
     adoptLegacyFile  = function() end,
     warnWriteFailed  = function() end,
@@ -343,7 +373,7 @@ do
 
     local M2 = dofile(HS .. "/modules/ocr_engine.lua")
     M2.setup({
-        logsDir = DIR, hostTag = "Test",
+        logsDir = DIR, hostTag = "Test", csvQuote = csvQuote, splitCSVLine = splitCSVLine,
         adoptLegacyFile  = function() end,
         warnWriteFailed  = function() end,
         showPopup        = function() end,
@@ -357,6 +387,28 @@ do
           PROV2["ocr.record"]("Fr\xE2\x80\x99om a screenshot\nline two") == true
           and PROV2["ocr.record"]("   ") == false
           and (getCsv() or ""):find(',"From a screenshot\\nline two"\n$') ~= nil, getCsv())
+    -- 🖼 6.187.0 — the THIRD column: the image the words were read from
+    check("ocr.record takes the IMAGE too, and quotes it (a screenshot name may hold a comma)",
+          PROV2["ocr.record"]("words here", "/shots/a, b.png") == true
+          and (getCsv() or ""):find(',"words here","/shots/a, b.png"\n$') ~= nil, getCsv())
+    check("…and a caller with no image still writes the two-column row it always did",
+          PROV2["ocr.record"]("no image for this one") == true
+          and (getCsv() or ""):find(',"no image for this one"\n$') ~= nil, getCsv())
+    check("a path that is not absolute is refused rather than written as a bad link",
+          PROV2["ocr.record"]("relative", "shots/a.png") == true
+          and (getCsv() or ""):find(',"relative"\n$') ~= nil, getCsv())
+    check("v.parseRow reads both shapes, old and new, and never glues the path onto the text",
+          (function()
+              local ts, t1, p1 = E.parseRow('2026-01-01 00:00:00,"just words"')
+              local _,  t2, p2 = E.parseRow('2026-01-01 00:00:00,"just words","/a/b.png"')
+              local _,  t3, p3 = E.parseRow('2026-01-01 00:00:00,"a ""quote"", a comma","/a/b,c.png"')
+              local _,  t4     = E.parseRow('2026-01-01 00:00:00,"one\\ntwo"')
+              return ts == "2026-01-01 00:00:00"
+                     and t1 == "just words" and p1 == nil
+                     and t2 == "just words" and p2 == "/a/b.png"
+                     and t3 == 'a "quote", a comma' and p3 == "/a/b,c.png"
+                     and t4 == "one\ntwo"
+          end)())
     check("the editor API is exposed", type(E.openEditor) == "function"
           and type(E.applyEdit) == "function"
           and type(E.editorHtml) == "function")
@@ -415,6 +467,34 @@ do
     check("...and the OTHER entry is untouched",
           (getCsv() or ""):find("short one", 1, true) ~= nil)
 
+    -- 🖼 6.187.0 — THE ONE THAT MATTERS. ⇪⇧O rewrites the WHOLE file from a
+    -- snapshot, so a snapshot or a writer that knows only two columns strips
+    -- the image off EVERY row the first time LL fixes a typo in one of them —
+    -- and the write ledger lists this file as rewritten-whole, so the loss
+    -- would not even be reported.
+    putCsv('2026-08-18 09:00:00,"keep me","/shots/keep.png"\n'
+           .. '2026-08-19 09:00:00,"fix me","/shots/fix.png"\n')
+    E.edit()
+    E.openEditor(1)
+    E.handleEditorMessage({ a = "save", text = "fixed" })
+    check("editing ONE entry does not strip the image off the OTHERS",
+          (getCsv() or ""):find('"fix me","/shots/fix.png"', 1, true) ~= nil, getCsv())
+    check("…and the edited entry keeps ITS OWN image too",
+          (getCsv() or ""):find('"fixed","/shots/keep.png"', 1, true) ~= nil, getCsv())
+    check("…and a two-column row round-trips as two columns, not as an empty third",
+          (function()
+              putCsv('2026-08-18 09:00:00,"old row, no image"\n'
+                     .. '2026-08-19 09:00:00,"edit me"\n')
+              E.edit(); E.openEditor(1)
+              E.handleEditorMessage({ a = "save", text = "edited" })
+              return (getCsv() or ""):find('"edit me"\n', 1, true) ~= nil
+                     and (getCsv() or ""):find('"edit me",', 1, true) == nil
+          end)(), getCsv())
+
+    -- put the log back the way the next block expects to find it
+    putCsv('2026-08-18 09:00:00,"short one"\n'
+           .. '2026-08-19 09:00:00,"edited text"\n')
+
     -- Deleting through the button.
     E.edit()
     E.openEditor(1)
@@ -459,7 +539,7 @@ do
     putCsv('2026-08-19 11:17:32,"needs the fallback"\n')
     local M3 = dofile(HS .. "/modules/ocr_engine.lua")
     M3.setup({
-        logsDir = DIR, hostTag = "Test",
+        logsDir = DIR, hostTag = "Test", csvQuote = csvQuote, splitCSVLine = splitCSVLine,
         adoptLegacyFile  = function() end,
         warnWriteFailed  = function() end,
         showPopup        = function() end,

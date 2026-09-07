@@ -570,9 +570,18 @@ check("…and finds the brew install when it exists",
 local rp = DIR .. "/recognize-me.png"
 FILES[rp] = { size = 500, modification = 1600 }
 -- 6.173.1 — whatever lands on the clipboard here lands in ⇪O's log too
-local REC, savedSvc11 = {}, _G.service
+-- 6.187.0 — and WHICH IMAGE the words came from: the second argument is
+-- what makes ⇪space's @images able to show the picture, so it is captured
+-- here beside the text.
+local REC, RECPATH, savedSvc11 = {}, {}, _G.service
 _G.service = { has = function(n) return n == "ocr.record" end,
-               call = function(n, t) if n == "ocr.record" then REC[#REC + 1] = t end return true end }
+               call = function(n, t, pth)
+                   if n == "ocr.record" then
+                       REC[#REC + 1] = t
+                       RECPATH[#RECPATH + 1] = pth or false
+                   end
+                   return true
+               end }
 tBefore = #TASKS
 S.recognizeFile(rp)
 check("with zbar present the QR decode runs FIRST", #TASKS == tBefore + 1
@@ -583,6 +592,8 @@ check("a decoded code lands on the clipboard, verbatim",
       CLIP.kind == "text" and CLIP.v == "https://example.com/qr-payload",
       tostring(CLIP.v))
 check("6.173.1: …and in the OCR log (ocr.record)", REC[1] == "https://example.com/qr-payload", REC[1])
+check("6.187.0: …WITH the image it was read from, so @images can show it",
+      RECPATH[1] == rp, tostring(RECPATH[1]))
 
 tBefore = #TASKS
 S.recognizeFile(rp)
@@ -596,6 +607,8 @@ check("…whose text is trimmed onto the clipboard",
       CLIP.kind == "text" and CLIP.v == "Hello from OCR", tostring(CLIP.v))
 check("6.173.1: ⇪4's recognized text reaches ocr.record — ⇪O has what ⇪V has",
       REC[2] == "Hello from OCR", REC[2])
+check("6.187.0: …and so does the file, on the OCR route as well as the QR one",
+      RECPATH[2] == rp, tostring(RECPATH[2]))
 _G.service = savedSvc11
 FILES["/opt/homebrew/bin/zbarimg"] = nil
 S._zbar = nil
@@ -1012,6 +1025,27 @@ check("…and it now carries its words, in this module's own shape, keeping "
       FILES[NDIR .. "/Screenshot 2026-09-02 at 20.00.12 — Numpad window map.png"] ~= nil,
       RENAMES[#RENAMES] and RENAMES[#RENAMES].new)
 check("…counted as named on arrival", S.namedOnArrival == 1 and S.nameBusy == false)
+-- 🖼 6.187.0 — THE DEAD-LINK TRAP. This path RENAMES the shot to match its
+-- own words and only then logs them, so logging `path` would file every
+-- arrival against a name that no longer exists — and nothing ever re-OCRs
+-- it, because a file already carrying " — " is not a candidate again. The
+-- @images row would then have no thumbnail, say "the file has moved", and
+-- fail to open: broken on exactly the captures it was built for.
+check("6.187.0: the words are logged against the file's NEW name, not the one it just lost",
+      (function()
+          local newPath = NDIR .. "/Screenshot 2026-09-02 at 20.00.12 — Numpad window map.png"
+          local last
+          for _, c in ipairs(SVC) do if c.n == "ocr.record" then last = c end end
+          if not last then return false end
+          -- the path logged must be a file that EXISTS: that is the whole point
+          return last.p == "Numpad window map" and last.txt == newPath
+                 and FILES[last.txt] ~= nil
+      end)(),
+      (function()
+          local last
+          for _, c in ipairs(SVC) do if c.n == "ocr.record" then last = c end end
+          return last and tostring(last.txt) or "no ocr.record call at all"
+      end)())
 
 out("   -- what the watcher leaves alone --\n")
 PENDING = {}
