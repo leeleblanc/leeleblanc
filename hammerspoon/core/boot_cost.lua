@@ -328,8 +328,6 @@ return function(core)
     local okT, t = pcall(hs.timer.doAfter, 0.1, function()
         local ok, line = pcall(cost.line)
         if ok and line then print(line) end
-        local okD2, l2 = pcall(cost.driftLine)
-        if okD2 and l2 then print(l2) end
     end)
     _G.bootCostTimer = okT and t or nil
     if not okT then
