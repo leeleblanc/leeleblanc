@@ -184,10 +184,25 @@ render), and an unsupported clause is NAMED in the pane while the rest of
 the query still runs (`dataviewjs` is refused by name, never executed; a
 query-looking line inside a plain code fence is text). A template never
 appears in a result. The "/" menu writes the block with the caret on the
-tag — LL does not type the grammar. NEXT, deliberately not built:
-front-matter FIELDS (status:, rating:), which WHERE and a TABLE's columns
-need — that means widening the vault-wide front-matter grep from `tags:`
-to the whole block plus a second index, a release of its own.
+tag — LL does not type the grammar.
+6.185.0 — WHERE, TABLE COLUMNS, SORT ON A FIELD, off the note's FRONT
+MATTER. ONE GREP, TWO INDEXES: the scan chain's front-matter grep asks
+for the opening `---` (not `^tags?:`) and reads the whole block, so the
+same task builds the tags AND `v.fmOf` (rel → {key = value}); front
+matter must start at LINE 1; bounded by `fmMaxFields`/`fmMaxLen` because
+it rides into the page as `f:` on every render; tags are NOT copied in
+(they are `g:`). `v.fmIn(text)` is the Lua twin for the OPEN note.
+WHERE: `field`, `= != > < >= <=`, `contains(f,"x")`, AND/OR (AND
+tighter), `!`; several WHERE lines AND. `file.name|path|folder` and
+`tags` ask about the file. TWO RULES WITH TEETH, both mutation-proven:
+a comparison is NUMERIC when both sides are numbers (else 10 sorts under
+3), and a note WITHOUT the field never satisfies a comparison and sorts
+LAST (missing, not zero — "" compares below everything and would join
+every result). `_G.vaultReport()`'s "fields :" line has three states and
+the third matters: a FAILED grep says so rather than reading as "no
+fields". RULE learned here: match a function call BEFORE stripping
+wrapping brackets — the negation stripper ate contains()'s own closing
+bracket and the clause died silently.
 
 6.175.0 (LL does not write Markdown): a FORMAT BAR over the editor
 (`v.formatBar`), `wrapSel`/`blockAt` shared by the buttons, ⌘B/⌘I/⌘E and
@@ -406,6 +421,27 @@ mirrors draw order: "closes last" IS "drawn under".
   it — but if a post-boot stall is ever traced there, move the read and
   the append into an hs.task (/bin/cat, /usr/bin/tail). Never move it
   back onto the boot line.
+- 6.185.0 verify with LL: ⇪3 — put a front matter block at the top of a
+  couple of notes (--- on line 1, then `status: reading`, `rating: 5`,
+  then ---). `_G.vaultReport()`'s new "fields :" line should name them
+  within a scan. Then "/" on an empty line has a SECOND query row,
+  "Query — filtered by a field": choosing it writes a working
+  TABLE + WHERE + SORT block. Change the tag to one you use and the
+  matching notes appear with their fields on a second line under each
+  name. Worth trying on purpose: `WHERE rating > 3` must find a rating
+  of 10 (numeric, not text); `WHERE status` means "has a status";
+  `WHERE !status` the ones without; `contains(genre, "x")` looks inside
+  a value; `WHERE file.folder = "Projects"` asks about the file itself.
+  A note with no `rating:` must NOT appear in `WHERE rating > 3` and
+  must sort LAST under `SORT rating`. And the standing promise: the
+  note's own text is never touched, no note is read, and a mistyped
+  clause is NAMED in the pane while the rest of the query still runs.
+  STILL OPEN (LL's list, in his priority order after this): Kanban
+  columns; @images / @shots in ⇪space; the screenshot editor's text-box
+  handles; and the ⇪⇧O image history beach ball (a stall — diagnose
+  before touching). Judged already covered, do not build without LL
+  asking again: Templater (6.174.0 templates), QuickAdd (⇪N + ⇪2),
+  Linter (the format bar), Folder Note (outline + backlinks).
 - 6.184.0 verify with LL: ⇪X — the grid is the nine home-row keys
   again (729 cells, ~70 pt on the 4K), labels readable at a glance and
   no finger off the home row. Land on a toolbar button, a tab, a Save

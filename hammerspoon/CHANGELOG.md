@@ -5,6 +5,68 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.185.0 — 🔎 WHERE: A QUERY CAN ASK ABOUT YOUR FRONT MATTER:
+  🔎 6.183.0's queries could ask about tags, folders and links, and the
+     pane said plainly that a WHERE was the part it could not do yet.
+     It can now ask about the FIELDS at the top of a note — the
+     `status:` / `rating:` lines between the --- markers:
+         ```dataview
+         TABLE status, rating FROM #book
+         WHERE status != "done" AND rating >= 4
+         SORT rating DESC
+         ```
+     WHERE takes `field` (has it at all), `field = "x"` and the five
+     comparisons `!= > < >= <=`, `contains(field, "x")` which looks
+     inside a value so a list works too, AND / OR with AND binding
+     tighter, and `!` to negate a term; several WHERE lines are ANDed,
+     as Dataview does it. `file.name`, `file.path`, `file.folder` and
+     `tags` ask about the file itself rather than its front matter. A
+     TABLE's columns appear as a second line under each name — the pane
+     is narrow and a real grid there would be unreadable — and
+     `field AS Label` renames one. SORT now takes any field, not just
+     name and path.
+  🧮 NUMBERS ARE NUMBERS, AND MISSING IS MISSING. A comparison where
+     both sides are numeric is done numerically, so `rating > 3` finds a
+     10 — as text, "10" sorts under "3" and the note vanishes. And a
+     note that HAS NOT GOT the field never satisfies a comparison, and
+     sorts LAST rather than first: it is missing, not zero, and an empty
+     string compares below everything and would quietly join every
+     result. Both of those are asserted against the mutation that breaks
+     them, because both are the kind of wrong that looks like an answer.
+  ⚙️ ONE GREP, TWO INDEXES. The front-matter grep in the scan chain used
+     to ask for `^tags?:` and read only that line and twelve after it.
+     It now asks for the opening `---` and reads the whole block, so the
+     SAME task that builds the tag index builds `v.fmOf` — no second
+     pass over the vault, no second grep, and still no note read. Front
+     matter must begin at LINE 1, which is stricter and more correct
+     than the line-2-to-60 guess it replaced: a `---` further down is a
+     divider in someone's prose, and used to be read as front matter.
+     The index is bounded on purpose — `fmMaxFields` keys per note,
+     `fmMaxLen` characters per value — because it lives in memory and
+     rides into the page on every render. `v.fmIn(text)` is the Lua twin
+     for the OPEN note, so its own fields are exact and live the way its
+     tags are, and tags are NOT copied into the fields since they
+     already travel as `g:`.
+  🩺 `_G.vaultReport()` grew a "fields :" line naming how many fields
+     exist, on how many notes, and the commonest four — which is the
+     answer to "what can I even ask about". It has three states and the
+     third is the point: a front-matter grep that FAILED says so, with
+     the reason, instead of reading as "this vault has no fields".
+  🐛 A bug found by writing the tests, not by using it: `contains(...)`
+     never worked on the first try. The negation stripper trimmed
+     wrapping brackets before the function was matched, so it ate
+     contains()'s own closing bracket and the clause silently became
+     unreadable. It is matched BEFORE any bracket is stripped now.
+  ✏️ STILL NEVER TYPED. "/" has a second row — "Query — filtered by a
+     field" — that writes a working TABLE + WHERE + SORT block with the
+     caret on the tag, and the footer names a WHERE line and a SORT line
+     the way it already names a heading.
+     test_vault 283 → 297, test_vault_js 205 → 230 (the grammar, the
+     numeric rule, the missing-field rule, the columns, every degrade
+     path, and the standing promise that the note's text is untouched
+     and no message reaches Lua). 7,855 → 7,894 checks, seventy-four
+     stages.
+
 NEW IN 6.184.0 — 🎯 THE HOME ROW IS THE GRID AGAIN:
   🎯 LL, on his first look at ⇪X in this build: "HOLY SHIT! The grid is
      insane. Way too small."

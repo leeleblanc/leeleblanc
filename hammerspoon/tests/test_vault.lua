@@ -177,7 +177,7 @@ end
 local function finishTagGreps(tagOut, fmOut)
     local tg = lastTaskWith("grep", "-rHoIE")
     if tg then tg.cb(tagOut and 0 or 1, tagOut or "", "") end
-    local fg = lastTaskWith("grep", "^tags?:")
+    local fg = lastTaskWith("grep", "^---")
     if fg then fg.cb(fmOut and 0 or 1, fmOut or "", "") end
 end
 
@@ -244,8 +244,11 @@ do  -- 6.174.0 — two more greps follow the links: #tags (-o, the wide shape), 
     check("…the scan is still running while it does", v.scanning == true and v.tagTask == tg)
     tg.cb(1, "", "")
     local fg = lastTask("grep")
-    check("…then a FRONT-MATTER grep (-m 1 -A 12, ^tags?:)", fg and fg ~= tg and fg.started
-          and taskArgs(fg):find("-m 1 -A 12", 1, true) and taskArgs(fg):find("^tags?:", 1, true) and v.fmTask == fg, taskArgs(fg))
+    -- 6.185.0 — it asks for the opening --- and reads the WHOLE block, so
+    -- one grep builds both the tag index and the query FIELDS
+    check("…then a FRONT-MATTER grep (-m 1 -A 30, the opening ---)", fg and fg ~= tg and fg.started
+          and taskArgs(fg):find("-m 1 -A 30", 1, true) and taskArgs(fg):find("^---[[:space:]]*$", 1, true)
+          and taskArgs(fg):find("^tags?:", 1, true) == nil and v.fmTask == fg, taskArgs(fg))
     fg.cb(1, "", "")
     check("…and both fields are released when the chain ends", v.tagTask == nil and v.fmTask == nil)
 end
@@ -598,9 +601,9 @@ local tg = lastTaskWith("grep", "-rHoIE")
 check("the tag grep is HELD and started", tg and v.tagTask == tg and tg.started)
 tg.cb(0, VAULT .. "/Alpha.md: #Work\n" .. VAULT .. "/Gamma.md:#work/deep\n" .. VAULT .. "/Gamma.md: #2024\n/elsewhere/x.md:#no\n", "")
 check("the tag index is NOT assigned before the chain ends (only the open note's live #Work exists)", v.tags["work/deep"] == nil and v.tags.work.count == 1 and v.scanning == true)
-local fg = lastTaskWith("grep", "^tags?:")
+local fg = lastTaskWith("grep", "^---")
 check("the front-matter grep is HELD and started", fg and v.fmTask == fg and fg.started)
-fg.cb(0, VAULT .. "/Projects/Beta.md:2:tags: [Home, \"#Work\"]\n" .. VAULT .. "/Projects/Beta.md-3-  - listed\n" .. VAULT .. "/Projects/Beta.md-4---\n--\n" .. VAULT .. "/Gamma.md:70:tags: late\n", "")
+fg.cb(0, VAULT .. "/Projects/Beta.md:1:---\n" .. VAULT .. "/Projects/Beta.md-2-tags: [Home, \"#Work\"]\n" .. VAULT .. "/Projects/Beta.md-3-  - listed\n" .. VAULT .. "/Projects/Beta.md-4-status: reading\n" .. VAULT .. "/Projects/Beta.md-5-rating: 5\n" .. VAULT .. "/Projects/Beta.md-6----\n--\n" .. VAULT .. "/Gamma.md:70:---\n" .. VAULT .. "/Gamma.md-71-tags: late\n", "")
 check("scan finished with tags: #work counts Alpha, Beta (front matter) and Gamma (nested child)",
       v.scanning == false and v.scanErr == nil and v.tags.work and v.tags.work.count == 3, v.tags.work and v.tags.work.count)
 check("work/deep is its own tag on Gamma only", v.tags["work/deep"] and #v.tags["work/deep"].rels == 1 and v.tags["work/deep"].rels[1] == "Gamma.md")
@@ -610,7 +613,39 @@ check("#2024 is a number, `tags:` on line 70 is not front matter, /elsewhere is 
 check("the display name is the first-seen spelling and the list is by count", v.tags.work.name == "Work" and v.tagList[1].key == "work" and v.tagList[1].count == 3)
 check("no note file was READ for the tags", #READS == 0, #READS)
 check("tagsOf never learns a scratch rel and the open note's entry is live", v.tagsOf["Alpha.md"] and v.tagsOf["Alpha.md"][1] == "Work")
-check("the two greps share one line counter (4 tag lines + 5 front-matter lines)", v.tagLines == 9, v.tagLines)
+check("the two greps share one line counter (4 tag lines + 9 front-matter lines)", v.tagLines == 13, v.tagLines)
+-- 6.185.0 — the SAME grep that built the tags built the FIELDS. No second
+-- pass over the vault, no note read, and the answer is per note.
+check("6.185.0: the front-matter FIELDS are indexed off the same grep",
+      v.fmOf["Projects/Beta.md"] and v.fmOf["Projects/Beta.md"].status == "reading"
+      and v.fmOf["Projects/Beta.md"].rating == "5", v.fmOf["Projects/Beta.md"])
+check("…tags are NOT duplicated into the fields — they already travel as g:[…]",
+      v.fmOf["Projects/Beta.md"].tags == nil and v.fmOf["Projects/Beta.md"].tag == nil)
+check("…a --- that is not on line 1 opens nothing (it is a divider in someone's prose)",
+      v.fmOf["Gamma.md"] == nil, v.fmOf["Gamma.md"])
+check("…and STILL no note file was read to learn any of it", #READS == 0, #READS)
+check("v.fmFields lists every key seen, by count then name",
+      #v.fmFields == 2 and v.fmFields[1].name == "rating" and v.fmFields[1].count == 1
+      and v.fmFields[2].name == "status", v.fmFields)
+-- v.fmIn is the Lua twin for the OPEN note: exact, live, and the only
+-- place a note's own text is parsed for fields
+check("v.fmIn reads one note's front matter: scalars, a list joined, tags skipped", (function()
+    local f = v.fmIn("---\ntitle: Deep Work\ntags: [a, b]\nstatus: reading\ngenre:\n  - focus\n  - craft\n---\n# body\nstatus: not this\n")
+    return f.title == "Deep Work" and f.status == "reading" and f.genre == "focus, craft" and f.tags == nil, f
+end)())
+check("v.fmIn refuses a block with no closing --- — that is body text, not front matter",
+      next(v.fmIn("---\nstatus: reading\nand then prose\n")) == nil)
+check("v.fmIn refuses a --- that is not the first line", next(v.fmIn("# Title\n---\nstatus: x\n---\n")) == nil)
+check("a value longer than fmMaxLen is CLAMPED, so one paragraph cannot bloat the page",
+      #(v.fmIn("---\nnote: " .. string.rep("x", 400) .. "\n---\n").note or "") == v.fmMaxLen)
+check("a note with more than fmMaxFields keys keeps the first fmMaxFields, and does not grow", (function()
+    local L = { "---" }
+    for i = 1, 40 do L[#L + 1] = "k" .. i .. ": v" .. i end
+    L[#L + 1] = "---"
+    local f, n = v.fmIn(table.concat(L, "\n") .. "\n"), 0
+    for _ in pairs(f) do n = n + 1 end
+    return n == v.fmMaxFields and f.k1 == "v1", n
+end)())
 do
     -- a failed tag grep is optional: links stay, the scan finishes, a warn line says so
     local before = v.tags.work.count
@@ -626,15 +661,17 @@ do
     lastTask("find").cb(0, NOTES9, "")
     lastTaskWith("grep", "\\[\\[").cb(0, LINKS9, "")
     lastTaskWith("grep", "-rHoIE").cb(0, VAULT .. "/Gamma.md:#only\n", "")
-    lastTaskWith("grep", "^tags?:").cb(2, "", "grep: boom")
+    lastTaskWith("grep", "^---").cb(2, "", "grep: boom")
     check("front-matter grep exit 2: the inline tags are kept, the scan finishes", v.scanning == false and v.tags.only and v.tags.home == nil, WARNS[#WARNS])
     -- back to the full index
     v.scan("tags again")
     lastTask("find").cb(0, NOTES9, "")
     lastTaskWith("grep", "\\[\\[").cb(0, LINKS9, "")
     lastTaskWith("grep", "-rHoIE").cb(0, VAULT .. "/Alpha.md: #Work\n" .. VAULT .. "/Gamma.md:#work/deep\n", "")
-    lastTaskWith("grep", "^tags?:").cb(0, VAULT .. "/Projects/Beta.md:2:tags: [Home, \"#Work\"]\n" .. VAULT .. "/Projects/Beta.md-3-  - listed\n", "")
+    lastTaskWith("grep", "^---").cb(0, VAULT .. "/Projects/Beta.md:1:---\n" .. VAULT .. "/Projects/Beta.md-2-tags: [Home, \"#Work\"]\n" .. VAULT .. "/Projects/Beta.md-3-  - listed\n" .. VAULT .. "/Projects/Beta.md-4-status: reading\n" .. VAULT .. "/Projects/Beta.md-5-rating: 5\n" .. VAULT .. "/Projects/Beta.md-6----\n", "")
     check("…restored", v.tags.work.count == 3 and v.tags.home ~= nil)
+    check("…and the FIELDS came back with them — one grep, both indexes",
+          v.fmOf["Projects/Beta.md"] and v.fmOf["Projects/Beta.md"].status == "reading" and #v.fmFields == 2, v.fmFields)
 end
 -- live: a keystroke changes the open note's tags at once, the index on save
 msg({ a = "edit", rel = "Alpha.md", text = "# Alpha\n#Fresh\n", sel = 3 })
@@ -678,6 +715,26 @@ check("…and says so when there are none", (function()
     v.tagsOf = keep; v.rebuildTags()
     return r
 end)())
+-- 6.185.0 — the fields line, in all three states it can be in
+check("the report names the front-matter FIELDS a query can WHERE on",
+      _G.vaultReport():find("fields : 2 on 1 notes · rating 1 · status 1 — a query can WHERE on any of them", 1, true) ~= nil,
+      _G.vaultReport():match("fields :[^\n]*"))
+check("…says so when there are none, with the shape to type",
+      (function()
+          local keep = v.fmOf; v.fmOf = {}; local kf = v.fmFields; v.fmFields = {}
+          local r = _G.vaultReport():find("fields : none yet — put `status: reading` under a --- line", 1, true) ~= nil
+          v.fmOf, v.fmFields = keep, kf
+          return r
+      end)())
+-- IT DEGRADES, IT NEVER BREAKS: a failed grep must not read as "no fields"
+check("…and NAMES the failure when the front-matter grep is what went wrong",
+      (function()
+          local keep, kf = v.fmOf, v.fmFields
+          v.fmOf, v.fmFields, v.fmErr = {}, {}, "grep exited 2: boom"
+          local r = _G.vaultReport():find("fields : none — the front-matter grep failed (grep exited 2: boom)", 1, true) ~= nil
+          v.fmOf, v.fmFields, v.fmErr = keep, kf, nil
+          return r
+      end)(), _G.vaultReport():match("fields :[^\n]*"))
 check("search and tasks report lines before any use", _G.vaultReport():find("search : never (⌘⇧F)", 1, true) and _G.vaultReport():find("tasks  : not listed yet (⌘⇧K)", 1, true))
 
 -- =======================================================================

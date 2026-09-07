@@ -4,9 +4,45 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.184.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.185.0
 -- =====================================================================
 
+-- NEW IN 6.185.0 — 🔎 WHERE: A QUERY CAN ASK ABOUT YOUR FRONT MATTER:
+--   🔎 6.183.0 could ask about tags, folders and links. It can now ask
+--      about the FIELDS at the top of a note — the `status:` / `rating:`
+--      lines between the --- markers:
+--          ```dataview
+--          TABLE status, rating FROM #book
+--          WHERE status != "done" AND rating >= 4
+--          SORT rating DESC
+--          ```
+--      WHERE takes `field` (has it at all), `field = "x"` and
+--      `!= > < >= <=`, `contains(field, "x")`, AND / OR with AND binding
+--      tighter, and `!` to negate; several WHERE lines are ANDed.
+--      `file.name`, `file.path`, `file.folder` and `tags` ask about the
+--      file itself. A TABLE's columns appear as a second line under each
+--      name — the pane is narrow and a real grid there would be
+--      unreadable — and `field AS Label` renames one. SORT now takes any
+--      field, not just name and path.
+--   🧮 NUMBERS ARE NUMBERS. A comparison where both sides are numeric is
+--      done numerically, so 10 beats 3 instead of sorting under it. And
+--      a note that HAS NOT GOT the field never satisfies a comparison
+--      and sorts LAST — it is missing, not zero, and an empty string
+--      would quietly join every result.
+--   ⚙️ ONE GREP, TWO INDEXES. The front-matter grep in the scan chain
+--      used to ask for `^tags?:`; it now asks for the opening `---` and
+--      reads the whole block, so the same task that built the tags
+--      builds the fields. No second pass over the vault, no note read,
+--      and front matter must start at LINE 1 — stricter and more correct
+--      than the line-2-to-60 guess it replaced. `_G.vaultReport()` grew
+--      a "fields :" line naming what a query can ask about, and it says
+--      so honestly when the grep FAILED rather than reading as "this
+--      vault has no fields".
+--   ✏️ Still never typed: "/" has a second row, "Query — filtered by a
+--      field", that writes a working TABLE + WHERE + SORT block, and the
+--      footer names a WHERE and a SORT line.
+--      test_vault 283 → 297, test_vault_js 205 → 230. 7,855 → 7,894
+--      checks, seventy-four stages.
 -- NEW IN 6.184.0 — 🎯 THE HOME ROW IS THE GRID AGAIN:
 --   🎯 LL, on ⇪X: "HOLY SHIT! The grid is insane. Way too small."
 --      6.176.0 had widened the alphabet to sixteen keys — the home row
@@ -33,49 +69,12 @@
 --      alphabet still buys its capacity, so neither drifts.
 --      test_mouse_grid 383 → 384. 7,854 → 7,855 checks, seventy-four
 --      stages.
--- NEW IN 6.183.0 — 🔎 THE VAULT ANSWERS A QUESTION YOU WRITE DOWN:
---   🔎 LIVE QUERIES. LL: "I want to make notes clearly meaningful and
---      see the relationships to jog my memory." Write a query into a
---      note and the notes it describes are listed beside it, live:
---          ```dataview
---          LIST FROM #project AND -#done
---          SORT name
---          ```
---      The answer lands in a new 🔎 QUERY section of the right pane,
---      under the mentions, redrawn 150 ms after a keystroke — so the
---      note and its answer are on screen together and the answer is
---      never stale. FROM takes `#tag` (a nested #a/b counts under #a),
---      `[[Note]]` (everything that links TO it) and `"Folder"`, joined
---      with AND / OR and negated with `-`; SORT name|path, ASC|DESC;
---      LIMIT caps it. A click on a row opens that note.
---   ✍️ YOU NEVER TYPE THE GRAMMAR. "/" on an empty line has a new row,
---      "Query — a live list of notes"; choosing it writes the whole
---      block with the caret sitting on the tag, so the first thing you
---      do is name what you want. The footer names a query line the way
---      it names a heading.
---   🪟 IT IS OBSIDIAN'S OWN GRAMMAR, on purpose. The fence says
---      `dataview` and the syntax is the useful corner of that plug-in's
---      language, so the same block renders in Obsidian if it is ever
---      installed — the folder stays the database and nothing here is a
---      private format.
---   🚨 NOTHING IS WRITTEN, AND NOTHING IS READ. The answer is drawn
---      BESIDE the note, never into it, so the file keeps only what you
---      typed and Dataview can never end up rendering a second copy of a
---      table this one already wrote. The whole thing runs in the page
---      off rows it already holds — no file read, no grep, no scan, no
---      message to Lua. A clause it cannot do (a WHERE, a TABLE's
---      columns) is NAMED in the pane and the rest of the query still
---      runs; a ```dataviewjs block is refused by name and never
---      executed. Front-matter FIELDS (status:, rating:) are the
---      deliberate next step.
---      test_vault 281 → 283, test_vault_js 175 → 205. 7,822 → 7,854
---      checks, seventy-four stages.
--- (6.182.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.183.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.184.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.185.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -172,7 +171,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.184.0"
+_G.configVersion = "6.185.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

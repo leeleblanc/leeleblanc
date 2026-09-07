@@ -47,6 +47,16 @@ v.setNotes({ "Alpha.md", "Projects/Beta.md", "Gamma.md", "Long Name Here.md", "T
 v.setLinkLines("/od/Vault/Alpha.md:[[Beta|B]]\n/od/Vault/Gamma.md:[[Alpha]]\n/od/Vault/Gamma.md:[[Delta]]\n")
 v.tagsOf = { ["Alpha.md"] = { "Work" }, ["Gamma.md"] = { "work/deep" }, ["Projects/Beta.md"] = { "Home" } }
 v.rebuildTags()
+-- 6.185.0 — front-matter FIELDS, so the page has something for WHERE and
+-- a TABLE's columns to work on
+v.fmOf = {
+    ["Alpha.md"]        = { status = "reading", rating = "5", genre = "focus, craft" },
+    ["Projects/Beta.md"]= { status = "done",    rating = "3" },
+    ["Gamma.md"]        = { status = "reading" },
+    -- rating 10 exists so a NUMERIC comparison is provable: "10" > "3" is
+    -- false as text and true as a number, and only one of those is right
+    ["Long Name Here.md"] = { rating = "10" },
+}
 v.doc = { name = "Alpha", rel = "Alpha.md", path = "/od/Vault/Alpha.md", key = "alpha",
           text = "# Alpha\n\nsee [[Beta|B]] and [x](../Docs/x.pdf) #Work\n\n## Part two\n- [ ] a task\n- done\n" }
 v.links["Alpha.md"] = v.linksIn(v.doc.text)

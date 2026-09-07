@@ -619,17 +619,12 @@ if (padHtml) {
   check("…and says how many it did not show, rather than pretending that is all",
         e2.qres.innerHTML.includes("first 2 of 5"), e2.qres.innerHTML);
 
-  // IT DEGRADES, IT NEVER BREAKS — a clause it cannot do is named, the rest runs
-  const e3 = Q("LIST FROM #work\nWHERE rating > 3\nSORT name");
-  check("a clause it does not understand is NAMED in the pane…",
-        e3.qres.innerHTML.includes("ignored: WHERE rating > 3"), e3.qres.innerHTML);
-  check("…and the query still runs — a WHERE never costs you the whole list",
+  // IT DEGRADES, IT NEVER BREAKS — a clause it cannot READ is named, the rest runs
+  const e3 = Q("LIST FROM #work\nWHERE rating >< 3\nSORT name");
+  check("a clause it cannot read is NAMED in the pane…",
+        e3.qres.innerHTML.includes("ignored: WHERE rating >&lt; 3"), e3.qres.innerHTML);
+  check("…and the query still runs — a bad WHERE never costs you the whole list",
         names(e3).join(",") === "Alpha,Gamma");
-  const e4 = Q("TABLE rating, status FROM #work");
-  check("TABLE runs as a list and says the columns are the part not read yet",
-        names(e4).join(",") === "Alpha,Gamma" && e4.qres.innerHTML.includes("front-matter fields are not read yet"), e4.qres.innerHTML);
-  check("SORT on something it cannot sort by is named, not silently ignored",
-        Q("LIST\nSORT rating").qres.innerHTML.includes("SORT rating — name or path only"));
 
   // dataviewjs is a plug-in that runs JavaScript. This never does.
   const e5 = load();
@@ -673,6 +668,98 @@ if (padHtml) {
   check("the footer names a query fence rather than calling it a code block",
         /🔎 QUERY/.test(hint2("```dataview")), hint2("```dataview"));
   check("…and names the FROM line's vocabulary", /AND \/ OR/.test(hint2("LIST FROM #work")));
+}
+
+// ---- 6.185.0 — WHERE, TABLE columns and SORT over the FRONT MATTER ----
+// The dump gives Alpha {status: reading, rating: 5, genre: "focus, craft"},
+// Beta {status: done, rating: 3} and Gamma {status: reading} — Beta is
+// #home, Alpha and Gamma are #work.
+{
+  const Q = (body) => { const e = load(); e.type("# Alpha\n\n```dataview\n" + body + "\n```\n"); return e; };
+  const names = (e) => e.liRows(e.qres.innerHTML).map((r) => r.attrs["data-name"]);
+
+  check("the fields reached the page at all", (() => { const e = load();
+        return JSON.stringify(e.call("NOTES[1].f")) === '{"genre":"focus, craft","rating":"5","status":"reading"}'; })());
+
+  check('WHERE status = "reading" keeps the two that are',
+        names(Q('LIST\nWHERE status = "reading"')).join(",") === "Alpha,Gamma");
+  check("quotes are optional — WHERE status = done reads the same",
+        names(Q("LIST\nWHERE status = done")).join(",") === "Beta");
+  // rating is 5, 3 and 10 — and "10" > "3" is FALSE as text, TRUE as a
+  // number. Only one of those answers is right, which is what makes this
+  // check able to fail when the numeric branch is removed.
+  check("a comparison is NUMERIC when both sides are numbers, so 10 beats 3",
+        names(Q("LIST\nWHERE rating > 3")).join(",") === "Alpha,Long Name Here");
+  check("…and >= includes the boundary, which > must not",
+        names(Q("LIST\nWHERE rating >= 3")).join(",") === "Alpha,Beta,Long Name Here");
+  check("a bare field means HAS that field, not an error",
+        names(Q("LIST\nWHERE rating")).join(",") === "Alpha,Beta,Long Name Here");
+  check("! negates it: the notes with no rating at all",
+        names(Q("LIST\nWHERE !rating")).join(",") === "2026-09-06,Gamma");
+  // a field a note has not got is MISSING, not empty — an empty string
+  // would sort and compare below everything and quietly join every result
+  check("a note without the field never satisfies a <, > or = comparison",
+        names(Q('LIST\nWHERE status < "z"')).join(",") === "Alpha,Beta,Gamma");
+  // != is a COMPARISON, not a negation — the ! must not be eaten by the
+  // negation stripper. And a note with no status at all is "not reading",
+  // which is what makes `WHERE status != "done"` mean what LL expects.
+  check("!= compares rather than negating, and a note without the field counts as not-equal",
+        names(Q('LIST\nWHERE status != "reading"')).join(",") === "2026-09-06,Beta,Long Name Here");
+  check("contains() looks inside a value, so a list field works too",
+        names(Q('LIST\nWHERE contains(genre, "craft")')).join(",") === "Alpha");
+
+  check("AND is both conditions",
+        names(Q('LIST\nWHERE status = "reading" AND rating > 3')).join(",") === "Alpha");
+  check("OR is either, and AND still binds tighter",
+        names(Q('LIST\nWHERE status = "done" OR status = "reading" AND rating > 3')).join(",") === "Alpha,Beta");
+  check("two WHERE lines are ANDed, as Dataview does",
+        names(Q('LIST\nWHERE status = "reading"\nWHERE rating > 3')).join(",") === "Alpha");
+  check("WHERE composes with FROM rather than replacing it",
+        names(Q('LIST FROM #work\nWHERE rating > 3')).join(",") === "Alpha");
+
+  // the file itself is askable, the way Dataview's file.* is
+  check("file.folder asks where the note LIVES",
+        names(Q('LIST\nWHERE file.folder = "Projects"')).join(",") === "Beta");
+  check("file.name asks what it is CALLED",
+        names(Q('LIST\nWHERE contains(file.name, "amma")')).join(",") === "Gamma");
+  check("tags is readable as a field even though it is not stored as one",
+        names(Q('LIST\nWHERE contains(tags, "work")')).join(",") === "Alpha,Gamma");
+
+  // SORT over a field
+  check("SORT rating orders by the NUMBER (3, 5, 10 — not 10, 3, 5), missing last",
+        names(Q("LIST\nSORT rating")).join(",") === "Beta,Alpha,Long Name Here,2026-09-06,Gamma");
+  check("…and DESC turns the ones that HAVE it round without floating the ones that do not",
+        names(Q("LIST\nSORT rating DESC")).slice(0, 3).join(",") === "Long Name Here,Alpha,Beta");
+
+  // TABLE columns
+  const t1 = Q("TABLE status, rating FROM #work");
+  check("TABLE lists the notes and shows the columns under each name",
+        names(t1).join(",") === "Alpha,Gamma"
+        && t1.qres.innerHTML.includes('<span class="qcols">status: reading · rating: 5</span>'), t1.qres.innerHTML);
+  check("…a note missing a column simply omits it rather than printing a blank",
+        t1.qres.innerHTML.includes(">Gamma<span class=\"qcols\">status: reading</span>"), t1.qres.innerHTML);
+  check('TABLE field AS Label renames the column',
+        Q('TABLE status AS Where FROM #work').qres.innerHTML.includes("Where: reading"));
+  check("a column it cannot read is NAMED and the other columns still show",
+        (() => { const e = Q('TABLE status, upper(rating) FROM #work');
+                 return e.qres.innerHTML.includes("the column &quot;upper(rating)&quot;") && e.qres.innerHTML.includes("status: reading"); })());
+
+  // still no reading, no writing, no messages — the 6.183.0 promise holds
+  const e9 = Q('TABLE status FROM #work\nWHERE rating > 3\nSORT status');
+  check("a WHERE query still touches nothing and asks Lua for nothing",
+        e9.t.value.includes("WHERE rating > 3") && e9.sent.every((m) => m.a === "edit" || m.a === "ready"),
+        JSON.stringify(e9.sent.map((m) => m.a)));
+
+  // and the grammar is still never typed
+  const e10 = load();
+  e10.call("blockApply({kind:'queryw'})");
+  check("the / menu's second query row writes a WORKING filtered query",
+        /```dataview\nTABLE status FROM #/.test(e10.t.value) && e10.t.value.includes('WHERE status != "done"'),
+        JSON.stringify(e10.t.value));
+  const hint3 = (line) => e10.call("mdHint(" + JSON.stringify(line) + ")");
+  check("the footer names a WHERE line and what can go in it",
+        /contains\(field, "x"\)/.test(hint3('WHERE status = "reading"')), hint3('WHERE status = "reading"'));
+  check("…and a SORT line", /front-matter field/.test(hint3("SORT rating DESC")));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

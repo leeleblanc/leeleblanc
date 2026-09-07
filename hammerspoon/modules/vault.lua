@@ -131,17 +131,43 @@
 -- block with the caret on the tag, so the grammar never has to be typed,
 -- and the footer names the line you are on.
 --
--- 🚨 NOTHING IS WRITTEN, AND NOTHING IS READ. The answer is drawn BESIDE
+-- 🔎 6.185.0 — WHERE, TABLE COLUMNS AND SORT OVER THE FRONT MATTER.
+-- The front-matter grep in the scan chain used to ask for `^tags?:` and
+-- read only that. It now asks for the opening `---` and reads the WHOLE
+-- block (-A `fmLines`), so ONE grep builds both the tag index and
+-- `v.fmOf` — every note's fields. Front matter must start at line 1 or
+-- it is not front matter, which is stricter and more correct than the
+-- line-2-to-60 guess it replaced. Bounded on purpose (`fmMaxFields`,
+-- `fmMaxLen`) because the index lives in memory and rides into the page
+-- on every render. `v.fmIn(text)` is the Lua twin for the OPEN note, so
+-- its own fields are exact and live the way its tags are; tags are NOT
+-- copied into the fields (they already travel as `g:`).
+--     TABLE status, rating FROM #book
+--     WHERE status != "done" AND rating >= 4
+--     SORT rating DESC
+-- WHERE takes `field` (has it), `field = "x"` / `!= > < >= <=`,
+-- `contains(field, "x")`, AND / OR (AND tighter) and `!` to negate;
+-- several WHERE lines are ANDed. A comparison is NUMERIC when both sides
+-- are numbers, so 10 beats 3 rather than sorting under it. A note that
+-- has not got the field never satisfies a comparison and sorts LAST — it
+-- is missing, not zero. `file.name`, `file.path`, `file.folder` and
+-- `tags` ask about the file itself. A TABLE's columns are drawn as a
+-- second line under each name (the pane is narrow; a real grid there
+-- would be unreadable) and `field AS Label` renames one.
+-- `_G.vaultReport()`'s "fields :" line names what a query can ask about.
+--
+-- 🚨 NOTHING IS WRITTEN, AND NO NOTE IS READ. The answer is drawn BESIDE
 -- the note, never into it: the file keeps only the text you typed, so it
 -- cannot drift under you and Dataview cannot end up rendering a second
--- copy of a table this one already wrote. And the whole thing runs in
--- the PAGE, off the note rows it already holds (name, path, tags, and
--- 6.183.0's new `l:` outgoing link keys) — no file read, no grep, no
--- scan, no message to Lua. IT DEGRADES: a clause it cannot do (a WHERE,
--- a TABLE's columns, a SORT on a front-matter field) is NAMED in the
+-- copy of a table this one already wrote. And the query itself runs in
+-- the PAGE, off the note rows it already holds (name, path, tags,
+-- 6.183.0's `l:` link keys and 6.185.0's `f:` fields) — no file read, no
+-- extra grep, no scan, no message to Lua. IT DEGRADES: a clause it
+-- cannot READ (a mistyped operator, a computed column) is NAMED in the
 -- pane and the rest of the query still runs; a ```dataviewjs block is
--- refused by name and never executed. Front-matter FIELDS are the
--- deliberate next step, not a gap that broke.
+-- refused by name and never executed; and a front-matter grep that
+-- FAILED leaves the fields empty and says so on the report line rather
+-- than reading as "this vault has no fields".
 --
 -- 🚨 WHAT THIS MODULE DELIBERATELY DOES NOT DO. No eventtap (the page's
 -- own keydown handles ⌘N/⌘D/⌘G/⌘K/⌘⏎/Esc). No AX or hs.window read. No
@@ -246,6 +272,13 @@ function M.setup(core)
         mentionsMinLen  = 3,             -- a shorter name is not searched for
         tagRows         = 15,            -- 🏷 rows shown before "… N more"
         maxTagLines     = 40000,         -- like maxLinkLines, for the tag + frontmatter greps together
+        -- 6.185.0 — a note's front matter is read for QUERY fields as well
+        -- as tags. Bounded on purpose: the whole index lives in memory and
+        -- travels into the page on every render, so a note with a hundred
+        -- keys or a paragraph-long value cannot bloat either.
+        fmLines         = 30,            -- grep -A: front-matter lines read per note
+        fmMaxFields     = 16,            -- keys kept per note (the rest are dropped)
+        fmMaxLen        = 120,           -- characters kept per value
         smartLists      = true,          -- ⏎ continues a list line (page-side)
         -- 6.175.0 — LL: "I don't write markdown. Are there tool tips or
         -- autocompletes that will teach and help me." The format bar
@@ -265,6 +298,10 @@ function M.setup(core)
         caret = 0, filter = "", view = "edit", pos = nil, pinned = false,
         -- 6.174.0
         tags = {}, tagsOf = {}, tagList = {}, tagLines = 0, tagsPartial = false, tagTask = nil, fmTask = nil,
+        -- 6.185.0 — front-matter FIELDS: rel → { key = value }, from the
+        -- same grep the tags come from. fmFields is every key seen, by
+        -- count then name, for the report and the query hints.
+        fmOf = {}, fmFields = {}, fmPending = nil, fmErr = nil,
         mode = "notes",
         searchQuery = "", searchRows = {}, searchMore = false, searchTask = nil, searchTimer = nil, searchSeq = 0,
         searching = false, searchErr = nil, lastSearch = nil, searches = 0,
@@ -702,6 +739,8 @@ function M.setup(core)
     -- 6.174.0 — v.tagsOf (rel → display tags) → v.tags (key → name, rels,
     -- count; a nested #a/b/c also counts under a/b and a) and v.tagList
     -- (by count, then name). Memory only; the folder is still the database.
+    local rebuildFields   -- 6.185.0 — declared here, defined below; the
+                          -- field index is refreshed wherever the tag index is
     local function rebuildTags()
         local tags, rels = {}, {}
         for rel in pairs(v.tagsOf) do rels[#rels + 1] = rel end
@@ -757,6 +796,7 @@ function M.setup(core)
         for rel in pairs(v.tagsOf) do if not have[rel] then v.tagsOf[rel] = nil end end
         rebuildBacklinks()
         rebuildTags()
+        rebuildFields()
     end
 
     -- "path:[[Target|x]]" lines from grep → v.links
@@ -808,45 +848,160 @@ function M.setup(core)
         v.tagLines = count
         return inline
     end
-    -- Lines from the front-matter grep (-n -m 1 -A 12): "path:N:tags: value"
-    -- opens a block when N is within the first 60 lines; "path-N-  - item"
-    -- context lines for the SAME path add list items; anything else, "--"
-    -- or another path closes it. Without -A (no context) only the inline
-    -- forms are read — nothing breaks.
+    -- 6.185.0 — ONE PASS OVER THE FRONT MATTER, TWO ANSWERS.
+    -- Until 6.184.0 this grep asked for `^tags?:` and read only that. It
+    -- now asks for the opening `---` and reads the WHOLE block, so the
+    -- same task that builds the tag index also builds v.fmOf — the
+    -- fields a ```dataview WHERE and a TABLE's columns need. No second
+    -- grep, no second pass over the vault, and no note is read.
+    --
+    -- Lines from `grep -rHnIE -m 1 -A <fmLines> -e "^---[[:space:]]*$"`:
+    --   "path:1:---"        opens a block — ONLY at line 1, which is the
+    --                       one place Markdown front matter can begin
+    --   "path-N-key: value" a field
+    --   "path-N-  - item"   another item of the field above it
+    --   "path-N----"        the closing --- ends the block
+    -- Anything else, "--", or another path closes it. Without -A (no
+    -- context lines) nothing is read and nothing breaks — the fields are
+    -- simply absent and the pane says so.
+    -- A LIST becomes its items joined with ", ", so `contains(genre, "x")`
+    -- works on it the way it works on a plain string.
+    local function fmPut(fm, rel, key, value)
+        key = tostring(key or ""):lower()
+        -- tags already travel to the page as g:[…]; a second copy in the
+        -- fields would be payload for nothing
+        if key == "" or key == "tag" or key == "tags" then return end
+        fm[rel] = fm[rel] or {}
+        local t = fm[rel]
+        if t[key] == nil then
+            local n = 0
+            for _ in pairs(t) do n = n + 1 end
+            if n >= (tonumber(v.fmMaxFields) or 16) then return end
+        end
+        value = tostring(value or "")
+        local cap = tonumber(v.fmMaxLen) or 120
+        if #value > cap then value = value:sub(1, cap) end
+        t[key] = value
+    end
     function v.setFrontmatterLines(out, inline)
         inline = inline or {}
-        local cur, curRel, count = nil, nil, v.tagLines or 0
+        local fm = {}
+        local cur, curRel, open, lastKey, list = nil, nil, false, nil, nil
+        local count = v.tagLines or 0
+        local function flush()
+            if curRel and lastKey and list and #list > 0 then
+                fmPut(fm, curRel, lastKey, table.concat(list, ", "))
+            end
+            lastKey, list = nil, nil
+        end
+        local function close() flush(); cur, curRel, open = nil, nil, false end
         for line in tostring(out or ""):gmatch("[^\n]+") do
             count = count + 1
             if count > v.maxTagLines then v.tagsPartial = true break end
-            local path, n, value = line:match("^(.-):(%d+):tags?:%s*(.*)$")
+            local path, n = line:match("^(.-):(%d+):%-%-%-%s*$")
             if path then
+                close()
                 local rel = relOf(path)
-                n = tonumber(n) or 0
-                if rel and n >= 2 and n <= 60 then
-                    cur, curRel = path, rel
-                    local list, seen = {}, {}
-                    fmInlineValues(list, seen, value)
-                    for _, t in ipairs(list) do addTag(inline, rel, t) end
+                -- front matter starts at line 1 or it is not front matter;
+                -- a --- further down is a divider in someone's prose
+                if rel and tonumber(n) == 1 then cur, curRel, open = path, rel, true end
+            elseif open and cur and line:sub(1, #cur + 1) == cur .. "-" then
+                local body = line:sub(#cur + 2):match("^%d+%-(.*)$")
+                if body == nil then close()
+                elseif body:match("^%-%-%-%s*$") then close()
                 else
-                    cur, curRel = nil, nil
+                    local item = body:match("^%s+%-%s+(.+)$")
+                    if item and lastKey then
+                        list = list or {}
+                        local val = fmValue(item)
+                        list[#list + 1] = val
+                        if lastKey == "tag" or lastKey == "tags" then addTag(inline, curRel, val) end
+                    else
+                        local key, value = body:match("^([%w_][%w_%-%.]*):%s*(.*)$")
+                        if key then
+                            flush()
+                            lastKey = key:lower()
+                            if lastKey == "tag" or lastKey == "tags" then
+                                local got, seen = {}, {}
+                                fmInlineValues(got, seen, value)
+                                for _, t in ipairs(got) do addTag(inline, curRel, t) end
+                            end
+                            local plain = fmValue(value)
+                            if plain ~= "" then fmPut(fm, curRel, lastKey, plain); lastKey, list = lastKey, nil
+                            else list = {} end
+                        else
+                            flush()
+                        end
+                    end
                 end
-            elseif cur and line:sub(1, #cur + 1) == cur .. "-" then
-                local item = line:sub(#cur + 2):match("^%d+%-%s*%-%s+(.+)$")
-                if item then addTag(inline, curRel, fmValue(item)) else cur, curRel = nil, nil end
             else
-                cur, curRel = nil, nil
+                close()
             end
         end
+        close()
         v.tagLines = count
+        v.fmPending = fm
         return inline
     end
+    -- every front-matter field of ONE text, parsed in Lua — the open note's
+    -- own fields are exact and live, the way its tags are
+    function v.fmIn(text)
+        local lines = {}
+        for line in (tostring(text or "") .. "\n"):gmatch("([^\n]*)\n") do lines[#lines + 1] = (line:gsub("\r$", "")) end
+        if lines[1] ~= "---" then return {} end
+        local fm, rel = {}, "_"
+        local i, lastKey, list = 2, nil, nil
+        local function flush()
+            if lastKey and list and #list > 0 then fmPut(fm, rel, lastKey, table.concat(list, ", ")) end
+            lastKey, list = nil, nil
+        end
+        while lines[i] and lines[i] ~= "---" do
+            local item = lines[i]:match("^%s+%-%s+(.+)$")
+            if item and lastKey then
+                list = list or {}; list[#list + 1] = fmValue(item)
+            else
+                local key, value = lines[i]:match("^([%w_][%w_%-%.]*):%s*(.*)$")
+                if key then
+                    flush()
+                    lastKey = key:lower()
+                    local plain = fmValue(value)
+                    if plain ~= "" then fmPut(fm, rel, lastKey, plain); list = nil
+                    else list = {} end
+                else flush() end
+            end
+            i = i + 1
+        end
+        if lines[i] ~= "---" then return {} end   -- no closing ---: not front matter
+        flush()
+        return fm[rel] or {}
+    end
+    -- v.fmOf → v.fmFields (name, count), by count then name — what the
+    -- report prints and what a query can actually ask about
+    function rebuildFields()
+        local seen, list = {}, {}
+        for _, t in pairs(v.fmOf) do
+            for k in pairs(t) do
+                if not seen[k] then seen[k] = { name = k, count = 0 }; list[#list + 1] = seen[k] end
+                seen[k].count = seen[k].count + 1
+            end
+        end
+        table.sort(list, function(a, b)
+            if a.count ~= b.count then return a.count > b.count end
+            return a.name < b.name
+        end)
+        v.fmFields = list
+    end
     -- the end of the chain: the open note is reinstated live, then the
-    -- pending table IS the index
-    local function assignTags(inline)
+    -- pending tables ARE the index. `fm` is nil when the front-matter grep
+    -- never answered — the fields go EMPTY rather than stale, and the
+    -- pane says the fields are unavailable instead of quietly lying.
+    local function assignTags(inline, fm)
         if v.doc and not v.doc.scratch then inline[v.doc.rel] = v.tagsIn(v.doc.text) end
         v.tagsOf = inline
+        v.fmOf = fm or {}
+        if v.doc and not v.doc.scratch then v.fmOf[v.doc.rel] = v.fmIn(v.doc.text) end
         rebuildTags()
+        rebuildFields()
     end
 
     -- Four hs.tasks, held, one after the other (6.174.0: the two tag greps
@@ -880,7 +1035,8 @@ function M.setup(core)
         -- intact. Exit 1 is "no match", a clean empty answer.
         local function tagsFailed(what, inline)
             warn("tags: " .. what)
-            if inline then assignTags(inline) end
+            v.fmErr, v.fmPending = what, nil
+            if inline then assignTags(inline, nil) end
             finish(nil)
         end
         local function scanTags()
@@ -890,11 +1046,15 @@ function M.setup(core)
                 if tcode ~= 0 and tcode ~= 1 then tagsFailed("grep exited " .. tostring(tcode) .. ": " .. trim(terr or "")) return end
                 local inline = v.setTagLines(tout)
                 local fmArgs = grepBase("-rHnIE")
-                for _, a in ipairs({ "-m", "1", "-A", "12", "-e", "^tags?:", v.dir }) do fmArgs[#fmArgs + 1] = a end
+                -- 6.185.0 — the WHOLE front-matter block, not just its tags line
+                for _, a in ipairs({ "-m", "1", "-A", tostring(math.floor(tonumber(v.fmLines) or 30)),
+                                     "-e", "^---[[:space:]]*$", v.dir }) do fmArgs[#fmArgs + 1] = a end
                 local okF2, ft2 = pcall(hs.task.new, v.GREP, function(fcode, fout, ferr)
                     if fcode ~= 0 and fcode ~= 1 then tagsFailed("frontmatter grep exited " .. tostring(fcode) .. ": " .. trim(ferr or ""), inline) return end
+                    v.fmPending, v.fmErr = nil, nil
                     v.setFrontmatterLines(fout, inline)
-                    assignTags(inline)
+                    assignTags(inline, v.fmPending)
+                    v.fmPending = nil
                     finish(nil)
                 end, fmArgs)
                 if not (okF2 and ft2) then tagsFailed("frontmatter grep task: " .. tostring(ft2), inline) return end
@@ -983,7 +1143,9 @@ function M.setup(core)
         v.links[d.rel] = v.linksIn(d.text)
         rebuildBacklinks()
         v.tagsOf[d.rel] = v.tagsIn(d.text)     -- 6.174.0
+        v.fmOf[d.rel]   = v.fmIn(d.text)       -- 6.185.0 — its fields too
         rebuildTags()
+        rebuildFields()
         v.refreshOpenTasks()
         return true
     end
@@ -1009,6 +1171,7 @@ function M.setup(core)
             v.dirty = true
             v.links[v.doc.rel] = v.linksIn(text)
             v.tagsOf[v.doc.rel] = v.tagsIn(text)     -- 6.174.0 — the open note's tags are live too
+            v.fmOf[v.doc.rel]   = v.fmIn(text)       -- 6.185.0 — and its fields, per key
             v.scheduleSave()
         end
     end
@@ -1055,7 +1218,9 @@ function M.setup(core)
         v.links[n.rel] = v.linksIn(n.text)
         rebuildBacklinks()
         v.tagsOf[n.rel] = v.tagsIn(n.text)     -- 6.174.0
+        v.fmOf[n.rel]   = v.fmIn(n.text)       -- 6.185.0
         rebuildTags()
+        rebuildFields()
         v.caretLine, v.caretHead = nil, nil    -- callers set them AFTER a successful open
         if v.dirty then v.saveNow() end
         pcall(function() hs.settings.set("vault.lastNote", n.rel) end)
@@ -1572,8 +1737,17 @@ function M.setup(core)
             -- FROM [[Note]] is answered in the page with no round trip
             local l = {}
             for _, target in ipairs(v.links[n.rel] or {}) do l[#l + 1] = jstr(keyOf(target)) end
+            -- 6.185.0 — f: the note's front-matter FIELDS, so a query's WHERE
+            -- and a TABLE's columns are answered in the page. Keys sorted, so
+            -- the same index always renders the same page.
+            local keys = {}
+            for k in pairs(v.fmOf[n.rel] or {}) do keys[#keys + 1] = k end
+            table.sort(keys)
+            local f = {}
+            for _, k in ipairs(keys) do f[#f + 1] = jstr(k) .. ":" .. jstr(v.fmOf[n.rel][k]) end
             rows[#rows + 1] = "{n:" .. jstr(n.name) .. ",r:" .. jstr(n.rel) .. ",g:[" .. table.concat(g, ",") .. "]"
                 .. ",l:[" .. table.concat(l, ",") .. "]"
+                .. (#f > 0 and (",f:{" .. table.concat(f, ",") .. "}") or "")
                 .. (isTemplateRel(n.rel) and ",tpl:1" or "") .. "}"
         end
         return "[" .. table.concat(rows, ",") .. "]"
@@ -1712,6 +1886,7 @@ textarea{flex:1;width:100%;box-sizing:border-box;resize:none;border:0;outline:0;
 #links li:hover{background:#22222a}
 #links li.ghost{opacity:.6}
 #links .none{opacity:.4;padding:2px 12px;font-size:FS2px}
+#qres .qcols{display:block;opacity:.55;font-size:FS2px;padding-left:2px}
 #rows li.sec{opacity:.55;font-size:FS2px;letter-spacing:.05em;font-weight:600;cursor:default;padding:8px 12px 3px}
 #rows li.tab{display:flex;align-items:center;gap:6px}
 #rows li.tab .tt{flex:1;overflow:hidden;text-overflow:ellipsis}
@@ -2209,8 +2384,106 @@ function parseFrom(src){
   }
   return groups;
 }
+// 6.185.0 — WHERE and a TABLE's columns, off the note's FRONT MATTER.
+// The f: on each row is what 6.185.0's widened front-matter grep found;
+// four pseudo-fields let a query ask about the file itself, the way
+// Dataview's file.* does. A field a note has not got reads as "", which
+// is falsy — so `WHERE status` means "has a status", not "errors".
+function fieldOf(x, name){
+  name = String(name || '').toLowerCase();
+  if (name === 'file.name') return String(x.n || '');
+  if (name === 'file.path') return String(x.r || '');
+  if (name === 'file.folder') { var p = String(x.r || ''), i = p.lastIndexOf('/'); return i < 0 ? '' : p.slice(0, i); }
+  if (name === 'file.tags' || name === 'tags' || name === 'tag') return (x.g || []).join(', ');
+  return (x.f && x.f[name] != null) ? String(x.f[name]) : '';
+}
+function unq(s){
+  s = String(s || '').trim();
+  var a = s.charAt(0), b = s.charAt(s.length - 1);
+  if (s.length > 1 && (a === '"' || a === "'") && b === a) return s.slice(1, -1);
+  return s;
+}
+var NUMRE = /^-?\d+(?:\.\d+)?$/;
+function qCmp(a, op, b){
+  a = String(a); b = String(b);
+  if (NUMRE.test(a.trim()) && NUMRE.test(b.trim())) { a = +a; b = +b; }
+  else { a = a.toLowerCase(); b = b.toLowerCase(); }
+  if (op === '=' || op === '==') return a === b;
+  if (op === '!=') return a !== b;
+  if (op === '>')  return a > b;
+  if (op === '<')  return a < b;
+  if (op === '>=') return a >= b;
+  if (op === '<=') return a <= b;
+  return false;
+}
+function parseWhereTerm(s){
+  s = String(s || '').trim();
+  var neg = false, m;
+  while (s.charAt(0) === '!' && s.charAt(1) !== '=') { neg = !neg; s = s.slice(1).trim(); }
+  if (!s) return null;
+  // contains() FIRST — its own closing bracket must not be mistaken for a
+  // wrapping one and stripped off (that is how contains() silently died)
+  if ((m = s.match(/^contains\s*\(\s*([A-Za-z_][\w.\-]*)\s*,\s*([\s\S]+?)\s*\)$/i)))
+    return { k: 'contains', f: m[1], v: unq(m[2]), neg: neg };
+  s = s.replace(/^\(+/, '').replace(/\)+$/, '').trim();
+  if (!s) return null;
+  if ((m = s.match(/^([A-Za-z_][\w.\-]*)\s*(>=|<=|!=|==|=|>|<)\s*([\s\S]+)$/))) {
+    // a value that starts with another operator means the operator itself
+    // was mistyped (">< 3"); say so rather than comparing against nonsense
+    if (/^[<>=!]/.test(m[3].trim())) return null;
+    return { k: 'cmp', f: m[1], op: m[2], v: unq(m[3]), neg: neg };
+  }
+  if ((m = s.match(/^([A-Za-z_][\w.\-]*)$/)))
+    return { k: 'has', f: m[1], neg: neg };
+  return null;
+}
+// OR of AND-groups, exactly as FROM does it. A term it cannot read is
+// handed back so the pane can NAME it rather than swallow the clause.
+function parseWhere(src, bad){
+  var groups = [], ors = String(src || '').trim();
+  if (!ors) return groups;
+  ors = ors.split(/\s+or\s+/i);
+  for (var i = 0; i < ors.length; i++) {
+    var terms = [], ands = ors[i].split(/\s+and\s+/i);
+    for (var j = 0; j < ands.length; j++) {
+      var t = parseWhereTerm(ands[j]);
+      if (t) terms.push(t); else if (bad && ands[j].trim()) bad.push(ands[j].trim());
+    }
+    if (terms.length) groups.push(terms);
+  }
+  return groups;
+}
+function whereTermOk(x, t){
+  var val = fieldOf(x, t.f);
+  if (t.k === 'has') return val !== '';
+  if (t.k === 'contains') return val.toLowerCase().indexOf(String(t.v).toLowerCase()) >= 0;
+  if (val === '' && t.op !== '!=') return false;   // absent is not greater, smaller or equal
+  return qCmp(val, t.op, t.v);
+}
+function whereOk(x, groups){
+  if (!groups.length) return true;
+  for (var g = 0; g < groups.length; g++) {
+    var terms = groups[g], all = true;
+    for (var j = 0; j < terms.length; j++) { if (whereTermOk(x, terms[j]) === !!terms[j].neg) { all = false; break; } }
+    if (all) return true;
+  }
+  return false;
+}
+// TABLE's columns: bare field names, optionally "field AS Alias". Anything
+// with a function or an operator in it is handed back to be named.
+function parseCols(src, bad){
+  var out = [], parts = String(src || '').split(',');
+  for (var i = 0; i < parts.length; i++) {
+    var p = parts[i].trim();
+    if (!p) continue;
+    var m = p.match(/^([A-Za-z_][\w.\-]*)(?:\s+as\s+([\s\S]+))?$/i);
+    if (m) out.push({ f: m[1], label: unq(m[2] || m[1]) });
+    else if (bad) bad.push(p);
+  }
+  return out;
+}
 function parseQuery(body){
-  var spec = { kind: 'list', from: '', groups: [], sort: 'name', dir: 1, limit: QMAX, ignored: [] };
+  var spec = { kind: 'list', from: '', groups: [], wheres: [], cols: [], sort: 'name', dir: 1, limit: QMAX, ignored: [] };
   for (var i = 0; i < body.length; i++) {
     var line = String(body[i] || '').trim(), m;
     if (!line || line.charAt(0) === '/' && line.charAt(1) === '/') continue;
@@ -2218,15 +2491,25 @@ function parseQuery(body){
       spec.kind = m[1].toLowerCase();
       var parts = (m[2] || '').split(/\bfrom\b/i), cols = (parts[0] || '').trim();
       if (parts.length > 1) spec.from = parts.slice(1).join(' from ').trim();
-      if (cols) spec.ignored.push('the columns "' + cols + '" — front-matter fields are not read yet');
+      if (cols) { var badc = []; spec.cols = parseCols(cols, badc);
+                  for (var c = 0; c < badc.length; c++) spec.ignored.push('the column "' + badc[c] + '" — a plain field name, or "field AS Label"'); }
       continue;
     }
     if ((m = line.match(/^from\s+([\s\S]+)$/i))) { spec.from = m[1].trim(); continue; }
+    if ((m = line.match(/^where\s+([\s\S]+)$/i))) {
+      var badw = [], g = parseWhere(m[1], badw);
+      for (var w = 0; w < badw.length; w++) spec.ignored.push('WHERE ' + badw[w] + ' — try field, field = "x", field > 3 or contains(field, "x")');
+      if (g.length) spec.wheres.push(g);
+      continue;
+    }
     if ((m = line.match(/^sort\s+([\s\S]+)$/i))) {
-      var sv = m[1].trim().split(/\s+/), f0 = (sv[0] || '').toLowerCase().replace(/^file\./, '');
-      if (f0 === 'name') spec.sort = 'name';
-      else if (f0 === 'path' || f0 === 'folder') spec.sort = 'path';
-      else spec.ignored.push('SORT ' + sv[0] + ' — name or path only');
+      var sv = m[1].trim().split(/\s+/), f0 = (sv[0] || '').toLowerCase();
+      // 6.185.0 — name and path stay shorthands; anything else is a
+      // front-matter field, sorted numerically when both sides are numbers
+      if (f0 === 'name' || f0 === 'file.name') spec.sort = 'name';
+      else if (f0 === 'path' || f0 === 'file.path' || f0 === 'folder') spec.sort = 'path';
+      else if (/^[A-Za-z_][\w.\-]*$/.test(f0)) spec.sort = f0;
+      else spec.ignored.push('SORT ' + sv[0] + ' — a field name, or name / path');
       if (/^desc/i.test(sv[1] || '')) spec.dir = -1;
       continue;
     }
@@ -2253,11 +2536,21 @@ function runQuery(spec){
       for (var j = 0; j < terms.length; j++) { if (qMatch(x, terms[j]) === !!terms[j].neg) { all = false; break; } }
       if (all) ok = true;
     }
+    if (ok) { for (var w = 0; w < spec.wheres.length && ok; w++) ok = whereOk(x, spec.wheres[w]); }
     if (ok) out.push(x);
   }
+  var sortKey = function(x){
+    if (spec.sort === 'name') return String(x.n || '');
+    if (spec.sort === 'path') return String(x.r || '');
+    return fieldOf(x, spec.sort);
+  };
   out.sort(function(a, b){
-    var ka = String((spec.sort === 'path' ? a.r : a.n) || '').toLowerCase();
-    var kb = String((spec.sort === 'path' ? b.r : b.n) || '').toLowerCase();
+    var ka = sortKey(a), kb = sortKey(b);
+    if (NUMRE.test(ka.trim()) && NUMRE.test(kb.trim())) { ka = +ka; kb = +kb; }
+    else { ka = ka.toLowerCase(); kb = kb.toLowerCase(); }
+    // a note without the field sorts LAST either way — it is missing, not smallest
+    if (ka === '' && kb !== '') return 1;
+    if (kb === '' && ka !== '') return -1;
     return ka < kb ? -spec.dir : (ka > kb ? spec.dir : 0);
   });
   return out;
@@ -2275,8 +2568,17 @@ function drawQueries(){
     var spec = parseQuery(blocks[b].body), rows = runQuery(spec), shown = rows.slice(0, spec.limit);
     total += shown.length;
     h.push('<li class="sec">' + esc(spec.kind.toUpperCase() + (spec.from ? ' FROM ' + spec.from : ' — every note')) + ' · ' + rows.length + '</li>');
-    for (var i = 0; i < shown.length; i++)
-      h.push('<li class="lnk" data-name="' + esc(shown[i].n) + '" title="' + esc(shown[i].r) + '">' + esc(shown[i].n) + '</li>');
+    for (var i = 0; i < shown.length; i++) {
+      // 6.185.0 — a TABLE's columns as a second line under the name: the
+      // pane is narrow, and a real grid there would be unreadable
+      var extra = '';
+      for (var c = 0; c < spec.cols.length; c++) {
+        var val = fieldOf(shown[i], spec.cols[c].f);
+        if (val !== '') extra += (extra ? ' · ' : '') + esc(spec.cols[c].label) + ': ' + esc(val);
+      }
+      h.push('<li class="lnk" data-name="' + esc(shown[i].n) + '" title="' + esc(shown[i].r) + '">' + esc(shown[i].n)
+             + (extra ? '<span class="qcols">' + extra + '</span>' : '') + '</li>');
+    }
     if (!rows.length) h.push('<div class="none">nothing matches yet</div>');
     else if (rows.length > shown.length) h.push('<div class="none">(first ' + shown.length + ' of ' + rows.length + ')</div>');
     for (var k = 0; k < spec.ignored.length; k++) h.push('<div class="none">⚠ ignored: ' + esc(spec.ignored[k]) + '</div>');
@@ -2496,6 +2798,7 @@ var BLOCKS = [
   { n: 'Divider',        md: '---',       kind: 'rule' },
   { n: 'Code block',     md: '``` ```',   kind: 'fence' },
   { n: 'Query — a live list of notes', md: '```dataview LIST FROM #tag```', kind: 'query' },
+  { n: 'Query — filtered by a field', md: '```dataview TABLE … WHERE …```', kind: 'queryw' },
 ];
 function blockRows(typed){
   var out = [];
@@ -2520,6 +2823,9 @@ function blockApply(x){
   // 6.183.0 — a WORKING query with the caret on the tag, so the first
   // thing LL does is name it rather than learn the grammar
   if (x.kind === 'query') { insertAtCaret('```dataview\nLIST FROM #', '\nSORT name\n```\n'); return; }
+  // 6.185.0 — the WHERE shape, filled in and working, caret on the tag
+  if (x.kind === 'queryw') { insertAtCaret('```dataview\nTABLE status FROM #',
+                                           '\nWHERE status != "done"\nSORT status\n```\n'); return; }
 }
 function slashMenu(typed, start){
   var rows = blockRows(typed);
@@ -2546,6 +2852,8 @@ function mdHint(line){
   if (/^\s*(---|\*\*\*|___)\s*$/.test(line)) return 'Divider — a line across the page';
   if (/^\s*(?:```|~~~)\s*dataview/i.test(line)) return 'Query — the notes it names are listed in \ud83d\udd0e QUERY, never written here';
   if (/^\s*(list|table)\b.*\bfrom\b/i.test(line)) return 'Query — FROM #tag, [[a note]] or "a folder", joined with AND / OR';
+  if (/^\s*where\b/i.test(line)) return 'Query filter — field, field = "x", field > 3, contains(field, "x"), AND / OR';
+  if (/^\s*(sort|limit)\b/i.test(line)) return 'Query — SORT by name, path or any front-matter field; LIMIT caps the rows';
   if (/^\s*```/.test(line))         return 'Code block — everything until the next ``` is left alone';
   if (/^\s*(tags|title|date):/i.test(line)) return 'Front matter — tags: here join the 🏷 list';
   if (/\[\[[^\]]*\]\]/.test(line))  return 'Links to another note — ⌘⏎ opens it';
@@ -3119,6 +3427,20 @@ else {
             for i = 1, math.min(3, #v.tagList) do top[#top + 1] = "#" .. v.tagList[i].key .. " " .. v.tagList[i].count end
             L[#L + 1] = "   tags   : " .. #v.tagList .. " tags on " .. tagged .. " notes · top " .. table.concat(top, " · ")
                         .. (v.tagsPartial and " (PARTIAL — over the cap)" or "")
+        end
+        -- 6.185.0 — the FIELDS a ```dataview WHERE can ask about. Says the
+        -- degraded state honestly: a front-matter grep that failed leaves no
+        -- fields at all, and the reason belongs on the line, not in a log.
+        if v.fmErr then
+            L[#L + 1] = "   fields : none — the front-matter grep failed (" .. tostring(v.fmErr) .. ")"
+        elseif #v.fmFields == 0 then
+            L[#L + 1] = "   fields : none yet — put `status: reading` under a --- line at the top of a note"
+        else
+            local withFm, top = 0, {}
+            for _, t in pairs(v.fmOf) do if next(t) then withFm = withFm + 1 end end
+            for i = 1, math.min(4, #v.fmFields) do top[#top + 1] = v.fmFields[i].name .. " " .. v.fmFields[i].count end
+            L[#L + 1] = "   fields : " .. #v.fmFields .. " on " .. withFm .. " notes · " .. table.concat(top, " · ")
+                        .. " — a query can WHERE on any of them"
         end
         local tpls, dailyT = v.templates(), v.templateByName(v.dailyTemplate or "")
         L[#L + 1] = "   templates: " .. (#tpls > 0 and (#tpls .. " in " .. tostring(v.templatesDir) .. "/")
