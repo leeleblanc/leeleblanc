@@ -643,7 +643,17 @@ lastTimer("after"):fire()
 check("the save rebuilds the index: #fresh exists, #work dropped to 2", v.tags.fresh and v.tags.fresh.count == 1 and v.tags.work.count == 2)
 check("tagsJson is the list in count order", v.tagsJson():find('^%[{k:"work",n:"Work",c:2}'), v.tagsJson())
 check("notesJson rows carry g:[tags] and tpl:1 for a template",
-      v.notesJson():find('{n:"Alpha",r:"Alpha.md",g:["fresh"]}', 1, true) and v.notesJson():find('{n:"Meeting",r:"Templates/Meeting.md",g:[],tpl:1}', 1, true), v.notesJson())
+      v.notesJson():find('{n:"Alpha",r:"Alpha.md",g:["fresh"],l:[]}', 1, true) and v.notesJson():find('{n:"Meeting",r:"Templates/Meeting.md",g:[],l:[],tpl:1}', 1, true), v.notesJson())
+-- 6.183.0 — l: the KEYS a note links out to. A query's FROM [[Note]] is
+-- answered in the page, so the row has to carry them; without this the
+-- page cannot tell which notes point at anything.
+check("notesJson carries each note's outgoing link KEYS, lower-cased, for FROM [[Note]]", (function()
+    local keep = v.links["Gamma.md"]
+    v.links["Gamma.md"] = { "Alpha", "Delta Two" }
+    local out = v.notesJson()
+    v.links["Gamma.md"] = keep
+    return out:find('{n:"Gamma",r:"Gamma.md",g:["work/deep"],l:["alpha","delta two"]}', 1, true) ~= nil, out
+end)())
 check("setNotes drops the tags of a note that vanished", (function()
     local keep = v.tagsOf["Gamma.md"]
     v.setNotes({ "Alpha.md", "Projects/Beta.md" })
@@ -1090,8 +1100,14 @@ do
     check("…the messages the new keys send", has("a:'tplnew'", "a:'tplinsert'", "a:'search'", "a:'dayshift'", "a:'extract'", "a:'random'", "a:'mode'", "a:'tplnone'"))
     check("tag rows walk with the ONE row walker (ROWSEL)", hp:find("ROWSEL = '#rows li[data-name],#rows li[data-tab],#rows li[data-tag]'", 1, true) ~= nil)
     check("the chips sit first in the right pane, the OUTLINE last, after the mentions",
-          hp:find('<div id="links"><div id="chips" hidden></div><h4>LINKS OUT</h4>', 1, true) ~= nil and hp:find('</ul><h4>OUTLINE</h4><ul id="outline"></ul></div>', 1, true) ~= nil
+          hp:find('<div id="links"><div id="chips" hidden></div><h4>LINKS OUT</h4>', 1, true) ~= nil and hp:find('<h4>OUTLINE</h4><ul id="outline"></ul></div>', 1, true) ~= nil
           and hp:find('<ul id="unl">', 1, true) < hp:find('<h4>OUTLINE</h4>', 1, true))
+    -- 6.183.0 — 🔎 QUERY sits between the mentions and the outline, and it
+    -- ships HIDDEN: a note with no query block must look exactly as it did.
+    check("6.183.0: the 🔎 QUERY block sits after the mentions and before the outline, hidden until a note has one",
+          hp:find('<div id="qbox" hidden><h4 id="qh">🔎 QUERY</h4><ul id="qres"></ul></div>', 1, true) ~= nil
+          and hp:find('<ul id="unl">', 1, true) < hp:find('id="qbox"', 1, true)
+          and hp:find('id="qbox"', 1, true) < hp:find('<h4>OUTLINE</h4>', 1, true))
     -- BOTH DIRECTIONS of the bridge, read off the code: every a:'x' the page can send has a
     -- handleMessage branch; every function Lua evals exists on the page
     local missing = {}

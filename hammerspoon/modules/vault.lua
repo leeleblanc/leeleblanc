@@ -114,13 +114,42 @@
 -- vault-wide tag grep sees one line at a time and cannot tell a code
 -- fence (the open note's own tags are exact, parsed in Lua).
 --
+-- 🔎 6.183.0 — LIVE QUERIES. LL: "I want to make notes clearly
+-- meaningful and see the relationships to jog my memory." A ```dataview
+-- block in a note LISTS the notes it describes, in a 🔎 QUERY section of
+-- the right pane, redrawn 150 ms after a keystroke like the outline is.
+-- The grammar is Obsidian's own Dataview — the useful corner of it — so
+-- the SAME block renders in Obsidian if that plug-in is ever installed,
+-- and reads as English either way:
+--     LIST FROM #project AND -#done
+--     SORT name
+-- FROM takes `#tag` (a nested #a/b counts under #a), `[[Note]]` (the
+-- notes that link TO it) and `"Folder"`, joined with AND / OR (AND binds
+-- tighter, as in Dataview) and negated with `-` or `!`; SORT takes name
+-- or path, ASC or DESC; LIMIT caps the rows. A template never appears in
+-- a result — it is a stencil, not content. The "/" menu writes the whole
+-- block with the caret on the tag, so the grammar never has to be typed,
+-- and the footer names the line you are on.
+--
+-- 🚨 NOTHING IS WRITTEN, AND NOTHING IS READ. The answer is drawn BESIDE
+-- the note, never into it: the file keeps only the text you typed, so it
+-- cannot drift under you and Dataview cannot end up rendering a second
+-- copy of a table this one already wrote. And the whole thing runs in
+-- the PAGE, off the note rows it already holds (name, path, tags, and
+-- 6.183.0's new `l:` outgoing link keys) — no file read, no grep, no
+-- scan, no message to Lua. IT DEGRADES: a clause it cannot do (a WHERE,
+-- a TABLE's columns, a SORT on a front-matter field) is NAMED in the
+-- pane and the rest of the query still runs; a ```dataviewjs block is
+-- refused by name and never executed. Front-matter FIELDS are the
+-- deliberate next step, not a gap that broke.
+--
 -- 🚨 WHAT THIS MODULE DELIBERATELY DOES NOT DO. No eventtap (the page's
 -- own keydown handles ⌘N/⌘D/⌘G/⌘K/⌘⏎/Esc). No AX or hs.window read. No
 -- timer that is not held. No read of a note that is not open. No read
 -- of a template on the main thread. No write of any note but the open
 -- one (a NEW note is created, never another rewritten — so no rename,
 -- no link rewrite, no "link it" on a mention, no ticking a task that
--- lives in another note). No `✅` stamps, no `📅` due dates (the Tasks
+-- lives in another note) — a query answer is drawn, never written. No `✅` stamps, no `📅` due dates (the Tasks
 -- plug-in's syntax, not Obsidian's). No fence awareness in the
 -- vault-wide grep. No file delete or rename — Finder and Obsidian do
 -- those better. No Markdown preview. Without a webview it falls back to
@@ -1539,7 +1568,12 @@ function M.setup(core)
             -- 6.174.0 — g: the note's tag keys (the page filters on them), tpl: a template
             local g = {}
             for _, t in ipairs(v.tagsOf[n.rel] or {}) do g[#g + 1] = jstr(t:lower()) end
+            -- 6.183.0 — l: the KEYS this note links out to, so a query's
+            -- FROM [[Note]] is answered in the page with no round trip
+            local l = {}
+            for _, target in ipairs(v.links[n.rel] or {}) do l[#l + 1] = jstr(keyOf(target)) end
             rows[#rows + 1] = "{n:" .. jstr(n.name) .. ",r:" .. jstr(n.rel) .. ",g:[" .. table.concat(g, ",") .. "]"
+                .. ",l:[" .. table.concat(l, ",") .. "]"
                 .. (isTemplateRel(n.rel) and ",tpl:1" or "") .. "}"
         end
         return "[" .. table.concat(rows, ",") .. "]"
@@ -1770,7 +1804,7 @@ body.graph #graph{display:block}
 </div>]==]) .. [==[<textarea id="t" spellcheck="true" ]==] .. (d and "" or "disabled placeholder=\"⌘N a new note · ⌘D today · click a note on the left\"") .. [==[>]==] .. "\n" .. escapeHtml(d and d.text or "") .. [==[</textarea><div id="ac"></div><div id="foot"></div></div>
 <div id="links">]==] .. (isTab and "" or '<div id="chips" hidden></div>') .. [==[<h4>LINKS OUT</h4><ul id="outs">]==] .. (#outs > 0 and table.concat(outs) or '<div class="none">type [[ to link</div>') .. [==[</ul>
 ]==] .. (isTab and ('<h4>HISTORY · closed tabs</h4><ul id="hist">' .. (#hist > 0 and table.concat(hist) or '<div class="none">closed tabs land here — ⌘W</div>') .. '</ul>')
-             or ('<h4>BACKLINKS</h4><ul id="backs">' .. (#backs > 0 and table.concat(backs) or '<div class="none">nothing links here yet</div>') .. '</ul>' .. unlBlock .. '<h4>OUTLINE</h4><ul id="outline"></ul>')) .. [==[</div>
+             or ('<h4>BACKLINKS</h4><ul id="backs">' .. (#backs > 0 and table.concat(backs) or '<div class="none">nothing links here yet</div>') .. '</ul>' .. unlBlock .. '<div id="qbox" hidden><h4 id="qh">\240\159\148\142 QUERY</h4><ul id="qres"></ul></div><h4>OUTLINE</h4><ul id="outline"></ul>')) .. [==[</div>
 <div id="graph"><canvas id="cv"></canvas><div id="gtip">click a dot to open · drag to untangle · hollow = not written yet · ⌘G back</div></div>
 </div></div>
 <script>
@@ -1847,6 +1881,7 @@ document.addEventListener('keyup', function(e){
 var modeEl = document.getElementById('mode'), foot = document.getElementById('foot'), chips = document.getElementById('chips');
 var outlineEl = document.getElementById('outline'), unl = document.getElementById('unl'), unlh = document.getElementById('unlh');
 var hint = document.getElementById('hint'), kbtn = document.getElementById('kbtn');
+var qbox = document.getElementById('qbox'), qres = document.getElementById('qres'), qh = document.getElementById('qh');
 var HINT0 = (hint && hint.textContent) || '', PANE_T = null;
 var PLACEHOLDER = { notes: 'filter notes… ⌘F', search: 'words… ("a phrase", tag:x, path:x) — ⏎ opens at the line', tasks: 'filter the tasks…' };
 
@@ -2119,6 +2154,137 @@ function drawUnlinked(){
   unl.innerHTML = h.join('');
   if (unlh) unlh.textContent = 'UNLINKED MENTIONS' + (listed ? ' · ' + rows.length : '');
 }
+// ---- 6.183.0 — 🔎 LIVE QUERIES ------------------------------------------
+// LL: "I want to make notes clearly meaningful and see the relationships
+// to jog my memory." A ```dataview block in a note LISTS the notes it
+// describes, live, in the pane beside the backlinks — written in Obsidian's
+// own Dataview grammar (the useful corner of it) so the SAME block renders
+// in Obsidian if that plug-in is ever installed, and reads as English
+// either way. The "/" menu writes the block, so LL never types it.
+//
+// 🚨 NOTHING IS WRITTEN. The answer is drawn beside the note, never into
+// it: the block stays the only text in the file, so the file cannot drift
+// from what you typed and Dataview cannot end up rendering a second copy
+// of a table this already wrote. And it reads ONLY what the page already
+// holds — name, path, tags, links out — so it costs no file read, no
+// grep and no scan, and it redraws 150 ms after a keystroke like the
+// outline does. A clause it does not understand is NAMED in the pane and
+// the rest of the query still runs; it never fails the note.
+var QMAX = 50;
+// every fenced block in the text, in order, consuming plain fences too so a
+// look-alike line INSIDE ordinary code is never read as a query
+function queryBlocks(text){
+  var lines = String(text || '').split('\n'), out = [], i = 0;
+  while (i < lines.length) {
+    var m = lines[i].match(/^\s*(?:```|~~~)\s*([A-Za-z]*)\s*$/);
+    if (!m) { i++; continue; }
+    var info = (m[1] || '').toLowerCase(), body = [];
+    i++;
+    while (i < lines.length && !/^\s*(?:```|~~~)\s*$/.test(lines[i])) { body.push(lines[i]); i++; }
+    i++;                                   // past the closing fence
+    if (info.indexOf('dataview') === 0) out.push({ kind: info, body: body });
+  }
+  return out;
+}
+// FROM: OR of AND-groups (Dataview's own precedence), each term a #tag, a
+// [[link]] or a "folder", any of them negated with - or !
+function parseFrom(src){
+  var groups = [], ors = String(src || '').trim();
+  if (!ors) return groups;
+  ors = ors.split(/\s+or\s+/i);
+  for (var i = 0; i < ors.length; i++) {
+    var terms = [], ands = ors[i].split(/\s+and\s+/i);
+    for (var j = 0; j < ands.length; j++) {
+      var s = ands[j].trim(), neg = false;
+      while (s.charAt(0) === '-' || s.charAt(0) === '!') { neg = !neg; s = s.slice(1).trim(); }
+      s = s.replace(/^\(+/, '').replace(/\)+$/, '').trim();
+      var t = null;
+      if (!s) continue;
+      if (s.charAt(0) === '#') t = { k: 'tag', v: s.slice(1).toLowerCase() };
+      else if (/^\[\[[\s\S]*\]\]$/.test(s)) t = { k: 'link', v: s.slice(2, -2).split('|')[0].split('#')[0].trim().toLowerCase() };
+      else t = { k: 'folder', v: s.replace(/["']/g, '').trim().toLowerCase() };
+      if (t && t.v) { t.neg = neg; terms.push(t); }
+    }
+    if (terms.length) groups.push(terms);
+  }
+  return groups;
+}
+function parseQuery(body){
+  var spec = { kind: 'list', from: '', groups: [], sort: 'name', dir: 1, limit: QMAX, ignored: [] };
+  for (var i = 0; i < body.length; i++) {
+    var line = String(body[i] || '').trim(), m;
+    if (!line || line.charAt(0) === '/' && line.charAt(1) === '/') continue;
+    if ((m = line.match(/^(list|table)\b\s*([\s\S]*)$/i))) {
+      spec.kind = m[1].toLowerCase();
+      var parts = (m[2] || '').split(/\bfrom\b/i), cols = (parts[0] || '').trim();
+      if (parts.length > 1) spec.from = parts.slice(1).join(' from ').trim();
+      if (cols) spec.ignored.push('the columns "' + cols + '" — front-matter fields are not read yet');
+      continue;
+    }
+    if ((m = line.match(/^from\s+([\s\S]+)$/i))) { spec.from = m[1].trim(); continue; }
+    if ((m = line.match(/^sort\s+([\s\S]+)$/i))) {
+      var sv = m[1].trim().split(/\s+/), f0 = (sv[0] || '').toLowerCase().replace(/^file\./, '');
+      if (f0 === 'name') spec.sort = 'name';
+      else if (f0 === 'path' || f0 === 'folder') spec.sort = 'path';
+      else spec.ignored.push('SORT ' + sv[0] + ' — name or path only');
+      if (/^desc/i.test(sv[1] || '')) spec.dir = -1;
+      continue;
+    }
+    if ((m = line.match(/^limit\s+(\d+)$/i))) { spec.limit = Math.max(1, Math.min(QMAX, +m[1])); continue; }
+    spec.ignored.push(line);
+  }
+  spec.groups = parseFrom(spec.from);
+  return spec;
+}
+function qMatch(x, t){
+  if (t.k === 'tag') return noteHasTag(x, t.v, true);
+  if (t.k === 'link') { var l = x.l || []; for (var i = 0; i < l.length; i++) if (l[i] === t.v) return true; return false; }
+  var p = String(x.r || '').toLowerCase(), f = t.v.replace(/\/+$/, '');
+  return p.indexOf(f + '/') === 0;
+}
+function runQuery(spec){
+  var out = [];
+  for (var i = 0; i < NOTES.length; i++) {
+    var x = NOTES[i];
+    if (x.tpl) continue;                       // a template is a stencil, not content
+    var ok = !spec.groups.length;              // no FROM at all: every note
+    for (var g = 0; g < spec.groups.length && !ok; g++) {
+      var terms = spec.groups[g], all = true;
+      for (var j = 0; j < terms.length; j++) { if (qMatch(x, terms[j]) === !!terms[j].neg) { all = false; break; } }
+      if (all) ok = true;
+    }
+    if (ok) out.push(x);
+  }
+  out.sort(function(a, b){
+    var ka = String((spec.sort === 'path' ? a.r : a.n) || '').toLowerCase();
+    var kb = String((spec.sort === 'path' ? b.r : b.n) || '').toLowerCase();
+    return ka < kb ? -spec.dir : (ka > kb ? spec.dir : 0);
+  });
+  return out;
+}
+function drawQueries(){
+  if (!qbox || !qres) return;
+  var blocks = isTab() ? [] : queryBlocks(t.value || '');
+  if (!blocks.length) { qres.innerHTML = ''; qbox.hidden = true; return; }
+  var h = [], total = 0;
+  for (var b = 0; b < blocks.length; b++) {
+    if (blocks[b].kind !== 'dataview') {
+      h.push('<div class="none">⚠ ' + esc(blocks[b].kind) + ' is JavaScript — never run here</div>');
+      continue;
+    }
+    var spec = parseQuery(blocks[b].body), rows = runQuery(spec), shown = rows.slice(0, spec.limit);
+    total += shown.length;
+    h.push('<li class="sec">' + esc(spec.kind.toUpperCase() + (spec.from ? ' FROM ' + spec.from : ' — every note')) + ' · ' + rows.length + '</li>');
+    for (var i = 0; i < shown.length; i++)
+      h.push('<li class="lnk" data-name="' + esc(shown[i].n) + '" title="' + esc(shown[i].r) + '">' + esc(shown[i].n) + '</li>');
+    if (!rows.length) h.push('<div class="none">nothing matches yet</div>');
+    else if (rows.length > shown.length) h.push('<div class="none">(first ' + shown.length + ' of ' + rows.length + ')</div>');
+    for (var k = 0; k < spec.ignored.length; k++) h.push('<div class="none">⚠ ignored: ' + esc(spec.ignored[k]) + '</div>');
+  }
+  qres.innerHTML = h.join('');
+  if (qh) qh.textContent = '🔎 QUERY · ' + total;
+  qbox.hidden = false;
+}
 function thou(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '\u2009'); }
 function drawFoot(){
   if (!foot) return;
@@ -2136,7 +2302,7 @@ function drawFoot(){
 // the panes follow the typing a beat later (the page's own timer, not an hs.timer)
 function paneSoon(){
   try { clearTimeout(PANE_T); } catch(e){}
-  PANE_T = setTimeout(function(){ if (!isTab()) { drawOutline(); drawChips(); } drawFoot(); }, 150);
+  PANE_T = setTimeout(function(){ if (!isTab()) { drawOutline(); drawChips(); drawQueries(); } drawFoot(); }, 150);
 }
 t.addEventListener('select', drawFoot); t.addEventListener('keyup', drawFoot); t.addEventListener('mouseup', drawFoot);
 
@@ -2329,6 +2495,7 @@ var BLOCKS = [
   { n: 'Tag',            md: '#',         kind: 'type' },
   { n: 'Divider',        md: '---',       kind: 'rule' },
   { n: 'Code block',     md: '``` ```',   kind: 'fence' },
+  { n: 'Query — a live list of notes', md: '```dataview LIST FROM #tag```', kind: 'query' },
 ];
 function blockRows(typed){
   var out = [];
@@ -2350,6 +2517,9 @@ function blockApply(x){
   if (x.kind === 'type')  { insertAtCaret('#'); return; }
   if (x.kind === 'rule')  { insertAtCaret('---\n'); return; }
   if (x.kind === 'fence') { insertAtCaret('```\n', '\n```\n'); return; }
+  // 6.183.0 — a WORKING query with the caret on the tag, so the first
+  // thing LL does is name it rather than learn the grammar
+  if (x.kind === 'query') { insertAtCaret('```dataview\nLIST FROM #', '\nSORT name\n```\n'); return; }
 }
 function slashMenu(typed, start){
   var rows = blockRows(typed);
@@ -2374,6 +2544,8 @@ function mdHint(line){
   if (/^\s*[-*+] /.test(line))      return 'Bullet list — ⏎ keeps it going, ⏎ on an empty one ends it';
   if (/^\s*> /.test(line))          return 'Quote — the > does that';
   if (/^\s*(---|\*\*\*|___)\s*$/.test(line)) return 'Divider — a line across the page';
+  if (/^\s*(?:```|~~~)\s*dataview/i.test(line)) return 'Query — the notes it names are listed in \ud83d\udd0e QUERY, never written here';
+  if (/^\s*(list|table)\b.*\bfrom\b/i.test(line)) return 'Query — FROM #tag, [[a note]] or "a folder", joined with AND / OR';
   if (/^\s*```/.test(line))         return 'Code block — everything until the next ``` is left alone';
   if (/^\s*(tags|title|date):/i.test(line)) return 'Front matter — tags: here join the 🏷 list';
   if (/\[\[[^\]]*\]\]/.test(line))  return 'Links to another note — ⌘⏎ opens it';
@@ -2531,7 +2703,7 @@ function graphStart(){
 setMode(MODE, true);
 if (VIEW === 'graph') { graphStart(); }
 else {
-  if (!isTab()) { drawChips(); drawOutline(); drawUnlinked(); }
+  if (!isTab()) { drawChips(); drawOutline(); drawUnlinked(); drawQueries(); }
   drawFoot();
   if (CARETLINE > 0) gotoLine(CARETLINE);
   else if (CARETHEAD !== null) { var p0 = CARETHEAD.length; t.focus(); try { t.setSelectionRange(p0, p0); } catch(e){} }

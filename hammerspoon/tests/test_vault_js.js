@@ -33,7 +33,9 @@ function makeEnv() {
   const t = el("TEXTAREA"), q = el("INPUT"), hdr = el("HEADER"), ac = el("DIV"), rows = el("UL"), links = el("DIV"), cv = el("CANVAS"), gbtn = el("BUTTON");
   // 6.174.0 — the mode strip, footer, chips, outline, mentions, hint and the two header buttons
   const mode = el("DIV"), foot = el("DIV"), chips = el("DIV"), outline = el("UL"), unl = el("UL"), unlh = el("H4"), hint = el("SPAN"), sbtn = el("BUTTON"), kbtn = el("BUTTON");
-  const byId = { t, q, hdr, ac, rows, links, cv, gbtn, mode, foot, chips, outline, unl, unlh, hint, sbtn, kbtn };
+  // 6.183.0 — the 🔎 QUERY block in the right pane
+  const qbox = el("DIV"), qres = el("UL"), qh = el("H4");
+  const byId = { t, q, hdr, ac, rows, links, cv, gbtn, mode, foot, chips, outline, unl, unlh, hint, sbtn, kbtn, qbox, qres, qh };
   const docListeners = {};
   // rows are re-rendered from innerHTML; expose them as fake <li>s (every data-* attribute kept)
   function liRows(html) {
@@ -71,7 +73,7 @@ function makeEnv() {
       return null; } };
     elm.listeners.click({ target });
   }
-  return { sandbox, sent, t, q, ac, rows, docListeners, byId, liRows, click, mode, foot, chips, outline, unl, unlh, hint, kbtn };
+  return { sandbox, sent, t, q, ac, rows, docListeners, byId, liRows, click, mode, foot, chips, outline, unl, unlh, hint, kbtn, qbox, qres, qh, links };
 }
 const padHtml = process.argv[3] ? fs.readFileSync(process.argv[3], "utf8") : null;
 const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
@@ -567,6 +569,110 @@ if (padHtml) {
   e8.type("just some words", 4);
   check("with nothing to explain it points at the / menu instead of going blank",
         e8.foot.innerHTML.includes("/ for a list of blocks"), e8.foot.innerHTML);
+}
+
+// ---- 6.183.0 — 🔎 live queries: a ```dataview block lists notes in the pane ----
+{
+  const Q = (body) => {
+    const e = load();
+    e.type("# Alpha\n\n```dataview\n" + body + "\n```\n");
+    return e;
+  };
+  const names = (e) => e.liRows(e.qres.innerHTML).map((r) => r.attrs["data-name"]);
+
+  const e1 = Q("LIST FROM #work");
+  check("FROM #work lists Alpha and Gamma — a nested #work/deep counts under #work",
+        names(e1).join(",") === "Alpha,Gamma", e1.qres.innerHTML);
+  check("…and NOT Beta, which is tagged #home", !names(e1).includes("Beta"));
+  check("…the pane block is shown and headed with the count",
+        e1.qbox.hidden === false && e1.qh.textContent === "🔎 QUERY · 2", e1.qh.textContent);
+  check("…and the header row says the query it ran, so the answer is never anonymous",
+        e1.qres.innerHTML.includes("LIST FROM #work · 2"), e1.qres.innerHTML);
+
+  check('FROM "Projects" matches on the FOLDER, not the name',
+        names(Q('LIST FROM "Projects"')).join(",") === "Beta");
+  check("a folder term never matches a note whose PATH merely starts with those letters",
+        names(Q('LIST FROM "Project"')).length === 0);
+
+  check("FROM [[Alpha]] lists what links TO Alpha — Gamma does, Alpha itself does not",
+        names(Q("LIST FROM [[Alpha]]")).join(",") === "Gamma");
+
+  check("- negates a term: FROM -#work drops Alpha and Gamma",
+        names(Q("LIST FROM -#work")).join(",") === "2026-09-06,Beta,Long Name Here");
+
+  check("AND is both: FROM #work AND [[Alpha]] is Gamma alone",
+        names(Q("LIST FROM #work AND [[Alpha]]")).join(",") === "Gamma");
+  check("OR is either: FROM #home OR #work is all three tagged notes",
+        names(Q("LIST FROM #home OR #work")).join(",") === "Alpha,Beta,Gamma");
+  check("AND binds tighter than OR, as it does in Dataview — Alpha is out",
+        names(Q("LIST FROM #home OR #work AND [[Alpha]]")).join(",") === "Beta,Gamma");
+
+  check("a query with no FROM lists every note — but never a TEMPLATE, which is a stencil",
+        names(Q("LIST")).join(",") === "2026-09-06,Alpha,Beta,Gamma,Long Name Here");
+  check("SORT name DESC turns it round",
+        names(Q("LIST\nSORT name DESC")).join(",") === "Long Name Here,Gamma,Beta,Alpha,2026-09-06");
+  check("SORT path sorts by where the note lives, not what it is called",
+        names(Q("LIST\nSORT path")).join(",") === "Alpha,2026-09-06,Gamma,Long Name Here,Beta");
+
+  const e2 = Q("LIST\nLIMIT 2");
+  check("LIMIT caps the rows", names(e2).join(",") === "2026-09-06,Alpha");
+  check("…and says how many it did not show, rather than pretending that is all",
+        e2.qres.innerHTML.includes("first 2 of 5"), e2.qres.innerHTML);
+
+  // IT DEGRADES, IT NEVER BREAKS — a clause it cannot do is named, the rest runs
+  const e3 = Q("LIST FROM #work\nWHERE rating > 3\nSORT name");
+  check("a clause it does not understand is NAMED in the pane…",
+        e3.qres.innerHTML.includes("ignored: WHERE rating > 3"), e3.qres.innerHTML);
+  check("…and the query still runs — a WHERE never costs you the whole list",
+        names(e3).join(",") === "Alpha,Gamma");
+  const e4 = Q("TABLE rating, status FROM #work");
+  check("TABLE runs as a list and says the columns are the part not read yet",
+        names(e4).join(",") === "Alpha,Gamma" && e4.qres.innerHTML.includes("front-matter fields are not read yet"), e4.qres.innerHTML);
+  check("SORT on something it cannot sort by is named, not silently ignored",
+        Q("LIST\nSORT rating").qres.innerHTML.includes("SORT rating — name or path only"));
+
+  // dataviewjs is a plug-in that runs JavaScript. This never does.
+  const e5 = load();
+  e5.type("```dataviewjs\ndv.list(dv.pages())\n```\n");
+  check("a ```dataviewjs block is refused by name and NOT executed",
+        e5.qres.innerHTML.includes("is JavaScript — never run here") && names(e5).length === 0, e5.qres.innerHTML);
+
+  // a look-alike inside ordinary code is text, not a query
+  const e6 = load();
+  e6.type("```\n```dataview\nLIST FROM #work\n```\n");
+  check("a query-looking line inside a PLAIN code fence is left alone",
+        e6.qbox.hidden === true && names(e6).length === 0, e6.qres.innerHTML);
+
+  // the pane keeps out of the way of every note that has no query
+  const e7 = load();
+  e7.type("# Alpha\n\njust some words #work\n");
+  check("a note without a query block shows no 🔎 QUERY section at all", e7.qbox.hidden === true);
+
+  // 🚨 the promise: the answer is drawn beside the note, NEVER written into it
+  const e8 = Q("LIST FROM #work");
+  check("running a query does not touch the note's text",
+        e8.t.value === "# Alpha\n\n```dataview\nLIST FROM #work\n```\n", JSON.stringify(e8.t.value));
+  check("…and asks Lua for nothing — no read, no grep, no write",
+        e8.sent.every((m) => m.a === "edit" || m.a === "ready"), JSON.stringify(e8.sent.map((m) => m.a)));
+
+  // a result row opens that note, like a backlink does
+  const e9 = Q("LIST FROM #work");
+  e9.sent.length = 0;
+  e9.click(e9.byId.links, e9.liRows(e9.qres.innerHTML)[0]);
+  check("clicking a result opens that note", e9.sent[0] && e9.sent[0].a === "open" && e9.sent[0].name === "Alpha", JSON.stringify(e9.sent[0]));
+
+  // the / menu writes the block, so the grammar never has to be typed
+  const e10 = load();
+  e10.type("/", 1);
+  check("the / menu offers the query block", e10.ac.innerHTML.includes("live list of notes"), e10.ac.innerHTML);
+  const e11 = load();
+  e11.call("blockApply({kind:'query'})");
+  check("choosing it types a WORKING query with the caret on the tag",
+        e11.t.value.includes("```dataview\nLIST FROM #") && e11.t.value.includes("SORT name"), JSON.stringify(e11.t.value));
+  const hint2 = (line) => e11.call("mdHint(" + JSON.stringify(line) + ")");
+  check("the footer names a query fence rather than calling it a code block",
+        /🔎 QUERY/.test(hint2("```dataview")), hint2("```dataview"));
+  check("…and names the FROM line's vocabulary", /AND \/ OR/.test(hint2("LIST FROM #work")));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -169,6 +169,26 @@ note is new — the index is asynchronous and a seed over an existing note
 is data loss. A name that becomes both a file and a `[[link]]` goes
 through `linkSafe`. KNOWN LIMIT: the index keys notes by NAME, so a root
 `Daily.md` and `Templates/Daily.md` cannot both be indexed.
+6.183.0 — 🔎 LIVE QUERIES: a ```dataview block in a note lists the
+notes it describes in a 🔎 QUERY section of the right pane (`qbox` /
+`qres`, hidden when the note has none), redrawn from `paneSoon` like the
+outline. Obsidian's own Dataview grammar, the useful corner: FROM `#tag`
+(nested a/b under a), `[[Note]]` (links TO it), `"Folder"`, AND/OR (AND
+binds tighter) with `-`/`!`; SORT name|path ASC|DESC; LIMIT. It runs
+ENTIRELY IN THE PAGE off the note rows — `notesJson` gained `l:` (each
+note's outgoing link KEYS) for the `[[Note]]` term — so a query costs no
+file read, no grep, no scan and sends Lua NOTHING. TWO RULES THE GATE
+ENFORCES: the answer is drawn beside the note and NEVER written into it
+(a written table would drift the file and duplicate Dataview's own
+render), and an unsupported clause is NAMED in the pane while the rest of
+the query still runs (`dataviewjs` is refused by name, never executed; a
+query-looking line inside a plain code fence is text). A template never
+appears in a result. The "/" menu writes the block with the caret on the
+tag — LL does not type the grammar. NEXT, deliberately not built:
+front-matter FIELDS (status:, rating:), which WHERE and a TABLE's columns
+need — that means widening the vault-wide front-matter grep from `tags:`
+to the whole block plus a second index, a release of its own.
+
 6.175.0 (LL does not write Markdown): a FORMAT BAR over the editor
 (`v.formatBar`), `wrapSel`/`blockAt` shared by the buttons, ⌘B/⌘I/⌘E and
 the "/" menu — one behaviour, one place to test. "/" opens ONLY on an
@@ -386,6 +406,24 @@ mirrors draw order: "closes last" IS "drawn under".
   it — but if a post-boot stall is ever traced there, move the read and
   the append into an hs.task (/bin/cat, /usr/bin/tail). Never move it
   back onto the boot line.
+- 6.183.0 verify with LL: ⇪3, open a note, put the caret on an empty
+  line and press "/" — a new row reads "Query — a live list of notes".
+  Choose it: a working block is typed with the caret on the tag. Type a
+  tag you actually use and the notes carrying it appear at once in a 🔎
+  QUERY section on the right, under the mentions; a click on one opens
+  it. Then the things worth trying on purpose: `LIST FROM [[Some Note]]`
+  lists everything that LINKS to that note; `LIST FROM "Projects"` lists
+  a folder; `-#done` drops the finished ones; add `WHERE rating > 3` and
+  the pane must SAY it ignored that line and still show the list. Check
+  the note's own text afterwards — nothing was written into it, and that
+  is the promise. A note with no query block must look exactly as it did.
+  STILL OPEN (LL's list, in his priority order after this): front-matter
+  FIELDS in a query (status:, rating: — what WHERE and a TABLE's columns
+  need); Kanban columns; @images / @shots in ⇪space; the screenshot
+  editor's text-box handles; and the ⇪⇧O image history beach ball (a
+  stall — diagnose before touching). Judged already covered, do not build
+  without LL asking again: Templater (6.174.0 templates), QuickAdd (⇪N +
+  ⇪2), Linter (the format bar), Folder Note (outline + backlinks).
 - 6.182.0 verify with LL: ⇪N opens the pad (⇪1 does nothing now — that
   is deliberate, it is free); the section reads 📝 SCRATCH NOTES with
   "+ 🗒 Capture" and "+ ➕ Append" rows under "+ new tab ⌘T", and ⌘W on

@@ -5,6 +5,67 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.183.0 — 🔎 THE VAULT ANSWERS A QUESTION YOU WRITE DOWN:
+  🔎 LIVE QUERIES. LL, of the vault: "I want to make notes clearly
+     meaningful and see the relationships to jog my memory." Of the six
+     Obsidian plug-ins LL listed, four were already here in other clothes
+     — Templater is 6.174.0's templates, QuickAdd is ⇪N and ⇪2, Linter is
+     6.175.0's format bar, Folder Note is the outline and backlinks. The
+     one that was genuinely missing is the one that answers that sentence
+     directly: Dataview. So write a query into a note and the notes it
+     describes are listed beside it:
+         ```dataview
+         LIST FROM #project AND -#done
+         SORT name
+         ```
+     The answer lands in a new 🔎 QUERY section of the right pane, under
+     the mentions and above the outline, redrawn 150 ms after a keystroke
+     exactly as the outline is — so the note and its answer are on screen
+     together and the answer is never stale. FROM takes `#tag` (a nested
+     #a/b counts under #a), `[[Note]]` (everything that links TO it) and
+     `"Folder"`, joined with AND / OR (AND binds tighter, as in Dataview)
+     and negated with `-` or `!`; SORT takes name or path, ASC or DESC;
+     LIMIT caps the rows. A click on a result opens that note, the way a
+     backlink does. A template never appears in a result — it is a
+     stencil, not content. The section is HIDDEN on every note that has
+     no query, so nothing changed for any note already written.
+  ✍️ THE GRAMMAR IS NEVER TYPED. Since 6.175.0 the rule here has been
+     that LL does not write Markdown and the window teaches what it can
+     type. So "/" on an empty line has a new row — "Query — a live list
+     of notes" — and choosing it writes the whole block with the caret
+     sitting on the tag, so the first thing you do is name what you want
+     rather than learn a language. The footer names a query line the way
+     it already names a heading or a task.
+  🪟 IT IS OBSIDIAN'S OWN GRAMMAR, ON PURPOSE. The fence says `dataview`
+     and the syntax is the useful corner of that plug-in's language, so
+     the same block renders in Obsidian if it is ever installed. The
+     folder stays the database and nothing here is a private format that
+     only this window can read.
+  🚨 NOTHING IS WRITTEN, AND NOTHING IS READ. The answer is drawn BESIDE
+     the note, never into it. That is not shyness: a query that wrote its
+     own results into the file would make the file drift under you, and
+     would leave Obsidian rendering a second copy of a table this one had
+     already written. And the whole thing runs in the PAGE, off the note
+     rows it already holds — name, path, tags, and the new `l:` field
+     carrying each note's outgoing link keys — so a query costs no file
+     read, no grep, no scan and no message to Lua at all.
+     IT DEGRADES, IT NEVER BREAKS: a clause it cannot do (a WHERE, a
+     TABLE's columns, a SORT on a front-matter field) is NAMED in the
+     pane and the rest of the query still runs, so an unsupported line
+     never costs you the list; a ```dataviewjs block is refused by name
+     and never executed; and a query-looking line inside an ordinary code
+     fence is left alone as the text it is.
+  🧭 WHAT IS DELIBERATELY NOT HERE YET. Front-matter FIELDS — `status:
+     reading`, `rating: 5` — which is what WHERE and a TABLE's columns
+     need. They want the vault-wide front-matter grep widened from
+     `tags:` to the whole block and a second index beside the tag one,
+     which is a release of its own rather than a rider on this one. The
+     pane says so where it matters instead of failing quietly.
+     test_vault 281 → 283, test_vault_js 175 → 205 (the query grammar,
+     the AND/OR precedence, the negation, the template rule, every
+     degrade path, and the promise that the note's text is untouched and
+     no message reaches Lua). 7,822 → 7,854 checks, seventy-four stages.
+
 NEW IN 6.182.0 — 📝 ONE SECTION, ONE DOOR, AND ⇪2 COLLECTS AS YOU READ:
   📝 SCRATCH NOTES. LL: "can we remove Scratch and Capture, and have a
      combined section called Scratch notes? Could this section actually
