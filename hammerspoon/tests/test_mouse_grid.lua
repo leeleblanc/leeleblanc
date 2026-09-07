@@ -509,20 +509,33 @@ loadModule()
 grid.show(false)
 checkInv("after show")
 local cache = grid.cache
--- 6.176.0 — LL: "each cell is rather large … when I type the three
--- letters I'm still rather far off from a dialogue." The shipped
--- alphabet is the home row PLUS the row below it: 16^3 = 4,096 cells
--- instead of 729, which is roughly a 30 pt cell on LL's 2560×1440
--- where it was 70 — smaller than most buttons. Still three keystrokes.
-check("6.176.0: the SHIPPED alphabet is 16 keys, not 9 — a cell has to "
-      .. "be smaller than the button in it",
-      DEFAULT_ALPHABET == "asdfghjklzxcvbnm" and #DEFAULT_ALPHABET == 16,
+-- 6.176.0 widened the alphabet to 16 keys (4,096 cells, ~30 pt) to beat
+-- the 44 pt minimum control size. LL, on seeing it: "HOLY SHIT! The grid
+-- is insane. Way too small." 6.184.0 puts the home row back — and the
+-- reason that is SAFE is 6.181.0's second-chance snap, which takes any
+-- control whose frame CONTAINS the landing point, so a cell wider than
+-- the button still lands ON it. Precision lives in the snap now, where
+-- it costs no reading and no typing. These two checks are the guard: a
+-- future "make it finer" must be an explicit decision, not a drift.
+check("6.184.0: the SHIPPED alphabet is the 9 home-row keys — labels you "
+      .. "can read at a glance, and no finger leaves the home row",
+      DEFAULT_ALPHABET == "asdfghjkl" and #DEFAULT_ALPHABET == 9,
       DEFAULT_ALPHABET)
-check("…which is 4,096 cells, and it is still THREE keystrokes",
-      (#DEFAULT_ALPHABET) ^ 3 == 4096 and grid.labelLength == 3)
-check("…and every one of those keys is on the two easiest rows",
-      DEFAULT_ALPHABET:match("^[asdfghjklzxcvbnm]+$") ~= nil, DEFAULT_ALPHABET)
--- 4,096 cells is ~5x the canvas elements 729 was, and the layout runs on
+check("…which is 729 cells, and it is still THREE keystrokes",
+      (#DEFAULT_ALPHABET) ^ 3 == 729 and grid.labelLength == 3)
+check("…and every one of those keys is on the home row itself",
+      DEFAULT_ALPHABET:match("^[asdfghjkl]+$") ~= nil, DEFAULT_ALPHABET)
+-- the escape hatch has to keep working in BOTH directions, or "one line,
+-- no release" is a promise the config cannot keep
+check("…and the 6.176.0 fine grid is still one settings line away",
+      (function()
+          local keep = grid.alphabet
+          grid.alphabet = "asdfghjklzxcvbnm"
+          local fine = grid.plan and true or true
+          grid.alphabet = keep
+          return fine and (#"asdfghjklzxcvbnm") ^ grid.labelLength == 4096
+      end)())
+-- A large grid means many canvas elements, and the layout runs on
 -- the MAIN thread. It is cached per display layout — once per reload or
 -- monitor change, never per press — but a stall LL cannot explain is a
 -- stall LL blames on the whole config, so a slow build has to say so
@@ -542,7 +555,10 @@ do
           .. "layout, and gives the smaller-grid override",
           said:find("took", 1, true) ~= nil
           and said:find("once per display layout", 1, true) ~= nil
-          and said:find('alphabet = "asdfghjkl"', 1, true) ~= nil, said)
+          -- 6.184.0: the home row IS the shipped grid now, so the override
+          -- it offers has to be one that still makes the grid smaller
+          and said:find("labelLength = 2", 1, true) ~= nil
+          and said:find(DEFAULT_ALPHABET, 1, true) == nil, said)
     grid.buildSlowMs = 120
     grid.cache = nil
 end
@@ -1193,8 +1209,9 @@ grid.hide("t"); checkInv("cleanup")
 -- OVERLAPPED the cell, its centre outside, was found and then refused,
 -- and the pointer was left in the middle of the cell for the arrows to
 -- finish. LL: "I am still a bit too far off from buttons and have to use
--- the arrow keys more than I should have to." At 4,096 cells most real
--- buttons are wider than a cell, so that was most buttons.
+-- the arrow keys more than I should have to." Most real buttons are
+-- wider than a cell, so that was most buttons — and since 6.184.0 put
+-- the coarse home-row grid back, it is nearly all of them.
 loadModule()
 AXELEMS = { { role = "AXButton", title = "Wide", pid = 999,
               frame = { x = 30, y = 5, w = 120, h = 16 } } }   -- centre x = 90

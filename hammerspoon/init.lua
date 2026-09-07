@@ -4,9 +4,35 @@
 -- =====================================================================
 -- 09-06-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.183.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.184.0
 -- =====================================================================
 
+-- NEW IN 6.184.0 — 🎯 THE HOME ROW IS THE GRID AGAIN:
+--   🎯 LL, on ⇪X: "HOLY SHIT! The grid is insane. Way too small."
+--      6.176.0 had widened the alphabet to sixteen keys — the home row
+--      plus the row below — for 4,096 cells of about 30 pt, chosen to
+--      come in under Apple's 44 pt minimum control size so that a cell
+--      would be smaller than the button in it. It worked as arithmetic
+--      and failed as a thing to look at: labels too small to read and a
+--      finger leaving the home row on every press.
+--      It is the nine home-row keys again — 729 cells, ~45 pt on the
+--      Air and ~70 pt on the 4K, three keystrokes without reaching.
+--   🧠 WHY THAT IS SAFE NOW, and was not in 6.176.0: 6.181.0 moved the
+--      precision into the SNAP. A control whose frame CONTAINS the
+--      landing point wins on a second pass, so a cell WIDER than the
+--      button still puts the pointer on it. Fine cells were buying
+--      accuracy you now get for free, and charging for it in reading
+--      and typing. `_G.mouseGridReport()` "snap :" says the second
+--      chance is on; the trail says "wider than the cell" when it fires.
+--   ✏️ Finer again is one line and no release, in either direction:
+--          settings = { mouse_grid = { alphabet = "asdfghjklzxcvbnm" } }
+--            16 keys -> the 4,096-cell 6.176.0 grid
+--          settings = { mouse_grid = { labelLength = 4 } }
+--            9 keys, four keystrokes -> 6,561 cells
+--      The gate asserts BOTH the shipped nine and that the wide
+--      alphabet still buys its capacity, so neither drifts.
+--      test_mouse_grid 383 → 384. 7,854 → 7,855 checks, seventy-four
+--      stages.
 -- NEW IN 6.183.0 — 🔎 THE VAULT ANSWERS A QUESTION YOU WRITE DOWN:
 --   🔎 LIVE QUERIES. LL: "I want to make notes clearly meaningful and
 --      see the relationships to jog my memory." Write a query into a
@@ -44,44 +70,12 @@
 --      deliberate next step.
 --      test_vault 281 → 283, test_vault_js 175 → 205. 7,822 → 7,854
 --      checks, seventy-four stages.
--- NEW IN 6.182.0 — 📝 ONE SECTION, ONE DOOR, AND ⇪2 COLLECTS AS YOU READ:
---   📝 SCRATCH NOTES. LL: "can we remove Scratch and Capture, and have a
---      combined section called Scratch notes?" They were already ONE
---      section of tabs — what made them feel like separate things is that
---      🗒 Capture and ➕ Append each had a hyper key of their own, so the
---      way in taught you they were three tools. They are rows now:
---      "+ 🗒 Capture" and "+ ➕ Append" sit under "+ new tab ⌘T" and call
---      the SAME openKind those keys called. Both pads keep every bit of
---      their brains — the queue, the 4 PM send, * idea / + log / ! task /
---      ? note, fileAll, every service. Neither keeps a key.
---   🔑 FOUR KEYS BECAME ONE. LL: "I think hyper+N is enough to open the
---      Scorp Pad. Do you?" He is right, and it was worse than it looked:
---      ⇪1, ⇪N, ⇪2 and ⇪3 all opened the same window. ⇪N is the door,
---      ⇪3 still opens the vault side of it, ⇪2 became the collector
---      below, and ⇪1 IS FREE — do not spend it without LL.
---   📎 ⇪2 — SEQUENTIAL COPY. LL: "can I select some text, and then
---      immediately select some more and have it append the text I just
---      copied … so I can build a block instead of multiple copy/pastes."
---      Each press appends the selection to one 📎 Collect tab AND puts
---      THE WHOLE BLOCK SO FAR on the clipboard, so ⌘V pastes everything
---      you have gathered and ⇪N opens it when you want to tidy it first.
---      It never raises the window — the point is that you stay in the
---      page you are reading — and an alert names the running count.
---      The selection is read through power_tools' ONE reader
---      (accessibility, then ⌘C), so no second selection reader exists.
---   🛟 Degrades: no Power Tools → it says so and does nothing; a
---      pasteboard that refuses is REPORTED and the grab is still safe in
---      the tab; the Collect tab's id is remembered in the store, so a
---      reload keeps appending instead of quietly starting a second block.
---   ✅ Gate: test_scratch_pad 175 → 194, test_note_pad 60 → 62,
---      test_features 456 → 458. 7,795 → 7,822 checks, seventy-four
---      stages.
--- (6.181.1 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.182.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.183.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.184.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -178,7 +172,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.183.0"
+_G.configVersion = "6.184.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

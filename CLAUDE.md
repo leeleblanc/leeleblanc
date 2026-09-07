@@ -406,6 +406,21 @@ mirrors draw order: "closes last" IS "drawn under".
   it — but if a post-boot stall is ever traced there, move the read and
   the append into an hs.task (/bin/cat, /usr/bin/tail). Never move it
   back onto the boot line.
+- 6.184.0 verify with LL: ⇪X — the grid is the nine home-row keys
+  again (729 cells, ~70 pt on the 4K), labels readable at a glance and
+  no finger off the home row. Land on a toolbar button, a tab, a Save
+  button: 6.181.0's second-chance snap should still put the pointer ON
+  it even though the cell is now wider than the button —
+  `_G.mouseGridReport()` "snap :" says the second chance is on and the
+  trail says "wider than the cell" when it fires. If a landing is ever
+  off, read that line BEFORE touching the cell size: in 6.181.0 the
+  fault was the snap refusing what it had found, not the grid.
+  Fine again is one line, no release:
+  `settings = { mouse_grid = { alphabet = "asdfghjklzxcvbnm" } }`
+  (the 4,096-cell 6.176.0 grid) or `{ labelLength = 4 }` (6,561, four
+  keystrokes). RULE, now twice learned: the grid's job is to get you
+  CLOSE and the snap's job is to land you — do not buy with cell size
+  what the snap already gives free.
 - 6.183.0 verify with LL: ⇪3, open a note, put the caret on an empty
   line and press "/" — a new row reads "Query — a live list of notes".
   Choose it: a working block is typed with the caret on the tag. Type a
@@ -502,7 +517,8 @@ mirrors draw order: "closes last" IS "drawn under".
   `_G.scratchPadReport()` "export:" / "last  :" lines say where and
   when. On a Mac without OneDrive the summary says "no OneDrive found —
   local folder" and writes to Logs/vault/Scratch instead.
-- 6.176.0 verify with LL: ⇪X — the grid is much finer (16-key alphabet,
+- 6.176.0 (SUPERSEDED by 6.184.0 — the home row is back; 16 keys was
+  "way too small"). ⇪X — the grid was much finer (16-key alphabet,
   4,096 cells, ~30 pt on the 4K where it was ~70); typing three letters
   lands ON a button more often than beside it. Read
   `_G.mouseGridReport()` for the real cols × rows and cell size per

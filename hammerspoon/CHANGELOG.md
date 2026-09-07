@@ -5,6 +5,42 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.184.0 — 🎯 THE HOME ROW IS THE GRID AGAIN:
+  🎯 LL, on his first look at ⇪X in this build: "HOLY SHIT! The grid is
+     insane. Way too small."
+     6.176.0 had widened the alphabet from the nine home-row keys to
+     sixteen — the home row plus the row below it — because sixteen cubed
+     is 4,096 cells instead of 729, which on LL's 2560×1440 is a ~30 pt
+     cell where it had been ~70. The reasoning was Apple's 44 pt minimum
+     control size: make the cell smaller than the button and the first
+     landing is a hit. As arithmetic that was right. As a thing to look
+     at and type it was wrong — labels too small to read at a glance, and
+     a finger leaving the home row on every single press.
+     The nine home-row keys are back: 729 cells, ~45 pt on the Air and
+     ~70 pt on the 4K, three keystrokes with nothing to reach for.
+  🧠 WHY THE COARSE GRID IS SAFE NOW AND WAS NOT THEN. 6.181.0 moved the
+     precision out of the grid and into the SNAP: a control whose frame
+     CONTAINS the landing point wins on a second pass, so a cell WIDER
+     than the button still puts the pointer on it — which, at 729 cells,
+     is nearly every button there is. Fine cells had been buying accuracy
+     that is now free, and charging for it in reading and in typing.
+     That is the durable lesson here, and it is worth stating plainly:
+     when a landing is off, the question is whether the grid was too
+     coarse or whether the SNAP refused what it found. In 6.181.0 it was
+     the snap, and the report had been saying so verbatim the whole time.
+  ✏️ FINER AGAIN IS ONE LINE AND NO RELEASE, in either direction:
+         settings = { mouse_grid = { alphabet = "asdfghjklzxcvbnm" } }
+           16 keys -> the 4,096-cell 6.176.0 grid
+         settings = { mouse_grid = { labelLength = 4 } }
+           9 keys, four keystrokes -> 6,561 cells
+     The gate asserts BOTH halves — the shipped nine home-row keys, and
+     that widening the alphabet really does still buy the capacity — so
+     neither the default nor the escape hatch can drift unnoticed. The
+     slow-build Console note now offers labelLength = 2, since the
+     alphabet it used to suggest is what ships.
+     test_mouse_grid 383 → 384. 7,854 → 7,855 checks, seventy-four
+     stages.
+
 NEW IN 6.183.0 — 🔎 THE VAULT ANSWERS A QUESTION YOU WRITE DOWN:
   🔎 LIVE QUERIES. LL, of the vault: "I want to make notes clearly
      meaningful and see the relationships to jog my memory." Of the six

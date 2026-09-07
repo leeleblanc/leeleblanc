@@ -84,15 +84,17 @@
 --
 --        #alphabet ^ labelLength
 --
--- Default since 6.176.0: 16 keys (home row + the row below), 3 deep =
--- 4,096 cells. On one 2560×1440 display that is ~85×48 cells of about
--- 30pt — under Apple's 44pt minimum control size, so a cell is usually
--- SMALLER than the button in it and the first landing is a hit. The old
--- default was the 9 home-row keys, 729 cells, ~45pt on a 1512×982 panel
--- and ~70pt on a 4K — comfortable to type, but coarser than a toolbar
--- button, which is what LL kept running into.
+-- Default since 6.184.0: the 9 home-row keys, 3 deep = 729 cells, ~45pt
+-- on a 1512×982 panel and ~70pt on a 4K — labels you can read at a
+-- glance without leaving the home row. 6.176.0 tried 16 keys / 4,096
+-- cells / ~30pt to beat the 44pt minimum control size, and LL's verdict
+-- was "HOLY SHIT! The grid is insane. Way too small." The coarse grid is
+-- safe again because 6.181.0 moved precision into the SNAP: a control
+-- whose frame CONTAINS the landing point wins on a second pass, so a
+-- cell wider than the button still lands ON it. Fine cells buy accuracy
+-- you now get for free, and cost reading and typing you do not.
 --
--- ⚠️ TWO OR MORE DISPLAYS SPLIT THAT 4,096 BY AREA. Two screens roughly
+-- ⚠️ TWO OR MORE DISPLAYS SPLIT THAT 729 BY AREA. Two screens roughly
 -- doubles the cell, which can be coarser than a button — the nudge in
 -- landed mode exists for exactly that. If you run multiple displays and
 -- want the fine grid back, buy capacity by widening the alphabet:
@@ -187,20 +189,26 @@ function M.setup(core)
     -- Capacity is alphabet^labelLength — see the arithmetic block above.
     -- These two are ONE decision, not two: changing either changes how
     -- many cells exist and therefore how precise the grid is.
-    -- 6.176.0 — LL: "each cell is rather large … when I type the three
-    -- letters I'm still rather far off from a dialogue, can we reduce
-    -- the size of the cells so I have a better chance of hitting a
-    -- button." The bottom row joins the home row: 16 characters cubed is
-    -- 4,096 cells instead of 729, which on LL's 2560×1440 is roughly a
-    -- 30 pt cell where it was 70 — smaller than most buttons, so the
-    -- first landing is usually ON the thing. Still THREE keystrokes; the
-    -- fingers travel one row, which is the whole price.
-    -- ✏️ Back to the pure home row (bigger cells, less travel):
-    --    settings = { mouse_grid = { alphabet = "asdfghjkl" } }
-    --    and 4,096 → 6,561 with { labelLength = 4 } if you want finer
-    --    still. `_G.mouseGridReport()` prints the REAL cell size on this
-    --    Mac — read it after any change here rather than guessing.
-    grid.alphabet    = "asdfghjklzxcvbnm"  -- home row + the row below it
+    -- 6.176.0 went the other way and it was WRONG for this Mac. LL had
+    -- said "each cell is rather large … I'm still rather far off from a
+    -- dialogue", so the bottom row joined the home row: 16 cubed, 4,096
+    -- cells, ~30 pt where they had been ~70. LL, on seeing it:
+    -- "HOLY SHIT! The grid is insane. Way too small."
+    -- 6.184.0 puts the home row back. The reason it is safe to be coarse
+    -- now is 6.181.0: the SNAP takes a second chance on any control whose
+    -- frame CONTAINS the landing point, so a cell wider than the button
+    -- still puts the pointer ON it. Precision moved out of the grid and
+    -- into the snap, which is where it costs no reading and no typing.
+    -- 729 cells is ~45 pt on a 1512×982 panel and ~70 pt on the 4K:
+    -- labels you can read at a glance, three keystrokes on one row.
+    -- ✏️ Finer again, if it is ever wanted — one line, no release:
+    --    settings = { mouse_grid = { alphabet = "asdfghjklzxcvbnm" } }
+    --      16 keys ->  4,096 cells (the 6.176.0 grid)
+    --    settings = { mouse_grid = { labelLength = 4 } }
+    --      9 keys, 4 deep ->  6,561 cells, four keystrokes
+    --    `_G.mouseGridReport()` prints the REAL cell size on this Mac —
+    --    read it after any change here rather than guessing.
+    grid.alphabet    = "asdfghjkl"         -- the home row, nothing to reach for
     grid.labelLength = 3
     -- ✏️ How slow a geometry build has to be before the Console says so
     -- (milliseconds). See the note where it is used: the cost is once
@@ -261,7 +269,7 @@ function M.setup(core)
     -- off from buttons and have to use the arrow keys more than I should
     -- have to." The cells were not the problem. Snap only accepted a
     -- control whose CENTRE fell inside the typed cell, so every button
-    -- WIDER than a cell — which, at 4,096 cells, is most of them — was
+    -- WIDER than a cell — which, at 729 cells, is nearly all of them — was
     -- found, identified, and then refused: the report literally said
     -- "AXButton under the cell, but its centre is outside it", and the
     -- pointer was left in the middle of the cell for the arrows to
@@ -575,8 +583,8 @@ function M.setup(core)
             print(string.format("🎯 mouse grid: laying out %d cells took %.0f ms on "
                 .. "this Mac — that happens once per display layout, not per press. "
                 .. "If the first ⇪X after a reload feels slow, a smaller grid is "
-                .. "settings = { mouse_grid = { alphabet = \"asdfghjkl\" } } "
-                .. "(729 cells, bigger cells).", index, ms))
+                .. "settings = { mouse_grid = { labelLength = 2 } } "
+                .. "(81 cells, much bigger cells).", index, ms))
         end
         return { screens = plan, used = index, capacity = capacity,
                  truncated = truncated, chars = chars }
