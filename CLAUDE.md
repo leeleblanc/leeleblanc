@@ -294,6 +294,22 @@ store that failed to load must not erase its own backup. The VAULT
 stays in OneDrive regardless (Obsidian opens that folder on both Macs).
 NOT aliases (io.open/rsync/grep don't follow them) and NOT symlinks
 (OneDrive won't sync through one).
+🚨 EVERY TEXT PANEL DOES THE ⇪ HANDSHAKE (6.165.1, enforced 6.193.0):
+`_G.hyperExpectRelease(1.5, who)` after show AND the page forwarding its
+F18 keyUp to `_G.hyperReleaseSeen(who)`. unified_search had NEITHER
+until 6.193.0 — that is LL's "stuck on the screen sometimes" and the
+Console's "released by the watchdog — held 8s". The page listens for
+`e.key === 'F18' || e.keyCode === 79` ONLY; reporting every keyup ends
+the hold while LL is still holding it. A release is NOT a dismissal —
+it must not close the panel. Both halves have mutation-proven checks.
+🚨 ANY FALSY RETURN IS A REFUSAL (6.193.0): `clip.openInPanel` /
+`ocr.openInPanel` read `opened == false`, and `uni.show` returns NIL
+when unified search is off — so ⇪V opened neither panel nor chooser and
+did NOTHING. Use `not opened`. RULE LEARNED, the durable half: the test
+STUBS returned nothing while the real service returns true, so the
+suite ran the failing input on every green run and passed. A stub more
+forgiving than the thing it stands in for is a hole with a tick beside
+it — make a stub return exactly what the real provider returns.
 ✂️ HALVE THE LANDED BOX (6.192.0, mouse_grid): after ⇪X lands, ⌥+arrow
 keeps that HALF of the cell and puts the pointer at its centre; press
 again to halve again. `grid.halfOf(box, dir, minPt)` is PURE (the gate
@@ -585,6 +601,26 @@ mirrors draw order: "closes last" IS "drawn under".
   it — but if a post-boot stall is ever traced there, move the read and
   the append into an hs.task (/bin/cat, /usr/bin/tail). Never move it
   back onto the boot line.
+- 6.193.0 verify with LL: ⇪V — the ⇪space panel, filtered to @clip.
+  That is the one that was dead. ⇪O likewise on @ocr. Then the thing to
+  watch for over a day: ⇪space (and ⇪V, ⇪O) should stop STICKING, and
+  the Console should stop printing "⇪ released by the watchdog — held
+  8s". If it sticks again, paste the Console lines from that moment —
+  a "⇪ keyUp seen by unified search" line means the new handshake fired
+  and something else is holding it.
+  AGREED WITH LL, NOT YET BUILT (next, in this order): the screenshot
+  shortcut REMAP — ⇪⇧1 editor · ⇪⇧2 active window · ⇪⇧3 delay · ⇪4 area
+  · ⇪⇧4 text · ⇪5 scrolling, exactly as LL wrote it. He chose to MOVE
+  the three current owners rather than bend the map: the PAUSE switch
+  off ⇪⇧1 (to ⇪⇧0; it stays reachable from the ⏸ menu bar item and the
+  ⌃⌥⌘⇧Esc panic chord regardless), type-the-clipboard off ⇪⇧2 and
+  mouse-follows off ⇪⇧3, both to keys named in that release. Then: the
+  ⌘1–⌘9 screenshot list reflowed to read like the Unified Search panel;
+  and a SNIPPETS window in the ⇪space style (⇪⇧S is a chooser today).
+  STILL OPEN: sequential screenshots to the clipboard (needs LL's
+  go-ahead); the Chrome tab scan; @ source discoverability; widening
+  `uni.runnable`; vault front-matter property completion; ⌘⇧N and ⌘⇧E
+  on the small dialog; the ⇪⇧O image history beach ball; and CANVAS.
 - 6.192.0 verify with LL: ⇪X, type a cell, and when it lands press
   ⌥↓ (or ⌥↑ ⌥← ⌥→). An amber box should appear — the half of the cell on
   that side — with the pointer in the middle of it. Press again and it

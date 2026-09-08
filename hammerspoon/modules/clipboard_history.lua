@@ -654,7 +654,14 @@ function M.setup(core)
         local ok, opened = pcall(function()
             return _G.service.call("unified.show", clip.panelTag)
         end)
-        if not ok or opened == false then
+        -- 🚨 6.193.0 — ANY FALSY RETURN IS A REFUSAL. This read
+        -- `opened == false`, and uni.show returns NIL (not false) when
+        -- unified search is switched off — so the panel never opened,
+        -- the chooser never opened either, and the key did NOTHING.
+        -- That is the worst outcome of the three and it was the one
+        -- shape not covered. `not opened` covers nil, false and a
+        -- provider that returns nothing at all.
+        if not ok or not opened then
             clip.panelWhy = "the panel refused to open"
             warn("⇪V could not open the panel — opening the chooser instead")
             return false

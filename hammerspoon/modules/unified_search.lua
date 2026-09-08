@@ -1034,6 +1034,12 @@ function pick(id, wantPath, wantOpen){
 }
 
 q.addEventListener('input', function(){ sel = 0; rebuild(); });
+// ⌨️ 6.193.0 — forward the ⇪ (F18) keyUp to Lua. WebKit sees it even
+// when the Carbon release never reaches the hotkey, and without this the
+// hold sat latched for 8 s and the panel felt stuck. Same two lines the
+// vault and the Scorp Pad carry.
+document.addEventListener('keyup', function(e){
+  if (e.key === 'F18' || e.keyCode === 79) say({a:'f18up'}); });
 window.addEventListener('keydown', function(ev){
   if (ev.key === 'ArrowDown') { if (ev.preventDefault) ev.preventDefault(); move(1); }
   else if (ev.key === 'ArrowUp') { if (ev.preventDefault) ev.preventDefault(); move(-1); }
@@ -1121,6 +1127,14 @@ if (q.focus) q.focus();
         if type(body) ~= "table" then return end
         local a = body.a
         if a == "close" then uni.hide() return end
+        -- The page saw the F18 keyUp itself — that IS the release
+        -- (6.165.1's contract, now honoured here too).
+        if a == "f18up" then
+            if _G.hyperReleaseSeen then
+                pcall(_G.hyperReleaseSeen, "unified search")
+            end
+            return
+        end
         if a == "dragStart" then
             if _G.beginPanelDrag then _G.beginPanelDrag("unified search")
             else print("🔎 Unified Search: window_move is off — the header cannot drag") end
@@ -1345,6 +1359,22 @@ if (q.focus) q.focus();
         pcall(function() view:html(uni.buildHtml(prefill or "")) end)
         pcall(function() view:show() end)
         pcall(function() view:bringToFront(true) end)
+
+        -- ⌨️ 6.193.0 — THE ⇪ RELEASE HANDSHAKE, which this panel never had.
+        -- LL: "For some reasons Unified Search is stuck on the screen
+        -- sometimes", and his Console carries the matching line —
+        -- "⇪ released by the watchdog — held 8s with no key event and no
+        -- F18 keyUp". Every other text panel here (the vault, the Scorp
+        -- Pad, the screenshot tool) has called hyperExpectRelease since
+        -- 6.165.1; this one opens the same way and was simply missed.
+        -- The cost of missing it is the 8 s latch: ⇪ stays held, the
+        -- panel has the keyboard, and nothing behaves until the watchdog
+        -- lets go. Both halves are needed — the shortened deadline here,
+        -- and the page telling us when it sees the keyUp itself (WebKit
+        -- gets that keyup even when the Carbon release never fires).
+        if _G.hyperExpectRelease then
+            pcall(_G.hyperExpectRelease, 1.5, "unified search")
+        end
 
         local n = 0
         for _, c in pairs(uni.counts) do n = n + (c > 0 and 1 or 0) end

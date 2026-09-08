@@ -5,6 +5,60 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.193.0 — 🔧 ⇪V WORKS AGAIN, AND ⇪space STOPS STICKING:
+  🔧 LL: "Hyper+V doesn't bring up the history panel for the clipboard
+     anymore."
+     It did not, and the fault is 6.190.0's — one operator wide. ⇪V asks
+     unified search to open the panel and falls back to the old chooser
+     if it will not. The guard read `opened == false`, and uni.show
+     returns NIL, not false, when unified search is switched off. Nil is
+     not false, so the press counted as a success: no panel, no chooser,
+     nothing at all. Of the three possible outcomes — panel, chooser,
+     nothing — the third is the worst, and it was the only shape the
+     guard did not cover. It now treats ANY falsy answer as a refusal,
+     which covers nil, false, and a provider that returns nothing.
+     THE TESTS WERE THE SAME BLIND SPOT, and this is the part worth
+     remembering. The stubs for `unified.show` returned NOTHING while
+     the real service returns true. So the suite was not merely silent
+     about the bug — it was running the exact input that caused it, on
+     every green run, and passing. A stub more forgiving than the thing
+     it stands in for is not a test; it is a hole with a tick beside it.
+     Both stubs return true now, and a NEW check feeds a provider that
+     returns nothing and insists the chooser opens — it fails against
+     the old `== false` guard, which is how it should have been written
+     in 6.190.0. Same fix and same check for ⇪O.
+  ⌨️ LL: "For some reasons Unified Search is stuck on the screen
+     sometimes."
+     His Console carries the matching line: "⇪ released by the watchdog
+     — held 8s with no key event and no F18 keyUp". That is the hyper
+     latch, and it means the panel took the screen while ⇪ was still
+     down and nothing told the hold it was over.
+     Every text panel in this config has done two things since 6.165.1:
+     called `hyperExpectRelease` after it shows (which drops the latch
+     deadline from 8 s to 1.5 s of silence), and forwarded the F18 keyUp
+     from its own page (WebKit sees that keyup even when the Carbon
+     release never reaches the hotkey). The vault does it. The Scorp Pad
+     does it. The screenshot tool does it. ⇪space never did — it opens
+     the same way and was simply missed when the rule was written, and
+     for the whole 8 s in between ⇪ is held, the panel has the keyboard,
+     and the Mac feels stuck. Both halves are here now.
+     Worth stating plainly: this gap is older than 6.190.0. What changed
+     is that routing ⇪V and ⇪O into this panel put LL through that door
+     many times a day instead of occasionally, which is why it went from
+     a rarity to "sometimes".
+     Four checks, each failing against the mutation it exists to catch:
+     the deadline is asked for and NAMES the panel; the panel still opens
+     on a Hammerspoon with no such global; the page's keyup reaches the
+     release and does NOT close the panel (a release is not a
+     dismissal); and it fires for the F18 keyup ONLY — reporting every
+     keyup would end the hold while LL is still holding it, which is the
+     same bug pointing the other way and a far quieter one. The JS
+     sandbox grew a `document` listener table to drive that half for
+     real.
+  test_clipboard 132 → 133, test_ocr_tag 110 → 111, test_unified
+  111 → 117, test_unified_js 37 → 40. 8,119 → 8,129 checks, seventy-four
+  stages. init.lua 3,745 lines.
+
 NEW IN 6.192.0 — ✂️ ⇪X: BREAK THE BOX YOU LANDED IN, IN HALF:
   ✂️ LL, with a diagram: "A big cell one misses a button and I have to
      arrow a lot to get to it … Once I select a box, can the box be

@@ -737,8 +737,13 @@ do
     local E = _G.ocrEngine
     local asked, calls = {}, 0
     _G.service = { has = function(n) return n == "unified.show" end,
+                   -- ⚠️ RETURNS TRUE — what uni.show really returns when
+                   -- it opens. This stub returned NOTHING until 6.193.0
+                   -- and the suite was green over the exact shape that
+                   -- made the key dead on LL's Mac.
                    call = function(_, arg) calls = calls + 1
-                                           asked[#asked + 1] = arg end }
+                                           asked[#asked + 1] = arg
+                                           return true end }
     check("⇪O asks the panel first", E.openInPanel() == true and calls == 1)
     check("...prefilled on this log's own source", asked[1] == "@ocr ", asked[1])
 
@@ -749,6 +754,13 @@ do
           .. "to the chooser", E.openInPanel() == false)
     check("...and says why", tostring(E.panelWhy or ""):find("not loaded", 1, true) ~= nil,
           E.panelWhy)
+
+    -- 🚨 6.193.0, THE ONE THAT BIT: nothing returned at all (uni.show
+    -- returns nil when unified search is off). The old guard tested
+    -- `== false` and let this through as success, so ⇪O opened neither.
+    _G.service = { has = function() return true end, call = function() end }
+    check("🚨 a provider that returns NOTHING falls back too — the key must "
+          .. "never do nothing", E.openInPanel() == false)
 
     _G.service = { has = function() return true end, call = function() return false end }
     check("a panel that REFUSES to open also falls back", E.openInPanel() == false)

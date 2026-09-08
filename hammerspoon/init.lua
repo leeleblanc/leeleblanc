@@ -4,9 +4,37 @@
 -- =====================================================================
 -- 09-08-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.192.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.193.0
 -- =====================================================================
 
+-- NEW IN 6.193.0 — 🔧 ⇪V WORKS AGAIN, AND ⇪space STOPS STICKING:
+--   🔧 LL: "Hyper+V doesn't bring up the history panel for the clipboard
+--      anymore." It did not, and the fault is 6.190.0's, one operator
+--      wide. ⇪V asks unified search to open the panel and falls back to
+--      the old chooser if it will not — but the guard tested for an
+--      explicit `false`, and uni.show returns NIL when unified search is
+--      switched off. Nil is not false, so the press counted as a success:
+--      no panel, no chooser, nothing at all. A key that silently does
+--      nothing is the worst of the three outcomes and it was the one
+--      shape not covered. It now treats ANY falsy answer as a refusal.
+--      The test stubs were the same blind spot — they returned NOTHING
+--      while the real service returns true, so the suite was green over
+--      exactly the case that broke. They return true now, and a new
+--      check feeds a provider that returns nothing and insists the
+--      chooser opens. Same fix and same check for ⇪O.
+--   ⌨️ LL: "For some reasons Unified Search is stuck on the screen
+--      sometimes." His Console carries the matching line — "⇪ released
+--      by the watchdog — held 8s with no key event and no F18 keyUp".
+--      Every text panel here has called hyperExpectRelease since
+--      6.165.1 and forwarded the F18 keyUp from its page: the vault,
+--      the Scorp Pad, the screenshot tool. ⇪space never did — it opens
+--      the same way and was simply missed, and the cost is the full 8 s
+--      latch, during which ⇪ is held down and nothing behaves. Both
+--      halves are here now, and routing ⇪V and ⇪O into this panel in
+--      6.190.0 is what made a long-standing gap start showing up daily.
+--      test_clipboard 132 -> 133, test_ocr_tag 110 -> 111, test_unified
+--      111 -> 117, test_unified_js 37 -> 40. 8,119 -> 8,129 checks,
+--      seventy-four stages.
 -- NEW IN 6.192.0 — ✂️ ⇪X: BREAK THE BOX YOU LANDED IN, IN HALF:
 --   ✂️ LL, with a diagram: "A big cell one misses a button and I have to
 --      arrow a lot to get to it … Once I select a box, can the box be
@@ -39,34 +67,12 @@
 --      naming the state, the floor and how deep the live box is.
 --      test_mouse_grid 386 -> 413. 8,090 -> 8,119 checks, seventy-four
 --      stages.
--- NEW IN 6.191.0 — 🔠 THE PAD IS READABLE, AND THE TOOL TIP IS NOT
---                   UNDER YOUR OWN CURSOR:
---   🔠 LL: "Make all font 14pt and adjust the size of the pad and
---      components to hold 14pt font." The window never had ONE size —
---      it has three: the body, the controls, and the little labels
---      (section headings, the footer, chips, the format bar). They
---      stepped 13 / 11 / 10, and the 10 was what LL was squinting at.
---      Now they step by ONE: 14 / 13 / 12, and the window grew with
---      them (1440x940 -> 1560x1010) so the same amount still fits. The
---      steps also FLOOR at 10 px, so a smaller base cannot march a
---      label down to nothing. All three come off the one number:
---          settings = { vault = { fontSize = 16 } }
---      and the derived sizes follow it up or down on their own.
---   🖱 LL: "My mouse cursor blacks the icon tools tip." It did. The tip
---      was placed 18 px below the POINTER — inside the mouse arrow's own
---      tail on a Retina screen, so the thing LL moved there to read sat
---      under the thing he moved. It is now anchored to the BUTTON:
---      centred under it, a clear gap below (it scales with the type),
---      folded back above it if that would fall off the window. The
---      pointer can never cover it, because the pointer is no longer what
---      it is measured from. test_vault 337 -> 340; 8,087 -> 8,090
---      checks, seventy-four stages.
--- (6.190.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.191.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.192.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.193.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -163,7 +169,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.192.0"
+_G.configVersion = "6.193.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

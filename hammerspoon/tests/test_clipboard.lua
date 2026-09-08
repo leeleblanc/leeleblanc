@@ -899,7 +899,13 @@ do
     local asked, calls = {}, 0
     _G.service = {
         has  = function(n) return n == "unified.show" end,
-        call = function(n, arg) calls = calls + 1 ; asked[#asked + 1] = arg end,
+        -- ⚠️ RETURNS TRUE, because that is what uni.show really returns
+        -- when it opens. Until 6.193.0 this stub returned NOTHING and the
+        -- suite was green — which is exactly the shape that made ⇪V dead
+        -- on LL's Mac. A stub that is more forgiving than the real thing
+        -- is not a test, it is a blind spot.
+        call = function(n, arg) calls = calls + 1 ; asked[#asked + 1] = arg
+                                return true end,
     }
     C.chooser.shown = false
     HYPER["|v"]()
@@ -920,6 +926,18 @@ do
     check("...and SAYS why rather than failing silently",
           tostring(C.panelWhy or ""):find("not loaded", 1, true) ~= nil,
           C.panelWhy)
+
+    -- 🚨 6.193.0, THE ONE THAT BIT: a provider that returns NOTHING.
+    -- uni.show returns nil when unified search is switched off, and the
+    -- old guard only caught an explicit false — so the panel did not
+    -- open, the chooser did not open, and ⇪V did nothing at all. A key
+    -- that silently does nothing is the worst of the three outcomes.
+    _G.service = { has = function() return true end, call = function() end }
+    C.chooser.shown = false
+    HYPER["|v"]()
+    check("🚨 a provider that returns NOTHING falls back to the chooser — "
+          .. "⇪V must never be a key that does nothing",
+          C.chooser.shown == true)
 
     -- a panel that refuses to open (no web view on this Hammerspoon) is
     -- the same story, and must not swallow the press either

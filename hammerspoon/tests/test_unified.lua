@@ -995,6 +995,45 @@ do
     end
 end
 
+-- ⌨️ 6.193.0 — THE ⇪ RELEASE HANDSHAKE, Lua half. Opening a text panel
+-- shortens the hyper latch deadline; without it the hold sat the full
+-- 8 s and LL's Console showed the watchdog releasing it. Every other
+-- text panel has done this since 6.165.1.
+do
+    local asked = nil
+    local realExpect = _G.hyperExpectRelease
+    _G.hyperExpectRelease = function(secs, who) asked = { secs = secs, who = who } return true end
+    U.hide()
+    U.show()
+    check("opening the panel shortens the ⇪ hold deadline and NAMES itself",
+          type(asked) == "table" and asked.secs == 1.5
+          and tostring(asked.who):find("unified", 1, true) ~= nil,
+          asked and (tostring(asked.secs) .. " " .. tostring(asked.who)))
+    -- 🚨 IT DEGRADES: an older init.lua has no such global, and a panel
+    -- that throws on the way up is worse than one that never shortens.
+    _G.hyperExpectRelease = nil
+    U.hide()
+    check("...and a Hammerspoon without that global still opens the panel",
+          U.show() == true)
+    _G.hyperExpectRelease = realExpect
+
+    -- The page's F18 keyup arrives as a message; it must reach
+    -- hyperReleaseSeen and must NOT be mistaken for anything else.
+    local seen = nil
+    local realSeen = _G.hyperReleaseSeen
+    _G.hyperReleaseSeen = function(who) seen = who return true end
+    U.handleMessage({ a = "f18up" })
+    check("the page's ⇪ keyUp is passed straight to the release, named",
+          tostring(seen):find("unified", 1, true) ~= nil, tostring(seen))
+    check("...and it does NOT close the panel — a release is not a dismissal",
+          U.webview ~= nil)
+    _G.hyperReleaseSeen = nil
+    local ok = pcall(U.handleMessage, { a = "f18up" })
+    check("...and it degrades where that global is missing", ok)
+    _G.hyperReleaseSeen = realSeen
+    U.hide()
+end
+
 io.write(("\n%d passed, %d failed\n"):format(pass, fail))
 if fail > 0 then
     io.write("FAILURES:\n")

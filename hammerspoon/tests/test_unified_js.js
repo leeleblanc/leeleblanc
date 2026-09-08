@@ -22,7 +22,7 @@ const check = (label, cond, extra) => {
 
 function makeEnv() {
   const sent = [];
-  const listeners = { q: {}, list: {}, bar: {}, window: {} };
+  const listeners = { q: {}, list: {}, bar: {}, window: {}, document: {} };
   const q = {
     value: "", focused: false,
     focus() { this.focused = true; },
@@ -46,6 +46,8 @@ function makeEnv() {
     document: {
       getElementById: (id) => byId[id] || null,
       querySelector: () => null,
+      // 6.193.0 — the page now listens for the ⇪ (F18) keyUp here.
+      addEventListener: (ev, fn) => { listeners.document[ev] = fn; },
     },
     window: { addEventListener: (ev, fn) => { listeners.window[ev] = fn; } },
     webkit: { messageHandlers: { unifiedSearch: { postMessage: (m) => sent.push(m) } } },
@@ -65,6 +67,8 @@ function load() {
   env.ctx = ctx;
   env.call = (expr) => vm.runInContext(expr, ctx);
   env.type = (s) => { env.q.value = s; env.listeners.q.input({}); };
+  env.keyup = (k, code) =>
+    env.listeners.document.keyup({ key: k, keyCode: code });
   env.key = (k, meta, alt) =>
     env.listeners.window.keydown({ key: k, metaKey: meta === true, altKey: alt === true,
                                    preventDefault() {} });
@@ -232,6 +236,31 @@ console.log("── Unified Search: page JavaScript, executed ──");
         env6.call("rowHtml({id:1,tag:'images',icon:'\u{1F5BC}',src:'Images',t:'a.png',s:'',h:'',p:1}, 0)")
             .indexOf("\u2325\u23ce open") >= 0,
         env6.call("rowHtml({id:1,tag:'images',icon:'x',src:'Images',t:'a.png',s:'',h:'',p:1}, 0)"));
+}
+
+// ⌨️ 6.193.0 — THE ⇪ RELEASE HANDSHAKE. LL: "For some reasons Unified
+// Search is stuck on the screen sometimes", with the matching Console
+// line "⇪ released by the watchdog — held 8s … no F18 keyUp". Every
+// other text panel here has forwarded that keyup since 6.165.1; this
+// page did not, so the hold sat latched and the panel felt stuck.
+{
+  const env = load();
+  env.keyup("F18", 79);
+  check("the page tells Lua when it sees the ⇪ (F18) keyUp itself",
+        env.sent.length === 1 && env.sent[0].a === "f18up",
+        JSON.stringify(env.sent));
+  // 🚨 It must be the F18 keyup ONLY. Reporting a release on every keyup
+  // would end the hold while LL is still holding it — the opposite bug,
+  // and a much quieter one.
+  const env2 = load();
+  env2.keyup("a", 0); env2.keyup("Escape", 53); env2.keyup("Shift", 56);
+  check("...and ONLY for that key — an ordinary keyup is not a release",
+        env2.sent.length === 0, JSON.stringify(env2.sent));
+  // Some keyboards report the key by name, some only by code; both are
+  // the same physical release.
+  const env3 = load();
+  env3.keyup("Unidentified", 79);
+  check("...recognised by keyCode as well as by name", env3.sent.length === 1);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
