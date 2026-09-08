@@ -268,6 +268,41 @@ caret's line in the footer. RULE: any new syntax the vault understands
 gets a row in BLOCKS, a branch in mdHint, or both — the teaching layer
 is not optional decoration.
 
+The histories ARE ⇪space (6.190.0): ⇪V and ⇪O open the unified-search
+PANEL prefilled on `@clip` / `@ocr` rather than their own choosers —
+⇪space already read those exact stores, so there is NO second renderer
+to keep in step. ⇪⇧V and ⇪⇧O stay choosers on purpose (they EDIT and
+DELETE; the panel is a reader). `clip.openInPanel` / `ocr.openInPanel`
+return true only when it really opened, and ask `_G.service.has` at
+PRESS time — never cached at setup, or a session where unified_search
+failed to load strands both keys. Missing / refusing / throwing all fall
+back to the chooser and say why (`clip.panelWhy`, `ocr.panelWhy`).
+Rollback: `settings = { clipboard_history = { panel = false } }`,
+`settings = { ocr_engine = { panel = false } }`.
+Stores local + mirrored (6.190.0): init.lua's `localFirst` (off) moves
+every store to ~/Library/Application Support/Hammerspoon/Logs — it ends
+the OneDrive-placeholder main-thread stall class outright, and costs
+liveness (the other Mac sees them every 30 min, not continuously).
+🚨 IT NEVER SWITCHES ONTO AN EMPTY FOLDER: boot 1 stays on OneDrive,
+says so, and seeds in the background; boot 2 uses the local copy —
+`_G.localFirstState` is off / seeding / seeded / local and the report
+names it. `bk.seedLocalStores` REFUSES a non-empty local folder (that
+would overwrite this session's writes with the older cloud copy).
+`bk.mirrorStores` rsyncs Logs → <backupDir>/Logs every `bk.mirrorMins`
+(30) in a HELD task: a COPY, never a move, and NEVER `--delete` — a
+store that failed to load must not erase its own backup. The VAULT
+stays in OneDrive regardless (Obsidian opens that folder on both Macs).
+NOT aliases (io.open/rsync/grep don't follow them) and NOT symlinks
+(OneDrive won't sync through one).
+`hs.dialog.textPrompt` CANNOT BE RESIZED (6.190.0): it is a stock
+NSAlert and Hammerspoon exposes no width — LL could not see what he was
+typing. ⌘N asks in the vault PAGE instead (`v.askName` → `askName()` →
+`{a:'named'}` → `v.createNamed`); the bar owns Enter and Escape while
+up, and esc closes the BAR not the window. The dialog is the DEGRADE
+(no web view) and BOTH paths reach `v.createNamed` — two creation paths
+is how one stops matching the other. ⌘⇧N and ⌘⇧E still use the dialog:
+same treatment when they come up.
+
 Nothing lost to an Esc (6.189.0): the ⇪⇧4 editor hands its state
 back on cancel and takes it in on the next open of the SAME path —
 `ed.kept` is ONE in-memory slot { path, img, notes }, never disk, never
@@ -520,6 +555,39 @@ mirrors draw order: "closes last" IS "drawn under".
   it — but if a post-boot stall is ever traced there, move the read and
   the append into an hs.task (/bin/cat, /usr/bin/tail). Never move it
   back onto the boot line.
+- 6.190.0 verify with LL: ⇪V and ⇪O — the big ⇪space panel, already
+  filtered to the clipboard / OCR log, instead of the old grey chooser.
+  ⇪⇧V and ⇪⇧O must be UNCHANGED (they delete and edit rows). If either
+  new one is worse: `settings = { clipboard_history = { panel = false } }`
+  or `{ ocr_engine = { panel = false } }`, one at a time.
+  Then ⇪3 and ⌘N — the naming box is now IN the window, full width, in
+  the window's own text size. ⏎ creates, esc cancels the bar and leaves
+  the window up.
+  Then `_G.backupReport()`: new "stores :" and "mirror :" lines. The
+  mirror runs 2 min after boot and every 30 min after — the "last …" line
+  should say ok. On a Mac with no OneDrive it must say "nowhere to mirror
+  to" rather than going quiet.
+  THE LOCAL SWITCH IS OFF. To try it: set `localFirst = true` in
+  init.lua (~line 448) and reload. The FIRST boot deliberately keeps
+  using OneDrive and says "copying in the background"; when the alert
+  says it is copied, RELOAD and the local copy is live. Nothing is moved
+  or deleted at any point, and switching back is the same line. Check
+  `_G.backupReport()`'s "stores :" line after each reload — it names
+  which of the four states it is in.
+  STILL OPEN (LL's list): ⇪X SUBDIVIDE — LL asked whether the grid splits
+  a cell after landing. It does NOT; that is unbuilt (6.191.0, and LL has
+  sent a diagram: after landing, split the cell into an upper/lower half
+  each labelled with four characters). Also: selecting several prior
+  screenshots and putting them on the clipboard IN SEQUENCE — ⇪2 collects
+  TEXT only (`sp.collect`), and the macOS pasteboard holds one image at a
+  time, so the honest shape is a multi-select in ⇪space @shots that
+  writes FILE URLs (Finder-style), which pastes as several images. NOT
+  built, needs LL's go-ahead. Also still open: the Chrome tab scan
+  (Automation permission — check System Settings first); @ source
+  discoverability (FOURTEEN of them); widening `uni.runnable` so every
+  @tool row RUNS (~45 of 99 — through `verifyTools`' two-sided join, per
+  the 6.114.0 ⇪⇧R incident); vault front-matter property completion;
+  the ⇪⇧O image history beach ball; and CANVAS.
 - 6.189.0 verify with LL: ⇪⇧4 a shot, blur something, add a text note
   and an arrow, then press Esc. Press ⇪⇧4 on the SAME image again — an
   alert says the edits are back and they are, blur included, where you

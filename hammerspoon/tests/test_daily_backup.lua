@@ -489,6 +489,108 @@ check("🚨 nor does it build shell strings for a shell binary",
       not src:find('"/bin/zsh"') and not src:find('"/bin/bash"')
       and not src:find('"/bin/sh"'))
 
+-- =====================================================================
+out("\n=== 🏠 the stores: mirrored half-hourly, seeded once (6.190.0) ===\n")
+-- =====================================================================
+-- LL: "Would it be better to save everything to my home folder? Then,
+-- every 30 minutes write a back up of all the files that have histories
+-- or modifications." This is that second half — a separate job from the
+-- 5 PM rebuild kit, on its own timer, one rsync, off the main thread.
+local SEEDLINES = {}
+do
+    local before = #TASKS
+    local got
+    bk.mirrorStores(function(ok, why) got = { ok = ok, why = why } end)
+    local t = TASKS[#TASKS]
+    check("the mirror is ONE rsync, in a task — never on the main thread",
+          #TASKS == before + 1 and t.bin == "/usr/bin/rsync" and t.started)
+    check("...HELD on the module, or the collector takes it before it runs",
+          bk.mirrorTask == t)
+    check("...copying the LOGS folder to the backup",
+          t.args[#t.args - 1] == "/logs/" and t.args[#t.args] == TMP .. "/Logs/",
+          table.concat({ t.args[#t.args - 1], t.args[#t.args] }, " → "))
+    check("🚨 ...with NO --delete — a store that failed to load this "
+          .. "session must not be able to erase its own backup",
+          (function()
+              for _, a in ipairs(t.args) do
+                  if tostring(a):find("delete", 1, true) then return false end
+              end
+              return true
+          end)())
+    check("🚨 ...and secret.lua is excluded here too — that promise holds "
+          .. "on EVERY rsync in this file",
+          (function()
+              for _, a in ipairs(t.args) do
+                  if a == "secret.lua" then return true end
+              end
+              return false
+          end)())
+    t.cb(0, "", "")
+    check("a clean run is recorded ok", got and got.ok == true and bk.mirrorLast.ok)
+
+    bk.mirrorStores(function(ok, why) got = { ok = ok, why = why } end)
+    TASKS[#TASKS].cb(23, "", "rsync: some error")
+    check("a FAILED run is recorded, with the reason, not swallowed",
+          bk.mirrorLast.ok == false
+          and tostring(bk.mirrorLast.why):find("23", 1, true) ~= nil,
+          bk.mirrorLast.why)
+
+    -- IT DEGRADES: a Mac with no OneDrive has nowhere to mirror to, and
+    -- says so rather than failing silently or throwing.
+    local keptDest = bk.mirrorDest
+    bk.mirrorDest = nil
+    local n = #TASKS
+    bk.mirrorStores(function(ok, why) got = { ok = ok, why = why } end)
+    check("🚨 no OneDrive → it SAYS so and starts nothing",
+          got.ok == false and tostring(got.why):find("OneDrive", 1, true) ~= nil
+          and #TASKS == n, got.why)
+    check("...and the report names that state rather than going quiet",
+          (function()
+              local L3, realP = {}, print
+              print = function(...) L3[#L3 + 1] = table.concat({ ... }, " ") end
+              bk.report()
+              print = realP
+              return table.concat(L3, "\n"):find("nowhere", 1, true) ~= nil
+          end)())
+    bk.mirrorDest = keptDest
+
+    -- 🚨 THE SEED, and the rule that makes the local switch safe: it runs
+    -- ONLY into an EMPTY folder. Seeding over a local store that already
+    -- holds this session's writes would overwrite them with the older
+    -- cloud copy — data loss dressed up as a restore.
+    _G.localFirstState = "off"
+    local n2 = #TASKS
+    bk.seedLocalStores(function(ok, why) got = { ok = ok, why = why } end)
+    check("with localFirst off there is nothing to seed and nothing runs",
+          got.ok == false and #TASKS == n2)
+
+    _G.localFirstState, _G.localLogsDir = "seeding", TMP .. "/LocalLogs"
+    DIRLIST[TMP .. "/LocalLogs"] = { "." , "..", "clipboard.json" }   -- NOT empty
+    bk.seedLocalStores(function(ok, why) got = { ok = ok, why = why } end)
+    check("🚨 a local folder that already has files is NEVER seeded over",
+          got.ok == false
+          and tostring(got.why):find("not empty", 1, true) ~= nil, got.why)
+
+    DIRLIST[TMP .. "/LocalLogs"] = { ".", ".." }                      -- empty
+    SEEDLINES = {}
+    local realP2 = print
+    print = function(...) SEEDLINES[#SEEDLINES + 1] = table.concat({ ... }, " ") end
+    bk.seedLocalStores(function(ok) got = { ok = ok } end)
+    local st = TASKS[#TASKS]
+    check("an EMPTY local folder is seeded, from OneDrive's Logs",
+          st.bin == "/usr/bin/rsync"
+          and st.args[#st.args - 1] == CORE.cloudDir .. "/Logs/"
+          and st.args[#st.args] == TMP .. "/LocalLogs/",
+          table.concat({ st.args[#st.args - 1], st.args[#st.args] }, " → "))
+    st.cb(0, "", "")
+    print = realP2
+    check("🚨 ...and it does NOT switch this session — it says RELOAD, so "
+          .. "there is never a moment where a history reads as empty",
+          _G.localFirstState == "seeded"
+          and table.concat(SEEDLINES, "\n"):find("RELOAD", 1, true) ~= nil)
+    _G.localFirstState = nil
+end
+
 os.execute("rm -rf '" .. TMP .. "'")
 
 -- =====================================================================

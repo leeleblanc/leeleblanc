@@ -65,6 +65,15 @@ function M.setup(core)
     -- ✏️ EDIT HERE ---------------------------------------------------------
     ocr.enabled          = true
     ocr.key              = "o"     -- ⇪O search · ⇪⇧O edit
+    -- 6.190.0 — LL: "make the histories match unified search." ⇪space
+    -- already renders this exact log as its @ocr source, so ⇪O opens
+    -- THERE rather than growing a second renderer to keep in step.
+    -- ⇪⇧O stays a chooser — it EDITS entries, and ⇪space is a reader.
+    -- THE ROLLBACK IS THIS LINE:
+    --     settings = { ocr_engine = { panel = false } }
+    ocr.panel            = true
+    ocr.panelTag         = "@ocr "  -- what ⇪O types into the panel for you
+    ocr.panelWhy         = nil      -- why the last press fell back
     ocr.shortcutName     = "HS OCR"
     ocr.tagMaxChars      = 500     -- Finder-comment length cap
     -- ✍️ 6.115.0 — THE EDITOR IS A WINDOW NOW. LL: "Edit OCR is too small
@@ -1178,9 +1187,36 @@ function M.setup(core)
     -- both halves fire and the boot report calls it a hyper conflict.
     -- Exactly what clipboard_history had to do in 6.57.0, for the same
     -- reason and with the same symptom.
+    -- Returns TRUE when the panel opened, so the caller falls through to
+    -- the old chooser on FALSE and ⇪O is never a dead key. Asked at PRESS
+    -- time, never cached: unified_search may fail to load, and a cached
+    -- answer would send ⇪O nowhere for the whole session.
+    function ocr.openInPanel()
+        if not (_G.service and _G.service.has
+                and _G.service.has("unified.show")) then
+            ocr.panelWhy = "unified search is not loaded"
+            print("⚠️ ⇪O wanted the panel but " .. ocr.panelWhy
+                  .. " — opening the chooser instead")
+            return false
+        end
+        local ok, opened = pcall(function()
+            return _G.service.call("unified.show", ocr.panelTag)
+        end)
+        if not ok or opened == false then
+            ocr.panelWhy = "the panel refused to open"
+            print("⚠️ ⇪O could not open the panel — opening the chooser "
+                  .. "instead")
+            return false
+        end
+        ocr.panelWhy = nil
+        return true
+    end
+
     if ocr.enabled then
-        core.hyperAddShortcut({}, ocr.key, function() ocr.show() end,
-                              "OCR log search")
+        core.hyperAddShortcut({}, ocr.key, function()
+            if ocr.panel and ocr.openInPanel() then return end
+            ocr.show()
+        end, "OCR log search")
         core.hyperAddShortcut({ "shift" }, ocr.key, function() ocr.edit() end,
                               "OCR log edit")
     end

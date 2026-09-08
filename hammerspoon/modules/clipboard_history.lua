@@ -82,6 +82,14 @@ function M.setup(core)
     clip.max         = 1000         -- how many copies to keep
     clip.maxItemSize = 1000000      -- ~1 MB; bigger copies are not stored
     clip.rows        = 250          -- rows shown before you narrow the search
+    -- 6.190.0 — ⇪V opens the ⇪space panel on @clip instead of the macOS
+    -- chooser. THE ROLLBACK IS THIS LINE: a chooser is a macOS control
+    -- and the panel is a web view, and if the panel ever gets in LL's way
+    -- the old one is still here, still tested, one setting away.
+    --     settings = { clipboard_history = { panel = false } }
+    clip.panel       = true
+    clip.panelTag    = "@clip "   -- what ⇪V types into the panel for you
+    clip.panelWhy    = nil        -- why the last press fell back, for the report
     clip.preview     = 100          -- characters shown per row
     -- 👁 6.154.0 — the pane beside the picker (see THE PREVIEW PANE below)
     clip.previewOn   = true         -- false = the list alone, as before
@@ -630,6 +638,31 @@ function M.setup(core)
         else clip.chooser:show() end
         clip.previewOpen(clip.chooser, function() return clip.lastChoices end)
     end
+    -- 6.190.0 — the ⇪space panel, opened straight onto this store.
+    -- Returns TRUE when it opened, so the caller falls through to the old
+    -- chooser on FALSE and ⇪V is never a dead key. The service registry
+    -- is asked at PRESS time, never cached at setup: unified_search may
+    -- fail to load, and a cached answer would send ⇪V nowhere all session.
+    function clip.openInPanel()
+        if not (_G.service and _G.service.has
+                and _G.service.has("unified.show")) then
+            clip.panelWhy = "unified search is not loaded"
+            warn("⇪V wanted the panel but " .. clip.panelWhy
+                 .. " — opening the chooser instead")
+            return false
+        end
+        local ok, opened = pcall(function()
+            return _G.service.call("unified.show", clip.panelTag)
+        end)
+        if not ok or opened == false then
+            clip.panelWhy = "the panel refused to open"
+            warn("⇪V could not open the panel — opening the chooser instead")
+            return false
+        end
+        clip.panelWhy = nil
+        return true
+    end
+
     local function openEdit()
         if core.showPopup then core.showPopup(clip.editChooser)
         else clip.editChooser:show() end
@@ -915,6 +948,14 @@ function M.setup(core)
         -- migration map POINTS AT these; binding the hyper keys directly
         -- is the same destination without the indirection.
         core.hyperAddShortcut({}, clip.key, function()
+            -- 6.190.0 — LL: "make the histories match unified search."
+            -- ⇪space ALREADY renders this exact store as its @clip source,
+            -- in the panel LL wants. So the history opens THERE rather
+            -- than growing a second renderer to keep in step with the
+            -- first — one page, one look, one place to fix.
+            -- The EDIT side (⇪⇧V) stays a chooser: it deletes rows, and
+            -- ⇪space is a reader.
+            if clip.panel and clip.openInPanel() then return end
             clip.render("")
             openMain()
         end, "clipboard history")

@@ -5,6 +5,96 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.190.0 — 🖼 THE HISTORIES LOOK LIKE ⇪space, AND THE STORES CAN
+                 LIVE ON THIS MAC:
+  🖼 LL: "Yes, make the histories match unified search. And give us a way
+     to rollback if they don't work for me." ⇪V and ⇪O now open the
+     ⇪space PANEL, prefilled on @clip and @ocr.
+     THE IMPORTANT PART IS WHAT WAS NOT BUILT. The obvious reading of
+     "make them match" is a second renderer, written to look like the
+     first and thereafter kept in step with it by hand — two pages, two
+     sets of row code, and a slow drift that shows up as "why does this
+     one look different". But ⇪space was ALREADY reading these exact
+     stores as its own sources: the clipboard cache is @clip and the OCR
+     log is @ocr. So the key simply goes there. One page, one look, one
+     place to fix, and nothing new to keep in step.
+     ⇪⇧V and ⇪⇧O stay choosers deliberately: they EDIT and DELETE rows,
+     and the panel is a reader. That is a statement, not an oversight.
+         settings = { clipboard_history = { panel = false } }
+         settings = { ocr_engine       = { panel = false } }
+     That is the rollback LL asked for, one flag per panel, and the old
+     choosers are untouched and still fully tested above it.
+     THE PANEL IS ASKED FOR AT PRESS TIME, never cached at setup:
+     unified_search can fail to load, and a cached answer would strand
+     ⇪V and ⇪O for the whole session. Missing, refusing, or throwing —
+     all three fall back to the chooser and SAY why, so neither key can
+     become a key that does nothing.
+  🏠 LL: "Would it be better to save everything to my home folder? Then,
+     every 30 minutes write a back up of all the files that have
+     histories or modifications. I think you can do something like
+     aliasing?" Mostly yes, and not aliasing.
+     ALIASES CANNOT DO IT: a Finder alias is a Finder construct that
+     io.open, rsync, grep and find do not follow — they see a small
+     binary file. A symlink does work for those, but OneDrive does not
+     sync reliably through one. Two real folders and an rsync is the
+     boring answer that actually works.
+     EVERY 30 MINUTES (bk.mirrorMins) the whole Logs folder is rsync'd to
+     <OneDrive>/Backups/Hammerspoon/<Mac>/Logs in a HELD hs.task, off the
+     main thread. It is a COPY, never a move, and deliberately WITHOUT
+     --delete: a store that failed to load this session must not be able
+     to erase its own backup. It runs whether or not the stores are
+     local — a half-hourly copy of the histories is worth having either
+     way — and both a success and a failure are recorded and named on
+     _G.backupReport().
+     LOCAL STORES are a switch in init.lua (`localFirst`, off by
+     default). Everything data-like lives in OneDrive/Logs so both Macs
+     see the same histories, and that sharing is real. But it is also
+     where a whole class of this project's bugs comes from: a OneDrive
+     PLACEHOLDER file blocks the main thread when it is read, and that is
+     the 6.152.x / 6.160.0 / 6.170.x beach ball. Local storage ends that
+     class outright. What it costs is liveness — the other Mac sees these
+     histories every 30 minutes rather than continuously.
+     🚨 AND IT NEVER SWITCHES ONTO AN EMPTY FOLDER, which is the whole
+     reason this is safe to ship. Turning it on with nothing local yet
+     would show every history blank, which is indistinguishable from
+     total data loss. So the FIRST boot after switching keeps using
+     OneDrive, says so in the Console and on the report, and copies the
+     stores down in the background; the NEXT boot finds the copy and uses
+     it. There is no moment where anything is empty. Nothing is moved and
+     nothing is deleted — the OneDrive copy stays where it is and keeps
+     being written by the 30-minute mirror, so switching back is the same
+     one line again. And a seed REFUSES a local folder that already has
+     files in it: seeding over a store that already holds this session's
+     writes would overwrite them with the older cloud copy, which is data
+     loss dressed up as a restore.
+     The VAULT is deliberately NOT part of this and stays in OneDrive:
+     Obsidian opens that exact folder on both Macs, which is the design.
+  ⌨️ LL: "Can I get a window that is larger than this? I can't see what
+     I'm typing?" — sent with a screenshot of the vault's "New note" box.
+     That is hs.dialog.textPrompt, a stock macOS NSAlert: its width is
+     AppKit's and Hammerspoon exposes no size for it, so there is no
+     bigger version of that box. The answer is not a bigger alert, it is
+     not an alert. ⌘N now asks IN the vault window — a naming bar at the
+     window's own width, in the window's own 13 pt, ⏎ to create and esc
+     to cancel. While it is up it owns Enter and Escape (two owners of a
+     key is a bug waiting), and esc closes the BAR, never the window.
+     The system dialog stays as the DEGRADE, not the default: on a
+     Hammerspoon with no web view there is no page to ask in, and ⌘N
+     still has to work. Both paths reach ONE creation function, because
+     two creation paths is how one of them quietly stops matching the
+     other. ⌘⇧N (from a template) and ⌘⇧E (extract) still use the dialog
+     and are the obvious next two.
+  🧪 Every new check fails against the mutation it exists to catch: the
+     missing --delete, the seed refusing a non-empty folder, the seed not
+     switching the live session, the held task, a recorded failure, the
+     panel falling back when the service is missing / refuses / throws,
+     and the rollback flag. One pre-existing preview-pane check was made
+     to read defensively so a regression there REPORTS rather than
+     aborting the run (6.186.0's rule).
+     test_clipboard 122 → 132, test_ocr_tag 100 → 110, test_vault
+     332 → 337, test_daily_backup 50 → 66. 8,054 → 8,087 checks,
+     seventy-four stages.
+
 NEW IN 6.189.0 — 🖌 NOTHING IS LOST TO AN ACCIDENTAL ESC:
   🖌 LL: "I hit escape 2 times and all my screenshot work wasn't saved
      as I accidentally hit escape. On close the editor should have the

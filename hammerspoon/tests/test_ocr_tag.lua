@@ -727,5 +727,40 @@ do
           and ss:find('_G.hyperExpectRelease, 1.5, "the screenshot tool"', 1, true) ~= nil)
 end
 
+-- =====================================================================
+out("\n-- ⇪O opens the ⇪space panel (6.190.0) --\n")
+-- =====================================================================
+-- LL: "make the histories match unified search." ⇪space already renders
+-- this exact log as its @ocr source. ⇪⇧O stays a chooser — it EDITS
+-- entries, and the panel is a reader.
+do
+    local E = _G.ocrEngine
+    local asked, calls = {}, 0
+    _G.service = { has = function(n) return n == "unified.show" end,
+                   call = function(_, arg) calls = calls + 1
+                                           asked[#asked + 1] = arg end }
+    check("⇪O asks the panel first", E.openInPanel() == true and calls == 1)
+    check("...prefilled on this log's own source", asked[1] == "@ocr ", asked[1])
+
+    -- 🚨 THE DEGRADE, asked at PRESS time and never cached: unified_search
+    -- can fail to load, and a cached answer would strand ⇪O all session.
+    _G.service = { has = function() return false end, call = function() end }
+    check("🚨 with the panel unavailable it returns FALSE so ⇪O falls back "
+          .. "to the chooser", E.openInPanel() == false)
+    check("...and says why", tostring(E.panelWhy or ""):find("not loaded", 1, true) ~= nil,
+          E.panelWhy)
+
+    _G.service = { has = function() return true end, call = function() return false end }
+    check("a panel that REFUSES to open also falls back", E.openInPanel() == false)
+
+    _G.service = { has = function() return true end, call = function() error("boom") end }
+    local ok, res = pcall(E.openInPanel)
+    check("🚨 a panel that THROWS does not take ⇪O down with it",
+          ok and res == false, res)
+
+    check("the rollback flag exists and is on by default", E.panel == true)
+    _G.service = nil
+end
+
 out(("\n── test_ocr_tag: %d passed, %d failed\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

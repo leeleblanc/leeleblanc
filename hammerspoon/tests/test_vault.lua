@@ -817,8 +817,48 @@ check("the note is created from the filled template and opened", FILES[VAULT .. 
 check("the page gets the caret as CARETHEAD once", WEBVIEWS[#WEBVIEWS].htmlSet:find('CARETHEAD = "## Standup\\n"', 1, true) ~= nil)
 v.render()
 check("…and the next render has CARETHEAD = null", WEBVIEWS[#WEBVIEWS].htmlSet:find("CARETHEAD = null", 1, true) ~= nil)
+-- 6.190.0 — LL: "Can I get a window that is larger than this? I can't see
+-- what I'm typing?" hs.dialog.textPrompt is a stock macOS alert whose
+-- width is AppKit's, so ⌘N now asks IN THE PAGE, where the field is the
+-- window's width. The system dialog stays as the degrade, never the
+-- default.
+local promptsBefore = #PROMPTS
 msg({ a = "tplnew", name = "" })
-check("⌘⇧N's '— blank —' row is the plain ⌘N prompt", PROMPTS[#PROMPTS].title == "New note")
+check("🚨 ⌘N asks IN THE PAGE, not in a macOS alert",
+      (EVALS[#EVALS] or ""):find('askName("new"', 1, true) ~= nil, EVALS[#EVALS])
+check("...and no system dialog is raised at all", #PROMPTS == promptsBefore,
+      PROMPTS[#PROMPTS] and PROMPTS[#PROMPTS].title)
+-- the answer comes back as a message, and ONE code path makes the note
+msg({ a = "named", kind = "new", text = "Typed In The Window" })
+check("...and the typed name creates the note",
+      FILES[VAULT .. "/Typed In The Window.md"] ~= nil
+      and v.doc.rel == "Typed In The Window.md", v.doc.rel)
+-- an empty answer must not create a file called ".md"
+local filesBefore = 0
+for _ in pairs(FILES) do filesBefore = filesBefore + 1 end
+msg({ a = "named", kind = "new", text = "   " })
+local filesAfter = 0
+for _ in pairs(FILES) do filesAfter = filesAfter + 1 end
+check("🚨 an empty name writes NOTHING (createNamed refuses, and openNote\n"
+   .. "        refuses again behind it)", filesAfter == filesBefore
+   and v.createNamed("   ") == false)
+-- and the page failing to draw the bar falls back rather than dying
+PROMPT_ANSWERS = { { "Create", "From The Fallback" } }
+msg({ a = "namefail", kind = "new" })
+check("a page that cannot draw the bar falls back to the dialog",
+      PROMPTS[#PROMPTS].title == "New note"
+      and FILES[VAULT .. "/From The Fallback.md"] ~= nil)
+-- and with NO page at all, ⌘N is still the dialog and still works
+do
+  local keptView = v.webview
+  v.webview = nil
+  PROMPT_ANSWERS = { { "Create", "No Web View Here" } }
+  v.newNote()
+  check("🚨 with no web view ⌘N still works — the dialog is the DEGRADE",
+        PROMPTS[#PROMPTS].title == "New note"
+        and FILES[VAULT .. "/No Web View Here.md"] ~= nil)
+  v.webview = keptView
+end
 msg({ a = "tplnone" })
 check("no templates yet → an alert naming the folder", ALERTS[#ALERTS]:find("No templates yet", 1, true) and ALERTS[#ALERTS]:find("/Templates", 1, true))
 PROMPT_ANSWERS = { { "Create", "Alpha" } }

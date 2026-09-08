@@ -4,9 +4,54 @@
 -- =====================================================================
 -- 09-08-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.189.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.190.0
 -- =====================================================================
 
+-- NEW IN 6.190.0 — 🖼 THE HISTORIES LOOK LIKE ⇪space, AND THE STORES
+--                   CAN LIVE ON THIS MAC:
+--   🖼 LL: "make the histories match unified search." ⇪V and ⇪O now open
+--      the ⇪space PANEL, prefilled on @clip and @ocr. Not a second
+--      renderer built to look like the first — ⇪space was already
+--      reading these exact stores, so the key just goes there. One page,
+--      one look, one place to fix. ⇪⇧V and ⇪⇧O stay choosers on purpose:
+--      they EDIT and DELETE rows, and the panel is a reader.
+--          settings = { clipboard_history = { panel = false } }
+--          settings = { ocr_engine       = { panel = false } }
+--      That is LL\'s rollback, per panel, and the choosers are all still
+--      here and still tested. The panel is asked for at PRESS time, never
+--      cached: if unified search failed to load, the key falls back to
+--      the chooser and SAYS why rather than doing nothing.
+--   🏠 LL: "Would it be better to save everything to my home folder?
+--      Then, every 30 minutes write a back up of all the files that have
+--      histories or modifications." Both halves ship.
+--      EVERY 30 MINUTES the whole Logs folder is rsync\'d to OneDrive in
+--      a held task — a copy, never a move, and deliberately without
+--      --delete so a store that failed to load cannot erase its own
+--      backup. That runs whether or not the stores are local.
+--      LOCAL STORES are a switch in this file (`localFirst`, off).
+--      OneDrive placeholders block the main thread when read, which is
+--      the 6.152.x / 6.160.0 / 6.170.x beach ball class; local storage
+--      ends it. What it costs is liveness — the other Mac sees these
+--      histories every 30 minutes rather than continuously.
+--      🚨 AND IT NEVER SWITCHES ONTO AN EMPTY FOLDER. The first boot
+--      after turning it on keeps using OneDrive, says so, and copies the
+--      stores down in the background; the next boot finds them and uses
+--      them. Nothing is moved, nothing is deleted, and no history is ever
+--      blank. A seed refuses a folder that already has files in it —
+--      that would be data loss dressed up as a restore.
+--      NOT an alias and NOT a symlink: io.open, rsync, grep and find do
+--      not follow a Finder alias, and OneDrive does not sync reliably
+--      through a symlink. The VAULT stays in OneDrive regardless —
+--      Obsidian opens that exact folder on both Macs.
+--   ⌨️ LL: "Can I get a window that is larger than this? I can\'t see what
+--      I\'m typing?" He was looking at hs.dialog.textPrompt — a stock
+--      macOS alert whose width is AppKit\'s. There is no bigger version of
+--      that box, so ⌘N now asks IN the vault window, where the field is
+--      the window\'s width and the text is the window\'s own 13 pt. The
+--      dialog stays as the DEGRADE for a Hammerspoon with no web view.
+--      test_clipboard 122 → 132, test_ocr_tag 100 → 110, test_vault
+--      332 → 337, test_daily_backup 50 → 66. 8,054 → 8,087 checks,
+--      seventy-four stages.
 -- NEW IN 6.189.0 — 🖌 NOTHING IS LOST TO AN ACCIDENTAL ESC:
 --   🖌 LL: "I hit escape 2 times and all my screenshot work wasn\'t
 --      saved as I accidentally hit escape." The ⇪⇧4 editor now hands
@@ -43,33 +88,12 @@
 --      test_editor 33 → 43, test_editor_js 52 → 59, test_cheatsheet
 --      192 → 207, test_integration 199 → 209. 8,008 → 8,054 checks,
 --      seventy-four stages.
--- NEW IN 6.188.0 — ✋ THE TEXT BOXES ARE GRABBABLE (⇪⇧4 editor):
---   ✋ LL: the text boxes are hard to grab. They were. Every hit target
---      in the editor was measured in IMAGE pixels, and the canvas is
---      displayed SCALED DOWN to fit the window — so on a 4K screenshot
---      in a 1,000 pt window a 35 px handle was a 9 px target, and the
---      bigger the screenshot the worse it got. The grab radius is now a
---      floor in SCREEN points, converted into image space at hit time.
---   ⬛ A text note also had NO handle at all: you had to click inside
---      the glyphs themselves. Its box is now padded by the handle
---      radius, so a near-miss down the side still takes.
---   ↔️ AND IT RESIZES. A selected text box has a corner dot — drag it
---      and the text grows or shrinks, anchored where you put it. ⌘Z
---      undoes a resize exactly as it undoes a move.
---   🎯 The handles are DRAWN the size they are HIT. They were drawn at
---      0.6× the grab radius, which teaches the eye to aim at a dot
---      smaller than the target and reads as "it did not take". And a
---      handle can never be bigger than the thing it belongs to, which
---      is the opposite bug and just as real: a short arrow whose two
---      ends are one target, a small label that can only ever be resized.
---          settings = { screenshot_editor = { handlePx = 16 } }
---      test_editor_js 39 → 52. 7,995 → 8,008 checks, seventy-four stages.
--- (6.187.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.188.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.189.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.190.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -166,7 +190,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.189.0"
+_G.configVersion = "6.190.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------
@@ -440,6 +464,71 @@ else
     logsDir   = hs.configdir .. "/logs"
     backupDir = nil  -- nowhere cloud-synced to back up to
 end
+
+-- =====================================================================
+-- 🏠 6.190.0 — THE STORES CAN LIVE ON THIS MAC INSTEAD OF IN ONEDRIVE
+-- =====================================================================
+-- LL: "Would it be better to save everything to my home folder? Then,
+-- every 30 minutes write a back up of all the files that have histories
+-- or modifications."
+--
+-- Mostly yes, and this is the switch. Every store lives in OneDrive/Logs
+-- so both Macs see the same histories, and that sharing is real — but it
+-- is also where a whole class of this project's bugs comes from: a
+-- OneDrive PLACEHOLDER file blocks the main thread when it is read, and
+-- that is the 6.152.x / 6.160.0 / 6.170.x beach ball. Local storage ends
+-- that class outright. What it costs is liveness: the other Mac sees
+-- this one's histories every 30 minutes rather than continuously.
+--
+-- 🚨 AND IT NEVER SWITCHES ONTO AN EMPTY FOLDER. Turning this on with
+-- nothing local yet would show LL every history blank — indistinguishable
+-- from total data loss. So the FIRST boot after switching keeps using
+-- OneDrive, says so, and copies the store down in the background; the
+-- NEXT boot finds the copy and uses it. There is no moment where
+-- anything is empty, and nothing is ever moved or deleted — the OneDrive
+-- copy stays exactly where it is and keeps being written by the 30-minute
+-- push, so switching back is this line again.
+--
+-- NOT an alias and NOT a symlink, deliberately: a Finder ALIAS is a
+-- Finder construct that io.open, rsync, grep and find do not follow, and
+-- OneDrive does not sync reliably through a symlink. Two real folders and
+-- an rsync is the boring answer that actually works.
+--
+-- The VAULT is deliberately NOT part of this and stays in OneDrive:
+-- Obsidian opens that exact folder on both Macs, which is the whole
+-- design (see modules/vault.lua).
+local localFirst    = false                            -- ← flip to true
+local localLogsDir  = homeDir .. "/Library/Application Support/Hammerspoon/Logs"
+_G.localFirstWanted = localFirst
+_G.localLogsDir     = localLogsDir
+_G.localFirstState  = "off"
+if localFirst then
+    -- "Has it been seeded?" is asked of the FOLDER, never of a file we
+    -- would have to read — a stat is safe, a read of a placeholder is the
+    -- stall this whole switch exists to avoid.
+    local seeded = false
+    pcall(function()
+        local n = 0
+        for entry in hs.fs.dir(localLogsDir) do
+            if entry ~= "." and entry ~= ".." then n = n + 1 end
+        end
+        seeded = n > 0
+    end)
+    if seeded then
+        logsDir            = localLogsDir
+        _G.localFirstState = "local"
+    elseif cloudDir then
+        -- Stay on OneDrive this session; the seed runs from daily_backup
+        -- on a held timer, well off the boot path.
+        _G.localFirstState = "seeding"
+    else
+        -- No OneDrive to seed FROM, so there is nothing to lose: go local
+        -- immediately rather than sitting in a seeding state forever.
+        logsDir            = localLogsDir
+        _G.localFirstState = "local"
+    end
+end
+
 if forceLogsDir   then logsDir   = forceLogsDir   end
 if forceBackupDir then backupDir = forceBackupDir end
 pcall(function() hs.fs.mkdir(logsDir) end)

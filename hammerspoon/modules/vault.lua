@@ -1540,11 +1540,42 @@ function M.setup(core)
         end)
     end
     -- ⌘N (and ⌘⇧N's "— blank —" row)
+    --
+    -- 6.190.0 — LL: "Can I get a window that is larger than this? I can't
+    -- see what I'm typing?" He was looking at hs.dialog.textPrompt, which
+    -- is a stock macOS NSAlert: its width is AppKit's and Hammerspoon
+    -- exposes no size for it, so there is no bigger version of that box.
+    -- The answer is to ask in the WINDOW, where the field is the window's
+    -- width and the text is the window's 13 pt.
+    --
+    -- The dialog stays as the DEGRADE, not as the default: on a
+    -- Hammerspoon with no web view there is no page to ask in, and ⌘N
+    -- still has to work.
+    function v.askName(kind, label, value)
+        if not v.webview then return false end
+        local ok = pcall(function()
+            v.eval("askName(" .. jstr(kind) .. "," .. jstr(label) .. ","
+                   .. jstr(value or "") .. ")")
+        end)
+        return ok
+    end
+
+    -- The half that actually makes the note, split out so the page and the
+    -- fallback dialog reach the SAME code — two creation paths is how one
+    -- of them quietly stops matching the other.
+    function v.createNamed(typed)
+        -- Belt and braces: openNote refuses a blank name on its own (the
+        -- suite proves nothing is written either way), and this says the
+        -- rule out loud at the door rather than relying on that.
+        if trim(tostring(typed or "")) == "" then return false end
+        if v.openNote(typed) then v.render() return true end
+        return false
+    end
+
     function v.newNote()
+        if v.askName("new", "Name of the note:", "") then return true end
         local okP, button, typed = pcall(hs.dialog.textPrompt, "New note", "Name of the note:", "", "Create", "Cancel")
-        if okP and button == "Create" and trim(typed) ~= "" then
-            if v.openNote(typed) then v.render() return true end
-        end
+        if okP and button == "Create" then return v.createNamed(typed) end
         return false
     end
     -- ⌘⇧N: a new note from a template ({{title}} = the typed name)
@@ -2085,6 +2116,19 @@ body.board #board{display:flex}
 #outline li.l6{padding-left:72px}
 #unl li{opacity:.85}
 #ac div.sec{opacity:.55;font-size:FS2px;cursor:default}
+/* 6.190.0 — LL: "Can I get a window that is larger than this? I can't
+   see what I'm typing?" That was hs.dialog.textPrompt, a stock macOS
+   alert whose size is fixed by AppKit — Hammerspoon exposes no width for
+   it, so the answer is not a bigger alert, it is not an alert. This is a
+   naming bar drawn IN the window, at the window's own width and the
+   window's own font. */
+#pr{position:absolute;left:6%;right:6%;top:22%;display:none;background:#22222a;
+    border:1px solid #4a7fe0;border-radius:10px;padding:16px 18px;
+    box-shadow:0 12px 36px rgba(0,0,0,.6);z-index:8}
+#pr .lab{opacity:.75;margin-bottom:8px}
+#pr input{width:100%;box-sizing:border-box;font-size:FS1px;padding:10px 12px;
+    background:#16161c;color:#e8e8ee;border:1px solid #4a7fe0;border-radius:8px}
+#pr .hint{opacity:.5;margin-top:8px;font-size:FS2px}
 /* 6.181.0 — OUR OWN TOOLTIPS. Every button in this window already
    carried a title="", and LL still asked for tool tips — because a
    WKWebView panel that never activates does not reliably raise the
@@ -2130,7 +2174,7 @@ body.board #board{display:flex}
 <button onclick="insertAtCaret('[[', ']]')" title="Link to another note — types [[ ]] and lists your notes to pick from">[[ ]]</button>
 <button onclick="insertAtCaret('#')" title="Tag — type a word after the # and it joins the 🏷 TAGS list">#</button>
 <button onclick="slashMenu()" title="Every block, in a list — or just type / at the start of an empty line">/ …</button>
-</div>]==]) .. [==[<textarea id="t" spellcheck="true" ]==] .. (d and "" or "disabled placeholder=\"⌘N a new note · ⌘D today · click a note on the left\"") .. [==[>]==] .. "\n" .. escapeHtml(d and d.text or "") .. [==[</textarea><div id="ac"></div><div id="foot"></div></div>
+</div>]==]) .. [==[<textarea id="t" spellcheck="true" ]==] .. (d and "" or "disabled placeholder=\"⌘N a new note · ⌘D today · click a note on the left\"") .. [==[>]==] .. "\n" .. escapeHtml(d and d.text or "") .. [==[</textarea><div id="ac"></div><div id="pr"><div class="lab" id="prlab"></div><input id="prin" spellcheck="false"><div class="hint">⏎ create · esc cancel</div></div><div id="foot"></div></div>
 <div id="links">]==] .. (isTab and "" or '<div id="chips" hidden></div>') .. [==[<h4>LINKS OUT</h4><ul id="outs">]==] .. (#outs > 0 and table.concat(outs) or '<div class="none">type [[ to link</div>') .. [==[</ul>
 ]==] .. (isTab and ('<h4>HISTORY · closed tabs</h4><ul id="hist">' .. (#hist > 0 and table.concat(hist) or '<div class="none">closed tabs land here — ⌘W</div>') .. '</ul>')
              or ('<h4>BACKLINKS</h4><ul id="backs">' .. (#backs > 0 and table.concat(backs) or '<div class="none">nothing links here yet</div>') .. '</ul>' .. unlBlock .. '<div id="qbox" hidden><h4 id="qh">\240\159\148\142 QUERY</h4><ul id="qres"></ul></div><h4>OUTLINE</h4><ul id="outline"></ul>')) .. [==[</div>
@@ -2943,6 +2987,45 @@ var ACSEL = 0, ACITEMS = [], ACSTART = -1, ACKIND = 'link', ACDONE = null;
 var ACBLOCKS = [];   // 6.175.0 — the / menu's rows, parallel to ACITEMS
 function acOpen(){ return ac.style.display === 'block'; }
 function acClose(){ ac.style.display = 'none'; ACITEMS = []; ACBLOCKS = []; ACSTART = -1; ACKIND = 'link'; ACDONE = null; }
+// 6.190.0 — the naming bar. PRKIND remembers what the answer is FOR, so
+// one bar serves every "name this" the vault has instead of one dialog
+// each. It is never open at the same time as the autocomplete: both own
+// Enter and Escape, and two owners of a key is a bug waiting.
+var PRKIND = null;
+function prOpen(){ var p = document.getElementById('pr'); return p && p.style.display === 'block'; }
+function prClose(){
+  var p = document.getElementById('pr');
+  if (p) p.style.display = 'none';
+  PRKIND = null;
+  var t = document.getElementById('t');
+  if (t && !t.disabled && t.focus) t.focus();
+}
+function askName(kind, label, value){
+  acClose();
+  var p = document.getElementById('pr'), l = document.getElementById('prlab'),
+      i = document.getElementById('prin');
+  if (!(p && l && i)) { say({ a: 'namefail', kind: kind }); return; }
+  PRKIND = kind;
+  l.textContent = label || 'Name:';
+  i.value = value || '';
+  p.style.display = 'block';
+  if (i.focus) i.focus();
+  if (i.select) i.select();
+}
+function prKey(e){
+  if (!prOpen()) return false;
+  if (e.key === 'Enter'){
+    e.preventDefault();
+    var i = document.getElementById('prin'), k = PRKIND;
+    var val = i ? i.value : '';
+    prClose();
+    say({ a: 'named', kind: k, text: val });
+    return true;
+  }
+  if (e.key === 'Escape'){ e.preventDefault(); prClose(); return true; }
+  return false;
+}
+
 function acShow(kind, items, start, header){
   ACKIND = kind; ACITEMS = items; ACSEL = 0; ACSTART = start;
   var h = header ? ['<div class="sec">' + esc(header) + '</div>'] : [];
@@ -3246,6 +3329,10 @@ function smartEnter(e){
 
 document.addEventListener('keydown', function(e){
   var meta = e.metaKey || e.ctrlKey, kk = (e.key || '').toLowerCase();
+  // FIRST, before anything else can claim them: while the naming bar is
+  // up it owns Enter and Escape, and every other key is just typing into
+  // it. Esc must close the BAR, never the window.
+  if (prOpen()) { if (prKey(e)) return; if (!meta) return; }
   if (acOpen() && !meta) {
     if (e.key === 'ArrowDown') { e.preventDefault(); ACSEL = (ACSEL + 1) % ACITEMS.length; acDraw(); return; }
     if (e.key === 'ArrowUp') { e.preventDefault(); ACSEL = (ACSEL + ACITEMS.length - 1) % ACITEMS.length; acDraw(); return; }
@@ -3390,6 +3477,17 @@ else {
                 if v.mode == "notes" then v.filter = "" end
                 v.render()
             end
+        elseif a == "named" then
+            -- The naming bar answered. Every kind lands here so there is
+            -- ONE place that decides what a typed name does.
+            if body.kind == "new" then v.createNamed(body.text) end
+        elseif a == "namefail" then
+            -- The page could not draw the bar (an old page still loaded,
+            -- say). Say so and fall back rather than leaving ⌘N dead.
+            warn("the naming bar did not draw — using the system dialog")
+            local okP, button, typed = pcall(hs.dialog.textPrompt, "New note",
+                "Name of the note:", "", "Create", "Cancel")
+            if okP and button == "Create" then v.createNamed(typed) end
         elseif a == "new" then
             v.newNote()
         elseif a == "daily" then

@@ -607,8 +607,11 @@ do
           box and pane() and pane().rect.x >= box.x + box.w, pane() and pane().rect.x)
     check("…showing the WHOLE entry for the selected row", bodyText() == "first is short",
           bodyText())
+    -- 6.186.0's rule: a throw here deletes every check below it while the
+    -- run still says "0 failed". The pane is asserted above; read it
+    -- defensively anyway so a regression REPORTS instead of aborting.
     check("…with the date and the size in its header", (function()
-        for _, e in ipairs(pane().elements) do
+        for _, e in ipairs((pane() or {}).elements or {}) do
             if e.type == "text" and e.text:find("14 chars", 1, true) then return true end
         end
     end)())
@@ -884,6 +887,76 @@ end
 
 io.open = realIoOpen
 out("\n")
+-- =====================================================================
+out("\n=== ⇪V opens the ⇪space panel (6.190.0) ===\n")
+-- =====================================================================
+-- LL: "make the histories match unified search." ⇪space already renders
+-- this exact store as its @clip source, so ⇪V opens THERE rather than
+-- keeping a second renderer in step with the first. THE ROLLBACK IS ONE
+-- SETTING, and the old chooser is still here and still tested above.
+do
+    boot()
+    local asked, calls = {}, 0
+    _G.service = {
+        has  = function(n) return n == "unified.show" end,
+        call = function(n, arg) calls = calls + 1 ; asked[#asked + 1] = arg end,
+    }
+    C.chooser.shown = false
+    HYPER["|v"]()
+    check("⇪V opens the panel, not the chooser",
+          calls == 1 and C.chooser.shown ~= true, calls)
+    check("...prefilled on this store's own source",
+          asked[1] == "@clip ", asked[1])
+
+    -- 🚨 THE DEGRADE. unified_search can fail to load, and a ⇪V that goes
+    -- nowhere would be worse than the chooser it replaced. Asked at PRESS
+    -- time, never cached at setup — a cached answer would strand the key
+    -- for the whole session.
+    _G.service = { has = function() return false end, call = function() end }
+    C.chooser.shown = false
+    HYPER["|v"]()
+    check("🚨 with the panel unavailable ⇪V falls back to the chooser",
+          C.chooser.shown == true)
+    check("...and SAYS why rather than failing silently",
+          tostring(C.panelWhy or ""):find("not loaded", 1, true) ~= nil,
+          C.panelWhy)
+
+    -- a panel that refuses to open (no web view on this Hammerspoon) is
+    -- the same story, and must not swallow the press either
+    _G.service = { has = function() return true end,
+                   call = function() return false end }
+    C.chooser.shown = false
+    HYPER["|v"]()
+    check("a panel that REFUSES to open also falls back",
+          C.chooser.shown == true and C.panelWhy ~= nil, C.panelWhy)
+
+    -- and a service that THROWS must not take the keystroke down with it
+    _G.service = { has = function() return true end,
+                   call = function() error("boom") end }
+    C.chooser.shown = false
+    local okPress = pcall(function() HYPER["|v"]() end)
+    check("🚨 a panel that THROWS still lands on the chooser",
+          okPress and C.chooser.shown == true)
+
+    -- the rollback LL asked for
+    _G.service = { has = function() return true end, call = function() calls = calls + 1 end }
+    C.panel = false
+    C.chooser.shown, calls = false, 0
+    HYPER["|v"]()
+    check("settings { clipboard_history = { panel = false } } restores the "
+          .. "chooser outright", C.chooser.shown == true and calls == 0)
+    C.panel = true
+
+    -- ⇪⇧V is the EDIT side and stays a chooser: it deletes rows, and the
+    -- panel is a reader. Stated, not accidental.
+    _G.service = { has = function() return true end, call = function() calls = calls + 1 end }
+    C.editChooser.shown, calls = false, 0
+    HYPER["shift|v"]()
+    check("⇪⇧V (edit) is untouched — it deletes rows, the panel reads",
+          C.editChooser.shown == true and calls == 0)
+    _G.service = nil
+end
+
 if fail > 0 then
     out("FAILURES:\n")
     for _, f in ipairs(failures) do out("   ❌ " .. f .. "\n") end

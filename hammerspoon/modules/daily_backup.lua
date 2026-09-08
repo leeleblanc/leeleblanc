@@ -83,6 +83,17 @@ function M.setup(core)
     bk.sliceApps   = 12      -- Info.plists read per step in the app scan
     bk.taskCapSecs = 600     -- watchdog: no single rsync/brew step runs longer
     bk.staleDays   = 3       -- boot note when the last good run is older
+    -- 🏠 6.190.0 — LL: "every 30 minutes write a back up of all the files
+    -- that have histories or modifications." That is the STORES, not the
+    -- rebuild kit: one rsync of the whole Logs folder to OneDrive, on its
+    -- own timer, independent of the 5 PM kit. It runs whether or not the
+    -- stores are local — a half-hourly copy of the histories is worth
+    -- having either way — and it is the other half of init.lua's
+    -- localFirst switch: local for speed, OneDrive for safety and for the
+    -- other Mac.
+    bk.mirrorMins  = 30      -- 0 disables the half-hourly store mirror
+    bk.mirrorFirst = 120     -- seconds after boot before the first one
+    bk.mirrorLast  = nil     -- { at, ok, why } — for the report
     bk.docs        = true    -- Documents + Desktop in the kit (both Macs)
     -- Applied to EVERY rsync. secret.lua is here as well as on the config
     -- entry — belt and braces, because this is the one exclusion that is
@@ -532,6 +543,36 @@ function M.setup(core)
         else
             L[#L + 1] = "   last run: never — _G.backupNow() starts one"
         end
+        -- 6.190.0 — the stores are a SEPARATE job from the kit, on their
+        -- own timer, so they get their own lines. The degraded states are
+        -- named rather than left to read as silence.
+        L[#L + 1] = "   stores  : " .. tostring(core.logsDir)
+        local state = _G.localFirstState or "off"
+        if state == "local" then
+            L[#L + 1] = "             on THIS Mac (localFirst) — no "
+                        .. "placeholder can block the main thread"
+        elseif state == "seeding" then
+            L[#L + 1] = "             ⏳ localFirst is ON but not seeded yet — "
+                        .. "still OneDrive; copying, then RELOAD"
+        elseif state == "seeded" then
+            L[#L + 1] = "             ✅ copied locally — RELOAD to start "
+                        .. "using " .. tostring(_G.localLogsDir)
+        else
+            L[#L + 1] = "             in OneDrive (localFirst is off)"
+        end
+        if (tonumber(bk.mirrorMins) or 0) > 0 then
+            L[#L + 1] = "   mirror  : every " .. bk.mirrorMins .. " min → "
+                        .. (bk.mirrorDest or "nowhere — no OneDrive")
+            local m = bk.mirrorLast
+            if m then
+                L[#L + 1] = "             last " .. tostring(m.at or "—") .. " "
+                            .. (m.ok and "ok" or ("FAILED: " .. tostring(m.why)))
+            else
+                L[#L + 1] = "             not run yet this session"
+            end
+        else
+            L[#L + 1] = "   mirror  : off (bk.mirrorMins = 0)"
+        end
         print(table.concat(L, "\n"))
         return true
     end
@@ -607,6 +648,113 @@ function M.setup(core)
     end
 
     -- =====================================================================
+    -- 🏠 THE STORES: MIRRORED HALF-HOURLY, AND SEEDED ONCE (6.190.0)
+    -- =====================================================================
+    -- Two jobs, one rsync each, both in HELD hs.tasks and never on the
+    -- main thread — the whole point of the local switch is that nothing
+    -- about a store touches the main thread again.
+    --
+    --   MIRROR  logs → <OneDrive>/Backups/Hammerspoon/<Mac>/Logs, every
+    --           bk.mirrorMins. It is a COPY, never a move: nothing is
+    --           deleted at either end, and --delete is deliberately absent
+    --           so a store that failed to load this session cannot erase
+    --           its own backup.
+    --   SEED    <OneDrive>/Logs → the local folder, ONCE, when init.lua
+    --           says localFirst is on but the local folder is still empty.
+    --           Until it finishes this session keeps using OneDrive, so
+    --           nothing is ever blank.
+    --
+    -- Both return ok, why and neither ever throws: a Mac with no OneDrive
+    -- reports "nowhere to mirror to" and everything else still works.
+    bk.mirrorDest = core.backupDir and (core.backupDir .. "/Logs") or nil
+
+    function bk.mirrorStores(done)
+        done = type(done) == "function" and done or function() end
+        local src = core.logsDir
+        if not (src and src ~= "") then
+            bk.mirrorLast = { ok = false, why = "no logs folder" }
+            return done(false, "no logs folder")
+        end
+        if not bk.mirrorDest then
+            bk.mirrorLast = { ok = false, why = "no OneDrive — nowhere to mirror to" }
+            return done(false, "no OneDrive — nowhere to mirror to")
+        end
+        if src == bk.mirrorDest then
+            bk.mirrorLast = { ok = false, why = "source and destination are the same" }
+            return done(false, "source and destination are the same")
+        end
+        mkpath(bk.mirrorDest)
+        local args = { "-a" }
+        for _, pat in ipairs(bk.excludes) do
+            args[#args + 1] = "--exclude"; args[#args + 1] = pat
+        end
+        args[#args + 1] = src .. "/"
+        args[#args + 1] = bk.mirrorDest .. "/"
+        local okT = pcall(function()
+            local t = hs.task.new("/usr/bin/rsync", function(code, _, se)
+                bk.mirrorTask = nil
+                local ok = (code == 0)
+                bk.mirrorLast = { at = os.date("%Y-%m-%d %H:%M"), ok = ok,
+                                  why = ok and "" or ("rsync exit " .. tostring(code)
+                                        .. ": " .. tostring(se or ""):sub(1, 120)) }
+                if not ok then warn("store mirror failed — " .. bk.mirrorLast.why) end
+                done(ok, bk.mirrorLast.why)
+            end, args)
+            bk.mirrorTask = t          -- HELD: an unreferenced task is collected
+            t:start()
+        end)
+        if not okT then
+            bk.mirrorLast = { ok = false, why = "could not start rsync" }
+            return done(false, "could not start rsync")
+        end
+        return true
+    end
+
+    -- Runs ONCE, and only into an EMPTY folder: a seed over a local store
+    -- that already has this session\'s writes in it would overwrite them
+    -- with the older cloud copy, which is data loss dressed as a restore.
+    function bk.seedLocalStores(done)
+        done = type(done) == "function" and done or function() end
+        if _G.localFirstState ~= "seeding" then
+            return done(false, "nothing to seed")
+        end
+        local dest = _G.localLogsDir
+        local src  = core.cloudDir and (core.cloudDir .. "/Logs") or nil
+        if not (dest and src) then return done(false, "no OneDrive to seed from") end
+        local empty = true
+        pcall(function()
+            for entry in hs.fs.dir(dest) do
+                if entry ~= "." and entry ~= ".." then empty = false break end
+            end
+        end)
+        if not empty then return done(false, "the local folder is not empty") end
+        mkpath(dest)
+        local okT = pcall(function()
+            local t = hs.task.new("/usr/bin/rsync", function(code)
+                bk.seedTask = nil
+                if code == 0 then
+                    _G.localFirstState = "seeded"
+                    print("🏠 The stores have been copied to " .. dest
+                          .. " — RELOAD Hammerspoon and they are the live ones.")
+                    pcall(function()
+                        hs.alert.show("🏠 Stores copied locally — reload to use them", 6)
+                    end)
+                else
+                    warn("could not seed the local stores (rsync exit "
+                         .. tostring(code) .. ") — still using OneDrive")
+                end
+                done(code == 0)
+            end, { "-a", src .. "/", dest .. "/" })
+            bk.seedTask = t
+            t:start()
+        end)
+        if not okT then return done(false, "could not start rsync") end
+        return true
+    end
+
+    _G.storeMirrorNow = function() return bk.mirrorStores() end
+
+    -- =====================================================================
     -- THE SCHEDULE — same identity as it has had since §1.7 was a section
     -- =====================================================================
     if core.backupDir and bk.enabled then
@@ -630,6 +778,25 @@ function M.setup(core)
     else
         print("ℹ️ No OneDrive on this Mac — daily backup disabled; data stays in "
               .. core.configDir .. " and " .. tostring(core.logsDir))
+    end
+
+    -- HELD in _G, like every other timer here: an unreferenced timer is
+    -- collected and a collected timer never fires.
+    if (tonumber(bk.mirrorMins) or 0) > 0 and bk.enabled then
+        _G.storeMirrorTimer = hs.timer.doEvery(bk.mirrorMins * 60,
+                                               function() bk.mirrorStores() end)
+        -- Not at boot: the first one waits, so a reload never adds an
+        -- rsync to the moment everything else is starting.
+        _G.storeMirrorFirst = hs.timer.doAfter(bk.mirrorFirst,
+                                               function() bk.mirrorStores() end)
+        say("stores mirror every " .. bk.mirrorMins .. " min → "
+            .. tostring(bk.mirrorDest))
+    end
+    if _G.localFirstState == "seeding" then
+        print("🏠 Local stores are switched ON but nothing is there yet — "
+              .. "still using OneDrive this session, copying in the "
+              .. "background.")
+        _G.storeSeedTimer = hs.timer.doAfter(10, function() bk.seedLocalStores() end)
     end
 
     _G.dailyBackup = bk
