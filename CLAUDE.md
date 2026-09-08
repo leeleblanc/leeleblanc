@@ -294,6 +294,21 @@ store that failed to load must not erase its own backup. The VAULT
 stays in OneDrive regardless (Obsidian opens that folder on both Macs).
 NOT aliases (io.open/rsync/grep don't follow them) and NOT symlinks
 (OneDrive won't sync through one).
+THREE FONT SIZES, NOT ONE (6.191.0): the vault/pad page derives FSpx
+(body), FS1px (controls) and FS2px (labels — headings, footer, chips,
+format bar, the tool tip) from `v.fontSize`. They step by ONE and FLOOR
+at 10 px; the old fs / fs-2 / fs-3 step is what made LL's labels 10 px
+at a 13 pt base. A check walks EVERY font-size in the built page and
+refuses any more than 2 under the base, so the old shape cannot return.
+Window 1560x1010 carries 14 pt. One knob: `settings = { vault =
+{ fontSize = 16 } }`. A NEW size in this page comes off fs — never a
+literal px.
+THE TOOL TIP IS ANCHORED TO THE ELEMENT (6.191.0), never to the pointer:
+at pointer+18 it sat inside the mouse arrow's own tail and LL could not
+read it. `tipEl()` returns the ELEMENT carrying the tip so there is a
+rect; the tip is centred UNDER it (these buttons live at the TOP of the
+window, so "above" is off the edge) and folds back above only when the
+bottom would clip. Any new tip layer does the same.
 `hs.dialog.textPrompt` CANNOT BE RESIZED (6.190.0): it is a stock
 NSAlert and Hammerspoon exposes no width — LL could not see what he was
 typing. ⌘N asks in the vault PAGE instead (`v.askName` → `askName()` →
@@ -555,6 +570,25 @@ mirrors draw order: "closes last" IS "drawn under".
   it — but if a post-boot stall is ever traced there, move the read and
   the append into an hs.task (/bin/cat, /usr/bin/tail). Never move it
   back onto the boot line.
+- 6.191.0 verify with LL: ⇪N (or ⇪3) — everything in the window should
+  read a size bigger, and the SMALL stuff (the ▸ section headings, the
+  footer line, the format bar's buttons, the chips) is what to look at:
+  nothing in there should be under 12 pt now. The window is wider and
+  taller to carry it. If 14 is wrong in either direction it needs NO
+  release — `settings = { vault = { fontSize = 16 } }` (or 13 to go
+  back), and all three sizes follow it.
+  Then HOVER any icon in the header or the format bar: the yellow-ish
+  tip should appear centred UNDER the button with a clear gap, and the
+  mouse cursor should never be sitting on it. That was the bug.
+  STILL OPEN, unchanged by this release: ⇪X SUBDIVIDE (LL's diagram —
+  split the landed cell into an upper/lower half, four characters each;
+  next up); sequential screenshots to the clipboard (⇪2 is TEXT only and
+  the pasteboard holds one image at a time — the honest shape is a
+  multi-select in ⇪space @shots writing FILE URLs; NOT built, needs LL's
+  go-ahead); the Chrome tab scan (Automation permission first); @ source
+  discoverability; widening `uni.runnable`; vault front-matter property
+  completion; ⌘⇧N and ⌘⇧E still on the small dialog; the ⇪⇧O image
+  history beach ball; and CANVAS.
 - 6.190.0 verify with LL: ⇪V and ⇪O — the big ⇪space panel, already
   filtered to the clipboard / OCR log, instead of the old grey chooser.
   ⇪⇧V and ⇪⇧O must be UNCHANGED (they delete and edit rows). If either

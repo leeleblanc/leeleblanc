@@ -4,9 +4,31 @@
 -- =====================================================================
 -- 09-08-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.190.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.191.0
 -- =====================================================================
 
+-- NEW IN 6.191.0 — 🔠 THE PAD IS READABLE, AND THE TOOL TIP IS NOT
+--                   UNDER YOUR OWN CURSOR:
+--   🔠 LL: "Make all font 14pt and adjust the size of the pad and
+--      components to hold 14pt font." The window never had ONE size —
+--      it has three: the body, the controls, and the little labels
+--      (section headings, the footer, chips, the format bar). They
+--      stepped 13 / 11 / 10, and the 10 was what LL was squinting at.
+--      Now they step by ONE: 14 / 13 / 12, and the window grew with
+--      them (1440x940 -> 1560x1010) so the same amount still fits. The
+--      steps also FLOOR at 10 px, so a smaller base cannot march a
+--      label down to nothing. All three come off the one number:
+--          settings = { vault = { fontSize = 16 } }
+--      and the derived sizes follow it up or down on their own.
+--   🖱 LL: "My mouse cursor blacks the icon tools tip." It did. The tip
+--      was placed 18 px below the POINTER — inside the mouse arrow's own
+--      tail on a Retina screen, so the thing LL moved there to read sat
+--      under the thing he moved. It is now anchored to the BUTTON:
+--      centred under it, a clear gap below (it scales with the type),
+--      folded back above it if that would fall off the window. The
+--      pointer can never cover it, because the pointer is no longer what
+--      it is measured from. test_vault 337 -> 340; 8,087 -> 8,090
+--      checks, seventy-four stages.
 -- NEW IN 6.190.0 — 🖼 THE HISTORIES LOOK LIKE ⇪space, AND THE STORES
 --                   CAN LIVE ON THIS MAC:
 --   🖼 LL: "make the histories match unified search." ⇪V and ⇪O now open
@@ -52,48 +74,12 @@
 --      test_clipboard 122 → 132, test_ocr_tag 100 → 110, test_vault
 --      332 → 337, test_daily_backup 50 → 66. 8,054 → 8,087 checks,
 --      seventy-four stages.
--- NEW IN 6.189.0 — 🖌 NOTHING IS LOST TO AN ACCIDENTAL ESC:
---   🖌 LL: "I hit escape 2 times and all my screenshot work wasn\'t
---      saved as I accidentally hit escape." The ⇪⇧4 editor now hands
---      its state back on the way out and takes it in again on the next
---      open of the SAME shot — blurs, text and arrows, exactly where
---      they were. ONE slot, in memory: a second screenshot replaces it,
---      which is what LL asked for, and nothing here ever reaches disk.
---   🧩 The two halves must not overlap. The blurs are BAKED into the
---      canvas and the text and arrows live on an overlay above it, so
---      the canvas is handed back WITHOUT the notes painted in — paint
---      them and every annotation comes back drawn twice.
---   🔒 A note is LL\'s typing and it rides into a <script> block, so it
---      travels base64 and arrives inert; the image is refused unless it
---      is a plain base64 PNG. A stash that cannot be read restores
---      nothing rather than breaking the editor, an oversized notes
---      payload costs the annotations and never the rescue, and a SAVE
---      clears the slot — saved work is not lost work, and a slot left
---      standing would restore a stale session over the next open.
---          settings = { screenshot_editor = { keepOnClose = false } }
---   ⎋ AND THE CHEAT SHEET CANNOT GET STUCK. Everything about ⇪/ closing
---      LAST rests on other panels reporting themselves idle again. One
---      that gets that wrong refuses Esc forever and the sheet becomes
---      unclosable by the key it tells you to press. Refusals are now
---      COUNTED: press Esc twice at the same refusing claimant and the
---      sheet closes anyway, saying WHO would not let go. One press
---      still defers — that is the whole of 6.78.0 and it is unchanged.
---          settings = { cheatsheet = { escInsist = 3 } }
---   🔎 _G.escapeReport() is new and is the answer to "why will this not
---      close": every claimant, its priority, whether it wants Esc right
---      NOW, and the last refusal by name. A claimant whose active()
---      throws is named there rather than taking the report down — it is
---      the likeliest suspect, so it is the last thing that should be
---      able to silence the page that would identify it.
---      test_editor 33 → 43, test_editor_js 52 → 59, test_cheatsheet
---      192 → 207, test_integration 199 → 209. 8,008 → 8,054 checks,
---      seventy-four stages.
 -- (6.188.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.190.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.191.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -190,7 +176,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.190.0"
+_G.configVersion = "6.191.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

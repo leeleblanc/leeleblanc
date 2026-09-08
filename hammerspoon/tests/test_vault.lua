@@ -367,14 +367,45 @@ check("the page carries the row walker block", h:find("function rowKey") and h:f
 check("the page forwards an F18 keyup", h:find("a:'f18up'"))
 check("the page has the [[ autocomplete and ⌘⏎ follow", h:find("function autocomplete") and h:find("function linkAtCaret") and h:find("a:'follow'"))
 check("the page has the graph canvas and force layout", h:find('id="cv"') and h:find("function graphStart") and h:find("GRAPH = {nodes:"))
--- 6.181.0 — 13 px (LL asked for 13pt), and the window grew to carry it.
--- The derived sizes come off it, so a placeholder left unreplaced would
--- show up as a literal FS1px/FS2px in the page.
-check("text is 13 px and no placeholder survives",
-      h:find("font%-size:13px") and h:find("font%-size:11px") and h:find("font%-size:10px")
-      and not h:find("FS%d?px") and not h:find("FSLABEL"))
-check("…and the window grew with the smaller type", v.width == 1440 and v.height == 940,
+-- 6.191.0 — 14 px (LL: "Make all font 14pt"), and the window grew to
+-- carry it. The derived sizes come off it, so a placeholder left
+-- unreplaced would show up as a literal FS1px/FS2px in the page.
+check("text is 14 px and no placeholder survives",
+      h:find("font%-size:14px") and h:find("font%-size:13px") and h:find("font%-size:12px")
+      and not h:find("FS%d?px") and not h:find("FSLABEL") and not h:find("TIPGAPPX"))
+-- 🔎 THE POINT of 6.191.0's font change: the window has THREE sizes and
+-- the SMALL one was the complaint. Every size must be within 2 of the
+-- base — the old 13/11/10 step fails this by construction, so a revert
+-- to it cannot pass.
+check("…and nothing in the window is more than 2 px under the base", (function()
+    for n in h:gmatch("font%-size:(%d+)px") do
+        if (14 - tonumber(n)) > 2 or tonumber(n) > 14 then return false end
+    end
+    return true
+end)())
+check("…and the window grew with the bigger type", v.width == 1560 and v.height == 1010,
       tostring(v.width) .. "x" .. tostring(v.height))
+-- A SMALL base must still not drive a label to nothing: the steps floor
+-- at 10 px rather than marching down with fs.
+check("a tiny fontSize floors the derived sizes at 10 px", (function()
+    local was = v.fontSize
+    v.fontSize = 10
+    local ok, small = pcall(v.buildHtml)
+    v.fontSize = was
+    if not ok or type(small) ~= "string" then return false end
+    for n in small:gmatch("font%-size:(%d+)px") do
+        if tonumber(n) < 10 then return false end
+    end
+    return small:find("font%-size:10px") ~= nil
+end)())
+-- 🖱 6.191.0 — LL: "My mouse cursor blacks the icon tools tip." The tip
+-- is positioned off the hovered ELEMENT's rect, never off the pointer,
+-- so the cursor arrow can no longer sit on top of it. Anchoring back to
+-- e.clientX/e.clientY in the tip block fails this.
+check("the tooltip is placed off the button, not the pointer",
+      h:find("function tipEl") and h:find("a%.bottom %+ TIPGAP")
+      and h:find("a%.left %+ %(a%.width %- r%.width%) / 2")
+      and h:find("TIPGAP = %d+"))
 check("backlinks pane lists Beta for Alpha", h:find('← Beta'))
 -- 🏷 6.181.0 — LL asked for tool tips on the pad's icons. Every button
 -- already carried a title="", and a non-activating WKWebView panel does
@@ -710,7 +741,7 @@ local h9 = WEBVIEWS[#WEBVIEWS].htmlSet or ""
 check("the page carries TAGS, TAGROWS, TEMPLATES, TPLDIR, MODE and the new load state",
       h9:find('TAGS = [{k:"work",n:"Work",c:2}', 1, true) and h9:find("TAGROWS = 15", 1, true)
       and h9:find('TEMPLATES = [{n:"Meeting",r:"Templates/Meeting.md"}]', 1, true) and h9:find('TPLDIR = "Templates"', 1, true)
-      and h9:find('MODE = "notes"', 1, true) and h9:find("SMARTLISTS = true", 1, true) and h9:find("LINEH = 13 * 1.5", 1, true)
+      and h9:find('MODE = "notes"', 1, true) and h9:find("SMARTLISTS = true", 1, true) and h9:find("LINEH = 14 * 1.5", 1, true)
       and h9:find("CARETLINE = 0", 1, true) and h9:find("CARETHEAD = null", 1, true) and h9:find("DAILY = null", 1, true)
       and not h9:find("FSNUM", 1, true), h9:match("var TAGS[^\n]*"))
 check("the report counts the tags and names the top ones", _G.vaultReport():find("tags   : 5 tags on 3 notes · top #work 2 · #fresh 1 · #home 1", 1, true) ~= nil, _G.vaultReport():match("tags   :[^\n]*"))
@@ -1197,7 +1228,7 @@ do
     -- the page itself (6.174.0): the ids, the globals and the functions Lua and the JS suite rely on
     local function has(...) for _, needle in ipairs({ ... }) do if not hp:find(needle, 1, true) then return false, needle end end return true end
     check("the page has the mode strip, the 🔎 ☑ buttons, the footer, chips and outline", has('id="mode"', 'id="sbtn"', 'id="kbtn"', 'id="foot"', 'id="chips"', 'id="outline"', 'id="hint"'))
-    check("…the page-side globals", has('MODE = "notes"', 'TEMPLATES = [', 'TPLDIR = "Templates"', 'SMARTLISTS = true', 'LINEH = 13 * 1.5', 'TAGROWS = 15', 'CURKEY = "alpha"', 'DAILY = '))
+    check("…the page-side globals", has('MODE = "notes"', 'TEMPLATES = [', 'TPLDIR = "Templates"', 'SMARTLISTS = true', 'LINEH = 14 * 1.5', 'TAGROWS = 15', 'CURKEY = "alpha"', 'DAILY = '))
     check("…the Lua → page entry points and the page's own helpers", has("function setRows", "function setMentions", "function vaultHint", "function gotoLine", "function toggleTask", "function tplPick", "function setMode", "function tagsOf", "function drawOutline", "function drawFoot"))
     check("…the messages the new keys send", has("a:'tplnew'", "a:'tplinsert'", "a:'search'", "a:'dayshift'", "a:'extract'", "a:'random'", "a:'mode'", "a:'tplnone'"))
     check("tag rows walk with the ONE row walker (ROWSEL)", hp:find("ROWSEL = '#rows li[data-name],#rows li[data-tab],#rows li[data-tag]'", 1, true) ~= nil)

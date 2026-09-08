@@ -227,8 +227,8 @@ function M.setup(core)
         -- text". Smaller glyphs in the same box would have been half the
         -- ask: the point is MORE text on screen at once, so the window
         -- grows with the type going down.
-        width         = 1440,
-        height        = 940,
+        width         = 1560,
+        height        = 1010,
         -- 6.175.2 — SOLID, and back where it started. The window went
         -- 1 → 0.9 in 6.173.2 ("slightly less opaque"), 0.9 → 0.97 in
         -- 6.175.1 ("make the pad more opaque"), and then LL said "make
@@ -251,7 +251,7 @@ function M.setup(core)
         -- the module must never call view:alpha() at all, and below 1 it
         -- must really set it. Both are asserted.
         alpha         = 0.97,
-        fontSize      = 13,
+        fontSize      = 14,
         dir           = nil,          -- set below; a settings override replaces it
         dailyDir      = "Daily",      -- subfolder for ⌘D notes
         saveDelay     = 0.3,
@@ -2185,9 +2185,13 @@ body.board #board{display:flex}
 // 6.181.0 — the tooltip layer. Delegated, so buttons drawn later (the
 // day-shift pair, the format bar, a row with a title) get it too.
 (function(){
-  var tip = null;
+  var tip = null, TIPGAP = TIPGAPPX;
   function box(){ if (!tip) tip = document.getElementById('tip'); return tip; }
-  function textFor(el){
+  // 6.191.0 — returns the ELEMENT that carries the tip, not just its text.
+  // The tip is anchored to that element (see below); anchoring it to the
+  // POINTER put it under the mouse cursor's own arrow, which is what LL
+  // was looking at: "my mouse cursor blacks the icon tool tip".
+  function tipEl(el){
     while (el && el !== document.body) {
       if (el.getAttribute) {
         var t = el.getAttribute('data-tip');
@@ -2195,7 +2199,7 @@ body.board #board{display:flex}
           var native = el.getAttribute('title');
           if (native) { el.setAttribute('data-tip', native); el.removeAttribute('title'); t = native; }
         }
-        if (t) return t;
+        if (t) return el;
       }
       el = el.parentNode;
     }
@@ -2203,16 +2207,20 @@ body.board #board{display:flex}
   }
   document.addEventListener('mouseover', function(e){
     var b = box(); if (!b) return;
-    var t = textFor(e.target);
-    if (!t) { b.style.display = 'none'; return; }
-    b.textContent = t;
+    var el = tipEl(e.target);
+    if (!el) { b.style.display = 'none'; return; }
+    b.textContent = el.getAttribute('data-tip');
     b.style.display = 'block';
     // Measured only once it is VISIBLE, so the size is the real one,
     // then folded back inside the window rather than off its edge.
-    var r = b.getBoundingClientRect();
-    var x = e.clientX + 12, y = e.clientY + 18;
-    if (x + r.width  > window.innerWidth  - 6) x = window.innerWidth  - r.width  - 6;
-    if (y + r.height > window.innerHeight - 6) y = e.clientY - r.height - 10;
+    var r = b.getBoundingClientRect(), a = el.getBoundingClientRect();
+    // 6.191.0 — BELOW the button by TIPGAP, centred on it. Below and not
+    // above because these buttons live in the header and the format bar,
+    // both at the TOP of the window: above them is off the edge. The gap
+    // clears the pointer arrow, which is what used to sit on the tip.
+    var x = a.left + (a.width - r.width) / 2, y = a.bottom + TIPGAP;
+    if (y + r.height > window.innerHeight - 6) y = a.top - r.height - TIPGAP;
+    if (x + r.width  > window.innerWidth  - 6) x = window.innerWidth - r.width - 6;
     b.style.left = Math.max(4, x) + 'px';
     b.style.top  = Math.max(4, y) + 'px';
   }, true);
@@ -3449,9 +3457,17 @@ else {
 }
 </script></body></html>]==]
         v.caretLine, v.caretHead = nil, nil     -- 6.174.0 — emitted once; a later render never re-selects
-        return (html:gsub("FSLABEL", tostring(math.floor(fs - 3))):gsub("FSNUM", tostring(math.floor(fs)))
-                    :gsub("FS1px", math.floor(fs - 2) .. "px")
-                    :gsub("FS2px", math.floor(fs - 3) .. "px"):gsub("FSpx", math.floor(fs) .. "px"))
+        -- 6.191.0 — LL: "Make all font 14pt". The window has THREE sizes,
+        -- not one: FSpx the body, FS1px the controls, FS2px the labels.
+        -- They used to step 13/11/10 and the labels were the complaint.
+        -- Now they step by ONE each and FLOOR at fs - 2, so at fs = 14
+        -- the whole window is 14/13/12 and nothing in it is small.
+        local fs1 = math.max(10, math.floor(fs) - 1)
+        local fs2 = math.max(10, math.floor(fs) - 2)
+        return (html:gsub("TIPGAPPX", tostring(math.floor(fs) + 8))
+                    :gsub("FSLABEL", tostring(fs2)):gsub("FSNUM", tostring(math.floor(fs)))
+                    :gsub("FS1px", fs1 .. "px")
+                    :gsub("FS2px", fs2 .. "px"):gsub("FSpx", math.floor(fs) .. "px"))
     end
 
     function v.render()

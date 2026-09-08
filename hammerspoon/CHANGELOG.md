@@ -5,6 +5,61 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.191.0 — 🔠 THE PAD IS READABLE, AND THE TOOL TIP IS NOT UNDER
+                 YOUR OWN CURSOR:
+  🔠 LL: "Make all font 14pt and adjust the size of the pad and
+     components to hold 14pt font."
+     The premise to correct first: the window never had ONE font size.
+     It has THREE, and it always has. FSpx is the body — the note text
+     and the rows. FS1px is the controls — the header buttons, the
+     search field, a card. FS2px is the little stuff — section headings,
+     the footer, the chips, the format bar, the tool tip itself. They
+     were derived from the base by SUBTRACTION: fs, fs - 2, fs - 3. At
+     the 13 pt LL asked for in 6.181.0 that made 13 / 11 / 10, and the
+     10 is the size he is describing. Setting the base to 14 alone would
+     have given 14 / 12 / 11 and left the same complaint one point
+     bigger.
+     So the steps changed as well as the base. They step by ONE now —
+     14 / 13 / 12 — and the window grew with them, 1440x940 to
+     1560x1010, so the same amount of note still fits on a screen.
+     A FLOOR came with them: the derived sizes never go under 10 px,
+     however small the base is set. Subtraction with no floor is how a
+     small base used to produce a 7 px label, and a label nobody can
+     read is not a smaller label, it is a missing one.
+     One number still drives all three:
+         settings = { vault = { fontSize = 16 } }
+     and 13 is one word away if 14 turns out to be wrong.
+     Two of the three checks here FAIL against the old 13 / 11 / 10
+     step, which is the point: one of them walks every font-size in the
+     built page and refuses any that is more than 2 px under the base,
+     so the old shape cannot come back by accident. A third builds the
+     page at fontSize 10 and asserts the floor held.
+  🖱 LL: "My mouse cursor blacks the icon tools tip."
+     It did, and the cause is in one line of 6.181.0. The tip was placed
+     at the POINTER plus 18 px — and 18 px below the hotspot on a Retina
+     screen is inside the mouse arrow's own tail. LL moved the pointer
+     to a button to read what it does, and the pointer he moved was
+     sitting on the answer.
+     The tip is now anchored to the BUTTON, not to the mouse: centred
+     under the element's own rectangle, with a gap that scales with the
+     type, and folded back ABOVE the element if that would put it off
+     the bottom of the window. The pointer cannot cover it because the
+     pointer is no longer what it is measured from. Below rather than
+     above by default is deliberate: every button that carries a tip
+     here lives in the header or the format bar, both at the TOP of the
+     window, where "above" is off the edge.
+     The lookup changed shape to make this possible — it returns the
+     ELEMENT that carries the tip rather than just its text, so there is
+     a rectangle to anchor to. Everything else about the layer is
+     unchanged: still delegated, so a button drawn later still gets one;
+     still reading title="" once and removing it, so macOS cannot draw a
+     second yellow box over ours; still degrading to the plain titles if
+     the script never runs.
+     The check asserts the element-anchored positioning by name, and
+     fails against a revert to e.clientX/e.clientY.
+  test_vault 337 → 340. 8,087 → 8,090 checks, seventy-four stages.
+  init.lua 3,752 lines.
+
 NEW IN 6.190.0 — 🖼 THE HISTORIES LOOK LIKE ⇪space, AND THE STORES CAN
                  LIVE ON THIS MAC:
   🖼 LL: "Yes, make the histories match unified search. And give us a way
