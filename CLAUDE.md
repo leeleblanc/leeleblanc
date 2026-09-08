@@ -268,6 +268,35 @@ caret's line in the footer. RULE: any new syntax the vault understands
 gets a row in BLOCKS, a branch in mdHint, or both — the teaching layer
 is not optional decoration.
 
+Nothing lost to an Esc (6.189.0): the ⇪⇧4 editor hands its state
+back on cancel and takes it in on the next open of the SAME path —
+`ed.kept` is ONE in-memory slot { path, img, notes }, never disk, never
+across a reload. The split is the design: BLURS are baked into `cv`,
+TEXT/ARROWS live on the `ov` overlay, so canvas + notes is the whole
+state with nothing counted twice — paint the notes in before handing
+back and every annotation returns drawn twice (the JS suite asserts it).
+Notes ride BASE64 (a note is LL's typing going into a <script> block)
+and the image is refused unless it matches
+`^data:image/png;base64,[A-Za-z0-9+/=]+$` — that pattern in
+`ed.rememberWork` and the one in `ed.buildHtml` are ONE rule, keep them
+in step. A SAVE clears the slot (a stale slot restores over the next
+open and reads as a lost save). `ed.keepOnClose` is the rollback.
+The cheat sheet cannot get stuck (6.189.0): ⇪/ closing LAST rests on
+every other claimant's active() going false again, and one that never
+does made the sheet unclosable. `cheatSheet.noteEscRefusal(who, why,
+now)` counts consecutive refusals from the SAME claimant inside
+`escInsistWindow` (2 s); at `escInsist` (2) the sheet closes anyway and
+NAMES who. One press still defers — that is 6.78.0 and it is unchanged.
+The 0.5 s shadow is deliberately NOT counted (it expires on its own, so
+it can never be the thing that sticks; two presses that fast are the
+double-tap it exists to absorb). KNOWN: a PINNED vault survives Esc, so
+two presses there close the sheet under it — `settings = { cheatsheet =
+{ escInsist = 3 } }`. `_G.escapeReport()` (core/coexist.lua) lists every
+claim, its priority, whether it wants Esc NOW, and the last refusal;
+a claimant whose active() throws is NAMED there, never fatal — it is the
+likeliest suspect. test_integration's lifted router block was widened to
+reach it; widen it again for anything added after `escapeReport`.
+
 Screenshot editor handles (6.188.0, modules/screenshot_editor.lua):
 the canvas is DISPLAYED scaled to fit the window, so a hit target sized
 in IMAGE pixels shrinks as the screenshot grows (a 4K shot in a 1,000 pt
@@ -491,6 +520,42 @@ mirrors draw order: "closes last" IS "drawn under".
   it — but if a post-boot stall is ever traced there, move the read and
   the append into an hs.task (/bin/cat, /usr/bin/tail). Never move it
   back onto the boot line.
+- 6.189.0 verify with LL: ⇪⇧4 a shot, blur something, add a text note
+  and an arrow, then press Esc. Press ⇪⇧4 on the SAME image again — an
+  alert says the edits are back and they are, blur included, where you
+  left them. Then the honest parts: SAVE one (⌘⏎) and reopen it — you
+  get the file, not the old session, which is deliberate. Open a
+  DIFFERENT screenshot and it opens clean; the slot holds one shot only,
+  as LL asked. Nothing here survives a reload and nothing is written to
+  disk. If it ever misbehaves:
+  `settings = { screenshot_editor = { keepOnClose = false } }`.
+  Then the cheat sheet: ⇪/ with a panel over it — ONE Esc must still
+  close the panel and leave the sheet up (unchanged). The new half only
+  shows itself when something is STUCK: press Esc twice at a panel that
+  will not go and the sheet closes with an alert naming it. Run
+  `_G.escapeReport()` in the Console at any time — every claimant, who
+  wants Esc now, and the last refusal by name. That is the line to paste
+  if ⇪/ ever refuses to close again.
+  KNOWN, stated not hidden: a PINNED vault legitimately survives Esc, so
+  two presses there will also close the sheet under it —
+  `settings = { cheatsheet = { escInsist = 3 } }` trades it back.
+  STILL OPEN (LL's list): the histories as webview panels matching ⇪space
+  with a per-panel rollback flag; the Chrome tab scan (diagnosed —
+  `osascript exited 15` is our own 6 s kill of a BLOCKED script, empty
+  stderr; check System Settings → Privacy & Security → Automation →
+  Hammerspoon before any code change); @ source discoverability (there
+  are FOURTEEN, `uni.sourcesJson()` already ships their counts);
+  widening `uni.runnable` so every @tool row RUNS (~45 of 99 do — and
+  the 6.114.0 ⇪⇧R incident is why each new row goes through
+  `verifyTools`' two-sided join); vault front-matter property/value
+  completion (nearly free — `f:` is already in the page); the ⇪⇧O image
+  history beach ball (a stall — diagnose before touching); and CANVAS.
+  ASKED AND ANSWERED, awaiting LL's go-ahead: moving the stores off
+  OneDrive to a local folder via init.lua's existing `forceLogsDir` hook
+  plus an HOURLY daily_backup push to OneDrive. Finder ALIASES cannot do
+  this (io.open/rsync/grep do not follow one) and OneDrive does not sync
+  reliably through a symlink. The Vault stays in OneDrive regardless —
+  Obsidian opens that exact folder on both Macs.
 - 6.188.0 verify with LL: ⇪⇧4, add a text note, click it — a blue dot
   sits at its bottom-right. DRAG THAT DOT: the text grows and shrinks,
   and ⌘Z puts the size back. Then the thing that was actually broken:

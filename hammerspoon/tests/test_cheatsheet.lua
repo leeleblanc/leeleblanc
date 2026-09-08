@@ -17,6 +17,8 @@ local MOUSE = { x = 0, y = 0 }
 local BOUND = {}          -- every hs.hotkey.bind the shipped file makes
 local CHOOSERS = {}       -- every hs.chooser the shipped file builds
 
+local ALERTS = {}
+
 hs = {
   canvas = {
     windowLevels = { overlay = 102 },
@@ -86,7 +88,7 @@ hs = {
     },
   },
   mouse = { absolutePosition = function() return MOUSE end },
-  alert = { show = function() end },
+  alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
   json = { decode = function() return {} end, encode = function() return "[]" end },
   -- 6.44.11 — the shipped file builds two hs.chooser pickers at load time
   -- (⇪- remove a custom entry, ⇪⇧= edit one). The old slice had neither,
@@ -1121,6 +1123,104 @@ do
   check("...and a panel that HANDLED the Esc does too", _G.cheatSheetCanvas ~= nil)
   _G.routeEscape = function() return nil end
   CS.hide()
+end
+
+-- =====================================================================
+print("\n=== THE SHEET CANNOT GET STUCK (6.189.0) ===")
+-- =====================================================================
+-- Everything above is the sheet deferring to whatever else is on screen,
+-- and all of it trusts a claimant's own active() to go false again. A
+-- claimant that gets that wrong refuses Esc FOREVER and the sheet is
+-- unclosable by the key it tells you to press. So refusals are counted
+-- and LL can insist.
+do
+  local stuck = true
+  _G.escapeOthersActive = function() return stuck and "ghostPanel" or nil end
+  _G.routeEscape = function() return nil end
+  _G.cheatSheetOtherSeenAt = 0
+  NOW = 5000
+  CS.escInsist, CS.escInsistWindow = 2, 2.0
+  CS.show(false); CS.query = ""
+
+  CS.escape()
+  check("one Esc still DEFERS to a claimant that says it is active — the "
+     .. "sheet is still the last thing to close", _G.cheatSheetCanvas ~= nil)
+  check("...and the refusal is written down, naming who",
+        CS.lastEsc ~= nil and CS.lastEsc.who == "ghostPanel"
+        and CS.lastEsc.run == 1, CS.lastEsc and CS.lastEsc.who)
+  check("...and _G.escapeLastRefusal carries it to the report",
+        _G.escapeLastRefusal == CS.lastEsc)
+
+  NOW = 5000.4
+  local alertsBefore = #ALERTS
+  CS.escape()
+  check("🚨 a SECOND Esc closes the sheet regardless — a claimant that "
+     .. "never goes idle can no longer trap it", _G.cheatSheetCanvas == nil)
+  check("...and LL is told who would not let go",
+        (ALERTS[#ALERTS] or ""):find("ghostPanel", 1, true) ~= nil,
+        ALERTS[#ALERTS])
+  check("...and it is not silent about it", #ALERTS > alertsBefore)
+
+  -- the run must not span a long gap, or a refusal from a minute ago
+  -- pairs with a fresh one and one press closes the sheet
+  CS.show(false); CS.query = ""
+  NOW = 6000; CS.escape()
+  NOW = 6000 + 5.0; CS.escape()
+  check("two refusals far apart do NOT count as insistence — the window "
+     .. "is real", _G.cheatSheetCanvas ~= nil)
+  check("...and the run restarted rather than climbing", CS.lastEsc.run == 1,
+        CS.lastEsc.run)
+
+  -- a DIFFERENT claimant restarts the run too: insisting at one panel is
+  -- not insisting at another
+  CS.show(false); CS.query = ""
+  NOW = 7000
+  stuck = true
+  _G.escapeOthersActive = function() return "panelA" end
+  CS.escape()
+  _G.escapeOthersActive = function() return "panelB" end
+  NOW = 7000.2
+  CS.escape()
+  check("a refusal from a DIFFERENT claimant restarts the run",
+        _G.cheatSheetCanvas ~= nil and CS.lastEsc.run == 1,
+        CS.lastEsc and CS.lastEsc.run)
+
+  -- an Esc that did something ends the run
+  _G.escapeOthersActive = function() return stuck and "ghostPanel" or nil end
+  CS.show(false); CS.query = ""
+  NOW = 8000; CS.escape()
+  stuck = false
+  NOW = 8000.2; CS.escape()          -- this one closes it normally
+  check("an Esc that actually acted clears the run", CS.lastEsc == nil)
+  CS.show(false); CS.query = ""
+  stuck = true
+  NOW = 8000.4; CS.escape()
+  check("...so the next refusal starts at press one, not two",
+        _G.cheatSheetCanvas ~= nil and CS.lastEsc.run == 1)
+
+  -- and LL can trade back — a pinned vault legitimately survives Esc
+  CS.escInsist = 3
+  CS.show(false); CS.query = ""
+  NOW = 9000; CS.escape(); NOW = 9000.2; CS.escape()
+  check("settings { cheatsheet = { escInsist = 3 } } takes three presses",
+        _G.cheatSheetCanvas ~= nil, CS.lastEsc and CS.lastEsc.run)
+  NOW = 9000.4; CS.escape()
+  check("...and the third closes it", _G.cheatSheetCanvas == nil)
+  CS.escInsist = 2
+
+  -- the report itself lives with the ROUTER (core/coexist.lua) and is
+  -- executed for real in test_integration; what the sheet owes it is the
+  -- refusal, published where the report can read it.
+  stuck = true
+  CS.show(false); CS.query = ""
+  NOW = 9500; CS.escape()
+  check("🚨 the sheet publishes the refusal for _G.escapeReport() to name",
+        _G.escapeLastRefusal ~= nil
+        and _G.escapeLastRefusal.who == "ghostPanel"
+        and _G.escapeLastRefusal.why ~= nil,
+        _G.escapeLastRefusal and _G.escapeLastRefusal.who)
+  CS.hide()
+  _G.escapeOthersActive = function() return nil end
 end
 
 -- =====================================================================

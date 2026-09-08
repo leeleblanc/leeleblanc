@@ -2,11 +2,47 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-07-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-08-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.188.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.189.0
 -- =====================================================================
 
+-- NEW IN 6.189.0 — 🖌 NOTHING IS LOST TO AN ACCIDENTAL ESC:
+--   🖌 LL: "I hit escape 2 times and all my screenshot work wasn\'t
+--      saved as I accidentally hit escape." The ⇪⇧4 editor now hands
+--      its state back on the way out and takes it in again on the next
+--      open of the SAME shot — blurs, text and arrows, exactly where
+--      they were. ONE slot, in memory: a second screenshot replaces it,
+--      which is what LL asked for, and nothing here ever reaches disk.
+--   🧩 The two halves must not overlap. The blurs are BAKED into the
+--      canvas and the text and arrows live on an overlay above it, so
+--      the canvas is handed back WITHOUT the notes painted in — paint
+--      them and every annotation comes back drawn twice.
+--   🔒 A note is LL\'s typing and it rides into a <script> block, so it
+--      travels base64 and arrives inert; the image is refused unless it
+--      is a plain base64 PNG. A stash that cannot be read restores
+--      nothing rather than breaking the editor, an oversized notes
+--      payload costs the annotations and never the rescue, and a SAVE
+--      clears the slot — saved work is not lost work, and a slot left
+--      standing would restore a stale session over the next open.
+--          settings = { screenshot_editor = { keepOnClose = false } }
+--   ⎋ AND THE CHEAT SHEET CANNOT GET STUCK. Everything about ⇪/ closing
+--      LAST rests on other panels reporting themselves idle again. One
+--      that gets that wrong refuses Esc forever and the sheet becomes
+--      unclosable by the key it tells you to press. Refusals are now
+--      COUNTED: press Esc twice at the same refusing claimant and the
+--      sheet closes anyway, saying WHO would not let go. One press
+--      still defers — that is the whole of 6.78.0 and it is unchanged.
+--          settings = { cheatsheet = { escInsist = 3 } }
+--   🔎 _G.escapeReport() is new and is the answer to "why will this not
+--      close": every claimant, its priority, whether it wants Esc right
+--      NOW, and the last refusal by name. A claimant whose active()
+--      throws is named there rather than taking the report down — it is
+--      the likeliest suspect, so it is the last thing that should be
+--      able to silence the page that would identify it.
+--      test_editor 33 → 43, test_editor_js 52 → 59, test_cheatsheet
+--      192 → 207, test_integration 199 → 209. 8,008 → 8,054 checks,
+--      seventy-four stages.
 -- NEW IN 6.188.0 — ✋ THE TEXT BOXES ARE GRABBABLE (⇪⇧4 editor):
 --   ✋ LL: the text boxes are hard to grab. They were. Every hit target
 --      in the editor was measured in IMAGE pixels, and the canvas is
@@ -28,47 +64,12 @@
 --      ends are one target, a small label that can only ever be resized.
 --          settings = { screenshot_editor = { handlePx = 16 } }
 --      test_editor_js 39 → 52. 7,995 → 8,008 checks, seventy-four stages.
--- NEW IN 6.187.0 — 🖼 @images: FIND THE PICTURE BY THE WORDS INSIDE IT:
---   🖼 LL asked for "@images / @shots in ⇪space". @shots has always
---      listed the screenshots FOLDER by file name, and ⇪O has always
---      searched the words OCR'd out of images — with no way back to the
---      image. @images is the half that was missing: every picture this
---      Mac has READ, found by what is written in it, thumbnail beside
---      the row. ⏎ copies the image, ⌥⏎ OPENS it, ⌘⏎ copies its path.
---   🔎 WHY IT DID NOT EXIST: the OCR log recorded WHAT was read and
---      WHEN, and threw away WHICH FILE it was read from. It now carries
---      the image as a third column — and every row already on disk has
---      two, so both shapes are valid forever and the parsers are never
---      allowed to assume which they are holding.
---   🧹 That column had FOUR readers, three of them a copy of the same
---      greedy pattern that would have glued the path onto the end of
---      every entry — and one of those feeds the ⇪⇧O editor, which
---      rewrites the WHOLE file, so a single typo fix would have stripped
---      the image off every row at once (and the write ledger lists this
---      file as rewritten-whole, so the loss would not even have been
---      reported). All four now go through the quote-aware CSV splitter
---      their own file already had. The path is quoted, because a
---      screenshot may be called "Screenshot 1, cropped.png".
---   🔤 AND THE SEARCH GOT DEEPER. Until now only a row's PREVIEW was in
---      the haystack, so a word in the middle of an OCR'd page was
---      indexed and unfindable. A bounded slice of the full text now
---      joins it — which also makes @clip and @note searchable past
---      their first line.
---   ☁️ What it must not cost: a thumbnail is a full decode on the main
---      thread, and on a cloud-evicted file that decode is a download —
---      the 6.152.x / 6.170.3 beachball class. So the decodes are
---      BUDGETED (the newest few), an image that has moved keeps its
---      words, loses its picture and says so, and the thumbnail cache
---      finally has a ceiling; it had none.
---      test_unified 86 → 107, test_ocr_tag 96 → 103, test_screenshots
---      165 → 166, test_unified_js 31 → 37. 7,957 → 7,995 checks,
---      seventy-four stages.
--- (6.186.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.187.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.188.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.189.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -165,7 +166,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.188.0"
+_G.configVersion = "6.189.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

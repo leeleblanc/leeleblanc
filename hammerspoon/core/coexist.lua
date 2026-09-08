@@ -464,4 +464,61 @@ _G.claimEscape("chooser", nil,
         if c then c:hide() end
     end)
 
+-- ---- who is holding Esc, right now -----------------------------------
+-- 6.189.0. LL's cheat sheet would not close and there was no way to ask
+-- why: every claim, its priority and its live active() answer were only
+-- ever consulted inside a keystroke. This prints them.
+--
+-- It also prints the sheet's last REFUSAL, which is the line that
+-- matters when something is stuck — a claimant reporting itself active
+-- while nothing is on screen is exactly the failure the sheet now
+-- insists past, and this names it.
+--
+-- ONE STRING (6.179.1): the console gate splices banners through a
+-- report printed row by row.
+function _G.escapeReport()
+    local L = { "⎋ ESCAPE ROUTER" }
+    local claims = _G.escapeClaims or {}
+    if #claims == 0 then
+        L[#L + 1] = "   no claims registered — every Esc falls through"
+    else
+        -- Highest first: this is the order routeEscape considers them in.
+        local order = {}
+        for _, c in ipairs(claims) do order[#order + 1] = c end
+        table.sort(order, function(a, b)
+            return (a.priority or 0) > (b.priority or 0)
+        end)
+        for _, c in ipairs(order) do
+            -- active() belongs to another module and may throw; a report
+            -- that dies on one bad claimant tells you nothing about the
+            -- rest, which is the opposite of its job.
+            local ok, live = pcall(c.active)
+            local state = (not ok) and "⛔ active() threw"
+                          or (live and "🟢 wants esc now" or "· idle")
+            L[#L + 1] = string.format("   %-12s %4d  %s",
+                                      tostring(c.name), c.priority or 0, state)
+        end
+    end
+    local cs = _G.cheatSheet
+    L[#L + 1] = "   sheet   : " .. (_G.cheatSheetCanvas and "open" or "closed")
+    local r = _G.escapeLastRefusal
+    if r then
+        L[#L + 1] = string.format("   refused : %s — %s (press %s of %s)",
+            tostring(r.who), tostring(r.why), tostring(r.run or 0),
+            tostring(cs and cs.escInsist or "?"))
+        L[#L + 1] = "             ↳ that is who is refusing to let the "
+                    .. "sheet close"
+    else
+        L[#L + 1] = "   refused : nothing — the last esc was not deferred"
+    end
+    if cs and cs.escInsist then
+        L[#L + 1] = string.format("   insist  : %s presses within %ss closes "
+                                  .. "the sheet regardless",
+                                  tostring(cs.escInsist),
+                                  tostring(cs.escInsistWindow))
+    end
+    print(table.concat(L, "\n"))
+    return #claims
+end
+
 end

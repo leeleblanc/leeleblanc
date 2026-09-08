@@ -59,7 +59,7 @@ local M = {
             { "⌫",     "delete the selected note · double-click text re-edits" },
             { "⌘Z",    "undo anything: blur, add, move, edit, delete" },
             { "⌘⏎",   "save “… (edited).png” + clipboard · ⌘⇧⏎ small JPEG" },
-            { "esc",   "close without saving — the original is never touched" },
+            { "esc",   "close without saving — the original is never touched, and the blurs, text and arrows are kept: reopen the SAME shot and they are back" },
         },
     },
 }
@@ -79,6 +79,19 @@ function M.setup(core)
     -- was a 9 px target. This is the radius LL's mouse actually sees, in
     -- SCREEN points, and it is converted into image space at hit time.
     ed.handlePx   = 12
+    -- 6.189.0 — LL: "I hit escape 2 times and all my screenshot work
+    -- wasn't saved as I accidentally hit escape." On the way out the page
+    -- hands its state back and it is held HERE, in memory, in ONE slot.
+    -- `cv` carries the base image with the blurs BAKED IN and the text /
+    -- arrows live on the OVERLAY canvas, so image + notes is the whole of
+    -- the work and neither half is drawn twice on the way back in.
+    -- ONE slot on purpose — LL: "If I do a second screenshot though, it
+    -- will overwrite the prior image, and that's fine."
+    ed.keepOnClose = true
+    ed.keepMaxBytes = 40 * 1024 * 1024   -- a 4K PNG data URI, with room
+    ed.keepMaxNoteBytes = 256 * 1024
+    ed.kept = nil    -- { path, img, notes } — never written to disk, never
+                     -- survives a reload; this is a safety net, not a store
     -- ----------------------------------------------------------------------
 
     local function say(m)  if _G.diag then _G.diag.say("shotEditor", m)  end end
@@ -120,7 +133,22 @@ function M.setup(core)
     -- pixels (undo snapshots them); TEXT and ARROWS are live objects on
     -- an OVERLAY canvas — movable and editable until save, when they are
     -- painted into the pixels once. One undo stack covers all of it.
-    function ed.buildHtml(dataURI)
+    -- `keep` is ed.kept when it matches the image being opened, else nil.
+    -- Both halves are made safe for injection here, NOT in the page: the
+    -- image is refused unless it is a plain base64 PNG data URI (no
+    -- quotes, no angle brackets can survive that test) and the notes ride
+    -- as base64 so a note containing a quote or a </script> is inert.
+    function ed.buildHtml(dataURI, keep)
+        local keepImg, keepNotes = "", ""
+        if type(keep) == "table" then
+            local img = tostring(keep.img or "")
+            if img:match("^data:image/png;base64,[A-Za-z0-9+/=]+$") then
+                keepImg = img
+            end
+            local nb
+            pcall(function() nb = hs.base64.encode(tostring(keep.notes or "")) end)
+            keepNotes = (nb or ""):gsub("%s+", "")
+        end
         -- 🎨 6.90.0 — shared card colors (ui_style.lua), cascade-last.
         local themeCss = (_G.uiStyle and _G.uiStyle.cssOverride
                           and _G.uiStyle.cssOverride()) or ""
@@ -168,7 +196,7 @@ function M.setup(core)
   <button onclick="undoLast()" title="⌘Z">↩︎ Undo</button>
   <button class="go" onclick="saveIt('png')" title="⌘⏎">Save &amp; copy&nbsp;&nbsp;⌘⏎</button>
   <button onclick="saveIt('jpg')" title="⌘⇧⏎">Small JPEG</button>
-  <button onclick="say({a:'cancel'})" title="esc">Cancel</button>
+  <button onclick="stashAndCancel()" title="esc">Cancel</button>
   <span class="hint">saved as “… (edited)” next to the original · ⌫ deletes a note</span>
 </header>
 <div id="stage">
@@ -184,9 +212,24 @@ function M.setup(core)
   var PASSES = ]] .. tostring(math.floor(ed.blurPasses)) .. [[;
   var MAXUNDO = ]] .. tostring(math.floor(ed.maxUndo)) .. [[;
   var HANDLEPX = ]] .. tostring(math.floor(tonumber(ed.handlePx) or 12)) .. [[;
+  // 6.189.0 — the work carried back in from the last Esc on THIS image.
+  // Empty on a first open, and a bad stash must restore nothing rather
+  // than break the editor.
+  var RESTOREIMG   = ']] .. keepImg .. [[';
+  var RESTORENOTES = ']] .. keepNotes .. [[';
   var JPEGQ = ]] .. tostring(ed.jpegQuality) .. [[;
 
   function say(m){ window.webkit.messageHandlers.shotEditor.postMessage(m || {}); }
+  // Leaving is the only moment the work can be handed back, so an
+  // in-progress text box is committed first and every read is guarded —
+  // a failure here must still CLOSE the editor, just with nothing kept.
+  function stashAndCancel(){
+    var img = '', nj = '[]';
+    try { commitText(); } catch (e) {}
+    try { if (cv && cv.toDataURL) img = cv.toDataURL('image/png'); } catch (e) { img = ''; }
+    try { nj = JSON.stringify(notes); } catch (e) { nj = '[]'; }
+    say({ a: 'cancel', img: img, notes: nj });
+  }
 
   // 6.89.0 — the title is the drag handle (same pattern as the Capture
   // Pad: JS only REPORTS the grab; Lua polls the real mouse, so the drag
@@ -241,6 +284,14 @@ function M.setup(core)
 
   var tool = 'blur';
   var notes = [];      // {kind:'text',x,y,text,size} | {kind:'arrow',x1,y1,x2,y2}
+  if (RESTORENOTES) {
+    try {
+      var _b = atob(RESTORENOTES), _a = new Uint8Array(_b.length), _i;
+      for (_i = 0; _i < _b.length; _i++) _a[_i] = _b.charCodeAt(_i);
+      var _n = JSON.parse(new TextDecoder('utf-8').decode(_a));
+      if (_n && _n.length) notes = _n;
+    } catch (e) { }   // a stash it cannot read leaves notes empty
+  }
   var sel = null;      // the selected note, if any
   var undoStack = [];  // {op:'blur'|'add'|'del'|'set', ...} — one stack for all
 
@@ -503,8 +554,9 @@ function M.setup(core)
       cv.width = img.naturalWidth; cv.height = img.naturalHeight;
       if (ov){ ov.width = cv.width; ov.height = cv.height; }
       ctx.drawImage(img, 0, 0);
+      redraw();            // 6.189.0 — restored notes, if any
     };
-    img.src = ']] .. dataURI .. [[';
+    img.src = RESTOREIMG || ']] .. dataURI .. [[';
 
     // displayed size ≠ pixel size (CSS scales the canvas to fit), so
     // every mouse point is mapped through the live scale factor
@@ -610,7 +662,7 @@ function M.setup(core)
 
     window.addEventListener('keydown', function(e){
       if (textOpen()) return;   // the input's own handler owns the keys
-      if (e.key === 'Escape') { e.preventDefault(); say({a:'cancel'}); }
+      if (e.key === 'Escape') { e.preventDefault(); stashAndCancel(); }
       else if (e.metaKey && e.key === 'Enter') {
         e.preventDefault(); saveIt(e.shiftKey ? 'jpg' : 'png');
       }
@@ -632,6 +684,34 @@ function M.setup(core)
   }
 </script>
 ]]
+    end
+
+    -- ---- keeping the work across a close ---------------------------------
+    -- Returns ok, why — it never throws and it never half-fills the slot:
+    -- anything refused leaves ed.kept nil, so a later open restores the
+    -- FILE rather than a fragment of an old session.
+    function ed.rememberWork(path, img, notesJson)
+        ed.kept = nil
+        if not ed.keepOnClose then return false, "keeping is switched off" end
+        if type(path) ~= "string" or path == "" then return false, "no image path" end
+        img       = (type(img) == "string") and img or ""
+        notesJson = (type(notesJson) == "string") and notesJson or ""
+        -- The pattern is the whole of the safety check for the injection
+        -- in buildHtml as well — keep the two in step.
+        if not img:match("^data:image/png;base64,[A-Za-z0-9+/=]+$") then
+            return false, "the page sent no usable image"
+        end
+        if #img > (tonumber(ed.keepMaxBytes) or 0) then
+            return false, "the image is larger than the keep budget"
+        end
+        -- Notes are the cheap half and the blurs are already in the image,
+        -- so an oversized notes payload costs the annotations, never the
+        -- whole rescue.
+        if notesJson == "" or #notesJson > (tonumber(ed.keepMaxNoteBytes) or 0) then
+            notesJson = "[]"
+        end
+        ed.kept = { path = path, img = img, notes = notesJson }
+        return true
     end
 
     -- ---- messages from the page ------------------------------------------
@@ -683,8 +763,15 @@ function M.setup(core)
                 tell(copied)
             end
             say("saved " .. (outPath:match("[^/]+$") or outPath))
+            ed.kept = nil   -- saved work is not lost work; a slot left
+                            -- standing here would restore a STALE state
+                            -- over the next open of the same shot
             ed.close()
         elseif body.a == "cancel" then
+            local okKeep, whyKeep = ed.rememberWork(ed.currentPath, body.img,
+                                                    body.notes)
+            say(okKeep and "work kept for the next open of this shot"
+                       or ("nothing kept — " .. tostring(whyKeep)))
             ed.close()
         elseif body.a == "dragStart" then
             -- 6.89.0 — the title-bar grab; Window Move drives the drag
@@ -752,7 +839,18 @@ function M.setup(core)
         pcall(function()
             view:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" })
         end)
-        pcall(function() view:html(ed.buildHtml("data:image/png;base64," .. b64)) end)
+        -- The slot is keyed by path, so a different screenshot simply does
+        -- not match and opens clean — no clearing, no staleness.
+        local keep = (ed.kept and ed.kept.path == path) and ed.kept or nil
+        pcall(function()
+            view:html(ed.buildHtml("data:image/png;base64," .. b64, keep))
+        end)
+        if keep then
+            pcall(function()
+                hs.alert.show("🖌 Your last edits on this shot are back", 2)
+            end)
+            say("restored the work kept from the last close")
+        end
         pcall(function() view:show() end)
         pcall(function() view:bringToFront(true) end)
         say("editing " .. (path:match("[^/]+$") or path))

@@ -1075,18 +1075,23 @@ do
     -- the same policy and all shipped after that old anchor. Stopping
     -- where it used to stop would have left the new half untested while
     -- the block it does extract stayed green.
+    -- 🚨 WIDENED AGAIN IN 6.189.0, for the same reason as 6.78.0: the
+    -- router grew _G.escapeReport(), which is the one thing that can say
+    -- WHO is refusing Esc. Stopping at the chooser claim would have left
+    -- it untested while everything above it stayed green.
     local escBlock = init:match(
-        "(_G%.escapeClaims = {}.-if c then c:hide%(%) end\n    end%))")
+        "(_G%.escapeClaims = {}.-\n    return #claims\nend)")
     check("the panel-stacking block was found in core/coexist.lua", levelsBlock ~= nil)
     check("the escape-router block was found in core/coexist.lua", escBlock ~= nil)
     local block = levelsBlock and escBlock and (levelsBlock .. "\n" .. escBlock)
 
     if block then
+        local PRINTED = {}
         local sandbox = {
             hs = { canvas = { windowLevels = { overlay = 102, mainMenu = 24 } },
                    timer = { secondsSinceEpoch = function() return 1000 end,
                              doEvery = function() return { stop = function() end } end } },
-            print = function() end,
+            print = function(x) PRINTED[#PRINTED + 1] = tostring(x) end,
             table = table, type = type, ipairs = ipairs, pairs = pairs,
             pcall = pcall, tostring = tostring, math = math, string = string,
             select = select, error = error,
@@ -1288,6 +1293,68 @@ do
             check("...and so is one with a junk handle()",
                   sandbox.claimEscape("bad", 1, function() return true end, 42) == false
                   and #sandbox.escapeClaims == 3, #sandbox.escapeClaims)
+
+            out("   -- who is holding esc, printed (6.189.0) --\n")
+            -- The sheet can now insist past a claimant that never goes
+            -- idle. This is the line that tells LL WHICH one that was.
+            do
+              PRINTED = {}
+              sandbox.PRINTED = PRINTED
+              sandbox.cheatSheetCanvas = true
+              sandbox.cheatSheet = { escInsist = 2, escInsistWindow = 2.0 }
+              sandbox.escapeLastRefusal =
+                  { who = "ghostPanel", why = "it is on screen", run = 2, at = 1 }
+              -- 6.186.0's rule: a throw here would DELETE every check
+              -- below it while the run still said "0 failed".
+              local okRep, n = pcall(sandbox.escapeReport)
+              local rep = table.concat(PRINTED, "\n")
+              check("_G.escapeReport() runs and counts the claims",
+                    okRep and type(n) == "number"
+                    and n == #sandbox.escapeClaims, n)
+              check("🚨 ...and NAMES who refused esc — the whole reason it "
+                 .. "exists", rep:find("ghostPanel", 1, true) ~= nil, rep)
+              check("...and says the sheet is open",
+                    rep:find("sheet   : open", 1, true) ~= nil, rep)
+              check("...and lists every claimant with its priority",
+                    rep:find("chooser", 1, true) ~= nil
+                    and rep:find("70", 1, true) ~= nil, rep)
+              check("...and says which claimants want esc RIGHT NOW",
+                    rep:find("wants esc now", 1, true) ~= nil
+                    or rep:find("idle", 1, true) ~= nil, rep)
+              check("...and names the insist rule so it is never a mystery",
+                    rep:find("insist", 1, true) ~= nil, rep)
+              check("🚨 ...and prints as ONE string (6.179.1) — a report "
+                 .. "printed row by row loses rows to the console gate",
+                    #PRINTED == 1, #PRINTED)
+              -- a claimant whose active() throws must not take the report
+              -- down with it: that claimant is the likeliest suspect, and
+              -- a report that dies tells you nothing about any of them
+              sandbox.claimEscape("thrower", 1,
+                  function() error("boom") end, function() end)
+              PRINTED = {}
+              sandbox.PRINTED = PRINTED
+              local ok2 = pcall(sandbox.escapeReport)
+              local rep2 = table.concat(PRINTED, "\n")
+              check("🚨 a claimant whose active() THROWS is named, not fatal",
+                    ok2 and rep2:find("thrower", 1, true) ~= nil
+                    and rep2:find("threw", 1, true) ~= nil, rep2)
+              check("...and the other claimants are still listed after it",
+                    rep2:find("chooser", 1, true) ~= nil, rep2)
+              -- and with nothing refused it says so rather than going quiet
+              sandbox.escapeLastRefusal = nil
+              PRINTED = {}
+              sandbox.PRINTED = PRINTED
+              pcall(sandbox.escapeReport)
+              check("with nothing refused it says so plainly",
+                    table.concat(PRINTED, "\n"):find("nothing", 1, true) ~= nil,
+                    table.concat(PRINTED, "\n"))
+              for i = #sandbox.escapeClaims, 1, -1 do
+                if sandbox.escapeClaims[i].name == "thrower" then
+                  table.remove(sandbox.escapeClaims, i)
+                end
+              end
+              sandbox.cheatSheetCanvas, sandbox.cheatSheet = nil, nil
+            end
 
             out("   -- the cheat sheet closes LAST --\n")
             -- LL: "make the shortcut key cheat sheet stay up instead of

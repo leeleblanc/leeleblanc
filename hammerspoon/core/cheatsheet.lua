@@ -997,6 +997,52 @@ return function(core)
     -- deliberate second press always lands.
     cheatSheet.escapeShadow = 0.5
 
+    -- 🚨 6.189.0 — AND IT CANNOT GET STUCK. Everything above is the sheet
+    -- deferring to whatever else is on screen, and all of it trusts a
+    -- claimant's own active() to become false again. A claimant that gets
+    -- that wrong — a panel that failed to clear its state, a chooser that
+    -- macOS still reports as visible — refuses Esc forever, and the sheet
+    -- is then unclosable by the key it tells you to press.
+    --
+    -- So refusals are COUNTED. Press Esc `escInsist` times at the same
+    -- refusing claimant inside `escInsistWindow` and the sheet closes
+    -- anyway, saying who would not let go. Insistence is deliberate, not
+    -- automatic: one press still defers, which is the whole of 6.78.0.
+    --
+    -- KNOWN, and stated rather than hidden: a PINNED vault legitimately
+    -- survives Esc, so two presses at a pinned vault will also close the
+    -- sheet underneath it. That is a lost place in a list; the thing it
+    -- prevents is a panel that cannot be dismissed at all. LL can trade
+    -- back with settings = { cheatsheet = { escInsist = 3 } }.
+    cheatSheet.escInsist       = 2
+    cheatSheet.escInsistWindow = 2.0
+    -- The last refusal, for _G.escapeReport(). Never a store, never disk.
+    cheatSheet.lastEsc = nil    -- { at, who, why, run }
+
+    -- Records one refusal and answers: has LL now insisted? PURE apart
+    -- from the clock, so the rule is testable without a screen.
+    function cheatSheet.noteEscRefusal(who, why, now)
+        now = tonumber(now) or hs.timer.secondsSinceEpoch()
+        local last = cheatSheet.lastEsc
+        local run = 1
+        if last and last.who == who
+           and (now - (last.at or 0)) <= (tonumber(cheatSheet.escInsistWindow) or 0) then
+            run = (last.run or 1) + 1
+        end
+        cheatSheet.lastEsc = { at = now, who = who, why = why, run = run }
+        _G.escapeLastRefusal = cheatSheet.lastEsc
+        local need = tonumber(cheatSheet.escInsist) or 0
+        return need > 0 and run >= need
+    end
+
+    -- Any Esc that actually DID something ends the run — otherwise a
+    -- refusal from a minute ago pairs with a fresh one and closes the
+    -- sheet on a single press.
+    function cheatSheet.clearEscRefusals()
+        cheatSheet.lastEsc = nil
+        _G.escapeLastRefusal = nil
+    end
+
     function cheatSheet.escape()
         -- ⎋ 6.68.0 — ASK FIRST. The sheet holds a bare-Esc hotkey the whole
         -- time it is open, so when the pomodoro is flashing "⏎ ⁄ esc" the
@@ -1013,7 +1059,22 @@ return function(core)
         -- wrong: a broken calendar handler would close the SHEET, which is
         -- neither what you pressed Esc for nor distinguishable from a bug.
         -- The sheet is the backdrop. Nothing else on screen, nothing here.
-        if _G.escapeOthersActive and _G.escapeOthersActive("cheatsheet") then
+        local other = _G.escapeOthersActive and _G.escapeOthersActive("cheatsheet")
+        if other then
+            if not cheatSheet.noteEscRefusal(other, "it is on screen") then
+                return
+            end
+            pcall(function()
+                hs.alert.show("⇪/ closed — " .. tostring(other)
+                              .. " would not release esc", 3)
+            end)
+            if _G.notices then
+                pcall(_G.notices.record, "cheatsheet", "esc was refused",
+                      tostring(other) .. " stayed active across "
+                      .. tostring(cheatSheet.escInsist) .. " presses")
+            end
+            cheatSheet.clearEscRefusals()
+            cheatSheet.hide()
             return
         end
         -- 🚨 6.79.2 — AND IT REMEMBERS, because asking "is anything else up
@@ -1040,9 +1101,15 @@ return function(core)
         -- keypress in the half-second after dismissing something; the
         -- thing it buys is never losing your place in a 313-row list.
         local seen = _G.cheatSheetOtherSeenAt or 0
+        -- NOT counted for insistence, deliberately: the shadow lasts half
+        -- a second and expires on its own, so it can never be the thing
+        -- that gets the sheet stuck — and two presses that fast are a
+        -- double-tap while dismissing a chooser, which is exactly what
+        -- 6.79.2 exists to absorb.
         if (hs.timer.secondsSinceEpoch() - seen) < cheatSheet.escapeShadow then
             return
         end
+        cheatSheet.clearEscRefusals()
         if cheatSheet.query ~= "" then
             cheatSheet.query = ""
             cheatSheet.show(false)
@@ -1085,6 +1152,7 @@ return function(core)
     end
 
     function cheatSheet.enableInput()
+        cheatSheet.clearEscRefusals()   -- a fresh open, a fresh run
         cheatSheet.watchOthers(true)
         if not _G.cheatSheetEscHotkey then
             local ok, hk = pcall(hs.hotkey.new, {}, "escape", cheatSheet.escape)

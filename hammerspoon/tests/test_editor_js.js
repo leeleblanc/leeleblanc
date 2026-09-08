@@ -108,6 +108,9 @@ function makeEnv(shownW) {
       addEventListener: (ev, fn) => { listeners.window[ev] = fn; },
     },
     Image: function () { return { set src(v) {}, onload: null }; },
+    // 6.189.0 — the restore path decodes its notes here
+    atob: (b) => Buffer.from(b, "base64").toString("binary"),
+    TextDecoder,
   };
   return { sandbox, sent, listeners, cv, ov, band, tin, buttons, store, cvCalls, ovCalls };
 }
@@ -464,6 +467,64 @@ console.log("── Screenshot Editor: page JavaScript, executed ──");
           h1 && h1.part === "p1" && h2 && h2.part === "p2",
           JSON.stringify([h1, h2]));
   }
+}
+
+// =====================================================================
+// 9. the work leaves with an Esc and comes back (6.189.0)
+// =====================================================================
+// LL lost a screenshot's annotations to an accidental Esc. The page has
+// to hand its state OUT on the way through the door, and take it back in
+// on the way through the next one.
+{
+  const env = load();
+  env.call("applyBlur(4, 4, 10, 8);");
+  env.call("notes.push({kind:'text', x:3, y:9, text:'kept', size:20});");
+  env.call("stashAndCancel();");
+  const msg = env.sent[env.sent.length - 1];
+  check("Esc posts a cancel", msg && msg.a === "cancel", JSON.stringify(msg));
+  check("…carrying the canvas — that is where the BLURS live, baked in",
+        msg && typeof msg.img === "string"
+        && /^data:image\/png;base64,/.test(msg.img), msg && msg.img);
+  check("…and the notes beside it, as JSON",
+        msg && JSON.parse(msg.notes).length === 1
+        && JSON.parse(msg.notes)[0].text === "kept", msg && msg.notes);
+
+  // 🚨 the two halves must not overlap: the notes live on the OVERLAY, so
+  // the canvas handed back must NOT already have them painted in, or a
+  // restore draws every annotation twice.
+  const painted = env.cvCalls.some((c) => c[0] === "fillText");
+  check("🚨 the notes are NOT painted into the canvas that is handed back",
+        !painted);
+}
+
+{
+  // a stash that cannot be read must restore nothing rather than break
+  // the editor — the page comes up empty and usable either way
+  const broken = html
+    .replace("var RESTORENOTES = ''", "var RESTORENOTES = 'not base64 at all!!'");
+  const env = makeEnv();
+  const ctx = vm.createContext(env.sandbox);
+  let threw = false;
+  try {
+    vm.runInContext([...broken.matchAll(/<script>([\s\S]*?)<\/script>/g)][0][1], ctx);
+  } catch (e) { threw = true; }
+  check("an unreadable stash never breaks the page", !threw);
+  check("…and leaves no notes behind",
+        !threw && vm.runInContext("notes.length", ctx) === 0);
+}
+
+{
+  // and the real thing: a stash the page CAN read comes back as notes
+  const kept = JSON.stringify([{ kind: "text", x: 2, y: 3, text: "back", size: 18 }]);
+  const good = html.replace("var RESTORENOTES = ''",
+    "var RESTORENOTES = '" + Buffer.from(kept, "utf8").toString("base64") + "'");
+  const env = makeEnv();
+  const ctx = vm.createContext(env.sandbox);
+  vm.runInContext([...good.matchAll(/<script>([\s\S]*?)<\/script>/g)][0][1], ctx);
+  check("a kept note is back in the page on the next open",
+        vm.runInContext("notes.length", ctx) === 1
+        && vm.runInContext("notes[0].text", ctx) === "back",
+        vm.runInContext("JSON.stringify(notes)", ctx));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

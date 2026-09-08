@@ -5,6 +5,81 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.189.0 — 🖌 NOTHING IS LOST TO AN ACCIDENTAL ESC:
+  🖌 LL: "I hit escape 2 times and all my screenshot work wasn't saved
+     as I accidentally hit escape. On close the editor should have the
+     image and the work. If I do a second screenshot though, it will
+     overwrite the prior image, and that's fine." So the ⇪⇧4 editor now
+     hands its state back on the way out and takes it in again on the
+     next open of the SAME shot — blurs, text and arrows exactly where
+     they were, and an alert says they came back. ONE slot, held in
+     memory, keyed by the image path: a different screenshot simply does
+     not match and opens clean, so there is nothing to clear and nothing
+     to go stale. It never touches disk and never survives a reload;
+     this is a safety net, not a store.
+  🧩 THE TWO HALVES MUST NOT OVERLAP, and that is the whole design. The
+     blurs are destructive — they are BAKED into the canvas pixels — and
+     the text and arrows are live objects on an OVERLAY canvas above it.
+     So handing back the canvas plus the notes is the entire state with
+     nothing counted twice; paint the notes into the canvas first and
+     every annotation comes back drawn on top of itself. The page test
+     asserts that the handed-back canvas has no text painted into it.
+  🔒 WHAT COMES BACK IN IS UNTRUSTED. A note's text is LL's own typing
+     and it rides back into a <script> block, so the notes travel as
+     base64 and arrive inert — a note containing </script> is data, not
+     markup. The image is refused unless it is a plain base64 PNG data
+     URI, which is the same test the injection relies on. Beyond that it
+     degrades rather than breaks: a stash the page cannot parse restores
+     nothing and leaves the editor usable, an oversized notes payload
+     costs the annotations and never the whole rescue, an image over the
+     keep budget is refused outright rather than kept in part, and a
+     cancel that produces nothing usable keeps nothing at all — a later
+     open then restores the FILE rather than a fragment of an old
+     session.
+  💾 A SAVE CLEARS THE SLOT. Saved work is not lost work, and a slot
+     left standing after a save would restore a stale state over the
+     next open of the same shot — which looks exactly like the editor
+     losing the save.
+         settings = { screenshot_editor = { keepOnClose = false } }
+  ⎋ AND THE CHEAT SHEET CANNOT GET STUCK. Everything that makes ⇪/ the
+     LAST thing to close (6.78.0, 6.79.2) rests on other panels
+     reporting themselves idle again afterwards. A claimant that gets
+     that wrong — a panel that failed to clear its state, a chooser
+     macOS still calls visible — refuses Esc forever, and the sheet is
+     then unclosable by the very key it tells you to press. So refusals
+     are COUNTED: press Esc twice at the same refusing claimant within
+     two seconds and the sheet closes anyway, with an alert naming who
+     would not let go. ONE press still defers, unchanged — insistence is
+     deliberate, never automatic. The run resets when the claimant
+     changes, when the window lapses, and whenever an Esc actually did
+     something, so a refusal from a minute ago can never pair with a
+     fresh one.
+     The 0.5 s escape shadow is deliberately NOT counted: it expires on
+     its own, so it can never be what gets the sheet stuck, and two
+     presses that fast are the double-tap it exists to absorb.
+     KNOWN AND STATED: a PINNED vault legitimately survives Esc, so two
+     presses there will also close the sheet underneath it. That costs a
+     place in a list; the thing it prevents is a panel that cannot be
+     dismissed at all.
+         settings = { cheatsheet = { escInsist = 3 } }
+  🔎 _G.escapeReport() is new, and it is the answer to "why will this
+     not close": every claimant in priority order, whether each wants
+     Esc right NOW, whether the sheet is open, and the last refusal by
+     name. A claimant whose active() THROWS is named there rather than
+     taking the report down with it — it is the likeliest suspect, so it
+     is the last thing that should be able to silence the page that
+     would identify it. Printed as ONE string, per 6.179.1.
+  🧪 The router block lifted into test_integration was widened to reach
+     the new report, for the same reason it was widened in 6.78.0: an
+     extraction that stops where it used to leaves the new half untested
+     while everything above it stays green. Every check here fails
+     against the mutation it exists to catch — the notes painted into
+     the canvas, the identity and the window in the refusal run, the
+     save clearing the slot, the pcall around a claimant's active().
+     test_editor 33 → 43, test_editor_js 52 → 59, test_cheatsheet
+     192 → 207, test_integration 199 → 209. 8,008 → 8,054 checks,
+     seventy-four stages.
+
 NEW IN 6.188.0 — ✋ THE TEXT BOXES ARE GRABBABLE (⇪⇧4 editor):
   ✋ LL: "the screenshot editor's text-box handles are hard to grab."
      They were, and the reason is worth writing down because it is a

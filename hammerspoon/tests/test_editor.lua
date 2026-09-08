@@ -218,6 +218,109 @@ check("open() on an unreadable file fails with an alert, no window",
       and (ALERTS[#ALERTS] or ""):find("Could not read") ~= nil)
 
 -- =====================================================================
+out("5. the work survives an accidental Esc (6.189.0)\n")
+-- =====================================================================
+-- LL: "I hit escape 2 times and all my screenshot work wasn't saved as I
+-- accidentally hit escape." The page hands its state back on the way out
+-- and it is held in ONE slot, keyed by the image path.
+local KEEPIMG = "data:image/png;base64,BLURREDPIXELS+/="
+local NOTES   = '[{"kind":"text","x":1,"y":2,"text":"hi"}]'
+local keptSection0 = 0
+for _ in pairs(WRITTEN) do keptSection0 = keptSection0 + 1 end
+
+E.open(SRC)
+BRIDGE({ body = { a = "cancel", img = KEEPIMG, notes = NOTES } })
+check("Esc still writes NOTHING, even carrying the work out", (function()
+          local n = 0; for _ in pairs(WRITTEN) do n = n + 1 end
+          return n == keptSection0
+      end)())
+check("…and the work is held against the image path",
+      E.kept ~= nil and E.kept.path == SRC and E.kept.img == KEEPIMG,
+      E.kept and E.kept.path)
+
+E.open(SRC)
+check("reopening the SAME shot hands the kept image back to the page",
+      LAST_HTML:find("RESTOREIMG   = '" .. KEEPIMG .. "'", 1, true) ~= nil)
+check("…and the notes with it",
+      LAST_HTML:find("RESTORENOTES = ''", 1, true) == nil
+      and LAST_HTML:find("RESTORENOTES = 'B64<", 1, true) ~= nil)
+check("…and LL is told his edits came back",
+      (ALERTS[#ALERTS] or ""):find("back") ~= nil, ALERTS[#ALERTS])
+BRIDGE({ body = { a = "cancel", img = KEEPIMG, notes = NOTES } })
+
+-- 🚨 THE INJECTION RULE. A note's text is LL's typing and rides into a
+-- <script> block; it must never arrive as markup. The notes go as base64
+-- for exactly this reason, so the raw string must be absent from the page.
+E.open(SRC)
+BRIDGE({ body = { a = "cancel", img = KEEPIMG,
+                  notes = '[{"kind":"text","text":"</script><b>x"}]' } })
+E.open(SRC)
+-- The stub encoder is deliberately VISIBLE (B64<…>), so the payload can
+-- still be read inside its own literal. What must be true is that it went
+-- THROUGH the encoder and that no second, unencoded copy was injected —
+-- with the real hs.base64 that is exactly "arrives inert".
+local restLit = LAST_HTML:match("RESTORENOTES = '([^']*)'") or ""
+local restOf  = LAST_HTML:gsub("RESTORENOTES = '[^']*'", "", 1)
+check("🚨 a note carrying </script> is ENCODED on the way into the page",
+      restLit:sub(1, 4) == "B64<" and restLit:find("</script>", 1, true) ~= nil,
+      restLit:sub(1, 40))
+check("🚨 …and no unencoded copy of it is injected anywhere else",
+      restOf:find("</script><b>x", 1, true) == nil)
+
+-- keyed by PATH: a second screenshot opens clean (LL: "that's fine")
+local OTHER = "/od/2026 Screenshots/Another shot.png"
+READABLE[OTHER] = "FAKE-PNG-TWO"
+E.open(OTHER)
+check("a DIFFERENT shot opens clean — the slot does not follow it",
+      LAST_HTML:find("RESTOREIMG   = ''", 1, true) ~= nil)
+BRIDGE({ body = { a = "cancel" } })
+
+-- a cancel with nothing usable keeps NOTHING rather than half a session
+E.open(SRC)
+BRIDGE({ body = { a = "cancel", img = "data:text/html;base64,NOPE", notes = NOTES } })
+check("a cancel without a usable png keeps nothing at all", E.kept == nil)
+E.open(SRC)
+check("…so the next open restores the FILE, not a fragment",
+      LAST_HTML:find("RESTOREIMG   = ''", 1, true) ~= nil)
+BRIDGE({ body = { a = "cancel", img = KEEPIMG, notes = NOTES } })
+
+-- the notes budget costs the annotations, never the whole rescue
+E.keepMaxNoteBytes = 8
+E.open(SRC)
+BRIDGE({ body = { a = "cancel", img = KEEPIMG, notes = NOTES } })
+check("oversized notes are dropped but the image is still kept",
+      E.kept ~= nil and E.kept.img == KEEPIMG and E.kept.notes == "[]",
+      E.kept and E.kept.notes)
+E.keepMaxNoteBytes = 256 * 1024
+
+-- and the image budget refuses the lot rather than keeping a fragment
+E.keepMaxBytes = 4
+E.open(SRC)
+BRIDGE({ body = { a = "cancel", img = KEEPIMG, notes = NOTES } })
+check("an image over the keep budget is refused outright", E.kept == nil)
+E.keepMaxBytes = 40 * 1024 * 1024
+
+-- SAVED work is not lost work — a slot left standing would restore a
+-- stale state over the next open of the same shot
+E.open(SRC)
+BRIDGE({ body = { a = "cancel", img = KEEPIMG, notes = NOTES } })
+E.open(SRC)
+BRIDGE({ body = { a = "save", data = "data:image/png;base64,SAVEDPNG" } })
+check("a save clears the slot", E.kept == nil)
+E.open(SRC)
+check("…so reopening after a save shows the file, not the old session",
+      LAST_HTML:find("RESTOREIMG   = ''", 1, true) ~= nil)
+BRIDGE({ body = { a = "cancel" } })
+
+-- the switch LL can throw if any of this ever misbehaves
+E.keepOnClose = false
+E.open(SRC)
+BRIDGE({ body = { a = "cancel", img = KEEPIMG, notes = NOTES } })
+check("settings { screenshot_editor = { keepOnClose = false } } keeps nothing",
+      E.kept == nil)
+E.keepOnClose = true
+
+-- =====================================================================
 out(("\n%d passed, %d failed\n"):format(pass, fail))
 for _, f in ipairs(failures) do out("    ❌ " .. f .. "\n") end
 out("\n")
