@@ -1591,6 +1591,28 @@ end tell]]
             c:hide()
             return true
         end },
+        -- 🚨 6.189.0 — THE CHEAT SHEET, and it should have been here from
+        -- the first version of this chord. LL: "Cheat sheet is stuck on
+        -- the screen." The rule at the top of this table — any panel that
+        -- can take the screen or the keyboard gets a row — was written
+        -- with the sheet in mind and then never applied to it, because it
+        -- predates the chord. It is the WORST omission of the set: the
+        -- sheet holds bare-key hotkeys on every letter, digit, space and
+        -- backspace the whole time it is visible, so a sheet that will not
+        -- close is not an overlay in the way, it is a keyboard that types
+        -- nothing. Esc can be refused (see cheatSheet.escape — it stands
+        -- down while anything else claims to be up, which is right, and
+        -- which a claimant stuck saying "yes" turns into a lock), and ⇪/
+        -- goes through the hyper modal, which is exactly what a panic
+        -- chord must not depend on. So: unconditional, straight to hide(),
+        -- which is also what disables all those hotkeys.
+        { id = "sheet", what = "cheat sheet closed", run = function()
+            if not _G.cheatSheetCanvas then return nil end
+            local cs = _G.cheatSheet
+            if not (cs and type(cs.hide) == "function") then return nil end
+            cs.hide()
+            return true
+        end },
         -- LAST: the pause switch. Once the panels are gone, the only
         -- thing left that can still be eating keystrokes is a keyboard
         -- tap, and _G.hsPaused stands every one of them down.
