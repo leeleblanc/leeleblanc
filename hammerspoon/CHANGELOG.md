@@ -5,6 +5,70 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.192.0 — ✂️ ⇪X: BREAK THE BOX YOU LANDED IN, IN HALF:
+  ✂️ LL, with a diagram: "A big cell one misses a button and I have to
+     arrow a lot to get to it … Once I select a box, can the box be
+     broken in half so I have a better chance of landing on the button."
+     After ⇪X lands, ⌥ + an arrow now KEEPS THAT HALF of the cell and
+     puts the pointer in the middle of it. Press again and it halves
+     again. Each press doubles the precision, so the 70 pt cell on the
+     4K is under 9 pt after three — where the old way was 8 pt arrow
+     taps, which is the thing LL was describing.
+     ONE DEVIATION FROM THE DIAGRAM, stated rather than quietly
+     substituted: LL's picture labels each half with characters to type.
+     Landed mode is FORBIDDEN from capturing any alphabet key. That is
+     not a preference, it is a rule with a test, and it exists so that
+     everything typed after landing reaches the app just landed on —
+     6.115.0 gave up "d for double" to keep it absolute and testable.
+     An arrow needs no label to read: the direction IS the name of the
+     half, so there is nothing to look at and nothing to learn, and it
+     composes — ⌥← ⌥← ⌥↑ walks straight in with no mode to enter or
+     leave. ⌥ is free in landed mode and is not a letter, so the rule
+     survives intact and the test that guards it now also asserts that
+     no ⌥+LETTER was taken either.
+     THE FLOOR IS REAL. grid.halveMin (8 pt) is the smallest box it will
+     make, and it is measured on the HALF, not on the box: a 16 pt box
+     halves to 8 and a 15 pt one refuses. Below that a box is smaller
+     than the pointer's own hot spot, and a target you cannot see is not
+     a finer target, it is a lie about where you are. At the floor it
+     REFUSES and says so — it never quietly does a nudge instead, which
+     would be the pointer moving somewhere LL did not ask for. The two
+     dimensions are asked about separately, so a wide short box still
+     halves sideways.
+     A PLAIN ARROW NUDGE CARRIES THE BOX WITH IT, same size, pointer
+     still at its centre. Leaving the box behind would make the outline
+     a lie; dropping it would make ⌥+arrow refuse after any nudge — and
+     nudge a little, then halve, is exactly how the two get used
+     together. A nudge never resizes: only ⌥+arrow changes precision.
+     A HELD ⌥+ARROW DOES NOT REPEAT, unlike the plain arrows (which have
+     since 6.115.0). Each press here is a decision about which half the
+     target is in, and a hold would run the box past the floor in less
+     time than it takes to notice.
+     The outline is its own canvas — the badge is a fixed 232×78 near
+     the pointer and a box can be any size anywhere — and it is
+     transparent to the mouse, because a rectangle drawn to help aim a
+     click must never eat that click. It comes down with everything
+     else, and a canvas it cannot draw tears landed mode down rather
+     than capturing the keyboard invisibly, exactly as the badge does.
+     Worth knowing: after a SNAP the pointer is on a control and the box
+     is still the cell, so the first halve moves the pointer to the
+     half's centre — off the control it snapped to. That is the right
+     behaviour, because the reason to press it is that the snap did not
+     land where LL wanted.
+     Rollback: settings = { mouse_grid = { halve = false } } — the keys
+     then do nothing at all and the badge stops offering them, because a
+     badge that names a key that does nothing is worse than no badge.
+     `_G.mouseGridReport()` gained a "halve :" line naming the state,
+     the floor, and the live box's size and depth — "it stopped halving"
+     is the one thing here that will read as broken when it is working
+     exactly as written.
+     The geometry is a PURE function (grid.halfOf) so the gate proves it
+     without a screen; the pointer, the outline, the nudge interaction
+     and the floor are then proven through a real landing. Seven
+     mutations were run against the new checks and every one was caught.
+  test_mouse_grid 386 → 413. 8,090 → 8,119 checks, seventy-four stages.
+  init.lua 3,739 lines.
+
 NEW IN 6.191.0 — 🔠 THE PAD IS READABLE, AND THE TOOL TIP IS NOT UNDER
                  YOUR OWN CURSOR:
   🔠 LL: "Make all font 14pt and adjust the size of the pad and

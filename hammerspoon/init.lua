@@ -4,9 +4,41 @@
 -- =====================================================================
 -- 09-08-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.191.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.192.0
 -- =====================================================================
 
+-- NEW IN 6.192.0 — ✂️ ⇪X: BREAK THE BOX YOU LANDED IN, IN HALF:
+--   ✂️ LL, with a diagram: "A big cell one misses a button and I have to
+--      arrow a lot to get to it … Once I select a box, can the box be
+--      broken in half so I have a better chance of landing on the
+--      button." It can now. After ⇪X lands, ⌥ + an arrow KEEPS THAT HALF
+--      of the cell and puts the pointer in the middle of it. Press again
+--      and it halves again — each press doubles the precision, so a 70 pt
+--      cell is under 9 pt in three presses, where the old way was a lot
+--      of 8 pt arrow taps.
+--      ONE DEVIATION FROM LL'S PICTURE, stated rather than hidden: his
+--      diagram labels each half with characters to type. Landed mode is
+--      forbidden from capturing ANY alphabet key — that is a rule with a
+--      test, and it exists so that everything LL types after landing
+--      reaches the app he just landed on. An arrow needs no label: the
+--      direction IS the name of the half, it costs no reading, and it
+--      composes — ⌥← ⌥← ⌥↑ walks straight in with no mode to enter or
+--      leave.
+--      The floor is real (grid.halveMin, 8 pt): below it a box is
+--      smaller than the pointer's own hot spot. At the floor it REFUSES
+--      and says so — it never quietly does a nudge instead, which would
+--      be the pointer moving somewhere LL did not ask for. A plain arrow
+--      nudge CARRIES the box with it, same size, pointer still at its
+--      centre, so nudge-a-little-then-halve works and the outline is
+--      never a lie about where you are.
+--      A held ⌥+arrow deliberately does NOT repeat, unlike the plain
+--      arrows: each press is a decision about which half the target is
+--      in, and a hold would run the box to the floor before you saw it.
+--          settings = { mouse_grid = { halve = false } }
+--      is the rollback, and `_G.mouseGridReport()` has a "halve :" line
+--      naming the state, the floor and how deep the live box is.
+--      test_mouse_grid 386 -> 413. 8,090 -> 8,119 checks, seventy-four
+--      stages.
 -- NEW IN 6.191.0 — 🔠 THE PAD IS READABLE, AND THE TOOL TIP IS NOT
 --                   UNDER YOUR OWN CURSOR:
 --   🔠 LL: "Make all font 14pt and adjust the size of the pad and
@@ -29,57 +61,12 @@
 --      pointer can never cover it, because the pointer is no longer what
 --      it is measured from. test_vault 337 -> 340; 8,087 -> 8,090
 --      checks, seventy-four stages.
--- NEW IN 6.190.0 — 🖼 THE HISTORIES LOOK LIKE ⇪space, AND THE STORES
---                   CAN LIVE ON THIS MAC:
---   🖼 LL: "make the histories match unified search." ⇪V and ⇪O now open
---      the ⇪space PANEL, prefilled on @clip and @ocr. Not a second
---      renderer built to look like the first — ⇪space was already
---      reading these exact stores, so the key just goes there. One page,
---      one look, one place to fix. ⇪⇧V and ⇪⇧O stay choosers on purpose:
---      they EDIT and DELETE rows, and the panel is a reader.
---          settings = { clipboard_history = { panel = false } }
---          settings = { ocr_engine       = { panel = false } }
---      That is LL\'s rollback, per panel, and the choosers are all still
---      here and still tested. The panel is asked for at PRESS time, never
---      cached: if unified search failed to load, the key falls back to
---      the chooser and SAYS why rather than doing nothing.
---   🏠 LL: "Would it be better to save everything to my home folder?
---      Then, every 30 minutes write a back up of all the files that have
---      histories or modifications." Both halves ship.
---      EVERY 30 MINUTES the whole Logs folder is rsync\'d to OneDrive in
---      a held task — a copy, never a move, and deliberately without
---      --delete so a store that failed to load cannot erase its own
---      backup. That runs whether or not the stores are local.
---      LOCAL STORES are a switch in this file (`localFirst`, off).
---      OneDrive placeholders block the main thread when read, which is
---      the 6.152.x / 6.160.0 / 6.170.x beach ball class; local storage
---      ends it. What it costs is liveness — the other Mac sees these
---      histories every 30 minutes rather than continuously.
---      🚨 AND IT NEVER SWITCHES ONTO AN EMPTY FOLDER. The first boot
---      after turning it on keeps using OneDrive, says so, and copies the
---      stores down in the background; the next boot finds them and uses
---      them. Nothing is moved, nothing is deleted, and no history is ever
---      blank. A seed refuses a folder that already has files in it —
---      that would be data loss dressed up as a restore.
---      NOT an alias and NOT a symlink: io.open, rsync, grep and find do
---      not follow a Finder alias, and OneDrive does not sync reliably
---      through a symlink. The VAULT stays in OneDrive regardless —
---      Obsidian opens that exact folder on both Macs.
---   ⌨️ LL: "Can I get a window that is larger than this? I can\'t see what
---      I\'m typing?" He was looking at hs.dialog.textPrompt — a stock
---      macOS alert whose width is AppKit\'s. There is no bigger version of
---      that box, so ⌘N now asks IN the vault window, where the field is
---      the window\'s width and the text is the window\'s own 13 pt. The
---      dialog stays as the DEGRADE for a Hammerspoon with no web view.
---      test_clipboard 122 → 132, test_ocr_tag 100 → 110, test_vault
---      332 → 337, test_daily_backup 50 → 66. 8,054 → 8,087 checks,
---      seventy-four stages.
--- (6.188.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.190.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.191.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.192.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -176,7 +163,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.191.0"
+_G.configVersion = "6.192.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

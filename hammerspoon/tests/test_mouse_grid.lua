@@ -2427,6 +2427,139 @@ do
     setScreens(ONE)
 end
 
+out("\n=== ✂️ HALVE THE LANDED BOX (6.192.0) ===\n")
+-- LL, with a diagram: "A big cell one misses a button and I have to arrow
+-- a lot to get to it … Once I select a box, can the box be broken in half
+-- so I have a better chance of landing on the button." ⌥+arrow keeps that
+-- half. The geometry is PURE (grid.halfOf) so it is proven here without a
+-- screen; the drawing and the pointer are checked through a real landing.
+do
+    loadModule()
+    local B = { x = 100, y = 200, w = 80, h = 40 }
+    local function same(a, b)
+        return a and b and a.x == b.x and a.y == b.y and a.w == b.w and a.h == b.h
+    end
+    check("⌥↑ keeps the TOP half — same x and width, half the height, same top edge",
+          same(grid.halfOf(B, "up", 0), { x = 100, y = 200, w = 80, h = 20 }))
+    check("⌥↓ keeps the BOTTOM half — the top edge MOVES DOWN by the new height",
+          same(grid.halfOf(B, "down", 0), { x = 100, y = 220, w = 80, h = 20 }))
+    check("⌥← keeps the LEFT half", same(grid.halfOf(B, "left", 0),
+          { x = 100, y = 200, w = 40, h = 40 }))
+    check("⌥→ keeps the RIGHT half — the left edge moves right",
+          same(grid.halfOf(B, "right", 0), { x = 140, y = 200, w = 40, h = 40 }))
+    -- Halving is only worth anything if it COMPOSES: the whole feature is
+    -- pressing it three times.
+    check("three presses is an eighth of the box, still inside the original", (function()
+        local b = grid.halfOf(grid.halfOf(grid.halfOf(B, "down", 0), "right", 0), "down", 0)
+        return b and b.w == 40 and b.h == 10
+           and b.x >= B.x and b.y >= B.y
+           and (b.x + b.w) <= (B.x + B.w) and (b.y + b.h) <= (B.y + B.h)
+    end)())
+    -- 🚨 THE FLOOR BITES, and it is measured on the HALF, not the box: a
+    -- 16 pt box at a 8 pt floor must still halve once, and a 15 pt one
+    -- must refuse. Off-by-one either way and the floor is decoration.
+    local why
+    check("a box whose half would be under the floor is REFUSED, with a reason",
+          (function() local b; b, why = grid.halfOf({x=0,y=0,w=80,h=15}, "up", 8)
+             return b == nil and type(why) == "string" and why:find("short") end)())
+    check("...and exactly at the floor it still halves", (function()
+        local b = grid.halfOf({ x = 0, y = 0, w = 80, h = 16 }, "up", 8)
+        return b ~= nil and b.h == 8
+    end)())
+    check("...the width floor is asked about SEPARATELY — a wide, short box "
+          .. "still halves sideways", grid.halfOf({ x = 0, y = 0, w = 80, h = 4 },
+                                                  "left", 8) ~= nil)
+    check("no box, a sizeless box and a non-direction each refuse rather than throw",
+          grid.halfOf(nil, "up", 8) == nil and grid.halfOf({ x=0,y=0,w=0,h=0 }, "up", 8) == nil
+          and grid.halfOf(B, "sideways", 8) == nil)
+
+    -- --- through a real landing --------------------------------------
+    loadModule(); grid.show(false); typeLabel("aaa")
+    local st = grid.state
+    check("landing carries the CELL into landed mode as the box to halve",
+          st and st.phase == "landed" and type(st.box) == "table"
+          and st.box.w > 0 and st.box.h > 0)
+    local cell = { x = st.box.x, y = st.box.y, w = st.box.w, h = st.box.h }
+    local nCanvas = #CANVASES
+    landKey("down", "alt")
+    check("⌥↓ halves the live box", grid.state.box.h == cell.h / 2
+          and grid.state.box.w == cell.w, tostring(grid.state.box.h))
+    check("...and the POINTER is put in the middle of the new half — that is "
+          .. "the whole point, not just an outline",
+          MOUSE_AT.x == grid.state.box.x + grid.state.box.w / 2
+          and MOUSE_AT.y == grid.state.box.y + grid.state.box.h / 2)
+    check("...an outline canvas was drawn for it and is held", grid.boxDraw ~= nil
+          and #CANVASES > nCanvas)
+    check("...and it never eats the click it is helping aim (mouse events off)",
+          grid.boxDraw.mouseEvents ~= nil and grid.boxDraw.mouseEvents[1] == false)
+    check("...the depth is counted for the report", grid.state.halvings == 1)
+    landKey("right", "alt"); landKey("right", "alt")
+    check("it composes — three presses in, a quarter as wide and half as tall",
+          grid.state.box.w == cell.w / 4 and grid.state.box.h == cell.h / 2
+          and grid.state.halvings == 3)
+    check("...and the box never leaves the cell it came from",
+          grid.state.box.x >= cell.x and grid.state.box.y >= cell.y
+          and grid.state.box.x + grid.state.box.w <= cell.x + cell.w
+          and grid.state.box.y + grid.state.box.h <= cell.y + cell.h)
+    -- A NUDGE carries the box rather than abandoning it, so nudge-then-halve
+    -- works and the outline never sits somewhere the pointer is not.
+    local bx, by = grid.state.box.x, grid.state.box.y
+    landKey("right")
+    check("a nudge MOVES the box with the pointer, same size",
+          grid.state.box.w == cell.w / 4 and grid.state.box.h == cell.h / 2
+          and grid.state.box.x > bx and grid.state.box.y == by)
+    check("...and the pointer is still at its centre, so ⌥+arrow after a "
+          .. "nudge is still true", MOUSE_AT.x == grid.state.box.x + grid.state.box.w / 2)
+    -- The floor, live: keep halving until it refuses, and prove it refuses
+    -- by NOT MOVING THE POINTER rather than by doing a nudge instead.
+    for _ = 1, 12 do landKey("down", "alt") end
+    local held = { x = MOUSE_AT.x, y = MOUSE_AT.y }
+    local deep = grid.state.halvings
+    landKey("down", "alt")
+    check("at the floor it refuses: the pointer does not move and the depth "
+          .. "does not grow", MOUSE_AT.x == held.x and MOUSE_AT.y == held.y
+          and grid.state.halvings == deep)
+    check("...and landed mode is STILL UP — a refusal is not a teardown",
+          grid.state ~= nil and grid.state.phase == "landed")
+    check("...the box is never smaller than halveMin in either direction",
+          grid.state.box.w >= grid.halveMin and grid.state.box.h >= grid.halveMin,
+          string.format("%.1fx%.1f", grid.state.box.w, grid.state.box.h))
+    grid.hide("test")
+    check("leaving takes the outline down and drops the held reference",
+          grid.boxDraw == nil)
+    checkInv("after halving and hiding")
+
+    -- The rollback, and the rule it must not break.
+    loadModule(); grid.halve = false; grid.show(false); typeLabel("aaa")
+    local was = { x = MOUSE_AT.x, y = MOUSE_AT.y }
+    landKey("down", "alt")
+    check("grid.halve = false: ⌥+arrow does nothing at all", MOUSE_AT.x == was.x
+          and MOUSE_AT.y == was.y and grid.state.halvings == 0)
+    grid.hide("test")
+    loadModule()
+    check("🔒 the halving keys are ⌥+ARROWS, never letters — landed mode still "
+          .. "binds no letter, so LL's typing reaches the app underneath", (function()
+        for ch in ("abcdefghijklmnopqrstuvwxyz"):gmatch(".") do
+            if grid.landModal.binds["|" .. ch] ~= nil then return false, ch end
+            if grid.landModal.binds["alt|" .. ch] ~= nil then return false, "alt " .. ch end
+        end
+        return grid.landModal.binds["alt|up"] ~= nil and grid.landModal.binds["alt|down"] ~= nil
+           and grid.landModal.binds["alt|left"] ~= nil and grid.landModal.binds["alt|right"] ~= nil
+    end)())
+    -- 🚨 A HELD ⌥+arrow must NOT repeat: unlike the nudge, one press here is
+    -- a decision about which half the target is in, and a hold would run
+    -- the box to the floor before you saw it.
+    check("...and they do not auto-repeat, unlike the plain arrows",
+          grid.landModal.repeats["alt|down"] == nil
+          and grid.landModal.repeats["|down"] ~= nil)
+    local rep = _G.mouseGridReport()
+    check("the report's halve line names the state and the floor",
+          rep:find("halve") and rep:find("⌥↑↓←→") and rep:find(tostring(grid.halveMin)))
+    grid.halve = false
+    check("...and says so when it is switched off", _G.mouseGridReport():find("off %(grid%.halve%)"))
+    grid.halve = true
+end
+
 -- =====================================================================
 realPrint(table.concat(printed, "\n"))
 out("\n")

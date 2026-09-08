@@ -154,6 +154,7 @@ local M = {
             { "-- after it lands --", "" },
             { "space",    "Left click · ⇧space right click · 2 double click" },
             { "↑↓←→",     "Nudge 8pt; HOLD and it speeds up to 64pt · with ⇧ nudge 1pt for a tight target" },
+            { "⌥↑↓←→",    "Halve the box you landed in, toward that side — press again and it halves again, so a big cell narrows onto a small button in two or three presses instead of a lot of arrowing" },
             { "⎋",        "Done — leave the pointer where it is" },
             { "⇪⇧L",      "Find the pointer — three white rings pulse out from it, again and again, for 5 s" },
             { "",         "Sized to the screen (×1.5 on a 4K at full points); grid.locateRadius / locateSecs / locateScale to taste" },
@@ -304,6 +305,23 @@ function M.setup(core)
 
     -- 🚨 Watchdogs. Neither of these is a nicety.
     grid.timeoutSecs = 12           -- overlay up, nothing typed
+    -- ✂️ 6.192.0 — HALVE THE BOX YOU LANDED IN. LL, with a diagram: "A
+    -- big cell one misses a button and I have to arrow a lot to get to
+    -- it … Once I select a box, can the box be broken in half so I have
+    -- a better chance of landing on the button."
+    -- ⌥ + an arrow keeps the HALF of the current box on that side and
+    -- puts the pointer in its middle. Press it again and it halves
+    -- again, so each press doubles the precision — three presses is a
+    -- 70 pt cell down to under 9 pt, where the old way was arrow taps.
+    -- WHY AN ARROW AND NOT A LETTER LABEL on each half, which is what
+    -- LL's picture shows: landed mode is FORBIDDEN from capturing any
+    -- alphabet key (see the bind block below — it is a rule with a test,
+    -- and it exists so LL's typing reaches the app he just landed on).
+    -- An arrow needs no label to read: the direction IS the name of the
+    -- half, and it composes — ⌥← ⌥← ⌥↑ walks in without a mode to enter
+    -- or leave.
+    grid.halve       = true         -- rollback: settings = { mouse_grid = { halve = false } }
+    grid.halveMin    = 8            -- points; it will not make a box smaller than this
     grid.landedSecs  = 8            -- landed badge up, nothing pressed
     -- 🖱 6.155.0 — a click by HAND ends landed mode. LL's Console, after
     -- ⇪X had landed on a button: "watchdog fired after 8s — landed badge
@@ -331,6 +349,7 @@ function M.setup(core)
                            -- warm-up, and here it would cost the watchdog.
     grid.screenWatch = nil -- HELD for the same reason
     grid.cross    = nil    -- the landed-mode badge canvas
+    grid.boxDraw  = nil    -- HELD: the halved-box outline (6.192.0)
     grid.clickTap = nil    -- HELD while landed: the hand-click listener (6.155.0)
 
     -- 🐛 A FLAT LIST OF WHAT IS ON SCREEN, KEPT DELIBERATELY SEPARATE FROM
@@ -777,6 +796,72 @@ function M.setup(core)
     -- =====================================================================
     -- `hint` (6.154.0) names the control the pointer snapped onto, so the
     -- badge reads "🎯 Save · space click …" and you know what SPACE hits.
+    -- ✂️ 6.192.0 — THE HALVING, kept PURE and separate from the drawing so
+    -- the gate can prove the geometry without a screen. Returns the new
+    -- box, or nil + why. The floor is real: below grid.halveMin a box is
+    -- smaller than the pointer's own hot spot, and a target you cannot
+    -- see is not a finer target, it is a lie about where you are.
+    function grid.halfOf(box, dir, minPt)
+        if type(box) ~= "table" then return nil, "there is no box to halve" end
+        local x, y = tonumber(box.x), tonumber(box.y)
+        local w, h = tonumber(box.w), tonumber(box.h)
+        if not (x and y and w and h) or w <= 0 or h <= 0 then
+            return nil, "the box has no size"
+        end
+        local floorPt = tonumber(minPt) or 0
+        if floorPt < 0 then floorPt = 0 end
+        if dir == "up" or dir == "down" then
+            if h / 2 < floorPt then
+                return nil, "already as short as it goes"
+            end
+            local nh = h / 2
+            return { x = x, y = (dir == "up") and y or (y + nh), w = w, h = nh }
+        elseif dir == "left" or dir == "right" then
+            if w / 2 < floorPt then
+                return nil, "already as narrow as it goes"
+            end
+            local nw = w / 2
+            return { x = (dir == "left") and x or (x + nw), y = y, w = nw, h = h }
+        end
+        return nil, "not a direction"
+    end
+
+    -- The outline over the live box. Its own canvas, not the badge's:
+    -- the badge is a fixed 232x78 near the pointer and a box can be any
+    -- size anywhere. Returns false the same way showCrosshair does, and
+    -- for the same reason — the caller must act on it.
+    local function showBox(box)
+        pcall(function() if grid.boxDraw then grid.boxDraw:delete() end end)
+        grid.boxDraw = nil
+        if not box then return true end
+        local c = hs.canvas.new({ x = box.x, y = box.y, w = box.w, h = box.h })
+        if not c then return false end
+        c:replaceElements({
+            { type = "rectangle", action = "fill",
+              fillColor = { red = 1, green = 0.78, blue = 0.25, alpha = 0.10 },
+              frame = { x = 0, y = 0, w = box.w, h = box.h } },
+            { type = "rectangle", action = "stroke", strokeWidth = 2,
+              strokeColor = { red = 1, green = 0.78, blue = 0.25, alpha = 0.95 },
+              frame = { x = 1, y = 1, w = math.max(1, box.w - 2), h = math.max(1, box.h - 2) } },
+        })
+        pcall(function()
+            c:level((hs.canvas.windowLevels or {})[grid.windowLevel]
+                    or (hs.canvas.windowLevels or {}).overlay)
+        end)
+        pcall(function() c:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" }) end)
+        -- 🚨 The box must never eat the click it is helping LL aim. It is
+        -- decoration over the target, so it is transparent to the mouse.
+        pcall(function() c:canvasMouseEvents(false, false, false, false) end)
+        if _G.showCanvasSafely then
+            if not _G.showCanvasSafely(c, "grid halved box") then return false end
+        else
+            local ok = pcall(function() c:show() end)
+            if not ok then return false end
+        end
+        grid.boxDraw = c
+        return true
+    end
+
     local function showCrosshair(px, py, hint)
         local W, H = 232, 78
         local scr  = hs.mouse.getCurrentScreen() or hs.screen.mainScreen()
@@ -814,8 +899,13 @@ function M.setup(core)
               fillColor = { white = 0.0, alpha = 0.72 }, roundedRectRadii = { xRadius = 5, yRadius = 5 },
               frame = { x = 8, y = H - 24, w = W - 16, h = 18 } },
             { type = "text",
+              -- 6.192.0 — ⌥↑↓←→ is on the badge because a shortcut nobody
+              -- is told about is a shortcut nobody has. It is dropped when
+              -- halving is switched off, so the badge never offers a key
+              -- that does nothing.
               text = (hint and ("🎯 " .. hint .. " · space click · ⎋ done")
-                      or "space click · ↑↓←→ nudge · ⎋ done"),
+                      or ("space click · ↑↓←→ nudge"
+                          .. (grid.halve and " · ⌥ halve" or "") .. " · ⎋ done")),
               textSize = 11, textColor = { white = 1.0, alpha = 0.95 },
               textAlignment = "center",
               frame = { x = 8, y = H - 23, w = W - 16, h = 17 } },
@@ -857,6 +947,8 @@ function M.setup(core)
         hideAllShown()
         pcall(function() if grid.cross then grid.cross:delete() end end)
         grid.cross = nil
+        pcall(function() if grid.boxDraw then grid.boxDraw:delete() end end)
+        grid.boxDraw = nil
         pcall(function() if grid.pickModal then grid.pickModal:exit() end end)
         pcall(function() if grid.landModal then grid.landModal:exit() end end)
         if grid.state then
@@ -1104,7 +1196,7 @@ function M.setup(core)
     -- =====================================================================
     -- LANDED MODE
     -- =====================================================================
-    local function enterLanded(point, snap)
+    local function enterLanded(point, snap, box)
         hideAllShown()
         pcall(function() grid.pickModal:exit() end)
         local okEnter = pcall(function() grid.landModal:enter() end)
@@ -1115,7 +1207,8 @@ function M.setup(core)
             warn("landModal:enter() failed — pointer moved, keys not captured")
             return
         end
-        grid.state = { phase = "landed", point = point, snapped = snap }
+        grid.state = { phase = "landed", point = point, snapped = snap,
+                       box = box, halvings = 0 }
         local hint
         if snap then
             hint = tostring(snap.title or snap.role or ""):sub(1, 18)
@@ -1138,6 +1231,21 @@ function M.setup(core)
         local p = { x = s.point.x + dx, y = s.point.y + dy }
         s.point = p
         movePointer(p)
+        -- 6.192.0 — a NUDGE CARRIES THE BOX WITH IT, same size, pointer
+        -- still at its centre. Leaving the box behind would make the
+        -- outline a lie about where you are, and dropping it would make
+        -- ⌥+arrow refuse after any nudge — nudge a little, then halve, is
+        -- exactly how these two get used together. It never resizes: a
+        -- nudge is a move, and only ⌥+arrow changes precision.
+        if s.box then
+            s.box.x, s.box.y = s.box.x + dx, s.box.y + dy
+            if not showBox(s.box) then
+                grid.hide("box lost during nudge")
+                warn("the box could not be redrawn mid-nudge — refusing to "
+                     .. "capture keys invisibly")
+                return
+            end
+        end
         if not showCrosshair(p.x, p.y) then
             grid.hide("badge lost during nudge")
             warn("badge could not be redrawn mid-nudge — refusing to capture "
@@ -1145,6 +1253,35 @@ function M.setup(core)
             return
         end
         armWatchdog(grid.landedSecs, "landed badge left open")
+    end
+
+    -- ✂️ 6.192.0 — ⌥ + arrow: keep that HALF of the box, pointer to its
+    -- middle. A refusal (no box, or the floor) SAYS so and changes
+    -- nothing — it never silently does a nudge instead, which would be
+    -- the pointer moving somewhere LL did not ask for.
+    local function halveTo(dir)
+        local s = grid.state
+        if not (s and s.phase == "landed") then return end
+        if not grid.halve then return end
+        local box, why = grid.halfOf(s.box, dir, grid.halveMin)
+        if not box then
+            hs.alert.show("🎯 " .. tostring(why))
+            say("halve refused: " .. tostring(why))
+            armWatchdog(grid.landedSecs, "landed badge left open")
+            return
+        end
+        local p = { x = box.x + box.w / 2, y = box.y + box.h / 2 }
+        s.box, s.point, s.halvings = box, p, (s.halvings or 0) + 1
+        movePointer(p)
+        if not showBox(box) or not showCrosshair(p.x, p.y) then
+            grid.hide("badge lost while halving")
+            warn("the box or badge could not be drawn while halving — "
+                 .. "refusing to capture keys invisibly")
+            return
+        end
+        armWatchdog(grid.landedSecs, "landed badge left open")
+        say(string.format("halved %s -> %.0fx%.0f at %.0f,%.0f (%d deep)",
+            dir, box.w, box.h, p.x, p.y, s.halvings))
     end
 
     local function landedClick(kind)
@@ -1256,7 +1393,12 @@ function M.setup(core)
                 grid.hide("jumped + clicked")
                 clickAt(point, "left")
             elseif grid.landedMode then
-                enterLanded(point, snap)
+                    -- 6.192.0 — the CELL travels into landed mode, because that
+            -- is the box ⌥+arrow halves. Nothing else knows its bounds:
+            -- the pointer is a point and the snap is a control's centre.
+            enterLanded(point, snap,
+                        { x = cell.ax - cell.rw / 2, y = cell.ay - cell.rh / 2,
+                          w = cell.rw, h = cell.rh })
             else
                 grid.hide("jumped")
             end
@@ -1401,6 +1543,21 @@ function M.setup(core)
                                         math.floor(num(grid.snapMaxArea, 0)))
                                     or  ", centre inside the cell only (grid.snapContains is off)")
                 or  "⚪️ needs Accessibility — the cell centre stands in"))
+        -- ✂️ 6.192.0 — the halve line names the FLOOR as well as the state,
+        -- because "it stopped halving" is the one thing about this that
+        -- will read as broken when it is working exactly as written.
+        do
+            local st = grid.state
+            out[#out + 1] = "   halve   : " .. (not grid.halve
+                and "off (grid.halve)"
+                or string.format("✅ ⌥↑↓←→ keeps that half of the box you landed in, "
+                                 .. "down to %d pt (grid.halveMin)%s",
+                                 math.floor(num(grid.halveMin, 0)),
+                                 (st and st.phase == "landed" and st.box)
+                                   and string.format(" · now %.0fx%.0f, %d deep",
+                                                     st.box.w, st.box.h, st.halvings or 0)
+                                   or ""))
+        end
         -- 6.167.0: the ring's size IN EFFECT where the pointer is now, and
         -- what the last press actually drew, for "still small".
         do
@@ -1462,6 +1619,19 @@ function M.setup(core)
     -- for double" would have cost that rule for one mnemonic; "2" for two
     -- clicks is as memorable and keeps the rule absolute and testable.
     grid.landModal:bind({}, "2",      function() landedClick("double") end)
+    -- ✂️ 6.192.0 — ⌥ + arrow HALVES the box you landed in, toward that
+    -- side. Not repeatfn'd on purpose, unlike the nudge below: a held
+    -- nudge crawls a pointer at 8 pt a step, but a held halve would run
+    -- the box past the floor in the time it takes to notice, and each
+    -- press here is a DECISION about which half the target is in.
+    -- ⌥ is free in landed mode and is not an alphabet key, so the rule
+    -- above survives intact.
+    for key, dir in pairs({ up = "up", down = "down", left = "left", right = "right" }) do
+        grid.landModal:bind({ "alt" }, key, function()
+            local ok, err = pcall(halveTo, dir)
+            if not ok then warn("halve " .. dir .. ": " .. tostring(err)) end
+        end)
+    end
     -- ⏱ 6.115.0 — HOLD AN ARROW AND IT KEEPS MOVING. LL: "Can you make it
     -- so that hyper+X allows the arrows to be pressed and held down? Right
     -- now you have to rapidly hit the key to move."

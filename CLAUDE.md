@@ -294,6 +294,21 @@ store that failed to load must not erase its own backup. The VAULT
 stays in OneDrive regardless (Obsidian opens that folder on both Macs).
 NOT aliases (io.open/rsync/grep don't follow them) and NOT symlinks
 (OneDrive won't sync through one).
+✂️ HALVE THE LANDED BOX (6.192.0, mouse_grid): after ⇪X lands, ⌥+arrow
+keeps that HALF of the cell and puts the pointer at its centre; press
+again to halve again. `grid.halfOf(box, dir, minPt)` is PURE (the gate
+proves the geometry with no screen) and the floor is measured on the
+HALF, not the box — 16 pt halves, 15 refuses, each dimension asked
+separately. A refusal SAYS so and moves nothing; it never falls back to
+a nudge. A plain nudge CARRIES the box (same size, pointer at centre) so
+nudge-then-halve works. ⌥+arrow is deliberately NOT repeatfn'd — each
+press is a decision. 🔒 It is ⌥+ARROWS because landed mode may capture
+NO alphabet key (LL's diagram wanted letter labels; the rule wins, and
+the test now also forbids ⌥+letter). The outline is its own canvas,
+mouse-transparent (it must not eat the click it helps aim), and a canvas
+it cannot draw tears landed mode down rather than capturing keys
+invisibly. Rollback `settings = { mouse_grid = { halve = false } }`;
+report line "halve :".
 THREE FONT SIZES, NOT ONE (6.191.0): the vault/pad page derives FSpx
 (body), FS1px (controls) and FS2px (labels — headings, footer, chips,
 format bar, the tool tip) from `v.fontSize`. They step by ONE and FLOOR
@@ -570,6 +585,31 @@ mirrors draw order: "closes last" IS "drawn under".
   it — but if a post-boot stall is ever traced there, move the read and
   the append into an hs.task (/bin/cat, /usr/bin/tail). Never move it
   back onto the boot line.
+- 6.192.0 verify with LL: ⇪X, type a cell, and when it lands press
+  ⌥↓ (or ⌥↑ ⌥← ⌥→). An amber box should appear — the half of the cell on
+  that side — with the pointer in the middle of it. Press again and it
+  halves again. Do that two or three times onto a small button and then
+  space to click: that is the whole feature, and it replaces a lot of
+  arrowing. Keep pressing and it will stop at 8 pt and SAY so rather
+  than going smaller — that is the floor, not a fault. A plain arrow
+  still nudges 8 pt and the box comes with it, so nudge-then-halve
+  works. If it is in the way: `settings = { mouse_grid = { halve = false } }`,
+  and `_G.mouseGridReport()`'s new "halve :" line says which state it is
+  in and how deep the live box is.
+  STATED, NOT HIDDEN: LL's diagram put a letter on each half. Landed
+  mode may capture no letter (so typing after landing reaches the app),
+  so the arrows carry the meaning instead — if LL wants labels anyway,
+  that is a NEW decision about that rule, not a tweak.
+  Also: after a SNAP the first halve moves the pointer off the control
+  it snapped to, into the half's centre. Deliberate — the reason to
+  press it is that the snap did not land where he wanted.
+  STILL OPEN: sequential screenshots to the clipboard (⇪2 is TEXT only
+  and the pasteboard holds one image at a time — the honest shape is a
+  multi-select in ⇪space @shots writing FILE URLs; NOT built, needs LL's
+  go-ahead); the Chrome tab scan (Automation permission first); @ source
+  discoverability; widening `uni.runnable`; vault front-matter property
+  completion; ⌘⇧N and ⌘⇧E still on the small dialog; the ⇪⇧O image
+  history beach ball; and CANVAS.
 - 6.191.0 verify with LL: ⇪N (or ⇪3) — everything in the window should
   read a size bigger, and the SMALL stuff (the ▸ section headings, the
   footer line, the format bar's buttons, the chips) is what to look at:
