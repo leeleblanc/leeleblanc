@@ -192,7 +192,7 @@ local M = {
     cheatsheet = {
         title = "🕸 VAULT (⇪3 / ⇪1 — Markdown notes that link to each other, in OneDrive; the Scorp Pad's tabs too)",
         entries = {
-            { "⇪3 · ⇪1",    "Open / close the window — ⇪3 on your last note, ⇪1 on your scratch tabs" },
+            { "⇪3 · ⇪N",    "Open / close the window — ⇪3 on your last note, ⇪N on your scratch tabs" },
             { "📝 SCRATCH NOTES", "Top of the list: every scratch tab, plain or 🗒 Capture or ➕ Append · ⌘T new · the + rows make the other two · ⌘W close · ⌘1–9 · ⌃Tab · history on the right" },
             { "🕸 NOTES", "Under the scratch tabs: every .md note in the vault · the + new note row and ⌘N both name it in the window · typing a name and ⏎ creates it too" },
             { "[[",         "Type [[ and pick a note — [[Name]] links to Name.md, creating it on follow" },

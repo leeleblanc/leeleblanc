@@ -45,6 +45,175 @@ return function(core)
         return { key = key, label = label, state = state, why = why, cost = cost }
     end
 
+    -- =================================================================
+    -- 🔒 SECURE INPUT — the thing that took LL's keyboard for four hours
+    -- =================================================================
+    -- 6.196.0. LL: "Something happened. Nothing works." The Console said
+    -- "All green · 104 ⇪ shortcuts · 0.44s" and meant every word of it.
+    -- Every shortcut was bound. Carbon counted every F18. The event tap
+    -- was enabled with zero failures. And nothing worked, for hours,
+    -- across two versions and a rollback.
+    --
+    -- The cause was OUTSIDE this config entirely: Chrome had left macOS
+    -- SECURE EVENT INPUT switched on. That is the mode a password field
+    -- turns on so no other process can read the keyboard — which is
+    -- exactly what an hs.eventtap is. While it is on:
+    --      · every event tap stops receiving keys (snippets, autocorrect,
+    --        the expander, the key caster, ⇪'s own fallback dispatcher)
+    --      · hotkeys stop dispatching, hyper and plain alike
+    --      · OTHER apps break too — LL's ⇧Return died in Asana, which is
+    --        the tell that separates this from anything we could cause
+    -- and macOS reports NOTHING. No error, no notification, no log line.
+    --
+    -- 🚨 SO THIS IS RULE 7 ("nothing fails silently") APPLIED TO THE ONE
+    -- THING THAT CAN FALSIFY THE ENTIRE BOOT REPORT. A config that says
+    -- "All green" while the keyboard is locked away is not reporting; it
+    -- is guessing and getting lucky. It is not our bug — and saying so
+    -- in one line at boot is the difference between four hours and four
+    -- seconds.
+    --
+    -- WHY ioreg AND NOT AN API. macOS exposes IsSecureEventInputEnabled()
+    -- in Carbon and Hammerspoon does not bridge it, so the PID holding
+    -- it is read where the system publishes it: the IOConsoleUsers
+    -- property, key kCGSSessionSecureInputPID. Reading it is how you
+    -- would do it by hand, and LL did exactly that to find Chrome.
+    --
+    -- 🚨 IT NEVER RUNS ON THE MAIN THREAD. `ioreg -l` is a multi-megabyte
+    -- dump of the whole IO registry and this config has beachballed LL's
+    -- Mac twice already on main-thread work (6.152.x, 6.170.x). So it is
+    -- an hs.task, HELD in _G (an unreferenced task is collected and a
+    -- collected task never calls back — 6.155.0's rule), narrowed with
+    -- -k IOConsoleUsers so the dump is a few lines rather than the lot,
+    -- and it falls back to the broad form only if the narrow one finds
+    -- nothing. A probe that cannot run reports UNKNOWN and costs nothing.
+    local SI_NARROW = { "-n", "Root", "-d1", "-k", "IOConsoleUsers", "-w", "0" }
+    local SI_BROAD  = { "-l", "-w", "0" }
+    _G.secureInput = _G.secureInput
+        or { on = nil, pid = nil, app = nil, at = nil, checks = 0,
+             fails = 0, why = "not probed yet", changes = 0, lastSaid = nil }
+
+    -- PURE, so the gate can prove the parse with no Mac under it. Returns
+    -- pid (number) or nil. A PID of 0 is macOS saying "nobody" and must
+    -- read as OFF, not as "process 0 has your keyboard".
+    function _G.secureInputParse(out)
+        if type(out) ~= "string" then return nil end
+        local pid = tonumber(out:match('kCGSSessionSecureInputPID"?%s*=%s*(%d+)'))
+        if not pid or pid <= 0 then return nil end
+        return pid
+    end
+
+    -- Names the process. hs.application may not know a PID it never saw
+    -- as an app (a helper, a daemon), so an unnamed PID is still reported
+    -- BY NUMBER rather than dropped — "something with pid 94680" is a
+    -- lead; silence is not.
+    local function siName(pid)
+        local name
+        pcall(function()
+            local app = hs.application and hs.application.applicationForPID(pid)
+            if app then name = app:name() end
+        end)
+        return name
+    end
+
+    local function siApply(pid, why)
+        local si   = _G.secureInput
+        local was  = si.on
+        si.on   = pid ~= nil
+        si.pid  = pid
+        si.app  = pid and (siName(pid) or ("pid " .. pid)) or nil
+        si.at   = os.time()
+        si.why  = why or (pid and "held by " .. tostring(si.app) or "clear")
+        si.checks = si.checks + 1
+        -- Only a CHANGE is announced. This runs on a timer forever, and a
+        -- line every minute saying the same thing is how a real warning
+        -- gets scrolled past and then ignored.
+        if was ~= nil and was ~= si.on then
+            si.changes = si.changes + 1
+            if si.on then
+                print("🔒 SECURE INPUT IS ON — " .. tostring(si.app) .. " has locked "
+                      .. "the keyboard. Snippets, autocorrect and MOST ⇪ shortcuts "
+                      .. "will do nothing until it lets go. Not a fault in this "
+                      .. "config: quit that app, or leave its password field.")
+                if _G.notices then
+                    pcall(_G.notices.record, "runtime", "secure input",
+                          "on — " .. tostring(si.app))
+                    pcall(_G.notices.tell, "🔒 " .. tostring(si.app)
+                          .. " has locked the keyboard",
+                          "Secure Input is on — most shortcuts are dead until it stops",
+                          { key = "secureinput:on", every = 300 })
+                end
+            else
+                print("🔓 Secure Input released — shortcuts, snippets and autocorrect "
+                      .. "are live again.")
+            end
+        end
+        return si
+    end
+
+    -- ONE probe in flight at a time (the 6.170.1 rule for any external
+    -- command on a timer): a slow ioreg under load must not stack up.
+    local siBusy = false
+    local function siProbe(done)
+        if siBusy then if done then done(_G.secureInput) end return false end
+        if not (hs.task and hs.task.new) then
+            _G.secureInput.why = "hs.task is unavailable — cannot probe"
+            _G.secureInput.fails = _G.secureInput.fails + 1
+            if done then done(_G.secureInput) end
+            return false
+        end
+        siBusy = true
+        local function finish(pid, why)
+            siBusy = false
+            siApply(pid, why)
+            if done then pcall(done, _G.secureInput) end
+        end
+        local function run(args, andThen)
+            local ok = pcall(function()
+                _G.secureInputTask = hs.task.new("/usr/sbin/ioreg", function(_, so)
+                    andThen(_G.secureInputParse(so))
+                end, args):start()
+            end)
+            if not ok then
+                _G.secureInput.fails = _G.secureInput.fails + 1
+                finish(nil, "ioreg could not be run")
+            end
+        end
+        -- Narrow first. The broad form is the fallback and runs ONLY when
+        -- the narrow one came back with nothing, so the expensive dump is
+        -- not the normal path.
+        run(SI_NARROW, function(pid)
+            if pid then return finish(pid) end
+            run(SI_BROAD, function(pid2) finish(pid2) end)
+        end)
+        return true
+    end
+    _G.secureInputCheck = siProbe
+
+    function _G.secureInputReport()
+        local si = _G.secureInput
+        local L = { "🔒 SECURE INPUT — can anything else read the keyboard?" }
+        if si.on == nil then
+            L[#L + 1] = "   state  : UNKNOWN — " .. tostring(si.why)
+        elseif si.on then
+            L[#L + 1] = "   state  : ON — " .. tostring(si.app) .. " holds it"
+            L[#L + 1] = "   costs  : every event tap (snippets, autocorrect, the "
+                        .. "expander, ⇪'s fallback) and most hotkeys. Other apps too."
+            L[#L + 1] = "   fix    : quit that app, or leave the password field it "
+                        .. "is sitting on. Nothing here needs changing."
+        else
+            L[#L + 1] = "   state  : off — nothing is holding the keyboard"
+        end
+        L[#L + 1] = string.format("   probes : %d checked · %d failed · %d change(s) seen",
+            si.checks or 0, si.fails or 0, si.changes or 0)
+        if si.at then
+            L[#L + 1] = "   last   : " .. os.date("%Y-%m-%d %H:%M:%S", si.at)
+        end
+        -- ONE string, one print: core/console.lua's repeat gate eats rows
+        -- from a report printed line by line (6.179.1).
+        print(table.concat(L, "\n"))
+        return si
+    end
+
     function _G.capabilities()
         local caps = {}
 
@@ -101,6 +270,32 @@ return function(core)
                             "Window Arranger, App Peek and app summon cannot move or hide "
                             .. "other apps' windows. Hotkeys, pickers, tracking and Asana "
                             .. "all still work."))
+
+        -- ---- secure input (6.196.0) ---------------------------------
+        -- 🚨 THIS ONE CAN FALSIFY EVERY ROW ABOVE IT. Accessibility can be
+        -- granted, the remap can be on, every module can be loaded, and
+        -- with Secure Input held by some other app NONE of it reaches the
+        -- keyboard. So it is reported even when off, and its cost names
+        -- the symptom LL actually saw rather than the mechanism.
+        local si = _G.secureInput or {}
+        if si.on == true then
+            caps[#caps + 1] = cap("secureinput", "Secure Input", "OFF",
+                "ON — " .. tostring(si.app) .. " has locked the keyboard",
+                "event taps receive nothing: snippets, autocorrect, the "
+                .. "expander and ⇪'s fallback dispatcher are all dead, and "
+                .. "most hotkeys will not dispatch. OTHER APPS ARE AFFECTED "
+                .. "TOO — that is how you tell it from a fault in here. Quit "
+                .. "that app or leave its password field; nothing in this "
+                .. "config needs changing.")
+        elseif si.on == false then
+            caps[#caps + 1] = cap("secureinput", "Secure Input", "ON",
+                "off — nothing else is holding the keyboard", nil)
+        else
+            caps[#caps + 1] = cap("secureinput", "Secure Input", "UNKNOWN",
+                tostring(si.why or "not probed yet"),
+                "if shortcuts and snippets are dead everywhere at once, run "
+                .. "_G.secureInputReport() — that is the state this cannot see")
+        end
 
         -- ---- the hyper key ------------------------------------------
         -- hidutil property --set is per-user and needs no password, but a
@@ -215,6 +410,37 @@ return function(core)
                  .. "for exactly what that costs you.")
         return table.concat(lines, "\n")
     end
+
+    -- 🔒 THE WATCH. Secure Input comes and goes — a password field takes
+    -- it and gives it back — so one reading at boot is a snapshot, not an
+    -- answer. The timer is HELD in _G (an unreferenced hs.timer is
+    -- collected and a collected timer never fires) and only ever prints a
+    -- CHANGE, so a quiet Mac stays quiet.
+    --
+    -- The FIRST probe runs a few seconds after boot rather than on the
+    -- boot path: this is an external command, and the one thing this
+    -- config will not spend is main-thread time during startup.
+    _G.secureInputEvery = tonumber(_G.secureInputEvery) or 60
+    pcall(function()
+        _G.secureInputFirstTimer = hs.timer.doAfter(3, function()
+            _G.secureInputCheck(function(si)
+                -- The boot line. A clear Mac says NOTHING — the boot report
+                -- is already long and "everything is normal" is not news.
+                -- A locked one says so before anything else can mislead.
+                if si.on then
+                    print("🔒 SECURE INPUT IS ON at boot — " .. tostring(si.app)
+                          .. " has locked the keyboard. Snippets, autocorrect and "
+                          .. "most ⇪ shortcuts will do nothing until it lets go. "
+                          .. "This is NOT a fault in this config — quit that app, "
+                          .. "or leave the password field it is sitting on. "
+                          .. "_G.secureInputReport() has the detail.")
+                end
+            end)
+        end)
+        _G.secureInputTimer = hs.timer.doEvery(_G.secureInputEvery, function()
+            _G.secureInputCheck()
+        end)
+    end)
 
     return { capabilities = _G.capabilities, report = _G.capabilityReport }
 end

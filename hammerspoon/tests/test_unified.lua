@@ -1,5 +1,5 @@
 -- =====================================================================
--- test_unified.lua — Unified Search's Lua half (⇪space)
+-- test_unified.lua — Unified Search's Lua half (⇪D since 6.196.0)
 -- =====================================================================
 --     lua5.4 test_unified.lua [/path/to/hammerspoon]
 --
@@ -299,9 +299,16 @@ check("module loads and has setup()", type(M.setup) == "function")
 M.setup(CORE)
 local U = _G.unifiedSearch
 check("module table exported", type(U) == "table")
-check("⇪space is claimed", type(HYPER["|space"]) == "function")
-check("…and ⇪⇧space (the screenshot view)",
+-- 6.196.0 — LL: "swap hyper+space as app launcher, hyper+d Unified
+-- search." The PLAIN key moved to ⇪D; the shifted screenshot view did
+-- NOT follow it, because ⇪⇧D must stay unclaimed so it forwards to the
+-- diagnostic report's global chord. Both halves are asserted by name.
+check("⇪D is claimed", type(HYPER["|d"]) == "function")
+check("…and ⇪⇧space still opens the screenshot view", 
       type(HYPER["shift|space"]) == "function")
+check("🚨 …and ⇪⇧D is NOT claimed — it forwards as ⌘⇧⌃⌥D to the diagnostic\n      report, and a bind here would take it silently (a forwarded chord\n      is not a bind, so the collision auditor cannot see one stolen)",
+      HYPER["shift|d"] == nil)
+check("…and the launcher's ⇪space is left alone", HYPER["|space"] == nil)
 check("…and ⇪⇧/ — the Tool Picker's key still works, and lands where its "
       .. "content moved to (6.104.0)", type(HYPER["shift|/"]) == "function")
 check("unified.show is provided", type(PROVIDED["unified.show"]) == "function")

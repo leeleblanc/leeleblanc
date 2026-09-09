@@ -5,6 +5,72 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.196.0 — 🔒 WHEN SOMETHING ELSE HAS YOUR KEYBOARD, THIS SAYS SO:
+  🔒 LL: "Something happened. Nothing works." It took four hours, two
+     versions and a rollback to find, and NONE of it was this config.
+     Chrome had left macOS SECURE EVENT INPUT switched on — the mode a
+     password field uses so no other process can read the keyboard,
+     which is exactly what an hs.eventtap is. Every tap goes deaf,
+     hotkeys stop dispatching, and OTHER APPS break too (LL's ⇧Return
+     died in Asana, which is the tell). macOS reports none of it.
+     Meanwhile the boot line said "All green · 104 ⇪ shortcuts · 0.44s"
+     and meant every word: the shortcuts WERE bound, Carbon WAS
+     counting every F18, the tap WAS enabled with zero failures.
+     🚨 That is rule 7 broken by something outside the config — the one
+     state that can falsify every other row of the report. So it is
+     read now, where macOS publishes it (kCGSSessionSecureInputPID, via
+     ioreg in a HELD hs.task, never on the main thread, narrowed with
+     -k so it is a few lines and not a multi-megabyte dump). A boot
+     line NAMES the app holding it, a ⇪⇧D row names it, the watch
+     announces it coming and going — and only a CHANGE is printed, so a
+     healthy Mac stays silent. _G.secureInputReport().
+  🎹 AND THE ACCESSIBILITY ROW STOPPED UNDERSELLING ITSELF. It said
+     "window features inactive", which sounds like a few window tricks.
+     What is actually off is EVERY EVENT TAP — hs.eventtap cannot even
+     be created — so snippets, autocorrect, the key caster and ⇪'s own
+     fallback dispatcher are gone. LL read straight past that line on a
+     boot where most of the config was dead, because it did not sound
+     like that. It now says so, and says to QUIT AND RELAUNCH rather
+     than reload: taps are built at launch.
+  🔍 THE CHEAT SHEET IS AUDITED BY THE GATE (LL: "Audit the cheat sheet
+     for incorrect shortcuts"). "A stale key on the sheet IS a broken
+     feature" has been a hand-kept promise since 6.181.0, which is not
+     how this project keeps promises. Every module's own cheatsheet key
+     column is now joined to the module that actually claimed the key,
+     both sides from one real load. It found a live one immediately:
+     the Vault's sheet still offered ⇪1 for the scratch tabs, and ⇪1
+     became mouse-follows-focus in 6.194.0. 🔑 The rule that makes it
+     trustworthy: a key column that is ONLY combos is a promise and is
+     audited; one with a word in it ("via ⇪R", "vs ⇪X") is a pointer at
+     a neighbouring tool and is not. It flags MISATTRIBUTION, never
+     absence — §0.4's migration map binds a dozen older keys another
+     way, and auditing "is it bound at all" would report every one of
+     them as dead until someone switched the check off.
+  🔁 ⇪space AND ⇪D SWAPPED (LL's call): ⇪space is the app launcher, ⇪D
+     is unified search. 🚨 The SHIFTED half deliberately did not follow
+     it — ⇪⇧D must stay unclaimed so it forwards as ⌘⇧⌃⌥D to the
+     diagnostic report every boot line names, and a bind there would
+     have taken it SILENTLY (a forwarded chord is not a bind, so the
+     collision auditor cannot see one stolen). The screenshot view
+     keeps ⇪⇧space, which the launcher's arrival left free.
+  ⌨️ ⇪. GAINED "?" — the same scan, the same rows, filtered to the menu
+     items that HAVE a keyboard shortcut. LL asked for a shortcut
+     reader on a key of its own; the shortcut column was already on
+     every row since the module was written, so this is one filter and
+     one prefix rather than a second AX menu scanner (6.182.0's rule: a
+     tool inside another tool's window does not get its own key).
+  🖥 A REMEMBERED CHEAT SHEET POSITION IS NOW AN OFFSET INTO ITS SCREEN,
+     not a point on the desktop. LL: "the cheat sheet appears on the
+     last monitor it appeared on and not the active application on
+     another monitor where I am now working." It already resolved the
+     front app's screen and then overwrote that with absolute
+     coordinates. It stays where you put it, on the monitor you are on.
+  🧪 test_diagnostics 537 -> 548 (the parser proven against LL's OWN
+     ioreg line, and a held lock reported as a capability LOST, which
+     is the inversion most easily got backwards), test_integration
+     209 -> 211, test_menu_search 70 -> 74, test_cheatsheet 206 -> 209.
+     8,149 -> 8,169 checks, seventy-four stages.
+
 NEW IN 6.195.0 — ➕ A PLUS FOR A NEW NOTE, AND THE ARROWS COVER GROUND:
   ➕ LL: "can I have a way to quickly create a Hammer-sidian note like I
      do with the notepad section where I can click a +/plus to generate a

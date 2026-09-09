@@ -272,6 +272,38 @@ check("AXEnabled UNSET is treated as ENABLED",
 check("a checked item is recorded as checked",
       byLeaf["Show Ruler"] and byLeaf["Show Ruler"].mark == true)
 
+-- =====================================================================
+-- 6.196.0 — "?" SHOWS ONLY WHAT YOU CAN PRESS
+-- =====================================================================
+-- LL: "a shortcut reader for an active app ... what can I press in this
+-- app." The shortcut column already existed; the filter did not.
+do
+    local all  = ms.choicesFrom(rows)
+    local only = ms.choicesFrom(rows, true)
+    local function has(list, leaf)
+        for _, c in ipairs(list) do
+            if c.text:find(leaf, 1, true) then return true end
+        end
+        return false
+    end
+    -- 🚨 THE MUTATION THIS EXISTS TO CATCH is a filter that filters
+    -- nothing — the 6.187.0 rule again. Asserting "only has some rows"
+    -- would pass with the parameter ignored entirely, so it asserts the
+    -- filtered list is SMALLER and that a specific keyless item is gone.
+    check("? shows FEWER rows than the full list — a filter that returns "
+          .. "everything is the mutation this check exists to catch",
+          #only < #all, #only .. " of " .. #all)
+    check("...and every row it keeps really has a shortcut", (function()
+        for _, c in ipairs(only) do
+            if not (c.subText or ""):find("·", 1, true) then return false end
+        end
+        return #only > 0
+    end)())
+    check("...a keyless item is dropped", not has(only, "Export As"))
+    check("...and the unfiltered list still has it, so the filter is the "
+          .. "only difference between the two views", has(all, "Export As"))
+end
+
 local choices = ms.choicesFrom(rows)
 check("by default the disabled item is still OFFERED", (function()
     for _, c in ipairs(choices) do

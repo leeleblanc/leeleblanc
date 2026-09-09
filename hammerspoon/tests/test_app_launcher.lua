@@ -158,10 +158,17 @@ out("── test_app_launcher (module at " .. HS .. ")\n")
 out("   1. module contract & key claims\n")
 boot(personalMac)
 check("module name", M.name == "App Launcher", M.name)
-check("cheatsheet title names ⇪D", (M.cheatsheet.title or ""):find("⇪D", 1, true))
-check("⇪D claimed", type(HYPER["|d"]) == "function")
+-- 6.196.0 — LL swapped these: the launcher is ⇪space, unified search
+-- took ⇪D. Rewritten to the NEW contract rather than loosened; a check
+-- that stops naming a specific key stops being able to catch the next
+-- move.
+check("cheatsheet title names ⇪space",
+      (M.cheatsheet.title or ""):find("⇪space", 1, true))
+check("⇪space claimed", type(HYPER["|space"]) == "function")
+check("...and ⇪D is NOT — unified search has it now, and a launcher that\n      still answered there would be a silent double-claim",
+      HYPER["|d"] == nil)
 local n = 0 ; for _ in pairs(HYPER) do n = n + 1 end
-check("…and ONLY ⇪D — ⇪⇧D belongs to Diagnostics", n == 1, n)
+check("…and ONLY ⇪space — ⇪⇧space is unified search's screenshot view", n == 1, n)
 check("service appLauncher.show provided",  type(PROVIDED["appLauncher.show"]) == "function")
 check("service appLauncher.list provided",  type(PROVIDED["appLauncher.list"]) == "function")
 check("warm() defined for watchers + first scan", type(M.warm) == "function")

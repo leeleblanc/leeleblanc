@@ -1821,7 +1821,11 @@ if capChunk then
     -- the next profile, reporting brew ON for a Mac that has none. The
     -- same trap that makes `#` unreliable on a list with holes.
     for _, k in ipairs({ "hyperRemapOK", "hyperRemapWhy",
-                         "ocrShortcutAvailable", "brewPathInUse" }) do
+                         "ocrShortcutAvailable", "brewPathInUse",
+                         -- 6.196.0 — secure input is state like the rest of
+                         -- them, and a leaked reading from the previous Mac
+                         -- is the exact trap the loop above exists for.
+                         "secureInput" }) do
       _G[k] = nil
     end
     _G.moduleLoaded, _G.moduleFailed = 18, 0
@@ -1840,8 +1844,10 @@ if capChunk then
   -- ---- the personal Mac: everything on ------------------------------
   AX = true
   local home, homeReport = asMac({}, { hyperRemapOK = true, ocrShortcutAvailable = true,
-                                       brewPathInUse = "/opt/homebrew/bin/brew" })
-  for _, k in ipairs({ "cloud", "backup", "asana", "ax", "hyper", "ocr", "brew", "modules" }) do
+                                       brewPathInUse = "/opt/homebrew/bin/brew",
+                                       secureInput = { on = false, checks = 1 } })
+  for _, k in ipairs({ "cloud", "backup", "asana", "ax", "hyper", "ocr", "brew",
+                       "modules", "secureinput" }) do
     check("personal Mac — " .. k .. " reports ON", home[k] and home[k].state == "ON",
           home[k] and home[k].state)
   end
@@ -1849,6 +1855,55 @@ if capChunk then
         homeReport:find("Everything this config can do", 1, true) ~= nil)
   check("...with no cost lines, because nothing is degraded",
         homeReport:find("↳", 1, true) == nil)
+
+  -- ---- 🔒 secure input: three states, and the ON one is the point ----
+  -- 6.196.0. Chrome held Secure Input for four hours while every other
+  -- row on this report said ON, so this row is the one that has to be
+  -- right in all three of its states — and "ON" here means the CAPABILITY
+  -- is off, which is the inversion most likely to be got backwards.
+  do
+    local si = asMac({}, { hyperRemapOK = true, ocrShortcutAvailable = true,
+                           brewPathInUse = "/b",
+                           secureInput = { on = true, app = "Google Chrome" } })
+    check("🚨 secure input HELD reports the capability as OFF — the row is "
+          .. "'can anything else read the keyboard', so a held lock is a "
+          .. "capability lost, not gained",
+          si.secureinput and si.secureinput.state == "OFF",
+          si.secureinput and si.secureinput.state)
+    check("...and it NAMES the app, which is the whole reason it exists — "
+          .. "'something has your keyboard' is not actionable",
+          (si.secureinput.why or ""):find("Google Chrome", 1, true) ~= nil,
+          si.secureinput.why)
+    check("...and its cost says other apps are affected too — that is how "
+          .. "LL can tell this from a fault in here",
+          (si.secureinput.cost or ""):find("OTHER APPS", 1, true) ~= nil)
+
+    -- ---- the parser, against LL's own ioreg output ----------------
+    -- 🚨 THIS IS THE REAL LINE from LL's Mac on 2026-09-09, trimmed only
+    -- of the fields around it. A parser tested against a string invented
+    -- here proves the invention, not the format.
+    local REAL = '"IOConsoleUsers" = ({"kCGSSessionOnConsoleKey"=Yes,'
+      .. '"kCGSSessionUserNameKey"="leeleblanc","kCGSSessionSecureInputPID"=94680,'
+      .. '"kCGSSessionUserIDKey"=501})'
+    check("🔒 the parser finds the PID in real ioreg output",
+          _G.secureInputParse(REAL) == 94680, _G.secureInputParse(REAL))
+    check("🚨 ...and a PID of 0 reads as NOBODY, not as process 0 — that is "
+          .. "macOS saying the lock is clear, and reporting it as held "
+          .. "would cry wolf on every healthy Mac forever",
+          _G.secureInputParse('"kCGSSessionSecureInputPID"=0,') == nil)
+    check("...output with no such key reads as clear",
+          _G.secureInputParse('"kCGSSessionUserIDKey"=501') == nil)
+    check("...and a failed command (nil, not a string) never throws",
+          _G.secureInputParse(nil) == nil)
+
+    local un = asMac({}, { hyperRemapOK = true, ocrShortcutAvailable = true,
+                           brewPathInUse = "/b" })
+    check("...and an unprobed Mac reports UNKNOWN, never a confident 'off' "
+          .. "— the probe is async and a guess here would be the same lie "
+          .. "the boot line told for four hours",
+          un.secureinput and un.secureinput.state == "UNKNOWN",
+          un.secureinput and un.secureinput.state)
+  end
 
   -- ---- the work Mac: no admin, no brew, no OneDrive, no remap -------
   AX = false

@@ -237,10 +237,17 @@ function M.setup(core)
     -- The menu PATH is a table, so it stays here in Lua and the row carries
     -- a plain integer index into ms.rows. Same rule, same reason, as the
     -- snippet chooser (text_expander 6.109.0).
-    function ms.choicesFrom(rows)
+    -- 6.196.0 — LL: "a shortcut reader for an active app ... what can I
+    -- press in this app." The shortcut has been on every row since this
+    -- module was written; what was missing was the ability to see ONLY
+    -- the rows that have one. onlyShortcuts is that filter, and it is a
+    -- PARAMETER rather than a second row builder so the two views cannot
+    -- drift into showing different things about the same menu.
+    function ms.choicesFrom(rows, onlyShortcuts)
         local choices = {}
         for i, r in ipairs(rows) do
-            if r.enabled or not ms.hideDisabled then
+            if (r.enabled or not ms.hideDisabled)
+               and not (onlyShortcuts and (r.shortcut or "") == "") then
                 local leaf = r.path[#r.path]
                 local trail = {}
                 for n = 1, #r.path - 1 do trail[#trail + 1] = r.path[n] end
@@ -309,8 +316,29 @@ function M.setup(core)
             end)
         end
         ms.pickApp = app
+        ms.allRows = rows
+        -- ⌨️ TYPE "?" FOR THE SHORTCUTS. A leading question mark rebuilds
+        -- the list as only the items that HAVE a key, and anything after
+        -- it filters those as normal ("?win" → the windowing shortcuts).
+        --
+        -- 🔒 WHY A PREFIX AND NOT A SECOND HOTKEY. A tool that lives inside
+        -- another tool's window does not get its own hyper key (6.182.0) —
+        -- and this is the same scan, the same rows and the same picker, so
+        -- a second key would be a second door onto one room. It is also
+        -- why the filter re-uses choicesFrom rather than building rows of
+        -- its own.
+        pcall(function()
+            ms.chooser:queryChangedCallback(function(q)
+                local want = (tostring(q or ""):sub(1, 1) == "?")
+                if want == ms.showingShortcuts then return end
+                ms.showingShortcuts = want
+                ms.chooser:choices(ms.choicesFrom(ms.allRows or {}, want))
+            end)
+        end)
+        ms.showingShortcuts = false
         ms.chooser:choices(choices)
-        ms.chooser:placeholderText(("%s — %d menu items, type to filter")
+        ms.chooser:placeholderText(("%s — %d menu items · type to filter, "
+                                    .. "or ? for just the shortcuts")
                                    :format(app:name(), #choices))
         ms.chooser:query("")
         -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the

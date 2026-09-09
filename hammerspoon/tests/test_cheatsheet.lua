@@ -1547,9 +1547,48 @@ do
   local far = loadSheet()
   CLAMPED = {}
   far.show()
-  check("a position from a monitor you no longer have is CLAMPED, not obeyed",
-        #CLAMPED > 0 and canvasRect.x <= SCR.x + SCR.w, canvasRect and canvasRect.x)
+  -- 6.196.0 — REWRITTEN TO THE NEW CONTRACT, not loosened. Until this
+  -- release a stored position was absolute, so one belonging to another
+  -- display was CLAMPED — dragged back onto an edge of whichever screen
+  -- was in front. LL: "the cheat sheet appears on the last monitor it
+  -- appeared on and not the active application on another monitor where
+  -- I am now working." A position is now an offset within its screen, and
+  -- a legacy absolute one that does not fall on the screen being opened on
+  -- is DROPPED for the centre rather than dragged to a corner of it. The
+  -- promise that matters is unchanged and still asserted: it is never
+  -- restored somewhere you cannot see.
+  check("a legacy position from a monitor you no longer have is not obeyed "
+        .. "— the sheet opens on the screen in front of you",
+        canvasRect.x >= SCR.x and canvasRect.x < SCR.x + SCR.w
+        and canvasRect.y >= SCR.y and canvasRect.y < SCR.y + SCR.h,
+        canvasRect and (canvasRect.x .. "," .. canvasRect.y))
   far.hide()
+
+  -- ---- 🖥 the offset really follows the screen (6.196.0) ------------
+  -- THE MUTATION THIS CATCHES: storing dx/dy and then still drawing at
+  -- the absolute x/y. Both are kept in the stored table on purpose (an
+  -- older build must still find a position it understands), so a check
+  -- that only asserted "it opened somewhere sensible" would pass with
+  -- the offset ignored entirely. This moves the SCREEN out from under a
+  -- fixed offset and demands the sheet move with it.
+  do
+    SETTINGS["cheatSheet.pos"] = { x = 40, y = 60, dx = 40, dy = 60 }
+    local was = { x = SCR.x, y = SCR.y }
+    local rel = loadSheet()
+    SCR.x, SCR.y = was.x + 2560, was.y      -- LL's second monitor
+    rel.show()
+    check("🚨 a remembered position is an offset INTO the screen, so the "
+          .. "sheet opens on the monitor the front app is on — this is "
+          .. "LL's 'it appears on the last monitor, not the one I am "
+          .. "working on'",
+          canvasRect.x == SCR.x + 40 and canvasRect.y == SCR.y + 60,
+          canvasRect.x .. "," .. canvasRect.y)
+    check("...and the offset from the edge is exactly the one that was "
+          .. "stored, so it stays where you put it",
+          canvasRect.x - SCR.x == 40 and canvasRect.y - SCR.y == 60)
+    rel.hide()
+    SCR.x, SCR.y = was.x, was.y
+  end
   SETTINGS = {}
 end
 

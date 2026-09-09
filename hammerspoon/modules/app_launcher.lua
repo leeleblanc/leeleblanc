@@ -72,9 +72,9 @@ local M = {
     order = 7.5,
     family = "find",               -- with App Peek (7) and the ⌥Tab switcher (8)
     cheatsheet = {
-        title = "🚀 APP LAUNCHER (⇪D — every installed app, by name)",
+        title = "🚀 APP LAUNCHER (⇪space — every installed app, by name)",
         entries = {
-            { "⇪D",    "Type an app's name, ⏎ launches it (focuses if running)" },
+            { "⇪space", "Type an app's name, ⏎ launches it (focuses if running)" },
             { "scope", "/Applications · ~/Applications · /System/Applications" },
             { "",      "…each one folder deep: Utilities, vendor folders" },
             { "files", "3+ letters: indexed FILES list under the apps — ⏎ opens" },
@@ -89,7 +89,12 @@ function M.setup(core)
 
     -- ✏️ EDIT HERE ---------------------------------------------------------
     launcher.enabled    = true
-    launcher.key        = "d"      -- ⇪D. No ⇪⇧D — Diagnostics owns it.
+    -- 6.196.0 — ⇪space (was ⇪D, which unified search now has). LL asked
+    -- for the swap: the launcher is the thing reached for most often, and
+    -- space is the key the hand finds without aiming. No ⇪⇧space — that
+    -- is unified search's screenshots view, and no ⇪⇧D either: the
+    -- diagnostic report needs that combo left unclaimed so it forwards.
+    launcher.key        = "space"  -- ⇪space
     launcher.cacheSecs  = 300      -- long on purpose: the pathwatchers
                                    -- invalidate on real change, so this is
                                    -- only the backstop for missed events

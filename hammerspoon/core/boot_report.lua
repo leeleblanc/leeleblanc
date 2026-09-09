@@ -87,8 +87,22 @@ return function(core)
             .. ((_G.hyperConflictCount or 0) == 0 and "no conflicts"
                 or (_G.hyperConflictCount .. " CONFLICTS — see warnings above")),
             (_G.hyperConflictCount or 0) > 0 },
+        -- 🚨 6.196.0 — THIS ROW USED TO UNDERSTATE ITSELF BADLY. It said
+        -- "window features inactive", which reads as a handful of window
+        -- tricks being off. What is actually off is EVERY EVENT TAP in the
+        -- config: hs.eventtap cannot even be created without Accessibility,
+        -- so snippets, autocorrect, the key caster and ⇪'s own fallback
+        -- dispatcher are all gone, and the Console fills with "Unable to
+        -- create eventtap". LL read past this line on a boot where most of
+        -- the config was dead, because the line did not sound like that.
+        -- A warning that undersells what it is warning about is worse than
+        -- none: it is read, believed, and dismissed.
         { "Access", axOK and "Accessibility granted"
-            or "NOT granted — window features inactive (System Settings → Privacy & Security → Accessibility)",
+            or "NOT granted — MOST OF THIS CONFIG IS OFF: no event taps at all "
+               .. "(snippets, autocorrect, key caster, ⇪'s fallback), and no window "
+               .. "features. Grant it in System Settings → Privacy & Security → "
+               .. "Accessibility, then QUIT AND RELAUNCH — taps are built at launch, "
+               .. "so a reload after granting is not enough.",
             not axOK },
     }
 

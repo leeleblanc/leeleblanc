@@ -197,7 +197,19 @@ return function(core)
         if not x or not y then return nil end
         if x ~= x or y ~= y then return nil end
         if math.abs(x) > 100000 or math.abs(y) > 100000 then return nil end
-        return { x = x, y = y }
+        -- 6.196.0 — dx/dy is the position RELATIVE to the screen it was set
+        -- on, and it rides through the same guards as x/y for the same
+        -- reason. Optional: a position stored before this release has only
+        -- the absolute pair, and must stay readable rather than being
+        -- thrown away (that would silently re-centre a sheet LL had placed
+        -- deliberately).
+        local out = { x = x, y = y }
+        local dx, dy = tonumber(p.dx), tonumber(p.dy)
+        if dx and dy and dx == dx and dy == dy
+           and math.abs(dx) <= 100000 and math.abs(dy) <= 100000 then
+            out.dx, out.dy = dx, dy
+        end
+        return out
     end
 
     function cheatSheet.savePos(p)
@@ -1466,10 +1478,37 @@ return function(core)
             w = panelW,
             h = panelH,
         }
+        -- 🖥 6.196.0 — A REMEMBERED POSITION IS RELATIVE TO A SCREEN, NOT
+        -- TO THE DESKTOP. LL: "the cheat sheet appears on the last monitor
+        -- it appeared on and not the active application on another monitor
+        -- where I am now working." Everything above already resolves sf to
+        -- the frontmost app's screen — and then this block overwrote it
+        -- with absolute coordinates from wherever the sheet was last
+        -- dragged, which on a two-monitor Mac is another display entirely.
+        -- Storing the OFFSET WITHIN the screen keeps both promises: the
+        -- sheet stays where LL put it, on the monitor he is working on.
         if cheatSheet.pos then
-            local p2 = _G.clampToScreen and _G.clampToScreen(cheatSheet.pos, panelW, panelH)
-                       or cheatSheet.pos
-            rect.x, rect.y = p2.x, p2.y
+            local want
+            if cheatSheet.pos.dx and cheatSheet.pos.dy then
+                want = { x = sf.x + cheatSheet.pos.dx, y = sf.y + cheatSheet.pos.dy }
+            else
+                -- LEGACY: a position stored before this release is absolute
+                -- and knows no screen. If it lands on the screen we are
+                -- opening on it is honoured exactly as before; if it points
+                -- at a different display it is DROPPED in favour of the
+                -- centre here, which is the bug being fixed. It is rewritten
+                -- as an offset the first time the sheet is dragged.
+                local p = cheatSheet.pos
+                if p.x >= sf.x and p.x < sf.x + sf.w
+                   and p.y >= sf.y and p.y < sf.y + sf.h then
+                    want = { x = p.x, y = p.y }
+                end
+            end
+            if want then
+                local p2 = _G.clampToScreen and _G.clampToScreen(want, panelW, panelH)
+                           or want
+                rect.x, rect.y = p2.x, p2.y
+            end
         end
 
         local canvas = hs.canvas.new(rect)
@@ -1486,7 +1525,11 @@ return function(core)
         -- A click still does not CLOSE it, which was the actual hazard.
         if _G.makeCanvasDraggable then
             _G.makeCanvasDraggable(canvas, "cheat sheet", function(f)
-                cheatSheet.pos = { x = f.x, y = f.y }
+                -- Both forms are stored: the offset is what is USED, and
+                -- the absolute pair stays so an older build reading these
+                -- settings still finds a position it understands.
+                cheatSheet.pos = { x = f.x, y = f.y,
+                                   dx = f.x - sf.x, dy = f.y - sf.y }
                 cheatSheet.savePos(cheatSheet.pos)
                 -- 🖱 6.138.0 — THE WHEEL'S HIT BOX MOVES WITH THE PANEL.
                 -- wheelHandler hit-tests st.rect on every scroll, and

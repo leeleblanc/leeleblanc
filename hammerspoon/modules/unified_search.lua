@@ -1,5 +1,5 @@
 -- =====================================================================
--- MODULE: UNIFIED SEARCH (⇪space) — one typed search over EVERY store
+-- MODULE: UNIFIED SEARCH (⇪D) — one typed search over EVERY store
 -- this config keeps. 6.89.0
 -- =====================================================================
 -- LL: "I need one unified clipboard picker where I can type and search
@@ -65,9 +65,9 @@ local M = {
     order = 14.4,
     family = "find",
     cheatsheet = {
-        title = "🔎 UNIFIED SEARCH (⇪space — everything, one search)",
+        title = "🔎 UNIFIED SEARCH (⇪D — everything, one search)",
         entries = {
-            { "⇪space",  "Search EVERY store: clipboard · commands · screenshots · notes · Asana · OCR · docs · file moves · pad · Chrome · every TOOL" },
+            { "⇪D",      "Search EVERY store: clipboard · commands · screenshots · notes · Asana · OCR · docs · file moves · pad · Chrome · every TOOL" },
             { "⇪⇧space", "Same panel opened as the BIG-thumbnail screenshot browser (@shots)" },
             { "⇪⇧/",     "Same panel opened on the TOOLS (@tool) — every shortcut, searchable" },
             { "type",    "Every word must match · a @tag word pins one source — each section header shows its tag" },
@@ -88,7 +88,22 @@ function M.setup(core)
 
     -- ✏️ EDIT HERE ---------------------------------------------------------
     uni.enabled = true
-    uni.key     = "space"    -- ⇪space search · ⇪⇧space = screenshots view
+    -- 6.196.0 — LL: "swap hyper+space as app launcher, hyper+d Unified
+    -- search." ⇪space is the key a hand reaches for without deciding, so
+    -- it goes to the launcher (the most-pressed thing here) and search
+    -- moves to ⇪D, which it takes over from the launcher.
+    --
+    -- 🚨 THE SHIFTED HALF DOES NOT FOLLOW IT, and that is deliberate:
+    -- ⇪⇧D IS THE DIAGNOSTIC REPORT. It is unclaimed on purpose so it
+    -- forwards as ⌘⇧⌃⌥D to the plain hotkey in core/diagnostics.lua —
+    -- every boot line in this config tells LL to press it. Binding the
+    -- screenshots view there would have taken it silently, because a
+    -- forwarded chord is not a bind and the collision auditor cannot see
+    -- one being stolen. So the screenshots view keeps ⇪⇧space, which the
+    -- launcher's arrival leaves free. Two keys for one box is the smaller
+    -- price.
+    uni.key      = "d"        -- ⇪D  search everything
+    uni.shotsKey = "space"    -- ⇪⇧space  the same box, pinned to @shots
     uni.toolKey = "/"        -- ⇪⇧/ opens the same box pinned to @tool
     uni.width, uni.height = 840, 700
     uni.thumbH  = 84         -- px — a chooser row renders ≈40; this is >2×
@@ -1390,7 +1405,7 @@ if (q.focus) q.focus();
     if uni.enabled then
         core.hyperAddShortcut({}, uni.key, function() uni.toggle() end,
                               "unified search")
-        core.hyperAddShortcut({ "shift" }, uni.key,
+        core.hyperAddShortcut({ "shift" }, uni.shotsKey,
                               function() uni.toggle("@shots ") end,
                               "unified search — screenshots")
         -- ⇪⇧/ KEPT AS A DOOR, NOT A SECOND BOX (6.104.0). The standalone

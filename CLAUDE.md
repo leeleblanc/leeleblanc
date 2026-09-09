@@ -297,6 +297,60 @@ store that failed to load must not erase its own backup. The VAULT
 stays in OneDrive regardless (Obsidian opens that folder on both Macs).
 NOT aliases (io.open/rsync/grep don't follow them) and NOT symlinks
 (OneDrive won't sync through one).
+🔒 SECURE INPUT CAN FALSIFY THE WHOLE BOOT REPORT (6.196.0,
+core/capabilities.lua): macOS SECURE EVENT INPUT — a password field's
+lock — stops EVERY event tap receiving keys and stops hotkeys
+dispatching, system-wide, with no error anywhere. Chrome left it on and
+took LL's keyboard for four hours while the Console said "All green ·
+104 ⇪ shortcuts": the shortcuts WERE bound, Carbon WAS counting every
+F18, the tap WAS enabled with 0 failures. The tell that it is not ours:
+OTHER APPS break too (LL's ⇧Return died in Asana). Read at
+kCGSSessionSecureInputPID via ioreg in a HELD hs.task (`-k IOConsoleUsers`
+first, the multi-megabyte `-l` dump only as a fallback), NEVER on the
+main thread. `_G.secureInputParse` is PURE and gate-proven against LL's
+own ioreg line; **PID 0 means NOBODY** and must read as clear or it cries
+wolf on every healthy Mac. Only a CHANGE is printed. The capability row
+is INVERTED on purpose (a held lock = capability OFF) and both directions
+are mutation-proven. `_G.secureInputReport()`, `_G.secureInputEvery` (60).
+🔍 THE GATE AUDITS THE CHEAT SHEETS (6.196.0, test_integration):
+"a stale key on the sheet IS a broken feature" (6.181.0) is a check now,
+not a promise kept by hand. Every module's own cheatsheet KEY COLUMN is
+joined to the module that claimed the key (`HYPER_OWNER`, filled from
+`_G.moduleLoading` — the `src` string is prose and cannot be matched to a
+file). TWO RULES THAT MAKE IT TRUSTWORTHY: a key column that is ONLY
+combos is a promise and is audited, one with a word in it ("via ⇪R",
+"vs ⇪X", "in ⇪;") is a POINTER at another tool and is not; and it flags
+MISATTRIBUTION, never absence — §0.4's migration map binds a dozen keys
+outside hyperAddShortcut, so "is it bound at all" would report every one
+as dead and the check would be switched off within a week. Shared windows
+get a PAIR exemption (`AUDIT_SHARED["Vault||n"]`), never a bare combo —
+exempting "|n" would blind it to every future misprint of ⇪N. It caught
+a live one on its first run: the Vault's sheet still offered ⇪1 after
+6.194.0 moved ⇪1 to mouse-follows.
+🔁 ⇪space = APP LAUNCHER, ⇪D = UNIFIED SEARCH (6.196.0, LL's swap).
+🚨 The SHIFTED half did NOT follow: ⇪⇧D must stay UNCLAIMED so it forwards
+as ⌘⇧⌃⌥D to core/diagnostics.lua's plain hotkey — every boot line names
+it, and a bind there takes it SILENTLY because a forwarded chord is not a
+bind and the collision auditor cannot see one stolen. The screenshot view
+keeps ⇪⇧space (`uni.shotsKey`). Asserted by name in test_unified.
+🎹 "ACCESSIBILITY OFF" IS NOT A FOOTNOTE (6.196.0, core/boot_report.lua):
+without it hs.eventtap cannot be CREATED, so snippets, autocorrect, the
+key caster and ⇪'s fallback are all gone — the row said "window features
+inactive" and LL read straight past it on a boot where most of the config
+was dead. It also says QUIT AND RELAUNCH, not reload: taps are built at
+launch, so re-granting mid-session changes nothing.
+🖥 A REMEMBERED PANEL POSITION IS AN OFFSET INTO ITS SCREEN (6.196.0,
+core/cheatsheet.lua): stored as dx/dy from the resolved screen's origin,
+so the sheet stays where LL put it ON THE MONITOR HE IS WORKING ON.
+Absolute x/y is still written beside it (an older build must find a
+position it understands) — which is exactly why the check moves the
+SCREEN out from under a fixed offset rather than asserting "it opened
+somewhere sensible". A legacy absolute position that does not fall on the
+current screen is DROPPED for the centre, not clamped onto an edge of it.
+⌨️ ⇪. TAKES "?" FOR THE SHORTCUTS ONLY (6.196.0, menu_search): the
+shortcut column was always on every row; `ms.choicesFrom(rows, onlyShortcuts)`
+is a PARAMETER, not a second row builder, so the two views cannot drift.
+No second hyper key — 6.182.0's rule.
 ➕ A + ROW IS A CLICK TARGET, NOT A WALKER ROW (6.195.0): the vault's
 "+ new note ⌘N" heads the 🕸 NOTES section and posts `newnote` →
 `v.newNote()` — the SAME call ⌘N makes, so the naming bar and its
@@ -641,6 +695,29 @@ mirrors draw order: "closes last" IS "drawn under".
   it — but if a post-boot stall is ever traced there, move the read and
   the append into an hs.task (/bin/cat, /usr/bin/tail). Never move it
   back onto the boot line.
+- 6.196.0 verify with LL: FIRST the swap — ⇪space is the app launcher
+  now, ⇪D is the big search panel. ⇪⇧D must STILL be the diagnostic
+  report (it is deliberately unclaimed so it forwards), and ⇪⇧space is
+  still the screenshot browser. Then ⇪. in any app and press "?" — the
+  list narrows to only the menu items that have a keyboard shortcut,
+  which is the "what can I press in this app" LL asked for. Then drag
+  the ⇪/ sheet somewhere on one monitor, click into an app on the OTHER
+  monitor, and press ⇪/: it should open THERE, at the same offset. And
+  the one that cost four hours: `_G.secureInputReport()` should say
+  "off — nothing is holding the keyboard". To see it work, put the caret
+  in a password field in Chrome, wait a minute, and run it again — it
+  should name Chrome, and the Console should have said so by itself.
+  A boot with it held prints a line naming the app; a healthy boot
+  prints NOTHING about it, which is deliberate.
+  KNOWN AND NOT FIXED, deliberately: LL reported "⇪O is not on the cheat
+  sheet pop-up". It IS there — ocr_engine's rows are ⇪O and ⇪⇧O and the
+  new gate audit confirms both are the keys actually bound. What LL's
+  screenshot appeared to show was "⇧O" and "⇧⇧O", i.e. the ⇪ glyph
+  (U+21EA) rendering as ⇧ (U+21E7). That was read off a screenshot and
+  is NOT confirmed — the two glyphs differ only by a bar under the
+  arrow. ASK LL to look at the sheet and say whether the symbol has that
+  bar before changing any font: a "fix" for a misread screenshot would
+  be a change with no bug under it.
 - 6.195.0 verify with LL: ⇪3 — the 🕸 NOTES section opens with a
   "+ new note ⌘N" row; clicking it brings up the same in-window naming
   bar ⌘N does. Then ⇪X, land, and HOLD an arrow: it should cover four

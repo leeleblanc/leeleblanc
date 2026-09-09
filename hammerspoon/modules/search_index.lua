@@ -69,9 +69,9 @@ local M = {
     order = 7.6,
     family = "files",               -- right behind the App Launcher (7.5) it feeds
     cheatsheet = {
-        title = "🗂 FILE INDEX (feeds ⇪D — your files behind the apps)",
+        title = "🗂 FILE INDEX (feeds ⇪space — your files behind the apps)",
         entries = {
-            { "in ⇪D", "Type 3+ letters there: matching FILES list under the apps" },
+            { "in ⇪space", "Type 3+ letters there: matching FILES list under the apps" },
             { "scope", "OneDrive (all of it) · your home folder · extraRoots" },
             { "file",  "<OneDrive>/Logs/search_index-<Mac>.txt — one path per line" },
             { "auto",  "Rebuilt off-thread at idle priority, twice a day" },

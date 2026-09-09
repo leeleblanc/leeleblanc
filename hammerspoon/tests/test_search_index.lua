@@ -1,5 +1,5 @@
 -- =====================================================================
--- test_search_index.lua — the file index ⇪D searches. 6.96.0
+-- test_search_index.lua — the file index the app launcher searches. 6.96.0
 -- =====================================================================
 --     lua5.4 test_search_index.lua [/path/to/hammerspoon]
 --
@@ -110,13 +110,15 @@ out("── test_search_index (module at " .. HS .. ")\n")
 out("   1. module contract\n")
 boot()
 check("module name", M.name == "Search Index", M.name)
-check("cheatsheet names ⇪D — this feeds the launcher, it binds no key",
-      (M.cheatsheet.title or ""):find("⇪D", 1, true))
+-- 6.196.0 — the launcher moved to ⇪space, so the sheet that points at it
+-- moved with it. This module still binds NO key of its own.
+check("cheatsheet names ⇪space — this feeds the launcher, it binds no key",
+      (M.cheatsheet.title or ""):find("⇪space", 1, true))
 check("index file is per-Mac, in the OneDrive Logs folder",
       IX.file == TMP .. "/search_index-Test-Mac.txt", IX.file)
 check("service index.search provided",  type(PROVIDED["index.search"]) == "function")
 check("service index.rebuild provided", type(PROVIDED["index.rebuild"]) == "function")
-check("_G.fileIndex published for ⇪D", _G.fileIndex == IX)
+check("_G.fileIndex published for the launcher", _G.fileIndex == IX)
 check("_G.indexNow and _G.fileIndexReport published",
       type(_G.indexNow) == "function" and type(_G.fileIndexReport) == "function")
 check("config table exposed for profile overrides", M.config == IX)

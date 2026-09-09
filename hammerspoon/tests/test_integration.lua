@@ -185,6 +185,7 @@ end
 
 local NOW = 100
 local HYPER_CLAIMS, SERVICES, GLOBAL_HOTKEYS = {}, {}, {}
+HYPER_OWNER = {}
 local noop = function() end
 local function chain() local t = {} ; setmetatable(t, { __index = function()
     return function(s) return s or t end end }) ; return t end
@@ -277,6 +278,7 @@ _G.service = { provide = function(n)
                owner = SERVICE_OWNER,
                call = noop, providers = {} }
 _G.hyperPending = {}
+HYPER_OWNER = {}
 _G.hyperAddShortcut = function(mods, key, fn, src)
     local ms = {}
     for _, x in ipairs(mods or {}) do ms[#ms + 1] = x end
@@ -284,6 +286,12 @@ _G.hyperAddShortcut = function(mods, key, fn, src)
     local combo = table.concat(ms, "+") .. "|" .. tostring(key):lower()
     HYPER_CLAIMS[combo] = HYPER_CLAIMS[combo] or {}
     table.insert(HYPER_CLAIMS[combo], src or "?")
+    -- 6.196.0 — WHICH MODULE, not which prose. The `src` string is written
+    -- for a human ("find the pointer", "type the clipboard") and cannot be
+    -- matched back to a file name, so the cheat sheet audit below would
+    -- have called half the config drift. _G.moduleLoading is what the
+    -- service registry already uses for exactly this, so the two agree.
+    HYPER_OWNER[combo] = HYPER_OWNER[combo] or (_G.moduleLoading or "init.lua")
 end
 _G.moduleStatus, _G.moduleCheatsheets = {}, {}
 _G.choosers, _G.configVersion = {}, "test"
@@ -624,6 +632,115 @@ do
     check("...minus the forwarded chords, which are not shortcuts — every "
           .. "unclaimed letter re-sends itself so hyper works with Raycast",
           code:find("hyperBoundCount%s*%-%s*forwarded") ~= nil)
+end
+
+
+out("   -- 🔍 the cheat sheet audit (6.196.0) --\n")
+-- 🚨 A STALE KEY ON THE CHEAT SHEET IS A BROKEN FEATURE, AND UNTIL NOW
+-- THE GATE COULD NOT SEE ONE. That sentence has been in CLAUDE.md since
+-- 6.181.0 as a warning to remember by hand — which is exactly the kind of
+-- promise this project does not keep by hand. LL, 6.196.0: "Audit the
+-- cheat sheet for incorrect shortcuts." So it is a check.
+--
+-- WHAT IT JOINS. Every module publishes cheatsheet entries as {key, what}
+-- pairs; the KEY COLUMN is the half that says "press this". This walks
+-- every module's own entries, pulls the ⇪ combos out of that column only,
+-- and asserts each one is claimed by the module that printed it.
+--
+-- 🔒 THE KEY COLUMN ONLY, AND DELIBERATELY. Descriptions legitimately
+-- name OTHER tools' keys ("⇪2 opens the pad", "every row here runs from
+-- ⇪space") and auditing those would flag correct prose as drift — a
+-- check that cries wolf gets an allowlist, then gets ignored, then gets
+-- deleted. The key column is the promise; the description is context.
+local function comboOf(token)
+    -- "⇪⇧pad7" → "shift|pad7". Returns nil for anything that is not a ⇪
+    -- combo, so a key column reading "type begone" audits nothing.
+    local rest = token:match("^⇪(.*)$")
+    if not rest or rest == "" then return nil end
+    local mods = {}
+    while true do
+        local m = rest:match("^⇧") 
+        if not m then break end
+        mods[#mods + 1] = "shift" ; rest = rest:sub(#m + 1)
+    end
+    if rest == "" then return nil end
+    return table.concat(mods, "+") .. "|" .. rest:lower()
+end
+
+-- Combos that are RIGHT while being unclaimed, each for a stated reason.
+-- 🚨 An entry here is a decision, not a silencer: a combo is exempt only
+-- because something outside hyperAddShortcut answers it, and the reason
+-- is the thing a future reader needs.
+local AUDIT_EXEMPT = {
+    -- ⇪⇧D is left unclaimed ON PURPOSE so it forwards as ⌘⇧⌃⌥D to the
+    -- plain hotkey in core/diagnostics.lua. Every boot line names it.
+    ["shift|d"] = "forwards to the diagnostic report's global chord",
+}
+
+-- ONE MODULE, ONE OTHER MODULE'S KEY, AND A REASON. Keyed by the PAIR,
+-- never by the combo alone: exempting "|n" outright would blind the check
+-- to every future misprint of ⇪N, which is the failure mode an allowlist
+-- always ends in. Each entry says why the sheet is telling the truth.
+local AUDIT_SHARED = {
+    -- 6.173.0 — the Vault window HOSTS the Scorp Pad. ⇪N and ⇪3 open the
+    -- SAME window on different tabs, so the vault's sheet printing ⇪N is
+    -- the literal truth about the window it is describing, even though
+    -- scratch_pad is the module that registered the key.
+    ["Vault||n"] = "the vault window hosts the pad — ⇪N opens this window",
+}
+
+do
+    local bad, audited = {}, 0
+    for _, g in ipairs(_G.moduleCheatsheets or {}) do
+        local owner = tostring(g.source or "?")
+        for _, e in ipairs(g.entries or {}) do
+            local keyCol = type(e) == "table" and tostring(e[1] or "") or ""
+            -- 🔑 A KEY COLUMN THAT IS ONLY COMBOS IS A PROMISE; ONE WITH A
+            -- WORD IN IT IS A POINTER. "⇪3 · ⇪1" says press these. "via
+            -- ⇪R", "vs ⇪X", "in ⇪;" say the neighbouring tool lives there,
+            -- which is correct prose about a key this module does not own
+            -- and must not be read as drift. That distinction is already
+            -- how these sheets are written, so it needs no allowlist to
+            -- maintain — and an allowlist is the thing that would rot.
+            local prose = false
+            for token in keyCol:gmatch("[^%s·]+") do
+                if not comboOf(token) then prose = true end
+            end
+            for token in (prose and "" or keyCol):gmatch("[^%s·]+") do
+                local combo = comboOf(token)
+                if combo and not AUDIT_EXEMPT[combo] then
+                    local claimant = HYPER_OWNER[combo]
+                    -- 🚨 IT FLAGS MISATTRIBUTION, NEVER ABSENCE, and that
+                    -- narrowness is the whole reason it is trustworthy.
+                    -- §0.4's migration map binds a dozen older shortcuts
+                    -- (⇪W, ⇪P, the arranger's arrows) through hyperBind
+                    -- directly rather than hyperAddShortcut, so they are
+                    -- invisible here — auditing "is it bound at all" would
+                    -- report every one of them as dead and the check would
+                    -- be switched off within a week. "Module M's sheet
+                    -- prints a key that belongs to module N" needs no such
+                    -- knowledge: both sides come from the same load.
+                    if claimant then
+                        audited = audited + 1
+                        if claimant ~= owner
+                           and not AUDIT_SHARED[owner .. "|" .. combo] then
+                            bad[#bad + 1] = token .. " on " .. owner
+                                .. "'s sheet belongs to " .. claimant
+                        end
+                    end
+                end
+            end
+        end
+    end
+    check("🚨 NO MODULE'S CHEAT SHEET PRINTS A KEY THAT BELONGS TO A "
+          .. "DIFFERENT MODULE — a stale row here IS a broken feature "
+          .. "(6.181.0), and until now no test could see one",
+          #bad == 0, #bad > 0 and table.concat(bad, " · ") or nil)
+    -- 🚨 AND THE AUDIT MUST HAVE AUDITED SOMETHING. A parser that silently
+    -- matches nothing passes this section forever while checking nothing —
+    -- the 6.187.0 rule (a budget that exists is not a budget that bites).
+    check("...and the audit really walked the sheets rather than finding "
+          .. "no combos to check", audited >= 30, audited .. " combos audited")
 end
 
 out("   -- namespace collisions --\n")
