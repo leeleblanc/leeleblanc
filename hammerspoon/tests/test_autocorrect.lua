@@ -327,6 +327,147 @@ check("the dictionary is deferred to warm(), off the boot path",
 check("...and it really loaded", (_G.autocorrectStatus or ""):find("fixes") ~= nil,
   _G.autocorrectStatus)
 
+-- =====================================================================
+out("\n=== 6. 🚨 WHAT ⇪Z LEARNS IS VISIBLE AND REVERSIBLE (6.199.0) ===\n")
+-- =====================================================================
+-- LL: "I fixed HOw by deleting the entry and you can see that it is still
+-- HOw" — and his grep of 11,000 lines: `11052:allow,HOw,`. One ⇪Z press,
+-- long forgotten, switching the TWo-caps rule off for that word on BOTH
+-- Macs. Permanent is the design. Invisible was the bug, and there was no
+-- report in this module at all, which is why a text editor was the only
+-- way to find it.
+do
+  local mine = 0
+  local function ck(label, cond, extra)
+    mine = mine + 1 ; check(label, cond, extra)
+  end
+  local CSV = TMP .. "/autocorrect.csv"
+  local function readCsv()
+    local f = io.open(CSV, "r") ; local t = f and f:read("*a") or "" 
+    if f then f:close() end ; return t
+  end
+  local function lineCount(t)
+    local n = 0 ; for _ in t:gmatch("([^\r\n]+)") do n = n + 1 end ; return n
+  end
+  local function append(row)
+    local f = io.open(CSV, "a") ; f:write(row .. "\n") ; f:close()
+    mod.warm(core)
+  end
+
+  -- ---- LL's row, exactly ---------------------------------------------
+  ck("before it is learned, HOw is corrected", typeWord("HOw ") == "How ")
+  append("allow,HOw,")
+  ck("🚨 one `allow,HOw,` row is the whole bug — HOw is left alone now",
+     typeWord("HOw ") == nil, tostring(typeWord("HOw ")))
+
+  local rep = _G.autocorrectReport()
+  ck("🚨 the report NAMES it as something ⇪Z learned — this module had no"
+     .. " report at all, which is why grep was the only way to find it",
+     rep:find("HOw", 1, true) ~= nil and rep:find("⇪Z learned", 1, true) ~= nil,
+     rep:match("⇪Z learned[^\n]*"))
+  ck("…and hands over the exact way to undo it",
+     rep:find('_G.autocorrectForget("HOw")', 1, true) ~= nil)
+  ck("…while an exception this config SHIPS is not called something he"
+     .. " taught it", (function()
+        local block = rep:match("⇪Z learned.*") or ""
+        return block:find("IDs", 1, true) == nil
+     end)(), rep:match("⇪Z learned[^\n]*"))
+
+  -- ---- and the way back ----------------------------------------------
+  -- The rule matches case-sensitively, so HOw and How are two different
+  -- exceptions and forgetting one must not take the other with it.
+  append("allow,How,")
+  local before = lineCount(readCsv())
+  local okF, whyF = _G.autocorrectForget("HOw")
+  ck("_G.autocorrectForget removes it and says so", okF == true, whyF)
+  ck("…the rule corrects HOw again, without a reload",
+     typeWord("HOw ") == "How ", tostring(typeWord("HOw ")))
+  local after = readCsv()
+  ck("🚨 …and it took exactly ONE row out of the file — a whole-file"
+     .. " rewrite that loses rows is 11,000 lines of LL's own work",
+     lineCount(after) == before - 1, before .. " -> " .. lineCount(after))
+  ck("…every other row is still there",
+     after:find("allow,IDs,", 1, true) and after:find("fix,teh,the", 1, true)
+     and after:find("type,wrong,right", 1, true))
+  ck("🚨 …including the word that differs only in CASE — HOw and How are"
+     .. " two exceptions, and one is not the other",
+     after:find("allow,How,", 1, true) ~= nil)
+  ck("…and it survives a reload", (function()
+     mod.warm(core) ; return typeWord("HOw ") == "How "
+  end)())
+
+  local okG, whyG = _G.autocorrectForget("HOw")
+  ck("forgetting a word that is not an exception refuses and says which",
+     okG == false and whyG:find("not an exception", 1, true) ~= nil, whyG)
+  ck("…and forgetting nothing at all refuses too", (function()
+     local o, w = _G.autocorrectForget("")
+     return o == false and w:find("give it a word", 1, true) ~= nil
+  end)())
+  _G.autocorrectForget("How")     -- the case-sensitivity fixture, cleared
+  ck("a Mac that has learned nothing says exactly that, and differently",
+     _G.autocorrectReport():find("nothing on this Mac", 1, true) ~= nil)
+
+  -- ---- ⇪Z itself: no duplicate row, and it names the way back --------
+  local zKey = BOUND["ctrl+alt+cmd+Z"]
+  ck("⇪Z is bound", type(zKey) == "function")
+  typeWord("GHq ")                      -- a rule fix, so acLast.wasRule
+  ALERTS = {}
+  zKey()
+  ck("⇪Z learns the word", _G.autocorrectReport():find("GHq", 1, true) ~= nil)
+  ck("🚨 …and the alert names the way back, so it is never only in a CSV",
+     (ALERTS[#ALERTS] or ""):find('_G.autocorrectForget("GHq")', 1, true) ~= nil,
+     ALERTS[#ALERTS])
+  _G.autocorrectForget("GHq")
+
+  -- 📌 A DUPLICATE ROW IS UNREACHABLE IN ONE SESSION and reachable
+  -- across two: once a word is allowed the rule stops firing, so ⇪Z has
+  -- nothing to undo — but the OTHER Mac, which has not reloaded since the
+  -- row synced, still corrects it and appends a second. So the defence is
+  -- not the in-memory guard (which cannot see that): it is that the
+  -- loader counts DISTINCT words and forget removes EVERY matching row.
+  -- No in-memory guard is written for this, because no test could fail
+  -- against it: the mutation that removed one survived, so the guard did.
+  append("allow,ZZq,") ; append("allow,ZZq,")
+  local dupBefore = lineCount(readCsv())
+  ck("a word learned twice on two Macs is still ONE exception",
+     (_G.autocorrectReport():gsub("[^\n]*ZZq[^\n]*", "x", 1)
+      :find("ZZq", 1, true)) == nil)
+  local okD = _G.autocorrectForget("ZZq")
+  ck("…and forgetting it removes BOTH rows, not one of them",
+     okD == true and lineCount(readCsv()) == dupBefore - 2,
+     dupBefore .. " -> " .. lineCount(readCsv()))
+
+  -- ---- a `fix` row whose two sides are the same word -----------------
+  -- Obeyed, it MANGLES: the dictionary lowercases both sides and then
+  -- re-applies sentence case, so IDs comes back Ids. It also costs the
+  -- TWo-caps rule its turn, because a dictionary hit returns first.
+  append("fix,IDs,IDs")
+  ck("🚨 a dead `fix` row is SKIPPED — obeyed it turns IDs into Ids",
+     typeWord("IDs ") == nil, tostring(typeWord("IDs ")))
+  -- 🚨 AND THE SIDES ONLY HAVE TO MATCH ONCE LOWERED. The dictionary
+  -- stores both sides lowercased, so `fix,TVs,tvs` is the same dead row
+  -- written differently — and obeyed it hands back Tvs.
+  append("fix,TVs,tvs")
+  ck("🚨 …and a row whose sides differ only in CASE is dead too",
+     typeWord("TVs ") == nil, tostring(typeWord("TVs ")))
+  local rep2 = _G.autocorrectReport()
+  ck("…and the report names it WITH ITS LINE NUMBER, so it can be found"
+     .. " in an 11,000-line file", (function()
+        local n = select(2, readCsv():gsub("[^\r\n]+", ""))
+        return rep2:find("dead rows", 1, true)
+           and rep2:find("fix,IDs,IDs", 1, true)
+           and rep2:match("line%s+(%d+)%s+fix,IDs,IDs") ~= nil
+     end)(), rep2:match("[^\n]*fix,IDs,IDs[^\n]*"))
+  ck("…and it is not counted as a dictionary row it obeys", (function()
+        return rep2:match("dictionary%s*:%s*(%d+)") ==
+               rep:match("dictionary%s*:%s*(%d+)")
+     end)(), rep2:match("dictionary[^\n]*"))
+  ck("…and the CSV itself is NOT edited — his file, his call",
+     readCsv():find("fix,IDs,IDs", 1, true) ~= nil)
+
+  check("§6 ran every one of its checks", mine == 24, mine)
+end
+
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.execute("rm -rf '" .. TMP .. "'")
 os.exit(fail == 0 and 0 or 1)

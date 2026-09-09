@@ -4,9 +4,53 @@
 -- =====================================================================
 -- 09-09-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.198.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.199.0
 -- =====================================================================
 
+-- NEW IN 6.199.0 — ✏️ WHAT ⇪Z LEARNS IS VISIBLE AND REVERSIBLE:
+--   🚨 LL: "I fixed HOw by deleting the entry and you can see that it
+--      is still HOw" — and then his grep of his own 11,000-line
+--      dictionary: `11052:allow,HOw,`. That row is one ⇪Z press, long
+--      forgotten, switching the TWo-caps rule off for that exact word on
+--      BOTH Macs (the CSV syncs through OneDrive), for ever, with nothing
+--      anywhere naming it. Permanent is the design and it stays.
+--      INVISIBLE was the bug: this module had no report at all, so a text
+--      editor was the only way to find what it had been taught, and no
+--      way at all to unteach it. `_G.autocorrectReport()` now lists every
+--      exception ⇪Z has learned — separated from the ~85 this config
+--      ships with, so the list is only ever his — each with the line it
+--      sits on and the exact command that removes it.
+--      `_G.autocorrectForget("HOw")` takes it out of the file and out of
+--      memory at once, and the rule corrects the word again with no
+--      reload. ⇪Z's own alert now names that command as it learns.
+--   🔒 THE ONE THING THAT REWRITES HIS DICTIONARY WHOLE does it through
+--      a temp file and a rename, and registers with the write ledger: a
+--      half-written CSV is far worse than a wrong exception, and this is
+--      11,000 lines of his own work. It matches case-SENSITIVELY, the way
+--      the rule does — HOw and How are two different exceptions and
+--      forgetting one must not take the other — and it removes EVERY
+--      matching row, which is what handles the duplicate the other Mac
+--      can write before it has reloaded.
+--   🗂 AND A DEAD `fix` ROW IS SKIPPED AND NAMED. A row whose two
+--      sides are the same word once lowered (`fix,IDs,IDs`, `fix,TVs,tvs`)
+--      reads like "leave this alone" and does the opposite: the dictionary
+--      stores both sides lowercased and re-applies sentence case, so IDs
+--      comes back Ids — and the TWo-caps rule never gets its turn, because
+--      a dictionary hit returns first. Skipped at load, listed in the
+--      report with its LINE NUMBER; the CSV itself is never edited.
+--   🔎 CORRECTION TO WHAT LL WAS TOLD EARLIER: that dead-row
+--      short-circuit is NOT what made HOw stick. Checked against the
+--      source: a dictionary hit is re-cased from an all-lowercase stored
+--      value, so it can never hand back a TWo-caps-shaped word, and the
+--      rule cannot be blocked that way. The `allow,HOw,` row was the
+--      whole cause, on its own. The dead-row handling is still worth
+--      having — it mangles acronyms — but it is a second bug, not this one.
+--      test_autocorrect 51 -> 76, fifteen mutations, each proven to fail
+--      against the bug it names. One guard was REMOVED for failing that
+--      test: an in-memory duplicate check no mutation could catch,
+--      because the path it defended cannot happen in one session.
+--      8,299 -> 8,324 checks, seventy-four stages.
+--
 -- NEW IN 6.198.1 — 🗂 A STORE IS A FILE, AND A FILE CAN BE ANY SHAPE:
 --   🚨 LL's Console carried an error at doc_memory.lua:363 — `d.title`
 --      on something that was not a table — thrown from the app_watcher
@@ -34,62 +78,12 @@
 --      against the bug it names. 8,278 -> 8,299 checks, seventy-four
 --      stages.
 --
--- NEW IN 6.198.0 — 📋 THE BORROWED CLIPBOARD NEVER LANDS ON YOURS:
---   🚨 LL: "⇪2 says it's copying but the clipboard does not have the
---      content I sequentially copied. ⌘+c works". Both halves were true.
---      Reading a selection costs a ⌘C in any app that will not answer
---      accessibility (Chrome and GitHub are two), so power_tools BORROWS
---      the clipboard: save, clear, ⌘C, read, hand it over — and put the
---      old contents back 0.6 s later. ⇪2 wrote its collected block inside
---      that 0.6 s, and the restore landed on top of it. The alert was
---      honest at the moment it was shown and a lie by the time he pressed
---      ⌘V, with nothing to see in between — the worst shape a message
---      can have. The restore STANDS DOWN now when the clipboard has been
---      written since the borrow: macOS's own change counter first (it
---      sees the two writes a comparison never can — the same text
---      written again, and anything that is not text), the contents as
---      the degrade for a Hammerspoon without it, and neither readable
---      means intact, so the last resort is still 6.132.0's promise that
---      your clipboard comes back.
---   🔎 THE GUARD LIVES AT THE BORROW, NOT IN THE CALLER, because a
---      SECOND caller had the same bug and nobody had noticed it: the 🔢
---      count row's "N words · N characters" was overwritten in the same
---      window, on the same ⌘C route, every time. A caller-side fix would
---      have cured the one LL could see. It also covers the case no
---      caller could: an APP copying something of its own while the
---      clipboard is out on loan. Plain ⌘C was never broken, which is
---      exactly why LL could tell the two apart. Rollback
---      `settings = { power_tools = { restoreGuard = false } }`.
---      `_G.powerReport()` grows a "⌘C borrow" line counting what was put
---      back, left alone and refused, and a "last borrow" line naming the
---      last one — a state with no report is what hid this.
---   📋 AND THREE PLACES READ TWO VALUES FROM A pcall AROUND A CALL
---      THAT ANSWERS FALSE. hs.pasteboard.setContents refuses by
---      returning false, WITHOUT throwing, so `pcall(fn)` alone reports
---      every refusal as a success — CLAUDE.md's 6.179.0 rule, never
---      applied here. ⇪2 promised "⌘V pastes the block" over a pasteboard
---      that had just said no; the 🔢 row said the counts were copied;
---      ⇪; announced the formatting stripped. All three read three now.
---   🧪 AND THE STUBS WERE THE HOLE. Both suites' fake pasteboards
---      returned nil from setContents and had no change counter at all —
---      gentler than the thing they stand in for, which CLAUDE.md calls a
---      hole with a tick beside it. The refusal checks that existed made
---      setContents THROW, which is the half pcall catches; the quiet
---      false was never tested. Both stubs answer the way macOS does now.
---      test_power_tools 252 -> 282, test_scratch_pad 194 -> 196,
---      seventeen mutations, each proven to fail against the bug it
---      names. 8,246 -> 8,278 checks, seventy-four stages.
---   🚨 AND THE RESTORE WAS ARMED INTO THE RUNNING TIMER'S OWN SLOT —
---      6.196.1's use-after-free shape, in hs.timer rather than hs.task,
---      and pre-dating that release. Its own slot now, asserted against
---      the SOURCE because a stub timer is collected by nobody.
---
--- (6.197.2 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.198.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.198.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.199.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -186,7 +180,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.198.1"
+_G.configVersion = "6.199.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

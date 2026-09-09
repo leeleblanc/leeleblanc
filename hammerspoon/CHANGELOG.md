@@ -5,6 +5,51 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.199.0 — ✏️ WHAT ⇪Z LEARNS IS VISIBLE AND REVERSIBLE:
+  🚨 LL: "I fixed HOw by deleting the entry and you can see that it
+     is still HOw" — and then his grep of his own 11,000-line
+     dictionary: `11052:allow,HOw,`. That row is one ⇪Z press, long
+     forgotten, switching the TWo-caps rule off for that exact word on
+     BOTH Macs (the CSV syncs through OneDrive), for ever, with nothing
+     anywhere naming it. Permanent is the design and it stays.
+     INVISIBLE was the bug: this module had no report at all, so a text
+     editor was the only way to find what it had been taught, and no
+     way at all to unteach it. `_G.autocorrectReport()` now lists every
+     exception ⇪Z has learned — separated from the ~85 this config
+     ships with, so the list is only ever his — each with the line it
+     sits on and the exact command that removes it.
+     `_G.autocorrectForget("HOw")` takes it out of the file and out of
+     memory at once, and the rule corrects the word again with no
+     reload. ⇪Z's own alert now names that command as it learns.
+  🔒 THE ONE THING THAT REWRITES HIS DICTIONARY WHOLE does it through
+     a temp file and a rename, and registers with the write ledger: a
+     half-written CSV is far worse than a wrong exception, and this is
+     11,000 lines of his own work. It matches case-SENSITIVELY, the way
+     the rule does — HOw and How are two different exceptions and
+     forgetting one must not take the other — and it removes EVERY
+     matching row, which is what handles the duplicate the other Mac
+     can write before it has reloaded.
+  🗂 AND A DEAD `fix` ROW IS SKIPPED AND NAMED. A row whose two
+     sides are the same word once lowered (`fix,IDs,IDs`, `fix,TVs,tvs`)
+     reads like "leave this alone" and does the opposite: the dictionary
+     stores both sides lowercased and re-applies sentence case, so IDs
+     comes back Ids — and the TWo-caps rule never gets its turn, because
+     a dictionary hit returns first. Skipped at load, listed in the
+     report with its LINE NUMBER; the CSV itself is never edited.
+  🔎 CORRECTION TO WHAT LL WAS TOLD EARLIER: that dead-row
+     short-circuit is NOT what made HOw stick. Checked against the
+     source: a dictionary hit is re-cased from an all-lowercase stored
+     value, so it can never hand back a TWo-caps-shaped word, and the
+     rule cannot be blocked that way. The `allow,HOw,` row was the
+     whole cause, on its own. The dead-row handling is still worth
+     having — it mangles acronyms — but it is a second bug, not this one.
+     test_autocorrect 51 -> 76, fifteen mutations, each proven to fail
+     against the bug it names. One guard was REMOVED for failing that
+     test: an in-memory duplicate check no mutation could catch,
+     because the path it defended cannot happen in one session.
+     8,299 -> 8,324 checks, seventy-four stages.
+
+
 NEW IN 6.198.1 — 🗂 A STORE IS A FILE, AND A FILE CAN BE ANY SHAPE:
   🚨 LL's Console carried an error at doc_memory.lua:363 — `d.title`
      on something that was not a table — thrown from the app_watcher

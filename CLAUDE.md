@@ -393,6 +393,41 @@ copied. `crashScan` returns the NAMES it saw for exactly that. The scan
 matches the same glob rsync is given (`bk.globPattern`) so the count and
 the copy cannot disagree — and an unmatchable glob is its own state, not
 one of the two reassuring ones.
+✏️ WHAT ⇪Z LEARNS IS PERMANENT, CROSS-MACHINE — AND MUST BE VISIBLE
+(6.199.0, modules/autocorrect.lua). One ⇪Z press appends
+`allow,<the exact word>,` to autocorrect.csv, which syncs through
+OneDrive, switching the TWo-caps rule off for that word on BOTH Macs for
+ever. LL found his by grepping 11,000 lines of his own dictionary
+(`11052:allow,HOw,`) because this module had NO REPORT AT ALL and no way
+to unlearn anything. Permanent stays; invisible does not.
+`_G.autocorrectReport()` lists what ⇪Z has learned — set-differenced
+against the ~85 exceptions we SHIP, so the list is only ever his — with
+each row's line number and the exact `_G.autocorrectForget("HOw")` that
+removes it; ⇪Z's alert names that command as it learns. RULE: anything
+this config LEARNS about LL's typing owes a report that names it and a
+one-liner that undoes it — a rule you can only find with grep is a rule
+you cannot govern.
+🔒 forget() is the ONLY thing that rewrites that dictionary whole: temp
+file then rename (a half-written CSV beats no CSV is FALSE — it is 11,000
+lines of his work), registered in `_G.rewrittenFiles`, case-SENSITIVE
+like the rule itself (HOw and How are two exceptions), and it removes
+EVERY matching row — which is what handles the duplicate the other Mac
+appends before it has reloaded. An in-memory duplicate guard was written
+and then REMOVED: no mutation could catch it, because once a word is
+allowed the rule stops firing and ⇪Z has nothing to undo. A guard no test
+can fail is dead code with a comment on it.
+🗂 A `fix` ROW WHOSE SIDES MATCH ONCE LOWERED IS DEAD AND IS SKIPPED
+(`fix,IDs,IDs`, `fix,TVs,tvs`): the dictionary stores both sides
+lowercased and re-applies sentence case, so obeying it turns IDs into
+Ids, and the TWo-caps rule never gets its turn because a dictionary hit
+returns first. Skipped at load, named in the report WITH ITS LINE NUMBER,
+and the CSV is never edited — his file, his call.
+🔎 AND THE DIAGNOSIS THAT WAS WRONG, kept because the method matters:
+that short-circuit was blamed for HOw first. It cannot cause it — a
+dictionary hit is re-cased from an all-lowercase stored value, so it can
+never hand back a TWo-caps-shaped word. `allow,HOw,` was the whole cause.
+Read the source before naming a second cause; two plausible mechanisms
+are not two mechanisms.
 🗂 A STORE IS A FILE, AND THE LOADER VALIDATES THE SHAPE IT READ
 (6.198.1, modules/doc_memory.lua). `dm.load()` took `data.open` whole on
 the strength of its OUTER type alone — "it is a table" is not the same
@@ -883,6 +918,17 @@ mirrors draw order: "closes last" IS "drawn under".
   was right, the screenshot just read small, and no font was touched.
   Keep this as the worked example: a "fix" for a misread screenshot is
   a change with no bug under it.
+- 6.199.0 verify with LL: `_G.autocorrectReport()` in the Console —
+  the one this module never had. Its "⇪Z learned" block should list
+  HOw and anything else he has taught it over the years, each with a
+  line number and the command that removes it. Then
+  `_G.autocorrectForget("HOw")` and type HOw somewhere: it should be
+  corrected to How again, with no reload and no text editor. Check the
+  report again — HOw is gone from the list, and everything else he had
+  learned is still there. If the report shows a "⚠️ dead rows" block,
+  those are `fix` rows whose two sides are the same word: they are being
+  SKIPPED (obeyed, they turn IDs into Ids), his file is untouched, and
+  the line numbers are there so he can delete them if he wants to.
 - 6.198.1 verify with LL: the Console error at doc_memory.lua:363 —
   which appeared whenever he quit Word — should be gone. To be sure,
   `_G.docMemoryReport()` has a new "store" line: "read — every row the

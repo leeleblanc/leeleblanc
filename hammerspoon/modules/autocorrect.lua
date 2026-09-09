@@ -42,8 +42,10 @@ local M = {
         title = "✏️ AUTOCORRECT",
         entries = {
             { "⇪S", "Toggle on/off" },
-            { "⇪Z", "Undo last fix & learn the exception" },
-            { "auto", "Fixes typos & TWo-caps as you type (autocorrect.csv)" }
+            { "⇪Z", "Undo last fix & learn the exception — reversible" },
+            { "auto", "Fixes typos & TWo-caps as you type (autocorrect.csv)" },
+            { "see", "_G.autocorrectReport() — what ⇪Z has learned, and how"
+                     .. " to unlearn it (_G.autocorrectForget \"HOw\")" }
         },
     },
 }
@@ -60,6 +62,21 @@ function M.setup(core)
     _G.autocorrectEnabled = true
     local autocorrectDict, autocorrectAllow = {}, {}
     local autocorrectDictCount, autocorrectAllowCount = 0, 0
+    -- 🚨 6.199.0 — WHAT ⇪Z LEARNS WAS PERMANENT, CROSS-MACHINE AND
+    -- INVISIBLE. One press appends `allow,<the exact word>,` to a CSV that
+    -- syncs through OneDrive, switching the TWo-caps rule off for that word
+    -- on BOTH Macs, for ever, with nothing anywhere naming it. LL found his
+    -- by grepping 11,000 lines: "I fixed HOw by deleting the entry and you
+    -- can see that it is still HOw" — line 11052, `allow,HOw,`. A rule this
+    -- config learns about your typing has to be readable and removable
+    -- without a text editor. These three tables are what makes that
+    -- possible; none of them changes a single correction.
+    local autocorrectAllowLines = {}   -- word  -> { line numbers it sits on }
+    local autocorrectNoop       = {}   -- the dead `fix` rows, with lines
+    local autocorrectDefaultSet = {}   -- the ones WE ship, so the report can
+                                       -- separate them from what ⇪Z learned
+    local autocorrectLoaded     = false -- read at least once? "nothing
+                                       -- learned" and "never read" differ
 
     -- Default TWo-caps exceptions: two-letter initialisms with s/ed/ing
     -- suffixes, plus unit symbols. Deliberately NOT here: "ITs" — it's a
@@ -74,6 +91,10 @@ function M.setup(core)
         "ORs","OSs","PAs","PBs","PCs","PEs","PJs","PMs","POs","POed","PRs","PTs","QBs","RAs",
         "RBs","RNs","RVs","SOs","TAs","TBs","TDs","THz","TVs","TWh","UIs","VCs","VPs","WRs","XLs",
     }
+
+    for _, a in ipairs(autocorrectDefaultAllows) do
+        autocorrectDefaultSet[a] = true
+    end
 
     -- Seed a small starter file if none exists, so a fresh Mac isn't silent
     local function autocorrectSeedIfMissing()
@@ -94,27 +115,58 @@ function M.setup(core)
         print("✏️ Created starter " .. autocorrectFile .. " — replace it with your full dictionary anytime")
     end
 
+    -- 🗂 6.199.0 — A DEAD `fix` ROW IS SKIPPED AND NAMED. A row whose
+    -- two sides are the SAME word once you lower them (`fix,IDs,IDs`,
+    -- `fix,how,HOW`) reads like "leave this alone" and does the opposite:
+    -- the dictionary stores both sides lowercased and then re-applies
+    -- sentence case, so typing IDs comes back Ids. It also costs the
+    -- TWo-caps rule its turn on that word, because a dictionary hit
+    -- returns before the rule is ever reached. Neither is what anybody
+    -- meant by writing the row, so it is dropped at load and listed in
+    -- the report with its LINE NUMBER — the CSV itself is never touched.
+    local function autocorrectNoopRow(wrong, right)
+        return type(wrong) == "string" and type(right) == "string"
+               and wrong ~= "" and right ~= ""
+               and wrong:lower() == right:lower()
+    end
+
     local function autocorrectLoad()
         autocorrectDict, autocorrectAllow = {}, {}
         autocorrectDictCount, autocorrectAllowCount = 0, 0
+        autocorrectAllowLines, autocorrectNoop = {}, {}
         local f = io.open(autocorrectFile, "r")
         if not f then return false end
         local content = f:read("*a"); f:close()
-        local first = true
+        local first, n = true, 0
         for line in content:gmatch("([^\r\n]+)") do
+            n = n + 1
             if not (first and line:match("^type,")) then
                 local c = core.splitCSVLine(line)
                 local kind, wrong, right = c[1], c[2], c[3]
                 if kind == "fix" and wrong and right and wrong ~= "" and right ~= "" then
-                    autocorrectDict[wrong:lower()] = right:lower()
-                    autocorrectDictCount = autocorrectDictCount + 1
+                    if autocorrectNoopRow(wrong, right) then
+                        autocorrectNoop[#autocorrectNoop + 1] =
+                            { line = n, wrong = wrong, right = right }
+                    else
+                        autocorrectDict[wrong:lower()] = right:lower()
+                        autocorrectDictCount = autocorrectDictCount + 1
+                    end
                 elseif kind == "allow" and wrong and wrong ~= "" then
+                    -- Counted DISTINCT: ⇪Z appends without looking, so the
+                    -- same word pressed twice was two rows and a count that
+                    -- overstated what the config actually knows.
+                    if not autocorrectAllow[wrong] then
+                        autocorrectAllowCount = autocorrectAllowCount + 1
+                    end
                     autocorrectAllow[wrong] = true
-                    autocorrectAllowCount = autocorrectAllowCount + 1
+                    local at = autocorrectAllowLines[wrong] or {}
+                    at[#at + 1] = n
+                    autocorrectAllowLines[wrong] = at
                 end
             end
             first = false
         end
+        autocorrectLoaded = true
         return true
     end
 
@@ -380,12 +432,24 @@ function M.setup(core)
 
         -- Learn: rule fixes become permanent exceptions
         if last.wasRule then
+            -- 📌 6.199.0 — THIS APPENDS WITHOUT LOOKING, AND THAT IS FINE.
+            -- A duplicate row cannot happen in one session (once the word
+            -- is allowed the rule stops firing, so ⇪Z has nothing to
+            -- undo) and CAN happen across two Macs, where the other one
+            -- has not reloaded since the row synced — which an in-memory
+            -- check could never see. So the defence is downstream and
+            -- provable: the loader counts DISTINCT words, and
+            -- _G.autocorrectForget removes EVERY matching row. A guard
+            -- here would be code no test could fail.
             autocorrectAllow[last.word] = true
             autocorrectAllowCount = autocorrectAllowCount + 1
             local f = io.open(autocorrectFile, "a")
             if f then
                 f:write("allow," .. last.word .. ",\n")
                 f:close()
+                local at = autocorrectAllowLines[last.word] or {}
+                at[#at + 1] = -1     -- appended; the real line is known next load
+                autocorrectAllowLines[last.word] = at
             else
                 core.warnWriteFailed("autocorrect.csv")
             end
@@ -407,14 +471,147 @@ function M.setup(core)
             -- injection above.
             if _G.expanderResetBuffer then pcall(_G.expanderResetBuffer) end
             hs.alert.show(last.wasRule
-                and ("↩️ Restored " .. last.word .. " — added to exceptions permanently")
+                and ("↩️ Restored " .. last.word .. " — an exception now"
+                     .. ", on both Macs.\n_G.autocorrectForget(\""
+                     .. last.word .. "\") undoes it")
                 or  ("↩️ Restored " .. last.word .. " — to make permanent, delete the CSV row: fix," .. last.word:lower() .. "," .. last.fixed:lower()))
         else
             hs.alert.show(last.wasRule
-                and ("✏️ " .. last.word .. " added to exceptions for next time (text left as-is)")
+                and ("✏️ " .. last.word .. " is an exception now, on both"
+                     .. " Macs (text left as-is).\n_G.autocorrectForget(\""
+                     .. last.word .. "\") undoes it")
                 or  ("✏️ Noted — to stop fixing " .. last.word:lower() .. ", delete its row in autocorrect.csv"))
         end
     end)
+
+    -- =====================================================================
+    -- ⇪Z'S WAY BACK, AND THE REPORT THAT NAMES WHAT IT LEARNED (6.199.0)
+    -- =====================================================================
+    -- LL had to grep 11,000 lines of his own CSV to find `allow,HOw,` —
+    -- one ⇪Z press, months ago, still switching the TWo-caps rule off for
+    -- that word on both Macs. Permanent is fine; INVISIBLE is not.
+    _G.rewrittenFiles = _G.rewrittenFiles or {}
+    _G.rewrittenFiles[autocorrectFile] =
+        "the autocorrect dictionary — rewritten whole ONLY by"
+        .. " _G.autocorrectForget, one exception at a time"
+
+    -- → ok, why. Removes every `allow,<word>,` row for one word, exactly
+    -- as ⇪Z wrote it (case-sensitive, because the rule matches that way).
+    function _G.autocorrectForget(word)
+        if type(word) ~= "string" or word == "" then
+            local why = 'give it a word, e.g. _G.autocorrectForget("HOw")'
+            print("✏️ " .. why) ; return false, why
+        end
+        local f = io.open(autocorrectFile, "r")
+        if not f then
+            local why = "there is no " .. autocorrectFile .. " to edit"
+            print("✏️ " .. why) ; return false, why
+        end
+        local content = f:read("*a") ; f:close()
+        local kept, removed = {}, 0
+        for line in content:gmatch("([^\r\n]+)") do
+            local c = core.splitCSVLine(line)
+            if c[1] == "allow" and c[2] == word then
+                removed = removed + 1
+            else
+                kept[#kept + 1] = line
+            end
+        end
+        if removed == 0 then
+            local why = '"' .. word .. '" is not an exception in that file'
+                        .. " — nothing was changed"
+            print("✏️ " .. why) ; return false, why
+        end
+        -- 🚨 TEMP FILE THEN RENAME. This is the ONE thing that rewrites
+        -- LL's dictionary whole, and it is 11,000 lines of his own work: a
+        -- half-written file is far worse than a wrong exception. Nothing
+        -- is destroyed until the complete replacement exists on disk.
+        local tmp = autocorrectFile .. ".new"
+        local out = io.open(tmp, "w")
+        if not out then
+            core.warnWriteFailed("autocorrect.csv")
+            return false, "could not write beside " .. autocorrectFile
+        end
+        local okW = pcall(function() out:write(table.concat(kept, "\n") .. "\n") end)
+        pcall(function() out:close() end)
+        if not okW then
+            os.remove(tmp)
+            core.warnWriteFailed("autocorrect.csv")
+            return false, "the write failed — your file is untouched"
+        end
+        if not os.rename(tmp, autocorrectFile) then
+            os.remove(tmp)
+            core.warnWriteFailed("autocorrect.csv")
+            return false, "could not put the rewritten file in place"
+                          .. " — your file is untouched"
+        end
+        autocorrectAllow[word]      = nil
+        autocorrectAllowLines[word] = nil
+        autocorrectAllowCount = math.max(0, autocorrectAllowCount - 1)
+        local msg = "✏️ " .. word .. " is no longer an exception ("
+                    .. removed .. " row" .. (removed == 1 and "" or "s")
+                    .. " removed) — the TWo-caps rule will correct it again."
+                    .. " The other Mac follows once OneDrive syncs and it"
+                    .. " reloads."
+        print(msg)
+        pcall(function() hs.alert.show(msg, 4) end)
+        return true, msg
+    end
+
+    function _G.autocorrectReport()
+        local L = { "✏️ AUTOCORRECT" }
+        L[#L + 1] = "   state        : " .. tostring(_G.autocorrectStatus)
+                    .. (_G.autocorrectEnabled and "" or "  · PAUSED (⌃⌥⌘S)")
+        L[#L + 1] = "   file         : " .. autocorrectFile
+        L[#L + 1] = "   dictionary   : " .. autocorrectDictCount .. " fix row(s)"
+        L[#L + 1] = "   exceptions   : " .. autocorrectAllowCount
+                    .. " word(s) the TWo-caps rule leaves alone"
+        local learned = {}
+        for w in pairs(autocorrectAllow) do
+            if not autocorrectDefaultSet[w] then learned[#learned + 1] = w end
+        end
+        table.sort(learned)
+        -- 🔎 "nothing learned" and "never loaded" must not read the same,
+        -- and neither may read like a list that was simply not printed.
+        if not autocorrectLoaded then
+            L[#L + 1] = "   ⇪Z learned  : the file has not been read yet"
+        elseif #learned == 0 then
+            L[#L + 1] = "   ⇪Z learned  : nothing on this Mac — every exception"
+                        .. " above is one this config ships with"
+        else
+            L[#L + 1] = "   ⇪Z learned  : " .. #learned .. " — these are YOURS."
+                        .. " They are permanent and they reach the other Mac:"
+            for _, w in ipairs(learned) do
+                local at = autocorrectAllowLines[w] or {}
+                local where = {}
+                for _, n in ipairs(at) do
+                    where[#where + 1] = (n == -1) and "added just now" or tostring(n)
+                end
+                L[#L + 1] = ("      %-18s line %-14s _G.autocorrectForget(%q)")
+                            :format(w, table.concat(where, ", "), w)
+            end
+        end
+        if #autocorrectNoop > 0 then
+            L[#L + 1] = "   ⚠️ dead rows : " .. #autocorrectNoop
+                        .. " `fix` row(s) whose two sides are the same word,"
+            L[#L + 1] = "                  SKIPPED. Obeyed, they turn IDs into"
+            L[#L + 1] = "                  Ids and cost the TWo-caps rule its"
+            L[#L + 1] = "                  turn on that word. Your file is not"
+            L[#L + 1] = "                  touched — delete them when you like:"
+            for i, r in ipairs(autocorrectNoop) do
+                if i > 20 then
+                    L[#L + 1] = ("      …and %d more"):format(#autocorrectNoop - 20)
+                    break
+                end
+                L[#L + 1] = ("      line %-8d fix,%s,%s"):format(r.line, r.wrong, r.right)
+            end
+        else
+            L[#L + 1] = "   dead rows    : none"
+        end
+        local s = table.concat(L, "\n")
+        print(s)
+        return s
+    end
 
     -- Boot: needs Accessibility; degrade politely without it
     local acAxOK = false
