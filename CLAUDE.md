@@ -312,6 +312,36 @@ own ioreg line; **PID 0 means NOBODY** and must read as clear or it cries
 wolf on every healthy Mac. Only a CHANGE is printed. The capability row
 is INVERTED on purpose (a held lock = capability OFF) and both directions
 are mutation-proven. `_G.secureInputReport()`, `_G.secureInputEvery` (60).
+🚨 NEVER START A TASK FROM INSIDE ANOTHER TASK'S CALLBACK (6.196.1,
+core/capabilities.lua) — not without stepping off it first. 6.196.0's
+Secure Input probe held BOTH its ioreg runs in one global; the broad
+fallback starts from inside the narrow probe's callback, so that
+assignment dropped the last reference to the task whose callback was
+RUNNING. hs.task's finaliser then tore down the NSTask and the callback
+block underneath the live frame — a use-after-free that killed
+Hammerspoon natively, with NO Lua error and NOTHING in the Console,
+whenever a GC landed in that window. And it was not a rare path: on a
+healthy Mac the narrow probe finds nothing EVERY time. Fix is both
+sides — `_G.secureInputTasks[slot]` (separate slots, so starting one
+never releases the other) and a HELD `_G.secureInputHop` timer so the
+callback has RETURNED first. Asserted against the SOURCE, deliberately:
+a stub hs.task is collected by nobody, so a functional test of this
+passes just as happily with the bug in. Any new held-task chain gets
+the same two rules.
+🔎 "NOT YET" AND "NEVER" MUST NOT READ THE SAME (6.196.1). The crash
+above shipped because `checks` only rose when a probe COMPLETED, so a
+probe that started and died read as "not probed yet, checks 0" —
+identical to one never attempted, eleven minutes after boot. Count
+ATTEMPTS separately from completions and say so when they disagree.
+Any async probe reporting a state it has never successfully read owes
+the same distinction.
+🔎 ⇪space HAS `_G.unifiedSearchReport()` (6.196.1) — it was the one tool
+here without one, which is why "2372 items indexed — does this seem
+right?" had no answer. It names every store and its count, and a store
+that FAILED to load reads differently from one that is EMPTY; `gather()`
+REMEMBERS a failure in `uni.failed` rather than only printing it once,
+so a source that broke at boot can be named an hour later. A total with
+a store count beside it hides a store that quietly stopped contributing.
 🔍 THE GATE AUDITS THE CHEAT SHEETS (6.196.0, test_integration):
 "a stale key on the sheet IS a broken feature" (6.181.0) is a check now,
 not a promise kept by hand. Every module's own cheatsheet KEY COLUMN is
@@ -718,6 +748,20 @@ mirrors draw order: "closes last" IS "drawn under".
   arrow. ASK LL to look at the sheet and say whether the symbol has that
   bar before changing any font: a "fix" for a misread screenshot would
   be a change with no bug under it.
+- 6.196.1 verify with LL: THE CRASH. Install it and just use the Mac —
+  6.196.0 died natively (no Console line, no Lua error) at boot and
+  potentially every minute after, so the test is simply that it stops.
+  If it EVER crashes again, the file to send is the newest
+  ~/Library/Logs/DiagnosticReports/Hammerspoon-*.ips — its crashing
+  thread names the framework, which is the fact that ends the hunt.
+  Then `_G.secureInputReport()` should now say "off — nothing is
+  holding the keyboard" rather than UNKNOWN, and ⇪⇧D's Secure Input
+  capability row should be ✅ within a minute of boot (it read ❔ "not
+  probed yet" for eleven minutes on 6.196.0 — that was the crash, not
+  patience). And `_G.unifiedSearchReport()` — which is the name I gave
+  LL for 6.196.0 and which did not exist then — now lists all fourteen
+  stores. His boot said "13 store(s)"; the report names which one is
+  empty, and would say FAILED instead if it were broken.
 - 6.195.0 verify with LL: ⇪3 — the 🕸 NOTES section opens with a
   "+ new note ⌘N" row; clicking it brings up the same in-window naming
   bar ⌘N does. Then ⇪X, land, and HOLD an arrow: it should cover four

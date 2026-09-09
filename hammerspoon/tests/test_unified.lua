@@ -1041,6 +1041,65 @@ do
     U.hide()
 end
 
+-- ---- 🔎 THE REPORT (6.196.1) ------------------------------------
+-- ⇪space was the one tool in this config with no _G.<tool>Report(),
+-- which is why "2372 items indexed — does this seem right?" had no
+-- answer. The check that matters is NOT that it prints: it is that an
+-- empty store and a BROKEN one read differently. Before this they were
+-- the same absence inside a total that still looked large.
+do
+    local U = M.unified or _G.unifiedSearch
+    check("🔎 _G.unifiedSearchReport() exists at all",
+          type(_G.unifiedSearchReport) == "function")
+
+    local said = {}
+    local realPrint = print
+    print = function(...) said[#said + 1] = table.concat({ ... }, "\t") end
+
+    U.counts = { clip = 7 }
+    U.failed = { ocr = "the log could not be read" }
+    U.rows   = { {}, {}, {}, {}, {}, {}, {} }
+    U.lastGather = os.time()
+    _G.unifiedSearchReport()
+    print = realPrint
+
+    check("🚨 the report prints as ONE string — 6.179.1, the console gate "
+          .. "swallows a report printed row by row",
+          #said == 1, #said .. " print call(s)")
+    local out = said[1] or ""
+    check("...it names a store that HAS rows, with its count",
+          out:find("@clip", 1, true) and out:find("7", 1, true))
+    check("🚨 ...and a FAILED store says FAILED and carries the reason — a "
+          .. "broken source that read as '0' is a store that has been "
+          .. "quietly missing from every search",
+          out:find("FAILED", 1, true)
+          and out:find("could not be read", 1, true), out)
+    check("🚨 ...and it is NOT the same text as an untouched store, which "
+          .. "reads as empty",
+          out:find("nothing in this store yet", 1, true), out)
+    check("...the summary counts the failure separately from the empties",
+          out:find("1 FAILED", 1, true), out)
+    -- Counted as ROWS, not as occurrences of the word: the summary and the
+    -- advisory footer both say FAILED, and a word count would have passed
+    -- even if every store had been marked broken.
+    local failRows = 0
+    for line in out:gmatch("[^\n]+") do
+        if line:find("@%w+%s+FAILED") then failRows = failRows + 1 end
+    end
+    check("...and exactly ONE store row is marked failed — the others are "
+          .. "empty, which is a different thing and must stay one",
+          failRows == 1, failRows .. " rows marked FAILED")
+
+    -- gather() must RECORD a failure, not only print one: a line that has
+    -- scrolled away cannot be reported on an hour later.
+    check("🔎 gather() clears and records failures rather than only printing",
+          type(U.gather) == "function")
+    U.failed, U.counts, U.lastGather = nil, nil, nil
+    local ok = pcall(_G.unifiedSearchReport)
+    check("...and the report degrades where nothing has been gathered yet",
+          ok)
+end
+
 io.write(("\n%d passed, %d failed\n"):format(pass, fail))
 if fail > 0 then
     io.write("FAILURES:\n")

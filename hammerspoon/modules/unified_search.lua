@@ -836,6 +836,13 @@ function M.setup(core)
 
     function uni.gather()
         uni.rows, uni.counts = {}, {}
+        -- 🚨 A FAILED SOURCE IS REMEMBERED, NOT JUST PRINTED (6.196.1).
+        -- Before this, a source that threw said so once at gather time
+        -- and then scrolled out of the Console, so a store that had been
+        -- silently missing for weeks looked exactly like a store that
+        -- was simply empty. The report below names both, differently.
+        uni.failed = {}
+        uni.lastGather = os.time()
         local function add(o)
             o.id = #uni.rows + 1
             uni.rows[o.id] = o
@@ -844,6 +851,7 @@ function M.setup(core)
         for _, s in ipairs(uni.sources) do
             local ok, err = pcall(s.fn, add)
             if not ok then
+                uni.failed[s.tag] = tostring(err)
                 warn(s.label .. " source failed: " .. tostring(err))
                 print("🔎 Unified Search: the " .. s.label
                       .. " source failed and was skipped — " .. tostring(err))
@@ -1281,6 +1289,59 @@ if (q.focus) q.focus();
         if not uni.posTimer then
             pcall(function() hs.settings.set(POS_KEY, ok) end)
         end
+        return true
+    end
+
+    -- 🔎 THE REPORT (6.196.1). ⇪space had no `_G.<tool>Report()` — the
+    -- one tool in this config without one, and the module contract says
+    -- every tool has one. LL asked "2372 items indexed — does this seem
+    -- right?" and there was no way to answer it: the boot line gives a
+    -- total and a store COUNT, so a store that has quietly stopped
+    -- contributing is invisible inside a number that still looks large.
+    -- A source with zero rows and a source that FAILED read identically
+    -- from outside, which is the whole reason this exists.
+    --
+    -- Prints as ONE string — 6.179.1, the console gate eats a report
+    -- printed row by row.
+    function _G.unifiedSearchReport()
+        local L = { "🔎 UNIFIED SEARCH — what is actually in the box" }
+        local total, live, empty, broke = 0, 0, 0, 0
+        for _, src in ipairs(uni.sources) do
+            local n   = (uni.counts and uni.counts[src.tag]) or 0
+            local err = uni.failed and uni.failed[src.tag]
+            total = total + n
+            local state
+            if err then
+                broke = broke + 1
+                state = "FAILED — " .. tostring(err)
+            elseif n == 0 then
+                empty = empty + 1
+                state = "0 — nothing in this store yet"
+            else
+                live = live + 1
+                state = tostring(n)
+            end
+            L[#L + 1] = string.format("   %-2s @%-8s %s", src.icon or "",
+                                      src.tag, state)
+        end
+        L[#L + 1] = "   ─────"
+        L[#L + 1] = "   total  : " .. total .. " rows from " .. live
+                    .. " of " .. #uni.sources .. " stores"
+                    .. (empty > 0 and (" · " .. empty .. " empty") or "")
+                    .. (broke > 0 and (" · " .. broke .. " FAILED") or "")
+        if uni.rows and #uni.rows ~= total then
+            L[#L + 1] = "   ⚠️ the row list holds " .. #uni.rows
+                        .. " — it disagrees with the per-store counts"
+        end
+        L[#L + 1] = "   built  : " .. (uni.lastGather
+            and (os.date("%H:%M:%S", uni.lastGather) .. " ("
+                 .. (os.time() - uni.lastGather) .. "s ago)")
+            or "not gathered yet — press ⇪D once")
+        if broke > 0 then
+            L[#L + 1] = "   ↳ a FAILED store is a bug to chase, not an empty one:"
+                        .. " its rows are missing from every search until it loads."
+        end
+        print(table.concat(L, "\n"))
         return true
     end
 

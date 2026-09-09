@@ -1896,6 +1896,47 @@ if capChunk then
     check("...and a failed command (nil, not a string) never throws",
           _G.secureInputParse(nil) == nil)
 
+    -- ---- 🚨 THE CRASH (6.196.1) ------------------------------------
+    -- 6.196.0 held BOTH ioreg probes in one global. The broad fallback is
+    -- started from inside the narrow probe's own callback, so starting it
+    -- dropped the only reference to the task whose callback was running —
+    -- hs.task's finaliser then tore down the NSTask and the callback block
+    -- underneath the live frame. A use-after-free: Hammerspoon died
+    -- natively, no Lua error, nothing in the Console, and only when a GC
+    -- cycle happened to land in that window. On a healthy Mac the narrow
+    -- probe finds nothing EVERY time, so that fallback is the normal path.
+    --
+    -- This is asserted against the SOURCE because the fault is ownership,
+    -- not behaviour: a stub hs.task is garbage-collected by nobody, so a
+    -- functional test of this passes just as happily with the bug in.
+    local capsSrc
+    do
+        local cf = realopen(HS .. "/core/capabilities.lua", "r")
+        if cf then capsSrc = cf:read("*a") ; cf:close() end
+    end
+    check("🔒 capabilities.lua is readable for the ownership checks",
+          capsSrc and #capsSrc > 2000)
+    check("🚨 the two ioreg probes are held in SEPARATE slots — one shared "
+          .. "global meant starting the fallback released the task whose "
+          .. "callback was still running, and that crashed Hammerspoon",
+          capsSrc and not capsSrc:match("_G%.secureInputTask%s*=%s*hs%.task"),
+          "a single-slot assignment is back")
+    check("...and the slot is chosen by the caller, so the narrow and broad "
+          .. "probes cannot land on the same one by accident",
+          capsSrc and capsSrc:match("_G%.secureInputTasks%[slot%]%s*=%s*hs%.task"))
+    check("🚨 ...and the fallback is STEPPED OFF the narrow callback before "
+          .. "it starts — never start a task from inside another task's "
+          .. "callback, or its owner can be released under the live frame",
+          capsSrc and capsSrc:match("secureInputHop%s*=%s*hs%.timer%.doAfter"))
+    check("...and that hop timer is HELD in _G (6.155.0 — an unreferenced "
+          .. "timer is collected and a collected timer never fires)",
+          capsSrc and capsSrc:match("_G%.secureInputHop%s*="))
+    -- A probe that STARTS and never finishes must not read the same as one
+    -- that was never attempted: that is precisely what the crash looked
+    -- like from outside, and why it survived a release.
+    check("🚨 a started probe is counted separately from a completed one",
+          capsSrc and capsSrc:match("secureInput%.started"))
+
     local un = asMac({}, { hyperRemapOK = true, ocrShortcutAvailable = true,
                            brewPathInUse = "/b" })
     check("...and an unprobed Mac reports UNKNOWN, never a confident 'off' "

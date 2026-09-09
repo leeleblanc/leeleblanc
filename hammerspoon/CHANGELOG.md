@@ -5,6 +5,54 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.196.1 — 🚨 THE PROBE THAT CRASHED THE APP IT WAS WATCHING:
+  🚨 LL: "Hammerspoon is crashing. can we tell why?" Yes — and it was
+     6.196.0's own Secure Input probe, the feature written to stop a
+     silent failure, failing silently.
+     The probe runs ioreg twice: a narrow read of IOConsoleUsers first,
+     the multi-megabyte broad dump only as a fallback. Both tasks were
+     held in ONE global, `_G.secureInputTask`. The fallback is started
+     from INSIDE the narrow probe's own callback, so the assignment
+     that started it dropped the last reference to the task whose
+     callback was at that moment running. Lua collected it; hs.task's
+     finaliser tore down the NSTask and the callback block underneath
+     the live frame. A use-after-free — Hammerspoon dies natively, with
+     no Lua error and nothing in the Console, whenever a garbage
+     collection happens to land inside that window.
+     🚨 And the fallback was not the rare path: on a healthy Mac the
+     narrow probe finds nothing EVERY time, so every probe took it,
+     once at boot and once a minute forever.
+     The fix is two-sided. The probes are held in SEPARATE slots
+     (`_G.secureInputTasks[slot]`), so starting one can never release
+     the other; and the fallback steps off the callback through a held
+     timer before it starts. THE RULE, which is the durable half:
+     never start a task from inside another task's callback without
+     stepping off it first — the callback's own owner can be released
+     under the frame that is running it.
+     Both halves are asserted against the SOURCE, not behaviour: a stub
+     hs.task is garbage-collected by nobody, so a functional test of
+     this passes just as happily with the bug in.
+  🔎 WHY IT SHIPPED. `checks` only rises when a probe COMPLETES, so a
+     probe that started and died left the state reading "not probed
+     yet" with zero checks — identical to a probe never attempted. LL's
+     report showed exactly that, eleven minutes after boot, and it read
+     as a feature waiting its turn rather than one that had never once
+     survived. Attempts are counted separately now, and the report says
+     "N probe(s) STARTED and none finished" when they disagree. A
+     feature that cannot tell "not yet" from "never" is not reporting.
+  🔎 ⇪space HAS A REPORT AT LAST — `_G.unifiedSearchReport()`. It was
+     the one tool in this config without one, which is why LL's "2372
+     items indexed — does this seem right?" had no answer: the boot
+     line gives a total and a store COUNT, and a store that has quietly
+     stopped contributing is invisible inside a number that still looks
+     large. Every store now, with its row count, and — the part that
+     matters — a store that FAILED to load reads differently from one
+     that is simply EMPTY. Until now those were the same silence.
+     gather() REMEMBERS a failure rather than only printing it once, so
+     a source that broke at boot can still be named an hour later.
+  🧪 test_diagnostics 548 -> 554, test_unified 114 -> 123. 8,169 ->
+     8,183 checks, seventy-four stages. init.lua 3,787 -> 3,772.
+
 NEW IN 6.196.0 — 🔒 WHEN SOMETHING ELSE HAS YOUR KEYBOARD, THIS SAYS SO:
   🔒 LL: "Something happened. Nothing works." It took four hours, two
      versions and a rollback to find, and NONE of it was this config.

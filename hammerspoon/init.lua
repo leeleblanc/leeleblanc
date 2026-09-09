@@ -4,9 +4,33 @@
 -- =====================================================================
 -- 09-09-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.196.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.196.1
 -- =====================================================================
 
+-- NEW IN 6.196.1 — 🚨 THE PROBE THAT CRASHED THE APP IT WAS WATCHING:
+--   🚨 6.196.0's Secure Input probe runs ioreg twice — a narrow read
+--      first, the broad one as a fallback — and held BOTH tasks in ONE
+--      global. The fallback starts from inside the narrow probe's own
+--      callback, so starting it dropped the last reference to the task
+--      whose callback was running: hs.task's finaliser then tore down
+--      the NSTask and the callback block underneath the live frame. A
+--      use-after-free. Hammerspoon died natively — no Lua error, nothing
+--      in the Console — whenever a garbage collection landed in that
+--      window. On a healthy Mac the narrow probe finds nothing EVERY
+--      time, so that fallback was the normal path, not a rare one.
+--      Separate slots now, and the fallback steps off the callback via a
+--      held timer before it starts. NEVER start a task from inside
+--      another task's callback without stepping off it first.
+--   🔎 And the tell that let it ship: a probe that STARTS and dies read
+--      exactly like one never attempted ("not probed yet", checks 0).
+--      Attempts are counted separately now and the report says so.
+--   🔎 ⇪space finally has _G.unifiedSearchReport() — the last tool here
+--      without one. Every store, its row count, and the difference
+--      between a store that is EMPTY and one that FAILED to load, which
+--      until now were the same silence inside a total that looked fine.
+--   🧪 test_diagnostics 548 -> 554, test_unified 114 -> 123. 8,169 ->
+--      8,183 checks, seventy-four stages.
+--
 -- NEW IN 6.196.0 — 🔒 WHEN SOMETHING ELSE HAS YOUR KEYBOARD, THIS SAYS SO:
 --   🔒 LL: "Something happened. Nothing works." It took four hours, two
 --      versions and a rollback to find, and NONE of it was this config.
@@ -72,49 +96,12 @@
 --      is the inversion most easily got backwards), test_integration
 --      209 -> 211, test_menu_search 70 -> 74, test_cheatsheet 206 -> 209.
 --      8,149 -> 8,169 checks, seventy-four stages.
--- NEW IN 6.195.0 — ➕ A PLUS FOR A NEW NOTE, AND THE ARROWS COVER GROUND:
---   ➕ LL: "can I have a way to quickly create a Hammer-sidian note like I
---      do with the notepad section where I can click a +/plus to generate
---      a new tab." The 🕸 NOTES section now opens with a "+ new note ⌘N"
---      row, the same shape as 📝 SCRATCH NOTES' "+ new tab ⌘T". It goes
---      through v.newNote() — the SAME call ⌘N makes, so the in-page
---      naming bar and its dialog degrade serve both and there is no
---      second creation path to drift. 🚨 It carries data-new, NOT
---      data-tab: the row walker matches data-name/data-tab/data-tag, and
---      a + row at the top of the notes would make ⌥↓ land on "new note"
---      instead of the first note. It is a CLICK target, which is what LL
---      asked for; ⌘N is the keyboard path. A typed filter hides it,
---      because there ⏎ already creates the name you typed.
---   🏃 LL: "holding arrow down should jump 4 arrow key presses." After
---      ⇪X lands, a HELD arrow now moves grid.nudgeAccelFirst (4) steps
---      on its very first repeat — 32 pt at once instead of crawling
---      8 → 16 → 32 — and still climbs to 64 pt. A TAP is untouched at
---      8 pt and ⇧+arrow is still 1 pt: only a hold accelerates, which is
---      the whole distinction. _G.mouseGridReport() grew a "nudge :" line
---      naming all four numbers, because "the arrows are too slow" has
---      now been the report twice with the numbers nowhere in it.
---   🎯 LL, on his diagram: "the cells are not dividing in half when I get
---      two keys in and only a single letter remains." That is the answer:
---      ⌥+arrow halves the cell you LANDED in, and two letters in you have
---      not landed yet. It did nothing at all there — no sound, no line —
---      and so did a press with halving switched off. Both now SAY which
---      it was, and ⌥+arrow is bound in the picker itself purely to answer
---      "type the three letters first". Nothing about the halving changed;
---      what changed is that a dead press stops being indistinguishable
---      from a broken feature. Whether halving should work BEFORE landing
---      is a real question and a new decision, not a fix.
---   🧪 A stub tightened, per 6.193.0's rule: test_vault_js's
---      querySelectorAll IGNORED its selector and handed back every row,
---      so a row the real ROWSEL excludes still walked. It honours the
---      [data-x] terms now. test_vault 341 -> 342, test_vault_js 256 ->
---      262, test_mouse_grid 413 -> 419. 8,138 -> 8,149 checks,
---      seventy-four stages.
--- (6.194.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.195.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.196.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.196.1
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -211,7 +198,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.196.0"
+_G.configVersion = "6.196.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

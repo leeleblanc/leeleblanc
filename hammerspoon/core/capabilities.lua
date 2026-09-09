@@ -162,14 +162,32 @@ return function(core)
             return false
         end
         siBusy = true
+        -- STARTED vs CHECKS. `checks` only rises when a probe COMPLETES,
+        -- so a probe that starts and dies leaves the state reading
+        -- "not probed yet" forever — which is exactly what 6.196.0's
+        -- crash looked like from outside: the honest-looking state of a
+        -- feature that had never once run. Counting the attempts makes
+        -- the difference visible instead of indistinguishable.
+        _G.secureInput.started = (_G.secureInput.started or 0) + 1
         local function finish(pid, why)
             siBusy = false
             siApply(pid, why)
             if done then pcall(done, _G.secureInput) end
         end
-        local function run(args, andThen)
+        -- 🚨 ONE SLOT PER PROBE, NEVER ONE SLOT FOR BOTH (6.196.1). The
+        -- fallback below starts while the narrow probe's own callback is
+        -- still on the stack. With both tasks sharing a single global,
+        -- starting the second DROPPED the only reference to the first —
+        -- and hs.task's finaliser then tore down the NSTask and the
+        -- callback block underneath the frame that was running it. That
+        -- is a use-after-free: Hammerspoon dies natively, with no Lua
+        -- error and nothing in the Console, whenever a GC cycle happens
+        -- to land inside that window. Separate slots, and the fallback
+        -- deferred out of the callback below, close it from both sides.
+        _G.secureInputTasks = _G.secureInputTasks or {}
+        local function run(slot, args, andThen)
             local ok = pcall(function()
-                _G.secureInputTask = hs.task.new("/usr/sbin/ioreg", function(_, so)
+                _G.secureInputTasks[slot] = hs.task.new("/usr/sbin/ioreg", function(_, so)
                     andThen(_G.secureInputParse(so))
                 end, args):start()
             end)
@@ -179,11 +197,17 @@ return function(core)
             end
         end
         -- Narrow first. The broad form is the fallback and runs ONLY when
-        -- the narrow one came back with nothing, so the expensive dump is
-        -- not the normal path.
-        run(SI_NARROW, function(pid)
+        -- the narrow one came back with nothing — which on a healthy Mac
+        -- is EVERY time, so this fallback is the normal path, not a rare
+        -- one. It is started from a HELD timer rather than directly, so
+        -- the narrow callback has RETURNED before anything can release
+        -- the task that owns it. Never start a task from inside another
+        -- task's callback without stepping off it first.
+        run("narrow", SI_NARROW, function(pid)
             if pid then return finish(pid) end
-            run(SI_BROAD, function(pid2) finish(pid2) end)
+            _G.secureInputHop = hs.timer.doAfter(0, function()
+                run("broad", SI_BROAD, function(pid2) finish(pid2) end)
+            end)
         end)
         return true
     end
@@ -194,6 +218,10 @@ return function(core)
         local L = { "🔒 SECURE INPUT — can anything else read the keyboard?" }
         if si.on == nil then
             L[#L + 1] = "   state  : UNKNOWN — " .. tostring(si.why)
+            if (si.started or 0) > 0 and si.checks == 0 then
+                L[#L + 1] = "   ⚠️ " .. si.started .. " probe(s) STARTED and none "
+                            .. "finished — ioreg is being run but never calls back."
+            end
         elseif si.on then
             L[#L + 1] = "   state  : ON — " .. tostring(si.app) .. " holds it"
             L[#L + 1] = "   costs  : every event tap (snippets, autocorrect, the "
