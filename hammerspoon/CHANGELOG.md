@@ -5,6 +5,57 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.195.0 — ➕ A PLUS FOR A NEW NOTE, AND THE ARROWS COVER GROUND:
+  ➕ LL: "can I have a way to quickly create a Hammer-sidian note like I
+     do with the notepad section where I can click a +/plus to generate a
+     new tab." The 🕸 NOTES section now opens with a "+ new note ⌘N" row,
+     the same shape as the pad's "+ new tab ⌘T" one section above it.
+     It goes through v.newNote() — the SAME call ⌘N makes — so the
+     in-page naming bar (6.190.0) and its hs.dialog degrade serve both,
+     and there is no second creation path to quietly stop matching the
+     first. That is the 6.114.0 lesson applied to a button.
+     🚨 THE ROW CARRIES data-new, NOT data-tab, and that is the whole
+     design decision in this entry. The row walker's ROWSEL matches
+     data-name / data-tab / data-tag; a + row at the TOP of the notes
+     with any of those would make ⌥↓ land on "new note" instead of the
+     first note, every time, for a row LL asked to be able to CLICK.
+     So it is a click target and ⌘N is the keyboard path. A typed filter
+     hides it, because with a filter up ⏎ already creates that name.
+  🏃 LL: "holding arrow down should jump 4 arrow key presses." After ⇪X
+     lands, a HELD arrow now moves grid.nudgeAccelFirst (4) steps on its
+     very FIRST repeat — 32 pt at once, where 6.172.1 crawled 8 → 8 → 8
+     → 16 before it got there — and still doubles on to the 64 pt cap.
+     A TAP is untouched at 8 pt and ⇧+arrow is still 1 pt: only a HOLD
+     accelerates, and that distinction is what makes fine placement by
+     tapping survive. _G.mouseGridReport() grew a "nudge  :" line naming
+     tap, ⇧, first-repeat and cap in points — "the arrows are too slow"
+     has now been the report twice and none of those numbers were
+     anywhere a person could read them.
+  🎯 LL sent the ⇪X diagram back with a line under it: "the cells are
+     not dividing in half when I get two keys in and only a single
+     letter remains." That IS the answer, and it was invisible. ⌥+arrow
+     halves the cell you LANDED in; two letters into a three-letter
+     label you have not landed, so the press fell through two silent
+     `return`s — one for "not landed", one for "halving switched off" —
+     and a dead key is indistinguishable from a broken feature.
+     Both refusals now say which one it was, and ⌥+arrow is bound in the
+     PICKER itself for no other purpose than to answer "type the three
+     letters first — ⌥+arrow halves the cell AFTER you land in one."
+     Nothing about the halving itself changed. Whether it should work
+     BEFORE landing — while the labels are still up and a prefix names a
+     block of cells rather than one box — is a real question with a real
+     answer, and it is a NEW decision, not a fix to this one.
+  🧪 A STUB TIGHTENED, per 6.193.0's rule that a stub more forgiving
+     than the real thing is a hole with a tick beside it: test_vault_js's
+     querySelectorAll ignored its selector entirely and handed back every
+     row in #rows. The new + row is excluded by the real ROWSEL and was
+     walked by the fake one — the two row-walker checks caught it, which
+     is the only reason this is a footnote and not a shipped regression.
+     It honours a selector's [data-x] terms now.
+     test_vault 341 -> 342, test_vault_js 256 -> 262, test_mouse_grid
+     413 -> 419. 8,138 -> 8,149 checks over seventy-four stages;
+     init.lua 3,758 lines.
+
 NEW IN 6.194.0 — 📸 EVERY SCREENSHOT TOOL GETS ITS OWN KEY:
   📸 LL wrote the map out himself and it lands exactly as written:
        ⇪⇧1  🖌 Blur / edit the newest screenshot

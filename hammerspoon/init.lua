@@ -2,11 +2,48 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-08-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-09-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.194.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.195.0
 -- =====================================================================
 
+-- NEW IN 6.195.0 — ➕ A PLUS FOR A NEW NOTE, AND THE ARROWS COVER GROUND:
+--   ➕ LL: "can I have a way to quickly create a Hammer-sidian note like I
+--      do with the notepad section where I can click a +/plus to generate
+--      a new tab." The 🕸 NOTES section now opens with a "+ new note ⌘N"
+--      row, the same shape as 📝 SCRATCH NOTES' "+ new tab ⌘T". It goes
+--      through v.newNote() — the SAME call ⌘N makes, so the in-page
+--      naming bar and its dialog degrade serve both and there is no
+--      second creation path to drift. 🚨 It carries data-new, NOT
+--      data-tab: the row walker matches data-name/data-tab/data-tag, and
+--      a + row at the top of the notes would make ⌥↓ land on "new note"
+--      instead of the first note. It is a CLICK target, which is what LL
+--      asked for; ⌘N is the keyboard path. A typed filter hides it,
+--      because there ⏎ already creates the name you typed.
+--   🏃 LL: "holding arrow down should jump 4 arrow key presses." After
+--      ⇪X lands, a HELD arrow now moves grid.nudgeAccelFirst (4) steps
+--      on its very first repeat — 32 pt at once instead of crawling
+--      8 → 16 → 32 — and still climbs to 64 pt. A TAP is untouched at
+--      8 pt and ⇧+arrow is still 1 pt: only a hold accelerates, which is
+--      the whole distinction. _G.mouseGridReport() grew a "nudge :" line
+--      naming all four numbers, because "the arrows are too slow" has
+--      now been the report twice with the numbers nowhere in it.
+--   🎯 LL, on his diagram: "the cells are not dividing in half when I get
+--      two keys in and only a single letter remains." That is the answer:
+--      ⌥+arrow halves the cell you LANDED in, and two letters in you have
+--      not landed yet. It did nothing at all there — no sound, no line —
+--      and so did a press with halving switched off. Both now SAY which
+--      it was, and ⌥+arrow is bound in the picker itself purely to answer
+--      "type the three letters first". Nothing about the halving changed;
+--      what changed is that a dead press stops being indistinguishable
+--      from a broken feature. Whether halving should work BEFORE landing
+--      is a real question and a new decision, not a fix.
+--   🧪 A stub tightened, per 6.193.0's rule: test_vault_js's
+--      querySelectorAll IGNORED its selector and handed back every row,
+--      so a row the real ROWSEL excludes still walked. It honours the
+--      [data-x] terms now. test_vault 341 -> 342, test_vault_js 256 ->
+--      262, test_mouse_grid 413 -> 419. 8,138 -> 8,149 checks,
+--      seventy-four stages.
 -- NEW IN 6.194.0 — 📸 EVERY SCREENSHOT TOOL GETS ITS OWN KEY:
 --   📸 LL wrote the map out himself: "Blur/Edit: this would be the
 --      screenshot editor brought up by hyper+shift+1 · Screenshot Active
@@ -43,40 +80,12 @@
 --      test_screenshots 165 -> 173, test_power_tools 249 -> 252,
 --      test_mouse_follows 109 -> 110. 8,129 -> 8,138 checks,
 --      seventy-four stages.
--- NEW IN 6.193.0 — 🔧 ⇪V WORKS AGAIN, AND ⇪space STOPS STICKING:
---   🔧 LL: "Hyper+V doesn't bring up the history panel for the clipboard
---      anymore." It did not, and the fault is 6.190.0's, one operator
---      wide. ⇪V asks unified search to open the panel and falls back to
---      the old chooser if it will not — but the guard tested for an
---      explicit `false`, and uni.show returns NIL when unified search is
---      switched off. Nil is not false, so the press counted as a success:
---      no panel, no chooser, nothing at all. A key that silently does
---      nothing is the worst of the three outcomes and it was the one
---      shape not covered. It now treats ANY falsy answer as a refusal.
---      The test stubs were the same blind spot — they returned NOTHING
---      while the real service returns true, so the suite was green over
---      exactly the case that broke. They return true now, and a new
---      check feeds a provider that returns nothing and insists the
---      chooser opens. Same fix and same check for ⇪O.
---   ⌨️ LL: "For some reasons Unified Search is stuck on the screen
---      sometimes." His Console carries the matching line — "⇪ released
---      by the watchdog — held 8s with no key event and no F18 keyUp".
---      Every text panel here has called hyperExpectRelease since
---      6.165.1 and forwarded the F18 keyUp from its page: the vault,
---      the Scorp Pad, the screenshot tool. ⇪space never did — it opens
---      the same way and was simply missed, and the cost is the full 8 s
---      latch, during which ⇪ is held down and nothing behaves. Both
---      halves are here now, and routing ⇪V and ⇪O into this panel in
---      6.190.0 is what made a long-standing gap start showing up daily.
---      test_clipboard 132 -> 133, test_ocr_tag 110 -> 111, test_unified
---      111 -> 117, test_unified_js 37 -> 40. 8,119 -> 8,129 checks,
---      seventy-four stages.
--- (6.192.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.193.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.194.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.195.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -173,7 +182,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.194.0"
+_G.configVersion = "6.195.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

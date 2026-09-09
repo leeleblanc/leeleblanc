@@ -194,6 +194,7 @@ local M = {
         entries = {
             { "⇪3 · ⇪1",    "Open / close the window — ⇪3 on your last note, ⇪1 on your scratch tabs" },
             { "📝 SCRATCH NOTES", "Top of the list: every scratch tab, plain or 🗒 Capture or ➕ Append · ⌘T new · the + rows make the other two · ⌘W close · ⌘1–9 · ⌃Tab · history on the right" },
+            { "🕸 NOTES", "Under the scratch tabs: every .md note in the vault · the + new note row and ⌘N both name it in the window · typing a name and ⏎ creates it too" },
             { "[[",         "Type [[ and pick a note — [[Name]] links to Name.md, creating it on follow" },
             { "⌘⏎",         "Follow the link under the caret (a note, or a file link opens the file)" },
             { "⌘N · ⌘D",    "New note · today's daily note (Daily/YYYY-MM-DD.md, from Templates/Daily.md when it exists) · ⌘⇧[ ⌘⇧] the day before / after" },
@@ -2315,6 +2316,17 @@ function drawRows(){
     if (++n >= 400) break;
   }
   if (!h.length) h.push('<li style="opacity:.4;cursor:default">' + (tag !== null ? 'no note carries #' + esc(tag) : (f ? 'no note matches — ⏎ creates &quot;' + esc(q.value.trim()) + '&quot;' : 'no notes yet — ⌘N')) + '</li>');
+  // 6.195.0 — LL: "can I have a way to quickly create a Hammer-sidian note
+  // like I do with the notepad section where I can click a +/plus". The
+  // same shape as the pad's "+ new tab ⌘T", one section down, and it goes
+  // to the SAME v.newNote() ⌘N calls — not a second creation path.
+  // Hidden under a filter or a #tag, exactly like the pad's + rows: with
+  // a filter typed, ⏎ already creates that name.
+  // 🚨 data-new, NOT data-tab: the row walker's ROWSEL matches data-name /
+  // data-tab / data-tag, and a + row at the TOP of the notes would make
+  // ⌥↓ land on "new note" instead of the first note. It is a CLICK target
+  // — which is what LL asked for — and ⌘N is the keyboard path it calls.
+  if (tag === null && !f) h.unshift('<li class="add" data-new="1">+ new note ⌘N</li>');
   // 6.174.0 — 📄 TEMPLATES (never under a # filter), then 🏷 TAGS
   var tp = [];
   if (tag === null) for (var k = 0; k < NOTES.length; k++) {
@@ -2369,7 +2381,8 @@ function drawTaskRows(){
   SEL = -1;
 }
 rowsEl.addEventListener('click', function(e){
-  var li = e.target.closest ? e.target.closest('li[data-name],li[data-tab],li[data-tag]') : null; if (!li) return;
+  var li = e.target.closest ? e.target.closest('li[data-name],li[data-tab],li[data-tag],li[data-new]') : null; if (!li) return;
+  if (li.getAttribute('data-new')) { say({a:'newnote'}); return; }
   var tid = li.getAttribute('data-tab');
   if (tid && tid.charAt(0) !== '+' && e.target.closest && e.target.closest('.x')) say({a:'tabclose', tid: tid});
   else rowAct(li); });
@@ -2444,6 +2457,7 @@ function rowKey(e){
 function rowAct(r){
   var tid = r.getAttribute('data-tab'), tag = r.getAttribute('data-tag');
   if (tid === '+') say({a:'tabnew'});
+
   else if (tid === '+capture' || tid === '+append') say({a:'tabkind', kind: tid.slice(1)});
   else if (tid) say({a:'tab', tid: tid});
   else if (tag) setFilter('#' + tag);
@@ -3571,6 +3585,11 @@ else {
         -- 6.173.0 — the Scorp Pad's tabs (its module does the work)
         elseif a == "tab" then
             if v.openScratch(tostring(body.tid or "")) then v.render() end
+        -- 6.195.0 — the "+ new note ⌘N" row. ONE creation path: this is
+        -- the same v.newNote() the key calls, so the in-page naming bar
+        -- (and its hs.dialog degrade) serve both.
+        elseif a == "newnote" then
+            v.newNote()
         elseif a == "tabnew" then
             local sp = v.sp()
             local t = sp and sp.newTab("")

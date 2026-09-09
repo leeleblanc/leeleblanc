@@ -153,8 +153,8 @@ local M = {
             { "⎋",        "Cancel — the pointer does not move" },
             { "-- after it lands --", "" },
             { "space",    "Left click · ⇧space right click · 2 double click" },
-            { "↑↓←→",     "Nudge 8pt; HOLD and it speeds up to 64pt · with ⇧ nudge 1pt for a tight target" },
-            { "⌥↑↓←→",    "Halve the box you landed in, toward that side — press again and it halves again, so a big cell narrows onto a small button in two or three presses instead of a lot of arrowing" },
+            { "↑↓←→",     "Tap nudges 8pt; HOLD and it jumps 32pt at once (four taps' worth) and climbs to 64pt · with ⇧ nudge 1pt for a tight target" },
+            { "⌥↑↓←→",    "Halve the box you landed in, toward that side — press again and it halves again, so a big cell narrows onto a small button in two or three presses instead of a lot of arrowing · press it while the grid is still up and it says to type the letters first" },
             { "⎋",        "Done — leave the pointer where it is" },
             { "⇪⇧L",      "Find the pointer — three white rings pulse out from it, again and again, for 5 s" },
             { "",         "Sized to the screen (×1.5 on a 4K at full points); grid.locateRadius / locateSecs / locateScale to taste" },
@@ -299,6 +299,12 @@ function M.setup(core)
     -- as one hold; every nudgeAccelEvery repeats the step doubles, up to
     -- nudgeAccelMax × nudgeStep (8 → 64 pt). A tap is still one plain
     -- step, and a pause resets the run — fine placement is unchanged.
+    -- 6.195.0 — LL: "holding arrow down should jump 4 arrow key presses."
+    -- So the FIRST repeat of a hold is already nudgeAccelFirst (4) steps
+    -- — 32 pt — instead of crawling through 8 → 16 → 32. A TAP is still
+    -- one plain 8 pt step and ⇧+arrow is still 1 pt: only a HELD key
+    -- accelerates, which is the whole distinction LL is asking about.
+    grid.nudgeAccelFirst  = 4
     grid.nudgeAccelEvery  = 3
     grid.nudgeAccelMax    = 8
     grid.nudgeAccelWindow = 0.25    -- seconds between repeats that still count as a hold
@@ -1261,8 +1267,21 @@ function M.setup(core)
     -- the pointer moving somewhere LL did not ask for.
     local function halveTo(dir)
         local s = grid.state
-        if not (s and s.phase == "landed") then return end
-        if not grid.halve then return end
+        -- 🚨 6.195.0 — NO SILENT NO-OP. LL: "the grid is not dividing into
+        -- (2) squares." Both of these used to return without a word, so a
+        -- press that did nothing looked identical whichever reason it was:
+        -- pressed before landing, or the feature switched off. Say which.
+        if not (s and s.phase == "landed") then
+            hs.alert.show("🎯 type the three letters first — ⌥+arrow halves "
+                          .. "the cell AFTER you land in one")
+            say("halve ignored: not landed")
+            return
+        end
+        if not grid.halve then
+            hs.alert.show("🎯 halving is switched off (mouse_grid.halve)")
+            say("halve ignored: grid.halve is false")
+            return
+        end
         local box, why = grid.halfOf(s.box, dir, grid.halveMin)
         if not box then
             hs.alert.show("🎯 " .. tostring(why))
@@ -1558,6 +1577,15 @@ function M.setup(core)
                                                      st.box.w, st.box.h, st.halvings or 0)
                                    or ""))
         end
+        -- 6.195.0 — what a HELD arrow actually does, in points, because
+        -- "the arrows are too slow" has now been the report twice and the
+        -- numbers behind it were nowhere in the report.
+        out[#out + 1] = string.format(
+            "   nudge   : tap %d pt · ⇧ %d pt · HOLD %d pt (first repeat, "
+            .. "nudgeAccelFirst) rising to %d pt",
+            math.floor(num(grid.nudgeStep, 8)), math.floor(num(grid.nudgeFine, 1)),
+            math.floor(num(grid.nudgeStep, 8) * num(grid.nudgeAccelFirst, 4)),
+            math.floor(num(grid.nudgeStep, 8) * num(grid.nudgeAccelMax, 8)))
         -- 6.167.0: the ring's size IN EFFECT where the pointer is now, and
         -- what the last press actually drew, for "still small".
         do
@@ -1604,6 +1632,20 @@ function M.setup(core)
             function() grid.hide("escape") end)
     end
 
+    -- 🎯 6.195.0 — ⌥+arrow WHILE THE GRID IS STILL UP. It is the natural
+    -- thing to try when you are looking at the labelled cells and want one
+    -- split, and until now it did nothing whatsoever. It still does not
+    -- divide the grid — halving is a property of the cell you LANDED in,
+    -- because that is the only box with bounds — but it now SAYS so
+    -- instead of eating the key.
+    for _, k in ipairs({ "up", "down", "left", "right" }) do
+        grid.pickModal:bind({ "alt" }, k, function()
+            pcall(function()
+                hs.alert.show("🎯 type the three letters first — ⌥+arrow "
+                              .. "halves the cell AFTER you land in one")
+            end)
+        end)
+    end
     grid.pickModal:bind({}, "escape", function() grid.hide("escape") end)
     grid.pickModal:bind({}, "delete", function()
         local ok, err = pcall(grid.backspace)
@@ -1670,8 +1712,14 @@ function M.setup(core)
         if r.key == key and (now - r.at) <= (grid.nudgeAccelWindow or 0.25) then r.n = r.n + 1
         else r.key, r.n = key, 0 end
         r.at = now
+        -- 🚨 r.n IS THE REPEAT COUNT, and 0 means a TAP — it must stay a
+        -- plain single step or fine placement by tapping is gone. Every
+        -- repeat after that starts at nudgeAccelFirst and doubles every
+        -- nudgeAccelEvery, capped at nudgeAccelMax.
+        if r.n <= 0 then return 1 end
+        local first = math.max(1, tonumber(grid.nudgeAccelFirst) or 4)
         local every = math.max(1, tonumber(grid.nudgeAccelEvery) or 3)
-        local mult = 2 ^ math.floor(r.n / every)
+        local mult  = first * 2 ^ math.floor((r.n - 1) / every)
         return math.min(mult, math.max(1, tonumber(grid.nudgeAccelMax) or 8))
     end
     local dirs = { up = { 0, -1 }, down = { 0, 1 }, left = { -1, 0 }, right = { 1, 0 } }

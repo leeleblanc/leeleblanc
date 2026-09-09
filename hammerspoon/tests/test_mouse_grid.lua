@@ -737,14 +737,25 @@ check("↑ nudges by nudgeStep", math.abs(MOUSE_AT.y - (landedAt.y - grid.nudgeS
       MOUSE_AT.y)
 do
     -- 6.172.1 — a HELD arrow accelerates; a tap after a pause is one step
+    -- 6.195.0 — LL: "holding arrow down should jump 4 arrow key presses."
+    -- The very FIRST repeat of a hold is nudgeAccelFirst steps, not one.
+    -- Mutation-proof: with the old `2 ^ floor(n/every)` this reads 8, and
+    -- with `first` applied to the tap as well the check below reads 32.
     local y0 = MOUSE_AT.y
-    for _ = 1, 2 do landKey("up") end          -- repeats 1,2 of the same hold
-    check("6.172.1: the first three presses of a hold are plain steps",
-          math.abs((y0 - MOUSE_AT.y) - 2 * grid.nudgeStep) < 0.01, y0 - MOUSE_AT.y)
+    landKey("up")                              -- repeat 1 of the same hold
+    check("6.195.0: the FIRST repeat of a hold is nudgeAccelFirst steps",
+          math.abs((y0 - MOUSE_AT.y) - grid.nudgeAccelFirst * grid.nudgeStep) < 0.01,
+          y0 - MOUSE_AT.y)
     y0 = MOUSE_AT.y
-    landKey("up")                              -- repeat 3 → ×2
-    check("6.172.1: the fourth repeat doubles the step",
-          math.abs((y0 - MOUSE_AT.y) - 2 * grid.nudgeStep) < 0.01, y0 - MOUSE_AT.y)
+    for _ = 1, 2 do landKey("up") end          -- repeats 2,3 — still ×first
+    check("6.195.0: it holds that speed for nudgeAccelEvery repeats",
+          math.abs((y0 - MOUSE_AT.y) - 2 * grid.nudgeAccelFirst * grid.nudgeStep) < 0.01,
+          y0 - MOUSE_AT.y)
+    y0 = MOUSE_AT.y
+    landKey("up")                              -- repeat 4 → doubles again
+    check("6.195.0: and doubles from there",
+          math.abs((y0 - MOUSE_AT.y) - 2 * grid.nudgeAccelFirst * grid.nudgeStep) < 0.01,
+          y0 - MOUSE_AT.y)
     for _ = 1, 40 do landKey("up") end
     y0 = MOUSE_AT.y; landKey("up")
     check("6.172.1: the step caps at nudgeAccelMax × nudgeStep",
@@ -2536,6 +2547,40 @@ do
     check("grid.halve = false: ⌥+arrow does nothing at all", MOUSE_AT.x == was.x
           and MOUSE_AT.y == was.y and grid.state.halvings == 0)
     grid.hide("test")
+
+    -- 🚨 6.195.0 — NO SILENT NO-OP. LL reported "the grid is not dividing
+    -- into (2) squares" and neither of the two ways ⌥+arrow can decline
+    -- said a word, so a dead press looked identical whichever it was.
+    loadModule(); grid.show(false)              -- still PICKING, not landed
+    ALERTS = {}
+    check("⌥+arrow while the grid is still up is BOUND in the picker",
+          grid.pickModal.binds["alt|down"] ~= nil
+          and grid.pickModal.binds["alt|up"] ~= nil
+          and grid.pickModal.binds["alt|left"] ~= nil
+          and grid.pickModal.binds["alt|right"] ~= nil)
+    grid.pickModal.binds["alt|down"]()
+    check("...and it SAYS the letters come first rather than eating the key",
+          (function()
+              for _, a in ipairs(ALERTS) do
+                  if a:find("three letters", 1, true) then return true end
+              end
+              return false, #ALERTS
+          end)())
+    check("...and it does not tear the grid down or move anything",
+          grid.state ~= nil and grid.state.phase ~= "landed")
+    grid.hide("test")
+    loadModule(); grid.halve = false; grid.show(false); typeLabel("aaa")
+    ALERTS = {}
+    landKey("down", "alt")
+    check("...and with halving switched off the refusal is named too",
+          (function()
+              for _, a in ipairs(ALERTS) do
+                  if a:find("switched off", 1, true) then return true end
+              end
+              return false, #ALERTS
+          end)())
+    grid.hide("test")
+
     loadModule()
     check("🔒 the halving keys are ⌥+ARROWS, never letters — landed mode still "
           .. "binds no letter, so LL's typing reaches the app underneath", (function()
@@ -2552,6 +2597,10 @@ do
     check("...and they do not auto-repeat, unlike the plain arrows",
           grid.landModal.repeats["alt|down"] == nil
           and grid.landModal.repeats["|down"] ~= nil)
+    local rep0 = _G.mouseGridReport()
+    check("the report's nudge line names the HELD speed, not just the tap",
+          rep0:find("nudge") and rep0:find("HOLD 32 pt", 1, true)
+          and rep0:find("tap 8 pt", 1, true), rep0:match("   nudge   :[^\n]*"))
     local rep = _G.mouseGridReport()
     check("the report's halve line names the state and the floor",
           rep:find("halve") and rep:find("⌥↑↓←→") and rep:find(tostring(grid.halveMin)))

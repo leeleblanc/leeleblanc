@@ -423,6 +423,15 @@ msg({ a = "graph", rel = "Alpha.md", text = v.doc.text, sel = 0 })
 check("⌘G switches the page to the graph view", v.view == "graph" and view.htmlSet:find('<body class="graph"'))
 msg({ a = "graph", rel = "Alpha.md", text = v.doc.text, sel = 0 })
 check("⌘G again returns to the editor", v.view == "edit")
+-- 6.195.0 — the page's "+ new note" row. ONE creation path: it must reach
+-- the SAME v.newNote() ⌘N calls, not a second one that can drift from it.
+do
+    local was, called = v.newNote, false
+    v.newNote = function() called = true; return true end
+    msg({ a = "newnote", rel = "Alpha.md", text = v.doc.text, sel = 0 })
+    v.newNote = was
+    check("the + new note row goes through v.newNote — the same door as ⌘N", called)
+end
 msg({ a = "open", name = "Gamma", rel = "Alpha.md", text = v.doc.text, sel = 0 })
 check("a row click opens that note in the same window", v.doc.rel == "Gamma.md" and view.htmlSet:find('CUR = "Gamma.md"'))
 msg({ a = "linkfile", rel = "Gamma.md", text = "# Gamma\n", sel = 8 })

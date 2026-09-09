@@ -297,6 +297,27 @@ store that failed to load must not erase its own backup. The VAULT
 stays in OneDrive regardless (Obsidian opens that folder on both Macs).
 NOT aliases (io.open/rsync/grep don't follow them) and NOT symlinks
 (OneDrive won't sync through one).
+➕ A + ROW IS A CLICK TARGET, NOT A WALKER ROW (6.195.0): the vault's
+"+ new note ⌘N" heads the 🕸 NOTES section and posts `newnote` →
+`v.newNote()` — the SAME call ⌘N makes, so the naming bar and its
+dialog degrade serve both. It carries `data-new`; ROWSEL matches
+data-name/data-tab/data-tag, so a + row at the TOP of the notes with
+any of those steals ⌥↓ from the first note. A filter hides it (⏎
+already creates the typed name). Any new + row at the head of a list
+gets the same treatment.
+🏃 A HELD ARROW JUMPS FOUR (6.195.0, mouse_grid): `nudgeAccelFirst`
+(4) is the multiplier on the FIRST repeat of a hold — 32 pt — rising
+to nudgeAccelMax. A TAP stays 1× (`if r.n <= 0 then return 1 end` is
+load-bearing: apply first to the tap and fine placement is gone) and
+⇧+arrow stays 1 pt. The report's "nudge  :" line names all four
+numbers — LL reported "too slow" twice while they lived nowhere
+readable.
+🎯 ⌥+ARROW HALVES ONLY AFTER LANDING, AND SAYS SO (6.195.0): LL's
+"the cells are not dividing in half when I get two keys in" was two
+SILENT `return`s in halveTo (not landed / halve off). Both now alert,
+and pickModal binds ⌥+arrows purely to say "type the three letters
+first". OPEN AND NOT DECIDED: whether halving should work mid-typing,
+where a prefix names a BLOCK of cells rather than one box.
 📸 SCREENSHOT KEYS (6.194.0, LL's own map): ⇪⇧1 editor · ⇪⇧2 active
 window · ⇪⇧3 delayed · ⇪4 area (unchanged) · ⇪⇧4 text/QR · ⇪5 scrolling
 · ⇪⇧5 the ⌘1–⌘9 panel. They are a TABLE (`shots.toolKeys` = {mods, key,
@@ -620,6 +641,20 @@ mirrors draw order: "closes last" IS "drawn under".
   it — but if a post-boot stall is ever traced there, move the read and
   the append into an hs.task (/bin/cat, /usr/bin/tail). Never move it
   back onto the boot line.
+- 6.195.0 verify with LL: ⇪3 — the 🕸 NOTES section opens with a
+  "+ new note ⌘N" row; clicking it brings up the same in-window naming
+  bar ⌘N does. Then ⇪X, land, and HOLD an arrow: it should cover four
+  taps' worth at once and keep speeding up; a single TAP must still be
+  the old small step. Then the one that was invisible: press ⌥+arrow
+  while the grid labels are still up (two letters in) — it now tells
+  you to type the third letter first, instead of doing nothing. Halving
+  itself is unchanged and still only works after a landing.
+  ASKED, NOT ANSWERED: LL's screenshot of a dark preview popup much
+  bigger than the image inside it — "can you make the screenshot pop-up
+  the same size as the screenshot?" NOTHING IN THIS CONFIG DRAWS THAT
+  POPUP (grepped: no module has that ✕ / drag-dots / 5-glyph toolbar
+  chrome); it looks like CleanShot X or similar. Confirm the app with
+  LL before changing anything here.
 - 6.194.0 verify with LL: the new screenshot keys, in order — ⇪⇧1 blur/
   edit the newest shot · ⇪⇧2 the active window · ⇪⇧3 the 10 s delay ·
   ⇪4 area (unchanged) · ⇪⇧4 text/QR · ⇪5 scrolling · ⇪⇧5 the ⌘1–⌘9

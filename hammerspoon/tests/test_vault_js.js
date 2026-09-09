@@ -74,7 +74,17 @@ function makeEnv() {
     document: {
       getElementById: (id) => byId[id] || null,
       addEventListener: (ev, fn) => { docListeners[ev] = fn; },
-      querySelectorAll: (sel) => { if (!cached || cached.html !== rows.innerHTML) cached = { html: rows.innerHTML, rows: rowsFromHtml() }; return cached.rows; },
+      // 🚨 6.195.0 — THIS STUB USED TO IGNORE THE SELECTOR and hand back
+      // every row. That made it MORE FORGIVING than the browser, which is
+      // a hole with a tick beside it (the 6.193.0 rule): a row the real
+      // ROWSEL excludes still walked here. It now honours the `[data-x]`
+      // terms of a comma-separated selector, which is all the page uses.
+      querySelectorAll: (sel) => {
+        if (!cached || cached.html !== rows.innerHTML) cached = { html: rows.innerHTML, rows: rowsFromHtml() };
+        const want = [...String(sel).matchAll(/\[(data-[a-z]+)\]/g)].map((m) => m[1]);
+        if (!want.length) return cached.rows;
+        return cached.rows.filter((r) => want.some((k) => r.attrs && k in r.attrs));
+      },
       activeElement: t,
       // 6.186.0 — the one thing a fake DOM cannot do for real. The test says
       // what the pointer is over; every other step of the drag is the page's.
@@ -210,6 +220,25 @@ console.log("── Vault: page JavaScript, executed ──");
     env.sent.length = 0; env.key(k, { metaKey: true });
     check("⌘" + k.toUpperCase() + " → " + a, env.sent[0] && env.sent[0].a === a);
   }
+}
+// 5b. 6.195.0 — the "+ new note" row: LL asked for a plus he can CLICK,
+// like the pad's "+ new tab ⌘T". It must reach the same v.newNote() ⌘N
+// does, and it must NOT join the row walker — a + row at the top of the
+// notes would make ⌥↓ land on it instead of the first note.
+{
+  const env = load();
+  const first = env.liRows(env.rows.innerHTML)[0];
+  check("the notes list opens with a + new note row", !!(first && first.attrs && first.attrs["data-new"]), JSON.stringify(first && first.attrs));
+  env.sent.length = 0;
+  env.click(env.rows, first);
+  check("clicking it asks Lua for a new note — the same door as ⌘N", env.sent.length === 1 && env.sent[0].a === "newnote", JSON.stringify(env.sent));
+  check("🚨 and it is NOT a walkable row — ⌥↓ still lands on the first NOTE", (() => {
+    const walked = env.sandbox.document.querySelectorAll("#rows li[data-name],#rows li[data-tab],#rows li[data-tag]");
+    return walked.length > 0 && !(walked[0].attrs && walked[0].attrs["data-new"]);
+  })());
+  env.type("");            // a filter hides it, because ⏎ already creates that name
+  env.q.value = "al"; env.q.listeners.input();
+  check("a typed filter hides the + row", !env.liRows(env.rows.innerHTML).some((r) => r.attrs && r.attrs["data-new"]));
 }
 // 6. the row walker: ⌥↓ from the text, plain ↓ from the filter, ⏎ opens
 {
