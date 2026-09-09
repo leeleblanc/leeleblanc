@@ -359,6 +359,102 @@ check("every timer held", code:find("dm%.sampleTimer = t") and code:find("dm%.ev
 check("never hs.execute, never io.popen", code:find("hs%.execute") == nil and code:find("io%.popen") == nil)
 check("returns its module table", src:find("\nreturn M", 1, true) ~= nil)
 
+-- =====================================================================
+out("\n=== 8. 🚨 A STORE IS A FILE, AND A FILE CAN BE ANY SHAPE (6.198.1) ===\n")
+-- =====================================================================
+-- LL's Console: an error at doc_memory.lua:363 — `d.title` on something
+-- that is not a table — thrown from the app_watcher quit panel, i.e. the
+-- moment he quits Word. dm.load() took data.open whole on the strength
+-- of its OUTER type alone, so one value a level down that is not a table
+-- reached every reader. And the report walks the same structure with
+-- pairs(), so a bad store also took out the diagnostic that would have
+-- named it.
+do
+    local mine = 0
+    local function ck(label, cond, extra) mine = mine + 1 check(label, cond, extra) end
+
+    -- ---- pure, no Mac anywhere near it --------------------------------
+    local clean, bad = dm.cleanOpen({
+        ["Microsoft Word"] = {
+            ["/good.docx"] = { title = "Good", seen = 12 },
+            ["/poison.docx"] = 363,               -- LL's crash, exactly
+        },
+        ["Excel"] = 7,                            -- a whole app gone wrong
+        [5]       = { ["/x"] = { title = "n" } }, -- a key that is not a name
+    })
+    ck("cleanOpen keeps the row that is the right shape",
+       clean["Microsoft Word"] and clean["Microsoft Word"]["/good.docx"]
+       and clean["Microsoft Word"]["/good.docx"].title == "Good")
+    ck("…drops the value that is not a table", clean["Microsoft Word"]
+       and clean["Microsoft Word"]["/poison.docx"] == nil)
+    ck("…drops an app whose whole entry is wrong", clean["Excel"] == nil)
+    ck("…drops a key that is not an app name", clean[5] == nil)
+    ck("…and COUNTS what it dropped rather than repairing in silence",
+       bad == 3, bad)
+    ck("cleanOpen on something that is not a table at all is empty, not a throw",
+       (function() local c, n = dm.cleanOpen(42) ; return next(c) == nil and n == 0 end)())
+    ck("a title that is not a string falls back to the path", (function()
+        local c = dm.cleanOpen({ Word = { ["/a.docx"] = { title = 9 } } })
+        return c.Word["/a.docx"].title == "/a.docx"
+    end)())
+
+    local cl2, bad2 = dm.cleanLastOpen({
+        Word  = { at = 100, docs = { { path = "/a.docx", title = "A" }, 12 } },
+        Excel = { at = 100, docs = "not a list" },
+        Pages = { at = "not a number", docs = { { path = "/p.pages" } } },
+    })
+    ck("cleanLastOpen keeps the good document and drops the junk one",
+       #cl2.Word.docs == 1 and cl2.Word.docs[1].path == "/a.docx")
+    ck("…drops a record whose docs are not a list", cl2.Excel == nil)
+    ck("…and a time it cannot read becomes 0 rather than throwing later",
+       cl2.Pages and cl2.Pages.at == 0, cl2.Pages and cl2.Pages.at)
+    ck("…counting both", bad2 == 2, bad2)
+
+    -- ---- and the whole way through, from the file on disk ------------
+    local f = io.open(dm.jsonFile, "w")
+    f:write('{"open":{"Microsoft Word":{"/Users/lee/Docs/Real.docx":'
+            .. '{"title":"Real","seen":5},"/Users/lee/Docs/Bad.docx":363}},'
+            .. '"lastOpen":{"Pages":{"at":1,"docs":[7]}}}')
+    f:close()
+    dm.open, dm.lastOpen, dm.loadDropped = {}, {}, nil
+    ck("a poisoned store still LOADS", dm.load() == true)
+
+    local okOpen, list = pcall(PROVIDED["docs.openFor"], "Microsoft Word")
+    ck("🚨 docs.openFor does not throw on it — LL's doc_memory.lua:363",
+       okOpen == true, tostring(list))
+    ck("…and it still offers the document that was fine",
+       okOpen and #list == 1 and list[1].path == "/Users/lee/Docs/Real.docx",
+       okOpen and #list)
+    local okQuit = pcall(PROVIDED["docs.openFor"], "Pages")
+    ck("…and the quit memory with a junk entry is safe to ask for too",
+       okQuit == true)
+
+    local okRep, rep = pcall(_G.docMemoryReport)
+    ck("🚨 the REPORT survives it too — it walks the same structure, so a"
+       .. " bad store used to take out the tool that would name it",
+       okRep == true, tostring(rep))
+    ck("…and it says the rows were dropped, with the count",
+       okRep and rep:find("2 row(s) DROPPED", 1, true) ~= nil,
+       okRep and rep:match("store%s*:[^\n]*"))
+    ck("…and says plainly what that costs — a reopen, never a file",
+       okRep and rep:find("never anything on disk", 1, true) ~= nil)
+
+    -- A clean store must NOT read like a repaired one, and neither may
+    -- read like a store that was never opened (6.196.1's rule).
+    local g = io.open(dm.jsonFile, "w")
+    g:write('{"open":{"Microsoft Word":{"/Users/lee/Docs/Real.docx":{"title":"Real"}}}}')
+    g:close()
+    dm.open, dm.lastOpen, dm.loadDropped = {}, {}, nil
+    dm.load()
+    ck("a store with nothing wrong says so, and differently",
+       _G.docMemoryReport():find("every row the shape it should be", 1, true) ~= nil)
+    dm.loadDropped = nil
+    ck("…and a store never read says THAT, differently again",
+       _G.docMemoryReport():find("not read yet", 1, true) ~= nil)
+
+    check("§8 ran every one of its checks", mine == 20, mine)
+end
+
 os.execute("rm -rf '" .. TMP .. "'")
 print = realPrint
 out(("\n%d passed, %d failed\n"):format(pass, fail))

@@ -179,6 +179,78 @@ function M.setup(core)
         return ok
     end
 
+    -- 🚨 6.198.1 — THE LOADER VALIDATES THE SHAPE IT READ.
+    -- dm.open is { app = { path = { title=, seen= } } } and load() took
+    -- data.open whole on the strength of its OUTER type alone. One value
+    -- a single level down that is not a table and docs.openFor throws on
+    -- `d.title` — which is exactly what LL's Console showed at
+    -- doc_memory.lua:363, from the app_watcher quit panel, i.e. the
+    -- moment he quits Word. A store is a FILE: written by an older
+    -- build, truncated by a crash mid-write, merged by OneDrive, or
+    -- hand-edited. "It is a table" is not the same as "it is MY table".
+    -- 🔑 CLEANED ONCE HERE, NOT GUARDED AT EVERY READ. openFor, onQuit,
+    -- diff, reopen and the report all walk this structure, so five
+    -- guards would be five places for one of them to drift — and the
+    -- report is the one that matters: it walks dm.open with pairs() too,
+    -- so a bad store took out the diagnostic that would have named it.
+    -- Both are PURE, so the gate proves them with no Mac anywhere near.
+    function dm.cleanOpen(raw)
+        local clean, dropped = {}, 0
+        if type(raw) ~= "table" then return clean, dropped end
+        for app, docs in pairs(raw) do
+            if type(app) == "string" and type(docs) == "table" then
+                local keep, n = {}, 0
+                for path, d in pairs(docs) do
+                    if type(path) == "string" and path ~= ""
+                       and type(d) == "table" then
+                        keep[path] = {
+                            path  = path,
+                            title = type(d.title) == "string" and d.title or path,
+                            app   = app,
+                            seen  = tonumber(d.seen),
+                        }
+                        n = n + 1
+                    else
+                        dropped = dropped + 1
+                    end
+                end
+                if n > 0 then clean[app] = keep end
+            else
+                dropped = dropped + 1
+            end
+        end
+        return clean, dropped
+    end
+
+    -- dm.lastOpen is { app = { at = n, docs = { {path=, title=}, … } } }
+    -- and its docs go STRAIGHT to the quit panel, which indexes .path.
+    function dm.cleanLastOpen(raw)
+        local clean, dropped = {}, 0
+        if type(raw) ~= "table" then return clean, dropped end
+        for app, rec in pairs(raw) do
+            if type(app) == "string" and type(rec) == "table"
+               and type(rec.docs) == "table" then
+                local list = {}
+                for _, d in ipairs(rec.docs) do
+                    if type(d) == "table" and type(d.path) == "string"
+                       and d.path ~= "" then
+                        list[#list + 1] = { path = d.path,
+                            title = type(d.title) == "string" and d.title
+                                    or d.path }
+                    else
+                        dropped = dropped + 1
+                    end
+                end
+                if #list > 0 then
+                    clean[app] = { at = tonumber(rec.at) or 0, docs = list }
+                end
+            else
+                dropped = dropped + 1
+            end
+        end
+        return clean, dropped
+    end
+
     function dm.load()
         local ok, err = pcall(function()
             local f = io.open(dm.jsonFile, "r")
@@ -187,8 +259,16 @@ function M.setup(core)
             local okD, data = pcall(hs.json.decode, body)
             if not okD then error("unreadable memory file") end
             if type(data) ~= "table" then return end
-            if type(data.open) == "table" then dm.open = data.open end
-            if type(data.lastOpen) == "table" then dm.lastOpen = data.lastOpen end
+            local bad = 0
+            if type(data.open) == "table" then
+                local clean, n = dm.cleanOpen(data.open)
+                dm.open, bad = clean, bad + n
+            end
+            if type(data.lastOpen) == "table" then
+                local clean, n = dm.cleanLastOpen(data.lastOpen)
+                dm.lastOpen, bad = clean, bad + n
+            end
+            dm.loadDropped = bad
         end)
         if not ok then warn("load: " .. tostring(err)) end
         return ok
@@ -435,6 +515,15 @@ function M.setup(core)
                                       app, os.date("%H:%M:%S", tonumber(last.at) or 0),
                                       type(last.docs) == "table" and #last.docs or 0)
         end
+        -- 🔎 6.198.1 — "not read yet" and "read, all of it good" must not
+        -- look the same, and neither may hide a repair (6.196.1's rule).
+        L[#L + 1] = "   store         : " ..
+            (dm.loadDropped == nil and "not read yet"
+             or dm.loadDropped == 0 and "read — every row the shape it should be"
+             or ("read — ⚠️ " .. dm.loadDropped .. " row(s) DROPPED as the wrong"
+                 .. " shape. The file is being repaired, not ignored; what"
+                 .. " is lost is a document the quit panel can no longer"
+                 .. " offer to reopen, never anything on disk."))
         L[#L + 1] = "   files         : " .. dm.jsonFile .. " · " .. dm.csvFile
         local s = table.concat(L, "\n")
         print(s)

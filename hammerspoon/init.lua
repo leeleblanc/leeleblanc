@@ -4,9 +4,36 @@
 -- =====================================================================
 -- 09-09-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.198.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.198.1
 -- =====================================================================
 
+-- NEW IN 6.198.1 — 🗂 A STORE IS A FILE, AND A FILE CAN BE ANY SHAPE:
+--   🚨 LL's Console carried an error at doc_memory.lua:363 — `d.title`
+--      on something that was not a table — thrown from the app_watcher
+--      quit panel, which is to say every time he quit Word. dm.load()
+--      took data.open whole on the strength of its OUTER type alone:
+--      "it is a table" is not the same as "it is MY table". dm.open is
+--      { app = { path = { title=, seen= } } }, and ONE value a single
+--      level down that is not a table reached every reader. A store is a
+--      FILE — written by an older build, truncated by a crash mid-write,
+--      merged by OneDrive, hand-edited — so the loader validates the
+--      shape it read, and says how many rows it dropped.
+--   🔑 CLEANED ONCE AT THE LOADER, NOT GUARDED AT EVERY READ. openFor,
+--      onQuit, diff, reopen and the report all walk that structure, so
+--      five guards would be five places for one of them to drift. And
+--      the report is the one that mattered: it walks dm.open with
+--      pairs() too, so a bad store ALSO took out the diagnostic that
+--      would have named the bad store. `dm.cleanOpen` / `dm.cleanLastOpen`
+--      are pure, so the gate proves them with no Mac anywhere near.
+--   🔎 AND THE REPORT SAYS WHICH OF THE THREE IT IS: never read,
+--      read and every row sound, or read with N rows DROPPED — and what
+--      that costs, which is a document the quit panel can no longer
+--      offer to reopen and never anything on disk. 6.196.1's rule: "not
+--      yet" and "nothing wrong" must not read the same.
+--      test_doc_memory 40 -> 61, fourteen mutations, each proven to fail
+--      against the bug it names. 8,278 -> 8,299 checks, seventy-four
+--      stages.
+--
 -- NEW IN 6.198.0 — 📋 THE BORROWED CLIPBOARD NEVER LANDS ON YOURS:
 --   🚨 LL: "⇪2 says it's copying but the clipboard does not have the
 --      content I sequentially copied. ⌘+c works". Both halves were true.
@@ -57,40 +84,12 @@
 --      and pre-dating that release. Its own slot now, asserted against
 --      the SOURCE because a stub timer is collected by nobody.
 --
--- NEW IN 6.197.2 — 🔎 A BUDGET IS A STATE, NOT A FOOTNOTE:
---   🚨 6.197.1 bounded the crash-report count with bk.crashScanMax and
---      printed a ⚠️ line beside the totals when it bit. That was this
---      release's own bug wearing a different hat. The budget counts EVERY
---      name walked; ~/Library/Logs/DiagnosticReports is shared with every
---      process on the Mac; hs.fs.dir returns filesystem order — so on a
---      busy folder the walk can stop before it ever reaches OURS. The
---      totals carried the caveat. The sentences above them did not, and
---      those are the ones that matter: "↳ THAT is the file to send",
---      "Hammerspoon has not crashed here", "none anywhere", and the ✅/⏳
---      verdict on whether today's crash is safe. Measured: a folder whose
---      Hammerspoon report sits past the budget printed "none — Hammerspoon
---      has not crashed here" on the day it did; with a years-old .crash
---      inside the budget it handed that file over as "the file to send".
---      The budget is a STATE now ("partial"), which switches all four off
---      by itself, because every one of them already asks for "ok". And
---      the no-OneDrive branch dropped the fact entirely — it reads the
---      state like everything else now.
---   🧪 The check that let it through said crashScanMax = 2 against a
---      fixture whose Hammerspoon reports were listed FIRST: it proved the
---      ⚠️ line EXISTS, never that it BITES — 6.187.0's rule, on the
---      release that quotes it. The fixtures put ours LAST now, and one of
---      them puts a 2024 .crash inside the budget with today's outside it.
---      Found by the review pass, verified against the real module, and
---      it survived an adversarial attempt to refute it.
---      test_daily_backup 123 -> 128, forty-one mutations. 8,241 -> 8,246
---      checks, seventy-four stages.
---
--- (6.197.1 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.197.2 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.198.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.198.1
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -187,7 +186,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.198.0"
+_G.configVersion = "6.198.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

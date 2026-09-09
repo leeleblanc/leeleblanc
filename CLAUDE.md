@@ -393,6 +393,25 @@ copied. `crashScan` returns the NAMES it saw for exactly that. The scan
 matches the same glob rsync is given (`bk.globPattern`) so the count and
 the copy cannot disagree — and an unmatchable glob is its own state, not
 one of the two reassuring ones.
+🗂 A STORE IS A FILE, AND THE LOADER VALIDATES THE SHAPE IT READ
+(6.198.1, modules/doc_memory.lua). `dm.load()` took `data.open` whole on
+the strength of its OUTER type alone — "it is a table" is not the same
+as "it is MY table". dm.open is { app = { path = { title=, seen= } } },
+so ONE value a level down that was not a table reached every reader and
+threw at doc_memory.lua:363 (`d.title`) from the app_watcher quit panel
+— every time LL quit Word. A store is written by an older build,
+truncated by a crash mid-write, merged by OneDrive, or hand-edited; any
+store this config LOADS gets its shape checked, not just its type.
+🔑 CLEANED ONCE AT THE LOADER, NEVER GUARDED AT EVERY READ: openFor,
+onQuit, diff, reopen and the report all walk that structure, so five
+guards is five places for one to drift — and the REPORT is why it must
+be the loader, because it walks dm.open with pairs() too, so a bad store
+also took out the diagnostic that would have named the bad store. Any
+tool whose report reads the same structure its feature reads owes the
+repair to the loader. `dm.cleanOpen`/`dm.cleanLastOpen` are PURE and
+gate-proven; the report distinguishes never-read / read-and-sound /
+read-with-N-dropped, and says what a drop costs (a reopen the quit panel
+can no longer offer, never anything on disk).
 📋 THE BORROWED CLIPBOARD IS PUT BACK ONLY IF IT IS STILL OURS
 (6.198.0, modules/power_tools.lua). Reading a selection costs a ⌘C in
 any app that will not answer AXSelectedText, so pt.copySelection BORROWS
@@ -864,6 +883,16 @@ mirrors draw order: "closes last" IS "drawn under".
   was right, the screenshot just read small, and no font was touched.
   Keep this as the worked example: a "fix" for a misread screenshot is
   a change with no bug under it.
+- 6.198.1 verify with LL: the Console error at doc_memory.lua:363 —
+  which appeared whenever he quit Word — should be gone. To be sure,
+  `_G.docMemoryReport()` has a new "store" line: "read — every row the
+  shape it should be" is the healthy answer, and "⚠️ N row(s) DROPPED"
+  means his open_documents-<Mac>.json had junk in it and has been
+  repaired in memory. Either is fine; "not read yet" this long after
+  boot would not be. Then quit Word with a document open and check the
+  App Monitor panel still offers "📄 Reopen …" and that ⏎ brings the
+  document back — the repair must not have thrown the good rows out
+  with the bad.
 - 6.198.0 verify with LL: ⇪2 — select a sentence in CHROME (the app
   that will not answer accessibility, so this is the ⌘C route that was
   broken), press ⇪2, select another, ⇪2 again, then ⌘V. The whole block

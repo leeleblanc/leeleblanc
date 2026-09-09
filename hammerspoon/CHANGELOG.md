@@ -5,6 +5,34 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.198.1 — 🗂 A STORE IS A FILE, AND A FILE CAN BE ANY SHAPE:
+  🚨 LL's Console carried an error at doc_memory.lua:363 — `d.title`
+     on something that was not a table — thrown from the app_watcher
+     quit panel, which is to say every time he quit Word. dm.load()
+     took data.open whole on the strength of its OUTER type alone:
+     "it is a table" is not the same as "it is MY table". dm.open is
+     { app = { path = { title=, seen= } } }, and ONE value a single
+     level down that is not a table reached every reader. A store is a
+     FILE — written by an older build, truncated by a crash mid-write,
+     merged by OneDrive, hand-edited — so the loader validates the
+     shape it read, and says how many rows it dropped.
+  🔑 CLEANED ONCE AT THE LOADER, NOT GUARDED AT EVERY READ. openFor,
+     onQuit, diff, reopen and the report all walk that structure, so
+     five guards would be five places for one of them to drift. And
+     the report is the one that mattered: it walks dm.open with
+     pairs() too, so a bad store ALSO took out the diagnostic that
+     would have named the bad store. `dm.cleanOpen` / `dm.cleanLastOpen`
+     are pure, so the gate proves them with no Mac anywhere near.
+  🔎 AND THE REPORT SAYS WHICH OF THE THREE IT IS: never read,
+     read and every row sound, or read with N rows DROPPED — and what
+     that costs, which is a document the quit panel can no longer
+     offer to reopen and never anything on disk. 6.196.1's rule: "not
+     yet" and "nothing wrong" must not read the same.
+     test_doc_memory 40 -> 61, fourteen mutations, each proven to fail
+     against the bug it names. 8,278 -> 8,299 checks, seventy-four
+     stages.
+
+
 NEW IN 6.198.0 — 📋 THE BORROWED CLIPBOARD NEVER LANDS ON YOURS:
   🚨 LL: "⇪2 says it's copying but the clipboard does not have the
      content I sequentially copied. ⌘+c works". Both halves were true.
