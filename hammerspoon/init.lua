@@ -4,9 +4,64 @@
 -- =====================================================================
 -- 09-09-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.196.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.197.0
 -- =====================================================================
 
+-- NEW IN 6.197.0 — 🚨 THE CRASH REPORT WAS BACKED UP NOWHERE:
+--   🚨 LL: "Is this in my logs folder, OneDrive? If my work Mac or my
+--      home Mac get wiped, I will lose this information for you." He was
+--      right, and it was worse than he thought. The only copy of a
+--      Hammerspoon crash report lives in ~/Library/Logs/DiagnosticReports,
+--      macOS prunes that folder on its own schedule, and the daily backup
+--      took exactly two things out of ~/Library: LaunchAgents and Fonts.
+--      The one file that ENDS a crash hunt — its crashing thread names
+--      the framework that died — was the one file nothing kept. The
+--      rebuild kit carries them now, in RebuildKit/CrashReports/, and
+--      rsync runs without --delete as it does everywhere in that file,
+--      so a report macOS has already thrown away stays in the backup for
+--      good. That is the whole point of the exercise.
+--   🔒 OURS ONLY, ON PURPOSE. That folder holds diagnostics for every app
+--      on the Mac and this destination syncs to OneDrive, so the entry is
+--      FILTERED (--include Hammerspoon*, then a catch-all --exclude *)
+--      rather than aimed at the folder. THE ORDER IS THE RULE: rsync
+--      takes the first filter that matches, so a catch-all in front
+--      copies nothing at all, silently. And the filter is scoped to that
+--      one entry — the same three arguments in the SHARED list would
+--      empty every other rsync in the kit. Both are gate checks now.
+--   🔎 "CANNOT SEE" MUST NOT READ AS "NOTHING THERE". macOS guards
+--      DiagnosticReports behind Full Disk Access. A scan that returned
+--      only a count would answer 0 when it had been refused, and the
+--      report would say "none anywhere — Hammerspoon has not crashed on
+--      this Mac": the most reassuring sentence in the file, and false.
+--      The scan returns ok / missing / unreadable instead, and a refusal
+--      names Full Disk Access in BOTH reports. 6.196.1's rule, on the one
+--      folder in this config that really earns it.
+--   🩺 _G.crashReport() prints the FULL PATH of the newest report — the
+--      file to send when Hammerspoon quits by itself. Newest is decided
+--      on the DIGITS in the name, and a DATED name always beats an
+--      undated one: macOS wrote Hammerspoon_<date>_<Mac>.crash before it
+--      wrote Hammerspoon-<date>.ips, and in a plain byte compare "_"
+--      sorts after "-" and a letter sorts above a digit — so either a
+--      years-old .crash or one stray Hammerspoon.crash would be handed
+--      over as today's evidence while the report read perfectly
+--      sensibly. _G.backupReport() gained a "crashes :" line so nobody
+--      has to know the new command exists, and the kit's README tells
+--      whoever is restoring a blank Mac what that folder is for.
+--   🧮 AND THE QUESTION IS ASKED BY NAME, NOT BY SUBTRACTION. "Is
+--      today's crash safe?" cannot be answered by comparing two counts:
+--      the folders diverge BY DESIGN — macOS prunes the Mac's copy and
+--      nothing prunes the backup — so once the backup holds more than
+--      the Mac does, a difference can never notice a fresh report that
+--      has not been copied. Both reports now name the newest report on
+--      the Mac and say whether that exact file is in the backup.
+--   🧪 test_daily_backup 66 -> 108, and every new check was run against
+--      the mutation it exists to catch — thirty-one of them, including
+--      the reordered filter, the missing catch-all, an added --delete,
+--      the filter hoisted into the shared arguments, a refused listing
+--      reported as "ok", the report speaking about a folder it had just
+--      said it could not read, and the membership answer put back to a
+--      count difference. 8,184 -> 8,226 checks, seventy-four stages.
+--
 -- NEW IN 6.196.1 — 🚨 THE PROBE THAT CRASHED THE APP IT WAS WATCHING:
 --   🚨 6.196.0's Secure Input probe runs ioreg twice — a narrow read
 --      first, the broad one as a fallback — and held BOTH tasks in ONE
@@ -31,77 +86,12 @@
 --   🧪 test_diagnostics 548 -> 554, test_unified 114 -> 123. 8,169 ->
 --      8,183 checks, seventy-four stages.
 --
--- NEW IN 6.196.0 — 🔒 WHEN SOMETHING ELSE HAS YOUR KEYBOARD, THIS SAYS SO:
---   🔒 LL: "Something happened. Nothing works." It took four hours, two
---      versions and a rollback to find, and NONE of it was this config.
---      Chrome had left macOS SECURE EVENT INPUT switched on — the mode a
---      password field uses so no other process can read the keyboard,
---      which is exactly what an hs.eventtap is. Every tap goes deaf,
---      hotkeys stop dispatching, and OTHER APPS break too (LL's ⇧Return
---      died in Asana, which is the tell). macOS reports none of it.
---      Meanwhile the boot line said "All green · 104 ⇪ shortcuts · 0.44s"
---      and meant every word: the shortcuts WERE bound, Carbon WAS
---      counting every F18, the tap WAS enabled with zero failures.
---      🚨 That is rule 7 broken by something outside the config — the one
---      state that can falsify every other row of the report. So it is
---      read now, where macOS publishes it (kCGSSessionSecureInputPID, via
---      ioreg in a HELD hs.task, never on the main thread, narrowed with
---      -k so it is a few lines and not a multi-megabyte dump). A boot
---      line NAMES the app holding it, a ⇪⇧D row names it, the watch
---      announces it coming and going — and only a CHANGE is printed, so a
---      healthy Mac stays silent. _G.secureInputReport().
---   🎹 AND THE ACCESSIBILITY ROW STOPPED UNDERSELLING ITSELF. It said
---      "window features inactive", which sounds like a few window tricks.
---      What is actually off is EVERY EVENT TAP — hs.eventtap cannot even
---      be created — so snippets, autocorrect, the key caster and ⇪'s own
---      fallback dispatcher are gone. LL read straight past that line on a
---      boot where most of the config was dead, because it did not sound
---      like that. It now says so, and says to QUIT AND RELAUNCH rather
---      than reload: taps are built at launch.
---   🔍 THE CHEAT SHEET IS AUDITED BY THE GATE (LL: "Audit the cheat sheet
---      for incorrect shortcuts"). "A stale key on the sheet IS a broken
---      feature" has been a hand-kept promise since 6.181.0, which is not
---      how this project keeps promises. Every module's own cheatsheet key
---      column is now joined to the module that actually claimed the key,
---      both sides from one real load. It found a live one immediately:
---      the Vault's sheet still offered ⇪1 for the scratch tabs, and ⇪1
---      became mouse-follows-focus in 6.194.0. 🔑 The rule that makes it
---      trustworthy: a key column that is ONLY combos is a promise and is
---      audited; one with a word in it ("via ⇪R", "vs ⇪X") is a pointer at
---      a neighbouring tool and is not. It flags MISATTRIBUTION, never
---      absence — §0.4's migration map binds a dozen older keys another
---      way, and auditing "is it bound at all" would report every one of
---      them as dead until someone switched the check off.
---   🔁 ⇪space AND ⇪D SWAPPED (LL's call): ⇪space is the app launcher, ⇪D
---      is unified search. 🚨 The SHIFTED half deliberately did not follow
---      it — ⇪⇧D must stay unclaimed so it forwards as ⌘⇧⌃⌥D to the
---      diagnostic report every boot line names, and a bind there would
---      have taken it SILENTLY (a forwarded chord is not a bind, so the
---      collision auditor cannot see one stolen). The screenshot view
---      keeps ⇪⇧space, which the launcher's arrival left free.
---   ⌨️ ⇪. GAINED "?" — the same scan, the same rows, filtered to the menu
---      items that HAVE a keyboard shortcut. LL asked for a shortcut
---      reader on a key of its own; the shortcut column was already on
---      every row since the module was written, so this is one filter and
---      one prefix rather than a second AX menu scanner (6.182.0's rule: a
---      tool inside another tool's window does not get its own key).
---   🖥 A REMEMBERED CHEAT SHEET POSITION IS NOW AN OFFSET INTO ITS SCREEN,
---      not a point on the desktop. LL: "the cheat sheet appears on the
---      last monitor it appeared on and not the active application on
---      another monitor where I am now working." It already resolved the
---      front app's screen and then overwrote that with absolute
---      coordinates. It stays where you put it, on the monitor you are on.
---   🧪 test_diagnostics 537 -> 548 (the parser proven against LL's OWN
---      ioreg line, and a held lock reported as a capability LOST, which
---      is the inversion most easily got backwards), test_integration
---      209 -> 211, test_menu_search 70 -> 74, test_cheatsheet 206 -> 209.
---      8,149 -> 8,169 checks, seventy-four stages.
--- (6.195.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.196.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.196.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.197.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -198,7 +188,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.196.1"
+_G.configVersion = "6.197.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

@@ -342,6 +342,40 @@ that FAILED to load reads differently from one that is EMPTY; `gather()`
 REMEMBERS a failure in `uni.failed` rather than only printing it once,
 so a source that broke at boot can be named an hour later. A total with
 a store count beside it hides a store that quietly stopped contributing.
+🚨 CRASH REPORTS ARE BACKED UP NOW (6.197.0, modules/daily_backup.lua):
+the kit's `crashes` entry copies ~/Library/Logs/DiagnosticReports/
+Hammerspoon* into RebuildKit/CrashReports — LL: "if my work Mac or my
+home Mac get wiped, I will lose this information for you", and he was
+right: that folder was the only copy, macOS prunes it, and the backup
+took only LaunchAgents and Fonts out of ~/Library. No rsync here carries
+--delete, so a pruned report survives in the backup. THREE RULES WITH
+TEETH, all mutation-proven: the entry is FILTERED (`entry.only` →
+`--include */`, `--include Hammerspoon*`, then a catch-all `--exclude *`,
+IN THAT ORDER — rsync takes the FIRST filter that matches, so a catch-all
+in front copies nothing, silently) and is never widened to the bare
+folder (it holds every app's diagnostics and the destination syncs to
+OneDrive); that filter is SCOPED to the one entry, because the same three
+arguments in the SHARED list empty every other rsync in the kit; and
+`bk.crashScan` returns ok / missing / unreadable, never a bare count —
+DiagnosticReports needs FULL DISK ACCESS, and a refused listing reported
+as 0 makes the report say "none anywhere — Hammerspoon has not crashed on
+this Mac", the most reassuring line in the file and a lie (6.196.1's rule,
+applied to the folder that earns it) — and that holds for the BACKUP
+folder too, which may hold every report macOS has already pruned, so
+neither report describes a folder it just said it could not read. Newest
+is the DIGITS in the name, and a DATED name always beats an undated one:
+TWO KEY SPACES, NEVER COMPARED — `Hammerspoon_<date>_<Mac>.crash`
+predates `Hammerspoon-<date>.ips` ("_" sorts after "-"), and a letter
+sorts above a digit, so one stray `Hammerspoon.crash` would outrank every
+real report. `_G.crashReport()` prints the FULL PATH of the newest — the
+file LL sends. AND "is today's crash safe?" is answered BY NAME, never by
+subtracting two counts: the folders diverge by design (macOS prunes one,
+nothing prunes the other), so once the backup holds more than the Mac
+does a count difference can never notice a fresh report that was not
+copied. `crashScan` returns the NAMES it saw for exactly that. The scan
+matches the same glob rsync is given (`bk.globPattern`) so the count and
+the copy cannot disagree — and an unmatchable glob is its own state, not
+one of the two reassuring ones.
 🔍 THE GATE AUDITS THE CHEAT SHEETS (6.196.0, test_integration):
 "a stale key on the sheet IS a broken feature" (6.181.0) is a check now,
 not a promise kept by hand. Every module's own cheatsheet KEY COLUMN is
@@ -748,6 +782,20 @@ mirrors draw order: "closes last" IS "drawn under".
   arrow. ASK LL to look at the sheet and say whether the symbol has that
   bar before changing any font: a "fix" for a misread screenshot would
   be a change with no bug under it.
+- 6.197.0 verify with LL: `_G.crashReport()` in the Console. It should
+  name ~/Library/Logs/DiagnosticReports and, if 6.196.0 ever crashed on
+  that Mac, print the FULL PATH of the newest .ips — that is the file to
+  send. Then `_G.backupNow()` and look in
+  <OneDrive>/Backups/Hammerspoon/<Mac>/RebuildKit/CrashReports: the
+  reports should be there. `_G.backupReport()` grows a "crashes :" line
+  saying how many are kept and how many are on the Mac. THE ONE TO WATCH:
+  if it says "CANNOT READ … grant Hammerspoon Full Disk Access", that is
+  the honest answer, not a failure — macOS guards that folder, and the
+  ⇪, settings pane is where the grant lives. On a Mac with no crashes it
+  says so plainly; the entry is also allowed to report "partial — some
+  files unreadable" on the run, which is the same permission, and the
+  rest of the kit still copies. Nothing else changed in this release, on
+  purpose.
 - 6.196.1 verify with LL: THE CRASH. Install it and just use the Mac —
   6.196.0 died natively (no Console line, no Lua error) at boot and
   potentially every minute after, so the test is simply that it stops.

@@ -9,7 +9,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,774 lines)
+├── init.lua          the orchestrator (3,764 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (12 files)
 ├── modules/          one file per feature (68 files, ~51,400 lines)
@@ -647,6 +647,14 @@ stood, kept verbatim.
    LaunchAgents, Fonts, Documents, Desktop, a Brewfile, an apps.csv
    naming every installed app and how to reinstall it, and a
    README.md restore guide rewritten after every run.
+   6.197.0 added CrashReports/ — Hammerspoon's OWN crash reports
+   (.ips), copied out of ~/Library/Logs/DiagnosticReports, which
+   macOS prunes on its own schedule and nothing here had ever kept.
+   Filtered to ours, never --delete'd, so a report macOS has already
+   thrown away survives in the backup. _G.crashReport() prints the
+   full path of the newest one — the file to send when Hammerspoon
+   quits by itself — and says "cannot read it, grant Full Disk
+   Access" rather than "none" when macOS refuses the folder.
    _G.backupNow() runs it by hand; _G.backupReport() explains;
    _G.backupAdopt() names the apps Homebrew could take over.
    Quiet on success; on-screen alert if something goes wrong.
@@ -840,9 +848,9 @@ CREATED AUTOMATICALLY (never make these yourself):
 
 ## 6. Tests
 
-Sixty-eight Lua suites, 7,735 checks, plus four more that run the Capture
+Sixty-eight Lua suites, 7,819 checks, plus four more that run the Capture
 Pad's, the screenshot editor's, unified search's and the vault's page
-JavaScript under `node` for a further 400 — **8,183 checks over
+JavaScript under `node` for a further 407 — **8,226 checks over
 seventy-four stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:

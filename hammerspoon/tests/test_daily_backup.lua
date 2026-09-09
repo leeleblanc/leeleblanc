@@ -162,6 +162,36 @@ FS["/Users/ll/Library/LaunchAgents"]= "directory"
 FS["/Users/ll/Library/Fonts"]       = "directory"
 FS["/Users/ll/Documents"]           = "directory"
 FS["/Users/ll/Desktop"]             = "directory"
+FS["/Users/ll/Library/Logs/DiagnosticReports"] = "directory"
+
+-- 🚨 6.197.0 — the crash-report folder as macOS really leaves it: OUR
+-- reports in two different generations of name, and another app's beside
+-- them. The legacy `Hammerspoon_<date>_<Mac>.crash` is the trap: "_"
+-- sorts AFTER "-", so a plain string compare calls that 2024 file the
+-- newest and hands LL the wrong evidence with a straight face.
+local CRASHDIR  = "/Users/ll/Library/Logs/DiagnosticReports"
+local CRASHDEST = TMP .. "/RebuildKit/CrashReports"
+DIRLIST[CRASHDIR] = { ".", "..",
+    "Hammerspoon-2026-09-01-093000.ips",
+    "Hammerspoon-2026-09-09-114412.ips",
+    "Hammerspoon_2024-01-02-030405_Lees-MacBook-Air.crash",
+    "Google Chrome-2026-09-08-120000.ips" }
+DIRLIST[CRASHDEST] = { ".", "..", "Hammerspoon-2026-09-01-093000.ips" }
+FS[CRASHDIR]  = "directory"
+FS[CRASHDEST] = "directory"
+-- A folder that is THERE and will not open: macOS guards
+-- DiagnosticReports behind Full Disk Access, and that is the state a
+-- count alone cannot tell apart from "no crashes, you are fine".
+FS["/refused"] = "directory"    -- exists, no DIRLIST → the listing throws
+FS["/emptydiag"] = "directory"  -- readable and genuinely empty
+DIRLIST["/emptydiag"] = { ".", ".." }
+-- An UNDATED name beside dated ones: letters sort above digits in a byte
+-- compare, so one Hammerspoon.crash would outrank every real report.
+FS["/undated"] = "directory"
+DIRLIST["/undated"] = { ".", "..", "Hammerspoon.crash",
+                        "Hammerspoon-2026-09-09-114412.ips" }
+FS["/allundated"] = "directory"
+DIRLIST["/allundated"] = { ".", "..", "Hammerspoon.crash", "Hammerspoon.other" }
 
 DIRLIST["/Applications"] = { "Safari.app", "Google Chrome.app",
                              "Hammerspoon.app", "WeirdTool.app", "notes.txt" }
@@ -253,6 +283,28 @@ check("🚨 SSH appears ONLY as its config FILE — never the keys folder", (fun
     return ids.sshconfig and ids.sshconfig.file == true
            and ids.sshconfig.src == "/Users/ll/.ssh/config"
 end)())
+-- 🚨 6.197.0 — LL: "If my work Mac or my home Mac get wiped, I will lose
+-- this information for you." Crash reports lived in exactly one place,
+-- macOS prunes it, and nothing here had ever copied them.
+check("🚨 6.197.0 — Hammerspoon's crash reports are IN the kit",
+      ids.crashes ~= nil
+      and ids.crashes.src == "/Users/ll/Library/Logs/DiagnosticReports"
+      and ids.crashes.dest == TMP .. "/RebuildKit/CrashReports",
+      ids.crashes and (ids.crashes.src .. " → " .. ids.crashes.dest))
+check("🚨 ...and the entry is FILTERED, never the bare folder — that "
+      .. "folder holds every app's diagnostics and this destination is "
+      .. "a cloud folder",
+      ids.crashes and ids.crashes.only == "Hammerspoon*",
+      ids.crashes and tostring(ids.crashes.only))
+check("...the rollback knob drops exactly that one entry", (function()
+    bk.crashes = false
+    local noCrash = bk.buildKit()
+    bk.crashes = true
+    for _, e in ipairs(noCrash) do
+        if e.id == "crashes" then return false end
+    end
+    return #noCrash == #kit - 1
+end)())
 check("🚨 the Keychain is in no kit entry", (function()
     for _, e in ipairs(kit) do
         if e.src:find("Keychain", 1, true) then return false end
@@ -284,6 +336,7 @@ pump({
     { 0, "Number of regular files transferred: 40\n", "" },   -- .config
     { 0, "Number of regular files transferred: 3\n",  "" },   -- LaunchAgents
     { 23, "", "rsync: opendir failed: Operation not permitted (1)" }, -- Fonts
+    { 0, "Number of regular files transferred: 2\n",  "" },   -- CrashReports
     { 0, "Number of regular files transferred: 900\n", "" },  -- Documents
     { 0, "Number of regular files transferred: 33\n",  "" },  -- Desktop
     { 0, "google-chrome\nhammerspoon\n", "" },                -- brew list
@@ -315,6 +368,81 @@ check("🚨 every rsync carries --exclude secret.lua", (function()
     end
     return sawRsync
 end)())
+-- 🚨 6.197.0 — THE FILTER, ARGUMENT BY ARGUMENT. rsync takes the FIRST
+-- rule that matches a path, so the whole safety of pointing this at
+-- ~/Library/Logs/DiagnosticReports is that the includes come BEFORE the
+-- catch-all exclude — and that the catch-all is there at all.
+local crashArgs = (function()
+    for _, t in ipairs(TASKS) do
+        if t.bin == "/usr/bin/rsync" then
+            for _, a in ipairs(t.args) do
+                if tostring(a):find("DiagnosticReports", 1, true) then
+                    return t.args
+                end
+            end
+        end
+    end
+    return nil
+end)()
+local function argIndex(args, want, after)
+    for i = (after or 1), #args do
+        if args[i] == want then return i end
+    end
+    return nil
+end
+check("🚨 the crash copy takes ONLY Hammerspoon's own reports — the name "
+      .. "include, then a catch-all exclude, in that order", (function()
+    if not crashArgs then return false end
+    local inc = argIndex(crashArgs, "--include")
+    local hitName, catchAll = nil, nil
+    for i = 1, #crashArgs - 1 do
+        if crashArgs[i] == "--include" and crashArgs[i + 1] == "Hammerspoon*" then
+            hitName = i
+        end
+        if crashArgs[i] == "--exclude" and crashArgs[i + 1] == "*" then
+            catchAll = i
+        end
+    end
+    return inc ~= nil and hitName ~= nil and catchAll ~= nil
+           and hitName < catchAll
+end)(), crashArgs and table.concat(crashArgs, " "))
+check("🚨 ...and it walks INTO folders (macOS keeps older reports in a "
+      .. "Retired/ one), pruning the empty ones -m leaves", (function()
+    if not crashArgs then return false end
+    local dirs, catchAll, dashM = nil, nil, false
+    for i = 1, #crashArgs do
+        if crashArgs[i] == "-m" then dashM = true end
+        if crashArgs[i] == "--include" and crashArgs[i + 1] == "*/" then dirs = i end
+        if crashArgs[i] == "--exclude" and crashArgs[i + 1] == "*" then catchAll = i end
+    end
+    return dashM and dirs ~= nil and catchAll ~= nil and dirs < catchAll
+end)(), crashArgs and table.concat(crashArgs, " "))
+check("🚨 ...with NO --delete: macOS prunes the originals, and a backup "
+      .. "that followed would delete the only evidence there is",
+      (function()
+    if not crashArgs then return false end
+    for _, a in ipairs(crashArgs) do
+        if tostring(a):find("delete", 1, true) then return false end
+    end
+    return true
+end)())
+check("🚨 ...and the filter is SCOPED to that one entry — a catch-all in "
+      .. "the shared arguments would empty every other rsync in the kit",
+      (function()
+    local others = 0
+    for _, t in ipairs(TASKS) do
+        if t.bin == "/usr/bin/rsync" and t.args ~= crashArgs then
+            others = others + 1
+            for i = 1, #t.args - 1 do
+                if t.args[i] == "--exclude" and t.args[i + 1] == "*" then
+                    return false
+                end
+                if t.args[i] == "-m" then return false end
+            end
+        end
+    end
+    return others >= 6
+end)())
 check("🚨 one task at a time — task N+1 never starts before N completes",
       (function()
     local open = 0
@@ -338,6 +466,10 @@ check("a healthy rsync records its file count",
 check("a missing source is 'not on this Mac', never a failure",
       rec.zprofile and rec.zprofile.status == "skipped",
       rec.zprofile and rec.zprofile.status)
+check("the crash copy records its file count like any other entry",
+      rec.crashes and rec.crashes.status == "ok"
+      and rec.crashes.detail:find("2 files", 1, true) ~= nil,
+      rec.crashes and rec.crashes.detail)
 check("a permission refusal is partial AND names Full Disk Access",
       rec.fonts and rec.fonts.status == "partial"
       and rec.fonts.detail:find("Full Disk Access", 1, true) ~= nil,
@@ -392,6 +524,11 @@ check("…it points at the token page rather than carrying a token",
       readme ~= nil and readme:find("app.asana.com/0/my%-apps") ~= nil)
 check("…and it walks the brew bundle restore",
       readme ~= nil and readme:find("brew bundle --file Brewfile", 1, true) ~= nil)
+check("🚨 …and it tells future-you what CrashReports/ is and which file "
+      .. "to send — the kit is read on a blank Mac, in a hurry",
+      readme ~= nil and readme:find("CrashReports/", 1, true) ~= nil
+      and readme:find("newest file in there is the one to send", 1, true) ~= nil,
+      readme)
 
 -- =====================================================================
 out("\n5. 🍺 adoption — which hand-installed apps brew could own\n")
@@ -488,6 +625,264 @@ check("🚨 the module never shells synchronously (io.popen / os.execute / hs.ex
 check("🚨 nor does it build shell strings for a shell binary",
       not src:find('"/bin/zsh"') and not src:find('"/bin/bash"')
       and not src:find('"/bin/sh"'))
+
+-- =====================================================================
+out("\n8. 🚨 the crash reports — counted, named, and never deleted (6.197.0)\n")
+-- =====================================================================
+-- LL had to send a SCREENSHOT of a crash because there was no line to
+-- run. These checks are about the line.
+do
+    local n, newest = bk.crashScan(CRASHDIR)
+    check("🚨 the scan counts OUR reports and no other app's",
+          n == 3, n)
+    check("🚨 ...and picks the newest on the DATE IN THE NAME, not on the "
+          .. "name: '_' sorts after '-', so a plain compare hands back a "
+          .. "2024 .crash and calls it today's",
+          newest == "Hammerspoon-2026-09-09-114412.ips", newest)
+    check("a folder that cannot even be listed is 0 — never a throw",
+          (function()
+              local ok, cnt = pcall(bk.crashScan, "/refused")
+              return ok and cnt == 0
+          end)())
+    check("no folder at all is 0 too", bk.crashScan(nil) == 0)
+
+    -- 🚨 6.196.1's rule, on the folder macOS guards: "cannot see" must
+    -- never read the same as "nothing there". Without Full Disk Access
+    -- the listing is refused, and a scan that returned only a number
+    -- would have the report say "none anywhere — Hammerspoon has not
+    -- crashed on this Mac". That is the most reassuring line in the file
+    -- and it would be false.
+    local _, _, okState = bk.crashScan(CRASHDIR)
+    check("a folder we CAN read says so", okState == "ok", okState)
+    local rn, _, refState = bk.crashScan("/refused")
+    check("🚨 a folder we are REFUSED is 'unreadable', never 0-and-fine",
+          refState == "unreadable" and rn == 0, refState)
+    local _, undNewest = bk.crashScan("/undated")
+    check("🚨 an UNDATED name never outranks a dated report — 'H' sorts "
+          .. "above '9', so one Hammerspoon.crash would otherwise be "
+          .. "handed over as today's evidence",
+          undNewest == "Hammerspoon-2026-09-09-114412.ips", undNewest)
+    local allN, allNewest = bk.crashScan("/allundated")
+    check("...and with nothing dated at all it still names one",
+          allN == 2 and allNewest == "Hammerspoon.other", allNewest)
+
+    local _, _, misState = bk.crashScan("/Users/ll/nothing-here")
+    check("...and one that simply is not there is 'missing' — a Mac that "
+          .. "has never crashed is not a permissions problem",
+          misState == "missing", misState)
+
+    check("_G.crashReport() is published for LL to type",
+          type(_G.crashReport) == "function")
+
+    -- bk.crashReport, not the global: §7 re-ran setup on a Mac with no
+    -- OneDrive and the global now belongs to THAT namespace.
+    local CL, realP = {}, print
+    print = function(...) CL[#CL + 1] = table.concat({ ... }, " ") end
+    bk.crashReport()
+    print = realP
+    -- 6.179.1's rule: a report prints as ONE string, or console.lua's
+    -- repeat gate swallows rows out of the middle of it.
+    check("🚨 the crash report prints as ONE string", #CL == 1, #CL)
+    local ct = table.concat(CL, "\n")
+    check("🚨 ...and it carries the FULL PATH of the newest report — that "
+          .. "is the thing being asked for, and half a path is no use",
+          ct:find(CRASHDIR .. "/Hammerspoon-2026-09-09-114412.ips", 1, true) ~= nil,
+          ct)
+    check("...it names the backup copy, and answers the real question "
+          .. "BY NAME: is the newest one on this Mac safe?",
+          ct:find(CRASHDEST, 1, true) ~= nil
+          and ct:find("newest report on this Mac is NOT in the backup",
+                      1, true) ~= nil, ct)
+    check("...and it says plainly that nothing in the backup is deleted",
+          ct:find("is ever deleted", 1, true) ~= nil, ct)
+
+    local RL = {}
+    print = function(...) RL[#RL + 1] = table.concat({ ... }, " ") end
+    bk.report()
+    print = realP
+    local rt = table.concat(RL, "\n")
+    check("the backup report names the crash reports without being asked",
+          rt:find("crashes :", 1, true) ~= nil
+          and rt:find("1 kept · 3 on this Mac", 1, true) ~= nil, rt)
+    check("...naming the newest one KEPT (not the newest on the Mac — "
+          .. "they are different questions and sat on adjacent lines)",
+          rt:find("newest kept: Hammerspoon%-2026%-09%-01") ~= nil, rt)
+
+    -- IT DEGRADES, IT NEVER BREAKS: no OneDrive is a sentence, not a
+    -- failure — and it must not read as "you are covered".
+    local keptDest = bk.crashDest
+    bk.crashDest = nil
+    RL = {}
+    print = function(...) RL[#RL + 1] = table.concat({ ... }, " ") end
+    bk.report()
+    bk.crashReport()
+    print = realP
+    local dt = table.concat(RL, "\n")
+    check("🚨 no OneDrive → both reports SAY there is nowhere to copy them,"
+          .. " rather than going quiet",
+          dt:find("nowhere to copy them", 1, true) ~= nil
+          and dt:find("nowhere — no OneDrive", 1, true) ~= nil, dt)
+    bk.crashDest = keptDest
+
+    -- 🚨 And the whole point of the state: what BOTH reports say when
+    -- the folder is there and macOS will not open it.
+    local keptDir = bk.crashDir
+    bk.crashDir = "/refused"
+    local function capture(fn)
+        local out, realp = {}, print
+        print = function(...) out[#out + 1] = table.concat({ ... }, " ") end
+        fn()
+        print = realp
+        return table.concat(out, "\n")
+    end
+    local bt = capture(function() bk.report() end)
+    local kt = capture(function() bk.crashReport() end)
+    check("🚨 refused → the BACKUP report names Full Disk Access",
+          bt:find("Full Disk Access", 1, true) ~= nil, bt)
+    check("🚨 refused → the CRASH report names Full Disk Access",
+          kt:find("Full Disk Access", 1, true) ~= nil, kt)
+    check("🚨 ...and NEITHER of them says 'has not crashed on this Mac' — "
+          .. "that sentence is the lie this state exists to prevent",
+          bt:find("has not crashed", 1, true) == nil
+          and kt:find("has not crashed", 1, true) == nil, bt .. "\n" .. kt)
+    bk.crashDir = keptDir
+
+    -- 🚨 THE TRAP A COUNT WALKS INTO. The two folders diverge BY
+    -- DESIGN: macOS prunes the Mac's copy and nothing prunes the
+    -- backup, so after the first prune the backup holds MORE than the
+    -- Mac does — and "hereN > kitN" can never fire again, on the very
+    -- day a fresh crash has not been copied. Membership, not
+    -- subtraction.
+    FS["/mac2"]  = "directory"
+    FS["/kit2"]  = "directory"
+    DIRLIST["/mac2"] = { ".", "..",
+        "Hammerspoon-2026-06-01-090000.ips",       -- also in the backup
+        "Hammerspoon-2026-09-09-114412.ips" }      -- TODAY, not copied
+    DIRLIST["/kit2"] = { ".", "..",
+        "Hammerspoon-2026-01-01-000000.ips",       -- macOS pruned this one
+        "Hammerspoon-2026-02-01-000000.ips",       -- and this one
+        "Hammerspoon-2026-06-01-090000.ips" }
+    local keptDir3, keptDest3 = bk.crashDir, bk.crashDest
+    bk.crashDir, bk.crashDest = "/mac2", "/kit2"
+    local bt3 = capture(function() bk.report() end)
+    local kt3 = capture(function() bk.crashReport() end)
+    check("🚨 the backup holds MORE than the Mac and today's crash is "
+          .. "still missing — BOTH reports must say so",
+          bt3:find("NOT backed up yet", 1, true) ~= nil
+          and kt3:find("is NOT in the backup yet", 1, true) ~= nil,
+          bt3 .. "\n" .. kt3)
+    DIRLIST["/kit2"] = { ".", "..",
+        "Hammerspoon-2026-01-01-000000.ips",
+        "Hammerspoon-2026-06-01-090000.ips",
+        "Hammerspoon-2026-09-09-114412.ips" }
+    local bt4 = capture(function() bk.report() end)
+    local kt4 = capture(function() bk.crashReport() end)
+    check("...and once it IS there both say so plainly",
+          bt4:find("is in the backup", 1, true) ~= nil
+          and kt4:find("IS in the backup", 1, true) ~= nil,
+          bt4 .. "\n" .. kt4)
+    bk.crashDir, bk.crashDest = keptDir3, keptDest3
+
+    -- 🚨 The glob and the COPY must never disagree. bk is exported as
+    -- M.config, so a profile override can change it — and a scan that
+    -- only understood a literal prefix answered "no such folder" about a
+    -- folder full of reports rsync was copying correctly.
+    do
+        local keptGlob = bk.crashGlob
+        bk.crashGlob = "*.ips"
+        local n2 = bk.crashScan(CRASHDIR)
+        check("🚨 a glob with a LEADING wildcard is matched, not "
+              .. "shrugged at — the copy uses the same glob",
+              n2 == 3, n2)
+        bk.crashGlob = "Hammerspoon-*.ips"
+        check("...and a narrower glob really narrows (the legacy .crash "
+              .. "drops out)", bk.crashScan(CRASHDIR) == 2,
+              bk.crashScan(CRASHDIR))
+        bk.crashGlob = ""
+        local n3, _, st3 = bk.crashScan(CRASHDIR)
+        check("🚨 an EMPTY glob is 'unmatchable' — never one of the two "
+              .. "reassuring states",
+              n3 == 0 and st3 == "unmatchable", st3)
+        local et = capture(function() bk.crashReport() end)
+        check("...and the report says the count is impossible while the "
+              .. "copy is unaffected",
+              et:find("nothing can be counted", 1, true) ~= nil, et)
+        bk.crashGlob = keptGlob
+    end
+
+    -- 🚨 THE OTHER FOLDER. A BACKUP folder we were refused may hold every
+    -- report macOS has already pruned — which is the whole point of this
+    -- release — so neither report may say "none anywhere" about it.
+    local keptDir2, keptDest2 = bk.crashDir, bk.crashDest
+    bk.crashDir, bk.crashDest = "/emptydiag", "/refused"
+    local bt2 = capture(function() bk.report() end)
+    local kt2 = capture(function() bk.crashReport() end)
+    -- The local folder here really IS readable and really IS empty, so
+    -- "none — Hammerspoon has not crashed here" is TRUE of it. What must
+    -- never appear is a claim about the folder nobody could open.
+    check("🚨 backup folder refused → the backup report never says 'none "
+          .. "anywhere' or 'none copied yet' about it",
+          bt2:find("none anywhere", 1, true) == nil
+          and bt2:find("none copied yet", 1, true) == nil, bt2)
+    check("🚨 ...and neither report counts what is waiting to be copied",
+          bt2:find("not copied yet", 1, true) == nil
+          and kt2:find("not copied yet", 1, true) == nil,
+          bt2 .. "\n" .. kt2)
+    check("🚨 ...and both say the backup folder could not be read",
+          bt2:find("cannot say what is kept", 1, true) ~= nil
+          and kt2:find("CANNOT READ THE BACKUP FOLDER", 1, true) ~= nil,
+          bt2 .. "\n" .. kt2)
+    bk.crashDir, bk.crashDest = keptDir2, keptDest2
+
+    -- 🚨 A core with no home folder must not leave bk.crashDir rooted
+    -- at "/" — /Library/Logs/DiagnosticReports is the SYSTEM folder, and
+    -- aiming an rsync there by accident is not a degrade.
+    do
+        local CORE3 = {}
+        for k, v in pairs(CORE) do CORE3[k] = v end
+        CORE3.homeDir = nil
+        local realP3 = print
+        print = function() end
+        M.setup(CORE3)
+        print = realP3
+        local bk4 = _G.dailyBackup
+        check("🚨 no home folder → no crash source, and NOTHING rooted at /",
+              bk4.crashDir == nil, tostring(bk4.crashDir))
+        -- buildKit itself needs a home folder for the dotfiles rows —
+        -- that predates this release — so the gate on crashDir is asked
+        -- of a namespace that HAS one.
+        check("...and a nil crash source drops the entry rather than "
+              .. "building a path from nothing", (function()
+            local kept = bk.crashDir
+            bk.crashDir = nil
+            local out = bk.buildKit()
+            bk.crashDir = kept
+            for _, e in ipairs(out) do
+                if e.id == "crashes" then return false end
+            end
+            return true
+        end)())
+        check("...and both reports still print rather than throwing",
+              (function()
+                  local realp = print
+                  print = function() end
+                  local ok1 = pcall(function() bk4.report() end)
+                  local ok2 = pcall(function() bk4.crashReport() end)
+                  print = realp
+                  return ok1 and ok2
+              end)())
+    end
+
+    bk.crashes = false
+    RL = {}
+    print = function(...) RL[#RL + 1] = table.concat({ ... }, " ") end
+    bk.report()
+    print = realP
+    check("...and switching the whole thing off is said out loud too",
+          table.concat(RL, "\n"):find("bk.crashes is false", 1, true) ~= nil,
+          table.concat(RL, "\n"))
+    bk.crashes = true
+end
 
 -- =====================================================================
 out("\n=== 🏠 the stores: mirrored half-hourly, seeded once (6.190.0) ===\n")

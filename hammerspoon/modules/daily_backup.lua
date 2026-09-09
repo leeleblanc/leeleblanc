@@ -16,6 +16,7 @@
 --       dotfiles/        .zshrc · .zprofile · .gitconfig · .config/ · ssh config
 --       LaunchAgents/    the per-user launchd jobs
 --       Fonts/           ~/Library/Fonts
+--       CrashReports/    Hammerspoon's own crash reports (6.197.0)
 --       Documents/       (home Mac; the work profile turns these two off)
 --       Desktop/
 --       Brewfile         brew bundle dump — formulae, casks, App Store apps
@@ -37,6 +38,22 @@
 -- README the kit writes says to recreate secret.lua by hand and where
 -- the token comes from. Losing it costs 30 seconds at
 -- app.asana.com/0/my-apps; leaking it costs more.
+--
+-- 🚨 6.197.0 — CRASH REPORTS, AND ONLY OUR OWN. LL: "Is this in my logs
+-- folder, OneDrive? If my work Mac or my home Mac get wiped, I will lose
+-- this information for you." He was right, and nothing in this file had
+-- ever copied them: ~/Library/Logs/DiagnosticReports is the ONLY place a
+-- Hammerspoon crash report has ever lived, macOS prunes that folder on
+-- its own schedule, and a crash report is the one piece of evidence that
+-- names the framework that died. The kit now carries them.
+-- THE FILTER IS DELIBERATELY NARROW — Hammerspoon's own reports, never
+-- another app's. That folder holds diagnostics for everything on the
+-- Mac, and this destination syncs to OneDrive; copying the lot would be
+-- a decision about other people's software, taken quietly, into a cloud
+-- folder. `entry.only` is what keeps it to ours. And rsync runs without
+-- --delete here as it does everywhere else in this file, so a report
+-- macOS has already thrown away stays in the backup for good — which is
+-- the whole point of the exercise.
 --
 -- ⏱ AND NOTHING HERE TOUCHES THE KEYBOARD. Every rsync and every brew
 -- call is an hs.task (never a shell string — an argument ARRAY, the
@@ -62,13 +79,14 @@ local M = {
     cheatsheet = {
         title = "☁️ BACKUP — THE REBUILD KIT (automatic)",
         entries = {
-            { "daily 5:00 PM", "config · dotfiles · LaunchAgents · Fonts · Documents → OneDrive" },
+            { "daily 5:00 PM", "config · dotfiles · LaunchAgents · Fonts · crash reports · Documents → OneDrive" },
             { "apps", "Brewfile + apps.csv record how to reinstall EVERYTHING" },
             { "restore", "RebuildKit/README.md — written fresh after every run" },
             { "never", "secret.lua, SSH keys, Keychain — those stay on this Mac" },
             { "_G.backupNow()", "Console: run the whole kit right now" },
             { "_G.backupReport()", "Console: destination, last run, what was skipped and why" },
             { "_G.backupAdopt()", "Console: which hand-installed apps Homebrew could own" },
+            { "_G.crashReport()", "Console: where Hammerspoon's crash reports are — the newest one is the file to send" },
         },
     },
 }
@@ -95,6 +113,12 @@ function M.setup(core)
     bk.mirrorFirst = 120     -- seconds after boot before the first one
     bk.mirrorLast  = nil     -- { at, ok, why } — for the report
     bk.docs        = true    -- Documents + Desktop in the kit (both Macs)
+    -- 🚨 6.197.0 — Hammerspoon's crash reports. The glob is the whole
+    -- safety of pointing an rsync at that folder: it holds every app's
+    -- diagnostics and this destination is a cloud folder. Narrow it, or
+    -- turn the entry off with bk.crashes = false; never widen it.
+    bk.crashes     = true
+    bk.crashGlob   = "Hammerspoon*"  -- .ips today; older macOS wrote _*.crash
     -- Applied to EVERY rsync. secret.lua is here as well as on the config
     -- entry — belt and braces, because this is the one exclusion that is
     -- a promise, not a preference. applock.json is the removed App Lock's
@@ -109,6 +133,16 @@ function M.setup(core)
     local SETTINGS_KEY = "dailyBackup.last"
 
     bk.kitDir = core.backupDir and (core.backupDir .. "/RebuildKit") or nil
+    -- Named once, because the RUN copies from one to the other and the
+    -- REPORT counts both. A Mac with no OneDrive has no destination —
+    -- that reads as "nowhere to copy them to", never as a failure.
+    -- No home folder (a stub core, a Mac we cannot read) → NIL, not a
+    -- path rooted at "/": /Library/Logs/DiagnosticReports is the SYSTEM
+    -- folder and pointing an rsync at it by accident is not a degrade.
+    bk.crashDir  = core.homeDir
+                   and (core.homeDir .. "/Library/Logs/DiagnosticReports")
+                   or nil
+    bk.crashDest = bk.kitDir and (bk.kitDir .. "/CrashReports") or nil
 
     local function exists(p)
         local ok, a = pcall(hs.fs.attributes, p)
@@ -155,6 +189,16 @@ function M.setup(core)
             { id = "agents",    src = home .. "/Library/LaunchAgents", dest = kit .. "/LaunchAgents" },
             { id = "fonts",     src = home .. "/Library/Fonts",     dest = kit .. "/Fonts" },
         }
+        if bk.crashes and bk.crashDir and bk.crashDest then
+            -- 🚨 `only` is what makes it safe to aim an rsync at a folder
+            -- full of other apps' diagnostics: the copy takes the names
+            -- that match and nothing else. Do not widen it, and do not
+            -- drop the glob to "copy the folder" — see the header.
+            list[#list + 1] = { id = "crashes", src = bk.crashDir,
+                dest = bk.crashDest, only = bk.crashGlob,
+                label = "Hammerspoon's own crash reports — macOS prunes"
+                        .. " the originals; nothing here is ever deleted" }
+        end
         if bk.docs then
             list[#list + 1] = { id = "documents", src = home .. "/Documents", dest = kit .. "/Documents" }
             list[#list + 1] = { id = "desktop",   src = home .. "/Desktop",   dest = kit .. "/Desktop" }
@@ -164,9 +208,27 @@ function M.setup(core)
 
     local function rsyncArgs(entry)
         local args = { "-a", "--stats" }
+        -- 6.197.0 — -m prunes the empty folders a name filter leaves
+        -- behind. Only ever set for a filtered entry.
+        if entry.only then args[#args + 1] = "-m" end
         for _, pat in ipairs(bk.excludes) do
             args[#args + 1] = "--exclude"
             args[#args + 1] = pat
+        end
+        -- 🚨 entry.only — copy ONLY the names that match, at any depth.
+        -- THE ORDER IS THE RULE: rsync takes the FIRST filter that
+        -- matches a path, so "*/" (walk into folders — macOS keeps older
+        -- reports in a Retired/ one) and the name pattern must both come
+        -- BEFORE the catch-all exclude. Put --exclude "*" first and the
+        -- entry copies nothing at all — 0 files, exit 0, no error, which
+        -- is why it is a gate check and not a comment (measured against
+        -- real rsync 3.2.7, both orders). This block is scoped to
+        -- the one entry that asks for it: a filter in the base args would
+        -- empty every other rsync in the kit.
+        if entry.only then
+            args[#args + 1] = "--include"; args[#args + 1] = "*/"
+            args[#args + 1] = "--include"; args[#args + 1] = entry.only
+            args[#args + 1] = "--exclude"; args[#args + 1] = "*"
         end
         if entry.file then
             args[#args + 1] = entry.src
@@ -309,6 +371,19 @@ function M.setup(core)
             "- a byte-for-byte home folder — that is Time Machine's job",
             "",
         }
+        if bk.crashes then
+            local extra = {
+                "## If Hammerspoon ever quits by itself",
+                "",
+                "`CrashReports/` holds Hammerspoon's own crash reports, copied out",
+                "of ~/Library/Logs/DiagnosticReports. macOS deletes the originals",
+                "on its own schedule; nothing in this folder is ever deleted.",
+                "The newest file in there is the one to send — its crashing thread",
+                "names the framework that died, which is the fact that ends a hunt.",
+                "",
+            }
+            for _, line in ipairs(extra) do L[#L + 1] = line end
+        end
         return writeFile(bk.kitDir .. "/README.md",
                          table.concat(L, "\n"), "README.md (backup)")
     end
@@ -514,6 +589,171 @@ function M.setup(core)
     end
 
     -- =====================================================================
+    -- 🚨 CRASH REPORTS — the evidence, and how to find it (6.197.0)
+    -- =====================================================================
+    -- A LISTING, never a read. hs.fs.dir names the files without opening
+    -- one, so a OneDrive placeholder is never hydrated and nothing here
+    -- can block the thread every keystroke shares — which is what makes
+    -- it safe to call from a report LL types by hand.
+    --
+    -- 🔎 NEWEST IS DECIDED ON THE DIGITS IN THE NAME, NOT ON THE NAME.
+    -- macOS wrote `Hammerspoon_<date>_<Mac>.crash` before it wrote
+    -- `Hammerspoon-<date>.ips`, and "_" sorts AFTER "-", so a plain
+    -- string compare hands you a years-old file and calls it the newest
+    -- — while the report reads perfectly sensibly. The digit run
+    -- (20260909114412) is the same shape in both names.
+    -- 🚨 IT RETURNS A STATE, NOT JUST A COUNT — 6.196.1's rule, applied
+    -- to a folder macOS guards. ~/Library/Logs/DiagnosticReports needs
+    -- FULL DISK ACCESS on modern macOS: without it the listing fails and
+    -- a scan that only returned a number would answer 0, and the report
+    -- would say "none anywhere — Hammerspoon has not crashed on this
+    -- Mac". That is the most reassuring sentence in this file and it
+    -- would be a lie. "Cannot see" must never read as "nothing there".
+    --    "ok"         listed it
+    --    "missing"    no such folder (a Mac with no crashes yet, or no
+    --                 backup written yet — nothing is wrong)
+    --    "unreadable" it is there and we were refused
+    -- The scan matches the SAME glob rsync is given, so the count and
+    -- the copy can never disagree — a literal-prefix shortcut worked for
+    -- "Hammerspoon*" and answered 0 for anything starting with a
+    -- wildcard, and bk is exported as M.config, so that was reachable
+    -- from a profile override rather than only from a code edit.
+    function bk.globPattern(g)
+        g = tostring(g or "")
+        if g == "" then return nil end
+        local p = g:gsub("[%^%$%(%)%%%.%[%]%+%-]", "%%%1")
+        p = p:gsub("%*", ".*"):gsub("%?", ".")
+        return "^" .. p .. "$"
+    end
+
+    -- It also hands back the NAMES it saw. "Is today's crash safe?" is a
+    -- membership question, not a subtraction: the two folders diverge by
+    -- design (macOS prunes one, nothing prunes the other), so once the
+    -- backup holds more than the Mac does, a count difference can never
+    -- notice a brand-new report that has not been copied yet.
+    function bk.crashScan(dir)
+        local pat = bk.globPattern(bk.crashGlob)
+        if not pat then return 0, nil, "unmatchable", {} end
+        if not (dir and dir ~= "") then return 0, nil, "missing", {} end
+        if not exists(dir) then return 0, nil, "missing", {} end
+        local n, newest, newestKey, newestDated, names = 0, nil, nil, false, {}
+        local ok = pcall(function()
+            for entry in hs.fs.dir(dir) do
+                if entry:match(pat) then
+                    names[entry] = true
+                    n = n + 1
+                    -- TWO KEY SPACES, NEVER COMPARED TO EACH OTHER: a
+                    -- dated name sorts by its digits, an undated one by
+                    -- its name, and a DATED one always wins. Comparing
+                    -- across them is a byte compare where 'H' (0x48)
+                    -- beats '9' (0x39), so one stray undated file —
+                    -- Hammerspoon.crash, a .diag — would outrank every
+                    -- real report and be handed over as "the newest".
+                    local key   = entry:gsub("%D", "")
+                    local dated = key ~= ""
+                    if not dated then key = entry end
+                    if (not newest)
+                       or (dated and not newestDated)
+                       or (dated == newestDated and key > newestKey) then
+                        newestKey, newestDated, newest = key, dated, entry
+                    end
+                end
+            end
+        end)
+        return n, newest, ok and "ok" or "unreadable", names
+    end
+
+    -- One sentence for a scanned folder, so the three states read the
+    -- same wherever they are printed.
+    function bk.crashSay(n, state, where)
+        if state == "unmatchable" then
+            return "cannot count them " .. where .. " — bk.crashGlob is"
+                   .. " empty (the copy is unaffected)"
+        elseif state == "unreadable" then
+            return "CANNOT READ " .. where .. " — grant Hammerspoon Full"
+                   .. " Disk Access (⇪,) and ask again"
+        elseif state == "missing" then
+            -- "not there" and "not visible to us" can look the same from
+            -- outside a TCC refusal, so this never says "none".
+            return "no folder " .. where .. " yet (or not visible without"
+                   .. " Full Disk Access)"
+        end
+        return n .. " " .. where
+    end
+
+    -- LL, twice now, has had to send a screenshot because there was no
+    -- line to run. This is the line: it names the exact file, in full,
+    -- ready to paste into Finder's Go → Go to Folder.
+    function bk.crashReport()
+        local L = { "🚨 HAMMERSPOON CRASH REPORTS" }
+        local function row(k, v)
+            L[#L + 1] = string.format("   %-12s %s", k, tostring(v or "—"))
+        end
+        local hereN, hereNewest, hereState = bk.crashScan(bk.crashDir)
+        row("on this Mac:", bk.crashDir)
+        if hereState == "unmatchable" then
+            row("", "bk.crashGlob is empty, so nothing can be counted"
+                    .. " here. The rsync is unaffected.")
+        elseif hereState == "unreadable" then
+            row("", "🚨 CANNOT READ IT — Hammerspoon has no Full Disk"
+                    .. " Access, so this cannot tell you whether there")
+            row("", "   are crash reports in there. System Settings →"
+                    .. " Privacy & Security → Full Disk Access.")
+        elseif hereState == "missing" then
+            row("", "no such folder on this Mac — nothing has crashed"
+                    .. " here yet (macOS makes it with the first")
+            row("", "   report). If Hammerspoon has no Full Disk Access,"
+                    .. " that is the other reason it can look absent.")
+        elseif hereN > 0 then
+            row("", hereN .. " report(s) — the newest is:")
+            row("", bk.crashDir .. "/" .. hereNewest)
+            row("", "↳ THAT is the file to send: its crashing thread"
+                    .. " names the framework that died.")
+        else
+            row("", "none — Hammerspoon has not crashed here (or macOS"
+                    .. " has already pruned them).")
+        end
+        if not bk.crashes then
+            row("backup:", "OFF — bk.crashes is false, nothing is copied")
+        elseif not bk.crashDest then
+            row("backup:", "nowhere — no OneDrive on this Mac (§0.1), so"
+                           .. " these stay here and macOS will prune them")
+        else
+            local kitN, kitNewest, kitState, kitNames =
+                bk.crashScan(bk.crashDest)
+            row("backup:", bk.crashDest)
+            if kitState == "unreadable" then
+                row("", "🚨 CANNOT READ THE BACKUP FOLDER — so this cannot"
+                        .. " say what is kept there. It may hold every")
+                row("", "   report macOS has already pruned. Grant Full"
+                        .. " Disk Access and ask again.")
+            elseif kitState == "missing" then
+                row("", "nothing copied there yet — the folder appears"
+                        .. " with the first report")
+            else
+                row("", kitN .. " kept"
+                        .. (kitNewest and (", newest " .. kitNewest) or ""))
+            end
+            -- THE QUESTION LL IS ACTUALLY ASKING: is the newest one
+            -- safe? Asked by NAME, never by subtracting two counts.
+            if hereState == "ok" and hereNewest and kitState == "ok" then
+                if kitNames[hereNewest] then
+                    row("", "✅ the newest report on this Mac IS in the"
+                            .. " backup")
+                else
+                    row("", "⏳ the newest report on this Mac is NOT in the"
+                            .. " backup yet — _G.backupNow() takes it now;")
+                    row("", "   " .. bk.time .. " takes it anyway")
+                end
+            end
+        end
+        row("note:", "macOS deletes the originals on its own schedule."
+                     .. " Nothing in the backup is ever deleted.")
+        print(table.concat(L, "\n"))
+        return true
+    end
+
+    -- =====================================================================
     -- CONSOLE
     -- =====================================================================
     function bk.report()
@@ -542,6 +782,54 @@ function M.setup(core)
             if n then L[#L + 1] = "   manifest: " .. n .. " apps in apps.csv" end
         else
             L[#L + 1] = "   last run: never — _G.backupNow() starts one"
+        end
+        -- 🚨 6.197.0 — the crash reports, counted where they actually
+        -- are. This line is here rather than only in _G.crashReport()
+        -- because it answers the question LL asked ("if this Mac gets
+        -- wiped, do I lose this?") and nobody runs a report they have
+        -- not been told exists.
+        if not bk.crashes then
+            L[#L + 1] = "   crashes : not copied — bk.crashes is false"
+        elseif not bk.crashDest then
+            local hereN, _, hereState = bk.crashScan(bk.crashDir)
+            L[#L + 1] = "   crashes : "
+                        .. bk.crashSay(hereN, hereState, "on this Mac")
+                        .. " and nowhere to copy them — no OneDrive (§0.1)"
+        else
+            local hereN, hereNewest, hereState = bk.crashScan(bk.crashDir)
+            local kitN, kitNewest, kitState, kitNames =
+                bk.crashScan(bk.crashDest)
+            local kept = kitState == "ok" and (kitN .. " kept")
+                         or kitState == "missing" and "none copied yet"
+                         or "backup folder UNREADABLE"
+            L[#L + 1] = "   crashes : " .. kept .. " · "
+                        .. bk.crashSay(hereN, hereState, "on this Mac")
+                        .. "  → " .. bk.crashDest
+            -- 🚨 BOTH FOLDERS HAVE TO HAVE BEEN READ before either of
+            -- these sentences is true. A backup folder we were REFUSED
+            -- may hold every pruned report there is — saying "none
+            -- anywhere" there is the same lie the state exists to stop,
+            -- just told about the other folder.
+            if kitNewest then
+                L[#L + 1] = "             newest kept: " .. kitNewest
+                            .. " — _G.crashReport() has the full path"
+            elseif kitState == "unreadable" then
+                L[#L + 1] = "             …so this cannot say what is kept"
+                            .. " there. Grant Full Disk Access and ask again."
+            elseif hereState == "ok" and hereN > 0 then
+                L[#L + 1] = "             none copied yet — _G.backupNow()"
+                            .. " takes them"
+            elseif hereState == "ok" then
+                L[#L + 1] = "             none anywhere — Hammerspoon has not"
+                            .. " crashed on this Mac"
+            end
+            -- Membership, not subtraction — see bk.crashScan.
+            if hereState == "ok" and hereNewest and kitState == "ok" then
+                L[#L + 1] = "             " .. (kitNames[hereNewest]
+                    and "✅ the newest one on this Mac is in the backup"
+                    or ("⏳ the newest one on this Mac is NOT backed up yet"
+                        .. " — _G.backupNow()"))
+            end
         end
         -- 6.190.0 — the stores are a SEPARATE job from the kit, on their
         -- own timer, so they get their own lines. The degraded states are
@@ -642,6 +930,7 @@ function M.setup(core)
     _G.backupNow    = function() return bk.run(true) end
     _G.backupReport = function() return bk.report() end
     _G.backupAdopt  = function() return bk.adopt() end
+    _G.crashReport  = function() return bk.crashReport() end
     if core.provide then
         core.provide("backup.now",    function() return bk.run(true) end)
         core.provide("backup.report", function() return bk.report() end)

@@ -5,6 +5,61 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.197.0 — 🚨 THE CRASH REPORT WAS BACKED UP NOWHERE:
+  🚨 LL: "Is this in my logs folder, OneDrive? If my work Mac or my
+     home Mac get wiped, I will lose this information for you." He was
+     right, and it was worse than he thought. The only copy of a
+     Hammerspoon crash report lives in ~/Library/Logs/DiagnosticReports,
+     macOS prunes that folder on its own schedule, and the daily backup
+     took exactly two things out of ~/Library: LaunchAgents and Fonts.
+     The one file that ENDS a crash hunt — its crashing thread names
+     the framework that died — was the one file nothing kept. The
+     rebuild kit carries them now, in RebuildKit/CrashReports/, and
+     rsync runs without --delete as it does everywhere in that file,
+     so a report macOS has already thrown away stays in the backup for
+     good. That is the whole point of the exercise.
+  🔒 OURS ONLY, ON PURPOSE. That folder holds diagnostics for every app
+     on the Mac and this destination syncs to OneDrive, so the entry is
+     FILTERED (--include Hammerspoon*, then a catch-all --exclude *)
+     rather than aimed at the folder. THE ORDER IS THE RULE: rsync
+     takes the first filter that matches, so a catch-all in front
+     copies nothing at all, silently. And the filter is scoped to that
+     one entry — the same three arguments in the SHARED list would
+     empty every other rsync in the kit. Both are gate checks now.
+  🔎 "CANNOT SEE" MUST NOT READ AS "NOTHING THERE". macOS guards
+     DiagnosticReports behind Full Disk Access. A scan that returned
+     only a count would answer 0 when it had been refused, and the
+     report would say "none anywhere — Hammerspoon has not crashed on
+     this Mac": the most reassuring sentence in the file, and false.
+     The scan returns ok / missing / unreadable instead, and a refusal
+     names Full Disk Access in BOTH reports. 6.196.1's rule, on the one
+     folder in this config that really earns it.
+  🩺 _G.crashReport() prints the FULL PATH of the newest report — the
+     file to send when Hammerspoon quits by itself. Newest is decided
+     on the DIGITS in the name, and a DATED name always beats an
+     undated one: macOS wrote Hammerspoon_<date>_<Mac>.crash before it
+     wrote Hammerspoon-<date>.ips, and in a plain byte compare "_"
+     sorts after "-" and a letter sorts above a digit — so either a
+     years-old .crash or one stray Hammerspoon.crash would be handed
+     over as today's evidence while the report read perfectly
+     sensibly. _G.backupReport() gained a "crashes :" line so nobody
+     has to know the new command exists, and the kit's README tells
+     whoever is restoring a blank Mac what that folder is for.
+  🧮 AND THE QUESTION IS ASKED BY NAME, NOT BY SUBTRACTION. "Is
+     today's crash safe?" cannot be answered by comparing two counts:
+     the folders diverge BY DESIGN — macOS prunes the Mac's copy and
+     nothing prunes the backup — so once the backup holds more than
+     the Mac does, a difference can never notice a fresh report that
+     has not been copied. Both reports now name the newest report on
+     the Mac and say whether that exact file is in the backup.
+  🧪 test_daily_backup 66 -> 108, and every new check was run against
+     the mutation it exists to catch — thirty-one of them, including
+     the reordered filter, the missing catch-all, an added --delete,
+     the filter hoisted into the shared arguments, a refused listing
+     reported as "ok", the report speaking about a folder it had just
+     said it could not read, and the membership answer put back to a
+     count difference. 8,184 -> 8,226 checks, seventy-four stages.
+
 NEW IN 6.196.1 — 🚨 THE PROBE THAT CRASHED THE APP IT WAS WATCHING:
   🚨 LL: "Hammerspoon is crashing. can we tell why?" Yes — and it was
      6.196.0's own Secure Input probe, the feature written to stop a
