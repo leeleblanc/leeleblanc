@@ -191,6 +191,24 @@ FS[CRASHDEST] = "directory"
 -- DiagnosticReports behind Full Disk Access, and that is the state a
 -- count alone cannot tell apart from "no crashes, you are fine".
 FS["/refused"] = "directory"    -- exists, no DIRLIST → the listing throws
+-- 🚨 THE BUDGET'S REAL SHAPE. DiagnosticReports is shared with every
+-- process on the Mac and hs.fs.dir returns filesystem order, so OURS can
+-- sit past the budget while other apps' files spend it. A fixture whose
+-- Hammerspoon reports come FIRST proves the ⚠️ line exists; it never
+-- proves it bites.
+FS["/capped"] = "directory"
+DIRLIST["/capped"] = { ".", "..",
+    "Google Chrome-2026-09-28-120059.ips",
+    "Slack-2026-09-20-000000.ips",
+    "WindowServer-2026-09-21-000000.ips",
+    "Hammerspoon-2026-09-09-114412.ips" }        -- ours, past the budget
+-- …and the crueller one: an OLD report inside the budget, today's past it.
+FS["/capped2"] = "directory"
+DIRLIST["/capped2"] = { ".", "..",
+    "Hammerspoon_2024-01-02-030405_Lees-MacBook-Air.crash",
+    "Google Chrome-2026-09-28-120059.ips",
+    "Slack-2026-09-20-000000.ips",
+    "Hammerspoon-2026-09-09-114412.ips" }        -- today's, past the budget
 FS["/emptydiag"] = "directory"  -- readable and genuinely empty
 DIRLIST["/emptydiag"] = { ".", ".." }
 -- An UNDATED name beside dated ones: letters sort above digits in a byte
@@ -913,19 +931,55 @@ do
           and kt5:find("has not crashed", 1, true) == nil, bt5 .. "\n" .. kt5)
     bk.crashDir = keptDir4
 
-    -- ⚠️ THE BUDGET BITES, AND SAYS SO. A count that stopped early must
-    -- not read as a count that finished.
+    -- ⚠️ THE BUDGET BITES, AND IT IS A STATE. A count that stopped early
+    -- is NOT a count that finished — and the sentences that matter are
+    -- the identity claims ABOVE the totals, not the totals themselves.
     local keptMax = bk.crashScanMax
+    local keptDir5, keptDest5 = bk.crashDir, bk.crashDest
     bk.crashScanMax = 2
-    local cn, _, cst, _, capped = bk.crashScan(CRASHDIR)
-    check("the scan stops at bk.crashScanMax and reports that it did",
-          capped == true and cn <= 2 and cst == "ok", tostring(capped))
+    local cn, cnew, cst, _, capped = bk.crashScan("/capped")
+    check("🚨 a walk that stopped early is 'partial', never 'ok' — every "
+          .. "reassuring sentence in this file already asks for 'ok'",
+          cst == "partial" and capped == true and cn == 0 and cnew == nil,
+          tostring(cst) .. " n=" .. tostring(cn))
+
+    bk.crashDir, bk.crashDest = "/capped", nil     -- the §0.1 no-OneDrive Mac
     local bt6 = capture(function() bk.report() end)
     local kt6 = capture(function() bk.crashReport() end)
-    check("🚨 ...and both reports call the numbers a floor, not a total",
+    check("🚨 ...so NEITHER report says Hammerspoon has not crashed — on "
+          .. "the day it did, with ours simply past the budget",
+          bt6:find("has not crashed", 1, true) == nil
+          and kt6:find("has not crashed", 1, true) == nil,
+          bt6 .. "\n" .. kt6)
+    check("🚨 ...and BOTH say they stopped counting — including the "
+          .. "no-OneDrive branch, which used to drop the fact entirely",
           bt6:find("stopped counting at 2", 1, true) ~= nil
           and kt6:find("stopped counting at 2", 1, true) ~= nil,
           bt6 .. "\n" .. kt6)
+
+    bk.crashDir, bk.crashDest = "/capped2", CRASHDEST
+    local kt7 = capture(function() bk.crashReport() end)
+    local bt7 = capture(function() bk.report() end)
+    check("🚨 ...and a partial walk NEVER hands over a 'file to send' — "
+          .. "that is how a 2024 .crash gets sent for today's crash",
+          kt7:find("THAT is the file to send", 1, true) == nil, kt7)
+    check("...it names what it did see, marked as counted SO FAR",
+          kt7:find("counted so far", 1, true) ~= nil, kt7)
+    check("🚨 ...and neither report answers whether the newest is backed "
+          .. "up — it cannot know, and says exactly that",
+          kt7:find("✅", 1, true) == nil
+          and kt7:find("NOT in the backup yet", 1, true) == nil
+          and bt7:find("NOT backed up yet", 1, true) == nil
+          and kt7:find("cannot say whether the newest", 1, true) ~= nil,
+          kt7 .. "\n" .. bt7)
+    bk.crashDir, bk.crashDest = keptDir5, keptDest5
+
+    bk.crashScanMax = 3       -- ours reached, the folder not finished
+    local pn, pnew, pst = bk.crashScan("/capped2")
+    check("a partial walk still reports what it DID find",
+          pst == "partial" and pn == 1
+          and pnew == "Hammerspoon_2024-01-02-030405_Lees-MacBook-Air.crash",
+          tostring(pst) .. " " .. tostring(pn) .. " " .. tostring(pnew))
     bk.crashScanMax = keptMax
 
     -- 🚨 A core with no home folder must not leave bk.crashDir rooted

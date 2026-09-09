@@ -5,6 +5,34 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.197.2 — 🔎 A BUDGET IS A STATE, NOT A FOOTNOTE:
+  🚨 6.197.1 bounded the crash-report count with bk.crashScanMax and
+     printed a ⚠️ line beside the totals when it bit. That was this
+     release's own bug wearing a different hat. The budget counts EVERY
+     name walked; ~/Library/Logs/DiagnosticReports is shared with every
+     process on the Mac; hs.fs.dir returns filesystem order — so on a
+     busy folder the walk can stop before it ever reaches OURS. The
+     totals carried the caveat. The sentences above them did not, and
+     those are the ones that matter: "↳ THAT is the file to send",
+     "Hammerspoon has not crashed here", "none anywhere", and the ✅/⏳
+     verdict on whether today's crash is safe. Measured: a folder whose
+     Hammerspoon report sits past the budget printed "none — Hammerspoon
+     has not crashed here" on the day it did; with a years-old .crash
+     inside the budget it handed that file over as "the file to send".
+     The budget is a STATE now ("partial"), which switches all four off
+     by itself, because every one of them already asks for "ok". And
+     the no-OneDrive branch dropped the fact entirely — it reads the
+     state like everything else now.
+  🧪 The check that let it through said crashScanMax = 2 against a
+     fixture whose Hammerspoon reports were listed FIRST: it proved the
+     ⚠️ line EXISTS, never that it BITES — 6.187.0's rule, on the
+     release that quotes it. The fixtures put ours LAST now, and one of
+     them puts a 2024 .crash inside the budget with today's outside it.
+     Found by the review pass, verified against the real module, and
+     it survived an adversarial attempt to refute it.
+     test_daily_backup 123 -> 128, forty-one mutations. 8,241 -> 8,246
+     checks, seventy-four stages.
+
 NEW IN 6.197.1 — 🔒 A FILTER THAT FAILS OPEN IS NOT A FILTER:
   🚨 6.197.0's crash-report copy is aimed at
      ~/Library/Logs/DiagnosticReports, a folder holding every app's

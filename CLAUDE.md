@@ -375,7 +375,17 @@ to OneDrive), and `mustFilter` makes rsyncStep refuse such an entry at
 the point of use, the way secret.lua is excluded twice. The scan walks
 ONE LEVEL DOWN because `--include */` does (macOS's Retired/ folder is
 where the reports most at risk live), keyed by basename, budgeted by
-`bk.crashScanMax` with the budget PRINTED. AND "is today's crash safe?" is answered BY NAME, never by
+`bk.crashScanMax`. 🔎 6.197.2: THAT BUDGET IS A STATE ("partial"), NOT A
+FOOTNOTE — it first shipped as a ⚠️ line beside the totals, which left
+"↳ THAT is the file to send", "Hammerspoon has not crashed here" and the
+✅/⏳ backed-up verdict stated flat above it. The budget counts every name
+walked, that folder is shared with every process on the Mac, and
+`hs.fs.dir` returns filesystem order, so the walk can stop before it
+reaches ours. As a state it switches all of them off by itself, because
+each already asks for "ok". GENERAL RULE: any bounded scan that reports a
+state it did not finish reading owes the same distinction, and a fixture
+whose wanted rows come FIRST proves the caveat exists, never that it
+bites. AND "is today's crash safe?" is answered BY NAME, never by
 subtracting two counts: the folders diverge by design (macOS prunes one,
 nothing prunes the other), so once the backup holds more than the Mac
 does a count difference can never notice a fresh report that was not

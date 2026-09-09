@@ -4,9 +4,37 @@
 -- =====================================================================
 -- 09-09-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.197.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.197.2
 -- =====================================================================
 
+-- NEW IN 6.197.2 — 🔎 A BUDGET IS A STATE, NOT A FOOTNOTE:
+--   🚨 6.197.1 bounded the crash-report count with bk.crashScanMax and
+--      printed a ⚠️ line beside the totals when it bit. That was this
+--      release's own bug wearing a different hat. The budget counts EVERY
+--      name walked; ~/Library/Logs/DiagnosticReports is shared with every
+--      process on the Mac; hs.fs.dir returns filesystem order — so on a
+--      busy folder the walk can stop before it ever reaches OURS. The
+--      totals carried the caveat. The sentences above them did not, and
+--      those are the ones that matter: "↳ THAT is the file to send",
+--      "Hammerspoon has not crashed here", "none anywhere", and the ✅/⏳
+--      verdict on whether today's crash is safe. Measured: a folder whose
+--      Hammerspoon report sits past the budget printed "none — Hammerspoon
+--      has not crashed here" on the day it did; with a years-old .crash
+--      inside the budget it handed that file over as "the file to send".
+--      The budget is a STATE now ("partial"), which switches all four off
+--      by itself, because every one of them already asks for "ok". And
+--      the no-OneDrive branch dropped the fact entirely — it reads the
+--      state like everything else now.
+--   🧪 The check that let it through said crashScanMax = 2 against a
+--      fixture whose Hammerspoon reports were listed FIRST: it proved the
+--      ⚠️ line EXISTS, never that it BITES — 6.187.0's rule, on the
+--      release that quotes it. The fixtures put ours LAST now, and one of
+--      them puts a 2024 .crash inside the budget with today's outside it.
+--      Found by the review pass, verified against the real module, and
+--      it survived an adversarial attempt to refute it.
+--      test_daily_backup 123 -> 128, forty-one mutations. 8,241 -> 8,246
+--      checks, seventy-four stages.
+--
 -- NEW IN 6.197.1 — 🔒 A FILTER THAT FAILS OPEN IS NOT A FILTER:
 --   🚨 6.197.0's crash-report copy is aimed at
 --      ~/Library/Logs/DiagnosticReports, a folder holding every app's
@@ -49,67 +77,12 @@
 --      108 -> 123, thirty-eight mutations, 8,226 -> 8,241 checks,
 --      seventy-four stages.
 --
--- NEW IN 6.197.0 — 🚨 THE CRASH REPORT WAS BACKED UP NOWHERE:
---   🚨 LL: "Is this in my logs folder, OneDrive? If my work Mac or my
---      home Mac get wiped, I will lose this information for you." He was
---      right, and it was worse than he thought. The only copy of a
---      Hammerspoon crash report lives in ~/Library/Logs/DiagnosticReports,
---      macOS prunes that folder on its own schedule, and the daily backup
---      took exactly two things out of ~/Library: LaunchAgents and Fonts.
---      The one file that ENDS a crash hunt — its crashing thread names
---      the framework that died — was the one file nothing kept. The
---      rebuild kit carries them now, in RebuildKit/CrashReports/, and
---      rsync runs without --delete as it does everywhere in that file,
---      so a report macOS has already thrown away stays in the backup for
---      good. That is the whole point of the exercise.
---   🔒 OURS ONLY, ON PURPOSE. That folder holds diagnostics for every app
---      on the Mac and this destination syncs to OneDrive, so the entry is
---      FILTERED (--include Hammerspoon*, then a catch-all --exclude *)
---      rather than aimed at the folder. THE ORDER IS THE RULE: rsync
---      takes the first filter that matches, so a catch-all in front
---      copies nothing at all, silently. And the filter is scoped to that
---      one entry — the same three arguments in the SHARED list would
---      empty every other rsync in the kit. Both are gate checks now.
---   🔎 "CANNOT SEE" MUST NOT READ AS "NOTHING THERE". macOS guards
---      DiagnosticReports behind Full Disk Access. A scan that returned
---      only a count would answer 0 when it had been refused, and the
---      report would say "none anywhere — Hammerspoon has not crashed on
---      this Mac": the most reassuring sentence in the file, and false.
---      The scan returns ok / missing / unreadable instead, and a refusal
---      names Full Disk Access in BOTH reports. 6.196.1's rule, on the one
---      folder in this config that really earns it.
---   🩺 _G.crashReport() prints the FULL PATH of the newest report — the
---      file to send when Hammerspoon quits by itself. Newest is decided
---      on the DIGITS in the name, and a DATED name always beats an
---      undated one: macOS wrote Hammerspoon_<date>_<Mac>.crash before it
---      wrote Hammerspoon-<date>.ips, and in a plain byte compare "_"
---      sorts after "-" and a letter sorts above a digit — so either a
---      years-old .crash or one stray Hammerspoon.crash would be handed
---      over as today's evidence while the report read perfectly
---      sensibly. _G.backupReport() gained a "crashes :" line so nobody
---      has to know the new command exists, and the kit's README tells
---      whoever is restoring a blank Mac what that folder is for.
---   🧮 AND THE QUESTION IS ASKED BY NAME, NOT BY SUBTRACTION. "Is
---      today's crash safe?" cannot be answered by comparing two counts:
---      the folders diverge BY DESIGN — macOS prunes the Mac's copy and
---      nothing prunes the backup — so once the backup holds more than
---      the Mac does, a difference can never notice a fresh report that
---      has not been copied. Both reports now name the newest report on
---      the Mac and say whether that exact file is in the backup.
---   🧪 test_daily_backup 66 -> 108, and every new check was run against
---      the mutation it exists to catch — thirty-one of them, including
---      the reordered filter, the missing catch-all, an added --delete,
---      the filter hoisted into the shared arguments, a refused listing
---      reported as "ok", the report speaking about a folder it had just
---      said it could not read, and the membership answer put back to a
---      count difference. 8,184 -> 8,226 checks, seventy-four stages.
---
--- (6.196.1 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.197.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.197.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.197.2
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -206,7 +179,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.197.1"
+_G.configVersion = "6.197.2"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

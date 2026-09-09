@@ -636,6 +636,9 @@ function M.setup(core)
     --    "missing"     no such folder (a Mac with no crashes yet, or no
     --                  backup written yet — nothing is wrong)
     --    "unreadable"  it is there and we were refused
+    --    "partial"     the walk hit bk.crashScanMax and stopped. A count
+    --                  that stopped early is NOT a count that finished,
+    --                  so it is a state and not a footnote — see below.
     --    "unmatchable" bk.crashGlob is not set, so nothing CAN be counted
     --                  — and, because the filter fails closed, nothing is
     --                  being copied either. Never one of the first two.
@@ -668,9 +671,17 @@ function M.setup(core)
     -- backup holds more than the Mac does, a count difference can never
     -- notice a brand-new report that has not been copied yet.
     --
-    -- Budgeted by bk.crashScanMax, and the budget is REPORTED rather than
-    -- silently truncating — a count that stopped early must not read as a
-    -- count that finished.
+    -- 🚨 AND THE BUDGET IS A STATE, NOT A FOOTNOTE. It first shipped as a
+    -- ⚠️ line printed beside the totals, and that was the same bug this
+    -- release exists to kill, wearing a different hat: the budget counts
+    -- EVERY name walked, DiagnosticReports is shared by every process on
+    -- the Mac, and hs.fs.dir returns filesystem order — so on a busy
+    -- folder the walk can stop before it ever reaches ours. The totals
+    -- carried a caveat; the sentences above them did not, and they are
+    -- the ones that matter: "↳ THAT is the file to send", "Hammerspoon
+    -- has not crashed here", and the ✅/⏳ verdict on whether today's
+    -- crash is safe. As a STATE it switches all of them off by itself,
+    -- because every one of them already asks for "ok".
     -- returns: count, newest, state, names, capped
     function bk.crashScan(dir)
         local pat = bk.globPattern(bk.crashGlob)
@@ -719,7 +730,8 @@ function M.setup(core)
             end
         end
         local ok = pcall(function() walk(dir, 0) end)
-        return n, newest, ok and "ok" or "unreadable", names, capped
+        if not ok then return n, newest, "unreadable", names, capped end
+        return n, newest, capped and "partial" or "ok", names, capped
     end
 
     -- One sentence for a scanned folder, so the three states read the
@@ -736,6 +748,10 @@ function M.setup(core)
         elseif state == "unreadable" then
             return "CANNOT READ " .. where .. " — grant Hammerspoon Full"
                    .. " Disk Access (⇪,) and ask again"
+        elseif state == "partial" then
+            return "at least " .. n .. " " .. where .. " — stopped counting"
+                   .. " at " .. tostring(bk.crashScanMax) .. " names, so"
+                   .. " that is a floor, not a total"
         elseif state == "missing" then
             -- "not there" and "not visible to us" can look the same from
             -- outside a TCC refusal, so this never says "none".
@@ -771,6 +787,16 @@ function M.setup(core)
                     .. " here yet (macOS makes it with the first")
             row("", "   report). If Hammerspoon has no Full Disk Access,"
                     .. " that is the other reason it can look absent.")
+        elseif hereState == "partial" then
+            row("", "⚠️ stopped counting at " .. tostring(bk.crashScanMax)
+                    .. " names, so this CANNOT say which report is the")
+            row("", "   newest — that folder is shared with every app on"
+                    .. " the Mac and ours may not have been reached.")
+            if hereNewest then
+                row("", "   Newest of the " .. hereN .. " counted so far:")
+                row("", "   " .. bk.crashDir .. "/" .. hereNewest)
+            end
+            row("", "   Raise bk.crashScanMax to count the whole folder.")
         elseif hereN > 0 then
             row("", hereN .. " report(s) — the newest is:")
             row("", bk.crashDir .. "/" .. hereNewest)
@@ -789,11 +815,6 @@ function M.setup(core)
             local kitN, kitNewest, kitState, kitNames, kitCapped =
                 bk.crashScan(bk.crashDest)
             row("backup:", bk.crashDest)
-            if hereCapped or kitCapped then
-                row("", "⚠️ stopped counting at " .. tostring(bk.crashScanMax)
-                        .. " names — the totals below are a floor, not a"
-                        .. " total.")
-            end
             if kitState == "unmatchable" then
                 row("", "nothing can be counted there either, for the"
                         .. " same reason.")
@@ -802,6 +823,9 @@ function M.setup(core)
                         .. " say what is kept there. It may hold every")
                 row("", "   report macOS has already pruned. Grant Full"
                         .. " Disk Access and ask again.")
+            elseif kitState == "partial" then
+                row("", "at least " .. kitN .. " kept — stopped counting at "
+                        .. tostring(bk.crashScanMax) .. " names")
             elseif kitState == "missing" then
                 row("", "nothing copied there yet — the folder appears"
                         .. " with the first report")
@@ -820,6 +844,9 @@ function M.setup(core)
                             .. " backup yet — _G.backupNow() takes it now;")
                     row("", "   " .. bk.time .. " takes it anyway")
                 end
+            elseif hereState == "partial" or kitState == "partial" then
+                row("", "…so this cannot say whether the newest report is"
+                        .. " in the backup.")
             end
         end
         row("note:", "macOS deletes the originals on its own schedule."
@@ -880,6 +907,8 @@ function M.setup(core)
             -- means "macOS refused us" and sent LL to System Settings for
             -- a permission he already had.
             local kept = kitState == "ok" and (kitN .. " kept")
+                         or kitState == "partial" and ("at least " .. kitN
+                            .. " kept")
                          or kitState == "missing" and "none copied yet"
                          or kitState == "unmatchable" and "NOT being copied"
                          or "backup folder UNREADABLE"
@@ -904,10 +933,11 @@ function M.setup(core)
                 L[#L + 1] = "             none anywhere — Hammerspoon has not"
                             .. " crashed on this Mac"
             end
-            if hereCapped or kitCapped then
+            if hereState == "partial" or kitState == "partial" then
                 L[#L + 1] = "             ⚠️ stopped counting at "
                             .. tostring(bk.crashScanMax) .. " names — those"
-                            .. " numbers are a floor, not a total"
+                            .. " are floors, and this cannot say whether the"
+                L[#L + 1] = "             newest report is backed up"
             end
             -- Membership, not subtraction — see bk.crashScan.
             if hereState == "ok" and hereNewest and kitState == "ok" then
