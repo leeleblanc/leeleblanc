@@ -1199,7 +1199,19 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
             -- The clipboard half is the point of the pair, but the grab is
             -- already safe in the tab — so a pasteboard that refuses is
             -- REPORTED and the count still stands.
-            local copied = pcall(function() hs.pasteboard.setContents(blockOrWhy) end)
+            -- 📋 6.198.0 — THREE values, not two. hs.pasteboard.setContents
+            -- answers FALSE on a refusal without throwing, so reading only
+            -- pcall's own ok reported every refusal as a copy that worked
+            -- — and the alert below then promised "⌘V pastes the block"
+            -- over a pasteboard that had just said no. CLAUDE.md's 6.179.0
+            -- rule, in the place it mattered most: this alert is the ONLY
+            -- thing standing between LL and a ⌘V that pastes the wrong
+            -- thing, so it is not allowed to be optimistic.
+            local wrote  = false
+            local okSet  = pcall(function()
+                wrote = hs.pasteboard.setContents(blockOrWhy) ~= false
+            end)
+            local copied = okSet and wrote
             local words = select(2, tostring(blockOrWhy):gsub("%S+", ""))
             pcall(function()
                 hs.alert.show(string.format("📎 %d %s · %d words%s", sp.collectCount,

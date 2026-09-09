@@ -5,6 +5,57 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.198.0 — 📋 THE BORROWED CLIPBOARD NEVER LANDS ON YOURS:
+  🚨 LL: "⇪2 says it's copying but the clipboard does not have the
+     content I sequentially copied. ⌘+c works". Both halves were true.
+     Reading a selection costs a ⌘C in any app that will not answer
+     accessibility (Chrome and GitHub are two), so power_tools BORROWS
+     the clipboard: save, clear, ⌘C, read, hand it over — and put the
+     old contents back 0.6 s later. ⇪2 wrote its collected block inside
+     that 0.6 s, and the restore landed on top of it. The alert was
+     honest at the moment it was shown and a lie by the time he pressed
+     ⌘V, with nothing to see in between — the worst shape a message
+     can have. The restore STANDS DOWN now when the clipboard has been
+     written since the borrow: macOS's own change counter first (it
+     sees the two writes a comparison never can — the same text
+     written again, and anything that is not text), the contents as
+     the degrade for a Hammerspoon without it, and neither readable
+     means intact, so the last resort is still 6.132.0's promise that
+     your clipboard comes back.
+  🔎 THE GUARD LIVES AT THE BORROW, NOT IN THE CALLER, because a
+     SECOND caller had the same bug and nobody had noticed it: the 🔢
+     count row's "N words · N characters" was overwritten in the same
+     window, on the same ⌘C route, every time. A caller-side fix would
+     have cured the one LL could see. It also covers the case no
+     caller could: an APP copying something of its own while the
+     clipboard is out on loan. Plain ⌘C was never broken, which is
+     exactly why LL could tell the two apart. Rollback
+     `settings = { power_tools = { restoreGuard = false } }`.
+     `_G.powerReport()` grows a "⌘C borrow" line counting what was put
+     back, left alone and refused, and a "last borrow" line naming the
+     last one — a state with no report is what hid this.
+  📋 AND THREE PLACES READ TWO VALUES FROM A pcall AROUND A CALL
+     THAT ANSWERS FALSE. hs.pasteboard.setContents refuses by
+     returning false, WITHOUT throwing, so `pcall(fn)` alone reports
+     every refusal as a success — CLAUDE.md's 6.179.0 rule, never
+     applied here. ⇪2 promised "⌘V pastes the block" over a pasteboard
+     that had just said no; the 🔢 row said the counts were copied;
+     ⇪; announced the formatting stripped. All three read three now.
+  🧪 AND THE STUBS WERE THE HOLE. Both suites' fake pasteboards
+     returned nil from setContents and had no change counter at all —
+     gentler than the thing they stand in for, which CLAUDE.md calls a
+     hole with a tick beside it. The refusal checks that existed made
+     setContents THROW, which is the half pcall catches; the quiet
+     false was never tested. Both stubs answer the way macOS does now.
+     test_power_tools 252 -> 282, test_scratch_pad 194 -> 196,
+     seventeen mutations, each proven to fail against the bug it
+     names. 8,246 -> 8,278 checks, seventy-four stages.
+  🚨 AND THE RESTORE WAS ARMED INTO THE RUNNING TIMER'S OWN SLOT —
+     6.196.1's use-after-free shape, in hs.timer rather than hs.task,
+     and pre-dating that release. Its own slot now, asserted against
+     the SOURCE because a stub timer is collected by nobody.
+
+
 NEW IN 6.197.2 — 🔎 A BUDGET IS A STATE, NOT A FOOTNOTE:
   🚨 6.197.1 bounded the crash-report count with bk.crashScanMax and
      printed a ⚠️ line beside the totals when it bit. That was this

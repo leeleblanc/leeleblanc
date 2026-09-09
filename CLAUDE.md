@@ -393,6 +393,52 @@ copied. `crashScan` returns the NAMES it saw for exactly that. The scan
 matches the same glob rsync is given (`bk.globPattern`) so the count and
 the copy cannot disagree — and an unmatchable glob is its own state, not
 one of the two reassuring ones.
+📋 THE BORROWED CLIPBOARD IS PUT BACK ONLY IF IT IS STILL OURS
+(6.198.0, modules/power_tools.lua). Reading a selection costs a ⌘C in
+any app that will not answer AXSelectedText, so pt.copySelection BORROWS
+the pasteboard — save, clear, ⌘C, read, hand over — and restores 0.6 s
+later. LL: "⇪2 says it's copying but the clipboard does not have the
+content I sequentially copied. ⌘+c works." It DID have it, for 0.6 s:
+the caller wrote its block inside the loan and the restore landed on
+top. An alert that is true when shown and false when acted on, with
+nothing to see in between, is the worst shape a message can have. The
+restore stands down when the pasteboard has been written since the
+borrow — `pt.borrowIntact` asks macOS's CHANGE COUNTER first (it sees
+the two writes a comparison never can: the same text written again, and
+anything that is not text), the CONTENTS as the degrade for a
+Hammerspoon without it, and NEITHER READABLE means intact so the last
+resort stays 6.132.0's promise that your clipboard comes back.
+🔑 THE GUARD LIVES AT THE BORROW, NEVER IN THE CALLER: a second caller
+had the identical bug unnoticed (the 🔢 count row's "N words · N
+characters"), and only the borrow can see the case no caller owns — an
+APP copying during the loan. GENERAL RULE: code that saves shared state,
+hands control out, and restores it later must check the state is still
+what it left before writing; "I put it back" is only honest if nobody
+else got there. `settings = { power_tools = { restoreGuard = false } }`
+is the rollback and `_G.powerReport()`'s "⌘C borrow" / "last borrow"
+lines are the state — a state with no report is what hid this. STATED,
+NOT SPECIAL-CASED: an app answering ⌘C LATE moves the counter too, so
+that clipboard is left alone as well; a second rule keyed on "did we
+hand anything over" would be a second rule to keep in step.
+📋 hs.pasteboard.setContents REFUSES BY RETURNING FALSE, NOT BY THROWING
+— so `local ok = pcall(function() hs.pasteboard.setContents(x) end)` is
+true either way. That is 6.179.0's read-THREE-values rule and three
+places here broke it: ⇪2 promised "⌘V pastes the block", the 🔢 row
+said the counts were copied, ⇪; announced formatting stripped. The
+same two-value shape is still live in text_expander.lua and
+url_cleaner.lua — deliberately NOT swept in 6.198.0 (LL: "only do them
+one-by-one"), so fix them when either module is next opened.
+🧪 AND BOTH TEST STUBS WERE GENTLER THAN macOS: setContents returned nil
+and there was no changeCount at all, so the bug ran green for six
+releases. The refusal checks that existed made setContents THROW, which
+is the half pcall catches. A stub answers exactly what the real
+provider answers, refusals included — 6.193.0's rule, and this is the
+second time it has cost a release.
+🚨 AND THE RESTORE TIMER WAS ARMED INTO THE RUNNING TIMER'S OWN SLOT
+(pt.copyTimer, from inside pt.copyTimer's callback) — 6.196.1's
+use-after-free shape in hs.timer instead of hs.task, pre-dating that
+release. `pt.restoreTimer` is its own slot, asserted against the SOURCE
+because a stub timer is collected by nobody.
 🔍 THE GATE AUDITS THE CHEAT SHEETS (6.196.0, test_integration):
 "a stale key on the sheet IS a broken feature" (6.181.0) is a check now,
 not a promise kept by hand. Every module's own cheatsheet KEY COLUMN is
@@ -687,6 +733,25 @@ mirrors draw order: "closes last" IS "drawn under".
 
 ## Open items — update as they move
 
+- 🗳 DECIDED BY LL 6.198.0, ASKED AND ANSWERED — do not re-ask:
+  (1) BUGS BEFORE FEATURES while he tests: ⇪2 (shipped 6.198.0), then
+  doc_memory.lua:363, then the autocorrect pair (the `allow,HOw` row and
+  the no-op `fix` row that short-circuits the TWo-caps rule). THEN the
+  agreed feature order — window positions, pomodoro sound, ⌥⌥ menu bar,
+  ⌘⌘ clipboard. (2) SPELL-CHECK IS A REAL DICTIONARY CHECK, not a list
+  of custom rows: check a typed word against macOS's own
+  /usr/share/dict/words and correct only when EXACTLY ONE real word is a
+  single transposition / doubling / omission away (somethgni, somethingg,
+  somethinng, somethng, somtething and their families). Ambiguous → leave
+  it alone; missing word list → the feature says so and typing is
+  untouched. (3) THE POMODORO ESCALATION SOUND IS **Submarine**
+  (/System/Library/Sounds), growing over the last 30 seconds from 24:30.
+  (4) The ⇪ glyph question is CLOSED — the bar is there, no font changes.
+  🚨 ONE CHANGE PER RELEASE, still: "if these changes will introduce
+  issues, only do them one-by-one. We must isolate the changes so we only
+  have to fix one thing." And every addition must work on the home Mac
+  AND the work Mac.
+
 - Screenshots folder override: waiting on LL to name a path; then ship a
   one-line `settings = { screenshots = { dir = "..." } }` profile override
   with full ceremony. (Verified: zero code changes needed.)
@@ -794,11 +859,32 @@ mirrors draw order: "closes last" IS "drawn under".
   sheet pop-up". It IS there — ocr_engine's rows are ⇪O and ⇪⇧O and the
   new gate audit confirms both are the keys actually bound. What LL's
   screenshot appeared to show was "⇧O" and "⇧⇧O", i.e. the ⇪ glyph
-  (U+21EA) rendering as ⇧ (U+21E7). That was read off a screenshot and
-  is NOT confirmed — the two glyphs differ only by a bar under the
-  arrow. ASK LL to look at the sheet and say whether the symbol has that
-  bar before changing any font: a "fix" for a misread screenshot would
-  be a change with no bug under it.
+  (U+21EA) rendering as ⇧ (U+21E7). ✅ CLOSED 6.198.0 — ASKED AND
+  ANSWERED: LL looked at the live sheet and the bar IS there. The sheet
+  was right, the screenshot just read small, and no font was touched.
+  Keep this as the worked example: a "fix" for a misread screenshot is
+  a change with no bug under it.
+- 6.198.0 verify with LL: ⇪2 — select a sentence in CHROME (the app
+  that will not answer accessibility, so this is the ⌘C route that was
+  broken), press ⇪2, select another, ⇪2 again, then ⌘V. The whole block
+  should paste. That is the bug he reported and the whole release.
+  Then the one that was broken and never noticed: ⇪; → the count row
+  that copies, in Chrome, and ⌘V — "N words · N characters" should
+  paste. Then check the borrow did not cost him anything: copy
+  something, press ⇪8 (define, which reads a selection and writes
+  nothing), and ⌘V should still paste what he copied.
+  `_G.powerReport()` grows a "⌘C borrow" line — put back / left alone /
+  refused — and "last borrow". "Left alone" is the guard WORKING, not a
+  failure. Rollback if it ever misbehaves:
+  `settings = { power_tools = { restoreGuard = false } }`.
+  KNOWN AND NOT FIXED, stated not hidden: the pasteboard watcher is
+  suppressed across the whole loan (restoreAfter + 1.0 s), so ⇪2's
+  block does NOT appear in ⇪V's clipboard history even though it is a
+  copy made on purpose — which is the opposite of what showStats' own
+  comment says the rule is. Left alone deliberately: it needs the
+  suppression to end at `done` and restart around the restore, and that
+  is a change to a SHARED global (screenshots sets it too), which is
+  not something to bundle into a bug fix LL is installing blind.
 - 6.197.0 verify with LL: `_G.crashReport()` in the Console. It should
   name ~/Library/Logs/DiagnosticReports and, if 6.196.0 ever crashed on
   that Mac, print the FULL PATH of the newest .ips — that is the file to

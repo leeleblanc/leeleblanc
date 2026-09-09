@@ -4,9 +4,59 @@
 -- =====================================================================
 -- 09-09-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.197.2
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.198.0
 -- =====================================================================
 
+-- NEW IN 6.198.0 — 📋 THE BORROWED CLIPBOARD NEVER LANDS ON YOURS:
+--   🚨 LL: "⇪2 says it's copying but the clipboard does not have the
+--      content I sequentially copied. ⌘+c works". Both halves were true.
+--      Reading a selection costs a ⌘C in any app that will not answer
+--      accessibility (Chrome and GitHub are two), so power_tools BORROWS
+--      the clipboard: save, clear, ⌘C, read, hand it over — and put the
+--      old contents back 0.6 s later. ⇪2 wrote its collected block inside
+--      that 0.6 s, and the restore landed on top of it. The alert was
+--      honest at the moment it was shown and a lie by the time he pressed
+--      ⌘V, with nothing to see in between — the worst shape a message
+--      can have. The restore STANDS DOWN now when the clipboard has been
+--      written since the borrow: macOS's own change counter first (it
+--      sees the two writes a comparison never can — the same text
+--      written again, and anything that is not text), the contents as
+--      the degrade for a Hammerspoon without it, and neither readable
+--      means intact, so the last resort is still 6.132.0's promise that
+--      your clipboard comes back.
+--   🔎 THE GUARD LIVES AT THE BORROW, NOT IN THE CALLER, because a
+--      SECOND caller had the same bug and nobody had noticed it: the 🔢
+--      count row's "N words · N characters" was overwritten in the same
+--      window, on the same ⌘C route, every time. A caller-side fix would
+--      have cured the one LL could see. It also covers the case no
+--      caller could: an APP copying something of its own while the
+--      clipboard is out on loan. Plain ⌘C was never broken, which is
+--      exactly why LL could tell the two apart. Rollback
+--      `settings = { power_tools = { restoreGuard = false } }`.
+--      `_G.powerReport()` grows a "⌘C borrow" line counting what was put
+--      back, left alone and refused, and a "last borrow" line naming the
+--      last one — a state with no report is what hid this.
+--   📋 AND THREE PLACES READ TWO VALUES FROM A pcall AROUND A CALL
+--      THAT ANSWERS FALSE. hs.pasteboard.setContents refuses by
+--      returning false, WITHOUT throwing, so `pcall(fn)` alone reports
+--      every refusal as a success — CLAUDE.md's 6.179.0 rule, never
+--      applied here. ⇪2 promised "⌘V pastes the block" over a pasteboard
+--      that had just said no; the 🔢 row said the counts were copied;
+--      ⇪; announced the formatting stripped. All three read three now.
+--   🧪 AND THE STUBS WERE THE HOLE. Both suites' fake pasteboards
+--      returned nil from setContents and had no change counter at all —
+--      gentler than the thing they stand in for, which CLAUDE.md calls a
+--      hole with a tick beside it. The refusal checks that existed made
+--      setContents THROW, which is the half pcall catches; the quiet
+--      false was never tested. Both stubs answer the way macOS does now.
+--      test_power_tools 252 -> 282, test_scratch_pad 194 -> 196,
+--      seventeen mutations, each proven to fail against the bug it
+--      names. 8,246 -> 8,278 checks, seventy-four stages.
+--   🚨 AND THE RESTORE WAS ARMED INTO THE RUNNING TIMER'S OWN SLOT —
+--      6.196.1's use-after-free shape, in hs.timer rather than hs.task,
+--      and pre-dating that release. Its own slot now, asserted against
+--      the SOURCE because a stub timer is collected by nobody.
+--
 -- NEW IN 6.197.2 — 🔎 A BUDGET IS A STATE, NOT A FOOTNOTE:
 --   🚨 6.197.1 bounded the crash-report count with bk.crashScanMax and
 --      printed a ⚠️ line beside the totals when it bit. That was this
@@ -35,54 +85,12 @@
 --      test_daily_backup 123 -> 128, forty-one mutations. 8,241 -> 8,246
 --      checks, seventy-four stages.
 --
--- NEW IN 6.197.1 — 🔒 A FILTER THAT FAILS OPEN IS NOT A FILTER:
---   🚨 6.197.0's crash-report copy is aimed at
---      ~/Library/Logs/DiagnosticReports, a folder holding every app's
---      diagnostics, and what kept it to OURS was the entry's `only` glob.
---      Nothing enforced that the glob existed. Clear bk.crashGlob — or
---      set it from a profile, since bk is exported as M.config and
---      init.lua applies settings straight into it — and `only` went
---      falsy, rsyncArgs skipped the entire include/exclude block, and the
---      5 PM run copied EVERY app's crash reports and spindumps into a
---      cloud folder. The knob sits under a comment inviting the reader to
---      narrow it; deleting that line was the way to widen it. It fails
---      CLOSED now: an unset glob DROPS the entry, and — belt and braces,
---      the way secret.lua is excluded twice — an entry that declares it
---      must be filtered is refused at the point of use and SAID, never
---      quietly copied whole. Found by the review pass, not by LL.
---   🔎 AND THE ONE LINE ADDED TO BE HONEST WAS THE ONE LINE THAT LIED.
---      "bk.crashGlob is empty (the copy is unaffected)" was false in both
---      directions: an empty glob made rsync's include match nothing, an
---      absent one removed the filter entirely. It says what is actually
---      true now — nothing is being counted AND nothing is being copied —
---      and the fourth state no longer falls through to "UNREADABLE",
---      which everywhere else in that file means "macOS refused us" and
---      sent LL to System Settings for a permission he already had.
---   🗂 THE SCAN NOW WALKS WHERE THE COPY WALKS. rsync is given
---      `--include */`, so it takes macOS's Retired/ folder — where older
---      reports are moved shortly before deletion, which is to say the
---      ones this feature exists for. The counter stopped at the top
---      level, so it counted a subset of what the backup held and
---      answered "is the newest one safe?" about names it had never seen.
---      One level down, keyed by basename, budgeted by bk.crashScanMax —
---      and hitting that budget is printed, because a count that stopped
---      early must not read as a count that finished.
---   🧪 AND THE TESTS THEMSELVES WERE AUDITED. Three checks passed with
---      the bug they name in place: the undated-name fixture listed the
---      undated file FIRST (so it only proved the direction that already
---      worked), the "missing" sentence was asserted as a STATE STRING and
---      never as printed text (a guard that exists, not one that bites),
---      and nothing joined the scan's glob to the one rsync is handed.
---      All three now fail against their mutation. test_daily_backup
---      108 -> 123, thirty-eight mutations, 8,226 -> 8,241 checks,
---      seventy-four stages.
---
--- (6.197.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.197.1 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.197.2
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.198.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -179,7 +187,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.197.2"
+_G.configVersion = "6.198.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

@@ -42,6 +42,8 @@ print = function() end
 local CLIP       = nil          -- what the pasteboard holds
 local FLAVORS    = { "public.utf8-plain-text" }
 local SET_CALLS  = 0
+local SET_REFUSE = false        -- make the pasteboard say no, as macOS can
+local CHANGE     = 0            -- macOS's own pasteboard change counter
 local CLEARED    = 0
 local TYPED      = {}           -- every keyStrokes burst, in order
 local KEYSTROKES = {}           -- every keyStroke (modifier) call
@@ -88,12 +90,27 @@ hs = {
         end,
     },
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
+    -- 🚨 6.198.0 — THIS STUB WAS MORE FORGIVING THAN THE REAL THING,
+    -- which CLAUDE.md names as "a hole with a tick beside it". Two ways:
+    -- hs.pasteboard.setContents RETURNS a boolean (it answers false on a
+    -- refusal without throwing, so a caller reading only pcall's own ok
+    -- calls every refusal a success), and every write moves macOS's
+    -- change counter, which is how anything can tell that the clipboard
+    -- it is holding is no longer the clipboard it left. With neither
+    -- modelled here, the ⇪2 bug ran green for four releases.
     pasteboard = {
         getContents    = function() return CLIP end,
-        setContents    = function(s) CLIP = s ; SET_CALLS = SET_CALLS + 1
-                                     FLAVORS = { "public.utf8-plain-text" } end,
-        clearContents  = function() CLIP = nil ; CLEARED = CLEARED + 1 end,
+        setContents    = function(s)
+                             SET_CALLS = SET_CALLS + 1
+                             if SET_REFUSE then return false end
+                             CLIP = s ; CHANGE = CHANGE + 1
+                             FLAVORS = { "public.utf8-plain-text" }
+                             return true
+                         end,
+        clearContents  = function() CLIP = nil ; CLEARED = CLEARED + 1
+                                    CHANGE = CHANGE + 1 ; return true end,
         contentTypes   = function() return FLAVORS end,
+        changeCount    = function() return CHANGE end,
     },
     eventtap = {
         event = {
@@ -258,6 +275,10 @@ local function reset()
     TYPED, KEYSTROKES, ALERTS, TIMERS, EVERY = {}, {}, {}, {}, {}
     SYSKEYS = {}
     SET_CALLS, CLEARED, SUPPRESSED = 0, 0, 0
+    SET_REFUSE = false
+    pt.restoreGuard = true
+    pt.borrowPut, pt.borrowKept, pt.borrowRefused = 0, 0, 0
+    pt.lastBorrow = nil
     MODS, SECURE, AXSEL = {}, false, nil
     pt.lastNote = nil
     pt.settleTimer, pt.startTimer = nil, nil
@@ -676,6 +697,207 @@ check("an empty copy says nothing was selected", (function()
 end)(), ALERTS[1])
 runAfters(1)
 check("🚨 …and the clipboard is STILL put back", CLIP == "KEEP ME", CLIP)
+
+-- =====================================================================
+out("\n=== 6b. 🚨 …BUT NEVER OVER SOMETHING ELSE (6.198.0) ===\n")
+-- =====================================================================
+-- LL: "⇪2 says it's copying but the clipboard does not have the content
+-- I sequentially copied. ⌘+c works". Both halves were true. The tool read
+-- the selection, wrote its own block to the pasteboard, told him so — and
+-- 0.6 s later §6's restore put the old clipboard back over it. The alert
+-- was honest at the moment it was shown and a lie by the time he pressed
+-- ⌘V, with nothing to see in between.
+--
+-- 🚨 A SECTION THAT CAN THROW WRAPS ITSELF AND COUNTS ITS OWN CHECKS
+-- (6.186.0's rule): a throw in here would delete every check after it
+-- while the run still said "0 failed".
+do
+    local mine = 0
+    local function ck(label, cond, extra)
+        mine = mine + 1
+        check(label, cond, extra)
+    end
+
+    -- ---- the decision itself, with no Mac anywhere near it -------------
+    ck("borrowIntact: the change counter agreeing means nobody wrote",
+       pt.borrowIntact("a", "b", 7, 7) == true)
+    ck("borrowIntact: the counter moving means somebody did",
+       pt.borrowIntact("a", "a", 7, 8) == false)
+    ck("borrowIntact: with no counter it falls back to the contents",
+       pt.borrowIntact("a", "a", nil, nil) == true
+       and pt.borrowIntact("a", "b", nil, nil) == false)
+    ck("borrowIntact: two clipboards it cannot read are intact, so the"
+       .. " last resort is 6.132.0's promise — you get yours back",
+       pt.borrowIntact(nil, nil, nil, nil) == true)
+    ck("borrowIntact: text replaced by something with no text is a write",
+       pt.borrowIntact("words", nil, nil, nil) == false)
+
+    -- ---- the reported bug ----------------------------------------------
+    reset()
+    AX, AXSEL = true, nil          -- Chrome/GitHub: no AXSelectedText
+    CLIP = "MY IMPORTANT CLIPBOARD"
+    local handed
+    pt.withSelection("📎", function(text)
+        handed = text
+        hs.pasteboard.setContents("THE BLOCK THE TOOL BUILT")
+    end)
+    CLIP = "the selected words here"    -- the app answers the ⌘C
+    runAfters(1)                        -- copyWait → done() runs and writes
+    ck("the caller is handed the selection",
+       handed == "the selected words here", handed)
+    ck("…and its own text is on the clipboard, as it just promised",
+       CLIP == "THE BLOCK THE TOOL BUILT", CLIP)
+    runAfters(1)                        -- restoreAfter
+    ck("🚨 the restore stands down and the tool's text SURVIVES",
+       CLIP == "THE BLOCK THE TOOL BUILT", CLIP)
+    ck("…counted as left alone, never as put back",
+       pt.borrowKept == 1 and pt.borrowPut == 0,
+       pt.borrowKept .. " kept / " .. pt.borrowPut .. " put back")
+    ck("…and the report can say which",
+       (pt.lastBorrow or ""):find("left alone", 1, true) ~= nil, pt.lastBorrow)
+
+    -- The one the change counter earns on its own: a caller that writes
+    -- back the SAME words. A contents comparison sees no difference and
+    -- restores over it; macOS's counter knows a write happened.
+    reset()
+    AX, AXSEL = true, nil
+    CLIP = "MY IMPORTANT CLIPBOARD"
+    pt.withSelection("📎", function(text) hs.pasteboard.setContents(text) end)
+    CLIP = "same words"
+    runAfters(1) ; runAfters(1)
+    ck("🚨 a caller writing the SAME text still owns the clipboard",
+       CLIP == "same words" and pt.borrowKept == 1, CLIP)
+
+    -- An APP copying something of its own during the loan. No caller is
+    -- involved at all, and this is the case nobody would have written a
+    -- caller-side guard for.
+    reset()
+    AX, AXSEL = true, nil
+    CLIP = "MY IMPORTANT CLIPBOARD"
+    pt.withSelection("📎", function() end)
+    CLIP = "the selected words here"
+    runAfters(1)
+    hs.pasteboard.setContents("SOMETHING I COPIED IN ANOTHER APP")
+    runAfters(1)
+    ck("🚨 an app's own copy during the loan is left alone too",
+       CLIP == "SOMETHING I COPIED IN ANOTHER APP", CLIP)
+
+    -- ---- and §6's promise still holds when nothing wrote ---------------
+    reset()
+    AX, AXSEL = true, nil
+    CLIP = "MY IMPORTANT CLIPBOARD"
+    pt.withSelection("📎", function() end)
+    CLIP = "the selected words here"
+    runAfters(1) ; runAfters(1)
+    ck("with nothing written, the clipboard still comes back",
+       CLIP == "MY IMPORTANT CLIPBOARD", CLIP)
+    ck("…counted as put back", pt.borrowPut == 1 and pt.borrowKept == 0,
+       pt.borrowPut .. " put back / " .. pt.borrowKept .. " kept")
+
+    -- ---- the degrade: a Hammerspoon with no changeCount ----------------
+    do
+        local realCount = hs.pasteboard.changeCount
+        hs.pasteboard.changeCount = nil
+        reset()
+        AX, AXSEL = true, nil
+        CLIP = "MY IMPORTANT CLIPBOARD"
+        pt.withSelection("📎", function() hs.pasteboard.setContents("BLOCK") end)
+        CLIP = "the selected words here"
+        runAfters(1) ; runAfters(1)
+        ck("with no change counter it compares the contents instead",
+           CLIP == "BLOCK", CLIP)
+        reset()
+        CLIP = "MY IMPORTANT CLIPBOARD"
+        pt.withSelection("📎", function() end)
+        CLIP = "the selected words here"
+        runAfters(1) ; runAfters(1)
+        ck("…and with nothing written it still puts the clipboard back",
+           CLIP == "MY IMPORTANT CLIPBOARD", CLIP)
+        hs.pasteboard.changeCount = realCount
+    end
+
+    -- ---- a refused restore is not a restore ----------------------------
+    reset()
+    AX, AXSEL = true, nil
+    CLIP = "MY IMPORTANT CLIPBOARD"
+    pt.withSelection("📎", function() end)
+    CLIP = "the selected words here"
+    runAfters(1)
+    SET_REFUSE = true                   -- macOS says no, without throwing
+    runAfters(1)
+    ck("🚨 a pasteboard that REFUSES the restore is not called a success",
+       pt.borrowRefused == 1 and pt.borrowPut == 0,
+       pt.borrowRefused .. " refused / " .. pt.borrowPut .. " put back")
+    ck("…the state says so", (pt.lastBorrow or ""):find("REFUSED", 1, true) ~= nil,
+       pt.lastBorrow)
+    ck("…and the Console was told, not just the counter",
+       (pt.lastNote or ""):find("could not be put back", 1, true) ~= nil,
+       pt.lastNote)
+    SET_REFUSE = false
+
+    -- ---- the rollback really rolls back --------------------------------
+    reset()
+    pt.restoreGuard = false
+    AX, AXSEL = true, nil
+    CLIP = "MY IMPORTANT CLIPBOARD"
+    pt.withSelection("📎", function() hs.pasteboard.setContents("BLOCK") end)
+    CLIP = "the selected words here"
+    runAfters(1) ; runAfters(1)
+    ck("restoreGuard = false is a real rollback — 6.197.2's behaviour",
+       CLIP == "MY IMPORTANT CLIPBOARD", CLIP)
+    pt.restoreGuard = true
+
+    -- ---- the report -----------------------------------------------------
+    reset()
+    ck("a Mac that has not borrowed the clipboard says exactly that",
+       _G.powerReport():find("has not been borrowed yet", 1, true) ~= nil)
+    AX, AXSEL = true, nil
+    CLIP = "MY IMPORTANT CLIPBOARD"
+    pt.withSelection("📎", function() hs.pasteboard.setContents("BLOCK") end)
+    CLIP = "the selected words here"
+    runAfters(1) ; runAfters(1)
+    local rep = _G.powerReport()
+    ck("…and after one, the report counts it and names what it did",
+       rep:find("⌘C borrow", 1, true) ~= nil
+       and rep:find("left alone", 1, true) ~= nil, rep:match("⌘C borrow[^\n]*"))
+    pt.restoreGuard = false
+    ck("…and a guard switched OFF is said out loud, not left to be guessed",
+       _G.powerReport():find("restoreGuard is OFF", 1, true) ~= nil)
+    pt.restoreGuard = true
+
+    -- 🚨 ASSERTED AGAINST THE SOURCE, deliberately — 6.196.1's rule.
+    -- A stub timer is collected by nobody, so a functional test of this
+    -- passes exactly as happily with the bug in. The restore used to be
+    -- armed into pt.copyTimer from inside pt.copyTimer's own callback,
+    -- dropping the last reference to the timer whose callback was
+    -- RUNNING: that is the shape that killed Hammerspoon natively in
+    -- 6.196.0, with no Lua error and nothing in the Console.
+    do
+        local f = io.open(HS .. "/modules/power_tools.lua")
+        local src = f and f:read("a") or ""
+        if f then f:close() end
+        local body = src:match("function pt%.copySelection.-\n    end\n")
+        local outer = body and select(2,
+            body:gsub("pt%.copyTimer%s*=%s*hs%.timer%.doAfter", "")) or 0
+        ck("🚨 the restore timer has its OWN slot — arming it from inside"
+           .. " the copy timer's callback releases the running one",
+           body ~= nil and outer == 1
+           and body:find("pt.restoreTimer = hs.timer.doAfter", 1, true) ~= nil,
+           body and ("copyTimer armed " .. outer .. "× in there") or "no body")
+    end
+
+    -- 🚨 The count is asserted, not assumed — see the section header.
+    check("§6b ran every one of its checks", mine == 24, mine)
+end
+
+-- 📌 STATED, NOT SPECIAL-CASED: an app that answers ⌘C LATE — after the
+-- copyWait read but inside the 0.6 s loan — moves the counter too, so the
+-- rule leaves that clipboard alone as well and the saved contents are not
+-- put back. The caller was already told nothing was selected, and those
+-- saved contents are still a row in ⇪V's history, because they got there
+-- by being copied. A second rule keyed on "did we hand anything over"
+-- would be a second rule to keep in step with this one, and the clobber
+-- it would buy back is the exact bug this release exists to end.
 
 -- =====================================================================
 out("\n=== 7. ℹ️ mdls parsing: a value can span lines ===\n")
@@ -1213,6 +1435,36 @@ do
           (ALERTS[1] or ""):find("refused") ~= nil, ALERTS[1])
     check("…and the counts are still on screen",
           (ALERTS[1] or ""):find("2 words") ~= nil, ALERTS[1])
+
+    -- 🚨 6.198.0 — AND THE REFUSAL THAT DOES NOT THROW. The check above
+    -- made setContents raise, which pcall catches; the REAL API answers
+    -- false and returns quietly. Reading only pcall's own ok therefore
+    -- passed the throwing case and called the quiet one a success — the
+    -- test was green and the feature was lying. Same shape, both modules,
+    -- one release: this is the ⇪2 bug wearing the 🔢 row's clothes.
+    reset()
+    AXSEL = "one two"
+    CLIP  = "something I was keeping"
+    SET_REFUSE = true
+    pt.run("countclip")
+    SET_REFUSE = false
+    check("🚨 a clipboard that answers FALSE is a refusal too",
+          (ALERTS[1] or ""):find("refused") ~= nil, ALERTS[1])
+    check("…and it never claims the counts are there to paste",
+          (ALERTS[1] or ""):find("on the clipboard", 1, true) == nil, ALERTS[1])
+    check("…and the clipboard really is untouched",
+          CLIP == "something I was keeping", CLIP)
+
+    -- 📋 ⇪; strip formatting had the identical two-value read.
+    reset()
+    CLIP = "text with formatting"
+    SET_REFUSE = true
+    local stripped = pt.stripClipboard()
+    SET_REFUSE = false
+    check("🚨 a refused strip is refused, not announced as done",
+          stripped == false, stripped)
+    check("…and it says which", (ALERTS[1] or ""):find("Could not write") ~= nil,
+          ALERTS[1])
 end
 
 -- =====================================================================

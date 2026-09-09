@@ -125,7 +125,7 @@ os.rename = function(a, b)
 end
 
 local ALERTS, PROVIDED, WEBVIEWS, PROMPTS, TIMERS, PRINTED = {}, {}, {}, {}, {}, {}
-local PASTED, PB_FAIL = {}, false
+local PASTED, PB_FAIL, PB_REFUSE = {}, false, false
 local PROMPT_ANSWER = { "Cancel", "" }
 local UC_CALLBACK = nil
 local realPrint = print
@@ -195,8 +195,15 @@ hs = {
     eventtap = { checkMouseButtons = function() return { left = false } end },
     -- 6.182.0 — the sequential copy's other half. PB_FAIL makes the write
     -- refuse, which is the path where the grab must still be safe.
+    -- 🚨 6.198.0 — PB_REFUSE is the OTHER refusal, and the one that was
+    -- missing: hs.pasteboard.setContents answers FALSE without throwing.
+    -- PB_FAIL alone tested only the half that pcall catches, so the module
+    -- could read two values from the pcall, call every quiet refusal a
+    -- success, and stay green. A stub gentler than the real thing is a
+    -- hole with a tick beside it.
     pasteboard = { setContents = function(t)
         if PB_FAIL then error("pasteboard refused") end
+        if PB_REFUSE then return false end
         PASTED[#PASTED + 1] = tostring(t); return true
     end },
 }
@@ -913,7 +920,7 @@ end
 do
     -- the key: selection in, tab + clipboard + alert out
     sp.tabs, sp.collectId, sp.collectCount = {}, nil, 0
-    PASTED, ALERTS, PB_FAIL = {}, {}, false
+    PASTED, ALERTS, PB_FAIL, PB_REFUSE = {}, {}, false, false
     local keepSvc = _G.service
     _G.service = {
         has  = function(n) return n == "power.readSelection" end,
@@ -937,6 +944,18 @@ do
           ALERTS[#ALERTS]:find("clipboard refused", 1, true) ~= nil
           and ALERTS[#ALERTS]:find("⌘V pastes", 1, true) == nil, ALERTS[#ALERTS])
     PB_FAIL = false
+
+    -- 🚨 6.198.0 — the refusal that does NOT throw. Same promise, and
+    -- until now the module read two values from the pcall and announced
+    -- "⌘V pastes the block" over a pasteboard that had just said no.
+    PB_REFUSE = true
+    sp.collectFromSelection()
+    check("🚨 a pasteboard answering FALSE is a refusal too, and is said",
+          ALERTS[#ALERTS]:find("clipboard refused", 1, true) ~= nil
+          and ALERTS[#ALERTS]:find("⌘V pastes", 1, true) == nil, ALERTS[#ALERTS])
+    check("…and that grab is not lost either", sp.collectCount == 3,
+          sp.collectCount)
+    PB_REFUSE = false
 
     -- 🛟 no power_tools at all
     _G.service = { has = function() return false end }

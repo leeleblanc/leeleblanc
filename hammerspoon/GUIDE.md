@@ -9,7 +9,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,755 lines)
+├── init.lua          the orchestrator (3,763 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (12 files)
 ├── modules/          one file per feature (68 files, ~51,400 lines)
@@ -848,9 +848,9 @@ CREATED AUTOMATICALLY (never make these yourself):
 
 ## 6. Tests
 
-Sixty-eight Lua suites, 7,839 checks, plus four more that run the Capture
+Sixty-eight Lua suites, 7,871 checks, plus four more that run the Capture
 Pad's, the screenshot editor's, unified search's and the vault's page
-JavaScript under `node` for a further 407 — **8,246 checks over
+JavaScript under `node` for a further 407 — **8,278 checks over
 seventy-four stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
@@ -1106,9 +1106,13 @@ The plain `⇪ + pad` layer is the **capture row** (6.99.0, re-cut
    ⇪pad-   the pad, pre-typed with "+ " — a Log
 ```
 
-**No number pad?** (6.114.0) `⇪2` opens the Quick Append Pad — the same digit
-as `⇪pad2`, and the pad's only door until this release, since `note_pad.lua`
-binds no letter. The other five are runnable from `⇪space`: they were always
+**No number pad?** (6.114.0) `⇪2` opened the Quick Append Pad — the same digit
+as `⇪pad2`, and the pad's only door for a while, since `note_pad.lua` binds no
+letter. **Not any more:** 6.182.0's ONE DOOR rule took that key back
+(`np.laptopKey = nil`) and gave `⇪2` to the sequential copy; the Append Pad is
+the **+ ➕ Append** row in the vault's 📝 SCRATCH NOTES section (`⇪3` / `⇪N`),
+because a tool that lives inside another tool's window does not also get its
+own hyper key. The other five are runnable from `⇪space`: they were always
 listed there, and ⏎ handed you the key string instead of running them, because
 `uni.runnable` had no entry. The window map had a laptop layer too — `⇪⇧` + the
 number row, 6.114.0 to 6.141.0 — until LL had it cleaned and cleared in

@@ -202,6 +202,14 @@ function M.setup(core)
     -- 🔢 counting
     pt.copyWait     = 0.18         -- how long ⌘C is given to land
     pt.restoreAfter = 0.60         -- when the borrowed clipboard goes back
+    -- 🔒 6.198.0 — false puts the borrowed clipboard back no matter what
+    -- has been written since. That is the pre-6.198.0 behaviour and the
+    -- rollback; see pt.copySelection for what it costs.
+    pt.restoreGuard = true
+    pt.borrowPut    = 0            -- restores that happened
+    pt.borrowKept   = 0            -- restores that stood down, correctly
+    pt.borrowRefused = 0           -- restores the pasteboard would not take
+    pt.lastBorrow   = nil          -- what the last one did, for the report
     pt.statsShow    = 7            -- seconds the numbers stay on screen
     -- 📋 6.132.0 — what the second count row puts on the clipboard. Two
     -- numbers, because "both counts" was the ask; the sentence estimate is
@@ -294,6 +302,13 @@ function M.setup(core)
     pt.metaChooser = nil  -- HELD
     pt.caseChooser = nil  -- HELD
     pt.settleTimer, pt.typeTimer, pt.copyTimer = nil, nil, nil  -- HELD
+    -- 🚨 6.198.0 — THE RESTORE GETS ITS OWN SLOT. It used to be armed
+    -- into pt.copyTimer from inside pt.copyTimer's own callback, which
+    -- drops the last reference to the timer whose callback is RUNNING —
+    -- the shape that killed Hammerspoon natively in 6.196.0, in a
+    -- different subsystem and with nothing in the Console. Separate slots,
+    -- so arming one can never release the other.
+    pt.restoreTimer = nil                                       -- HELD
     pt.startTimer, pt.metaTimer = nil, nil                      -- HELD
     pt.metaTask, pt.selTask = nil, nil                          -- HELD
     pt.metaRows  = {}
@@ -342,7 +357,14 @@ function M.setup(core)
                 .. "it holds no text at all", 3.5)
             return false
         end
-        local wrote = pcall(function() hs.pasteboard.setContents(text) end)
+        -- 📋 6.198.0 — THREE values. A refusal comes back as false, not
+        -- as a throw, and "📋 Formatting stripped" over a clipboard that
+        -- refused the write is the same lie ⇪2 was telling.
+        local put = false
+        local okPut = pcall(function()
+            put = hs.pasteboard.setContents(text) ~= false
+        end)
+        local wrote = okPut and put
         if not wrote then
             note("could not write the stripped clipboard back")
             hs.alert.show("📋 Could not write the clipboard back", 3)
@@ -572,9 +594,41 @@ function M.setup(core)
         return nil
     end
 
+    -- 🚨 6.198.0 — IS THE BORROWED CLIPBOARD STILL OURS TO PUT BACK?
+    -- Pure, and it is the whole decision. `was`/`now` are the CONTENTS,
+    -- and nil is a real answer there — an image or a file has no plain
+    -- text at all. The marks are macOS's own change counter, which moves
+    -- for a write this side cannot read: the counter is asked FIRST
+    -- because it sees the two writes a comparison never can — the same
+    -- text written again, and anything that is not text. Contents are the
+    -- DEGRADE for a Hammerspoon without changeCount, never the primary.
+    -- Neither known → intact, because the last resort has to be 6.132.0's
+    -- promise: your clipboard comes back.
+    function pt.borrowIntact(was, now, markWas, markNow)
+        if type(markWas) == "number" and type(markNow) == "number" then
+            return markWas == markNow
+        end
+        return was == now
+    end
+
     -- Slow path: borrow the clipboard. Saved first, put back after, and
     -- the pasteboard watcher suppressed across the whole round trip so the
     -- borrowed copy never lands in ⇪V's history.
+    --
+    -- 🚨 6.198.0 — THE RESTORE MUST NOT LAND ON SOMEONE ELSE'S CLIPBOARD.
+    -- done() ran, the caller wrote its OWN text to the pasteboard, and
+    -- pt.restoreAfter seconds later this timer put the borrowed clipboard
+    -- back over it. LL: "⇪2 says it's copying but the clipboard does not
+    -- have the content I sequentially copied." It DID have it — for 0.6 s.
+    -- That is the worst shape a message can have: true when it is shown
+    -- and false by the time you act on it, with nothing to see in between.
+    -- TWO callers wrote inside that window — ⇪2's collected block and the
+    -- 🔢 count row's "%d words · %d characters" — and only one of them
+    -- was ever noticed, which is why the guard lives HERE, at the borrow,
+    -- and not in either caller. It also covers the case nobody owns: an
+    -- APP writing its own copy while the clipboard is out on loan.
+    -- Plain ⌘C was never broken, which is exactly why LL could see the
+    -- difference between the two.
     function pt.copySelection(done)
         local saved
         pcall(function() saved = hs.pasteboard.getContents() end)
@@ -584,16 +638,44 @@ function M.setup(core)
         pcall(function() hs.pasteboard.clearContents() end)
         pcall(function() hs.eventtap.keyStroke({ "cmd" }, "c", 0) end)
         pt.copyTimer = hs.timer.doAfter(pt.copyWait, function()
-            local got
+            local got, mark
             pcall(function() got = hs.pasteboard.getContents() end)
-            -- Put it back regardless of what we got. A tool that reads your
-            -- selection and keeps your clipboard is a tool you stop using.
-            pt.copyTimer = hs.timer.doAfter(pt.restoreAfter, function()
-                pcall(function()
-                    if saved then hs.pasteboard.setContents(saved)
-                    else hs.pasteboard.clearContents() end
+            -- Marked AFTER the read, deliberately: this is the pasteboard
+            -- the caller is about to be handed, and the only state the
+            -- restore is entitled to overwrite.
+            pcall(function() mark = hs.pasteboard.changeCount() end)
+            -- Put it back — unless something else got there first. A tool
+            -- that reads your selection and keeps your clipboard is a tool
+            -- you stop using; a tool that quietly undoes the copy it just
+            -- told you it made is worse.
+            pt.restoreTimer = hs.timer.doAfter(pt.restoreAfter, function()
+                pt.restoreTimer = nil
+                local now, markNow
+                pcall(function() now = hs.pasteboard.getContents() end)
+                pcall(function() markNow = hs.pasteboard.changeCount() end)
+                if pt.restoreGuard
+                   and not pt.borrowIntact(got, now, mark, markNow) then
+                    pt.borrowKept = pt.borrowKept + 1
+                    pt.lastBorrow = "left alone — the clipboard was written"
+                                    .. " while it was on loan"
+                    return
+                end
+                -- 📋 THREE values, not two. setContents answers FALSE on a
+                -- refusal without throwing, so reading only pcall's own ok
+                -- calls every refusal a success (CLAUDE.md's 6.179.0 rule).
+                local put = false
+                local okPut = pcall(function()
+                    if saved then put = hs.pasteboard.setContents(saved) ~= false
+                    else hs.pasteboard.clearContents() put = true end
                 end)
-                pt.copyTimer = nil
+                if okPut and put then
+                    pt.borrowPut = pt.borrowPut + 1
+                    pt.lastBorrow = "put back"
+                else
+                    pt.borrowRefused = pt.borrowRefused + 1
+                    pt.lastBorrow = "⚠️ the pasteboard REFUSED the restore"
+                    note("the borrowed clipboard could not be put back")
+                end
             end)
             done(type(got) == "string" and got ~= "" and got or nil)
         end)
@@ -639,7 +721,13 @@ function M.setup(core)
             -- clipboard in copySelection. That one is a round trip nobody
             -- asked for; this one is the whole point of the row, and a copy
             -- you deliberately made belongs in the history of copies.
-            copied = pcall(function() hs.pasteboard.setContents(line) end)
+            -- 📋 6.198.0 — THREE values, as above. This row prints
+            -- "(copied)" or "(copy FAILED)" off this one boolean.
+            local put = false
+            local okPut = pcall(function()
+                put = hs.pasteboard.setContents(line) ~= false
+            end)
+            copied = okPut and put
             if not copied then note("could not put the counts on the clipboard") end
         end
         say(("counted via %s: %d words, %d chars, ~%d sentences%s")
@@ -1959,6 +2047,23 @@ end tell]]
         end
         if pt.lastCountLine then
             L[#L + 1] = "   last copied  : " .. pt.lastCountLine
+        end
+        -- 📋 6.198.0 — the borrow has a state now, so it has a line. A
+        -- restore that stands down is the guard WORKING; a restore that is
+        -- refused is the pasteboard saying no. Reading the same as each
+        -- other, or as nothing at all, is what hid the ⇪2 bug.
+        local borrows = pt.borrowPut + pt.borrowKept + pt.borrowRefused
+        L[#L + 1] = "   ⌘C borrow    : " ..
+            (borrows == 0 and "the clipboard has not been borrowed yet"
+             or (borrows .. "× — " .. pt.borrowPut .. " put back, "
+                 .. pt.borrowKept .. " left alone (a tool or an app had"
+                 .. " written), " .. pt.borrowRefused .. " refused"))
+        if pt.lastBorrow then
+            L[#L + 1] = "   last borrow  : " .. pt.lastBorrow
+        end
+        if not pt.restoreGuard then
+            L[#L + 1] = "   ⚠️ restoreGuard is OFF — the restore overwrites"
+                        .. " whatever a tool put on the clipboard"
         end
         if pt.lastNote then L[#L + 1] = "   last problem : " .. pt.lastNote end
         local s = table.concat(L, "\n")
