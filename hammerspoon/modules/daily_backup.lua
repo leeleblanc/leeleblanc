@@ -119,6 +119,9 @@ function M.setup(core)
     -- turn the entry off with bk.crashes = false; never widen it.
     bk.crashes     = true
     bk.crashGlob   = "Hammerspoon*"  -- .ips today; older macOS wrote _*.crash
+    bk.crashScanMax = 500    -- names the REPORTS will look at (the copy is
+                             -- rsync's job and has no such limit); hitting
+                             -- it is said out loud, never silently trimmed
     -- Applied to EVERY rsync. secret.lua is here as well as on the config
     -- entry — belt and braces, because this is the one exclusion that is
     -- a promise, not a preference. applock.json is the removed App Lock's
@@ -189,13 +192,21 @@ function M.setup(core)
             { id = "agents",    src = home .. "/Library/LaunchAgents", dest = kit .. "/LaunchAgents" },
             { id = "fonts",     src = home .. "/Library/Fonts",     dest = kit .. "/Fonts" },
         }
-        if bk.crashes and bk.crashDir and bk.crashDest then
-            -- 🚨 `only` is what makes it safe to aim an rsync at a folder
-            -- full of other apps' diagnostics: the copy takes the names
-            -- that match and nothing else. Do not widen it, and do not
-            -- drop the glob to "copy the folder" — see the header.
+        -- 🚨 THE FILTER FAILS CLOSED. `only` is what makes it safe to aim
+        -- an rsync at a folder full of other apps' diagnostics — so an
+        -- UNSET glob must DROP the entry, never widen it. Without this
+        -- guard, clearing bk.crashGlob (or a profile override setting it
+        -- to false — bk is exported as M.config and init.lua applies
+        -- settings straight into it) left `only` falsy, rsyncArgs skipped
+        -- the whole filter block, and the kit copied EVERY app's crash
+        -- reports and spindumps into a cloud folder. The knob sits under
+        -- a comment inviting the reader to narrow it; deleting that line
+        -- must not be the way to widen it.
+        local glob = (type(bk.crashGlob) == "string" and bk.crashGlob ~= "")
+                     and bk.crashGlob or nil
+        if bk.crashes and bk.crashDir and bk.crashDest and glob then
             list[#list + 1] = { id = "crashes", src = bk.crashDir,
-                dest = bk.crashDest, only = bk.crashGlob,
+                dest = bk.crashDest, only = glob, mustFilter = true,
                 label = "Hammerspoon's own crash reports — macOS prunes"
                         .. " the originals; nothing here is ever deleted" }
         end
@@ -445,6 +456,18 @@ function M.setup(core)
     end
 
     local function rsyncStep(entry, rep)
+        -- 🚨 BELT AND BRACES, the way secret.lua is excluded twice: an
+        -- entry that declares it MUST be filtered is never copied whole,
+        -- even if something upstream handed it a broken glob. It is
+        -- refused and SAID, never quietly widened.
+        if entry.mustFilter
+           and not (type(entry.only) == "string" and entry.only ~= "") then
+            return function(done)
+                record(rep, entry.id, "skipped",
+                       "no name filter set — this source is never copied whole")
+                done()
+            end
+        end
         if not exists(entry.src) then
             return function(done)
                 record(rep, entry.id, "skipped", "not on this Mac")
@@ -609,12 +632,16 @@ function M.setup(core)
     -- would say "none anywhere — Hammerspoon has not crashed on this
     -- Mac". That is the most reassuring sentence in this file and it
     -- would be a lie. "Cannot see" must never read as "nothing there".
-    --    "ok"         listed it
-    --    "missing"    no such folder (a Mac with no crashes yet, or no
-    --                 backup written yet — nothing is wrong)
-    --    "unreadable" it is there and we were refused
-    -- The scan matches the SAME glob rsync is given, so the count and
-    -- the copy can never disagree — a literal-prefix shortcut worked for
+    --    "ok"          listed it
+    --    "missing"     no such folder (a Mac with no crashes yet, or no
+    --                  backup written yet — nothing is wrong)
+    --    "unreadable"  it is there and we were refused
+    --    "unmatchable" bk.crashGlob is not set, so nothing CAN be counted
+    --                  — and, because the filter fails closed, nothing is
+    --                  being copied either. Never one of the first two.
+    --
+    -- The scan matches the SAME glob rsync is given, so the count and the
+    -- copy can never disagree — a literal-prefix shortcut worked for
     -- "Hammerspoon*" and answered 0 for anything starting with a
     -- wildcard, and bk is exported as M.config, so that was reachable
     -- from a profile override rather than only from a code edit.
@@ -626,49 +653,86 @@ function M.setup(core)
         return "^" .. p .. "$"
     end
 
+    -- 🚨 IT WALKS ONE LEVEL DOWN, BECAUSE THE COPY DOES. rsync is given
+    -- `--include */`, so it takes macOS's Retired/ folder — where older
+    -- reports are moved shortly before they are deleted, which is to say
+    -- the ones this whole feature exists for. A scan that stopped at the
+    -- top level would count a SUBSET of what the backup holds and answer
+    -- "is the newest one safe?" about names it never saw. Keyed by
+    -- BASENAME on both sides, so a report that has since moved into
+    -- Retired/ still matches its copy.
+    --
     -- It also hands back the NAMES it saw. "Is today's crash safe?" is a
     -- membership question, not a subtraction: the two folders diverge by
     -- design (macOS prunes one, nothing prunes the other), so once the
     -- backup holds more than the Mac does, a count difference can never
     -- notice a brand-new report that has not been copied yet.
+    --
+    -- Budgeted by bk.crashScanMax, and the budget is REPORTED rather than
+    -- silently truncating — a count that stopped early must not read as a
+    -- count that finished.
+    -- returns: count, newest, state, names, capped
     function bk.crashScan(dir)
         local pat = bk.globPattern(bk.crashGlob)
-        if not pat then return 0, nil, "unmatchable", {} end
-        if not (dir and dir ~= "") then return 0, nil, "missing", {} end
-        if not exists(dir) then return 0, nil, "missing", {} end
+        if not pat then return 0, nil, "unmatchable", {}, false end
+        if not (dir and dir ~= "") then return 0, nil, "missing", {}, false end
+        if not exists(dir) then return 0, nil, "missing", {}, false end
         local n, newest, newestKey, newestDated, names = 0, nil, nil, false, {}
-        local ok = pcall(function()
-            for entry in hs.fs.dir(dir) do
-                if entry:match(pat) then
-                    names[entry] = true
-                    n = n + 1
-                    -- TWO KEY SPACES, NEVER COMPARED TO EACH OTHER: a
-                    -- dated name sorts by its digits, an undated one by
-                    -- its name, and a DATED one always wins. Comparing
-                    -- across them is a byte compare where 'H' (0x48)
-                    -- beats '9' (0x39), so one stray undated file —
-                    -- Hammerspoon.crash, a .diag — would outrank every
-                    -- real report and be handed over as "the newest".
-                    local key   = entry:gsub("%D", "")
-                    local dated = key ~= ""
-                    if not dated then key = entry end
-                    if (not newest)
-                       or (dated and not newestDated)
-                       or (dated == newestDated and key > newestKey) then
-                        newestKey, newestDated, newest = key, dated, entry
+        local seen, capped, budget = 0, false, tonumber(bk.crashScanMax) or 500
+        local function isDir(p)
+            local okA, a = pcall(hs.fs.attributes, p)
+            return okA and type(a) == "table" and a.mode == "directory"
+        end
+        local function walk(folder, depth)
+            local subs = {}
+            for entry in hs.fs.dir(folder) do
+                if entry ~= "." and entry ~= ".." then
+                    seen = seen + 1
+                    if seen > budget then capped = true return end
+                    if entry:match(pat) then
+                        names[entry] = true
+                        n = n + 1
+                        -- TWO KEY SPACES, NEVER COMPARED TO EACH OTHER: a
+                        -- dated name sorts by its digits, an undated one
+                        -- by its name, and a DATED one always wins.
+                        -- Comparing across them is a byte compare where
+                        -- 'H' (0x48) beats '9' (0x39), so one stray
+                        -- undated file — Hammerspoon.crash, a .diag —
+                        -- would outrank every real report and be handed
+                        -- over as "the newest".
+                        local key   = entry:gsub("%D", "")
+                        local dated = key ~= ""
+                        if not dated then key = entry end
+                        if (not newest)
+                           or (dated and not newestDated)
+                           or (dated == newestDated and key > newestKey) then
+                            newestKey, newestDated, newest = key, dated, entry
+                        end
+                    elseif depth < 1 and isDir(folder .. "/" .. entry) then
+                        subs[#subs + 1] = folder .. "/" .. entry
                     end
                 end
             end
-        end)
-        return n, newest, ok and "ok" or "unreadable", names
+            for _, sub in ipairs(subs) do
+                if capped then return end
+                walk(sub, depth + 1)
+            end
+        end
+        local ok = pcall(function() walk(dir, 0) end)
+        return n, newest, ok and "ok" or "unreadable", names, capped
     end
 
     -- One sentence for a scanned folder, so the three states read the
     -- same wherever they are printed.
+    -- 🚨 The unmatchable sentence used to say "the copy is unaffected".
+    -- It was false in both directions — an empty glob made rsync's
+    -- include match nothing, an absent one removed the filter entirely —
+    -- and it was the one line added to be honest about a mis-set knob.
+    -- Now the filter fails closed, so there is one true thing to say.
     function bk.crashSay(n, state, where)
         if state == "unmatchable" then
-            return "cannot count them " .. where .. " — bk.crashGlob is"
-                   .. " empty (the copy is unaffected)"
+            return "bk.crashGlob is not set, so crash reports are NOT"
+                   .. " being copied at all"
         elseif state == "unreadable" then
             return "CANNOT READ " .. where .. " — grant Hammerspoon Full"
                    .. " Disk Access (⇪,) and ask again"
@@ -689,11 +753,14 @@ function M.setup(core)
         local function row(k, v)
             L[#L + 1] = string.format("   %-12s %s", k, tostring(v or "—"))
         end
-        local hereN, hereNewest, hereState = bk.crashScan(bk.crashDir)
+        local hereN, hereNewest, hereState, _, hereCapped =
+            bk.crashScan(bk.crashDir)
         row("on this Mac:", bk.crashDir)
         if hereState == "unmatchable" then
-            row("", "bk.crashGlob is empty, so nothing can be counted"
-                    .. " here. The rsync is unaffected.")
+            row("", "🚨 bk.crashGlob is not set — nothing can be counted"
+                    .. " here, AND nothing is being copied. Set it back")
+            row("", "   to \"Hammerspoon*\" (the kit drops the whole"
+                    .. " entry rather than copying the folder whole).")
         elseif hereState == "unreadable" then
             row("", "🚨 CANNOT READ IT — Hammerspoon has no Full Disk"
                     .. " Access, so this cannot tell you whether there")
@@ -719,10 +786,18 @@ function M.setup(core)
             row("backup:", "nowhere — no OneDrive on this Mac (§0.1), so"
                            .. " these stay here and macOS will prune them")
         else
-            local kitN, kitNewest, kitState, kitNames =
+            local kitN, kitNewest, kitState, kitNames, kitCapped =
                 bk.crashScan(bk.crashDest)
             row("backup:", bk.crashDest)
-            if kitState == "unreadable" then
+            if hereCapped or kitCapped then
+                row("", "⚠️ stopped counting at " .. tostring(bk.crashScanMax)
+                        .. " names — the totals below are a floor, not a"
+                        .. " total.")
+            end
+            if kitState == "unmatchable" then
+                row("", "nothing can be counted there either, for the"
+                        .. " same reason.")
+            elseif kitState == "unreadable" then
                 row("", "🚨 CANNOT READ THE BACKUP FOLDER — so this cannot"
                         .. " say what is kept there. It may hold every")
                 row("", "   report macOS has already pruned. Grant Full"
@@ -796,11 +871,17 @@ function M.setup(core)
                         .. bk.crashSay(hereN, hereState, "on this Mac")
                         .. " and nowhere to copy them — no OneDrive (§0.1)"
         else
-            local hereN, hereNewest, hereState = bk.crashScan(bk.crashDir)
-            local kitN, kitNewest, kitState, kitNames =
+            local hereN, hereNewest, hereState, _, hereCapped =
+                bk.crashScan(bk.crashDir)
+            local kitN, kitNewest, kitState, kitNames, kitCapped =
                 bk.crashScan(bk.crashDest)
+            -- Four states, four sentences. "unmatchable" used to fall
+            -- through to UNREADABLE, which everywhere else in this file
+            -- means "macOS refused us" and sent LL to System Settings for
+            -- a permission he already had.
             local kept = kitState == "ok" and (kitN .. " kept")
                          or kitState == "missing" and "none copied yet"
+                         or kitState == "unmatchable" and "NOT being copied"
                          or "backup folder UNREADABLE"
             L[#L + 1] = "   crashes : " .. kept .. " · "
                         .. bk.crashSay(hereN, hereState, "on this Mac")
@@ -822,6 +903,11 @@ function M.setup(core)
             elseif hereState == "ok" then
                 L[#L + 1] = "             none anywhere — Hammerspoon has not"
                             .. " crashed on this Mac"
+            end
+            if hereCapped or kitCapped then
+                L[#L + 1] = "             ⚠️ stopped counting at "
+                            .. tostring(bk.crashScanMax) .. " names — those"
+                            .. " numbers are a floor, not a total"
             end
             -- Membership, not subtraction — see bk.crashScan.
             if hereState == "ok" and hereNewest and kitState == "ok" then

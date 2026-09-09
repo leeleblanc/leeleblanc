@@ -171,11 +171,19 @@ FS["/Users/ll/Library/Logs/DiagnosticReports"] = "directory"
 -- newest and hands LL the wrong evidence with a straight face.
 local CRASHDIR  = "/Users/ll/Library/Logs/DiagnosticReports"
 local CRASHDEST = TMP .. "/RebuildKit/CrashReports"
+-- 🚨 AND A Retired/ SUBFOLDER, because the copy is recursive: rsync is
+-- given --include */ so it takes the folder macOS moves older reports
+-- into shortly before deleting them. A flat fixture could never notice a
+-- scan that stopped at the top level while the backup went deeper.
 DIRLIST[CRASHDIR] = { ".", "..",
     "Hammerspoon-2026-09-01-093000.ips",
     "Hammerspoon-2026-09-09-114412.ips",
+    "Google Chrome-2026-09-08-120000.ips",
+    "Retired" }
+FS[CRASHDIR .. "/Retired"] = "directory"
+DIRLIST[CRASHDIR .. "/Retired"] = { ".", "..",
     "Hammerspoon_2024-01-02-030405_Lees-MacBook-Air.crash",
-    "Google Chrome-2026-09-08-120000.ips" }
+    "Slack-2025-01-01-000000.ips" }
 DIRLIST[CRASHDEST] = { ".", "..", "Hammerspoon-2026-09-01-093000.ips" }
 FS[CRASHDIR]  = "directory"
 FS[CRASHDEST] = "directory"
@@ -187,9 +195,16 @@ FS["/emptydiag"] = "directory"  -- readable and genuinely empty
 DIRLIST["/emptydiag"] = { ".", ".." }
 -- An UNDATED name beside dated ones: letters sort above digits in a byte
 -- compare, so one Hammerspoon.crash would outrank every real report.
+-- BOTH ORDERS. hs.fs.dir returns filesystem order on a real Mac, so a
+-- fixture that only lists the undated name first proves one direction of
+-- the guard and leaves the other — an undated name arriving AFTER a
+-- dated one and winning the byte compare — untested and failing.
 FS["/undated"] = "directory"
 DIRLIST["/undated"] = { ".", "..", "Hammerspoon.crash",
                         "Hammerspoon-2026-09-09-114412.ips" }
+FS["/undated2"] = "directory"
+DIRLIST["/undated2"] = { ".", "..", "Hammerspoon-2026-09-09-114412.ips",
+                         "Hammerspoon.crash" }
 FS["/allundated"] = "directory"
 DIRLIST["/allundated"] = { ".", "..", "Hammerspoon.crash", "Hammerspoon.other" }
 
@@ -633,8 +648,13 @@ out("\n8. 🚨 the crash reports — counted, named, and never deleted (6.197.0)
 -- run. These checks are about the line.
 do
     local n, newest = bk.crashScan(CRASHDIR)
-    check("🚨 the scan counts OUR reports and no other app's",
+    check("🚨 the scan counts OUR reports and no other app's — and it "
+          .. "walks INTO Retired/, because the copy does",
           n == 3, n)
+    check("🚨 ...naming the one that only exists in the subfolder, so a "
+          .. "top-level-only scan cannot pass this",
+          (select(4, bk.crashScan(CRASHDIR)) or {})
+              ["Hammerspoon_2024-01-02-030405_Lees-MacBook-Air.crash"] == true)
     check("🚨 ...and picks the newest on the DATE IN THE NAME, not on the "
           .. "name: '_' sorts after '-', so a plain compare hands back a "
           .. "2024 .crash and calls it today's",
@@ -662,6 +682,10 @@ do
           .. "above '9', so one Hammerspoon.crash would otherwise be "
           .. "handed over as today's evidence",
           undNewest == "Hammerspoon-2026-09-09-114412.ips", undNewest)
+    local _, undNewest2 = bk.crashScan("/undated2")
+    check("🚨 ...and in the OTHER listing order too — the direction a "
+          .. "single fixture silently leaves untested",
+          undNewest2 == "Hammerspoon-2026-09-09-114412.ips", undNewest2)
     local allN, allNewest = bk.crashScan("/allundated")
     check("...and with nothing dated at all it still names one",
           allN == 2 and allNewest == "Hammerspoon.other", allNewest)
@@ -789,24 +813,59 @@ do
     -- folder full of reports rsync was copying correctly.
     do
         local keptGlob = bk.crashGlob
+        -- 🚨 THE TWO-SIDED JOIN (6.114.0's rule, applied to a glob): the
+        -- scan and the COPY must move together, or the report counts
+        -- rows the backup can never hold and the "not backed up yet"
+        -- nag never clears on a Mac where the backup works.
+        local function onlyOf()
+            for _, e in ipairs(bk.buildKit()) do
+                if e.id == "crashes" then return e.only end
+            end
+            return nil
+        end
         bk.crashGlob = "*.ips"
         local n2 = bk.crashScan(CRASHDIR)
         check("🚨 a glob with a LEADING wildcard is matched, not "
-              .. "shrugged at — the copy uses the same glob",
-              n2 == 3, n2)
+              .. "shrugged at (4: both of ours, Chrome's, and Slack's "
+              .. "down in Retired/)", n2 == 4, n2)
+        check("🚨 ...and rsync is handed THAT SAME glob, not a literal",
+              onlyOf() == "*.ips", tostring(onlyOf()))
         bk.crashGlob = "Hammerspoon-*.ips"
         check("...and a narrower glob really narrows (the legacy .crash "
               .. "drops out)", bk.crashScan(CRASHDIR) == 2,
               bk.crashScan(CRASHDIR))
+        check("...on both sides", onlyOf() == "Hammerspoon-*.ips",
+              tostring(onlyOf()))
+        -- 🚨 THE FILTER FAILS CLOSED. Clearing the glob must DROP the
+        -- entry, never remove the filter — without this, `only` went
+        -- falsy, rsyncArgs skipped the whole include/exclude block and
+        -- the kit copied EVERY app's crash reports and spindumps into a
+        -- cloud folder. bk is M.config, so a profile override reaches it.
+        for _, bad in ipairs({ "", false, 0 }) do
+            bk.crashGlob = (bad ~= 0) and bad or nil
+            check("🚨 crashGlob = " .. tostring(bk.crashGlob)
+                  .. " → the crash entry is DROPPED, not unfiltered",
+                  onlyOf() == nil, tostring(onlyOf()))
+        end
         bk.crashGlob = ""
         local n3, _, st3 = bk.crashScan(CRASHDIR)
         check("🚨 an EMPTY glob is 'unmatchable' — never one of the two "
               .. "reassuring states",
               n3 == 0 and st3 == "unmatchable", st3)
         local et = capture(function() bk.crashReport() end)
-        check("...and the report says the count is impossible while the "
-              .. "copy is unaffected",
-              et:find("nothing can be counted", 1, true) ~= nil, et)
+        local eb = capture(function() bk.report() end)
+        check("...and BOTH reports say nothing can be counted AND nothing "
+              .. "is being copied — the old wording said the copy was "
+              .. "unaffected, which was false in both directions",
+              et:find("nothing can be counted", 1, true) ~= nil
+              and et:find("nothing is being copied", 1, true) ~= nil
+              and eb:find("NOT being copied", 1, true) ~= nil, et .. "\n" .. eb)
+        check("🚨 ...and NEITHER blames Full Disk Access for a permission "
+              .. "that is already granted",
+              et:find("UNREADABLE", 1, true) == nil
+              and eb:find("UNREADABLE", 1, true) == nil, et .. "\n" .. eb)
+        check("🚨 ...and neither asserts '0 kept' about a folder it never "
+              .. "counted", et:find("0 kept", 1, true) == nil, et)
         bk.crashGlob = keptGlob
     end
 
@@ -833,6 +892,41 @@ do
           and kt2:find("CANNOT READ THE BACKUP FOLDER", 1, true) ~= nil,
           bt2 .. "\n" .. kt2)
     bk.crashDir, bk.crashDest = keptDir2, keptDest2
+
+    -- 🚨 THE "missing" SENTENCE, AS PRINTED. Asserting the STATE STRING
+    -- proves the branch exists; it does not prove what it says. On a work
+    -- Mac with no Full Disk Access the folder can look absent, so this
+    -- sentence must hedge — "a check that asserts a guard exists does not
+    -- assert that it BITES", on the very rule this release cites.
+    local keptDir4 = bk.crashDir
+    bk.crashDir = "/Users/ll/nothing-here"
+    local bt5 = capture(function() bk.report() end)
+    local kt5 = capture(function() bk.crashReport() end)
+    check("🚨 a folder that is not there is HEDGED in print — both "
+          .. "reports name Full Disk Access as the other explanation",
+          bt5:find("Full Disk Access", 1, true) ~= nil
+          and kt5:find("Full Disk Access", 1, true) ~= nil, bt5 .. "\n" .. kt5)
+    check("🚨 ...and neither of them declares nothing has ever crashed",
+          bt5:find("nothing has ever crashed", 1, true) == nil
+          and kt5:find("nothing has ever crashed", 1, true) == nil
+          and bt5:find("has not crashed", 1, true) == nil
+          and kt5:find("has not crashed", 1, true) == nil, bt5 .. "\n" .. kt5)
+    bk.crashDir = keptDir4
+
+    -- ⚠️ THE BUDGET BITES, AND SAYS SO. A count that stopped early must
+    -- not read as a count that finished.
+    local keptMax = bk.crashScanMax
+    bk.crashScanMax = 2
+    local cn, _, cst, _, capped = bk.crashScan(CRASHDIR)
+    check("the scan stops at bk.crashScanMax and reports that it did",
+          capped == true and cn <= 2 and cst == "ok", tostring(capped))
+    local bt6 = capture(function() bk.report() end)
+    local kt6 = capture(function() bk.crashReport() end)
+    check("🚨 ...and both reports call the numbers a floor, not a total",
+          bt6:find("stopped counting at 2", 1, true) ~= nil
+          and kt6:find("stopped counting at 2", 1, true) ~= nil,
+          bt6 .. "\n" .. kt6)
+    bk.crashScanMax = keptMax
 
     -- 🚨 A core with no home folder must not leave bk.crashDir rooted
     -- at "/" — /Library/Logs/DiagnosticReports is the SYSTEM folder, and
@@ -882,6 +976,47 @@ do
           table.concat(RL, "\n"):find("bk.crashes is false", 1, true) ~= nil,
           table.concat(RL, "\n"))
     bk.crashes = true
+end
+
+-- =====================================================================
+out("\n9. 🚨 an entry that must be filtered is never copied whole\n")
+-- =====================================================================
+-- The buildKit guard is the first line of defence; this is the second,
+-- at the point of USE — the same shape as secret.lua being excluded both
+-- globally and on its own entry. A filtered source aimed at a folder of
+-- other people's diagnostics is a promise, not a preference.
+do
+    local keptBuild = bk.buildKit
+    bk.buildKit = function()
+        return { { id = "rogue", src = CRASHDIR, dest = TMP .. "/Rogue",
+                   mustFilter = true } }          -- declared, but no `only`
+    end
+    local before = #TASKS
+    local realp = print
+    print = function() end
+    bk.run(false)
+    pump({})
+    print = realp
+    bk.buildKit = keptBuild
+    local rec2 = {}
+    for _, e in ipairs(bk.last.entries) do rec2[e.id] = e end
+    check("🚨 it is REFUSED and said, never quietly copied whole",
+          rec2.rogue and rec2.rogue.status == "skipped"
+          and rec2.rogue.detail:find("never copied whole", 1, true) ~= nil,
+          rec2.rogue and (rec2.rogue.status .. " / " .. rec2.rogue.detail))
+    check("🚨 ...and no rsync was started for it at all", (function()
+        for i = before + 1, #TASKS do
+            local t = TASKS[i]
+            if t.bin == "/usr/bin/rsync" then
+                for _, a in ipairs(t.args) do
+                    if tostring(a):find("DiagnosticReports", 1, true) then
+                        return false
+                    end
+                end
+            end
+        end
+        return true
+    end)())
 end
 
 -- =====================================================================

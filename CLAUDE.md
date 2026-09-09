@@ -368,7 +368,14 @@ TWO KEY SPACES, NEVER COMPARED — `Hammerspoon_<date>_<Mac>.crash`
 predates `Hammerspoon-<date>.ips` ("_" sorts after "-"), and a letter
 sorts above a digit, so one stray `Hammerspoon.crash` would outrank every
 real report. `_G.crashReport()` prints the FULL PATH of the newest — the
-file LL sends. AND "is today's crash safe?" is answered BY NAME, never by
+file LL sends. 🔒 6.197.1: THE FILTER FAILS CLOSED — an unset
+`bk.crashGlob` DROPS the entry (it used to make `only` falsy, which
+skipped rsyncArgs' whole filter block and copied every app's diagnostics
+to OneDrive), and `mustFilter` makes rsyncStep refuse such an entry at
+the point of use, the way secret.lua is excluded twice. The scan walks
+ONE LEVEL DOWN because `--include */` does (macOS's Retired/ folder is
+where the reports most at risk live), keyed by basename, budgeted by
+`bk.crashScanMax` with the budget PRINTED. AND "is today's crash safe?" is answered BY NAME, never by
 subtracting two counts: the folders diverge by design (macOS prunes one,
 nothing prunes the other), so once the backup holds more than the Mac
 does a count difference can never notice a fresh report that was not

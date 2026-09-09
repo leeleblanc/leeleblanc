@@ -5,6 +5,48 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.197.1 — 🔒 A FILTER THAT FAILS OPEN IS NOT A FILTER:
+  🚨 6.197.0's crash-report copy is aimed at
+     ~/Library/Logs/DiagnosticReports, a folder holding every app's
+     diagnostics, and what kept it to OURS was the entry's `only` glob.
+     Nothing enforced that the glob existed. Clear bk.crashGlob — or
+     set it from a profile, since bk is exported as M.config and
+     init.lua applies settings straight into it — and `only` went
+     falsy, rsyncArgs skipped the entire include/exclude block, and the
+     5 PM run copied EVERY app's crash reports and spindumps into a
+     cloud folder. The knob sits under a comment inviting the reader to
+     narrow it; deleting that line was the way to widen it. It fails
+     CLOSED now: an unset glob DROPS the entry, and — belt and braces,
+     the way secret.lua is excluded twice — an entry that declares it
+     must be filtered is refused at the point of use and SAID, never
+     quietly copied whole. Found by the review pass, not by LL.
+  🔎 AND THE ONE LINE ADDED TO BE HONEST WAS THE ONE LINE THAT LIED.
+     "bk.crashGlob is empty (the copy is unaffected)" was false in both
+     directions: an empty glob made rsync's include match nothing, an
+     absent one removed the filter entirely. It says what is actually
+     true now — nothing is being counted AND nothing is being copied —
+     and the fourth state no longer falls through to "UNREADABLE",
+     which everywhere else in that file means "macOS refused us" and
+     sent LL to System Settings for a permission he already had.
+  🗂 THE SCAN NOW WALKS WHERE THE COPY WALKS. rsync is given
+     `--include */`, so it takes macOS's Retired/ folder — where older
+     reports are moved shortly before deletion, which is to say the
+     ones this feature exists for. The counter stopped at the top
+     level, so it counted a subset of what the backup held and
+     answered "is the newest one safe?" about names it had never seen.
+     One level down, keyed by basename, budgeted by bk.crashScanMax —
+     and hitting that budget is printed, because a count that stopped
+     early must not read as a count that finished.
+  🧪 AND THE TESTS THEMSELVES WERE AUDITED. Three checks passed with
+     the bug they name in place: the undated-name fixture listed the
+     undated file FIRST (so it only proved the direction that already
+     worked), the "missing" sentence was asserted as a STATE STRING and
+     never as printed text (a guard that exists, not one that bites),
+     and nothing joined the scan's glob to the one rsync is handed.
+     All three now fail against their mutation. test_daily_backup
+     108 -> 123, thirty-eight mutations, 8,226 -> 8,241 checks,
+     seventy-four stages.
+
 NEW IN 6.197.0 — 🚨 THE CRASH REPORT WAS BACKED UP NOWHERE:
   🚨 LL: "Is this in my logs folder, OneDrive? If my work Mac or my
      home Mac get wiped, I will lose this information for you." He was

@@ -4,9 +4,51 @@
 -- =====================================================================
 -- 09-09-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.197.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.197.1
 -- =====================================================================
 
+-- NEW IN 6.197.1 — 🔒 A FILTER THAT FAILS OPEN IS NOT A FILTER:
+--   🚨 6.197.0's crash-report copy is aimed at
+--      ~/Library/Logs/DiagnosticReports, a folder holding every app's
+--      diagnostics, and what kept it to OURS was the entry's `only` glob.
+--      Nothing enforced that the glob existed. Clear bk.crashGlob — or
+--      set it from a profile, since bk is exported as M.config and
+--      init.lua applies settings straight into it — and `only` went
+--      falsy, rsyncArgs skipped the entire include/exclude block, and the
+--      5 PM run copied EVERY app's crash reports and spindumps into a
+--      cloud folder. The knob sits under a comment inviting the reader to
+--      narrow it; deleting that line was the way to widen it. It fails
+--      CLOSED now: an unset glob DROPS the entry, and — belt and braces,
+--      the way secret.lua is excluded twice — an entry that declares it
+--      must be filtered is refused at the point of use and SAID, never
+--      quietly copied whole. Found by the review pass, not by LL.
+--   🔎 AND THE ONE LINE ADDED TO BE HONEST WAS THE ONE LINE THAT LIED.
+--      "bk.crashGlob is empty (the copy is unaffected)" was false in both
+--      directions: an empty glob made rsync's include match nothing, an
+--      absent one removed the filter entirely. It says what is actually
+--      true now — nothing is being counted AND nothing is being copied —
+--      and the fourth state no longer falls through to "UNREADABLE",
+--      which everywhere else in that file means "macOS refused us" and
+--      sent LL to System Settings for a permission he already had.
+--   🗂 THE SCAN NOW WALKS WHERE THE COPY WALKS. rsync is given
+--      `--include */`, so it takes macOS's Retired/ folder — where older
+--      reports are moved shortly before deletion, which is to say the
+--      ones this feature exists for. The counter stopped at the top
+--      level, so it counted a subset of what the backup held and
+--      answered "is the newest one safe?" about names it had never seen.
+--      One level down, keyed by basename, budgeted by bk.crashScanMax —
+--      and hitting that budget is printed, because a count that stopped
+--      early must not read as a count that finished.
+--   🧪 AND THE TESTS THEMSELVES WERE AUDITED. Three checks passed with
+--      the bug they name in place: the undated-name fixture listed the
+--      undated file FIRST (so it only proved the direction that already
+--      worked), the "missing" sentence was asserted as a STATE STRING and
+--      never as printed text (a guard that exists, not one that bites),
+--      and nothing joined the scan's glob to the one rsync is handed.
+--      All three now fail against their mutation. test_daily_backup
+--      108 -> 123, thirty-eight mutations, 8,226 -> 8,241 checks,
+--      seventy-four stages.
+--
 -- NEW IN 6.197.0 — 🚨 THE CRASH REPORT WAS BACKED UP NOWHERE:
 --   🚨 LL: "Is this in my logs folder, OneDrive? If my work Mac or my
 --      home Mac get wiped, I will lose this information for you." He was
@@ -62,36 +104,12 @@
 --      said it could not read, and the membership answer put back to a
 --      count difference. 8,184 -> 8,226 checks, seventy-four stages.
 --
--- NEW IN 6.196.1 — 🚨 THE PROBE THAT CRASHED THE APP IT WAS WATCHING:
---   🚨 6.196.0's Secure Input probe runs ioreg twice — a narrow read
---      first, the broad one as a fallback — and held BOTH tasks in ONE
---      global. The fallback starts from inside the narrow probe's own
---      callback, so starting it dropped the last reference to the task
---      whose callback was running: hs.task's finaliser then tore down
---      the NSTask and the callback block underneath the live frame. A
---      use-after-free. Hammerspoon died natively — no Lua error, nothing
---      in the Console — whenever a garbage collection landed in that
---      window. On a healthy Mac the narrow probe finds nothing EVERY
---      time, so that fallback was the normal path, not a rare one.
---      Separate slots now, and the fallback steps off the callback via a
---      held timer before it starts. NEVER start a task from inside
---      another task's callback without stepping off it first.
---   🔎 And the tell that let it ship: a probe that STARTS and dies read
---      exactly like one never attempted ("not probed yet", checks 0).
---      Attempts are counted separately now and the report says so.
---   🔎 ⇪space finally has _G.unifiedSearchReport() — the last tool here
---      without one. Every store, its row count, and the difference
---      between a store that is EMPTY and one that FAILED to load, which
---      until now were the same silence inside a total that looked fine.
---   🧪 test_diagnostics 548 -> 554, test_unified 114 -> 123. 8,169 ->
---      8,183 checks, seventy-four stages.
---
--- (6.196.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.196.1 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.197.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.197.1
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -188,7 +206,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.197.0"
+_G.configVersion = "6.197.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------
