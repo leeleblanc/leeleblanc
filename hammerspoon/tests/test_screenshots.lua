@@ -232,13 +232,43 @@ local S = _G.screenshots
 out("\n1. contract & wiring\n")
 -- =====================================================================
 check("module loads and has setup()", type(M.setup) == "function")
-check("⇪4 is claimed (capture)", type(HYPER["|4"]) == "function")
-check("⇪⇧4 is claimed (history)", type(HYPER["shift|4"]) == "function")
+check("⇪4 is claimed (area capture)", type(HYPER["|4"]) == "function")
+check("⇪⇧5 is claimed (the ⌘1–⌘9 panel)", type(HYPER["shift|5"]) == "function")
+-- 📸 6.194.0 — LL'S MAP, asserted key by key. These are the keys he
+-- wrote out, and a typo in the table would otherwise only show up under
+-- his fingers.
+check("⇪⇧1 is the screenshot editor", type(HYPER["shift|1"]) == "function")
+check("⇪⇧2 is capture active window", type(HYPER["shift|2"]) == "function")
+check("⇪⇧3 is the delayed capture", type(HYPER["shift|3"]) == "function")
+check("⇪⇧4 is text capture", type(HYPER["shift|4"]) == "function")
+check("⇪5 is the scrolling capture", type(HYPER["|5"]) == "function")
 check("…and nothing else is", (function()
     local n = 0
     for _ in pairs(HYPER) do n = n + 1 end
-    return n == 2
+    return n == 7, n
 end)(), nil)
+-- 🚨 THE TWO-SIDED JOIN, per the 6.114.0 ⇪⇧R incident: a key whose act
+-- runAction does not know is a key that does nothing, and an act that no
+-- key reaches is a row LL cannot get to. Both directions, off the SOURCE
+-- — the table and the dispatcher must agree or this fails.
+check("every toolKeys act is one runAction really handles", (function()
+    local src = io.open(HS .. "/modules/screenshots.lua"):read("a")
+    local body = src:match("function shots%.runAction%(act%)(.-)\n    end")
+    if not body then return false, "runAction not found" end
+    for _, t in ipairs(S.toolKeys or {}) do
+        if not body:find('act == "' .. t[3] .. '"', 1, true) then
+            return false, t[3] .. " is bound to a key but runAction has no branch"
+        end
+    end
+    return #(S.toolKeys or {}) == 5, #(S.toolKeys or {})
+end)())
+check("…and every row carries a source label for the hint card and the trail",
+      (function()
+    for _, t in ipairs(S.toolKeys or {}) do
+        if type(t[4]) ~= "string" or t[4] == "" then return false, t[3] end
+    end
+    return true
+end)())
 check("screenshots.latest is a service", type(PROVIDED["screenshots.latest"]) == "function")
 check("screenshots.capture is a service", type(PROVIDED["screenshots.capture"]) == "function")
 check("screenshots.show is a service", type(PROVIDED["screenshots.show"]) == "function")
@@ -368,8 +398,9 @@ check("the cap is respected", (function()
     return #c == 9 + 2
 end)())
 
-HYPER["shift|4"]()   -- open the panel
-check("⇪⇧4 shows the panel through showPopup", #POPUPS == 1 and POPUPS[1].shown)
+-- 6.194.0 — the panel moved to ⇪⇧5; ⇪⇧4 is text capture now.
+HYPER["shift|5"]()   -- open the panel
+check("⇪⇧5 shows the panel through showPopup", #POPUPS == 1 and POPUPS[1].shown)
 check("…with actions + history loaded", type(CHOICES_SET) == "table"
       and #CHOICES_SET == 9 + 4, CHOICES_SET and #CHOICES_SET)
 check("…action rows carry no thumbnail", CHOICES_SET[1].image == nil)

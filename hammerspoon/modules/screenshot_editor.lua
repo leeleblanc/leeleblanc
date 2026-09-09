@@ -50,9 +50,9 @@ local M = {
     order = 23.5,
     family = "screen",
     cheatsheet = {
-        title = "🖌 SCREENSHOT EDITOR (blur · text · arrows — via ⇪⇧4)",
+        title = "🖌 SCREENSHOT EDITOR (blur · text · arrows — ⇪⇧1)",
         entries = {
-            { "open",  "⇪⇧4 menu captures open it · ⌥⏎ on a history row" },
+            { "open",  "⇪⇧1 opens the newest shot · ⇪⇧5 menu captures too · ⌥⏎ on a history row" },
             { "B T A", "tools: Blur box · Text box · Arrow (buttons too)" },
             { "text",  "click, type, ⏎ — white text, white outline box" },
             { "move",  "drag text/arrows around · arrow ENDS stretch + rotate · a selected text box has a corner dot — drag it to make the text bigger or smaller (⌘Z undoes it)" },
@@ -884,7 +884,7 @@ function M.setup(core)
     _G.editors = _G.editors or {}
     table.insert(_G.editors, {
         name  = "Screenshot Editor",
-        key   = "⇪⇧4",
+        key   = "⇪⇧1",
         what  = "only listed while one is open",
         order = 60,
         view  = function() return ed.webview end,

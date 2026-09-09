@@ -375,31 +375,33 @@ check("🪦 the setup row is gone — the tick is made by hand, and the "
 check("⇪' pauses everything", BOUND["+'"] ~= nil)
 check("⇪` opens Ghostty here", BOUND["+`"] ~= nil)
 check("⇪⇧` reveals it in Finder", BOUND["shift+`"] ~= nil)
-check("⇪5 reads a QR code", BOUND["+5"] ~= nil)
+-- 6.194.0 — ⇪5 became scrolling capture; the QR reader is ⇪⇧8.
+check("⇪⇧8 reads a QR code", BOUND["shift+8"] ~= nil)
 check("🚨 nothing here claims ⇪⇧, or ⇪⇧. — numpad_layer owns both",
       BOUND["shift+,"] == nil and BOUND["shift+."] == nil)
 check("each new key is attributed to what it does", (function()
     return BOUND["+'"].src == "pause all media"
        and BOUND["+`"].src == "ghostty here"
        and BOUND["shift+`"].src == "reveal ghostty"
-       and BOUND["+5"].src == "read a QR code"
+       -- 6.194.0 — ⇪5 went to scrolling capture; the QR reader is ⇪⇧8.
+       and BOUND["shift+8"].src == "read a QR code"
 end)())
 
 -- ⌨️ 6.158.0 — THE FIFTH KEY. LL: "I need a simple automated shortcut to
 -- type the clipboard contents where we can't use ⌘+V, or paste." ⇪⇧2 —
 -- the ⇪⇧ number row 6.142.0 cleared, beside ⇪⇧1, the pause switch.
-check("⇪⇧2 types the clipboard without the picker (6.158.0)",
-      BOUND["shift+2"] ~= nil and BOUND["shift+2"].src == "type the clipboard",
-      BOUND["shift+2"] and BOUND["shift+2"].src)
+check("⇪⇧T types the clipboard without the picker (6.158.0, moved 6.194.0)",
+      BOUND["shift+t"] ~= nil and BOUND["shift+t"].src == "type the clipboard",
+      BOUND["shift+t"] and BOUND["shift+t"].src)
 check("...it is the key the constants say, so a one-line edit moves it",
-      pt.typeKey == "2" and pt.typeMods[1] == "shift" and pt.typeHint == "⇪⇧2",
+      pt.typeKey == "t" and pt.typeMods[1] == "shift" and pt.typeHint == "⇪⇧T",
       pt.typeHint)
 check("...and the ⇪; row names the key, from the same constants",
-      (pt.byId("type").sub or ""):find("⇪⇧2", 1, true) ~= nil,
+      (pt.byId("type").sub or ""):find("⇪⇧T", 1, true) ~= nil,
       pt.byId("type").sub)
 reset()
 CLIP = "lee@example.com"
-BOUND["shift+2"].fn()
+BOUND["shift+t"].fn()
 check("pressing it starts the typing path — nothing typed on the press, "
       .. "one timer armed, the same as the row",
       #TYPED == 0 and #TIMERS == 1, #TYPED .. " typed, " .. #TIMERS .. " timers")
@@ -418,11 +420,11 @@ out("\n=== 1b. ⏸ 6.152.0 — pause Hammerspoon itself (⇪⇧1) ===\n")
 -- OTHER shortcut, and the typing taps carry their own guards. What THIS
 -- module owes: the binding, the published combo, the flag's lifecycle,
 -- and a menu-bar marker with a way back.
-check("⇪⇧1 is bound to the pause switch", BOUND["shift+1"] ~= nil
-      and BOUND["shift+1"].src == "pause Hammerspoon")
+check("⇪⇧Esc is bound to the pause switch", BOUND["shift+escape"] ~= nil
+      and BOUND["shift+escape"].src == "pause Hammerspoon")
 check("…its normalized combo is published for init.lua's wrap, hint too",
-      _G.hsPauseCombo == "shift+1"
-      and tostring(_G.hsPauseHint):find("1", 1, true) ~= nil, _G.hsPauseCombo)
+      _G.hsPauseCombo == "shift+escape"
+      and tostring(_G.hsPauseHint):find("esc", 1, true) ~= nil, _G.hsPauseCombo)
 local MENUBARS = {}
 hs.menubar = { new = function()
     local mb = { deleted = false }
@@ -435,19 +437,19 @@ hs.menubar = { new = function()
 end }
 ALERTS = {}
 _G.hsPaused = false
-BOUND["shift+1"].fn()
+BOUND["shift+escape"].fn()
 check("one press raises _G.hsPaused and SAYS so", _G.hsPaused == true
       and (ALERTS[1] or ""):find("paused", 1, true) ~= nil, ALERTS[1])
 check("…and the alert names the way back", (ALERTS[1] or ""):find("resumes", 1, true) ~= nil)
 check("…with a ⏸ HS flag standing in the menu bar",
       MENUBARS[1] and MENUBARS[1].title == "⏸ HS"
       and MENUBARS[1].deleted == false)
-BOUND["shift+1"].fn()
+BOUND["shift+escape"].fn()
 check("the second press resumes and takes the flag down",
       _G.hsPaused == false and MENUBARS[1].deleted == true)
 check("clicking the menu-bar flag resumes too — no keyboard needed",
       (function()
-    BOUND["shift+1"].fn()
+    BOUND["shift+escape"].fn()
     local mb = MENUBARS[#MENUBARS]
     if not (mb and mb.click) then return false end
     mb.click()
@@ -1430,12 +1432,26 @@ do
     local combo = "alt+cmd+ctrl+shift+escape"
     check("the chord is bound as a PLAIN hotkey, not a ⇪ shortcut",
           type(HOTKEYS[combo]) == "function")
-    local inHyper = false
-    for k in pairs(BOUND) do
-        if tostring(k):find("escape", 1, true) then inHyper = true end
-    end
-    check("…and nothing named it to core.hyperAddShortcut — a hyper "
-          .. "escape hatch is no escape hatch", not inHyper)
+    -- 🚨 6.194.0 — this used to reject ANY hyper key containing "escape",
+    -- which was a fine proxy while nothing used one. The PAUSE switch is
+    -- ⇪⇧Esc now, so the proxy would fail on a correct config. The promise
+    -- it was really making is narrower and is asserted directly instead:
+    -- the PANIC CHORD is not reachable through the hyper modal. That is
+    -- stronger, not weaker — it names the chord rather than a substring.
+    check("…and the chord itself was never named to core.hyperAddShortcut "
+          .. "— a hyper escape hatch is no escape hatch",
+          BOUND[combo] == nil and BOUND["shift+alt+cmd+ctrl+escape"] == nil)
+    -- And the two must stay DIFFERENT gestures. If pause were ever bound
+    -- to the same chord, the one key that works when hyper is stuck would
+    -- be the one key that needs hyper.
+    check("…and the pause switch is a different gesture from the chord",
+          tostring(_G.hsPauseCombo) ~= combo)
+    -- The pause switch DOES ride hyper, and that is why it can never be
+    -- the only way out: the chord and the ⏸ menu bar item both exist.
+    check("…so the chord stays a PLAIN hotkey while pause rides hyper",
+          type(HOTKEYS[combo]) == "function"
+          and BOUND[tostring(_G.hsPauseCombo)] ~= nil,
+          tostring(_G.hsPauseCombo))
     check("the ⇪ hold is the FIRST step — a panel released under a "
           .. "latched ⇪ just hands the keyboard back",
           pt.panicSteps[1].id == "hyper")

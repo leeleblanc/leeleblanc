@@ -100,12 +100,14 @@ _G.hyperBound = {
     c = "alt+cmd+ctrl+c", l = "alt+cmd+ctrl+l",
     left = "alt+ctrl+left", right = "alt+ctrl+right", up = "alt+ctrl+f",
     ["4"] = "screenshot — save + copy",                 -- ⇪⇧4 NOT bound here
-    ["shift+3"] = "mouse follows focus",                 -- a Mouse key alone
-    ["shift+1"] = "pause Hammerspoon",
+    -- 6.194.0 — the fixture keys moved with the real ones: mouse follows
+    -- is ⇪1 (a Mouse key alone here) and pause is ⇪⇧Esc.
+    ["1"] = "mouse follows focus",                       -- a Mouse key alone
+    ["shift+escape"] = "pause Hammerspoon",
     q = "chord", g = "chord", ["shift+g"] = "chord",   -- unclaimed keys, forwarded
-    ["shift+8"] = "something new with no group yet",
+    ["shift+7"] = "something new with no group yet",
 }
-_G.hsPauseCombo = "shift+1"
+_G.hsPauseCombo = "shift+escape"
 
 local PROVIDED = {}
 local core = {
@@ -307,13 +309,13 @@ hint.hide()
 out("\n=== 5. When there is nothing to say, nothing is drawn ===\n")
 -- =====================================================================
 local before = #CANVASES
-check("a lone key in its group (⇪⇧3, Mouse) draws no card",
-      _G.shortcutHint("shift+3", "mouse follows focus") == false and #CANVASES == before)
+check("a lone key in its group (⇪1, Mouse) draws no card",
+      _G.shortcutHint("1", "mouse follows focus") == false and #CANVASES == before)
 check("...and the report says why", hint.last and tostring(hint.last.why):find("nothing else", 1, true) ~= nil,
       hint.last and hint.last.why)
 check("an unmapped combo draws no card", _G.shortcutHint("shift+9", "x") == false and #CANVASES == before)
 check("a forwarded chord never hints", _G.shortcutHint("q", "chord") == false and #CANVASES == before)
-check("the pause switch never hints", _G.shortcutHint("shift+1", "pause Hammerspoon") == false and #CANVASES == before)
+check("the pause switch never hints", _G.shortcutHint("shift+escape", "pause Hammerspoon") == false and #CANVASES == before)
 local rg = hint.rowsFor("6")
 check("forwarded chords are never siblings (⇪G/⇪⇧G are chords here → This Mac has none)", rg == nil)
 _G.hsPaused = true
@@ -344,7 +346,7 @@ out("\n=== 6. The report ===\n")
 local rep = _G.shortcutHintsReport()
 check("report names the last press, the counts and the unmapped bound keys",
       rep:find("SHORTCUT HINTS", 1, true) and rep:find("shown", 1, true)
-      and rep:find("no group : ⇪⇧8", 1, true) ~= nil   -- bound, unmapped
+      and rep:find("no group : ⇪⇧7", 1, true) ~= nil   -- bound, unmapped
       and rep:find("⇪Q", 1, true) == nil                 -- a chord is not "unmapped"
       and rep:find("last     :", 1, true), rep)
 -- descriptions: continuation rows fold in, terse ones get a subject

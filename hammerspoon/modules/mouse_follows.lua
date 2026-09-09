@@ -1,5 +1,5 @@
 -- =====================================================================
--- MODULE: MOUSE FOLLOWS FOCUS (⇪⇧3 toggles) — the pointer goes where focus goes
+-- MODULE: MOUSE FOLLOWS FOCUS (⇪1 toggles) — the pointer goes where focus goes
 -- =====================================================================
 -- LL, 6.160.0: "Set the mouse pointer to the center of the focused window
 -- whenever focus changes. Additionally, if focused window moves when no
@@ -23,7 +23,7 @@
 --      A window YOU are dragging is skipped by that same rule — a button
 --      is down — so the pointer never fights your hand.
 --
---        ⇪⇧3        on / off — REMEMBERED across reloads since 6.161.0
+--        ⇪1        on / off — REMEMBERED across reloads since 6.161.0
 --
 -- ---- HOW IT WATCHES ----------------------------------------------------
 -- The same shape Dialog Home uses (6.143.0): an hs.application.watcher
@@ -75,15 +75,15 @@
 --   · A watchdog: a jump that takes longer than mf.slowMs, mf.slowStrikes
 --     times, turns the feature OFF for the session, on screen and in the
 --     Console, rather than letting it happen a third time.
---   · It starts OFF. ⇪⇧3 turns it on when you want it; a profile can
+--   · It starts OFF. ⇪1 turns it on when you want it; a profile can
 --     start it on with settings = { mouseFollows = { active = true } }.
 --
 -- ---- 🔁 6.161.0 — "MOUSEFOCUS NO LONGER WORKS" -------------------------
 -- LL, the day after it worked. Three things could make it look dead, and
 -- each one is closed here:
 --   · It started OFF at EVERY reload (6.160.2): an update, a ⌘R, a
---     reboot — and the pointer stopped following until ⇪⇧3 was pressed
---     again. Now ⇪⇧3 is REMEMBERED (hs.settings, mf.SETTINGS_KEY): turned
+--     reboot — and the pointer stopped following until ⇪1 was pressed
+--     again. Now ⇪1 is REMEMBERED (hs.settings, mf.SETTINGS_KEY): turned
 --     on once, it is on at the next boot; turned off, it stays off. A
 --     profile's settings = { mouseFollows = { active = true } } still
 --     wins over the memory, as every profile override does.
@@ -91,10 +91,10 @@
 --     jumps — any two, a morning apart — and the one alert was easy to
 --     miss. Now a strike is forgotten after mf.slowWindow seconds, and
 --     standing down is a REST (mf.slowRest): it comes back on its own,
---     says so, and ⇪⇧3 wakes it sooner. Every read has carried a timeout
+--     says so, and ⇪1 wakes it sooner. Every read has carried a timeout
 --     since 6.160.2, so the worst a rest prevents is a stutter, never a
 --     hang — a permanent off was more caution than the risk deserved.
---   · With Accessibility off it bound NO key at all, so ⇪⇧3 did nothing,
+--   · With Accessibility off it bound NO key at all, so ⇪1 did nothing,
 --     silently. The key is bound regardless now; without Accessibility
 --     the press says where to grant it.
 --
@@ -136,13 +136,13 @@ local M = {
     order = 7.75,
     family = "windows",
     cheatsheet = {
-        title = "🖱 MOUSE FOLLOWS FOCUS (⇪⇧3)",
+        title = "🖱 MOUSE FOLLOWS FOCUS (⇪1)",
         entries = {
             { "focus",  "Pointer jumps to the centre of the window that took focus" },
             { "moves",  "…and follows the focused window when something warps it" },
             { "not",    "While a mouse button is down — your drag is yours" },
             { "hand",   "Not after your click, not while your hand moves the mouse (6.168.0)" },
-            { "⇪⇧3",   "On / off — remembered across reloads (6.161.0)" },
+            { "⇪1",   "On / off — remembered across reloads (6.161.0)" },
             { "safe",   "Every window read has a timeout; a slow app never hangs you" },
             { "rests",  "Two slow jumps in a minute: it rests 5 min, then returns by itself" },
             { "check",  "_G.mouseFollowsReport() — last jump, why it stood still" },
@@ -157,10 +157,15 @@ function M.setup(core)
     mf.enabled      = true           -- the module loads at all
     mf.active       = false          -- the boot default; the MEMORY (either
                                      -- way) and a profile override sit on top
-    mf.remember     = true           -- 6.161.0: ⇪⇧3's last setting survives a
+    mf.remember     = true           -- 6.161.0: ⇪1's last setting survives a
                                      -- reload (hs.settings)
-    mf.key          = "3"            -- ⇪⇧3
-    mf.keyMods      = { "shift" }
+    -- 📸 6.194.0 — moved off ⇪1, which is now the delayed screenshot.
+    -- ⇪1 has been free since 6.182.0 and this spends it. NOTE the mods
+    -- change too: this is a PLAIN key now, so a settings override that
+    -- only sets mf.key would leave the shift on and bind nothing anyone
+    -- presses — both fields move together or neither does.
+    mf.key          = "1"            -- ⇪1 (was ⇪1 until 6.194.0)
+    mf.keyMods      = {}
     mf.followMoves  = true           -- rule 2: follow a warped window
     -- A warp to within this many pixels of the last one is the same warp
     -- (AX can report one move twice). Also: the pointer already at the
@@ -404,10 +409,10 @@ function M.setup(core)
         mf.restUntil = os.time() + mf.slowRest
         local mins = math.max(1, math.floor(mf.slowRest / 60 + 0.5))
         mf.stoodDown = string.format("%d jumps over %dms — resting %d minute%s "
-                                     .. "(⇪⇧3 wakes it sooner)",
+                                     .. "(⇪1 wakes it sooner)",
                                      mf.slowStrikes, mf.slowMs, mins, mins == 1 and "" or "s")
         hs.alert.show(string.format("🖱 Mouse follows focus is resting — an app was "
-                                    .. "slow to answer. Back in %d min; ⇪⇧3 wakes it now.", mins))
+                                    .. "slow to answer. Back in %d min; ⇪1 wakes it now.", mins))
         warn(mf.stoodDown)
         if _G.notices then
             _G.notices.record("mouseFollows", "resting", mf.stoodDown)
@@ -420,7 +425,7 @@ function M.setup(core)
         mf.restTimer = (ok and t) or nil
     end
 
-    -- The rest ends: on its own (the timer), or early, by ⇪⇧3.
+    -- The rest ends: on its own (the timer), or early, by ⇪1.
     function mf.wake()
         if mf.restTimer then
             pcall(function() mf.restTimer:stop() end)
@@ -437,7 +442,7 @@ function M.setup(core)
 
     function mf.warpNow(why)
         if _G.hsPaused then
-            mf.lastSkip = "paused (⇪⇧1)"; mf.skipped = mf.skipped + 1
+            mf.lastSkip = "paused (⇪⇧Esc)"; mf.skipped = mf.skipped + 1
             return false
         end
         if mf.buttonDown() then
@@ -570,7 +575,7 @@ function M.setup(core)
         mf.schedule("activated")     -- off the watcher's thread of events, too
     end
 
-    -- ---- ⇪⇧3 -------------------------------------------------------------
+    -- ---- ⇪1 -------------------------------------------------------------
     function mf.toggle()
         if not axOK() then
             hs.alert.show("🖱 Mouse follows focus needs Accessibility — System "
@@ -593,7 +598,7 @@ function M.setup(core)
         if mf.active and not mf.appWatcher then
             if mf.start() then
                 hs.alert.show("🖱 Mouse follows focus: ON — watching now")
-                say("started by ⇪⇧3 — Accessibility arrived after boot")
+                say("started by ⇪1 — Accessibility arrived after boot")
                 mf.warp("focus")
                 return true
             end
@@ -613,21 +618,21 @@ function M.setup(core)
 
     -- ---- 🩺 report --------------------------------------------------------
     function _G.mouseFollowsReport()
-        local L = { "🖱 MOUSE FOLLOWS FOCUS (⇪⇧3)" }
+        local L = { "🖱 MOUSE FOLLOWS FOCUS (⇪1)" }
         L[#L + 1] = "   accessibility : " .. (axOK() and "granted"
                                               or "OFF — no window frame can be read")
         L[#L + 1] = "   state         : " .. (not mf.enabled and "disabled (mf.enabled = false)"
                                               or (mf.active and not mf.appWatcher)
-                                                 and "ON in name only — nothing is watching (Accessibility was off at boot; ⇪⇧3 starts it once granted)"
+                                                 and "ON in name only — nothing is watching (Accessibility was off at boot; ⇪1 starts it once granted)"
                                               or mf.active and "ON"
                                               or mf.restUntil and ("resting until "
                                                   .. os.date("%H:%M:%S", mf.restUntil)
-                                                  .. " — ⇪⇧3 wakes it now")
-                                              or "off — ⇪⇧3 turns it on")
+                                                  .. " — ⇪1 wakes it now")
+                                              or "off — ⇪1 turns it on")
         L[#L + 1] = "   remembered    : " .. (not mf.remember and "no (mf.remember = false)"
                                               or mf.remembered == true and "ON at boot (hs.settings)"
                                               or mf.remembered == false and "off at boot (hs.settings)"
-                                              or "nothing yet — ⇪⇧3 once and it sticks")
+                                              or "nothing yet — ⇪1 once and it sticks")
         L[#L + 1] = "   follows moves : " .. (mf.followMoves and "yes (rule 2)" or "no")
         L[#L + 1] = string.format("   your hand     : click grace %dms · settles %dms · hand %dpx · a centre stays yours %.1fs · %s (6.168.0)",
                                   math.floor(num(mf.clickGrace, 0.6) * 1000 + 0.5),
@@ -674,7 +679,7 @@ function M.setup(core)
 
     -- ---- the watcher ------------------------------------------------------
     -- Whatever is frontmost RIGHT NOW gets its observer; no jump at boot —
-    -- a reload must not move your pointer. Called at boot, and from ⇪⇧3
+    -- a reload must not move your pointer. Called at boot, and from ⇪1
     -- when Accessibility arrived after boot (6.161.0).
     function mf.start()
         if mf.appWatcher then return true end
@@ -708,20 +713,20 @@ function M.setup(core)
 
     if not mf.enabled then return end
 
-    -- ⇪⇧3 is bound BEFORE the Accessibility check (6.161.0): with the
+    -- ⇪1 is bound BEFORE the Accessibility check (6.161.0): with the
     -- grant missing the press explains itself instead of doing nothing.
     core.hyperAddShortcut(mf.keyMods, mf.key, function() mf.toggle() end,
                           "mouse follows focus")
 
-    -- The memory (6.161.0): what ⇪⇧3 last chose, if it was ever pressed —
+    -- The memory (6.161.0): what ⇪1 last chose, if it was ever pressed —
     -- either way, on or off, over the boot default. Read before the
     -- Accessibility check: it is a plain read, and the report should
     -- know it whatever the grant says.
     local saved = mf.recall()
     if saved ~= nil then
         mf.active = saved
-        say(saved and "on at boot — remembered from the last ⇪⇧3"
-                   or "off at boot — remembered from the last ⇪⇧3")
+        say(saved and "on at boot — remembered from the last ⇪1"
+                   or "off at boot — remembered from the last ⇪1")
     end
 
     if not axOK() then
@@ -729,7 +734,7 @@ function M.setup(core)
             _G.notices.record("mouseFollows", "Accessibility off",
                               "the pointer cannot follow focus")
         end
-        warn("Accessibility is off — nothing started (⇪⇧3 says where to grant it)")
+        warn("Accessibility is off — nothing started (⇪1 says where to grant it)")
         return
     end
 

@@ -28,9 +28,12 @@ work Mac.
 - Battery saver never dims the screen, never touches pmset/sudo; the hog
   caller-out never kills/pauses/renices apps.
 - ⇪⇧Z is reserved for later — do not bind it.
-- ⇪⇧T (free since 6.161.0) and ⇪1 (free since 6.182.0) are unspent — do
-  not bind either without LL. (⇪3 went to the vault in 6.172.0; ⇪⇧U to
-  the anchors in 6.180.0; ⇪⇧Z stays reserved.)
+- ⇪⇧Z is the ONLY unspent key left — do not bind it. ⇪⇧T and ⇪1 were
+  spent in 6.194.0 (type-the-clipboard and mouse-follows). Free combos
+  after 6.194.0: ⇪⇧7, ⇪⇧[, ⇪⇧], ⇪⇧, and ⇪⇧. — check `hint.groups` in
+  modules/shortcut_hints.lua, which is the authoritative map of every
+  bound combo, BEFORE promising LL a key. (⇪3 → vault 6.172.0; ⇪⇧U →
+  anchors 6.180.0.)
 - IT DEGRADES, IT NEVER BREAKS (6.177.0, LL: "build it so it degrades
   gracefully and nothing breaks — and that's the same for all our code
   going forward. It must work on my home Mac and my work Mac."). Every
@@ -294,6 +297,22 @@ store that failed to load must not erase its own backup. The VAULT
 stays in OneDrive regardless (Obsidian opens that folder on both Macs).
 NOT aliases (io.open/rsync/grep don't follow them) and NOT symlinks
 (OneDrive won't sync through one).
+📸 SCREENSHOT KEYS (6.194.0, LL's own map): ⇪⇧1 editor · ⇪⇧2 active
+window · ⇪⇧3 delayed · ⇪4 area (unchanged) · ⇪⇧4 text/QR · ⇪5 scrolling
+· ⇪⇧5 the ⌘1–⌘9 panel. They are a TABLE (`shots.toolKeys` = {mods, key,
+act, label}) bound in one loop against the existing `shots.runAction` —
+a key and its panel row are the SAME action and cannot drift. The gate
+JOINS the table to runAction's branches BOTH ways (6.114.0's ⇪⇧R rule,
+applied to keys). A new screenshot key = one row here, nothing else.
+DISPLACED BY IT: pause ⇪⇧1→⇪⇧Esc, type-clipboard ⇪⇧2→⇪⇧T, mouse-follows
+⇪⇧3→⇪1 (mods went EMPTY — assert mods, not just the key, or it binds
+⇪⇧1), QR ⇪5→⇪⇧8. Pause is Esc because every mnemonic letter was spent
+(⇪⇧P is the pomodoro) and it belongs beside the ⌃⌥⌘⇧Esc panic chord.
+🚨 test_integration's collision auditor loads the REAL config and names
+both sides of any double-claim — that is what makes a remap safe; run
+the gate before believing a key is free. And move the CHEAT SHEETS,
+report strings and `hint.groups` in the same commit: a stale key on the
+sheet IS a broken feature and the gate cannot see it.
 🚨 EVERY TEXT PANEL DOES THE ⇪ HANDSHAKE (6.165.1, enforced 6.193.0):
 `_G.hyperExpectRelease(1.5, who)` after show AND the page forwarding its
 F18 keyUp to `_G.hyperReleaseSeen(who)`. unified_search had NEITHER
@@ -403,7 +422,7 @@ its OWN pcall and failures are named, not swallowed. ANY new panel that
 can take the screen or the keyboard adds a row to `pt.panicSteps`.
 Report: `_G.panicReport()`.
 
-Pause switch (6.152.0): ⇪⇧1 toggles `_G.hsPaused` (power_tools). Hyper
+Pause switch (6.152.0; ⇪⇧Esc since 6.194.0): toggles `_G.hsPaused` (power_tools). Hyper
 shortcuts are suppressed CENTRALLY in init.lua's hyperBind (the pause key
 itself is exempt via `_G.hsPauseCombo`, published before binding); every
 keyboard TAP handler must start with `if _G.hsPaused then return false end`
@@ -601,6 +620,27 @@ mirrors draw order: "closes last" IS "drawn under".
   it — but if a post-boot stall is ever traced there, move the read and
   the append into an hs.task (/bin/cat, /usr/bin/tail). Never move it
   back onto the boot line.
+- 6.194.0 verify with LL: the new screenshot keys, in order — ⇪⇧1 blur/
+  edit the newest shot · ⇪⇧2 the active window · ⇪⇧3 the 10 s delay ·
+  ⇪4 area (unchanged) · ⇪⇧4 text/QR · ⇪5 scrolling · ⇪⇧5 the ⌘1–⌘9
+  panel. Then the four that moved out of the way: ⇪⇧Esc pauses
+  Hammerspoon (the ⏸ menu bar item and ⌃⌥⌘⇧Esc still do too), ⇪⇧T types
+  the clipboard, ⇪1 toggles mouse-follows-focus, ⇪⇧8 reads a QR code.
+  ⇪/ should show all of this correctly — if any row still names an old
+  key, say so, because the gate cannot check the sheets.
+  STILL OPEN, and asked by LL in the same message as this remap: fold
+  the Scorp Pad's SCRATCH NOTES into the vault properly ("can we turn
+  the Scorp note pad section into a part of the Hammer-sidian? I don't
+  think I need something external"), and a "+" to create a new vault
+  note the way the pad's + makes a new tab. LL also said the one
+  external thing he still needs is "the ability to write into any .csv
+  or .txt". NOT yet scoped — the pad's store is JSON and its 4 PM Asana
+  task rides on it, so this is a data-shape decision, not a UI one.
+  Also open: the ⌘1–⌘9 panel reflowed to read like the ⇪space panel;
+  a SNIPPETS window in the ⇪space style; sequential screenshots to the
+  clipboard; the Chrome tab scan; @ source discoverability; widening
+  `uni.runnable`; vault front-matter completion; ⌘⇧N / ⌘⇧E on the small
+  dialog; the ⇪⇧O beach ball; and CANVAS.
 - 6.193.0 verify with LL: ⇪V — the ⇪space panel, filtered to @clip.
   That is the one that was dead. ⇪O likewise on @ocr. Then the thing to
   watch for over a day: ⇪space (and ⇪V, ⇪O) should stop STICKING, and

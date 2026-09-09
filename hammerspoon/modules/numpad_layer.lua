@@ -180,7 +180,7 @@ local M = {
             { "and",      "⇪⇧1 = ⏸ Pause Hammerspoon (6.152.0) — the first spend" },
             { "",         "⇪⇧2 = ⌨️ Type the clipboard (6.158.0) — the second" },
             { "",         "⇪⇧3 = 🖱 Mouse follows focus (6.160.0) — the third" },
-            { "taken",    "⇪⇧0 mini calendar · ⇪⇧4 Screenshots stay where they are" },
+            { "taken",    "⇪⇧0 mini calendar · ⇪⇧1-⇪⇧5 Screenshots stay where they are" },
             { "the list", "_G.freeKeys() — every free key, from the LIVE registry" },
             { "zones?",   "On the PAD (⇪⇧pad) · halves ⇪← ⇪→ · maximise ⇪↑ ·" },
             { "",         "put back ⇪↓ · monitors ⇪[ ⇪] — no row keys needed" },

@@ -86,11 +86,18 @@ local hint = {
         -- Asana
         t = "Asana", a = "Asana", b = "Asana", c = "Asana", l = "Asana",
         -- Screenshots
-        ["4"] = "Screenshots", ["shift+4"] = "Screenshots", ["shift+space"] = "Screenshots",
+        -- 📸 6.194.0 — LL's map. ⇪4 area is unchanged; the rest are the
+        -- ⌘1–⌘9 panel's rows given their own keys, and the panel itself
+        -- moved to ⇪⇧5 so ⇪⇧4 could be text capture.
+        ["4"] = "Screenshots", ["shift+1"] = "Screenshots",
+        ["shift+2"] = "Screenshots", ["shift+3"] = "Screenshots",
+        ["shift+4"] = "Screenshots", ["5"] = "Screenshots",
+        ["shift+5"] = "Screenshots", ["shift+space"] = "Screenshots",
         -- Clipboard & OCR
         v = "Clipboard & OCR", ["shift+v"] = "Clipboard & OCR",
         o = "Clipboard & OCR", ["shift+o"] = "Clipboard & OCR",
-        ["shift+c"] = "Clipboard & OCR", ["shift+2"] = "Clipboard & OCR",
+        ["shift+c"] = "Clipboard & OCR",
+        ["shift+t"] = "Clipboard & OCR",   -- 6.194.0 type the clipboard (was ⇪⇧2)
         -- Notes & capture
         -- 6.182.0 — "1" came OUT: ⇪1 is free (the Scorp Pad moved to ⇪N),
         -- and a group row for an unbound key is dead config. ⇪2 stays —
@@ -109,7 +116,8 @@ local hint = {
         ["shift+r"] = "Windows", pad4 = "Windows", p = "Windows",
         -- Mouse
         x = "Mouse", ["shift+x"] = "Mouse", ["shift+l"] = "Mouse",   -- ⇪⇧U left with win_pin (6.166.0)
-        ["shift+f"] = "Mouse", ["shift+3"] = "Mouse",
+        ["shift+f"] = "Mouse",
+        ["1"] = "Mouse",                   -- 6.194.0 mouse follows focus (was ⇪⇧3)
         -- Search & open
         space = "Search & open", ["shift+/"] = "Search & open", d = "Search & open",
         ["."] = "Search & open", m = "Search & open", ["shift+m"] = "Search & open",
@@ -130,14 +138,16 @@ local hint = {
         ["shift+-"] = "This Mac", ["9"] = "This Mac", ["shift+9"] = "This Mac",
         -- Power tools
         [";"] = "Power tools", ["shift+;"] = "Power tools", ["'"] = "Power tools",
-        ["`"] = "Power tools", ["shift+`"] = "Power tools", ["5"] = "Power tools",
+        ["`"] = "Power tools", ["shift+`"] = "Power tools",
+        ["shift+8"] = "Power tools",       -- 6.194.0 the QR reader (was ⇪5)
         u = "Power tools",
         -- Files
         f = "Files", i = "Files", ["shift+i"] = "Files", r = "Files",
         -- Config & help
         ["shift+d"] = "Config & help", ["shift+h"] = "Config & help",
         ["shift+b"] = "Config & help", ["/"] = "Config & help", ["="] = "Config & help",
-        ["-"] = "Config & help", e = "Config & help", ["shift+1"] = "Config & help",
+        ["-"] = "Config & help", e = "Config & help",
+        ["shift+escape"] = "Config & help",  -- 6.194.0 pause (was ⇪⇧1)
     },
     -- Rows that are not hyper keys but belong beside them.
     extras = {

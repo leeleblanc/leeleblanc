@@ -1,5 +1,5 @@
 -- =====================================================================
--- test_mouse_follows.lua — the pointer goes where focus goes (⇪⇧3)
+-- test_mouse_follows.lua — the pointer goes where focus goes (⇪1)
 -- =====================================================================
 --     lua5.4 test_mouse_follows.lua [/path/to/hammerspoon]
 --
@@ -8,7 +8,7 @@
 -- moved with no button down → new centre), the guards that keep it
 -- polite (a button held, our own windows, the pause switch, an app on
 -- the skip list, a repeat of the same move), the observer hand-over on an
--- app switch, the ⇪⇧3 toggle, the refusal bookkeeping, the report, and
+-- app switch, the ⇪1 toggle, the refusal bookkeeping, the report, and
 -- the Accessibility-off stand-down. Nothing here touches a real pointer.
 
 local HS = (arg and arg[1]) or os.getenv("HAMMERSPOON_DIR")
@@ -203,14 +203,14 @@ end
 out("=== 1. Module shape ===\n")
 local M, mf = boot()
 check("name and family", M.name == "Mouse Follows Focus" and M.family == "windows")
-check("cheat sheet names ⇪⇧3", (function()
+check("cheat sheet names ⇪1", (function()
     for _, e in ipairs(M.cheatsheet.entries) do
-        if e[1] == "⇪⇧3" then return true end
+        if e[1] == "⇪1" then return true end
     end
     return false
 end)())
 check("M.config is the live table", M.config == mf and _G.mouseFollows == mf)
-check("starts OFF on a fresh Mac (6.160.2) — ⇪⇧3 opts in, nothing remembered yet",
+check("starts OFF on a fresh Mac (6.160.2) — ⇪1 opts in, nothing remembered yet",
       mf.enabled == true and mf.active == false and mf.remembered == nil)
 check("the memory is on, with a settings key of its own (6.161.0)",
       mf.remember == true and type(mf.SETTINGS_KEY) == "string")
@@ -219,9 +219,12 @@ check("safety knobs: an AX timeout and a watchdog",
 mf.active = true      -- the rest of the file exercises it ON
 
 out("\n=== 2. Boot wires the watcher, the key, the observer — and does NOT jump ===\n")
-check("⇪⇧3 bound with a source", (function()
+-- 6.194.0 — moved to ⇪1 (⇪⇧3 is the delayed screenshot now). The MODS
+-- are asserted as empty, not just the key: leaving the shift on would
+-- bind ⇪⇧1, which is the screenshot editor — two owners for one combo.
+check("⇪1 bound with a source, and with NO modifier", (function()
     local b = BOUND[1]
-    return b and b.key == "3" and b.mods[1] == "shift" and #b.mods == 1
+    return b and b.key == "1" and #b.mods == 0
            and b.source == "mouse follows focus"
 end)())
 check("one app watcher", WATCHERS == 1 and type(WATCH_FN) == "function")
@@ -296,8 +299,8 @@ BTNS = {}
 local skippedBefore = mf.skipped
 _G.hsPaused = true
 fire("AXFocusedWindowChanged")
-check("paused (⇪⇧1): stands still and says so",
-      MOUSE.x == 300 and mf.lastSkip == "paused (⇪⇧1)" and mf.skipped == skippedBefore + 1)
+check("paused (⇪⇧Esc): stands still and says so",
+      MOUSE.x == 300 and mf.lastSkip == "paused (⇪⇧Esc)" and mf.skipped == skippedBefore + 1)
 _G.hsPaused = false
 fire("AXFocusedWindowChanged")
 check("unpaused: the jump it withheld happens on the next change",
@@ -332,7 +335,7 @@ FRONT = MAIL
 activate(MAIL)
 check("back to Mail: observed and jumped", live() and live().pid == 200 and MOUSE.x == 200)
 
-out("\n=== 8. ⇪⇧3 toggles ===\n")
+out("\n=== 8. ⇪1 toggles ===\n")
 local alertsBefore = #ALERTS
 BOUND[1].fn()
 check("off: says so, and a focus change moves nothing", (function()
@@ -349,7 +352,7 @@ check("on: says so and jumps to the focused window right away",
 check("the service toggles the same switch", PROVIDED["mouseFollows.toggle"]() == false
       and PROVIDED["mouseFollows.toggle"]() == true)
 
-out("\n=== 8b. ⇪⇧3 is remembered across a reload (6.161.0) ===\n")
+out("\n=== 8b. ⇪1 is remembered across a reload (6.161.0) ===\n")
 check("every press is written to hs.settings — ON now",
       SETTINGS[mf.SETTINGS_KEY] == true)
 BOUND[1].fn()
@@ -359,7 +362,7 @@ check("…and on again", SETTINGS[mf.SETTINGS_KEY] == true and mf.active == true
 do
     local setsBefore = #SETS
     local M2, mf2 = boot()
-    check("a reload with ON remembered starts ON — no ⇪⇧3 needed",
+    check("a reload with ON remembered starts ON — no ⇪1 needed",
           mf2.active == true and mf2.remembered == true)
     check("…and still moves nothing at boot", #SETS == setsBefore)
     check("the report says so", _G.mouseFollowsReport():find("ON at boot", 1, true) ~= nil)
@@ -440,8 +443,8 @@ do
           and _G.mouseFollowsReport():find("last rest", 1, true) ~= nil
           and _G.mouseFollowsReport():find("stood down", 1, true) == nil)
 end
-out("\n=== 9c. A rest cut short by ⇪⇧3, and strikes that expire ===\n")
-SETTINGS[mf.SETTINGS_KEY] = true       -- what a real ⇪⇧3 ON left behind
+out("\n=== 9c. A rest cut short by ⇪1, and strikes that expire ===\n")
+SETTINGS[mf.SETTINGS_KEY] = true       -- what a real ⇪1 ON left behind
 ASTEP = 400 * 1000000
 MAIL._frame = { x = 40, y = 40, w = 100, h = 100 }
 fire("AXFocusedWindowChanged")

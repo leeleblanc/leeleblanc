@@ -142,7 +142,7 @@ local M = {
         title = "🧰 POWER TOOLS (⇪; — the small ones, in one list)",
         entries = {
             { "⇪;",     "The list — type to filter, ⏎ runs it" },
-            { "⇪⇧2",    "Types the clipboard key by key — for fields that" },
+            { "⇪⇧T",    "Types the clipboard key by key — for fields that" },
             { "",       "refuse ⌘V, like “confirm your email address” (⌨️ row too)" },
             { "🔢 count", "Words · characters · ~sentences in the selection" },
             { "📋 count", "The same, and both counts onto the clipboard" },
@@ -153,7 +153,7 @@ local M = {
             { "ℹ️ meta",  "Every mdls attribute of the Finder selection, ⏎ copies" },
             { "⇪'",     "⏸ Pause all audio and video — media key + every" },
             { "",       "scriptable player that is already running" },
-            { "⇪⇧1",    "⏸ PAUSE HAMMERSPOON — ⇪ shortcuts and typing helpers" },
+            { "⇪⇧Esc",  "⏸ PAUSE HAMMERSPOON — ⇪ shortcuts and typing helpers" },
             { "",       "off until pressed again · ⏸ HS in the menu bar meanwhile" },
             { "⌃⌥⌘⇧Esc", "🚨 PANIC — lets go of everything: the ⇪ hold, the vault" },
             { "",        "window, the pad, the grid, the veil, any picker, then" },
@@ -161,7 +161,7 @@ local M = {
             { "",        "(_G.hsPanic() from the Console does the same)" },
             { "⇪`",     "👻 Ghostty at the front Finder window's folder" },
             { "⇪⇧`",    "📂 Finder at the front Ghostty window's folder" },
-            { "⇪5",     "🔳 Read a QR code off the screen — needs zbar" },
+            { "⇪⇧8",    "🔳 Read a QR code off the screen — needs zbar" },
             { "🆓 free", "_G.freeKeys() — every unclaimed key, from the live registry" },
             { "📎 open in", "Default app for a file type — set it, proof read back" },
             { "check",  "_G.powerReport() — what ran, and what refused" },
@@ -190,9 +190,15 @@ function M.setup(core)
     -- first spend from it — same row, same module. The ⇪; row's sub line
     -- is built from these two; the cheat sheet entry and numpad_layer's
     -- ledger are text and move by hand.
-    pt.typeKey      = "2"          -- ⇪⇧2
+    -- 📸 6.194.0 — moved off ⇪⇧2, which is now "capture active window" in
+    -- LL's screenshot map. T for Type, and ⇪⇧T has been deliberately
+    -- unspent since 6.161.0 — this is what it was being kept for.
+    pt.typeKey      = "t"          -- ⇪⇧T (was ⇪⇧2 until 6.194.0)
     pt.typeMods     = { "shift" }
-    pt.typeHint     = "⇪" .. (#pt.typeMods > 0 and "⇧" or "") .. pt.typeKey
+    -- 6.194.0 — UPPER: the key is stored lowercase (hs.hotkey wants that)
+    -- but a cheat sheet row reading "⇪⇧t" looks like a typo next to ⇪⇧S.
+    pt.typeHint     = "⇪" .. (#pt.typeMods > 0 and "⇧" or "")
+                      .. tostring(pt.typeKey):upper()
     -- 🔢 counting
     pt.copyWait     = 0.18         -- how long ⌘C is given to land
     pt.restoreAfter = 0.60         -- when the borrowed clipboard goes back
@@ -223,7 +229,13 @@ function M.setup(core)
     -- back. A ⏸ HS menu-bar flag shows while paused — clicking it
     -- resumes too. Trackers and timers keep running: pause means "get
     -- out of my keyboard", not "stop keeping my logs".
-    pt.hsPauseKey   = "1"          -- ⇪⇧1
+    -- 🚨 6.194.0 — moved off ⇪⇧1, which is now the screenshot editor.
+    -- ⇪⇧Esc and NOT a letter: every mnemonic letter was already spent
+    -- (⇪⇧P is the pomodoro), and Esc is the right shape anyway — it sits
+    -- beside the ⌃⌥⌘⇧Esc panic chord, so the two emergency brakes are one
+    -- gesture apart. The ⏸ menu bar item and that chord both still reach
+    -- pause regardless, which is why moving this key is safe at all.
+    pt.hsPauseKey   = "escape"     -- ⇪⇧Esc (was ⇪⇧1 until 6.194.0)
     pt.hsPauseMods  = { "shift" }
     -- 🚨 6.174.0 — THE PANIC CHORD. LL: "ensure our build has a way to
     -- unfreeze if it locks up my Mac." Everything else in this config
@@ -271,8 +283,10 @@ function M.setup(core)
     -- ⇪5 sits next to ⇪4, the screenshot key, because both of them read
     -- the screen. That is the only one of this release's digits with a
     -- reason behind it, and the others say so.
-    pt.qrKey        = "5"
-    pt.qrMods       = {}
+    -- 📸 6.194.0 — moved off ⇪5, which is now scrolling capture. ⇪⇧8 sits
+    -- under ⇪8 define: both are "read what is on the screen for me".
+    pt.qrKey        = "8"          -- ⇪⇧8 (was ⇪5 until 6.194.0)
+    pt.qrMods       = { "shift" }
     pt.qrTimeout    = 8            -- seconds before the decode is abandoned
     -- ----------------------------------------------------------------------
 
@@ -1659,7 +1673,7 @@ end tell]]
         if #lines == 0 then lines[1] = "· nothing was holding on" end
         pcall(function()
             hs.alert.show("🚨 Released\n" .. table.concat(lines, "\n")
-                .. (_G.hsPaused and ("\n" .. tostring(_G.hsPauseHint or "⇪⇧1")
+                .. (_G.hsPaused and ("\n" .. tostring(_G.hsPauseHint or "⇪⇧Esc")
                     .. " turns Hammerspoon back on") or ""), 5)
         end)
         print("🚨 panic (" .. tostring(why or "chord") .. ") — "
@@ -1757,7 +1771,7 @@ end tell]]
           run = function() return pt.pauseAll() end },
         -- 6.152.0 — the OTHER pause: Hammerspoon itself.
         { id = "hspause", icon = "⏸", title = "Pause Hammerspoon",
-          sub = "⇪ shortcuts + typing helpers off until pressed again · ⇪⇧1",
+          sub = "⇪ shortcuts + typing helpers off until pressed again · ⇪⇧Esc",
           run = function() return pt.hsPauseToggle() end },
         { id = "ghere", icon = "👻", title = "Ghostty here",
           sub = "Open Ghostty at the front Finder window's folder · ⇪`",
@@ -1766,7 +1780,7 @@ end tell]]
           sub = "Open Finder where the front Ghostty window is · ⇪⇧`",
           run = function() return pt.revealGhostty() end },
         { id = "qr",    icon = "🔳", title = "Read a QR code on screen",
-          sub = "Scans the whole screen, payload to the clipboard · ⇪5",
+          sub = "Scans the whole screen, payload to the clipboard · ⇪⇧8",
           run = function() return pt.readQR() end },
         -- 6.139.0 — the rebuild kit's two by-hand doors. Rows rather than
         -- keys, deliberately: a backup is run by hand twice a year, and

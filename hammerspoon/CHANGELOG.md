@@ -5,6 +5,70 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.194.0 — 📸 EVERY SCREENSHOT TOOL GETS ITS OWN KEY:
+  📸 LL wrote the map out himself and it lands exactly as written:
+       ⇪⇧1  🖌 Blur / edit the newest screenshot
+       ⇪⇧2  🪟 Capture the active window
+       ⇪⇧3  ⏲ Delayed capture
+       ⇪4   ✂️ Area capture            (unchanged)
+       ⇪⇧4  🔤 Recognize text / QR
+       ⇪5   🧻 Scrolling capture
+       ⇪⇧5  📸 The ⌘1–⌘9 panel        (was ⇪⇧4)
+     WHAT MAKES THIS CHEAP is that none of it is new behaviour. Every one
+     of these was already a ROW in the ⌘1–⌘9 panel, and every row already
+     ran through one dispatcher, shots.runAction. So the keys are a
+     five-row TABLE of {mods, key, act, label} and one loop — not five
+     new code paths that could each drift from the row it duplicates. A
+     key and its row are now literally the same action.
+     THE GATE JOINS THAT TABLE TO THE DISPATCHER IN BOTH DIRECTIONS, off
+     the source: a key whose act runAction does not handle is a key that
+     silently does nothing, and that is the 6.114.0 ⇪⇧R incident applied
+     to keys rather than to services. Each of LL's six combos is also
+     asserted by name, because a typo in the table would otherwise only
+     show up under his fingers.
+  🔑 FOUR THINGS MOVED, and LL chose to move them rather than bend his
+     map:
+       ⏸ Pause Hammerspoon    ⇪⇧1 → ⇪⇧Esc
+       ⌨️ Type the clipboard   ⇪⇧2 → ⇪⇧T   (deliberately unspent since
+                                            6.161.0 — this is what it
+                                            was being kept for)
+       🖱 Mouse follows focus  ⇪⇧3 → ⇪1    (free since 6.182.0)
+       🔳 Read a QR code       ⇪5  → ⇪⇧8   (under ⇪8 define; both are
+                                            "read what is on my screen")
+     PAUSE IS ⇪⇧Esc AND NOT A LETTER because every mnemonic letter was
+     already spent — ⇪⇧P is the pomodoro, and that key carries its own
+     🚨 note about why it is a letter. Esc turns out to be the better
+     shape anyway: it sits one gesture from the ⌃⌥⌘⇧Esc panic chord, so
+     the two emergency brakes live in the same place. Pause could only
+     move at all because it was never the sole way out — the ⏸ menu bar
+     item and that chord both still reach it, and a check now asserts
+     that the chord stays a PLAIN hotkey while pause rides hyper.
+     Mouse follows focus moved from a shifted key to a plain one, so its
+     MODS are asserted empty as well as its key: leaving the shift on
+     would have bound ⇪⇧1 — the screenshot editor — and given one combo
+     two owners.
+  🚨 THE COLLISION AUDITOR IS WHAT MADE A REMAP THIS SIZE SAFE, and it
+     is worth saying what it does: test_integration loads the REAL
+     config through the real loader and fails if any two modules claim
+     one combo, naming both sides. Putting mouse follows back on ⇪⇧3 as
+     a mutation produced exactly "shift|3 (delayed screenshot vs mouse
+     follows focus)". Nine years of this config's key moves are why that
+     check exists.
+     One check had to be REWRITTEN rather than updated, and the
+     distinction matters: the panic-chord test rejected any hyper key
+     whose name contained "escape" — a fine proxy while nothing used
+     one, and a false failure now that pause is ⇪⇧Esc. It now asserts
+     the narrower thing it was really promising (the panic chord itself
+     is not reachable through the hyper modal) plus two it was not (the
+     chord and pause are different gestures; the chord stays a plain
+     hotkey). That is stronger than the proxy, not a relaxation of it.
+     Every cheat sheet, report string and hint group moved with the
+     keys — a stale key on the sheet IS a broken feature (6.181.0), and
+     the sheets are the one thing the gate cannot check for staleness.
+  test_screenshots 165 → 173, test_power_tools 249 → 252,
+  test_mouse_follows 109 → 110. 8,129 → 8,138 checks, seventy-four
+  stages. init.lua 3,749 lines.
+
 NEW IN 6.193.0 — 🔧 ⇪V WORKS AGAIN, AND ⇪space STOPS STICKING:
   🔧 LL: "Hyper+V doesn't bring up the history panel for the clipboard
      anymore."

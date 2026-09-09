@@ -133,12 +133,16 @@ local M = {
     order = 23,
     family = "screen",
     cheatsheet = {
-        title = "📸 SCREENSHOTS (⇪4 capture · ⇪⇧4 panel)",
+        title = "📸 SCREENSHOTS (⇪4 area · every tool on its own key)",
         entries = {
-            { "⇪4",   "Instant capture: crosshair · SPACE = window · Esc = cancel" },
+            { "⇪4",   "Area capture: crosshair · SPACE = window · Esc = cancel" },
             { "",     "saves to OneDrive/2026 Screenshots + copies to clipboard" },
-            { "⇪⇧4",  "Panel: 9 actions (⌘1–⌘9) + history below · ⌘8 = BIG thumbnails" },
-            { "⌘1–7", "area · scrolling · text/QR · edit newest · repeat · window · 10s" },
+            { "⇪⇧1",  "🖌 Blur / edit the newest screenshot" },
+            { "⇪⇧2",  "🪟 Capture the active window — no clicking" },
+            { "⇪⇧3",  "⏲ Delayed capture, full screen after the countdown" },
+            { "⇪⇧4",  "🔤 Recognize text / QR — the words go to the clipboard" },
+            { "⇪5",   "🧻 Scrolling capture (experimental) — best in browsers" },
+            { "⇪⇧5",  "Panel: 9 actions (⌘1–⌘9) + history below · ⌘8 = BIG thumbnails" },
             { "🏷 names", "Every capture — ⇪4's AND other tools' SCR- files — gets" },
             { "",       "ITS OWN words in the name as it lands · ⌘9 sweeps the backlog" },
             { "type",  "searches the WHOLE folder — not just the newest 30 —" },
@@ -157,7 +161,29 @@ function M.setup(core)
     -- ✏️ EDIT HERE ---------------------------------------------------------
     shots.enabled   = true
     shots.copySuppressSecs = 10  -- 6.170.3: the poll sits out our own copy this long at most
-    shots.key       = "4"     -- ⇪4 capture · ⇪⇧4 panel (mnemonic: ⌘⇧4)
+    shots.key       = "4"     -- ⇪4 area capture (mnemonic: ⌘⇧4). UNCHANGED.
+    -- 📸 6.194.0 — LL'S OWN MAP, in his words: "Blur/Edit: this would be
+    -- the screenshot editor brought up by hyper+shift+1 · Screenshot
+    -- Active window: hyper+shift+2 · Delay screenshot: hyper+shift+3 ·
+    -- Area screenshot would be hyper+4 · Text capture would be
+    -- hyper+shift+4 · Scrolling capture would be hyper+5."
+    -- Every one of these already existed as a ROW in the ⌘1–⌘9 panel and
+    -- ran through shots.runAction; giving them keys costs one table, not
+    -- one new code path each. That is why the acts are named here rather
+    -- than re-implemented — a key and its row are the SAME action, so
+    -- they cannot drift.
+    -- The PANEL moved off ⇪⇧4 to make room for text capture (LL's call);
+    -- it now sits at ⇪⇧5, beside ⇪5 scrolling, so the whole screenshot
+    -- family lives in the 1-5 block.
+    shots.panelKey  = "5"     -- ⇪⇧5 the ⌘1–⌘9 panel (was ⇪⇧4 until 6.194.0)
+    shots.toolKeys  = {
+        -- combo (mods, key)          the act shots.runAction already knows
+        { { "shift" }, "1", "editNewest", "screenshot editor"      },
+        { { "shift" }, "2", "window",     "capture active window"  },
+        { { "shift" }, "3", "delayed",    "delayed screenshot"     },
+        { { "shift" }, "4", "recognize",  "text capture (OCR)"     },
+        { {},          "5", "scroll",     "scrolling capture"      },
+    }
     shots.dir       = (core.homeDir or os.getenv("HOME") or "")
                       .. "/Library/CloudStorage/OneDrive-Personal/2026 Screenshots"
     shots.maxList   = 30      -- newest N shown when the box is EMPTY. Not a
@@ -1719,7 +1745,17 @@ function M.setup(core)
     if shots.enabled then
         core.hyperAddShortcut({}, shots.key, function() shots.capture() end,
                               "screenshot — save + copy")
-        core.hyperAddShortcut({ "shift" }, shots.key, function() shots.show() end,
+        -- 📸 6.194.0 — one bind per row of shots.toolKeys. A row whose act
+        -- runAction does not know would be a key that does nothing, so the
+        -- gate joins this table against runAction's own branches and fails
+        -- on either side — the 6.114.0 ⇪⇧R lesson, applied to keys.
+        for _, t in ipairs(shots.toolKeys or {}) do
+            local mods, key, act, label = t[1], t[2], t[3], t[4]
+            core.hyperAddShortcut(mods, key, function()
+                shots.runAction(act)
+            end, label)
+        end
+        core.hyperAddShortcut({ "shift" }, shots.panelKey, function() shots.show() end,
                               "screenshot panel")
     end
 
