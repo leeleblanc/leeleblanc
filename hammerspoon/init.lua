@@ -26,10 +26,12 @@
 --      scroll — 6.160.4's stated blind spot — is no longer one.
 --   🧪 The stub chooser follows the pointer as macOS does, with the
 --      CHOOSER's geometry rather than the module's, so a pointer on the
---      true centre of row 1 fails the old code (it showed row 2) — 13
---      rows fail with the guess put back. 133 -> 136 checks here,
---      8,378 -> 8,381 overall (measured off the gate — 6.201.1's notes
---      said 8,377, one under its own sum), seventy-four stages.
+--      true centre of row 1 fails the old code (it showed row 2) — 14
+--      rows fail with the guess put back, and a pointer crossing the
+--      query field earns no tag (the band is the chooser's 89/42 now).
+--      133 -> 137 checks here, 8,378 -> 8,382 overall (measured off the
+--      gate — 6.201.1's notes said 8,377, one under its own sum),
+--      seventy-four stages.
 --
 -- NEW IN 6.201.1 — 🚨 AND THE COLLECT TAB HAS BEEN IN THE 4 PM TASK ALL ALONG:
 --   🚨 Found by the adversarial read of 6.201.0, not by the bug report.

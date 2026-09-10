@@ -35,8 +35,9 @@ NEW IN 6.202.0 — 👁 THE PREVIEW PANE SHOWS THE ROW YOU ARE ON, NOT THE ONE B
      scroll — 6.160.4's "one honest limit" — is not a limit any more,
      because the chooser's rowAtPoint knows its own scroll offset and
      the pane never has to. Deleted with it: the scroll estimate and
-     previewTick's "keyboard fallback" third value; 56/44 stay only to
-     size the box the pane sits beside and the band that names the tag.
+     previewTick's "keyboard fallback" third value. The band that names
+     the tag is measured with the chooser's own 89/42 now — their only
+     remaining job — so a pointer crossing the query field earns no tag.
      init.lua's off-screen clamp and window_move keep their 56/44 —
      tolerances there, left alone.
   🧪 The suite could not see this: the stub chooser returned SEL no
@@ -47,12 +48,18 @@ NEW IN 6.202.0 — 👁 THE PREVIEW PANE SHOWS THE ROW YOU ARE ON, NOT THE ONE B
      pointer past the last row selects nothing; a wheel scroll is its
      own offset), with the CHOOSER's geometry written in, and a pointer
      on the true centre of row 1 shows row 1 — the old module shows row
-     2 there, which is LL's report in one row. Thirteen rows fail with
-     the guess put back, three of them 🔑: the row-1 check, the source
-     assertion that previewRow never turns a pointer into a row, and the
-     wheel scroll. 133 -> 136 here, 8,378 -> 8,381 overall, seventy-four
-     stages — MEASURED off the gate's own per-suite lines: 6.201.1's notes
-     said 8,377, one under the sum, which is the ceremony's whole point.
+     2 there, which is LL's report in one row. Fourteen rows fail with
+     the guess put back, four of them 🔑: the row-1 check, the source
+     assertion that previewRow never turns a pointer into a row, the
+     wheel scroll, and a pointer crossing the query field earning no tag
+     (fails at 56/44, passes at the chooser's 89/42). And the adversarial
+     read of the first cut caught the rewrite cheating: two 6.161.0 rows
+     forced SEL = 1 by hand, so the selection change did the work and
+     the query rule could have been deleted unnoticed — they hover the
+     highlighted row now, and deleting the rule fails three of them.
+     133 -> 137 here, 8,378 -> 8,382 overall, seventy-four stages —
+     MEASURED off the gate's own per-suite lines: 6.201.1's notes said
+     8,377, one under the sum, which is the ceremony's whole point.
   📏 THE RULE: when a tool holds a second opinion about something the
      platform already answers, delete the opinion rather than tune it —
      and "checked, not assumed" is worth nothing unless it names the

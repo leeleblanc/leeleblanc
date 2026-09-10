@@ -552,10 +552,11 @@ tell them wrong. RULES: a second opinion about something the platform
 already answers is DELETED, not tuned; "checked, not assumed" names the
 file; a stub's geometry is the PROVIDER's, never the module's.
 `previewRow` never reads pv.rowH / pv.top / math.floor (asserted against
-the source); 56/44 survive only to size the box the pane sits beside and
-the band that names the "🖱 under the pointer" tag — the tag is the one
-thing the pointer still decides, and it is a label, never a row. A wheel
-scroll is no longer a blind spot. NEXT, ALONE (one change at a time):
+the source); pv.headH/pv.rowH are the CHOOSER's 89/42 now
+(HSChooserWindow.xib) and their only job is the band that names the
+"🖱 under the pointer" tag — the tag is the one thing the pointer still
+decides, and it is a label, never a row; a pointer crossing the query
+field earns none. A wheel scroll is no longer a blind spot. NEXT, ALONE (one change at a time):
 the pane has no report — `_G.clipboardReport()` naming the row, the
 highlight and the hand, with "closed — last showed…" distinct from
 "never" (the verifier's shape).

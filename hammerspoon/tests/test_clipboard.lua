@@ -851,7 +851,8 @@ do
           .. "highlight is macOS's to move, and the pane shows wherever it is",
           C.pv.shown.how == "keys" and C.pv.shown.row == SEL, C.pv.shown.how)
     MOUSE = { x = box4.x + 40, y = rowY(box4, 3) } ; C.pv.poll.fn()
-    check("the pointer MOVING onto row 3 takes the pane: 'third'",
+    check("the pointer MOVING onto row 3: the chooser highlights it, the pane shows "
+          .. "'third' and the tag is the pointer's",
           bodyText() == "third" and C.pv.shown.how == "mouse", bodyText())
     check("…and the header SAYS the pointer has it",
           headText():find("under the pointer", 1, true) ~= nil, headText())
@@ -859,26 +860,35 @@ do
     check("…and keeps it while the pointer rests there",
           C.pv.shown.how == "mouse" and C.pv.shown.row == 3)
     SEL = 1 ; C.pv.poll.fn()
-    check("an arrow takes the pane BACK from a resting pointer: row 1, the highlight",
-          bodyText() == "first is short" and C.pv.shown.how == "keys", bodyText())
+    check("an arrow moves the highlight to row 1 and takes the TAG back from a resting "
+          .. "pointer", bodyText() == "first is short" and C.pv.shown.how == "keys", bodyText())
     check("…and the header drops the mouse tag",
           headText():find("under the pointer", 1, true) == nil, headText())
     -- 🔤 6.161.0 — TYPING IS A HAND TOO. A query rebuilds the list with
     -- the highlight on row 1, where it usually already was, so the
-    -- selection never "changed" and a resting pointer kept the pane.
-    MOUSE = { x = box4.x + 25, y = rowY(box4, 3) } ; C.pv.poll.fn()   -- moved onto row 3 again
-    check("(the mouse has row 3 again)", C.pv.shown.how == "mouse" and C.pv.shown.row == 3)
-    C.chooser:query("ab") ; SEL = 1 ; C.pv.poll.fn()   -- a letter: the list reloads with the highlight on row 1
+    -- selection never "changed" and a resting pointer kept the tag. The
+    -- pointer moves onto row 1 — the highlight ITSELF — on purpose: the
+    -- selection must not change here, or selChanged does the work and
+    -- the query rule could be deleted unnoticed (the first cut of these
+    -- rows forced SEL = 1 by hand and proved exactly nothing).
+    MOUSE = { x = box4.x + 25, y = rowY(box4, 1) } ; C.pv.poll.fn()   -- moved onto row 1, the highlight
+    check("(the mouse has row 1)", C.pv.shown.how == "mouse" and C.pv.shown.row == 1)
+    C.chooser:query("ab") ; C.pv.poll.fn()      -- a letter; the highlight is where it already was
     check("🔤 6.161.0 — typing a query hands the TAG back to the keyboard even though "
-          .. "the pointer has not left row 3",
+          .. "the selection never moved off row 1 — the case only the query text can catch",
           C.pv.shown.how == "keys" and C.pv.shown.row == 1 and bodyText() == "first is short",
           bodyText())
     C.pv.poll.fn()
-    check("…and the pointer still resting on row 3 does not take it back",
+    check("…and the pointer still resting there does not take it back",
           C.pv.shown.how == "keys" and C.pv.shown.row == 1)
     MOUSE = { x = box4.x + 20, y = box4.y + box4.h } ; C.pv.poll.fn()
     check("the picker's bottom edge pixel is no row: the tag stays with the keyboard",
           C.pv.shown.how == "keys" and C.pv.shown.row == 1)
+    MOUSE = { x = box4.x + 20, y = box4.y + 79 } ; C.pv.poll.fn()   -- moved into the QUERY FIELD
+    check("🔑 6.202.0 — a pointer moving across the QUERY FIELD earns no tag: macOS selects "
+          .. "nothing there, and the band is the chooser's 89/42, not window_move's 56/44 "
+          .. "(at 56 this pointer read as 'over the rows')",
+          C.pv.shown.how == "keys" and C.pv.shown.row == 1, C.pv.shown.how)
     MOUSE = { x = 0, y = 0 } ; C.previewClose()
 
     -- 🔑 6.202.0 — ASSERTED AGAINST THE SOURCE, because a stub chooser
@@ -897,7 +907,8 @@ do
           rowFn:find("chooser:selectedRow()", 1, true) ~= nil)
     check("…and previewTick takes no third 'keyboard fallback' value from it — there is "
           .. "no second opinion left to fall back to",
-          not src:find("r, how, alt", 1, true) and not src:find("pv.top", 1, true))
+          #rowFn > 400 and not src:find("r, how, alt", 1, true)
+          and not src:find("pv.top", 1, true))
 
     -- 🖱 6.202.0 — A SCROLLED LIST NEEDS NO MODEL HERE. 6.160.4 estimated
     -- the first visible row from the arrows so its geometry could survive
@@ -937,11 +948,12 @@ do
           C.pv.shown.row == 1 and bodyText() == "row 1, whole", bodyText())
     -- 6.161.0: for a picker that filters for itself the row COUNT is the
     -- typing signal (its query is its own business)
-    MOUSE = { x = box5.x + 30, y = rowY(box5, 2) } ; C.pv.poll.fn()   -- the pointer takes row 2
-    check("(the mouse has a row of the narrowed list)",
-          C.pv.shown.how == "mouse" and C.pv.shown.row == 2, C.pv.shown.how)
-    shown = many ; tall.rows = many ; SEL = 1 ; C.pv.poll.fn()   -- the box emptied: 23 rows again, highlight on 1
-    check("a list that changed size under a resting pointer is the keyboard's again",
+    MOUSE = { x = box5.x + 30, y = rowY(box5, 1) } ; C.pv.poll.fn()   -- moves ON row 1, the highlight itself
+    check("(the mouse has the narrowed list's first row)",
+          C.pv.shown.how == "mouse" and C.pv.shown.row == 1, C.pv.shown.how)
+    shown = many ; tall.rows = many ; C.pv.poll.fn()   -- the box emptied: 23 rows again, the highlight never moved
+    check("a list that changed size under a resting pointer is the keyboard's again — the "
+          .. "row COUNT is the only signal a self-filtering picker gives",
           C.pv.shown.how == "keys" and C.pv.shown.row == 1, C.pv.shown.how)
     MOUSE = { x = 0, y = 0 }
     PROVIDED["preview.close"]()

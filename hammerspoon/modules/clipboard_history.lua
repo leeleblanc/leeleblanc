@@ -100,10 +100,12 @@ function M.setup(core)
     clip.previewGrace = 0.6         -- 6.155.0: seconds the pane waits for a
                                     -- NUDGED picker to come back (⇪⇧-arrows
                                     -- hide + re-show it) before it gives up
-    clip.previewMousePx = 2         -- 6.160.4: points the pointer must MOVE
-                                    -- between two polls to take the pane —
-                                    -- a pointer merely resting on the
-                                    -- picker never has it
+    clip.previewMousePx = 2         -- 6.160.4/6.202.0: points the pointer must
+                                    -- MOVE between two polls to earn the
+                                    -- "🖱 under the pointer" tag — the ROW is
+                                    -- always the chooser's own highlight; a
+                                    -- pointer merely resting on the picker
+                                    -- never earns the tag
     clip.file        = (core.logsDir or hs.configdir)
                        .. "/clipboard_history-" .. tostring(core.hostTag) .. ".json"
     -- ----------------------------------------------------------------------
@@ -288,16 +290,18 @@ function M.setup(core)
     -- window: on a big Chrome window that is the centre of the screen,
     -- which is row 9 of the ⇪Y picker that opens around it. So the
     -- highlight sat on row 1, the pane showed row 9, and the arrows moved
-    -- the highlight while the pane stayed put. Now the poll remembers
-    -- where the pointer was and what the keyboard had: the mouse takes
-    -- the pane only when it MOVES (clip.previewMousePx or more) onto a
-    -- row, the keyboard takes it back the moment the selection changes,
-    -- and a still pointer never overrules the highlight. While the mouse
-    -- is the hand the pane's header says so ("🖱 under the pointer") —
-    -- that was the one time the pane and the highlight were meant to
-    -- differ. (6.160.4 also estimated the list's scroll from the arrows
-    -- so the geometry could survive a scrolled list, with a wheel scroll
-    -- as its stated blind spot — both gone with the geometry, below.)
+    -- the highlight while the pane stayed put. 6.160.4's answer was a
+    -- HAND-SWITCH: the poll remembered where the pointer was and what
+    -- the keyboard had, the mouse took the pane only when it MOVED
+    -- (clip.previewMousePx or more) onto a row, the keyboard took it
+    -- back the moment the selection changed, and a still pointer never
+    -- overruled the highlight. The header's "🖱 under the pointer" tag
+    -- dates from here and STAYS — it now says which hand moved last —
+    -- and that was the one time the pane and the highlight were meant
+    -- to differ. (6.160.4 also estimated the list's scroll from the
+    -- arrows so the geometry could survive a scrolled list, with a wheel
+    -- scroll as its stated blind spot — both gone with the geometry,
+    -- below.)
     --
     -- 🖱 6.202.0 — THE PANE SHOWS THE HIGHLIGHT, FULL STOP. LL: "when I
     -- am on an entry it actually shows the one entry beneath the current
@@ -312,17 +316,23 @@ function M.setup(core)
     -- kept for the label). The pane and the highlight can no longer
     -- disagree, which also ends 6.160.4's ⇪Y symptom for good, and a
     -- wheel scroll is no longer a blind spot: the chooser's rowAtPoint
-    -- knows its own scroll offset, so the pane never has to. Left alone
-    -- on purpose: init.lua's off-screen clamp carries the same 56/44 (a
-    -- tolerance), and window_move's constants size a grab band padded
-    -- 24 pt a side, where the error is invisible.
+    -- knows its own scroll offset, so the pane never has to. The band
+    -- that names the tag is measured with the CHOOSER's numbers now
+    -- (headH/rowH below), so a pointer crossing the query field earns no
+    -- tag. Left alone on purpose: init.lua's off-screen clamp carries
+    -- window_move's 56/44 (a tolerance), and window_move's own constants
+    -- size a grab band padded 24 pt a side, where the error is invisible.
     clip.pv = { canvas = nil, poll = nil, chooser = nil, rowsFn = nil,
                 lastKey = nil, gen = 0, hiddenAt = nil,
-                -- window_move's chooserRowH / chooserHeadH. 6.202.0: they
-                -- size the box the pane sits beside and the band that
-                -- names the hand — they never pick the ROW (see above)
-                rowH = 44, headH = 56,
-                -- 6.160.4: which hand has the pane and what each last did
+                -- 6.202.0: HSChooserWindow.xib's own geometry — the table's
+                -- scroll view sits 89 pt below the content top, rowHeight
+                -- 40 + intercellSpacing 2 = 42 a row (HSChooser.m's
+                -- resizeWindow keeps 94 + 42·rows). Their ONLY consumer is
+                -- the band that names the hand; the pane's placement reads
+                -- box.x/y/w, and the ROW is never computed from them
+                rowH = 42, headH = 89,
+                -- 6.160.4/6.202.0: which hand the header NAMES (the row is
+                -- always the chooser's) and what each hand last did
                 hand = "keys", lastMouse = nil, lastSel = nil, lastN = nil,
                 lastQuery = nil }
     local pv = clip.pv
