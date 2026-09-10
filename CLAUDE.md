@@ -150,6 +150,19 @@ then returned ten candidates and ZERO survivors, which was correct: the
 thief was not in the clipboard code. What nobody asked for two releases
 was WHAT ⌘V ACTUALLY PASTES. One paste ended it. When a tool is accused
 of producing the wrong output, get the output FIRST.
+🚨 AND IT WAS IN THE 4 PM ASANA TASK TOO (6.201.1), which nobody had
+looked for because nobody knew the tab was there: `sp.newTab` is called
+with no `kind` (358) and `sp.dayBody` sweeps every tab with text and no
+kind into the daily task (646), so the Collect tab and everything it
+accumulated went to Asana every day from 6.182.0. 6.201.0 stopped
+feeding the tab and CANNOT stop this without closing or deleting LL's
+own text — so the report NAMES it and gives the keystroke (⌘W in ⇪N).
+TWO RULES, both learned here: the fix for a leak is not to delete the
+evidence, and A CONSEQUENCE YOU DECIDE NOT TO ACT ON IS ONE YOU ARE
+OBLIGED TO NAME. One bug can have two outputs — LL complained about the
+clipboard and never knew about the task, so "the reported symptom" is
+not the same as "the blast radius": when you find what a bug wrote,
+grep every reader of that store before calling it fixed.
 🧪 And the test pasteboard had `setContents` alone — no `getContents`,
 no `changeCount` — so the reset rule was untestable and the growing
 block could not be caught by any mutation. THIRD time a stub gentler
@@ -873,7 +886,10 @@ mirrors draw order: "closes last" IS "drawn under".
   and NOTHING new added to it. `_G.scratchPadReport()`'s new "📎 ⇪2:"
   line says how many grabs are in the live sequence and how many
   characters ⌘V would paste; under it, the old tab is named with its
-  size and "nothing writes to it now". If the join is wrong for him:
+  size, "nothing writes to it now", and — 6.201.1 — a ⚠️ line saying it
+  STILL rides the 4 PM Asana task until he presses ⌘W on it. Check his
+  next 4 PM task actually sheds it once he does. The live sequence is
+  session-scoped and the report says so. If the join is wrong for him:
   `settings = { scratch_pad = { collectJoin = "\n" } }`, no release.
   KNOWN AND UNCHANGED, stated not hidden: the block still does NOT
   appear in ⇪V's clipboard history, because power_tools suppresses the
@@ -1414,10 +1430,12 @@ mirrors draw order: "closes last" IS "drawn under".
   "+ 🗒 Capture" and "+ ➕ Append" rows under "+ new tab ⌘T", and ⌘W on
   each still files where it always did (the 4 PM Asana task must still
   land, and * idea / + log / ! task / ? note must still sort). Then the
-  one to actually try: select a sentence anywhere, press ⇪2, select
-  another, ⇪2 again — an alert counts the grabs, ⌘V pastes BOTH, and
-  ⇪N shows them stacked in a 📎 Collect tab. Reload and grab a third:
-  it must join the same block, not start a second Collect tab.
+  ⚠️ ITS ⇪2 HALF IS SUPERSEDED BY 6.201.0 — DO NOT RE-VERIFY IT. It
+  read: "⌘V pastes BOTH, and ⇪N shows them stacked in a 📎 Collect tab.
+  Reload and grab a third: it must join the same block." That surviving
+  block IS the bug LL reported — the tab was never emptied and the whole
+  tab went to the clipboard. ⇪2 files nothing in the pad now and the
+  sequence is session-scoped, both deliberately.
   STILL OPEN (LL's list, in his priority order after this): Dataview-style
   live queries in the vault — a ```query block that builds a list/table
   from tags and front matter, which is the one that serves "see the

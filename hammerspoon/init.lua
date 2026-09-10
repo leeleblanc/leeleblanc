@@ -4,9 +4,27 @@
 -- =====================================================================
 -- 09-10-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.201.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.201.1
 -- =====================================================================
 
+-- NEW IN 6.201.1 — 🚨 AND THE COLLECT TAB HAS BEEN IN THE 4 PM TASK ALL ALONG:
+--   🚨 Found by the adversarial read of 6.201.0, not by the bug report.
+--      sp.newTab is called with no `kind` (358), and sp.dayBody sweeps
+--      every tab that has text and no kind into the 4 PM Asana task
+--      (646) — so the 📎 Collect tab, and everything it silently
+--      accumulated since 6.182.0, has been going to Asana EVERY DAY,
+--      growing. 6.201.0 stopped feeding that tab; it cannot stop this
+--      without closing or deleting LL's own text, and a release does not
+--      get to make that call about a year of his writing.
+--   📎 So `_G.scratchPadReport()` SAYS it, beside the tab it names, with
+--      the one keystroke that ends it (⌘W on that tab in ⇪N). It also
+--      now says the live sequence is THIS SESSION only — a reload starts
+--      a new one, which is right for a clipboard tool and has to be
+--      stated rather than discovered.
+--   🔎 THE RULE, twice over: the fix for a leak is not to delete the
+--      evidence, and a consequence you decide not to act on is one you
+--      are obliged to NAME. 8,375 -> 8,377 checks, seventy-four stages.
+--
 -- NEW IN 6.201.0 — 📎 ⇪2 PUTS YOUR GRABS ON THE CLIPBOARD, AND ONLY THOSE:
 --   🚨 LL: "Not working: sequential copy ⇪2 clipboard." He then pasted
 --      what ⌘V actually gave him — the literal word "Collect", then
@@ -46,59 +64,12 @@
 --      fail the row written for it. ⇪2's hint card moved to CLIPBOARD &
 --      OCR, because it files nothing into notes any more.
 --
--- NEW IN 6.200.0 — 📖 THE REAL DICTIONARY, NOT ANOTHER LIST TO KEEP:
---   🚨 LL: "The actual word is somethgni, somethingg, somethinng,
---      somethng, somtething" — five spellings of one word, listed to make
---      the point that he should not have to keep adding custom rows for
---      each. So the LAST thing the corrector tries is now macOS's own
---      word list at /usr/share/dict/words: on every Mac, synced by
---      nobody, and it catches all five without a row being written.
---   🔒 THE RISK IS NOT MISSING A TYPO, IT IS "CORRECTING" A WORD THAT
---      WAS RIGHT, because that list holds no names, no jargon and no
---      identifiers. So it fires only when the word is 5+ letters, is
---      letters ONLY with at most one leading capital (which is what keeps
---      IDs, iPhone, camelCase and SKU7 out), is NOT itself a word, is not
---      one of ⇪Z's learned exceptions, and EXACTLY ONE real word is a
---      single edit away. Two candidates is a guess, and it does nothing.
---   📏 AND THE TWO NUMBERS WERE MEASURED, NOT CHOSEN. Against the real
---      word list, deleting ANY letter turned rsync into sync, backend
---      into backed and frontend into fronted — three ordinary words in a
---      104-word sample, which is three too many for something that edits
---      his text without asking. Restricting a deletion to a letter that
---      REPEATS within the next two positions (doubled: somethingg; or
---      typed early: somtething) caught MORE typos — 17 of 18, all five of
---      his among them — and changed NONE of the 104. The length floor is
---      5 for the same reason: at 4, "repo" became "rope".
---      The four edits: two neighbours swapped, a letter that was already
---      coming, a letter missing, three neighbours turned round. That
---      fourth one exists because "somethgni" is TWO adjacent swaps and a
---      strict single-swap rule cannot see a word he listed by name.
---      Substitution is deliberately absent — 25 candidates a letter, and
---      where a word list starts rewriting what was already right.
---   🤫 IT DOES NOT SPEAK in code editors, terminals or password fields
---      (LL's own list), and it FAILS CLOSED: an app it cannot name, a Mac
---      that cannot answer about secure input, a word list still loading or
---      missing — every one of those means silence, never a guess. The
---      list is folded in acSpell.slice words per turn on a HELD timer,
---      because 235,000 lines in one go is a hitch on the thread that
---      reads the keyboard.
---   🔁 AND ⇪Z ALREADY GOVERNS IT. A word-list fix is undone and
---      permanently refused by the same key, listed in the same
---      `_G.autocorrectReport()` block 6.199.0 added, and removed by the
---      same `_G.autocorrectForget("word")`. Nothing new to learn.
---      The report names the list's state, counts what it changed and
---      shows the last dozen, so an app that misfires gets added to
---      `settings = { autocorrect = { offIn = {…} } }` from EVIDENCE.
---      test_autocorrect 76 -> 114, twenty-four mutations, each proven to
---      fail against the bug it names. 8,324 -> 8,362 checks, seventy-four
---      stages. Rollback: `settings = { autocorrect = { on = false } }`.
---
--- (6.199.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.200.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.201.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.201.1
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -195,7 +166,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.201.0"
+_G.configVersion = "6.201.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

@@ -1361,6 +1361,7 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
                     .. " in this sequence · " .. seqChars .. " characters"
                     .. " · " .. tostring(sp.collectWhy)
         L[#L + 1] = "      sequences ended by another copy: " .. (sp.collectResets or 0)
+                    .. " · THIS SESSION only — a reload starts a new sequence"
         if sp.collectId then
             local old
             for _, t in ipairs(sp.tabs) do if t.id == sp.collectId then old = t end end
@@ -1368,6 +1369,17 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
                         .. (old and ("still in the pad, untouched — " .. #tostring(old.text)
                                      .. " characters, and nothing writes to it now")
                                  or "no longer among the tabs (⌘W sent it to the history)")
+            -- 🚨 6.201.1 — AND IT IS STILL IN THE 4 PM TASK. sp.newTab was
+            -- called without a `kind` (358), so dayBody's `not t.kind`
+            -- test (646) has swept that tab into LL's Asana task EVERY DAY
+            -- since 6.182.0, growing with it. 6.201.0 stopped feeding the
+            -- tab; it cannot stop this without deleting or closing his
+            -- text, which is not a release's decision to make. So it is
+            -- SAID, with the one keystroke that ends it.
+            if old and trim(old.text) ~= "" and not old.kind then
+                L[#L + 1] = "      ⚠️ …and it still rides the 4 PM Asana task, as every open"
+                            .. " tab does — ⌘W on that tab in ⇪N is what ends it"
+            end
         end
         -- 6.177.0 — the way out, and whether it has been taken
         if sp.exportToVault == false then

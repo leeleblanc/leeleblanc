@@ -5,6 +5,37 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.201.1 — 🚨 AND THE COLLECT TAB HAS BEEN IN THE 4 PM TASK ALL ALONG:
+  🚨 Found by the adversarial read OF 6.201.0, hours after it shipped,
+     and not by any bug report — LL never knew to complain about it
+     because he never knew the tab existed. sp.newTab is called with no
+     `kind` (modules/scratch_pad.lua:358), and sp.dayBody sweeps every
+     tab that has text and no kind into the 4 PM Asana task (:646). So
+     the 📎 Collect tab — and every grab it silently accumulated since
+     6.182.0 — has been going to Asana EVERY DAY, growing, inside the
+     "Scorp pad · <day>" task. One bug, two outputs: the clipboard he
+     complained about, and a daily task he did not.
+  🗂 6.201.0 stopped FEEDING that tab. It cannot stop this without
+     closing or deleting the tab, and a release does not get to make
+     that call about a year of LL's own writing. The fix for a leak is
+     not to delete the evidence.
+  📎 So the report says it. `_G.scratchPadReport()` names the tab, sizes
+     it, says nothing writes to it now, and — when it still has text and
+     no kind — adds that it still rides the 4 PM task, with the one
+     keystroke that ends it: ⌘W on that tab in ⇪N. His call, his text.
+  📎 It also now states that the live sequence is THIS SESSION only: a
+     reload starts a new one. That is right for a clipboard tool, and
+     the previous shape survived reloads, so it is a real change in
+     behaviour and has to be stated rather than discovered.
+  🔎 THE RULE, and it is the second half of 6.201.0's: a consequence you
+     decide NOT to act on is one you are obliged to NAME. Deciding
+     correctly and saying nothing is how the original bug lasted
+     nineteen releases.
+  🧪 8,375 -> 8,377 checks, seventy-four stages. The new rows assert the
+     warning AND its premise — that sp.newTab takes an optional kind the
+     collect path never passed, and that dayBody keys on its absence —
+     so the warning cannot outlive the condition it describes.
+
 NEW IN 6.201.0 — 📎 ⇪2 PUTS YOUR GRABS ON THE CLIPBOARD, AND ONLY THOSE:
   🚨 LL: "Not working: sequential copy ⇪2 clipboard. Am I doing
      something wrong?" He was not. He then pasted what ⌘V actually gave

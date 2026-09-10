@@ -1102,6 +1102,25 @@ do
           and src:find("sequences ended by another copy", 1, true) ~= nil
           and src:find("still in the pad, untouched", 1, true) ~= nil)
 
+    -- 🚨 6.201.1 — THE CONSEQUENCE NOBODY HAD LOOKED FOR. sp.newTab is
+    -- called with no `kind` (scratch_pad.lua:358), and sp.dayBody sweeps
+    -- every tab with text and no kind into the 4 PM Asana task (:646) —
+    -- so the Collect tab, and everything it accumulated, has been going
+    -- to Asana daily since 6.182.0. 6.201.0 stopped FEEDING that tab but
+    -- cannot stop this without closing or deleting LL's own text, which
+    -- is not a release's call. So the report says it, and names the one
+    -- keystroke that ends it.
+    check("🚨 the report warns that the old tab still rides the 4 PM task",
+          src:find("still rides the 4 PM Asana task", 1, true) ~= nil
+          and src:find("⌘W on that tab in ⇪N is what ends it", 1, true) ~= nil)
+    check("…and says the live sequence is this session only",
+          src:find("THIS SESSION only — a reload starts a new sequence", 1, true) ~= nil)
+
+    -- The tab really does have no kind, which is the whole reason above.
+    check("…and the premise holds: a collect tab was made with NO kind",
+          src:find("function sp.newTab(text, kind)", 1, true) ~= nil
+          and src:find("if trim(t.text) ~= \"\" and not t.kind then", 1, true) ~= nil)
+
     check("…and the cheat sheet no longer promises a 📎 Collect tab",
           src:find("each grab is appended to a 📎 Collect tab", 1, true) == nil
           and src:find("Copying anything else starts a new sequence", 1, true) ~= nil)
