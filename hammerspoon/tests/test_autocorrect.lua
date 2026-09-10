@@ -30,11 +30,15 @@ os.execute("mkdir -p '" .. TMP .. "'")
 
 local KEYSTROKES, DELETES, log = {}, 0, {}
 local TAP, FRONTAPP = nil, "TextEdit"
+local SECURE = false
 local ALERTS, TIMERS = {}, {}
 local BOUND = {}
 
 hs = {
   eventtap = {
+    -- 🚨 6.200.0 — every real Mac answers this; the dictionary check asks
+    -- before it rewrites a word, and treats "cannot answer" as locked.
+    isSecureInputEnabled = function() return SECURE end,
     event = { types = { keyDown = 10, leftMouseDown = 1, rightMouseDown = 3 } },
     new = function(types, fn)
       TAP = { types = types, fn = fn, on = false }
@@ -466,6 +470,200 @@ do
      readCsv():find("fix,IDs,IDs", 1, true) ~= nil)
 
   check("§6 ran every one of its checks", mine == 24, mine)
+end
+
+-- =====================================================================
+out("\n=== 7. 📖 THE REAL DICTIONARY CHECK (6.200.0) ===\n")
+-- =====================================================================
+-- LL: "The actual word is somethgni, somethingg, somethinng, somethng,
+-- somtething" — five spellings of one word, listed to make the point that
+-- he should not have to keep adding custom rows. The risk is not missing
+-- a typo; it is CORRECTING SOMETHING THAT WAS RIGHT, because a word list
+-- holds no names, no jargon and no identifiers. So most of this section
+-- is about what it must leave alone.
+do
+  local mine = 0
+  local function ck(label, cond, extra)
+    mine = mine + 1 ; check(label, cond, extra)
+  end
+  local WORDS = TMP .. "/words"
+  local function seedWords(list)
+    local f = io.open(WORDS, "w")
+    for _, w in ipairs(list) do f:write(w .. "\n") end
+    f:close()
+    mod.config.wordsFile = WORDS
+    mod.warm(core)
+  end
+  seedWords({ "something", "porter", "potter", "house", "houses", "backed",
+              "collect", "the", "man", "and", "that", "their", "receive",
+              "separate", "iphone" })
+
+  -- ---- LL's five, by name --------------------------------------------
+  for _, typo in ipairs({ "somethingg", "somethinng", "somethng", "somtething",
+                          "somethgni" }) do
+    ck("🚨 " .. typo .. " → something, with no row written for it",
+       typeWord(typo .. " ") == "something ", tostring(typeWord(typo .. " ")))
+  end
+  ck("…and the word spelled correctly is left alone",
+     typeWord("something ") == nil, tostring(typeWord("something ")))
+  -- 🚨 TWO EDITS CAN REACH THE SAME WORD: inserting the l before or
+  -- after the l already in "colect" both give "collect". Counted twice
+  -- that reads as two candidates — a guess — and nothing is corrected.
+  ck("🚨 one word reached two ways is still ONE candidate",
+     typeWord("colect ") == "collect ", tostring(typeWord("colect ")))
+
+  -- ---- what it must NOT touch ----------------------------------------
+  ck("🚨 two real words a single edit away is a GUESS — poter does nothing"
+     .. " while both porter and potter exist",
+     typeWord("poter ") == nil, tostring(typeWord("poter ")))
+  -- potter removed. house/houses and backed stay: a REAL word with
+  -- exactly one real neighbour is the only fixture that can prove
+  -- "it is already a word" and the length floor actually BITE, and
+  -- "backed" is the only one that can prove the deletion rule does.
+  seedWords({ "something", "porter", "house", "houses", "backed", "iphone" })
+  ck("…and the moment only ONE is left, it corrects",
+     typeWord("poter ") == "porter ", tostring(typeWord("poter ")))
+
+  ck("a leading capital is restored onto the fix",
+     typeWord("Somethingg ") == "Something ", tostring(typeWord("Somethingg ")))
+  ck("🚨 ALL CAPS is never touched — that is an acronym",
+     typeWord("SOMETHINGG ") == nil, tostring(typeWord("SOMETHINGG ")))
+  ck("🚨 mixed case is never touched — that is CamelCase or a product name",
+     typeWord("iPhonee ") == nil, tostring(typeWord("iPhonee ")))
+  ck("🚨 a word that IS in the list is never touched, even when exactly"
+     .. " one real word sits a single edit away — house must not become houses",
+     typeWord("house ") == nil, tostring(typeWord("house ")))
+  ck("🚨 a word under the length floor is never touched, even when exactly"
+     .. " one real word is one edit away (hous → house)",
+     typeWord("hous ") == nil, tostring(typeWord("hous ")))
+  ck("two neighbours the wrong way round is its own edit — hosue → house",
+     typeWord("hosue ") == "house ", tostring(typeWord("hosue ")))
+  -- 🚨 THE MEASURED ONE. Against the real 73,000-word list, deleting
+  -- ANY letter turned rsync into sync, backend into backed and frontend
+  -- into fronted. A deleted letter must be one that REPEATS within the
+  -- next two positions — already coming, so plainly typed twice or early.
+  ck("🚨 a word is not shortened into another word — backend must never"
+     .. " become backed, however alone that leaves it in the word list",
+     typeWord("backend ") == nil, tostring(typeWord("backend ")))
+  ck("a word nothing in the list is near is left exactly as typed",
+     typeWord("qwertyuio ") == nil, tostring(typeWord("qwertyuio ")))
+
+  -- ---- it is asked LAST ----------------------------------------------
+  ck("the CSV dictionary still answers first", typeWord("teh ") == "the ",
+     tostring(typeWord("teh ")))
+  ck("the TWo-caps rule still answers before it",
+     typeWord("USa ") == "Usa ", tostring(typeWord("USa ")))
+
+  -- ---- ⇪Z governs it too ---------------------------------------------
+  -- The learned exception is checked by the word-list rule as well, so
+  -- 6.199.0's report and _G.autocorrectForget already govern this
+  -- feature — there is no second thing to learn or unlearn.
+  local f = io.open(TMP .. "/autocorrect.csv", "a")
+  f:write("allow,somethingg,\n") ; f:close() ; mod.warm(core)
+  ck("🚨 a word ⇪Z was told to leave alone is not spell-corrected either",
+     typeWord("somethingg ") == nil, tostring(typeWord("somethingg ")))
+  ck("…and it shows up in the SAME learned list, with the same way back",
+     _G.autocorrectReport():find('_G.autocorrectForget("somethingg")', 1, true) ~= nil)
+  _G.autocorrectForget("somethingg")
+  ck("…and forgetting it brings the correction straight back",
+     typeWord("somethingg ") == "something ", tostring(typeWord("somethingg ")))
+
+  -- ---- where it stands down ------------------------------------------
+  FRONTAPP = "Code"
+  ck("🚨 it does not speak in a code editor — identifiers look exactly"
+     .. " like misspellings to a word list",
+     typeWord("somethingg ") == nil, tostring(typeWord("somethingg ")))
+  FRONTAPP = "Terminal"
+  ck("…nor in a terminal", typeWord("somethingg ") == nil)
+  FRONTAPP = "TextEdit"
+  SECURE = true
+  ck("🚨 …nor into a password field", typeWord("somethingg ") == nil,
+     tostring(typeWord("somethingg ")))
+  SECURE = false
+  ck("…and it comes back afterwards", typeWord("somethingg ") == "something ")
+
+  -- 🚨 IT FAILS CLOSED. A Mac that cannot answer whether the keyboard is
+  -- locked is treated as locked — the opposite choice would run the one
+  -- feature that rewrites text in the one place it must never speak.
+  local realSec = hs.eventtap.isSecureInputEnabled
+  hs.eventtap.isSecureInputEnabled = nil
+  ck("🚨 a Mac that cannot answer about secure input is treated as locked",
+     typeWord("somethingg ") == nil, tostring(typeWord("somethingg ")))
+  hs.eventtap.isSecureInputEnabled = realSec
+
+  -- ---- 🚨 IT MUST NOT BLOCK THE THREAD THAT READS THE KEYBOARD ----
+  -- The real list is ~235,000 lines. Folding that into a table in one go
+  -- is a visible hitch on the main thread, so it goes in acSpell.slice
+  -- words per turn of the event loop. A fixture smaller than one slice
+  -- proves the slicing EXISTS, never that it BITES (6.187.0's rule), so
+  -- this one is deliberately bigger than the slice it is given.
+  TIMERS = {}
+  mod.config.slice = 2
+  seedWords({ "aaa", "bbb", "ccc", "ddd", "eee", "something" })
+  ck("🚨 a list bigger than one slice does not finish inline — it hands"
+     .. " the thread back and comes round again",
+     #TIMERS > 0 and _G.autocorrectReport():find("reading the word list", 1, true) ~= nil,
+     #TIMERS .. " timers · " .. tostring(_G.autocorrectReport():match("word list[^\n]*")))
+  -- typeWord() empties TIMERS (it watches for the inject timer), so the
+  -- half-built list's next slice is put back by hand here. On a real Mac
+  -- the timer holds its own reference in _G.acSpellTimer.
+  local held = TIMERS
+  local midAnswer = typeWord("somethingg ")
+  TIMERS = held
+  ck("…and it is not answering yet, rather than answering wrongly",
+     midAnswer == nil, tostring(midAnswer))
+  local rounds = 0
+  while rounds < 20 do
+    rounds = rounds + 1
+    local pending = TIMERS ; TIMERS = {}
+    if #pending == 0 then break end
+    for _, t in ipairs(pending) do if t.running then t.fn() end end
+  end
+  ck("…and when the last slice lands it is ready and answers",
+     _G.autocorrectReport():find("ready", 1, true) ~= nil
+     and typeWord("somethingg ") == "something ",
+     tostring(_G.autocorrectReport():match("word list[^\n]*")))
+  mod.config.slice = 20000
+
+  -- ---- and when there is no word list at all -------------------------
+  mod.config.wordsFile = TMP .. "/no-such-file"
+  mod.warm(core)
+  ck("no word list: it says so and changes nothing",
+     typeWord("somethingg ") == nil, tostring(typeWord("somethingg ")))
+  ck("…and the CSV dictionary still works, untouched by any of it",
+     typeWord("teh ") == "the ", tostring(typeWord("teh ")))
+  local repOff = _G.autocorrectReport()
+  ck("…and the report NAMES the missing file rather than going quiet",
+     repOff:find("no word list at", 1, true) ~= nil,
+     repOff:match("word list[^\n]*"))
+
+  -- ---- the report ----------------------------------------------------
+  seedWords({ "something", "porter", "house" })
+  typeWord("somethingg ")
+  local rep = _G.autocorrectReport()
+  ck("the report says the list is ready, and how many words",
+     rep:find("ready", 1, true) and rep:match("word list[^\n]*3 words") ~= nil,
+     rep:match("word list[^\n]*"))
+  ck("…counts what it changed and shows the last few, so an app that"
+     .. " misfires is named from EVIDENCE rather than guessed at",
+     rep:find("somethingg → something", 1, true) ~= nil,
+     rep:match("spelling[^\n]*"))
+  ck("…and lists where it deliberately does not speak",
+     rep:find("not asked in", 1, true) and rep:find("Terminal", 1, true)
+     and rep:find("password field", 1, true))
+
+  -- ---- the rule itself, with no Mac near it --------------------------
+  local function known(w)
+    return ({ something = true, porter = true, house = true })[w] == true
+  end
+  ck("the rule is pure and reachable, so every shape above is provable"
+     .. " without typing anything",
+     _G.acSpellCorrection("somethgni", known, 4) == "something"
+     and _G.acSpellCorrection("something", known, 4) == nil
+     and _G.acSpellCorrection("hous", known, 4) == "house"
+     and _G.acSpellCorrection("hou", known, 4) == nil)
+
+  check("§7 ran every one of its checks", mine == 37, mine)
 end
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))

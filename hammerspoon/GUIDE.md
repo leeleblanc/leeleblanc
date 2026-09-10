@@ -9,7 +9,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,756 lines)
+├── init.lua          the orchestrator (3,776 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (12 files)
 ├── modules/          one file per feature (68 files, ~51,400 lines)
@@ -805,13 +805,36 @@ stood, kept verbatim.
                Case is preserved: Mna→Man, MNA→MAN, mna→man.
    TWo-caps    MAn→Man, THe→The — one rule covers everything;
                80 real exceptions (IDs, TVs, MHz…) in the CSV.
+   spelling    (6.200.0) the LAST thing tried: macOS's own word
+               list at /usr/share/dict/words. A word of 5+ letters,
+               letters only, not itself a word, with EXACTLY ONE
+               real word a single edit away, is corrected — so
+               somethingg, somethinng, somethng, somtething and
+               somethgni all become something with no row written
+               for any of them. Two candidates is a guess and does
+               nothing. It never speaks in code editors, terminals
+               or password fields, and a missing or still-loading
+               word list means silence, never a guess.
+               Off: settings = { autocorrect = { on = false } };
+               more excluded apps: { offIn = { "Excel", … } }.
    ⌃⌥⌘Z       if a fix was wrong: rewinds the text AND (for
-               two-caps fixes) permanently adds the word to your
-               exceptions so it never fires again.
+               two-caps and spelling fixes) permanently adds the
+               word to your exceptions so it never fires again.
+   _G.autocorrectReport()   (6.199.0) what ⇪Z has learned — kept
+               apart from the ~85 exceptions shipped here, so the
+               list is only ever yours — each with its line number
+               and the command that removes it. Also the word
+               list's state, what it has corrected, and any dead
+               `fix` rows (both sides the same word, which would
+               turn IDs into Ids) with their line numbers.
+   _G.autocorrectForget("HOw")   takes a learned exception out of
+               the file and out of memory at once; the rule
+               corrects that word again with no reload.
    The dictionary is SHARED: <OneDrive>/Logs/autocorrect.csv —
    an exception learned on one Mac works on the other after its
-   next reload. Password fields, pasted text, and Terminal are
-   never touched.
+   next reload. The word list is NOT shared and does not need to
+   be: every Mac already has one. Password fields, pasted text,
+   and Terminal are never touched.
 
 =====================================================================
 =====================================================================
@@ -848,9 +871,9 @@ CREATED AUTOMATICALLY (never make these yourself):
 
 ## 6. Tests
 
-Sixty-eight Lua suites, 7,917 checks, plus four more that run the Capture
+Sixty-eight Lua suites, 7,955 checks, plus four more that run the Capture
 Pad's, the screenshot editor's, unified search's and the vault's page
-JavaScript under `node` for a further 407 — **8,324 checks over
+JavaScript under `node` for a further 407 — **8,362 checks over
 seventy-four stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:

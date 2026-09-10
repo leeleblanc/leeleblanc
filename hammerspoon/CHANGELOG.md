@@ -5,6 +5,54 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.200.0 — 📖 THE REAL DICTIONARY, NOT ANOTHER LIST TO KEEP:
+  🚨 LL: "The actual word is somethgni, somethingg, somethinng,
+     somethng, somtething" — five spellings of one word, listed to make
+     the point that he should not have to keep adding custom rows for
+     each. So the LAST thing the corrector tries is now macOS's own
+     word list at /usr/share/dict/words: on every Mac, synced by
+     nobody, and it catches all five without a row being written.
+  🔒 THE RISK IS NOT MISSING A TYPO, IT IS "CORRECTING" A WORD THAT
+     WAS RIGHT, because that list holds no names, no jargon and no
+     identifiers. So it fires only when the word is 5+ letters, is
+     letters ONLY with at most one leading capital (which is what keeps
+     IDs, iPhone, camelCase and SKU7 out), is NOT itself a word, is not
+     one of ⇪Z's learned exceptions, and EXACTLY ONE real word is a
+     single edit away. Two candidates is a guess, and it does nothing.
+  📏 AND THE TWO NUMBERS WERE MEASURED, NOT CHOSEN. Against the real
+     word list, deleting ANY letter turned rsync into sync, backend
+     into backed and frontend into fronted — three ordinary words in a
+     104-word sample, which is three too many for something that edits
+     his text without asking. Restricting a deletion to a letter that
+     REPEATS within the next two positions (doubled: somethingg; or
+     typed early: somtething) caught MORE typos — 17 of 18, all five of
+     his among them — and changed NONE of the 104. The length floor is
+     5 for the same reason: at 4, "repo" became "rope".
+     The four edits: two neighbours swapped, a letter that was already
+     coming, a letter missing, three neighbours turned round. That
+     fourth one exists because "somethgni" is TWO adjacent swaps and a
+     strict single-swap rule cannot see a word he listed by name.
+     Substitution is deliberately absent — 25 candidates a letter, and
+     where a word list starts rewriting what was already right.
+  🤫 IT DOES NOT SPEAK in code editors, terminals or password fields
+     (LL's own list), and it FAILS CLOSED: an app it cannot name, a Mac
+     that cannot answer about secure input, a word list still loading or
+     missing — every one of those means silence, never a guess. The
+     list is folded in acSpell.slice words per turn on a HELD timer,
+     because 235,000 lines in one go is a hitch on the thread that
+     reads the keyboard.
+  🔁 AND ⇪Z ALREADY GOVERNS IT. A word-list fix is undone and
+     permanently refused by the same key, listed in the same
+     `_G.autocorrectReport()` block 6.199.0 added, and removed by the
+     same `_G.autocorrectForget("word")`. Nothing new to learn.
+     The report names the list's state, counts what it changed and
+     shows the last dozen, so an app that misfires gets added to
+     `settings = { autocorrect = { offIn = {…} } }` from EVIDENCE.
+     test_autocorrect 76 -> 114, twenty-four mutations, each proven to
+     fail against the bug it names. 8,324 -> 8,362 checks, seventy-four
+     stages. Rollback: `settings = { autocorrect = { on = false } }`.
+
+
 NEW IN 6.199.0 — ✏️ WHAT ⇪Z LEARNS IS VISIBLE AND REVERSIBLE:
   🚨 LL: "I fixed HOw by deleting the entry and you can see that it
      is still HOw" — and then his grep of his own 11,000-line

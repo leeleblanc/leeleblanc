@@ -393,6 +393,41 @@ copied. `crashScan` returns the NAMES it saw for exactly that. The scan
 matches the same glob rsync is given (`bk.globPattern`) so the count and
 the copy cannot disagree — and an unmatchable glob is its own state, not
 one of the two reassuring ones.
+📖 THE WORD LIST IS THE LAST THING ASKED, AND ITS NUMBERS WERE MEASURED
+(6.200.0, modules/autocorrect.lua). LL: "The actual word is somethgni,
+somethingg, somethinng, somethng, somtething" — five spellings of one
+word, listed to say he should not keep adding rows. So after the CSV
+dictionary and the TWo-caps rule, macOS's own /usr/share/dict/words is
+asked: on every Mac, synced by nobody. It fires only for a word of 5+
+letters, letters ONLY with at most one leading capital (which is what
+keeps IDs, iPhone, camelCase and SKU7 out), not itself a word, not one
+of ⇪Z's learned exceptions, and with EXACTLY ONE real word a single edit
+away — two candidates is a guess and does nothing.
+📏 THE TWO NUMBERS ARE MEASUREMENTS, NOT CHOICES, and that is the durable
+part: against the REAL word list, deleting ANY letter turned rsync into
+sync, backend into backed and frontend into fronted — three of 104
+ordinary words. Restricting a deletion to a letter that REPEATS within
+the next two positions (doubled: somethingg; typed early: somtething)
+caught MORE typos (17 of 18, all five of LL's) and changed NONE of the
+104. minLen is 5 because at 4, "repo" became "rope". RULE: a rule that
+edits LL's text is tuned against the real corpus, never against the
+fixture — a 13-word fixture agreed with every variant tried.
+The four edits are swap-two-neighbours, a-letter-already-coming,
+a-letter-missing, three-neighbours-turned-round. The fourth exists
+because "somethgni" is TWO adjacent swaps and a single-swap rule cannot
+see a word LL named. Substitution is deliberately absent.
+🤫 IT FAILS CLOSED, EVERY WAY: `spellOK` must be exactly true (a caller
+that forgets gets no check at all), an app it cannot name is not
+trusted, a Mac that cannot answer about secure input is treated as
+locked, and a word list missing or still loading means silence. The
+list is folded in `acSpell.slice` words per turn on a HELD timer —
+235,000 lines in one go is a hitch on the thread that reads the
+keyboard — and a failed reload CLEARS the old set first, or the report
+says "no word list" while the old one is still answering.
+🔁 ⇪Z ALREADY GOVERNS IT: a word-list fix is undone and permanently
+refused by the same key, listed in the same 6.199.0 report block, and
+removed by the same `_G.autocorrectForget`. Nothing new to learn — which
+is the test for whether a new rule belongs in this module at all.
 ✏️ WHAT ⇪Z LEARNS IS PERMANENT, CROSS-MACHINE — AND MUST BE VISIBLE
 (6.199.0, modules/autocorrect.lua). One ⇪Z press appends
 `allow,<the exact word>,` to autocorrect.csv, which syncs through
@@ -918,6 +953,19 @@ mirrors draw order: "closes last" IS "drawn under".
   was right, the screenshot just read small, and no font was touched.
   Keep this as the worked example: a "fix" for a misread screenshot is
   a change with no bug under it.
+- 6.200.0 verify with LL — NOT YET DELIVERED. LL's decision, in his
+  words the sequencing question was answered "after you confirm
+  6.199.0": build it now, hold the zip until the four already delivered
+  are confirmed behaving. When it does go: type somethingg, somethinng,
+  somethng, somtething and somethgni — all five become "something" with
+  no row written. Then check it leaves alone what it should: an ALL CAPS
+  acronym, a camelCase name, anything with a digit, and any word under
+  five letters. `_G.autocorrectReport()` gains a "word list" line (ready
+  / reading / no word list at …), a count of what it corrected and the
+  last dozen changes — that list is how an app that misfires gets added
+  to `settings = { autocorrect = { offIn = {…} } }` from evidence rather
+  than guessed at. ⇪Z undoes any of it permanently, same as before.
+  Rollback for all of it: `settings = { autocorrect = { on = false } }`.
 - 6.199.0 verify with LL: `_G.autocorrectReport()` in the Console —
   the one this module never had. Its "⇪Z learned" block should list
   HOw and anything else he has taught it over the years, each with a

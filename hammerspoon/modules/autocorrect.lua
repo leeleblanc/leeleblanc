@@ -59,6 +59,65 @@ function M.setup(core)
         -- "Code",
     }
 
+
+    -- =====================================================================
+    -- 📖 6.200.0 — THE REAL DICTIONARY CHECK
+    -- =====================================================================
+    -- LL: "The actual word is somethgni, somethingg, somethinng, somethng,
+    -- somtething" — five spellings of one word, and the point of listing
+    -- them was that he should NOT have to keep adding custom rows. So the
+    -- last thing the corrector tries is macOS's own word list, which every
+    -- Mac has at /usr/share/dict/words and neither Mac has to sync.
+    --
+    -- 🔒 THE RISK IS NOT MISSING A TYPO, IT IS "CORRECTING" SOMETHING
+    -- THAT WAS RIGHT. That word list holds no names, no jargon, no product
+    -- codes, no identifiers. So this fires only when ALL of it is true:
+    --   · the word is at least acSpell.minLen letters (4)
+    --   · it is letters only, all lower case or one leading capital —
+    --     never MIXED case, never with a digit, never with an apostrophe,
+    --     which is what keeps acronyms, CamelCase and code out
+    --   · the word itself is NOT in the dictionary
+    --   · it is not one of ⇪Z's learned exceptions
+    --   · and EXACTLY ONE real word is a single edit away. Two candidates
+    --     is a guess, and a guess is what makes people switch a feature
+    --     off — so two candidates does nothing at all.
+    -- Anything it leaves alone is deliberate. It is the last rule asked,
+    -- so the CSV dictionary and the TWo-caps rule are unchanged by it.
+    local acSpell = {
+        on        = true,
+        wordsFile = "/usr/share/dict/words",
+        -- 📏 FIVE, MEASURED. At four, "repo" became "rope" against the
+        -- real word list — short words have proportionally more real
+        -- neighbours, and a four-letter fix is worth little. At five,
+        -- nothing in a 104-word sample of real prose, names and jargon
+        -- was changed at all, and no typo worth catching was lost.
+        minLen    = 5,
+        slice     = 20000,      -- words folded into the set per turn
+        keep      = 12,         -- corrections remembered for the report
+        -- 🚨 Where a word list is wrong far more often than right. LL
+        -- chose exactly these plus password fields; anywhere else gets
+        -- added from EVIDENCE — the report names every word it changed —
+        -- and never from guessing. No release needed for either knob:
+        --   settings = { autocorrect = { offIn = { "Excel", … } } }
+        --   settings = { autocorrect = { on = false } }   -- all of it off
+        -- (M.config is this table; init.lua applies a profile into it
+        -- after setup and before warm, which is what reads it.)
+        offIn     = { "Terminal", "iTerm2", "iTerm", "Ghostty", "Warp",
+                      "Alacritty", "kitty", "Hyper", "Code",
+                      "Visual Studio Code", "Xcode", "Sublime Text",
+                      "Nova", "BBEdit", "Emacs", "MacVim",
+                      "IntelliJ IDEA", "PyCharm", "Android Studio" },
+    }
+    M.config = acSpell   -- so a per-Mac profile can reach both knobs
+
+    local acSpellWords   = nil        -- word -> true, once it is built
+    local acSpellCount   = 0
+    local acSpellState   = "not started"
+    local acSpellFixes   = {}         -- the last few, for the report
+    local acSpellFixed   = 0
+    local acSpellDown    = 0          -- times it stood down (app or password)
+    _G.acSpellTimer      = nil        -- HELD: the slicing timer
+
     _G.autocorrectEnabled = true
     local autocorrectDict, autocorrectAllow = {}, {}
     local autocorrectDictCount, autocorrectAllowCount = 0, 0
@@ -181,19 +240,185 @@ function M.setup(core)
         return correction
     end
 
+    -- 🧮 PURE, AND IT IS THE WHOLE DECISION. `known(w)` answers "is
+    -- that a real word"; everything else here is arithmetic on a string,
+    -- so the gate proves every rule against a dictionary of a dozen words
+    -- with no Mac, no file and no timing anywhere near it.
+    -- FOUR EDITS, and each one is a shape LL's own five typos take:
+    --   · two neighbours swapped            teh          -> the
+    --   · a letter that was already coming   somethingg   -> something
+    --     (doubled, or typed early)          somtething   -> something
+    --   · one letter missing                somethng     -> something
+    --   · three neighbours turned round     somethgni    -> something
+    -- 📌 THAT FOURTH ONE IS AN ADDITION TO WHAT LL APPROVED, and it is
+    -- here because without it "somethgni" — a word he listed by name — is
+    -- missed: reversing a run of three is TWO adjacent swaps, so a strict
+    -- single-swap rule cannot see it. It stays as safe as the others
+    -- because the answer must still be unique.
+    -- Deliberately NOT here: substitution (a mistyped neighbouring key).
+    -- It generates 25 candidates per letter and is where a word list
+    -- starts rewriting words that were right.
+    local function acSpellCorrection(word, known, minLen)
+        if type(word) ~= "string" or type(known) ~= "function" then return nil end
+        minLen = tonumber(minLen) or 4
+        if #word < minLen then return nil end
+        -- Letters only, and at most ONE leading capital. This single test
+        -- is what keeps IDs, iPhone, SKU7, don't and camelCase out.
+        local capped = word:match("^%u%l+$") ~= nil
+        if not (word:match("^%l+$") or capped) then return nil end
+        local w = word:lower()
+        if known(w) then return nil end            -- it is already a word
+
+        local seen, hits, n = {}, nil, 0
+        local function try(cand)
+            if cand == w or seen[cand] then return end
+            seen[cand] = true
+            if known(cand) then n = n + 1 ; hits = cand end
+        end
+        for i = 1, #w - 1 do                        -- swap two neighbours
+            try(w:sub(1, i - 1) .. w:sub(i + 1, i + 1) .. w:sub(i, i)
+                .. w:sub(i + 2))
+        end
+        -- 🚨 ONE LETTER TOO MANY — BUT ONLY A LETTER THAT WAS ALREADY
+        -- COMING. Deleting ANY letter is where a word list starts
+        -- rewriting words it has simply never heard of. MEASURED against
+        -- the real /usr/share/dict/words: unrestricted deletion turned
+        -- rsync into sync, backend into backed and frontend into fronted
+        -- — three of 104 ordinary words, which is three too many for a
+        -- feature that edits LL's text without asking. Restricting it to
+        -- a letter that REPEATS within the next two positions — a doubled
+        -- letter (somethingg, somethinng) or one typed early
+        -- (somtething) — caught MORE typos, 17 of 18 including all five
+        -- LL listed by name, and changed NONE of those 104 words.
+        for i = 1, #w do
+            if w:sub(i, i) == w:sub(i + 1, i + 1)
+               or w:sub(i, i) == w:sub(i + 2, i + 2) then
+                try(w:sub(1, i - 1) .. w:sub(i + 1))
+            end
+        end
+        for i = 1, #w + 1 do                        -- one letter missing
+            for c = 97, 122 do
+                try(w:sub(1, i - 1) .. string.char(c) .. w:sub(i))
+            end
+        end
+        for i = 1, #w - 2 do                        -- three turned round
+            try(w:sub(1, i - 1) .. w:sub(i + 2, i + 2) .. w:sub(i + 1, i + 1)
+                .. w:sub(i, i) .. w:sub(i + 3))
+        end
+        -- 🚨 EXACTLY ONE. Two real words a single edit away is a guess,
+        -- and this feature is only worth having if it never guesses.
+        if n ~= 1 or not hits then return nil end
+        if capped then return hits:sub(1, 1):upper() .. hits:sub(2) end
+        return hits
+    end
+    _G.acSpellCorrection = acSpellCorrection   -- the gate reads it directly
+
+    -- The live wrapper: the pure rule, plus the reasons this Mac might
+    -- not be able to answer at all. A word list still loading, missing,
+    -- or switched off means the word passes through untouched — it never
+    -- means a guess.
+    local function acSpellFor(word)
+        if not acSpell.on or not acSpellWords then return nil end
+        if autocorrectAllow[word] then return nil end   -- ⇪Z said no
+        return acSpellCorrection(word, function(w)
+            return acSpellWords[w] == true
+        end, acSpell.minLen)
+    end
+
+    -- 🚨 SLICED, BECAUSE THIS IS THE THREAD THAT READS THE KEYBOARD.
+    -- /usr/share/dict/words is ~235,000 lines: the READ is cheap (a local
+    -- system file, never a OneDrive placeholder — that distinction is the
+    -- whole 6.152.x stall story), but folding it into a table in one go
+    -- is a visible hitch. So it goes in at acSpell.slice words per turn
+    -- of the event loop, on a HELD timer, and until it is finished the
+    -- check is simply not asked. NOTHING waits for it, and a Mac where
+    -- the file is missing says so once and carries on with everything
+    -- else working exactly as before.
+    local function acSpellLoad()
+        -- 🚨 CLEARED FIRST. A reload that cannot read the file used to
+        -- leave the PREVIOUS set live while the state said "no word
+        -- list" — the report and the behaviour disagreeing, which is the
+        -- one thing a report must never do. Found by the check that
+        -- points wordsFile at a file that is not there.
+        acSpellWords, acSpellCount = nil, 0
+        if not acSpell.on then
+            acSpellState = "off — acSpell.on is false"
+            return
+        end
+        local f = io.open(acSpell.wordsFile, "r")
+        if not f then
+            acSpellState = "no word list at " .. tostring(acSpell.wordsFile)
+            print("✏️ " .. acSpellState .. " — the dictionary check is off."
+                  .. " Your rows and the TWo-caps rule are unaffected.")
+            return
+        end
+        local okR, body = pcall(function() return f:read("*a") end)
+        pcall(function() f:close() end)
+        if not (okR and type(body) == "string" and body ~= "") then
+            acSpellState = "the word list could not be read"
+            print("✏️ " .. acSpellState .. " — the dictionary check is off.")
+            return
+        end
+        local set, n, pos = {}, 0, 1
+        acSpellState = "reading the word list"
+        local function step()
+            local done = 0
+            while done < (tonumber(acSpell.slice) or 20000) do
+                if pos > #body then
+                    acSpellWords, acSpellCount = set, n
+                    acSpellState = "ready"
+                    _G.acSpellTimer = nil
+                    _G.diag.say("autocorrect", string.format(
+                        "dictionary check ready: %d words from %s",
+                        n, acSpell.wordsFile))
+                    return
+                end
+                local nl = body:find("\n", pos, true)
+                local word = body:sub(pos, (nl or (#body + 1)) - 1)
+                pos = (nl or #body) + 1
+                word = word:lower():gsub("%s", "")
+                -- Letters only. A hyphenated or apostrophised entry can
+                -- never be a candidate here anyway (the rule refuses
+                -- those shapes), so keeping it would only cost memory.
+                if word ~= "" and word:match("^%l+$") then
+                    if not set[word] then n = n + 1 end
+                    set[word] = true
+                end
+                done = done + 1
+            end
+            _G.acSpellTimer = hs.timer.doAfter(0, step)
+        end
+        step()
+    end
+
     -- The decision for one completed word: returns the corrected word, or
     -- nil if it's fine as typed. Dictionary first, then the TWo-caps rule.
-    local function autocorrectFor(word)
+    -- 📌 6.200.0 — IT NAMES ITS SOURCE: "dictionary" (a row LL wrote),
+    -- "rule" (TWo-caps) or "spelling" (the word list). The caller used to
+    -- work out which by looking the word up a SECOND time; one answer
+    -- from one place cannot drift from itself.
+    -- 🔒 spellOK MUST BE EXACTLY true. It fails CLOSED on purpose — a
+    -- caller that forgets to pass it gets no dictionary check at all,
+    -- rather than one everywhere including the places it must not speak
+    -- (6.197.1's lesson, on the feature that acts on every word typed).
+    local function autocorrectFor(word, spellOK)
         if #word < 2 then return nil end
         local hit = autocorrectDict[word:lower()]
         if hit then
             local fixed = autocorrectApplyCase(word, hit)
-            if fixed ~= word then return fixed end
+            if fixed ~= word then return fixed, "dictionary" end
             return nil
         end
         if #word >= 3 and word:match("^%u%u%l") and word:match("^%a+$")
            and not autocorrectAllow[word] then
-            return word:sub(1, 1) .. word:sub(2, 2):lower() .. word:sub(3)
+            return word:sub(1, 1) .. word:sub(2, 2):lower() .. word:sub(3),
+                   "rule"
+        end
+        -- 6.200.0 — the word list is asked LAST, so it only ever sees a
+        -- word no deliberate row and no rule has already claimed.
+        if spellOK == true then
+            local spelled = acSpellFor(word)
+            if spelled and spelled ~= word then return spelled, "spelling" end
         end
         return nil
     end
@@ -226,15 +451,42 @@ function M.setup(core)
         [117] = true, -- forward delete
     }
 
-    local function acIsExcludedApp()
+    local function acFrontAppName()
         local ok, app = pcall(hs.application.frontmostApplication)
-        if not ok or not app then return false end
+        if not ok or not app then return nil end
         local okN, name = pcall(function() return app:name() end)
-        if not okN or not name then return false end
+        if not okN or type(name) ~= "string" then return nil end
+        return name
+    end
+
+    local function acIsExcludedApp()
+        local name = acFrontAppName()
+        if not name then return false end
         for _, ex in ipairs(autocorrectExcludedApps) do
             if name == ex then return true end
         end
         return false
+    end
+
+    -- 🔒 6.200.0 — WHERE THE DICTIONARY CHECK DOES NOT SPEAK. The CSV
+    -- dictionary and the TWo-caps rule are unaffected by any of this;
+    -- only the word list stands down, because only the word list is
+    -- guessing. It FAILS CLOSED: an app it cannot name is not silently
+    -- trusted, and a Mac that cannot answer about secure input is
+    -- treated as if the lock were on.
+    local function acSpellHereOK()
+        if not acSpell.on or not acSpellWords then return false end
+        local okS, secure = pcall(hs.eventtap.isSecureInputEnabled)
+        if (not okS) or secure then
+            acSpellDown = acSpellDown + 1
+            return false
+        end
+        local name = acFrontAppName()
+        if not name then acSpellDown = acSpellDown + 1 return false end
+        for _, ex in ipairs(acSpell.offIn or {}) do
+            if name == ex then acSpellDown = acSpellDown + 1 return false end
+        end
+        return true
     end
 
     local function acInject(word, fixed, boundary, wasRule)
@@ -356,9 +608,18 @@ function M.setup(core)
                 local word = acBuffer
                 acBuffer = ""
                 if _G.autocorrectEnabled and #word >= 2 then
-                    local fixed = autocorrectFor(word)
+                    local fixed, source = autocorrectFor(word, acSpellHereOK())
                     if fixed and not acIsExcludedApp() then
-                        local wasRule = (autocorrectDict[word:lower()] == nil)
+                        -- A rule fix and a spelling fix are both undone AND
+                        -- permanently refused by ⇪Z, because acSpellFor
+                        -- asks autocorrectAllow too — so 6.199.0's report
+                        -- and _G.autocorrectForget already govern this.
+                        local wasRule = (source ~= "dictionary")
+                        if source == "spelling" then
+                            acSpellFixed = acSpellFixed + 1
+                            table.insert(acSpellFixes, 1, word .. " → " .. fixed)
+                            acSpellFixes[(acSpell.keep or 12) + 1] = nil
+                        end
                         local it
                         it = hs.timer.doAfter(0.01, function()
                             acInject(word, fixed, ch, wasRule)
@@ -608,6 +869,28 @@ function M.setup(core)
         else
             L[#L + 1] = "   dead rows    : none"
         end
+        -- 📖 6.200.0 — the word list, and every reason it might not be
+        -- answering. "Not loaded yet", "no file", "off" and "ready but it
+        -- has never had to change anything" are four different things and
+        -- must never read as one.
+        L[#L + 1] = "   word list    : " .. acSpellState
+                    .. (acSpellState == "ready"
+                        and ("  · " .. acSpellCount .. " words · "
+                             .. acSpell.wordsFile) or "")
+        L[#L + 1] = "   spelling     : " .. acSpellFixed
+                    .. " word(s) corrected from it this session"
+                    .. (acSpellDown > 0
+                        and ("  · stood down " .. acSpellDown
+                             .. "× (a password field or an app below)") or "")
+        if #acSpellFixes > 0 then
+            for _, r in ipairs(acSpellFixes) do
+                L[#L + 1] = "      " .. r
+            end
+            L[#L + 1] = "      ↳ any of these wrong? ⇪Z right after it, or"
+            L[#L + 1] = "        _G.autocorrectForget(\"<the word>\") later."
+        end
+        L[#L + 1] = "   not asked in : " .. table.concat(acSpell.offIn or {}, ", ")
+        L[#L + 1] = "                  (and any password field)"
         local s = table.concat(L, "\n")
         print(s)
         return s
@@ -638,6 +921,7 @@ function M.setup(core)
                 local t0 = hs.timer.secondsSinceEpoch()
                 autocorrectSeedIfMissing()
                 autocorrectLoad()
+                acSpellLoad()          -- 6.200.0; slices itself, never blocks
                 _G.autocorrectStatus = string.format(
                     "ON (%d fixes, %d exceptions, ⌃⌥⌘S toggles)",
                     autocorrectDictCount, autocorrectAllowCount)

@@ -4,9 +4,56 @@
 -- =====================================================================
 -- 09-09-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.199.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.200.0
 -- =====================================================================
 
+-- NEW IN 6.200.0 — 📖 THE REAL DICTIONARY, NOT ANOTHER LIST TO KEEP:
+--   🚨 LL: "The actual word is somethgni, somethingg, somethinng,
+--      somethng, somtething" — five spellings of one word, listed to make
+--      the point that he should not have to keep adding custom rows for
+--      each. So the LAST thing the corrector tries is now macOS's own
+--      word list at /usr/share/dict/words: on every Mac, synced by
+--      nobody, and it catches all five without a row being written.
+--   🔒 THE RISK IS NOT MISSING A TYPO, IT IS "CORRECTING" A WORD THAT
+--      WAS RIGHT, because that list holds no names, no jargon and no
+--      identifiers. So it fires only when the word is 5+ letters, is
+--      letters ONLY with at most one leading capital (which is what keeps
+--      IDs, iPhone, camelCase and SKU7 out), is NOT itself a word, is not
+--      one of ⇪Z's learned exceptions, and EXACTLY ONE real word is a
+--      single edit away. Two candidates is a guess, and it does nothing.
+--   📏 AND THE TWO NUMBERS WERE MEASURED, NOT CHOSEN. Against the real
+--      word list, deleting ANY letter turned rsync into sync, backend
+--      into backed and frontend into fronted — three ordinary words in a
+--      104-word sample, which is three too many for something that edits
+--      his text without asking. Restricting a deletion to a letter that
+--      REPEATS within the next two positions (doubled: somethingg; or
+--      typed early: somtething) caught MORE typos — 17 of 18, all five of
+--      his among them — and changed NONE of the 104. The length floor is
+--      5 for the same reason: at 4, "repo" became "rope".
+--      The four edits: two neighbours swapped, a letter that was already
+--      coming, a letter missing, three neighbours turned round. That
+--      fourth one exists because "somethgni" is TWO adjacent swaps and a
+--      strict single-swap rule cannot see a word he listed by name.
+--      Substitution is deliberately absent — 25 candidates a letter, and
+--      where a word list starts rewriting what was already right.
+--   🤫 IT DOES NOT SPEAK in code editors, terminals or password fields
+--      (LL's own list), and it FAILS CLOSED: an app it cannot name, a Mac
+--      that cannot answer about secure input, a word list still loading or
+--      missing — every one of those means silence, never a guess. The
+--      list is folded in acSpell.slice words per turn on a HELD timer,
+--      because 235,000 lines in one go is a hitch on the thread that
+--      reads the keyboard.
+--   🔁 AND ⇪Z ALREADY GOVERNS IT. A word-list fix is undone and
+--      permanently refused by the same key, listed in the same
+--      `_G.autocorrectReport()` block 6.199.0 added, and removed by the
+--      same `_G.autocorrectForget("word")`. Nothing new to learn.
+--      The report names the list's state, counts what it changed and
+--      shows the last dozen, so an app that misfires gets added to
+--      `settings = { autocorrect = { offIn = {…} } }` from EVIDENCE.
+--      test_autocorrect 76 -> 114, twenty-four mutations, each proven to
+--      fail against the bug it names. 8,324 -> 8,362 checks, seventy-four
+--      stages. Rollback: `settings = { autocorrect = { on = false } }`.
+--
 -- NEW IN 6.199.0 — ✏️ WHAT ⇪Z LEARNS IS VISIBLE AND REVERSIBLE:
 --   🚨 LL: "I fixed HOw by deleting the entry and you can see that it
 --      is still HOw" — and then his grep of his own 11,000-line
@@ -51,39 +98,12 @@
 --      because the path it defended cannot happen in one session.
 --      8,299 -> 8,324 checks, seventy-four stages.
 --
--- NEW IN 6.198.1 — 🗂 A STORE IS A FILE, AND A FILE CAN BE ANY SHAPE:
---   🚨 LL's Console carried an error at doc_memory.lua:363 — `d.title`
---      on something that was not a table — thrown from the app_watcher
---      quit panel, which is to say every time he quit Word. dm.load()
---      took data.open whole on the strength of its OUTER type alone:
---      "it is a table" is not the same as "it is MY table". dm.open is
---      { app = { path = { title=, seen= } } }, and ONE value a single
---      level down that is not a table reached every reader. A store is a
---      FILE — written by an older build, truncated by a crash mid-write,
---      merged by OneDrive, hand-edited — so the loader validates the
---      shape it read, and says how many rows it dropped.
---   🔑 CLEANED ONCE AT THE LOADER, NOT GUARDED AT EVERY READ. openFor,
---      onQuit, diff, reopen and the report all walk that structure, so
---      five guards would be five places for one of them to drift. And
---      the report is the one that mattered: it walks dm.open with
---      pairs() too, so a bad store ALSO took out the diagnostic that
---      would have named the bad store. `dm.cleanOpen` / `dm.cleanLastOpen`
---      are pure, so the gate proves them with no Mac anywhere near.
---   🔎 AND THE REPORT SAYS WHICH OF THE THREE IT IS: never read,
---      read and every row sound, or read with N rows DROPPED — and what
---      that costs, which is a document the quit panel can no longer
---      offer to reopen and never anything on disk. 6.196.1's rule: "not
---      yet" and "nothing wrong" must not read the same.
---      test_doc_memory 40 -> 61, fourteen mutations, each proven to fail
---      against the bug it names. 8,278 -> 8,299 checks, seventy-four
---      stages.
---
--- (6.198.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.198.1 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.199.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.200.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -180,7 +200,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.199.0"
+_G.configVersion = "6.200.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------
