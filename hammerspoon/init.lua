@@ -4,9 +4,33 @@
 -- =====================================================================
 -- 09-10-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.201.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.202.0
 -- =====================================================================
 
+-- NEW IN 6.202.0 — 👁 THE PREVIEW PANE SHOWS THE ROW YOU ARE ON, NOT THE ONE BELOW:
+--   🐞 LL: "when I am on an entry it actually shows the one entry
+--      beneath the current line I am hovering over." The pane read the
+--      highlight correctly (chooser:selectedRow()) and then let its own
+--      guess — the row under the pointer, computed from a 56 pt header
+--      and 44 pt rows borrowed from window_move — overrule it. The real
+--      chooser is ~89 pt of query field over ~42 pt rows, so over the
+--      top half of every list the guess named the row BENEATH.
+--   🔎 And the guess never needed to exist: 6.154.0 wrote "HSChooser.m
+--      has no mouseMoved and no tracking area (checked, not assumed)" —
+--      checked in the wrong file. HSChooserTableView.m hover-selects the
+--      row under the pointer, so selectedRow() already IS the mouse
+--      answer. The guess is deleted; the pane shows the highlight for
+--      both hands and the pointer only decides the "🖱 under the pointer"
+--      tag. The pane and the highlight cannot disagree now, in any
+--      picker with a pane (⇪⇧V, ⇪⇧O, ⇪Y, ⇪⇧S, ⇪8 …), and a wheel
+--      scroll — 6.160.4's stated blind spot — is no longer one.
+--   🧪 The stub chooser follows the pointer as macOS does, with the
+--      CHOOSER's geometry rather than the module's, so a pointer on the
+--      true centre of row 1 fails the old code (it showed row 2) — 13
+--      rows fail with the guess put back. 133 -> 136 checks here,
+--      8,378 -> 8,381 overall (measured off the gate — 6.201.1's notes
+--      said 8,377, one under its own sum), seventy-four stages.
+--
 -- NEW IN 6.201.1 — 🚨 AND THE COLLECT TAB HAS BEEN IN THE 4 PM TASK ALL ALONG:
 --   🚨 Found by the adversarial read of 6.201.0, not by the bug report.
 --      sp.newTab is called with no `kind` (358), and sp.dayBody sweeps
@@ -25,51 +49,12 @@
 --      evidence, and a consequence you decide not to act on is one you
 --      are obliged to NAME. 8,375 -> 8,377 checks, seventy-four stages.
 --
--- NEW IN 6.201.0 — 📎 ⇪2 PUTS YOUR GRABS ON THE CLIPBOARD, AND ONLY THOSE:
---   🚨 LL: "Not working: sequential copy ⇪2 clipboard." He then pasted
---      what ⌘V actually gave him — the literal word "Collect", then
---      months of old grabs, with the two from that minute at the very
---      bottom — and "which by the way, I had no idea was happening".
---      Since 6.182.0 every press appended the selection to a 📎 Collect
---      TAB in the Scorp Pad and wrote THE WHOLE TAB to the pasteboard.
---      That tab is remembered in the store and was never emptied; the
---      COUNT beside it was not remembered, so the alert read "1 grab".
---   🔎 AND THE DIAGNOSIS THAT WAS WRONG, kept because the method
---      matters. This was blamed on the borrowed clipboard twice. 6.198.0
---      shipped a guard so the restore could not land on the caller's own
---      write; that guard is real and it works (LL's report: ten borrows
---      left alone, none put back) and it was never this bug. What was
---      not asked, through two releases, is the one question a clipboard
---      complaint turns on: what does ⌘V actually paste? ASK FOR THE
---      ARTEFACT BEFORE THEORISING ABOUT THE MECHANISM.
---   📎 The sequence lives in MEMORY now — no tab, no store, no 4 PM
---      task, no export. LL: "I'd like copy1, copy to be retained. And
---      put on the clipboard, not into Scorp Pad." His existing Collect
---      tab is left exactly where it is: this release stops feeding it,
---      it does not delete it, and `_G.scratchPadReport()` names it, says
---      how big it is and says nothing writes to it any more.
---   🔑 THE RESET RULE, LL's choice of the three offered: COPYING
---      ANYTHING ELSE STARTS A NEW SEQUENCE. We know the change counter
---      we last wrote, so a counter that has moved means somebody else
---      copied. Decided BEFORE the selection is read — power_tools
---      BORROWS the pasteboard to run ⌘C, so by the time the text comes
---      back the counter has moved and says nothing about who copied.
---      Neither counter nor contents readable means NOT ours, the
---      opposite default to pt.borrowIntact and deliberately so: each
---      protects the thing its own feature would otherwise destroy.
---   🧪 The test pasteboard grew a real change counter and getContents.
---      It had setContents alone — which is why this ran green for
---      nineteen releases. 196 -> 209 checks here, 8,362 -> 8,375
---      overall, seventy-four stages, and four mutations each proven to
---      fail the row written for it. ⇪2's hint card moved to CLIPBOARD &
---      OCR, because it files nothing into notes any more.
---
--- (6.200.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.201.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.201.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.202.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -166,7 +151,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.201.1"
+_G.configVersion = "6.202.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

@@ -534,6 +534,31 @@ repair to the loader. `dm.cleanOpen`/`dm.cleanLastOpen` are PURE and
 gate-proven; the report distinguishes never-read / read-and-sound /
 read-with-N-dropped, and says what a drop costs (a reopen the quit panel
 can no longer offer, never anything on disk).
+👁 THE PREVIEW PANE SHOWS THE HIGHLIGHT, FULL STOP (6.202.0,
+modules/clipboard_history.lua — the pane every picker gets through
+preview.open). hs.chooser FOLLOWS THE POINTER BY ITSELF:
+HSChooserTableView.m installs a tracking area and its mouseMoved:
+selects the row under the pointer (rowAtPoint → selectRowIndexes →
+scrollRowToVisible), and libchooser.m's selectedRow() returns that same
+selection — so selectedRow() is the mouse answer AND the keyboard
+answer. 6.154.0 wrote "HSChooser.m has no mouseMoved and no tracking
+area (checked, not assumed)" — checked in the WRONG FILE — and computed
+a second, geometric row from window_move's 56/44 constants where the
+chooser is ~89/42; that guess named the row BENEATH over the top half of
+every list and won the tie: LL's "one entry beneath", 6.160.4's ⇪Y
+symptom before it, and forty-eight releases of a suite whose pointer
+positions were built from the module's own constants, so it could not
+tell them wrong. RULES: a second opinion about something the platform
+already answers is DELETED, not tuned; "checked, not assumed" names the
+file; a stub's geometry is the PROVIDER's, never the module's.
+`previewRow` never reads pv.rowH / pv.top / math.floor (asserted against
+the source); 56/44 survive only to size the box the pane sits beside and
+the band that names the "🖱 under the pointer" tag — the tag is the one
+thing the pointer still decides, and it is a label, never a row. A wheel
+scroll is no longer a blind spot. NEXT, ALONE (one change at a time):
+the pane has no report — `_G.clipboardReport()` naming the row, the
+highlight and the hand, with "closed — last showed…" distinct from
+"never" (the verifier's shape).
 📋 THE BORROWED CLIPBOARD IS PUT BACK ONLY IF IT IS STILL OURS
 (6.198.0, modules/power_tools.lua). Reading a selection costs a ⌘C in
 any app that will not answer AXSelectedText, so pt.copySelection BORROWS
@@ -877,6 +902,16 @@ mirrors draw order: "closes last" IS "drawn under".
 
 ## Open items — update as they move
 
+- 6.202.0 verify with LL: ⇪⇧V, then move the mouse over any entry — the
+  pane on the right must show THAT entry, the one the list highlights,
+  with "🖱 under the pointer" in its header. Arrow up and down: it
+  follows the arrows. Then the one that was impossible before: scroll
+  the list with the wheel or the trackpad, hover an entry — still the
+  right one. Same in ⇪⇧O and ⇪Y (every picker with a pane shares this
+  code, so all of them got the fix). If the pane and the highlight EVER
+  differ again that is a new bug — the pane no longer has a guess of
+  its own to be wrong with — and the Console lines from that moment are
+  what to paste. Nothing else changed in this release, on purpose.
 - 6.201.0 verify with LL — THE ONE HE IS WAITING ON: in Chrome, select
   a sentence, ⇪2, select another, ⇪2 again, then ⌘V. It must paste those
   TWO and nothing else — no "Collect" line on top, no old text. Then the
@@ -904,9 +939,10 @@ mirrors draw order: "closes last" IS "drawn under".
   see that anything was created." Needs: refuse or clamp (length in
   BYTES, newlines, "/" and ":"), say so where he is looking, never lose
   the note. He also saw the window cover the whole screen once.
-  (2) ⇪⇧V's PREVIEW PANE IS ONE ROW OFF — "when I am on an entry it
-  actually shows the one entry beneath the current line". Off-by-one in
-  the row index the pane reads.
+  (2) ✅ FIXED 6.202.0 — ⇪⇧V's preview pane one row off. It was NOT an
+  index off-by-one: the pane's own geometric guess (56/44 vs ~89/42)
+  overruled the chooser's highlight, which macOS had already put under
+  the pointer. See 👁 above; the guess is deleted.
   (3) UNIFIED SEARCH TAKES NO MOUSE AND HAS NO DETAIL PANE — "I can only
   use the arrow keys. There also is no side window that shows the full
   entry." The chooser it replaced had both.
@@ -953,9 +989,9 @@ mirrors draw order: "closes last" IS "drawn under".
   mask, read-back verified), drags by its header, SAC Values are checkbox
   chips; ⇪Y ⌘⏎ copies the URL, ⌥⏎ opens in Safari (chrome.altBrowser).
 - 6.154.0 verify with LL: ⇪V/⇪⇧V preview pane follows arrows AND the mouse
-  (6.160.4: only a hand that MOVED has the pane — a resting pointer never
-  overrules the highlight; the scroll is estimated from the arrows, a
-  wheel scroll stays invisible — hs.chooser has no scroll getter); ⇪X
+  (6.160.4's moved-hand rule and scroll estimate are SUPERSEDED by
+  6.202.0 — the pane shows the chooser's highlight, which the chooser
+  itself moves under the pointer; no estimate, no wheel blind spot); ⇪X
   lands on a button/tab inside the typed cell (needs
   Accessibility; the badge names it; `_G.mouseGridReport()` has a snap
   line); ⇪6 🩺 report's verdict reads right on both Macs (work Mac: the
@@ -1701,11 +1737,12 @@ mirrors draw order: "closes last" IS "drawn under".
   the work Mac (`exp.icons = false` if it hurts). ⇪⇧T is FREE — do not
   spend it without LL. Past-task picker: ⇪T's fallback, ⇪space @asana,
   `_G.asanaOpenTaskChooser()`.
-- 6.160.4 verify with LL: with ⇪⇧3 on, ⇪Y's pane matches the highlight as
-  the arrows move; moving the mouse over a row shows that row with "🖱 under
-  the pointer" in the header; after arrowing past the bottom, hovering the
-  top visible row shows the right entry; 6.161.0: typing a query with the
-  pointer resting on a row puts the pane back on the highlight (row 1).
+- 6.160.4 verify with LL (SUPERSEDED 6.202.0 — the symptom it chased was
+  the geometric guess itself, now deleted; verify 6.202.0 instead): with
+  ⇪⇧3 on, ⇪Y's pane matches the highlight as the arrows move; moving the
+  mouse over a row shows that row with "🖱 under the pointer" in the
+  header; 6.161.0: typing a query with the pointer resting on a row puts
+  the pane back on the highlight (row 1).
 - 6.160.1 verify with LL: ⇪Y (and every picker) opens fully ON the
   screen with the pane beside it; first open after install prints one
   "placement was off the screen … clamped" Console line (the runaway

@@ -89,6 +89,44 @@ local HYPER, PROVIDED = {}, {}
 -- mouse, and a chooser that answers selectedRow / isVisible / hideCallback
 local CANVASES, TIMERS = {}, {}
 local SEL, VIS, MOUSE = 1, true, { x = 0, y = 0 }
+-- 🖱 6.202.0 — THE STUB CHOOSER FOLLOWS THE POINTER, AS macOS DOES.
+-- HSChooserTableView.m installs a tracking area and its mouseMoved:
+-- selects the row under the pointer (rowAtPoint → selectRowIndexes →
+-- scrollRowToVisible); libchooser.m's selectedRow() reads that same
+-- selection; and every arrow is selectChoice, which scrolls its row into
+-- view. So each look scrolls a CHANGED SEL into view, then — if MOUSE has
+-- MOVED since the chooser last looked and sits on a row — SEL becomes
+-- that row. On MOVEMENT only: a parked pointer fires no mouseMoved, which
+-- is the whole of 6.160.4's scenario; a pointer past the last row selects
+-- nothing (rowAtPoint is -1 there); a wheel scroll is CH.top set by hand.
+-- The geometry is the CHOOSER's, read off HSChooserWindow.xib: content
+-- 178 tall with the table's scroll view 84 tall at y=5 → 89 pt above the
+-- first row; rowHeight 40 + intercellSpacing 2 → 42 a row. It is
+-- deliberately NOT the module's pv.headH / pv.rowH: a stub built from the
+-- constants under test could never catch them being wrong, which is how
+-- 6.154.0's 56/44 ran green for forty-eight releases.
+local CH_HEAD, CH_ROW, CH_VIS, CH_W = 89, 42, 10, 576      -- 576 = 40% of 1440
+local CH = { top = 1, seen = nil, lastSel = nil }
+local function chooserLook(c)
+    if SEL ~= CH.lastSel then                    -- an arrow: scrolled into view
+        if SEL < CH.top then CH.top = SEL
+        elseif SEL > CH.top + CH_VIS - 1 then CH.top = SEL - CH_VIS + 1 end
+        CH.lastSel = SEL
+    end
+    local pt = _G.lastPopupPlacement and _G.lastPopupPlacement.point
+    local m = MOUSE
+    if not (pt and type(m) == "table") then return SEL end
+    if not CH.seen then CH.seen = { x = m.x, y = m.y } ; return SEL end   -- parked: no mouseMoved
+    if CH.seen.x == m.x and CH.seen.y == m.y then return SEL end
+    CH.seen = { x = m.x, y = m.y }
+    local n = type(c.rows) == "table" and #c.rows or 0
+    if m.x >= pt.x and m.x <= pt.x + CH_W
+       and m.y >= pt.y + CH_HEAD and m.y < pt.y + CH_HEAD + CH_VIS * CH_ROW then
+        local r = CH.top + math.floor((m.y - pt.y - CH_HEAD) / CH_ROW)
+        if r >= 1 and r <= n then SEL, CH.lastSel = r, r end
+    end
+    return SEL
+end
 hs = {
     json = { encode = enc, decode = dec },
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
@@ -104,7 +142,7 @@ hs = {
         -- the getters the preview pane asks (window_move asks the same two)
         function c:width(x) if x then return self end return 40 end
         function c:rows(x) if x then return self end return 10 end
-        function c:selectedRow() return SEL end
+        function c:selectedRow() return chooserLook(self) end
         -- 6.157.0: the r-th row AS SHOWN (the chooser's own filter included)
         function c:selectedRowContents(r) return (self.rows or {})[r or SEL] end
         function c:isVisible() return VIS end
@@ -566,9 +604,10 @@ out("\n=== 9. 👁 6.154.0 — the preview pane beside the picker ===\n")
 -- arrow up/down, or put my mouse cursor on an item? The view should
 -- show to the right of the window and be able to scroll or
 -- automatically expand to show that entry."
--- hs.chooser has no selection callback and does not follow the mouse,
--- so a poll reads selectedRow() and the row under the pointer; the pane
--- is a canvas beside the picker, sized to the text.
+-- hs.chooser has no selection callback, so a poll reads selectedRow() —
+-- which the chooser itself moves under the pointer (6.202.0; 6.154.0
+-- believed it did not, see the stub) — and the pane is a canvas beside
+-- the picker, sized to the text.
 do
     boot() ; C.loaded = true
     local LONG = {}
@@ -580,6 +619,7 @@ do
     _G.lastPopupPlacement = { screen = SCREEN, point = { x = 300, y = 180 },
                               chooser = C.chooser }
     SEL, VIS, MOUSE = 1, true, { x = 0, y = 0 }
+    CH.seen, CH.top, CH.lastSel = nil, 1, nil
     CANVASES, TIMERS = {}, {}
     local function pane() return C.pv.canvas end
     local function bodyText()
@@ -629,15 +669,25 @@ do
     check("…and what will not fit is ADMITTED in a footer, never clipped "
           .. "mid-word", footer():find("more line", 1, true) ~= nil, footer())
 
-    MOUSE = { x = box.x + 20, y = box.y + C.pv.headH + 2 * C.pv.rowH + 10 }
+    -- 🖱 6.202.0 — every pointer position below is the TRUE centre of a
+    -- chooser row (the stub's 89/42), never the module's idea of one: a
+    -- pointer derived from pv.headH / pv.rowH could not tell them wrong.
+    local function rowY(b, r) return b.y + CH_HEAD + (r - 1) * CH_ROW + CH_ROW // 2 end
+    MOUSE = { x = box.x + 20, y = rowY(box, 3) }
     TIMERS[1].fn()
-    check("🖱 the mouse over row 3 WINS over the keyboard: the pane shows 'third'",
-          bodyText() == "third", bodyText())
-    check("…and the pane says which one it is following",
+    check("🖱 the pointer moving onto row 3 — the chooser highlights it, as macOS "
+          .. "does — and the pane shows 'third'", bodyText() == "third", bodyText())
+    check("…and the pane says the pointer has it",
           C.pv.shown and C.pv.shown.how == "mouse" and C.pv.shown.row == 3)
+    MOUSE = { x = box.x + 20, y = rowY(box, 1) } ; TIMERS[1].fn()
+    check("🔑 6.202.0 — the pointer moving onto row 1 shows ROW 1: the pane shows "
+          .. "the HIGHLIGHT, never a row of its own arithmetic (56/44 read the true "
+          .. "centre of row 1 as row 2 — LL's 'one entry beneath')",
+          bodyText() == "first is short" and C.pv.shown.row == 1 and SEL == 1, bodyText())
     MOUSE = { x = 0, y = 0 } ; TIMERS[1].fn()
-    check("the mouse off the picker hands back to the keyboard",
-          bodyText():find("line 1 of", 1, true) ~= nil)
+    check("the pointer leaving the picker moves no highlight: the pane stays on row 1 "
+          .. "and only the tag goes back to the keyboard",
+          bodyText() == "first is short" and C.pv.shown.how == "keys", C.pv.shown.how)
     local drawsBefore = #CANVASES
     TIMERS[1].fn() ; TIMERS[1].fn()
     check("the same row twice costs no redraw — the poll is cheap when "
@@ -752,13 +802,15 @@ do
               end
           end)())
     local box3 = C.previewBox(other)
-    MOUSE = { x = box3.x + 20, y = box3.y + C.pv.headH + 0 * C.pv.rowH + 10 }
+    MOUSE = { x = box3.x + 20, y = rowY(box3, 1) }
     C.pv.poll.fn()
-    check("the mouse over row 1 wins there too", bodyText() == "first entry, whole", bodyText())
-    MOUSE = { x = box3.x + 20, y = box3.y + C.pv.headH + 7 * C.pv.rowH + 10 }
+    check("the pointer moving onto row 1 there too: the chooser highlights it and the "
+          .. "pane follows", bodyText() == "first entry, whole", bodyText())
+    MOUSE = { x = box3.x + 20, y = rowY(box3, 8) }
     C.pv.poll.fn()
-    check("the mouse past the END of a filtered list falls back to the keyboard's row",
-          bodyText() == "second entry, whole" and C.pv.shown.how == "keys", bodyText())
+    check("the pointer past the END of a two-row list selects nothing (rowAtPoint is -1 "
+          .. "there): the pane stays on the highlight, row 1",
+          bodyText() == "first entry, whole" and C.pv.shown.row == 1, bodyText())
     MOUSE = { x = 0, y = 0 }
     PROVIDED["preview.close"]()
     _G.lastPopupPlacement = { screen = SCREEN, point = { x = 300, y = 180 }, chooser = C.chooser }
@@ -779,11 +831,12 @@ do
         return ""
     end
     local box4 = C.previewBox(C.chooser)
-    local function rowY(box, r) return box.y + C.pv.headH + (r - 1) * C.pv.rowH + 10 end
+    CH.seen, CH.top, CH.lastSel = nil, 1, nil    -- the window opens under a parked pointer
     SEL = 1 ; MOUSE = { x = box4.x + 20, y = rowY(box4, 3) }   -- resting on row 3 already
     HYPER["|v"]()
     check("🖱 6.160.4 — a pointer already RESTING on row 3 when ⇪V opens does not "
-          .. "take the pane: it shows row 1, the highlighted row",
+          .. "take the pane: it shows row 1, the highlighted row (a parked pointer "
+          .. "fires no mouseMoved, so the chooser leaves the highlight alone too)",
           bodyText() == "first is short" and C.pv.shown and C.pv.shown.how == "keys",
           bodyText())
     C.pv.poll.fn() ; C.pv.poll.fn()
@@ -794,13 +847,13 @@ do
           bodyText():find("line 1 of a long", 1, true) ~= nil and C.pv.shown.how == "keys",
           bodyText():sub(1, 40))
     MOUSE = { x = box4.x + 21, y = rowY(box4, 3) } ; C.pv.poll.fn()
-    check("a twitch under clip.previewMousePx is not a move",
-          C.pv.shown.how == "keys" and C.pv.shown.row == 2, C.pv.shown.how)
+    check("a twitch under clip.previewMousePx does not earn the pointer the TAG — the "
+          .. "highlight is macOS's to move, and the pane shows wherever it is",
+          C.pv.shown.how == "keys" and C.pv.shown.row == SEL, C.pv.shown.how)
     MOUSE = { x = box4.x + 40, y = rowY(box4, 3) } ; C.pv.poll.fn()
     check("the pointer MOVING onto row 3 takes the pane: 'third'",
           bodyText() == "third" and C.pv.shown.how == "mouse", bodyText())
-    check("…and the header SAYS the mouse has it — the one time the pane and the "
-          .. "highlight are meant to differ",
+    check("…and the header SAYS the pointer has it",
           headText():find("under the pointer", 1, true) ~= nil, headText())
     C.pv.poll.fn()
     check("…and keeps it while the pointer rests there",
@@ -815,65 +868,85 @@ do
     -- selection never "changed" and a resting pointer kept the pane.
     MOUSE = { x = box4.x + 25, y = rowY(box4, 3) } ; C.pv.poll.fn()   -- moved onto row 3 again
     check("(the mouse has row 3 again)", C.pv.shown.how == "mouse" and C.pv.shown.row == 3)
-    C.chooser:query("ab") ; C.pv.poll.fn()      -- a letter typed; the highlight stays on row 1
-    check("🔤 6.161.0 — typing a query hands the pane BACK to the keyboard even though "
-          .. "the selection never moved off row 1",
+    C.chooser:query("ab") ; SEL = 1 ; C.pv.poll.fn()   -- a letter: the list reloads with the highlight on row 1
+    check("🔤 6.161.0 — typing a query hands the TAG back to the keyboard even though "
+          .. "the pointer has not left row 3",
           C.pv.shown.how == "keys" and C.pv.shown.row == 1 and bodyText() == "first is short",
           bodyText())
     C.pv.poll.fn()
     check("…and the pointer still resting on row 3 does not take it back",
           C.pv.shown.how == "keys" and C.pv.shown.row == 1)
     MOUSE = { x = box4.x + 20, y = box4.y + box4.h } ; C.pv.poll.fn()
-    check("the picker's bottom edge pixel is no row (6.161.0: one past the last row before)",
+    check("the picker's bottom edge pixel is no row: the tag stays with the keyboard",
           C.pv.shown.how == "keys" and C.pv.shown.row == 1)
     MOUSE = { x = 0, y = 0 } ; C.previewClose()
 
-    -- the row maths no longer assumes an unscrolled list: the first
-    -- visible row is estimated from the keyboard — a new list is taken
-    -- to start at the top, an arrow past either edge scrolls just far
-    -- enough to show the selection (HSChooser.m: selectChoice is
-    -- selectRowIndexes + scrollRowToVisible)
+    -- 🔑 6.202.0 — ASSERTED AGAINST THE SOURCE, because a stub chooser
+    -- that answers the mouse would also make a geometric guess look right
+    -- whenever its constants happened to agree: the row comes from the
+    -- chooser, and nothing in previewRow turns a pointer into a row.
+    local fh = realIoOpen(HS .. "/modules/clipboard_history.lua")
+    local src = fh and fh:read("a") or "" ; if fh then fh:close() end
+    local rowFn = src:match("function clip%.previewRow%(.-\n    end\n") or ""
+    check("🔑 6.202.0 — previewRow never turns the pointer into a ROW: no pv.rowH, no "
+          .. "pv.top, no math.floor in its body (put 6.154.0's guess back and this fails)",
+          #rowFn > 400 and not rowFn:find("pv.rowH", 1, true)
+          and not rowFn:find("pv.top", 1, true) and not rowFn:find("math.floor", 1, true),
+          #rowFn)
+    check("…and it still asks the chooser — selectedRow() is the row",
+          rowFn:find("chooser:selectedRow()", 1, true) ~= nil)
+    check("…and previewTick takes no third 'keyboard fallback' value from it — there is "
+          .. "no second opinion left to fall back to",
+          not src:find("r, how, alt", 1, true) and not src:find("pv.top", 1, true))
+
+    -- 🖱 6.202.0 — A SCROLLED LIST NEEDS NO MODEL HERE. 6.160.4 estimated
+    -- the first visible row from the arrows so its geometry could survive
+    -- a scrolled list, and named a wheel scroll as the blind spot. The
+    -- chooser's rowAtPoint knows its own scroll offset, so the row it
+    -- highlights under the pointer is right in a list the arrows
+    -- scrolled, in one the wheel scrolled, and in one that just got
+    -- narrower — and the pane only ever shows the highlight.
     local many = {}
     for i = 1, 23 do many[i] = { text = "row " .. i, rawText = "row " .. i .. ", whole" } end
     local shown = many
     local tall = hs.chooser.new(function() end)         -- 10 visible rows (the stub)
+    tall.rows = many                                    -- the stub's rowAtPoint needs a count
     _G.lastPopupPlacement = { screen = SCREEN, point = { x = 300, y = 180 }, chooser = tall }
-    SEL = 1 ; MOUSE = { x = 0, y = 0 }
+    SEL = 1 ; MOUSE = { x = 0, y = 0 } ; CH.seen, CH.top, CH.lastSel = nil, 1, nil
     PROVIDED["preview.open"](tall, function() return shown end)
     local box5 = C.previewBox(tall)
     SEL = 12 ; C.pv.poll.fn()
     check("↓ to row 12 of 23 in a ten-row picker: the pane follows",
           bodyText() == "row 12, whole", bodyText())
     MOUSE = { x = box5.x + 20, y = rowY(box5, 1) } ; C.pv.poll.fn()
-    check("the pointer on the TOP visible row of a list the arrows scrolled is row 3, "
-          .. "not row 1", C.pv.shown.how == "mouse" and C.pv.shown.row == 3
+    check("the pointer on the TOP visible row of a list the arrows scrolled: the chooser "
+          .. "highlights row 3 (rowAtPoint knows the offset) and the pane shows row 3",
+          C.pv.shown.how == "mouse" and C.pv.shown.row == 3
           and bodyText() == "row 3, whole", bodyText())
-    SEL = 5 ; C.pv.poll.fn()                    -- back up, still among rows 3-12
-    MOUSE = { x = box5.x + 40, y = rowY(box5, 1) } ; C.pv.poll.fn()
-    check("an arrow that stays among the visible rows scrolls nothing — the top row "
-          .. "is still 3", C.pv.shown.row == 3, C.pv.shown.row)
-    SEL = 2 ; C.pv.poll.fn()                    -- past the top edge
-    MOUSE = { x = box5.x + 20, y = rowY(box5, 1) } ; C.pv.poll.fn()
-    check("…past the top edge the selected row IS the top row",
-          C.pv.shown.row == 2 and bodyText() == "row 2, whole", bodyText())
-    SEL = 12 ; C.pv.poll.fn()                   -- scrolled again: top row 3
+    CH.top = 6                        -- a WHEEL scroll: three rows on, invisible to the module
+    MOUSE = { x = box5.x + 40, y = rowY(box5, 2) } ; C.pv.poll.fn()
+    check("🔑 6.202.0 — after a WHEEL scroll the pane is still right: the pointer on the "
+          .. "second visible row shows row 7 — 6.160.4's one honest limit went with the "
+          .. "arithmetic that had it",
+          C.pv.shown.row == 7 and bodyText() == "row 7, whole", bodyText())
     local fewer = {}
     for i = 1, 11 do fewer[i] = many[i] end
-    shown = fewer ; SEL = 5 ; C.pv.poll.fn()    -- a search narrowed the list
-    MOUSE = { x = box5.x + 40, y = rowY(box5, 1) } ; C.pv.poll.fn()
-    check("a NEW list is taken to start at the top again: the top visible row is row 1",
+    shown = fewer ; tall.rows = fewer ; SEL = 1 ; CH.top = 1 ; C.pv.poll.fn()   -- narrowed: a reload, highlight on 1
+    MOUSE = { x = box5.x + 20, y = rowY(box5, 1) } ; C.pv.poll.fn()
+    check("a narrowed list: the pointer on its first row shows row 1",
           C.pv.shown.row == 1 and bodyText() == "row 1, whole", bodyText())
     -- 6.161.0: for a picker that filters for itself the row COUNT is the
     -- typing signal (its query is its own business)
-    SEL = 1 ; MOUSE = { x = box5.x + 30, y = rowY(box5, 2) } ; C.pv.poll.fn()   -- the mouse takes row 2
-    check("(the mouse has a row of the narrowed list)", C.pv.shown.how == "mouse")
-    shown = many ; C.pv.poll.fn()               -- the box emptied: 23 rows again, highlight on 1
+    MOUSE = { x = box5.x + 30, y = rowY(box5, 2) } ; C.pv.poll.fn()   -- the pointer takes row 2
+    check("(the mouse has a row of the narrowed list)",
+          C.pv.shown.how == "mouse" and C.pv.shown.row == 2, C.pv.shown.how)
+    shown = many ; tall.rows = many ; SEL = 1 ; C.pv.poll.fn()   -- the box emptied: 23 rows again, highlight on 1
     check("a list that changed size under a resting pointer is the keyboard's again",
           C.pv.shown.how == "keys" and C.pv.shown.row == 1, C.pv.shown.how)
     MOUSE = { x = 0, y = 0 }
     PROVIDED["preview.close"]()
-    check("closing forgets the hand, the pointer and the scroll",
-          C.pv.hand == "keys" and C.pv.lastMouse == nil and C.pv.top == 1)
+    check("closing forgets the hand and the pointer",
+          C.pv.hand == "keys" and C.pv.lastMouse == nil)
     _G.lastPopupPlacement = { screen = SCREEN, point = { x = 300, y = 180 }, chooser = C.chooser }
 
     -- the wrap is arithmetic, and it keeps indentation

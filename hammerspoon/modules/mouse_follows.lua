@@ -48,7 +48,8 @@
 --     mousedown is how a drag starts on the wrong thing.
 --   · Never warps to its own windows (the pads, the pickers, the sheet):
 --     they place themselves, and a pointer landing in a chooser would
---     hover-select a row (the preview pane follows the mouse, 6.154.0).
+--     hover-select a row (hs.chooser's own mouseMoved: does that; the
+--     preview pane shows whatever it highlighted, 6.202.0).
 --   · Never warps while the config is paused (⇪⇧1, _G.hsPaused) — the
 --     pause means "stop acting on my behalf", and this acts.
 --   · Never uses hs.window.filter, hs.window.orderedWindows, or a timer

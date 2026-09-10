@@ -238,18 +238,24 @@ function M.setup(core)
     -- show to the right of the window and be able to scroll or
     -- automatically expand to show that entry."
     --
-    -- hs.chooser has no selection-changed callback, and it does NOT follow
-    -- the mouse — HSChooser.m has no mouseMoved and no tracking area
-    -- (checked, not assumed) — so both halves of the ask are answered by
-    -- ONE small poll that runs only while a picker is on screen:
-    --   · the KEYBOARD answer is chooser:selectedRow()
-    --   · the MOUSE answer is the row under the pointer, computed from the
-    --     picker's box — the placement record plus window_move's row
-    --     constants, because macOS gives a chooser no frame getter. The
-    --     mouse wins while it is inside the picker, the keyboard the rest
-    --     of the time — a rule 6.160.4 narrowed to the hand that MOVED,
-    --     see below. (One honest limit: the box maths assumed the list
-    --     was scrolled to its top; 6.160.4 estimates the scroll instead.)
+    -- hs.chooser has no selection-changed callback, so ONE small poll
+    -- runs only while a picker is on screen and asks it which row is
+    -- highlighted: chooser:selectedRow(). Since 6.202.0 that is the
+    -- WHOLE answer — for the arrows AND for the mouse — because the
+    -- chooser follows the pointer by itself: HSChooserTableView.m
+    -- installs a tracking area and its mouseMoved: selects the row under
+    -- the pointer (rowAtPoint → selectRowIndexes → scrollRowToVisible),
+    -- and libchooser.m's selectedRow() reads that same table selection.
+    -- 6.154.0 believed the opposite ("HSChooser.m has no mouseMoved and
+    -- no tracking area — checked, not assumed": checked in the WRONG
+    -- FILE) and computed a second, geometric answer from the picker's
+    -- box and window_move's 56/44 row constants; the real band is ~89 pt
+    -- of query field and ~42 pt a row, so over the top half of every
+    -- list the guess named the row BENEATH the highlight — and won the
+    -- tie. See 🖱 6.202.0 below. The box (placement record + those
+    -- constants; macOS gives a chooser no frame getter) is still
+    -- computed, for two things that tolerate a rough number: where the
+    -- pane goes, and whether the pointer is over the rows at all.
     -- The pane is an hs.canvas beside the picker — to the RIGHT when it
     -- fits, else the left — sized to the text down to the screen's bottom
     -- edge ("automatically expand"); what will not fit ends in an honest
@@ -288,24 +294,36 @@ function M.setup(core)
     -- row, the keyboard takes it back the moment the selection changes,
     -- and a still pointer never overrules the highlight. While the mouse
     -- is the hand the pane's header says so ("🖱 under the pointer") —
-    -- that is the one time the pane and the highlight are meant to
-    -- differ. The row maths also stops assuming an unscrolled list: the
-    -- first visible row is estimated from the keyboard — a new list is
-    -- taken to start at the top (the usual order is type, then arrow;
-    -- NSTableView keeps its scroll offset across a reload, and the
-    -- selection pulls the estimate back to wherever the arrows put it),
-    -- and an arrow that walks the selection past either edge scrolls
-    -- the list just far enough to show it (HSChooser.m: every arrow is
-    -- selectChoice, which is selectRowIndexes + scrollRowToVisible; it
-    -- has no hover code at all, which is why the pane polls). A wheel
-    -- scroll is still invisible (hs.chooser has no scroll getter), so it
-    -- stays the one honest limit.
+    -- that was the one time the pane and the highlight were meant to
+    -- differ. (6.160.4 also estimated the list's scroll from the arrows
+    -- so the geometry could survive a scrolled list, with a wheel scroll
+    -- as its stated blind spot — both gone with the geometry, below.)
+    --
+    -- 🖱 6.202.0 — THE PANE SHOWS THE HIGHLIGHT, FULL STOP. LL: "when I
+    -- am on an entry it actually shows the one entry beneath the current
+    -- line I am hovering over." The highlight he was on WAS the row under
+    -- the pointer — macOS had already moved it there (HSChooserTableView.m
+    -- mouseMoved:) — and the pane's own guess, built on 56/44 where the
+    -- chooser is ~89/42, resolved most of every row to the one below and
+    -- overruled it. So the guess is gone: previewRow returns
+    -- selectedRow() for BOTH hands, and the pointer decides one thing
+    -- only — whether the header says "🖱 under the pointer", which it
+    -- does once the pointer has MOVED onto the rows (6.160.4's rule,
+    -- kept for the label). The pane and the highlight can no longer
+    -- disagree, which also ends 6.160.4's ⇪Y symptom for good, and a
+    -- wheel scroll is no longer a blind spot: the chooser's rowAtPoint
+    -- knows its own scroll offset, so the pane never has to. Left alone
+    -- on purpose: init.lua's off-screen clamp carries the same 56/44 (a
+    -- tolerance), and window_move's constants size a grab band padded
+    -- 24 pt a side, where the error is invisible.
     clip.pv = { canvas = nil, poll = nil, chooser = nil, rowsFn = nil,
                 lastKey = nil, gen = 0, hiddenAt = nil,
-                rowH = 44, headH = 56,    -- window_move's chooserRowH / chooserHeadH
-                -- 6.160.4: which hand has the pane, what each hand last
-                -- did, and the estimated first visible row
-                hand = "keys", lastMouse = nil, lastSel = nil, top = 1, lastN = nil,
+                -- window_move's chooserRowH / chooserHeadH. 6.202.0: they
+                -- size the box the pane sits beside and the band that
+                -- names the hand — they never pick the ROW (see above)
+                rowH = 44, headH = 56,
+                -- 6.160.4: which hand has the pane and what each last did
+                hand = "keys", lastMouse = nil, lastSel = nil, lastN = nil,
                 lastQuery = nil }
     local pv = clip.pv
 
@@ -319,7 +337,7 @@ function M.setup(core)
         if pv.poll   then pcall(function() pv.poll:stop()     end) ; pv.poll = nil end
         if pv.canvas then pcall(function() pv.canvas:delete() end) ; pv.canvas = nil end
         pv.chooser, pv.rowsFn, pv.lastKey, pv.shown, pv.hiddenAt = nil, nil, nil, nil, nil
-        pv.hand, pv.lastMouse, pv.lastSel, pv.top, pv.lastN = "keys", nil, nil, 1, nil
+        pv.hand, pv.lastMouse, pv.lastSel, pv.lastN = "keys", nil, nil, nil
         pv.lastQuery = nil
     end
 
@@ -362,42 +380,27 @@ function M.setup(core)
                  h = pv.headH + rows * pv.rowH }, sf
     end
 
-    -- Which row to show. 6.154.0 said "the mouse while it is inside the
-    -- picker's rows, otherwise the keyboard" and 6.160.4 found that rule
-    -- wrong the moment the pointer merely RESTS inside the picker (THE
-    -- LAST HAND THAT MOVED, above). Now the mouse takes the pane when it
-    -- MOVES onto a row, the keyboard takes it back when the selection
-    -- changes, and a still pointer never overrules the highlight. nil =
-    -- nothing to show. The second value names the hand; the third is the
-    -- keyboard's row when the mouse won, so a mouse row that turns out to
-    -- hold nothing (past the end of a filtered list) can fall back to it.
+    -- Which row to show: the chooser's own highlight, whichever hand put
+    -- it there (6.202.0 — the chooser hover-selects, see above). The
+    -- second value names the hand for the header: "mouse" once the
+    -- pointer has MOVED onto the rows, "keys" the moment an arrow or a
+    -- letter takes over, and a pointer merely resting there never earns
+    -- the tag (6.160.4). nil = nothing to show.
     function clip.previewRow(chooser, box, n)
         local sel
         pcall(function() sel = chooser:selectedRow() end)
         if not (type(sel) == "number" and sel >= 1 and sel <= n) then sel = nil end
         -- 6.161.0: TYPING is keyboard activity too. A query rebuilds the
         -- list with the highlight back on row 1 — which it usually already
-        -- was — so the selection never "changes" and a pointer resting on
-        -- row 3 kept the pane on the new list's third row while the
-        -- highlight sat on the first: the 6.160.4 symptom through a whole
-        -- typing session. The query text (and, for a picker that filters
-        -- for itself, the row count) is read alongside the selection.
+        -- was — so the selection never "changes"; the query text (and, for
+        -- a picker that filters for itself, the row count) is read
+        -- alongside the selection so a letter hands the tag back.
         local q
         pcall(function() q = chooser:query() end)
         if type(q) ~= "string" then q = nil end
         local typed = (q ~= nil and pv.lastQuery ~= nil and q ~= pv.lastQuery)
                       or (pv.lastN ~= nil and n ~= pv.lastN)
-        pv.lastQuery = q
-        -- the first visible row, estimated: a new list is taken to start
-        -- at the top, an arrow past either edge scrolls just far enough to
-        -- show the selection (selectChoice → scrollRowToVisible), and the
-        -- selection pulls the estimate along from there
-        if n ~= pv.lastN then pv.top, pv.lastN = 1, n end
-        local vis = math.max(1, math.floor((box.h - pv.headH) / pv.rowH + 0.5))
-        if sel then
-            if sel < pv.top then pv.top = sel
-            elseif sel > pv.top + vis - 1 then pv.top = sel - vis + 1 end
-        end
+        pv.lastQuery, pv.lastN = q, n
         local m
         pcall(function() m = hs.mouse.absolutePosition() end)
         if not (type(m) == "table" and type(m.x) == "number"
@@ -412,19 +415,16 @@ function M.setup(core)
                 moved, pv.lastMouse = true, { x = m.x, y = m.y }
             end
         end
-        local mouseRow
-        if m and m.x >= box.x and m.x <= box.x + box.w
-           and m.y >= box.y + pv.headH and m.y < box.y + box.h then   -- < : the edge pixel is no row
-            local r = pv.top + math.floor((m.y - box.y - pv.headH) / pv.rowH)
-            if r >= 1 and r <= n then mouseRow = r end
-        end
+        -- over the rows at all? — the band under the query field (< : the
+        -- bottom edge pixel is no row). This decides the LABEL, never the row.
+        local overRows = m ~= nil and m.x >= box.x and m.x <= box.x + box.w
+                         and m.y >= box.y + pv.headH and m.y < box.y + box.h
         local selChanged = pv.lastSel ~= nil and sel ~= pv.lastSel
         pv.lastSel = sel
-        if not mouseRow then pv.hand = "keys"          -- off the rows: the keyboard's
+        if not overRows then pv.hand = "keys"          -- off the rows: the keyboard's
         elseif moved then pv.hand = "mouse"             -- onto a row: the mouse's
         elseif selChanged or typed then pv.hand = "keys" end  -- an arrow, a letter: the keyboard's
-        if pv.hand == "mouse" and mouseRow then return mouseRow, "mouse", sel end
-        if sel then return sel, "keys" end
+        if sel then return sel, pv.hand end
         return nil
     end
 
@@ -592,13 +592,9 @@ function M.setup(core)
             if type(t) == "table" and next(t) ~= nil then return t end
             return nil
         end
-        local r, how, alt = nil, nil, nil
-        if box then r, how, alt = clip.previewRow(ch, box, n) end
+        local r, how
+        if box then r, how = clip.previewRow(ch, box, n) end
         local entry = r and rowAt(r)
-        if not (entry and type(entry.rawText) == "string") and alt then
-            r, how = alt, "keys"          -- the mouse sat past the list's end
-            entry = rowAt(r)
-        end
         if not (entry and type(entry.rawText) == "string") then
             -- an action row, an empty list, or nowhere to put the pane:
             -- take it down (a fresh one is cheap) and keep polling

@@ -5,6 +5,61 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.202.0 — 👁 THE PREVIEW PANE SHOWS THE ROW YOU ARE ON, NOT THE ONE BELOW:
+  🐞 LL, on ⇪⇧V: "when I am on an entry it actually shows the one entry
+     beneath the current line I am hovering over." He was right, and it
+     was every picker with a pane, not ⇪⇧V alone — 6.190.0 moved ⇪V into
+     the ⇪space panel, whose hover is real DOM hover, which left ⇪⇧V as
+     the chooser-with-a-pane he uses most; the fault itself dates from
+     6.154.0 and is the one 6.160.4 chased in ⇪Y.
+  🔎 The pane read the highlight correctly — chooser:selectedRow() — and
+     then let its OWN guess overrule it: the row under the pointer,
+     computed from the picker's box with a 56 pt header and 44 pt rows
+     borrowed from window_move, where they only size a grab band padded
+     24 pt a side. The real chooser (HSChooserWindow.xib) is ~89 pt of
+     query field over ~42 pt rows, so for roughly the top half of every
+     list the guess resolved most of each row to the one BENEATH — and
+     the guess won the tie whenever the pointer had moved.
+  🚨 And it never needed to exist. 6.154.0's comment read "HSChooser.m
+     has no mouseMoved and no tracking area (checked, not assumed)". It
+     was checked in the WRONG FILE: HSChooserTableView.m installs a
+     tracking area and its mouseMoved: selects the row under the pointer
+     (rowAtPoint → selectRowIndexes → scrollRowToVisible), and
+     libchooser.m's selectedRow() returns that same selection. macOS was
+     already putting the highlight under the pointer; the row LL was
+     "on" was the right row all along. So the guess is deleted:
+     previewRow returns selectedRow() for both hands, and the pointer
+     decides one thing — whether the header says "🖱 under the pointer"
+     (6.160.4's moved-not-resting rule, kept for the tag). The pane and
+     the highlight can no longer disagree, in any picker, and a wheel
+     scroll — 6.160.4's "one honest limit" — is not a limit any more,
+     because the chooser's rowAtPoint knows its own scroll offset and
+     the pane never has to. Deleted with it: the scroll estimate and
+     previewTick's "keyboard fallback" third value; 56/44 stay only to
+     size the box the pane sits beside and the band that names the tag.
+     init.lua's off-screen clamp and window_move keep their 56/44 —
+     tolerances there, left alone.
+  🧪 The suite could not see this: the stub chooser returned SEL no
+     matter where MOUSE was, and every pointer in the checks was built
+     from pv.headH / pv.rowH — the model under test — so the checks
+     passed identically at 56/44 and at 89/42. Now the stub follows the
+     pointer as macOS does (on MOVEMENT, never a parked pointer; a
+     pointer past the last row selects nothing; a wheel scroll is its
+     own offset), with the CHOOSER's geometry written in, and a pointer
+     on the true centre of row 1 shows row 1 — the old module shows row
+     2 there, which is LL's report in one row. Thirteen rows fail with
+     the guess put back, three of them 🔑: the row-1 check, the source
+     assertion that previewRow never turns a pointer into a row, and the
+     wheel scroll. 133 -> 136 here, 8,378 -> 8,381 overall, seventy-four
+     stages — MEASURED off the gate's own per-suite lines: 6.201.1's notes
+     said 8,377, one under the sum, which is the ceremony's whole point.
+  📏 THE RULE: when a tool holds a second opinion about something the
+     platform already answers, delete the opinion rather than tune it —
+     and "checked, not assumed" is worth nothing unless it names the
+     file it checked. Not shipped with this, deliberately (one change at
+     a time): the pane has no report — `_G.clipboardReport()` naming the
+     row, the highlight and the hand is the next change, alone.
+
 NEW IN 6.201.1 — 🚨 AND THE COLLECT TAB HAS BEEN IN THE 4 PM TASK ALL ALONG:
   🚨 Found by the adversarial read OF 6.201.0, hours after it shipped,
      and not by any bug report — LL never knew to complain about it
