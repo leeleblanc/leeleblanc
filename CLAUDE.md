@@ -109,12 +109,51 @@ keys and became the "+ 🗒 Capture" / "+ ➕ Append" ROWS in the vault's
 📝 SCRATCH NOTES section — same `openKind`, `pad.openHere()` keeps the
 route for ⇪space/services, `np.laptopKey = nil`. RULE: a tool that lives
 inside another tool's window does not also get its own hyper key.
-📎 ⇪2 SEQUENTIAL COPY (`sp.collect` / `sp.collectFromSelection`): appends
-the selection to the ONE 📎 Collect tab (`sp.collectId`, remembered in the
-store) AND puts the whole block on the clipboard, so ⌘V pastes the lot.
-It NEVER raises the window. The selection comes from
-`power.readSelection` — do not grow a second selection reader. A refused
-pasteboard is reported and the grab still stands.
+📎 ⇪2 SEQUENTIAL COPY (6.182.0, REBUILT 6.201.0 — `sp.collect` /
+`sp.collectFromSelection`): the grabs join into ONE block on the
+CLIPBOARD and nowhere else. `sp.collect` is PURE — it appends to
+`sp.collectSeq` and returns the joined block; no tab, no store, no
+window, no alert, so the whole rule is provable without a Mac. It NEVER
+raises the window, and the selection comes from `power.readSelection` —
+do not grow a second selection reader.
+🚨 WHAT IT DID UNTIL 6.201.0, because the shape recurs: it appended each
+grab to a 📎 Collect TAB and put `t.text`, THE WHOLE TAB, on the
+pasteboard. `sp.collectId` was remembered in the store so the tab
+survived every reload and was never emptied; `sp.collectCount` was NOT,
+so the alert read "1 grab" over a clipboard holding a year of them. TWO
+halves hid it: a count that always looked fresh, over a block that never
+was. LL, on discovering the pad had been collecting all along: "which by
+the way, I had no idea was happening." His tab is NOT deleted — it is his
+text; `sp.collectId` still round-trips through the store for exactly one
+reason, so `_G.scratchPadReport()` can name that tab, say how big it is,
+and say that nothing writes to it now.
+🔑 THE RESET RULE (LL's pick of three): COPYING ANYTHING ELSE STARTS A
+NEW SEQUENCE. `sp.collectContinues` asks macOS's change counter first,
+CONTENTS as the degrade. DECIDED BEFORE THE SELECTION IS READ and a
+source check asserts that order — power_tools BORROWS the pasteboard to
+run ⌘C, so by the time the text returns the counter has moved and can no
+longer say who copied last. A REFUSED WRITE DOES NOT END THE SEQUENCE (a
+refusal never moves the counter, so it must read as "nobody else
+copied"; the other way round, every refusal silently discards the lot).
+🚨 NEITHER READABLE MEANS "NOT OURS" — the OPPOSITE default to
+`pt.borrowIntact`, which treats the same unknown as "intact". Both are
+right, and this is the durable half: A DEFAULT IS CHOSEN AGAINST THE
+DAMAGE ITS OWN FEATURE CAN DO, never copied across as a house style.
+There the last resort is 6.132.0's promise that your clipboard comes
+back; here it is that ⌘V never pastes something you did not just grab.
+🔎 ASK FOR THE ARTEFACT BEFORE THEORISING ABOUT THE MECHANISM. This was
+blamed on the borrowed clipboard TWICE. 6.198.0 shipped a guard for it
+that is real, works, and was never this bug — LL's own report proved the
+guard working ("11× — 1 put back, 10 left alone") while the symptom
+stood. A fifteen-agent adversarial hunt over every pasteboard writer
+then returned ten candidates and ZERO survivors, which was correct: the
+thief was not in the clipboard code. What nobody asked for two releases
+was WHAT ⌘V ACTUALLY PASTES. One paste ended it. When a tool is accused
+of producing the wrong output, get the output FIRST.
+🧪 And the test pasteboard had `setContents` alone — no `getContents`,
+no `changeCount` — so the reset rule was untestable and the growing
+block could not be caught by any mutation. THIRD time a stub gentler
+than macOS has cost a release, SECOND in this module.
 
 6.177.0 — ⌘⇧S in the ⇪1 / ⇪3 window EXPORTS the Scorp Pad's tabs (and
 its history) as .md notes in <Vault>/Scratch, front matter + the text as
@@ -497,6 +536,9 @@ the two writes a comparison never can: the same text written again, and
 anything that is not text), the CONTENTS as the degrade for a
 Hammerspoon without it, and NEITHER READABLE means intact so the last
 resort stays 6.132.0's promise that your clipboard comes back.
+🔎 AND IT WAS NOT LL'S BUG — see 6.201.0 above. The guard is right and
+it works; the block ⌘V pasted was wrong before the borrow ever ran. A
+correct fix for a real bug is not evidence that you found THE bug.
 🔑 THE GUARD LIVES AT THE BORROW, NEVER IN THE CALLER: a second caller
 had the identical bug unnoticed (the 🔢 count row's "N words · N
 characters"), and only the borrow can see the case no caller owns — an
@@ -822,6 +864,36 @@ mirrors draw order: "closes last" IS "drawn under".
 
 ## Open items — update as they move
 
+- 6.201.0 verify with LL — THE ONE HE IS WAITING ON: in Chrome, select
+  a sentence, ⇪2, select another, ⇪2 again, then ⌘V. It must paste those
+  TWO and nothing else — no "Collect" line on top, no old text. Then the
+  rule he chose: ⌘C something normally, then ⇪2 on a fresh selection —
+  that must start a NEW sequence (one grab, just that text). Then ⇪N:
+  his 📎 Collect tab must still be there with everything it always had,
+  and NOTHING new added to it. `_G.scratchPadReport()`'s new "📎 ⇪2:"
+  line says how many grabs are in the live sequence and how many
+  characters ⌘V would paste; under it, the old tab is named with its
+  size and "nothing writes to it now". If the join is wrong for him:
+  `settings = { scratch_pad = { collectJoin = "\n" } }`, no release.
+  KNOWN AND UNCHANGED, stated not hidden: the block still does NOT
+  appear in ⇪V's clipboard history, because power_tools suppresses the
+  pasteboard watcher across the whole borrow — a SHARED global that
+  screenshots also sets, so it is not being changed inside a bug fix.
+- 🐞 REPORTED 6.201.0, NOT YET FIXED — LL's own words, in his order:
+  (1) THE VAULT'S ⌘N NAMING BAR ACCEPTS AN IMPOSSIBLE NAME. He pasted a
+  huge multi-line block into "Name of the note"; the name became the
+  filename and the Console said "🚨 Write failed: vault note Collect" /
+  "cannot open …/Vault/Collect<thousands of chars>.md". Nothing was
+  created and he saw NO error on screen — "I enter a title and … I don't
+  see that anything was created." Needs: refuse or clamp (length in
+  BYTES, newlines, "/" and ":"), say so where he is looking, never lose
+  the note. He also saw the window cover the whole screen once.
+  (2) ⇪⇧V's PREVIEW PANE IS ONE ROW OFF — "when I am on an entry it
+  actually shows the one entry beneath the current line". Off-by-one in
+  the row index the pane reads.
+  (3) UNIFIED SEARCH TAKES NO MOUSE AND HAS NO DETAIL PANE — "I can only
+  use the arrow keys. There also is no side window that shows the full
+  entry." The chooser it replaced had both.
 - 🗳 DECIDED BY LL 6.198.0, ASKED AND ANSWERED — do not re-ask:
   (1) BUGS BEFORE FEATURES while he tests: ⇪2 (shipped 6.198.0), then
   doc_memory.lua:363, then the autocorrect pair (the `allow,HOw` row and
@@ -987,11 +1059,12 @@ mirrors draw order: "closes last" IS "drawn under".
   App Monitor panel still offers "📄 Reopen …" and that ⏎ brings the
   document back — the repair must not have thrown the good rows out
   with the bad.
-- 6.198.0 verify with LL: ⇪2 — select a sentence in CHROME (the app
-  that will not answer accessibility, so this is the ⌘C route that was
-  broken), press ⇪2, select another, ⇪2 again, then ⌘V. The whole block
-  should paste. That is the bug he reported and the whole release.
-  Then the one that was broken and never noticed: ⇪; → the count row
+- 6.198.0 verify with LL — ⇪2 HALF CLOSED, ANSWERED 6.201.0: he tested
+  it in Chrome and it still failed, then pasted the result. The borrow
+  guard was NOT the bug (his report showed it working: 11 borrows, 10
+  left alone, 0 put back) — ⇪2 was writing the whole Scorp Pad Collect
+  tab. Rebuilt in 6.201.0; do not re-test the borrow theory.
+  Still worth checking from this release: ⇪; → the count row
   that copies, in Chrome, and ⌘V — "N words · N characters" should
   paste. Then check the borrow did not cost him anything: copy
   something, press ⇪8 (define, which reads a selection and writes

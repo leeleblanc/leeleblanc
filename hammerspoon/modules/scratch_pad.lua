@@ -47,7 +47,9 @@
 -- new tool? That way I am only opening one text edit tool." The Capture
 -- Pad and the Quick Append Pad keep their brains (queue, router, 16:00
 -- flush, 16:01 review, services); this pad is their window. ⇪N opens a
--- 🗒 Capture tab, ⇪2 a ➕ Append tab (one of each at a time). Closing
+-- 🗒 Capture tab, and ⇪2 opened a ➕ Append tab until 6.182.0 took that
+-- key for the sequential copy (the Append tab is a row in the vault's
+-- 📝 SCRATCH NOTES now). One of each at a time. Closing
 -- such a tab — ⌘W, its ×, or closing the pad — FILES its text where the
 -- old pad did: capturePad.add (the 4 PM Asana queue) or notePad.fileAll
 -- (* idea · + log · ! task · ? note). Failure keeps the tab and the
@@ -97,7 +99,7 @@ local M = {
             { "history",   "Right pane (in the vault): every closed tab, click to reopen" },
             { "📌",        "Pin: stays up beside the app; Esc only hands the keys back" },
             { "+ 🗒 · + ➕", "New Capture / Append tabs are rows in the section now, not their own keys; ⌘W still files each where it always went" },
-            { "⇪2",        "SEQUENTIAL COPY: select text, press it, select more, press again — each grab is appended to a 📎 Collect tab AND the whole block goes on the clipboard, so ⌘V pastes the lot" },
+            { "⇪2",        "SEQUENTIAL COPY: select text, press it, select more, press again — the grabs join into ONE block on the clipboard, so ⌘V pastes the lot. Copying anything else starts a new sequence. Nothing is filed into the pad" },
             { "16:00",     "One Asana task of the day: every tab, 07:30 → 16:00, you" },
             { "search",    "⇪space finds everything in the pad — tabs and history" },
             { "own window","settings = { scratch_pad = { viaVault = false } } brings the old window back" },
@@ -1063,7 +1065,7 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
     end
 
     -- =====================================================================
-    -- 📎 SEQUENTIAL COPY (6.182.0, ⇪2)
+    -- 📎 SEQUENTIAL COPY (6.182.0, ⇪2 — rebuilt 6.201.0)
     -- =====================================================================
     -- LL: "Can I select some text, and then immediately select some more
     -- text and have it append the text I just copied a few seconds before
@@ -1071,49 +1073,97 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
     -- instead of having to make multiple copy/pastes to gather all the
     -- info."
     --
-    -- Each press appends the selection to ONE tab — the 📎 Collect tab,
-    -- found by id so a second press never starts a second one — and puts
-    -- THE WHOLE BLOCK SO FAR on the clipboard. That is the pair that makes
-    -- it useful: ⌘V pastes everything you have gathered without opening
-    -- anything, and ⇪N is there when you want to tidy the block first.
+    -- 🚨 6.201.0 — ⌘V NEVER PASTED WHAT HE HAD JUST GRABBED. Until now
+    -- each press appended the selection to a 📎 Collect TAB in the pad and
+    -- put `t.text` — THE WHOLE TAB — on the clipboard. That tab is
+    -- remembered in the store (sp.collectId) and was never emptied, so the
+    -- block grew for as long as LL owned the feature; the COUNT beside it
+    -- was not remembered (sp.collectCount, a plain 0 reset by every
+    -- reload), so the alert said "1 grab" over a clipboard holding months
+    -- of text. LL pasted the proof: the literal word "Collect", then every
+    -- grab he had ever made, with the two from that minute at the very
+    -- bottom. He also said he had no idea anything was being filed into
+    -- the pad at all. His decision: "I'd like copy1, copy to be retained.
+    -- And put on the clipboard, not into Scorp Pad."
+    --
+    -- 🔎 AND THE DIAGNOSIS THAT WAS WRONG, kept because the method matters.
+    -- This was blamed on the borrowed clipboard first — 6.198.0 shipped a
+    -- guard so pt.copySelection's restore could not land on the caller's
+    -- own write. That guard is real and it works (LL's report: 10 borrows
+    -- left alone, 0 put back). It was never this bug. What was never
+    -- checked, through two releases, was the ONE question that settles a
+    -- clipboard complaint: what does ⌘V actually paste? Ask for the
+    -- artefact before theorising about the mechanism.
+    --
+    -- So the sequence lives in MEMORY and nothing here touches a tab, the
+    -- store, the 4 PM task or the export. LL's existing Collect tab is left
+    -- exactly where it is — it is his text, and this release stops feeding
+    -- it, it does not delete it.
+    --
+    -- 🔑 THE RESET RULE, LL's choice of the three offered: COPYING ANYTHING
+    -- ELSE STARTS A NEW SEQUENCE. Nothing else marks where one run of grabs
+    -- ends, and a sequence that never ends is the bug above with a shorter
+    -- memory. We know the change counter we last wrote, so a counter that
+    -- has moved means somebody else copied and the next ⇪2 starts clean.
     --
     -- 🪟 IT NEVER RAISES THE WINDOW. The whole point is that you stay in
     -- the page you are reading; an alert names the running count instead.
     --
     -- 🛟 DEGRADES: no power_tools → it says the selection cannot be read
     -- and does nothing. A pasteboard that refuses the write is REPORTED,
-    -- not swallowed, and the tab still has the text — the grab is never
-    -- lost because the clipboard half failed.
-    sp.collectTitle = "Collect"
+    -- not swallowed, and the grabs STAY in the sequence — the next press
+    -- carries them all, so a refused write costs a paste, never a grab.
+    sp.collectTitle = "Collect"  -- the old tab's name; the report still points at it
     sp.collectJoin  = "\n\n"     -- between grabs; a settings override changes it
-    sp.collectId    = nil        -- the tab holding the block, remembered in the store
-    sp.collectCount = 0          -- grabs in the CURRENT block, for the alert
+    sp.collectId    = nil        -- 6.182.0's tab, still remembered so the report can name it
+    sp.collectSeq   = {}         -- the grabs in the CURRENT sequence, in order
+    sp.collectCount = 0          -- #sp.collectSeq, kept beside it for the alert
+    sp.collectMark  = nil        -- the pasteboard change counter we last wrote
+    sp.collectLast  = nil        -- the block we last wrote, for the degrade below
+    sp.collectResets = 0         -- sequences ended because something else copied
+    sp.collectWhy   = "nothing grabbed yet"
 
-    -- The tab the block lives in: the remembered one while it still
-    -- exists (⌘W may have sent it to the history), else a new one.
-    function sp.collectTab()
-        if sp.collectId then
-            for _, t in ipairs(sp.tabs) do if t.id == sp.collectId then return t end end
+    -- 🔑 IS THE CLIPBOARD STILL THE ONE WE LEFT? Pure, and it is the whole
+    -- reset rule. The change counter is asked FIRST because it sees the two
+    -- writes a comparison never can — the same text copied again, and
+    -- anything that is not text. The CONTENTS are the degrade, for a
+    -- Hammerspoon that cannot answer changeCount.
+    --
+    -- 🚨 NEITHER READABLE MEANS "NOT OURS" — the OPPOSITE default to
+    -- pt.borrowIntact, deliberately. There the last resort has to be
+    -- 6.132.0's promise that your clipboard comes back; here it has to be
+    -- the promise this release exists to make, that ⌘V never pastes
+    -- something you did not just grab. Each default protects the thing its
+    -- own feature would otherwise destroy, and neither is a house style.
+    function sp.collectContinues(markNow, textNow)
+        if type(sp.collectMark) == "number" and type(markNow) == "number" then
+            return markNow == sp.collectMark
         end
-        local t = sp.newTab(sp.collectTitle .. "\n")
-        if not t then return nil, "no room for another tab" end
-        sp.collectId, sp.collectCount = t.id, 0
-        return t
+        if type(sp.collectLast) == "string" and type(textNow) == "string" then
+            return textNow == sp.collectLast
+        end
+        return false
     end
 
-    -- text → ok, block-or-why. Pure enough to test: no window, no alert.
+    -- Start a fresh sequence, saying why. ONE place decides, so "how many
+    -- grabs did that drop" is answered rather than guessed at.
+    function sp.collectReset(why)
+        local had = #sp.collectSeq
+        sp.collectSeq, sp.collectCount = {}, 0
+        sp.collectLast, sp.collectMark = nil, nil
+        sp.collectWhy = why or "reset"
+        if had > 0 then sp.collectResets = (sp.collectResets or 0) + 1 end
+        return had
+    end
+
+    -- text → ok, block-or-why. PURE now — no tab, no store, no window, no
+    -- alert — which is why the whole rule can be proven without a Mac.
     function sp.collect(text)
         text = trim(text)
         if text == "" then return false, "nothing was selected" end
-        local t, why = sp.collectTab()
-        if not t then return false, why or "no tab" end
-        local sep = (trim(t.text) == "") and "" or tostring(sp.collectJoin or "\n\n")
-        t.text      = t.text .. sep .. text
-        t.updatedAt = os.time()
-        sp.collectCount = (sp.collectCount or 0) + 1
-        sp.scheduleSave()
-        if sp.webview or sp.host() then pcall(sp.render) end
-        return true, t.text
+        sp.collectSeq[#sp.collectSeq + 1] = text
+        sp.collectCount = #sp.collectSeq
+        return true, table.concat(sp.collectSeq, tostring(sp.collectJoin or "\n\n"))
     end
 
     function sp.open()
@@ -1190,15 +1240,25 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
             pcall(function() hs.alert.show("📎 Sequential copy needs Power Tools\n(it is what reads the selection)", 3) end)
             return false, "power_tools is not loaded"
         end
+        -- 🔑 6.201.0 — THE RESET IS DECIDED HERE, BEFORE THE SELECTION IS
+        -- READ, and that is not a preference. power_tools BORROWS the
+        -- pasteboard to read a ⌘C selection: it saves it, clears it,
+        -- presses ⌘C and hands the result over, so by the time `text`
+        -- arrives the change counter has moved two or three times and no
+        -- longer says anything about who copied last. This is the only
+        -- moment the question can be asked honestly.
+        local markNow, textNow
+        pcall(function() markNow = hs.pasteboard.changeCount() end)
+        pcall(function() textNow = hs.pasteboard.getContents() end)
+        if not sp.collectContinues(markNow, textNow) then
+            sp.collectReset("something else was copied")
+        end
         _G.service.call("power.readSelection", "📎", function(text)
             local ok, blockOrWhy = sp.collect(text)
             if not ok then
                 pcall(function() hs.alert.show("📎 " .. tostring(blockOrWhy), 2) end)
                 return
             end
-            -- The clipboard half is the point of the pair, but the grab is
-            -- already safe in the tab — so a pasteboard that refuses is
-            -- REPORTED and the count still stands.
             -- 📋 6.198.0 — THREE values, not two. hs.pasteboard.setContents
             -- answers FALSE on a refusal without throwing, so reading only
             -- pcall's own ok reported every refusal as a copy that worked
@@ -1212,11 +1272,27 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
                 wrote = hs.pasteboard.setContents(blockOrWhy) ~= false
             end)
             local copied = okSet and wrote
+            -- 🔑 REMEMBER WHAT WE LEFT so the NEXT press can tell whether
+            -- anything else has copied since. Read AFTER the write — this
+            -- is the counter the reset rule compares against, and reading
+            -- it before would compare against the borrow's own clearing.
+            -- A REFUSED write leaves no block of ours out there, so
+            -- collectLast is cleared; the counter is still recorded,
+            -- because nothing else copied either and the grabs already in
+            -- the sequence are still worth carrying to the next press.
+            sp.collectMark = nil
+            pcall(function() sp.collectMark = hs.pasteboard.changeCount() end)
+            sp.collectLast = copied and blockOrWhy or nil
+            sp.collectWhy  = copied
+                and (sp.collectCount .. (sp.collectCount == 1 and " grab" or " grabs")
+                     .. " on the clipboard")
+                or  "⚠️ the pasteboard REFUSED the block"
             local words = select(2, tostring(blockOrWhy):gsub("%S+", ""))
             pcall(function()
                 hs.alert.show(string.format("📎 %d %s · %d words%s", sp.collectCount,
                     sp.collectCount == 1 and "grab" or "grabs", words,
-                    copied and "  ·  ⌘V pastes the block" or "\n⚠️ the clipboard refused — the block is in ⇪N"), 2)
+                    copied and "  ·  ⌘V pastes the block"
+                            or "\n⚠️ the clipboard refused — press again to retry"), 2)
             end)
         end)
         return true
@@ -1274,6 +1350,25 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
         L[#L + 1] = "   tabs: " .. #sp.tabs .. " · history: " .. #sp.history
                     .. " · saves: " .. sp.saves .. " · failed writes: " .. (sp.saveFails or 0)
                     .. (sp.dirty and " · unsaved keystrokes pending" or "")
+        -- 📎 6.201.0 — THE SEQUENTIAL COPY HAD NO REPORT AT ALL, which is
+        -- how it shipped a clipboard nobody could inspect: the alert said
+        -- "1 grab" while ⌘V pasted months of text and there was no line
+        -- anywhere that disagreed. Say what ⌘V would paste RIGHT NOW, and
+        -- why the sequence is the length it is.
+        local seqChars = #table.concat(sp.collectSeq or {}, tostring(sp.collectJoin or "\n\n"))
+        L[#L + 1] = "   📎 ⇪2: " .. (sp.collectCount or 0)
+                    .. ((sp.collectCount == 1) and " grab" or " grabs")
+                    .. " in this sequence · " .. seqChars .. " characters"
+                    .. " · " .. tostring(sp.collectWhy)
+        L[#L + 1] = "      sequences ended by another copy: " .. (sp.collectResets or 0)
+        if sp.collectId then
+            local old
+            for _, t in ipairs(sp.tabs) do if t.id == sp.collectId then old = t end end
+            L[#L + 1] = "      the pre-6.201.0 📎 " .. tostring(sp.collectTitle) .. " tab is "
+                        .. (old and ("still in the pad, untouched — " .. #tostring(old.text)
+                                     .. " characters, and nothing writes to it now")
+                                 or "no longer among the tabs (⌘W sent it to the history)")
+        end
         -- 6.177.0 — the way out, and whether it has been taken
         if sp.exportToVault == false then
             L[#L + 1] = "   export: off (settings: scratch_pad.exportToVault)"

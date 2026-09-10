@@ -161,6 +161,16 @@ local function mkTimer(kind, delay, fn, at, rep)
     return t
 end
 
+-- 📋 6.201.0 — the pasteboard's own state, so a test can BE another app.
+-- ⇪2's reset rule is decided by the change counter, so a suite that
+-- cannot move that counter cannot fail a single mutation of the rule.
+PB = { text = nil, count = 100 }
+function PB_EXTERNAL_COPY(t)
+    PB.text  = t or "someone else's copy"
+    PB.count = PB.count + 1
+    return PB.count
+end
+
 hs = {
     webview = {
         windowMasks = { nonactivating = 128 },
@@ -201,11 +211,24 @@ hs = {
     -- could read two values from the pcall, call every quiet refusal a
     -- success, and stay green. A stub gentler than the real thing is a
     -- hole with a tick beside it.
-    pasteboard = { setContents = function(t)
-        if PB_FAIL then error("pasteboard refused") end
-        if PB_REFUSE then return false end
-        PASTED[#PASTED + 1] = tostring(t); return true
-    end },
+    -- 📋 6.201.0 — AND NOW IT HAS A REAL CHANGE COUNTER AND CONTENTS.
+    -- The stub above had setContents and nothing else, so ⇪2's whole
+    -- reset rule — "copying anything else starts a new sequence", decided
+    -- entirely by changeCount and getContents — could not be tested at
+    -- all. The counter moves on a SUCCESSFUL write ONLY, exactly as
+    -- macOS's does: a refusal must not look like a copy to the rule that
+    -- reads it, or a refused write would silently end the sequence.
+    pasteboard = {
+        setContents = function(t)
+            if PB_FAIL then error("pasteboard refused") end
+            if PB_REFUSE then return false end
+            PASTED[#PASTED + 1] = tostring(t)
+            PB.text, PB.count = tostring(t), PB.count + 1
+            return true
+        end,
+        getContents = function() return PB.text end,
+        changeCount = function() return PB.count end,
+    },
 }
 
 _G.diag = { say = function() end, warn = function() end, err = function() end, mark = function() end }
@@ -532,7 +555,7 @@ check("⇪space has a Scratch pad source", uni:find('tag = "scratch"', 1, true) 
 -- key nothing binds is dead config that outlives the key it described.
 check("⇪N and ⇪2 are filed in the hint groups",
       hints:find('n = "Notes & capture"', 1, true) ~= nil
-      and hints:find('["2"] = "Notes & capture"', 1, true) ~= nil)
+      and hints:find('["2"] = "Clipboard & OCR"', 1, true) ~= nil)
 check("…and ⇪1's row is gone with the key", hints:find('["1"] = "Notes & capture"', 1, true) == nil)
 check("asanaSubmitTask honours extra.comment", tc:find("extra.comment", 1, true) ~= nil)
 check("run-tests lists this suite", rt:find("test_scratch_pad", 1, true) ~= nil)
@@ -864,98 +887,164 @@ end
 
 
 -- =======================================================================
-out("\n=== 6.182.0 — ⇪2, the sequential copy ===\n")
+out("\n=== 6.201.0 — ⇪2, the sequential copy: clipboard only ===\n")
 -- =======================================================================
 -- LL: "Can I select some text, and then immediately select some more text
 -- and have it append the text I just copied a few seconds before … so I
 -- can build a block of text that I can then edit quickly instead of
 -- having to make multiple copy/pastes."
+--
+-- 🚨 AND THE BUG THAT RAN FROM 6.182.0. Each press appended the grab to a
+-- 📎 Collect TAB and wrote THE WHOLE TAB to the clipboard. That tab was
+-- remembered in the store and never emptied, so ⌘V pasted every grab LL
+-- had ever made, beginning with the literal word "Collect" — while the
+-- alert, reading a count that reset on every reload, said "1 grab". LL
+-- pasted the proof. The rows below are written so that returning to that
+-- shape FAILS: the pad's tabs must stay empty, and what lands on the
+-- pasteboard must be the grabs of the CURRENT sequence and nothing else.
 do
-    sp.tabs, sp.history, sp.collectId, sp.collectCount = {}, {}, nil, 0
+    sp.tabs, sp.history = {}, {}
+    sp.collectReset("a test asked")
     PASTED, ALERTS = {}, {}
 
     local ok1, block1 = sp.collect("first piece")
-    check("the first grab makes ONE Collect tab and holds the text",
-          ok1 and #sp.tabs == 1 and sp.collectId == sp.tabs[1].id
-          and sp.tabs[1].text:find("first piece", 1, true) ~= nil, tostring(block1))
-    local madeOne = sp.tabs[1].id
+    check("the first grab IS the block — no title line, no tab, no store",
+          ok1 and block1 == "first piece" and #sp.tabs == 0, tostring(block1))
 
     local ok2, block2 = sp.collect("second piece")
-    check("the second grab APPENDS to the same tab — no second Collect tab "
-          .. "(this is the row that fails if the id is not remembered)",
-          ok2 and #sp.tabs == 1 and sp.tabs[1].id == madeOne
-          and block2:find("first piece", 1, true) and block2:find("second piece", 1, true),
+    check("the second grab joins the first",
+          ok2 and block2 == "first piece" .. sp.collectJoin .. "second piece",
           tostring(block2))
-    check("…separated by the join, so the pieces do not run together",
-          block2:find("first piece" .. sp.collectJoin .. "second piece", 1, true) ~= nil, block2)
     check("…and the count is what the alert will say", sp.collectCount == 2, sp.collectCount)
+
+    -- 🚨 THE ROW THAT FAILS IF THE TAB EVER COMES BACK. 6.182.0's block
+    -- opened "Collect\n\n\n" because the tab was seeded with its own title,
+    -- and that title went to the clipboard along with everything else.
+    check("🚨 the block NEVER carries the pad's tab title, and no tab is made",
+          block2:find("Collect", 1, true) == nil and #sp.tabs == 0, tostring(block2))
 
     check("an empty selection is refused and changes nothing",
           (function()
               local okE, why = sp.collect("   \n  ")
-              return okE == false and why:find("nothing", 1, true) and sp.collectCount == 2
+              return okE == false and why:find("nothing", 1, true) ~= nil
+                     and sp.collectCount == 2
           end)())
 
-    -- The tab id is what survives a reload; without it a restart would
-    -- silently start a SECOND Collect tab beside the first, and the block
-    -- would quietly split in half. (io.open is the real one by this point
-    -- in the suite, so this is asserted against the source: both halves,
-    -- the write and the read back — one without the other is useless.)
-    do
-        local src = slurp(HS .. "/modules/scratch_pad.lua")
-        check("the Collect tab's id is written to the store AND read back",
-              src:find("collectId = sp.collectId", 1, true) ~= nil
-              and src:find('sp.collectId = type(data.collectId) == "string"', 1, true) ~= nil)
-    end
+    local had = sp.collectReset("a test asked")
+    check("a reset SAYS how many grabs it dropped, and empties the sequence",
+          had == 2 and sp.collectCount == 0 and #sp.collectSeq == 0, had)
+end
 
-    -- ⌘W can send the Collect tab to the history; the next grab must
-    -- start a fresh one rather than resurrect a tab that is not there
-    sp.tabs = {}
-    local ok3 = sp.collect("after it was closed")
-    check("…and if that tab has gone, the next grab starts a new one",
-          ok3 and #sp.tabs == 1 and sp.collectId == sp.tabs[1].id
-          and sp.collectId ~= madeOne)
+-- ---- the reset rule, pure ---------------------------------------------
+do
+    -- 🔑 "Copying anything else starts a new sequence" — LL's choice of the
+    -- three offered. Every row below fails a different mutation of it.
+    sp.collectMark, sp.collectLast = 500, "our block"
+    check("the counter is UNMOVED → the clipboard is still ours",
+          sp.collectContinues(500, "our block") == true)
+    check("the counter has MOVED → somebody else copied",
+          sp.collectContinues(501, "our block") == false)
+    check("…and the COUNTER outranks the contents, because macOS's counter "
+          .. "sees the same text copied twice and a comparison never can",
+          sp.collectContinues(501, "our block") == false
+          and sp.collectContinues(500, "something else entirely") == true)
+
+    sp.collectMark = nil
+    check("🛟 no counter available → the CONTENTS are the degrade",
+          sp.collectContinues(nil, "our block") == true
+          and sp.collectContinues(nil, "someone else's copy") == false)
+
+    sp.collectLast = nil
+    check("🚨 NEITHER readable → not ours. The opposite default to "
+          .. "pt.borrowIntact, and deliberately: there the last resort is "
+          .. "that your clipboard comes back, here it is that ⌘V never "
+          .. "pastes something you did not just grab",
+          sp.collectContinues(nil, nil) == false)
 end
 
 do
-    -- the key: selection in, tab + clipboard + alert out
-    sp.tabs, sp.collectId, sp.collectCount = {}, nil, 0
+    -- the key end to end: selection in, clipboard + alert out, pad untouched
+    sp.tabs = {}
+    sp.collectReset("a test asked")
+    sp.collectResets = 0
     PASTED, ALERTS, PB_FAIL, PB_REFUSE = {}, {}, false, false
+    PB.text, PB.count = nil, 100
     local keepSvc = _G.service
+    local SEL = "a sentence from the page"
     _G.service = {
         has  = function(n) return n == "power.readSelection" end,
-        call = function(_, _, done) done("a sentence from the page") return true end,
+        call = function(_, _, done) done(SEL) return true end,
     }
+
     sp.collectFromSelection()
-    check("⇪2 reads the selection through power_tools' ONE reader and appends it",
-          #sp.tabs == 1 and sp.tabs[1].text:find("a sentence from the page", 1, true) ~= nil)
-    check("…and the WHOLE block goes on the clipboard, so ⌘V pastes the lot",
-          PASTED[#PASTED] == sp.tabs[1].text, tostring(PASTED[#PASTED]))
+    check("⇪2 reads the selection through power_tools' ONE reader",
+          PASTED[#PASTED] == SEL, tostring(PASTED[#PASTED]))
+    check("…and files NOTHING in the pad — not a tab, not the store",
+          #sp.tabs == 0 and sp.collectCount == 1)
     check("…and the alert names the running count and the ⌘V",
           ALERTS[#ALERTS]:find("1 grab", 1, true) and ALERTS[#ALERTS]:find("⌘V", 1, true),
           ALERTS[#ALERTS])
 
-    -- 🛟 the clipboard half may fail; the grab must NOT be lost with it
-    PB_FAIL = true
+    -- 🚨 THE REGRESSION ROW. This is the whole complaint: two grabs, and
+    -- ⌘V must paste those two and nothing else.
+    SEL = "a second sentence"
     sp.collectFromSelection()
-    check("🛟 a pasteboard that refuses does not lose the grab",
-          sp.collectCount == 2 and select(2, sp.tabs[1].text:gsub("a sentence from the page", "")) == 2)
-    check("…and it SAYS so rather than claiming the copy worked",
-          ALERTS[#ALERTS]:find("clipboard refused", 1, true) ~= nil
+    check("🚨 a second grab pastes BOTH — and ONLY both",
+          PASTED[#PASTED] == "a sentence from the page" .. sp.collectJoin
+                             .. "a second sentence"
+          and sp.collectCount == 2, tostring(PASTED[#PASTED]))
+
+    -- 🔑 THE RESET ROW. Another app copies; the next grab starts clean.
+    PB_EXTERNAL_COPY("a URL I copied the normal way")
+    SEL = "a third sentence"
+    sp.collectFromSelection()
+    check("🔑 copying anything else starts a NEW sequence",
+          PASTED[#PASTED] == "a third sentence" and sp.collectCount == 1,
+          tostring(PASTED[#PASTED]))
+    check("…and the report counts that ending, so it is never a mystery",
+          sp.collectResets == 1, sp.collectResets)
+
+    -- …and the press straight after it must CONTINUE, or the rule would
+    -- reset on every press and the feature would be gone with it.
+    SEL = "a fourth sentence"
+    sp.collectFromSelection()
+    check("…while the very next press CONTINUES the new sequence",
+          PASTED[#PASTED] == "a third sentence" .. sp.collectJoin .. "a fourth sentence"
+          and sp.collectCount == 2, tostring(PASTED[#PASTED]))
+
+    -- 🛟 the clipboard half may fail; the grabs must NOT go with it
+    PB_FAIL = true
+    SEL = "a fifth sentence"
+    sp.collectFromSelection()
+    check("🛟 a pasteboard that THROWS does not lose the grabs, and says so",
+          sp.collectCount == 3
+          and ALERTS[#ALERTS]:find("clipboard refused", 1, true) ~= nil
           and ALERTS[#ALERTS]:find("⌘V pastes", 1, true) == nil, ALERTS[#ALERTS])
     PB_FAIL = false
 
-    -- 🚨 6.198.0 — the refusal that does NOT throw. Same promise, and
-    -- until now the module read two values from the pcall and announced
-    -- "⌘V pastes the block" over a pasteboard that had just said no.
+    -- 🚨 6.198.0 — the refusal that does NOT throw, kept because it is the
+    -- half pcall cannot see.
     PB_REFUSE = true
+    SEL = "a sixth sentence"
     sp.collectFromSelection()
     check("🚨 a pasteboard answering FALSE is a refusal too, and is said",
           ALERTS[#ALERTS]:find("clipboard refused", 1, true) ~= nil
           and ALERTS[#ALERTS]:find("⌘V pastes", 1, true) == nil, ALERTS[#ALERTS])
-    check("…and that grab is not lost either", sp.collectCount == 3,
-          sp.collectCount)
+    check("…and that grab is not lost either", sp.collectCount == 4, sp.collectCount)
     PB_REFUSE = false
+
+    -- 🔑 AND A REFUSAL MUST NOT END THE SEQUENCE. A refused write does not
+    -- move macOS's counter, so the rule has to read it as "nobody else
+    -- copied" — read it as an ending and every refusal silently discards
+    -- everything gathered so far.
+    SEL = "a seventh sentence"
+    sp.collectFromSelection()
+    check("🔑 a refused write does not end the sequence — the next press "
+          .. "puts all five grabs on the clipboard",
+          sp.collectCount == 5
+          and PASTED[#PASTED]:find("a third sentence", 1, true) ~= nil
+          and PASTED[#PASTED]:find("a seventh sentence", 1, true) ~= nil,
+          tostring(PASTED[#PASTED]))
 
     -- 🛟 no power_tools at all
     _G.service = { has = function() return false end }
@@ -973,6 +1062,49 @@ do
           .. "that you stay in the page you are reading",
           src:find("function sp.collectFromSelection", 1, true) ~= nil
           and src:match("function sp%.collectFromSelection.-\n    end"):find("sp.open()", 1, true) == nil)
+
+    -- 🚨 6.201.0 — ASSERTED AGAINST THE SOURCE, because a functional test
+    -- cannot see the difference: sp.collect returning the right block is
+    -- exactly what the old tab-backed version did too, on its FIRST grab
+    -- of a fresh tab. What has to be proven is that the body no longer
+    -- reaches for a tab, the store or the window at all.
+    local body = src:match("function sp%.collect%(text%).-\n    end")
+    check("🚨 sp.collect touches NO tab, NO store and NO window — the "
+          .. "whole 6.182.0 failure in one row",
+          body ~= nil
+          and body:find("newTab", 1, true) == nil
+          and body:find("scheduleSave", 1, true) == nil
+          and body:find("sp.render", 1, true) == nil
+          and body:find("t.text", 1, true) == nil, tostring(body))
+
+    -- 🔑 THE ORDER IS LOAD-BEARING. power_tools BORROWS the pasteboard to
+    -- read a ⌘C selection, so by the time the text comes back the change
+    -- counter has moved and says nothing about who copied last. Deciding
+    -- the reset after the read would make the rule fire on every press.
+    local from = src:match("function sp%.collectFromSelection%(%).-\n    end")
+    check("🔑 the reset is decided BEFORE the selection is read",
+          from ~= nil and from:find("collectContinues", 1, true) ~= nil
+          and from:find("collectContinues", 1, true)
+              < from:find('.call("power.readSelection"', 1, true), tostring(from ~= nil))
+
+    -- The old Collect tab's id is still written and read back: it is LL's
+    -- tab, full of his text, and dropping the key would quietly change his
+    -- store. Nothing writes to that tab any more — the report names it.
+    check("the pre-6.201.0 Collect tab's id still round-trips through the store",
+          src:find("collectId = sp.collectId", 1, true) ~= nil
+          and src:find('sp.collectId = type(data.collectId) == "string"', 1, true) ~= nil)
+
+    -- 📎 A STATE WITH NO REPORT IS WHAT HID THIS. The alert said "1 grab"
+    -- over a clipboard holding months of text and no line anywhere
+    -- disagreed, for nineteen releases.
+    check("📎 the report says what ⌘V would paste right now",
+          src:find('"   📎 ⇪2: "', 1, true) ~= nil
+          and src:find("sequences ended by another copy", 1, true) ~= nil
+          and src:find("still in the pad, untouched", 1, true) ~= nil)
+
+    check("…and the cheat sheet no longer promises a 📎 Collect tab",
+          src:find("each grab is appended to a 📎 Collect tab", 1, true) == nil
+          and src:find("Copying anything else starts a new sequence", 1, true) ~= nil)
     local vsrc = slurp(HS .. "/modules/vault.lua")
     check("the vault section is SCRATCH NOTES, with the two + rows in it",
           vsrc:find("📝 SCRATCH NOTES", 1, true) and vsrc:find('data-tab="+capture"', 1, true)

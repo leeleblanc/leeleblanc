@@ -2,11 +2,50 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-09-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-10-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.200.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.201.0
 -- =====================================================================
 
+-- NEW IN 6.201.0 — 📎 ⇪2 PUTS YOUR GRABS ON THE CLIPBOARD, AND ONLY THOSE:
+--   🚨 LL: "Not working: sequential copy ⇪2 clipboard." He then pasted
+--      what ⌘V actually gave him — the literal word "Collect", then
+--      months of old grabs, with the two from that minute at the very
+--      bottom — and "which by the way, I had no idea was happening".
+--      Since 6.182.0 every press appended the selection to a 📎 Collect
+--      TAB in the Scorp Pad and wrote THE WHOLE TAB to the pasteboard.
+--      That tab is remembered in the store and was never emptied; the
+--      COUNT beside it was not remembered, so the alert read "1 grab".
+--   🔎 AND THE DIAGNOSIS THAT WAS WRONG, kept because the method
+--      matters. This was blamed on the borrowed clipboard twice. 6.198.0
+--      shipped a guard so the restore could not land on the caller's own
+--      write; that guard is real and it works (LL's report: ten borrows
+--      left alone, none put back) and it was never this bug. What was
+--      not asked, through two releases, is the one question a clipboard
+--      complaint turns on: what does ⌘V actually paste? ASK FOR THE
+--      ARTEFACT BEFORE THEORISING ABOUT THE MECHANISM.
+--   📎 The sequence lives in MEMORY now — no tab, no store, no 4 PM
+--      task, no export. LL: "I'd like copy1, copy to be retained. And
+--      put on the clipboard, not into Scorp Pad." His existing Collect
+--      tab is left exactly where it is: this release stops feeding it,
+--      it does not delete it, and `_G.scratchPadReport()` names it, says
+--      how big it is and says nothing writes to it any more.
+--   🔑 THE RESET RULE, LL's choice of the three offered: COPYING
+--      ANYTHING ELSE STARTS A NEW SEQUENCE. We know the change counter
+--      we last wrote, so a counter that has moved means somebody else
+--      copied. Decided BEFORE the selection is read — power_tools
+--      BORROWS the pasteboard to run ⌘C, so by the time the text comes
+--      back the counter has moved and says nothing about who copied.
+--      Neither counter nor contents readable means NOT ours, the
+--      opposite default to pt.borrowIntact and deliberately so: each
+--      protects the thing its own feature would otherwise destroy.
+--   🧪 The test pasteboard grew a real change counter and getContents.
+--      It had setContents alone — which is why this ran green for
+--      nineteen releases. 196 -> 209 checks here, 8,362 -> 8,375
+--      overall, seventy-four stages, and four mutations each proven to
+--      fail the row written for it. ⇪2's hint card moved to CLIPBOARD &
+--      OCR, because it files nothing into notes any more.
+--
 -- NEW IN 6.200.0 — 📖 THE REAL DICTIONARY, NOT ANOTHER LIST TO KEEP:
 --   🚨 LL: "The actual word is somethgni, somethingg, somethinng,
 --      somethng, somtething" — five spellings of one word, listed to make
@@ -54,56 +93,12 @@
 --      fail against the bug it names. 8,324 -> 8,362 checks, seventy-four
 --      stages. Rollback: `settings = { autocorrect = { on = false } }`.
 --
--- NEW IN 6.199.0 — ✏️ WHAT ⇪Z LEARNS IS VISIBLE AND REVERSIBLE:
---   🚨 LL: "I fixed HOw by deleting the entry and you can see that it
---      is still HOw" — and then his grep of his own 11,000-line
---      dictionary: `11052:allow,HOw,`. That row is one ⇪Z press, long
---      forgotten, switching the TWo-caps rule off for that exact word on
---      BOTH Macs (the CSV syncs through OneDrive), for ever, with nothing
---      anywhere naming it. Permanent is the design and it stays.
---      INVISIBLE was the bug: this module had no report at all, so a text
---      editor was the only way to find what it had been taught, and no
---      way at all to unteach it. `_G.autocorrectReport()` now lists every
---      exception ⇪Z has learned — separated from the ~85 this config
---      ships with, so the list is only ever his — each with the line it
---      sits on and the exact command that removes it.
---      `_G.autocorrectForget("HOw")` takes it out of the file and out of
---      memory at once, and the rule corrects the word again with no
---      reload. ⇪Z's own alert now names that command as it learns.
---   🔒 THE ONE THING THAT REWRITES HIS DICTIONARY WHOLE does it through
---      a temp file and a rename, and registers with the write ledger: a
---      half-written CSV is far worse than a wrong exception, and this is
---      11,000 lines of his own work. It matches case-SENSITIVELY, the way
---      the rule does — HOw and How are two different exceptions and
---      forgetting one must not take the other — and it removes EVERY
---      matching row, which is what handles the duplicate the other Mac
---      can write before it has reloaded.
---   🗂 AND A DEAD `fix` ROW IS SKIPPED AND NAMED. A row whose two
---      sides are the same word once lowered (`fix,IDs,IDs`, `fix,TVs,tvs`)
---      reads like "leave this alone" and does the opposite: the dictionary
---      stores both sides lowercased and re-applies sentence case, so IDs
---      comes back Ids — and the TWo-caps rule never gets its turn, because
---      a dictionary hit returns first. Skipped at load, listed in the
---      report with its LINE NUMBER; the CSV itself is never edited.
---   🔎 CORRECTION TO WHAT LL WAS TOLD EARLIER: that dead-row
---      short-circuit is NOT what made HOw stick. Checked against the
---      source: a dictionary hit is re-cased from an all-lowercase stored
---      value, so it can never hand back a TWo-caps-shaped word, and the
---      rule cannot be blocked that way. The `allow,HOw,` row was the
---      whole cause, on its own. The dead-row handling is still worth
---      having — it mangles acronyms — but it is a second bug, not this one.
---      test_autocorrect 51 -> 76, fifteen mutations, each proven to fail
---      against the bug it names. One guard was REMOVED for failing that
---      test: an in-memory duplicate check no mutation could catch,
---      because the path it defended cannot happen in one session.
---      8,299 -> 8,324 checks, seventy-four stages.
---
--- (6.198.1 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.199.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.200.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.201.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -200,7 +195,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.200.0"
+_G.configVersion = "6.201.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

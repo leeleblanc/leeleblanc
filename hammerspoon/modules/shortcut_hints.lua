@@ -98,11 +98,17 @@ local hint = {
         o = "Clipboard & OCR", ["shift+o"] = "Clipboard & OCR",
         ["shift+c"] = "Clipboard & OCR",
         ["shift+t"] = "Clipboard & OCR",   -- 6.194.0 type the clipboard (was ⇪⇧2)
+        -- 6.201.0 — ⇪2 MOVED HERE, from notes & capture. It was filed
+        -- under notes because it wrote its grabs into a Scorp Pad tab;
+        -- now it only ever touches the clipboard, and a card reading
+        -- "NOTES & CAPTURE" over a tool that files nothing into notes is
+        -- the exact confusion the release exists to end (LL, of the old
+        -- behaviour: "I had no idea that was happening").
+        ["2"] = "Clipboard & OCR",
         -- Notes & capture
         -- 6.182.0 — "1" came OUT: ⇪1 is free (the Scorp Pad moved to ⇪N),
-        -- and a group row for an unbound key is dead config. ⇪2 stays —
-        -- it is the sequential copy now, which is squarely notes & capture.
-        n = "Notes & capture", ["shift+n"] = "Notes & capture", ["2"] = "Notes & capture",
+        -- and a group row for an unbound key is dead config.
+        n = "Notes & capture", ["shift+n"] = "Notes & capture",
         ["3"] = "Notes & capture",   -- 6.172.0 the vault
         ["shift+u"] = "Notes & capture",   -- 6.180.0 the ⇪⇧U anchors
         j = "Notes & capture", ["shift+j"] = "Notes & capture",

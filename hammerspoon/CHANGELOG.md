@@ -5,6 +5,90 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.201.0 — 📎 ⇪2 PUTS YOUR GRABS ON THE CLIPBOARD, AND ONLY THOSE:
+  🚨 LL: "Not working: sequential copy ⇪2 clipboard. Am I doing
+     something wrong?" He was not. He then pasted what ⌘V actually gave
+     him, which ended the hunt in one message: the literal word
+     "Collect", then months of old grabs — GitHub token pages, whole
+     paragraphs of this conversation, rows of X and Y — with the two
+     from that minute at the very bottom. And: "which by the way, I had
+     no idea was happening. Is that something we're doing and I
+     missed?" It was. Since 6.182.0 every ⇪2 appended the selection to
+     a 📎 Collect TAB in the Scorp Pad and put `t.text` — THE WHOLE TAB
+     — on the pasteboard. sp.collectId is remembered in the store so
+     the tab survived every reload and was never emptied; sp.collectCount
+     was NOT remembered, so the alert said "1 grab" over a clipboard
+     holding a year of them. Both halves were needed to hide it: a
+     count that always looked fresh, over a block that never was.
+  🔎 AND THE DIAGNOSIS THAT WAS WRONG, TWICE, kept because the method
+     is the durable part. This was blamed on the BORROWED CLIPBOARD.
+     pt.copySelection saves the pasteboard, runs ⌘C, hands the text
+     over and restores 0.6 s later, so the theory — that the restore
+     landed on ⇪2's own write — fitted the symptom perfectly. 6.198.0
+     shipped a guard for it. The guard is real, it works, and LL's own
+     report proved it working: "11× — 1 put back, 10 left alone". It
+     was never this bug. Then a fifteen-agent adversarial hunt was run
+     over every pasteboard writer in the config and returned TEN
+     candidate causes and ZERO survivors — which was the correct
+     answer, because the thief was not in the clipboard code at all.
+     What was never asked, through two releases and one workflow, is
+     the question a clipboard complaint actually turns on: WHAT DOES
+     ⌘V PASTE? One paste settled what a fortnight of mechanism did not.
+     ASK FOR THE ARTEFACT BEFORE THEORISING ABOUT THE MECHANISM.
+  📎 THE SEQUENCE LIVES IN MEMORY. sp.collect is PURE now — it appends
+     to sp.collectSeq and returns the joined block, and touches no tab,
+     no store, no window and no alert, which is why the whole rule is
+     provable without a Mac. Nothing reaches the pad, the 4 PM Asana
+     task or the export. LL: "I'd like copy1, copy to be retained. And
+     put on the clipboard, not into Scorp Pad."
+  🗂 HIS EXISTING COLLECT TAB IS NOT TOUCHED. It is his text, months of
+     it, and a release that fixes a leak by deleting the evidence is
+     not a fix. sp.collectId is still written to and read from the
+     store for exactly one reason now: `_G.scratchPadReport()` names
+     that tab, says how many characters it holds, and says that nothing
+     writes to it any more.
+  🔑 THE RESET RULE — LL's pick from three offered: COPYING ANYTHING
+     ELSE STARTS A NEW SEQUENCE. Nothing else marks where one run of
+     grabs ends, and a sequence that never ends is this bug with a
+     shorter memory. sp.collectContinues asks macOS's change counter
+     first (it sees the two writes a comparison never can: the same
+     text copied twice, and anything that is not text) with the
+     CONTENTS as the degrade. It is decided BEFORE the selection is
+     read, and that ordering is load-bearing rather than tidy:
+     power_tools BORROWS the pasteboard to run ⌘C, so by the time the
+     text comes back the counter has moved two or three times and can
+     no longer say who copied last. A source check asserts the order.
+  🚨 NEITHER READABLE MEANS "NOT OURS" — the OPPOSITE default to
+     pt.borrowIntact, which treats the same unknown as "intact". Both
+     are right. There the last resort has to be 6.132.0's promise that
+     your clipboard comes back; here it has to be the promise this
+     release exists to make, that ⌘V never pastes something you did not
+     just grab. A default is chosen against the damage its own feature
+     can do, and is not a house style to be applied twice.
+  🔑 A REFUSED WRITE DOES NOT END THE SEQUENCE. A refusal does not move
+     macOS's counter, so the rule must read it as "nobody else copied"
+     — read the other way, every refusal would silently discard
+     everything gathered so far. The grabs stay and the next press
+     carries them all; the alert says "press again to retry" instead of
+     6.182.0's "the block is in ⇪N", which is no longer true.
+  🧪 AND THE TEST PASTEBOARD GREW A CHANGE COUNTER. It had setContents
+     and nothing else — no getContents, no changeCount — so the entire
+     reset rule was untestable and the growing block could not be
+     caught by any mutation. It now moves the counter on a SUCCESSFUL
+     write only, exactly as macOS does, and PB_EXTERNAL_COPY() lets a
+     test be another app. 6.198.0 said a stub gentler than the real
+     provider is a hole with a tick beside it; this is the third time
+     that hole has cost a release, and the second time in this module.
+  📎 ⇪2's hint card moved from NOTES & CAPTURE to CLIPBOARD & OCR — a
+     card naming notes over a tool that files nothing into notes is the
+     exact confusion this release exists to end.
+  🧪 test_scratch_pad 196 -> 209 checks; 8,362 -> 8,375 overall,
+     seventy-four stages. Four mutations run and each proven to fail
+     the row written for it: the neither-readable default flipped, the
+     change counter ignored, the tab title back in the block, and a
+     refusal ending the sequence. Rollback for the join:
+     `settings = { scratch_pad = { collectJoin = "\n" } }`.
+
 NEW IN 6.200.0 — 📖 THE REAL DICTIONARY, NOT ANOTHER LIST TO KEEP:
   🚨 LL: "The actual word is somethgni, somethingg, somethinng,
      somethng, somtething" — five spellings of one word, listed to make
