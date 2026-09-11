@@ -23,7 +23,8 @@ const check = (label, cond, extra) => {
 
 // ---- a canvas whose pixels are REAL ----------------------------------
 const W = 40, H = 30;
-function makeCtx(store) {
+function makeCtx(store, w) {
+  w = w || W;   // 6.212.0 — a section may ask for a bigger canvas
   return {
     drawImage() {},
     getImageData(x, y, rw, rh) {
@@ -31,14 +32,14 @@ function makeCtx(store) {
       for (let j = 0; j < rh; j++)
         for (let i = 0; i < rw; i++)
           for (let k = 0; k < 4; k++)
-            data[(j * rw + i) * 4 + k] = store[((y + j) * W + (x + i)) * 4 + k];
+            data[(j * rw + i) * 4 + k] = store[((y + j) * w + (x + i)) * 4 + k];
       return { data, width: rw, height: rh };
     },
     putImageData(im, x, y) {
       for (let j = 0; j < im.height; j++)
         for (let i = 0; i < im.width; i++)
           for (let k = 0; k < 4; k++)
-            store[((y + j) * W + (x + i)) * 4 + k] = im.data[(j * im.width + i) * 4 + k];
+            store[((y + j) * w + (x + i)) * 4 + k] = im.data[(j * im.width + i) * 4 + k];
     },
   };
 }
@@ -52,6 +53,9 @@ function drawStubs(base, calls) {
   base.beginPath = rec("beginPath"); base.closePath = rec("closePath");
   base.moveTo = rec("moveTo"); base.lineTo = rec("lineTo");
   base.arc = rec("arc"); base.setLineDash = function () {};
+  // 6.212.0 — the oval and the highlighter
+  base.ellipse = rec("ellipse");
+  base.fillRect = function (x, y, w, h) { calls.push(["fillRect", x, y, w, h, this.fillStyle]); };
   base.stroke = function () { calls.push(["stroke", this.strokeStyle]); };
   base.fill = function () { calls.push(["fill", this.fillStyle]); };
   base.strokeRect = function (x, y, w, h) {
@@ -68,24 +72,28 @@ function drawStubs(base, calls) {
 // until 6.188.0 every hit target was measured in image pixels regardless.
 // `shownW` lets a test put a big image in a small window, which is the only
 // way to see that bug at all: at 1:1 it does not exist.
-function makeEnv(shownW) {
+function makeEnv(shownW, size) {
+  // 6.212.0 — `size` gives a section a canvas bigger than 40×30: the
+  // counter badges and the grab radii are sized in IMAGE pixels, and on
+  // a 40-px canvas three badges cannot sit apart from one another
+  const CW = (size && size.w) || W, CH = (size && size.h) || H;
   const sent = [];
-  const store = new Uint8ClampedArray(W * H * 4);
+  const store = new Uint8ClampedArray(CW * CH * 4);
   const cvCalls = [], ovCalls = [];
   const listeners = { window: {}, ov: {}, tin: {} };
-  const cvCtx = drawStubs(makeCtx(store), cvCalls);
+  const cvCtx = drawStubs(makeCtx(store, CW), cvCalls);
   const ovCtx = drawStubs({ getImageData() {}, putImageData() {} }, ovCalls);
   const cv = {
-    width: W, height: H,
+    width: CW, height: CH,
     getContext: () => cvCtx,
     toDataURL: (fmt) => (fmt === "image/jpeg" ? "data:image/jpeg;base64,RENDERED"
                                               : "data:image/png;base64,RENDERED"),
-    getBoundingClientRect: () => ({ left: 0, top: 0, width: shownW || W,
-                                   height: (shownW || W) * (H / W) }),
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: shownW || CW,
+                                   height: (shownW || CW) * (CH / CW) }),
     addEventListener: () => {},
   };
   const ov = {
-    width: W, height: H,
+    width: CW, height: CH,
     getContext: () => ovCtx,
     addEventListener: (ev, fn) => { listeners.ov[ev] = fn; },
   };
@@ -99,6 +107,10 @@ function makeEnv(shownW) {
     "tool-blur": { className: "tool on" },
     "tool-text": { className: "tool" },
     "tool-arrow": { className: "tool" },
+    "tool-line": { className: "tool" },
+    "tool-oval": { className: "tool" },
+    "tool-hl": { className: "tool" },
+    "tool-count": { className: "tool" },
   };
   const byId = { cv, ov, band, tin };
   const sandbox = {
@@ -119,8 +131,8 @@ const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m
 check("the page carries exactly one script block", scripts.length === 1, scripts.length);
 
 const vm = require("vm");
-function load(shownW) {
-  const env = makeEnv(shownW);
+function load(shownW, size) {
+  const env = makeEnv(shownW, size);
   const ctx = vm.createContext(env.sandbox);
   vm.runInContext(scripts[0], ctx, { filename: "screenshot_editor-page.js" });
   env.ctx = ctx;
@@ -449,6 +461,136 @@ console.log("── Screenshot Editor: page JavaScript, executed ──");
   check("…and between them they save (both formats) and cancel",
         acts.indexOf("save") >= 0 && acts.indexOf("cancel") >= 0
         && exts === "jpg,png", acts + " / " + exts);
+}
+
+// =====================================================================
+// 6.212.0 — LL: "read the other operations in the screenshot and add
+// those features to my screenshot tool." Four of the CleanShot-style
+// tools in his screenshot: Line (L), Oval (O), Highlighter (H), Counter
+// (C). Each is a note kind on the same overlay, moved, undone, deleted
+// and saved by the machinery the text and arrow notes already had. On a
+// 400×300 canvas: the badges and grab radii are in IMAGE pixels, and on
+// the 40×30 default three badges cannot sit apart from one another.
+// =====================================================================
+{
+  const env = load(undefined, { w: 400, h: 300 });
+  const cnt = (calls, name) => calls.filter((c) => c[0] === name).length;
+  const drag = (x1, y1, x2, y2) => {
+    env.listeners.ov.mousedown(mouse(x1, y1));
+    env.listeners.window.mousemove(mouse(x2, y2));
+    env.listeners.window.mouseup(mouse(x2, y2));
+  };
+  const click = (x, y) => { env.listeners.ov.mousedown(mouse(x, y)); env.listeners.window.mouseup(mouse(x, y)); };
+
+  // ---- Line: an arrow without its head ----
+  env.listeners.window.keydown(key({ key: "l" }));
+  check("L selects the Line tool", env.buttons["tool-line"].className === "tool on"
+        && env.buttons["tool-blur"].className === "tool");
+  env.listeners.ov.mousedown(mouse(50, 50));
+  env.listeners.window.mousemove(mouse(300, 250));
+  env.ovCalls.length = 0;
+  env.listeners.window.mouseup(mouse(300, 250));
+  check("a drag draws a line from press to release",
+        env.call("notes.length") === 1 && env.call("notes[0].kind") === "line"
+        && env.call("notes[0].x1") === 50 && env.call("notes[0].x2") === 300 && env.call("notes[0].y2") === 250,
+        env.call("JSON.stringify(notes)"));
+  // (the selection ring strokes too, so "a stroke happened" proves nothing:
+  // the line's OWN path must reach the release point, and nothing may
+  // close a filled head or print text for it)
+  check("🚨 …with NO arrowhead: its own path runs to the release point, no closed filled head, no text",
+        env.ovCalls.some((c) => c[0] === "lineTo" && c[1] === 300 && c[2] === 250)
+        && cnt(env.ovCalls, "closePath") === 0 && cnt(env.ovCalls, "fillText") === 0, JSON.stringify(env.ovCalls));
+  click(360, 30);
+  check("a click with the Line tool draws nothing", env.call("notes.length") === 1);
+  drag(300, 250, 350, 280);
+  check("dragging an END stretches the line", env.call("notes[0].x2") === 350 && env.call("notes[0].y2") === 280);
+  env.listeners.window.keydown(key({ metaKey: true, key: "z" }));
+  check("…undoably", env.call("notes[0].x2") === 300);
+  env.call("notes.length = 0; sel = null;");
+
+  // ---- Oval: a box in any direction ----
+  env.listeners.window.keydown(key({ key: "o" }));
+  check("O selects the Oval tool", env.buttons["tool-oval"].className === "tool on");
+  env.listeners.ov.mousedown(mouse(300, 250));         // drawn from bottom-right…
+  env.listeners.window.mousemove(mouse(50, 50));        // …up to top-left
+  env.ovCalls.length = 0;
+  env.listeners.window.mouseup(mouse(50, 50));
+  check("🚨 a drag in ANY direction gives a normalised box (x,y = top-left, w,h positive)",
+        env.call("notes[0].kind") === "oval" && env.call("notes[0].x") === 50 && env.call("notes[0].y") === 50
+        && env.call("notes[0].w") === 250 && env.call("notes[0].h") === 200, env.call("JSON.stringify(notes[0])"));
+  check("…drawn as an ellipse centred in that box",
+        env.ovCalls.some((c) => c[0] === "ellipse" && c[1] === 175 && c[2] === 150 && c[3] === 125 && c[4] === 100),
+        JSON.stringify(env.ovCalls.filter((c) => c[0] === "ellipse")));
+  drag(380, 20, 382, 22);
+  check("a tiny drag is discarded, not a 2-pixel oval", env.call("notes.length") === 1, env.call("notes.length"));
+  drag(175, 150, 205, 180);                            // a press inside moves it
+  check("a drag inside the oval MOVES it", env.call("notes[0].x") === 80 && env.call("notes[0].y") === 80
+        && env.call("notes[0].w") === 250, env.call("JSON.stringify(notes[0])"));
+  drag(330, 280, 350, 290);                            // its bottom-right corner
+  check("dragging its corner RESIZES it, top-left staying put",
+        env.call("notes[0].w") === 270 && env.call("notes[0].h") === 210 && env.call("notes[0].x") === 80,
+        env.call("JSON.stringify(notes[0])"));
+  env.listeners.window.keydown(key({ metaKey: true, key: "z" }));
+  check("⌘Z undoes the resize", env.call("notes[0].w") === 250 && env.call("notes[0].h") === 200);
+  env.listeners.window.keydown(key({ metaKey: true, key: "z" }));
+  check("⌘Z again undoes the move", env.call("notes[0].x") === 50 && env.call("notes[0].y") === 50);
+  env.call("notes.length = 0; sel = null;");
+
+  // ---- Highlighter: translucent yellow, no shadow ----
+  env.listeners.window.keydown(key({ key: "h" }));
+  check("H selects the Highlighter", env.buttons["tool-hl"].className === "tool on");
+  env.listeners.ov.mousedown(mouse(20, 20));
+  env.listeners.window.mousemove(mouse(200, 100));
+  env.ovCalls.length = 0;
+  env.listeners.window.mouseup(mouse(200, 100));
+  check("a drag lays a highlight box", env.call("notes[0].kind") === "hl" && env.call("notes[0].x") === 20
+        && env.call("notes[0].w") === 180 && env.call("notes[0].h") === 80, env.call("JSON.stringify(notes[0])"));
+  check("🚨 …filled TRANSLUCENT yellow, exactly that box",
+        env.ovCalls.some((c) => c[0] === "fillRect" && c[1] === 20 && c[2] === 20 && c[3] === 180 && c[4] === 80
+                              && c[5] === "rgba(255,230,0,0.38)"),
+        JSON.stringify(env.ovCalls.filter((c) => c[0] === "fillRect")));
+  env.call("notes.length = 0; sel = null;");
+
+  // ---- Counter: ① ② ③, stable numbers ----
+  env.listeners.window.keydown(key({ key: "c" }));
+  check("C selects the Counter", env.buttons["tool-count"].className === "tool on");
+  click(40, 40); click(200, 40);
+  env.ovCalls.length = 0;
+  click(360, 40);
+  check("each click places the next number: 1, 2, 3",
+        env.call("notes.map(function(n){ return n.n }).join(',')") === "1,2,3", env.call("JSON.stringify(notes)"));
+  check("…drawn as a disc with the number on it",
+        env.ovCalls.some((c) => c[0] === "arc" && c[1] === 360 && c[2] === 40)
+        && env.ovCalls.some((c) => c[0] === "fillText" && c[1] === "3"), JSON.stringify(env.ovCalls));
+  env.listeners.window.keydown(key({ metaKey: true, key: "z" }));
+  check("⌘Z takes the last badge back", env.call("notes.length") === 2);
+  click(360, 40);
+  check("…and the next click is 3 again", env.call("notes.length") === 3 && env.call("notes[2].n") === 3);
+  click(200, 40);                                       // ON ②
+  check("a click ON a badge selects it (moves it, never adds)", env.call("sel && sel.n") === 2 && env.call("notes.length") === 3);
+  env.listeners.window.keydown(key({ key: "Backspace" }));
+  check("🚨 deleting ② leaves ① and ③ with their numbers", env.call("notes.map(function(n){ return n.n }).join(',')") === "1,3");
+  click(200, 200);
+  check("🚨 …and the next badge is ④, one past the highest, not a second ③",
+        env.call("notes[notes.length - 1].n") === 4, env.call("notes[notes.length - 1].n"));
+  drag(40, 40, 60, 60);
+  check("a badge can be dragged", env.call("notes[0].x") === 60 && env.call("notes[0].y") === 60 && env.call("notes[0].n") === 1);
+
+  // ---- all four survive a save and a cancel ----
+  env.listeners.window.keydown(key({ key: "l" }));  drag(20, 280, 300, 280);
+  env.listeners.window.keydown(key({ key: "o" }));  drag(20, 120, 140, 220);
+  env.listeners.window.keydown(key({ key: "h" }));  drag(240, 120, 380, 180);
+  check("(fixture) three badges, a line, an oval and a highlight", env.call("notes.length") === 6, env.call("JSON.stringify(notes)"));
+  env.cvCalls.length = 0; env.sent.length = 0;
+  env.listeners.window.keydown(key({ metaKey: true, key: "Enter" }));
+  check("⌘⏎ paints every kind INTO the saved pixels: badge numbers, the ellipse, the highlight, the line",
+        env.cvCalls.some((c) => c[0] === "fillText" && c[1] === "4") && env.cvCalls.some((c) => c[0] === "ellipse")
+        && env.cvCalls.some((c) => c[0] === "fillRect") && env.cvCalls.some((c) => c[0] === "stroke"),
+        JSON.stringify(env.cvCalls.map((c) => c[0])));
+  env.sent.length = 0;
+  env.listeners.window.keydown(key({ key: "Escape" }));
+  const kept = env.sent[0] && JSON.parse(env.sent[0].notes).map((n) => n.kind).sort().join(",");
+  check("esc hands every kind back for the next open", kept === "count,count,count,hl,line,oval", kept);
 }
 
 // =====================================================================

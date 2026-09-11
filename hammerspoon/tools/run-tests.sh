@@ -72,6 +72,15 @@ done
 STAGES_RUN=0
 FAILED=0
 SKIPPED=""
+# 6.212.0 — every green suite's "N passed" is summed here and compared
+# with the total GUIDE.md documents, so a remembered number fails the
+# gate instead of the reader. (Three releases' totals went stale before
+# this existed.)
+CHECKS=0
+tally() {
+    n=$(echo "$1" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' | head -1)
+    CHECKS=$((CHECKS + ${n:-0}))
+}
 
 echo "── Hammerspoon config: pre-flight ──"
 echo "   dir : $HS"
@@ -194,6 +203,7 @@ else
             FAILED=$((FAILED + 1))
         elif echo "$line" | grep -q ', 0 failed'; then
             echo "   ✅ $t — $line"
+            tally "$line"
         else
             echo "   ❌ $t — $line"
             echo "$out" | grep -E '^\s*(❌|FAIL)' | head -10 | sed 's/^/        /'
@@ -222,6 +232,7 @@ else
         line=$(echo "$out" | grep -E '[0-9]+ passed, [0-9]+ failed' | tail -1)
         if echo "$line" | grep -q ', 0 failed'; then
             echo "   ✅ test_pad_js — $line"
+            tally "$line"
         else
             echo "   ❌ test_pad_js — ${line:-did not finish}"
             echo "$out" | grep -E '^\s*(❌|FAIL)' | head -10 | sed 's/^/        /'
@@ -252,6 +263,7 @@ else
         line=$(echo "$out" | grep -E '[0-9]+ passed, [0-9]+ failed' | tail -1)
         if echo "$line" | grep -q ', 0 failed'; then
             echo "   ✅ test_editor_js — $line"
+            tally "$line"
         else
             echo "   ❌ test_editor_js — ${line:-did not finish}"
             echo "$out" | grep -E '^\s*(❌|FAIL)' | head -10 | sed 's/^/        /'
@@ -282,6 +294,7 @@ else
         line=$(echo "$out" | grep -E '[0-9]+ passed, [0-9]+ failed' | tail -1)
         if echo "$line" | grep -q ', 0 failed'; then
             echo "   ✅ test_unified_js — $line"
+            tally "$line"
         else
             echo "   ❌ test_unified_js — ${line:-did not finish}"
             echo "$out" | grep -E '^\s*(❌|FAIL)' | head -10 | sed 's/^/        /'
@@ -313,6 +326,7 @@ else
         line=$(echo "$out" | grep -E '[0-9]+ passed, [0-9]+ failed' | tail -1)
         if echo "$line" | grep -q ', 0 failed'; then
             echo "   ✅ test_vault_js — $line"
+            tally "$line"
         else
             echo "   ❌ test_vault_js — ${line:-did not finish}"
             echo "$out" | grep -E '^\s*(❌|FAIL)' | head -10 | sed 's/^/        /'
@@ -330,6 +344,23 @@ echo ""
 echo "──"
 if [ -n "$SKIPPED" ]; then
     echo "skipped:$SKIPPED"
+fi
+# GUIDE.md's headline total must be the number this run counted. Only a
+# COMPLETE green run can say so — a skip or a failure leaves the count
+# partial, and a partial count proves nothing about the document.
+DOC_CHECKS=$(grep -oE '\*\*[0-9,]+ checks over' "$HS/GUIDE.md" 2>/dev/null | head -1 | tr -d '*,' | grep -oE '[0-9]+')
+if [ -z "$SKIPPED" ] && [ "$FAILED" -eq 0 ]; then
+    if [ -z "$DOC_CHECKS" ]; then
+        echo "❌ GUIDE.md has no '**N checks over' line to compare with the $CHECKS counted."
+        FAILED=$((FAILED + 1))
+    elif [ "$DOC_CHECKS" -ne "$CHECKS" ]; then
+        echo "❌ GUIDE.md says $DOC_CHECKS checks; this run counted $CHECKS. Measure, never remember."
+        FAILED=$((FAILED + 1))
+    else
+        echo "📏 $CHECKS checks counted — GUIDE.md agrees."
+    fi
+else
+    echo "📏 $CHECKS checks counted (partial — not compared with GUIDE.md)"
 fi
 if [ "$STAGES_RUN" -eq 0 ]; then
     echo "⚠️  NOTHING RAN. This is not a pass."

@@ -2164,5 +2164,38 @@ check("INSTALL.md names the OCR shortcut EXACTLY as the code looks for it",
       and (moduleText["ocr_engine"] or ""):find('shortcutName     = "HS OCR"',
                                                 1, true) ~= nil)
 
+-- =====================================================================
+out("\n=== 11b. The release header is the shape the ceremony promises ===\n")
+-- 6.212.0 — three releases shipped code without their words: the
+-- ceremony script died in a backgrounded command and nothing here read
+-- init.lua's header. Now the gate does. The three stamps agree, the two
+-- inline NEW IN blocks are the two newest CHANGELOG entries in that
+-- order, the trailer names the third, and CHANGELOG's top entry is the
+-- version the config reports.
+do
+  local init = readAll(HS .. "/init.lua") or ""
+  local log  = readAll(HS .. "/CHANGELOG.md") or ""
+  local v7   = init:match("\n%-%- %.Hammerspoon ARCHITECTURE VERSION CONTROL: ([%d%.]+)")
+  local vHdr = init:match("WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: ([%d%.]+)")
+  local vG   = init:match('\n_G%.configVersion = "([%d%.]+)"')
+  check("init.lua's three version stamps agree (line 7, the WHAT EACH TOOL DOES header, _G.configVersion)",
+        v7 ~= nil and v7 == vHdr and v7 == vG, tostring(v7) .. " / " .. tostring(vHdr) .. " / " .. tostring(vG))
+  local entries = {}
+  for v in log:gmatch("\nNEW IN ([%d%.]+) ") do entries[#entries + 1] = v end
+  check("CHANGELOG.md's top entry is the current version", entries[1] == v7, tostring(entries[1]) .. " vs " .. tostring(v7))
+  local blocks = {}
+  for v in init:gmatch("\n%-%- NEW IN ([%d%.]+) ") do blocks[#blocks + 1] = v end
+  check("init.lua carries exactly TWO inline NEW IN blocks", #blocks == 2, #blocks)
+  check("...the newest first — the current version", blocks[1] == v7, tostring(blocks[1]))
+  check("...then the previous release, as CHANGELOG orders them", blocks[2] == entries[2],
+        tostring(blocks[2]) .. " vs " .. tostring(entries[2]))
+  local trailer = init:match("\n%-%- %(([%d%.]+) and earlier: see CHANGELOG%.md")
+  check("...and the trailer names the third", trailer == entries[3], tostring(trailer) .. " vs " .. tostring(entries[3]))
+  local newIn = init:find("\n%-%- NEW IN ") or math.huge
+  local hdr   = init:find("WHAT EACH TOOL DOES :: ARCHITECTURE", 1, true) or 0
+  check("the NEW IN blocks sit ABOVE the WHAT EACH TOOL DOES header, where the reader looks",
+        newIn < hdr)
+end
+
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

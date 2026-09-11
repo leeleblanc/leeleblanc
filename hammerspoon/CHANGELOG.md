@@ -5,6 +5,169 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.212.0 — 🖌 LINE · OVAL · HIGHLIGHTER · COUNTER IN THE EDITOR:
+  LL, with a screenshot of a CleanShot-style palette (Magnifier M, Add
+     Capture ⌘A, Blur/Erase B, Highlighter H, Spotlight S, Counter C,
+     Oval O, Line L, Paste Image ⌘V): "Can you read the other operations
+     in the screenshot and add those features to my screenshot tool?"
+     This release is the four that are ANNOTATIONS — marks on the
+     overlay, like the text and arrows already there. Spotlight,
+     Magnifier, Paste Image and Add Capture are a different shape (they
+     read pixels or reach outside the page) and are the next release.
+  ／ LINE (L). An arrow without its head: drawn press to release on the
+     same overlay, its ends stretch and rotate, a click draws nothing.
+  ◯ OVAL (O). A white ring around the thing. Drawn as a box from the
+     press to the release IN ANY DIRECTION — the corner drag normalises
+     x/y/w/h as it goes, so bottom-right to top-left gives the same box
+     as top-left to bottom-right. A press inside moves it; the
+     bottom-right corner (the same handle a text box has) resizes it
+     with the top-left staying put. `ellipse` where the canvas has it, a
+     circle of the longer side where it does not. A drag under 4 px
+     makes nothing.
+  🖍 HIGHLIGHT (H). A translucent yellow box (rgba 255,230,0 at 0.38),
+     deliberately with NO shadow — a shadow under a translucent fill
+     reads as a smudge. Same box gestures as the oval.
+  ① COUNTER (C). One click, one badge — a white disc with the number in
+     dark ink, radius scaled with the image like the text size — carrying
+     the NEXT number: one past the HIGHEST on the image, never the
+     count of badges, so deleting ② leaves ① and ③ their numbers and the
+     next click is ④, not a second ③. ⌘Z takes the last badge back and
+     the next click reuses its number. A click ON a badge selects and
+     moves it (never adds); it has no resize handle.
+  🔧 ONE MACHINE, MORE KINDS. Every new kind is a note in the same list,
+     drawn by drawNote, hit by hitAt, moved, undone, deleted, painted
+     into the pixels on ⌘⏎ and handed back on Esc by exactly the code
+     the text and arrows use. `snapNote` now copies EVERY numeric field
+     of a note, whatever its kind, so the one generic 'set' undo covers
+     a move or a resize of any of them. The tool row is buttons AND
+     keys (B T A L O H C); the cheat sheet has the row.
+  🧪 test_editor_js 70 -> 99. The harness gained one thing: a section can
+     ask for a canvas bigger than the 40×30 default (`load(shownW,
+     {w, h})`), because badges and grab radii are sized in IMAGE pixels
+     and three badges cannot sit apart on a 40-px canvas. Then every
+     gesture: L/O/H/C select the tools; the line's own path runs to the
+     release point with no closed filled head and no text (the first
+     version of that row counted any stroke, and the selection ring
+     strokes too — a mutation drawing the line as TEXT passed it; the
+     row now names the line's own lineTo); a click draws no line; an
+     end stretches, undoably; the oval normalised from a reverse drag,
+     the ellipse's centre and radii, the tiny drag discarded, move,
+     resize with the top-left fixed, ⌘Z twice; the highlight's exact
+     fillRect and colour; badges 1,2,3, the disc and its number, ⌘Z
+     then 3 again, a click on ② selects, ⌫ leaves "1,3", the next is 4,
+     a badge drags; and all four kinds in a ⌘⏎ save and an Esc hand-back.
+     Four mutations, each failing the row written for it: the line
+     branch removed, the corner drag not normalised, nextCount as a
+     count instead of max+1, the highlight's colour dropped (it fills
+     white). 8,674 -> 8,710 checks, seventy-five stages (seven of
+     them the new header sentry in test_diagnostics; and the gate now
+     sums every suite and refuses a GUIDE total it did not count).
+  🚨 AND THE CEREMONY SCRIPTS FOR 6.210.0 AND 6.211.0 NEVER RAN. Their
+     release notes below, init.lua's header and GUIDE's totals were
+     written by Python run INSIDE a backgrounded gate command, and both
+     scripts died on a substring that 6.209.0's script had silently
+     failed to insert (a bare str.replace with no assert). The
+     traceback went to a task log nobody read, the gate went green
+     (nothing checked the header), and the commits carry the code
+     without the words. Repaired here, and test_diagnostics now checks
+     the header: three stamps agree, the two inline NEW IN blocks are
+     the newest two in that order, the trailer names the third, and
+     CHANGELOG's top entry is the current version.
+
+NEW IN 6.211.0 — 🗓 THE POMODORO SITS BESIDE THE MINI CALENDAR:
+  LL: "⌘+⇧+0 mini-calendar include the pomodoro temporarily in the
+     mini-calendar? Then come back to its own window when the
+     mini-calendar closes?"
+  🔎 WHY IT MATTERED: both panels anchor top-right under the clock. The
+     calendar is 1024×768 and the card 204×180 in the same corner, so
+     ⇪⇧0 simply covered the countdown — the ask is "let me keep seeing
+     it".
+  🍅 DOCKED BESIDE, RETURNED AFTER. `pom.dock(rect)` moves the card to
+     the calendar's left edge, top-aligned, `pom.dockGap` (8) apart,
+     clamped to a real screen; it remembers where the card WAS on the
+     state (s.undockPos) — never in pom.pos, so a dragged-and-remembered
+     position is untouched — and a second dock does not overwrite that
+     memory. `pom.undock()` puts it back exactly and refuses ("not
+     docked") rather than moving twice. Both are published
+     (pomodoro.dock / pomodoro.undock); mini_calendar calls dock from
+     show() with its own frame and undock from hide() BEFORE the canvas
+     is deleted, and publishes calendar.frame (the frame while up, nil
+     otherwise) so a pomodoro STARTED under an open calendar docks at
+     once (s.startedDocked). Each side asks `_G.service.has` first, so a
+     Mac with either module missing behaves exactly as before — a
+     missing partner is a false, never a throw. `_G.pomodoroReport()`
+     gains "dock :" — beside the calendar now at x,y and where it goes
+     back to, or its own spot and how many docks this session. The
+     pomodoro's sheet has a "calendar" row — a POINTER row (a word in the
+     key column), because a bare "⇪⇧0" there is a claim on the calendar's
+     key and the 6.196.0 audit refuses it, correctly.
+  📐 DRAWN INSIDE THE CALENDAR WAS JUDGED AND NOT BUILT. The calendar's
+     footer (date, clock, week line, key hints) is about 120 pt tall and
+     the card is 180; the month grids fill the rest. Fitting the card
+     inside means reserving a corner of the calendar's own layout —
+     a calendar decision, not a pomodoro one, and not one to bundle with
+     the fix LL is installing blind. "Beside, at the same time, in the
+     same place every time" is the honest version; if LL wants it
+     inside, that is the next release and its own question.
+  🧪 test_tools 140 -> 153 (the stub canvas gained :topLeft(), as the
+     real one answers it): the card's home spot, both services published,
+     the dock geometry to the pixel, docked-state and remembered origin,
+     dock-twice keeps the origin, the report's line, the exact return,
+     the refusal on a second undock, pom.pos untouched, "no pomodoro
+     running", "no calendar frame", and start-under-open-calendar docks
+     and later returns to the spot it never sat in. test_features 458 ->
+     464: opening calls pomodoro.dock with the panel's own frame,
+     calendar.frame answers while up and nil otherwise, closing calls
+     undock before the canvas is gone, and with no pomodoro loaded the
+     calendar opens and closes as before. Four mutations, each failing
+     the row written for it: undock not restoring, start not asking,
+     hide not undocking, show not docking. 8,655 -> 8,674 checks,
+     seventy-five stages.
+
+NEW IN 6.210.0 — 🔊 THE LAST THIRTY SECONDS, SOFT TO LOUD:
+  LL: "Pomodoro timer should have an increasing signal tone announcement
+     that starts soft then increases so I 'see' but really hear that my
+     time is up." Submarine is his pick, decided 6.198.0: "growing over
+     the last 30 seconds from 24:30".
+  🔊 THE TONE. From 24:30 the once-a-second ticker plays Submarine every
+     toneEvery (3) seconds with the volume rising from toneFrom (0.15)
+     to toneTo (1.0) — hs.sound's own volume on that one sound, relative
+     to the Mac's output, never touching it. `pom.toneVolume(left)` is
+     PURE and clamped (soft at 30 s, loud at 0, never outside either
+     end); `pom.toneTick(s, left, now)` plays at most once per toneEvery
+     (s.toneNext), only inside the last toneSecs of the FOCUS phase, and
+     is called inside its own pcall so a sound that throws cannot stop
+     the countdown. A play still sounding is stopped and restarted, so
+     the ten plays never pile up. The break's end stays SILENT on
+     purpose — the flash is that one's signal, and "my time is up" is
+     the focus — `pom.toneBreak = true` if LL wants it there too.
+  🔎 RESOLVED ONCE, ON THE KEYPRESS. hs.sound.getByName goes out to the
+     system, and this is asked from a one-second timer, so pom.start()
+     resolves it (falling back to the .aiff under /System/Library/Sounds)
+     and remembers the answer — `false` when there is none, never nil
+     again. A Mac without the sound is SILENT and SAYS SO:
+     `_G.pomodoroReport()` gains a "tone :" line with three states —
+     the sound, cadence, range and count played this phase (with the last
+     volume and the seconds left); "off" with the setting that turns it
+     on; "⚠️ SILENT — no sound named Submarine and nothing at …" with the
+     note that the flash still shows. The cheat sheet has a "sound" row.
+     Off: `settings = { pomodoro = { toneOn = false } }`; toneSecs,
+     toneEvery, toneFrom, toneTo and toneBreak are the other knobs, all
+     flat so a settings override changes one without losing the rest.
+  🧪 test_tools 125 -> 140 (the stub hs gained hs.sound, recording every
+     play with its volume): toneVolume's five points, LL's defaults,
+     resolved on the keypress, silence at 24:29, the first play at 0:30
+     at 0.15, nothing within the next two seconds, the second play
+     louder, ten plays over the thirty seconds each louder than the
+     last with the last ≥ 0.9, every one Submarine, the report's count,
+     the break silent to its end, the off switch (and its report line),
+     and a Mac without the sound — no throw on start or tick, no play,
+     "⚠️ SILENT" on the report, the flash still reached. Four mutations,
+     each failing the row written for it: a constant volume, no
+     toneEvery gate (30 plays), the phase check removed (the break
+     plays), and resolving lazily instead of on the keypress. 8,640 ->
+     8,655 checks, seventy-five stages.
+
 NEW IN 6.209.0 — 🍅 THE POMODORO IS 90% OPAQUE AND COUNTS THE DAY:
   LL: "Can you make the pomodoro timer go 90% opaque? Along with this
      can you give the number of pomos accomplished in a day."

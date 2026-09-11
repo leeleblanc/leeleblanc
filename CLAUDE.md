@@ -408,6 +408,55 @@ Window width = `uni.width + uni.paneW`; `settings = { unified_search =
 ask per landing) had a check that passed WITHOUT it — a same-row
 mousemove returns before the guard — until a mutation said so; the row
 that bites is a keystroke that leaves the top match where it was.
+🖌 A NEW EDITOR MARK IS A NOTE KIND, NOTHING ELSE (6.212.0,
+modules/screenshot_editor.lua): line/oval/hl/count joined text and
+arrow as entries in the ONE `notes` list — drawn in drawNote, hit in
+hitAt, boxed in noteBox, snapshotted by the now-generic `snapNote`
+(every numeric field), so move/undo/delete/save/Esc-keep need no new
+code per kind. A box kind is drawn by a 'corner' drag that NORMALISES
+x/y/w/h as it goes. Counter numbers are max+1, never count+1. The JS
+harness's `load(shownW, {w, h})` exists because grab radii are image
+pixels and a 40-px canvas cannot hold three badges apart — and the
+line's "no arrowhead" row had to name the line's OWN lineTo, because a
+mutation drawing it as text passed a row that counted any stroke (the
+selection ring strokes too). A check that counts calls of a kind the
+selection also makes is not a check on the note.
+🚨 THE CEREMONY SCRIPT RUNS IN THE FOREGROUND, ASSERTS EVERY REPLACE,
+AND THE GATE CHECKS THE HEADER (6.212.0, learned the hard way): the
+6.210.0 and 6.211.0 release notes, init.lua stamps and GUIDE totals
+were never written. The 6.209.0 script inserted its NEW IN block with a
+bare `str.replace` whose anchor was already gone (the same script had
+cut BOTH older blocks because 6.208.0's block had been placed under
+6.207.0's instead of above it), so nothing was inserted and nothing
+said so; the next two scripts then died on `s.index` of that missing
+block — inside a `run_in_background` gate command, so the traceback
+went to a task log and the gate, which never read the header, went
+green. Three commits shipped code without words. RULES: a ceremony
+edit is an ASSERTED replace (count == 1) and runs in the foreground
+with its stamps grepped back before any gate starts; NEW IN blocks are
+newest-first and the trailer names the third; and test_diagnostics now
+enforces the header shape, so the gate fails instead of the reader.
+🗓 TWO PANELS THAT SHARE A CORNER TALK THROUGH SERVICES (6.211.0,
+pomodoro + mini_calendar): pomodoro.dock(rect) / pomodoro.undock and
+calendar.frame, each side asking `_G.service.has` first so either
+module alone is unchanged. The pre-dock spot lives on the pomodoro's
+STATE (s.undockPos), never in pom.pos; undock refuses a second time
+rather than moving twice; the calendar undocks BEFORE deleting its
+canvas. Beside, not inside — the calendar's footer cannot hold the
+card without a layout change of its own. A cheat-sheet row that
+mentions ANOTHER tool's key uses a WORD in the key column ("calendar"),
+never the bare combo — the 6.196.0 audit reads a bare combo as a claim.
+🔊 THE POMODORO'S TONE IS PLAYED FROM THE TICK AND RESOLVED ON THE
+KEYPRESS (6.210.0, modules/pomodoro.lua): `pom.toneTick` runs inside the
+ticker's own pcall, at most once per `toneEvery`, only in the last
+`toneSecs` of FOCUS, volume from `pom.toneVolume(left)` (PURE, clamped);
+`pom.resolveTone()` is called in start() and remembers `false` — a Mac
+without Submarine is silent and the report's "tone :" line says so.
+The knobs are FLAT (toneOn/Name/File/Secs/Every/From/To/Break) because
+the settings block assigns `mod.config[k] = v` — a nested table override
+would replace the whole table and lose the rest. Any new sound in this
+config follows the same shape: resolve once off a keypress, never in a
+timer; `false` after a failed lookup; a report line with three states.
 🍅 THE POMODORO CARD'S COUNT IS READ ONCE, ON THE KEYPRESS (6.209.0,
 modules/pomodoro.lua): pomodoro_log-<Mac>.csv is in OneDrive and the
 ticker paints every second, so `pom.todayCount()` reads via dayCounts
@@ -1046,6 +1095,38 @@ mirrors draw order: "closes last" IS "drawn under".
 
 ## Open items — update as they move
 
+- 6.212.0 verify with LL: ⇪⇧1 (or ⌥⏎ on a history row) — four new
+  buttons after Arrow: Line, Oval, Highlight, Counter (keys L O H C).
+  Drag a line; drag an oval from the bottom-right corner UP and to the
+  left (it must come out the right way round); drag the oval by its
+  inside, then by its corner dot; lay a yellow highlight over a
+  sentence; click three times with Counter (①②③), ⌫ the ② and click
+  again — it must say ④. ⌘⏎: everything is baked into the saved file
+  and on the clipboard. Esc and reopen the same shot: all of it comes
+  back. NOT in this release, deliberately: Spotlight, Magnifier, Paste
+  Image and Add Capture — they read pixels or reach outside the page
+  and are 6.213.0's own question.
+- 6.211.0 verify with LL: ⇪⇧P, then ⇪⇧0 — the card jumps to sit
+  against the calendar's LEFT edge, top-aligned, still counting; close
+  the calendar (esc) and it is back where it was. Drag the card
+  somewhere first, then ⇪⇧0 and esc: it returns to where he dragged it.
+  Then ⇪⇧0 first and ⇪⇧P second: the card must appear beside the
+  calendar, never under it. STATED, NOT HIDDEN: it sits BESIDE the
+  calendar, not inside it — inside means reserving a corner of the
+  calendar's own layout (a 180-pt card in a 120-pt footer), which is a
+  calendar decision for its own release if he wants it.
+- 6.210.0 verify with LL: ⇪⇧P and wait for 0:30 — Submarine, quietly,
+  then every three seconds a little louder, ten times, the last one at
+  full volume, then the flash as before. The break's end stays silent
+  (deliberate — `settings = { pomodoro = { toneBreak = true } }` if he
+  wants it). If the first one is already too loud or the last too quiet,
+  NO release: `toneFrom = 0.05` / `toneTo = 0.7` in the same settings
+  table; `toneSecs = 60` for a longer run-up; `toneOn = false` for
+  silence. `_G.pomodoroReport()`'s "tone :" line must read "Submarine
+  every 3 s … 10 played this phase" after one — if it reads "⚠️ SILENT",
+  that Mac has no Submarine under /System/Library/Sounds, which is the
+  degrade working, and the name to try is in the same settings table
+  (`toneName = "Sosumi"`).
 - 6.209.0 verify with LL: ⇪⇧P — the card is 90% opaque from the first
   second, and stays there for the whole countdown and under the mouse.
   If that is still too see-through, or now too solid, NO release:

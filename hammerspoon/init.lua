@@ -4,15 +4,57 @@
 -- =====================================================================
 -- 09-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.209.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.212.0
 -- =====================================================================
 
--- (6.207.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- NEW IN 6.212.0 — 🖌 LINE · OVAL · HIGHLIGHTER · COUNTER IN THE EDITOR:
+--   LL, with a screenshot of another tool's palette: "Can you read the
+--      other operations in the screenshot and add those features to my
+--      screenshot tool?" The four that are annotations, first.
+--   ／ LINE (L) is an arrow without its head — drawn press to release,
+--      ends stretch and rotate. ◯ OVAL (O) is a white ring drawn as a box
+--      in ANY direction (x/y/w/h normalised as the corner drags); inside
+--      moves it, the bottom-right corner resizes it. 🖍 HIGHLIGHT (H) is
+--      a translucent yellow box, no shadow. ① COUNTER (C): one click,
+--      one badge, the NEXT number — one past the highest, so deleting ②
+--      leaves ① and ③ their numbers and the next is ④, never a second ③.
+--      All four move, ⌘Z, ⌫, save into the pixels and survive an Esc
+--      exactly as text and arrows do — same notes list, same overlay,
+--      same undo; `snapNote` copies every numeric field so one 'set' op
+--      undoes any kind. A tiny drag makes no shape. Buttons and keys.
+--   🧪 test_editor_js 70 -> 99 (the harness can now hand a section a
+--      400×300 canvas; badges and grab radii are image pixels): every
+--      gesture above, the ellipse's centre and radii, the exact fill,
+--      the numbering rules, all kinds in a save and a cancel. Four
+--      mutations, each failing the row written for it. 8,674 -> 8,710
+--      checks, seventy-five stages.
+--
+-- NEW IN 6.211.0 — 🗓 THE POMODORO SITS BESIDE THE MINI CALENDAR:
+--   LL: "⌘+⇧+0 mini-calendar include the pomodoro temporarily in the
+--      mini-calendar? Then come back to its own window when the
+--      mini-calendar closes?" Both live top-right under the clock, so
+--      the 1024-wide calendar was covering the card.
+--   🍅 While ⇪⇧0 is up the card DOCKS beside it — snug against the
+--      calendar's left edge, top-aligned — and goes back to exactly where
+--      it was when the calendar closes (`pom.dock(rect)` / `pom.undock()`,
+--      published as pomodoro.dock / pomodoro.undock; the calendar calls
+--      them from show() and hide(), and publishes calendar.frame so a
+--      pomodoro STARTED under an open calendar docks at once). The
+--      pre-dock spot lives on the state, never in pom.pos, so a dragged
+--      position survives. Either module alone is unchanged: a missing
+--      partner is a false, never a throw. `_G.pomodoroReport()` "dock :".
+--   📐 Drawn INSIDE the calendar was judged and not built: its footer is
+--      120 pt tall and the card 180, so that is a calendar layout decision.
+--   🧪 test_tools 140 -> 153, test_features 458 -> 464. Four mutations,
+--      each failing the row written for it. 8,655 -> 8,674 checks,
+--      seventy-five stages.
+--
+-- (6.210.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.209.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.212.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -109,7 +151,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.209.0"
+_G.configVersion = "6.212.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

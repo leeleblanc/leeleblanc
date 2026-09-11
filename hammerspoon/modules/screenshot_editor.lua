@@ -56,6 +56,7 @@ local M = {
         entries = {
             { "open",  "⇪⇧1 opens the newest shot · ⇪⇧5 menu captures too · ⌥⏎ on a history row" },
             { "B T A", "tools: Blur box · Text box · Arrow (buttons too)" },
+            { "L O H C", "6.212.0: Line · Oval · Highlighter (translucent yellow box) · Counter (①②③ — a numbered badge per click, ⌘Z takes the last back)" },
             { "text",  "click, type, ⏎ — white text, white outline box · click an EXISTING box (Text tool) to edit its words, or ⏎ on a selected one" },
             { "move",  "drag text/arrows around · arrow ENDS stretch + rotate · a selected text box has a corner dot — drag it to make the text bigger or smaller (⌘Z undoes it)" },
             { "⌫",     "delete the selected note · double-click text re-edits" },
@@ -195,6 +196,10 @@ function M.setup(core)
   <button id="tool-blur" class="tool on" onclick="setTool('blur')" title="B">▦ Blur</button>
   <button id="tool-text" class="tool" onclick="setTool('text')" title="T">🅣 Text</button>
   <button id="tool-arrow" class="tool" onclick="setTool('arrow')" title="A">➤ Arrow</button>
+  <button id="tool-line" class="tool" onclick="setTool('line')" title="L">／ Line</button>
+  <button id="tool-oval" class="tool" onclick="setTool('oval')" title="O">◯ Oval</button>
+  <button id="tool-hl" class="tool" onclick="setTool('hl')" title="H">🖍 Highlight</button>
+  <button id="tool-count" class="tool" onclick="setTool('count')" title="C">① Counter</button>
   <button onclick="undoLast()" title="⌘Z">↩︎ Undo</button>
   <button class="go" onclick="saveIt('png')" title="⌘⏎">Save &amp; copy&nbsp;&nbsp;⌘⏎</button>
   <button onclick="saveIt('jpg')" title="⌘⇧⏎">Small JPEG</button>
@@ -285,7 +290,8 @@ function M.setup(core)
   var tin = document.getElementById('tin');
 
   var tool = 'blur';
-  var notes = [];      // {kind:'text',x,y,text,size} | {kind:'arrow',x1,y1,x2,y2}
+  var notes = [];      // {kind:'text',x,y,text,size} | {kind:'arrow'|'line',x1,y1,x2,y2}
+                       // | {kind:'oval'|'hl',x,y,w,h} | {kind:'count',x,y,n}   (6.212.0)
   if (RESTORENOTES) {
     try {
       var _b = atob(RESTORENOTES), _a = new Uint8Array(_b.length), _i;
@@ -322,7 +328,7 @@ function M.setup(core)
   // resized because the corner handle covers the whole box.
   function handleRFor(n){
     var r = handleR();
-    if (n.kind === 'arrow'){
+    if (n.kind === 'arrow' || n.kind === 'line'){
       var len = distPt(n.x1, n.y1, n.x2, n.y2);
       return Math.max(4, Math.min(r, len * 0.35));
     }
@@ -337,7 +343,7 @@ function M.setup(core)
 
   function setTool(t){
     tool = t;
-    var names = ['blur', 'text', 'arrow'], i, b;
+    var names = ['blur', 'text', 'arrow', 'line', 'oval', 'hl', 'count'], i, b;
     for (i = 0; i < names.length; i++){
       b = document.getElementById('tool-' + names[i]);
       if (b) b.className = 'tool' + (names[i] === t ? ' on' : '');
@@ -377,10 +383,24 @@ function M.setup(core)
   function setFont(g, n){
     g.font = n.size + 'px -apple-system, BlinkMacSystemFont, sans-serif';
   }
+  // 6.212.0 — the counter badge's radius scales with the image like the
+  // text does, so a "①" pasted at full size is readable
+  function countR(){ return Math.max(12, Math.round(tsize() * 0.9)); }
+  function nextCount(){
+    var m = 0;
+    for (var i = 0; i < notes.length; i++)
+      if (notes[i].kind === 'count' && notes[i].n > m) m = notes[i].n;
+    return m + 1;   // one past the HIGHEST, so a deleted ② never comes back as a second ③
+  }
   function noteBox(n){
-    if (n.kind === 'arrow'){
+    if (n.kind === 'arrow' || n.kind === 'line'){
       return { x: Math.min(n.x1, n.x2), y: Math.min(n.y1, n.y2),
                w: Math.abs(n.x2 - n.x1), h: Math.abs(n.y2 - n.y1) };
+    }
+    if (n.kind === 'oval' || n.kind === 'hl') return { x: n.x, y: n.y, w: n.w, h: n.h };
+    if (n.kind === 'count'){
+      var cr = countR();
+      return { x: n.x - cr, y: n.y - cr, w: cr * 2, h: cr * 2 };
     }
     var g = octx || ctx, w = (n.text || ' ').length * n.size * 0.6;
     if (g && g.measureText){
@@ -398,7 +418,35 @@ function M.setup(core)
     g.shadowColor = 'rgba(0,0,0,0.55)';
     g.shadowBlur = Math.max(3, lwidth());
     g.strokeStyle = '#ffffff'; g.fillStyle = '#ffffff';
-    if (n.kind === 'arrow'){
+    if (n.kind === 'line'){
+      // 6.212.0 — an arrow without its head
+      g.lineWidth = lwidth(); g.lineCap = 'round';
+      g.beginPath(); g.moveTo(n.x1, n.y1); g.lineTo(n.x2, n.y2); g.stroke();
+    } else if (n.kind === 'oval'){
+      // 6.212.0 — a white ring around the thing; ellipse where the
+      // canvas has it, a circle of the longer side where it does not
+      g.lineWidth = lwidth();
+      g.beginPath();
+      var cx = n.x + n.w / 2, cy = n.y + n.h / 2;
+      if (g.ellipse) g.ellipse(cx, cy, Math.max(1, n.w / 2), Math.max(1, n.h / 2), 0, 0, 6.2832);
+      else g.arc(cx, cy, Math.max(1, Math.max(n.w, n.h) / 2), 0, 6.2832);
+      g.stroke();
+    } else if (n.kind === 'hl'){
+      // 6.212.0 — a translucent yellow box, NO shadow (a shadow under a
+      // translucent fill reads as a smudge)
+      g.shadowBlur = 0; g.shadowColor = 'rgba(0,0,0,0)';
+      g.fillStyle = 'rgba(255,230,0,0.38)';
+      g.fillRect(n.x, n.y, n.w, n.h);
+    } else if (n.kind === 'count'){
+      // 6.212.0 — a white disc with the number in dark ink
+      var cr = countR();
+      g.beginPath(); g.arc(n.x, n.y, cr, 0, 6.2832); g.fill();
+      g.shadowBlur = 0;
+      g.fillStyle = '#1b2a4a';
+      g.font = Math.round(cr * 1.2) + 'px -apple-system, BlinkMacSystemFont, sans-serif';
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(String(n.n), n.x, n.y);
+    } else if (n.kind === 'arrow'){
       var dx = n.x2 - n.x1, dy = n.y2 - n.y1;
       var len = Math.sqrt(dx * dx + dy * dy) || 1;
       var ux = dx / len, uy = dy / len;
@@ -437,8 +485,8 @@ function M.setup(core)
         var dot = function(x, y){
           g.beginPath(); g.arc(x, y, hr, 0, 6.2832); g.fill(); g.stroke();
         };
-        if (n.kind === 'arrow'){ dot(n.x1, n.y1); dot(n.x2, n.y2); }
-        else { dot(bb.x + bb.w, bb.y + bb.h); }   // text: the resize corner
+        if (n.kind === 'arrow' || n.kind === 'line'){ dot(n.x1, n.y1); dot(n.x2, n.y2); }
+        else if (n.kind !== 'count'){ dot(bb.x + bb.w, bb.y + bb.h); }   // the resize corner (text, oval, highlight)
       }
     }
     g.restore();
@@ -466,7 +514,12 @@ function M.setup(core)
   function hitAt(p){
     for (var i = notes.length - 1; i >= 0; i--){
       var n = notes[i];
-      if (n.kind === 'arrow'){
+      if (n.kind === 'count'){
+        // 6.212.0 — the badge moves as a whole; no handle to resize
+        if (distPt(p.x, p.y, n.x, n.y) <= countR() + handleR() * 0.5) return { note: n, part: 'move' };
+        continue;
+      }
+      if (n.kind === 'arrow' || n.kind === 'line'){
         var hr = handleRFor(n);
         if (distPt(p.x, p.y, n.x1, n.y1) <= hr) return { note: n, part: 'p1' };
         if (distPt(p.x, p.y, n.x2, n.y2) <= hr) return { note: n, part: 'p2' };
@@ -490,8 +543,12 @@ function M.setup(core)
   function snapNote(n){
     // 6.188.0 — `size` rides along for a text note, so ⌘Z undoes a resize
     // through the same generic 'set' op a move already used
-    return n.kind === 'arrow' ? { x1: n.x1, y1: n.y1, x2: n.x2, y2: n.y2 }
-                              : { x: n.x, y: n.y, size: n.size };
+    // 6.212.0 — every numeric field, whatever the kind: x/y/size for
+    // text, the two ends of an arrow or line, x/y/w/h of an oval or a
+    // highlight, x/y/n of a counter
+    var o = {}, k;
+    for (k in n) if (typeof n[k] === 'number') o[k] = n[k];
+    return o;
   }
 
   // ---- the floating text input ----
@@ -593,10 +650,27 @@ function M.setup(core)
         return;
       }
       if (tool === 'text'){ sel = null; redraw(); startText(null, p); return; }
-      if (tool === 'arrow'){
-        var n = { kind: 'arrow', x1: p.x, y1: p.y, x2: p.x, y2: p.y };
+      if (tool === 'arrow' || tool === 'line'){
+        var n = { kind: tool, x1: p.x, y1: p.y, x2: p.x, y2: p.y };
         notes.push(n); sel = n;
         drag = { mode: 'end', note: n, part: 'p2', fresh: true };
+        redraw();
+        return;
+      }
+      // 6.212.0 — a box drawn from the press to the release, in any
+      // direction: the corner drag normalises x/y/w/h as it goes
+      if (tool === 'oval' || tool === 'hl'){
+        var nb = { kind: tool, x: p.x, y: p.y, w: 0, h: 0 };
+        notes.push(nb); sel = nb;
+        drag = { mode: 'corner', note: nb, fresh: true, ox: p.x, oy: p.y };
+        redraw();
+        return;
+      }
+      // 6.212.0 — one click, one badge, the next number
+      if (tool === 'count'){
+        var nc = { kind: 'count', x: p.x, y: p.y, n: nextCount() };
+        notes.push(nc); sel = nc;
+        pushUndo({ op: 'add', note: nc });
         redraw();
         return;
       }
@@ -628,12 +702,22 @@ function M.setup(core)
           n.x1 = drag.before.x1 + dx; n.y1 = drag.before.y1 + dy;
           n.x2 = drag.before.x2 + dx; n.y2 = drag.before.y2 + dy;
         } else { n.x = drag.before.x + dx; n.y = drag.before.y + dy; }
+      } else if (drag.mode === 'corner'){
+        n.x = Math.min(drag.ox, p.x); n.y = Math.min(drag.oy, p.y);
+        n.w = Math.abs(p.x - drag.ox); n.h = Math.abs(p.y - drag.oy);
       } else if (drag.mode === 'size'){
-        // 6.188.0 — drag the corner away from the note to grow it. The
-        // anchor (n.x, n.y) does not move, so the text grows where it is
-        // rather than wandering off under the pointer.
-        var d2 = ((p.x - drag.sx) + (p.y - drag.sy)) / 2;
-        n.size = Math.max(10, Math.min(600, Math.round(drag.before.size + d2)));
+        if (n.kind === 'oval' || n.kind === 'hl'){
+          // 6.212.0 — the bottom-right corner follows the pointer; the
+          // top-left stays put
+          n.w = Math.max(4, Math.round(drag.before.w + (p.x - drag.sx)));
+          n.h = Math.max(4, Math.round(drag.before.h + (p.y - drag.sy)));
+        } else {
+          // 6.188.0 — drag the corner away from the note to grow it. The
+          // anchor (n.x, n.y) does not move, so the text grows where it is
+          // rather than wandering off under the pointer.
+          var d2 = ((p.x - drag.sx) + (p.y - drag.sy)) / 2;
+          n.size = Math.max(10, Math.min(600, Math.round(drag.before.size + d2)));
+        }
       } else {   // 'end' — one endpoint follows the mouse: stretch + rotate
         if (drag.part === 'p1'){ n.x1 = p.x; n.y1 = p.y; }
         else { n.x2 = p.x; n.y2 = p.y; }
@@ -652,8 +736,10 @@ function M.setup(core)
       }
       var n = d.note;
       if (d.fresh){
-        if (distPt(n.x1, n.y1, n.x2, n.y2) < 6){
-          notes.splice(notes.indexOf(n), 1);   // a click, not an arrow
+        var tiny = (n.kind === 'oval' || n.kind === 'hl') ? (n.w < 4 || n.h < 4)
+                                                          : distPt(n.x1, n.y1, n.x2, n.y2) < 6;
+        if (tiny){
+          notes.splice(notes.indexOf(n), 1);   // a click, not a shape
           if (sel === n) sel = null;
         } else pushUndo({ op: 'add', note: n });
       } else {
@@ -701,6 +787,10 @@ function M.setup(core)
         if (e.key === 'b' || e.key === 'B') setTool('blur');
         else if (e.key === 't' || e.key === 'T') setTool('text');
         else if (e.key === 'a' || e.key === 'A') setTool('arrow');
+        else if (e.key === 'l' || e.key === 'L') setTool('line');
+        else if (e.key === 'o' || e.key === 'O') setTool('oval');
+        else if (e.key === 'h' || e.key === 'H') setTool('hl');
+        else if (e.key === 'c' || e.key === 'C') setTool('count');
       }
     });
   }
