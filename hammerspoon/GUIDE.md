@@ -9,7 +9,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,750 lines)
+├── init.lua          the orchestrator (3,740 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (12 files)
 ├── modules/          one file per feature (68 files, ~55,400 lines)
@@ -821,8 +821,16 @@ stood, kept verbatim.
                nothing. It never speaks in code editors, terminals
                or password fields, and a missing or still-loading
                word list means silence, never a guess.
+               6.205.0: an INFLECTION of a listed word is a word —
+               starts, allows, convinced, running, happier are never
+               "corrected" (the list holds base words only, and on
+               6.200.0 starts became starets), and statrs → starts
+               still works because start is listed.
                Off: settings = { autocorrect = { on = false } };
                more excluded apps: { offIn = { "Excel", … } }.
+   _G.autocorrectAdd("intsead", "instead")   (6.205.0) a permanent
+               fix row, live at once, on the other Mac after its
+               reload; a dead row, a comma or an empty side is refused.
    ⌃⌥⌘Z       if a fix was wrong: rewinds the text AND (for
                two-caps and spelling fixes) permanently adds the
                word to your exceptions so it never fires again.
@@ -877,9 +885,9 @@ CREATED AUTOMATICALLY (never make these yourself):
 
 ## 6. Tests
 
-Sixty-eight Lua suites, 8,024 checks, plus four more that run the Capture
+Sixty-eight Lua suites, 8,064 checks, plus four more that run the Capture
 Pad's, the screenshot editor's, unified search's and the vault's page
-JavaScript under `node` for a further 442 — **8,466 checks over
+JavaScript under `node` for a further 442 — **8,506 checks over
 seventy-four stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:

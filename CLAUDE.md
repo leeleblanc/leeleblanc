@@ -466,6 +466,21 @@ copied. `crashScan` returns the NAMES it saw for exactly that. The scan
 matches the same glob rsync is given (`bk.globPattern`) so the count and
 the copy cannot disagree — and an unmatchable glob is its own state, not
 one of the two reassuring ones.
+🚨 AN INFLECTION OF A WORD IS A WORD (6.205.0, modules/autocorrect.lua).
+The Mac's /usr/share/dict/words is Webster's Second — BASE words, almost
+no plurals, past tenses or -ing forms — so 6.200.0's rule read starts,
+allows and convinced as "not a word" and rewrote them into starets and
+gallows (the list has both). `acSpellStems` is PURE and names the stems
+(s/es/ies, ed/d/ied, ing, er/est/ier/iest, ly/ily, ness/iness, doubled
+consonant undone, dropped e restored; a stem keeps ≥2 letters); "is that
+a word" asks the word AND its stems on BOTH sides of the rule (starts is
+left alone; statrs → starts still corrects). `_G.autocorrectAdd(wrong,
+right)` appends one fix row (refuses a dead row, a comma, an empty side).
+RULE learned here: 6.200.0's "measured against the real word list" was
+measured against base words, so the fixture shared the code's blind spot
+— the sample for a rule that edits text must include INFLECTED words.
+Sublime Text is on the word list's offIn list by design; the CSV rows
+and the TWo-caps rule still speak there.
 📖 THE WORD LIST IS THE LAST THING ASKED, AND ITS NUMBERS WERE MEASURED
 (6.200.0, modules/autocorrect.lua). LL: "The actual word is somethgni,
 somethingg, somethinng, somethng, somtething" — five spellings of one
@@ -979,6 +994,18 @@ mirrors draw order: "closes last" IS "drawn under".
 
 ## Open items — update as they move
 
+- 6.205.0 verify with LL: in Chrome, type "starts ", "allows ",
+  "convinced " — all three must stay exactly as typed (on 6.203.0 they
+  became starets, gallows and something else). Then "statrs " must still
+  become "starts" and "somethingg " still "something". Then the door:
+  `_G.autocorrectAdd("intsead", "instead")` in the Console, and type
+  "intsead " anywhere — it corrects at once, no reload; the alert names
+  the row to delete to take it back. `_G.autocorrectReport()`'s
+  "spelling" block lists every word the list changed this session — if
+  a RIGHT word ever appears there again, paste that block: it is the
+  evidence, and ⇪Z right after it undoes and refuses it permanently.
+  Sublime Text is deliberately not corrected by the word list (code
+  editors are on offIn); the CSV rows still work there.
 - 6.204.0 verify with LL: ⇪D, then MOVE THE MOUSE over the list. The
   highlight must follow the pointer from row to row, and the pane on the
   right must show that row — its header says "🖱 under the pointer".
@@ -1200,7 +1227,11 @@ mirrors draw order: "closes last" IS "drawn under".
   was right, the screenshot just read small, and no font was touched.
   Keep this as the worked example: a "fix" for a misread screenshot is
   a change with no bug under it.
-- 6.200.0 verify with LL — NOT YET DELIVERED. LL's decision, in his
+- 6.200.0 verify — ANSWERED BY LL ON 6.203.0, and the answer was a bug: the
+  rule rewrote starts→starets, allows→gallows, convinced→? (inflections are
+  not in the base-word list). FIXED 6.205.0; verify that instead. The
+  original item, kept for the shape of the ask:
+  6.200.0 verify with LL — NOT YET DELIVERED. LL's decision, in his
   words the sequencing question was answered "after you confirm
   6.199.0": build it now, hold the zip until the four already delivered
   are confirmed behaving. When it does go: type somethingg, somethinng,

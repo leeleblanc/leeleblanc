@@ -666,6 +666,124 @@ do
   check("§7 ran every one of its checks", mine == 37, mine)
 end
 
+-- =====================================================================
+out("\n=== 8. 🚨 AN INFLECTION OF A WORD IS A WORD (6.205.0) ===\n")
+-- =====================================================================
+-- LL, on 6.203.0 in Chrome: "starets which should be starts", "allows is
+-- changing to gallows", and "convinced" rewritten mid-sentence. macOS's
+-- word list is a list of BASE words — it has start, allow and convince,
+-- and not starts, allows or convinced — so every regular inflection read
+-- as "not a word", and the one real word an insertion away was an
+-- obscure entry. The fixture below is that list in miniature.
+do
+  local mine = 0
+  local function ck(label, cond, extra)
+    mine = mine + 1 ; check(label, cond, extra)
+  end
+  local WORDS = TMP .. "/words"
+  local function seedWords(list)
+    local f = io.open(WORDS, "w")
+    for _, w in ipairs(list) do f:write(w .. "\n") end
+    f:close()
+    mod.config.wordsFile = WORDS
+    mod.warm(core)
+  end
+  seedWords({ "start", "starets", "allow", "gallows", "convince", "run",
+              "stop", "happy", "quick", "kind", "wish", "try", "make",
+              "tall", "nice", "big", "something", "house" })
+
+  -- ---- LL's three, by name -------------------------------------------
+  ck("🚨 starts is left alone — start is a word, so starts is one too"
+     .. " (it became starets)", typeWord("starts ") == nil,
+     tostring(typeWord("starts ")))
+  ck("🚨 allows is left alone (it became gallows)",
+     typeWord("allows ") == nil, tostring(typeWord("allows ")))
+  ck("🚨 convinced is left alone — the e-dropping past tense",
+     typeWord("convinced ") == nil, tostring(typeWord("convinced ")))
+  ck("Starts with a capital is left alone too",
+     typeWord("Starts ") == nil, tostring(typeWord("Starts ")))
+
+  -- ---- every regular ending, one word each ---------------------------
+  for _, w in ipairs({ "running", "stopped", "happier", "happiest", "happily",
+                       "happiness", "quickly", "kindness", "wishes", "tries",
+                       "tried", "making", "taller", "tallest", "nicer",
+                       "nicest", "bigger", "houses" }) do
+    ck(w .. " is an inflection of a listed word and is left alone",
+       typeWord(w .. " ") == nil, tostring(typeWord(w .. " ")))
+  end
+
+  -- ---- and the rule still corrects a real typo ------------------------
+  ck("🚨 statrs → starts: an inflection is a real ANSWER as well, not only"
+     .. " a word to leave alone — starts is not listed, start is",
+     typeWord("statrs ") == "starts ", tostring(typeWord("statrs ")))
+  ck("somethingg → something still works", typeWord("somethingg ") == "something ",
+     tostring(typeWord("somethingg ")))
+  ck("a stem must keep two letters — 'as' is not read as a plural of 'a'",
+     (function()
+        local known = function(w) return w == "a" end
+        for _, s in ipairs(_G.acSpellStems("as")) do if known(s) then return false end end
+        return true
+     end)())
+
+  -- ---- the pure rule, with no Mac near it ----------------------------
+  local known = function(w)
+    return ({ start = true, starets = true, allow = true, gallows = true })[w] == true
+  end
+  ck("_G.acSpellStems names start for starts", (function()
+     for _, s in ipairs(_G.acSpellStems("starts")) do if s == "start" then return true end end
+     return false
+  end)(), table.concat(_G.acSpellStems("starts"), " "))
+  ck("🚨 …and the pure rule refuses to touch starts while it would still"
+     .. " turn a word with NO known stem into starets",
+     _G.acSpellCorrection("starts", known, 4) == nil
+     and _G.acSpellCorrection("stares", known, 4) == nil     -- stare? not listed, stares → starets? two-edit; stays
+     and _G.acSpellCorrection("starts", function(w) return w == "starets" end, 4) == "starets",
+     tostring(_G.acSpellCorrection("starts", known, 4)))
+  ck("allows: allow is a stem; gallows is not a correction of it",
+     _G.acSpellCorrection("allows", known, 4) == nil)
+
+  -- ---- ✏️ the door for a fix row ---------------------------------------
+  local CSV = TMP .. "/autocorrect.csv"
+  local function readCsv()
+    local f = io.open(CSV, "r") ; local t = f and f:read("*a") or ""
+    if f then f:close() end ; return t
+  end
+  ck("before the row, intsead is left alone", typeWord("intsead ") == nil,
+     tostring(typeWord("intsead ")))
+  local okA, whyA = _G.autocorrectAdd("intsead", "instead")
+  ck("_G.autocorrectAdd writes the row and says so", okA == true
+     and whyA:find("intsead → instead", 1, true) ~= nil, whyA)
+  ck("…and it corrects at once, with no reload",
+     typeWord("intsead ") == "instead ", tostring(typeWord("intsead ")))
+  ck("…the row is in the file as fix,intsead,instead",
+     readCsv():find("\nfix,intsead,instead\n", 1, true) ~= nil)
+  ck("…and it survives a reload", (function()
+     mod.warm(core) ; return typeWord("intsead ") == "instead "
+  end)())
+  ck("…with the capitalisation rules of any other row (Intsead → Instead)",
+     typeWord("Intsead ") == "Instead ", tostring(typeWord("Intsead ")))
+  ck("the report counts it as a dictionary row",
+     tonumber(_G.autocorrectReport():match("dictionary%s*:%s*(%d+)")) >= 11)
+  local n0 = select(2, readCsv():gsub("\n", ""))
+  local okD, whyD = _G.autocorrectAdd("IDs", "ids")
+  ck("🚨 a dead row is REFUSED, not written — obeyed it would turn IDs into Ids",
+     okD == false and whyD:find("same word", 1, true) ~= nil
+     and select(2, readCsv():gsub("\n", "")) == n0, whyD)
+  local okC, whyC = _G.autocorrectAdd("a,b", "ab")
+  ck("…and so is a comma, which would corrupt the file",
+     okC == false and select(2, readCsv():gsub("\n", "")) == n0, whyC)
+  local okE, whyE = _G.autocorrectAdd("", "x")
+  ck("…and an empty side", okE == false and whyE:find("two words", 1, true) ~= nil, whyE)
+  ck("the cheat sheet tells LL the door exists", (function()
+     for _, e in ipairs(mod.cheatsheet.entries) do
+       if e[2]:find("_G.autocorrectAdd", 1, true) then return true end
+     end
+     return false
+  end)())
+
+  check("§8 ran every one of its checks", mine == 39, mine)
+end
+
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.execute("rm -rf '" .. TMP .. "'")
 os.exit(fail == 0 and 0 or 1)

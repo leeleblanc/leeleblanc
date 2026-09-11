@@ -5,6 +5,62 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.205.0 — 🚨 AUTOCORRECT: AN INFLECTION OF A WORD IS A WORD:
+  🐞 LL, three days into using 6.200.0's word-list rule, in Chrome:
+     "starets which should be starts but is changing to starets and I
+     don't know why", "allows is changing to gallows", and "Convinced
+     was just autocorrected" mid-sentence. The dictionary check was
+     turning RIGHT words into wrong ones — the one failure 6.200.0 said
+     it was built never to have, and the one that makes a person switch
+     the feature off.
+  📖 THE CAUSE IS THE SHAPE OF THE WORD LIST. /usr/share/dict/words on a
+     Mac is Webster's Second: a list of BASE words. It has start, allow
+     and convince. It does not have starts, allows or convinced — nor
+     most regular plurals, past tenses or -ing forms. So every one of
+     those LL typed read to the rule as "not a word", and the rule then
+     did exactly what it was told: found the one real word a single edit
+     away and put it in. starets is a Russian religious elder, and the
+     list has it; gallows is one insertion from allows. 6.200.0's
+     104-word measurement never saw this because the sample was base
+     words — the list agreed with itself, which is 6.203.0's lesson in a
+     new costume: a fixture that shares the code's blind spot confirms
+     the code.
+  ✅ `acSpellStems` IS PURE AND NAMES THE STEMS a word may be an
+     inflection of — s / es / ies, ed / d / ied, ing, er / est / ier /
+     iest, ly / ily, ness / iness — with a doubled consonant undone
+     (stopped → stop, running → run, bigger → big) and the dropped e put
+     back (making → make, nicer → nice). "Is that a word" now asks about
+     the word AND each stem, and a hit anywhere means it is one. It is
+     asked on BOTH sides of the rule, deliberately: starts is left alone
+     because start is listed, and statrs → starts is still a real
+     answer because start is — without the second half, the fix would
+     have made the rule safe by making it deaf to every typo of an
+     inflected word. A stem must keep two letters, so "as" is not read
+     as a plural of "a".
+  ✏️ AND THE DOOR LL ASKED FOR: `_G.autocorrectAdd("intsead", "instead")`.
+     "How do I add an autocorrect entry?" — until now, by opening an
+     11,000-line CSV in OneDrive and typing at the bottom. One `fix,`
+     row, appended the way ⇪Z appends its rows, live in memory at once,
+     on the other Mac after OneDrive syncs and it reloads. It REFUSES
+     rather than writes what the loader would skip: a dead row (both
+     sides the same word once lowered — 6.199.0's IDs → Ids), an empty
+     side, or a comma or line break, which would corrupt the file it is
+     meant to help. The alert names the row to delete to take it back.
+  🔎 STATED, NOT HIDDEN: "start statrs starst" typed into Sublime Text
+     corrected nothing, and that is by design — Sublime is on the
+     word-list rule's offIn list (code editors, terminals), where
+     identifiers look exactly like misspellings. The CSV rows and the
+     TWo-caps rule still speak there; only the word list stands down.
+     settings = { autocorrect = { offIn = { … } } } without "Sublime
+     Text" switches it on there.
+  🧪 test_autocorrect 114 -> 153: LL's three words by name, eighteen
+     endings one word each, the typo that must still correct, the pure
+     stems, the door with its three refusals and its survival of a
+     reload. Four mutations, each failing the rows written for it: stems
+     returning nothing (7 rows), candidates read strictly (2), the
+     dead-row guard removed (6), the row written but never loaded (the
+     no-reload row). 8,466 -> 8,506 checks, seventy-four stages.
+
 NEW IN 6.204.0 — 👁 ⇪D TAKES THE MOUSE, AND A PANE SHOWS THE FULL ENTRY:
   🐞 LL, bug (3) of the three he reported against 6.201.0, and the last
      of them: "I can only use the arrow keys. There also is no side

@@ -45,7 +45,9 @@ local M = {
             { "⇪Z", "Undo last fix & learn the exception — reversible" },
             { "auto", "Fixes typos & TWo-caps as you type (autocorrect.csv)" },
             { "see", "_G.autocorrectReport() — what ⇪Z has learned, and how"
-                     .. " to unlearn it (_G.autocorrectForget \"HOw\")" }
+                     .. " to unlearn it (_G.autocorrectForget \"HOw\")" },
+            { "add", "_G.autocorrectAdd(\"intsead\", \"instead\") — a permanent"
+                     .. " fix row in autocorrect.csv, live at once, on both Macs" },
         },
     },
 }
@@ -258,6 +260,52 @@ function M.setup(core)
     -- Deliberately NOT here: substitution (a mistyped neighbouring key).
     -- It generates 25 candidates per letter and is where a word list
     -- starts rewriting words that were right.
+    -- 🚨 6.205.0 — AN INFLECTION OF A WORD IS A WORD. LL, three days
+    -- into 6.200.0: "starets which should be starts", "allows is changing
+    -- to gallows", and "convinced" rewritten mid-sentence in Chrome. The
+    -- word list macOS ships (Webster's Second, /usr/share/dict/words) is a
+    -- list of BASE words: it has start, allow and convince, and NOT starts,
+    -- allows or convinced. So every regular plural, past tense and -ing
+    -- form LL typed read as "not a word", and any of them that sat one
+    -- insertion from an obscure entry was rewritten into it — starets is a
+    -- Russian religious elder, and the list has it. 6.200.0's 104-word
+    -- measurement never noticed because the sample was base words.
+    -- These are the stems a word may be an inflection of. PURE, so the
+    -- gate proves every shape with a dozen-word fixture; `known` is asked
+    -- about the word and then about each stem, and a hit anywhere means
+    -- "this is a word — leave it alone", on BOTH sides of the rule: a typed
+    -- word with a known stem is never corrected, and a candidate with a
+    -- known stem is a real answer (statrs → starts, where starts itself is
+    -- not listed but start is). Conservative on purpose: only the regular
+    -- English endings, and a stem must keep at least two letters.
+    local function acSpellStems(w)
+        local out, n = {}, #w
+        local function add(s) if #s >= 2 then out[#out + 1] = s end end
+        local function ends(suf) return n > #suf and w:sub(-#suf) == suf end
+        local function cut(k) return w:sub(1, n - k) end
+        -- stopped → stopp → stop · running → runn → run · bigger → bigg → big
+        local function undoubled(s)
+            if #s >= 3 and s:sub(-1) == s:sub(-2, -2) then return s:sub(1, -2) end
+        end
+        local function addAll(s) add(s) ; local u = undoubled(s) ; if u then add(u) end end
+        if ends("ies")   then add(cut(3) .. "y") end          -- tries → try
+        if ends("es")    then add(cut(2)) end                  -- wishes → wish
+        if ends("s")     then add(cut(1)) end                  -- starts → start
+        if ends("ied")   then add(cut(3) .. "y") end          -- tried → try
+        if ends("ed")    then addAll(cut(2)) ; add(cut(1)) end -- allowed → allow · convinced → convince
+        if ends("ing")   then addAll(cut(3)) ; add(cut(3) .. "e") end -- running → run · making → make
+        if ends("ier")   then add(cut(3) .. "y") end          -- happier → happy
+        if ends("iest")  then add(cut(4) .. "y") end          -- happiest → happy
+        if ends("er")    then addAll(cut(2)) ; add(cut(1)) end -- taller → tall · nicer → nice
+        if ends("est")   then addAll(cut(3)) ; add(cut(2)) end -- tallest → tall · nicest → nice
+        if ends("ily")   then add(cut(3) .. "y") end          -- happily → happy
+        if ends("ly")    then add(cut(2)) end                  -- quickly → quick
+        if ends("iness") then add(cut(5) .. "y") end          -- happiness → happy
+        if ends("ness")  then add(cut(4)) end                  -- kindness → kind
+        return out
+    end
+    _G.acSpellStems = acSpellStems   -- the gate reads it directly
+
     local function acSpellCorrection(word, known, minLen)
         if type(word) ~= "string" or type(known) ~= "function" then return nil end
         minLen = tonumber(minLen) or 4
@@ -267,13 +315,21 @@ function M.setup(core)
         local capped = word:match("^%u%l+$") ~= nil
         if not (word:match("^%l+$") or capped) then return nil end
         local w = word:lower()
-        if known(w) then return nil end            -- it is already a word
+        -- 6.205.0 — "is that a word" asks about the word AND its stems.
+        local function isWord(x)
+            if known(x) then return true end
+            for _, s in ipairs(acSpellStems(x)) do
+                if known(s) then return true end
+            end
+            return false
+        end
+        if isWord(w) then return nil end           -- it is already a word
 
         local seen, hits, n = {}, nil, 0
         local function try(cand)
             if cand == w or seen[cand] then return end
             seen[cand] = true
-            if known(cand) then n = n + 1 ; hits = cand end
+            if isWord(cand) then n = n + 1 ; hits = cand end
         end
         for i = 1, #w - 1 do                        -- swap two neighbours
             try(w:sub(1, i - 1) .. w:sub(i + 1, i + 1) .. w:sub(i, i)
@@ -814,6 +870,58 @@ function M.setup(core)
                     .. " removed) — the TWo-caps rule will correct it again."
                     .. " The other Mac follows once OneDrive syncs and it"
                     .. " reloads."
+        print(msg)
+        pcall(function() hs.alert.show(msg, 4) end)
+        return true, msg
+    end
+
+    -- ✏️ 6.205.0 — THE DOOR FOR A FIX ROW. LL: "How do I add an
+    -- autocorrect entry like starets which should be starts?" The answer
+    -- used to be "open an 11,000-line CSV in OneDrive and type a row at the
+    -- bottom" — the same file ⇪Z appends to, so this appends the same way:
+    -- one `fix,<wrong>,<right>` row, live in memory at once, on the other
+    -- Mac after its next reload. → ok, why. It refuses rather than writes
+    -- a row the loader would skip: a dead row (both sides the same word
+    -- once lowered), an empty side, or a side carrying a comma or a line
+    -- break, which would corrupt the file it is meant to help.
+    function _G.autocorrectAdd(wrong, right)
+        local function refuse(why)
+            print("✏️ " .. why) ; return false, why
+        end
+        if type(wrong) ~= "string" or type(right) ~= "string"
+           or wrong == "" or right == "" then
+            return refuse('give it two words, e.g. _G.autocorrectAdd("intsead", "instead")')
+        end
+        if wrong:find("[,\r\n]") or right:find("[,\r\n]") then
+            return refuse("a comma or a line break cannot go in a CSV row — nothing was written")
+        end
+        if autocorrectNoopRow(wrong, right) then
+            return refuse('"' .. wrong .. '" and "' .. right .. '" are the same word once'
+                          .. " lowered — that row would be skipped as dead (6.199.0),"
+                          .. " so it was not written")
+        end
+        local f = io.open(autocorrectFile, "a")
+        if not f then
+            core.warnWriteFailed("autocorrect.csv")
+            return refuse("could not append to " .. autocorrectFile .. " — nothing was written")
+        end
+        local okW = pcall(function()
+            f:write("fix," .. wrong:lower() .. "," .. right:lower() .. "\n")
+        end)
+        pcall(function() f:close() end)
+        if not okW then
+            core.warnWriteFailed("autocorrect.csv")
+            return refuse("the write failed — nothing was added")
+        end
+        if not autocorrectDict[wrong:lower()] then
+            autocorrectDictCount = autocorrectDictCount + 1
+        end
+        autocorrectDict[wrong:lower()] = right:lower()
+        local msg = "✏️ " .. wrong:lower() .. " → " .. right:lower()
+                    .. " is a fix row now — live here at once, on the other Mac"
+                    .. " after OneDrive syncs and it reloads. To take it back,"
+                    .. " delete the row fix," .. wrong:lower() .. "," .. right:lower()
+                    .. " in autocorrect.csv."
         print(msg)
         pcall(function() hs.alert.show(msg, 4) end)
         return true, msg

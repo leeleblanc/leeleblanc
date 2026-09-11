@@ -4,9 +4,34 @@
 -- =====================================================================
 -- 09-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.204.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.205.0
 -- =====================================================================
 
+-- NEW IN 6.205.0 — 🚨 AUTOCORRECT: AN INFLECTION OF A WORD IS A WORD:
+--   🐞 LL, on 6.203.0 in Chrome: "starets which should be starts", "allows
+--      is changing to gallows", "convinced" rewritten mid-sentence — the
+--      word-list rule (6.200.0) turning RIGHT words into wrong ones.
+--   📖 macOS's word list is a list of BASE words: it has start, allow and
+--      convince, and NOT starts, allows or convinced. So every regular
+--      plural, past tense and -ing form read as "not a word", and any one
+--      of them sitting a single insertion from an obscure entry (starets
+--      is a Russian elder; the list has it) was rewritten into it.
+--      6.200.0's 104-word measurement was base words, so it never saw it.
+--   ✅ `acSpellStems` (PURE) names the stems a word may be an inflection
+--      of — s/es/ies, ed/d/ied, ing, er/est, ly, ness, with the doubled
+--      consonant undone — and "is that a word" now asks about the word
+--      AND its stems, on BOTH sides of the rule: starts is left alone
+--      because start is listed, and statrs → starts is still a real
+--      answer because start is. Two-letter stems are refused.
+--   ✏️ `_G.autocorrectAdd("intsead", "instead")` — LL: "How do I add an
+--      autocorrect entry?" One fix row, appended the way ⇪Z appends,
+--      live at once, on the other Mac after its reload; a dead row, a
+--      comma or an empty side is REFUSED rather than written.
+--   🧪 test_autocorrect 114 -> 153: LL's three words by name, eighteen
+--      endings, the typo that still corrects, the door and its three
+--      refusals; four mutations, each failing the row written for it.
+--      8,466 -> 8,506 checks, seventy-four stages.
+--
 -- NEW IN 6.204.0 — 👁 ⇪D TAKES THE MOUSE, AND A PANE SHOWS THE FULL ENTRY:
 --   🐞 LL, bug (3) of the three against 6.201.0: "I can only use the
 --      arrow keys. There also is no side window that shows the full
@@ -37,47 +62,12 @@
 --      that bit until the mutation said so. 8,411 -> 8,466 checks,
 --      seventy-four stages.
 --
--- NEW IN 6.203.0 — 🚨 ⌘N IN THE VAULT NEVER USED THE NAME YOU TYPED:
---   🐞 LL: "I pasted a huge multi-line block into 'Name of the note'…
---      Console said 'Write failed: vault note Collect' / 'cannot open
---      …/Vault/Collect<thousands of chars>.md'. Nothing was created and
---      I don't see that anything was created." Two things were wrong and
---      only the second one was the one reported.
---   🚨 THE PAGE'S say() STAMPS THE OPEN NOTE ONTO `text` ON EVERY
---      MESSAGE — that is how the draft reaches Lua ahead of the save.
---      ⌘N sent {text: the typed name}; say overwrote it; Lua created a
---      note named after THE WHOLE OPEN NOTE. With no note open it sent
---      "" and did nothing at all. Thirteen releases, a green suite over
---      it the whole time, because the test messages were hand-built and
---      never went through say(). The name rides under `name` now.
---   🚨 AND THE SAME CLOBBER HIT THE BOARD: 6.186.0's drag sent
---      {rel: the dragged card} and Lua read say's `rel` — the OPEN note.
---      The one view in this module that WRITES had been writing to
---      whichever note happened to be open. It rides under `card` now.
---      Nobody reported this one; it was found by grepping every caller
---      that sets a key say() owns, which is the whole lesson.
---   📏 THEN the length, which is what LL asked for: v.nameCheck is PURE
---      and refuses in BYTES (nameMaxBytes 248 = 255 - #".md.tmp"),
---      flattens newlines and tabs to spaces, strips a leading dot, and
---      REFUSES rather than truncating — a 3,000 character paste clamped
---      to 248 is a note named after its own first paragraph. It lives at
---      openNote, the one door ⌘N, ⌘D, ⌘⇧N, ⌘⇧E, a [[link]] follow and a
---      search row all arrive through.
---   👁 AND IT IS SAID WHERE HE IS LOOKING: an hs.alert draws UNDER this
---      window, which is why he saw nothing. ⏎ no longer closes the bar —
---      Lua's answer does — so a refusal appears under the field with the
---      paste still in the box, the only copy of it.
---   🔎 RULES: a helper that stamps fields onto every message OWNS those
---      names, and a caller that sets one gets silence; and a stub that
---      hand-builds the message the page really sends is a hole with a
---      tick beside it. 8,382 -> 8,411 checks, seventy-four stages.
---
--- (6.202.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.203.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.204.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.205.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -174,7 +164,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.204.0"
+_G.configVersion = "6.205.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------
