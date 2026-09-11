@@ -1100,11 +1100,46 @@ mirrors draw order: "closes last" IS "drawn under".
    lua5.4` (root, no sudo needed) before the gate.
 5. Current version and check counts: read them off init.lua line 7 and the
    top CHANGELOG entry — do not trust numbers remembered from chat.
+6. 🚨 THE CEREMONY SCRIPT RUNS IN THE FOREGROUND AND ASSERTS EVERY
+   REPLACE (6.212.0): three releases shipped code without their words
+   because the script died inside a backgrounded gate command. Grep the
+   three stamps and the NEW IN order back before starting the gate; the
+   gate now fails on a wrong header (test_diagnostics 11b) and on a
+   GUIDE total it did not count (run-tests.sh's 📏 line).
 
 ## Known-stale docs — deliberate, do not "fix"
 
 - run-tests.sh's "forty-one suites" comment.
 - GUIDE.md's "all 58 modules" wording (near line 679).
+
+## Scoreboard — LL's rule, kept here (6.205.0–6.213.0)
+
+LL, on delivering this batch: "success for you is easily measured by
+code we do not have to iterate. You give it to me; and I apply it. I
+report back that there is no errors, you log this for yourself as win
+to loss, or 1 to 0, and on up so we can track our joint winning streak.
+So for each feature we solve, a win is defined by me returning to you
+telling you the code just worked." THE RULE: one row per release; a
+WIN is LL saying it just worked; a LOSS is any report that needed a
+fix; a row stays PENDING until he says either. Never score a row from
+this side — the only scorer is LL. Update the row in the same commit
+as the fix when a loss lands.
+
+| release | what it was | result |
+|---|---|---|
+| 6.204.0 | ⇪D takes the mouse; a detail pane | pending |
+| 6.205.0 | autocorrect: an inflection is a word (starts/allows/convinced) + `_G.autocorrectAdd` | pending |
+| 6.206.0 | ⇪5 scrolling capture keeps receipts; result on the clipboard | pending |
+| 6.207.0 | an existing text box can be edited again | pending |
+| 6.208.0 | stall guard: a beach ball no longer costs the keyboard | pending |
+| 6.209.0 | pomodoro 90% opaque + 🍅 done today | pending |
+| 6.210.0 | Submarine, soft to loud, over the last 30 s | pending |
+| 6.211.0 | the pomodoro sits beside the mini calendar | pending |
+| 6.212.0 | editor: line · oval · highlighter · counter | pending |
+| 6.213.0 | editor: spotlight · magnifier · paste image · add capture | pending |
+
+Running total: 0 wins · 0 losses · 10 pending (all delivered together
+as hammerspoon6.213.0.zip; LL installs once and reports per feature).
 
 ## Open items — update as they move
 
