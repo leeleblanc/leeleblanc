@@ -387,6 +387,27 @@ identical to one never attempted, eleven minutes after boot. Count
 ATTEMPTS separately from completions and say so when they disagree.
 Any async probe reporting a state it has never successfully read owes
 the same distinction.
+👁 ⇪D HAS THE MOUSE AND A DETAIL PANE (6.204.0, modules/unified_search.lua):
+a DOM mousemove over a row selects it (on MOVEMENT — a parked pointer
+fires nothing, so the arrows scrolling under a resting hand steal
+nothing; no scrollIntoView under the pointer), and the pane on the right
+shows the highlighted row. THE FULL TEXT STAYS ON THE LUA SIDE: the page
+sends `{a:'detail', id}` ONCE PER LANDING (`detailFor` — a rebuild that
+keeps the same row asks nothing more) and `uni.answerDetail` pushes
+`uniDetail(id, text, path, total, cut)` through evaluateJavaScript; the
+page draws it only if that row is still the highlight. `uni.detailCut`
+is PURE: `uni.detailMax` (12000, the chooser pane's number) in
+CHARACTERS via utf8.offset, never mid-glyph — a Lua string that is not
+valid UTF-8 never reaches WebKit, the script is dropped silently. A push
+that fails (window gone, no evaluateJavaScript) is COUNTED as refused,
+never thrown in the bridge callback, and the pane keeps the list's line,
+which it calls a preview only when the row's `m` flag says it holds
+more. `_G.unifiedSearchReport()`'s "pane :" line: never asked ≠ 0 drawn.
+Window width = `uni.width + uni.paneW`; `settings = { unified_search =
+{ pane = false } }` is the list alone. RULE learned here: one guard (one
+ask per landing) had a check that passed WITHOUT it — a same-row
+mousemove returns before the guard — until a mutation said so; the row
+that bites is a keystroke that leaves the top match where it was.
 🔎 ⇪space HAS `_G.unifiedSearchReport()` (6.196.1) — it was the one tool
 here without one, which is why "2372 items indexed — does this seem
 right?" had no answer. It names every store and its count, and a store
@@ -958,6 +979,27 @@ mirrors draw order: "closes last" IS "drawn under".
 
 ## Open items — update as they move
 
+- 6.204.0 verify with LL: ⇪D, then MOVE THE MOUSE over the list. The
+  highlight must follow the pointer from row to row, and the pane on the
+  right must show that row — its header says "🖱 under the pointer".
+  Arrow keys still work and the header switches to "⌨️ ↑↓". Then the
+  one he asked for: hover a long clipboard entry — the pane shows the
+  WHOLE thing (a long one says "N characters — first 12,000 shown · ⏎
+  copies all of it"), and ⏎ still copies all of it. A click still
+  copies and closes, as before. `_G.unifiedSearchReport()` has a new
+  "pane :" line — "N asked · N drawn · 0 refused" is healthy; a
+  "refused" count with the ↳ line under it means the push into the page
+  failed on that Mac and the pane is showing preview lines only — say
+  so, that is the degrade working, not the feature. If the pane is in
+  the way: settings = { unified_search = { pane = false } }, no release.
+  The window is 400 px wider than before to carry it. THE ONE THING
+  THAT CANNOT BE PROVEN WITHOUT A MAC: WebKit delivers mouse-moved
+  events to a window that is KEY, and this panel is key while it has
+  the keyboard (it takes typing) — but it is opened non-activating. If
+  the arrows work and the pane follows them while the pointer moves
+  NOTHING, that is the window not receiving mouseMoved, not the page:
+  say so, with the Console lines, and the click still copies meanwhile.
+  Nothing else changed in this release, on purpose.
 - 6.203.0 verify with LL: ⇪3, then ⌘N. Type a name — ANY name — and
   press ⏎. The note that appears must be called what he typed: until
   now the vault used the whole text of the note he had open instead,
@@ -1019,9 +1061,14 @@ mirrors draw order: "closes last" IS "drawn under".
   index off-by-one: the pane's own geometric guess (56/44 vs ~89/42)
   overruled the chooser's highlight, which macOS had already put under
   the pointer. See 👁 above; the guess is deleted.
-  (3) UNIFIED SEARCH TAKES NO MOUSE AND HAS NO DETAIL PANE — "I can only
-  use the arrow keys. There also is no side window that shows the full
-  entry." The chooser it replaced had both.
+  (3) ✅ FIXED 6.204.0 — UNIFIED SEARCH TAKES NO MOUSE AND HAS NO DETAIL
+  PANE — "I can only use the arrow keys. There also is no side window
+  that shows the full entry." The chooser it replaced had both. The
+  page listened for clicks and nothing else; a mousemove selects the
+  row now and a pane asks Lua for that row's full text. See 👁 ⇪D
+  below. ALL THREE of the 6.201.0 reports are closed; the next thing
+  queued, alone, is 6.202.0's `_G.clipboardReport()` for the chooser
+  pane.
 - 🗳 DECIDED BY LL 6.198.0, ASKED AND ANSWERED — do not re-ask:
   (1) BUGS BEFORE FEATURES while he tests: ⇪2 (shipped 6.198.0), then
   doc_memory.lua:363, then the autocorrect pair (the `allow,HOw` row and

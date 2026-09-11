@@ -43,6 +43,14 @@
 -- screenshot row the image itself). ⌘⏎ copies the file PATH instead on
 -- rows that have one — the same convention the ⇪⇧4 panel taught.
 --
+-- 👁 6.204.0 — THE POINTER MOVES THE HIGHLIGHT AND A PANE SHOWS THE FULL
+-- ENTRY. LL: "I can only use the arrow keys. There also is no side window
+-- that shows the full entry." A DOM mousemove over a row selects it (on
+-- movement only, like the chooser's tracking area); the pane on the right
+-- asks Lua for that one row's full text and Lua answers through
+-- evaluateJavaScript — the full text never rides into the page for every
+-- row. `uni.pane = false` is the list alone, as before.
+--
 -- 🔎 EVERY WORD MUST MATCH ("aug receipt" finds August receipts), and a
 -- @tag word pins the source: @clip @cmd @shots @images @note @asana @ocr @doc
 -- @file @pad @web @tool. Tags ride in each row's haystack, so they cost
@@ -75,7 +83,8 @@ local M = {
             { "⏎",       "COPY the row — text its full text, a screenshot the image, a Chrome page its URL (⇪Y reopens)" },
             { "⏎ on 🔧", "RUNS the tool instead — the one row kind that acts (else copies its key)" },
             { "⌘⏎",      "Copy the file PATH instead (rows that have one)" },
-            { "↑↓ · click", "Move the selection · pick — 19px rows, 84px thumbnails" },
+            { "↑↓ · hover", "Move the highlight — the pointer moves it too, as a chooser's does · click picks (19px rows, 84px thumbnails)" },
+            { "pane",    "The right-hand pane shows the FULL entry of the highlighted row (first 12,000 characters; ⏎ copies all of it) — settings = { unified_search = { pane = false } } hides it" },
             { "drag",    "The header bar moves it (⌘-drag anywhere) — and it REOPENS where you left it, across reloads too" },
             { "re-centre", "_G.unifiedCenter() puts it back in the middle" },
             { "Esc",     "Close (the cheat sheet always closes after it)" },
@@ -121,6 +130,27 @@ function M.setup(core)
     -- an OCR'd page could not be found — which is most of the point of
     -- having OCR'd the page. Bounded because the haystack ships to the page.
     uni.hayFull = 1500
+    -- 👁 6.204.0 — THE MOUSE, AND THE DETAIL PANE. LL, bug (3) of the
+    -- three he reported against 6.201.0: "I can only use the arrow keys.
+    -- There also is no side window that shows the full entry." The
+    -- chooser this panel replaced for ⇪V/⇪O in 6.190.0 had both — macOS
+    -- hover-selects a chooser row by itself (6.202.0), and the preview
+    -- pane rode beside it. This page listened for clicks and nothing
+    -- else, so the pointer was dead until it pressed, and the only view
+    -- of a row was the 240-character line the list shows.
+    --   uni.pane      — false = the list alone, exactly as before.
+    --   uni.paneW     — px of the window given to the pane (the window
+    --                   grows by it; the chooser's pane is 420 pt).
+    --   uni.detailMax — characters of the full entry laid out; the
+    --                   chooser pane's own number. ⏎ still copies ALL of it.
+    -- The full text stays on the Lua side of the bridge (it always has):
+    -- the page ASKS for one row's detail when the highlight lands on it
+    -- and Lua answers through evaluateJavaScript — so a row costs nothing
+    -- until it is looked at, and the page never grows by a store's size.
+    --   settings = { unified_search = { pane = false } }   is the rollback.
+    uni.pane      = true
+    uni.paneW     = 400
+    uni.detailMax = 12000
     -- ----------------------------------------------------------------------
 
     local function say(m)  if _G.diag then _G.diag.say("unified", m)  end end
@@ -897,6 +927,10 @@ function M.setup(core)
                 .. ",\"h\":" .. jstr(hay)
                 .. (r.img and (",\"img\":" .. jstr(r.img)) or "")
                 .. (r.path and ",\"p\":1" or "")
+                -- 6.204.0 — `m` says the row holds MORE than its preview
+                -- line, so the pane can call the line a preview until
+                -- Lua's answer lands, and never for a row that is whole.
+                .. (full ~= "" and ",\"m\":1" or "")
                 .. "}"
         end
         return "[" .. table.concat(parts, ",") .. "]"
@@ -932,7 +966,20 @@ function M.setup(core)
      border:1px solid #34344a;border-radius:8px;outline:none;
      -webkit-user-select:text;user-select:text}
   #count{padding:0 16px 6px;color:#8a8aa2;font-size:12px;min-height:15px}
-  #list{position:absolute;top:124px;bottom:0;left:0;right:0;overflow-y:auto}
+  #list{position:absolute;top:124px;bottom:0;left:0;right:]] .. tostring(uni.pane and uni.paneW or 0) .. [[px;overflow-y:auto}
+  #pane{position:absolute;top:124px;bottom:0;right:0;width:]] .. tostring(uni.paneW) .. [[px;
+        box-sizing:border-box;padding:12px 14px;overflow-y:auto;
+        border-left:1px solid #1c1c29;background:#0d0d14}
+  #pane .ph{font-size:11px;font-weight:700;letter-spacing:.5px;
+        text-transform:uppercase;color:#9db4ff;margin-bottom:4px}
+  #pane .pw{font-size:12px;color:#8a8aa2;margin-bottom:10px;line-height:1.4}
+  #pane .pt{font-size:15px;line-height:1.45;white-space:pre-wrap;
+        word-break:break-word;color:#e9e9f2;
+        -webkit-user-select:text;user-select:text}
+  #pane .pf{font-size:12px;color:#8a8aa2;margin-top:12px;word-break:break-all}
+  #pane img.big{display:block;max-width:100%;border-radius:6px;
+        background:#000;margin-bottom:10px}
+  #pane .empty{color:#6a6a82;font-size:13px;margin-top:8px}
   .sec{padding:12px 16px 4px;color:#9db4ff;font-size:13px;font-weight:700;
        letter-spacing:.4px}
   .sec .tag{color:#8a8aa2;font-weight:400}
@@ -952,21 +999,24 @@ function M.setup(core)
   ]] .. themeCss .. [[
 </style></head><body>
 <div id="bar"><span class="ttl">🔎 Unified Search</span>
-<span class="hint">drag here · ⏎ copy · ⌘⏎ path · Esc</span></div>
+<span class="hint">drag here · hover or ↑↓ · ⏎ copy · ⌘⏎ path · Esc</span></div>
 <input id="q" placeholder="Search everything — every word must match · a @tag pins one source">
 <div id="count"></div>
-<div id="list"></div>
+<div id="list"></div>]] .. (uni.pane and '\n<div id="pane"></div>' or "") .. [[
+
 <script>
 var ROWS = ]] .. uni.rowsJson() .. [[;
 var SRCS = ]] .. uni.sourcesJson() .. [[;
 var PREFILL = ]] .. jstr(prefill or "") .. [[;
 var CAP = ]] .. tostring(uni.pageCap) .. [[;
 var GROUP = ]] .. tostring(uni.groupCap) .. [[;
+var PANE = ]] .. (uni.pane and "true" or "false") .. [[;
 
 function say(m){ try { webkit.messageHandlers.unifiedSearch.postMessage(m); }
                  catch (e) {} }
 function el(id){ return document.getElementById(id); }
 var q = el('q'), list = el('list'), count = el('count');
+var pane = PANE ? el('pane') : null;
 var byId = {};
 for (var i = 0; i < ROWS.length; i++) byId[ROWS[i].id] = ROWS[i];
 
@@ -988,6 +1038,63 @@ function matches(row, toks){
 // visible = the pickable rows in display order (both views), so the
 // arrow keys and Enter never care which view built the list.
 var visible = [], sel = 0, total = 0;
+// 👁 6.204.0 — which hand moved the highlight last. It decides ONE thing,
+// the "🖱 under the pointer" tag in the pane's header — a label, never a
+// row (6.202.0's rule: the highlight is the answer for both hands).
+var hand = 'keys';
+// The row id the pane has asked Lua about. One ask per LANDING: a rebuild
+// that keeps the same row highlighted (a keystroke that changes no token,
+// a hover that lands where the highlight already is) asks nothing more,
+// or every such keystroke would have Lua push the whole entry again.
+var detailFor = null;
+
+function paneHtml(row, full, path, total, cut){
+  var h = '<div class="ph">' + row.icon + ' ' + esc(row.src) +
+          (hand === 'mouse' ? ' · 🖱 under the pointer' : ' · ⌨️ ↑↓') + '</div>';
+  var when = row.s ? esc(row.s) : '';
+  if (full == null) {
+    // Nothing back from Lua yet (or ever, on a Hammerspoon whose webview
+    // cannot be written to): the list's own line, and CALLED a preview
+    // when the row holds more than it — never for a row that is whole.
+    if (row.m) when += (when ? ' · ' : '') + 'preview — first ' +
+                       String(row.t).length + ' characters';
+  } else {
+    when += (when ? ' · ' : '') + total + ' character' + (total === 1 ? '' : 's');
+    if (cut) when += ' — first ' + cut + ' shown · ⏎ copies all of it';
+  }
+  h += '<div class="pw">' + when + '</div>';
+  if (row.img) h += '<img class="big" src="' + row.img + '">';
+  h += '<div class="pt">' + esc(full == null ? row.t : full) + '</div>';
+  if (path) h += '<div class="pf">' + esc(path) + '</div>';
+  if (row.p) h += '<div class="pf">⌘⏎ copies the path · ⌥⏎ opens it</div>';
+  return h;
+}
+// Draw the pane for the highlighted row. The list's line goes up at once,
+// so the pane is never blank; the full entry follows when Lua answers.
+function showPane(){
+  if (!pane) return;
+  var id = visible[sel], row = byId[id];
+  if (!row) {
+    pane.innerHTML = '<div class="empty">Nothing highlighted — type, or ' +
+                     'move the pointer over a row</div>';
+    detailFor = null;
+    return;
+  }
+  pane.innerHTML = paneHtml(row, null, null, 0, 0);
+  if (detailFor !== id) { detailFor = id; say({ a: 'detail', id: id }); }
+}
+// Lua's answer: uniDetail(id, fullText, path, totalChars, shownChars-if-cut-else-0).
+// Counted by LUA in characters, both numbers — a JS .length counts an
+// emoji as two and would say "first 12,050 shown" over a 12,000 cut. Drawn ONLY
+// if the pane is still on that row — an answer for a row you have already
+// left is dropped, never painted over the row you are on now.
+function uniDetail(id, full, path, total, cut){
+  if (!pane) return;
+  if (id !== visible[sel]) return;
+  var row = byId[id];
+  if (!row) return;
+  pane.innerHTML = paneHtml(row, full, path, total, cut);
+}
 
 function rowHtml(row, visIndex){
   var cls = 'row' + (visIndex === sel ? ' sel' : '');
@@ -1040,6 +1147,7 @@ function rebuild(){
   count.textContent = toks.length
     ? (total + ' match' + (total === 1 ? '' : 'es') + ' across every store')
     : (ROWS.length + ' items indexed — newest of each store below');
+  showPane();
 }
 
 function render(){ rebuild(); var n = document.querySelector('.row.sel');
@@ -1047,7 +1155,17 @@ function render(){ rebuild(); var n = document.querySelector('.row.sel');
 function move(d){
   if (!visible.length) return;
   sel = Math.max(0, Math.min(visible.length - 1, sel + d));
+  hand = 'keys';
   render();
+}
+// The row id under an event target — the same walk the click has always
+// done, shared now so the click and the hover cannot name different rows.
+function rowIdAt(n){
+  while (n && n !== list && !(n.getAttribute && n.getAttribute('data-id')))
+    n = n.parentNode;
+  if (n && n !== list && n.getAttribute)
+    return parseInt(n.getAttribute('data-id'), 10);
+  return null;
 }
 function pick(id, wantPath, wantOpen){
   if (id == null) return;
@@ -1056,7 +1174,20 @@ function pick(id, wantPath, wantOpen){
   say({ a: wantOpen ? 'open' : (wantPath ? 'path' : 'pick'), id: id });
 }
 
-q.addEventListener('input', function(){ sel = 0; rebuild(); });
+q.addEventListener('input', function(){ sel = 0; hand = 'keys'; rebuild(); });
+// 🖱 6.204.0 — THE POINTER MOVES THE HIGHLIGHT, the way a chooser's does:
+// on MOVEMENT only (a DOM mousemove never fires for a parked pointer, so
+// the arrows scrolling the list under a resting hand steal nothing), and
+// with no scrollIntoView — the pointer is already on the row, and
+// scrolling the list under it would put a different row there.
+list.addEventListener('mousemove', function(ev){
+  var id = rowIdAt(ev.target);
+  if (id == null) return;
+  var i = visible.indexOf(id);
+  if (i < 0 || i === sel) return;
+  sel = i; hand = 'mouse';
+  rebuild();
+});
 // ⌨️ 6.193.0 — forward the ⇪ (F18) keyUp to Lua. WebKit sees it even
 // when the Carbon release never reaches the hotkey, and without this the
 // hold sat latched for 8 s and the panel felt stuck. Same two lines the
@@ -1073,11 +1204,8 @@ window.addEventListener('keydown', function(ev){
   else if (ev.key === 'Escape') { say({ a: 'close' }); }
 });
 list.addEventListener('click', function(ev){
-  var n = ev.target;
-  while (n && n !== list && !(n.getAttribute && n.getAttribute('data-id')))
-    n = n.parentNode;
-  if (n && n !== list && n.getAttribute)
-    pick(parseInt(n.getAttribute('data-id'), 10), ev.metaKey === true, ev.altKey === true);
+  var id = rowIdAt(ev.target);
+  if (id != null) pick(id, ev.metaKey === true, ev.altKey === true);
 });
 var bar = el('bar');
 bar.addEventListener('mousedown', function(ev){
@@ -1145,6 +1273,58 @@ if (q.focus) q.focus();
         return true
     end
 
+    -- ---- the detail pane's answer (6.204.0) ----------------------------------
+    -- The full text is cut to uni.detailMax CHARACTERS, never mid-glyph:
+    -- a byte cut can split a UTF-8 sequence, and a Lua string that is
+    -- not valid UTF-8 does not survive the trip into WebKit at all — the
+    -- script is dropped and the pane sits on its preview with no error
+    -- anywhere. utf8.len says how many characters the whole entry holds
+    -- (bytes if the text is not valid UTF-8, so a bad store still answers).
+    uni.detailAsked, uni.detailDrawn, uni.detailRefused = 0, 0, 0
+    uni.detailLast = nil
+    function uni.detailCut(text, maxChars)
+        text = tostring(text or "")
+        local total = utf8.len(text) or #text
+        if total <= maxChars then return text, total, false end
+        local okOff, off = pcall(utf8.offset, text, maxChars + 1)
+        if not (okOff and off) then
+            -- not valid UTF-8: cut on bytes, then step back off any
+            -- continuation byte so the slice is still decodable
+            off = maxChars + 1
+            while off > 1 and text:byte(off) and text:byte(off) >= 0x80
+                  and text:byte(off) < 0xC0 do
+                off = off - 1
+            end
+        end
+        return text:sub(1, off - 1), total, true
+    end
+    function uni.answerDetail(row)
+        uni.detailAsked = uni.detailAsked + 1
+        local shown, total, cut = uni.detailCut(row.full or row.text or "",
+                                                uni.detailMax)
+        -- the fifth value is the CHARACTERS shown when cut (0 = whole):
+        -- both numbers counted here, in the same unit, by the same hand
+        local shownN = cut and (utf8.len(shown) or #shown) or 0
+        local js = "uniDetail(" .. tostring(row.id) .. "," .. jstr(shown)
+                   .. "," .. jstr(row.path or "") .. "," .. tostring(total)
+                   .. "," .. tostring(shownN) .. ")"
+        local view = uni.webview
+        local ok = false
+        if view and type(view.evaluateJavaScript) == "function" then
+            ok = pcall(function() view:evaluateJavaScript(js) end)
+        end
+        if ok then
+            uni.detailDrawn = uni.detailDrawn + 1
+            uni.detailLast = row.id
+        else
+            -- the window went away before Lua answered, or this
+            -- Hammerspoon's webview cannot be written to: the page keeps
+            -- the preview it drew itself, and the report counts this.
+            uni.detailRefused = uni.detailRefused + 1
+        end
+        return ok
+    end
+
     -- ---- the Lua side of the bridge ----------------------------------------
     local function handleMessage(body)
         if type(body) ~= "table" then return end
@@ -1165,6 +1345,10 @@ if (q.focus) q.focus();
         end
         local row = uni.rows and uni.rows[tonumber(body.id or 0)]
         if not row then return end
+        -- 👁 6.204.0 — the pane asks for ONE row's full entry; the answer
+        -- goes back through the page's uniDetail(). Nothing here copies,
+        -- opens, or closes — it is a read, and the panel stays up.
+        if a == "detail" then uni.answerDetail(row) return end
         -- 6.187.0 — ⌥⏎ hands the file to macOS and gets out of the way.
         -- /usr/bin/open in a task: never a decode, never a main-thread read,
         -- so a cloud-evicted file is OneDrive's problem and not a stall here.
@@ -1337,6 +1521,35 @@ if (q.focus) q.focus();
             and (os.date("%H:%M:%S", uni.lastGather) .. " ("
                  .. (os.time() - uni.lastGather) .. "s ago)")
             or "not gathered yet — press ⇪D once")
+        -- 👁 6.204.0 — the pane's state. "never asked" and "0 drawn" must
+        -- not read the same (6.196.1): the first is a panel nobody has
+        -- hovered yet, the second is a pane that asked and got nothing.
+        if not uni.pane then
+            L[#L + 1] = "   pane   : off — settings = { unified_search = { pane = true } } brings it back"
+        else
+            local asked = uni.detailAsked or 0
+            local line = "   pane   : on · " .. tostring(uni.paneW) .. " px · first "
+                         .. tostring(uni.detailMax) .. " characters of the entry"
+            if asked == 0 then
+                line = line .. " · never asked — open ⇪D and move the pointer over a row"
+            else
+                line = line .. " · " .. asked .. " asked · "
+                       .. tostring(uni.detailDrawn or 0) .. " drawn · "
+                       .. tostring(uni.detailRefused or 0) .. " refused"
+                local last = uni.detailLast and uni.rows and uni.rows[uni.detailLast]
+                if last then
+                    line = line .. " · last row " .. tostring(uni.detailLast)
+                           .. " (" .. tostring(last.icon or "") .. " "
+                           .. tostring(last.src or "") .. ")"
+                end
+            end
+            L[#L + 1] = line
+            if (uni.detailRefused or 0) > 0 then
+                L[#L + 1] = "   ↳ a refused answer is the window gone before Lua replied,"
+                            .. " or a webview with no evaluateJavaScript —"
+                            .. " the pane shows the row's preview line instead"
+            end
+        end
         if broke > 0 then
             L[#L + 1] = "   ↳ a FAILED store is a bug to chase, not an empty one:"
                         .. " its rows are missing from every search until it loads."
@@ -1386,7 +1599,9 @@ if (q.focus) q.focus();
         local screen = core.resolveBaseScreen and core.resolveBaseScreen()
                        or (hs.screen and hs.screen.mainScreen())
         local sf = screen and screen:frame() or { x = 0, y = 0, w = 1440, h = 900 }
-        local w = math.min(uni.width,  sf.w - 60)
+        -- 6.204.0 — the pane is ADDED to the width, so the list keeps the
+        -- 840 it has always had; a narrow screen clamps the whole.
+        local w = math.min(uni.width + (uni.pane and uni.paneW or 0), sf.w - 60)
         local h = math.min(uni.height, sf.h - 80)
         local rect = { x = sf.x + (sf.w - w) / 2,
                        y = sf.y + (sf.h - h) / 2.6, w = w, h = h }

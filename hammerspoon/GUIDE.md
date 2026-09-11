@@ -9,10 +9,10 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,746 lines)
+├── init.lua          the orchestrator (3,750 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (12 files)
-├── modules/          one file per feature (68 files, ~51,400 lines)
+├── modules/          one file per feature (68 files, ~55,400 lines)
 ├── tests/            run on any machine with lua5.4; no Mac required
 ├── packs/            the four PUBLIC snippet packs as .json (1,926), in
 │                     git since 6.162.0 — the builder folds them into
@@ -707,10 +707,16 @@ stood, kept verbatim.
    and says so, rather than showing a success alert over a window whose
    sidebar is off the edge.
 
-🔎 ⇪space  UNIFIED SEARCH (modules/unified_search.lua) — 6.89.0
+🔎 ⇪D  UNIFIED SEARCH (modules/unified_search.lua) — 6.89.0, ⇪D since 6.196.0
    One typed search over EVERY store: clipboard, commands, shots,
    notes, Asana, OCR, docs, moves, pad. @tag pins one source;
    ⏎ copies, ⌘⏎ the path. ⇪⇧space = big-thumbnail shot browser.
+   6.204.0: the POINTER moves the highlight (hover a row, as in a
+   chooser) and a pane on the right shows the highlighted row's FULL
+   entry — first 12,000 characters, ⏎ copies all of it. The pane is
+   asked for one row at a time, so the page never carries every
+   store's full text. settings = { unified_search = { pane = false } }
+   is the list alone, as before.
 
 ⇪V  CLIPBOARD HISTORY (§2 / §3)
    Keeps your last 1,000 copied texts, saved per-machine to
@@ -871,9 +877,9 @@ CREATED AUTOMATICALLY (never make these yourself):
 
 ## 6. Tests
 
-Sixty-eight Lua suites, 7,994 checks, plus four more that run the Capture
+Sixty-eight Lua suites, 8,024 checks, plus four more that run the Capture
 Pad's, the screenshot editor's, unified search's and the vault's page
-JavaScript under `node` for a further 417 — **8,411 checks over
+JavaScript under `node` for a further 442 — **8,466 checks over
 seventy-four stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:

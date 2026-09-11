@@ -4,9 +4,39 @@
 -- =====================================================================
 -- 09-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.203.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.204.0
 -- =====================================================================
 
+-- NEW IN 6.204.0 — 👁 ⇪D TAKES THE MOUSE, AND A PANE SHOWS THE FULL ENTRY:
+--   🐞 LL, bug (3) of the three against 6.201.0: "I can only use the
+--      arrow keys. There also is no side window that shows the full
+--      entry." The chooser this panel replaced for ⇪V/⇪O in 6.190.0 had
+--      both: macOS hover-selects a chooser row by itself (6.202.0) and
+--      the preview pane rode beside it. This page listened for CLICKS and
+--      nothing else, so the pointer was dead until it pressed, and the
+--      only view of a row was the 240-character line the list shows.
+--   🖱 A mousemove over a row moves the highlight to it — on MOVEMENT,
+--      as the chooser's tracking area does (a DOM mousemove never fires
+--      for a parked pointer, so arrows scrolling the list under a resting
+--      hand steal nothing), and with no scrollIntoView under the pointer.
+--      The click still picks; the walk that finds the row is shared.
+--   👁 A PANE on the right shows the highlighted row: the list's line at
+--      once, then the FULL entry — the page asks Lua for ONE row's text
+--      when the highlight lands and Lua answers through
+--      evaluateJavaScript, so the full text still never rides into the
+--      page for every row. Cut at 12,000 CHARACTERS (the chooser pane's
+--      number), never mid-glyph, and said: "first N shown · ⏎ copies all
+--      of it". An answer for a row already left is dropped, never drawn.
+--      The window grows by the pane's 400 px; the list keeps its 840.
+--   🔎 `_G.unifiedSearchReport()` gains a "pane :" line — never asked and
+--      0 drawn read differently (6.196.1); a refused push (window gone,
+--      no evaluateJavaScript) is counted, and the pane keeps the preview.
+--      Rollback: settings = { unified_search = { pane = false } }.
+--   🧪 test_unified 123 -> 153, test_unified_js 40 -> 65; ten mutations,
+--      each proven to fail the row written for it — one guard had NO row
+--      that bit until the mutation said so. 8,411 -> 8,466 checks,
+--      seventy-four stages.
+--
 -- NEW IN 6.203.0 — 🚨 ⌘N IN THE VAULT NEVER USED THE NAME YOU TYPED:
 --   🐞 LL: "I pasted a huge multi-line block into 'Name of the note'…
 --      Console said 'Write failed: vault note Collect' / 'cannot open
@@ -42,38 +72,12 @@
 --      hand-builds the message the page really sends is a hole with a
 --      tick beside it. 8,382 -> 8,411 checks, seventy-four stages.
 --
--- NEW IN 6.202.0 — 👁 THE PREVIEW PANE SHOWS THE ROW YOU ARE ON, NOT THE ONE BELOW:
---   🐞 LL: "when I am on an entry it actually shows the one entry
---      beneath the current line I am hovering over." The pane read the
---      highlight correctly (chooser:selectedRow()) and then let its own
---      guess — the row under the pointer, computed from a 56 pt header
---      and 44 pt rows borrowed from window_move — overrule it. The real
---      chooser is ~89 pt of query field over ~42 pt rows, so over the
---      top half of every list the guess named the row BENEATH.
---   🔎 And the guess never needed to exist: 6.154.0 wrote "HSChooser.m
---      has no mouseMoved and no tracking area (checked, not assumed)" —
---      checked in the wrong file. HSChooserTableView.m hover-selects the
---      row under the pointer, so selectedRow() already IS the mouse
---      answer. The guess is deleted; the pane shows the highlight for
---      both hands and the pointer only decides the "🖱 under the pointer"
---      tag. The pane and the highlight cannot disagree now, in any
---      picker with a pane (⇪⇧V, ⇪⇧O, ⇪Y, ⇪⇧S, ⇪8 …), and a wheel
---      scroll — 6.160.4's stated blind spot — is no longer one.
---   🧪 The stub chooser follows the pointer as macOS does, with the
---      CHOOSER's geometry rather than the module's, so a pointer on the
---      true centre of row 1 fails the old code (it showed row 2) — 14
---      rows fail with the guess put back, and a pointer crossing the
---      query field earns no tag (the band is the chooser's 89/42 now).
---      133 -> 137 checks here, 8,378 -> 8,382 overall (measured off the
---      gate — 6.201.1's notes said 8,377, one under its own sum),
---      seventy-four stages.
---
--- (6.201.1 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.202.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.203.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.204.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -170,7 +174,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.203.0"
+_G.configVersion = "6.204.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

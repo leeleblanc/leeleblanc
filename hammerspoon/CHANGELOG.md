@@ -5,6 +5,84 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.204.0 — 👁 ⇪D TAKES THE MOUSE, AND A PANE SHOWS THE FULL ENTRY:
+  🐞 LL, bug (3) of the three he reported against 6.201.0, and the last
+     of them: "I can only use the arrow keys. There also is no side
+     window that shows the full entry." The chooser this panel replaced
+     for ⇪V and ⇪O in 6.190.0 had both — macOS hover-selects a chooser
+     row by itself (6.202.0 established exactly that, in the wrong file
+     first and then the right one), and the preview pane rode beside it.
+     The webview page listened for CLICKS and nothing else: the pointer
+     was dead until it pressed, and the only view of any row was the
+     240-character line the list shows. Two halves of one loss, both
+     taken from him in the same release that gave ⇪V its big thumbnails.
+  🖱 THE POINTER MOVES THE HIGHLIGHT, the way a chooser's does. A DOM
+     mousemove over a row selects it — on MOVEMENT only, which is the
+     chooser's own rule from 6.202.0 and comes free here: a mousemove
+     never fires for a parked pointer, so the arrows scrolling the list
+     under a resting hand steal nothing from the keyboard. There is no
+     scrollIntoView under the pointer, deliberately — the pointer is
+     already on the row, and scrolling the list beneath it would put a
+     different row there. The click still picks; the walk that finds a
+     row from an event target is one function now, shared by both, so
+     the click and the hover cannot name different rows.
+  👁 A PANE ON THE RIGHT SHOWS THE ROW THE HIGHLIGHT IS ON. The list's
+     own line goes up at once — the pane is never blank — and the FULL
+     entry follows: the page asks Lua for ONE row's text when the
+     highlight lands ({a:'detail', id}) and Lua answers through
+     evaluateJavaScript (uniDetail). The full text has always stayed on
+     the Lua side of the bridge and still does: a row costs nothing
+     until it is looked at, and the page never grows by a store's size.
+     One ask per LANDING — a rebuild that keeps the same row (a keystroke
+     that changes no token, a hover where the highlight already is)
+     asks nothing more. An answer for a row the pane has already LEFT is
+     dropped, never painted over the row you are on now.
+  📏 CUT AT 12,000 CHARACTERS — the chooser pane's own number, so there
+     is one to know — and never mid-glyph: a byte cut can split a UTF-8
+     sequence, and a Lua string that is not valid UTF-8 does not survive
+     the trip into WebKit at all; the script is dropped and the pane sits
+     on its preview with no error anywhere. The cut is SAID in the pane
+     ("34,812 characters — first 12,000 shown · ⏎ copies all of it"),
+     and until Lua answers a row that holds more than its line is called
+     a preview ("preview — first 240 characters") while a row that IS
+     its line is not — nothing is "on its way" for it. The pane's text
+     is selectable; the entry and the path are escaped, text never markup.
+  🖥 THE WINDOW GROWS BY THE PANE. 400 px are ADDED to the width, so the
+     list keeps the 840 it has always had; a narrow screen clamps the
+     whole, as before. The header hint reads "hover or ↑↓" now, and the
+     pane's own header says which hand put the highlight there — "🖱
+     under the pointer" or "⌨️ ↑↓" — a label, never a row (6.202.0).
+  🔎 `_G.unifiedSearchReport()` gains a "pane :" line: on/off, the two
+     numbers, asked / drawn / refused, and the last row drawn by id and
+     store. "Never asked" and "0 drawn" read DIFFERENTLY (6.196.1's rule):
+     the first is a panel nobody has hovered, the second a pane that
+     asked and got nothing back — and a refused push (the window gone
+     before Lua replied, or a Hammerspoon whose webview has no
+     evaluateJavaScript) is counted, never thrown inside the bridge
+     callback; the pane keeps the preview it drew itself and the ↳ line
+     says what a refusal is. Rollback, no release:
+     settings = { unified_search = { pane = false } } — the list alone,
+     exactly as before, and the report says so with the line that brings
+     it back.
+  🧪 test_unified 123 -> 153 (the Lua half: the answer carries the full
+     1,000-character fixture entry and not the line; cut in characters,
+     20 é cut to 5 is 5 é; a read never hides, copies or alerts; refused
+     is a state, three ways; the report's three shapes; the rollback;
+     and two source assertions — answerDetail touches nothing, the hover
+     handler rebuilds and never render()s). test_unified_js 40 -> 65 (the
+     page half, executed: the hover moves the highlight, once per landing,
+     through a child element, not on a gap or a stranger; the keyboard
+     takes it back; Lua's answer, cut and uncut; the late answer dropped;
+     the escaping; the preview label; the click still picks; and the old
+     DOM with no pane element sends nothing new, so every older count
+     still means what it did). TEN mutations run, each proven to fail
+     the row written for it — and one guard (one ask per landing) had NO
+     row that bit until the mutation said so: a same-row mousemove never
+     reaches it, the handler returns first, so the row that catches it
+     is the keystroke that leaves the top match where it was. 6.187.0's
+     rule, met again: a check that asserts a guard EXISTS does not assert
+     that it BITES. 8,411 -> 8,466 checks, seventy-four stages.
+
 NEW IN 6.203.0 — 🚨 ⌘N IN THE VAULT NEVER USED THE NAME YOU TYPED:
   🐞 LL, bug (1) of the three he reported against 6.201.0: "I pasted a
      huge multi-line block into the vault's ⌘N 'Name of the note' bar.

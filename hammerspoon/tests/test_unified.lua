@@ -72,6 +72,7 @@ local function drain()
     for _, t in ipairs(list) do if not t.stopped then t.fn() end end
 end
 local LAST_HTML, BRIDGE, VIEW = nil, nil, nil
+local EVALS = {}            -- 6.204.0 — every script Lua pushed into the page
 local DRAGGED = {}
 _G.beginPanelDrag = function(name) DRAGGED[#DRAGGED + 1] = name return true end
 
@@ -95,6 +96,7 @@ hs = {
             function v:level(l) self.flags.level = l return self end
             function v:behaviorAsLabels() self.flags.spaces = true return self end
             function v:bringToFront() self.flags.front = true return self end
+            function v:evaluateJavaScript(js) EVALS[#EVALS + 1] = js return self end
             function v:frame(f)
                 if f then self.rect = f return self end
                 return self.rect
@@ -659,7 +661,10 @@ out("5b. 6.93.0 — the remembered position, and the escape claim\n")
 -- =====================================================================
 U.pos = nil
 U.show()
-check("first open is centered", VIEW.rect.x == (1440 - U.width) / 2)
+-- 6.204.0 — the pane is ADDED to the width, so "centred" is measured on
+-- the whole window, pane included.
+local function panelW() return U.width + (U.pane and U.paneW or 0) end
+check("first open is centered", VIEW.rect.x == (1440 - panelW()) / 2)
 local entry
 for _, e in ipairs(_G.movablePanels or {}) do
     if e.name == "unified search" then entry = e end
@@ -674,7 +679,7 @@ U.hide()
 U.pos = { x = 9999, y = 9999 }
 U.show()
 check("an unplugged screen's memory re-centers instead",
-      VIEW.rect.x == (1440 - U.width) / 2)
+      VIEW.rect.x == (1440 - panelW()) / 2)
 -- ---- 6.107.0: and it survives a RELOAD, not just a reopen ------------
 -- Same gap the cheat sheet had in 6.106.0: uni is rebuilt every reload,
 -- so the position went with it and the box came back centred.
@@ -1039,6 +1044,225 @@ do
     check("...and it degrades where that global is missing", ok)
     _G.hyperReleaseSeen = realSeen
     U.hide()
+end
+
+-- =====================================================================
+out("5c. 👁 6.204.0 — the pointer, and the pane that shows the full entry\n")
+-- =====================================================================
+-- LL, bug (3) of the three against 6.201.0: "I can only use the arrow
+-- keys. There also is no side window that shows the full entry." The
+-- pane asks Lua for ONE row's full text and Lua answers through
+-- evaluateJavaScript — so what is proven here is the Lua half of that
+-- contract: the answer carries the FULL text (not the 240-char line),
+-- it is bounded in CHARACTERS and never cut mid-glyph, the panel stays
+-- up, nothing is copied, and a window that cannot be written to is
+-- COUNTED rather than thrown at. The page half runs in test_unified_js.
+do
+    local U = _G.unifiedSearch
+    -- Sections 6 and 7 emptied the stores on purpose; the pane needs a
+    -- long clipboard entry and a screenshot back, and nothing else.
+    _G.clipboardCache = {
+        { date = "Aug 15 10:00", text = "newest copy — receipt total" },
+        { date = "Aug 13 08:00", text = ("long "):rep(200) },   -- 1000 chars
+    }
+    _G.screenshots = {
+        list = function()
+            return { { name = "receipt scan.png", path = "/od/shots/receipt scan.png",
+                       mtime = 90, size = 50 * 1024 } }
+        end,
+    }
+    check("the pane is on by default, 400 px wide, and shows the chooser "
+       .. "pane's 12,000 characters — one number LL already knows",
+          U.pane == true and U.paneW == 400 and U.detailMax == 12000)
+
+    -- the window grows BY the pane, so the list keeps its 840
+    U.pos = nil
+    U.show()
+    check("the window is the list's width PLUS the pane's",
+          VIEW.rect.w == U.width + U.paneW, VIEW.rect.w)
+    local html = U.buildHtml("")
+    check("the page carries the pane, told on by PANE, and the list stops "
+       .. "where the pane starts",
+          html:find('id="pane"', 1, true) ~= nil
+          and html:find("var PANE = true;", 1, true) ~= nil
+          and html:find("right:" .. U.paneW .. "px;overflow-y:auto}", 1, true) ~= nil)
+    check("the header says the pointer works now",
+          html:find("hover or ↑↓", 1, true) ~= nil)
+    U.hide()
+
+    -- ⏎ copies the FULL text (6.89.0); the pane must show the same thing
+    local longRow = rowWhere(function(r)
+        return r.tag == "clip" and #(r.full or "") > 240 end)
+    check("fixture: a clipboard row longer than the 240-char line exists",
+          longRow ~= nil and #longRow.full == 1000)
+    U.show()
+    local before, pbBefore, alertsBefore = #EVALS, PB, #ALERTS
+    BRIDGE({ body = { a = "detail", id = longRow.id } })
+    local js = EVALS[#EVALS] or ""
+    check("🔑 a 'detail' ask is answered with uniDetail(id, …) pushed INTO the page",
+          #EVALS == before + 1 and js:find("^uniDetail%(" .. longRow.id .. ",") ~= nil,
+          js:sub(1, 60))
+    check("🔑 …carrying the FULL 1,000-character entry, not the 240-char line",
+          js:find(longRow.full, 1, true) ~= nil, #js)
+    check("…with the total character count and 0 for 'nothing cut'",
+          js:find(",\"\",1000,0)", 1, true) ~= nil, js:sub(-30))
+    check("🚨 a detail ask is a READ: the panel stays up, nothing is copied, "
+       .. "nothing is alerted",
+          U.webview ~= nil and PB == pbBefore and #ALERTS == alertsBefore)
+    check("…and it is counted: asked, drawn, and the last row named",
+          U.detailAsked >= 1 and U.detailDrawn >= 1 and U.detailLast == longRow.id)
+
+    -- the bound is in CHARACTERS, and the cut is said
+    local saveMax = U.detailMax
+    U.detailMax = 10
+    BRIDGE({ body = { a = "detail", id = longRow.id } })
+    js = EVALS[#EVALS] or ""
+    check("🔑 past detailMax the answer is cut, the TOTAL still says 1000, "
+       .. "and the fifth value is the 10 characters SHOWN — counted by Lua, "
+       .. "so the pane's 'first N shown' is in the same unit as the cut",
+          js:find("uniDetail(" .. longRow.id .. ",\"long long \",\"\",1000,10)", 1, true) ~= nil,
+          js)
+    U.detailMax = saveMax
+
+    -- never mid-glyph: 20 × "é" (2 bytes each) cut to 5 CHARACTERS is 5
+    -- glyphs, 10 bytes — a byte cut at 5 would leave half an "é" and a
+    -- string WebKit refuses to receive at all
+    local shown, total, cut = U.detailCut(("é"):rep(20), 5)
+    check("🔑 the cut counts CHARACTERS, not bytes — 20 é cut to 5 is 5 é",
+          shown == ("é"):rep(5) and total == 20 and cut == true,
+          tostring(#shown) .. " bytes, total " .. tostring(total))
+    -- and the count the page is HANDED is characters too: 8 × 🙂 (4 bytes
+    -- each, two UTF-16 units each) cut to 5 must say 5, not 10, not 20
+    do
+        local emojiRow = { id = 4242, full = ("🙂"):rep(8), text = "x" }
+        U.detailMax = 5
+        U.answerDetail(emojiRow)          -- the panel is still up from above
+        local ej = EVALS[#EVALS] or ""
+        check("🔑 an emoji entry says 'first 5 shown' of 8 — characters, never "
+           .. "UTF-16 units (10) or bytes (20)",
+              ej:sub(-5) == ",8,5)" and ej:find(("🙂"):rep(5) .. '"', 1, true) ~= nil
+              and ej:find(("🙂"):rep(6), 1, true) == nil, ej)
+        U.detailMax = saveMax
+    end
+    shown, total, cut = U.detailCut("abc", 5)
+    check("…a short entry comes back whole, uncut, with its own count",
+          shown == "abc" and total == 3 and cut == false)
+    shown, total, cut = U.detailCut("\xff\xfe" .. ("a"):rep(20), 5)
+    check("…and a store that is not valid UTF-8 still answers (bytes, cut) "
+       .. "rather than erroring the pane shut",
+          type(shown) == "string" and #shown == 5 and total == 22 and cut == true,
+          tostring(#shown) .. "/" .. tostring(total))
+
+    -- a screenshot row answers with its PATH in the third slot
+    local shot = rowWhere(function(r) return r.kind == "image" end)
+    BRIDGE({ body = { a = "detail", id = shot.id } })
+    js = EVALS[#EVALS] or ""
+    check("an image row's answer names its path, so the pane can show it",
+          js:find(shot.path, 1, true) ~= nil, js:sub(1, 120))
+
+    -- an unknown id is nothing, not a crash and not a count
+    local asked = U.detailAsked
+    BRIDGE({ body = { a = "detail", id = 999999 } })
+    check("a detail ask for a row that does not exist is ignored, uncounted",
+          U.detailAsked == asked and U.webview ~= nil)
+
+    -- 🚨 REFUSED IS A STATE. A webview that cannot be written to (this
+    -- Hammerspoon lacks evaluateJavaScript), or a window gone before Lua
+    -- replied, must not throw inside the bridge callback — the page keeps
+    -- the preview it drew itself, and the report says how often.
+    local refused = U.detailRefused
+    local realEval = VIEW.evaluateJavaScript
+    VIEW.evaluateJavaScript = nil
+    local okCall = pcall(BRIDGE, { body = { a = "detail", id = longRow.id } })
+    check("🚨 no evaluateJavaScript on this webview: no throw, counted as refused, "
+       .. "panel still up",
+          okCall and U.detailRefused == refused + 1 and U.webview ~= nil)
+    VIEW.evaluateJavaScript = function(self, s) error("webview gone") end
+    okCall = pcall(BRIDGE, { body = { a = "detail", id = longRow.id } })
+    check("…a webview that THROWS on the push is refused the same way",
+          okCall and U.detailRefused == refused + 2)
+    VIEW.evaluateJavaScript = realEval
+    U.hide()
+    okCall = pcall(U.answerDetail, longRow)
+    check("…and with the window already gone the answer is refused, not thrown",
+          okCall and U.detailRefused == refused + 3)
+
+    -- 🔎 THE REPORT — "never asked" and "0 drawn" must not read the same
+    -- (6.196.1's rule): the first is a panel nobody has hovered, the
+    -- second is a pane that asked and got nothing back.
+    local function reportText()
+        local said = {}
+        local realPrint = print
+        print = function(...) said[#said + 1] = table.concat({ ... }, "\t") end
+        _G.unifiedSearchReport()
+        print = realPrint
+        return table.concat(said, "\n"), #said
+    end
+    local sA, sD, sR, sL = U.detailAsked, U.detailDrawn, U.detailRefused, U.detailLast
+    U.detailAsked, U.detailDrawn, U.detailRefused, U.detailLast = 0, 0, 0, nil
+    local rep, calls = reportText()
+    check("the report has a pane line, still printed as ONE string",
+          calls == 1 and rep:find("pane   : on", 1, true) ~= nil, rep)
+    check("🔑 a pane nobody has hovered says 'never asked' — and NOT '0 drawn'",
+          rep:find("never asked", 1, true) ~= nil
+          and rep:find("0 drawn", 1, true) == nil, rep)
+    U.detailAsked, U.detailDrawn, U.detailRefused, U.detailLast = 3, 0, 3, nil
+    rep = reportText()
+    check("🔑 a pane that asked and got nothing says so in numbers, with the ↳ "
+       .. "line naming what a refusal is — and never 'never asked'",
+          rep:find("3 asked", 1, true) and rep:find("0 drawn", 1, true)
+          and rep:find("3 refused", 1, true)
+          and rep:find("refused answer is the window gone", 1, true)
+          and rep:find("never asked", 1, true) == nil, rep)
+    U.detailAsked, U.detailDrawn, U.detailRefused, U.detailLast = 2, 2, 0, longRow.id
+    rep = reportText()
+    check("…a healthy pane names the last row it drew, by id and store",
+          rep:find("last row " .. longRow.id .. " (📋 Clipboard)", 1, true) ~= nil
+          and rep:find("↳ a refused", 1, true) == nil, rep)
+    U.detailAsked, U.detailDrawn, U.detailRefused, U.detailLast = sA, sD, sR, sL
+
+    -- 🔕 the rollback: settings = { unified_search = { pane = false } }
+    U.pane = false
+    U.pos = nil
+    U.show()
+    check("pane = false: the window is the list's width alone, as before 6.204.0",
+          VIEW.rect.w == U.width, VIEW.rect.w)
+    html = U.buildHtml("")
+    check("…the page has no pane element, PANE is false, the list spans the width",
+          html:find('id="pane"', 1, true) == nil
+          and html:find("var PANE = false;", 1, true) ~= nil
+          and html:find("right:0px;overflow-y:auto}", 1, true) ~= nil)
+    rep = reportText()
+    check("…and the report says off, with the line that brings it back",
+          rep:find("pane   : off", 1, true) ~= nil
+          and rep:find("pane = true", 1, true) ~= nil, rep)
+    U.hide()
+    U.pane = true
+
+    -- the cheat sheet teaches both halves
+    local sheet = ""
+    for _, e in ipairs(M.cheatsheet.entries) do sheet = sheet .. e[1] .. " " .. e[2] .. "\n" end
+    check("the cheat sheet names the hover and the pane, and the rollback line",
+          sheet:find("hover", 1, true) and sheet:find("pane", 1, true)
+          and sheet:find("pane = false", 1, true), sheet)
+
+    -- 🔒 ASSERTED AGAINST THE SOURCE: the detail path reads and nothing
+    -- else — no hide, no clipboard, no alert — and the page's hover
+    -- handler rebuilds without scrolling (render() scrolls the highlight
+    -- into view; under a pointer that would move a different row under it).
+    local f = realOpen(HS .. "/modules/unified_search.lua", "r")
+    local src = f and f:read("*a") or ""
+    if f then f:close() end
+    local body = src:match("function uni%.answerDetail%(row%)(.-)\n    end")
+    check("source: answerDetail never hides, copies or alerts",
+          body and not body:find("hide(", 1, true)
+          and not body:find("setContents", 1, true)
+          and not body:find("alert", 1, true), body and #body)
+    local hover = src:match("list%.addEventListener%('mousemove'(.-)\n}%);")
+    check("source: the hover handler rebuilds and never render()s — no "
+       .. "scrollIntoView under the pointer",
+          hover and hover:find("rebuild()", 1, true)
+          and not hover:find("render()", 1, true), hover)
 end
 
 -- ---- 🔎 THE REPORT (6.196.1) ------------------------------------
