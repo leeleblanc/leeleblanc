@@ -65,6 +65,7 @@ local M = {
             { "90%",     "The card is 90% opaque throughout (6.209.0; alphaIdle / alphaAlert)" },
             { "ink",     "The box and the digits are translucent too (cardAlpha / inkAlpha)" },
             { "sound",   "Last 30 s of focus: Submarine every 3 s, soft → loud (toneOn / toneSecs)" },
+            { "calendar", "With the mini calendar (⇪⇧0) up, the card sits beside it and comes back after" },
             { "log",     "Every start & completion → pomodoro_log-<Mac>.csv (Logs)" },
             { "4:30",    "Day's tally at workday end · Friday adds the week's" },
             { "note",    "Enter/esc are NOT captured during the countdown" },
@@ -159,6 +160,16 @@ function M.setup(core)
     pom.toneFrom  = 0.15         -- first play
     pom.toneTo    = 1.0          -- the last one
     pom.toneBreak = false        -- true = the break's last 30 s too
+    -- 🗓 6.211.0 — LL: "⌘+⇧+0 mini-calendar include the pomodoro
+    -- temporarily in the mini-calendar? Then come back to its own window
+    -- when the mini-calendar closes?" Both panels live top-right under
+    -- the clock, so the calendar (1024 wide) covered the card. While the
+    -- calendar is up the card DOCKS beside it — snug against its left
+    -- edge, top-aligned, dockGap apart — and goes back to exactly where
+    -- it was when the calendar closes. Drawn INSIDE the calendar was
+    -- judged and not built: its footer is 120 pt tall and the card is
+    -- 180, so that is a calendar layout decision, not a pomodoro one.
+    pom.dockGap = 8
     pom.flashCount = 6           -- how many times the panel blinks
     pom.flashSecs  = 0.45        -- per blink
     -- 🧟 How long the panel may sit on screen with nothing driving it
@@ -392,6 +403,48 @@ function M.setup(core)
     pom.applyAlpha = applyAlpha
     pom.elements   = elements     -- exposed for the test harness (6.154.0)
 
+    -- ---- 🗓 docking beside the mini calendar (6.211.0) ---------------------
+    -- rect = the calendar's frame. Returns ok, why — never throws; a card
+    -- that is not running has nothing to move. The pre-dock position is
+    -- remembered on the STATE (s.undockPos), never in pom.pos, so a
+    -- dragged-and-remembered position is untouched by a dock.
+    function pom.dock(rect)
+        local s = pom.state
+        if not (s and s.canvas) then return false, "no pomodoro running" end
+        if type(rect) ~= "table" or type(rect.x) ~= "number" or type(rect.y) ~= "number" then
+            return false, "no calendar frame"
+        end
+        if not s.docked then
+            local tl
+            pcall(function() tl = s.canvas:topLeft() end)
+            s.undockPos = (tl and tl.x and tl.y) and { x = tl.x, y = tl.y } or nil
+        end
+        local pos = { x = rect.x - pom.width - pom.dockGap, y = rect.y }
+        if _G.clampToScreen then
+            local okC, c = pcall(_G.clampToScreen, pos, pom.width, pom.height)
+            if okC and c then pos = c end
+        end
+        local okMove = pcall(function() s.canvas:topLeft(pos) end)
+        if not okMove then return false, "could not move the card" end
+        s.docked = true
+        pom.dockCount = (pom.dockCount or 0) + 1
+        pom.dockLast = pos
+        return true
+    end
+
+    function pom.undock()
+        local s = pom.state
+        if not (s and s.canvas and s.docked) then return false, "not docked" end
+        s.docked = false
+        local back = s.undockPos
+        s.undockPos = nil
+        if back then
+            local okMove = pcall(function() s.canvas:topLeft(back) end)
+            if not okMove then return false, "could not move the card back" end
+        end
+        return true
+    end
+
     -- ---- 🔊 the tone (6.210.0) ---------------------------------------------
     -- PURE: the volume for `left` seconds remaining — toneFrom at
     -- toneSecs, toneTo at 0, clamped either side.
@@ -610,6 +663,17 @@ function M.setup(core)
                                       tostring(pom.toneName), pom.toneEvery, pom.toneSecs, pom.toneFrom, pom.toneTo,
                                       (s and s.tonePlays) or 0, last,
                                       pom.toneSound == nil and " · not resolved yet (start a pomodoro)" or "")
+        end
+        do
+            local st = pom.state
+            if st and st.docked and pom.dockLast then
+                L[#L + 1] = string.format("   dock : beside the mini calendar now at %d,%d · goes back to %s when it closes",
+                                          math.floor(pom.dockLast.x), math.floor(pom.dockLast.y),
+                                          st.undockPos and (math.floor(st.undockPos.x) .. "," .. math.floor(st.undockPos.y)) or "its default spot")
+            else
+                L[#L + 1] = string.format("   dock : in its own spot · docked beside the calendar %d time(s) this session",
+                                          pom.dockCount or 0)
+            end
         end
         L[#L + 1] = "   log: " .. pom.logFile
         L[#L + 1] = "   daily tally fires at " .. tostring(pom.workdayEnd)
@@ -859,6 +923,7 @@ function M.setup(core)
         pom.state = { phase = "work", endsAt = 0, canvas = c }
         pom.todayCount()                       -- 🍅 the one log read, on the keypress
         if pom.toneOn then pom.resolveTone() end   -- 🔊 named now, not in the last 30 s
+        pom.state.startedDocked = false
         local okShow = pcall(function()
             -- 🚨 6.66.1 — fullScreenAuxiliary, NOT "stationary".
             -- "stationary" means "do not move me when Spaces change". It
@@ -945,6 +1010,14 @@ function M.setup(core)
                 end
             end
         end)
+        -- 🗓 6.211.0 — opened WHILE the calendar is up: dock at once, so the
+        -- calendar never covers a card that started under it.
+        pcall(function()
+            if _G.service and _G.service.has and _G.service.has("calendar.frame") then
+                local f = _G.service.call("calendar.frame")
+                if f then pom.state.startedDocked = pom.dock(f) end
+            end
+        end)
         say("started")
         return true
     end
@@ -1010,6 +1083,9 @@ function M.setup(core)
     core.provide("pomodoro.start",  function() return pom.start()  end)
     core.provide("pomodoro.stop",   function() return pom.stop("service") end)
     core.provide("pomodoro.report", function() return _G.pomodoroReport() end)
+    -- 🗓 6.211.0 — the mini calendar calls these as it opens and closes
+    core.provide("pomodoro.dock",   function(rect) return pom.dock(rect) end)
+    core.provide("pomodoro.undock", function() return pom.undock() end)
 
     -- 6.89.0 — listed for Window Move with plain = true: the timer card is
     -- pure display, so a bare click-hold drags it. ⌘-drag works too.

@@ -1745,6 +1745,32 @@ cal.hide()
 check("closing deletes the canvas and disarms the keys",
       cal.canvas == nil and cal.modal.entered == false)
 
+-- 🍅 6.211.0 — the pomodoro card docks beside the panel while it is up.
+-- The calendar's half: it CALLS pomodoro.dock with its frame as it
+-- opens, pomodoro.undock as it closes, and publishes calendar.frame.
+do
+    local DOCKS, UNDOCKS = {}, 0
+    _G.service.provide("pomodoro.dock",   function(f) DOCKS[#DOCKS + 1] = f return true end)
+    _G.service.provide("pomodoro.undock", function() UNDOCKS = UNDOCKS + 1 return true end)
+    check("calendar.frame is nil while the panel is closed", _G.service.call("calendar.frame") == nil)
+    cal.show()
+    check("🚨 opening the calendar asks the pomodoro to dock, with the panel's own frame",
+          #DOCKS == 1 and type(DOCKS[1]) == "table" and DOCKS[1].w == cal.width and DOCKS[1].h == cal.height
+          and DOCKS[1].x == cal.canvas:frame().x, DOCKS[1] and (DOCKS[1].w .. "x" .. DOCKS[1].h))
+    check("calendar.frame answers the frame while it is up", (function()
+        local f = _G.service.call("calendar.frame")
+        return type(f) == "table" and f.w == cal.width
+    end)())
+    cal.hide()
+    check("🚨 closing it asks the pomodoro to undock — before the canvas is gone", UNDOCKS == 1 and cal.canvas == nil)
+    check("...and calendar.frame is nil again", _G.service.call("calendar.frame") == nil)
+    -- no pomodoro loaded: nothing is called and nothing throws
+    _G.service.registry["pomodoro.dock"], _G.service.registry["pomodoro.undock"] = nil, nil
+    local okShow = pcall(cal.show)
+    local okHide = pcall(cal.hide)
+    check("with no pomodoro loaded the calendar opens and closes exactly as before", okShow and okHide and cal.canvas == nil)
+end
+
 TIMERS = {}
 calMod.warm(core)
 check("a menu-bar item is added", MENUBAR ~= nil)

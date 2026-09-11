@@ -507,6 +507,13 @@ function M.setup(core)
 
     function cal.hide()
         if cal.modal then pcall(function() cal.modal:exit() end) end
+        -- 🍅 6.211.0 — the pomodoro card goes back to its own spot FIRST,
+        -- while this frame still exists to have been beside.
+        pcall(function()
+            if _G.service and _G.service.has and _G.service.has("pomodoro.undock") then
+                _G.service.call("pomodoro.undock")
+            end
+        end)
         if cal.clock then
             pcall(function() cal.clock:stop() end)
             cal.clock = nil
@@ -587,6 +594,15 @@ function M.setup(core)
             end
         end)
         cal.clock = (okTick and tick) or nil
+        -- 🍅 6.211.0 — LL: "include the pomodoro temporarily in the
+        -- mini-calendar? Then come back to its own window when the
+        -- mini-calendar closes?" The card docks beside this frame; a
+        -- pomodoro that is not running answers false and nothing happens.
+        pcall(function()
+            if _G.service and _G.service.has and _G.service.has("pomodoro.dock") then
+                _G.service.call("pomodoro.dock", f)
+            end
+        end)
         _G.diag.say("calendar", "opened on " .. os.date("%Y-%m-%d", cal.cursor))
     end
 
@@ -642,6 +658,14 @@ function M.setup(core)
     core.provide("calendar.format", function(t) return cal.formatDate(t) end)
     core.provide("calendar.copyToday", function() return cal.copyDate(todayNoon()) end)
     core.provide("calendar.report", function(t) return cal.copyReport(t) end)
+    -- 🍅 6.211.0 — the panel's frame while it is up, nil otherwise, so a
+    -- pomodoro STARTED under an open calendar can dock at once.
+    core.provide("calendar.frame", function()
+        if not cal.canvas then return nil end
+        local fr
+        pcall(function() fr = cal.canvas:frame() end)
+        return fr
+    end)
 
     -- ⎋ 6.78.0 — CLAIMED, so the cheat sheet knows the calendar is up.
     -- The panel's own Esc is a MODAL binding and the sheet's is a plain

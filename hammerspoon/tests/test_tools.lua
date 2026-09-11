@@ -99,6 +99,12 @@ local function mkCanvas(frame)
         self.elements = e; return self
     end
     function c:level() return self end
+    -- 6.211.0 — the real hs.canvas answers :topLeft() with its point and
+    -- moves on :topLeft(point); the dock and window_move both use it
+    function c:topLeft(p)
+        if p then self.frame.x, self.frame.y = p.x, p.y return self end
+        return { x = self.frame.x, y = self.frame.y }
+    end
     function c:behaviorAsLabels() return self end
     function c:canvasMouseEvents() return self end
     function c:show() self.shown = true; return self end
@@ -1094,6 +1100,65 @@ do
     check("...and the card still reached its flash", pom.state and pom.state.flasher ~= nil)
     pom.stop("test")
     pom.toneSound = nil
+end
+NOW = 40000
+
+say("   -- 🗓 6.211.0: beside the mini calendar while it is up, back after --")
+-- LL: "⌘+⇧+0 mini-calendar include the pomodoro temporarily in the
+-- mini-calendar? Then come back to its own window when the
+-- mini-calendar closes?"
+do
+    local CAL = { x = 476, y = 37, w = 1024, h = 768 }
+    pom.stop("test")
+    _G.service.registry["calendar.frame"] = nil
+    CANVASES, TIMERS = {}, {}
+    pom.start()
+    local c = CANVASES[#CANVASES]
+    local home = c:topLeft()
+    check("(fixture) the card opens in its own spot, top-right", home.x > CAL.x and home.y == 25 + pom.marginY, home.x .. "," .. home.y)
+    check("pomodoro.dock / pomodoro.undock are published", _G.service.has("pomodoro.dock") and _G.service.has("pomodoro.undock"))
+    local ok = _G.service.call("pomodoro.dock", CAL)
+    local tl = c:topLeft()
+    check("🚨 the calendar opening docks the card BESIDE it: snug on its left, top-aligned",
+          ok == true and tl.x == CAL.x - pom.width - pom.dockGap and tl.y == CAL.y, tl.x .. "," .. tl.y)
+    check("...the state says docked, and remembers where it came from",
+          pom.state.docked == true and pom.state.undockPos.x == home.x and pom.state.undockPos.y == home.y)
+    _G.service.call("pomodoro.dock", CAL)
+    check("...docking twice does not forget the original spot", pom.state.undockPos.x == home.x)
+    check("...the report says so", _G.pomodoroReport():find("dock : beside the mini calendar now", 1, true) ~= nil)
+    local ok2 = _G.service.call("pomodoro.undock")
+    tl = c:topLeft()
+    check("🚨 the calendar closing puts it BACK exactly where it was",
+          ok2 == true and tl.x == home.x and tl.y == home.y and pom.state.docked == false, tl.x .. "," .. tl.y)
+    check("...and undocking again is a refusal, not a second move", (function()
+        local r, why = pom.undock()
+        return r == false and why == "not docked" and c:topLeft().x == home.x
+    end)())
+    check("a remembered drag position (pom.pos) is never touched by a dock", (function()
+        pom.pos = { x = 300, y = 300 }
+        pom.dock(CAL); pom.undock()
+        local untouched = pom.pos.x == 300 and pom.pos.y == 300
+        pom.pos = nil
+        return untouched
+    end)())
+    pom.stop("test")
+    check("dock with no pomodoro running: false, named, nothing thrown", (function()
+        local r, why = pom.dock(CAL)
+        return r == false and why == "no pomodoro running"
+    end)())
+    check("dock with junk for a frame: false, named", select(2, (function() pom.start() local r, w = pom.dock("nope") pom.stop("test") return r, w end)()) == "no calendar frame")
+    -- started WHILE the calendar is up: docks at once
+    _G.service.registry["calendar.frame"] = function() return CAL end
+    CANVASES = {}
+    pom.start()
+    local c2 = CANVASES[#CANVASES]
+    check("🚨 a pomodoro STARTED under an open calendar docks at once",
+          c2:topLeft().x == CAL.x - pom.width - pom.dockGap and pom.state.docked == true and pom.state.startedDocked == true,
+          c2:topLeft().x)
+    pom.undock()
+    check("...and undocks to the top-right spot it never got to sit in", c2:topLeft().x == home.x and c2:topLeft().y == home.y)
+    pom.stop("test")
+    _G.service.registry["calendar.frame"] = nil
 end
 NOW = 40000
 
