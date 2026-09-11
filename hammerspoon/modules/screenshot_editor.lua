@@ -6,8 +6,10 @@
 --   ▦ BLUR   drag a rectangle — it is blurred in place, destructively,
 --            for names/emails/tokens that must not travel.
 --   🅣 TEXT   click, type, ⏎ — a label in white text with a white
---            outline box (6.88.0, LL's spec). Drag it to move it;
---            double-click to re-edit the words.
+--            outline box (6.88.0, LL's spec). Drag it to move it. To
+--            EDIT the words: click it with the Text tool (6.207.0 —
+--            a click, not a drag), double-click it with any tool, or
+--            select it and press ⏎.
 --   ➤ ARROW  drag one out. Drag either END to stretch AND rotate it —
 --            the head follows the second endpoint; drag the shaft to
 --            move the whole arrow.
@@ -54,7 +56,7 @@ local M = {
         entries = {
             { "open",  "⇪⇧1 opens the newest shot · ⇪⇧5 menu captures too · ⌥⏎ on a history row" },
             { "B T A", "tools: Blur box · Text box · Arrow (buttons too)" },
-            { "text",  "click, type, ⏎ — white text, white outline box" },
+            { "text",  "click, type, ⏎ — white text, white outline box · click an EXISTING box (Text tool) to edit its words, or ⏎ on a selected one" },
             { "move",  "drag text/arrows around · arrow ENDS stretch + rotate · a selected text box has a corner dot — drag it to make the text bigger or smaller (⌘Z undoes it)" },
             { "⌫",     "delete the selected note · double-click text re-edits" },
             { "⌘Z",    "undo anything: blur, add, move, edit, delete" },
@@ -577,7 +579,16 @@ function M.setup(core)
         sel = hit.note;
         drag = { mode: (hit.part === 'move' || hit.part === 'size') ? hit.part : 'end',
                  note: hit.note, part: hit.part, sx: p.x, sy: p.y,
-                 before: snapNote(hit.note) };
+                 before: snapNote(hit.note),
+                 // 6.207.0 — LL: "I can't edit an existing text box. If I
+                 // click on the text box, a new one is created instead."
+                 // With the Text tool a CLICK on a text box (press and
+                 // release without moving) opens it for editing; a drag
+                 // still moves it. Decided on mouseup, where the two can be
+                 // told apart. Screen coordinates, so a 4K shot in a small
+                 // window does not turn a steady hand into a "drag".
+                 clickEdit: (tool === 'text' && hit.note.kind === 'text'),
+                 cx: e.clientX, cy: e.clientY, moved: false };
         redraw();
         return;
       }
@@ -607,6 +618,10 @@ function M.setup(core)
         return;
       }
       var p = toCanvas(e), n = drag.note;
+      if (Math.abs(e.clientX - drag.cx) > 3 || Math.abs(e.clientY - drag.cy) > 3) drag.moved = true;
+      // a click that wobbles a pixel is still a click: nothing moves until
+      // the hand has really moved, so the words open instead of shifting
+      if (drag.clickEdit && !drag.moved) return;
       if (drag.mode === 'move'){
         var dx = p.x - drag.sx, dy = p.y - drag.sy;
         if (n.kind === 'arrow'){
@@ -645,6 +660,9 @@ function M.setup(core)
         var changed = false, k;
         for (k in d.before){ if (d.before[k] !== n[k]){ changed = true; break; } }
         if (changed) pushUndo({ op: 'set', note: n, before: d.before });
+        // 6.207.0 — a click, not a drag, on a text box with the Text tool:
+        // open the words for editing right here
+        if (d.clickEdit && !d.moved && !changed){ redraw(); startText(n); return; }
       }
       redraw();
     });
@@ -668,6 +686,10 @@ function M.setup(core)
       }
       else if (e.metaKey && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault(); undoLast();
+      }
+      // 6.207.0 — ⏎ on a selected text box edits it (⌘⏎ is still save)
+      else if (e.key === 'Enter' && !e.metaKey && sel && sel.kind === 'text') {
+        e.preventDefault(); startText(sel);
       }
       else if ((e.key === 'Backspace' || e.key === 'Delete') && sel) {
         e.preventDefault();

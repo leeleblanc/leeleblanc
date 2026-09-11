@@ -4,9 +4,25 @@
 -- =====================================================================
 -- 09-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.206.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.207.0
 -- =====================================================================
 
+-- NEW IN 6.207.0 — 🅣 AN EXISTING TEXT BOX CAN BE EDITED AGAIN:
+--   🐞 LL, in the ⇪⇧1 editor: "I can't edit an existing text box. If I
+--      click on the text box, a new one is created instead." The page
+--      selected a box on a click and edited only on a DOUBLE-click, so
+--      the one gesture a person makes to edit words — click on them —
+--      did the one thing that looks like a new box opening.
+--   ✅ Three ways in, each driven by the gate: a CLICK on a text box with
+--      the Text tool opens its words (press and release without moving;
+--      a drag still moves it, and a one-pixel wobble is a click, not a
+--      drag — decided on mouseup, in screen coordinates); a double-click
+--      with any tool, as before; and ⏎ on a selected box, from the
+--      keyboard. ⌘⏎ is still save. A click on empty space still starts
+--      a new box.
+--   🧪 test_editor_js 59 -> 70; three mutations, each failing the row
+--      written for it. 8,532 -> 8,543 checks, seventy-four stages.
+--
 -- NEW IN 6.206.0 — 🧻 ⇪5 SCROLLING CAPTURE KEEPS ITS RECEIPTS:
 --   🐞 LL, with the alert: "Stitch failed — slices discarded
 --      (screenshots.lua:664: no slices decoded)". That said every slice
@@ -35,37 +51,12 @@
 --      five mutations, each failing the row written for it. 8,506 ->
 --      8,531 checks, seventy-four stages.
 --
--- NEW IN 6.205.0 — 🚨 AUTOCORRECT: AN INFLECTION OF A WORD IS A WORD:
---   🐞 LL, on 6.203.0 in Chrome: "starets which should be starts", "allows
---      is changing to gallows", "convinced" rewritten mid-sentence — the
---      word-list rule (6.200.0) turning RIGHT words into wrong ones.
---   📖 macOS's word list is a list of BASE words: it has start, allow and
---      convince, and NOT starts, allows or convinced. So every regular
---      plural, past tense and -ing form read as "not a word", and any one
---      of them sitting a single insertion from an obscure entry (starets
---      is a Russian elder; the list has it) was rewritten into it.
---      6.200.0's 104-word measurement was base words, so it never saw it.
---   ✅ `acSpellStems` (PURE) names the stems a word may be an inflection
---      of — s/es/ies, ed/d/ied, ing, er/est, ly, ness, with the doubled
---      consonant undone — and "is that a word" now asks about the word
---      AND its stems, on BOTH sides of the rule: starts is left alone
---      because start is listed, and statrs → starts is still a real
---      answer because start is. Two-letter stems are refused.
---   ✏️ `_G.autocorrectAdd("intsead", "instead")` — LL: "How do I add an
---      autocorrect entry?" One fix row, appended the way ⇪Z appends,
---      live at once, on the other Mac after its reload; a dead row, a
---      comma or an empty side is REFUSED rather than written.
---   🧪 test_autocorrect 114 -> 153: LL's three words by name, eighteen
---      endings, the typo that still corrects, the door and its three
---      refusals; four mutations, each failing the row written for it.
---      8,466 -> 8,506 checks, seventy-four stages.
---
--- (6.204.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.205.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.206.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.207.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -162,7 +153,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.206.0"
+_G.configVersion = "6.207.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

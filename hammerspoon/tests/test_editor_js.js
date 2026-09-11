@@ -269,6 +269,84 @@ console.log("── Screenshot Editor: page JavaScript, executed ──");
 }
 
 // =====================================================================
+// 3b. 6.207.0 — LL: "I can't edit an existing text box. If I click on
+// the text box, a new one is created instead." Editing is reachable
+// three ways now, and each is driven here: a CLICK on the box with the
+// Text tool, a double-click with any tool, and ⏎ on a selected box. A
+// drag with the Text tool still moves it.
+// =====================================================================
+{
+  const env = load();
+  env.call("setTool('text')");
+  env.listeners.ov.mousedown(mouse(10, 20));
+  env.tin.value = "Hello";
+  env.listeners.tin.keydown(key({ key: "Enter" }));
+  check("(fixture) one text note, input closed",
+        env.call("notes.length") === 1 && env.tin.style.display === "none");
+
+  // a CLICK on the existing box with the Text tool: press, release, no move
+  env.listeners.ov.mousedown(mouse(11, 18));
+  env.listeners.window.mouseup(mouse(11, 18));
+  check("🚨 a click on an existing text box with the Text tool opens ITS words,"
+        + " pre-filled — not a new box",
+        env.tin.style.display === "block" && env.tin.value === "Hello"
+        && env.call("notes.length") === 1,
+        env.tin.style.display + " / " + env.tin.value + " / " + env.call("notes.length"));
+  env.tin.value = "Edited";
+  env.listeners.tin.keydown(key({ key: "Enter" }));
+  check("…and ⏎ applies the edit to THAT note", env.call("notes[0].text") === "Edited"
+        && env.call("notes.length") === 1, env.call("JSON.stringify(notes)"));
+
+  // a DRAG with the Text tool still moves it and opens nothing
+  env.listeners.ov.mousedown(mouse(11, 18));
+  env.listeners.window.mousemove(mouse(23, 27));
+  env.listeners.window.mouseup(mouse(23, 27));
+  check("a drag on the box with the Text tool still MOVES it, and opens no input",
+        env.call("notes[0].x") === 22 && env.tin.style.display === "none",
+        env.call("notes[0].x") + " / " + env.tin.style.display);
+  check("…undoably", (env.listeners.window.keydown(key({ metaKey: true, key: "z" })),
+        env.call("notes[0].x") === 10));
+
+  // a steady hand: a 2-pixel wobble is a click, not a drag
+  env.listeners.ov.mousedown(mouse(11, 18));
+  env.listeners.window.mousemove(mouse(12, 19));
+  env.listeners.window.mouseup(mouse(12, 19));
+  check("a one-pixel wobble during the click is still a click — it opens the words",
+        env.tin.style.display === "block" && env.tin.value === "Edited");
+  env.listeners.tin.keydown(key({ key: "Escape" }));
+
+  // with the BLUR tool a click only selects — the words are not opened
+  env.call("setTool('blur')");
+  env.listeners.ov.mousedown(mouse(11, 18));
+  env.listeners.window.mouseup(mouse(11, 18));
+  check("with another tool a click on the box SELECTS it and opens nothing",
+        env.call("sel === notes[0]") && env.tin.style.display === "none");
+  // …and ⏎ on the selected box edits it, from the keyboard
+  env.listeners.window.keydown(key({ key: "Enter" }));
+  check("🚨 ⏎ on a selected text box opens its words",
+        env.tin.style.display === "block" && env.tin.value === "Edited",
+        env.tin.style.display + " / " + env.tin.value);
+  env.listeners.tin.keydown(key({ key: "Escape" }));
+  // ⌘⏎ is still the save, never an edit
+  env.sent.length = 0;
+  env.listeners.window.keydown(key({ metaKey: true, key: "Enter" }));
+  check("…while ⌘⏎ with a box selected is still SAVE",
+        env.sent.length === 1 && env.sent[0].a === "save" && env.tin.style.display === "none");
+  // and ⏎ with nothing selected does nothing
+  env.call("sel = null");
+  env.listeners.window.keydown(key({ key: "Enter" }));
+  check("⏎ with nothing selected opens nothing", env.tin.style.display === "none");
+
+  // a click on EMPTY space with the Text tool still starts a NEW box
+  // (the fixture note's box covers most of a 40×30 canvas — clear it)
+  env.call("setTool('text'); notes.length = 0; sel = null;");
+  env.listeners.ov.mousedown(mouse(36, 28));
+  check("a click on empty space with the Text tool still starts a new box",
+        env.tin.style.display === "block" && env.tin.value === "");
+  env.listeners.tin.keydown(key({ key: "Escape" }));
+}
+
+// =====================================================================
 // 4. the Arrow tool — draw, stretch+rotate by an end, move, delete
 // =====================================================================
 {

@@ -751,6 +751,9 @@ stood, kept verbatim.
    OneDrive's "2026 Screenshots" AND the clipboard. ⇪⇧4 = the
    PANEL: ⌘1–⌘8 (⌘8 = BIG thumbnails) and TYPING searches. ⏎ image
    · ⌘⏎ path · ⌃⏎ compress · ⌥⏎ EDITOR (blur/text/arrows; ⌘Z).
+   In the editor (6.207.0): click a text box with the Text tool to
+   edit its words, double-click it with any tool, or ⏎ on a selected
+   one; a drag still moves it.
    ⇪5 scrolling capture (6.206.0): every slice's exit code, stderr
    and file size are recorded, the run stops at the first failed
    slice and names it, failed slices are kept for a look, and a good
@@ -892,7 +895,7 @@ CREATED AUTOMATICALLY (never make these yourself):
 
 Sixty-eight Lua suites, 8,090 checks, plus four more that run the Capture
 Pad's, the screenshot editor's, unified search's and the vault's page
-JavaScript under `node` for a further 442 — **8,532 checks over
+JavaScript under `node` for a further 453 — **8,543 checks over
 seventy-four stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:

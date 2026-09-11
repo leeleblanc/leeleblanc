@@ -5,6 +5,36 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.207.0 — 🅣 AN EXISTING TEXT BOX CAN BE EDITED AGAIN:
+  🐞 LL, in the ⇪⇧1 editor: "I can't edit an existing text box. If I
+     click on the text box, a new one is created instead."
+  🔎 THE PAGE HAD ONE GESTURE FOR EDITING AND IT WAS NOT THE ONE A HAND
+     MAKES. Since 6.88.0 a click on a text box SELECTED it (for dragging)
+     and only a double-click opened the words; with the Text tool live,
+     the obvious thing — click on the words to change them — either
+     selected the box and did nothing visible, or, a hair to one side,
+     opened a fresh empty input, which is exactly what LL saw. From
+     here it cannot be known which half his click landed in, and it does
+     not need to be: both are answered by giving the editor the gesture
+     he was making.
+  ✅ THREE WAYS IN, EACH DRIVEN BY THE GATE. A CLICK on a text box with
+     the Text tool opens its words, pre-filled. A click is a press and
+     release without moving; a DRAG still moves the box, and the two are
+     told apart on mouseup, in SCREEN coordinates, so a one-pixel wobble
+     of a steady hand on a 4K shot in a small window is a click and not
+     a drag (nothing moves until the hand has really moved, so the words
+     open instead of the box shifting under them). A double-click with
+     ANY tool still edits, as it did. And ⏎ on a selected box edits it
+     from the keyboard — ⌘⏎ is still save, and ⏎ with nothing selected
+     does nothing. A click on empty space with the Text tool still starts
+     a new box. The cheat sheet row and the header say all three.
+  🧪 test_editor_js 59 -> 70: the click that opens the words and the
+     drag that moves the box, the wobble, the other tool's click that
+     only selects, ⏎ / ⌘⏎ / ⏎-with-nothing, and the new box on empty
+     space. Three mutations, each failing the row written for it: the
+     click-to-edit removed, the wobble guard removed, and ⏎ removed.
+     8,532 -> 8,543 checks, seventy-four stages.
+
 NEW IN 6.206.0 — 🧻 ⇪5 SCROLLING CAPTURE KEEPS ITS RECEIPTS:
   🐞 LL, with a screenshot of the alert: "Stitch failed — slices
      discarded (/Users/leeleblanc/.hammerspoon/modules/screenshots.lua:

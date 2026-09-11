@@ -1007,6 +1007,14 @@ mirrors draw order: "closes last" IS "drawn under".
 
 ## Open items — update as they move
 
+- 6.207.0 verify with LL: ⇪⇧1 (or ⌥⏎ on a history row), Text tool,
+  click, type a word, ⏎. Now CLICK that box once with the Text tool: the
+  input opens with the word in it — change it, ⏎. Then drag the box:
+  it moves, no input. Then Blur tool, click the box (selects it), press
+  ⏎: the input opens again. Double-click still edits in any tool. If a
+  click still opens an EMPTY box, say where the box was on the shot and
+  how big the shot is — that would be the hit test missing the box,
+  which is the other half this release could not see from here.
 - 6.206.0 verify with LL: ⇪5, drag an area over a scrolling page in
   Chrome. Either it works — the stitched "… (scrolling).png" is saved,
   ON THE CLIPBOARD (⌘V pastes it), and the editor opens on it — or it
