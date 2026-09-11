@@ -5,6 +5,75 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.213.0 — 🔦 SPOTLIGHT · MAGNIFIER · PASTE IMAGE · ADD CAPTURE:
+  The other half of LL's screenshot palette ("read the other operations
+     in the screenshot and add those features to my screenshot tool").
+     6.212.0 took the four marks; these four either READ pixels or reach
+     OUTSIDE the page, which is why they are their own release.
+  🔦 SPOTLIGHT (S). Drag a box; everything outside it darkens. It is ONE
+     veil — the whole shot filled at `ed.veilAlpha` (0.55) with every
+     spotlight punched out by an even-odd fill — so a second spotlight
+     is a second hole in the same veil and never a double-dark. The veil
+     is drawn UNDER every mark (text, arrows, badges stay bright) and
+     over the magnifiers. Moves by its inside, resizes by its corner; a
+     tiny drag makes nothing.
+  🔍 MAGNIFIER (M). Centre at the press, radius to the release. The
+     pixels under the circle are copied at `ed.magZoom` (2×) — the
+     source is the base canvas, so a blur shows magnified and the veil
+     never does — clipped to the circle, with a white ring. The dot on
+     its right edge sets the radius; inside moves it. Painted BEFORE the
+     veil on every surface (`drawAll`: magnifiers, veil, then the rest),
+     which is the order the ⌘⏎ save uses too.
+  📋 PASTE IMAGE (⌘V) and 📸 ADD CAPTURE (⌘A). These are DOORS, not
+     marks: the page sends {a:'paste'} / {a:'capture'} and Lua answers.
+     Paste reads hs.pasteboard.readImage(), encodes it
+     (encodeAsURLString) and pushes it; "Nothing to paste — the
+     clipboard has no image" when there is none. Add capture asks the
+     screenshots module's NEW service `screenshots.captureAreaTo(cb)` —
+     our own selector, a silent `-x -R` shot of that rectangle, and the
+     PATH handed back (never the clipboard, never the editor, never
+     both answers) — then reads the file and pushes it. Both arrive
+     through ONE door, `ed.pushImage(url, w, h)` →
+     evaluateJavaScript("addImage(...)"), which REFUSES anything that is
+     not a pure `data:image/…;base64,` URI with a size: a script WebKit
+     cannot parse is dropped in silence, and the note would simply not
+     appear. The page's `addImage` sizes it to 40% of the shot's width
+     (never larger than the image itself), aspect kept, centred, and
+     from then on it is a note like any other: inside moves it, the
+     corner scales it WITH its shape, ⌘Z, ⌫, ⌘⏎ paints it in, and Esc
+     hands it back with its pixels (the data URI rides in the notes;
+     `ed.keepMaxNoteBytes` is 8 MB now). A restore reloads every image
+     note's pixels (`ensureImages`). Move the editor first if it covers
+     the area to capture — the selector does not hide the window.
+  🧪 test_editor_js 99 -> 129 (the recorder gained rect/clip/drawImage
+     and a fill rule; an Image whose src says PASTED "loads" at once):
+     S/M select; the spotlight's box, the ONE veil with both rects and
+     the even-odd fill at 0.55, the veil under a text note, move,
+     resize, the tiny drag, two spotlights = one fill and three rects;
+     the magnifier's centre/radius, the clip + drawImage with the source
+     half the size and the destination the circle, the ring, the radius
+     dot, move, ⌘Z, the tiny drag, and its drawImage before the veil;
+     ⌘V and ⌘A send their messages and add nothing; addImage's size and
+     centring, the draw once loaded, a small image not blown up, ⌘Z, the
+     aspect-kept corner, the move, a bad call; the ⌘⏎ order (image
+     source copy, veil, then the pasted image) and the Esc hand-back
+     with the URI; ensureImages after a restore. test_editor 43 -> 57:
+     ⌘V with no image, with an image (the exact evaluateJavaScript), a
+     URI with a quote in it REFUSED, no size refused, pushImage's
+     ok/why; ⌘A without the module, with the service (waits, then the
+     landed file read, wrap-stripped, pushed with its size; a wrap that
+     survived would be refused at the door), a failed capture's reason
+     alerted, an unreadable path alerted; the page carries the tools,
+     the doors and the knobs. test_screenshots 199 -> 207:
+     captureAreaTo opens the selector, shoots -x -R silently, answers
+     nobody until the task ends, hands the PATH, opens no editor, a
+     failed shot answers nil + exit + stderr's first line once, no
+     callback refused, published. Four mutations, each failing the row
+     written for it: a veil per spotlight (no even-odd), the magnifier
+     copying at 1:1, magnifiers drawn after the veil, and the URI shape
+     check dropped at the door. 8,710 -> 8,762 checks, seventy-five
+     stages.
+
 NEW IN 6.212.0 — 🖌 LINE · OVAL · HIGHLIGHTER · COUNTER IN THE EDITOR:
   LL, with a screenshot of a CleanShot-style palette (Magnifier M, Add
      Capture ⌘A, Blur/Erase B, Highlighter H, Spotlight S, Counter C,

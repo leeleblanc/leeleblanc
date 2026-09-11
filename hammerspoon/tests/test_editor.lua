@@ -56,6 +56,8 @@ end
 local ALERTS = {}
 local LAST_HTML, BRIDGE, VIEW = nil, nil, nil
 local CLIP = { kind = "empty" }
+JS = {}                 -- 6.213.0: every evaluateJavaScript the module pushes
+PB_IMAGE = nil          -- what hs.pasteboard.readImage answers
 
 hs = {
     webview = {
@@ -77,6 +79,7 @@ hs = {
             function v:level() return self end
             function v:behaviorAsLabels() return self end
             function v:bringToFront() return self end
+            function v:evaluateJavaScript(js) JS[#JS + 1] = js; return self end
             VIEW = v
             return v
         end,
@@ -101,6 +104,7 @@ hs = {
     },
     pasteboard = {
         writeObjects = function(o) CLIP = { kind = "image", v = o }; return true end,
+        readImage = function() return PB_IMAGE end,
     },
     fs = { attributes = function(p, k)
         if WRITTEN[p] then return k and #WRITTEN[p] or { size = #WRITTEN[p] } end
@@ -321,6 +325,87 @@ check("settings { screenshot_editor = { keepOnClose = false } } keeps nothing",
 E.keepOnClose = true
 
 -- =====================================================================
+-- =====================================================================
+out("\n9. 6.213.0 — ⌘V and ⌘A: an image INTO the page, through Lua\n")
+-- =====================================================================
+do
+    local function open()
+        JS, ALERTS = {}, {}
+        READABLE["/x/Shot.png"] = "PNGBYTES"
+        E.open("/x/Shot.png")
+    end
+    open()
+    -- ⌘V with nothing usable on the clipboard
+    PB_IMAGE = nil
+    BRIDGE({ body = { a = "paste" } })
+    check("⌘V with no image on the clipboard: an alert, nothing pushed",
+          #JS == 0 and ALERTS[#ALERTS] and ALERTS[#ALERTS]:find("Nothing to paste", 1, true) ~= nil, ALERTS[#ALERTS])
+    -- ⌘V with an image
+    PB_IMAGE = { encodeAsURLString = function() return "data:image/png;base64,PASTEDB64==" end,
+                 size = function() return { w = 800, h = 600 } end }
+    BRIDGE({ body = { a = "paste" } })
+    check("🚨 ⌘V with an image: the page gets addImage(<data URI>, w, h) through evaluateJavaScript",
+          JS[#JS] == "addImage('data:image/png;base64,PASTEDB64==', 800, 600)", JS[#JS])
+    -- a URI the page could not parse never reaches WebKit
+    PB_IMAGE = { encodeAsURLString = function() return "data:image/png;base64,bad'; alert(1); //" end,
+                 size = function() return { w = 8, h = 8 } end }
+    local before = #JS
+    BRIDGE({ body = { a = "paste" } })
+    check("a URI that is not pure base64 is REFUSED, never pushed into a script",
+          #JS == before and ALERTS[#ALERTS]:find("not a usable image", 1, true) ~= nil, ALERTS[#ALERTS])
+    PB_IMAGE = { encodeAsURLString = function() return "data:image/png;base64,AAAA" end,
+                 size = function() return { w = 0, h = 0 } end }
+    BRIDGE({ body = { a = "paste" } })
+    check("an image with no size is refused, named", ALERTS[#ALERTS]:find("no size", 1, true) ~= nil)
+    check("pushImage returns ok, why and never throws", (function()
+        local ok, why = E.pushImage("junk", 1, 1)
+        return ok == false and why == "not a usable image"
+    end)())
+
+    -- ⌘A with no screenshots module
+    CORE.has  = function(n) return PROVIDED[n] ~= nil end
+    CORE.call = function(n, ...) return PROVIDED[n](...) end
+    PROVIDED["screenshots.captureAreaTo"] = nil
+    BRIDGE({ body = { a = "capture" } })
+    check("⌘A without the screenshots module: says so, pushes nothing",
+          ALERTS[#ALERTS]:find("screenshots module", 1, true) ~= nil and #JS == before, ALERTS[#ALERTS])
+    -- ⌘A with the service: the callback with a path reads the file and pushes it
+    local CAPTURE_CB
+    PROVIDED["screenshots.captureAreaTo"] = function(cb) CAPTURE_CB = cb return true end
+    BRIDGE({ body = { a = "capture" } })
+    check("⌘A asks screenshots.captureAreaTo and waits", type(CAPTURE_CB) == "function" and #JS == before)
+    READABLE["/x/Cap.png"] = "CAPTUREBYTES"
+    -- this suite's base64 stub writes visible markers (B64<…>), which a
+    -- data URI can never carry; for the door that pushes a URI the stub
+    -- answers the REAL shape — base64 characters, line-wrapped at 76 as
+    -- hs.base64.encode does
+    local markerEncode = hs.base64.encode
+    hs.base64.encode = function() return "Q0FQVFVSRUJZVEVT\nQkFTRTY0" end
+    CAPTURE_CB("/x/Cap.png")
+    hs.base64.encode = markerEncode
+    check("🚨 …the capture that lands is read, encoded and pushed as addImage(...) with its size",
+          JS[#JS] == "addImage('data:image/png;base64,Q0FQVFVSRUJZVEVTQkFTRTY0', 800, 600)", JS[#JS])
+    check("…with hs.base64's line-wrap stripped (a broken data URI is a silent nothing in WebKit)",
+          JS[#JS] and not JS[#JS]:find("\n", 1, true))
+    check("…and a wrap that survived would have been REFUSED, not pushed (the shape is checked at the door)",
+          select(2, E.pushImage("data:image/png;base64,QUJD\nREVG", 8, 8)) == "not a usable image")
+    before = #JS
+    CAPTURE_CB(nil, "screencapture exit 1 — could not create image")
+    check("a capture that did not land: the reason is alerted, nothing pushed",
+          #JS == before and ALERTS[#ALERTS]:find("Capture did not land — screencapture exit 1", 1, true) ~= nil, ALERTS[#ALERTS])
+    CAPTURE_CB("/x/missing.png")
+    check("a path that cannot be read: alerted, nothing pushed",
+          #JS == before and ALERTS[#ALERTS]:find("could not be read", 1, true) ~= nil, ALERTS[#ALERTS])
+    -- the buttons and keys are in the page
+    check("the page has the Spotlight and Magnifier tools and the two doors",
+          LAST_HTML:find("id=\"tool-spot\"", 1, true) ~= nil and LAST_HTML:find("id=\"tool-mag\"", 1, true) ~= nil
+          and LAST_HTML:find("say({a:'paste'})", 1, true) ~= nil and LAST_HTML:find("say({a:'capture'})", 1, true) ~= nil
+          and LAST_HTML:find("function addImage(", 1, true) ~= nil)
+    check("…and the zoom / veil knobs reach it", LAST_HTML:find("var MAGZOOM = 2;", 1, true) ~= nil
+          and LAST_HTML:find("var VEIL = 0.55;", 1, true) ~= nil)
+    E.close()
+end
+
 out(("\n%d passed, %d failed\n"):format(pass, fail))
 for _, f in ipairs(failures) do out("    ❌ " .. f .. "\n") end
 out("\n")

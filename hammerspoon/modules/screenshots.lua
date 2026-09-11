@@ -477,6 +477,40 @@ function M.setup(core)
         }, path, thenEdit)
     end
 
+    -- 🖌 6.213.0 — the editor's "Add capture" (⌘A): OUR selector, a -x -R
+    -- shot of that rectangle, and the PATH handed to the caller — no
+    -- clipboard, no editor open, no panel. cb(path) on success, cb(nil,
+    -- why) on anything else, and never both.
+    function shots.captureAreaTo(cb)
+        if type(cb) ~= "function" then return false, "no callback" end
+        if not shots.ensureDir() then cb(nil, "no screenshots folder") return false end
+        local picked = false
+        shots.selectArea(function(rect)
+            picked = true
+            local path = freshPath()
+            shots.lastRect = rect
+            local started = shots.runCapture({
+                "-x",
+                ("-R%d,%d,%d,%d"):format(rect.x, rect.y, rect.w, rect.h),
+                path,
+            }, path, false, function(p, exitCode, serr)
+                local size
+                pcall(function() size = hs.fs.attributes(p, "size") end)
+                if exitCode == 0 and size and size > 0 then
+                    cb(p)
+                else
+                    local why = "screencapture exit " .. tostring(exitCode)
+                    local first = tostring(serr or ""):match("[^\n]+")
+                    if first and first ~= "" then why = why .. " — " .. first end
+                    if not size or size == 0 then why = why .. " — no file was written" end
+                    cb(nil, why)
+                end
+            end)
+            if not started then cb(nil, "screencapture could not be started") end
+        end)
+        return true
+    end
+
     function shots.repeatArea(thenEdit)
         if shots.lastRect then
             shots.captureRect(shots.lastRect, thenEdit)
@@ -1915,6 +1949,7 @@ function M.setup(core)
     core.provide("shots.zbarPath",      function() return shots.zbarPath() end)
     core.provide("screenshots.latest",  function() return shots.latest() end)
     core.provide("screenshots.capture", function() return shots.capture() end)
+    core.provide("screenshots.captureAreaTo", function(cb) return shots.captureAreaTo(cb) end)
     core.provide("screenshots.show",    function() return shots.show() end)
     core.provide("screenshots.folder",  function() return shots.revealFolder() end)
 

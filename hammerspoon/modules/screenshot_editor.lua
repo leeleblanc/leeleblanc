@@ -57,6 +57,8 @@ local M = {
             { "open",  "⇪⇧1 opens the newest shot · ⇪⇧5 menu captures too · ⌥⏎ on a history row" },
             { "B T A", "tools: Blur box · Text box · Arrow (buttons too)" },
             { "L O H C", "6.212.0: Line · Oval · Highlighter (translucent yellow box) · Counter (①②③ — a numbered badge per click, ⌘Z takes the last back)" },
+            { "S M",   "6.213.0: Spotlight (darkens everything but the box) · Magnifier (a 2× circle; drag its right-hand dot to size it)" },
+            { "⌘V ⌘A", "6.213.0: paste the clipboard's IMAGE onto the shot · Add capture — drag an area of the screen and it lands on the shot (move the editor first if it is in the way)" },
             { "text",  "click, type, ⏎ — white text, white outline box · click an EXISTING box (Text tool) to edit its words, or ⏎ on a selected one" },
             { "move",  "drag text/arrows around · arrow ENDS stretch + rotate · a selected text box has a corner dot — drag it to make the text bigger or smaller (⌘Z undoes it)" },
             { "⌫",     "delete the selected note · double-click text re-edits" },
@@ -92,7 +94,11 @@ function M.setup(core)
     -- will overwrite the prior image, and that's fine."
     ed.keepOnClose = true
     ed.keepMaxBytes = 40 * 1024 * 1024   -- a 4K PNG data URI, with room
-    ed.keepMaxNoteBytes = 256 * 1024
+    ed.keepMaxNoteBytes = 8 * 1024 * 1024   -- 6.213.0: a pasted image rides
+                                            -- in the notes as a data URI
+    -- 🔍 6.213.0 — the magnifier's zoom and the spotlight's veil
+    ed.magZoom   = 2
+    ed.veilAlpha = 0.55
     ed.kept = nil    -- { path, img, notes } — never written to disk, never
                      -- survives a reload; this is a safety net, not a store
     -- ----------------------------------------------------------------------
@@ -200,6 +206,10 @@ function M.setup(core)
   <button id="tool-oval" class="tool" onclick="setTool('oval')" title="O">◯ Oval</button>
   <button id="tool-hl" class="tool" onclick="setTool('hl')" title="H">🖍 Highlight</button>
   <button id="tool-count" class="tool" onclick="setTool('count')" title="C">① Counter</button>
+  <button id="tool-spot" class="tool" onclick="setTool('spot')" title="S">🔦 Spotlight</button>
+  <button id="tool-mag" class="tool" onclick="setTool('mag')" title="M">🔍 Magnifier</button>
+  <button onclick="say({a:'paste'})" title="⌘V">📋 Paste image</button>
+  <button onclick="say({a:'capture'})" title="⌘A">📸 Add capture</button>
   <button onclick="undoLast()" title="⌘Z">↩︎ Undo</button>
   <button class="go" onclick="saveIt('png')" title="⌘⏎">Save &amp; copy&nbsp;&nbsp;⌘⏎</button>
   <button onclick="saveIt('jpg')" title="⌘⇧⏎">Small JPEG</button>
@@ -225,6 +235,8 @@ function M.setup(core)
   var RESTOREIMG   = ']] .. keepImg .. [[';
   var RESTORENOTES = ']] .. keepNotes .. [[';
   var JPEGQ = ]] .. tostring(ed.jpegQuality) .. [[;
+  var MAGZOOM = ]] .. tostring(tonumber(ed.magZoom) or 2) .. [[;
+  var VEIL = ]] .. tostring(tonumber(ed.veilAlpha) or 0.55) .. [[;
 
   function say(m){ window.webkit.messageHandlers.shotEditor.postMessage(m || {}); }
   // Leaving is the only moment the work can be handed back, so an
@@ -292,12 +304,14 @@ function M.setup(core)
   var tool = 'blur';
   var notes = [];      // {kind:'text',x,y,text,size} | {kind:'arrow'|'line',x1,y1,x2,y2}
                        // | {kind:'oval'|'hl',x,y,w,h} | {kind:'count',x,y,n}   (6.212.0)
+                       // | {kind:'spot',x,y,w,h} | {kind:'mag',x,y,r} | {kind:'img',x,y,w,h,src}   (6.213.0)
   if (RESTORENOTES) {
     try {
       var _b = atob(RESTORENOTES), _a = new Uint8Array(_b.length), _i;
       for (_i = 0; _i < _b.length; _i++) _a[_i] = _b.charCodeAt(_i);
       var _n = JSON.parse(new TextDecoder('utf-8').decode(_a));
       if (_n && _n.length) notes = _n;
+      ensureImages();   // 6.213.0 — a kept image note needs its pixels again
     } catch (e) { }   // a stash it cannot read leaves notes empty
   }
   var sel = null;      // the selected note, if any
@@ -343,7 +357,7 @@ function M.setup(core)
 
   function setTool(t){
     tool = t;
-    var names = ['blur', 'text', 'arrow', 'line', 'oval', 'hl', 'count'], i, b;
+    var names = ['blur', 'text', 'arrow', 'line', 'oval', 'hl', 'count', 'spot', 'mag'], i, b;
     for (i = 0; i < names.length; i++){
       b = document.getElementById('tool-' + names[i]);
       if (b) b.className = 'tool' + (names[i] === t ? ' on' : '');
@@ -397,7 +411,9 @@ function M.setup(core)
       return { x: Math.min(n.x1, n.x2), y: Math.min(n.y1, n.y2),
                w: Math.abs(n.x2 - n.x1), h: Math.abs(n.y2 - n.y1) };
     }
-    if (n.kind === 'oval' || n.kind === 'hl') return { x: n.x, y: n.y, w: n.w, h: n.h };
+    if (n.kind === 'oval' || n.kind === 'hl' || n.kind === 'spot' || n.kind === 'img')
+      return { x: n.x, y: n.y, w: n.w, h: n.h };
+    if (n.kind === 'mag') return { x: n.x - n.r, y: n.y - n.r, w: n.r * 2, h: n.r * 2 };
     if (n.kind === 'count'){
       var cr = countR();
       return { x: n.x - cr, y: n.y - cr, w: cr * 2, h: cr * 2 };
@@ -413,12 +429,91 @@ function M.setup(core)
   }
   // LL's spec, verbatim: "white text and white outline". A soft dark
   // shadow under both keeps white readable on a white screenshot.
+  // 6.213.0 — pasted / captured images, by data URI. Loaded once each;
+  // a note whose image has not arrived yet draws nothing and no error.
+  var imgCache = {};
+  function loadImg(src){
+    if (!src || imgCache[src]) return imgCache[src];
+    var im = new Image(), rec = { im: im, ok: false };
+    imgCache[src] = rec;
+    im.onload = function(){ rec.ok = true; redraw(); };
+    im.src = src;
+    return rec;
+  }
+  function ensureImages(){
+    for (var i = 0; i < notes.length; i++) if (notes[i].kind === 'img') loadImg(notes[i].src);
+  }
+  // Lua calls this (evaluateJavaScript) with the clipboard's image or a
+  // fresh capture: sized to fit 40% of the shot's width, aspect kept,
+  // centred, then an ordinary note — moved, resized, undone, saved.
+  function addImage(src, w, h){
+    if (!cv || !src) return false;
+    w = Number(w) || 100; h = Number(h) || 100;
+    var maxW = Math.max(16, Math.round(cv.width * 0.4));
+    var sc = Math.min(1, maxW / w);
+    var nw = Math.max(8, Math.round(w * sc)), nh = Math.max(8, Math.round(h * sc));
+    var n = { kind: 'img', src: src, w: nw, h: nh,
+              x: Math.round((cv.width - nw) / 2), y: Math.round((cv.height - nh) / 2) };
+    loadImg(src);
+    notes.push(n); sel = n;
+    pushUndo({ op: 'add', note: n });
+    redraw();
+    return true;
+  }
+  // 6.213.0 — ONE veil for every spotlight: the whole canvas, with each
+  // spot punched out (even-odd), so two spotlights are two holes and
+  // never a double-dark. Drawn under the marks, over the magnifiers.
+  function drawVeil(g){
+    var any = false, i;
+    for (i = 0; i < notes.length; i++) if (notes[i].kind === 'spot'){ any = true; break; }
+    if (!any) return;
+    g.save();
+    g.shadowBlur = 0;
+    g.fillStyle = 'rgba(0,0,0,' + VEIL + ')';
+    g.beginPath();
+    g.rect(0, 0, cv.width, cv.height);
+    for (i = 0; i < notes.length; i++){
+      var n = notes[i];
+      if (n.kind === 'spot') g.rect(n.x, n.y, n.w, n.h);
+    }
+    g.fill('evenodd');
+    g.restore();
+  }
+  // the order every surface draws in: magnifiers read the clean pixels
+  // first, then the veil, then everything else on top
+  function drawAll(g, withSel){
+    var i;
+    for (i = 0; i < notes.length; i++)
+      if (notes[i].kind === 'mag') drawNote(g, notes[i], withSel && notes[i] === sel);
+    drawVeil(g);
+    for (i = 0; i < notes.length; i++)
+      if (notes[i].kind !== 'mag') drawNote(g, notes[i], withSel && notes[i] === sel);
+  }
   function drawNote(g, n, isSel){
     g.save();
     g.shadowColor = 'rgba(0,0,0,0.55)';
     g.shadowBlur = Math.max(3, lwidth());
     g.strokeStyle = '#ffffff'; g.fillStyle = '#ffffff';
-    if (n.kind === 'line'){
+    if (n.kind === 'spot'){
+      // the veil (drawVeil) is the spotlight; here only its selection
+    } else if (n.kind === 'mag'){
+      // 6.213.0 — the pixels under the circle, MAGZOOM× bigger, clipped
+      // to the circle, with a white ring. Source is the base canvas, so
+      // blurs show magnified too and the veil never does.
+      var z = MAGZOOM || 2, r = Math.max(4, n.r);
+      g.save();
+      g.shadowBlur = 0;
+      g.beginPath(); g.arc(n.x, n.y, r, 0, 6.2832);
+      if (g.clip) g.clip();
+      if (g.drawImage) g.drawImage(cv, n.x - r / z, n.y - r / z, 2 * r / z, 2 * r / z,
+                                   n.x - r, n.y - r, 2 * r, 2 * r);
+      g.restore();
+      g.lineWidth = lwidth();
+      g.beginPath(); g.arc(n.x, n.y, r, 0, 6.2832); g.stroke();
+    } else if (n.kind === 'img'){
+      var rec = imgCache[n.src] || loadImg(n.src);
+      if (rec && rec.ok && g.drawImage){ g.shadowBlur = 0; g.drawImage(rec.im, n.x, n.y, n.w, n.h); }
+    } else if (n.kind === 'line'){
       // 6.212.0 — an arrow without its head
       g.lineWidth = lwidth(); g.lineCap = 'round';
       g.beginPath(); g.moveTo(n.x1, n.y1); g.lineTo(n.x2, n.y2); g.stroke();
@@ -486,7 +581,8 @@ function M.setup(core)
           g.beginPath(); g.arc(x, y, hr, 0, 6.2832); g.fill(); g.stroke();
         };
         if (n.kind === 'arrow' || n.kind === 'line'){ dot(n.x1, n.y1); dot(n.x2, n.y2); }
-        else if (n.kind !== 'count'){ dot(bb.x + bb.w, bb.y + bb.h); }   // the resize corner (text, oval, highlight)
+        else if (n.kind === 'mag'){ dot(n.x + n.r, n.y); }               // the radius handle
+        else if (n.kind !== 'count'){ dot(bb.x + bb.w, bb.y + bb.h); }   // the resize corner (text, oval, highlight, spotlight, image)
       }
     }
     g.restore();
@@ -494,7 +590,7 @@ function M.setup(core)
   function redraw(){
     if (!octx) return;
     octx.clearRect(0, 0, ov.width, ov.height);
-    for (var i = 0; i < notes.length; i++) drawNote(octx, notes[i], notes[i] === sel);
+    drawAll(octx, true);
   }
 
   function distPt(ax, ay, bx, by){
@@ -517,6 +613,12 @@ function M.setup(core)
       if (n.kind === 'count'){
         // 6.212.0 — the badge moves as a whole; no handle to resize
         if (distPt(p.x, p.y, n.x, n.y) <= countR() + handleR() * 0.5) return { note: n, part: 'move' };
+        continue;
+      }
+      if (n.kind === 'mag'){
+        // 6.213.0 — the dot on its right edge sets the radius; inside moves
+        if (distPt(p.x, p.y, n.x + n.r, n.y) <= handleRFor(n)) return { note: n, part: 'rad' };
+        if (distPt(p.x, p.y, n.x, n.y) <= n.r) return { note: n, part: 'move' };
         continue;
       }
       if (n.kind === 'arrow' || n.kind === 'line'){
@@ -600,7 +702,7 @@ function M.setup(core)
     if (!ctx) return;
     commitText();
     var keep = ctx.getImageData(0, 0, cv.width, cv.height);
-    for (var i = 0; i < notes.length; i++) drawNote(ctx, notes[i], false);
+    drawAll(ctx, false);
     var url = fmt === 'jpg' ? cv.toDataURL('image/jpeg', JPEGQ)
                             : cv.toDataURL('image/png');
     ctx.putImageData(keep, 0, 0);
@@ -634,7 +736,7 @@ function M.setup(core)
       var hit = hitAt(p);
       if (hit){
         sel = hit.note;
-        drag = { mode: (hit.part === 'move' || hit.part === 'size') ? hit.part : 'end',
+        drag = { mode: (hit.part === 'move' || hit.part === 'size' || hit.part === 'rad') ? hit.part : 'end',
                  note: hit.note, part: hit.part, sx: p.x, sy: p.y,
                  before: snapNote(hit.note),
                  // 6.207.0 — LL: "I can't edit an existing text box. If I
@@ -659,7 +761,15 @@ function M.setup(core)
       }
       // 6.212.0 — a box drawn from the press to the release, in any
       // direction: the corner drag normalises x/y/w/h as it goes
-      if (tool === 'oval' || tool === 'hl'){
+      // 6.213.0 — the magnifier: centre at the press, radius to the release
+      if (tool === 'mag'){
+        var nm = { kind: 'mag', x: p.x, y: p.y, r: 0 };
+        notes.push(nm); sel = nm;
+        drag = { mode: 'rad', note: nm, fresh: true };
+        redraw();
+        return;
+      }
+      if (tool === 'oval' || tool === 'hl' || tool === 'spot'){
         var nb = { kind: tool, x: p.x, y: p.y, w: 0, h: 0 };
         notes.push(nb); sel = nb;
         drag = { mode: 'corner', note: nb, fresh: true, ox: p.x, oy: p.y };
@@ -705,8 +815,15 @@ function M.setup(core)
       } else if (drag.mode === 'corner'){
         n.x = Math.min(drag.ox, p.x); n.y = Math.min(drag.oy, p.y);
         n.w = Math.abs(p.x - drag.ox); n.h = Math.abs(p.y - drag.oy);
+      } else if (drag.mode === 'rad'){
+        n.r = Math.max(4, Math.round(distPt(p.x, p.y, n.x, n.y)));
       } else if (drag.mode === 'size'){
-        if (n.kind === 'oval' || n.kind === 'hl'){
+        if (n.kind === 'img'){
+          // 6.213.0 — an image keeps its shape: the corner scales both sides
+          var sc = Math.max(0.05, (drag.before.w + (p.x - drag.sx)) / Math.max(1, drag.before.w));
+          n.w = Math.max(8, Math.round(drag.before.w * sc));
+          n.h = Math.max(8, Math.round(drag.before.h * sc));
+        } else if (n.kind === 'oval' || n.kind === 'hl' || n.kind === 'spot'){
           // 6.212.0 — the bottom-right corner follows the pointer; the
           // top-left stays put
           n.w = Math.max(4, Math.round(drag.before.w + (p.x - drag.sx)));
@@ -736,8 +853,9 @@ function M.setup(core)
       }
       var n = d.note;
       if (d.fresh){
-        var tiny = (n.kind === 'oval' || n.kind === 'hl') ? (n.w < 4 || n.h < 4)
-                                                          : distPt(n.x1, n.y1, n.x2, n.y2) < 6;
+        var tiny = (n.kind === 'oval' || n.kind === 'hl' || n.kind === 'spot') ? (n.w < 4 || n.h < 4)
+                 : (n.kind === 'mag') ? (n.r < 8)
+                 : distPt(n.x1, n.y1, n.x2, n.y2) < 6;
         if (tiny){
           notes.splice(notes.indexOf(n), 1);   // a click, not a shape
           if (sel === n) sel = null;
@@ -773,6 +891,9 @@ function M.setup(core)
       else if (e.metaKey && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault(); undoLast();
       }
+      // 6.213.0 — the clipboard's image, and a fresh capture, both via Lua
+      else if (e.metaKey && (e.key === 'v' || e.key === 'V')) { e.preventDefault(); say({ a: 'paste' }); }
+      else if (e.metaKey && (e.key === 'a' || e.key === 'A')) { e.preventDefault(); say({ a: 'capture' }); }
       // 6.207.0 — ⏎ on a selected text box edits it (⌘⏎ is still save)
       else if (e.key === 'Enter' && !e.metaKey && sel && sel.kind === 'text') {
         e.preventDefault(); startText(sel);
@@ -791,6 +912,8 @@ function M.setup(core)
         else if (e.key === 'o' || e.key === 'O') setTool('oval');
         else if (e.key === 'h' || e.key === 'H') setTool('hl');
         else if (e.key === 'c' || e.key === 'C') setTool('count');
+        else if (e.key === 's' || e.key === 'S') setTool('spot');
+        else if (e.key === 'm' || e.key === 'M') setTool('mag');
       }
     });
   }
@@ -888,7 +1011,73 @@ function M.setup(core)
         elseif body.a == "dragStart" then
             -- 6.89.0 — the title-bar grab; Window Move drives the drag
             if _G.beginPanelDrag then _G.beginPanelDrag("screenshot editor") end
+        elseif body.a == "paste" then
+            local ok, why = ed.pasteImage()
+            if not ok then pcall(function() hs.alert.show("🖌 " .. tostring(why), 3) end) end
+        elseif body.a == "capture" then
+            local ok, why = ed.addCapture()
+            if not ok then pcall(function() hs.alert.show("🖌 " .. tostring(why), 3) end) end
         end
+    end
+
+    -- 🖌 6.213.0 — an image INTO the page. One shape for both doors
+    -- (clipboard and capture): a png/jpeg data URI, its size, pushed with
+    -- evaluateJavaScript into addImage(). Returns ok, why — a refused
+    -- URI never reaches WebKit (a script it cannot parse is dropped in
+    -- silence, and the note would simply not appear).
+    function ed.pushImage(url, w, h)
+        if not ed.webview then return false, "the editor is not open" end
+        url = tostring(url or "")
+        if not url:match("^data:image/%w+;base64,[A-Za-z0-9+/=]+$") then
+            return false, "not a usable image"
+        end
+        w, h = tonumber(w) or 0, tonumber(h) or 0
+        if w <= 0 or h <= 0 then return false, "the image has no size" end
+        local js = ("addImage('%s', %d, %d)"):format(url, math.floor(w), math.floor(h))
+        local okEval, err = pcall(function()
+            if type(ed.webview.evaluateJavaScript) ~= "function" then error("no evaluateJavaScript") end
+            ed.webview:evaluateJavaScript(js)
+        end)
+        if not okEval then return false, "could not hand the image to the page (" .. tostring(err) .. ")" end
+        ed.pushed = (ed.pushed or 0) + 1
+        return true
+    end
+
+    -- ⌘V — the clipboard's image onto the shot
+    function ed.pasteImage()
+        local img
+        pcall(function() img = hs.pasteboard.readImage() end)
+        if not img then return false, "Nothing to paste — the clipboard has no image" end
+        local url, size
+        pcall(function() url = img:encodeAsURLString() end)
+        pcall(function() size = img:size() end)
+        if not url then return false, "the clipboard image could not be encoded" end
+        return ed.pushImage(url, size and size.w, size and size.h)
+    end
+
+    -- ⌘A — drag an area of the screen; the capture lands on the shot
+    function ed.addCapture()
+        if not (core.has and core.has("screenshots.captureAreaTo")) then
+            return false, "Add capture needs the screenshots module, which is not loaded"
+        end
+        local started = core.call("screenshots.captureAreaTo", function(path, why)
+            if not path then
+                pcall(function() hs.alert.show("🖌 Capture did not land — " .. tostring(why), 3) end)
+                return
+            end
+            local b64 = readFileBase64(path)
+            local w, h = 0, 0
+            pcall(function()
+                local im = hs.image.imageFromPath(path)
+                local sz = im and im:size()
+                if sz then w, h = sz.w, sz.h end
+            end)
+            local ok, whyPush = false, "the capture could not be read"
+            if b64 then ok, whyPush = ed.pushImage("data:image/png;base64," .. b64, w, h) end
+            if not ok then pcall(function() hs.alert.show("🖌 " .. tostring(whyPush), 3) end) end
+        end)
+        if started == false then return false, "the screen selector could not open" end
+        return true
     end
 
     -- ---- window ----------------------------------------------------------

@@ -4,9 +4,30 @@
 -- =====================================================================
 -- 09-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.212.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.213.0
 -- =====================================================================
 
+-- NEW IN 6.213.0 — 🔦 SPOTLIGHT · MAGNIFIER · PASTE IMAGE · ADD CAPTURE:
+--   The other half of LL's palette. 🔦 SPOTLIGHT (S) darkens everything
+--      but the box: ONE veil over the whole shot with every spotlight
+--      punched out (even-odd), drawn UNDER the marks. 🔍 MAGNIFIER (M):
+--      centre at the press, radius to the release, the pixels under it
+--      at 2× (`ed.magZoom`) clipped to a white ring; its right-hand dot
+--      sets the radius; painted BEFORE the veil so it reads clean
+--      pixels. 📋 PASTE IMAGE (⌘V) and 📸 ADD CAPTURE (⌘A) are DOORS:
+--      the page asks Lua; Lua reads the clipboard's image or runs the
+--      screenshots module's new `captureAreaTo` (our selector, -x -R,
+--      the PATH back — no clipboard, no editor, no panel) and answers
+--      through `addImage(dataURI, w, h)` via evaluateJavaScript. The
+--      image lands centred at 40% of the shot's width, aspect kept, and
+--      is a note like any other (moves, scales with its shape, ⌘Z, ⌫,
+--      ⌘⏎, Esc-keep — the keep budget is 8 MB now, an image rides in
+--      the notes). `ed.pushImage` REFUSES anything that is not a pure
+--      base64 data URI, so a broken URI never reaches a script.
+--   🧪 test_editor_js 99 -> 129, test_editor 43 -> 57, test_screenshots
+--      199 -> 207. Four mutations, each failing the row written for it.
+--      8,710 -> 8,762 checks, seventy-five stages.
+--
 -- NEW IN 6.212.0 — 🖌 LINE · OVAL · HIGHLIGHTER · COUNTER IN THE EDITOR:
 --   LL, with a screenshot of another tool's palette: "Can you read the
 --      other operations in the screenshot and add those features to my
@@ -29,32 +50,12 @@
 --      mutations, each failing the row written for it. 8,674 -> 8,710
 --      checks, seventy-five stages.
 --
--- NEW IN 6.211.0 — 🗓 THE POMODORO SITS BESIDE THE MINI CALENDAR:
---   LL: "⌘+⇧+0 mini-calendar include the pomodoro temporarily in the
---      mini-calendar? Then come back to its own window when the
---      mini-calendar closes?" Both live top-right under the clock, so
---      the 1024-wide calendar was covering the card.
---   🍅 While ⇪⇧0 is up the card DOCKS beside it — snug against the
---      calendar's left edge, top-aligned — and goes back to exactly where
---      it was when the calendar closes (`pom.dock(rect)` / `pom.undock()`,
---      published as pomodoro.dock / pomodoro.undock; the calendar calls
---      them from show() and hide(), and publishes calendar.frame so a
---      pomodoro STARTED under an open calendar docks at once). The
---      pre-dock spot lives on the state, never in pom.pos, so a dragged
---      position survives. Either module alone is unchanged: a missing
---      partner is a false, never a throw. `_G.pomodoroReport()` "dock :".
---   📐 Drawn INSIDE the calendar was judged and not built: its footer is
---      120 pt tall and the card 180, so that is a calendar layout decision.
---   🧪 test_tools 140 -> 153, test_features 458 -> 464. Four mutations,
---      each failing the row written for it. 8,655 -> 8,674 checks,
---      seventy-five stages.
---
--- (6.210.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.211.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.212.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.213.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -151,7 +152,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.212.0"
+_G.configVersion = "6.213.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

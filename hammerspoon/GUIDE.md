@@ -767,7 +767,13 @@ stood, kept verbatim.
    · ⌘⏎ path · ⌃⏎ compress · ⌥⏎ EDITOR (blur/text/arrows; ⌘Z).
    In the editor (6.207.0): click a text box with the Text tool to
    edit its words, double-click it with any tool, or ⏎ on a selected
-   one; a drag still moves it.
+   one; a drag still moves it. 6.212.0 added Line (L), Oval (O),
+   Highlighter (H) and Counter (C — ①②③, one past the highest);
+   6.213.0 Spotlight (S — everything but the box darkens), Magnifier
+   (M — a 2× circle, its right-hand dot sets the size), ⌘V pastes the
+   clipboard's image onto the shot and ⌘A drags a fresh capture onto
+   it. Every one moves, ⌘Z's, ⌫'s, saves into the pixels on ⌘⏎ and
+   comes back after an Esc.
    ⇪5 scrolling capture (6.206.0): every slice's exit code, stderr
    and file size are recorded, the run stops at the first failed
    slice and names it, failed slices are kept for a look, and a good
@@ -907,9 +913,9 @@ CREATED AUTOMATICALLY (never make these yourself):
 
 ## 6. Tests
 
-Sixty-nine Lua suites, 8,228 checks, plus four more that run the Capture
+Sixty-nine Lua suites, 8,250 checks, plus four more that run the Capture
 Pad's, the screenshot editor's, unified search's and the vault's page
-JavaScript under `node` for a further 482 — **8,710 checks over
+JavaScript under `node` for a further 512 — **8,762 checks over
 seventy-five stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:

@@ -408,6 +408,19 @@ Window width = `uni.width + uni.paneW`; `settings = { unified_search =
 ask per landing) had a check that passed WITHOUT it — a same-row
 mousemove returns before the guard — until a mutation said so; the row
 that bites is a keystroke that leaves the top match where it was.
+🔦 AN IMAGE ENTERS THE EDITOR PAGE THROUGH ONE DOOR, AND THE DOOR
+CHECKS THE SHAPE (6.213.0, modules/screenshot_editor.lua): ⌘V and ⌘A
+both end in `ed.pushImage(url, w, h)` → evaluateJavaScript("addImage
+(...)"), which refuses anything that is not `^data:image/%w+;base64,
+[A-Za-z0-9+/=]+$` with a positive size — a script WebKit cannot parse
+is dropped in SILENCE (6.204.0's rule, applied to a URI), and a quote
+in a data URI would end the string literal. The screenshots module's
+`captureAreaTo(cb)` answers by PATH, once, never the clipboard and
+never the editor. Drawing ORDER is a rule: magnifiers (clean pixels) →
+the one even-odd veil → every mark; redraw() and saveIt() both go
+through `drawAll`, so the save cannot differ from the screen. Any
+future thing that reads pixels goes before the veil; anything that
+must stay readable goes after it.
 🖌 A NEW EDITOR MARK IS A NOTE KIND, NOTHING ELSE (6.212.0,
 modules/screenshot_editor.lua): line/oval/hl/count joined text and
 arrow as entries in the ONE `notes` list — drawn in drawNote, hit in
@@ -1095,6 +1108,21 @@ mirrors draw order: "closes last" IS "drawn under".
 
 ## Open items — update as they move
 
+- 6.213.0 verify with LL: ⇪⇧1 — Spotlight (S): drag a box and the rest
+  of the shot goes dark, the box stays bright; drag a second box: a
+  second bright hole, no darker elsewhere. Magnifier (M): drag from a
+  point outward; a circle shows that spot at 2× with a white ring; drag
+  the dot on its right edge to grow it. Then the two doors: copy any
+  image (⌘C on a picture in a browser), ⇪⇧1, ⌘V — it lands in the
+  middle at 40% width; drag its corner and it scales keeping its shape.
+  ⌘A: the area selector appears — drag over something ON SCREEN (move
+  the editor aside first if it covers it) and the capture lands on the
+  shot the same way. ⌘⏎: all of it is in the file and on the clipboard.
+  If ⌘V says "Nothing to paste", the clipboard held text, not an image
+  — that is the message working. If ⌘A says "Capture did not land —
+  screencapture exit 1", that is the same Screen Recording permission
+  ⇪5 needs. Knobs, no release: `settings = { screenshot_editor =
+  { magZoom = 3, veilAlpha = 0.7 } }`.
 - 6.212.0 verify with LL: ⇪⇧1 (or ⌥⏎ on a history row) — four new
   buttons after Arrow: Line, Oval, Highlight, Counter (keys L O H C).
   Drag a line; drag an oval from the bottom-right corner UP and to the

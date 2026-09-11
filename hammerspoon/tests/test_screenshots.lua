@@ -584,6 +584,43 @@ S.onPick({ act = "repeat" })
 check("repeat WITH a stored area re-shoots it immediately, no selector",
       #TASKS == tBefore + 1 and TASKS[#TASKS].args[2] == "-R100,200,240,220")
 
+-- 🖌 6.213.0 — the editor's "Add capture": OUR selector, -x -R, and the
+-- PATH to the caller. Never the clipboard, never the editor, never both
+-- answers.
+do
+    local got = {}
+    local ok = S.captureAreaTo(function(p, why) got[#got + 1] = { p = p, why = why } end)
+    local sel2 = _G.__lastCanvas
+    check("captureAreaTo opens the selector and returns true", ok == true and sel2 and sel2.shown and type(sel2.cb) == "function")
+    tBefore = #TASKS
+    sel2.cb(sel2, "mouseDown", "_canvas_", 10, 20)
+    sel2.cb(sel2, "mouseMove", "_canvas_", 210, 170)
+    sel2.cb(sel2, "mouseUp", "_canvas_", 210, 170)
+    check("…the release shoots that rectangle with -x -R, silently",
+          #TASKS == tBefore + 1 and TASKS[#TASKS].args[1] == "-x" and TASKS[#TASKS].args[2] == "-R10,20,200,150",
+          TASKS[#TASKS] and TASKS[#TASKS].args[2])
+    local path = TASKS[#TASKS].args[3]
+    check("…and the caller has not been answered yet", #got == 0)
+    FILES[path] = { size = 12345, modification = 1000 }
+    TASKS[#TASKS].cb(0, "", "")
+    check("🚨 the file that lands is handed to the caller by PATH", #got == 1 and got[1].p == path and got[1].why == nil,
+          got[1] and (tostring(got[1].p) .. " / " .. tostring(got[1].why)))
+    check("…the editor was NOT opened and nothing rode to the clipboard for it",
+          EDITOR_OPENS[#EDITOR_OPENS] ~= path)
+    -- a failed shot
+    got = {}
+    S.captureAreaTo(function(p, why) got[#got + 1] = { p = p, why = why } end)
+    local sel3 = _G.__lastCanvas
+    sel3.cb(sel3, "mouseDown", "_canvas_", 10, 20)
+    sel3.cb(sel3, "mouseUp", "_canvas_", 60, 70)
+    TASKS[#TASKS].cb(1, "", "could not create image from display\nmore")
+    check("a shot that fails answers nil + the exit code and stderr's first line, once",
+          #got == 1 and got[1].p == nil and got[1].why:find("screencapture exit 1 — could not create image from display", 1, true) ~= nil
+          and got[1].why:find("no file was written", 1, true) ~= nil, got[1] and got[1].why)
+    check("no callback: refused, named", select(2, S.captureAreaTo(nil)) == "no callback")
+    check("it is published for the editor", type(PROVIDED["screenshots.captureAreaTo"]) == "function")
+end
+
 -- =====================================================================
 out("10. the scrolling plan (pure)\n")
 -- =====================================================================

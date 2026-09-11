@@ -57,7 +57,10 @@ function drawStubs(base, calls) {
   base.ellipse = rec("ellipse");
   base.fillRect = function (x, y, w, h) { calls.push(["fillRect", x, y, w, h, this.fillStyle]); };
   base.stroke = function () { calls.push(["stroke", this.strokeStyle]); };
-  base.fill = function () { calls.push(["fill", this.fillStyle]); };
+  base.fill = function (rule) { calls.push(["fill", this.fillStyle, rule]); };
+  // 6.213.0 — the spotlight's veil, the magnifier's clip and copy, images
+  base.rect = rec("rect"); base.clip = rec("clip");
+  base.drawImage = function (...a) { calls.push(["drawImage", ...a]); };
   base.strokeRect = function (x, y, w, h) {
     calls.push(["strokeRect", x, y, w, h, this.strokeStyle]);
   };
@@ -111,6 +114,8 @@ function makeEnv(shownW, size) {
     "tool-oval": { className: "tool" },
     "tool-hl": { className: "tool" },
     "tool-count": { className: "tool" },
+    "tool-spot": { className: "tool" },
+    "tool-mag": { className: "tool" },
   };
   const byId = { cv, ov, band, tin };
   const sandbox = {
@@ -119,7 +124,12 @@ function makeEnv(shownW, size) {
       webkit: { messageHandlers: { shotEditor: { postMessage: (m) => sent.push(m) } } },
       addEventListener: (ev, fn) => { listeners.window[ev] = fn; },
     },
-    Image: function () { return { set src(v) {}, onload: null }; },
+    // 6.213.0 — an Image whose src says PASTED "loads" at once (800×600);
+    // the page's own base image never does, as before
+    Image: function () {
+      return { naturalWidth: 800, naturalHeight: 600, onload: null,
+               set src(v) { if (String(v).indexOf("PASTED") >= 0 && this.onload) this.onload(); } };
+    },
     // 6.189.0 — the restore path decodes its notes here
     atob: (b) => Buffer.from(b, "base64").toString("binary"),
     TextDecoder,
@@ -591,6 +601,143 @@ console.log("── Screenshot Editor: page JavaScript, executed ──");
   env.listeners.window.keydown(key({ key: "Escape" }));
   const kept = env.sent[0] && JSON.parse(env.sent[0].notes).map((n) => n.kind).sort().join(",");
   check("esc hands every kind back for the next open", kept === "count,count,count,hl,line,oval", kept);
+}
+
+// =====================================================================
+// 6.213.0 — the other half of LL's palette: Spotlight (S), Magnifier
+// (M), Paste image (⌘V) and Add capture (⌘A). The first two are notes;
+// the last two are DOORS — the page asks Lua, and Lua answers through
+// addImage() with a data URI and a size.
+// =====================================================================
+{
+  const env = load(undefined, { w: 400, h: 300 });
+  const drag = (x1, y1, x2, y2) => {
+    env.listeners.ov.mousedown(mouse(x1, y1));
+    env.listeners.window.mousemove(mouse(x2, y2));
+    env.listeners.window.mouseup(mouse(x2, y2));
+  };
+  const idx = (calls, pred) => calls.findIndex(pred);
+
+  // ---- Spotlight ----
+  env.listeners.window.keydown(key({ key: "s" }));
+  check("S selects the Spotlight", env.buttons["tool-spot"].className === "tool on");
+  env.listeners.ov.mousedown(mouse(100, 100));
+  env.listeners.window.mousemove(mouse(300, 200));
+  env.ovCalls.length = 0;
+  env.listeners.window.mouseup(mouse(300, 200));
+  check("a drag makes a spotlight box", env.call("notes[0].kind") === "spot" && env.call("notes[0].x") === 100
+        && env.call("notes[0].w") === 200 && env.call("notes[0].h") === 100, env.call("JSON.stringify(notes[0])"));
+  check("🚨 …drawn as ONE veil over the whole canvas with the box punched out (even-odd), at the veil alpha",
+        env.ovCalls.some((c) => c[0] === "rect" && c[1] === 0 && c[2] === 0 && c[3] === 400 && c[4] === 300)
+        && env.ovCalls.some((c) => c[0] === "rect" && c[1] === 100 && c[2] === 100 && c[3] === 200 && c[4] === 100)
+        && env.ovCalls.some((c) => c[0] === "fill" && c[1] === "rgba(0,0,0,0.55)" && c[2] === "evenodd"),
+        JSON.stringify(env.ovCalls));
+  // a text note on top: the veil is drawn BEFORE it, never over it
+  env.call("setTool('text')");
+  env.listeners.ov.mousedown(mouse(30, 250));
+  env.tin.value = "Over";
+  env.ovCalls.length = 0;
+  env.listeners.tin.keydown(key({ key: "Enter" }));
+  check("🚨 the veil goes UNDER the marks: its fill comes before the text's fillText",
+        idx(env.ovCalls, (c) => c[0] === "fill" && c[2] === "evenodd") >= 0
+        && idx(env.ovCalls, (c) => c[0] === "fill" && c[2] === "evenodd") < idx(env.ovCalls, (c) => c[0] === "fillText" && c[1] === "Over"),
+        JSON.stringify(env.ovCalls.map((c) => c[0])));
+  env.call("setTool('spot')");
+  drag(200, 150, 220, 170);                              // inside → move
+  check("a drag inside the spotlight moves it", env.call("notes[0].x") === 120 && env.call("notes[0].y") === 120);
+  drag(320, 220, 340, 230);                              // its corner → resize
+  check("…its corner resizes it", env.call("notes[0].w") === 220 && env.call("notes[0].h") === 110, env.call("JSON.stringify(notes[0])"));
+  drag(380, 20, 382, 22);
+  check("a tiny drag makes no spotlight", env.call("notes.length") === 2);
+  drag(10, 10, 60, 60);
+  env.ovCalls.length = 0; env.call("redraw()");
+  check("a second spotlight is a second HOLE in the same veil, not a second veil",
+        env.ovCalls.filter((c) => c[0] === "fill" && c[2] === "evenodd").length === 1
+        && env.ovCalls.filter((c) => c[0] === "rect").length === 3);
+  env.call("notes.length = 0; sel = null;");
+
+  // ---- Magnifier ----
+  env.listeners.window.keydown(key({ key: "m" }));
+  check("M selects the Magnifier", env.buttons["tool-mag"].className === "tool on");
+  env.listeners.ov.mousedown(mouse(200, 150));
+  env.listeners.window.mousemove(mouse(240, 150));
+  env.ovCalls.length = 0;
+  env.listeners.window.mouseup(mouse(240, 150));
+  check("a drag makes a magnifier: centre at the press, radius to the release",
+        env.call("notes[0].kind") === "mag" && env.call("notes[0].x") === 200 && env.call("notes[0].y") === 150
+        && env.call("notes[0].r") === 40, env.call("JSON.stringify(notes[0])"));
+  check("🚨 …drawn as the pixels under it at 2×: clipped to the circle, source half the size, destination the circle",
+        env.ovCalls.some((c) => c[0] === "clip")
+        && env.ovCalls.some((c) => c[0] === "drawImage" && c[1] === env.cv && c[2] === 180 && c[3] === 130 && c[4] === 40 && c[5] === 40
+                              && c[6] === 160 && c[7] === 110 && c[8] === 80 && c[9] === 80),
+        JSON.stringify(env.ovCalls.filter((c) => c[0] === "drawImage" || c[0] === "clip")));
+  check("…with a white ring", env.ovCalls.some((c) => c[0] === "arc" && c[1] === 200 && c[2] === 150 && c[3] === 40)
+        && env.ovCalls.some((c) => c[0] === "stroke" && c[1] === "#ffffff"));
+  drag(240, 150, 260, 150);                              // the radius dot
+  check("dragging its right-hand dot changes the radius", env.call("notes[0].r") === 60, env.call("notes[0].r"));
+  drag(200, 150, 210, 160);                              // inside → move
+  check("a drag inside moves it", env.call("notes[0].x") === 210 && env.call("notes[0].y") === 160 && env.call("notes[0].r") === 60);
+  env.listeners.window.keydown(key({ metaKey: true, key: "z" }));
+  check("⌘Z undoes the move", env.call("notes[0].x") === 200);
+  drag(380, 20, 383, 20);
+  check("a tiny drag makes no magnifier", env.call("notes.length") === 1);
+  // with a spotlight too: the magnifier is painted BEFORE the veil
+  env.call("setTool('spot')"); drag(20, 20, 120, 120);
+  env.ovCalls.length = 0; env.call("redraw()");
+  check("🚨 the magnifier reads the clean pixels: its drawImage comes before the veil's fill",
+        idx(env.ovCalls, (c) => c[0] === "drawImage") >= 0
+        && idx(env.ovCalls, (c) => c[0] === "drawImage") < idx(env.ovCalls, (c) => c[0] === "fill" && c[2] === "evenodd"));
+  env.call("notes.length = 0; sel = null;");
+
+  // ---- the doors: ⌘V and ⌘A ask Lua ----
+  env.sent.length = 0;
+  env.listeners.window.keydown(key({ metaKey: true, key: "v" }));
+  check("⌘V asks Lua for the clipboard's image", env.sent.length === 1 && env.sent[0].a === "paste", JSON.stringify(env.sent));
+  env.sent.length = 0;
+  env.listeners.window.keydown(key({ metaKey: true, key: "a" }));
+  check("⌘A asks Lua for a fresh capture", env.sent.length === 1 && env.sent[0].a === "capture", JSON.stringify(env.sent));
+  check("neither is a note by itself", env.call("notes.length") === 0);
+
+  // ---- addImage: Lua's answer ----
+  env.ovCalls.length = 0;
+  const added = env.call("addImage('data:image/png;base64,PASTED', 800, 600)");
+  check("addImage adds an image note sized to 40% of the shot's width, aspect kept, centred",
+        added === true && env.call("notes[0].kind") === "img" && env.call("notes[0].w") === 160 && env.call("notes[0].h") === 120
+        && env.call("notes[0].x") === 120 && env.call("notes[0].y") === 90, env.call("JSON.stringify(notes[0])"));
+  check("…and draws it once its pixels have arrived", env.ovCalls.some((c) => c[0] === "drawImage" && c[2] === 120 && c[3] === 90 && c[4] === 160 && c[5] === 120),
+        JSON.stringify(env.ovCalls.filter((c) => c[0] === "drawImage")));
+  check("a small image is not blown up past its own size",
+        (env.call("addImage('data:image/png;base64,PASTED2', 50, 20)"), env.call("notes[1].w") === 50 && env.call("notes[1].h") === 20));
+  env.listeners.window.keydown(key({ metaKey: true, key: "z" }));
+  check("⌘Z removes the last pasted image", env.call("notes.length") === 1);
+  drag(280, 210, 300, 220);                              // the corner of the first image (120+160, 90+120)
+  check("its corner scales it WITH its shape (aspect kept)", env.call("notes[0].w") === 180 && env.call("notes[0].h") === 135, env.call("JSON.stringify(notes[0])"));
+  env.listeners.window.keydown(key({ metaKey: true, key: "z" }));
+  drag(200, 150, 220, 170);
+  check("a drag inside moves it", env.call("notes[0].x") === 140 && env.call("notes[0].y") === 110);
+  check("a bad call adds nothing", env.call("addImage('', 10, 10)") === false && env.call("notes.length") === 1);
+
+  // ---- save and hand-back ----
+  env.call("setTool('mag')"); drag(60, 60, 80, 60);
+  env.call("setTool('spot')"); drag(10, 250, 120, 290);   // clear of the image (140..320 × 110..230)
+  env.cvCalls.length = 0; env.sent.length = 0;
+  env.listeners.window.keydown(key({ metaKey: true, key: "Enter" }));
+  check("⌘⏎ paints the image, the magnifier and the veil INTO the saved pixels, in that order",
+        idx(env.cvCalls, (c) => c[0] === "drawImage" && c[1] === env.cv) >= 0
+        && idx(env.cvCalls, (c) => c[0] === "drawImage" && c[1] === env.cv) < idx(env.cvCalls, (c) => c[0] === "fill" && c[2] === "evenodd")
+        && idx(env.cvCalls, (c) => c[0] === "fill" && c[2] === "evenodd") < idx(env.cvCalls, (c) => c[0] === "drawImage" && c[1] !== env.cv),
+        JSON.stringify(env.cvCalls.map((c) => c[0])));
+  env.sent.length = 0;
+  env.listeners.window.keydown(key({ key: "Escape" }));
+  const back = env.sent[0] && JSON.parse(env.sent[0].notes);
+  check("esc hands the image back WITH its pixels (the data URI), so a reopen can draw it",
+        back && back.some((n) => n.kind === "img" && n.src === "data:image/png;base64,PASTED")
+        && back.some((n) => n.kind === "mag") && back.some((n) => n.kind === "spot"), env.sent[0] && env.sent[0].notes);
+  // a restore-shaped list: ensureImages loads what it finds
+  env.call("notes.length = 0; sel = null; notes.push({kind:'img', x:1, y:1, w:10, h:8, src:'data:image/png;base64,PASTED3'}); ensureImages();");
+  env.ovCalls.length = 0; env.call("redraw()");
+  check("a kept image note gets its pixels back after a restore (ensureImages)",
+        env.ovCalls.some((c) => c[0] === "drawImage" && c[2] === 1 && c[3] === 1 && c[4] === 10 && c[5] === 8));
 }
 
 // =====================================================================
