@@ -45,6 +45,7 @@ local COPIES, HYPERREL = {}, {}
 _G.hyperExpectRelease = function(secs, who) HYPERREL[#HYPERREL + 1] = { secs = secs, who = who } end
 local MODS  = {}       -- what checkKeyboardModifiers answers
 local WATCHERS = {}    -- 6.155.0: every hs.pathwatcher asked for
+NODECODE, NOWRITE = nil, false   -- 6.206.0: a slice that will not decode; a save refused
 
 hs = {
     pathwatcher = {
@@ -112,8 +113,10 @@ hs = {
         imageFromPath = function(p)
             IMG_DECODED = IMG_DECODED or {}; IMG_DECODED[p] = (IMG_DECODED[p] or 0) + 1
             if not FILES[p] then return nil end
+            if NODECODE and NODECODE[p] then return nil end   -- 6.206.0: on disk, not an image
             local img = { __path = p }
             function img:setSize() return self end
+            function img:size() return { w = FILES[p].w or 200, h = FILES[p].h or 100 } end
             return img
         end,
     },
@@ -163,6 +166,20 @@ hs = {
             mt.mouseCallback = function(self, fn) self.cb = fn; return self end
             mt.show = function(self) self.shown = true; return self end
             mt.delete = function(self) self.deleted = true; return self end
+            -- 6.206.0 — the stitch renders the stacked slices; the fake
+            -- image remembers what it was made of and saveToFile writes
+            -- a fake file whose size is the pixel total
+            mt.imageFromCanvas = function(self)
+                local h = 0
+                for _, e in ipairs(self.elements) do h = h + ((e.frame or {}).h or 0) end
+                local img = { __stitched = #self.elements, __h = h }
+                function img:saveToFile(path)
+                    if NOWRITE then return false end
+                    FILES[path] = { size = 1000 + h, modification = 1000 }
+                    return true
+                end
+                return img
+            end
             _G.__lastCanvas = cv
             return cv
         end,
@@ -587,6 +604,161 @@ check("a zero-height area is a no-op, not a loop", #plan == 0 and covered == 0)
 plan = S.scrollPlan(50, 200, 80)
 check("a cropTop TALLER than the area is ignored rather than obeyed",
       plan[2] and plan[2].crop == 0, plan[2] and plan[2].crop)
+
+-- =====================================================================
+out("10b. 🧻 6.206.0 — the scrolling run keeps its receipts\n")
+-- =====================================================================
+-- LL's ⇪5: "Stitch failed — slices discarded (screenshots.lua:664: no
+-- slices decoded)". That alert said every slice failed and nothing about
+-- why: the slice capture never read screencapture's exit code or stderr,
+-- appended the path whether a file existed or not, and deleted the
+-- slices before anyone could look. Every branch below is that run,
+-- driven through the real selector, the real task callbacks and the real
+-- stitch, against a fake screencapture that can succeed, fail, or write
+-- something that is not an image.
+do
+    local mine = 0
+    local function ck(label, cond, extra) mine = mine + 1 ; check(label, cond, extra) end
+    local function runSelector()
+        HYPER["|5"]()
+        local sel = _G.__lastCanvas
+        sel.cb(sel, "mouseDown", nil, 100, 200)
+        sel.cb(sel, "mouseUp",   nil, 340, 700)      -- 240 × 500
+        return sel
+    end
+    local savedH = S.scroll.height
+    S.scroll.height = 1500                             -- 500 tall → 3 slices
+    -- the slices are removed with os.remove, which this fake filesystem
+    -- never sees — route it through FILES for the section
+    local realRemove = os.remove
+    os.remove = function(path) local had = FILES[path] ~= nil ; FILES[path] = nil ; return had end
+    -- ---- the happy path ----------------------------------------------
+    local t0, c0, a0 = #TASKS, #COPIES, #ALERTS
+    S.scrollLast = nil
+    runSelector()
+    ck("⇪5 + a drag starts slice 1 as a non-interactive -R capture",
+       #TASKS == t0 + 1 and TASKS[#TASKS].args[1] == "-x"
+       and TASKS[#TASKS].args[2] == "-R100,200,240,500",
+       TASKS[#TASKS] and table.concat(TASKS[#TASKS].args, " "))
+    ck("…into a dot-file the history panel never lists",
+       (TASKS[#TASKS].args[3] or ""):find("/%.scroll%-slice%-01%.png$") ~= nil,
+       TASKS[#TASKS].args[3])
+    ck("the run is recorded as running, 3 slices planned",
+       S.scrollLast and S.scrollLast.outcome == "running" and S.scrollLast.planned == 3,
+       S.scrollLast and S.scrollLast.planned)
+    -- screencapture writes each slice and exits 0; the settle timer fires
+    -- at once in this harness, so each callback starts the next slice
+    for n = 1, 3 do
+        local t = TASKS[#TASKS]
+        FILES[t.args[3]] = { size = 50000, modification = 1000, w = 480, h = 1000 }
+        t.cb(0, "", "")
+    end
+    local run = S.scrollLast
+    ck("three slices shot, three decoded, outcome ok",
+       run.shot == 3 and run.decoded == 3 and run.outcome == "ok",
+       run.shot .. "/" .. run.decoded .. "/" .. tostring(run.outcome))
+    ck("🚨 the stitched file was written as “… (scrolling).png”",
+       run.out and run.out:find(" %(scrolling%)%.png$") and FILES[run.out] ~= nil, run.out)
+    ck("🚨 …and it is ON THE CLIPBOARD — the copy task read that exact file",
+       #COPIES == c0 + 1 and COPIES[#COPIES]:find(run.out, 1, true) ~= nil,
+       COPIES[#COPIES])
+    ck("…and then the editor opens on the stitched file (⇪5 edits after capture,"
+       .. " like every panel capture) — the copy came FIRST",
+       EDITOR_OPENS[#EDITOR_OPENS] == run.out, EDITOR_OPENS[#EDITOR_OPENS])
+    ck("the slices were removed after a good stitch",
+       FILES[DIR .. "/.scroll-slice-01.png"] == nil and FILES[DIR .. "/.scroll-slice-03.png"] == nil)
+    ck("the stack was 3 images tall", _G.__lastCanvas.__stitchedCount == nil
+       and #_G.__lastCanvas.elements == 3, #_G.__lastCanvas.elements)
+    ck("…and each slice was placed under the one before it",
+       _G.__lastCanvas.elements[2].frame.y == 1000
+       and _G.__lastCanvas.elements[3].frame.y == 2000,
+       _G.__lastCanvas.elements[2].frame.y)
+    ck("the report names the run: planned, shot, decoded, ok, the file",
+       (function()
+           local r = _G.screenshotsReport()
+           return r:find("3 planned · 3 shot · 3 decoded · ok", 1, true) ~= nil
+              and r:find("(scrolling).png", 1, true) ~= nil
+              and r:find("slice 01: exit 0 · 50000 bytes", 1, true) ~= nil
+       end)(), _G.screenshotsReport())
+
+    -- ---- screencapture fails on slice 1: exit 1, stderr, no file ------
+    local a1 = #ALERTS
+    runSelector()
+    local t1 = TASKS[#TASKS]
+    t1.cb(1, "", "screencapture: could not create image from display\n")
+    run = S.scrollLast
+    ck("🚨 a failed slice STOPS the run and says so — no 'no slices decoded'",
+       run.outcome == "failed" and run.shot == 0
+       and (ALERTS[#ALERTS] or ""):find("stopped", 1, true) ~= nil
+       and (ALERTS[#ALERTS] or ""):find("no slices decoded", 1, true) == nil,
+       ALERTS[#ALERTS])
+    ck("🚨 …naming the slice, the exit code and screencapture's own words",
+       (run.why or ""):find("slice 1 of 3", 1, true) and (run.why or ""):find("exit 1", 1, true)
+       and (run.why or ""):find("could not create image from display", 1, true),
+       run.why)
+    ck("…and that no file was written", (run.why or ""):find("no file was written", 1, true) ~= nil, run.why)
+    ck("…and points at Screen Recording when the words say the display refused",
+       (run.why or ""):find("Screen Recording", 1, true) ~= nil, run.why)
+    ck("…and no second slice was started", #TASKS == t0 + 4, #TASKS - t0)
+    ck("the report repeats it slice by slice",
+       _G.screenshotsReport():find("slice 01: exit 1 · no file · screencapture: could not create image", 1, true) ~= nil,
+       _G.screenshotsReport())
+
+    -- ---- exit 0 but the file is empty ----------------------------------
+    runSelector()
+    local t2 = TASKS[#TASKS]
+    FILES[t2.args[3]] = { size = 0, modification = 1000 }
+    t2.cb(0, "", "")
+    ck("an empty file is a failure even with exit 0",
+       S.scrollLast.outcome == "failed" and (S.scrollLast.why or ""):find("the file is empty", 1, true) ~= nil,
+       S.scrollLast.why)
+
+    -- ---- the file is there and is not an image ------------------------
+    runSelector()
+    for n = 1, 3 do
+        local t = TASKS[#TASKS]
+        FILES[t.args[3]] = { size = 777, modification = 1000, w = 480, h = 1000 }
+        NODECODE = NODECODE or {} ; NODECODE[t.args[3]] = (n == 2) or nil
+        t.cb(0, "", "")
+    end
+    run = S.scrollLast
+    ck("🚨 a slice on disk that will not decode names ITSELF and its size",
+       run.outcome == "failed" and (run.why or ""):find("slice 2 of 3", 1, true)
+       and (run.why or ""):find("777 bytes", 1, true) and (run.why or ""):find("did not decode", 1, true),
+       run.why)
+    ck("🚨 …and the slices are KEPT for a look, not discarded",
+       FILES[DIR .. "/.scroll-slice-01.png"] ~= nil and FILES[DIR .. "/.scroll-slice-02.png"] ~= nil
+       and _G.screenshotsReport():find("KEPT", 1, true) ~= nil)
+    ck("…and nothing reached the clipboard", #COPIES == c0 + 1, #COPIES - c0)
+    NODECODE = nil
+    for n = 1, 3 do FILES[DIR .. ("/.scroll-slice-%02d.png"):format(n)] = nil end
+
+    -- ---- the finished task is not dropped inside its own callback ------
+    ck("🚨 6.196.1: the finished screencapture task stays referenced after"
+       .. " its callback (shots.lastCaptureTask), never nil'd mid-frame",
+       S.lastCaptureTask ~= nil and S.captureTask == nil)
+    ck("…and the stitch steps off the task callback through a HELD timer", (function()
+        local src = io.open(HS .. "/modules/screenshots.lua"):read("a")
+        local body = src:match("function shots%.scrollingCapture%(thenEdit%)(.-)\n    end\n")
+        return body and body:find("shots.stitchTimer = hs.timer.doAfter(0,", 1, true) ~= nil
+    end)())
+    ck("the decode helper is reachable and pure enough to prove the three failures", (function()
+        local a, b = S.decodeSlice(DIR .. "/nope.png")
+        local c = (function() FILES[DIR .. "/z.png"] = { size = 0 } ; local _, w = S.decodeSlice(DIR .. "/z.png") ; FILES[DIR .. "/z.png"] = nil ; return w end)()
+        return a == nil and b == "no file was written" and c:find("empty", 1, true) ~= nil
+    end)())
+    ck("the cheat sheet says the result is on the clipboard and names the report", (function()
+        local hasClip, hasRep = false, false
+        for _, e in ipairs(M.cheatsheet.entries) do
+            if e[1] == "⇪5" and e[2]:find("clipboard", 1, true) then hasClip = true end
+            if e[2]:find("_G.screenshotsReport", 1, true) then hasRep = true end
+        end
+        return hasClip and hasRep
+    end)())
+    S.scroll.height = savedH
+    os.remove = realRemove
+    check("§10b ran every one of its checks", mine == 25, mine)
+end
 
 -- =====================================================================
 out("11. recognize — QR first, text as the fallback\n")

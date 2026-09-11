@@ -408,6 +408,19 @@ Window width = `uni.width + uni.paneW`; `settings = { unified_search =
 ask per landing) had a check that passed WITHOUT it — a same-row
 mousemove returns before the guard — until a mutation said so; the row
 that bites is a keystroke that leaves the top match where it was.
+🧻 ⇪5 SCROLLING CAPTURE KEEPS ITS RECEIPTS (6.206.0, modules/screenshots.lua):
+LL's "Stitch failed — no slices decoded" was an assert at the END of the
+run with no evidence behind it — the slice capture ignored screencapture's
+exit code and stderr, appended the path file-or-not, and deleted the
+slices. Now every slice records exit / first stderr line / file size in
+`shots.scrollLast.slices`, the run stops at the first failure naming it,
+failed slices are KEPT (dot-files), `_G.screenshotsReport()` repeats it
+all, and the finished task stays in `shots.lastCaptureTask` while the
+stitch runs off a held timer (6.196.1). THE CAUSE ON LL's MAC IS NOT
+KNOWN — do not guess it; the next ⇪5 report names it. A non-interactive
+`screencapture -R` is the one capture macOS may gate behind Screen
+Recording (the ⇪4 crosshair is not), so that is the first thing the
+report's words would point at.
 🔎 ⇪space HAS `_G.unifiedSearchReport()` (6.196.1) — it was the one tool
 here without one, which is why "2372 items indexed — does this seem
 right?" had no answer. It names every store and its count, and a store
@@ -994,6 +1007,18 @@ mirrors draw order: "closes last" IS "drawn under".
 
 ## Open items — update as they move
 
+- 6.206.0 verify with LL: ⇪5, drag an area over a scrolling page in
+  Chrome. Either it works — the stitched "… (scrolling).png" is saved,
+  ON THE CLIPBOARD (⌘V pastes it), and the editor opens on it — or it
+  stops at the first slice with an alert that NAMES the slice, the exit
+  code and screencapture's own words. Then `_G.screenshotsReport()` in
+  the Console and paste the "scroll :" block: it lists every slice's
+  exit, size and stderr. If the words say "could not create image" or
+  name the display, the likeliest cause is Screen Recording: System
+  Settings → Privacy & Security → Screen Recording → Hammerspoon, then
+  QUIT AND RELAUNCH (a grant is read at launch). The kept slices are
+  dot-files in the screenshots folder (⌘⇧. in Finder shows them). The
+  cause is NOT known from here — 6.206.0 makes the next failure say it.
 - 6.205.0 verify with LL: in Chrome, type "starts ", "allows ",
   "convinced " — all three must stay exactly as typed (on 6.203.0 they
   became starets, gallows and something else). Then "statrs " must still

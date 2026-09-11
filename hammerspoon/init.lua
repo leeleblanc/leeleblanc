@@ -4,9 +4,37 @@
 -- =====================================================================
 -- 09-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.205.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.206.0
 -- =====================================================================
 
+-- NEW IN 6.206.0 — 🧻 ⇪5 SCROLLING CAPTURE KEEPS ITS RECEIPTS:
+--   🐞 LL, with the alert: "Stitch failed — slices discarded
+--      (screenshots.lua:664: no slices decoded)". That said every slice
+--      failed to decode and NOTHING about why: the slice capture ignored
+--      screencapture's exit code and stderr, appended the path whether a
+--      file existed or not, and deleted the slices before anyone could
+--      look. Ask for the artefact before theorising (6.201.0).
+--   📋 Every slice is now checked as it lands — exit code, the first line
+--      of stderr, whether the file exists and how big it is — and the run
+--      STOPS at the first failure naming the slice ("slice 1 of 3:
+--      screencapture exit 1 — could not create image from display — no
+--      file was written"); words that sound like a refused display point
+--      at Screen Recording. A slice on disk that will not decode names
+--      itself and its size. Failed slices are KEPT (dot-files the panel
+--      never lists), never discarded.
+--   🔎 `_G.screenshotsReport()` is new — the folder, the watcher, the
+--      last screencapture exit, and the last scrolling run slice by
+--      slice. The next ⇪5 that fails is a report, not a sentence.
+--   🚨 6.196.1, applied: the finished screencapture task stays referenced
+--      after its callback (`shots.lastCaptureTask`), and the stitch — a
+--      dozen decodes and a canvas — runs off a held timer, not inside
+--      the last slice's callback. A good stitch is saved AND copied to
+--      the clipboard, as ⇪4 is, and the cheat sheet says so.
+--   🧪 test_screenshots 174 -> 199: the whole run driven through the real
+--      selector, task callbacks and stitch; the three failures by name;
+--      five mutations, each failing the row written for it. 8,506 ->
+--      8,531 checks, seventy-four stages.
+--
 -- NEW IN 6.205.0 — 🚨 AUTOCORRECT: AN INFLECTION OF A WORD IS A WORD:
 --   🐞 LL, on 6.203.0 in Chrome: "starets which should be starts", "allows
 --      is changing to gallows", "convinced" rewritten mid-sentence — the
@@ -32,42 +60,12 @@
 --      refusals; four mutations, each failing the row written for it.
 --      8,466 -> 8,506 checks, seventy-four stages.
 --
--- NEW IN 6.204.0 — 👁 ⇪D TAKES THE MOUSE, AND A PANE SHOWS THE FULL ENTRY:
---   🐞 LL, bug (3) of the three against 6.201.0: "I can only use the
---      arrow keys. There also is no side window that shows the full
---      entry." The chooser this panel replaced for ⇪V/⇪O in 6.190.0 had
---      both: macOS hover-selects a chooser row by itself (6.202.0) and
---      the preview pane rode beside it. This page listened for CLICKS and
---      nothing else, so the pointer was dead until it pressed, and the
---      only view of a row was the 240-character line the list shows.
---   🖱 A mousemove over a row moves the highlight to it — on MOVEMENT,
---      as the chooser's tracking area does (a DOM mousemove never fires
---      for a parked pointer, so arrows scrolling the list under a resting
---      hand steal nothing), and with no scrollIntoView under the pointer.
---      The click still picks; the walk that finds the row is shared.
---   👁 A PANE on the right shows the highlighted row: the list's line at
---      once, then the FULL entry — the page asks Lua for ONE row's text
---      when the highlight lands and Lua answers through
---      evaluateJavaScript, so the full text still never rides into the
---      page for every row. Cut at 12,000 CHARACTERS (the chooser pane's
---      number), never mid-glyph, and said: "first N shown · ⏎ copies all
---      of it". An answer for a row already left is dropped, never drawn.
---      The window grows by the pane's 400 px; the list keeps its 840.
---   🔎 `_G.unifiedSearchReport()` gains a "pane :" line — never asked and
---      0 drawn read differently (6.196.1); a refused push (window gone,
---      no evaluateJavaScript) is counted, and the pane keeps the preview.
---      Rollback: settings = { unified_search = { pane = false } }.
---   🧪 test_unified 123 -> 153, test_unified_js 40 -> 65; ten mutations,
---      each proven to fail the row written for it — one guard had NO row
---      that bit until the mutation said so. 8,411 -> 8,466 checks,
---      seventy-four stages.
---
--- (6.203.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.204.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.205.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.206.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -164,7 +162,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.205.0"
+_G.configVersion = "6.206.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

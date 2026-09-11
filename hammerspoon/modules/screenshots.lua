@@ -141,7 +141,8 @@ local M = {
             { "⇪⇧2",  "🪟 Capture the active window — no clicking" },
             { "⇪⇧3",  "⏲ Delayed capture, full screen after the countdown" },
             { "⇪⇧4",  "🔤 Recognize text / QR — the words go to the clipboard" },
-            { "⇪5",   "🧻 Scrolling capture (experimental) — best in browsers" },
+            { "⇪5",   "🧻 Scrolling capture (experimental) — best in browsers · the result is saved AND on the clipboard" },
+            { "check", "_G.screenshotsReport() — the folder, the watcher, and the last scrolling run slice by slice" },
             { "⇪⇧5",  "Panel: 9 actions (⌘1–⌘9) + history below · ⌘8 = BIG thumbnails" },
             { "🏷 names", "Every capture — ⇪4's AND other tools' SCR- files — gets" },
             { "",       "ITS OWN words in the name as it lands · ⌘9 sweeps the backlog" },
@@ -363,10 +364,17 @@ function M.setup(core)
     function shots.runCapture(args, path, thenEdit, onDone)
         local t
         local ok = pcall(function()
-            t = hs.task.new("/usr/sbin/screencapture", function()
+            t = hs.task.new("/usr/sbin/screencapture", function(exitCode, sout, serr)
+                -- 🚨 6.206.0 — the finished task stays REFERENCED until the
+                -- next capture replaces it. Dropping the last reference to
+                -- a task from inside its own callback is 6.196.1's
+                -- use-after-free, and the scrolling run allocates heavily
+                -- (twelve decodes, a canvas) inside this very callback.
+                shots.lastCaptureTask = t
                 shots.captureTask = nil    -- release only when done
+                shots.lastExit = { code = exitCode, err = tostring(serr or "") }
                 if onDone then
-                    onDone(path)
+                    onDone(path, exitCode, serr)
                 else
                     shots.finish(path, thenEdit)
                 end
@@ -638,28 +646,91 @@ function M.setup(core)
         return plan, covered
     end
 
-    function shots.stitch(files, rect, plan, thenEdit)
+    -- 🧻 6.206.0 — THE RUN KEEPS ITS RECEIPTS. LL's ⇪5: "Stitch failed —
+    -- slices discarded (screenshots.lua:664: no slices decoded)". That
+    -- line said every slice failed to decode and NOTHING about why: the
+    -- slice capture ignored screencapture's exit code and its stderr,
+    -- appended the path whether or not a file had been written, and the
+    -- stitch deleted the slices before anyone could look. 6.201.0's rule
+    -- — ask for the artefact before theorising about the mechanism — so
+    -- the run now records, per slice, the exit code, the first line of
+    -- stderr and whether the file exists and how big it is; stops at the
+    -- FIRST slice that fails, naming it; keeps the slices on disk when
+    -- it fails (they are dot-files the panel never lists); and
+    -- `_G.screenshotsReport()`'s "scroll :" line repeats all of it.
+    shots.scrollLast = nil    -- { at, planned, shot, decoded, outcome, why, slices }
+    local function firstLine(sv)
+        sv = tostring(sv or ""):match("^%s*(.-)%s*$") or ""
+        return sv:match("^[^\r\n]*") or sv
+    end
+    local function sizeOf(path)
+        local size
+        pcall(function() size = hs.fs.attributes(path, "size") end)
+        return size
+    end
+    local function scrollFail(run, why, files)
+        run.outcome, run.why = "failed", why
+        -- 🚨 KEPT, NOT DISCARDED. A slice that would not stitch is the
+        -- only evidence of what screencapture actually wrote.
+        run.kept = files
+        local keptNote = (files and #files > 0)
+            and (" · %d slice(s) kept at %s/.scroll-slice-NN.png"):format(#files, shots.dir)
+            or ""
+        pcall(function()
+            hs.alert.show("🧻 Scrolling capture stopped — " .. why
+                          .. "\n_G.screenshotsReport() has the details", 5)
+        end)
+        warn("scrolling capture: " .. why .. keptNote)
+        if _G.notices and _G.notices.record then
+            pcall(function()
+                _G.notices.record("screenshots", "scrolling capture failed", why)
+            end)
+        end
+    end
+
+    -- Decode one slice, or say exactly which of the three ways it failed.
+    -- → img, sizePx | nil, why
+    function shots.decodeSlice(path)
+        local size = sizeOf(path)
+        if not size then return nil, "no file was written" end
+        if size == 0 then return nil, "the file is empty (0 bytes)" end
+        local img
+        pcall(function() img = hs.image.imageFromPath(path) end)
+        if not img then
+            return nil, ("the file exists (%d bytes) but did not decode as an image"):format(size)
+        end
+        local sz
+        pcall(function() sz = img:size() end)
+        if not (sz and sz.w and sz.w > 0 and sz.h and sz.h > 0) then
+            return nil, ("the file exists (%d bytes) but has no size"):format(size)
+        end
+        return img, sz
+    end
+
+    function shots.stitch(files, rect, plan, thenEdit, run)
+        run = run or shots.scrollLast or {}
         local outPath
         local ok, err = pcall(function()
             local imgs, heights, w, totalH = {}, {}, 0, 0
             for i, f in ipairs(files) do
-                local img = hs.image.imageFromPath(f)
-                if img then
-                    local sz = img:size()
-                    -- the FILE is in pixels, the SELECTION is in points;
-                    -- Retina makes them differ by 2x, so the crop scales
-                    local scale = sz.w / rect.w
-                    local cropPx = math.floor((plan[i].crop or 0) * scale)
-                    if cropPx > 0 and img.croppedCopy then
-                        img = img:croppedCopy({ x = 0, y = cropPx,
-                                                w = sz.w, h = sz.h - cropPx })
-                        sz = img:size()
-                    end
-                    imgs[#imgs + 1] = img
-                    heights[#heights + 1] = sz.h
-                    w = math.max(w, sz.w)
-                    totalH = totalH + sz.h
+                local img, sz = shots.decodeSlice(f)
+                if not img then
+                    error(("slice %d of %d: %s"):format(i, #files, tostring(sz)), 0)
                 end
+                -- the FILE is in pixels, the SELECTION is in points;
+                -- Retina makes them differ by 2x, so the crop scales
+                local scale = sz.w / rect.w
+                local cropPx = math.floor(((plan[i] or {}).crop or 0) * scale)
+                if cropPx > 0 and img.croppedCopy then
+                    img = img:croppedCopy({ x = 0, y = cropPx,
+                                            w = sz.w, h = sz.h - cropPx })
+                    sz = img:size()
+                end
+                imgs[#imgs + 1] = img
+                heights[#heights + 1] = sz.h
+                w = math.max(w, sz.w)
+                totalH = totalH + sz.h
+                run.decoded = (run.decoded or 0) + 1
             end
             assert(#imgs > 0 and totalH > 0, "no slices decoded")
             local canvas = hs.canvas.new({ x = 0, y = 0, w = w, h = totalH })
@@ -679,15 +750,15 @@ function M.setup(core)
             shots.own[outPath] = true
             assert(outImg:saveToFile(outPath), "could not write " .. outPath)
         end)
-        for _, f in ipairs(files) do pcall(os.remove, f) end
         if not ok then
-            pcall(function()
-                hs.alert.show("🧻 Stitch failed — slices discarded ("
-                              .. tostring(err) .. ")", 4)
-            end)
-            warn("stitch: " .. tostring(err))
+            scrollFail(run, "stitch: " .. tostring(err), files)
             return
         end
+        for _, f in ipairs(files) do pcall(os.remove, f) end
+        run.outcome, run.why, run.out = "ok", nil, outPath
+        run.kept = nil
+        -- finish() copies the result to the clipboard (off the main
+        -- thread, 6.170.3) and says so, exactly as ⇪4 does
         shots.finish(outPath, thenEdit)
     end
 
@@ -697,6 +768,9 @@ function M.setup(core)
             local plan = shots.scrollPlan(rect.h, shots.scroll.height,
                                           shots.scroll.cropTop)
             if #plan == 0 then return end
+            local run = { at = os.time(), planned = #plan, shot = 0, decoded = 0,
+                          outcome = "running", rect = rect, slices = {} }
+            shots.scrollLast = run
             -- scroll events go to whatever is UNDER THE POINTER — park it
             pcall(function()
                 hs.mouse.absolutePosition({ x = rect.x + rect.w / 2,
@@ -706,7 +780,12 @@ function M.setup(core)
             local function step()
                 i = i + 1
                 if i > #plan then
-                    shots.stitch(files, rect, plan, thenEdit)
+                    -- 🚨 OFF THE TASK CALLBACK FIRST (6.196.1): the last
+                    -- slice's callback is the frame this runs in, and
+                    -- the stitch allocates a canvas and a dozen images.
+                    shots.stitchTimer = hs.timer.doAfter(0, function()
+                        shots.stitch(files, rect, plan, thenEdit, run)
+                    end)
                     return
                 end
                 local function shoot()
@@ -717,12 +796,34 @@ function M.setup(core)
                         "-x",
                         ("-R%d,%d,%d,%d"):format(rect.x, rect.y, rect.w, rect.h),
                         slice,
-                    }, slice, false, function()
+                    }, slice, false, function(_, exitCode, serr)
+                        local size = sizeOf(slice)
+                        run.slices[#run.slices + 1] = {
+                            n = i, code = exitCode, err = firstLine(serr), size = size,
+                        }
+                        if (exitCode ~= nil and exitCode ~= 0) or not size or size == 0 then
+                            local why = ("slice %d of %d: screencapture exit %s"):format(
+                                i, #plan, tostring(exitCode))
+                            local e = firstLine(serr)
+                            if e ~= "" then why = why .. " — " .. e end
+                            why = why .. (not size and " — no file was written"
+                                          or (size == 0 and " — the file is empty" or ""))
+                            if e:lower():find("image") or e:lower():find("display")
+                               or e:lower():find("permission") then
+                                why = why .. " (if macOS is refusing the capture: System"
+                                      .. " Settings → Privacy & Security → Screen"
+                                      .. " Recording → Hammerspoon, then quit and relaunch)"
+                            end
+                            scrollFail(run, why, files)
+                            return
+                        end
+                        run.shot = run.shot + 1
                         files[#files + 1] = slice
                         step()
                     end)
                     if not okRun then
-                        for _, f in ipairs(files) do pcall(os.remove, f) end
+                        scrollFail(run, ("slice %d of %d: screencapture could not be started")
+                                        :format(i, #plan), files)
                     end
                 end
                 if plan[i].scroll > 0 then
@@ -740,6 +841,49 @@ function M.setup(core)
             end)
             step()
         end)
+    end
+
+    -- 🔎 6.206.0 — THE REPORT this module never had. The folder, the
+    -- watcher, the last capture's exit, and the last scrolling run with
+    -- every slice's receipt — "no slices decoded" is a question this
+    -- answers now instead of a sentence in an alert.
+    function _G.screenshotsReport()
+        local L = { "📸 SCREENSHOTS" }
+        L[#L + 1] = "   folder  : " .. tostring(shots.dir)
+        L[#L + 1] = "   watcher : " .. (shots.watcher and "watching for arrivals"
+                    or (shots.watchFolder and "not started (first capture starts it)"
+                        or "off (shots.watchFolder = false)"))
+                    .. " · named on arrival " .. tostring(shots.namedOnArrival)
+                    .. " · left for ⌘9 " .. tostring(shots.leftForSweep)
+        if shots.lastExit then
+            L[#L + 1] = "   last screencapture exit : " .. tostring(shots.lastExit.code)
+                        .. (shots.lastExit.err ~= "" and (" — " .. firstLine(shots.lastExit.err)) or "")
+        else
+            L[#L + 1] = "   last screencapture exit : none this session"
+        end
+        local r = shots.scrollLast
+        if not r then
+            L[#L + 1] = "   scroll  : never run this session (⇪5)"
+        else
+            L[#L + 1] = ("   scroll  : %s · %d planned · %d shot · %d decoded · %s")
+                        :format(os.date("%H:%M:%S", r.at), r.planned or 0, r.shot or 0,
+                                r.decoded or 0, tostring(r.outcome))
+            if r.why then L[#L + 1] = "             ↳ " .. tostring(r.why) end
+            if r.out then L[#L + 1] = "             ↳ " .. tostring(r.out) end
+            for _, sl in ipairs(r.slices or {}) do
+                L[#L + 1] = ("             slice %02d: exit %s · %s%s"):format(
+                    sl.n, tostring(sl.code),
+                    sl.size and (tostring(sl.size) .. " bytes") or "no file",
+                    (sl.err and sl.err ~= "") and (" · " .. sl.err) or "")
+            end
+            if r.kept and #r.kept > 0 then
+                L[#L + 1] = "             ↳ the slices were KEPT for a look: "
+                            .. shots.dir .. "/.scroll-slice-NN.png (the panel never lists dot-files)"
+            end
+        end
+        local s = table.concat(L, "\n")
+        print(s)
+        return s
     end
 
     -- ---- recognize text / QR ---------------------------------------------

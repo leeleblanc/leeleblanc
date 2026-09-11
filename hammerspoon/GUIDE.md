@@ -9,7 +9,7 @@ structure, not for the shortcuts (⇪/ is the shortcut list).
 
 ```
 ~/.hammerspoon/
-├── init.lua          the orchestrator (3,740 lines)
+├── init.lua          the orchestrator (3739 lines)
 ├── secret.lua        Asana token. NEVER backed up, never in the cloud
 ├── core/             dofile'd at a fixed point, NOT loader-managed (12 files)
 ├── modules/          one file per feature (68 files, ~55,400 lines)
@@ -751,6 +751,11 @@ stood, kept verbatim.
    OneDrive's "2026 Screenshots" AND the clipboard. ⇪⇧4 = the
    PANEL: ⌘1–⌘8 (⌘8 = BIG thumbnails) and TYPING searches. ⏎ image
    · ⌘⏎ path · ⌃⏎ compress · ⌥⏎ EDITOR (blur/text/arrows; ⌘Z).
+   ⇪5 scrolling capture (6.206.0): every slice's exit code, stderr
+   and file size are recorded, the run stops at the first failed
+   slice and names it, failed slices are kept for a look, and a good
+   stitch is saved AND copied. _G.screenshotsReport() has the last
+   run slice by slice — that is what to paste when ⇪5 fails.
 
 📅 ⌃⌥⌘L / ⌃⌥⌘C  ASANA DASHBOARD (§6)
    Fetches your incomplete Asana tasks and shows them in five
@@ -885,9 +890,9 @@ CREATED AUTOMATICALLY (never make these yourself):
 
 ## 6. Tests
 
-Sixty-eight Lua suites, 8,064 checks, plus four more that run the Capture
+Sixty-eight Lua suites, 8,090 checks, plus four more that run the Capture
 Pad's, the screenshot editor's, unified search's and the vault's page
-JavaScript under `node` for a further 442 — **8,506 checks over
+JavaScript under `node` for a further 442 — **8,532 checks over
 seventy-four stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:

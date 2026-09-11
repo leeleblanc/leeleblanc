@@ -5,6 +5,73 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.206.0 — 🧻 ⇪5 SCROLLING CAPTURE KEEPS ITS RECEIPTS:
+  🐞 LL, with a screenshot of the alert: "Stitch failed — slices
+     discarded (/Users/leeleblanc/.hammerspoon/modules/screenshots.lua:
+     664: no slices decoded)", and "The screenshot needs to be placed on
+     the clipboard when done."
+  🔎 THAT ALERT WAS A SENTENCE WITH NO EVIDENCE BEHIND IT. "No slices
+     decoded" is the assert at the END of the run: every slice file
+     failed hs.image.imageFromPath. Why, it could not say, because the
+     slice capture never read screencapture's exit code or its stderr,
+     appended the slice path to the list whether or not a file had been
+     written, and the stitch deleted the slices before anyone could look
+     at them. 6.201.0's rule, applied to the module it was written next
+     to: ask for the artefact before theorising about the mechanism.
+     Nothing here guesses at the cause, because from this side of the
+     Mac it cannot be known — and a wrong confident cause is 6.201.0's
+     borrowed-clipboard fortnight again. What this release does is make
+     the next ⇪5 SAY it.
+  📋 EVERY SLICE IS CHECKED AS IT LANDS: the exit code, the first line
+     of stderr, whether the file exists and how many bytes it holds. The
+     run STOPS at the first slice that fails and names it — "slice 1 of
+     3: screencapture exit 1 — screencapture: could not create image
+     from display — no file was written" — and when screencapture's own
+     words sound like a refused display it adds where the grant lives
+     (System Settings → Privacy & Security → Screen Recording →
+     Hammerspoon, then quit and relaunch; a non-interactive `-R`
+     capture is the one thing in this module macOS may gate that way,
+     where the ⇪4 crosshair is not). A slice that exists and will not
+     decode names ITSELF and its size ("slice 2 of 3: the file exists
+     (777 bytes) but did not decode as an image"). An empty file with
+     exit 0 is a failure too.
+  🗂 FAILED SLICES ARE KEPT, NOT DISCARDED. They are dot-files the
+     history panel never lists, and after a failure they are the only
+     evidence of what screencapture actually wrote — the alert and the
+     report both say where they are. A good stitch still removes them.
+  🔎 `_G.screenshotsReport()` — this module never had a report. It names
+     the folder, whether the arrival watcher is running, the last
+     screencapture exit and its stderr, and the last scrolling run:
+     planned, shot, decoded, the outcome, the reason, the output file,
+     and one line per slice with its exit, size and stderr. That report
+     is what to paste after the next ⇪5.
+  🚨 6.196.1, IN THIS MODULE TOO: runCapture's callback dropped the
+     finished task's last reference (`shots.captureTask = nil`) on its
+     first line and then, for the last slice, ran a dozen decodes and a
+     canvas render inside that same frame — the allocation-heavy shape
+     that collects the task under its own running callback. The finished
+     task now stays in `shots.lastCaptureTask` until the next capture
+     replaces it, and the stitch steps off the callback through a HELD
+     timer first. Asserted against the source, because a stub task is
+     collected by nobody.
+  📋 THE CLIPBOARD HALF WAS ALREADY THERE, and is now proven and said:
+     a stitched capture goes through the same finish() ⇪4 uses, which
+     copies the file to the pasteboard off the main thread (6.170.3)
+     before the editor opens on it. It never ran because the stitch
+     never succeeded. The cheat sheet row says "saved AND on the
+     clipboard" now.
+  🧪 test_screenshots 174 -> 199. The whole run is driven through the
+     real selector, the real task callbacks and the real stitch against
+     a fake screencapture that succeeds, fails with words, writes an
+     empty file, or writes something that is not an image; the copy
+     task must read the stitched file; the slices must be gone after a
+     good stitch and KEPT after a bad one; the report must repeat every
+     slice. Five mutations, each failing the rows written for it: a
+     failed slice appended anyway (the old code — the section aborts,
+     which the runner reports), slices discarded on failure, the stitch
+     run inside the callback, the finished task nil'd, and the decode
+     failure un-named. 8,506 -> 8,532 checks, seventy-four stages.
+
 NEW IN 6.205.0 — 🚨 AUTOCORRECT: AN INFLECTION OF A WORD IS A WORD:
   🐞 LL, three days into using 6.200.0's word-list rule, in Chrome:
      "starets which should be starts but is changing to starets and I
