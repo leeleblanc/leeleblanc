@@ -534,6 +534,61 @@ repair to the loader. `dm.cleanOpen`/`dm.cleanLastOpen` are PURE and
 gate-proven; the report distinguishes never-read / read-and-sound /
 read-with-N-dropped, and says what a drop costs (a reopen the quit panel
 can no longer offer, never anything on disk).
+🚨 A HELPER THAT STAMPS A FIELD ONTO EVERY MESSAGE OWNS THAT NAME
+(6.203.0, modules/vault.lua). The page's `say(m)` sets `m.text`,
+`m.sel` and `m.rel` on EVERY message before posting it — deliberately,
+because that is how the draft reaches Lua ahead of the save
+(handleMessage's first line is `v.setText(body.text)`). The cost is
+that those three keys are say's, not the caller's: set one and it is
+silently replaced. TWO features paid it, unnoticed, for thirteen
+releases. ⌘N sent `{a:'named', text: the typed name}` and Lua created
+a note named after THE WHOLE OPEN NOTE — which is why LL's failing
+name was multi-line when the bar is a single-line <input> that strips
+newlines on paste, and why it began "Collect": it was the note he had
+open, not the box he typed in. With no note open ⌘N sent "" and did
+nothing, which is his report word for word ("I enter a title and I
+don't see that anything was created"). And 6.186.0's BOARD sent
+`{a:'kmove', rel: the dragged card}`, so `v.setField(body.rel, …)`
+rewrote a field of whichever note was OPEN — the one view here that
+WRITES, writing to the wrong file since it shipped, reported by
+nobody and found by grepping every `say({…})` that names a key say()
+owns (6.201.1's "one bug can have two outputs", applied). THE FIX IS
+NAMES: a message carrying its own value uses its own key — `name`,
+`card` — and a SENTRY in test_vault_js reads the page source and
+fails if any say({…}) ever names text/sel/rel again, so the CLASS is
+closed, not the two instances. 🧪 And both suites were green
+throughout because both hand-built the message: the Lua tests called
+handleMessage with `{text = "a name"}`, and the JS stub had no
+#pr/#prin elements at all, so askName() took its namefail branch on
+every run and the bar was never once exercised. A stub that BUILDS
+the message the page sends, instead of letting the page send it,
+cannot see a bug in the sending — 6.193.0's rule, third costume.
+📏 A NAME THAT CANNOT BECOME A FILE IS REFUSED, IN BYTES, AND SAID
+WHERE HE IS LOOKING (6.203.0). `v.nameCheck` is PURE and gate-proven:
+newlines and tabs become spaces (macOS WILL take a file name with a
+newline in it, and that note can never be typed or linked again), a
+leading dot is stripped, "/" and ":" keep mapping to "-", and a name
+over `v.nameMaxBytes` is REFUSED, never truncated — a 3,000 character
+paste clamped to 248 is a note silently named after its own first
+paragraph, and the paste is only safe while it is still in the box he
+can copy it from. 248 is ARITHMETIC: macOS holds one path component
+to 255 bytes and the longest thing saveNow writes beside a note is
+`<name>.md.tmp`, so 255 - 7. BYTES, not characters — one emoji is
+four, and a budget counted in characters waves 100 emoji (400 bytes)
+straight through to the write that fails. The guard lives at
+`openNote`, the ONE door ⌘N, ⌘D, ⌘⇧N, ⌘⇧E, a [[link]] follow and a
+search row all arrive through; ⌘⇧E needed it most, because that door
+writes the [[link]] into the note you are ALREADY IN and saves it
+before creating anything. 👁 And the refusal is drawn in the BAR: an
+hs.alert draws UNDER this window (the vault is at bringToFront(true)),
+which is exactly why LL saw nothing, so ⏎ no longer closes the bar —
+Lua's answer does. The system dialog stays the degrade and alerts the
+same sentence, because on that path no window of ours is over it.
+🖥 ASKED AND ANSWERED, no code: "the window covered the whole screen
+once" is the documented size doing what it says — 1560x1010 clamped to
+the screen less 40 pt, which on the Air's own display is very nearly
+full screen. `settings = { vault = { width = 1200, height = 800 } }`.
+
 👁 THE PREVIEW PANE SHOWS THE HIGHLIGHT, FULL STOP (6.202.0,
 modules/clipboard_history.lua — the pane every picker gets through
 preview.open). hs.chooser FOLLOWS THE POINTER BY ITSELF:
@@ -903,6 +958,20 @@ mirrors draw order: "closes last" IS "drawn under".
 
 ## Open items — update as they move
 
+- 6.203.0 verify with LL: ⇪3, then ⌘N. Type a name — ANY name — and
+  press ⏎. The note that appears must be called what he typed: until
+  now the vault used the whole text of the note he had open instead,
+  and with no note open ⌘N did nothing at all. Then the one he
+  reported: paste a huge block into the same bar and press ⏎ — a red
+  line appears UNDER the field saying how long it is and what the
+  limit is, the bar stays open, and his paste is still in the box to
+  copy out. Nothing is created and nothing is lost. Then ⌘⇧E (extract)
+  with a silly long name: it must refuse and leave the note he was in
+  byte-for-byte unchanged. AND THE ONE HE NEVER REPORTED: ⇪3 → ⌘⇧B,
+  open a note, drag a card in another column — the note whose CARD he
+  dragged must change, and the note he has OPEN must not. That was
+  writing to the wrong file since 6.186.0. Nothing else changed in
+  this release, on purpose.
 - 6.202.0 verify with LL: ⇪⇧V, then move the mouse over any entry — the
   pane on the right must show THAT entry, the one the list highlights,
   with "🖱 under the pointer" in its header. Arrow up and down: it
@@ -932,7 +1001,13 @@ mirrors draw order: "closes last" IS "drawn under".
   pasteboard watcher across the whole borrow — a SHARED global that
   screenshots also sets, so it is not being changed inside a bug fix.
 - 🐞 REPORTED 6.201.0, NOT YET FIXED — LL's own words, in his order:
-  (1) THE VAULT'S ⌘N NAMING BAR ACCEPTS AN IMPOSSIBLE NAME. He pasted a
+  (1) ✅ FIXED 6.203.0 — and the reported half was the smaller half:
+  ⌘N never used the name he typed at all (the page's say() overwrites
+  `text` on every message, so Lua got the whole open note). See the
+  🚨 say() paragraph above. The length guard he asked for shipped too,
+  in BYTES, refusing rather than truncating, said in the bar. HIS
+  ORIGINAL REPORT, kept because the wording is what solved it:
+  THE VAULT'S ⌘N NAMING BAR ACCEPTS AN IMPOSSIBLE NAME. He pasted a
   huge multi-line block into "Name of the note"; the name became the
   filename and the Console said "🚨 Write failed: vault note Collect" /
   "cannot open …/Vault/Collect<thousands of chars>.md". Nothing was

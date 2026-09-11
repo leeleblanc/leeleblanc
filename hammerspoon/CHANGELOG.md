@@ -5,6 +5,89 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.203.0 — 🚨 ⌘N IN THE VAULT NEVER USED THE NAME YOU TYPED:
+  🐞 LL, bug (1) of the three he reported against 6.201.0: "I pasted a
+     huge multi-line block into the vault's ⌘N 'Name of the note' bar.
+     The name became the filename and the Console said '🚨 Write failed:
+     vault note Collect' / 'cannot open …/Vault/Collect<thousands of
+     chars>.md'. Nothing was created and I saw NO error on screen — I
+     enter a title and I don't see that anything was created."
+  🚨 THE FIRST HALF WAS NOT THE LENGTH. The page's say() stamps the live
+     note onto `text`, `sel` and `rel` on EVERY message — deliberately,
+     because that is how the draft reaches Lua ahead of the save
+     (handleMessage's first line is v.setText(body.text)). ⌘N sent
+     {a:'named', text: the typed name}; say() overwrote it a line later;
+     Lua created a note named after THE WHOLE OPEN NOTE. That is why the
+     failing name was multi-line when the bar is a single-line <input>
+     that strips newlines on paste, and why it began "Collect" — it was
+     the note he had open, not the box he typed in. With no note open it
+     sent "" and did nothing at all, which is his second sentence word
+     for word. Thirteen releases, since 6.190.0 moved ⌘N into the page.
+  🧪 AND THE SUITE WAS GREEN THROUGHOUT, because both suites hand-built
+     the message: the Lua tests called handleMessage with {text = "a
+     name"} and the JS stub had no #pr / #prin elements at all, so
+     askName() took its namefail branch on every run and the bar was
+     never once exercised. A stub that builds the message the page sends
+     INSTEAD of letting the page send it cannot see a bug in the sending
+     — 6.193.0's rule, in its third costume.
+  🚨 THE SAME CLOBBER HIT THE BOARD, and nobody had reported it. 6.186.0's
+     card drag sent {a:'kmove', rel: the dragged card}; say() replaced
+     `rel` with CUR, so Lua's v.setField(body.rel, …) rewrote a field of
+     whichever note was OPEN. The one view in this module that WRITES had
+     been writing to the wrong file since it shipped. Found by grepping
+     every say({…}) that sets a key say() owns — the 6.201.1 rule applied
+     ("one bug can have two outputs"), and the reason this release is two
+     features wide instead of one.
+  🔑 THE FIX IS NAMES, not a new mechanism: a message that carries its own
+     value uses its own key — `name` for the typed note name, `card` for
+     the dragged note. say() keeps its contract, because every other
+     message genuinely does want the live text stamped on it. A SENTRY in
+     test_vault_js reads the page source and fails if any say({…}) ever
+     names `text`, `sel` or `rel` again, so the class is closed rather
+     than the two instances patched.
+  📏 THEN the length, which is what LL actually asked for ("refuse or
+     clamp — length in BYTES, newlines, / and :"). v.nameCheck is PURE
+     and gate-proven: newlines and tabs become spaces (macOS will take a
+     file name with a newline in it, and that note can never be typed or
+     linked again), a leading dot is stripped, "/" and ":" keep mapping
+     to "-", and a name over nameMaxBytes is REFUSED — never truncated.
+     A 3,000 character paste clamped to 248 is a note silently named
+     after its own first paragraph, and the paste is only safe while it
+     is still in the box he can copy it out of.
+  📐 248 IS ARITHMETIC, NOT TASTE: macOS holds one path component to 255
+     bytes and the longest thing saveNow writes beside a note is
+     "<name>.md.tmp", so 255 - 7. BYTES, not characters — one emoji is
+     four of them, and a budget counted in characters lets 100 emoji
+     (400 bytes) through to the write that fails. Both sides of the
+     boundary are checked and the character count is mutation-proven.
+  🔑 THE GUARD IS AT THE DOOR: openNote, where ⌘N, ⌘D, ⌘⇧N, ⌘⇧E, a
+     [[link]] follow and a search row all arrive. ⌘⇧E needed it most —
+     that door writes the [[link]] into the note you are ALREADY IN and
+     saves it, and only then creates the new one, so an impossible name
+     used to leave a 3,000 character link behind in a note that was fine.
+     And the no-web-view fallback now reports a refusal instead of
+     reading v.doc.name off a nil.
+  👁 SAID WHERE HE IS LOOKING. He saw nothing because saveNow's message
+     is an hs.alert and an hs.alert draws UNDER this window — the vault
+     is at bringToFront(true). So ⏎ no longer closes the naming bar;
+     Lua's answer does. A name it takes re-renders the page and the bar
+     goes with it; a name it refuses comes back through prSay() and is
+     drawn under the field, with the paste still in the box. The system
+     dialog stays the degrade and alerts the same sentence, because on
+     that path no window of ours is over it.
+  🔎 RULES, both durable: a helper that stamps fields onto every message
+     OWNS those names, and a caller that sets one gets silence rather
+     than an error — so reserve them out loud and let the gate enforce
+     it. And when a report names one symptom, check what the mechanism
+     ACTUALLY does before fixing the thing that was reported: the length
+     was real, and it was not why ⌘N was broken.
+  🖥 ASKED AND ANSWERED, no code: "the window covered the whole screen
+     once" is the documented size doing what it says. The vault is
+     1560x1010 clamped to the screen less 40 pt, so on the Air's own
+     display that IS very nearly full screen. One line changes it and it
+     needs no release: settings = { vault = { width = 1200, height = 800 } }.
+     8,382 -> 8,411 checks, seventy-four stages.
+
 NEW IN 6.202.0 — 👁 THE PREVIEW PANE SHOWS THE ROW YOU ARE ON, NOT THE ONE BELOW:
   🐞 LL, on ⇪⇧V: "when I am on an entry it actually shows the one entry
      beneath the current line I am hovering over." He was right, and it

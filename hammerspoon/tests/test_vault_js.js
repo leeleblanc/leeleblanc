@@ -37,7 +37,13 @@ function makeEnv() {
   const qbox = el("DIV"), qres = el("UL"), qh = el("H4");
   // 6.186.0 — the 🗂 board: its columns, its footer, the card that follows the pointer
   const bcols = el("DIV"), btip = el("DIV"), bdrag = el("DIV"), bbtn = el("BUTTON");
-  const byId = { t, q, hdr, ac, rows, links, cv, gbtn, mode, foot, chips, outline, unl, unlh, hint, sbtn, kbtn, qbox, qres, qh, bcols, btip, bdrag, bbtn };
+  // 🚨 6.203.0 — the ⌘N naming bar. These four were NEVER in this stub, so
+  // askName() took its namefail branch on every run and not one check in
+  // this file had ever seen the bar: the page half of LL's lost paste
+  // could not be caught because it never ran. A stub missing an element
+  // the real page has is 6.193.0's hole with a tick beside it.
+  const pr = el("DIV"), prlab = el("DIV"), prin = el("INPUT"), prwarn = el("DIV");
+  const byId = { t, q, hdr, ac, rows, links, cv, gbtn, mode, foot, chips, outline, unl, unlh, hint, sbtn, kbtn, qbox, qres, qh, bcols, btip, bdrag, bbtn, pr, prlab, prin, prwarn };
   const docListeners = {}, winListeners = {};
   // 6.186.0 — the board's columns, parsed out of bcols.innerHTML into elements
   // the page's own drag code can walk: a card's parentNode is .cards and its
@@ -123,7 +129,7 @@ function makeEnv() {
     winListeners.mouseup({ clientX: 90, clientY: 90 });
     return card;
   }
-  return { sandbox, sent, t, q, ac, rows, docListeners, winListeners, byId, liRows, click, mode, foot, chips,
+  return { sandbox, sent, t, q, ac, rows, docListeners, winListeners, byId, liRows, click, mode, foot, chips, pr, prin, prwarn, prlab,
            outline, unl, unlh, hint, kbtn, qbox, qres, qh, links, bcols, btip, bdrag, boardCols, drag,
            setHit: (h) => { hit = h; } };
 }
@@ -987,6 +993,77 @@ if (padHtml) {
     check("the board section ran to the end", false, (err && err.message) || err);
   }
   check("…and every board check actually ran", pass + fail - RAN >= 27, pass + fail - RAN);
+}
+
+// 6.203.0 — the ⌘N naming bar: ⏎ no longer closes it, and a refusal is
+// drawn UNDER the field LL is typing in. He pasted a whole block in here,
+// the write failed on a path macOS cannot hold, and the only message was
+// an hs.alert drawn BEHIND this window: "I enter a title and … I don't
+// see that anything was created."
+{
+  // 6.186.0's rule, and this section earned it: a throw in here would
+  // DELETE the checks after it while the run still said "0 failed". One
+  // mutation (the name travelling as `text` again) threw on m.name.length
+  // before the guard went in.
+  const RAN0 = pass + fail;
+  try {
+  const env = load();
+  env.call("askName('new','Name of the note:','')");
+  check("6.203.0 — the bar opens: labelled, focused, and carrying no refusal",
+        env.pr.style.display === "block" && env.prlab.textContent === "Name of the note:"
+        && env.prin.focused > 0 && env.prwarn.style.display === "none", env.pr.style.display);
+  env.prin.value = "Collect" + "x".repeat(3000);
+  env.sent.length = 0;
+  env.key("Enter");
+  check("🚨 6.203.0 — ⏎ sends the name and does NOT close the bar. Lua decides;\n"
+        + "        the text stays in the box because it is the only copy of the paste",
+        env.sent.some((m) => m.a === "named" && m.kind === "new" && (m.name || "").length === 3007)
+        && env.pr.style.display === "block" && env.prin.value.length === 3007,
+        env.pr.style.display + " / " + env.prin.value.length);
+  {
+    const m = env.sent.find((x) => x.a === "named");
+    check("🚨🚨 6.203.0 — THE NAME TRAVELS AS `name`, NEVER `text`. say() stamps the\n"
+          + "        open note onto m.text on EVERY message, so for thirteen releases ⌘N\n"
+          + "        handed Lua the whole note body as the file name and the name LL\n"
+          + "        typed was never used at all. With no note open it sent \"\" and did\n"
+          + "        nothing: \"I enter a title and I don't see that anything was created\"",
+          m && m.name === env.prin.value && m.text === env.t.value && m.name !== m.text,
+          m && JSON.stringify({ name: (m.name || "").slice(0, 12), text: (m.text || "").slice(0, 12) }));
+  }
+  env.call("prSay('that name is 3007 characters long — a file name holds 248.')");
+  check("🚨 …and Lua's refusal is DRAWN under the field, with the paste still in it",
+        env.prwarn.style.display === "block" && env.prwarn.textContent.includes("248")
+        && env.prin.value.length === 3007, env.prwarn.textContent);
+  const focusWas = env.prin.focused;
+  env.call("prSay('again')");
+  check("…and the caret goes back to the field, so ⏎ works on the fixed name",
+        env.prin.focused > focusWas, env.prin.focused);
+  env.call("askName('new','Name of the note:','')");
+  check("a fresh bar never wears the last refusal",
+        env.prwarn.style.display === "none" && env.prwarn.textContent === "");
+  env.call("prSay('stuck')");
+  env.key("Escape");
+  check("esc still closes the bar, and takes the refusal with it",
+        env.pr.style.display === "none" && env.prwarn.textContent === "");
+  } catch (err) {
+    check("the naming-bar section ran to the end", false, (err && err.message) || err);
+  }
+  check("…and every naming-bar check actually ran", pass + fail - RAN0 >= 7, pass + fail - RAN0);
+}
+
+// 🚨 6.203.0 — THE SENTRY. say() owns `text`, `sel` and `rel` on every
+// message; a caller that sets one has it silently replaced, and that is
+// how BOTH ⌘N and the board's drag were wrong with nothing to see. No
+// say({…}) may ever name one of the three again.
+{
+  const src = scripts[0] || "";
+  check("the page source was actually read (a source check over \"\" passes for free)",
+        src.length > 5000, src.length);
+  const bad = [...src.matchAll(/say\(\{[^}]*\}\)/g)]
+        .map((m) => m[0]).filter((c) => /[{,]\s*(text|sel|rel)\s*:/.test(c));
+  check("🚨 6.203.0 — no say({…}) sets text:, sel: or rel: — those are say's own,\n"
+        + "        and a value handed over under one of those names never arrives",
+        src.length > 5000 && bad.length === 0, bad.join(" | "));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

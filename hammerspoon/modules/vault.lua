@@ -255,6 +255,14 @@ function M.setup(core)
         fontSize      = 14,
         dir           = nil,          -- set below; a settings override replaces it
         dailyDir      = "Daily",      -- subfolder for ⌘D notes
+        -- 6.203.0 — the longest a note NAME may be, in BYTES. macOS holds
+        -- one path component to 255 bytes, and the longest component this
+        -- module ever writes is "<name>.md.tmp" (saveNow writes the temp
+        -- file beside the note and renames it), so the name itself gets
+        -- 255 - 7 = 248. BYTES, not characters, because that is what the
+        -- filesystem counts: one emoji is four of them, and a name cut to
+        -- 248 CHARACTERS is a write that still fails.
+        nameMaxBytes  = 248,
         saveDelay     = 0.3,
         rescanEvery   = 300,          -- seconds between background rescans while open
         maxNotes      = 5000,         -- rows embedded in the page
@@ -495,6 +503,57 @@ function M.setup(core)
     -- refuses the same characters in a file name.
     local function linkSafe(name)
         return trim((safeName(name):gsub("[%[%]|#%^]", " "):gsub("%s+", " ")))
+    end
+
+    -- 6.203.0 — 🚨 A NAME THAT CANNOT BECOME A FILE IS REFUSED, AND THE
+    -- REFUSAL IS SHOWN WHERE LL IS LOOKING. He pasted a whole block into
+    -- ⌘N's "Name of the note" bar. safeName took it — it only maps "/"
+    -- ":" "\\" and strips a trailing .md, and has never had a length —
+    -- openNote "created" the note in memory and returned TRUE, and
+    -- saveNow then failed on a path macOS cannot hold:
+    --     🚨 Write failed: vault note Collect
+    --     cannot open …/Vault/Collect<thousands of characters>.md
+    -- Nothing was written. And he saw NOTHING: saveNow's hs.alert draws
+    -- at the alert level, this window is at bringToFront(true), so the
+    -- one message that existed was BEHIND the window he was typing in.
+    -- LL: "I enter a title and … I don't see that anything was created."
+    --
+    -- Returns name, why:
+    --   name ~= ""  → usable; why is nil, or a sentence if it was cleaned
+    --   name == ""  → REFUSED; why says so in words LL can act on
+    -- PURE — no file, no window, no clock — so the gate proves every rule
+    -- here with no Mac, which is what safeName's missing length never was.
+    --
+    -- It REFUSES an over-long name rather than TRUNCATING it. A 3,000
+    -- character paste clamped to 248 is a note named after its own first
+    -- paragraph, silently, which is not what anyone asked for — and the
+    -- paste is only safe while it is still in the box he can copy it from.
+    function v.nameCheck(typed)
+        local raw = tostring(typed or "")
+        -- newlines, tabs and every other control character become spaces.
+        -- A file name may legally hold them, which is the trap: the note
+        -- would be created and then be untypeable and unlinkable for ever.
+        local flat, ctrl = raw:gsub("%c", " ")
+        local name = trim((safeName(flat):gsub("%s+", " ")))
+        name = trim((name:gsub("^%.+", "")))   -- a leading dot hides it from find
+        if name == "" then
+            if trim(raw) == "" then return "", "a note needs a name" end
+            return "", "there is nothing usable in that name"
+        end
+        local max = tonumber(v.nameMaxBytes) or 248
+        if #name > max then
+            -- say it in the unit LL can count, and in bytes too when the
+            -- two differ — "247 characters is too long for 248" reads as
+            -- a lie to anyone whose note name has an emoji in it
+            local chars = utf8 and utf8.len and utf8.len(name) or nil
+            local how = (chars and chars ~= #name)
+                        and (chars .. " characters (" .. #name .. " bytes)")
+                        or (#name .. " characters")
+            return "", "that name is " .. how .. " long — a file name holds " .. max
+                       .. ". Shorten it, or press esc and paste it into the note itself."
+        end
+        if ctrl > 0 then return name, "the line breaks became spaces" end
+        return name
     end
 
     -- ---- 6.174.0 — templates: the .md files under <vault>/Templates ----------
@@ -1311,8 +1370,13 @@ function M.setup(core)
     -- only main-thread file read in the module happens here, for one
     -- file, because you asked for it.
     function v.openNote(name, sub, seed)
-        name = safeName(name)
-        if name == "" then return false, "no name" end
+        -- 6.203.0 — the guard lives at the DOOR, never in the callers:
+        -- ⌘N, ⌘D, ⌘⇧N, a [[link]] follow and a search row all arrive
+        -- here, and a check in one of them is a check the other five
+        -- quietly stop matching (6.198.0's rule, this module's turn).
+        local why
+        name, why = v.nameCheck(name)
+        if name == "" then return false, why or "no name" end
         if v.doc and v.dirty then v.saveNow() end
         local n = v.find(name)
         if not n then
@@ -1565,18 +1629,28 @@ function M.setup(core)
     -- fallback dialog reach the SAME code — two creation paths is how one
     -- of them quietly stops matching the other.
     function v.createNamed(typed)
-        -- Belt and braces: openNote refuses a blank name on its own (the
-        -- suite proves nothing is written either way), and this says the
-        -- rule out loud at the door rather than relying on that.
-        if trim(tostring(typed or "")) == "" then return false end
-        if v.openNote(typed) then v.render() return true end
-        return false
+        -- 6.203.0 — it asks the SAME v.nameCheck openNote will ask, for
+        -- one reason: to have the WHY in its hand. openNote returns it
+        -- too, so this is belt and braces, not a second rule.
+        local name, why = v.nameCheck(typed)
+        if name == "" then return false, why end
+        local ok, oWhy = v.openNote(name)
+        if not ok then return false, oWhy or "that note could not be opened" end
+        v.render()
+        return true, why       -- why ~= nil here means the name was CLEANED, not refused
     end
 
     function v.newNote()
         if v.askName("new", "Name of the note:", "") then return true end
         local okP, button, typed = pcall(hs.dialog.textPrompt, "New note", "Name of the note:", "", "Create", "Cancel")
-        if okP and button == "Create" then return v.createNamed(typed) end
+        if okP and button == "Create" then
+            local ok, why = v.createNamed(typed)
+            -- 6.203.0 — there is no page to say it in on this path (that
+            -- is what makes it the degrade), so the alert IS the right
+            -- channel here: no window of ours is over it.
+            if not ok and why then alert("🕸 " .. why, 5) end
+            return ok
+        end
         return false
     end
     -- ⌘⇧N: a new note from a template ({{title}} = the typed name)
@@ -1586,8 +1660,13 @@ function M.setup(core)
         if not rec then alert("📄 no template named \"" .. tostring(name) .. "\"") return false end
         local okP, button, typed = pcall(hs.dialog.textPrompt, "New note from " .. rec.name, "Name of the note:", "", "Create", "Cancel")
         if not (okP and button == "Create") then return false end
-        local want = safeName(typed)
-        if want == "" then return false end
+        -- 6.203.0 — the same rule, said out loud. This path has no page
+        -- to say it in (it is a system dialog), so the alert is right here.
+        local want, whyW = v.nameCheck(typed)
+        if want == "" then
+            if whyW and trim(tostring(typed or "")) ~= "" then alert("📄 " .. whyW, 5) end
+            return false
+        end
         if v.find(want) then
             alert("📄 a note named \"" .. want .. "\" already exists — opening it", 2)
             if v.openNote(want) then v.render() end
@@ -1865,6 +1944,14 @@ function M.setup(core)
         local name = linkSafe(typed)
         if name == "" then name = default end     -- the untouched default field
         if name == "" then return false end
+        -- 6.203.0 — ask BEFORE the link goes in. This door writes the name
+        -- into the note that is ALREADY FINE and saves it, and only then
+        -- opens the new one: an impossible name used to leave a 3,000
+        -- character [[link]] behind in the note LL was working in, with
+        -- the new note never created. Same rule, same words, one door on.
+        local okN, whyN = v.nameCheck(name)
+        if okN == "" then alert("✂️ " .. (whyN or "that name cannot be used"), 5) return false end
+        name = okN
         if v.find(name) then alert("✂️ a note named \"" .. name .. "\" already exists — pick another name", 3) return false end
         v.setText(head .. "[[" .. name .. "]]" .. v.doc.text:sub(#head + #selText + 1))
         v.saveNow()
@@ -2130,6 +2217,10 @@ body.board #board{display:flex}
 #pr input{width:100%;box-sizing:border-box;font-size:FS1px;padding:10px 12px;
     background:#16161c;color:#e8e8ee;border:1px solid #4a7fe0;border-radius:8px}
 #pr .hint{opacity:.5;margin-top:8px;font-size:FS2px}
+/* 6.203.0 — the refusal, under the field it is about. An hs.alert draws
+   UNDER this window, so this is the only place LL can actually read one
+   while he is typing in the bar. */
+#pr .warn{display:none;margin-top:10px;color:#ffb4b4;font-size:FS2px;line-height:1.45}
 /* 6.181.0 — OUR OWN TOOLTIPS. Every button in this window already
    carried a title="", and LL still asked for tool tips — because a
    WKWebView panel that never activates does not reliably raise the
@@ -2175,7 +2266,7 @@ body.board #board{display:flex}
 <button onclick="insertAtCaret('[[', ']]')" title="Link to another note — types [[ ]] and lists your notes to pick from">[[ ]]</button>
 <button onclick="insertAtCaret('#')" title="Tag — type a word after the # and it joins the 🏷 TAGS list">#</button>
 <button onclick="slashMenu()" title="Every block, in a list — or just type / at the start of an empty line">/ …</button>
-</div>]==]) .. [==[<textarea id="t" spellcheck="true" ]==] .. (d and "" or "disabled placeholder=\"⌘N a new note · ⌘D today · click a note on the left\"") .. [==[>]==] .. "\n" .. escapeHtml(d and d.text or "") .. [==[</textarea><div id="ac"></div><div id="pr"><div class="lab" id="prlab"></div><input id="prin" spellcheck="false"><div class="hint">⏎ create · esc cancel</div></div><div id="foot"></div></div>
+</div>]==]) .. [==[<textarea id="t" spellcheck="true" ]==] .. (d and "" or "disabled placeholder=\"⌘N a new note · ⌘D today · click a note on the left\"") .. [==[>]==] .. "\n" .. escapeHtml(d and d.text or "") .. [==[</textarea><div id="ac"></div><div id="pr"><div class="lab" id="prlab"></div><input id="prin" spellcheck="false"><div class="warn" id="prwarn"></div><div class="hint">⏎ create · esc cancel</div></div><div id="foot"></div></div>
 <div id="links">]==] .. (isTab and "" or '<div id="chips" hidden></div>') .. [==[<h4>LINKS OUT</h4><ul id="outs">]==] .. (#outs > 0 and table.concat(outs) or '<div class="none">type [[ to link</div>') .. [==[</ul>
 ]==] .. (isTab and ('<h4>HISTORY · closed tabs</h4><ul id="hist">' .. (#hist > 0 and table.concat(hist) or '<div class="none">closed tabs land here — ⌘W</div>') .. '</ul>')
              or ('<h4>BACKLINKS</h4><ul id="backs">' .. (#backs > 0 and table.concat(backs) or '<div class="none">nothing links here yet</div>') .. '</ul>' .. unlBlock .. '<div id="qbox" hidden><h4 id="qh">\240\159\148\142 QUERY</h4><ul id="qres"></ul></div><h4>OUTLINE</h4><ul id="outline"></ul>')) .. [==[</div>
@@ -2253,6 +2344,23 @@ var BOARDCOLS = ]==] .. tostring(math.floor(tonumber(v.boardCols) or 8)) .. [==[
 var LINEH = FSNUM * 1.5;
 var t = document.getElementById('t'), q = document.getElementById('q'), hdr = document.getElementById('hdr');
 var ac = document.getElementById('ac'), rowsEl = document.getElementById('rows');
+// 🚨 6.203.0 — THREE RESERVED KEYS. say() stamps the live note onto EVERY
+// message, on purpose: that is how the draft reaches Lua ahead of the save
+// (handleMessage's first line is v.setText(body.text)). The cost is that
+// `text`, `sel` and `rel` are say's, not yours — set one and it is silently
+// replaced, with nothing to see. That cost went unpaid for thirteen
+// releases and TWO features were quietly wrong the whole time:
+//   · ⌘N sent {text: the typed name} and Lua got the WHOLE OPEN NOTE
+//     instead, so the vault created a note named after its own body and
+//     the name LL typed was never used at all. With no note open it sent
+//     "" and did nothing — his "I enter a title and I don't see that
+//     anything was created", exactly.
+//   · the board (6.186.0) sent {rel: the dragged card} and Lua got CUR,
+//     so a drag rewrote a field of whichever note was OPEN. The one view
+//     that writes, writing to the wrong file.
+// A message that carries its own value uses ITS OWN key — `name`, `card` —
+// and test_vault_js asserts against this source that no say({…}) ever
+// names one of the three again.
 function say(m){ m.text = t.value; m.sel = t.selectionStart; m.rel = CUR;
   try { window.webkit.messageHandlers.vault.postMessage(m); } catch(e){} }
 t.addEventListener('input', function(){ say({a:'edit'}); autocomplete(); paneSoon(); });
@@ -2980,7 +3088,7 @@ if (bcols) {
     // dropped nowhere, or back where it started: nothing written, nothing said
     if (col === null || to === d.fromVal) return;
     // the column tells Lua the value; an empty one CLEARS the field
-    say({ a: 'kmove', rel: d.rel, field: (BSPEC && BSPEC.by) || BOARDFIELD, value: to });
+    say({ a: 'kmove', card: d.rel, field: (BSPEC && BSPEC.by) || BOARDFIELD, value: to })   // `card`, never `rel`: see say();
   });
 }
 function thou(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '\u2009'); }
@@ -3015,9 +3123,24 @@ function acClose(){ ac.style.display = 'none'; ACITEMS = []; ACBLOCKS = []; ACST
 // Enter and Escape, and two owners of a key is a bug waiting.
 var PRKIND = null;
 function prOpen(){ var p = document.getElementById('pr'); return p && p.style.display === 'block'; }
+function prWarn(msg){
+  var w = document.getElementById('prwarn');
+  if (!w) return;
+  if (msg) { w.textContent = msg; w.style.display = 'block'; }
+  else { w.textContent = ''; w.style.display = 'none'; }
+}
+// 6.203.0 — Lua's answer to a name it will not take. The bar STAYS OPEN
+// with the text still in the box: that text is the only copy of what LL
+// just pasted, and closing the bar on ⏎ is how the first one was lost.
+function prSay(msg){
+  prWarn(msg);
+  var i = document.getElementById('prin');
+  if (i && i.focus) i.focus();
+}
 function prClose(){
   var p = document.getElementById('pr');
   if (p) p.style.display = 'none';
+  prWarn('');
   PRKIND = null;
   var t = document.getElementById('t');
   if (t && !t.disabled && t.focus) t.focus();
@@ -3030,6 +3153,7 @@ function askName(kind, label, value){
   PRKIND = kind;
   l.textContent = label || 'Name:';
   i.value = value || '';
+  prWarn('');                      // 6.203.0 — a fresh bar carries no old refusal
   p.style.display = 'block';
   if (i.focus) i.focus();
   if (i.select) i.select();
@@ -3040,8 +3164,11 @@ function prKey(e){
     e.preventDefault();
     var i = document.getElementById('prin'), k = PRKIND;
     var val = i ? i.value : '';
-    prClose();
-    say({ a: 'named', kind: k, text: val });
+    // 6.203.0 — do NOT close here. Lua decides: a name it takes re-renders
+    // the whole page and the bar goes with it; a name it refuses comes
+    // back through prSay and the bar stays up, text and all.
+    prWarn('');
+    say({ a: 'named', kind: k, name: val });   // `name`, never `text`: see say()
     return true;
   }
   if (e.key === 'Escape'){ e.preventDefault(); prClose(); return true; }
@@ -3510,7 +3637,23 @@ else {
         elseif a == "named" then
             -- The naming bar answered. Every kind lands here so there is
             -- ONE place that decides what a typed name does.
-            if body.kind == "new" then v.createNamed(body.text) end
+            -- 6.203.0 — and ONE place that answers it. On success
+            -- createNamed has already re-rendered and the bar went with
+            -- the page; only a refusal needs a voice, and it belongs in
+            -- the bar rather than in an hs.alert that draws UNDER this
+            -- window. A CONSEQUENCE YOU DECIDE NOT TO ACT ON IS ONE YOU
+            -- ARE OBLIGED TO NAME — so nothing here is allowed to fail
+            -- in silence the way the long name did.
+            local ok, why
+            -- 6.203.0 — body.NAME. `text` belongs to say() and arrives
+            -- holding the open note, which is what this read for years.
+            if body.kind == "new" then ok, why = v.createNamed(body.name)
+            else why = "the naming bar answered with a kind nothing handles" end
+            if not ok then
+                pcall(function()
+                    v.eval("prSay(" .. jstr(why or "that name cannot be used") .. ")")
+                end)
+            end
         elseif a == "namefail" then
             -- The page could not draw the bar (an old page still loaded,
             -- say). Say so and fall back rather than leaving ⌘N dead.
@@ -3538,7 +3681,9 @@ else {
         -- that is allowed. A refusal is said out loud and the board redraws
         -- from the index, so a card that did not move snaps back.
         elseif a == "kmove" then
-            local ok, why = v.setField(body.rel, body.field, body.value)
+            -- 6.203.0 — body.CARD: `rel` is say()'s and always arrives as
+            -- the OPEN note, so every drag rewrote the wrong file.
+            local ok, why = v.setField(body.card, body.field, body.value)
             if not ok then
                 pcall(function() hs.alert.show("🗂 Not moved — " .. tostring(why), 3) end)
                 print("🕸 Vault: card not moved — " .. tostring(why))
@@ -3750,7 +3895,12 @@ else {
         if not v.doc then
             local okN, b, typed = pcall(hs.dialog.textPrompt, "Vault", "No web view on this Hammerspoon. Name of the note to edit:", "", "Open", "Cancel")
             if not (okN and b == "Open" and trim(typed) ~= "") then return end
-            v.openNote(typed)
+            -- 6.203.0 — openNote can now REFUSE, and the next line reads
+            -- v.doc.name: a refusal here used to be impossible and would
+            -- otherwise have become a throw on this Hammerspoon-without-a
+            -- -web-view, which is the one that cannot show a page error.
+            local okO, whyO = v.openNote(typed)
+            if not okO then alert("🕸 " .. tostring(whyO or "that name cannot be used"), 5) return end
         end
         local okP, button, typed = pcall(hs.dialog.textPrompt, "Vault — " .. v.doc.name,
             "No web view on this Hammerspoon — this box edits the note.", v.doc.text or "", "Save", "Cancel")

@@ -869,14 +869,20 @@ check("🚨 ⌘N asks IN THE PAGE, not in a macOS alert",
 check("...and no system dialog is raised at all", #PROMPTS == promptsBefore,
       PROMPTS[#PROMPTS] and PROMPTS[#PROMPTS].title)
 -- the answer comes back as a message, and ONE code path makes the note
-msg({ a = "named", kind = "new", text = "Typed In The Window" })
+-- 🚨 6.203.0 — as the PAGE really sends it: say() stamps the open note
+-- onto `text` on every message, so the typed name rides under `name`.
+-- These four used to pass the name as `text`, which is the stub being
+-- gentler than the page — and it is why ⌘N could be wrong for thirteen
+-- releases with a green suite over it.
+msg({ a = "named", kind = "new", name = "Typed In The Window",
+      text = (v.doc and v.doc.text) or "", rel = v.doc and v.doc.rel })
 check("...and the typed name creates the note",
       FILES[VAULT .. "/Typed In The Window.md"] ~= nil
       and v.doc.rel == "Typed In The Window.md", v.doc.rel)
 -- an empty answer must not create a file called ".md"
 local filesBefore = 0
 for _ in pairs(FILES) do filesBefore = filesBefore + 1 end
-msg({ a = "named", kind = "new", text = "   " })
+msg({ a = "named", kind = "new", name = "   ", text = (v.doc and v.doc.text) or "" })
 local filesAfter = 0
 for _ in pairs(FILES) do filesAfter = filesAfter + 1 end
 check("🚨 an empty name writes NOTHING (createNamed refuses, and openNote\n"
@@ -898,6 +904,112 @@ do
         PROMPTS[#PROMPTS].title == "New note"
         and FILES[VAULT .. "/No Web View Here.md"] ~= nil)
   v.webview = keptView
+end
+
+-- =======================================================================
+-- 6.203.0 — 🚨 A NAME THAT CANNOT BECOME A FILE IS REFUSED, AND SAID
+-- =======================================================================
+-- LL pasted a whole block into this bar. safeName took it — it maps "/"
+-- ":" "\" and strips a trailing .md, and has never had a LENGTH —
+-- openNote returned TRUE, and saveNow then failed on a path macOS cannot
+-- hold. Nothing was written, and the only message was an hs.alert drawn
+-- UNDER this window: "I enter a title and … I don't see that anything
+-- was created."
+do
+    local function nameOf(x) local n = v.nameCheck(x) return n end
+    local function whyOf(x)  local _, w = v.nameCheck(x) return w end
+
+    check("an ordinary name is handed back untouched, with nothing to say",
+          nameOf("Quarterly plan") == "Quarterly plan" and whyOf("Quarterly plan") == nil)
+
+    -- THE BUG, the size LL actually pasted
+    local huge = "Collect" .. string.rep("x", 3000)
+    local before = 0 ; for _ in pairs(FILES) do before = before + 1 end
+    local okH, whyH = v.createNamed(huge)
+    local after = 0 ; for _ in pairs(FILES) do after = after + 1 end
+    check("🚨 6.203.0 — a 3,007-character paste is REFUSED, never truncated:\n"
+       .. "        nothing is written, and the reason carries both numbers",
+          okH == false and after == before and type(whyH) == "string"
+          and whyH:find("3007", 1, true) and whyH:find("248", 1, true), whyH)
+    msg({ a = "named", kind = "new", name = huge, text = (v.doc and v.doc.text) or "" })
+    check("🚨 …and the refusal is said IN THE BAR, under the field he typed in —\n"
+       .. "        never in an hs.alert, which draws UNDER this window",
+          (EVALS[#EVALS] or ""):find("prSay(", 1, true) ~= nil
+          and (EVALS[#EVALS] or ""):find("248", 1, true) ~= nil, EVALS[#EVALS])
+
+    -- BYTES, not characters — the filesystem counts bytes and so must we
+    local emoji = string.rep("😀", 100)             -- 100 characters, 400 bytes
+    check("🚨 the budget is BYTES: 100 emoji is 100 characters and 400 bytes, and\n"
+       .. "        400 does not fit 248 (a clamp counting CHARACTERS waves this\n"
+       .. "        straight through to the write that fails)",
+          #emoji == 400 and nameOf(emoji) == "")
+    check("…and the reason says both, because \"100 characters\" does not read as\n"
+       .. "        too long for 248",
+          (whyOf(emoji) or ""):find("100 characters (400 bytes)", 1, true) ~= nil, whyOf(emoji))
+
+    -- the boundary, from both sides, and where the number comes from
+    check("248 bytes is taken and 249 is not — the budget is 255 minus the longest\n"
+       .. "        thing saveNow ever writes beside the note, \".md.tmp\"",
+          nameOf(string.rep("a", 248)) == string.rep("a", 248)
+          and nameOf(string.rep("a", 249)) == ""
+          and v.nameMaxBytes == 255 - #".md.tmp")
+
+    -- newlines: macOS would TAKE that file name, which is the trap
+    local n2, w2 = v.nameCheck("Two\nLine\tName")
+    check("🚨 newlines and tabs become spaces — macOS accepts a file name with a\n"
+       .. "        newline in it, and that note could never be typed or linked again",
+          n2 == "Two Line Name" and type(w2) == "string"
+          and w2:find("line breaks", 1, true) ~= nil, n2)
+    check("…and such a name still CREATES, on one line: a clean-up is not a refusal",
+          v.createNamed("Made\nOn\nOne Line") == true
+          and FILES[VAULT .. "/Made On One Line.md"] ~= nil)
+
+    -- the rules that were already rules are still the rules
+    check("\"/\" and \":\" still become \"-\" (6.174.0, unchanged)", nameOf("a/b:c") == "a-b-c")
+    check("a name of nothing but dots has nothing usable in it — and that reads\n"
+       .. "        DIFFERENTLY from an empty box, because he did type something",
+          nameOf("...") == ""
+          and (whyOf("...") or ""):find("nothing usable", 1, true) ~= nil, whyOf("..."))
+    check("…and a box holding only newlines and tabs is an EMPTY box, not a bad one",
+          nameOf("\n\t\r\n") == "" and whyOf("\n\t\r\n") == "a note needs a name")
+    check("…while \"///\" is a NAME, not a refusal: separators map to \"-\" and\n"
+       .. "        \"---\" is a file macOS will happily hold (6.174.0, unchanged)",
+          nameOf("///") == "---")
+    check("a blank name asks for one rather than blaming him",
+          nameOf("") == "" and whyOf("") == "a note needs a name")
+    check("a leading dot is stripped — a hidden note is one find never indexes",
+          nameOf(".hidden") == "hidden")
+
+    -- 🔑 THE GUARD IS AT THE DOOR, so every other creation path has it too
+    local okO, whyO = v.openNote(string.rep("z", 400))
+    check("🚨 openNote ITSELF refuses it — ⌘D, ⌘⇧N, ⌘⇧E, a [[link]] follow and a\n"
+       .. "        search row all arrive there, and a check in createNamed alone is\n"
+       .. "        one the other five quietly stop matching",
+          okO == false and type(whyO) == "string" and whyO:find("248", 1, true) ~= nil, whyO)
+
+    -- the degrade says it too, in the one channel that IS visible there
+    do
+        local keptView2 = v.webview
+        v.webview = nil
+        PROMPT_ANSWERS = { { "Create", string.rep("q", 500) } }
+        local okN = v.newNote()
+        check("🚨 the system-dialog degrade refuses the same name and ALERTS the same\n"
+           .. "        reason — with no window of ours up, an alert is what he can see",
+              okN == false and (ALERTS[#ALERTS] or ""):find("248", 1, true) ~= nil, ALERTS[#ALERTS])
+        v.webview = keptView2
+    end
+
+    -- a name it TAKES must not summon the bar's voice
+    local evalsWere = #EVALS
+    msg({ a = "named", kind = "new", name = "A Perfectly Good Name",
+          text = (v.doc and v.doc.text) or "" })
+    local spoke = false
+    for i = evalsWere + 1, #EVALS do
+        if EVALS[i]:find("prSay(", 1, true) then spoke = true end
+    end
+    check("a name it takes says NOTHING in the bar — the re-render takes the bar\n"
+       .. "        with it", spoke == false
+          and FILES[VAULT .. "/A Perfectly Good Name.md"] ~= nil)
 end
 msg({ a = "tplnone" })
 check("no templates yet → an alert naming the folder", ALERTS[#ALERTS]:find("No templates yet", 1, true) and ALERTS[#ALERTS]:find("/Templates", 1, true))
@@ -1161,6 +1273,19 @@ msg({ a = "edit", rel = "move me.md", text = "# move me\n\n- [ ] Buy list\nmilk\
 PROMPT_ANSWERS = { { "Cancel", "" } }
 msg({ a = "extract", head = "# move me\n\n", selText = "- [ ] Buy list\nmilk" })
 check("the default name strips the list marker and box", PROMPTS[#PROMPTS].dflt == "Buy list", PROMPTS[#PROMPTS].dflt)
+-- 6.203.0 — the same impossible name, at the door that writes FIRST
+do
+    msg({ a = "edit", rel = "move me.md", text = "# move me\n\nkeep this\n", sel = 3 })
+    v.saveNow()
+    local kept = FILES[VAULT .. "/move me.md"]
+    PROMPT_ANSWERS = { { "Create", string.rep("L", 600) } }
+    local okE = msg({ a = "extract", head = "# move me\n\n", selText = "keep this" })
+    check("🚨 6.203.0 — ⌘⇧E refuses an impossible name BEFORE the [[link]] goes in:\n"
+       .. "        the note LL was working in is byte-for-byte what it was, and the\n"
+       .. "        reason is alerted (this door saves the open note, THEN creates)",
+          FILES[VAULT .. "/move me.md"] == kept
+          and (ALERTS[#ALERTS] or ""):find("248", 1, true) ~= nil, ALERTS[#ALERTS])
+end
 
 -- =======================================================================
 out("15) 6.174.0 — daily ‹ ›: the day before / after, no template\n")
@@ -1469,11 +1594,19 @@ do
     -- the message path: the page names the note, Lua decides
     v.openNote("Alpha")
     FILES[VAULT .. "/Projects/Beta.md"] = "---\nstatus: todo\n---\n"
-    msg({ a = "kmove", rel = "Projects/Beta.md", field = "status", value = "done" })
+    local alphaWas = FILES[VAULT .. "/Alpha.md"]
+    msg({ a = "kmove", card = "Projects/Beta.md", field = "status", value = "done",
+          rel = "Alpha.md", text = v.doc.text })
     check("a kmove message from the page moves exactly that one card",
           FILES[VAULT .. "/Projects/Beta.md"]:find("status: done", 1, true) ~= nil)
+    check("🚨🚨 6.203.0 — …and the note that is OPEN is untouched. The card rode\n"
+       .. "        under `rel` until now, and say() overwrites `rel` with the open\n"
+       .. "        note on every message — so the one view in this module that\n"
+       .. "        WRITES had been writing to whichever note happened to be open",
+          FILES[VAULT .. "/Alpha.md"] == alphaWas, "Alpha.md changed")
     local alerts0 = #ALERTS
-    msg({ a = "kmove", rel = "Projects/Beta.md", field = "tags", value = "x" })
+    msg({ a = "kmove", card = "Projects/Beta.md", field = "tags", value = "x",
+          rel = "Alpha.md", text = v.doc.text })
     check("a kmove the module refuses SAYS so rather than failing quietly", #ALERTS > alerts0)
 
     -- ⌘⇧B and the view itself
