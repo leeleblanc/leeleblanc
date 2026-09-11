@@ -179,9 +179,18 @@ do
     check("...the script is the installed copy under the config folder",
           a[4] == dir .. "/tools/hs-stall-guard.sh", a[4])
     check("...the folder, stall, check and max ride as arguments",
-          a[5] == dir .. "/.stall-guard" and a[6] == "20" and a[7] == "5" and a[8] == "3",
+          a[5] == dir .. "/.stall-guard" and a[6] == "60" and a[7] == "10" and a[8] == "3",
           table.concat(a, " | "))
     check("the task is HELD (sg.spawnTask)", sg.spawnTask == TASKS[1])
+    -- 🛡 6.213.1 — the threshold sits above every long main-thread job
+    -- this config is known to do (a 29 s stitch, a 29 s export), and two
+    -- readings are required: the rescue can never come sooner than 60 s
+    check("the threshold clears the longest known main-thread job with room: 60 s readings, 10 s apart, two required",
+          sg.stallSecs >= 60 and sg.checkSecs >= 10 and (sg.stallSecs + sg.checkSecs) > 2 * 29,
+          sg.stallSecs .. "/" .. sg.checkSecs)
+    check("...and the script's own defaults say the same when started by hand",
+          (readAll(SCRIPT) or ""):find("STALL=${2:-60}", 1, true) ~= nil
+          and (readAll(SCRIPT) or ""):find("CHECK=${3:-10}", 1, true) ~= nil)
     check("no sudo, no launchctl, no LaunchAgent anywhere in the module or the script",
           not (readAll(HS .. "/modules/stall_guard.lua") .. readAll(SCRIPT)):find("sudo%s")
           and not (readAll(HS .. "/modules/stall_guard.lua") .. readAll(SCRIPT)):find("launchctl"))

@@ -485,8 +485,13 @@ further "more/less see-through" is the settings line, not a release.
 held timer — that is the point: a stalled thread stops beating), and
 warm() starts the script as a SECOND PROCESS (`nohup /bin/sh … &` via
 hs.task; as LL, from LL's folder, NO sudo, NO launchctl, NO LaunchAgent —
-the work Mac rule). Two readings in a row ≥ `sg.stallSecs` (20) stale,
-checked every `sg.checkSecs` (5), while pgrep finds Hammerspoon → log,
+the work Mac rule). Two readings in a row ≥ `sg.stallSecs` (60) stale,
+checked every `sg.checkSecs` (10) — 20/5 until 6.213.1: a kill cannot
+be undone, and this config is KNOWN to hold the main thread 29 s (the
+4K stitch, the first Chrome export) and to open modal
+hs.dialog.textPrompt dialogs whose effect on hs.timer is unproven, so
+the rescue sits at ~70–80 s and a real beach ball is minutes — while
+pgrep finds Hammerspoon → log,
 kill -9, the hidutil UserKeyMapping reset (a hard kill leaves ⇪ sending
 F18 with nothing listening — init.lua's own comment), `open -a
 Hammerspoon`. THE NEXT BOOT ANNOUNCES IT ONCE (alert · notification ·
@@ -1112,7 +1117,7 @@ mirrors draw order: "closes last" IS "drawn under".
 - run-tests.sh's "forty-one suites" comment.
 - GUIDE.md's "all 58 modules" wording (near line 679).
 
-## Scoreboard — LL's rule, kept here (6.205.0–6.213.0)
+## Scoreboard — LL's rule, kept here (6.205.0–6.213.1)
 
 LL, on delivering this batch: "success for you is easily measured by
 code we do not have to iterate. You give it to me; and I apply it. I
@@ -1137,9 +1142,10 @@ as the fix when a loss lands.
 | 6.211.0 | the pomodoro sits beside the mini calendar | pending |
 | 6.212.0 | editor: line · oval · highlighter · counter | pending |
 | 6.213.0 | editor: spotlight · magnifier · paste image · add capture | pending |
+| 6.213.1 | stability pass: the stall guard's threshold 60 s / 10 s (was 20 / 5) | pending |
 
-Running total: 0 wins · 0 losses · 10 pending (all delivered together
-as hammerspoon6.213.0.zip; LL installs once and reports per feature).
+Running total: 0 wins · 0 losses · 11 pending (all delivered together
+as hammerspoon6.213.1.zip; LL installs once and reports per feature).
 
 ## Open items — update as they move
 
@@ -1209,8 +1215,11 @@ as hammerspoon6.213.0.zip; LL installs once and reports per feature).
   report on the new boot must still say ONE guard (the old one logs
   "exit: Hammerspoon quit cleanly" — visible under "log :"), never two.
   To see it fire on purpose, paste into the Console:
-  `hs.timer.usleep(40 * 1000000)` — a 40 s stall by hand. Within ~30 s
-  Hammerspoon vanishes and comes back, and the new boot alerts
+  `hs.timer.usleep(100 * 1000000)` — a 100 s stall by hand (6.213.1
+  raised the threshold: 60 s readings ten apart, so the kill comes at
+  roughly 70–80 s of silence; a 40 s freeze must NOT trigger it, and
+  that is worth seeing too). Hammerspoon vanishes and comes back, and
+  the new boot alerts
   "🧊 Hammerspoon HUNG for N s at HH:MM:SS and was relaunched by the
   stall guard". The next reload after that must say NOTHING about it
   (remembered in hs.settings). Close the lid for a minute and open it:
@@ -1219,6 +1228,13 @@ as hammerspoon6.213.0.zip; LL installs once and reports per feature).
   If a boot ever says "GAVE UP", the config stalled at boot three times
   in ten minutes: hold ⇧ while Hammerspoon launches, fix, reload. Off
   switch, no release: `settings = { stall_guard = { on = false } }`.
+  THE FALSE-POSITIVE CHECK (6.213.1): open a modal dialog — ⇪N's
+  Quick Append box, or Bulk Rename's Find — and leave it open for THREE
+  minutes, then cancel it. Hammerspoon must still be the same process
+  (`_G.stallGuardReport()` shows no relaunch line). If it DID relaunch,
+  hs.timer stops under a modal dialog on that macOS and the guard must
+  go off (`on = false`) until it learns to read that; say so, that is
+  the one unproven assumption in this feature.
   THE ONE THING THAT CANNOT BE PROVEN WITHOUT A MAC: that a process
   started by hs.task with `nohup … &` outlives a `kill -9` of
   Hammerspoon on macOS (it should — it is reparented to launchd, and

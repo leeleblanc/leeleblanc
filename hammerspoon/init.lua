@@ -4,9 +4,26 @@
 -- =====================================================================
 -- 09-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.213.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.213.1
 -- =====================================================================
 
+-- NEW IN 6.213.1 — 🛡 STABILITY PASS: THE STALL GUARD WAITS LONGER:
+--   LL: "One more pass, please for focus on stability." The one feature
+--      in this batch that can hurt a healthy Mac is the stall guard,
+--      because a kill -9 cannot be undone. Its 20 s threshold sat BELOW
+--      main-thread work this config is known to do — the 4K scrolling
+--      stitch measured 29 s (6.170.3), the first Chrome export ~29 s
+--      (6.152.1) — and ten modules open a modal hs.dialog.textPrompt
+--      whose effect on hs.timer cannot be proven from here.
+--   🛡 `sg.stallSecs` 20 → 60 and `sg.checkSecs` 5 → 10: two readings,
+--      ten seconds apart, each 60 s stale — a rescue at roughly 70–80 s
+--      of silence, which a real beach ball (LL's ran four hours) clears
+--      with ease and a long job never reaches. The script's own defaults
+--      match. Nothing else in the batch changed.
+--   🧪 test_stall_guard 84 -> 86: the threshold clears the longest known
+--      job with room, and the script's defaults agree with the module.
+--      8,762 -> 8,764 checks, seventy-five stages.
+--
 -- NEW IN 6.213.0 — 🔦 SPOTLIGHT · MAGNIFIER · PASTE IMAGE · ADD CAPTURE:
 --   The other half of LL's palette. 🔦 SPOTLIGHT (S) darkens everything
 --      but the box: ONE veil over the whole shot with every spotlight
@@ -28,34 +45,12 @@
 --      199 -> 207. Four mutations, each failing the row written for it.
 --      8,710 -> 8,762 checks, seventy-five stages.
 --
--- NEW IN 6.212.0 — 🖌 LINE · OVAL · HIGHLIGHTER · COUNTER IN THE EDITOR:
---   LL, with a screenshot of another tool's palette: "Can you read the
---      other operations in the screenshot and add those features to my
---      screenshot tool?" The four that are annotations, first.
---   ／ LINE (L) is an arrow without its head — drawn press to release,
---      ends stretch and rotate. ◯ OVAL (O) is a white ring drawn as a box
---      in ANY direction (x/y/w/h normalised as the corner drags); inside
---      moves it, the bottom-right corner resizes it. 🖍 HIGHLIGHT (H) is
---      a translucent yellow box, no shadow. ① COUNTER (C): one click,
---      one badge, the NEXT number — one past the highest, so deleting ②
---      leaves ① and ③ their numbers and the next is ④, never a second ③.
---      All four move, ⌘Z, ⌫, save into the pixels and survive an Esc
---      exactly as text and arrows do — same notes list, same overlay,
---      same undo; `snapNote` copies every numeric field so one 'set' op
---      undoes any kind. A tiny drag makes no shape. Buttons and keys.
---   🧪 test_editor_js 70 -> 99 (the harness can now hand a section a
---      400×300 canvas; badges and grab radii are image pixels): every
---      gesture above, the ellipse's centre and radii, the exact fill,
---      the numbering rules, all kinds in a save and a cancel. Four
---      mutations, each failing the row written for it. 8,674 -> 8,710
---      checks, seventy-five stages.
---
--- (6.211.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.212.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.213.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.213.1
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -152,7 +147,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.213.0"
+_G.configVersion = "6.213.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

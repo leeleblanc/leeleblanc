@@ -15,7 +15,9 @@
 # WHAT IT DOES, in order, and nothing else:
 #   · sleeps <checkSecs>, reads the beat, works out how old it is;
 #   · a beat older than <stallSecs> is ONE stale reading — it takes TWO
-#     IN A ROW (a single slow write on a busy Mac is not a hang);
+#     IN A ROW (a single slow write on a busy Mac is not a hang). The
+#     module passes 60 and 10 (6.213.1): above the longest main-thread
+#     job this config is known to do, because a kill cannot be undone;
 #   · with two, and Hammerspoon actually running: log it, /bin/kill -9
 #     the process (the only thing that frees a hung main thread), lift
 #     the ⇪ keyboard remap that a hard kill leaves behind (the hidutil
@@ -50,8 +52,8 @@
 PATH=/usr/bin:/bin:/usr/sbin:/sbin:$PATH
 
 DIR=$1
-STALL=${2:-20}
-CHECK=${3:-5}
+STALL=${2:-60}
+CHECK=${3:-10}
 MAX=${4:-3}
 
 [ -n "$DIR" ] || exit 2

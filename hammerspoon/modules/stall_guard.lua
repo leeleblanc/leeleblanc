@@ -29,8 +29,8 @@
 --      process — plain /bin/sh, `nohup … &`, run as LL from LL's own
 --      folder. No sudo, no launchd, no LaunchAgent, nothing the work
 --      Mac's IT policy can refuse (§6.44.12). It sleeps `checkSecs`
---      (5), reads the beat, and after TWO readings in a row older than
---      `stallSecs` (20) — with Hammerspoon actually running — it logs
+--      (10), reads the beat, and after TWO readings in a row older than
+--      `stallSecs` (60) — with Hammerspoon actually running — it logs
 --      the fact, kills the process (-9 is the only thing that frees a
 --      hung main thread), lifts the ⇪ remap a hard kill leaves behind
 --      (init.lua's own "manual escape hatch" line), and opens
@@ -72,7 +72,7 @@ local M = {
         title = "🧊 STALL GUARD (a beach ball no longer costs you the keyboard)",
         entries = {
             { "automatic", "Hammerspoon writes a heartbeat every 2 s; a separate /bin/sh process reads it" },
-            { "relaunch",  "Two readings 20 s stale, in a row, while it is running → kill -9, lift the ⇪ remap, open it again" },
+            { "relaunch",  "Two readings 60 s stale, in a row, while it is running → kill -9, lift the ⇪ remap, open it again" },
             { "warns",     "The next boot announces the relaunch: an alert, a notification, the Console, _G.notices" },
             { "never",     "on a sleeping Mac (a clock gap is skipped) · after a clean quit · more than 3× in 10 min" },
             { "console",   "_G.stallGuardReport() — beat, guard, log, every relaunch ever" },
@@ -94,8 +94,17 @@ function M.setup(core)
     local configDir = (hs and hs.configdir) or core.configDir
     local sg = {
         on            = true,
-        stallSecs     = 20,     -- a beat this old is one stale reading
-        checkSecs     = 5,      -- the guard's loop
+        -- 🛡 6.213.1 — 60 and 10, not 20 and 5. A kill is the one thing
+        -- here that cannot be undone, so the threshold sits ABOVE every
+        -- long main-thread job this config is known to do: the 4K
+        -- scrolling stitch measured 29 s (6.170.3), the first Chrome
+        -- export ~29 s (6.152.1), and ten modules open a modal
+        -- hs.dialog.textPrompt whose effect on hs.timer cannot be proven
+        -- from here. Two readings at 60 s, ten apart, is a rescue at
+        -- roughly 70–80 s; a real beach ball lasts minutes or hours (LL's
+        -- was four). A false relaunch would be a loss on his scoreboard.
+        stallSecs     = 60,     -- a beat this old is one stale reading (20 until 6.213.1)
+        checkSecs     = 10,     -- the guard's loop (5 until 6.213.1)
         beatSecs      = 2,      -- the pulse
         maxRelaunches = 3,      -- per ten minutes, then the guard gives up
         dir           = configDir and (configDir .. "/.stall-guard") or nil,

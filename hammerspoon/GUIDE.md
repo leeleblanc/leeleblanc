@@ -664,8 +664,9 @@ stood, kept verbatim.
    Hammerspoon can notice that. So Hammerspoon writes a heartbeat
    every 2 s from that thread, and a SECOND PROCESS
    (tools/hs-stall-guard.sh, plain sh, started with nohup from your
-   own folder — no sudo, no launchd) reads it: two readings 20 s
-   stale in a row, while it is running, and it kills Hammerspoon,
+   own folder — no sudo, no launchd) reads it: two readings 60 s
+   stale in a row, ten seconds apart, while it is running, and it
+   kills Hammerspoon,
    lifts the ⇪ remap a hard kill leaves behind, and opens it again.
    The next boot tells you (alert, notification, Console), once. It
    skips a sleep gap, exits on a clean quit or reload, retires when
@@ -913,9 +914,9 @@ CREATED AUTOMATICALLY (never make these yourself):
 
 ## 6. Tests
 
-Sixty-nine Lua suites, 8,250 checks, plus four more that run the Capture
+Sixty-nine Lua suites, 8,252 checks, plus four more that run the Capture
 Pad's, the screenshot editor's, unified search's and the vault's page
-JavaScript under `node` for a further 512 — **8,762 checks over
+JavaScript under `node` for a further 512 — **8,764 checks over
 seventy-five stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:

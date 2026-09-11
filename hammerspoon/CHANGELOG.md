@@ -5,6 +5,45 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.213.1 — 🛡 STABILITY PASS: THE STALL GUARD WAITS LONGER:
+  LL: "One more pass, please for focus on stability." The pass went
+     over every release in the batch asking one question: what can this
+     do to a HEALTHY Mac? Nine of the ten can only fail to work. The
+     stall guard can kill Hammerspoon, and a kill -9 cannot be undone —
+     so its threshold is the one number in the batch that had to be
+     right, and it was not.
+  🔎 WHAT 20 SECONDS WOULD HAVE KILLED. The config is KNOWN to hold the
+     main thread for 29 s: the 4K scrolling stitch (6.170.3, "the 8 s
+     watchdog fired at 29 s") and the first Chrome export (6.152.1,
+     "a real export measures ~29s"). Two readings five seconds apart at
+     20 s stale is a rescue at 25–30 s — inside both. And ten modules
+     open a modal hs.dialog.textPrompt (Quick Append, Bulk Rename's
+     Find, the OCR edit, the Capture Pad's prompt…); hs.timer almost
+     certainly keeps firing under a modal panel (common run-loop
+     modes), but "almost certainly" is not a fact this box can check,
+     and a dialog left open through a phone call is an ordinary Tuesday.
+  🛡 60 AND 10. `sg.stallSecs` 60, `sg.checkSecs` 10, two readings
+     still required: the rescue comes at roughly 70–80 s of silence. A
+     real beach ball — LL's took the Mac for four hours — clears that
+     with ease; a long job never reaches it. The script's own defaults
+     (started by hand) say the same. Everything else about the guard is
+     as 6.208.0 shipped it: the sleep skip, the quit marker, the newer
+     guard, the ten-minute limit, the boot announcement.
+  📋 THE REST OF THE PASS, no code: the pomodoro's tone plays inside the
+     tick's own pcall and is resolved on the keypress; the day count
+     reads the OneDrive log once, on the keypress; the dock clamps to a
+     real screen and either module alone is unchanged; the editor's
+     image door refuses anything that is not a pure data URI; the
+     capture door answers by path, once; the ⇪5 run keeps its slices;
+     the stem check leaves right words alone. Each has the check that
+     fails when the rule is broken.
+  🧪 test_stall_guard 84 -> 86: the threshold clears the longest known
+     main-thread job with room (60 + 10 > 2 × 29), and the script's
+     defaults match the module's. The verify item now includes the
+     false-positive test LL can run: a modal dialog left open three
+     minutes must NOT relaunch Hammerspoon, and a 40 s freeze must not
+     either. 8,762 -> 8,764 checks, seventy-five stages.
+
 NEW IN 6.213.0 — 🔦 SPOTLIGHT · MAGNIFIER · PASTE IMAGE · ADD CAPTURE:
   The other half of LL's screenshot palette ("read the other operations
      in the screenshot and add those features to my screenshot tool").
