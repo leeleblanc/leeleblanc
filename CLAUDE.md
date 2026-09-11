@@ -408,6 +408,36 @@ Window width = `uni.width + uni.paneW`; `settings = { unified_search =
 ask per landing) had a check that passed WITHOUT it — a same-row
 mousemove returns before the guard — until a mutation said so; the row
 that bites is a keystroke that leaves the top match where it was.
+🧊 A BEACH BALL IS WATCHED FROM OUTSIDE (6.208.0, modules/stall_guard.lua
++ tools/hs-stall-guard.sh): Hammerspoon writes the epoch second to
+~/.hammerspoon/.stall-guard/heartbeat every 2 s FROM THE MAIN THREAD (a
+held timer — that is the point: a stalled thread stops beating), and
+warm() starts the script as a SECOND PROCESS (`nohup /bin/sh … &` via
+hs.task; as LL, from LL's folder, NO sudo, NO launchctl, NO LaunchAgent —
+the work Mac rule). Two readings in a row ≥ `sg.stallSecs` (20) stale,
+checked every `sg.checkSecs` (5), while pgrep finds Hammerspoon → log,
+kill -9, the hidutil UserKeyMapping reset (a hard kill leaves ⇪ sending
+F18 with nothing listening — init.lua's own comment), `open -a
+Hammerspoon`. THE NEXT BOOT ANNOUNCES IT ONCE (alert · notification ·
+Console · notices), newest epoch remembered in hs.settings. RULES WITH
+TEETH, each mutation-proven by running the REAL script on the gate's
+Linux with kill/pgrep/open/hidutil stubbed through the SG_* overrides:
+a wall-clock gap > 3 checks is SKIPPED (sleep, not a hang); a clean
+quit/reload writes .stall-guard/quit — the module WRAPS
+hs.shutdownCallback (init's ⇪ cleanup still runs) — and the guard exits
+on it, the new boot's guard removing the marker; a newer guard's pid in
+guard.pid retires the old one; three relaunches in ten minutes (counted
+from the log's epochs, old lines do not count) → "gave up" + exit, and
+the announcement names the fix; NOT RUNNING IS NOT STALLED and it never
+launches Hammerspoon on its own. Setup writes the FIRST beat before any
+guard can exist and the script sleeps a full stall after relaunching,
+so a boot is never the next stall. A NEW hs.task-spawned helper follows
+the same shape: absolute binaries, SG_*-style overrides so the suite
+can run the real file, a pid file, a quit marker, a limit. The Console
+question ("is it set to report accurate errors?") is ANSWERED, no code:
+the ⛔/⚠️ gate, errorsReport and the early uncaught handler already do;
+a stall is not an error and can never reach them — which is why this
+lives outside.
 🧻 ⇪5 SCROLLING CAPTURE KEEPS ITS RECEIPTS (6.206.0, modules/screenshots.lua):
 LL's "Stitch failed — no slices decoded" was an assert at the END of the
 run with no evidence behind it — the slice capture ignored screencapture's
@@ -1007,6 +1037,32 @@ mirrors draw order: "closes last" IS "drawn under".
 
 ## Open items — update as they move
 
+- 6.208.0 verify with LL — THE STABILITY ONE, and it can only be
+  proven by a stall: after installing, `_G.stallGuardReport()` in the
+  Console must read "watching", the beat line counting up, and the
+  guard line saying "started … guard.pid says N". `ps -p N` in Terminal
+  shows a /bin/sh running tools/hs-stall-guard.sh — as LL, no sudo, no
+  launchd; on the work Mac that is the whole point. Then reload: the
+  report on the new boot must still say ONE guard (the old one logs
+  "exit: Hammerspoon quit cleanly" — visible under "log :"), never two.
+  To see it fire on purpose, paste into the Console:
+  `hs.timer.usleep(40 * 1000000)` — a 40 s stall by hand. Within ~30 s
+  Hammerspoon vanishes and comes back, and the new boot alerts
+  "🧊 Hammerspoon HUNG for N s at HH:MM:SS and was relaunched by the
+  stall guard". The next reload after that must say NOTHING about it
+  (remembered in hs.settings). Close the lid for a minute and open it:
+  nothing must happen, and the report's log line may show "skipped a
+  reading after a Ns gap (sleep?)" — that is the sleep rule working.
+  If a boot ever says "GAVE UP", the config stalled at boot three times
+  in ten minutes: hold ⇧ while Hammerspoon launches, fix, reload. Off
+  switch, no release: `settings = { stall_guard = { on = false } }`.
+  THE ONE THING THAT CANNOT BE PROVEN WITHOUT A MAC: that a process
+  started by hs.task with `nohup … &` outlives a `kill -9` of
+  Hammerspoon on macOS (it should — it is reparented to launchd, and
+  nothing signals the group). If after a forced stall Hammerspoon does
+  NOT come back, that is the fact to report, and the escape hatch is
+  unchanged: Activity Monitor → Hammerspoon → Force Quit, then
+  `hidutil property --set '{"UserKeyMapping":[]}'` in Terminal.
 - 6.207.0 verify with LL: ⇪⇧1 (or ⌥⏎ on a history row), Text tool,
   click, type a word, ⏎. Now CLICK that box once with the Text tool: the
   input opens with the word in it — change it, ⏎. Then drag the box:

@@ -92,7 +92,7 @@ else
     [ "$n" = "init" ] && note="⚠️ STRAY init.lua — should NOT be in modules/"
     printf "   %-22s %7s  %-16s %s\n" "$n" "$b" "$m" "$note"
   done
-  echo "   count: $(ls -1 "$HS/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 68)"
+  echo "   count: $(ls -1 "$HS/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 69)"
 fi
 
 # ---- 4b. core ---------------------------------------------------------
@@ -239,6 +239,9 @@ check_marker activity_tracker "e._hay"            6.44.4
 check_marker mouse_grid      "grid.labelLength"   6.45.0
 check_marker url_cleaner     "cleaner.maxUnwraps" 6.46.0
 check_marker health_monitor  "health.bootGraceMins" 6.46.0
+# 🧊 6.208.0 — the stall guard: without this module a beach ball still
+# takes the keyboard until LL force-quits by hand.
+check_marker stall_guard     "sg.stallSecs"       6.208.0
 # 🚨 axTimeout is the per-app Accessibility timeout. A menubar_items.lua
 # without it is not merely old — it is the version that can hold the
 # keyboard while a wedged app fails to answer. Treat its absence as

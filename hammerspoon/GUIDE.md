@@ -659,6 +659,20 @@ stood, kept verbatim.
    _G.backupAdopt() names the apps Homebrew could take over.
    Quiet on success; on-screen alert if something goes wrong.
 
+🧊 STALL GUARD (modules/stall_guard.lua)  ·  automatic, no key  ·  6.208.0
+   A beach ball is the main thread stuck, and nothing inside
+   Hammerspoon can notice that. So Hammerspoon writes a heartbeat
+   every 2 s from that thread, and a SECOND PROCESS
+   (tools/hs-stall-guard.sh, plain sh, started with nohup from your
+   own folder — no sudo, no launchd) reads it: two readings 20 s
+   stale in a row, while it is running, and it kills Hammerspoon,
+   lifts the ⇪ remap a hard kill leaves behind, and opens it again.
+   The next boot tells you (alert, notification, Console), once. It
+   skips a sleep gap, exits on a clean quit or reload, retires when
+   a newer guard starts, never launches Hammerspoon on its own, and
+   gives up after three relaunches in ten minutes.
+   _G.stallGuardReport(); settings = { stall_guard = { on = false } }.
+
 🔋 BATTERY SAVER (modules/battery_saver.lua)  ·  automatic, no key
    On battery, the config's own pollers slow down (clipboard poll,
    the watchdogs, activity and focus detection) and the Spotlight
@@ -893,10 +907,10 @@ CREATED AUTOMATICALLY (never make these yourself):
 
 ## 6. Tests
 
-Sixty-eight Lua suites, 8,090 checks, plus four more that run the Capture
+Sixty-nine Lua suites, 8,176 checks, plus four more that run the Capture
 Pad's, the screenshot editor's, unified search's and the vault's page
-JavaScript under `node` for a further 453 — **8,543 checks over
-seventy-four stages** in
+JavaScript under `node` for a further 453 — **8,629 checks over
+seventy-five stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 
@@ -1027,6 +1041,11 @@ tests/test_activity_url.lua  🌐 the url column: the AppleScript's exact-match
                              allow-list, incognito failing closed, secrets cut
                              from the query AND the fragment, and the tab-switch
                              race driven through the real poller
+tests/test_stall_guard.lua   🧊 the heartbeat on a held timer, the guard's spawn and
+                             every degrade — and hs-stall-guard.sh RUN FOR REAL with
+                             kill/pgrep/open stubbed: two stale readings relaunch,
+                             one does not, the quit marker, the sleep gap (a real
+                             SIGSTOP), the ten-minute limit (6.208.0)
 tests/test_integration.lua   🚨 all 58 modules loaded TOGETHER: shortcut, service and
                              cheat-sheet-slot collisions — the only suite that can
                              catch two modules quietly claiming the same key

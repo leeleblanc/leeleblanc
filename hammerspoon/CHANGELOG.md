@@ -5,6 +5,89 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.208.0 — 🧊 A BEACH BALL NO LONGER COSTS YOU THE KEYBOARD:
+  🐞 LL: "First, check for stability: if a beachball appears, can
+     hammerspoon pause itself, warn me to quit it or reload itself so I
+     don't have to kill it to get control of my Mac's keyboard back.
+     And, please remember that this code must run out of my user
+     directory on my work Mac. Is the console set to report out on
+     accurate errors?"
+  🔎 THE HONEST ANSWER: IT CANNOT PAUSE ITSELF. A beach ball is the main
+     thread stuck — the one thread that draws every window, runs every
+     timer and reads every key — and any code that would notice runs on
+     that same thread, so it is stuck too. The 8 s ⇪ watchdog, the tap
+     re-enabler and the lag probe are all timers, and all silent for
+     exactly as long as a hang lasts: 6.160.0 took the Mac for four hours
+     and 6.196.0 died with nothing in the Console because nothing INSIDE
+     could speak. The Console's error reporting is already right (the
+     ⛔/⚠️ gate, errorsReport, the early uncaught-error handler); a stall
+     is not an error and never reaches it.
+  ✅ SO THE WATCHER IS A SECOND PROCESS. modules/stall_guard.lua (family
+     auto, no key) writes the epoch second to
+     ~/.hammerspoon/.stall-guard/heartbeat every 2 s FROM THE MAIN
+     THREAD, on a held timer — that is the whole point: when the thread
+     stalls, the beat stops. A tiny local file, never OneDrive (a
+     placeholder read on that path would make the guard cause what it
+     watches for). warm() starts tools/hs-stall-guard.sh through
+     hs.task as `nohup /bin/sh … &` — plain POSIX sh, run as LL from
+     LL's own folder, no sudo, no launchctl, no LaunchAgent, nothing the
+     work Mac's policy can refuse. Every 5 s it reads the beat; TWO
+     readings in a row 20 s stale, with Hammerspoon actually running,
+     and it logs the stall, `kill -9`s the process (the only thing that
+     frees a hung main thread), runs the hidutil line init.lua's own
+     comment calls the manual escape hatch (a hard kill leaves ⇪ sending
+     F18 with nothing to hear it), and `open -a Hammerspoon`.
+  📣 THE WARNING LL ASKED FOR IS THE NEXT BOOT: warm() reads the guard's
+     log (the TAIL — 8 KB, never the file) and every relaunch not yet
+     announced is said in three places — an alert, a notification, the
+     Console with the stall's length and time — and filed with
+     _G.notices. Once: the newest epoch is remembered in hs.settings, so
+     the same stall is not reported on every reload after it; a Mac
+     without hs.settings announces every boot and SAYS so.
+  🛡 WHAT STOPS IT LYING, each with a check that fails without it:
+     · SLEEP — a loop that wakes to a wall-clock gap of more than three
+       checks throws that reading away (the beat is old because nothing
+       ran, not because Hammerspoon hung).
+     · A CLEAN QUIT — the module WRAPS hs.shutdownCallback (init.lua's
+       ⇪-remap cleanup still runs first) to stop the beat and write
+       .stall-guard/quit; the guard exits on it. A reload is a quit then
+       a boot, and the new boot's guard removes the marker.
+     · A NEWER GUARD — each writes its pid to guard.pid; one that finds
+       another pid there is the old one and exits. A boot never leaves
+       two behind.
+     · A LIMIT — three relaunches inside ten minutes (counted from the
+       log, OLD lines do not count) and it logs "gave up" and exits; the
+       boot announcement then names the fix (hold ⇧ while Hammerspoon
+       launches, fix the config, reload). A config that stalls AT BOOT
+       must not be bounced forever.
+     · NOT RUNNING IS NOT STALLED — no process, nothing to guard; it
+       never launches Hammerspoon on its own, and a minute of that ends
+       it. A missing or non-numeric beat is not a stall either.
+     · After a relaunch it waits a full stall before reading again, so
+       the new instance's boot is not the next "stall" — and setup writes
+       the first beat before warm() can start a guard, for the same
+       reason from the other side.
+  🧊 IT DEGRADES: a folder that cannot be made (or is a file), a beat
+     that cannot be written, a script that is not installed, an hs.task
+     the Mac refuses — each is a named state on `_G.stallGuardReport()`
+     (beat · guard · rule · quit · log · stalls · said) and nothing else
+     notices. `settings = { stall_guard = { on = false } }` stops the
+     beat and starts no guard. The report prints as ONE string.
+  🧪 test_stall_guard (new, 84 checks): the module against a stub —
+     the held timer, the spawn's exact arguments, every degrade by name,
+     the shutdown wrap, the once-only announcement, the tail read — AND
+     tools/hs-stall-guard.sh RUN FOR REAL on the gate's Linux box with
+     kill/pgrep/open/hidutil replaced by recording stubs (the SG_*
+     overrides exist for this): two stale readings relaunch; one stale
+     then fresh does not; the quit marker, the newer guard, "not
+     running", the ten-minute limit and its window, a junk beat, and a
+     sleep gap made with a REAL SIGSTOP/SIGCONT. Five mutations, each
+     failing the row written for it: one stale reading is enough; no
+     sleep skip; the limit counts every line ever; the announcement
+     forgets to remember; the guard not detached. hs-doctor expects 69
+     modules and checks the new marker; hs-hostile degrades all 69.
+     8,543 -> 8,629 checks, seventy-five stages.
+
 NEW IN 6.207.0 — 🅣 AN EXISTING TEXT BOX CAN BE EDITED AGAIN:
   🐞 LL, in the ⇪⇧1 editor: "I can't edit an existing text box. If I
      click on the text box, a new one is created instead."

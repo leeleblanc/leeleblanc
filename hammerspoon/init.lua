@@ -4,7 +4,7 @@
 -- =====================================================================
 -- 09-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.207.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.208.0
 -- =====================================================================
 
 -- NEW IN 6.207.0 — 🅣 AN EXISTING TEXT BOX CAN BE EDITED AGAIN:
@@ -23,40 +23,38 @@
 --   🧪 test_editor_js 59 -> 70; three mutations, each failing the row
 --      written for it. 8,532 -> 8,543 checks, seventy-four stages.
 --
--- NEW IN 6.206.0 — 🧻 ⇪5 SCROLLING CAPTURE KEEPS ITS RECEIPTS:
---   🐞 LL, with the alert: "Stitch failed — slices discarded
---      (screenshots.lua:664: no slices decoded)". That said every slice
---      failed to decode and NOTHING about why: the slice capture ignored
---      screencapture's exit code and stderr, appended the path whether a
---      file existed or not, and deleted the slices before anyone could
---      look. Ask for the artefact before theorising (6.201.0).
---   📋 Every slice is now checked as it lands — exit code, the first line
---      of stderr, whether the file exists and how big it is — and the run
---      STOPS at the first failure naming the slice ("slice 1 of 3:
---      screencapture exit 1 — could not create image from display — no
---      file was written"); words that sound like a refused display point
---      at Screen Recording. A slice on disk that will not decode names
---      itself and its size. Failed slices are KEPT (dot-files the panel
---      never lists), never discarded.
---   🔎 `_G.screenshotsReport()` is new — the folder, the watcher, the
---      last screencapture exit, and the last scrolling run slice by
---      slice. The next ⇪5 that fails is a report, not a sentence.
---   🚨 6.196.1, applied: the finished screencapture task stays referenced
---      after its callback (`shots.lastCaptureTask`), and the stitch — a
---      dozen decodes and a canvas — runs off a held timer, not inside
---      the last slice's callback. A good stitch is saved AND copied to
---      the clipboard, as ⇪4 is, and the cheat sheet says so.
---   🧪 test_screenshots 174 -> 199: the whole run driven through the real
---      selector, task callbacks and stitch; the three failures by name;
---      five mutations, each failing the row written for it. 8,506 ->
---      8,531 checks, seventy-four stages.
+-- NEW IN 6.208.0 — 🧊 A BEACH BALL NO LONGER COSTS YOU THE KEYBOARD:
+--   🐞 LL: "if a beachball appears, can hammerspoon pause itself, warn me
+--      to quit it or reload itself so I don't have to kill it to get
+--      control of my Mac's keyboard back … this code must run out of my
+--      user directory on my work Mac."
+--   🔎 It cannot pause ITSELF: a beach ball is the main thread stuck, and
+--      every watchdog this config has runs on that same thread. So the
+--      watcher is a SECOND PROCESS. modules/stall_guard.lua writes the
+--      epoch second to ~/.hammerspoon/.stall-guard/heartbeat every 2 s
+--      from the main thread (a held timer); warm() starts
+--      tools/hs-stall-guard.sh with `nohup … &` — plain /bin/sh, as LL,
+--      from LL's folder, no sudo, no launchd. Two readings in a row 20 s
+--      stale while Hammerspoon is running → kill -9, lift the ⇪ remap a
+--      hard kill leaves behind, `open -a Hammerspoon`. The NEXT boot
+--      announces it (alert, notification, Console, _G.notices), once.
+--   🛡 What stops it lying: a sleep gap is skipped, a clean quit or reload
+--      writes a marker the guard exits on (hs.shutdownCallback wrapped,
+--      not replaced), a newer guard retires the old one, "not running"
+--      is never "stalled", and three relaunches in ten minutes make it
+--      give up and say so. `_G.stallGuardReport()`; off with
+--      `settings = { stall_guard = { on = false } }`.
+--   🧪 test_stall_guard (new, 84): the module against a stub AND the
+--      script RUN FOR REAL with kill/pgrep/open/hidutil stubbed — a real
+--      SIGSTOP for the sleep case. Five mutations, each failing the row
+--      written for it. 8,543 -> 8,629 checks, seventy-five stages.
 --
--- (6.205.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.206.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.207.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.208.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -153,7 +151,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.207.0"
+_G.configVersion = "6.208.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------
@@ -3118,6 +3116,7 @@ local BASE = {
     "scratch_pad",        -- 📝 ⇪N tabs (⇪1 until 6.182.0), saved as you type, history under the text, 4 PM task
     "vault",              -- 🕸 ⇪3 linked Markdown notes in OneDrive, backlinks, graph (6.172.0)
     "anchors",            -- 🔗 6.180.0 ⇪⇧U links the front document or tab to a vault note
+    "stall_guard",        -- 🧊 6.208.0 a second process relaunches a beach-balled Hammerspoon (no key)
     -- 6.132.0 — no key of its own. It owns the six case transforms, and
     -- ⇪; and ⇪R both ask it for them through core.call at the moment you
     -- press the key. Order here is therefore irrelevant; it sits beside
