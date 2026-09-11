@@ -109,7 +109,19 @@ local function mkCanvas(frame)
 end
 
 MOUSE = { x = 0, y = 0 }   -- the pomodoro hover poll reads this
+SOUNDS, SOUND_MISSING = {}, false   -- 🔊 6.210.0: every play, with its volume
 hs = {
+    sound = {
+        getByName = function(name)
+            if SOUND_MISSING then return nil end
+            local snd = { name = name, vol = 1 }
+            function snd:volume(v) if v ~= nil then self.vol = v end return self.vol end
+            function snd:play() SOUNDS[#SOUNDS + 1] = { name = self.name, vol = self.vol, at = NOW } return true end
+            function snd:stop() return self end
+            return snd
+        end,
+        getByFile = function() return nil end,
+    },
     timer = {
         secondsSinceEpoch = function() return NOW end,
         doAfter = function(s, fn) return mkTimer("after", s, fn) end,
@@ -997,6 +1009,91 @@ do
     pom.today = { key = "1999-01-01", completed = 9 }
     check("a date change re-reads the log (once) instead of carrying yesterday's count",
           pom.todayCount(os.time()) == 0 and pom.today.key == today, pom.today.key)
+end
+NOW = 40000
+
+say("   -- 🔊 6.210.0: the last thirty seconds, soft to loud --")
+-- LL: "an increasing signal tone announcement that starts soft then
+-- increases so I 'see' but really hear that my time is up." Submarine,
+-- LL's pick, from 24:30.
+do
+    check("toneVolume is pure and clamped: soft at 30 s, loud at 0, never outside",
+          math.abs(pom.toneVolume(30) - 0.15) < 0.001 and math.abs(pom.toneVolume(0) - 1.0) < 0.001
+          and math.abs(pom.toneVolume(15) - 0.575) < 0.001
+          and pom.toneVolume(45) == 0.15 and pom.toneVolume(-5) == 1.0)
+    check("the defaults are LL's decision: Submarine, 30 s, every 3 s, focus only",
+          pom.toneName == "Submarine" and pom.toneSecs == 30 and pom.toneEvery == 3
+          and pom.toneOn == true and pom.toneBreak == false)
+    pom.stop("test")
+    pom.toneSound = nil
+    SOUNDS, CANVASES, TIMERS = {}, {}, {}
+    NOW = 50000
+    pom.start()
+    check("the sound is resolved on the keypress, not in the last 30 s",
+          pom.toneSound and pom.toneSound.name == "Submarine")
+    tickTo(pom.workMins * 60 - 31)
+    check("24:29 and earlier: silence", #SOUNDS == 0, #SOUNDS)
+    tickTo(1)                                            -- 30 s left
+    check("at 0:30 the first play, SOFT", #SOUNDS == 1 and math.abs(SOUNDS[1].vol - 0.15) < 0.001,
+          SOUNDS[1] and SOUNDS[1].vol)
+    tickTo(1); tickTo(1)
+    check("...and not again within toneEvery", #SOUNDS == 1, #SOUNDS)
+    tickTo(1)                                            -- 27 s left
+    check("three seconds on: the second play, LOUDER", #SOUNDS == 2 and SOUNDS[2].vol > SOUNDS[1].vol)
+    for _ = 1, 26 do tickTo(1) end                       -- second by second to 1 s left
+    local rising = #SOUNDS == 10
+    for i = 2, #SOUNDS do if SOUNDS[i].vol <= SOUNDS[i - 1].vol then rising = false end end
+    check("ten plays over the thirty seconds, every one louder than the last", rising,
+          #SOUNDS .. " plays")
+    check("...the last of them near full volume", SOUNDS[#SOUNDS] and SOUNDS[#SOUNDS].vol >= 0.9,
+          SOUNDS[#SOUNDS] and SOUNDS[#SOUNDS].vol)
+    check("every play is Submarine", (function()
+        for _, p in ipairs(SOUNDS) do if p.name ~= "Submarine" then return false end end
+        return true
+    end)())
+    check("_G.pomodoroReport's tone line counts them", _G.pomodoroReport():find("tone : Submarine every 3 s", 1, true) ~= nil
+          and _G.pomodoroReport():find("10 played this phase", 1, true) ~= nil)
+    tickTo(1)                                            -- the phase ends → flash
+    local atEnd = #SOUNDS
+    for _, t in ipairs(TIMERS) do
+        if t.live and t.kind == "every" and t.secs == pom.flashSecs then
+            for _ = 1, pom.flashCount * 2 do t.fn() end          -- the flash runs out → break starts
+            break
+        end
+    end
+    check("the break is silent to its end — the flash is the break's signal", (function()
+        tickTo(pom.breakMins * 60 - 1)
+        return #SOUNDS == atEnd
+    end)(), #SOUNDS - atEnd)
+    pom.stop("test")
+
+    -- off switch
+    pom.toneOn = false
+    SOUNDS, CANVASES, TIMERS = {}, {}, {}
+    NOW = 60000
+    pom.start()
+    tickTo(pom.workMins * 60 - 1)
+    check("toneOn = false: silence to the end, and the report says how to turn it on",
+          #SOUNDS == 0 and _G.pomodoroReport():find("tone : off", 1, true) ~= nil, #SOUNDS)
+    pom.stop("test")
+    pom.toneOn = true
+
+    -- a Mac without the sound: silent, said, never thrown
+    pom.toneSound = nil
+    SOUND_MISSING = true
+    SOUNDS, CANVASES, TIMERS = {}, {}, {}
+    NOW = 70000
+    local okStart = pcall(pom.start)
+    local okTick = pcall(tickTo, pom.workMins * 60 - 1)
+    local okEnd = pcall(tickTo, 1)                       -- the phase ends → the flash
+    SOUND_MISSING = false
+    check("no Submarine on this Mac: no throw, no play, and the report SAYS it is silent",
+          okStart and okTick and okEnd and #SOUNDS == 0 and pom.toneSound == false
+          and _G.pomodoroReport():find("tone : ⚠️ SILENT — no sound named Submarine", 1, true) ~= nil,
+          _G.pomodoroReport())
+    check("...and the card still reached its flash", pom.state and pom.state.flasher ~= nil)
+    pom.stop("test")
+    pom.toneSound = nil
 end
 NOW = 40000
 

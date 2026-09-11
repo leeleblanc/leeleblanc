@@ -64,6 +64,7 @@ local M = {
             { "below",   "Time · date · hours left in your 7:30–4:30 workday · 🍅 done today" },
             { "90%",     "The card is 90% opaque throughout (6.209.0; alphaIdle / alphaAlert)" },
             { "ink",     "The box and the digits are translucent too (cardAlpha / inkAlpha)" },
+            { "sound",   "Last 30 s of focus: Submarine every 3 s, soft → loud (toneOn / toneSecs)" },
             { "log",     "Every start & completion → pomodoro_log-<Mac>.csv (Logs)" },
             { "4:30",    "Day's tally at workday end · Friday adds the week's" },
             { "note",    "Enter/esc are NOT captured during the countdown" },
@@ -141,6 +142,23 @@ function M.setup(core)
     -- here is a second Enter does not work in the app you are typing in,
     -- so it is deliberately short. It is not a comfort setting.
     pom.answerSecs = 20
+    -- 🔊 6.210.0 — LL: "an increasing signal tone announcement that
+    -- starts soft then increases so I 'see' but really hear that my
+    -- time is up." Submarine is LL's pick (6.198.0), growing over the
+    -- last toneSecs of the FOCUS phase: one play every toneEvery
+    -- seconds, volume rising from toneFrom to toneTo (hs.sound's own
+    -- volume — relative to the Mac's output level, never touching it).
+    -- Resolved once, on the ⇪⇧P keypress; a Mac without the sound says
+    -- so on the report and the flash still happens. The break's end
+    -- stays silent — the flash is enough for "stand up is over".
+    pom.toneOn    = true
+    pom.toneName  = "Submarine"                        -- hs.sound.getByName
+    pom.toneFile  = "/System/Library/Sounds/Submarine.aiff"   -- the degrade
+    pom.toneSecs  = 30           -- from 24:30
+    pom.toneEvery = 3            -- seconds between plays
+    pom.toneFrom  = 0.15         -- first play
+    pom.toneTo    = 1.0          -- the last one
+    pom.toneBreak = false        -- true = the break's last 30 s too
     pom.flashCount = 6           -- how many times the panel blinks
     pom.flashSecs  = 0.45        -- per blink
     -- 🧟 How long the panel may sit on screen with nothing driving it
@@ -374,6 +392,59 @@ function M.setup(core)
     pom.applyAlpha = applyAlpha
     pom.elements   = elements     -- exposed for the test harness (6.154.0)
 
+    -- ---- 🔊 the tone (6.210.0) ---------------------------------------------
+    -- PURE: the volume for `left` seconds remaining — toneFrom at
+    -- toneSecs, toneTo at 0, clamped either side.
+    function pom.toneVolume(left)
+        local secs = pom.toneSecs or 0
+        if secs <= 0 then return pom.toneTo end
+        local frac = 1 - (left / secs)
+        if frac < 0 then frac = 0 elseif frac > 1 then frac = 1 end
+        return pom.toneFrom + (pom.toneTo - pom.toneFrom) * frac
+    end
+
+    -- Resolved ONCE per session: getByName goes out to the system and
+    -- this is asked from a one-second timer. `false` = tried and failed
+    -- (never nil again), and pom.toneWhy says why for the report.
+    function pom.resolveTone()
+        if pom.toneSound ~= nil then return pom.toneSound end
+        local snd
+        pcall(function() snd = hs.sound and hs.sound.getByName and hs.sound.getByName(pom.toneName) end)
+        if not snd then
+            pcall(function() snd = hs.sound and hs.sound.getByFile and hs.sound.getByFile(pom.toneFile) end)
+        end
+        if snd then
+            pom.toneSound, pom.toneWhy = snd, nil
+        else
+            pom.toneSound = false
+            pom.toneWhy = "no sound named " .. tostring(pom.toneName)
+                          .. " and nothing at " .. tostring(pom.toneFile)
+        end
+        return pom.toneSound
+    end
+
+    -- Called by the ticker with the seconds left. Plays at most once per
+    -- toneEvery, only inside the last toneSecs of the focus phase (the
+    -- break too if toneBreak), and never throws into the tick.
+    function pom.toneTick(s, left, now)
+        if not pom.toneOn or not s then return false end
+        if s.phase ~= "work" and not pom.toneBreak then return false end
+        if left > pom.toneSecs or left <= 0 then return false end
+        if s.toneNext and now < s.toneNext then return false end
+        local snd = pom.resolveTone()
+        if not snd then return false end
+        local vol = pom.toneVolume(left)
+        local ok = pcall(function()
+            pcall(function() snd:stop() end)     -- a play still sounding restarts
+            snd:volume(vol)
+            snd:play()
+        end)
+        s.toneNext  = now + pom.toneEvery
+        s.tonePlays = (s.tonePlays or 0) + 1
+        pom.toneLast = { at = now, vol = vol, left = left, ok = ok }
+        return ok
+    end
+
     local function paint(label, clock, bg, fg)
         local s = pom.state
         if not (s and s.canvas) then return end
@@ -526,6 +597,20 @@ function M.setup(core)
                                   pom.today.readAt and os.date("%H:%M:%S", math.floor(pom.today.readAt)) or "never")
         L[#L + 1] = "   this week:"
         for _, l in ipairs(pom.weekLines(now)) do L[#L + 1] = l end
+        if not pom.toneOn then
+            L[#L + 1] = "   tone : off — settings = { pomodoro = { toneOn = true } } to hear it"
+        elseif pom.toneSound == false then
+            L[#L + 1] = "   tone : ⚠️ SILENT — " .. tostring(pom.toneWhy) .. " (the flash still shows)"
+        else
+            local s = pom.state
+            local last = pom.toneLast
+                and string.format(" · last %.2f with %d s left", pom.toneLast.vol, math.floor(pom.toneLast.left))
+                or ""
+            L[#L + 1] = string.format("   tone : %s every %d s over the last %d s of focus, %.2f → %.2f · %d played this phase%s%s",
+                                      tostring(pom.toneName), pom.toneEvery, pom.toneSecs, pom.toneFrom, pom.toneTo,
+                                      (s and s.tonePlays) or 0, last,
+                                      pom.toneSound == nil and " · not resolved yet (start a pomodoro)" or "")
+        end
         L[#L + 1] = "   log: " .. pom.logFile
         L[#L + 1] = "   daily tally fires at " .. tostring(pom.workdayEnd)
                     .. (pom.weekendsOff and " (weekdays)" or "")
@@ -616,6 +701,7 @@ function M.setup(core)
         s.phase  = phase
         s.endsAt = hs.timer.secondsSinceEpoch()
                    + (phase == "work" and pom.workMins or pom.breakMins) * 60
+        s.toneNext, s.tonePlays = nil, 0      -- 🔊 a fresh run of the tone
         paint(phase == "work" and "FOCUS" or "BREAK",
               mmss(s.endsAt - hs.timer.secondsSinceEpoch()),
               phase == "work" and pom.bgWork or pom.bgBreak, pom.fgWork)
@@ -691,6 +777,9 @@ function M.setup(core)
             phaseEnded()
             return
         end
+        -- 🔊 6.210.0 — the last toneSecs of focus, soft to loud. Its own
+        -- pcall: a sound that throws must not stop the countdown.
+        pcall(pom.toneTick, s, left, hs.timer.secondsSinceEpoch())
         if isAlive(s) then
             s.zombieSince = nil
         else
@@ -769,6 +858,7 @@ function M.setup(core)
         end
         pom.state = { phase = "work", endsAt = 0, canvas = c }
         pom.todayCount()                       -- 🍅 the one log read, on the keypress
+        if pom.toneOn then pom.resolveTone() end   -- 🔊 named now, not in the last 30 s
         local okShow = pcall(function()
             -- 🚨 6.66.1 — fullScreenAuxiliary, NOT "stationary".
             -- "stationary" means "do not move me when Spaces change". It
