@@ -4,57 +4,15 @@
 -- =====================================================================
 -- 09-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.208.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.209.0
 -- =====================================================================
 
--- NEW IN 6.207.0 — 🅣 AN EXISTING TEXT BOX CAN BE EDITED AGAIN:
---   🐞 LL, in the ⇪⇧1 editor: "I can't edit an existing text box. If I
---      click on the text box, a new one is created instead." The page
---      selected a box on a click and edited only on a DOUBLE-click, so
---      the one gesture a person makes to edit words — click on them —
---      did the one thing that looks like a new box opening.
---   ✅ Three ways in, each driven by the gate: a CLICK on a text box with
---      the Text tool opens its words (press and release without moving;
---      a drag still moves it, and a one-pixel wobble is a click, not a
---      drag — decided on mouseup, in screen coordinates); a double-click
---      with any tool, as before; and ⏎ on a selected box, from the
---      keyboard. ⌘⏎ is still save. A click on empty space still starts
---      a new box.
---   🧪 test_editor_js 59 -> 70; three mutations, each failing the row
---      written for it. 8,532 -> 8,543 checks, seventy-four stages.
---
--- NEW IN 6.208.0 — 🧊 A BEACH BALL NO LONGER COSTS YOU THE KEYBOARD:
---   🐞 LL: "if a beachball appears, can hammerspoon pause itself, warn me
---      to quit it or reload itself so I don't have to kill it to get
---      control of my Mac's keyboard back … this code must run out of my
---      user directory on my work Mac."
---   🔎 It cannot pause ITSELF: a beach ball is the main thread stuck, and
---      every watchdog this config has runs on that same thread. So the
---      watcher is a SECOND PROCESS. modules/stall_guard.lua writes the
---      epoch second to ~/.hammerspoon/.stall-guard/heartbeat every 2 s
---      from the main thread (a held timer); warm() starts
---      tools/hs-stall-guard.sh with `nohup … &` — plain /bin/sh, as LL,
---      from LL's folder, no sudo, no launchd. Two readings in a row 20 s
---      stale while Hammerspoon is running → kill -9, lift the ⇪ remap a
---      hard kill leaves behind, `open -a Hammerspoon`. The NEXT boot
---      announces it (alert, notification, Console, _G.notices), once.
---   🛡 What stops it lying: a sleep gap is skipped, a clean quit or reload
---      writes a marker the guard exits on (hs.shutdownCallback wrapped,
---      not replaced), a newer guard retires the old one, "not running"
---      is never "stalled", and three relaunches in ten minutes make it
---      give up and say so. `_G.stallGuardReport()`; off with
---      `settings = { stall_guard = { on = false } }`.
---   🧪 test_stall_guard (new, 84): the module against a stub AND the
---      script RUN FOR REAL with kill/pgrep/open/hidutil stubbed — a real
---      SIGSTOP for the sleep case. Five mutations, each failing the row
---      written for it. 8,543 -> 8,629 checks, seventy-five stages.
---
--- (6.206.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.207.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.208.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.209.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -151,7 +109,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.208.0"
+_G.configVersion = "6.209.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

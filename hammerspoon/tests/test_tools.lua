@@ -545,9 +545,9 @@ say("   -- the panel --")
 CANVASES = {}
 check("start() draws", pom.start() == true and #CANVASES == 1)
 local panel = CANVASES[1]
-check("📏 6.152.0 — 20% bigger, from one knob: 170×132 × pom.scale",
+check("📏 6.152.0 — 20% bigger, from one knob: 170×150 × pom.scale (132 until the 6.209.0 tally line)",
       panel.frame.w == math.floor(170 * pom.scale + 0.5)
-      and panel.frame.h == math.floor(132 * pom.scale + 0.5)
+      and panel.frame.h == math.floor(150 * pom.scale + 0.5)
       and pom.scale >= 1.2,
       panel.frame.w .. "x" .. panel.frame.h)
 check("...and the type scales WITH the card — big box, big clock",
@@ -792,8 +792,12 @@ check("the card opens FAINT — pom.alphaIdle, whole-window alpha",
       card.alpha_ == pom.alphaIdle, card.alpha_)
 -- 👻 6.154.0 — LL: "fade both the Pomodoro focus box and the time
 -- instead of being solid white also. Both need to be more translucent."
-check("👻 6.154.0 — the alert level is no longer 90%: the card never goes solid",
-      pom.alphaAlert <= 0.8, pom.alphaAlert)
+-- 👻 6.209.0 — LL: "Can you make the pomodoro timer go 90% opaque?"
+-- (6.154.0 had capped the alert level at 75%; this supersedes it.)
+check("👻 6.209.0 — 90% opaque throughout: alphaIdle AND alphaAlert are 0.90",
+      pom.alphaIdle == 0.90 and pom.alphaAlert == 0.90, pom.alphaIdle .. "/" .. pom.alphaAlert)
+check("...and the card really is set to it (not a number the knob names and the canvas ignores)",
+      math.abs(card.alpha_ - 0.90) < 0.001, card.alpha_)
 check("…the box is a translucent COPY of the shared background "
       .. "(pom.cardAlpha) — the shared table itself untouched", (function()
     local rect = card.elements[1]
@@ -919,6 +923,81 @@ check("_G.pomodoroReport names the file and today's tally", (function()
 end)())
 check("it publishes pomodoro.report", _G.service.has("pomodoro.report"))
 os.remove(pom.logFile)
+
+say("   -- 🍅 6.209.0: today's count on the card, read ONCE --")
+-- LL: "give the number of pomos accomplished in a day". The line is on
+-- the card; the log is in OneDrive, so it is read on the keypress that
+-- opens the card and then counted in memory — the ticker paints every
+-- second and must never open it.
+do
+    local function todayText(c)
+        for _, e in ipairs(c.elements) do
+            if e.type == "text" and e.text:find("🍅", 1, true) then return e.text end
+        end
+    end
+    pom.stop("test")
+    pom.logFile = os.tmpname()
+    local today = os.date("%Y-%m-%d")
+    local f = io.open(pom.logFile, "w")
+    f:write("date,time,event,detail\n")
+    f:write(today .. ",09:00:00,started,25m\n" .. today .. ",09:25:00,completed,25m of focus\n")
+    f:write(today .. ",10:00:00,started,25m\n" .. today .. ",10:25:00,completed,25m of focus\n")
+    f:write("2020-01-01,10:25:00,completed,25m of focus\n")
+    f:close()
+    pom.today = { key = nil, completed = 0 }
+    CANVASES, TIMERS = {}, {}
+    NOW = os.time()
+    local realOpen, opens = io.open, 0
+    io.open = function(path, mode)
+        if path == pom.logFile and (mode == nil or mode == "r") then opens = opens + 1 end
+        return realOpen(path, mode)
+    end
+    pom.start()
+    local c = CANVASES[#CANVASES]
+    check("the card carries a 🍅 line and it is TODAY's completed count from the log (not another day's)",
+          todayText(c) == "🍅 2 done today", todayText(c))
+    check("...the line sits under the workday line, inside the card",
+          (function()
+              for _, e in ipairs(c.elements) do
+                  if e.type == "text" and e.text:find("🍅", 1, true) then
+                      return e.frame.y > 104 and e.frame.y + e.frame.h <= c.frame.h
+                  end
+              end
+          end)())
+    check("the log was opened ONCE for it, on the keypress", opens == 1, opens)
+    tickTo(30)
+    check("thirty ticks later: painted thirty times, the log opened ZERO more times", opens == 1, opens)
+    NOW = NOW + pom.workMins * 60 - 30 + 1
+    for _, t in ipairs(TIMERS) do
+        if t.live and t.kind == "every" and t.secs == 1 then t.fn() end
+    end                                  -- the work phase ends → completed row; the flash paints next
+    for _, t in ipairs(TIMERS) do
+        if t.live and t.kind == "every" and t.secs == pom.flashSecs then t.fn() break end
+    end
+    check("finishing a pomodoro adds one on the card, in memory", todayText(c) == "🍅 3 done today", todayText(c))
+    check("...without re-reading the file", opens == 1, opens)
+    check("...and the file agrees (3 completed today)", pom.dayCounts(today).completed == 3)
+    check("_G.pomodoroReport's card line names the count, the day and when the log was read",
+          (function()
+              local r = _G.pomodoroReport()
+              return r:find("card : shows 3 for " .. today, 1, true) ~= nil
+                 and r:find("read from the log at", 1, true) ~= nil
+          end)())
+    pom.stop("test")
+    io.open = realOpen
+    -- a day with no rows says so in words, not "0"
+    os.remove(pom.logFile)
+    pom.today = { key = nil, completed = 0 }
+    CANVASES = {}
+    pom.start()
+    check("no rows today: the card says so in words", todayText(CANVASES[#CANVASES]) == "🍅 none yet today",
+          todayText(CANVASES[#CANVASES]))
+    pom.stop("test")
+    -- a new DAY re-reads once: a card left up past midnight must not keep yesterday's number
+    pom.today = { key = "1999-01-01", completed = 9 }
+    check("a date change re-reads the log (once) instead of carrying yesterday's count",
+          pom.todayCount(os.time()) == 0 and pom.today.key == today, pom.today.key)
+end
 NOW = 40000
 
 -- =====================================================================

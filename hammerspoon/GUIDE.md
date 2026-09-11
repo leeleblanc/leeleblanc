@@ -907,9 +907,9 @@ CREATED AUTOMATICALLY (never make these yourself):
 
 ## 6. Tests
 
-Sixty-nine Lua suites, 8,176 checks, plus four more that run the Capture
+Sixty-nine Lua suites, 8,187 checks, plus four more that run the Capture
 Pad's, the screenshot editor's, unified search's and the vault's page
-JavaScript under `node` for a further 453 — **8,629 checks over
+JavaScript under `node` for a further 453 — **8,640 checks over
 seventy-five stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:

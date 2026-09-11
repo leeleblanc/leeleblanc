@@ -61,10 +61,9 @@ local M = {
             { "⏎",       "Reset and go again — only while it is flashing" },
             { "esc",     "Stop and close — only while it is flashing" },
             { "where",   "Top-right, just under the clock" },
-            { "below",   "Time · date · hours left in your 7:30–4:30 workday" },
-            { "faint",   "Sits at 30% — rises to 75% for the last 5 minutes (never solid)" },
+            { "below",   "Time · date · hours left in your 7:30–4:30 workday · 🍅 done today" },
+            { "90%",     "The card is 90% opaque throughout (6.209.0; alphaIdle / alphaAlert)" },
             { "ink",     "The box and the digits are translucent too (cardAlpha / inkAlpha)" },
-            { "hover",   "Mouse over it: 75% instantly · mouse off: faint again" },
             { "log",     "Every start & completion → pomodoro_log-<Mac>.csv (Logs)" },
             { "4:30",    "Day's tally at workday end · Friday adds the week's" },
             { "note",    "Enter/esc are NOT captured during the countdown" },
@@ -88,8 +87,9 @@ function M.setup(core)
     -- box / small type.
     pom.scale      = 1.2
     pom.width      = math.floor(170 * pom.scale + 0.5)
-    pom.height     = math.floor(132 * pom.scale + 0.5)  -- was 99 — 6.94.0
-                                 -- added two lines below the countdown
+    pom.height     = math.floor(150 * pom.scale + 0.5)  -- was 99 — 6.94.0
+                                 -- added two lines below the countdown;
+                                 -- 132 until 6.209.0 added the 🍅 tally
     pom.marginX    = 12          -- gap from the right edge of the screen
     pom.marginY    = 6           -- gap below the menu bar (under the clock)
     -- 👻 6.152.0 — THE CARD IS FAINT UNTIL IT MATTERS. LL: "go from 30%
@@ -98,7 +98,15 @@ function M.setup(core)
     -- 90%, and off of it, back to 30%". Whole-window alpha via
     -- canvas:alpha() — the colours never change, only the card's own
     -- opacity, so this cannot fight the shared style table.
-    pom.alphaIdle  = 0.30        -- most of the countdown
+    -- 👻 6.209.0 — LL: "Can you make the pomodoro timer go 90% opaque?"
+    -- Both levels are 0.90 now, so the card reads the same whether the
+    -- countdown is at 24:00 or 2:00 and whether the mouse is on it. The
+    -- 6.181.1 lesson (six passes on the vault's alpha): what LL judges
+    -- is how much of the app BEHIND shows, so if 0.90 is still wrong in
+    -- either direction it is a settings line, never another release —
+    -- `settings = { pomodoro = { alphaIdle = 1, alphaAlert = 1 } }`, and
+    -- cardAlpha / inkAlpha below for the box and the digits themselves.
+    pom.alphaIdle  = 0.90        -- most of the countdown (0.30 until 6.209.0)
     -- 👻 6.154.0 — LL: "Can you fade both the Pomodoro focus box and the
     -- time instead of being solid white also? Both need to be more
     -- translucent." Three knobs, because "solid" had three causes: the
@@ -107,7 +115,7 @@ function M.setup(core)
     -- cardAlpha of that — a COPY, the shared table untouched), and the
     -- digits were 97% white (now inkAlpha of that). The FLASH keeps its
     -- full colours: an alert nobody can see is no alert.
-    pom.alphaAlert = 0.75        -- last alertMins · hover · flash · asking
+    pom.alphaAlert = 0.90        -- last alertMins · hover · flash · asking (0.75 until 6.209.0)
     pom.cardAlpha  = 0.78        -- the box: this × the shared bg alpha
     pom.inkAlpha   = 0.80        -- FOCUS/BREAK label + the countdown digits
     pom.alertMins  = 5           -- solid for the final stretch (any phase —
@@ -329,6 +337,12 @@ function M.setup(core)
             { type = "text", text = pom.workLine(),
               textSize = small, textColor = dim, textAlignment = "center",
               frame = { x = 0, y = S(104), w = pom.width, h = S(16) } },
+            -- 🍅 6.209.0 — today's completed count, from memory (see
+            -- pom.today): the ticker paints this line every second and
+            -- never reads the log for it.
+            { type = "text", text = pom.todayLine(),
+              textSize = small, textColor = dim, textAlignment = "center",
+              frame = { x = 0, y = S(122), w = pom.width, h = S(16) } },
         }
     end
 
@@ -413,6 +427,32 @@ function M.setup(core)
         end
     end
 
+    -- 🍅 6.209.0 — LL: "give the number of pomos accomplished in a day".
+    -- A line on the card. The log lives in the Logs folder (OneDrive on
+    -- LL's Macs), so it is READ ONCE — at start(), a keypress — and
+    -- kept in memory: phaseEnded adds one as it writes the row, and a
+    -- new date re-reads once. The ticker paints every second and must
+    -- never open that file (a placeholder read on the main thread is
+    -- the 6.152.x stall class). `pom.today` is the state; the report
+    -- says when it was read.
+    pom.today = { key = nil, completed = 0, readAt = nil }
+
+    function pom.todayCount(now)
+        now = now or hs.timer.secondsSinceEpoch()
+        local key = os.date("%Y-%m-%d", math.floor(now))
+        if pom.today.key ~= key then
+            local c = pom.dayCounts(key)
+            pom.today = { key = key, completed = c.completed, readAt = now }
+        end
+        return pom.today.completed
+    end
+
+    function pom.todayLine(now)
+        local n = pom.todayCount(now)
+        if n <= 0 then return "🍅 none yet today" end
+        return string.format("🍅 %d done today", n)
+    end
+
     -- date "YYYY-MM-DD" → { started = n, completed = n }. Reads the file
     -- fresh each time: the counts are asked for a few times a DAY, and a
     -- year of pomodoros is a few thousand short lines.
@@ -481,6 +521,9 @@ function M.setup(core)
         local L = { "🍅 POMODORO" }
         L[#L + 1] = string.format("   today: %d completed, %d started",
                                   c.completed, c.started)
+        L[#L + 1] = string.format("   card : shows %d for %s — read from the log at %s, then counted in memory",
+                                  pom.today.completed, tostring(pom.today.key or "no day yet"),
+                                  pom.today.readAt and os.date("%H:%M:%S", math.floor(pom.today.readAt)) or "never")
         L[#L + 1] = "   this week:"
         for _, l in ipairs(pom.weekLines(now)) do L[#L + 1] = l end
         L[#L + 1] = "   log: " .. pom.logFile
@@ -586,6 +629,11 @@ function M.setup(core)
             -- 📒 6.152.0 — the 25 minutes are DONE: this is the moment a
             -- pomodoro counts, so this is the moment it is written down.
             pom.logEvent("completed", pom.workMins .. "m of focus")
+            -- 🍅 6.209.0 — the card's tally: the row just written, added
+            -- in memory (todayCount first, so a date that rolled over
+            -- mid-pomodoro is re-read before the one is added to it).
+            pom.todayCount()
+            pom.today.completed = pom.today.completed + 1
             -- The flash IS the notification. No sound, no hs.notify: this
             -- fires while you are mid-sentence in something, and the whole
             -- design goal is "tells you without taking over".
@@ -720,6 +768,7 @@ function M.setup(core)
             return false
         end
         pom.state = { phase = "work", endsAt = 0, canvas = c }
+        pom.todayCount()                       -- 🍅 the one log read, on the keypress
         local okShow = pcall(function()
             -- 🚨 6.66.1 — fullScreenAuxiliary, NOT "stationary".
             -- "stationary" means "do not move me when Spaces change". It

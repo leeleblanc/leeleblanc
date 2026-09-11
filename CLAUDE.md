@@ -408,6 +408,15 @@ Window width = `uni.width + uni.paneW`; `settings = { unified_search =
 ask per landing) had a check that passed WITHOUT it — a same-row
 mousemove returns before the guard — until a mutation said so; the row
 that bites is a keystroke that leaves the top match where it was.
+🍅 THE POMODORO CARD'S COUNT IS READ ONCE, ON THE KEYPRESS (6.209.0,
+modules/pomodoro.lua): pomodoro_log-<Mac>.csv is in OneDrive and the
+ticker paints every second, so `pom.todayCount()` reads via dayCounts
+on ⇪⇧P only, keeps `pom.today = { key, completed, readAt }`, phaseEnded
+adds one in MEMORY as it writes the row, and a new date re-reads once
+— the suite counts io.open on the log across thirty ticks and wants
+zero. The alpha is 0.90 idle AND alert on LL's word ("go 90% opaque"),
+superseding 6.152.0/6.154.0; the vault's 6.181.1 rule applies — any
+further "more/less see-through" is the settings line, not a release.
 🧊 A BEACH BALL IS WATCHED FROM OUTSIDE (6.208.0, modules/stall_guard.lua
 + tools/hs-stall-guard.sh): Hammerspoon writes the epoch second to
 ~/.hammerspoon/.stall-guard/heartbeat every 2 s FROM THE MAIN THREAD (a
@@ -1037,6 +1046,16 @@ mirrors draw order: "closes last" IS "drawn under".
 
 ## Open items — update as they move
 
+- 6.209.0 verify with LL: ⇪⇧P — the card is 90% opaque from the first
+  second, and stays there for the whole countdown and under the mouse.
+  If that is still too see-through, or now too solid, NO release:
+  `settings = { pomodoro = { alphaIdle = 1, alphaAlert = 1 } }` (or
+  0.8), and `cardAlpha = 1, inkAlpha = 1` make the box and the digits
+  themselves solid. Then the new bottom line: "🍅 N done today" — N must
+  match `_G.pomodoroReport()`'s "today:" line; finish one and the card
+  goes to N+1 by itself. The report's new "card :" line says when the
+  log was read (once, on the keypress). "🍅 none yet today" first thing
+  in the morning is the zero, in words.
 - 6.208.0 verify with LL — THE STABILITY ONE, and it can only be
   proven by a stall: after installing, `_G.stallGuardReport()` in the
   Console must read "watching", the beat line counting up, and the

@@ -5,6 +5,48 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.209.0 — 🍅 THE POMODORO IS 90% OPAQUE AND COUNTS THE DAY:
+  LL: "Can you make the pomodoro timer go 90% opaque? Along with this
+     can you give the number of pomos accomplished in a day."
+  👻 90% THROUGHOUT. pom.alphaIdle and pom.alphaAlert are both 0.90, so
+     the card reads the same at 24:00 and at 2:00, with the mouse on it
+     or off it. That supersedes 6.152.0's 30%→90% fade and 6.154.0's
+     75% cap, on LL's word — the history is kept in the module beside
+     the knobs. The 6.181.1 lesson (six passes on the vault's alpha, the
+     same number described as its opposite) stands: what LL judges is
+     how much of the app BEHIND shows, so if 0.90 is still wrong in
+     either direction it is a settings line and never another release —
+     `settings = { pomodoro = { alphaIdle = 1, alphaAlert = 1 } }`, and
+     cardAlpha / inkAlpha for the box's own fill and the digits.
+  🍅 THE DAY'S COUNT, ON THE CARD. A sixth line under the workday line:
+     "🍅 2 done today", or "🍅 none yet today" in words rather than a
+     zero. The card is 150 tall (was 132; the one knob, pom.scale,
+     still sizes everything). THE LOG IS READ ONCE. pomodoro_log-<Mac>.csv
+     lives in the Logs folder, which is OneDrive on both Macs, and a
+     placeholder read on the main thread is the 6.152.x stall class; the
+     ticker paints this line every second, so it must never be the
+     thing that opens the file. `pom.todayCount()` reads via dayCounts
+     on the ⇪⇧P keypress (a keypress may pay a small read; a timer may
+     not), keeps `pom.today = { key, completed, readAt }`, and phaseEnded
+     adds one in memory as it writes the `completed` row — todayCount
+     first, so a date that rolled over mid-pomodoro is re-read before
+     the one is added. A new date re-reads once. `_G.pomodoroReport()`
+     gains "card : shows N for <day> — read from the log at HH:MM:SS,
+     then counted in memory", so the number on the card and the number
+     in the file can be compared when they ever disagree.
+  🧪 test_tools 114 -> 125: the 🍅 line carries TODAY's rows only (a 2020
+     row in the same file is not counted), sits inside the card under
+     the workday line, the log is opened exactly once for it and zero
+     more times across thirty ticks, finishing a pomodoro shows one more
+     without a re-read while the file agrees, the report's card line,
+     the zero wording, and the date rollover. Three mutations, each
+     failing the row written for it: the in-memory +1 removed (the card
+     stays at 2 — and the report's line with it), the cache removed (the
+     log opened on every paint: 3, 4, 6 opens), the line removed. The
+     6.154.0 check that capped the alert alpha at 0.8 is replaced by the
+     0.90 pair, asserted on the canvas, not only on the knob. 8,629 ->
+     8,640 checks, seventy-five stages.
+
 NEW IN 6.208.0 — 🧊 A BEACH BALL NO LONGER COSTS YOU THE KEYBOARD:
   🐞 LL: "First, check for stability: if a beachball appears, can
      hammerspoon pause itself, warn me to quit it or reload itself so I
