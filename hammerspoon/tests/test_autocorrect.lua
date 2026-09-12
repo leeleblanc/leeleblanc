@@ -784,6 +784,82 @@ do
   check("§8 ran every one of its checks", mine == 39, mine)
 end
 
+-- =====================================================================
+out("\n=== 8b. 🚨 AN INFLECTED ANSWER MUST CARRY THE TYPED ENDING (6.213.2) ===\n")
+-- =====================================================================
+-- 6.205.0 was proven against the fixture above, and the fixture shared
+-- its blind spot. Measured against the REAL /usr/share/dict/words:
+-- plugin → pluging (plug+ing), backend → backened (backen+ed), signin →
+-- signing (sign+ing) — right words, rewritten, the class 6.205.0 was
+-- shipped to end. And LL's own report: statrs stayed statrs, because
+-- the real list has stater AND stator, so starts was one of THREE
+-- answers. The fixture below holds exactly the real list's words that
+-- bit. Two mutations fail rows here: dropping the ending gate turns
+-- plugin into pluging; comparing endings strictly instead of by family
+-- loses wishess → wishes.
+do
+  local mine = 0
+  local function ck(label, cond, extra)
+    mine = mine + 1 ; check(label, cond, extra)
+  end
+  local WORDS = TMP .. "/words"
+  local function seedWords(list)
+    local f = io.open(WORDS, "w")
+    for _, w in ipairs(list) do f:write(w .. "\n") end
+    f:close()
+    mod.config.wordsFile = WORDS
+    mod.warm(core)
+  end
+  seedWords({ "plug", "backen", "sign", "wish", "start", "stater", "stator",
+              "something", "convince" })
+
+  ck("🚨 plugin is left alone — pluging (plug+ing) is no answer for a word"
+     .. " typed with no ending", typeWord("plugin ") == nil, tostring(typeWord("plugin ")))
+  ck("🚨 backend is left alone (it became backened — backen is listed)",
+     typeWord("backend ") == nil, tostring(typeWord("backend ")))
+  ck("🚨 signin is left alone (it became signing)",
+     typeWord("signin ") == nil, tostring(typeWord("signin ")))
+  ck("wishess → wishes: es and s are ONE ending family (the list has wish,"
+     .. " not wishes; wishs itself is wish+s and is left alone)",
+     typeWord("wishess ") == "wishes " and typeWord("wishs ") == nil,
+     tostring(typeWord("wishess ")) .. " / " .. tostring(typeWord("wishs ")))
+  ck("sttarts → starts: a doubled letter in the stem, the ending kept",
+     typeWord("sttarts ") == "starts ", tostring(typeWord("sttarts ")))
+  ck("somethingg → something: a word the list holds outright is never gated",
+     typeWord("somethingg ") == "something ", tostring(typeWord("somethingg ")))
+  ck("🔎 STATED: statrs is SILENT once stater and stator are listed —"
+     .. " starts, staters, stators are three answers and the rule never"
+     .. " guesses (LL's real-list report on 6.213.1)",
+     typeWord("statrs ") == nil, tostring(typeWord("statrs ")))
+  ck("…and the measured cost, named: a typo INSIDE the ending (convincd)"
+     .. " is left alone now — silence is the safe side",
+     typeWord("convincd ") == nil, tostring(typeWord("convincd ")))
+
+  -- ---- the pure helper, with no Mac near it ---------------------------
+  local E = _G.acSpellEnding
+  ck("_G.acSpellEnding: wishes, tries, starts are all the s family",
+     E("wishes") == "s" and E("tries") == "s" and E("starts") == "s")
+  ck("…allowed/tried → ed · running → ing · taller/happier → er ·"
+     .. " tallest/happiest → est · quickly/happily → ly · kindness/happiness → ness",
+     E("allowed") == "ed" and E("tried") == "ed" and E("running") == "ing"
+     and E("taller") == "er" and E("happier") == "er" and E("tallest") == "est"
+     and E("happiest") == "est" and E("quickly") == "ly" and E("happily") == "ly"
+     and E("kindness") == "ness" and E("happiness") == "ness")
+  ck("…and a word with no ending answers \"\" — plugin, backend, signin,"
+     .. " and a bare suffix is not an ending of itself (s, ing)",
+     E("plugin") == "" and E("backend") == "" and E("signin") == ""
+     and E("s") == "" and E("ing") == "")
+  local known = function(w) return ({ plug = true, start = true })[w] == true end
+  ck("the pure rule: plugin stays under a known() that lists plug…",
+     _G.acSpellCorrection("plugin", known, 5) == nil,
+     tostring(_G.acSpellCorrection("plugin", known, 5)))
+  ck("…while startss → starts, the typed s family carried by the answer",
+     _G.acSpellCorrection("startss", known, 5) == "starts",
+     tostring(_G.acSpellCorrection("startss", known, 5)))
+
+  check("§8b ran every one of its checks", mine == 13, mine)
+end
+
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
 os.execute("rm -rf '" .. TMP .. "'")
 os.exit(fail == 0 and 0 or 1)

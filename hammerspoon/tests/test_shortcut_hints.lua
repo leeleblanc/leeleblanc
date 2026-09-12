@@ -386,8 +386,13 @@ check("the panel ladder has the hint rung", cxs:find("\n%s*hint%s*=%s*4,") ~= ni
 out("\n=== 6.170.0 — the Air pins the card scale (6.167.0 outcome b) ===\n")
 do
     local f = io.open(HS .. "/init.lua", "r"); local src = f:read("a"); f:close()
+    -- 6.213.2: the Air's settings table grew a second knob (pomodoro), so
+    -- this reads the SETTING inside the Air's entry, not one line's layout.
+    local air = src:find('["Lees-MacBook-Air"] = profileFrom{ settings = {', 1, true)
+    local work = air and src:find('["Lees-Work-MacBook"]', air, true)
+    local scale = air and src:find('shortcut_hints = { scale = 1.5 }', air, true)
     check("Lees-MacBook-Air profile carries settings.shortcut_hints.scale = 1.5",
-          src:find('["Lees-MacBook-Air"] = profileFrom{ settings = { shortcut_hints = { scale = 1.5 } } }', 1, true) ~= nil)
+          air ~= nil and scale ~= nil and work ~= nil and scale < work)
 end
 
 print = realPrint

@@ -4,9 +4,38 @@
 -- =====================================================================
 -- 09-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.213.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.213.2
 -- =====================================================================
 
+-- NEW IN 6.213.2 — ✏️ AN INFLECTED ANSWER MUST CARRY THE ENDING YOU TYPED:
+--   LL's first report on the batch: "statrs" stayed "statrs". Measured
+--      against the REAL /usr/share/dict/words (Webster's Second, 236,007
+--      lines) instead of the suite's twelve-word fixture: the list has
+--      stater AND stator, so 6.205.0's "a plural of a listed word is a
+--      word" made starts one of THREE answers, and the rule never
+--      guesses. That part is the decided rule working. The same
+--      measurement found what nobody had reported yet: plugin → pluging
+--      (plug+ing), backend → backened (backen+ed), signin → signing —
+--      right words rewritten, the class 6.205.0 was shipped to end.
+--   ✏️ `acSpellEnding(w)` names the ending FAMILY a word carries (s/es/
+--      ies · ed/ied · ing · er/ier · est/iest · ly/ily · ness/iness), and
+--      a candidate that is only a word by inflection now counts only when
+--      its family is the one LL typed. A listed word is never gated.
+--      Against the real list: 0 of 40 typos lost, 3 of 5 rewrites gone
+--      (ghostty → ghosty and unsubscribe → unsubscribed are direct list
+--      words and pre-date 6.205.0 — ⇪Z is the answer for a name).
+--      Stated cost: a typo INSIDE the ending (convincd) is left alone.
+--      Measured and NOT shipped: preferring a swap over an insertion
+--      (statrs → starts, 34 of 40 typos, the same 2 rewrites) — it
+--      softens LL's decided "exactly one" rule, so it is his call.
+--   🍅 No code, one settings line, on LL's word ("solid when I go over,
+--      about 30% when I move off"): both machine profiles carry
+--      pomodoro = { alphaIdle = 0.30, alphaAlert = 1 } — the hover poll
+--      has switched between the two since 6.152.0.
+--   🧪 test_autocorrect 154 -> 168 (§8b: the real list's words that bit,
+--      as a fixture — plug, backen, sign, stater, stator; two mutations
+--      fail its rows). 8,764 -> 8,778 checks, seventy-five stages.
+--
 -- NEW IN 6.213.1 — 🛡 STABILITY PASS: THE STALL GUARD WAITS LONGER:
 --   LL: "One more pass, please for focus on stability." The one feature
 --      in this batch that can hurt a healthy Mac is the stall guard,
@@ -24,33 +53,12 @@
 --      job with room, and the script's defaults agree with the module.
 --      8,762 -> 8,764 checks, seventy-five stages.
 --
--- NEW IN 6.213.0 — 🔦 SPOTLIGHT · MAGNIFIER · PASTE IMAGE · ADD CAPTURE:
---   The other half of LL's palette. 🔦 SPOTLIGHT (S) darkens everything
---      but the box: ONE veil over the whole shot with every spotlight
---      punched out (even-odd), drawn UNDER the marks. 🔍 MAGNIFIER (M):
---      centre at the press, radius to the release, the pixels under it
---      at 2× (`ed.magZoom`) clipped to a white ring; its right-hand dot
---      sets the radius; painted BEFORE the veil so it reads clean
---      pixels. 📋 PASTE IMAGE (⌘V) and 📸 ADD CAPTURE (⌘A) are DOORS:
---      the page asks Lua; Lua reads the clipboard's image or runs the
---      screenshots module's new `captureAreaTo` (our selector, -x -R,
---      the PATH back — no clipboard, no editor, no panel) and answers
---      through `addImage(dataURI, w, h)` via evaluateJavaScript. The
---      image lands centred at 40% of the shot's width, aspect kept, and
---      is a note like any other (moves, scales with its shape, ⌘Z, ⌫,
---      ⌘⏎, Esc-keep — the keep budget is 8 MB now, an image rides in
---      the notes). `ed.pushImage` REFUSES anything that is not a pure
---      base64 data URI, so a broken URI never reaches a script.
---   🧪 test_editor_js 99 -> 129, test_editor 43 -> 57, test_screenshots
---      199 -> 207. Four mutations, each failing the row written for it.
---      8,710 -> 8,762 checks, seventy-five stages.
---
--- (6.212.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.213.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.213.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.213.2
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -147,7 +155,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.213.1"
+_G.configVersion = "6.213.2"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------
@@ -3186,7 +3194,12 @@ _G.moduleProfiles = {
     -- ---- personal Mac: everything on ----
     -- 6.170.0: the LG runs 2560×1440@2x ("looks like 1440") — outcome (b)
     -- of 6.167.0: the screen was NOT why the card read small, so pin it.
-    ["Lees-MacBook-Air"] = profileFrom{ settings = { shortcut_hints = { scale = 1.5 } } },
+    ["Lees-MacBook-Air"] = profileFrom{ settings = {
+        shortcut_hints = { scale = 1.5 },
+        -- 6.213.2, LL: "solid when I go over, about 30% when I move off".
+        -- The hover poll (6.152.0) already switches between the two.
+        pomodoro = { alphaIdle = 0.30, alphaAlert = 1 },
+    } },
 
     -- ---- work Mac ----
     -- ✏️ PUT YOUR WORK MACHINE'S NAME HERE. Find it by running
@@ -3194,6 +3207,7 @@ _G.moduleProfiles = {
     -- on that Mac, or read the 🧭 line at the top of its Console.
     ["Lees-Work-MacBook"] = profileFrom({
         settings = {
+            pomodoro = { alphaIdle = 0.30, alphaAlert = 1 },   -- 6.213.2, as on the Air
             -- Examples — delete or edit freely. These are exactly the
             -- knobs a work Mac tends to want different:
             window_switcher = {

@@ -853,8 +853,12 @@ stood, kept verbatim.
                6.205.0: an INFLECTION of a listed word is a word —
                starts, allows, convinced, running, happier are never
                "corrected" (the list holds base words only, and on
-               6.200.0 starts became starets), and statrs → starts
-               still works because start is listed.
+               6.200.0 starts became starets).
+               6.213.2: an answer that is only a word by inflection
+               must carry the ending you typed — plugin, backend and
+               signin were becoming pluging, backened and signing. On
+               the real list statrs stays statrs: starts, staters and
+               stators are three answers, and the rule never guesses.
                Off: settings = { autocorrect = { on = false } };
                more excluded apps: { offIn = { "Excel", … } }.
    _G.autocorrectAdd("intsead", "instead")   (6.205.0) a permanent
@@ -914,9 +918,9 @@ CREATED AUTOMATICALLY (never make these yourself):
 
 ## 6. Tests
 
-Sixty-nine Lua suites, 8,252 checks, plus four more that run the Capture
+Sixty-nine Lua suites, 8,266 checks, plus four more that run the Capture
 Pad's, the screenshot editor's, unified search's and the vault's page
-JavaScript under `node` for a further 512 — **8,764 checks over
+JavaScript under `node` for a further 512 — **8,778 checks over
 seventy-five stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:

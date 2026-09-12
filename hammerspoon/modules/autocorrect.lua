@@ -306,6 +306,24 @@ function M.setup(core)
     end
     _G.acSpellStems = acSpellStems   -- the gate reads it directly
 
+    -- 6.213.2 — the ending FAMILY a word carries, or "". PURE; the gate
+    -- reads it. es, ies and s are ONE family (the list has wish, not
+    -- wishes, so wishs → wishes must still stand), as are ed/ied,
+    -- er/ier, est/iest, ly/ily and ness/iness. Longest suffix first.
+    local acSpellFamilies = {
+        { "iness", "ness" }, { "ness", "ness" }, { "iest", "est" },
+        { "ies", "s" }, { "ied", "ed" }, { "ing", "ing" }, { "ier", "er" },
+        { "ily", "ly" }, { "est", "est" }, { "es", "s" }, { "ed", "ed" },
+        { "er", "er" }, { "ly", "ly" }, { "s", "s" },
+    }
+    local function acSpellEnding(w)
+        for _, p in ipairs(acSpellFamilies) do
+            if #w > #p[1] and w:sub(-#p[1]) == p[1] then return p[2] end
+        end
+        return ""
+    end
+    _G.acSpellEnding = acSpellEnding   -- the gate reads it directly
+
     local function acSpellCorrection(word, known, minLen)
         if type(word) ~= "string" or type(known) ~= "function" then return nil end
         minLen = tonumber(minLen) or 4
@@ -325,11 +343,34 @@ function M.setup(core)
         end
         if isWord(w) then return nil end           -- it is already a word
 
+        -- 🚨 6.213.2 — AN ANSWER THAT IS ONLY A WORD BY INFLECTION MUST
+        -- CARRY THE ENDING LL TYPED. Measured against the REAL list after
+        -- 6.205.0 shipped: plugin → pluging (plug+ing), backend → backened
+        -- (backen+ed), signin → signing (sign+ing). Right words, rewritten
+        -- — the very class 6.205.0 was shipped to end, and a 12-word
+        -- fixture could not see it. The typist typed the ending; the typo
+        -- is in the stem. So an inflected candidate counts only when its
+        -- ending family is the one the typed word carries; a candidate
+        -- the list holds outright is never gated (somethingg →
+        -- something). Measured cost, stated: a typo INSIDE the ending
+        -- (convincd) is left alone now, and against the real list statrs
+        -- is silent either way — starts, staters and stators are three
+        -- answers, and this rule never guesses.
+        local typedEnd = acSpellEnding(w)
+        local function isAnswer(x)
+            if known(x) then return true end
+            if acSpellEnding(x) ~= typedEnd then return false end
+            for _, s in ipairs(acSpellStems(x)) do
+                if known(s) then return true end
+            end
+            return false
+        end
+
         local seen, hits, n = {}, nil, 0
         local function try(cand)
             if cand == w or seen[cand] then return end
             seen[cand] = true
-            if isWord(cand) then n = n + 1 ; hits = cand end
+            if isAnswer(cand) then n = n + 1 ; hits = cand end
         end
         for i = 1, #w - 1 do                        -- swap two neighbours
             try(w:sub(1, i - 1) .. w:sub(i + 1, i + 1) .. w:sub(i, i)

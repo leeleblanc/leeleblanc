@@ -479,6 +479,9 @@ adds one in MEMORY as it writes the row, and a new date re-reads once
 zero. The alpha is 0.90 idle AND alert on LL's word ("go 90% opaque"),
 superseding 6.152.0/6.154.0; the vault's 6.181.1 rule applies — any
 further "more/less see-through" is the settings line, not a release.
+6.213.2 did exactly that: both machine profiles carry pomodoro =
+{ alphaIdle = 0.30, alphaAlert = 1 } on LL's word ("solid when I go
+over, about 30% when I move off") — the hover poll switches them.
 🧊 A BEACH BALL IS WATCHED FROM OUTSIDE (6.208.0, modules/stall_guard.lua
 + tools/hs-stall-guard.sh): Hammerspoon writes the epoch second to
 ~/.hammerspoon/.stall-guard/heartbeat every 2 s FROM THE MAIN THREAD (a
@@ -585,6 +588,23 @@ copied. `crashScan` returns the NAMES it saw for exactly that. The scan
 matches the same glob rsync is given (`bk.globPattern`) so the count and
 the copy cannot disagree — and an unmatchable glob is its own state, not
 one of the two reassuring ones.
+📐 THE FIXTURE SHARED THE CODE'S BLIND SPOT, AGAIN (6.213.2,
+modules/autocorrect.lua): 6.205.0's own test proved statrs → starts
+against twelve words, and the real list has stater AND stator — so on
+LL's Mac starts was one of three answers and the rule stayed silent,
+which is the decided rule working. The same measurement (web2, 236,007
+lines, fetched to the scratchpad — /usr/share/dict/words does not exist
+on the gate's Linux) found plugin → pluging, backend → backened and
+signin → signing: right words rewritten by the CANDIDATE side of the
+inflection rule. `acSpellEnding(w)` is PURE and names the ending
+family; an answer that is only a word by inflection must carry the
+family LL typed. Cost stated: a typo inside the ending (convincd) is
+silent. RULE, third time: a check on a rule that edits text runs
+against the real corpus or a fixture holding the real words that bit —
+§8b holds plug, backen, sign, stater, stator by name. The edit-priority
+variant (swap before insertion: statrs → starts, 34 of 40 typos vs 29,
+the same 2 rewrites) was measured and NOT shipped — it softens LL's
+decided "exactly one" rule, so it is his call, and its own release.
 🚨 AN INFLECTION OF A WORD IS A WORD (6.205.0, modules/autocorrect.lua).
 The Mac's /usr/share/dict/words is Webster's Second — BASE words, almost
 no plurals, past tenses or -ing forms — so 6.200.0's rule read starts,
@@ -1133,7 +1153,7 @@ as the fix when a loss lands.
 | release | what it was | result |
 |---|---|---|
 | 6.204.0 | ⇪D takes the mouse; a detail pane | pending |
-| 6.205.0 | autocorrect: an inflection is a word (starts/allows/convinced) + `_G.autocorrectAdd` | pending |
+| 6.205.0 | autocorrect: an inflection is a word (starts/allows/convinced) + `_G.autocorrectAdd` | LOSS — LL: starts/allows/convinced stayed, somethingg and `_G.autocorrectAdd` worked, statrs stayed statrs → fix 6.213.2 |
 | 6.206.0 | ⇪5 scrolling capture keeps receipts; result on the clipboard | pending |
 | 6.207.0 | an existing text box can be edited again | pending |
 | 6.208.0 | stall guard: a beach ball no longer costs the keyboard | pending |
@@ -1143,9 +1163,12 @@ as the fix when a loss lands.
 | 6.212.0 | editor: line · oval · highlighter · counter | pending |
 | 6.213.0 | editor: spotlight · magnifier · paste image · add capture | pending |
 | 6.213.1 | stability pass: the stall guard's threshold 60 s / 10 s (was 20 / 5) | pending |
+| 6.213.2 | autocorrect: an inflected answer carries the typed ending (plugin/backend/signin) · pomodoro 30%/solid profile line | pending |
 
-Running total: 0 wins · 0 losses · 11 pending (all delivered together
-as hammerspoon6.213.1.zip; LL installs once and reports per feature).
+Running total: 0 wins · 1 loss · 11 pending (6.204.0–6.213.1 delivered
+as hammerspoon6.213.1.zip; 6.213.2 as hammerspoon6.213.2.zip; LL
+reports per feature. 6.208.0's cheap half — watching, one guard after
+a reload, no sudo — passed on 6.213.1; its row waits on the forced stall).
 
 ## Open items — update as they move
 
@@ -1154,6 +1177,15 @@ CLAUDE-archive.md at the repo root, which is NOT auto-loaded — this
 file rides into every context window. A block comes back here only if
 LL reopens it.)
 
+- 6.213.2 verify with LL: in Chrome type "plugin ", "backend ",
+  "signin " — all three must stay as typed (on 6.213.1 they became
+  pluging, backened and signing). "somethingg " still becomes
+  something. "statrs " STAYS statrs, on purpose: the real list has
+  stater and stator, three answers, no guess — if he wants statrs →
+  starts anyway, that is the measured edit-priority variant, his call,
+  its own release. Then ⇪⇧P: the card is ~30% until the mouse is over
+  it, solid under the mouse, solid again for the last two minutes and
+  the flash.
 - 6.213.0 verify with LL: ⇪⇧1 — Spotlight (S): drag a box and the rest
   of the shot goes dark, the box stays bright; drag a second box: a
   second bright hole, no darker elsewhere. Magnifier (M): drag from a
@@ -1279,6 +1311,9 @@ LL reopens it.)
   evidence, and ⇪Z right after it undoes and refuses it permanently.
   Sublime Text is deliberately not corrected by the word list (code
   editors are on offIn); the CSV rows still work there.
+  6.213.1 REPORT: starts, allows, convinced stayed; somethingg and the
+  door worked; statrs stayed statrs — measured, explained and the real
+  bug beside it fixed in 6.213.2.
 - 6.204.0 verify with LL: ⇪D, then MOVE THE MOUSE over the list. The
   highlight must follow the pointer from row to row, and the pane on the
   right must show that row — its header says "🖱 under the pointer".

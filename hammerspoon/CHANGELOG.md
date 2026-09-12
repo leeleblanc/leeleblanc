@@ -5,6 +5,35 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.213.2 — ✏️ AN INFLECTED ANSWER MUST CARRY THE ENDING YOU TYPED:
+  LL's first report on the batch: "statrs" stayed "statrs". Measured
+     against the REAL /usr/share/dict/words (Webster's Second, 236,007
+     lines) instead of the suite's twelve-word fixture: the list has
+     stater AND stator, so 6.205.0's "a plural of a listed word is a
+     word" made starts one of THREE answers, and the rule never
+     guesses. That part is the decided rule working. The same
+     measurement found what nobody had reported yet: plugin → pluging
+     (plug+ing), backend → backened (backen+ed), signin → signing —
+     right words rewritten, the class 6.205.0 was shipped to end.
+  ✏️ `acSpellEnding(w)` names the ending FAMILY a word carries (s/es/
+     ies · ed/ied · ing · er/ier · est/iest · ly/ily · ness/iness), and
+     a candidate that is only a word by inflection now counts only when
+     its family is the one LL typed. A listed word is never gated.
+     Against the real list: 0 of 40 typos lost, 3 of 5 rewrites gone
+     (ghostty → ghosty and unsubscribe → unsubscribed are direct list
+     words and pre-date 6.205.0 — ⇪Z is the answer for a name).
+     Stated cost: a typo INSIDE the ending (convincd) is left alone.
+     Measured and NOT shipped: preferring a swap over an insertion
+     (statrs → starts, 34 of 40 typos, the same 2 rewrites) — it
+     softens LL's decided "exactly one" rule, so it is his call.
+  🍅 No code, one settings line, on LL's word ("solid when I go over,
+     about 30% when I move off"): both machine profiles carry
+     pomodoro = { alphaIdle = 0.30, alphaAlert = 1 } — the hover poll
+     has switched between the two since 6.152.0.
+  🧪 test_autocorrect 154 -> 168 (§8b: the real list's words that bit,
+     as a fixture — plug, backen, sign, stater, stator; two mutations
+     fail its rows). 8,764 -> 8,778 checks, seventy-five stages.
+
 NEW IN 6.213.1 — 🛡 STABILITY PASS: THE STALL GUARD WAITS LONGER:
   LL: "One more pass, please for focus on stability." The pass went
      over every release in the batch asking one question: what can this
