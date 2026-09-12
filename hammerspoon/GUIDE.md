@@ -780,6 +780,12 @@ stood, kept verbatim.
    slice and names it, failed slices are kept for a look, and a good
    stitch is saved AND copied. _G.screenshotsReport() has the last
    run slice by slice — that is what to paste when ⇪5 fails.
+   6.213.3: the slices are written to ~/Library/Application Support/
+   Hammerspoon/scroll-slices (local, plain names) — the first ⇪5
+   report showed screencapture refusing a dot-file inside the OneDrive
+   folder, which is why ⇪5 had never worked there. settings =
+   { screenshots = { sliceDir = "…" } } moves it; the report's
+   "slices :" line says where they went, or that no folder could be made.
 
 📅 ⌃⌥⌘L / ⌃⌥⌘C  ASANA DASHBOARD (§6)
    Fetches your incomplete Asana tasks and shows them in five
@@ -918,9 +924,9 @@ CREATED AUTOMATICALLY (never make these yourself):
 
 ## 6. Tests
 
-Sixty-nine Lua suites, 8,266 checks, plus four more that run the Capture
+Sixty-nine Lua suites, 8,274 checks, plus four more that run the Capture
 Pad's, the screenshot editor's, unified search's and the vault's page
-JavaScript under `node` for a further 512 — **8,778 checks over
+JavaScript under `node` for a further 512 — **8,786 checks over
 seventy-five stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:

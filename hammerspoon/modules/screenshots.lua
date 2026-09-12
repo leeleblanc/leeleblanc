@@ -187,6 +187,24 @@ function M.setup(core)
     }
     shots.dir       = (core.homeDir or os.getenv("HOME") or "")
                       .. "/Library/CloudStorage/OneDrive-Personal/2026 Screenshots"
+    -- 🧻 6.213.3 — THE SLICES NEVER GO INTO THE SCREENSHOTS FOLDER. LL's
+    -- first ⇪5 on 6.206.0 said it in screencapture's own words: "slice 1
+    -- of 4: screencapture exit 0 — screencapture: cannot write file to
+    -- intended destination, /Users/…/OneDrive-Personal/2026 Screenshots/…".
+    -- The slice was a DOT-FILE (.scroll-slice-01.png, since 6.87.0, so the
+    -- panel would never list a half-done run) inside a folder OneDrive's
+    -- File Provider owns, and screencapture would not write it there —
+    -- while every plain-named capture into the same folder lands fine
+    -- (LL's ⇪4 at 22:26:17 the same evening). So ⇪5 had never once worked
+    -- with the folder in OneDrive. The slices now go to a LOCAL folder no
+    -- cloud provider owns, with a plain name (the panel reads shots.dir
+    -- only, so the dot bought nothing there). Fallback: the system's
+    -- temporary folder; if that fails too the run stops before its first
+    -- slice and says so. Flat knob — `settings = { screenshots =
+    -- { sliceDir = "…" } }` moves it.
+    shots.sliceDir  = (core.homeDir or os.getenv("HOME") or "")
+                      .. "/Library/Application Support/Hammerspoon/scroll-slices"
+    shots.sliceHome = nil     -- { dir, how } once a run has asked
     shots.maxList   = 30      -- newest N shown when the box is EMPTY. Not a
                               -- search limit — see shots.searchMax
     -- 🔎 6.122.0 — the search half. searchMax is a DRAWING limit, not a
@@ -690,7 +708,7 @@ function M.setup(core)
     -- the run now records, per slice, the exit code, the first line of
     -- stderr and whether the file exists and how big it is; stops at the
     -- FIRST slice that fails, naming it; keeps the slices on disk when
-    -- it fails (they are dot-files the panel never lists); and
+    -- it fails (in the local slice folder, 6.213.3); and
     -- `_G.screenshotsReport()`'s "scroll :" line repeats all of it.
     shots.scrollLast = nil    -- { at, planned, shot, decoded, outcome, why, slices }
     local function firstLine(sv)
@@ -708,7 +726,8 @@ function M.setup(core)
         -- only evidence of what screencapture actually wrote.
         run.kept = files
         local keptNote = (files and #files > 0)
-            and (" · %d slice(s) kept at %s/.scroll-slice-NN.png"):format(#files, shots.dir)
+            and (" · %d slice(s) kept at %s/scroll-slice-NN.png"):format(
+                    #files, tostring(run.sliceDir or shots.sliceDir))
             or ""
         pcall(function()
             hs.alert.show("🧻 Scrolling capture stopped — " .. why
@@ -720,6 +739,39 @@ function M.setup(core)
                 _G.notices.record("screenshots", "scrolling capture failed", why)
             end)
         end
+    end
+
+    -- 6.213.3 — where the slices go. → dir | nil, why. A folder that
+    -- exists is used; one that does not is created (one level — the
+    -- Hammerspoon support folder exists on any Mac running this); a FILE
+    -- in the way is a refusal, never overwritten; the temporary folder is
+    -- the degrade and the report names it.
+    function shots.sliceFolder()
+        local function usable(d)
+            if type(d) ~= "string" or d == "" then return false end
+            local mode
+            pcall(function() mode = hs.fs.attributes(d, "mode") end)
+            if mode == "directory" then return true end
+            if mode ~= nil then return false end
+            local made
+            pcall(function() made = hs.fs.mkdir(d) end)
+            return made == true
+        end
+        if usable(shots.sliceDir) then
+            shots.sliceHome = { dir = shots.sliceDir, how = "local, never synced" }
+            return shots.sliceDir
+        end
+        local tmp
+        pcall(function() tmp = hs.fs.temporaryDirectory() end)
+        if type(tmp) == "string" then tmp = tmp:gsub("/+$", "") end
+        if usable(tmp) then
+            shots.sliceHome = { dir = tmp, how = ("temporary — %s could not be created")
+                                                 :format(tostring(shots.sliceDir)) }
+            return tmp
+        end
+        shots.sliceHome = { dir = nil, how = ("neither %s nor the temporary folder"
+                                              .. " could be created"):format(tostring(shots.sliceDir)) }
+        return nil, shots.sliceHome.how
     end
 
     -- Decode one slice, or say exactly which of the three ways it failed.
@@ -805,6 +857,14 @@ function M.setup(core)
             local run = { at = os.time(), planned = #plan, shot = 0, decoded = 0,
                           outcome = "running", rect = rect, slices = {} }
             shots.scrollLast = run
+            -- 6.213.3 — the slices' folder, decided ONCE per run, before
+            -- the first slice: no folder means no capture, said plainly.
+            local sliceDir, sliceWhy = shots.sliceFolder()
+            if not sliceDir then
+                scrollFail(run, "no folder for the slices — " .. tostring(sliceWhy), {})
+                return
+            end
+            run.sliceDir = sliceDir
             -- scroll events go to whatever is UNDER THE POINTER — park it
             pcall(function()
                 hs.mouse.absolutePosition({ x = rect.x + rect.w / 2,
@@ -823,9 +883,9 @@ function M.setup(core)
                     return
                 end
                 local function shoot()
-                    -- dot-file name: our own list() skips dot-files, so a
-                    -- half-done run never shows up in the history panel
-                    local slice = shots.dir .. ("/.scroll-slice-%02d.png"):format(i)
+                    -- 6.213.3: a plain name in the LOCAL slice folder —
+                    -- never the screenshots folder (see sliceDir's note)
+                    local slice = sliceDir .. ("/scroll-slice-%02d.png"):format(i)
                     local okRun = shots.runCapture({
                         "-x",
                         ("-R%d,%d,%d,%d"):format(rect.x, rect.y, rect.w, rect.h),
@@ -895,6 +955,11 @@ function M.setup(core)
         else
             L[#L + 1] = "   last screencapture exit : none this session"
         end
+        local sh = shots.sliceHome
+        L[#L + 1] = "   slices  : " .. (sh and (sh.dir and (sh.dir .. " · " .. sh.how)
+                                                or ("⚠️ NONE — " .. tostring(sh.how)))
+                                       or ("not yet asked · will use " .. tostring(shots.sliceDir)
+                                           .. " (local, never OneDrive)"))
         local r = shots.scrollLast
         if not r then
             L[#L + 1] = "   scroll  : never run this session (⇪5)"
@@ -912,7 +977,7 @@ function M.setup(core)
             end
             if r.kept and #r.kept > 0 then
                 L[#L + 1] = "             ↳ the slices were KEPT for a look: "
-                            .. shots.dir .. "/.scroll-slice-NN.png (the panel never lists dot-files)"
+                            .. tostring(r.sliceDir or shots.sliceDir) .. "/scroll-slice-NN.png"
             end
         end
         local s = table.concat(L, "\n")

@@ -5,6 +5,34 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.213.3 — 🧻 ⇪5's SLICES LEAVE THE ONEDRIVE FOLDER (THE CAUSE, NAMED):
+  6.206.0's receipts paid for themselves on their first run. LL's ⇪5:
+     "Scrolling capture stopped — slice 1 of 4: screencapture exit 0 —
+     screencapture: cannot write file to intended destination,
+     /Users/…/OneDrive-Personal/2026 Screenshots/…". The slice was a
+     DOT-FILE (.scroll-slice-01.png — since 6.87.0, so the history
+     panel would never list a half-done run) inside the folder
+     OneDrive's File Provider owns, and screencapture would not write
+     it there, while every plain-named capture into the same folder
+     lands (LL's ⇪4 at 22:26 the same evening). So ⇪5 had never once
+     worked with the screenshots folder in OneDrive, and "no slices
+     decoded" (6.203.0) was four files that were never written.
+  🧻 `shots.sliceDir` = ~/Library/Application Support/Hammerspoon/
+     scroll-slices — LOCAL, never synced, plain names. `shots.sliceFolder()`
+     decides once per run, before slice 1: the folder exists → mkdir one
+     level → the system temporary folder (the report says "temporary —
+     … could not be created") → the run stops before its first slice
+     and says "no folder for the slices". A FILE in the way is refused,
+     never overwritten. Kept slices, the alert and the report all name
+     the folder they are in. `settings = { screenshots = { sliceDir =
+     "…" } }` moves it. Nothing else in the run changed.
+  🧪 test_screenshots 207 -> 215: the path is asserted local, plain and
+     never under shots.dir; both degrades and the refusal are driven;
+     a source row reads scrollingCapture for any slice built off
+     shots.dir. Two mutations (slices back in the cloud folder as
+     dot-files; the temp fallback removed) fail 5 and 3 rows.
+     8,778 -> 8,786 checks, seventy-five stages.
+
 NEW IN 6.213.2 — ✏️ AN INFLECTED ANSWER MUST CARRY THE ENDING YOU TYPED:
   LL's first report on the batch: "statrs" stayed "statrs". Measured
      against the REAL /usr/share/dict/words (Webster's Second, 236,007

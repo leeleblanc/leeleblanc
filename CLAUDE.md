@@ -525,11 +525,23 @@ slices. Now every slice records exit / first stderr line / file size in
 `shots.scrollLast.slices`, the run stops at the first failure naming it,
 failed slices are KEPT (dot-files), `_G.screenshotsReport()` repeats it
 all, and the finished task stays in `shots.lastCaptureTask` while the
-stitch runs off a held timer (6.196.1). THE CAUSE ON LL's MAC IS NOT
-KNOWN — do not guess it; the next ⇪5 report names it. A non-interactive
-`screencapture -R` is the one capture macOS may gate behind Screen
-Recording (the ⇪4 crosshair is not), so that is the first thing the
-report's words would point at.
+stitch runs off a held timer (6.196.1). THE CAUSE (6.213.3, named by
+that report on its first run): "slice 1 of 4: screencapture exit 0 —
+screencapture: cannot write file to intended destination, /Users/…/
+OneDrive-Personal/2026 Screenshots/…". The slice was a DOT-FILE
+(.scroll-slice-NN.png since 6.87.0) in the folder OneDrive's File
+Provider owns, and screencapture would not write it there while every
+plain-named capture into the same folder lands — so ⇪5 had never worked
+with the folder in OneDrive, and "no slices decoded" was four files
+never written. Slices go to `shots.sliceDir` now (~/Library/Application
+Support/Hammerspoon/scroll-slices, plain names), decided once per run by
+`shots.sliceFolder()`: exists → mkdir one level → the temporary folder →
+stop before slice 1 and say so; a file in the way is refused. The
+report's "slices :" line has three states. RULES: a temporary file this
+config writes goes to a LOCAL folder, never a cloud-owned one and never
+as a dot-file there; and the receipts paid for themselves on the first
+run — an assert that names its evidence is the whole difference between
+"no slices decoded" (three releases) and a fix (one evening).
 🔎 ⇪space HAS `_G.unifiedSearchReport()` (6.196.1) — it was the one tool
 here without one, which is why "2372 items indexed — does this seem
 right?" had no answer. It names every store and its count, and a store
@@ -1154,9 +1166,9 @@ as the fix when a loss lands.
 |---|---|---|
 | 6.204.0 | ⇪D takes the mouse; a detail pane | pending |
 | 6.205.0 | autocorrect: an inflection is a word (starts/allows/convinced) + `_G.autocorrectAdd` | LOSS — LL: starts/allows/convinced stayed, somethingg and `_G.autocorrectAdd` worked, statrs stayed statrs → fix 6.213.2 |
-| 6.206.0 | ⇪5 scrolling capture keeps receipts; result on the clipboard | pending |
+| 6.206.0 | ⇪5 scrolling capture keeps receipts; result on the clipboard | LOSS — the receipts worked and named it: slice 1 of 4 exit 0, "cannot write file to intended destination" (a dot-file in OneDrive, since 6.87.0) → fix 6.213.3 |
 | 6.207.0 | an existing text box can be edited again | pending |
-| 6.208.0 | stall guard: a beach ball no longer costs the keyboard | pending |
+| 6.208.0 | stall guard: a beach ball no longer costs the keyboard | pending — the forced 100 s stall relaunched at 77 s on 6.213.1 (LL's alert, 22:26); the modal-dialog and next-reload checks not yet reported |
 | 6.209.0 | pomodoro 90% opaque + 🍅 done today | pending |
 | 6.210.0 | Submarine, soft to loud, over the last 30 s | pending |
 | 6.211.0 | the pomodoro sits beside the mini calendar | pending |
@@ -1164,9 +1176,10 @@ as the fix when a loss lands.
 | 6.213.0 | editor: spotlight · magnifier · paste image · add capture | pending |
 | 6.213.1 | stability pass: the stall guard's threshold 60 s / 10 s (was 20 / 5) | pending |
 | 6.213.2 | autocorrect: an inflected answer carries the typed ending (plugin/backend/signin) · pomodoro 30%/solid profile line | pending |
+| 6.213.3 | ⇪5 slices go to a local folder, plain names (the OneDrive dot-file cause) | pending |
 
-Running total: 0 wins · 1 loss · 11 pending (6.204.0–6.213.1 delivered
-as hammerspoon6.213.1.zip; 6.213.2 as hammerspoon6.213.2.zip; LL
+Running total: 0 wins · 2 losses · 11 pending (6.204.0–6.213.1 delivered
+as hammerspoon6.213.1.zip; 6.213.2 and 6.213.3 as their own zips; LL
 reports per feature. 6.208.0's cheap half — watching, one guard after
 a reload, no sudo — passed on 6.213.1; its row waits on the forced stall).
 
@@ -1177,6 +1190,14 @@ CLAUDE-archive.md at the repo root, which is NOT auto-loaded — this
 file rides into every context window. A block comes back here only if
 LL reopens it.)
 
+- 6.213.3 verify with LL: ⇪5, drag an area over a scrolling page in
+  Chrome. The stitched "… (scrolling).png" lands in the screenshots
+  folder, ⌘V pastes it, the editor opens on it. `_G.screenshotsReport()`
+  has a new "slices :" line — "…/Application Support/Hammerspoon/
+  scroll-slices · local, never synced" is healthy; "temporary — …" is
+  the degrade working (say so); "⚠️ NONE" means both folders refused and
+  the run stopped before slice 1. If it still fails, paste the "scroll :"
+  block again — this time the words are about a local folder.
 - 6.213.2 verify with LL: in Chrome type "plugin ", "backend ",
   "signin " — all three must stay as typed (on 6.213.1 they became
   pluging, backened and signing). "somethingg " still becomes
@@ -1299,6 +1320,8 @@ LL reopens it.)
   QUIT AND RELAUNCH (a grant is read at launch). The kept slices are
   dot-files in the screenshots folder (⌘⇧. in Finder shows them). The
   cause is NOT known from here — 6.206.0 makes the next failure say it.
+  6.213.1 REPORT: it stopped at slice 1 of 4 and named the destination
+  — the cause, fixed in 6.213.3.
 - 6.205.0 verify with LL: in Chrome, type "starts ", "allows ",
   "convinced " — all three must stay exactly as typed (on 6.203.0 they
   became starets, gallows and something else). Then "statrs " must still

@@ -4,9 +4,37 @@
 -- =====================================================================
 -- 09-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.213.2
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.213.3
 -- =====================================================================
 
+-- NEW IN 6.213.3 — 🧻 ⇪5's SLICES LEAVE THE ONEDRIVE FOLDER (THE CAUSE, NAMED):
+--   6.206.0's receipts paid for themselves on their first run. LL's ⇪5:
+--      "Scrolling capture stopped — slice 1 of 4: screencapture exit 0 —
+--      screencapture: cannot write file to intended destination,
+--      /Users/…/OneDrive-Personal/2026 Screenshots/…". The slice was a
+--      DOT-FILE (.scroll-slice-01.png — since 6.87.0, so the history
+--      panel would never list a half-done run) inside the folder
+--      OneDrive's File Provider owns, and screencapture would not write
+--      it there, while every plain-named capture into the same folder
+--      lands (LL's ⇪4 at 22:26 the same evening). So ⇪5 had never once
+--      worked with the screenshots folder in OneDrive, and "no slices
+--      decoded" (6.203.0) was four files that were never written.
+--   🧻 `shots.sliceDir` = ~/Library/Application Support/Hammerspoon/
+--      scroll-slices — LOCAL, never synced, plain names. `shots.sliceFolder()`
+--      decides once per run, before slice 1: the folder exists → mkdir one
+--      level → the system temporary folder (the report says "temporary —
+--      … could not be created") → the run stops before its first slice
+--      and says "no folder for the slices". A FILE in the way is refused,
+--      never overwritten. Kept slices, the alert and the report all name
+--      the folder they are in. `settings = { screenshots = { sliceDir =
+--      "…" } }` moves it. Nothing else in the run changed.
+--   🧪 test_screenshots 207 -> 215: the path is asserted local, plain and
+--      never under shots.dir; both degrades and the refusal are driven;
+--      a source row reads scrollingCapture for any slice built off
+--      shots.dir. Two mutations (slices back in the cloud folder as
+--      dot-files; the temp fallback removed) fail 5 and 3 rows.
+--      8,778 -> 8,786 checks, seventy-five stages.
+--
 -- NEW IN 6.213.2 — ✏️ AN INFLECTED ANSWER MUST CARRY THE ENDING YOU TYPED:
 --   LL's first report on the batch: "statrs" stayed "statrs". Measured
 --      against the REAL /usr/share/dict/words (Webster's Second, 236,007
@@ -36,29 +64,12 @@
 --      as a fixture — plug, backen, sign, stater, stator; two mutations
 --      fail its rows). 8,764 -> 8,778 checks, seventy-five stages.
 --
--- NEW IN 6.213.1 — 🛡 STABILITY PASS: THE STALL GUARD WAITS LONGER:
---   LL: "One more pass, please for focus on stability." The one feature
---      in this batch that can hurt a healthy Mac is the stall guard,
---      because a kill -9 cannot be undone. Its 20 s threshold sat BELOW
---      main-thread work this config is known to do — the 4K scrolling
---      stitch measured 29 s (6.170.3), the first Chrome export ~29 s
---      (6.152.1) — and ten modules open a modal hs.dialog.textPrompt
---      whose effect on hs.timer cannot be proven from here.
---   🛡 `sg.stallSecs` 20 → 60 and `sg.checkSecs` 5 → 10: two readings,
---      ten seconds apart, each 60 s stale — a rescue at roughly 70–80 s
---      of silence, which a real beach ball (LL's ran four hours) clears
---      with ease and a long job never reaches. The script's own defaults
---      match. Nothing else in the batch changed.
---   🧪 test_stall_guard 84 -> 86: the threshold clears the longest known
---      job with room, and the script's defaults agree with the module.
---      8,762 -> 8,764 checks, seventy-five stages.
---
--- (6.213.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.213.1 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.213.2
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.213.3
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -155,7 +166,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.213.2"
+_G.configVersion = "6.213.3"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

@@ -68,7 +68,11 @@ hs = {
             if key then return f[key] end
             return f
         end,
-        mkdir = function(path) DIRS[path] = true; return true end,
+        mkdir = function(path)
+            if NOMKDIR and NOMKDIR[path] then return nil, "Permission denied" end
+            DIRS[path] = true; return true
+        end,
+        temporaryDirectory = function() return "/tmp/hs-test/" end,
         dir = function(path)
             if not DIRS[path] then error("no such directory: " .. path) end
             local names, i = {}, 0
@@ -677,9 +681,23 @@ do
        #TASKS == t0 + 1 and TASKS[#TASKS].args[1] == "-x"
        and TASKS[#TASKS].args[2] == "-R100,200,240,500",
        TASKS[#TASKS] and table.concat(TASKS[#TASKS].args, " "))
-    ck("…into a dot-file the history panel never lists",
-       (TASKS[#TASKS].args[3] or ""):find("/%.scroll%-slice%-01%.png$") ~= nil,
+    -- 🧻 6.213.3 — LL's first ⇪5 on 6.206.0: "slice 1 of 4: screencapture
+    -- exit 0 — screencapture: cannot write file to intended destination,
+    -- /Users/…/OneDrive-Personal/2026 Screenshots/…" — a DOT-FILE in the
+    -- cloud folder. The slices go to a local folder now, plain-named.
+    local SL = S.sliceDir
+    ck("🚨 …into the LOCAL slice folder under Application Support — never"
+       .. " shots.dir, never a dot-file (LL's ⇪5 never worked in OneDrive)",
+       (TASKS[#TASKS].args[3] or "") == SL .. "/scroll-slice-01.png"
+       and SL:find("/Library/Application Support/Hammerspoon/", 1, true) ~= nil
+       and (TASKS[#TASKS].args[3] or ""):find(DIR, 1, true) == nil
+       and (TASKS[#TASKS].args[3] or ""):find("/%.") == nil,
        TASKS[#TASKS].args[3])
+    ck("…the folder was created on the way (one mkdir, no parents needed)",
+       DIRS[SL] == true and S.sliceHome and S.sliceHome.dir == SL
+       and S.sliceHome.how:find("local", 1, true) ~= nil, S.sliceHome and S.sliceHome.how)
+    ck("…and the report's new 'slices :' line names it",
+       _G.screenshotsReport():find("slices  : " .. SL, 1, true) ~= nil)
     ck("the run is recorded as running, 3 slices planned",
        S.scrollLast and S.scrollLast.outcome == "running" and S.scrollLast.planned == 3,
        S.scrollLast and S.scrollLast.planned)
@@ -764,13 +782,12 @@ do
        and (run.why or ""):find("777 bytes", 1, true) and (run.why or ""):find("did not decode", 1, true),
        run.why)
     ck("🚨 …and the slices are KEPT for a look, not discarded",
-       FILES[DIR .. "/.scroll-slice-01.png"] ~= nil and FILES[DIR .. "/.scroll-slice-02.png"] ~= nil
-       and _G.screenshotsReport():find("KEPT", 1, true) ~= nil)
+       FILES[SL .. "/scroll-slice-01.png"] ~= nil and FILES[SL .. "/scroll-slice-02.png"] ~= nil
+       and _G.screenshotsReport():find("KEPT for a look: " .. SL .. "/scroll-slice-NN.png", 1, true) ~= nil)
     ck("…and nothing reached the clipboard", #COPIES == c0 + 1, #COPIES - c0)
     NODECODE = nil
-    for n = 1, 3 do FILES[DIR .. ("/.scroll-slice-%02d.png"):format(n)] = nil end
+    for n = 1, 3 do FILES[SL .. ("/scroll-slice-%02d.png"):format(n)] = nil end
 
-    -- ---- the finished task is not dropped inside its own callback ------
     ck("🚨 6.196.1: the finished screencapture task stays referenced after"
        .. " its callback (shots.lastCaptureTask), never nil'd mid-frame",
        S.lastCaptureTask ~= nil and S.captureTask == nil)
@@ -794,7 +811,56 @@ do
     end)())
     S.scroll.height = savedH
     os.remove = realRemove
-    check("§10b ran every one of its checks", mine == 25, mine)
+    -- ---- 6.213.3: the slice folder degrades, and says so — LAST in the
+    -- section: each case leaves a capture task pending -----------------
+    local savedSlice = S.sliceDir
+    DIRS[SL] = nil
+    S.sliceDir = HOME .. "/nowhere/scroll-slices"
+    NOMKDIR = { [S.sliceDir] = true }
+    local tN = #TASKS
+    runSelector()
+    ck("a slice folder that cannot be created → the TEMPORARY folder, and the run goes on",
+       #TASKS == tN + 1 and TASKS[#TASKS].args[3] == "/tmp/hs-test/scroll-slice-01.png",
+       TASKS[#TASKS].args[3])
+    ck("…and the report says 'temporary' and names what could not be created",
+       S.sliceHome and S.sliceHome.dir == "/tmp/hs-test"
+       and _G.screenshotsReport():find("temporary — " .. S.sliceDir .. " could not be created", 1, true) ~= nil,
+       S.sliceHome and S.sliceHome.how)
+    S.scrollLast = nil
+    DIRS["/tmp/hs-test"] = nil
+    NOMKDIR["/tmp/hs-test"] = true
+    local aN = #ALERTS
+    tN = #TASKS
+    runSelector()
+    ck("🚨 neither folder → the run STOPS before its first slice, no task, and names both",
+       #TASKS == tN and S.scrollLast and S.scrollLast.outcome == "failed"
+       and (S.scrollLast.why or ""):find("no folder for the slices", 1, true) ~= nil
+       and #ALERTS > aN and ALERTS[#ALERTS]:find("no folder for the slices", 1, true) ~= nil,
+       S.scrollLast and S.scrollLast.why)
+    ck("…and the report's 'slices :' line reads NONE, not a folder",
+       _G.screenshotsReport():find("slices  : ⚠️ NONE — neither", 1, true) ~= nil)
+    FILES[HOME .. "/afile"] = { size = 3, mode = "file", modification = 1 }
+    S.sliceDir = HOME .. "/afile"
+    NOMKDIR = nil
+    S.scrollLast = nil
+    tN = #TASKS
+    runSelector()
+    ck("a FILE where the folder should be is refused, never overwritten — the temp folder serves",
+       #TASKS == tN + 1 and TASKS[#TASKS].args[3] == "/tmp/hs-test/scroll-slice-01.png"
+       and FILES[HOME .. "/afile"] ~= nil, TASKS[#TASKS].args[3])
+    FILES[HOME .. "/afile"] = nil
+    NOMKDIR = nil
+    S.sliceDir = savedSlice
+    S.scrollLast = nil
+    ck("source: the scrolling run never builds a slice path off shots.dir", (function()
+        local src = io.open(HS .. "/modules/screenshots.lua"):read("a")
+        local body = src:match("function shots%.scrollingCapture%(thenEdit%)(.-)\n    end\n")
+        return body and body:find("shots.dir", 1, true) == nil
+           and body:find('sliceDir .. ("/scroll-slice-%02d.png")', 1, true) ~= nil
+    end)())
+
+    -- ---- the finished task is not dropped inside its own callback ------
+    check("§10b ran every one of its checks", mine == 33, mine)
 end
 
 -- =====================================================================
