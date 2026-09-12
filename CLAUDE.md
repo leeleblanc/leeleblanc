@@ -1262,11 +1262,27 @@ LL reopens it.)
   different keys ran ⇪ shortcuts. Released — the next key types.
   Report: …/.storm/storm-<epoch>.txt" — SEND THAT FILE; its `asked :`
   and `keys :` lines are the evidence the diff could not give. To
-  see it fire on purpose, in the Console: `_G.hyperActive = true;
-  _G.hyperEnteredAt = hs.timer.secondsSinceEpoch() - 6` then type
-  six different letters in Chrome — it must release, alert and write
-  the file; a second such run within 10 min must also pause, and
-  ⇪⇧Esc must resume. If the storm alert appears during REAL ⇪ use,
+  see it fire on purpose, in the Console (ONE line, no real shortcut
+  runs): `_G.hyperActive = true; _G.hyperEnteredAt =
+  hs.timer.secondsSinceEpoch() - 6; for _, k in ipairs({"|a","|b",
+  "|c","|d","|e","|f"}) do _G.hyperStormNote(k, "test") end` — it
+  must release, alert and write the file; a second run within 10 min
+  must also pause, and ⇪⇧Esc must resume. 🚨 THE FIRST RECIPE WAS
+  WRONG AND COST HIM A STUCK GRID: "set the two globals, then type six
+  letters" faked HALF a hold — no modal entered, no watchdog armed —
+  so on his Mac (tap dispatch engaged) the first letter, x, opened the
+  mouse grid, whose own modal ate the rest; the count stopped at one
+  and `_G.hyperActive` stayed true with nothing to clear it. Clean-up:
+  `_G.mouseGrid.hide("stuck"); _G.hyperForceRelease("Console")` (or a
+  Caps Lock press). LESSON FOR THE GUARD, not yet built: a stray
+  letter that opens a key-eating tool (grid, a picker) stalls the
+  distinct-key count — a time-only rule needs the autorepeat fact
+  first. MEASUREMENT ASKED OF LL: hold Caps Lock 3 s, then
+  `_G.stormReport()` — the "Caps Lock autorepeat(s)" number says
+  whether a remapped Caps Lock autorepeats at all; 0 means the
+  repeat-based half of the rule is dead on his Mac and must be
+  replaced (a real hold then has NO distinguishing fact but the
+  count). If the storm alert appears during REAL ⇪ use,
   that is a false positive: paste the file, and `settings =
   { hyper_storm = { keys = 8 } }` widens it, no release.
 - 📥 LL'S NEW ASKS (2026-09-12, with the 6.214.0 report) — logged,
