@@ -938,15 +938,25 @@ CREATED AUTOMATICALLY (never make these yourself):
    changed — the module id stays `vault` (settings, _G.vault,
    _G.vaultReport(), the @vault tag in ⇪D), and the folder is
    still called Vault on disk.
+
+🌩 HYPER STORM GUARD (automatic, modules/hyper_storm.lua)  ·  6.214.1
+   A ⇪ hold that has lasted 5 s, run 6 different shortcuts and
+   heard no Caps Lock autorepeat is a phantom (a lost F18 keyUp,
+   6.162.1's class — the watchdog cannot end one while keys keep
+   arriving). It is released, written up in
+   ~/.hammerspoon/.storm/storm-<epoch>.txt (send that file), alerted
+   and printed; a second one in 10 min also pauses (⇪⇧Esc resumes);
+   the next boot names the newest report once. _G.stormReport().
+   Off: settings = { hyper_storm = { on = false } }.
 =====================================================================
 ```
 
 ## 6. Tests
 
-Sixty-nine Lua suites, 8,299 checks, plus four more that run the Capture
+Seventy Lua suites, 8,350 checks, plus four more that run the Capture
 Pad's, the screenshot editor's, unified search's and the vault's page
-JavaScript under `node` for a further 512 — **8,811 checks over
-seventy-five stages** in
+JavaScript under `node` for a further 512 — **8,862 checks over
+seventy-six stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 

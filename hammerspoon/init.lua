@@ -4,9 +4,33 @@
 -- =====================================================================
 -- 09-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.214.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.214.1
 -- =====================================================================
 
+-- NEW IN 6.214.1 — 🌩 A STUCK ⇪ CATCHES ITSELF: THE HYPER STORM GUARD (modules/hyper_storm.lua):
+--   LL, on 6.214.0: "killed my keyboard and made every key execute some
+--      hammerspoon action. I was able to pause it. … can't hammerspoon
+--      catch itself, stop the execution after 5 seconds of this error
+--      condition and generate an error report I can give you?" It can.
+--      What happened is 6.162.1's class — the ⇪ hold LATCHED on a lost
+--      F18 keyUp — and the watchdog for it could not end it, by its own
+--      rule: any key under ⇪ "proves the hold is real" and re-stamps the
+--      deadline, and a person fighting a dead keyboard never stops
+--      pressing keys. (⇧Esc alone pausing it is the proof: ⇪ was already
+--      "held".) The diff since 6.213.3 touches no hotkey, tap, hold or
+--      panel — the latch is older than the release; the storm guard is
+--      what was missing. A hold is a STORM when it has lasted 5 s, at
+--      least 6 DIFFERENT ⇪ shortcuts fired inside it, and Caps Lock has
+--      not autorepeated for 2 s (a real finger repeats — the F18 bind
+--      gained a repeatfn; a phantom never does). Then: released, a report
+--      written to ~/.hammerspoon/.storm/storm-<epoch>.txt (version, Mac,
+--      the hold, every key with its owner, the front app, the key trail,
+--      the errors, the notices), alerted with the path, printed, noticed;
+--      a second storm in 10 min also PAUSES (⇪⇧Esc resumes); the next
+--      boot announces the newest report once; `_G.stormReport()`.
+--      `st.judge` is PURE; the thresholds each have their mutation and
+--      two were run and caught. 8,811 -> 8,862 checks, seventy-six stages.
+--
 -- NEW IN 6.214.0 — 🕸 HAMSIDIAN — THE ⇪3 NOTES ARE CALLED WHAT LL CALLS THEM:
 --   LL: "Hammer-sidian" → "Hamsidian", the first item of the agreed order,
 --      and the one release with nothing to break in it — VISIBLE STRINGS
@@ -29,42 +53,12 @@
 --      Console line at the moment it degrades, never a report line
 --      alone. 6.215.0 builds the one door for that; click hints follow it.
 --
--- NEW IN 6.213.5 — ✍️ ⇪⇧V EDITS IN A REAL WINDOW — THE OCR EDITOR, SHARED:
---   LL: "This window does not come to the front when I edit the
---      clipboard. Also, the edit field is very small, can we make this a
---      bigger edit box or use another type of window?" Those are 6.115.0's
---      two complaints, word for word — answered then for ⇪⇧O with a
---      760×520 webview that takes the caret on open, while ⇪⇧V kept
---      hs.dialog.textPrompt: a fixed one-line NSAlert that opens behind
---      whatever is in front and cannot be resized (6.190.0).
---   ✍️ ONE WINDOW, PUBLISHED. The OCR module's editor is now
---      `ocr.openTextEditor(opts)` — title, sub, text, rows, placeholder,
---      the Delete button's label, and three HOOKS (onSave(text) ·
---      onDelete · onCancel) — published as the `editor.open` service;
---      ocr.openEditor is its first caller and is unchanged for ⇪⇧O. The
---      page posts save / delete / cancel exactly as before; the box is
---      closed FIRST and then the hook runs, so a hook that throws never
---      leaves a dead window. ⇪⇧V asks `_G.service.has("editor.open")` at
---      PRESS time (6.190.0's rule) and its hooks call the same
---      clip.applyEdit the prompt did — an edit still lands on the
---      clipboard (P2), an emptied box still deletes. No service, or a
---      service that answers false (no hs.webview — the work Mac) → the
---      prompt, as before. The other textPrompt callers (Quick Append,
---      Bulk Rename, Capture Pad, Note Pad, the vault's ⌘⇧N / ⌘⇧E) can
---      take the same door, one at a time, when they come up.
---   🧪 test_ocr_tag 111 -> 118 (a generic open draws the same window; each
---      hook fires; a throwing hook still closes the box; no webview → false,
---      why, and NO prompt for another module's text), test_clipboard
---      137 -> 142 (the window opens with the entry, ⌘⏎ edits AND copies,
---      Delete deletes, the ask is at press time, the prompt is the degrade —
---      two mutations fail rows). 8,790 -> 8,802 checks, seventy-five stages.
---
--- (6.213.4 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.213.5 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.214.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.214.1
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -161,7 +155,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.214.0"
+_G.configVersion = "6.214.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------
@@ -1777,6 +1771,15 @@ _G.hyperDispatchEngaged = false   -- true once the dispatcher takes over
 -- finger; only a phantom one does. The next real ⇪ press works as ever.
 _G.hyperLatchSecs     = 8
 _G.hyperHeldAt        = 0
+-- 6.214.1 — THE STORM GUARD'S FACTS (modules/hyper_storm.lua reads them):
+-- when this hold BEGAN (hyperHeldAt moves with every key, so it cannot
+-- say), and when Caps Lock last AUTOREPEATED — a real finger repeats,
+-- a phantom hold never does. The watchdog above cannot end a latch
+-- while keys keep arriving, and a person fighting a dead keyboard
+-- keeps pressing keys; the storm guard reads these two instead.
+_G.hyperEnteredAt     = nil
+_G.hyperRepeatAt      = nil
+_G.hyperRepeats       = 0
 _G.hyperLatchReleases = 0
 _G.hyperLatchTimer    = nil     -- HELD: an unreferenced timer is collected
 
@@ -1842,6 +1845,14 @@ local function hyperEnter(via)
     else
         _G.hyperTapPresses = _G.hyperTapPresses + 1
     end
+    if _G.hyperActive then
+        -- the tap path sees F18 autorepeats as keyDowns: a repeat, not a new hold
+        _G.hyperRepeatAt = hs.timer.secondsSinceEpoch()
+        _G.hyperRepeats  = (_G.hyperRepeats or 0) + 1
+    else
+        _G.hyperEnteredAt = hs.timer.secondsSinceEpoch()
+        _G.hyperRepeatAt  = nil
+    end
     _G.hyperActive = true
     _G.hyperHeldAt = hs.timer.secondsSinceEpoch()
     hyperWatchLatch(_G.hyperLatchSecs)
@@ -1853,14 +1864,33 @@ end
 
 hyperExit = function()
     _G.hyperActive = false
+    _G.hyperEnteredAt = nil
     _G.hyperReleaseExpected = nil
     if _G.hyperLatchTimer then _G.hyperLatchTimer:stop(); _G.hyperLatchTimer = nil end
     if not _G.hyperDispatchEngaged then _G.hyperModal:exit() end
 end
 
+-- 6.214.1 — the storm guard's way out: a latched hold it has judged a
+-- phantom is released here, counted with the watchdog's, and said.
+_G.hyperForceRelease = function(who)
+    if not _G.hyperActive then return false end
+    _G.hyperLatchReleases = _G.hyperLatchReleases + 1
+    print("⌨️ ⇪ released by " .. tostring(who or "a guard") .. " (release #"
+          .. _G.hyperLatchReleases .. ") — the F18 keyUp never arrived. Press Caps Lock again as normal.")
+    hyperExit()
+    return true
+end
+
 hs.hotkey.bind({}, "F18",
     function() hyperEnter("carbon") end,
-    function() hyperExit() end)
+    function() hyperExit() end,
+    -- 6.214.1 — a real finger on Caps Lock AUTOREPEATS; the storm guard
+    -- reads this stamp to tell a held key from a phantom hold.
+    function()
+        _G.hyperRepeatAt = hs.timer.secondsSinceEpoch()
+        _G.hyperRepeats  = (_G.hyperRepeats or 0) + 1
+        _G.hyperHeldAt   = _G.hyperRepeatAt
+    end)
 
 -- ---- path two: the event tap ------------------------------------------
 -- Built in core/hyper_key.lua, along with the Carbon-free dispatcher and
@@ -1968,6 +1998,9 @@ local function hyperBind(mods, key, pressedFn, releasedFn, repeatFn, source)
             if _G.keyTrailRecord then
                 pcall(_G.keyTrailRecord, combo, source, ms, (not ok) and "threw" or nil)
             end
+            -- 6.214.1 — the storm guard counts DIFFERENT shortcuts fired
+            -- inside one hold; nil-guarded and pcall'd like the two above.
+            if _G.hyperStormNote then pcall(_G.hyperStormNote, combo, source) end
             -- A shortcut that throws must still SAY so, exactly as it did
             -- when it was unwrapped: the pcall here is for the timing, not
             -- a place to swallow a fault. And it must not gain a hint card
@@ -3127,6 +3160,7 @@ local BASE = {
     "vault",              -- 🕸 ⇪3 linked Markdown notes in OneDrive, backlinks, graph (6.172.0)
     "anchors",            -- 🔗 6.180.0 ⇪⇧U links the front document or tab to a vault note
     "stall_guard",        -- 🧊 6.208.0 a second process relaunches a beach-balled Hammerspoon (no key)
+    "hyper_storm",        -- 🌩 6.214.1 a latched ⇪ running your typing as shortcuts releases itself and writes a report (no key)
     -- 6.132.0 — no key of its own. It owns the six case transforms, and
     -- ⇪; and ⇪R both ask it for them through core.call at the moment you
     -- press the key. Order here is therefore irrelevant; it sits beside

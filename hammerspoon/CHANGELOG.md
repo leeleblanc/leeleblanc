@@ -5,6 +5,30 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.214.1 — 🌩 A STUCK ⇪ CATCHES ITSELF: THE HYPER STORM GUARD (modules/hyper_storm.lua):
+  LL, on 6.214.0: "killed my keyboard and made every key execute some
+     hammerspoon action. I was able to pause it. … can't hammerspoon
+     catch itself, stop the execution after 5 seconds of this error
+     condition and generate an error report I can give you?" It can.
+     What happened is 6.162.1's class — the ⇪ hold LATCHED on a lost
+     F18 keyUp — and the watchdog for it could not end it, by its own
+     rule: any key under ⇪ "proves the hold is real" and re-stamps the
+     deadline, and a person fighting a dead keyboard never stops
+     pressing keys. (⇧Esc alone pausing it is the proof: ⇪ was already
+     "held".) The diff since 6.213.3 touches no hotkey, tap, hold or
+     panel — the latch is older than the release; the storm guard is
+     what was missing. A hold is a STORM when it has lasted 5 s, at
+     least 6 DIFFERENT ⇪ shortcuts fired inside it, and Caps Lock has
+     not autorepeated for 2 s (a real finger repeats — the F18 bind
+     gained a repeatfn; a phantom never does). Then: released, a report
+     written to ~/.hammerspoon/.storm/storm-<epoch>.txt (version, Mac,
+     the hold, every key with its owner, the front app, the key trail,
+     the errors, the notices), alerted with the path, printed, noticed;
+     a second storm in 10 min also PAUSES (⇪⇧Esc resumes); the next
+     boot announces the newest report once; `_G.stormReport()`.
+     `st.judge` is PURE; the thresholds each have their mutation and
+     two were run and caught. 8,811 -> 8,862 checks, seventy-six stages.
+
 NEW IN 6.214.0 — 🕸 HAMSIDIAN — THE ⇪3 NOTES ARE CALLED WHAT LL CALLS THEM:
   LL: "Hammer-sidian" → "Hamsidian", the first item of the agreed order,
      and the one release with nothing to break in it — VISIBLE STRINGS

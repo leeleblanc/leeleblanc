@@ -62,6 +62,27 @@ work Mac.
   counted, listed by `_G.degradeReport()`); until every module takes
   it, any NEW degrade path alerts and prints itself. Never a throw that
   stops the rest of the config — the alert is the error he asked for.
+- 🌩 A LATCHED ⇪ IS A STORM AND ENDS ITSELF (6.214.1, modules/
+  hyper_storm.lua, LL on 6.214.0: "killed my keyboard and made every
+  key execute some hammerspoon action … can't hammerspoon catch
+  itself, stop the execution after 5 seconds of this error condition
+  and generate an error report I can give you?"). The 6.162.1
+  watchdog CANNOT end a latch while keys keep arriving — its own rule
+  says a key under ⇪ proves the hold — and a person fighting a dead
+  keyboard never stops pressing keys; ⇧Esc alone pausing it proved ⇪
+  was "held". The storm rule (`st.judge`, PURE): held ≥ 5 s, ≥ 6
+  DIFFERENT shortcuts fired inside the hold, no Caps Lock autorepeat
+  in 2 s (the F18 bind has a repeatfn now; `_G.hyperEnteredAt` /
+  `_G.hyperRepeatAt` are the facts, stamped in hyperEnter and the
+  repeatfn) → `_G.hyperForceRelease`, a report file in
+  ~/.hammerspoon/.storm/ (LOCAL), alert + Console + notices; a second
+  storm in 10 min pauses (⇪⇧Esc); next boot announces once. NOT
+  found by reading: the 6.213.3→6.214.0 diff has no hotkey/tap/hold/
+  panel change, so the trigger is unnamed until a storm file says
+  which panel had asked for a release (`asked :` line) and which
+  keys ran. 🚨 LL'S GATE ON SHIPPING: nothing after 6.214.1 ships
+  until he says 6.214.1 held on BOTH Macs; 6.215.0 (the 🔔 door) and
+  click hints wait behind it.
 
 ## Module contract
 
@@ -1215,11 +1236,13 @@ as the fix when a loss lands.
 | 6.213.3 | ⇪5 slices go to a local folder, plain names (the OneDrive dot-file cause) | WIN |
 | 6.213.4 | autocorrect: listed words first, then by-ending words in kind order (statrs → starts, adress/sceen stay) | pending |
 | 6.213.5 | ⇪⇧V edits in the OCR editor's window via `editor.open` (front, big, multi-line); the prompt is the degrade | pending |
-| 6.214.0 | 🕸 Hamsidian: the ⇪3 notes renamed in every visible string; ids, folder, services unchanged | pending |
+| 6.214.0 | 🕸 Hamsidian: the ⇪3 notes renamed in every visible string; ids, folder, services unchanged | LOSS — LL: "killed my keyboard and made every key execute some hammerspoon action. I was able to pause it." A latched ⇪ (6.162.1's class); he went back to 6.213.3 → 6.214.1 |
+| 6.214.1 | 🌩 hyper storm guard: a latched ⇪ releases itself after 5 s and writes ~/.hammerspoon/.storm/storm-<epoch>.txt | pending |
 
-Running total: 11 wins · 2 losses · 3 pending. LL, after 6.213.3:
-"I've done the others, they are good" — every row but 6.213.4 scored
-in that sentence; 6.213.4, 6.213.5 and 6.214.0 wait on his word.
+Running total: 11 wins · 3 losses · 3 pending (6.213.4, 6.213.5,
+6.214.1). LL is on 6.213.3 again; 6.213.4 and 6.213.5 were never
+confirmed installed, so the 6.214.0 loss covers all three releases'
+diff — which touches no hotkey, tap, hold or panel handshake.
 
 ## Open items — update as they move
 
@@ -1228,10 +1251,49 @@ CLAUDE-archive.md at the repo root, which is NOT auto-loaded — this
 file rides into every context window. A block comes back here only if
 LL reopens it.)
 
+- 6.214.1 verify with LL — THE STORM GUARD, and his gate for
+  everything after it: install over 6.213.3 (it carries 6.213.4,
+  6.213.5 and 6.214.0 too). Boot: `_G.stormReport()` reads "watching:
+  5 s held · 6 different shortcuts …", "no storm this session", "no
+  report on disk". Normal use for a day on each Mac: NO storm alert
+  while he uses ⇪ as ever (a held ⇪+arrow is one key; a real hold
+  autorepeats). If the keyboard storms again: within ~5 s of typing
+  an alert "🌩 ⇪ STORM CAUGHT — Caps Lock was stuck N s and N
+  different keys ran ⇪ shortcuts. Released — the next key types.
+  Report: …/.storm/storm-<epoch>.txt" — SEND THAT FILE; its `asked :`
+  and `keys :` lines are the evidence the diff could not give. To
+  see it fire on purpose, in the Console: `_G.hyperActive = true;
+  _G.hyperEnteredAt = hs.timer.secondsSinceEpoch() - 6` then type
+  six different letters in Chrome — it must release, alert and write
+  the file; a second such run within 10 min must also pause, and
+  ⇪⇧Esc must resume. If the storm alert appears during REAL ⇪ use,
+  that is a false positive: paste the file, and `settings =
+  { hyper_storm = { keys = 8 } }` widens it, no release.
+- 📥 LL'S NEW ASKS (2026-09-12, with the 6.214.0 report) — logged,
+  NOT built; nothing ships until 6.214.1 is scored on both Macs; then
+  the agreed order resumes with the 🔔 door and click hints, and
+  these join the queue in HIS order when he says: (a) ⌥Tab: the
+  Hammerspoon Console window back in the switcher ("that was
+  awesome"); (b) 💾 a translucent floppy-disc beside a text field in
+  Chrome/Safari that has no save, "watching" the typing (a draft
+  keeper — scope: which fields, where the draft goes, how it is
+  recovered); (c) init.lua: drop version-note comments older than
+  6.15x that are not durable rules; (d) 📶 Bluetooth: connect/
+  disconnect AirPods or any device, reliably (blueutil is a brew
+  binary — the work Mac may not have it; degrade); (e) ⌘Space: he
+  will take it from Alfred/Spotlight for the ⇪space launcher (apps +
+  recent files + search) — a plain hs.hotkey, not a hyper key;
+  (f) a PUBLIC init.lua/config: 100% sanitised (name, paths, Mac
+  names, emails, IDs, tokens, OneDrive paths) — the GitHub audit
+  item, now first-class; (g) 📋 an image just copied is the FIRST
+  paste candidate in the clipboard history, text moved back one —
+  check what clipboard_history does with images today before
+  promising (images go to the OCR engine, 6.190.0's note).
 - 🗳 LL'S ANSWERS TO THE 14 QUESTIONS (2026-09-12), as read — items
   8–14 were numbered 1–6 under "Work Mac:" and are read in order:
   1 click hints on ⇪X first, grid as the fallback — default; 2 Chrome
-  and Finder — default; 3 the order — default (Hamsidian ✓ 6.214.0,
+  and Finder — default; 3 the order — default (Hamsidian 6.214.0 —
+  a LOSS, the storm guard 6.214.1 sits in front of everything now —
   then the 🔔 door 6.215.0 on his new rule, then click hints, OCR
   gibberish, the 4 PM review, bookmarks, GitHub audit + public repo,
   website, Claude door); 4 rename visible strings only — default;
