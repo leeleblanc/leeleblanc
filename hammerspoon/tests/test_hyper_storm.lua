@@ -42,6 +42,8 @@ hs = {
         end,
         mkdir = function(p) if NO_DIR then return nil end return os.execute('mkdir -p "' .. p .. '"') end,
         dir = function(p)
+            -- what macOS answers: hs.fs.dir THROWS on a path that is not a folder
+            if os.execute('test -d "' .. p .. '"') ~= true then error("cannot open " .. p .. ": Not a directory") end
             local h = io.popen('ls -a "' .. p .. '" 2>/dev/null')
             local names = {}
             for n in h:lines() do names[#names + 1] = n end
@@ -214,6 +216,55 @@ check("the module is in init.lua's load list", init:find('"hyper_storm",', 1, tr
 local src = readAll(HS .. "/modules/hyper_storm.lua") or ""
 check("the module never binds a key and never writes to OneDrive (no core.hyperAddShortcut, no cloudDir)",
       not src:find("hyperAddShortcut", 1, true) and not src:find("cloudDir", 1, true))
+
+out("10) 6.214.2 — keys the tap sees under ⇪ count too, and a missing folder is not an error\n")
+do
+    hs.keycodes = { map = { [0] = "a", [11] = "b", [8] = "c", [2] = "d", [14] = "e", [3] = "f", [7] = "x", [79] = "f18" } }
+    _G.hyperCombo = function(mods, key)
+        local m = {}
+        for _, x in ipairs(mods or {}) do m[#m + 1] = tostring(x):lower() end
+        table.sort(m)
+        if #m == 0 then return tostring(key):lower() end
+        return table.concat(m, "+") .. "+" .. tostring(key):lower()
+    end
+    local function ev(flags) return { getFlags = function() return flags or {} end } end
+    local m2 = dofile(HS .. "/modules/hyper_storm.lua")
+    m2.setup({ configDir = ROOT })
+    local s2 = _G.hyperStorm
+    check("_G.hyperStormKey is the tap's door", _G.hyperStormKey == s2.keyNote)
+    hold(5000); NOW = 5001
+    s2.keyNote(7, ev())                       -- x, from the tap
+    s2.note("x", "mouse grid")                -- the same press, from hyperBind
+    check("the same key from both doors is ONE key (named as hyperBind names it)", #s2.order == 1 and s2.order[1][1] == "x", s2.order[1] and s2.order[1][1])
+    s2.keyNote(0, ev()); s2.keyNote(11, ev()); s2.keyNote(8, ev()); s2.keyNote(2, ev())
+    check("four letters the grid ate are counted from the tap", #s2.order == 5)
+    check("a shifted key is its own combo, shaped shift+e", s2.keyNote(14, ev({ shift = true })) == false and s2.order[6][1] == "shift+e", s2.order[6] and s2.order[6][1])
+    check("F18 itself is never a key", s2.keyNote(79, ev()) == false and #s2.order == 6)
+    check("an unmapped code still counts, by number", s2.keyNote(999, ev()) == false and s2.order[7][1] == "key999")
+    NOW = 5006
+    RELEASED = {}
+    local r = s2.keyNote(3, ev())
+    check("…and the storm fires from the tap's door at 5 s with six different keys", r == true and RELEASED[1] == "the ⇪ storm guard")
+    check("the report names the tap as the owner of an eaten key", readAll(s2.last.path):find("typed under ⇪", 1, true) ~= nil)
+    release()
+    -- a missing folder is "no reports", never a ⚠️
+    os.execute('rm -rf "' .. ROOT .. '/.storm"')
+    local path, why = s2.newest()
+    check("no folder yet → nil, nil (not an error)", path == nil and why == nil)
+    local okA, whyA = s2.announce()
+    check("announce on a fresh Mac says 'no reports yet' and records no warning", okA == false and whyA == "no reports yet" and s2.announceWhy == nil)
+    PRINTED = {}
+    _G.stormReport()
+    check("the report carries no ⚠️ line for a folder that was never needed", not PRINTED[1]:find("⚠️", 1, true), PRINTED[1])
+    local f = io.open(ROOT .. "/.storm", "w"); f:write("x"); f:close()
+    local p2, w2 = s2.newest()
+    check("a FILE in the folder's place is a real listing failure, and says so", p2 == nil and type(w2) == "string" and w2:find("cannot list", 1, true))
+    os.remove(ROOT .. "/.storm")
+    local tap = readAll(HS .. "/core/hyper_key.lua") or ""
+    check("the tap calls _G.hyperStormKey on keyDown under ⇪, inside its own pcall, before the dispatch decision",
+          tap:find("if _G.hyperActive and _G.hyperStormKey and t == hs.eventtap.event.types.keyDown then\n            pcall(_G.hyperStormKey, code, ev)", 1, true) ~= nil
+              and tap:find("pcall(_G.hyperStormKey, code, ev)\n        end\n        if not _G.hyperDispatchEngaged then return false end", 1, true) ~= nil)
+end
 
 os.execute('rm -rf "' .. ROOT .. '"')
 print = realPrint

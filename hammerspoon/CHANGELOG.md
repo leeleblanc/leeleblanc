@@ -5,6 +5,29 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.214.2 — 🌩 THE STORM GUARD COUNTS THE KEYS A TOOL EATS, AND A MISSING FOLDER IS NOT A WARNING:
+  LL ran 6.214.1's test on his Air and it worked end to end: released,
+     the report written, every section present, `_G.stormReport()`
+     printing it. Two faults in the same output. (1) His first test
+     recipe (mine, wrong) typed real letters under a half-faked hold:
+     x opened the mouse grid, the grid's own keyboard mode ate a–f, and
+     the count stopped at ONE — a real storm whose first stray letter
+     opens a key-eating tool would hide the same way. The ⇪ tap
+     (core/hyper_key.lua) already sees every keyDown under the hold, so
+     `_G.hyperStormKey(code, ev)` now notes each one from there, named
+     through `_G.hyperCombo` exactly as hyperBind names its combos, so
+     the same press from both doors is one key; its own pcall, because
+     a throw in the tap counts towards the tap stopping itself. (2) The
+     report carried "⚠️ cannot list …/.storm: No such file or directory"
+     — recorded at boot, before any storm had created the folder, and
+     printed beside the file it had just written. A folder that does
+     not exist yet is "no reports", nil, nil; a FILE in its place is
+     still a listing failure and still says so. MEASURED ON HIS AIR:
+     "0 Caps Lock autorepeat(s)" — whether a remapped Caps Lock
+     autorepeats at all is asked of him explicitly; if it never does,
+     that half of the rule is inert (never wrong) and the count is the
+     whole rule. 8,862 -> 8,875 checks, seventy-six stages.
+
 NEW IN 6.214.1 — 🌩 A STUCK ⇪ CATCHES ITSELF: THE HYPER STORM GUARD (modules/hyper_storm.lua):
   LL, on 6.214.0: "killed my keyboard and made every key execute some
      hammerspoon action. I was able to pause it. … can't hammerspoon

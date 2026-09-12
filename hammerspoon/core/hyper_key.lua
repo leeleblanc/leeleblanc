@@ -277,6 +277,14 @@ local function hyperTapCallback(ev)
         -- 6.162.1: a key arriving while ⇪ is down proves the hold is real
         -- (the latch watchdog in init.lua §3.12 lets a SILENT hold go).
         if _G.hyperActive and _G.hyperTouch then _G.hyperTouch() end
+        -- 6.214.2 — the storm guard counts EVERY key typed under ⇪ from
+        -- here, not only the ones that reach a shortcut: a stray letter
+        -- that opens a key-eating tool (LL's stuck grid) hid the rest of
+        -- his typing from hyperBind's note. Its own pcall — a throw here
+        -- would count towards MAX_FAILURES and stop the tap.
+        if _G.hyperActive and _G.hyperStormKey and t == hs.eventtap.event.types.keyDown then
+            pcall(_G.hyperStormKey, code, ev)
+        end
         if not _G.hyperDispatchEngaged then return false end
         if _G.hyperActive then return _G.hyperTapDispatch(ev, t, code) end
         return _G.globalTapDispatch(ev, t, code)

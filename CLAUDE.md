@@ -1237,10 +1237,11 @@ as the fix when a loss lands.
 | 6.213.4 | autocorrect: listed words first, then by-ending words in kind order (statrs → starts, adress/sceen stay) | pending |
 | 6.213.5 | ⇪⇧V edits in the OCR editor's window via `editor.open` (front, big, multi-line); the prompt is the degrade | pending |
 | 6.214.0 | 🕸 Hamsidian: the ⇪3 notes renamed in every visible string; ids, folder, services unchanged | LOSS — LL: "killed my keyboard and made every key execute some hammerspoon action. I was able to pause it." A latched ⇪ (6.162.1's class); he went back to 6.213.3 → 6.214.1 |
-| 6.214.1 | 🌩 hyper storm guard: a latched ⇪ releases itself after 5 s and writes ~/.hammerspoon/.storm/storm-<epoch>.txt | pending |
+| 6.214.1 | 🌩 hyper storm guard: a latched ⇪ releases itself after 5 s and writes ~/.hammerspoon/.storm/storm-<epoch>.txt | LOSS — the test itself worked (released, file, report), but the report carried a stale ⚠️ and LL's bad test recipe (mine) exposed the count stalling behind a key-eating tool → 6.214.2 |
+| 6.214.2 | 🌩 the storm guard counts keys from the ⇪ tap too (a tool that eats keys no longer hides them); a missing folder is no warning | pending |
 
-Running total: 11 wins · 3 losses · 3 pending (6.213.4, 6.213.5,
-6.214.1). LL is on 6.213.3 again; 6.213.4 and 6.213.5 were never
+Running total: 11 wins · 4 losses · 3 pending (6.213.4, 6.213.5,
+6.214.2). LL is on 6.213.3 again; 6.213.4 and 6.213.5 were never
 confirmed installed, so the 6.214.0 loss covers all three releases'
 diff — which touches no hotkey, tap, hold or panel handshake.
 
@@ -1251,6 +1252,17 @@ CLAUDE-archive.md at the repo root, which is NOT auto-loaded — this
 file rides into every context window. A block comes back here only if
 LL reopens it.)
 
+- 6.214.2 verify with LL: install; `_G.stormReport()` at boot must show
+  NO ⚠️ line (the folder exists on the Air now; on the work Mac it
+  does not and must read "no report on disk", not a warning). The
+  one-line Console test from 6.214.1 still fires. THE MEASUREMENT
+  STILL OWED: hold Caps Lock 3 s, release, `_G.stormReport()`, read
+  "N Caps Lock autorepeat(s)" — his 17:03 report said 0 but it is not
+  known whether he held it first. 0 after a real 3 s hold = a remapped
+  Caps Lock never autorepeats on that Mac: the autorepeat clause is
+  then inert (never wrong), the count is the whole rule, and the
+  init.lua comment claiming "a real hold keeps stamping (F18
+  autorepeats)" is false and must be corrected in the next release.
 - 6.214.1 verify with LL — THE STORM GUARD, and his gate for
   everything after it: install over 6.213.3 (it carries 6.213.4,
   6.213.5 and 6.214.0 too). Boot: `_G.stormReport()` reads "watching:

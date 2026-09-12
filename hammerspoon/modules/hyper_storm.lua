@@ -139,6 +139,35 @@ function M.setup(core)
     end
     _G.hyperStormNote = st.note
 
+    -- 6.214.2 — every keyDown the ⇪ tap sees while the hold is up (core/
+    -- hyper_key.lua), named the way hyperBind names its combos so the
+    -- same key from both doors is ONE key. This is what counts the
+    -- letters a tool's own keyboard mode eats: LL's test typed x, ⇪X
+    -- opened the mouse grid, the grid ate a–f, and the count stopped at
+    -- one. The tap runs whether or not it dispatches, so this door is
+    -- open on every Mac that grants Accessibility; hyperBind's note is
+    -- the one that stays when it is not.
+    function st.keyNote(code, ev)
+        if st.on == false or not _G.hyperActive then return false, "not held" end
+        local name
+        pcall(function() name = hs.keycodes and hs.keycodes.map and hs.keycodes.map[code] end)
+        if type(name) ~= "string" then name = "key" .. tostring(code) end
+        if name == "f18" then return false, "the hyper key itself" end
+        local mods = {}
+        local f = {}
+        pcall(function() f = (ev and ev.getFlags and ev:getFlags()) or {} end)
+        for _, m in ipairs({ "alt", "cmd", "ctrl", "shift" }) do if f[m] then mods[#mods + 1] = m end end
+        local combo
+        if type(_G.hyperCombo) == "function" then
+            combo = _G.hyperCombo(mods, name)
+        else
+            table.sort(mods)
+            combo = (#mods > 0 and (table.concat(mods, "+") .. "+") or "") .. tostring(name):lower()
+        end
+        return st.note(combo, "typed under ⇪")
+    end
+    _G.hyperStormKey = st.keyNote
+
     -- ---- the report ---------------------------------------------------------
     local function captured(fnName)
         local fn = _G[fnName]
@@ -243,6 +272,12 @@ function M.setup(core)
     -- ---- the next boot says it once ------------------------------------------
     function st.newest()
         if not st.dir then return nil, "no config folder known" end
+        -- 6.214.2 — a folder that does not exist yet is "no reports", not
+        -- an error: the first boot on a Mac read "⚠️ cannot list …: No such
+        -- file or directory" in the report while the storm file it had
+        -- just written sat under it. A missing folder returns nil, nil.
+        local okA, attrs = pcall(function() return hs.fs and hs.fs.attributes and hs.fs.attributes(st.dir) end)
+        if okA and attrs == nil then return nil, nil end
         local best, bestEpoch
         local ok, err = pcall(function()
             for name in hs.fs.dir(st.dir) do
@@ -256,7 +291,7 @@ function M.setup(core)
 
     function st.announce()
         local path, epoch = st.newest()
-        if not path then st.announceWhy = epoch; return false, epoch end
+        if not path then st.announceWhy = epoch; return false, epoch or "no reports yet" end
         local seen, seenWhy
         local ok = pcall(function() seen = hs.settings.get(st.settingsKey) end)
         if not ok then seenWhy = "hs.settings unavailable — every boot will announce again" end

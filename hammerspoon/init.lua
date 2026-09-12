@@ -4,9 +4,32 @@
 -- =====================================================================
 -- 09-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.214.1
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.214.2
 -- =====================================================================
 
+-- NEW IN 6.214.2 — 🌩 THE STORM GUARD COUNTS THE KEYS A TOOL EATS, AND A MISSING FOLDER IS NOT A WARNING:
+--   LL ran 6.214.1's test on his Air and it worked end to end: released,
+--      the report written, every section present, `_G.stormReport()`
+--      printing it. Two faults in the same output. (1) His first test
+--      recipe (mine, wrong) typed real letters under a half-faked hold:
+--      x opened the mouse grid, the grid's own keyboard mode ate a–f, and
+--      the count stopped at ONE — a real storm whose first stray letter
+--      opens a key-eating tool would hide the same way. The ⇪ tap
+--      (core/hyper_key.lua) already sees every keyDown under the hold, so
+--      `_G.hyperStormKey(code, ev)` now notes each one from there, named
+--      through `_G.hyperCombo` exactly as hyperBind names its combos, so
+--      the same press from both doors is one key; its own pcall, because
+--      a throw in the tap counts towards the tap stopping itself. (2) The
+--      report carried "⚠️ cannot list …/.storm: No such file or directory"
+--      — recorded at boot, before any storm had created the folder, and
+--      printed beside the file it had just written. A folder that does
+--      not exist yet is "no reports", nil, nil; a FILE in its place is
+--      still a listing failure and still says so. MEASURED ON HIS AIR:
+--      "0 Caps Lock autorepeat(s)" — whether a remapped Caps Lock
+--      autorepeats at all is asked of him explicitly; if it never does,
+--      that half of the rule is inert (never wrong) and the count is the
+--      whole rule. 8,862 -> 8,875 checks, seventy-six stages.
+--
 -- NEW IN 6.214.1 — 🌩 A STUCK ⇪ CATCHES ITSELF: THE HYPER STORM GUARD (modules/hyper_storm.lua):
 --   LL, on 6.214.0: "killed my keyboard and made every key execute some
 --      hammerspoon action. I was able to pause it. … can't hammerspoon
@@ -31,34 +54,12 @@
 --      `st.judge` is PURE; the thresholds each have their mutation and
 --      two were run and caught. 8,811 -> 8,862 checks, seventy-six stages.
 --
--- NEW IN 6.214.0 — 🕸 HAMSIDIAN — THE ⇪3 NOTES ARE CALLED WHAT LL CALLS THEM:
---   LL: "Hammer-sidian" → "Hamsidian", the first item of the agreed order,
---      and the one release with nothing to break in it — VISIBLE STRINGS
---      ONLY, as the Scorp Pad was renamed in 6.171.0. The window header,
---      the window title, the cheat sheet section, the four Console lines,
---      the no-webview prompt, the ⇪D source label, the anchors' rows and
---      alerts, the Scorp Pad's "whose window" line and the first line of
---      the report all say Hamsidian now. What did NOT move, on purpose: the
---      module id `vault` (so `settings = { vault = { … } }` keeps working),
---      `_G.vault` / `_G.vaultReport()` / `_G.vaultRescan()`, the folder
---      <OneDrive>/Vault (a rename there strands every note and Obsidian
---      with it), the services, and the `@vault` tag in ⇪D. test_vault's
---      new section holds both halves — a mutation that renames the id or
---      the folder fails, and so does one that leaves "Vault" in a string
---      LL reads (the module name mutation was run and caught). The audit
---      exemption in test_integration is keyed by the module NAME, so it
---      moved with it. 8,802 -> 8,811 checks, seventy-five stages.
---   🔔 A RULE, recorded and not yet built, on LL's word this release:
---      "anything here that breaks" must be SEEN — an alert and a ⚠️
---      Console line at the moment it degrades, never a report line
---      alone. 6.215.0 builds the one door for that; click hints follow it.
---
--- (6.213.5 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.214.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.214.1
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.214.2
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -155,7 +156,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.214.1"
+_G.configVersion = "6.214.2"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------
