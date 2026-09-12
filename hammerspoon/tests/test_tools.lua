@@ -964,7 +964,12 @@ do
     f:close()
     pom.today = { key = nil, completed = 0 }
     CANVASES, TIMERS = {}, {}
-    NOW = os.time()
+    -- 6.215.0 — PINNED to 09:00 today, not the real clock: this block
+    -- advances NOW by a whole work phase, and a gate run in the last 25
+    -- minutes before midnight crossed into tomorrow, so the in-memory
+    -- add landed on a new day and "3 done today" read "1". A fixture on
+    -- the wall clock is a test that fails on a schedule.
+    do local d = os.date("*t"); NOW = os.time({ year = d.year, month = d.month, day = d.day, hour = 9 }) end
     local realOpen, opens = io.open, 0
     io.open = function(path, mode)
         if path == pom.logFile and (mode == nil or mode == "r") then opens = opens + 1 end

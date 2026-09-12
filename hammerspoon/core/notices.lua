@@ -267,6 +267,96 @@ return function(core)
         return true
     end
 
+    -- ---- 6.215.0 — 🔔 THE DEGRADE DOOR ---------------------------------------
+    -- LL, 6.214.0: "I also must have anything here that breaks to throw an
+    -- error so I see it, know about it, and can fix it with you." IT
+    -- DEGRADES, IT NEVER BREAKS (6.177.0) says a missing folder, binary
+    -- or module costs one feature and never the config — this says WHERE
+    -- that degraded state goes. Before this door it went to a `return
+    -- false, why` and, on a good day, a print — a line he finds a week
+    -- later, if he opens the Console at all. One call now does all three
+    -- at the moment it happens: an hs.alert naming the TOOL and the CAUSE
+    -- (hs.alert draws on the screen whatever Focus says — this is the one
+    -- surface here that deliberately does not go through tell()), a ⚠️
+    -- Console line, and a row in the ledger so ⇪⇧D, _G.noticesReport()
+    -- and _G.degradeReport() all list it. It returns `false, why`, so a
+    -- function that already ends in `return false, why` takes the door
+    -- by writing `return core.degrade("Tool", why)` and nothing else
+    -- changes. P2 still holds: the same tool + cause alerts once per
+    -- `degradeEvery`, and every call still counts and still prints, so
+    -- a degrade inside a repeating timer is seen once and counted forty
+    -- times, never painted forty times. P4 too: nil-tolerant, every
+    -- macOS call pcall'd, the tool table bounded.
+    notices.degradeEvery = 600   -- the same tool + cause alerts again after this many seconds
+    notices.degradeMax   = 60    -- tools remembered; the oldest is dropped past it
+    notices.degradeCauses = 8    -- causes remembered per tool for the alert gate
+    notices.degrades     = {}    -- tool -> { n, first, last, why, clock, alerts, seen = { cause -> at } }
+    notices.degradeOrder = {}    -- tools, oldest first
+    notices.degradeTotal = 0
+
+    function notices.degrade(tool, why, opts)
+        opts = type(opts) == "table" and opts or {}
+        tool = tostring(tool or "?")
+        why  = tostring(why or "no reason given")
+        local t = now()
+        local d = notices.degrades[tool]
+        if not d then
+            d = { n = 0, first = t, alerts = 0, seen = {}, seenOrder = {} }
+            notices.degrades[tool] = d
+            local O = notices.degradeOrder
+            O[#O + 1] = tool
+            while #O > notices.degradeMax do
+                local old = table.remove(O, 1)
+                notices.degrades[old] = nil
+            end
+        end
+        d.n, d.last, d.why, d.clock = d.n + 1, t, why, os.date("%H:%M:%S")
+        notices.degradeTotal = notices.degradeTotal + 1
+        -- 1. the ledger — ⇪⇧D, _G.noticesReport(), the storm report's notices section
+        notices.record("degrade", tool, why)
+        -- 2. the Console line, every time
+        pcall(print, "⚠️ " .. tool .. ": " .. why)
+        -- 3. the alert, at the moment — once per tool + cause per degradeEvery
+        local last = d.seen[why]
+        if opts.alert ~= false and (not last or (t - last) >= notices.degradeEvery) then
+            if not last then
+                local S = d.seenOrder
+                S[#S + 1] = why
+                while #S > notices.degradeCauses do d.seen[table.remove(S, 1)] = nil end
+            end
+            d.seen[why] = t
+            local shown = pcall(function()
+                hs.alert.show("⚠️ " .. tool .. " — " .. why, opts.seconds or 6)
+            end)
+            if shown then d.alerts = d.alerts + 1 end
+        end
+        return false, why
+    end
+    _G.degrade = notices.degrade
+    if type(core) == "table" then core.degrade = notices.degrade end
+
+    function _G.degradeReport()
+        local tools = #notices.degradeOrder
+        local L = { string.format("🔔 DEGRADED — %d time(s) across %d tool(s) this session · "
+                                  .. "the same cause alerts once per %d min",
+                                  notices.degradeTotal, tools, math.floor(notices.degradeEvery / 60)) }
+        if tools == 0 then
+            L[#L + 1] = "   nothing has degraded this session — every tool that took the door had what it needed."
+        else
+            for _, tool in ipairs(notices.degradeOrder) do
+                local d = notices.degrades[tool]
+                if d then
+                    L[#L + 1] = string.format("   %s  %-22s ×%-4d %s%s", d.clock or "--:--:--", tool, d.n, d.why,
+                                              d.alerts == 0 and "  (⚠️ never alerted — hs.alert refused)" or "")
+                end
+            end
+        end
+        L[#L + 1] = "   the door : core.degrade(tool, why) → alert · ⚠️ Console line · this list · ⇪⇧D"
+        local s = table.concat(L, "\n")
+        print(s)
+        return s
+    end
+
     -- ---- the report --------------------------------------------------------
     function _G.noticesReport()
         local L = { string.format("🔔 NOTICES — %d recorded", #notices.ledger) }

@@ -98,6 +98,17 @@ function M.setup(core)
             pcall(_G.notices.record, "runtime", "hyper_storm", what .. (why and (" — " .. why) or ""))
         end
     end
+    -- 6.215.0 — the first taker of the degrade door: a folder that cannot
+    -- be listed, or an announce that threw, is alerted at boot, not only
+    -- printed into a report LL opens a week later. `st.degrade` so warm()
+    -- (outside setup) reaches it; the fallback prints when core has no door.
+    function st.degrade(why)
+        if type(core) == "table" and type(core.degrade) == "function" then
+            return core.degrade("Hyper storm guard", why)
+        end
+        print("⚠️ Hyper storm guard: " .. tostring(why))
+        return false, why
+    end
 
     -- ---- the rule, pure ---------------------------------------------------
     -- s = { active, enteredAt, repeatAt, distinct }, t = now. Returns
@@ -291,7 +302,11 @@ function M.setup(core)
 
     function st.announce()
         local path, epoch = st.newest()
-        if not path then st.announceWhy = epoch; return false, epoch or "no reports yet" end
+        if not path then
+            st.announceWhy = epoch
+            if epoch then return st.degrade(epoch) end   -- a real refusal (cannot list) is seen
+            return false, "no reports yet"               -- a missing folder is not
+        end
         local seen, seenWhy
         local ok = pcall(function() seen = hs.settings.get(st.settingsKey) end)
         if not ok then seenWhy = "hs.settings unavailable — every boot will announce again" end
@@ -353,7 +368,12 @@ end
 function M.warm(core)
     local st = _G.hyperStorm
     if not st or st.on == false then return end
-    pcall(st.announce)
+    local ok, err = pcall(st.announce)
+    if not ok then
+        -- 6.215.0: a throw here used to vanish inside this pcall.
+        st.announceWhy = "announce threw — " .. tostring(err)
+        pcall(st.degrade, st.announceWhy)
+    end
 end
 
 return M

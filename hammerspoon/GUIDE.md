@@ -948,14 +948,23 @@ CREATED AUTOMATICALLY (never make these yourself):
    and printed; a second one in 10 min also pauses (⇪⇧Esc resumes);
    the next boot names the newest report once. _G.stormReport().
    Off: settings = { hyper_storm = { on = false } }.
+
+🔔 THE DEGRADE DOOR (core/notices.lua, core.degrade)  ·  6.215.0
+   Where a degraded state goes: `return core.degrade("Tool", why)`
+   alerts the tool and the cause on the screen at that moment, prints
+   a ⚠️ Console line, records it in the notices ledger, and returns
+   false, why. The same tool + cause alerts once per 10 min and is
+   counted every time. _G.degradeReport() lists each tool, its count,
+   its last cause, and whether the alert was ever shown. Modules take
+   it one per release as they are opened; the storm guard was first.
 =====================================================================
 ```
 
 ## 6. Tests
 
-Seventy Lua suites, 8,363 checks, plus four more that run the Capture
+Seventy Lua suites, 8,400 checks, plus four more that run the Capture
 Pad's, the screenshot editor's, unified search's and the vault's page
-JavaScript under `node` for a further 512 — **8,875 checks over
+JavaScript under `node` for a further 512 — **8,912 checks over
 seventy-six stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:

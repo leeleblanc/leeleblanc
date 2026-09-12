@@ -317,6 +317,105 @@ do
           .. "long meeting — P2 catches it", grew == 300)
 end
 
+-- =====================================================================
+out("\n=== 9. 6.215.0 — 🔔 THE DEGRADE DOOR: a break is seen, never only logged ===\n")
+-- =====================================================================
+-- LL: "I also must have anything here that breaks to throw an error so I
+-- see it, know about it, and can fix it with you." One call, three
+-- surfaces, at the moment it happens.
+boot()
+check("the door exists and is published as _G.degrade", type(N.degrade) == "function" and _G.degrade == N.degrade)
+local okD, whyD = N.degrade("Bluetooth", "blueutil is not installed")
+check("it returns false, why — so `return core.degrade(tool, why)` is a complete degrade path",
+      okD == false and whyD == "blueutil is not installed")
+check("1/3 the LEDGER has it, kind 'degrade', tool and cause", #N.ledger == 1 and N.ledger[1].kind == "degrade"
+      and N.ledger[1].source == "Bluetooth" and N.ledger[1].msg == "blueutil is not installed")
+check("2/3 the CONSOLE line names the tool and the cause with a ⚠️",
+      printedHas("⚠️ Bluetooth: blueutil is not installed"))
+check("3/3 the ALERT is on the screen AT THE MOMENT, naming both",
+      #ALERTS == 1 and ALERTS[1]:find("⚠️ Bluetooth — blueutil is not installed", 1, true) ~= nil, ALERTS[1])
+check("…and it is a direct hs.alert, never hs.notify (Focus cannot swallow it)", #NOTIFIES == 0)
+check("it is counted per tool", N.degrades["Bluetooth"].n == 1 and N.degradeTotal == 1)
+
+-- P2: a degrade in a repeating timer is seen once, counted every time.
+for _ = 1, 39 do N.degrade("Bluetooth", "blueutil is not installed") end
+check("🚨 P2: the same tool + cause forty times inside the window ALERTS ONCE", #ALERTS == 1, #ALERTS)
+check("…but is COUNTED forty times (the report answers 'how often')", N.degrades["Bluetooth"].n == 40 and N.degradeTotal == 40)
+check("…and printed forty times (the Console gate limits repeats, not this)", #printed >= 40)
+N.degrade("Bluetooth", "AirPods not paired")
+check("a DIFFERENT cause on the same tool alerts at once", #ALERTS == 2 and ALERTS[2]:find("AirPods", 1, true) ~= nil)
+CLOCK = CLOCK + N.degradeEvery
+N.degrade("Bluetooth", "blueutil is not installed")
+check("after degradeEvery the same cause alerts again — a break that persists is not forgotten", #ALERTS == 3)
+check("MUTATION: with the gate deleted (degradeEvery = 0) the forty calls would have painted forty alerts — "
+      .. "the once-per-window check above fails against it", N.degradeEvery > 0)
+
+-- P4: nothing throws, whatever it is handed; a refused alert still records.
+boot()
+local okNil = pcall(N.degrade)
+check("P4: degrade() with nothing at all does not throw", okNil)
+check("…and still records a row and prints a line", #N.ledger == 1 and printedHas("⚠️ ?: no reason given"))
+local realShow = hs.alert.show
+hs.alert.show = function() error("AppKit said no") end
+local okRef = pcall(N.degrade, "Vault", "cannot write")
+hs.alert.show = realShow
+check("P4: hs.alert throwing costs the alert only — the row and the line still land",
+      okRef and #N.ledger == 2 and printedHas("⚠️ Vault: cannot write") and N.degrades["Vault"].alerts == 0)
+local okTbl = pcall(N.degrade, { a = 1 }, { b = 2 })
+check("P4: tables for tool and why are tostring'd, never a throw", okTbl)
+
+-- bounded: tools remembered, causes per tool.
+boot()
+for i = 1, N.degradeMax + 15 do N.degrade("tool" .. i, "x") end
+check("🚨 P2: the tool table is BOUNDED — the oldest tool is dropped past degradeMax",
+      #N.degradeOrder == N.degradeMax and N.degrades["tool1"] == nil and N.degrades["tool" .. (N.degradeMax + 15)] ~= nil)
+boot()
+for i = 1, N.degradeCauses + 5 do N.degrade("OCR", "cause " .. i) end
+local kept = 0
+for _ in pairs(N.degrades["OCR"].seen) do kept = kept + 1 end
+check("…and the causes remembered per tool are bounded too (a cause carrying a path is never the same twice)",
+      kept == N.degradeCauses, kept)
+
+-- the report: three states, ONE string (6.179.1's rule).
+boot()
+printed = {}
+local r0 = _G.degradeReport()
+check("the report prints as ONE string and returns it", #printed == 1 and printed[1] == r0)
+check("with nothing degraded it says so in words", r0:find("0 time(s) across 0 tool(s)", 1, true) ~= nil
+      and r0:find("nothing has degraded this session", 1, true) ~= nil)
+check("…and names the door for the next module to take", r0:find("core.degrade(tool, why)", 1, true) ~= nil)
+N.degrade("Bluetooth", "blueutil is not installed")
+N.degrade("Bluetooth", "blueutil is not installed")
+N.degrade("Vault", "cannot write")
+printed = {}
+local r1 = _G.degradeReport()
+check("with degrades it lists each tool once with its count and LAST cause",
+      #printed == 1 and r1:find("3 time(s) across 2 tool(s)", 1, true) ~= nil
+      and r1:find("Bluetooth", 1, true) ~= nil and r1:find("×2", 1, true) ~= nil
+      and r1:find("Vault", 1, true) ~= nil and r1:find("cannot write", 1, true) ~= nil, r1)
+check("a tool whose alert was never shown is flagged (the third state: counted, never seen)",
+      (function()
+          boot()
+          hs.alert.show = function() error("no") end
+          N.degrade("Pomodoro", "no sound")
+          hs.alert.show = realShow
+          return _G.degradeReport():find("never alerted", 1, true) ~= nil
+      end)())
+check("the ledger's own report lists the degrade rows too (one ledger, every surface)",
+      (function() boot(); N.degrade("Vault", "cannot write"); return _G.noticesReport():find("degrade", 1, true) ~= nil end)())
+
+-- the core table: published on the real core, and init.lua carries a fallback.
+boot()
+local fakeCore = {}
+N = dofile(HS .. "/core/notices.lua")(fakeCore)
+check("core.degrade is set on the core table notices.lua is given", fakeCore.degrade == N.degrade)
+local initSrc = (function() local f = realIoOpen(HS .. "/init.lua", "r"); if not f then return "" end local s = f:read("*a"); f:close(); return s end)()
+check("SOURCE: init.lua's core table carries `degrade =` for the modules",
+      initSrc:find("\n    degrade         = degrade,", 1, true) ~= nil)
+check("SOURCE: init.lua's degrade falls back to its own ⚠️ print + hs.alert when notices did not load",
+      initSrc:find("if _G.notices and _G.notices.degrade then return _G.notices.degrade(tool, why, opts) end", 1, true) ~= nil
+      and initSrc:find('hs.alert.show("⚠️ " .. tostring(tool or "?") .. " — " .. why, 6)', 1, true) ~= nil)
+
 io.open = realIoOpen
 out("\n")
 if fail > 0 then

@@ -266,6 +266,52 @@ do
               and tap:find("pcall(_G.hyperStormKey, code, ev)\n        end\n        if not _G.hyperDispatchEngaged then return false end", 1, true) ~= nil)
 end
 
+-- ---------------------------------------------------------------------
+out("11) 6.215.0 — the storm guard takes the degrade door\n")
+-- ---------------------------------------------------------------------
+do
+    local DEGRADED = {}
+    local m3 = dofile(HS .. "/modules/hyper_storm.lua")
+    m3.setup({ configDir = ROOT, degrade = function(tool, why)
+        DEGRADED[#DEGRADED + 1] = tostring(tool) .. ": " .. tostring(why)
+        return false, why
+    end })
+    local s3 = _G.hyperStorm
+    os.execute('rm -rf "' .. ROOT .. '/.storm"')
+    local okA, whyA = s3.announce()
+    check("a missing folder still says 'no reports yet' and takes NO door — it is not a break",
+          okA == false and whyA == "no reports yet" and #DEGRADED == 0)
+    local f = io.open(ROOT .. "/.storm", "w"); f:write("x"); f:close()
+    local okB, whyB = s3.announce()
+    check("a folder that cannot be listed goes through core.degrade, named, with the cause",
+          okB == false and #DEGRADED == 1 and DEGRADED[1]:find("^Hyper storm guard: cannot list") ~= nil, DEGRADED[1])
+    check("…and announce still returns false, why (the door's own return)", type(whyB) == "string" and whyB:find("cannot list", 1, true) ~= nil)
+    check("…and the report line carries the same cause", s3.announceWhy == whyB)
+    os.remove(ROOT .. "/.storm")
+    -- warm(): an announce that THROWS is no longer swallowed by its pcall
+    s3.announce = function() error("boom at boot") end
+    m3.warm({})
+    check("an announce that throws inside warm() is degraded, not swallowed",
+          #DEGRADED == 2 and DEGRADED[2]:find("announce threw", 1, true) ~= nil and DEGRADED[2]:find("boom at boot", 1, true) ~= nil, DEGRADED[2])
+    check("…and the report line names it", tostring(s3.announceWhy):find("announce threw", 1, true) ~= nil)
+    -- no door on this core (an older init.lua): the fallback prints and returns false, why
+    local m4 = dofile(HS .. "/modules/hyper_storm.lua")
+    m4.setup({ configDir = ROOT })
+    local s4 = _G.hyperStorm
+    PRINTED = {}
+    local okD, whyD = s4.degrade("no door here")
+    check("without core.degrade the taker prints a ⚠️ line itself and returns false, why",
+          okD == false and whyD == "no door here" and PRINTED[1] and PRINTED[1]:find("⚠️ Hyper storm guard: no door here", 1, true) ~= nil)
+    -- source sentry: the door is on the announce path, not only the helper
+    local src = readAll(HS .. "/modules/hyper_storm.lua") or ""
+    check("SOURCE: announce returns st.degrade(epoch) for a real refusal and a bare false for a missing folder",
+          src:find("if epoch then return st.degrade(epoch) end", 1, true) ~= nil
+          and src:find('return false, "no reports yet"', 1, true) ~= nil)
+    check("SOURCE: warm() reads pcall's ok and degrades the throw",
+          src:find("local ok, err = pcall(st.announce)\n    if not ok then", 1, true) ~= nil)
+    _G.hyperStorm = s3
+end
+
 os.execute('rm -rf "' .. ROOT .. '"')
 print = realPrint
 out(string.format("\n%d passed, %d failed\n", pass, fail))

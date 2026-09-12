@@ -5,6 +5,39 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.215.0 — 🔔 THE DEGRADE DOOR: A BREAK IS SEEN, NEVER ONLY LOGGED (core/notices.lua):
+  LL, with the 6.214.0 report: "I also must have anything here that
+     breaks to throw an error so I see it, know about it, and can fix
+     it with you." IT DEGRADES, IT NEVER BREAKS (6.177.0) already says
+     a missing folder, binary or module costs one feature and never the
+     config — but where that degraded state WENT was a `return false,
+     why` and, on a good day, a Console line: a break he finds a week
+     later, if he opens the Console at all. `core.degrade(tool, why)`
+     is the one door now, and it does three things at the moment it is
+     called: an hs.alert naming the TOOL and the CAUSE (a direct
+     hs.alert — it draws whatever Focus says, so it is the one surface
+     here that does not go through notices.tell), a ⚠️ Console line,
+     and a row in the notices ledger, so ⇪⇧D, `_G.noticesReport()` and
+     the new `_G.degradeReport()` (per tool: how many times, the last
+     cause, and whether the alert was ever shown) all list it. It
+     returns `false, why`, so a function that already ends in `return
+     false, why` takes the door by writing `return core.degrade("Tool",
+     why)` and nothing else changes. Still never a flood: the same tool
+     + cause alerts once per 10 min, and is counted and printed every
+     time. Still never a throw: nil-tolerant, every macOS call pcall'd,
+     the tool table bounded; init.lua carries a fallback that alerts
+     and prints on its own if core/notices.lua did not load. FIRST
+     TAKER, one on purpose: the storm guard — a .storm folder that
+     cannot be listed, or an announce that throws inside warm() (which
+     a bare pcall used to swallow), is alerted at boot. Every other
+     module keeps its own alert-and-print for now and takes the door
+     when it is next opened, one per release. ALSO, gate only: the
+     pomodoro card fixture in test_tools ran on the wall clock and
+     advanced it by a whole work phase, so a gate run in the last 25
+     minutes before midnight crossed into tomorrow and "3 done today"
+     read "1" — it is pinned to 09:00 today now; no module changed.
+     8,875 -> 8,912 checks, seventy-six stages.
+
 NEW IN 6.214.2 — 🌩 THE STORM GUARD COUNTS THE KEYS A TOOL EATS, AND A MISSING FOLDER IS NOT A WARNING:
   LL ran 6.214.1's test on his Air and it worked end to end: released,
      the report written, every section present, `_G.stormReport()`

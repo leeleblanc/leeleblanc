@@ -2,11 +2,40 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-11-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-12-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.214.2
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.215.0
 -- =====================================================================
 
+-- NEW IN 6.215.0 — 🔔 THE DEGRADE DOOR: A BREAK IS SEEN, NEVER ONLY LOGGED (core/notices.lua):
+--   LL, with the 6.214.0 report: "I also must have anything here that
+--      breaks to throw an error so I see it, know about it, and can fix
+--      it with you." IT DEGRADES, IT NEVER BREAKS (6.177.0) already says
+--      a missing folder, binary or module costs one feature and never the
+--      config — but where that degraded state WENT was a `return false,
+--      why` and, on a good day, a Console line: a break he finds a week
+--      later, if he opens the Console at all. `core.degrade(tool, why)`
+--      is the one door now, and it does three things at the moment it is
+--      called: an hs.alert naming the TOOL and the CAUSE (a direct
+--      hs.alert — it draws whatever Focus says, so it is the one surface
+--      here that does not go through notices.tell), a ⚠️ Console line,
+--      and a row in the notices ledger, so ⇪⇧D, `_G.noticesReport()` and
+--      the new `_G.degradeReport()` (per tool: how many times, the last
+--      cause, and whether the alert was ever shown) all list it. It
+--      returns `false, why`, so a function that already ends in `return
+--      false, why` takes the door by writing `return core.degrade("Tool",
+--      why)` and nothing else changes. Still never a flood: the same tool
+--      + cause alerts once per 10 min, and is counted and printed every
+--      time. Still never a throw: nil-tolerant, every macOS call pcall'd,
+--      the tool table bounded; init.lua carries a fallback that alerts
+--      and prints on its own if core/notices.lua did not load. FIRST
+--      TAKER, one on purpose: the storm guard — a .storm folder that
+--      cannot be listed, or an announce that throws inside warm() (which
+--      a bare pcall used to swallow), is alerted at boot. Every other
+--      module keeps its own alert-and-print for now and takes the door
+--      when it is next opened, one per release. 8,875 -> 8,912
+--      checks, seventy-six stages.
+--
 -- NEW IN 6.214.2 — 🌩 THE STORM GUARD COUNTS THE KEYS A TOOL EATS, AND A MISSING FOLDER IS NOT A WARNING:
 --   LL ran 6.214.1's test on his Air and it worked end to end: released,
 --      the report written, every section present, `_G.stormReport()`
@@ -30,36 +59,12 @@
 --      that half of the rule is inert (never wrong) and the count is the
 --      whole rule. 8,862 -> 8,875 checks, seventy-six stages.
 --
--- NEW IN 6.214.1 — 🌩 A STUCK ⇪ CATCHES ITSELF: THE HYPER STORM GUARD (modules/hyper_storm.lua):
---   LL, on 6.214.0: "killed my keyboard and made every key execute some
---      hammerspoon action. I was able to pause it. … can't hammerspoon
---      catch itself, stop the execution after 5 seconds of this error
---      condition and generate an error report I can give you?" It can.
---      What happened is 6.162.1's class — the ⇪ hold LATCHED on a lost
---      F18 keyUp — and the watchdog for it could not end it, by its own
---      rule: any key under ⇪ "proves the hold is real" and re-stamps the
---      deadline, and a person fighting a dead keyboard never stops
---      pressing keys. (⇧Esc alone pausing it is the proof: ⇪ was already
---      "held".) The diff since 6.213.3 touches no hotkey, tap, hold or
---      panel — the latch is older than the release; the storm guard is
---      what was missing. A hold is a STORM when it has lasted 5 s, at
---      least 6 DIFFERENT ⇪ shortcuts fired inside it, and Caps Lock has
---      not autorepeated for 2 s (a real finger repeats — the F18 bind
---      gained a repeatfn; a phantom never does). Then: released, a report
---      written to ~/.hammerspoon/.storm/storm-<epoch>.txt (version, Mac,
---      the hold, every key with its owner, the front app, the key trail,
---      the errors, the notices), alerted with the path, printed, noticed;
---      a second storm in 10 min also PAUSES (⇪⇧Esc resumes); the next
---      boot announces the newest report once; `_G.stormReport()`.
---      `st.judge` is PURE; the thresholds each have their mutation and
---      two were run and caught. 8,811 -> 8,862 checks, seventy-six stages.
---
--- (6.214.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.214.1 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.214.2
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.215.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -156,7 +161,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.214.2"
+_G.configVersion = "6.215.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------
@@ -631,6 +636,18 @@ local function warnWriteFailed(label)
     if _G.notices then
         pcall(_G.notices.record, "runtime", "write failed", label)
     end
+end
+
+-- 🔔 6.215.0 — THE DEGRADE DOOR (core/notices.lua): `return core.degrade(tool,
+-- why)` alerts, prints a ⚠️ line, records, and returns false, why. If
+-- notices did not load, this fallback still shows it — a break is seen,
+-- never only logged.
+local function degrade(tool, why, opts)
+    if _G.notices and _G.notices.degrade then return _G.notices.degrade(tool, why, opts) end
+    why = tostring(why or "no reason given")
+    print("⚠️ " .. tostring(tool or "?") .. ": " .. why)
+    pcall(function() hs.alert.show("⚠️ " .. tostring(tool or "?") .. " — " .. why, 6) end)
+    return false, why
 end
 
 -- =====================================================================
@@ -3286,6 +3303,7 @@ local core = {
     hostTag     = hostTag,     configDir = hs.configdir,
     -- file helpers (§0.1 / §3.6)
     warnWriteFailed = warnWriteFailed,
+    degrade         = degrade,        -- 6.215.0: the one door a degraded state goes through
     adoptLegacyFile = adoptLegacyFile,
     csvQuote        = csvQuote,
     splitCSVLine    = splitCSVLine,

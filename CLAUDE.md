@@ -58,10 +58,19 @@ work Mac.
   NEVER BREAKS — it says where the degraded state goes: an hs.alert
   naming the tool and the cause AT THE MOMENT it happens, a ⚠️ Console
   line, AND the report line; a report line alone is a break he finds a
-  week later. 6.215.0 builds the one door (`core.degrade(tool, why)`,
-  counted, listed by `_G.degradeReport()`); until every module takes
-  it, any NEW degrade path alerts and prints itself. Never a throw that
-  stops the rest of the config — the alert is the error he asked for.
+  week later. 🚪 THE DOOR EXISTS (6.215.0, core/notices.lua):
+  `return core.degrade("Tool", why)` — alert (a DIRECT hs.alert, never
+  notices.tell: Focus must not hold it), ⚠️ Console line, ledger row,
+  returns false, why. Same tool + cause alerts once per
+  `notices.degradeEvery` (600 s), counted and printed every time; the
+  tool table and the per-tool causes are bounded; nil-tolerant;
+  init.lua's core table carries a fallback if notices did not load.
+  `_G.degradeReport()`. A module TAKES the door when it is next opened
+  — one per release, never a sweep (LL's one-change rule); the storm
+  guard took it first (cannot-list, announce threw in warm). Until a
+  module has taken it, its NEW degrade path alerts and prints itself.
+  Never a throw that stops the rest of the config — the alert is the
+  error he asked for.
 - 🌩 A LATCHED ⇪ IS A STORM AND ENDS ITSELF (6.214.1, modules/
   hyper_storm.lua, LL on 6.214.0: "killed my keyboard and made every
   key execute some hammerspoon action … can't hammerspoon catch
@@ -80,9 +89,12 @@ work Mac.
   found by reading: the 6.213.3→6.214.0 diff has no hotkey/tap/hold/
   panel change, so the trigger is unnamed until a storm file says
   which panel had asked for a release (`asked :` line) and which
-  keys ran. 🚨 LL'S GATE ON SHIPPING: nothing after 6.214.1 ships
-  until he says 6.214.1 held on BOTH Macs; 6.215.0 (the 🔔 door) and
-  click hints wait behind it.
+  keys ran. LL'S GATE ON SHIPPING was: nothing after 6.214.1 ships
+  until it held on BOTH Macs. He scored 6.214.2 on the home Mac
+  ("6.214.2 home ✓ · work Mac later") and then said "Go ahead" —
+  his call, so 6.215.0 shipped on the home ✓ alone; the work Mac
+  installs 6.215.0 (it carries 6.214.2) and its `_G.stormReport()`
+  is still owed.
 
 ## Module contract
 
@@ -1238,12 +1250,13 @@ as the fix when a loss lands.
 | 6.213.5 | ⇪⇧V edits in the OCR editor's window via `editor.open` (front, big, multi-line); the prompt is the degrade | WIN |
 | 6.214.0 | 🕸 Hamsidian: the ⇪3 notes renamed in every visible string; ids, folder, services unchanged | LOSS — LL: "killed my keyboard and made every key execute some hammerspoon action. I was able to pause it." A latched ⇪ (6.162.1's class); he went back to 6.213.3 → 6.214.1 |
 | 6.214.1 | 🌩 hyper storm guard: a latched ⇪ releases itself after 5 s and writes ~/.hammerspoon/.storm/storm-<epoch>.txt | LOSS — the test itself worked (released, file, report), but the report carried a stale ⚠️ and LL's bad test recipe (mine) exposed the count stalling behind a key-eating tool → 6.214.2 |
-| 6.214.2 | 🌩 the storm guard counts keys from the ⇪ tap too (a tool that eats keys no longer hides them); a missing folder is no warning | WIN on the home Mac (LL: "6.214.2 home ✓", 184 autorepeats measured, no ⚠️) — the work Mac is still owed before anything ships |
+| 6.214.2 | 🌩 the storm guard counts keys from the ⇪ tap too (a tool that eats keys no longer hides them); a missing folder is no warning | WIN on the home Mac (LL: "6.214.2 home ✓", 184 autorepeats measured, no ⚠️) — the work Mac still owed; LL said "Go ahead" |
+| 6.215.0 | 🔔 the degrade door: `core.degrade(tool, why)` → alert + ⚠️ line + ledger + `_G.degradeReport()`; the storm guard takes it first | pending |
 
-Running total: 14 wins · 4 losses · 0 pending. LL is on 6.214.2 on
-the home Mac (scored 2026-09-12: "6.214.2 home ✓ · 6.213.4 ✓ ·
-6.213.5 ✓ · work Mac later"). 🚨 THE WORK MAC IS STILL OWED: his own
-gate says nothing ships until 6.214.2 holds on BOTH Macs.
+Running total: 14 wins · 4 losses · 1 pending (6.215.0). LL is on
+6.214.2 on the home Mac (scored 2026-09-12: "6.214.2 home ✓ ·
+6.213.4 ✓ · 6.213.5 ✓ · work Mac later"), then "Go ahead" → 6.215.0
+built. The work Mac's storm report is still owed, on 6.215.0 now.
 
 ## Open items — update as they move
 
@@ -1252,6 +1265,20 @@ CLAUDE-archive.md at the repo root, which is NOT auto-loaded — this
 file rides into every context window. A block comes back here only if
 LL reopens it.)
 
+- 6.215.0 verify with LL — THE DEGRADE DOOR: install (carries
+  6.214.2). Boot: no new alert on a healthy Mac (the door is silent
+  until something degrades). Console: `_G.degradeReport()` reads
+  "🔔 DEGRADED — 0 time(s) across 0 tool(s)… nothing has degraded this
+  session". Then make one on purpose, one line: `_G.degrade("Test
+  tool", "this is the door")` → an on-screen "⚠️ Test tool — this is
+  the door" AT ONCE, a "⚠️ Test tool: this is the door" Console line,
+  and `_G.degradeReport()` now lists "Test tool ×1". Run the same
+  line five more times: the count reads ×6, the alert showed ONCE
+  (the same cause is gated 10 min). `_G.noticesReport()` lists the
+  row as kind "degrade". On the WORK MAC the same, plus
+  `_G.stormReport()` with no ⚠️ line — the report still owed from
+  6.214.2. If the alert ever fires during real use, that is a module
+  naming a real break: paste the Console line, it is the evidence.
 - 6.214.2 verify with LL: Air, 17:35 report — NO ⚠️ line (the stale
   cannot-list line is gone) and ✅ THE MEASUREMENT IS ANSWERED: "184
   Caps Lock autorepeat(s)" — a remapped Caps Lock DOES autorepeat on
