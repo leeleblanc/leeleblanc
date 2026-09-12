@@ -1252,17 +1252,15 @@ CLAUDE-archive.md at the repo root, which is NOT auto-loaded — this
 file rides into every context window. A block comes back here only if
 LL reopens it.)
 
-- 6.214.2 verify with LL: install; `_G.stormReport()` at boot must show
-  NO ⚠️ line (the folder exists on the Air now; on the work Mac it
-  does not and must read "no report on disk", not a warning). The
-  one-line Console test from 6.214.1 still fires. THE MEASUREMENT
-  STILL OWED: hold Caps Lock 3 s, release, `_G.stormReport()`, read
-  "N Caps Lock autorepeat(s)" — his 17:03 report said 0 but it is not
-  known whether he held it first. 0 after a real 3 s hold = a remapped
-  Caps Lock never autorepeats on that Mac: the autorepeat clause is
-  then inert (never wrong), the count is the whole rule, and the
-  init.lua comment claiming "a real hold keeps stamping (F18
-  autorepeats)" is false and must be corrected in the next release.
+- 6.214.2 verify with LL: Air, 17:35 report — NO ⚠️ line (the stale
+  cannot-list line is gone) and ✅ THE MEASUREMENT IS ANSWERED: "184
+  Caps Lock autorepeat(s)" — a remapped Caps Lock DOES autorepeat on
+  his Mac, so the repeatfn fires, the autorepeat clause is live, a
+  real hold has its own distinguishing fact, and init.lua's "a real
+  hold keeps stamping (F18 autorepeats)" comment is TRUE — nothing to
+  correct. Still owed: his word that 6.214.2 held on BOTH Macs (the
+  work Mac must read "no report on disk", not a warning); the row
+  stays pending until he says so.
 - 6.214.1 verify with LL — THE STORM GUARD, and his gate for
   everything after it: install over 6.213.3 (it carries 6.213.4,
   6.213.5 and 6.214.0 too). Boot: `_G.stormReport()` reads "watching:
@@ -1289,12 +1287,9 @@ LL reopens it.)
   Caps Lock press). LESSON FOR THE GUARD, not yet built: a stray
   letter that opens a key-eating tool (grid, a picker) stalls the
   distinct-key count — a time-only rule needs the autorepeat fact
-  first. MEASUREMENT ASKED OF LL: hold Caps Lock 3 s, then
-  `_G.stormReport()` — the "Caps Lock autorepeat(s)" number says
-  whether a remapped Caps Lock autorepeats at all; 0 means the
-  repeat-based half of the rule is dead on his Mac and must be
-  replaced (a real hold then has NO distinguishing fact but the
-  count). If the storm alert appears during REAL ⇪ use,
+  first. MEASURED (6.214.2 report, 184 autorepeats): a remapped Caps
+  Lock autorepeats, so the repeat-based half of the rule is live on
+  his Air. If the storm alert appears during REAL ⇪ use,
   that is a false positive: paste the file, and `settings =
   { hyper_storm = { keys = 8 } }` widens it, no release.
 - 📥 LL'S NEW ASKS (2026-09-12, with the 6.214.0 report) — logged,
