@@ -613,10 +613,21 @@ family; an answer that is only a word by inflection must carry the
 family LL typed. Cost stated: a typo inside the ending (convincd) is
 silent. RULE, third time: a check on a rule that edits text runs
 against the real corpus or a fixture holding the real words that bit —
-§8b holds plug, backen, sign, stater, stator by name. The edit-priority
-variant (swap before insertion: statrs → starts, 34 of 40 typos vs 29,
-the same 2 rewrites) was measured and NOT shipped — it softens LL's
-decided "exactly one" rule, so it is his call, and its own release.
+§8b holds plug, backen, sign, stater, stator by name.
+✏️ TWO TIERS, THE KIND OF EDIT ORDERS ONLY THE SECOND (6.213.4, LL:
+"statrs is still not corrected" — his call on the decided rule). The
+plain kind order (swap, doubled, missing, rotated; first kind with an
+answer decides) was measured before it was built and turned adress into
+daress (dares+s by a swap, over address) and sceen into scene (over
+screen) — the guess the rule exists to refuse. So `acSpellCorrection`
+runs `sweep(listed, false)` — every kind, words the list holds outright,
+exactly one — and only when that finds NOTHING `sweep(byEnding, true)`
+— words by an ending, in kind order, first kind that answers decides.
+On an 84-word scored corpus against the real list: 52 right, 1 wrong
+(seperate → sperate, since 6.200.0), 31 silent — four more right than
+6.213.3, nothing newly wrong. A listed word beats a by-ending word
+(allways → always over hallways); two listed words are still silence
+(sceen, wierd, adress). Three mutations, each with its own row.
 🚨 AN INFLECTION OF A WORD IS A WORD (6.205.0, modules/autocorrect.lua).
 The Mac's /usr/share/dict/words is Webster's Second — BASE words, almost
 no plurals, past tenses or -ing forms — so 6.200.0's rule read starts,
@@ -1149,7 +1160,7 @@ mirrors draw order: "closes last" IS "drawn under".
 - run-tests.sh's "forty-one suites" comment.
 - GUIDE.md's "all 58 modules" wording (near line 679).
 
-## Scoreboard — LL's rule, kept here (6.205.0–6.213.1)
+## Scoreboard — LL's rule, kept here (6.204.0 onward)
 
 LL, on delivering this batch: "success for you is easily measured by
 code we do not have to iterate. You give it to me; and I apply it. I
@@ -1164,24 +1175,24 @@ as the fix when a loss lands.
 
 | release | what it was | result |
 |---|---|---|
-| 6.204.0 | ⇪D takes the mouse; a detail pane | pending |
+| 6.204.0 | ⇪D takes the mouse; a detail pane | WIN |
 | 6.205.0 | autocorrect: an inflection is a word (starts/allows/convinced) + `_G.autocorrectAdd` | LOSS — LL: starts/allows/convinced stayed, somethingg and `_G.autocorrectAdd` worked, statrs stayed statrs → fix 6.213.2 |
 | 6.206.0 | ⇪5 scrolling capture keeps receipts; result on the clipboard | LOSS — the receipts worked and named it: slice 1 of 4 exit 0, "cannot write file to intended destination" (a dot-file in OneDrive, since 6.87.0) → fix 6.213.3 |
-| 6.207.0 | an existing text box can be edited again | pending |
-| 6.208.0 | stall guard: a beach ball no longer costs the keyboard | pending — the forced 100 s stall relaunched at 77 s on 6.213.1 (LL's alert, 22:26); the modal-dialog and next-reload checks not yet reported |
-| 6.209.0 | pomodoro 90% opaque + 🍅 done today | pending |
-| 6.210.0 | Submarine, soft to loud, over the last 30 s | pending |
-| 6.211.0 | the pomodoro sits beside the mini calendar | pending |
-| 6.212.0 | editor: line · oval · highlighter · counter | pending |
-| 6.213.0 | editor: spotlight · magnifier · paste image · add capture | pending |
-| 6.213.1 | stability pass: the stall guard's threshold 60 s / 10 s (was 20 / 5) | pending |
-| 6.213.2 | autocorrect: an inflected answer carries the typed ending (plugin/backend/signin) · pomodoro 30%/solid profile line | pending |
-| 6.213.3 | ⇪5 slices go to a local folder, plain names (the OneDrive dot-file cause) | pending |
+| 6.207.0 | an existing text box can be edited again | WIN |
+| 6.208.0 | stall guard: a beach ball no longer costs the keyboard | WIN — forced stalls relaunched at 77 s and 73 s; one guard after every reload; no sudo |
+| 6.209.0 | pomodoro 90% opaque + 🍅 done today | WIN |
+| 6.210.0 | Submarine, soft to loud, over the last 30 s | WIN |
+| 6.211.0 | the pomodoro sits beside the mini calendar | WIN |
+| 6.212.0 | editor: line · oval · highlighter · counter | WIN |
+| 6.213.0 | editor: spotlight · magnifier · paste image · add capture | WIN |
+| 6.213.1 | stability pass: the stall guard's threshold 60 s / 10 s (was 20 / 5) | WIN |
+| 6.213.2 | autocorrect: an inflected answer carries the typed ending (plugin/backend/signin) · pomodoro 30%/solid profile line | WIN — and LL chose statrs → starts anyway → 6.213.4 |
+| 6.213.3 | ⇪5 slices go to a local folder, plain names (the OneDrive dot-file cause) | WIN |
+| 6.213.4 | autocorrect: listed words first, then by-ending words in kind order (statrs → starts, adress/sceen stay) | pending |
 
-Running total: 0 wins · 2 losses · 11 pending (6.204.0–6.213.1 delivered
-as hammerspoon6.213.1.zip; 6.213.2 and 6.213.3 as their own zips; LL
-reports per feature. 6.208.0's cheap half — watching, one guard after
-a reload, no sudo — passed on 6.213.1; its row waits on the forced stall).
+Running total: 11 wins · 2 losses · 1 pending. LL, after 6.213.3:
+"I've done the others, they are good" — every row but 6.213.4 scored
+in that sentence; 6.213.4 waits on his word.
 
 ## Open items — update as they move
 
@@ -1190,6 +1201,12 @@ CLAUDE-archive.md at the repo root, which is NOT auto-loaded — this
 file rides into every context window. A block comes back here only if
 LL reopens it.)
 
+- 6.213.4 verify with LL: in Chrome type "statrs " → starts. Then
+  "adress " and "sceen " must stay as typed (two listed words each —
+  the rule still never guesses), "allways " → always, "plugin " and
+  "backend " still stay. If a RIGHT word is ever rewritten, paste
+  `_G.autocorrectReport()`'s spelling block and ⇪Z it; that is the
+  evidence for the next measurement.
 - 6.213.3 verify with LL: ⇪5, drag an area over a scrolling page in
   Chrome. The stitched "… (scrolling).png" lands in the screenshots
   folder, ⌘V pastes it, the editor opens on it. `_G.screenshotsReport()`
@@ -1201,10 +1218,8 @@ LL reopens it.)
 - 6.213.2 verify with LL: in Chrome type "plugin ", "backend ",
   "signin " — all three must stay as typed (on 6.213.1 they became
   pluging, backened and signing). "somethingg " still becomes
-  something. "statrs " STAYS statrs, on purpose: the real list has
-  stater and stator, three answers, no guess — if he wants statrs →
-  starts anyway, that is the measured edit-priority variant, his call,
-  its own release. Then ⇪⇧P: the card is ~30% until the mouse is over
+  something. (statrs stayed statrs by design here; LL wanted it
+  corrected → 6.213.4.) Then ⇪⇧P: the card is ~30% until the mouse is over
   it, solid under the mouse, solid again for the last two minutes and
   the flash.
 - 6.213.0 verify with LL: ⇪⇧1 — Spotlight (S): drag a box and the rest
@@ -1369,7 +1384,9 @@ LL reopens it.)
   single transposition / doubling / omission away (somethgni, somethingg,
   somethinng, somethng, somtething and their families). Ambiguous → leave
   it alone; missing word list → the feature says so and typing is
-  untouched. (3) THE POMODORO ESCALATION SOUND IS **Submarine**
+  untouched. AMENDED 6.213.4 on LL's word: words the list holds
+  outright first, exactly one; only when none is near, words by an
+  ending in kind order (swap, doubled, missing, rotated). (3) THE POMODORO ESCALATION SOUND IS **Submarine**
   (/System/Library/Sounds), growing over the last 30 seconds from 24:30.
   (4) The ⇪ glyph question is CLOSED — the bar is there, no font changes.
   🚨 ONE CHANGE PER RELEASE, still: "if these changes will introduce

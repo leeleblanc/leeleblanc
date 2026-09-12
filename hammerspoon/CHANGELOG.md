@@ -5,6 +5,30 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.213.4 — ✏️ statrs → starts: TWO TIERS, THE KIND OF EDIT ORDERS THE SECOND:
+  LL, on 6.213.3: "statrs is still not corrected." His call, and it
+     was measured before it was built. The plain version — swap first,
+     then a doubled letter, a missing letter, three turned round, the
+     first kind with an answer deciding — fixes statrs and ALSO turns
+     adress into daress (dares+s, a swap, outvoting address, a listed
+     word an insertion away) and sceen into scene (over screen). That
+     is the guess the "exactly one" rule exists to refuse.
+  ✏️ So: TIER ONE asks every kind of edit for words the list holds
+     OUTRIGHT — exactly one wins, two is still nothing (sceen: scene and
+     screen; wierd: weird and wired; adress: address and adpress are
+     both listed). Only when NO listed word is near does TIER TWO ask
+     for words that are words by an ending (6.205.0 / 6.213.2's gate),
+     and there the kinds run in order and the first kind that answers
+     decides: statrs → starts by a swap, before staters and stators by
+     a missing letter. allways → always: a listed word beats hallways,
+     a word only by its ending. Against the real list, on an 84-word
+     scored corpus: 52 right, 31 silent, ONE wrong (seperate → sperate,
+     unchanged since 6.200.0) — four more right than 6.213.3, nothing
+     newly wrong, the same two jargon rewrites (ghostty, unsubscribe).
+  🧪 test_autocorrect 168 -> 172; three mutations (tier two unordered,
+     tier one ordered, the tiers collapsed) each fail the row written
+     for them. 8,786 -> 8,790 checks, seventy-five stages.
+
 NEW IN 6.213.3 — 🧻 ⇪5's SLICES LEAVE THE ONEDRIVE FOLDER (THE CAUSE, NAMED):
   6.206.0's receipts paid for themselves on their first run. LL's ⇪5:
      "Scrolling capture stopped — slice 1 of 4: screencapture exit 0 —

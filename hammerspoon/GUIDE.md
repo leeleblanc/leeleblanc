@@ -862,9 +862,13 @@ stood, kept verbatim.
                6.200.0 starts became starets).
                6.213.2: an answer that is only a word by inflection
                must carry the ending you typed — plugin, backend and
-               signin were becoming pluging, backened and signing. On
-               the real list statrs stays statrs: starts, staters and
-               stators are three answers, and the rule never guesses.
+               signin were becoming pluging, backened and signing.
+               6.213.4: words the list holds outright are asked first
+               (exactly one, any kind of edit); only when none is near
+               are words-by-an-ending asked, in kind order — swap,
+               doubled letter, missing letter, three turned round — so
+               statrs → starts while adress and sceen (two listed words
+               each) stay as typed.
                Off: settings = { autocorrect = { on = false } };
                more excluded apps: { offIn = { "Excel", … } }.
    _G.autocorrectAdd("intsead", "instead")   (6.205.0) a permanent
@@ -924,9 +928,9 @@ CREATED AUTOMATICALLY (never make these yourself):
 
 ## 6. Tests
 
-Sixty-nine Lua suites, 8,274 checks, plus four more that run the Capture
+Sixty-nine Lua suites, 8,278 checks, plus four more that run the Capture
 Pad's, the screenshot editor's, unified search's and the vault's page
-JavaScript under `node` for a further 512 — **8,786 checks over
+JavaScript under `node` for a further 512 — **8,790 checks over
 seventy-five stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:

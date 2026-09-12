@@ -82,7 +82,10 @@ function M.setup(core)
     --   · it is not one of ⇪Z's learned exceptions
     --   · and EXACTLY ONE real word is a single edit away. Two candidates
     --     is a guess, and a guess is what makes people switch a feature
-    --     off — so two candidates does nothing at all.
+    --     off — so two candidates does nothing at all. 6.213.4: words the
+    --     list holds outright are asked first, any kind of edit; only when
+    --     none is near are words-by-an-ending asked, and those in kind
+    --     order (swap, doubled letter, missing letter, three turned round).
     -- Anything it leaves alone is deliberate. It is the last rule asked,
     -- so the CSV dictionary and the TWo-caps rule are unchanged by it.
     local acSpell = {
@@ -357,53 +360,82 @@ function M.setup(core)
         -- is silent either way — starts, staters and stators are three
         -- answers, and this rule never guesses.
         local typedEnd = acSpellEnding(w)
-        local function isAnswer(x)
-            if known(x) then return true end
+
+        -- 🚨 6.213.4 — TWO TIERS, AND THE KIND OF EDIT ORDERS ONLY THE
+        -- SECOND. LL, on 6.213.3: "statrs is still not corrected" — the
+        -- real list has stater and stator, so starts (a swap) shared the
+        -- vote with staters and stators (a letter missing) and "exactly
+        -- one" fell silent. His call was to prefer the swap. MEASURED
+        -- FIRST, because a plain kind order (swap, then doubled letter,
+        -- then missing letter, then three turned round) also turned
+        -- adress into daress — dares+s, a swap, outvoting address, a
+        -- listed word an insertion away — and sceen into scene over
+        -- screen. So: TIER ONE asks every kind for words the list holds
+        -- OUTRIGHT, exactly one wins and two is still a guess (sceen:
+        -- scene and screen → nothing; wierd: weird and wired → nothing).
+        -- Only when NO listed word is near does TIER TWO ask for words
+        -- that are words by an ending (6.205.0/6.213.2), and THERE the
+        -- kinds run in order and the first kind with an answer decides
+        -- (statrs: starts by a swap, before staters and stators). Against
+        -- the real list this corrects four more typos than 6.213.3 and
+        -- rewrites nothing new; the kind order in tier one was measured
+        -- and refused for the two words above.
+        local function sweep(test, ordered)
+            local seen, hits, n = {}, nil, 0
+            local function try(cand)
+                if cand == w or seen[cand] then return end
+                seen[cand] = true
+                if test(cand) then n = n + 1 ; hits = cand end
+            end
+            local kinds = {
+                function()                          -- swap two neighbours
+                    for i = 1, #w - 1 do
+                        try(w:sub(1, i - 1) .. w:sub(i + 1, i + 1) .. w:sub(i, i)
+                            .. w:sub(i + 2))
+                    end
+                end,
+                function()                          -- a letter already coming
+                    for i = 1, #w do
+                        if w:sub(i, i) == w:sub(i + 1, i + 1)
+                           or w:sub(i, i) == w:sub(i + 2, i + 2) then
+                            try(w:sub(1, i - 1) .. w:sub(i + 1))
+                        end
+                    end
+                end,
+                function()                          -- one letter missing
+                    for i = 1, #w + 1 do
+                        for c = 97, 122 do
+                            try(w:sub(1, i - 1) .. string.char(c) .. w:sub(i))
+                        end
+                    end
+                end,
+                function()                          -- three turned round
+                    for i = 1, #w - 2 do
+                        try(w:sub(1, i - 1) .. w:sub(i + 2, i + 2) .. w:sub(i + 1, i + 1)
+                            .. w:sub(i, i) .. w:sub(i + 3))
+                    end
+                end,
+            }
+            for _, kind in ipairs(kinds) do
+                kind()
+                if ordered and n > 0 then break end
+            end
+            return n, hits
+        end
+        local function listed(x) return known(x) == true end
+        local function byEnding(x)
+            if known(x) then return false end
             if acSpellEnding(x) ~= typedEnd then return false end
             for _, s in ipairs(acSpellStems(x)) do
                 if known(s) then return true end
             end
             return false
         end
-
-        local seen, hits, n = {}, nil, 0
-        local function try(cand)
-            if cand == w or seen[cand] then return end
-            seen[cand] = true
-            if isAnswer(cand) then n = n + 1 ; hits = cand end
-        end
-        for i = 1, #w - 1 do                        -- swap two neighbours
-            try(w:sub(1, i - 1) .. w:sub(i + 1, i + 1) .. w:sub(i, i)
-                .. w:sub(i + 2))
-        end
-        -- 🚨 ONE LETTER TOO MANY — BUT ONLY A LETTER THAT WAS ALREADY
-        -- COMING. Deleting ANY letter is where a word list starts
-        -- rewriting words it has simply never heard of. MEASURED against
-        -- the real /usr/share/dict/words: unrestricted deletion turned
-        -- rsync into sync, backend into backed and frontend into fronted
-        -- — three of 104 ordinary words, which is three too many for a
-        -- feature that edits LL's text without asking. Restricting it to
-        -- a letter that REPEATS within the next two positions — a doubled
-        -- letter (somethingg, somethinng) or one typed early
-        -- (somtething) — caught MORE typos, 17 of 18 including all five
-        -- LL listed by name, and changed NONE of those 104 words.
-        for i = 1, #w do
-            if w:sub(i, i) == w:sub(i + 1, i + 1)
-               or w:sub(i, i) == w:sub(i + 2, i + 2) then
-                try(w:sub(1, i - 1) .. w:sub(i + 1))
-            end
-        end
-        for i = 1, #w + 1 do                        -- one letter missing
-            for c = 97, 122 do
-                try(w:sub(1, i - 1) .. string.char(c) .. w:sub(i))
-            end
-        end
-        for i = 1, #w - 2 do                        -- three turned round
-            try(w:sub(1, i - 1) .. w:sub(i + 2, i + 2) .. w:sub(i + 1, i + 1)
-                .. w:sub(i, i) .. w:sub(i + 3))
-        end
-        -- 🚨 EXACTLY ONE. Two real words a single edit away is a guess,
-        -- and this feature is only worth having if it never guesses.
+        local n, hits = sweep(listed, false)        -- tier one: listed words, any kind
+        if n == 0 then n, hits = sweep(byEnding, true) end   -- tier two: by ending, in kind order
+        -- 🚨 EXACTLY ONE, within the tier that answered. Two real words the
+        -- same distance away is a guess, and this feature is only worth
+        -- having if it never guesses.
         if n ~= 1 or not hits then return nil end
         if capped then return hits:sub(1, 1):upper() .. hits:sub(2) end
         return hits

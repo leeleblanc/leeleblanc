@@ -4,9 +4,33 @@
 -- =====================================================================
 -- 09-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.213.3
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.213.4
 -- =====================================================================
 
+-- NEW IN 6.213.4 — ✏️ statrs → starts: TWO TIERS, THE KIND OF EDIT ORDERS THE SECOND:
+--   LL, on 6.213.3: "statrs is still not corrected." His call, and it
+--      was measured before it was built. The plain version — swap first,
+--      then a doubled letter, a missing letter, three turned round, the
+--      first kind with an answer deciding — fixes statrs and ALSO turns
+--      adress into daress (dares+s, a swap, outvoting address, a listed
+--      word an insertion away) and sceen into scene (over screen). That
+--      is the guess the "exactly one" rule exists to refuse.
+--   ✏️ So: TIER ONE asks every kind of edit for words the list holds
+--      OUTRIGHT — exactly one wins, two is still nothing (sceen: scene and
+--      screen; wierd: weird and wired; adress: address and adpress are
+--      both listed). Only when NO listed word is near does TIER TWO ask
+--      for words that are words by an ending (6.205.0 / 6.213.2's gate),
+--      and there the kinds run in order and the first kind that answers
+--      decides: statrs → starts by a swap, before staters and stators by
+--      a missing letter. allways → always: a listed word beats hallways,
+--      a word only by its ending. Against the real list, on an 84-word
+--      scored corpus: 52 right, 31 silent, ONE wrong (seperate → sperate,
+--      unchanged since 6.200.0) — four more right than 6.213.3, nothing
+--      newly wrong, the same two jargon rewrites (ghostty, unsubscribe).
+--   🧪 test_autocorrect 168 -> 172; three mutations (tier two unordered,
+--      tier one ordered, the tiers collapsed) each fail the row written
+--      for them. 8,786 -> 8,790 checks, seventy-five stages.
+--
 -- NEW IN 6.213.3 — 🧻 ⇪5's SLICES LEAVE THE ONEDRIVE FOLDER (THE CAUSE, NAMED):
 --   6.206.0's receipts paid for themselves on their first run. LL's ⇪5:
 --      "Scrolling capture stopped — slice 1 of 4: screencapture exit 0 —
@@ -35,41 +59,12 @@
 --      dot-files; the temp fallback removed) fail 5 and 3 rows.
 --      8,778 -> 8,786 checks, seventy-five stages.
 --
--- NEW IN 6.213.2 — ✏️ AN INFLECTED ANSWER MUST CARRY THE ENDING YOU TYPED:
---   LL's first report on the batch: "statrs" stayed "statrs". Measured
---      against the REAL /usr/share/dict/words (Webster's Second, 236,007
---      lines) instead of the suite's twelve-word fixture: the list has
---      stater AND stator, so 6.205.0's "a plural of a listed word is a
---      word" made starts one of THREE answers, and the rule never
---      guesses. That part is the decided rule working. The same
---      measurement found what nobody had reported yet: plugin → pluging
---      (plug+ing), backend → backened (backen+ed), signin → signing —
---      right words rewritten, the class 6.205.0 was shipped to end.
---   ✏️ `acSpellEnding(w)` names the ending FAMILY a word carries (s/es/
---      ies · ed/ied · ing · er/ier · est/iest · ly/ily · ness/iness), and
---      a candidate that is only a word by inflection now counts only when
---      its family is the one LL typed. A listed word is never gated.
---      Against the real list: 0 of 40 typos lost, 3 of 5 rewrites gone
---      (ghostty → ghosty and unsubscribe → unsubscribed are direct list
---      words and pre-date 6.205.0 — ⇪Z is the answer for a name).
---      Stated cost: a typo INSIDE the ending (convincd) is left alone.
---      Measured and NOT shipped: preferring a swap over an insertion
---      (statrs → starts, 34 of 40 typos, the same 2 rewrites) — it
---      softens LL's decided "exactly one" rule, so it is his call.
---   🍅 No code, one settings line, on LL's word ("solid when I go over,
---      about 30% when I move off"): both machine profiles carry
---      pomodoro = { alphaIdle = 0.30, alphaAlert = 1 } — the hover poll
---      has switched between the two since 6.152.0.
---   🧪 test_autocorrect 154 -> 168 (§8b: the real list's words that bit,
---      as a fixture — plug, backen, sign, stater, stator; two mutations
---      fail its rows). 8,764 -> 8,778 checks, seventy-five stages.
---
--- (6.213.1 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.213.2 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.213.3
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.213.4
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -166,7 +161,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.213.3"
+_G.configVersion = "6.213.4"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

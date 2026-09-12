@@ -736,7 +736,11 @@ do
   ck("🚨 …and the pure rule refuses to touch starts while it would still"
      .. " turn a word with NO known stem into starets",
      _G.acSpellCorrection("starts", known, 4) == nil
-     and _G.acSpellCorrection("stares", known, 4) == nil     -- stare? not listed, stares → starets? two-edit; stays
+     -- stare is NOT in this fixture, so stares is not a word here; starets
+     -- (listed, an insertion away) beats startes (start+es, only a word by
+     -- its ending) — 6.213.4's tier rule. On the real list stare is listed
+     -- and stares is never touched.
+     and _G.acSpellCorrection("stares", known, 4) == "starets"
      and _G.acSpellCorrection("starts", function(w) return w == "starets" end, 4) == "starets",
      tostring(_G.acSpellCorrection("starts", known, 4)))
   ck("allows: allow is a stem; gallows is not a correction of it",
@@ -796,7 +800,9 @@ out("\n=== 8b. 🚨 AN INFLECTED ANSWER MUST CARRY THE TYPED ENDING (6.213.2) ==
 -- answers. The fixture below holds exactly the real list's words that
 -- bit. Two mutations fail rows here: dropping the ending gate turns
 -- plugin into pluging; comparing endings strictly instead of by family
--- loses wishess → wishes.
+-- loses wishess → wishes. 6.213.4 adds three more: the by-ending tier
+-- unordered (statrs silent), the listed tier ordered (adress → daress,
+-- sceen → scene), the tiers collapsed (allways silent).
 do
   local mine = 0
   local function ck(label, cond, extra)
@@ -811,7 +817,12 @@ do
     mod.warm(core)
   end
   seedWords({ "plug", "backen", "sign", "wish", "start", "stater", "stator",
-              "something", "convince" })
+              "something", "convince",
+              -- 6.213.4's real-list words: address AND adpress are listed,
+              -- dares too (so daress is dares+s); scene and screen; always
+              -- and hallway (hallways is hallway+s); weird and wired
+              "address", "adpress", "dares", "scene", "screen", "always",
+              "hallway", "weird", "wired" })
 
   ck("🚨 plugin is left alone — pluging (plug+ing) is no answer for a word"
      .. " typed with no ending", typeWord("plugin ") == nil, tostring(typeWord("plugin ")))
@@ -827,10 +838,21 @@ do
      typeWord("sttarts ") == "starts ", tostring(typeWord("sttarts ")))
   ck("somethingg → something: a word the list holds outright is never gated",
      typeWord("somethingg ") == "something ", tostring(typeWord("somethingg ")))
-  ck("🔎 STATED: statrs is SILENT once stater and stator are listed —"
-     .. " starts, staters, stators are three answers and the rule never"
-     .. " guesses (LL's real-list report on 6.213.1)",
-     typeWord("statrs ") == nil, tostring(typeWord("statrs ")))
+  ck("🚨 6.213.4 — statrs → starts WITH stater and stator listed: no listed"
+     .. " word is near, so the by-ending tier runs in kind order and the"
+     .. " swap answers before the missing letter (LL: \"statrs is still"
+     .. " not corrected\")", typeWord("statrs ") == "starts ", tostring(typeWord("statrs ")))
+  ck("🚨 …but adress stays: address and adpress are BOTH listed, two"
+     .. " answers, and the swap's daress (dares+s) never outvotes them",
+     typeWord("adress ") == nil, tostring(typeWord("adress ")))
+  ck("🚨 …and sceen stays: scene (a swap) and screen (a letter missing) are"
+     .. " both listed — the kind order never decides between listed words",
+     typeWord("sceen ") == nil, tostring(typeWord("sceen ")))
+  ck("allways → always: a listed word beats hallways, a word only by its"
+     .. " ending, whatever the kind of edit",
+     typeWord("allways ") == "always ", tostring(typeWord("allways ")))
+  ck("wierd stays: weird and wired are two listed swaps",
+     typeWord("wierd ") == nil, tostring(typeWord("wierd ")))
   ck("…and the measured cost, named: a typo INSIDE the ending (convincd)"
      .. " is left alone now — silence is the safe side",
      typeWord("convincd ") == nil, tostring(typeWord("convincd ")))
@@ -857,7 +879,7 @@ do
      _G.acSpellCorrection("startss", known, 5) == "starts",
      tostring(_G.acSpellCorrection("startss", known, 5)))
 
-  check("§8b ran every one of its checks", mine == 13, mine)
+  check("§8b ran every one of its checks", mine == 17, mine)
 end
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))
