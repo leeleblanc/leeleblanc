@@ -1060,6 +1060,56 @@ do
     _G.service = nil
 end
 
+-- =====================================================================
+out("\n=== ✍️ 6.213.5 — the edit box is the OCR module's WINDOW, via editor.open ===\n")
+-- =====================================================================
+-- LL: "This window does not come to the front when I edit the clipboard.
+-- Also, the edit field is very small, can we make this a bigger edit box
+-- or use another type of window?" — the two complaints 6.115.0 answered
+-- for ⇪⇧O. The clipboard asks the service at PRESS time and keeps the
+-- prompt as the degrade. Mutation: drop the service ask and the first
+-- row fails; wire onSave to nothing and the second does.
+do
+    local OPENED, PROMPTS = nil, 0
+    hs.dialog.textPrompt = function() PROMPTS = PROMPTS + 1 ; return "Cancel", "" end
+    boot() ; C.loaded = true
+    C.add("copied text") ; C.renderEdit("")
+    _G.service = { has = function(n) return n == "editor.open" end,
+                   call = function(n, o) OPENED = o ; return true end }
+    C.editChooser.fn({ idx = 1 })
+    check("🚨 Enter on a row opens the editor WINDOW with the entry's text, not the prompt",
+          OPENED ~= nil and OPENED.text == "copied text"
+          and (OPENED.title or ""):find("clipboard", 1, true) ~= nil
+          and type(OPENED.onSave) == "function" and type(OPENED.onDelete) == "function"
+          and PROMPTS == 0, OPENED and OPENED.text)
+    ALERTS = {} ; PASTEBOARD = nil
+    if OPENED then OPENED.onSave("copied text, edited") end   -- guarded: a mutation must fail a row, not the suite
+    check("🚨 ⌘⏎ in the window edits the entry AND copies it (P2), through clip.applyEdit",
+          _G.clipboardCache[1] and _G.clipboardCache[1].text == "copied text, edited"
+          and PASTEBOARD == "copied text, edited"
+          and (ALERTS[#ALERTS] or ""):find("updated", 1, true) ~= nil,
+          tostring(_G.clipboardCache[1] and _G.clipboardCache[1].text))
+    C.renderEdit("") ; OPENED = nil
+    C.editChooser.fn({ idx = 1 })
+    if OPENED then OPENED.onDelete() end
+    check("Delete in the window deletes the entry",
+          #_G.clipboardCache == 0 and (ALERTS[#ALERTS] or ""):find("deleted", 1, true) ~= nil)
+    check("the ask is made at PRESS time, inside the chooser's callback", (function()
+        local src = io.open(HS .. "/modules/clipboard_history.lua"):read("a")
+        local body = src:match("clip%.editChooser = hs%.chooser%.new%(function%(choice%)(.-)\n        end%)")
+        return body and body:find('_G.service.has("editor.open")', 1, true) ~= nil
+    end)())
+    -- the degrade: no service, or a service that refuses → the prompt
+    C.add("again") ; C.renderEdit("")
+    _G.service = { has = function() return false end, call = function() return nil end }
+    C.editChooser.fn({ idx = 1 })
+    _G.service = { has = function() return true end, call = function() return false, "no webview" end }
+    C.editChooser.fn({ idx = 1 })
+    check("🚨 no service, or a service that refuses → the small prompt still edits (the work Mac)",
+          PROMPTS == 2, PROMPTS)
+    _G.service = nil
+end
+
 if fail > 0 then
     out("FAILURES:\n")
     for _, f in ipairs(failures) do out("   ❌ " .. f .. "\n") end

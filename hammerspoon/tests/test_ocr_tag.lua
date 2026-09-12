@@ -533,6 +533,53 @@ do
         return false
     end)())
 
+    -- ---- ✍️ 6.213.5: the window is a SERVICE with hooks ---------------
+    -- LL's ⇪⇧V report was 6.115.0's two complaints again, in the module
+    -- that had kept the prompt. The window answers to hooks now, so any
+    -- caller can use it; ocr.openEditor is its first caller.
+    check("ocr.openTextEditor exists and is published as editor.open", (function()
+        local src = io.open(HS .. "/modules/ocr_engine.lua"):read("a")
+        return type(E.openTextEditor) == "function"
+           and src:find('core.provide("editor.open",', 1, true) ~= nil
+    end)())
+    local GOT = {}
+    local n0 = #VIEWS
+    local okG, whyG = E.openTextEditor({
+        title = "✏️ Edit clipboard entry", text = "from the clipboard",
+        placeholder = "The copied text.", deleteLabel = "Delete it",
+        onSave = function(t) GOT.saved = t end,
+        onDelete = function() GOT.deleted = true end,
+        onCancel = function() GOT.cancelled = true end,
+    })
+    local gv = VIEWS[#VIEWS]
+    check("a generic open draws the SAME window: front, key, textarea, the caller's words",
+          okG == true and #VIEWS == n0 + 1 and gv.front == true and gv.textEntry == true
+          and (gv.html or ""):find("<textarea", 1, true) ~= nil
+          and (gv.html or ""):find("Edit clipboard entry", 1, true) ~= nil
+          and (gv.html or ""):find("from the clipboard", 1, true) ~= nil
+          and (gv.html or ""):find('placeholder="The copied text."', 1, true) ~= nil
+          and (gv.html or ""):find(">Delete it</button>", 1, true) ~= nil, tostring(whyG))
+    E.handleEditorMessage({ a = "save", text = "edited on the way" })
+    check("🚨 ⌘⏎ runs the caller's onSave with the text, closes the box, touches no OCR entry",
+          GOT.saved == "edited on the way" and gv.deleted == true
+          and (getCsv() or ""):find("edited on the way", 1, true) == nil, tostring(GOT.saved))
+    E.openTextEditor({ text = "x", onDelete = function() GOT.deleted = true end })
+    E.handleEditorMessage({ a = "delete" })
+    check("Delete runs the caller's onDelete", GOT.deleted == true)
+    E.openTextEditor({ text = "x", onSave = function() GOT.savedAfterCancel = true end,
+                       onCancel = function() GOT.cancelled = true end })
+    local cv = VIEWS[#VIEWS]
+    E.handleEditorMessage({ a = "cancel" })
+    E.handleEditorMessage({ a = "save", text = "late" })
+    check("Esc runs onCancel, closes the box, and a save after it goes NOWHERE",
+          GOT.cancelled == true and cv.deleted == true and GOT.savedAfterCancel == nil)
+    check("a hook that THROWS never leaves the box open", (function()
+        E.openTextEditor({ text = "x", onSave = function() error("boom") end })
+        local bv = VIEWS[#VIEWS]
+        E.handleEditorMessage({ a = "save", text = "t" })
+        return bv.deleted == true and E.editorView == nil
+    end)())
+
     -- ---- a Mac WITHOUT a webview (the managed work Mac) --------------
     hs.webview = nil
     _G.movablePanels, _G.choosers = {}, {}
@@ -558,6 +605,11 @@ do
           PROMPTED[1] and PROMPTED[1].deflt)
     check("...and it actually saves what the prompt returned",
           (getCsv() or ""):find("typed into the small box", 1, true) ~= nil, getCsv())
+    local okNo, whyNo = E2.openTextEditor({ text = "x" })
+    check("🚨 6.213.5: the SERVICE refuses honestly with no webview — false and why — and"
+          .. " never opens a prompt for another module's text",
+          okNo == false and tostring(whyNo):find("webview", 1, true) ~= nil
+          and #PROMPTED == 1, tostring(whyNo))
 
     os.execute("rm -rf '" .. DIR .. "'")
 end

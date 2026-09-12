@@ -5,6 +5,36 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.213.5 — ✍️ ⇪⇧V EDITS IN A REAL WINDOW — THE OCR EDITOR, SHARED:
+  LL: "This window does not come to the front when I edit the
+     clipboard. Also, the edit field is very small, can we make this a
+     bigger edit box or use another type of window?" Those are 6.115.0's
+     two complaints, word for word — answered then for ⇪⇧O with a
+     760×520 webview that takes the caret on open, while ⇪⇧V kept
+     hs.dialog.textPrompt: a fixed one-line NSAlert that opens behind
+     whatever is in front and cannot be resized (6.190.0).
+  ✍️ ONE WINDOW, PUBLISHED. The OCR module's editor is now
+     `ocr.openTextEditor(opts)` — title, sub, text, rows, placeholder,
+     the Delete button's label, and three HOOKS (onSave(text) ·
+     onDelete · onCancel) — published as the `editor.open` service;
+     ocr.openEditor is its first caller and is unchanged for ⇪⇧O. The
+     page posts save / delete / cancel exactly as before; the box is
+     closed FIRST and then the hook runs, so a hook that throws never
+     leaves a dead window. ⇪⇧V asks `_G.service.has("editor.open")` at
+     PRESS time (6.190.0's rule) and its hooks call the same
+     clip.applyEdit the prompt did — an edit still lands on the
+     clipboard (P2), an emptied box still deletes. No service, or a
+     service that answers false (no hs.webview — the work Mac) → the
+     prompt, as before. The other textPrompt callers (Quick Append,
+     Bulk Rename, Capture Pad, Note Pad, the vault's ⌘⇧N / ⌘⇧E) can
+     take the same door, one at a time, when they come up.
+  🧪 test_ocr_tag 111 -> 118 (a generic open draws the same window; each
+     hook fires; a throwing hook still closes the box; no webview → false,
+     why, and NO prompt for another module's text), test_clipboard
+     137 -> 142 (the window opens with the entry, ⌘⏎ edits AND copies,
+     Delete deletes, the ask is at press time, the prompt is the degrade —
+     two mutations fail rows). 8,790 -> 8,802 checks, seventy-five stages.
+
 NEW IN 6.213.4 — ✏️ statrs → starts: TWO TIERS, THE KIND OF EDIT ORDERS THE SECOND:
   LL, on 6.213.3: "statrs is still not corrected." His call, and it
      was measured before it was built. The plain version — swap first,

@@ -924,20 +924,48 @@ function M.setup(core)
                 end
                 reopenEdit(); return
             end
+            local idx = choice.idx
+            local entryText = (editSnapshot[idx] or {}).text or ""
+            local function finish(text)
+                local result = clip.applyEdit(idx, text)
+                if result == "gone" then
+                    hs.alert.show("⚠️ That entry is gone — history changed since "
+                                  .. "this picker opened")
+                elseif result == "deleted" then
+                    hs.alert.show("🗑 Clipboard entry deleted")
+                else
+                    hs.alert.show("✏️ Clipboard entry updated — and copied")
+                end
+            end
+            -- ✍️ 6.213.5 — THE WINDOW, NOT THE PROMPT. LL: "This window does
+            -- not come to the front when I edit the clipboard. Also, the
+            -- edit field is very small, can we make this a bigger edit box
+            -- or use another type of window?" — hs.dialog.textPrompt is a
+            -- fixed one-line NSAlert that opens behind whatever is in front
+            -- (6.190.0). The OCR module's editor (6.115.0) is a real window
+            -- that takes the caret on open, published as `editor.open`;
+            -- asked at PRESS time (6.190.0's rule), and the prompt stays
+            -- the degrade for a Mac without it. The hooks call the same
+            -- clip.applyEdit the prompt did, so one rule decides both.
+            local opened = false
+            if _G.service and _G.service.has and _G.service.has("editor.open") then
+                opened = _G.service.call("editor.open", {
+                    title       = "✏️ Edit clipboard entry",
+                    windowTitle = "Edit clipboard entry",
+                    sub         = "⌘⏎ saves and copies · Esc cancels · empty the box, or Delete, to delete",
+                    placeholder = "The copied text. Empty it to delete this entry.",
+                    text        = entryText,
+                    onSave      = finish,
+                    onDelete    = function() finish("") end,
+                }) == true
+            end
+            if opened then return end
             local b, text = hs.dialog.textPrompt(
                 "✏️ Edit clipboard entry",
                 "Edit the text below.\nSave with it EMPTY to delete this entry.",
-                (editSnapshot[choice.idx] or {}).text or "", "Save", "Cancel")
+                entryText, "Save", "Cancel")
             if b ~= "Save" then return end
-            local result = clip.applyEdit(choice.idx, text)
-            if result == "gone" then
-                hs.alert.show("⚠️ That entry is gone — history changed since "
-                              .. "this picker opened")
-            elseif result == "deleted" then
-                hs.alert.show("🗑 Clipboard entry deleted")
-            else
-                hs.alert.show("✏️ Clipboard entry updated — and copied")
-            end
+            finish(text)
         end)
         _G.choosers = _G.choosers or {}
         _G.choosers.clipboardEdit = clip.editChooser   -- ⎋ 6.93.0: same rule for ⇪⇧V

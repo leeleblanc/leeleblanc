@@ -992,6 +992,18 @@ up, and esc closes the BAR not the window. The dialog is the DEGRADE
 (no web view) and BOTH paths reach `v.createNamed` — two creation paths
 is how one stops matching the other. ⌘⇧N and ⌘⇧E still use the dialog:
 same treatment when they come up.
+✍️ 6.213.5 — THE DOOR EXISTS NOW: `editor.open` (ocr_engine's
+`ocr.openTextEditor(opts)` — title/sub/text/rows/placeholder/deleteLabel
++ onSave(text)/onDelete/onCancel hooks; the box closes BEFORE a hook
+runs; false, why with no webview and never a prompt of its own) is the
+window every remaining textPrompt caller should take, one per release,
+asked at PRESS time with the prompt kept as the degrade. ⇪⇧V took it
+first, on LL's report ("does not come to the front… the edit field is
+very small" — 6.115.0's two complaints, in the module that kept the
+prompt). Remaining callers: quick_append, bulk_rename (3), capture_pad,
+note_pad, scratch_pad, activity_tracker, cheatsheet (2), vault (⌘⇧N /
+⌘⇧E). RULE learned: when one module's complaint has already been
+answered in another, the answer is a SERVICE, not a second copy.
 
 Nothing lost to an Esc (6.189.0): the ⇪⇧4 editor hands its state
 back on cancel and takes it in on the next open of the SAME path —
@@ -1189,8 +1201,9 @@ as the fix when a loss lands.
 | 6.213.2 | autocorrect: an inflected answer carries the typed ending (plugin/backend/signin) · pomodoro 30%/solid profile line | WIN — and LL chose statrs → starts anyway → 6.213.4 |
 | 6.213.3 | ⇪5 slices go to a local folder, plain names (the OneDrive dot-file cause) | WIN |
 | 6.213.4 | autocorrect: listed words first, then by-ending words in kind order (statrs → starts, adress/sceen stay) | pending |
+| 6.213.5 | ⇪⇧V edits in the OCR editor's window via `editor.open` (front, big, multi-line); the prompt is the degrade | pending |
 
-Running total: 11 wins · 2 losses · 1 pending. LL, after 6.213.3:
+Running total: 11 wins · 2 losses · 2 pending. LL, after 6.213.3:
 "I've done the others, they are good" — every row but 6.213.4 scored
 in that sentence; 6.213.4 waits on his word.
 
@@ -1201,6 +1214,13 @@ CLAUDE-archive.md at the repo root, which is NOT auto-loaded — this
 file rides into every context window. A block comes back here only if
 LL reopens it.)
 
+- 6.213.5 verify with LL: ⇪⇧V, Enter on a row — a dark 760×520
+  window comes to the FRONT with the caret already in a multi-line
+  box holding the entry. Edit, ⌘⏎: "✏️ Clipboard entry updated — and
+  copied", and ⌘V pastes the edited text. Enter on another row, the
+  Delete button: "🗑 Clipboard entry deleted". Esc closes without
+  changing anything. If the old small prompt appears instead, that Mac
+  has no hs.webview — say so; it is the degrade working.
 - 6.213.4 verify with LL: in Chrome type "statrs " → starts. Then
   "adress " and "sceen " must stay as typed (two listed words each —
   the rule still never guesses), "allways " → always, "plugin " and
@@ -1422,7 +1442,8 @@ LL reopens it.)
   sequential screenshots to the clipboard (needs LL's go-ahead — the
   honest shape is a multi-select in ⇪space @shots writing FILE URLs);
   @ source discoverability; widening `uni.runnable`; vault
-  front-matter completion; ⌘⇧N / ⌘⇧E on the small dialog; the ⇪⇧O
+  front-matter completion; ⌘⇧N / ⌘⇧E on the small dialog (the
+  `editor.open` window exists since 6.213.5 — take it); the ⇪⇧O
   image-history beach ball (a stall — diagnose before touching); and
   6.202.0's queued `_G.clipboardReport()` for the chooser pane (the
   one change queued next, alone).

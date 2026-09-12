@@ -850,11 +850,13 @@ function M.setup(core)
 [[</h1><div class="sub">]], esc(opts.sub), [[</div></header>
 <div id="wrap">
   <textarea id="t" rows="]], tostring(opts.rows or 16),
-            [[" spellcheck="false" placeholder="The extracted text. Empty it to delete this entry.">]],
+            [[" spellcheck="false" placeholder="]],
+            esc(opts.placeholder or "The extracted text. Empty it to delete this entry."), [[">]],
             esc(opts.text), [[</textarea>
   <div class="bar">
     <span class="count" id="c"></span>
-    <button type="button" class="rm" onclick="say({a:'delete'})">Delete entry</button>
+    <button type="button" class="rm" onclick="say({a:'delete'})">]],
+            esc(opts.deleteLabel or "Delete entry"), [[</button>
     <button type="button" onclick="say({a:'cancel'})">Cancel (Esc)</button>
     <button type="button" class="go" onclick="save()">Save (⌘⏎)</button>
   </div>
@@ -964,23 +966,40 @@ function M.setup(core)
         if ocr.editorView then
             pcall(function() ocr.editorView:delete() end)
         end
-        ocr.editorView, ocr.editorUc, ocr.editorIdx = nil, nil, nil
+        ocr.editorView, ocr.editorUc, ocr.editorIdx, ocr.editorHooks = nil, nil, nil, nil
     end
 
+    -- ✍️ 6.213.5 — THE WINDOW ANSWERS TO HOOKS, NOT TO AN INDEX. The page
+    -- posts save / delete / cancel; whoever opened the box said what each
+    -- means (ocr.openEditor: applyEdit on the OCR entry; the clipboard's
+    -- ⇪⇧V: its own applyEdit). The box is closed FIRST, then the hook
+    -- runs, so a hook that throws never leaves a dead window behind. No
+    -- hooks (the box was closed under the page, 6.115.0's stale-editor
+    -- rule) → the message goes nowhere.
     function ocr.handleEditorMessage(body)
         if type(body) ~= "table" then return end
         if body.a == "drag" then pcall(ocr.beginDrag) return end
-        local idx = ocr.editorIdx
-        if body.a == "cancel" then ocr.closeEditor() return end
-        if not idx then return end
+        local hooks = ocr.editorHooks
+        if body.a == "cancel" then
+            ocr.closeEditor()
+            if hooks and hooks.onCancel then pcall(hooks.onCancel) end
+            return
+        end
+        if not hooks then return end
         if body.a == "delete" then
             ocr.closeEditor()
-            ocr.applyEdit(idx, "")
+            if hooks.onDelete then
+                local ok, err = pcall(hooks.onDelete)
+                if not ok then print("✍️ editor: delete hook — " .. tostring(err)) end
+            end
             return
         end
         if body.a == "save" then
             ocr.closeEditor()
-            ocr.applyEdit(idx, body.text)
+            if hooks.onSave then
+                local ok, err = pcall(hooks.onSave, body.text)
+                if not ok then print("✍️ editor: save hook — " .. tostring(err)) end
+            end
         end
     end
 
@@ -1002,11 +1021,20 @@ function M.setup(core)
         return ocr.applyEdit(idx, text)
     end
 
-    function ocr.openEditor(idx)
-        local entry = ocrEditSnapshot[idx]
-        if not entry then return false end
+    -- ✍️ 6.213.5 — ONE EDITOR WINDOW, SHARED. LL, on ⇪⇧V: "This window
+    -- does not come to the front when I edit the clipboard. Also, the
+    -- edit field is very small" — the same two complaints 6.115.0 fixed
+    -- HERE for ⇪⇧O, while the clipboard kept hs.dialog.textPrompt. So the
+    -- window is a function of its CONTENT and its HOOKS now, published as
+    -- the `editor.open` service, and ocr.openEditor is its first caller.
+    -- → true | false, why. A caller with no window gets false and picks
+    -- its own degrade (the prompt); this never opens a prompt for anyone
+    -- but OCR. opts: title · sub · text · rows · font · windowTitle ·
+    -- placeholder · deleteLabel · onSave(text) · onDelete() · onCancel().
+    function ocr.openTextEditor(opts)
+        if type(opts) ~= "table" then return false, "no options" end
         if not (hs.webview and hs.webview.usercontent) then
-            return editorPromptFallback(idx)
+            return false, "no hs.webview on this Mac"
         end
         ocr.closeEditor()                      -- never two at once
 
@@ -1019,19 +1047,21 @@ function M.setup(core)
                        w = w, h = h }
 
         local okUc, uc = pcall(hs.webview.usercontent.new, "ocrEdit")
-        if not (okUc and uc) then return editorPromptFallback(idx) end
+        if not (okUc and uc) then return false, "usercontent: " .. tostring(uc) end
         pcall(function()
             uc:setCallback(function(msg)
                 local ok, err = pcall(ocr.handleEditorMessage, msg and msg.body)
-                if not ok then print("📋 OCR edit: message handler — " .. tostring(err)) end
+                if not ok then print("✍️ editor: message handler — " .. tostring(err)) end
             end)
         end)
 
         local okV, view = pcall(hs.webview.new, rect, {}, uc)
-        if not (okV and view) then return editorPromptFallback(idx) end
-        ocr.editorUc, ocr.editorView, ocr.editorIdx = uc, view, idx
+        if not (okV and view) then return false, "webview: " .. tostring(view) end
+        ocr.editorUc, ocr.editorView = uc, view
+        ocr.editorHooks = { onSave = opts.onSave, onDelete = opts.onDelete,
+                            onCancel = opts.onCancel }
 
-        pcall(function() view:windowTitle("Edit OCR entry") end)
+        pcall(function() view:windowTitle(tostring(opts.windowTitle or "Edit")) end)
         -- allowTextEntry sets canBecomeKeyWindow — without it the box
         -- draws perfectly and swallows every keystroke.
         pcall(function() view:allowTextEntry(true) end)
@@ -1041,12 +1071,13 @@ function M.setup(core)
         end)
         pcall(function()
             view:html(ocr.editorHtml({
-                title = "✏️ Edit OCR entry",
-                sub   = "🕒 " .. tostring(entry.timestamp)
-                        .. "  ·  ⌘⏎ saves · Esc cancels · empty the box to delete",
-                text  = entry.text,
-                rows  = ocr.editorRows,
-                font  = ocr.editorFont,
+                title       = tostring(opts.title or "✏️ Edit"),
+                sub         = tostring(opts.sub or "⌘⏎ saves · Esc cancels · empty the box to delete"),
+                text        = tostring(opts.text or ""),
+                rows        = opts.rows or ocr.editorRows,
+                font        = opts.font or ocr.editorFont,
+                placeholder = opts.placeholder,
+                deleteLabel = opts.deleteLabel,
             }))
         end)
         pcall(function() view:show() end)
@@ -1055,6 +1086,23 @@ function M.setup(core)
         -- the app loses focus. This box has no such rule and one job —
         -- being typed into — so it comes to the front and takes the caret.
         pcall(function() view:bringToFront(true) end)
+        return true
+    end
+
+    function ocr.openEditor(idx)
+        local entry = ocrEditSnapshot[idx]
+        if not entry then return false end
+        local opened = ocr.openTextEditor({
+            title       = "✏️ Edit OCR entry",
+            windowTitle = "Edit OCR entry",
+            sub         = "🕒 " .. tostring(entry.timestamp)
+                          .. "  ·  ⌘⏎ saves · Esc cancels · empty the box to delete",
+            text        = entry.text,
+            onSave      = function(text) ocr.applyEdit(idx, text) end,
+            onDelete    = function() ocr.applyEdit(idx, "") end,
+        })
+        if not opened then return editorPromptFallback(idx) end
+        ocr.editorIdx = idx
         return true
     end
 
@@ -1261,6 +1309,7 @@ function M.setup(core)
     core.provide("ocr.imageWanted",    function() return ocr.imageWanted() end)
     core.provide("ocr.show",           function() return ocr.show() end)
     core.provide("ocr.edit",           function() return ocr.edit() end)
+    core.provide("editor.open",        function(opts) return ocr.openTextEditor(opts) end)   -- 6.213.5
     core.provide("ocr.history",        function() return ocr.history() end)
 
     _G.ocrEngine = ocr

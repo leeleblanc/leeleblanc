@@ -741,7 +741,10 @@ stood, kept verbatim.
    instead of using a second slot. Select any row to put it back
    on the clipboard. Images go to the OCR engine instead.
    ⌘⌃⌥⇧V opens the same history to EDIT or DELETE an entry instead —
-   Save with the text cleared deletes it.
+   Save with the text cleared deletes it. 6.213.5: the edit opens in
+   the OCR editor's real window (front, focused, multi-line, ⌘⏎ saves,
+   Esc cancels, a Delete button) through the editor.open service; a
+   Mac without hs.webview still gets the small prompt.
 
 ⇪O  OCR LOG SEARCH (modules/ocr_engine.lua — was §2 until 6.105.0)
    When an image lands on the clipboard, Hammerspoon runs your
@@ -928,9 +931,9 @@ CREATED AUTOMATICALLY (never make these yourself):
 
 ## 6. Tests
 
-Sixty-nine Lua suites, 8,278 checks, plus four more that run the Capture
+Sixty-nine Lua suites, 8,290 checks, plus four more that run the Capture
 Pad's, the screenshot editor's, unified search's and the vault's page
-JavaScript under `node` for a further 512 — **8,790 checks over
+JavaScript under `node` for a further 512 — **8,802 checks over
 seventy-five stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
