@@ -1234,16 +1234,16 @@ as the fix when a loss lands.
 | 6.213.1 | stability pass: the stall guard's threshold 60 s / 10 s (was 20 / 5) | WIN |
 | 6.213.2 | autocorrect: an inflected answer carries the typed ending (plugin/backend/signin) · pomodoro 30%/solid profile line | WIN — and LL chose statrs → starts anyway → 6.213.4 |
 | 6.213.3 | ⇪5 slices go to a local folder, plain names (the OneDrive dot-file cause) | WIN |
-| 6.213.4 | autocorrect: listed words first, then by-ending words in kind order (statrs → starts, adress/sceen stay) | pending |
-| 6.213.5 | ⇪⇧V edits in the OCR editor's window via `editor.open` (front, big, multi-line); the prompt is the degrade | pending |
+| 6.213.4 | autocorrect: listed words first, then by-ending words in kind order (statrs → starts, adress/sceen stay) | WIN |
+| 6.213.5 | ⇪⇧V edits in the OCR editor's window via `editor.open` (front, big, multi-line); the prompt is the degrade | WIN |
 | 6.214.0 | 🕸 Hamsidian: the ⇪3 notes renamed in every visible string; ids, folder, services unchanged | LOSS — LL: "killed my keyboard and made every key execute some hammerspoon action. I was able to pause it." A latched ⇪ (6.162.1's class); he went back to 6.213.3 → 6.214.1 |
 | 6.214.1 | 🌩 hyper storm guard: a latched ⇪ releases itself after 5 s and writes ~/.hammerspoon/.storm/storm-<epoch>.txt | LOSS — the test itself worked (released, file, report), but the report carried a stale ⚠️ and LL's bad test recipe (mine) exposed the count stalling behind a key-eating tool → 6.214.2 |
-| 6.214.2 | 🌩 the storm guard counts keys from the ⇪ tap too (a tool that eats keys no longer hides them); a missing folder is no warning | pending |
+| 6.214.2 | 🌩 the storm guard counts keys from the ⇪ tap too (a tool that eats keys no longer hides them); a missing folder is no warning | WIN on the home Mac (LL: "6.214.2 home ✓", 184 autorepeats measured, no ⚠️) — the work Mac is still owed before anything ships |
 
-Running total: 11 wins · 4 losses · 3 pending (6.213.4, 6.213.5,
-6.214.2). LL is on 6.213.3 again; 6.213.4 and 6.213.5 were never
-confirmed installed, so the 6.214.0 loss covers all three releases'
-diff — which touches no hotkey, tap, hold or panel handshake.
+Running total: 14 wins · 4 losses · 0 pending. LL is on 6.214.2 on
+the home Mac (scored 2026-09-12: "6.214.2 home ✓ · 6.213.4 ✓ ·
+6.213.5 ✓ · work Mac later"). 🚨 THE WORK MAC IS STILL OWED: his own
+gate says nothing ships until 6.214.2 holds on BOTH Macs.
 
 ## Open items — update as they move
 
@@ -1258,9 +1258,9 @@ LL reopens it.)
   his Mac, so the repeatfn fires, the autorepeat clause is live, a
   real hold has its own distinguishing fact, and init.lua's "a real
   hold keeps stamping (F18 autorepeats)" comment is TRUE — nothing to
-  correct. Still owed: his word that 6.214.2 held on BOTH Macs (the
-  work Mac must read "no report on disk", not a warning); the row
-  stays pending until he says so.
+  correct. SCORED on the home Mac ("6.214.2 home ✓"). Still owed:
+  the WORK MAC — install, `_G.stormReport()` must show no ⚠️ and
+  "no report on disk"; his ✓ there opens the gate for 6.215.0.
 - 6.214.1 verify with LL — THE STORM GUARD, and his gate for
   everything after it: install over 6.213.3 (it carries 6.213.4,
   6.213.5 and 6.214.0 too). Boot: `_G.stormReport()` reads "watching:
