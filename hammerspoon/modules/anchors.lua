@@ -58,7 +58,7 @@ local M = {
         rows = {
             { "⇪⇧U",      "Link the front document / tab / app to a vault note" },
             { "again",     "Already linked? The rows at the top are the notes that mention it" },
-            { "⏎",         "Open that note in the Vault (⇪3)" },
+            { "⏎",         "Open that note in Hamsidian (⇪3)" },
             { "new",       "First row makes a note named after the thing and links it" },
             { "pick",      "Last row: choose any existing note to link it into" },
             { "in a note", "The link is plain Markdown under '## Linked' — Obsidian opens it" },
@@ -230,7 +230,7 @@ function M.setup(core)
     -- file moved.
     function anc.notesFor(t, cb)
         local dir = _G.vault and _G.vault.dir
-        if not dir then return cb({}, "the Vault is not loaded") end
+        if not dir then return cb({}, "Hamsidian is not loaded") end
         local needles = {}
         if t.path then
             needles[#needles + 1] = t.path
@@ -294,7 +294,7 @@ function M.setup(core)
         if not line then return false, "nothing to link" end
         local okS, ok, why = call("vault.link", name, line,
                                   anc.folder ~= "" and anc.folder or nil)
-        if not okS then return false, "the Vault is not loaded" end
+        if not okS then return false, "Hamsidian is not loaded" end
         if not ok then return false, tostring(why or "could not write the note") end
         anc.links = anc.links + 1
         anc.last = { name = name, title = t.title, url = t.url, at = os.time(), why = why }
@@ -320,7 +320,7 @@ function M.setup(core)
         }
         rows[#rows + 1] = {
             text = "📁 Link it into an existing note…",
-            subText = "pick any note in the Vault",
+            subText = "pick any note in Hamsidian",
             act = "pick",
         }
         return rows
@@ -356,7 +356,7 @@ function M.setup(core)
                 if not pick then return end
                 if pick.act == "open" then
                     if not select(1, call("vault.open", pick.name)) then
-                        alert("🔗 the Vault is not loaded", 3)
+                        alert("🔗 Hamsidian is not loaded", 3)
                     else
                         call("vault.show")
                     end
@@ -382,7 +382,7 @@ function M.setup(core)
     function anc.show()
         anc.opens = anc.opens + 1
         if not has("vault.link") then
-            alert("🔗 The Vault is not loaded — an anchor needs somewhere to live", 3)
+            alert("🔗 Hamsidian is not loaded — an anchor needs somewhere to live", 3)
             return false
         end
         anc.identify(function(t, why)

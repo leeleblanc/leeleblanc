@@ -4,9 +4,31 @@
 -- =====================================================================
 -- 09-11-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.213.5
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.214.0
 -- =====================================================================
 
+-- NEW IN 6.214.0 — 🕸 HAMSIDIAN — THE ⇪3 NOTES ARE CALLED WHAT LL CALLS THEM:
+--   LL: "Hammer-sidian" → "Hamsidian", the first item of the agreed order,
+--      and the one release with nothing to break in it — VISIBLE STRINGS
+--      ONLY, as the Scorp Pad was renamed in 6.171.0. The window header,
+--      the window title, the cheat sheet section, the four Console lines,
+--      the no-webview prompt, the ⇪D source label, the anchors' rows and
+--      alerts, the Scorp Pad's "whose window" line and the first line of
+--      the report all say Hamsidian now. What did NOT move, on purpose: the
+--      module id `vault` (so `settings = { vault = { … } }` keeps working),
+--      `_G.vault` / `_G.vaultReport()` / `_G.vaultRescan()`, the folder
+--      <OneDrive>/Vault (a rename there strands every note and Obsidian
+--      with it), the services, and the `@vault` tag in ⇪D. test_vault's
+--      new section holds both halves — a mutation that renames the id or
+--      the folder fails, and so does one that leaves "Vault" in a string
+--      LL reads (the module name mutation was run and caught). The audit
+--      exemption in test_integration is keyed by the module NAME, so it
+--      moved with it. 8,802 -> 8,811 checks, seventy-five stages.
+--   🔔 A RULE, recorded and not yet built, on LL's word this release:
+--      "anything here that breaks" must be SEEN — an alert and a ⚠️
+--      Console line at the moment it degrades, never a report line
+--      alone. 6.215.0 builds the one door for that; click hints follow it.
+--
 -- NEW IN 6.213.5 — ✍️ ⇪⇧V EDITS IN A REAL WINDOW — THE OCR EDITOR, SHARED:
 --   LL: "This window does not come to the front when I edit the
 --      clipboard. Also, the edit field is very small, can we make this a
@@ -37,36 +59,12 @@
 --      Delete deletes, the ask is at press time, the prompt is the degrade —
 --      two mutations fail rows). 8,790 -> 8,802 checks, seventy-five stages.
 --
--- NEW IN 6.213.4 — ✏️ statrs → starts: TWO TIERS, THE KIND OF EDIT ORDERS THE SECOND:
---   LL, on 6.213.3: "statrs is still not corrected." His call, and it
---      was measured before it was built. The plain version — swap first,
---      then a doubled letter, a missing letter, three turned round, the
---      first kind with an answer deciding — fixes statrs and ALSO turns
---      adress into daress (dares+s, a swap, outvoting address, a listed
---      word an insertion away) and sceen into scene (over screen). That
---      is the guess the "exactly one" rule exists to refuse.
---   ✏️ So: TIER ONE asks every kind of edit for words the list holds
---      OUTRIGHT — exactly one wins, two is still nothing (sceen: scene and
---      screen; wierd: weird and wired; adress: address and adpress are
---      both listed). Only when NO listed word is near does TIER TWO ask
---      for words that are words by an ending (6.205.0 / 6.213.2's gate),
---      and there the kinds run in order and the first kind that answers
---      decides: statrs → starts by a swap, before staters and stators by
---      a missing letter. allways → always: a listed word beats hallways,
---      a word only by its ending. Against the real list, on an 84-word
---      scored corpus: 52 right, 31 silent, ONE wrong (seperate → sperate,
---      unchanged since 6.200.0) — four more right than 6.213.3, nothing
---      newly wrong, the same two jargon rewrites (ghostty, unsubscribe).
---   🧪 test_autocorrect 168 -> 172; three mutations (tier two unordered,
---      tier one ordered, the tiers collapsed) each fail the row written
---      for them. 8,786 -> 8,790 checks, seventy-five stages.
---
--- (6.213.3 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.213.4 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.213.5
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.214.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -163,7 +161,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.213.5"
+_G.configVersion = "6.214.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------

@@ -52,6 +52,16 @@ work Mac.
   `_G.hyperExpectRelease(1.5, who)` after show (deadline 8 s → 1.5 s of
   silence) and its page forwards an F18 keyup to `_G.hyperReleaseSeen(who)`.
   Do the same in any new text panel.
+- 🔔 A BREAK IS SEEN, NEVER ONLY LOGGED (6.214.0, LL: "I also must have
+  anything here that breaks to throw an error so I see it, know about
+  it, and can fix it with you"). This does not undo IT DEGRADES, IT
+  NEVER BREAKS — it says where the degraded state goes: an hs.alert
+  naming the tool and the cause AT THE MOMENT it happens, a ⚠️ Console
+  line, AND the report line; a report line alone is a break he finds a
+  week later. 6.215.0 builds the one door (`core.degrade(tool, why)`,
+  counted, listed by `_G.degradeReport()`); until every module takes
+  it, any NEW degrade path alerts and prints itself. Never a throw that
+  stops the rest of the config — the alert is the error he asked for.
 
 ## Module contract
 
@@ -222,7 +232,10 @@ preview was searchable. RULE learned here: a check that asserts a
 budget EXISTS does not assert that it BITES; two such checks passed
 under the mutation they were written to catch.
 
-Vault (6.172.0, modules/vault.lua, ⇪3): the FOLDER <OneDrive>/Vault of
+Vault — named HAMSIDIAN to LL since 6.214.0 (his "Hammer-sidian"; visible
+strings only: module id `vault`, settings key, `_G.vault`, `_G.vaultReport()`,
+the folder <OneDrive>/Vault, the services and the `@vault` tag unchanged;
+test_vault's last section holds both halves) — (6.172.0, modules/vault.lua, ⇪3): the FOLDER <OneDrive>/Vault of
 plain .md files IS the database — no index file, no sidecar, so Obsidian
 opens the same folder on either Mac. Index = /usr/bin/find (names) +
 /usr/bin/grep (`[[links]]`) in HELD hs.tasks; the module NEVER reads a
@@ -1202,10 +1215,11 @@ as the fix when a loss lands.
 | 6.213.3 | ⇪5 slices go to a local folder, plain names (the OneDrive dot-file cause) | WIN |
 | 6.213.4 | autocorrect: listed words first, then by-ending words in kind order (statrs → starts, adress/sceen stay) | pending |
 | 6.213.5 | ⇪⇧V edits in the OCR editor's window via `editor.open` (front, big, multi-line); the prompt is the degrade | pending |
+| 6.214.0 | 🕸 Hamsidian: the ⇪3 notes renamed in every visible string; ids, folder, services unchanged | pending |
 
-Running total: 11 wins · 2 losses · 2 pending. LL, after 6.213.3:
+Running total: 11 wins · 2 losses · 3 pending. LL, after 6.213.3:
 "I've done the others, they are good" — every row but 6.213.4 scored
-in that sentence; 6.213.4 waits on his word.
+in that sentence; 6.213.4, 6.213.5 and 6.214.0 wait on his word.
 
 ## Open items — update as they move
 
@@ -1214,6 +1228,53 @@ CLAUDE-archive.md at the repo root, which is NOT auto-loaded — this
 file rides into every context window. A block comes back here only if
 LL reopens it.)
 
+- 🗳 LL'S ANSWERS TO THE 14 QUESTIONS (2026-09-12), as read — items
+  8–14 were numbered 1–6 under "Work Mac:" and are read in order:
+  1 click hints on ⇪X first, grid as the fallback — default; 2 Chrome
+  and Finder — default; 3 the order — default (Hamsidian ✓ 6.214.0,
+  then the 🔔 door 6.215.0 on his new rule, then click hints, OCR
+  gibberish, the 4 PM review, bookmarks, GitHub audit + public repo,
+  website, Claude door); 4 rename visible strings only — default;
+  5 OCR gibberish → date + app + screenshot name, gibberish dropped —
+  default; 6 the 4 PM review — "Make" (build it as described);
+  7 work-Mac reach — "Skip": assume it has NOTHING (every path
+  degrades and says so); 8 bookmarks — Yes: a per-Mac CSV searched
+  from ⇪D; 9 dictionary sync — "Sync to GitHub instead" (item 6 of
+  his list; the only place it fits — not OneDrive); 10 Anthropic API
+  key — Yes; 11 Claude door output — Yes, the default; 12 work
+  writing in public — "Skip": the site is PERSONAL ONLY until he says
+  otherwise; 13 website — default, Jekyll on GitHub Pages; 14 audit
+  strings — "I will after you build": scan with what is known, he
+  sends the rest later. If any of 8–14 was meant differently he
+  corrects the one line; nothing built before item 5 depends on them.
+- 6.214.0 verify with LL — THE HAMSIDIAN TEST LIST (his ask: a list
+  to run every function; nothing but the name changed, so any row that
+  fails is an OLD bug and is reported as one):
+  1 ⇪3: the window opens on your last note; its header reads
+  🕸 Hamsidian; ⇪3 again closes it. 2 ⇪N: the same window on your
+  scratch tabs, header 📝 Scorp Pad. 3 ⇪/: the section reads
+  🕸 HAMSIDIAN (⇪3 / ⇪1 …). 4 Console `_G.vaultReport()`: first line
+  "🕸 Hamsidian — ⇪3". 5 ⌘N, a name, ⏎: the note exists and opens.
+  6 type [[ and pick a note; ⌘⏎ on the link opens it; on a name with
+  no file it creates it. 7 ⌘D: today's daily note; ⌘⇧[ / ⌘⇧] the day
+  before / after. 8 ⌘G: the graph; click a dot opens it; ⌘G back.
+  9 ⌘K: pick a file in OneDrive; a link lands at the caret; ⌘⏎ on it
+  opens the file. 10 ⌘⇧N: a note from a template; ⌘⇧T inserts one at
+  the caret. 11 type #test: 🏷 TAGS counts it; click it filters the
+  list. 12 ⌘⇧F, a word from inside a note: ⏎ opens at that line, Esc
+  back. 13 ⌘⇧K: every open - [ ] task; ⌘L ticks the one on the caret's
+  line. 14 right pane: OUTLINE headings jump; ≈ lists notes that name
+  this one without linking it. 15 "/" on an empty line: the menu;
+  pick dataview; 🔎 QUERY draws on the right, nothing written into the
+  note. 16 ⌘⇧B: the board; drag a card; that note's field changes.
+  17 ⌘⇧E: a selection becomes a new note with [[Name]] left behind;
+  ⌘⇧R opens a random note. 18 ⌘⇧S: the Scorp Pad's tabs land in
+  <Vault>/Scratch as .md. 19 ⌘F filters; ↑↓ ⏎ walk; ⌥↑/⌥↓ from inside
+  the text. 20 📌: the window stays up; Esc only hands the keys back.
+  21 ⇪⇧U: the row says "Open that note in Hamsidian". 22 ⇪D: the
+  notes rows are labelled Hamsidian; @vault still filters to them.
+  23 Obsidian: open <OneDrive>/Vault — the same notes. Report the
+  numbers that fail and the alert text; each becomes its own release.
 - 6.213.5 verify with LL: ⇪⇧V, Enter on a row — a dark 760×520
   window comes to the FRONT with the caret already in a multi-line
   box holding the entry. Edit, ⌘⏎: "✏️ Clipboard entry updated — and

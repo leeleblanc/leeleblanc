@@ -340,7 +340,7 @@ out("6) the window — page contents, walker, ⇪ keyup, hide saves\n")
 v.show()
 local view = WEBVIEWS[#WEBVIEWS]
 check("⇪3 opens one webview, shown, non-activating applied",
-      view and view.shown == 1 and v.nonActivatingApplied == true and view.title == "Vault")
+      view and view.shown == 1 and v.nonActivatingApplied == true and view.title == "Hamsidian")
 check("the hyper watchdog is told to expect a release", EXPECTED[#EXPECTED] and EXPECTED[#EXPECTED].who == "the vault")
 -- 6.181.0 — 0.9, because LL asked for it in those words ("make the
 -- Scorp pad 90% black"). 6.175.2 had settled on solid after three
@@ -532,7 +532,7 @@ do
     check("→ Asana now is the pad's own send", PAD.sent == 1)
     msg({ a = "open", name = "Gamma", rel = v.doc.rel, text = v.doc.text, sel = 0 })
     check("a note row from a tab opens the note; the header is the Vault's again",
-          v.doc.rel == "Gamma.md" and v.webview.htmlSet:find("🕸 Vault", 1, true) and v.webview.htmlSet:find("BACKLINKS", 1, true))
+          v.doc.rel == "Gamma.md" and v.webview.htmlSet:find("🕸 Hamsidian", 1, true) and v.webview.htmlSet:find("BACKLINKS", 1, true))
     check("…and the SCRATCH section is still listed", v.webview.htmlSet:find("📝 SCRATCH", 1, true) ~= nil)
     check("⇪1 with a note open jumps to the tabs (no close)", v.toggleScratch() and v.webview ~= nil and v.doc.scratch ~= nil)
     check("⇪1 with a tab open closes the window and lets the pad file its kind tabs",
@@ -1626,6 +1626,34 @@ do
           real:find("function v%.setField") ~= nil and real:find("v%.withField") ~= nil)
     check("the cheat sheet knows ⌘⇧B, so a key that moved can never go stale here",
           real:find("⌘⇧B", 1, true) ~= nil)
+end
+
+out("\n6.214.0 — HAMSIDIAN: the name LL sees changed, nothing he can lose did\n")
+do
+    -- Visible strings only, as the Scorp Pad was done in 6.171.0. The
+    -- rows below hold BOTH halves: a mutation that renames the module id,
+    -- the settings key, the report global or the folder fails here, and
+    -- so does one that leaves "Vault" in a string LL reads.
+    local rf = io.popen and io.popen("cat '" .. HS .. "/modules/vault.lua'")
+    local real = rf and rf:read("a") or ""
+    if rf then rf:close() end
+    check("the module NAME (boot report, cheat sheet owner, hint card) is Hamsidian", mod.name == "Hamsidian")
+    check("the cheat sheet's title says HAMSIDIAN and still names ⇪3 / ⇪1",
+          tostring(mod.cheatsheet.title):find("🕸 HAMSIDIAN", 1, true) ~= nil and tostring(mod.cheatsheet.title):find("⇪3 / ⇪1", 1, true) ~= nil)
+    v.openNote("Alpha")
+    check("the window header reads 🕸 Hamsidian on a note (📝 Scorp Pad on a tab is unchanged)",
+          WEBVIEWS[#WEBVIEWS].htmlSet:find('<span class="name">🕸 Hamsidian</span>', 1, true) ~= nil
+              and real:find('"📝 Scorp Pad"', 1, true) ~= nil)
+    check("the report's first line is 🕸 Hamsidian — ⇪3", tostring(_G.vaultReport()):find("🕸 Hamsidian — ⇪3", 1, true) == 1)
+    check("no Console line, alert or window title says Vault any more (the folder and comments may)",
+          real:find('"🕸 Vault', 1, true) == nil and real:find('windowTitle("Vault")', 1, true) == nil
+              and real:find('textPrompt, "Vault"', 1, true) == nil)
+    -- the half that must NOT move
+    check("_G.vault and _G.vaultReport are still the globals", _G.vault == v and type(_G.vaultReport) == "function")
+    check("the folder is still <OneDrive>/Vault — a rename there would strand every note", tostring(v.dir):match("/Vault$") ~= nil)
+    check("the settings key is still `vault` (the file is modules/vault.lua; a profile line keeps working)",
+          real:find("settings = { vault = {", 1, true) ~= nil)
+    check("the source says why: visible strings only, and names what stays", real:find("VISIBLE STRINGS ONLY", 1, true) ~= nil)
 end
 
 out(string.format("\n%d passed, %d failed\n", pass, fail))

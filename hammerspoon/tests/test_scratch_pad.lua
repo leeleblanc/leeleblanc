@@ -487,7 +487,7 @@ check("an unreadable store starts with one blank tab and leaves the file", #sp2.
 check("…and says so in the report", _G.scratchPadReport():find("unreadable", 1, true) ~= nil)
 
 -- =======================================================================
-out("7b) 6.173.0 — hosted in the Vault window\n")
+out("7b) 6.173.0 — hosted in the Hamsidian window\n")
 -- =======================================================================
 do
     local HOST = { enabled = true, webview = nil, doc = nil, shows = {}, toggles = 0, hides = 0 }
@@ -529,7 +529,7 @@ do
           ct and sp2.findTab(ct.id) == nil and QUEUED[1] == "from ⇪N" and plainAfter == plainBefore)
     sp2.hide()
     check("sp.hide with the host open closes the host", HOST.hides == 1)
-    check("the report says whose window it is", _G.scratchPadReport():find("window: the Vault's", 1, true) ~= nil)
+    check("the report says whose window it is", _G.scratchPadReport():find("window: Hamsidian's", 1, true) ~= nil)
     _G.vault = nil
 end
 

@@ -336,7 +336,7 @@ local keepLink = SERVICES["vault.link"]
 SERVICES["vault.link"] = nil
 ALERTS = {}
 check("no vault module → ⇪⇧U says so and does nothing else",
-      anc.show() == false and tostring(ALERTS[1]):find("Vault is not loaded", 1, true) ~= nil,
+      anc.show() == false and tostring(ALERTS[1]):find("Hamsidian is not loaded", 1, true) ~= nil,
       ALERTS[1])
 SERVICES["vault.link"] = keepLink
 

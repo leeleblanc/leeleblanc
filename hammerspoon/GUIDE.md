@@ -926,14 +926,26 @@ CREATED AUTOMATICALLY (never make these yourself):
      <OneDrive>/Backups/Hammerspoon/<MachineName>/ — or
      ~/.hammerspoon/logs/ for all of it when the Mac has no
      OneDrive (§0.1)
+
+🕸 HAMSIDIAN (⇪3 / ⇪N, modules/vault.lua)  ·  named so in 6.214.0
+   LL's "Hammer-sidian": a folder of plain .md notes in
+   <OneDrive>/Vault, one window over it — [[links]], backlinks,
+   the graph (⌘G), tags, templates, search inside every note,
+   tasks, live ```dataview lists, the ```kanban board, daily
+   notes, and the Scorp Pad's tabs at the top of the same list.
+   The folder is the database: open it in Obsidian on either Mac
+   and it is the same vault. The name is the only thing 6.214.0
+   changed — the module id stays `vault` (settings, _G.vault,
+   _G.vaultReport(), the @vault tag in ⇪D), and the folder is
+   still called Vault on disk.
 =====================================================================
 ```
 
 ## 6. Tests
 
-Sixty-nine Lua suites, 8,290 checks, plus four more that run the Capture
+Sixty-nine Lua suites, 8,299 checks, plus four more that run the Capture
 Pad's, the screenshot editor's, unified search's and the vault's page
-JavaScript under `node` for a further 512 — **8,802 checks over
+JavaScript under `node` for a further 512 — **8,811 checks over
 seventy-five stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:

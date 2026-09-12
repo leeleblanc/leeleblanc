@@ -636,7 +636,7 @@ function M.setup(core)
         local added = 0
         for _, n in ipairs(v.notes) do
             if added >= uni.maxPer.vault then return end
-            add{ tag = "vault", icon = "🕸", src = "Vault", text = n.name,
+            add{ tag = "vault", icon = "🕸", src = "Hamsidian", text = n.name,
                  sub = n.rel, full = n.name, vaultNote = n.name }
             added = added + 1
         end
@@ -856,7 +856,7 @@ function M.setup(core)
         { tag = "file",  icon = "📁", label = "File moves",   fn = srcFiles     },
         { tag = "pad",   icon = "🗒", label = "Capture Pad",  fn = srcPad       },
         { tag = "scratch", icon = "📝", label = "Scorp pad", fn = srcScratch  },
-        { tag = "vault", icon = "🕸", label = "Vault",        fn = srcVault    },
+        { tag = "vault", icon = "🕸", label = "Hamsidian",    fn = srcVault    },
         { tag = "web",   icon = "🕘", label = "Chrome",       fn = srcWeb       },
         -- 🔧 LAST ON PURPOSE. Rows are gathered in this order and the page
         -- lists them in it, so the things you SAVED stay above the tools

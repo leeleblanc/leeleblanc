@@ -686,7 +686,7 @@ local AUDIT_SHARED = {
     -- SAME window on different tabs, so the vault's sheet printing ⇪N is
     -- the literal truth about the window it is describing, even though
     -- scratch_pad is the module that registered the key.
-    ["Vault||n"] = "the vault window hosts the pad — ⇪N opens this window",
+    ["Hamsidian||n"] = "the Hamsidian window hosts the pad — ⇪N opens this window",   -- 6.214.0: the module NAME is Hamsidian now
 }
 
 do

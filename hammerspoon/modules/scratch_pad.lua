@@ -93,7 +93,7 @@ local M = {
     cheatsheet = {
         title = "📝 SCRATCH NOTES (⇪N — type, it saves; close as fast as you opened it)",
         entries = {
-            { "⇪N",        "Open the pad — inside the ⇪3 Vault window, on your SCRATCH NOTES (again closes). ⇪1 no longer opens it and is free" },
+            { "⇪N",        "Open the pad — inside the ⇪3 Hamsidian window, on your SCRATCH NOTES (again closes). ⇪1 no longer opens it and is free" },
             { "⌘T · ⌘W",   "New tab · close tab (its text goes to the history)" },
             { "⌘1…⌘9",     "Switch tab · ⌃Tab / ⌃⇧Tab cycle round them" },
             { "history",   "Right pane (in the vault): every closed tab, click to reopen" },
@@ -1396,7 +1396,7 @@ t.focus(); try { t.setSelectionRange(CARET, CARET); } catch(e){}
                         or "never — _G.scorpPadExport() writes them now")
         end
         local host = sp.host()
-        L[#L + 1] = "   window: " .. (host and "the Vault's (⇪1 opens the tabs there; viaVault = false for its own)" or "its own")
+        L[#L + 1] = "   window: " .. (host and "Hamsidian's (⇪N opens the tabs there; viaVault = false for its own)" or "its own")
         L[#L + 1] = "   pad: " .. ((sp.webview or (host and host.webview)) and "open" or "closed") .. (sp.pinned and " · 📌 pinned" or "")
                     .. " · opens: " .. sp.opens .. " · non-activating: " .. tostring(sp.nonActivatingWhy)
         L[#L + 1] = "   4 PM: at " .. sp.sendAt .. " · " .. sp.startTime .. " → " .. sp.dueTime

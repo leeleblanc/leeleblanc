@@ -1,6 +1,12 @@
 -- =====================================================================
 -- 🕸 VAULT — ⇪3: LINKED MARKDOWN NOTES IN ONEDRIVE, WITH A GRAPH
 -- =====================================================================
+-- 6.214.0 — named HAMSIDIAN to LL (his word for it: "Hammer-sidian",
+-- shortened). VISIBLE STRINGS ONLY, as the Scorp Pad was done in
+-- 6.171.0: the module id `vault`, the settings key, `_G.vault`,
+-- `_G.vaultReport()`, the folder <OneDrive>/Vault, the services and the
+-- @vault search tag are unchanged, so nothing on disk or in a profile
+-- line moves.
 -- 6.172.0 — LL: "I'd like to try for an Obsidian-like note taking app …
 -- build into this tool so that the ideas can be turned into writing and
 -- link/reference the files in their OneDrive location … run both on my
@@ -183,14 +189,14 @@
 -- =====================================================================
 
 local M = {
-    name    = "Vault",
+    name    = "Hamsidian",
     order   = 13.38,
     family  = "capture",
     summary = "⇪3 linked Markdown notes in OneDrive: [[wikilinks]], backlinks, "
               .. "a graph of the connections, Obsidian-compatible files, tags, templates, full-text search, tasks, "
               .. "live queries and a Kanban board you can drag cards on",
     cheatsheet = {
-        title = "🕸 VAULT (⇪3 / ⇪1 — Markdown notes that link to each other, in OneDrive; the Scorp Pad's tabs too)",
+        title = "🕸 HAMSIDIAN (⇪3 / ⇪1 — Markdown notes that link to each other, in OneDrive; the Scorp Pad's tabs too)",
         entries = {
             { "⇪3 · ⇪N",    "Open / close the window — ⇪3 on your last note, ⇪N on your scratch tabs" },
             { "📝 SCRATCH NOTES", "Top of the list: every scratch tab, plain or 🗒 Capture or ➕ Append · ⌘T new · the + rows make the other two · ⌘W close · ⌘1–9 · ⌃Tab · history on the right" },
@@ -1191,7 +1197,7 @@ function M.setup(core)
             if not v.saveErrSaid then
                 v.saveErrSaid = true
                 pcall(function() hs.alert.show("🕸 NOT SAVED — " .. why .. "\nYour text is safe in memory; every keystroke retries.", 5) end)
-                print("🕸 Vault: note not written — " .. why .. " (" .. d.path .. ")")
+                print("🕸 Hamsidian: note not written — " .. why .. " (" .. d.path .. ")")
             end
             return false
         end
@@ -2233,7 +2239,7 @@ body.board #board{display:flex}
   box-shadow:0 6px 18px rgba(0,0,0,.55)}
 ]==] .. theme .. [==[
 </style></head><body class="]==] .. ((v.view == "graph" or v.view == "board") and v.view or "") .. [==["><div id="wrap">
-<header id="hdr"><span class="name">]==] .. (isTab and "📝 Scorp Pad" or "🕸 Vault") .. [==[</span><span class="doc" title="]==] .. escapeHtml(d and d.rel or "") .. [==[">]==] .. escapeHtml(d and d.name or "no note open") .. [==[</span>
+<header id="hdr"><span class="name">]==] .. (isTab and "📝 Scorp Pad" or "🕸 Hamsidian") .. [==[</span><span class="doc" title="]==] .. escapeHtml(d and d.rel or "") .. [==[">]==] .. escapeHtml(d and d.name or "no note open") .. [==[</span>
 <span class="hint" id="hint">]==] .. escapeHtml(status) .. [==[</span>
 ]==] .. (v.lastSaveErr and ('<span class="bad" title="' .. escapeHtml(v.lastSaveErr) .. '">⚠ not saved</span>') or "") .. [==[
 ]==] .. (sp and '<button onclick="say({a:\'tabnew\'})" title="New scratch tab ⌘T">📝+</button>' or "") .. [==[
@@ -3686,7 +3692,7 @@ else {
             local ok, why = v.setField(body.card, body.field, body.value)
             if not ok then
                 pcall(function() hs.alert.show("🗂 Not moved — " .. tostring(why), 3) end)
-                print("🕸 Vault: card not moved — " .. tostring(why))
+                print("🕸 Hamsidian: card not moved — " .. tostring(why))
             end
             v.render()
         elseif a == "linkfile" then
@@ -3893,7 +3899,7 @@ else {
 
     local function promptFallback()
         if not v.doc then
-            local okN, b, typed = pcall(hs.dialog.textPrompt, "Vault", "No web view on this Hammerspoon. Name of the note to edit:", "", "Open", "Cancel")
+            local okN, b, typed = pcall(hs.dialog.textPrompt, "Hamsidian", "No web view on this Hammerspoon. Name of the note to edit:", "", "Open", "Cancel")
             if not (okN and b == "Open" and trim(typed) ~= "") then return end
             -- 6.203.0 — openNote can now REFUSE, and the next line reads
             -- v.doc.name: a refusal here used to be impossible and would
@@ -3944,13 +3950,13 @@ else {
         pcall(function()
             uc:setCallback(function(msg)
                 local ok, err = pcall(handleMessage, msg and msg.body)
-                if not ok then print("🕸 Vault: message handler — " .. tostring(err)) end
+                if not ok then print("🕸 Hamsidian: message handler — " .. tostring(err)) end
             end)
         end)
         local okV, view = pcall(hs.webview.new, rect, {}, uc)
         if not (okV and view) then v.uc = nil; promptFallback() return end
         v.webview = view
-        pcall(function() view:windowTitle("Vault") end)
+        pcall(function() view:windowTitle("Hamsidian") end)
         pcall(function() view:allowTextEntry(true) end)
         pcall(function() view:closeOnEscape(false) end)
         pcall(function() view:level(hs.drawing.windowLevels.floating) end)
@@ -3960,7 +3966,7 @@ else {
         if v.nonActivating then
             v.nonActivatingApplied, v.nonActivatingWhy = v.applyNonActivating(view)
             if not v.nonActivatingApplied then
-                print("🕸 Vault: non-activating panel unavailable — " .. tostring(v.nonActivatingWhy))
+                print("🕸 Hamsidian: non-activating panel unavailable — " .. tostring(v.nonActivatingWhy))
             end
         end
         v.render()
@@ -3997,7 +4003,7 @@ else {
 
     _G.editors = _G.editors or {}
     table.insert(_G.editors, {
-        name  = "Vault",
+        name  = "Hamsidian",
         key   = "⇪" .. v.key,
         what  = "linked Markdown notes in OneDrive",
         order = 23,
@@ -4050,7 +4056,7 @@ else {
     function _G.vaultRescan() return v.scan("console") end
     function _G.vaultReport()
         local L = {}
-        L[#L + 1] = "🕸 Vault — ⇪" .. v.key .. (v.enabled and "" or " (disabled)")
+        L[#L + 1] = "🕸 Hamsidian — ⇪" .. v.key .. (v.enabled and "" or " (disabled)")
         L[#L + 1] = "   folder : " .. v.dir .. (v.cloudDir and "" or "  (no OneDrive found — local only)")
         L[#L + 1] = "   notes  : " .. #v.notes .. " · link lines: " .. v.linkLines .. (v.partial and " (PARTIAL — over the cap)" or "")
         local nb, nu = 0, 0

@@ -5,6 +5,28 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.214.0 — 🕸 HAMSIDIAN — THE ⇪3 NOTES ARE CALLED WHAT LL CALLS THEM:
+  LL: "Hammer-sidian" → "Hamsidian", the first item of the agreed order,
+     and the one release with nothing to break in it — VISIBLE STRINGS
+     ONLY, as the Scorp Pad was renamed in 6.171.0. The window header,
+     the window title, the cheat sheet section, the four Console lines,
+     the no-webview prompt, the ⇪D source label, the anchors' rows and
+     alerts, the Scorp Pad's "whose window" line and the first line of
+     the report all say Hamsidian now. What did NOT move, on purpose: the
+     module id `vault` (so `settings = { vault = { … } }` keeps working),
+     `_G.vault` / `_G.vaultReport()` / `_G.vaultRescan()`, the folder
+     <OneDrive>/Vault (a rename there strands every note and Obsidian
+     with it), the services, and the `@vault` tag in ⇪D. test_vault's
+     new section holds both halves — a mutation that renames the id or
+     the folder fails, and so does one that leaves "Vault" in a string
+     LL reads (the module name mutation was run and caught). The audit
+     exemption in test_integration is keyed by the module NAME, so it
+     moved with it. 8,802 -> 8,811 checks, seventy-five stages.
+  🔔 A RULE, recorded and not yet built, on LL's word this release:
+     "anything here that breaks" must be SEEN — an alert and a ⚠️
+     Console line at the moment it degrades, never a report line
+     alone. 6.215.0 builds the one door for that; click hints follow it.
+
 NEW IN 6.213.5 — ✍️ ⇪⇧V EDITS IN A REAL WINDOW — THE OCR EDITOR, SHARED:
   LL: "This window does not come to the front when I edit the
      clipboard. Also, the edit field is very small, can we make this a
