@@ -30,7 +30,8 @@ work Mac.
 - ⇪⇧Z is reserved for later — do not bind it.
 - ⇪⇧Z is the ONLY unspent key left — do not bind it. ⇪⇧T and ⇪1 were
   spent in 6.194.0 (type-the-clipboard and mouse-follows). Free combos
-  after 6.194.0: ⇪⇧7, ⇪⇧[, ⇪⇧], ⇪⇧, and ⇪⇧. — check `hint.groups` in
+  after 6.216.0: ⇪⇧[, ⇪⇧], ⇪⇧, and ⇪⇧. (⇪⇧7 → Bluetooth 6.216.0;
+  test_shortcut_hints' unmapped fixture key is ⇪⇧] now) — check `hint.groups` in
   modules/shortcut_hints.lua, which is the authoritative map of every
   bound combo, BEFORE promising LL a key. (⇪3 → vault 6.172.0; ⇪⇧U →
   anchors 6.180.0.)
@@ -1252,13 +1253,49 @@ as the fix when a loss lands.
 | 6.214.1 | 🌩 hyper storm guard: a latched ⇪ releases itself after 5 s and writes ~/.hammerspoon/.storm/storm-<epoch>.txt | LOSS — the test itself worked (released, file, report), but the report carried a stale ⚠️ and LL's bad test recipe (mine) exposed the count stalling behind a key-eating tool → 6.214.2 |
 | 6.214.2 | 🌩 the storm guard counts keys from the ⇪ tap too (a tool that eats keys no longer hides them); a missing folder is no warning | WIN on the home Mac (LL: "6.214.2 home ✓", 184 autorepeats measured, no ⚠️) — the work Mac still owed; LL said "Go ahead" |
 | 6.215.0 | 🔔 the degrade door: `core.degrade(tool, why)` → alert + ⚠️ line + ledger + `_G.degradeReport()`; the storm guard takes it first | pending |
+| 6.216.0 | 📶 Bluetooth ⇪⇧7: paired devices, ⏎ connects/disconnects via blueutil; without it system_profiler lists and ⏎ opens System Settings | pending |
 
-Running total: 14 wins · 4 losses · 1 pending (6.215.0). LL is on
+Running total: 14 wins · 4 losses · 2 pending (6.215.0, 6.216.0). LL is on
 6.214.2 on the home Mac (scored 2026-09-12: "6.214.2 home ✓ ·
 6.213.4 ✓ · 6.213.5 ✓ · work Mac later"), then "Go ahead" → 6.215.0
 built. The work Mac's storm report is still owed, on 6.215.0 now.
 
 ## Open items — update as they move
+
+- 🧭 THE SEQUENCE (LL, 2026-09-13: "Do bluetooth then the best
+  sequence you determine" — his seven asks, my order, one per
+  release, each scored by him before the next ships): 6.216.0 (d)
+  Bluetooth ✔ built; NEXT 6.217.0 (c) init.lua comment trim — it
+  MUST be next, init.lua is 3,796 of 3,800 lines and every release
+  needs its NEW IN block (no behaviour change, so cheap to score);
+  then (e) ⌘Space → the ⇪space launcher as a plain hs.hotkey with an
+  off switch (he turns Spotlight's own shortcut off himself); (a)
+  ⌥Tab shows the Hammerspoon Console window (window_switcher;
+  hs.console.hswindow is BANNED there — go through
+  applicationForPID(own pid)); (g) a copied image is the first paste
+  candidate in the clipboard history (read what clipboard_history
+  does with images FIRST — 6.190.0 sends them to OCR); then the old
+  queue's head, click hints (⇪X, Chrome + Finder); (b) the 💾 draft
+  keeper LAST of his seven — the least scoped (which fields, where
+  the draft goes, how it comes back) and the only one that watches
+  his typing; (f) the public sanitised config waits on his strings
+  list ("I will after you build"). After those: OCR gibberish, the
+  4 PM review, bookmarks CSV, website, Claude door.
+- 6.216.0 verify with LL — 📶 BLUETOOTH: install (carries 6.215.0).
+  HOME MAC: ⇪⇧7 → a picker of every paired device, 🟢/⚪. If the
+  first press alerts "⚠️ Bluetooth — blueutil not installed (brew
+  install blueutil)…", the engine is missing: ⏎ on the top row
+  copies the install, run it in Terminal, press ⇪⇧7 again — no
+  reload needed. With blueutil: ⏎ on the AirPods row → "📶
+  Connecting AirPods Pro…" then "📶 Connected — AirPods Pro" and
+  the Mac's sound output moves; ⇪⇧7, ⏎ on the same row →
+  "Disconnected". A failure alerts the exit code and blueutil's
+  words — paste it. `_G.bluetoothReport()`: engine path, the
+  devices, "last : connect AirPods Pro at HH:MM:SS — ok". WORK MAC
+  (no brew): the same ⇪⇧7 lists the devices via system_profiler, ⏎
+  opens System Settings › Bluetooth, the ⚠️ alert names the missing
+  engine once — that is the degrade working, say so. Also still
+  owed there: `_G.stormReport()` with no ⚠️ line.
 
 (Pruned 6.213.1: verify blocks for 6.203.0 and earlier moved to
 CLAUDE-archive.md at the repo root, which is NOT auto-loaded — this
@@ -1341,7 +1378,8 @@ LL reopens it.)
 - 📥 LL'S NEW ASKS (2026-09-12, with the 6.214.0 report) — logged,
   NOT built; nothing ships until 6.214.1 is scored on both Macs; then
   the agreed order resumes with the 🔔 door and click hints, and
-  these join the queue in HIS order when he says: (a) ⌥Tab: the
+  these join the queue in HIS order when he says — HE SAID (2026-09-13,
+  see 🧭 THE SEQUENCE above; (d) shipped as 6.216.0): (a) ⌥Tab: the
   Hammerspoon Console window back in the switcher ("that was
   awesome"); (b) 💾 a translucent floppy-disc beside a text field in
   Chrome/Safari that has no save, "watching" the typing (a draft

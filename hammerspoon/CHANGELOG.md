@@ -5,6 +5,46 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.216.0 — 📶 BLUETOOTH: CONNECT OR DISCONNECT ANY PAIRED DEVICE (⇪⇧7, modules/bluetooth.lua):
+  LL: "Bluetooth: connect/disconnect AirPods or any device, reliably."
+     ⇪⇧7 lists every device this Mac has paired, 🟢 connected or ⚪ not,
+     and ⏎ flips it. macOS ships no command that connects a Bluetooth
+     device; blueutil (Homebrew) is the one that does, so it is the
+     engine — looked up at PRESS time in /opt/homebrew/bin and
+     /usr/local/bin (or a settings pin), so a brew install mid-session is
+     seen on the next press with no reload. `--paired` lists (name,
+     address, state); `--connect ADDR` / `--disconnect ADDR` act; the
+     exit code and stderr are the verdict — a failure alerts "connect
+     AirPods Pro failed — blueutil exit 1: Failed to connect", and the
+     row is flipped by the exit code, never by hope.
+  WITHOUT BLUEUTIL — the work Mac, which is assumed to have nothing:
+     /usr/sbin/system_profiler SPBluetoothDataType is on every Mac and
+     still lists the paired devices and their state (both its shapes
+     are parsed: the Connected / Not Connected sections of Monterey and
+     later, and the "Connected: Yes" lines of older macOS), the picker
+     opens with the same rows, ⏎ opens System Settings › Bluetooth —
+     one click from the device — and the top row copies
+     `brew install blueutil`. The absence goes through the 6.215.0
+     degrade door at the press (alert, ⚠️ line, ledger; once per ten
+     minutes), so it is never silent and never a throw.
+  THE SHAPE, all house rules: every command is an hs.task with an
+     ARGUMENT ARRAY — no shell, and the address is blueutil's own output,
+     never typed; three task slots (list / act / open), each with its own
+     killer timer (6.196.1), and nothing starts a task from inside
+     another task's callback; the picker opens through core.showPopup
+     and is filed in _G.choosers.bluetooth for Esc; a refused
+     pasteboard write (false, not a throw) is read as a refusal. The
+     parsers are PURE and the suite runs them on the real line shapes:
+     "not connected" contains "connected", and the first parser written
+     read it as connected — that row is in the gate. Nothing runs at
+     boot. Filed under This Mac beside ⇪6 and ⇪7; hint.groups carries
+     shift+7. _G.bluetoothReport(): the engine (three states: a path,
+     not installed, a settings pin that is not a file), the devices and
+     how they were listed, the last action with its exit code.
+  Off: settings = { bluetooth = { on = false } }. Pin the binary:
+     settings = { bluetooth = { blueutil = "/opt/homebrew/bin/blueutil" } }.
+  8,912 -> 8,992 checks, seventy-seven stages.
+
 NEW IN 6.215.0 — 🔔 THE DEGRADE DOOR: A BREAK IS SEEN, NEVER ONLY LOGGED (core/notices.lua):
   LL, with the 6.214.0 report: "I also must have anything here that
      breaks to throw an error so I see it, know about it, and can fix

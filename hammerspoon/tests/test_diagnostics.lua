@@ -1650,7 +1650,13 @@ check("brew is RUN only from update_tracker and daily_backup (screenshots "
                     and (line:lower():find("wordnet", 1, true)
                          or line:find("/bin/wn", 1, true)))
            and not (name == "net_tools"
-                    and line:lower():find("speedtest", 1, true)) then
+                    and line:lower():find("speedtest", 1, true))
+           -- 6.216.0 — bluetooth joins on the same terms: ⇪⇧7 looks under
+           -- the brew prefixes for blueutil and runs blueutil itself; the
+           -- only other "brew" is the install command the top row copies
+           -- when there isn't one. Any OTHER brew reference still fails.
+           and not (name == "bluetooth"
+                    and line:lower():find("blueutil", 1, true)) then
           return false, name
         end
       end

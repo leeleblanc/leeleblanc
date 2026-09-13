@@ -92,7 +92,7 @@ else
     [ "$n" = "init" ] && note="⚠️ STRAY init.lua — should NOT be in modules/"
     printf "   %-22s %7s  %-16s %s\n" "$n" "$b" "$m" "$note"
   done
-  echo "   count: $(ls -1 "$HS/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 70)"
+  echo "   count: $(ls -1 "$HS/modules"/*.lua 2>/dev/null | wc -l | tr -d ' ') files (expect 71)"
 fi
 
 # ---- 4b. core ---------------------------------------------------------
@@ -243,6 +243,7 @@ check_marker health_monitor  "health.bootGraceMins" 6.46.0
 # takes the keyboard until LL force-quits by hand.
 check_marker stall_guard     "sg.stallSecs"       6.208.0
 check_marker hyper_storm     "st.judge"           6.214.1
+check_marker bluetooth       "bt.parseBlueutil"   6.216.0
 # 🚨 axTimeout is the per-app Accessibility timeout. A menubar_items.lua
 # without it is not merely old — it is the version that can hold the
 # keyboard while a wedged app fails to answer. Treat its absence as

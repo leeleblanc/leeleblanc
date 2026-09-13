@@ -29,7 +29,7 @@ with no admin password. The two steps that *can* use admin are marked
 │   ├── console.lua           the ⛔ ERRORS + ⚠️ NONBREAKING sections + repeat limiter
 │   ├── lag.lua               which tap is eating the keystroke — OFF unless ~/.hammerspoon/LAGPROBE exists (_G.lagOn())
 │   └── notices.lua           the failure ledger — nothing fails silently
-├── modules/              70 files, loaded by the §1.12 loader
+├── modules/              71 files, loaded by the §1.12 loader
 ├── tools/                hs-doctor.sh · hs-install.sh · run-tests.sh · hs-stall-guard.sh (started by stall_guard.lua)
 └── logs/                 only if there is no OneDrive on this Mac
 ```
@@ -316,7 +316,7 @@ Run it from the **unpacked zip, before Step 3**, not from `~/.hammerspoon`
 copy it reports every Lua stage as missing. That is a skip, not a pass,
 but it is also not a check.
 
-Syntax on `init.lua`, `core/` and all 70 modules, seventy Lua suites, then the
+Syntax on `init.lua`, `core/` and all 71 modules, seventy-one Lua suites, then the
 Capture Pad's page JavaScript **executed** against a DOM stub. One exit
 code. A skipped stage is reported as a skip, never as a pass.
 

@@ -2,11 +2,32 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-12-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-13-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.215.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.216.0
 -- =====================================================================
 
+-- NEW IN 6.216.0 — 📶 BLUETOOTH: CONNECT OR DISCONNECT ANY PAIRED DEVICE (⇪⇧7, modules/bluetooth.lua):
+--   LL: "Bluetooth: connect/disconnect AirPods or any device, reliably."
+--      ⇪⇧7 lists every device this Mac has paired, 🟢 or ⚪, and ⏎ flips
+--      it. macOS ships no command that connects a device, so the engine
+--      is blueutil (Homebrew), looked up at PRESS time — a brew install
+--      mid-session is seen on the next press. WITHOUT it (the work Mac):
+--      system_profiler, on every Mac, still lists the devices and their
+--      state, ⏎ opens System Settings › Bluetooth, the top row copies
+--      `brew install blueutil`, and the absence goes through the 6.215.0
+--      door once per ten minutes. Every command is a bounded hs.task with
+--      an argument array (the address is blueutil's own output, never
+--      typed), each in its own slot with its own killer timer; a failed
+--      connect names the exit code and blueutil's words; the exit code,
+--      not a hope, flips the row. The parsers are pure and the gate runs
+--      them on the real line shapes — "not connected" contains
+--      "connected", and the first parser read it as connected. Filed
+--      under This Mac beside ⇪6 and ⇪7. _G.bluetoothReport().
+--      Off: settings = { bluetooth = { on = false } }; pin the binary
+--      with settings = { bluetooth = { blueutil = "/path" } }.
+--      8,912 -> 8,992 checks, seventy-seven stages.
+--
 -- NEW IN 6.215.0 — 🔔 THE DEGRADE DOOR: A BREAK IS SEEN, NEVER ONLY LOGGED (core/notices.lua):
 --   LL, with the 6.214.0 report: "I also must have anything here that
 --      breaks to throw an error so I see it, know about it, and can fix
@@ -36,35 +57,12 @@
 --      when it is next opened, one per release. 8,875 -> 8,912
 --      checks, seventy-six stages.
 --
--- NEW IN 6.214.2 — 🌩 THE STORM GUARD COUNTS THE KEYS A TOOL EATS, AND A MISSING FOLDER IS NOT A WARNING:
---   LL ran 6.214.1's test on his Air and it worked end to end: released,
---      the report written, every section present, `_G.stormReport()`
---      printing it. Two faults in the same output. (1) His first test
---      recipe (mine, wrong) typed real letters under a half-faked hold:
---      x opened the mouse grid, the grid's own keyboard mode ate a–f, and
---      the count stopped at ONE — a real storm whose first stray letter
---      opens a key-eating tool would hide the same way. The ⇪ tap
---      (core/hyper_key.lua) already sees every keyDown under the hold, so
---      `_G.hyperStormKey(code, ev)` now notes each one from there, named
---      through `_G.hyperCombo` exactly as hyperBind names its combos, so
---      the same press from both doors is one key; its own pcall, because
---      a throw in the tap counts towards the tap stopping itself. (2) The
---      report carried "⚠️ cannot list …/.storm: No such file or directory"
---      — recorded at boot, before any storm had created the folder, and
---      printed beside the file it had just written. A folder that does
---      not exist yet is "no reports", nil, nil; a FILE in its place is
---      still a listing failure and still says so. MEASURED ON HIS AIR:
---      "0 Caps Lock autorepeat(s)" — whether a remapped Caps Lock
---      autorepeats at all is asked of him explicitly; if it never does,
---      that half of the rule is inert (never wrong) and the count is the
---      whole rule. 8,862 -> 8,875 checks, seventy-six stages.
---
--- (6.214.1 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.214.2 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.215.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.216.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -161,7 +159,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.215.0"
+_G.configVersion = "6.216.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------
@@ -3179,6 +3177,7 @@ local BASE = {
     "anchors",            -- 🔗 6.180.0 ⇪⇧U links the front document or tab to a vault note
     "stall_guard",        -- 🧊 6.208.0 a second process relaunches a beach-balled Hammerspoon (no key)
     "hyper_storm",        -- 🌩 6.214.1 a latched ⇪ running your typing as shortcuts releases itself and writes a report (no key)
+    "bluetooth",          -- 📶 6.216.0 ⇪⇧7 connect / disconnect any paired device (blueutil; lists without it)
     -- 6.132.0 — no key of its own. It owns the six case transforms, and
     -- ⇪; and ⇪R both ask it for them through core.call at the moment you
     -- press the key. Order here is therefore irrelevant; it sits beside

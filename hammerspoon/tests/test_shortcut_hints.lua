@@ -105,7 +105,7 @@ _G.hyperBound = {
     ["1"] = "mouse follows focus",                       -- a Mouse key alone
     ["shift+escape"] = "pause Hammerspoon",
     q = "chord", g = "chord", ["shift+g"] = "chord",   -- unclaimed keys, forwarded
-    ["shift+7"] = "something new with no group yet",
+    ["shift+]"] = "something new with no group yet",   -- 6.216.0: ⇪⇧7 became Bluetooth; ⇪⇧] is still free
 }
 _G.hsPauseCombo = "shift+escape"
 
@@ -346,7 +346,7 @@ out("\n=== 6. The report ===\n")
 local rep = _G.shortcutHintsReport()
 check("report names the last press, the counts and the unmapped bound keys",
       rep:find("SHORTCUT HINTS", 1, true) and rep:find("shown", 1, true)
-      and rep:find("no group : ⇪⇧7", 1, true) ~= nil   -- bound, unmapped
+      and rep:find("no group : ⇪⇧]", 1, true) ~= nil   -- bound, unmapped (6.216.0: ⇪⇧7 is Bluetooth now)
       and rep:find("⇪Q", 1, true) == nil                 -- a chord is not "unmapped"
       and rep:find("last     :", 1, true), rep)
 -- descriptions: continuation rows fold in, terse ones get a subject

@@ -142,6 +142,7 @@ local hint = {
         ["6"] = "This Mac", ["shift+6"] = "This Mac", ["7"] = "This Mac",
         g = "This Mac", ["shift+g"] = "This Mac", ["shift+="] = "This Mac",
         ["shift+-"] = "This Mac", ["9"] = "This Mac", ["shift+9"] = "This Mac",
+        ["shift+7"] = "This Mac",          -- 6.216.0 Bluetooth
         -- Power tools
         [";"] = "Power tools", ["shift+;"] = "Power tools", ["'"] = "Power tools",
         ["`"] = "Power tools", ["shift+`"] = "Power tools",

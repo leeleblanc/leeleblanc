@@ -957,15 +957,26 @@ CREATED AUTOMATICALLY (never make these yourself):
    counted every time. _G.degradeReport() lists each tool, its count,
    its last cause, and whether the alert was ever shown. Modules take
    it one per release as they are opened; the storm guard was first.
+
+📶 BLUETOOTH (⇪⇧7, modules/bluetooth.lua)  ·  6.216.0
+   Every device this Mac has paired, 🟢 connected or ⚪ not; ⏎ on a
+   row connects or disconnects it through blueutil (Homebrew). With
+   no blueutil — the work Mac — system_profiler still lists them,
+   ⏎ opens System Settings › Bluetooth, and the top row copies
+   `brew install blueutil`; the absence goes through the degrade
+   door once per ten minutes. Every command is a bounded hs.task
+   with an argument array; a failed connect names the exit code and
+   blueutil's own words. _G.bluetoothReport().
+   Off: settings = { bluetooth = { on = false } }.
 =====================================================================
 ```
 
 ## 6. Tests
 
-Seventy Lua suites, 8,400 checks, plus four more that run the Capture
+Seventy-one Lua suites, 8,480 checks, plus four more that run the Capture
 Pad's, the screenshot editor's, unified search's and the vault's page
-JavaScript under `node` for a further 512 — **8,912 checks over
-seventy-six stages** in
+JavaScript under `node` for a further 512 — **8,992 checks over
+seventy-seven stages** in
 all. Every Lua stage runs with `lua5.4` on any machine — no Mac required,
 they stub the `hs` API:
 
