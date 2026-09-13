@@ -1265,6 +1265,25 @@ CLAUDE-archive.md at the repo root, which is NOT auto-loaded — this
 file rides into every context window. A block comes back here only if
 LL reopens it.)
 
+- 🟡 FROZEN GRID BOX, SUSPECT ONLY (2026-09-12, LL: "Frozen grid
+  again." with a screenshot of the yellow landed-box outline over a
+  Finder replace dialog while installing 6.215.0, then "disregard").
+  NOT diagnosed, NOT built. Read, not proven: init.lua's
+  `_G.showCanvasSafely` returns false on the first refused :show()
+  and then RETRIES 50 ms later and shows the canvas anyway, telling
+  nobody; mouse_grid's `showBox` / `showCrosshair` are the callers
+  that ACT on false (grid.hide, boxDraw never assigned) — so a box
+  refused once while another app's popup was mid-transition (a
+  Finder sheet appearing is exactly 6.56.0's trigger) can come up a
+  turn later with NO owner, kept alive by the retry timer's closure
+  in `_G.canvasShowTimers`, and nothing can delete it but a reload.
+  `_G.mouseGrid.hide()` cannot clear such a box; `hs.reload()` can.
+  The first refusal prints nothing — a 🔔 gap too. If LL reopens it:
+  the artefact first (was ⇪X / ⌥+arrow pressed just before; any
+  "grid halved box" Console line; did `_G.mouseGrid.hide("stuck")`
+  clear it — if not, that is the orphan). Fix shape: the retry hands
+  the canvas back (callback) or deletes it when the caller already
+  gave up; never a second owner-less show.
 - 6.215.0 verify with LL — THE DEGRADE DOOR: install (carries
   6.214.2). Boot: no new alert on a healthy Mac (the door is silent
   until something degrades). Console: `_G.degradeReport()` reads
