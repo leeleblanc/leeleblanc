@@ -1190,7 +1190,9 @@ mirrors draw order: "closes last" IS "drawn under".
    Prose that is not orchestration belongs in GUIDE.md, not init.lua: the
    WHAT EACH TOOL DOES catalogue moved there (§5b) in 6.180.0. init.lua
    must stay under 3,800 lines — the gate fails below 4,000 AND at 3,800,
-   so there is real headroom rather than a ceiling to fight. Full narrative entry goes at
+   so there is real headroom rather than a ceiling to fight. 6.217.0
+   trimmed twenty pre-6.15x story blocks to their rules (3,796 → 3,534);
+   the stories are in CHANGELOG.md, so a trim never loses one. Full narrative entry goes at
    the top of CHANGELOG.md's text block.
 3. GUIDE.md's numbers (init.lua line count, suite/check totals) are MEASURED
    off the test gate, never guessed or remembered.
@@ -1207,6 +1209,11 @@ mirrors draw order: "closes last" IS "drawn under".
    lua5.4` (root, no sudo needed) before the gate.
 5. Current version and check counts: read them off init.lua line 7 and the
    top CHANGELOG entry — do not trust numbers remembered from chat.
+7. 📜 `lua5.4 hammerspoon/tools/build-feature-list.lua hammerspoon` AFTER
+   the stamps and the CHANGELOG entry (6.217.0): RESOLVED-FEATURE-
+   REQUESTS.txt is committed and rides in the zip; test_diagnostics
+   fails a list stamped with another version. Generated from the cheat
+   sheets — never hand-edit it.
 6. 🚨 THE CEREMONY SCRIPT RUNS IN THE FOREGROUND AND ASSERTS EVERY
    REPLACE (6.212.0): three releases shipped code without their words
    because the script died inside a backgrounded gate command. Grep the
@@ -1253,9 +1260,13 @@ as the fix when a loss lands.
 | 6.214.1 | 🌩 hyper storm guard: a latched ⇪ releases itself after 5 s and writes ~/.hammerspoon/.storm/storm-<epoch>.txt | LOSS — the test itself worked (released, file, report), but the report carried a stale ⚠️ and LL's bad test recipe (mine) exposed the count stalling behind a key-eating tool → 6.214.2 |
 | 6.214.2 | 🌩 the storm guard counts keys from the ⇪ tap too (a tool that eats keys no longer hides them); a missing folder is no warning | WIN on the home Mac (LL: "6.214.2 home ✓", 184 autorepeats measured, no ⚠️) — the work Mac still owed; LL said "Go ahead" |
 | 6.215.0 | 🔔 the degrade door: `core.degrade(tool, why)` → alert + ⚠️ line + ledger + `_G.degradeReport()`; the storm guard takes it first | pending |
-| 6.216.0 | 📶 Bluetooth ⇪⇧7: paired devices, ⏎ connects/disconnects via blueutil; without it system_profiler lists and ⏎ opens System Settings | pending |
+| 6.216.0 | 📶 Bluetooth ⇪⇧7: paired devices, ⏎ connects/disconnects via blueutil; without it system_profiler lists and ⏎ opens System Settings | pending — his `brew list` (2026-09-13) has NO blueutil on the Air, so the first press alerts the install row; that is the degrade, not a loss |
+| 6.217.0 | ✂️ init.lua trimmed 3,796 → 3,534 (no behaviour change) + RESOLVED-FEATURE-REQUESTS.txt generated into every zip | pending |
 
-Running total: 14 wins · 4 losses · 2 pending (6.215.0, 6.216.0). LL is on
+Running total: 14 wins · 4 losses · 3 pending (6.215.0, 6.216.0, 6.217.0).
+6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
+search beachballed the Air 72 s, the guard killed and relaunched it, the
+next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
 6.214.2 on the home Mac (scored 2026-09-12: "6.214.2 home ✓ ·
 6.213.4 ✓ · 6.213.5 ✓ · work Mac later"), then "Go ahead" → 6.215.0
 built. The work Mac's storm report is still owed, on 6.215.0 now.
@@ -1265,22 +1276,87 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
 - 🧭 THE SEQUENCE (LL, 2026-09-13: "Do bluetooth then the best
   sequence you determine" — his seven asks, my order, one per
   release, each scored by him before the next ships): 6.216.0 (d)
-  Bluetooth ✔ built; NEXT 6.217.0 (c) init.lua comment trim — it
-  MUST be next, init.lua is 3,796 of 3,800 lines and every release
-  needs its NEW IN block (no behaviour change, so cheap to score);
-  then (e) ⌘Space → the ⇪space launcher as a plain hs.hotkey with an
+  Bluetooth ✔ built; 6.217.0 (c) the trim ✔ built (+ the feature
+  list). REVISED 2026-09-13 with his second batch: NEXT (a) ⌥Tab shows
+  the Hammerspoon Console again ("missing again" — twice asked; the
+  dock icon is HIDDEN now, so `me:allWindows()` in
+  altTab.consoleWindow may return nothing for an accessory app — read
+  that first; hs.console.hswindow stays banned); then ✏️ the Edit OCR
+  entry window does not take the caret (the page calls t.focus() but
+  the webview window is not key — after bringToFront, focus the
+  hswindow on a held timer and re-run t.focus()); then the OCR junk
+  filter (his rule below); then (e) ⌘Space → the ⇪space launcher as a plain hs.hotkey with an
   off switch (he turns Spotlight's own shortcut off himself); (a)
   ⌥Tab shows the Hammerspoon Console window (window_switcher;
   hs.console.hswindow is BANNED there — go through
   applicationForPID(own pid)); (g) a copied image is the first paste
   candidate in the clipboard history (read what clipboard_history
-  does with images FIRST — 6.190.0 sends them to OCR); then the old
+  does with images FIRST — 6.190.0 sends them to OCR); ⌘⌘ clipboard
+  picker + ⌥⌥ menu bar (the 6.198.0 features, NEVER BUILT — asked
+  again 2026-09-13: ⌘⌘ opens the history, ↑↓ walk, fn+⌫ deletes a
+  row, then ⇪V / ⇪⇧V could go); date expansion (09-13-26 → 09-13-2026,
+  and with slashes); a copied SNIPPET lands on the clipboard as the
+  newest item and pastes at the caret; the 🎵 mini music player (spec
+  below, questions asked); then the old
   queue's head, click hints (⇪X, Chrome + Finder); (b) the 💾 draft
   keeper LAST of his seven — the least scoped (which fields, where
   the draft goes, how it comes back) and the only one that watches
   his typing; (f) the public sanitised config waits on his strings
   list ("I will after you build"). After those: OCR gibberish, the
   4 PM review, bookmarks CSV, website, Claude door.
+- 🐞 ⇪Y CHROME HISTORY BEACHBALL (2026-09-13, LL: "Searching Chrome
+  history: caused a beachball"; the stall guard relaunched at 72 s).
+  NOT diagnosed. The export copies each profile's History DB and
+  queries it with sqlite3 in an hs.task (off-thread by design), so the
+  stall is on the READ-BACK side or the picker: suspects are the JSON
+  result decode / CSV save on the main thread (20,000 rows), or the
+  per-keystroke search over chrome.maxTotal rows. Ask for the artefact
+  FIRST: `_G.chromeHistoryReport()` (rows, timings) and whether it
+  froze on the keypress or on typing. Own release once named.
+- 🎵 MINI MUSIC PLAYER (LL, 2026-09-13, NOT built; questions asked):
+  ⇪⇧numpad. opens a lightweight player in the top-right corner like
+  the 3-month calendar. Repeat one / repeat all; history (click an
+  item → plays); elapsed time; drag-and-drop N files → the first
+  plays, the rest form a playlist under it, picked by click, ↑↓, or
+  ⌘1–9. Engine: hs.sound (NSSound) plays mp3/m4a/aac/wav/aiff
+  natively — no binary, works on the work Mac; FLAC/ogg do NOT play
+  through it (say so per file, never throw). Drag-and-drop needs a
+  webview (canvas has no drop target). ASKED: which formats he
+  actually has; whether ⇪⇧numpad. is on a keyboard with a numpad on
+  BOTH Macs (the Air has none → a fallback key); volume/seek keys.
+- ✏️ EDIT OCR ENTRY HAS NO CARET (LL, 2026-09-13): the 6.213.5
+  `editor.open` window opens front but the caret is not in the box.
+  Read: the page calls t.focus() at load; the webview window is not
+  KEY when the script runs (bringToFront ≠ key). Fix shape: after
+  show, `view:hswindow():focus()` on a held 0.05 s timer, then
+  evaluateJavaScript("t.focus()") again; report line. Own release.
+- 🔤 OCR JUNK RULE (LL, 2026-09-13, from his example log): "just
+  remove single characters; anything two or more characters together
+  is retained" — TIER 1, certain: drop 1-character tokens and
+  punctuation-only tokens, drop a line left empty, keep everything
+  ≥ 2 chars. His 🤔 rows (lUE, ido, dic, characters1 → character 1)
+  are TIER 2 — a dictionary vote per line and digit/letter splitting —
+  OFF by default with the report saying what it WOULD have dropped,
+  because he said: if the method can introduce errors, singles only.
+  Applies at ocr.record time (the log) AND as a one-shot clean of the
+  existing history through the same rewriter ⇪⇧O uses — quote-aware,
+  path column kept (6.187.0's rule).
+- 📅 DATE EXPANSION + SNIPPET PASTE (LL, 2026-09-13): typing
+  09-13-26 → 09-13-2026 (and 09/13/26 → 09/13/2026) — an autocorrect
+  rule, fires on the space after a date shaped MM-DD-YY only (a
+  4-digit year untouched; 26 → 2026 by 20xx); ";-d" is a SHIPPED
+  expansion (in the packs / Mine — check which before answering him
+  further); a snippet copied from the picker goes to the clipboard as
+  the NEWEST clipboard-history item and pastes at the caret.
+- 🧊 Ice.app (ANSWERED, no code): Ice menu → Settings → Menu Bar
+  Layout: drag icons into the Hidden section (or ⌘-drag them in the
+  menu bar to the left of Ice's chevron); the chevron toggles them.
+- 6.217.0 verify with LL — THE TRIM + THE LIST: install (carries
+  6.216.0). Boot line reads 6.217.0, All green, 71 modules; every ⇪
+  key works as before (nothing but comments changed). At the zip root:
+  RESOLVED-FEATURE-REQUESTS.txt — open it in TextEdit/CotEditor; the
+  first line names 6.217.0; ⌘F "Bluetooth" finds the ⇪⇧7 rows; the
+  RELEASE INDEX at the bottom lists 6.217.0 first.
 - 6.216.0 verify with LL — 📶 BLUETOOTH: install (carries 6.215.0).
   HOME MAC: ⇪⇧7 → a picker of every paired device, 🟢/⚪. If the
   first press alerts "⚠️ Bluetooth — blueutil not installed (brew

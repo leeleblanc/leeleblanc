@@ -2197,6 +2197,21 @@ do
         tostring(blocks[2]) .. " vs " .. tostring(entries[2]))
   local trailer = init:match("\n%-%- %(([%d%.]+) and earlier: see CHANGELOG%.md")
   check("...and the trailer names the third", trailer == entries[3], tostring(trailer) .. " vs " .. tostring(entries[3]))
+  -- 6.217.0 — the plain-text feature list rides in every zip and is
+  -- generated from the cheat sheets; a list stamped with an older
+  -- version is a list built before this release's modules changed.
+  local featureList = readAll(HS .. "/RESOLVED-FEATURE-REQUESTS.txt") or ""
+  check("RESOLVED-FEATURE-REQUESTS.txt exists and names the config version init.lua reports",
+        featureList:find("RESOLVED FEATURE REQUESTS — Hammerspoon config " .. tostring(entries[1]), 1, true) ~= nil,
+        featureList:sub(1, 120))
+  check("...and its release index carries the top CHANGELOG entry",
+        featureList:find("\n  " .. tostring(entries[1]) .. "  ", 1, true) ~= nil)
+  -- the recipe lives in the repo's .gitignore, which a shipped package
+  -- does not carry — so that half is asked only where the file exists.
+  local recipe = readAll(HS .. "/../.gitignore")
+  check("...built by tools/build-feature-list.lua, which the zip recipe runs",
+        (readAll(HS .. "/tools/build-feature-list.lua") or ""):find("RESOLVED-FEATURE-REQUESTS.txt", 1, true) ~= nil
+        and (recipe == nil or recipe:find("build-feature-list.lua", 1, true) ~= nil))
   local newIn = init:find("\n%-%- NEW IN ") or math.huge
   local hdr   = init:find("WHAT EACH TOOL DOES :: ARCHITECTURE", 1, true) or 0
   check("the NEW IN blocks sit ABOVE the WHAT EACH TOOL DOES header, where the reader looks",

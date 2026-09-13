@@ -30,6 +30,7 @@ with no admin password. The two steps that *can* use admin are marked
 │   ├── lag.lua               which tap is eating the keystroke — OFF unless ~/.hammerspoon/LAGPROBE exists (_G.lagOn())
 │   └── notices.lua           the failure ledger — nothing fails silently
 ├── modules/              71 files, loaded by the §1.12 loader
+├── RESOLVED-FEATURE-REQUESTS.txt   every feature and how to use it, one page, generated (6.217.0)
 ├── tools/                hs-doctor.sh · hs-install.sh · run-tests.sh · hs-stall-guard.sh (started by stall_guard.lua)
 └── logs/                 only if there is no OneDrive on this Mac
 ```

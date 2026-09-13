@@ -24,10 +24,11 @@
 #   git checkout <the tag or commit for that version>
 #   mkdir -p /tmp/pkg
 #   lua5.4 hammerspoon/tools/build-snippets.lua hammerspoon           ← builds the table
+#   lua5.4 hammerspoon/tools/build-feature-list.lua hammerspoon       ← 6.217.0: RESOLVED-FEATURE-REQUESTS.txt
 #   cp -R hammerspoon/init.lua hammerspoon/core hammerspoon/modules \
 #         hammerspoon/tools hammerspoon/tests hammerspoon/snippets \
 #         hammerspoon/GUIDE.md hammerspoon/INSTALL.md \
-#         hammerspoon/CHANGELOG.md /tmp/pkg/
+#         hammerspoon/CHANGELOG.md hammerspoon/RESOLVED-FEATURE-REQUESTS.txt /tmp/pkg/
 #   lua5.4 hammerspoon/tools/build-snippets.lua hammerspoon --check   ← REQUIRED
 #   find /tmp/pkg/snippets -mindepth 1 -depth ! -name bundled.lua -delete
 #   (cd /tmp/pkg && zip -qr ../hammerspoonX.Y.Z.zip .)

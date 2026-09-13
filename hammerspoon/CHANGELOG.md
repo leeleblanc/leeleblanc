@@ -5,6 +5,47 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.217.0 — ✂️ INIT.LUA TRIMMED, AND A PLAIN-TEXT FEATURE LIST RIDES IN EVERY ZIP:
+  LL: "Go ahead with the init.lua trim" — his ask (c) from the 6.214.0
+     report: "drop version-note comments older than 6.15x that are not
+     durable rules". And, with the same message: "how about giving me a
+     list of features and how to use them in a plain text file I can
+     reference each time you generate the zip file name, 'Resolved
+     Feature Requests'."
+  THE TRIM. NO BEHAVIOUR CHANGED, and the gate is the proof: the same
+     8,992 checks went green on the trimmed init.lua before a word of
+     ceremony was written. Twenty comment blocks telling the STORY of
+     releases 6.53–6.156 — EmmyLua's removal, the .superseded adoption
+     rename, the bad-key-name catch, the popup-placement record, the
+     phantom alert pill, the draggable panels, the shared arbitration
+     load, the OCR engine's move, the hyper-key introduction, the 6.66.4
+     shortcut count, the 6.65.1 Caps Lock give-back, the hotkey table's
+     moved-out notes, the bootstrap and CSV helpers, the module loader's
+     history, the machine profiles, the cheat-sheet family registration,
+     the Asana bulk delete and safe mode — were each cut to the RULE the
+     release left behind, with a pointer at CHANGELOG.md, where every
+     word of the story still lives. 3,796 → 3,534 lines: 266 under the
+     3,800 ceiling that had 4 to spare, so releases fit again. Nothing
+     newer than 6.15x was touched; the two inline NEW IN blocks stay.
+     Every replaced range was asserted to be comment-only before it was
+     cut, and the file was syntax-checked and gated before the stamps.
+  THE LIST. RESOLVED-FEATURE-REQUESTS.txt at the zip root, written by
+     tools/build-feature-list.lua and GENERATED so it cannot go stale:
+     every module is executed only far enough to return its table
+     (setup() never runs — plain lua5.4, no Mac), and its own cheat
+     sheet — the rows ⇪/ draws — is printed under its family; the
+     automatic tools are one line each from `summary`; the core keys
+     init.lua still binds come from the hint module's coreRows; then a
+     RELEASE INDEX, one line per NEW IN header in CHANGELOG.md, newest
+     first (286 of them), so "did I ask for that, and was it done?" is a
+     search of one file. A module the builder cannot read is NAMED in
+     the file, never silently missing. It is committed (no private data
+     — cheat-sheet strings only), `--check` says when it is stale, the
+     zip recipe in .gitignore runs the builder, and test_diagnostics
+     refuses a package whose list names a different version than
+     init.lua. GUIDE.md remains the long form.
+  8,992 -> 8,995 checks, seventy-seven stages.
+
 NEW IN 6.216.0 — 📶 BLUETOOTH: CONNECT OR DISCONNECT ANY PAIRED DEVICE (⇪⇧7, modules/bluetooth.lua):
   LL: "Bluetooth: connect/disconnect AirPods or any device, reliably."
      ⇪⇧7 lists every device this Mac has paired, 🟢 connected or ⚪ not,

@@ -4,9 +4,30 @@
 -- =====================================================================
 -- 09-13-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.216.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.217.0
 -- =====================================================================
 
+-- NEW IN 6.217.0 — ✂️ INIT.LUA TRIMMED, AND A PLAIN-TEXT FEATURE LIST RIDES IN EVERY ZIP:
+--   LL: "Go ahead with the init.lua trim" (his ask (c)), and "a list of
+--      features and how to use them in a plain text file … 'Resolved
+--      Feature Requests'". NO BEHAVIOUR CHANGED — the gate is the proof:
+--      the same 8,992 checks went green on the trimmed file before a
+--      word of ceremony was written. Twenty comment blocks telling the
+--      story of releases 6.53 to 6.156 (EmmyLua's removal, the adoption
+--      rename, the 6.66.4 count, the hidutil give-back, the loader's
+--      history) were cut to the rule each one left behind, with a pointer
+--      at CHANGELOG.md where the story lives in full: 3,796 → 3,534
+--      lines, 266 under the 3,800 ceiling that had 4 to spare. Nothing
+--      newer than 6.15x was touched, and the NEW IN blocks stay.
+--      RESOLVED-FEATURE-REQUESTS.txt (tools/build-feature-list.lua) is
+--      GENERATED, so it cannot go stale: every module's own cheat sheet,
+--      grouped by family, the automatic tools one line each, the core
+--      keys, then a release index — one line per NEW IN header in
+--      CHANGELOG.md, newest first — so "did I ask for that, and was it
+--      done?" is a search of one file. test_diagnostics refuses a zip
+--      whose list names a different version than init.lua.
+--      8,992 -> 8,995 checks, seventy-seven stages.
+--
 -- NEW IN 6.216.0 — 📶 BLUETOOTH: CONNECT OR DISCONNECT ANY PAIRED DEVICE (⇪⇧7, modules/bluetooth.lua):
 --   LL: "Bluetooth: connect/disconnect AirPods or any device, reliably."
 --      ⇪⇧7 lists every device this Mac has paired, 🟢 or ⚪, and ⏎ flips
@@ -28,41 +49,12 @@
 --      with settings = { bluetooth = { blueutil = "/path" } }.
 --      8,912 -> 8,992 checks, seventy-seven stages.
 --
--- NEW IN 6.215.0 — 🔔 THE DEGRADE DOOR: A BREAK IS SEEN, NEVER ONLY LOGGED (core/notices.lua):
---   LL, with the 6.214.0 report: "I also must have anything here that
---      breaks to throw an error so I see it, know about it, and can fix
---      it with you." IT DEGRADES, IT NEVER BREAKS (6.177.0) already says
---      a missing folder, binary or module costs one feature and never the
---      config — but where that degraded state WENT was a `return false,
---      why` and, on a good day, a Console line: a break he finds a week
---      later, if he opens the Console at all. `core.degrade(tool, why)`
---      is the one door now, and it does three things at the moment it is
---      called: an hs.alert naming the TOOL and the CAUSE (a direct
---      hs.alert — it draws whatever Focus says, so it is the one surface
---      here that does not go through notices.tell), a ⚠️ Console line,
---      and a row in the notices ledger, so ⇪⇧D, `_G.noticesReport()` and
---      the new `_G.degradeReport()` (per tool: how many times, the last
---      cause, and whether the alert was ever shown) all list it. It
---      returns `false, why`, so a function that already ends in `return
---      false, why` takes the door by writing `return core.degrade("Tool",
---      why)` and nothing else changes. Still never a flood: the same tool
---      + cause alerts once per 10 min, and is counted and printed every
---      time. Still never a throw: nil-tolerant, every macOS call pcall'd,
---      the tool table bounded; init.lua carries a fallback that alerts
---      and prints on its own if core/notices.lua did not load. FIRST
---      TAKER, one on purpose: the storm guard — a .storm folder that
---      cannot be listed, or an announce that throws inside warm() (which
---      a bare pcall used to swallow), is alerted at boot. Every other
---      module keeps its own alert-and-print for now and takes the door
---      when it is next opened, one per release. 8,875 -> 8,912
---      checks, seventy-six stages.
---
--- (6.214.2 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.215.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.216.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.217.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -159,47 +151,22 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.216.0"
+_G.configVersion = "6.217.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
--- ---- EmmyLua: REMOVED in 6.179.0 ----------------------------------
--- It wrote hs.* annotation files for an LSP-capable editor. LL asked in
--- 6.166.0 to "remove this code"; what happened then was that its two
--- boot lines went quiet, not that the block went away — so it sat here
--- for thirteen versions doing nothing, because the files it generates
--- are useless until an editor is pointed at them and CotEditor cannot
--- read them at all. Never configured, never used, no dependents. Gone.
--- Full story: NEW IN 6.64.0 in CHANGELOG.md; it is a hs.loadSpoon call
--- and eight lines of guard if it is ever wanted back.
+-- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
+-- story is NEW IN 6.64.0 in CHANGELOG.md) ----------------------------
 
 -- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
--- §1.11. Sections earlier in the file log through _G.diag, and a section
--- that loaded before §1.11 — or a partial load that never reached it —
--- would otherwise throw on a logging call. A diagnostics system that can
--- cause the outage it exists to explain is worse than none.
+-- §1.11. Sections earlier in the file log through _G.diag, so a partial
+-- load that never reached §1.11 must not throw on a logging call.
 -- 🚨 6.53.0 — err() RECORDS RATHER THAN DISCARDS, AND THE HANDLER IS
--- INSTALLED HERE, NOT IN core/diagnostics.lua.
---
--- This stand-in used to have `err = function() end` — a no-op — and
--- hs.uncaughtErrorHandler was set ONLY by core/diagnostics.lua, which
--- loads about a thousand lines further down and is (correctly) wrapped
--- in a pcall so a broken copy cannot stop the config booting. Those two
--- facts together left two windows in which an error vanished in silence:
---
---   1. EVERY LINE BEFORE core/diagnostics.lua LOADS. An error raised in
---      an async callback during early boot had nowhere to go at all.
---   2. THE WHOLE SESSION, if core/diagnostics.lua failed to load. The
---      config survives that by design — but it survives it with NO error
---      reporting, which is the exact moment you most need some, and
---      nothing announces the loss.
---
--- A Lua error inside a timer, an HTTP reply or a watcher CANNOT be
--- caught by a pcall in whatever scheduled it; hs.uncaughtErrorHandler is
--- the only place it can be seen. So the earliest possible version is
--- installed right here, with no dependencies beyond hs.alert.
--- core/diagnostics.lua replaces it later with the fuller version, and
--- preserves this table's `errors` (see its `_G.diag.errors or {}`), so
--- anything caught during early boot still reaches ⇪⇧D.
+-- INSTALLED HERE, NOT IN core/diagnostics.lua: a Lua error inside a
+-- timer, an HTTP reply or a watcher cannot be caught by a pcall in
+-- whatever scheduled it — hs.uncaughtErrorHandler is the only place it
+-- can be seen, so the earliest version is installed right here.
+-- core/diagnostics.lua replaces it later and preserves this table's
+-- `errors`, so anything caught during early boot still reaches ⇪⇧D.
 _G.diag = { verbose = false, trail = {}, errors = {}, marks = {},
             say = function() end, warn = function() end,
             mark = function() end,
@@ -505,34 +472,12 @@ pcall(function() hs.fs.mkdir(logsDir) end)
 -- One-time adoption: if this machine's new-location file doesn't exist
 -- yet but the old one does, copy its contents in — so nothing already
 -- recorded is ever lost by a path change.
---
--- 🚨 6.115.0 — AND THE ORIGINAL IS RENAMED, WHICH IT NEVER USED TO BE.
--- The old comment here said the legacy file was "left in place untouched
--- (delete it yourself whenever you're confident)", and that sentence was
--- the bug. What it actually produced was three files with nearly the same
--- name, only one of them live, and NOTHING ON DISK saying which:
---
---     ~/.hammerspoon/activity_history.csv        frozen on upgrade day
---     <Logs>/activity_history.csv                frozen on upgrade day
---     <Logs>/activity_history-<Mac>.csv          the live one
---
--- LL opened one of the first two and reported his history had stopped
--- months ago. It had not; he was reading a snapshot, and the config had
--- given him no way to tell. "Delete it yourself whenever you're
--- confident" asks the user to be confident about precisely the thing the
--- naming has hidden from them.
---
--- So an adopted original is renamed to <name>.superseded. Renamed, not
--- deleted — this config does not destroy your data to tidy up — but
--- renamed to something Excel will not open on a double-click and no
--- human will mistake for live.
---
--- 🔗 AND A RETIRED FILE IS STILL A VALID ADOPTION SOURCE. This matters
--- because <Logs> is inside OneDrive and therefore SHARED BY BOTH MACS.
--- Retiring on the home Mac would otherwise pull the adoption source out
--- from under the work Mac's first boot, which is exactly the two-machine
--- regression this config exists to avoid. Reading .superseded as a
--- fallback source costs four lines and makes retirement lossless.
+-- 🚨 6.115.0 — THE ORIGINAL IS RENAMED to <name>.superseded, never
+-- deleted (three near-identical files with one live and nothing on disk
+-- saying which is how LL came to read a frozen snapshot as his live
+-- history). A .superseded file is STILL a valid adoption source: <Logs>
+-- is in OneDrive and shared by both Macs, so retiring on one must not
+-- pull the source out from under the other's first boot.
 local function adoptLegacyFile(newPath, legacyPath)
     -- Nested rather than a sibling local ON PURPOSE: the main chunk is at
     -- Lua's hard ceiling of 200 locals, and one more at this level fails
@@ -905,16 +850,9 @@ hs.hotkey.bind = function(mods, key, fn, releasedFn, repeatFn)
         end
     end
     -- 🚨 6.53.0 — A BAD KEY NAME MUST COST ONE SHORTCUT, NOT THE CONFIG.
-    -- hs.hotkey.bind THROWS on a key macOS has no code for ("Command",
-    -- "esc " with a space, a typo in an ✏️ EDIT HERE block). A module's
-    -- bad key was always survivable because §1.12 runs every setup()
-    -- inside a pcall — but init.lua's OWN binds sit at top level in the
-    -- stretch that runs BEFORE the loader, so one typo there took the
-    -- entire config down: no hotkeys, no modules, no cheat sheet, and an
-    -- explanation only in a Console you were not looking at.
-    -- Now the throw is caught, named, and answered with the same inert
-    -- stub the migration path already returns, so the caller's
-    -- :enable()/:delete() still work and everything else boots.
+    -- hs.hotkey.bind THROWS on a key macOS has no code for, and init.lua's
+    -- own binds run BEFORE the loader's pcall; the throw is caught, named,
+    -- and answered with the same inert stub the migration path returns.
     local bound, err = nil, nil
     local okBind = pcall(function()
         bound = hsHotkeyBindOriginal(mods, key, fn, releasedFn, repeatFn)
@@ -1040,27 +978,14 @@ local function chooserTopLeft(chooser, screen)
     return hs.geometry.point(x, y)
 end
 
--- Use this instead of chooser:show() everywhere below.
--- The resolved screen & point are recorded in _G.lastPopupPlacement so
--- companion drawings (the dashboard's legend strip, section 6) can
--- position themselves from the SAME placement — resolving the screen
--- twice can disagree when focus shifts as the popup opens, which put
--- the legend on a different monitor than its picker.
---
--- 🚨 THE RECORD NAMES THE CHOOSER IT BELONGS TO (6.127.0), and the whole
--- drag layer depends on it. window_move cannot ask a picker where it is —
--- macOS gives hs.chooser no frame getter — so it COMPUTES the grab box
--- from this record. Until now the record said only "some picker opened
--- here", which is a lie the moment a DIFFERENT picker is the one on
--- screen: the box lands on the departed picker's coordinates, the ⌘-click
--- on the real one falls outside it, and the drag is declined. A picker
--- that cannot be moved at all is what that looks like from the outside.
--- With the chooser named, a record that does not match the open picker
--- reads as NO record, which is the case window_move already handles well.
---
--- atPoint is for the panels that place themselves deliberately (the app
--- monitor alert sits lower on purpose). They still get a record, because
--- an unrecorded picker is exactly the stale-box problem above.
+-- Use this instead of chooser:show() everywhere below. The resolved
+-- screen & point are recorded in _G.lastPopupPlacement so companion
+-- drawings position themselves from the SAME placement.
+-- 🚨 THE RECORD NAMES THE CHOOSER IT BELONGS TO (6.127.0): window_move
+-- COMPUTES its grab box from this record (hs.chooser has no frame
+-- getter), and a record that does not match the open picker reads as
+-- NO record. atPoint is for panels that place themselves deliberately;
+-- they still get a record.
 local function showPopup(chooser, atPoint)
     local screen = resolveBaseScreen()
     local pt = atPoint
@@ -1195,14 +1120,10 @@ end)
 -- =====================================================================
 -- 🚨 SHOWING A CANVAS CAN THROW, AND IT IS NOT OUR BUG — 6.56.0
 -- =====================================================================
--- Ordering any window on screen notifies every AppKit observer —
--- including ANOTHER app's popup (Safari's URL completion, Spotlight)
--- living behind an NSRemoteView. Mid-transition, ITS assertion throws
--- into OUR canvas:show(), and an unprotected throw abandons the rest of
--- the open sequence, leaving a phantom half-open panel. So: catch it,
--- retry once next run-loop turn (a timing collision, not a permanent
--- state), and if it still refuses, say so and let the caller clean up.
--- Full story: NEW IN 6.56.0.
+-- Ordering a window on screen notifies every AppKit observer, including
+-- another app's popup mid-transition, whose assertion throws into OUR
+-- canvas:show(). So: catch it, retry once next run-loop turn, and if it
+-- still refuses, say so and let the caller clean up. Story: NEW IN 6.56.0.
 _G.canvasShowTimers = _G.canvasShowTimers or {}
 function _G.showCanvasSafely(canvas, label)
     if not canvas then return false end
@@ -1232,20 +1153,11 @@ end
 
 -- 6.88.0 — hs.alert draws with hs.canvas underneath, so ITS show hits
 -- the same throw. Wrapped ONCE, here: every alert everywhere survives.
---
--- 🚨 6.100.1 — SURVIVING WAS NOT ENOUGH: THE PHANTOM PILL. The throw
--- lands MID-draw — hs.alert has already ordered its rounded frame on
--- screen when the other app's assertion throws back through it, before
--- the text is drawn and before the fade-out timer is armed. The pcall
--- saved the config and kept the wreckage: an empty black pill with a
--- white border that never fades and takes no clicks, because an alert
--- is not a window anything can close. LL met one on 08-18-26, hours
--- after "an alert could not draw" hit the Console. So the catch now
--- cleans up and retries, the showCanvasSafely way: one run-loop turn
--- later, sweep (below), then show the same alert again.
--- ⚖️ THE SWEEP'S COST IS REAL: hs.alert.closeAll also closes a healthy
--- alert sharing the screen at that instant. Accepted — alerts live two
--- seconds, phantoms live forever.
+-- 🚨 6.100.1 — THE PHANTOM PILL: the throw lands MID-draw and leaves an
+-- empty black pill that never fades, so the catch cleans up and retries
+-- one run-loop turn later. ⚖️ hs.alert.closeAll also closes a healthy
+-- alert sharing the screen at that instant — alerts live two seconds,
+-- phantoms live forever.
 _G.rawAlertShow = _G.rawAlertShow or (hs.alert and hs.alert.show)
 
 -- The sweep, also yours to run by hand: _G.phantom() in the Console
@@ -1293,36 +1205,18 @@ end end -- alert wrap (6.88.0, sweep-and-retry 6.100.1)
 -- =====================================================================
 -- 🖐 DRAGGABLE CANVAS PANELS (6.67.0)
 -- =====================================================================
--- LL: "Great pop-up. But I can't drag the window. Same with shortcuts
--- window. Both should be moveable."
---
--- An hs.canvas is not an NSWindow with a title bar — there is nothing to
--- grab. Dragging has to be built: notice the press, follow the pointer,
--- move the panel. This is that, once, for every panel rather than twice
--- by hand.
---
--- 🚨 WHY AN EVENTTAP AND NOT canvas mouseMove. A canvas only reports
--- movement while the pointer is INSIDE it. Drag faster than the panel
--- redraws — which is most drags — and the pointer leaves, the events
--- stop, and the panel is stranded halfway. So the press is caught on the
--- canvas and the DRAG is followed by a global eventtap, which sees the
--- pointer wherever it goes.
---
--- ⚠️ AND AN EVENTTAP IS THE MOST DANGEROUS OBJECT IN THIS CONFIG, so:
+-- An hs.canvas has no title bar, so dragging is built once for every
+-- panel: the press is caught on the canvas and the DRAG is followed by a
+-- global eventtap (a canvas only reports movement while the pointer is
+-- inside it, and a fast drag leaves it).
+-- ⚠️ AN EVENTTAP IS THE MOST DANGEROUS OBJECT IN THIS CONFIG, so:
 --   · it starts on mouseDown and stops on mouseUp;
 --   · a WATCHDOG stops it after dragMaxSecs no matter what, because a
 --     mouseUp delivered to another process is a mouseUp we never see;
---   · it returns false, so the events still reach everything else —
---     this observes the drag, it does not swallow it;
---   · only ONE drag can be live at a time, and starting a second stops
---     the first.
--- A tap left running is a tap watching every mouse event you make for
--- the rest of the session.
---
--- ⚖️ THE COST, AND IT IS REAL: a panel that can be grabbed is a panel
--- that CAPTURES CLICKS. The cheat sheet used to let clicks fall through
--- to the window behind it. It cannot do both, and being able to move it
--- is what was asked for.
+--   · it returns false — it observes the drag, it does not swallow it;
+--   · only ONE drag can be live at a time.
+-- ⚖️ THE COST: a panel that can be grabbed CAPTURES CLICKS; the cheat
+-- sheet no longer lets clicks fall through. Asked for, and accepted.
 _G.dragMaxSecs = 20
 _G.dragTap, _G.dragGuard, _G.dragging = nil, nil, nil
 
@@ -1425,16 +1319,10 @@ end
 -- =====================================================================
 -- 🤝 SHARED ARBITRATION (§0.5) — core/coexist.lua
 -- =====================================================================
--- Panel stacking, who gets Esc, the shared typing-injection guard and
--- clipboard borrowing. Lifted out of init.lua in 6.69.0 when it crossed
--- the 4,000-line ceiling; see that file's header for what each one is
--- for and why they belong together.
---
--- LOADED HERE, BEFORE EVERYTHING THAT USES IT. The cheat sheet asks
--- _G.routeEscape, the pomodoro asks _G.panelLevel, autocorrect and the
--- text expander ask _G.withInjection — all of which set up later. A
--- failure is degradation, not death: every caller checks the global
--- exists first, so a broken copy costs the arbitration and not the Mac.
+-- Panel stacking, who gets Esc, the typing-injection guard and clipboard
+-- borrowing (lifted out in 6.69.0). LOADED HERE, BEFORE EVERYTHING THAT
+-- USES IT; every caller checks the global exists first, so a broken copy
+-- costs the arbitration and not the Mac.
 local coOK, coErr = pcall(function()
     local path = hs.configdir .. '/core/coexist.lua'
     local chunk, loadErr = loadfile(path)
@@ -1525,20 +1413,11 @@ end
 -- module loader, where an error took the whole config down instead of
 -- costing one feature.
 
--- 🔍 THE OCR ENGINE MOVED OUT in 6.105.0, to modules/ocr_engine.lua —
--- the boot check for the "HS OCR" Apple Shortcut, the QWERTY strip, the
--- clipboard-image path, the whole file-tagging route (pasteboard shape
--- guessing, /.file/ resolution, the out-of-process Finder scripting) and
--- the two pickers, about five hundred lines of it. It was the last large
--- feature still ABOVE the module loader, where an error in it takes the
--- entire config down rather than costing one feature — and it is the
--- code that talks to Finder over Apple Events, which is the one thing
--- here with a history of aborting the app (see 6.65.1).
---
--- What did NOT move is the clipboard watcher in §3: one timer, one
--- changeCount, choosing between copied image files, a raw image and
--- text. It calls ocr.clipboardFiles / ocr.tagFiles / ocr.image through
--- the service registry now.
+-- 🔍 THE OCR ENGINE lives in modules/ocr_engine.lua (moved out 6.105.0:
+-- the Apple Shortcut check, the file-tagging route, the pickers). What
+-- stayed is the clipboard watcher in §3 — one timer, one changeCount —
+-- which reaches ocr.clipboardFiles / ocr.tagFiles / ocr.image through
+-- the service registry.
 
 -- =====================================================================
 -- 3. BACKGROUND MONITORING
@@ -1678,42 +1557,17 @@ _G.eco.register("clipboard poll", {
 -- =====================================================================
 -- 3.12 HYPER KEY — Caps Lock IS ⌘⇧⌃⌥ (replaces Karabiner)
 -- =====================================================================
--- WHAT THIS DOES: Caps Lock stops toggling caps and becomes a real
--- four-modifier chord. Holding Caps Lock and pressing K sends exactly
--- ⌘⇧⌃⌥K to whatever app is in front — the same keystroke you would get
--- by holding all four modifier keys down yourself.
---
--- WHY THAT MATTERS (changed in 6.18.0): before this, Caps Lock only
--- fired the handful of shortcuts listed below and every other key did
--- nothing. Now the chord is emitted for the whole keyboard, so hyper
--- works with ANY app that can be taught a ⌘⇧⌃⌥ shortcut — Raycast,
--- Alfred, Rectangle, Slack, Chrome extensions, your own app prefs —
--- without that app needing to know Hammerspoon exists. ⌘⇧⌃⌥ is the
--- conventional "hyper" chord precisely because nothing ships bound to
--- it, so it stays collision-free.
---
--- HOW, WITHOUT KARABINER: macOS has a built-in tool, /usr/bin/hidutil,
--- that remaps keys at the HID layer. We use it to turn Caps Lock into
--- F18 — a real key that exists in the keyboard spec but is on no Mac
--- keyboard, so nothing else ever sends it. Hammerspoon then treats F18
--- as the hyper trigger. No external app, nothing to install, and the
--- config travels in this file like everything else.
---
--- PERSISTENCE: a hidutil remap is wiped by a reboot. This file re-applies
--- it at every Hammerspoon launch, so it survives reboots without the
--- LaunchDaemon/LaunchAgent plist that guides normally tell you to create
--- (that route needs admin on a managed Mac — this route does not).
---
--- ⚠️ HONEST LIMIT — READ THIS: on macOS Sonoma and later, Apple began
--- requiring elevated rights for hidutil in some configurations. If that
--- applies on your work Mac, the remap will fail and the Console will say
--- so plainly at boot (it will NOT fail silently). Everything else in
--- this config keeps working; you just won't get the hyper key there.
--- Check the boot log for the 🎹 line to know which happened.
---
--- CAPS LOCK IS GONE while this is on — it no longer toggles capitals at
--- all. To get it back, either set hyperEnabled = false below and reload,
--- or run this in Terminal to clear the remap immediately:
+-- Caps Lock stops toggling capitals and becomes the four-modifier chord:
+-- holding it and pressing K sends exactly ⌘⇧⌃⌥K to the front app, so
+-- hyper works with ANY app that can be taught a ⌘⇧⌃⌥ shortcut (6.18.0).
+-- HOW, WITHOUT KARABINER: /usr/bin/hidutil remaps Caps Lock to F18 at
+-- the HID layer — a key in the spec that is on no Mac keyboard — and
+-- Hammerspoon treats F18 as the hyper trigger. The remap is wiped by a
+-- reboot and re-applied at every launch (no LaunchAgent, no admin).
+-- ⚠️ HONEST LIMIT: on some Sonoma+ configurations hidutil needs elevated
+-- rights; then the 🎹 boot line says so and everything else still works.
+-- CAPS LOCK IS GONE while this is on. To get it back: hyperEnabled =
+-- false and reload, or in Terminal:
 --   hidutil property --set '{"UserKeyMapping":[]}'
 --
 -- ✏️ EDIT THESE — your hyper shortcuts:
@@ -2177,26 +2031,11 @@ function _G.hyperFinalize()
         for _, c in ipairs(orphans) do print("     " .. c) end
     end
 
-    -- 🚨 6.66.4 — THIS COUNTED ONE SOURCE OUT OF THREE AND CALLED IT THE
-    -- TOTAL. It was #_G.hyperMigrations — the §0.4 migration map ONLY —
-    -- so every shortcut a MODULE registers through hyperAddShortcut was
-    -- invisible to it. That is why LL's boot line read "32 ⇪ shortcuts"
-    -- both before and after 6.66.3 added four modules and four new keys:
-    -- the number is a constant that has never described what it claims to.
-    --
-    -- Worse, it is on the ONE LINE printed at every login. A number that
-    -- looks like a total and is not is exactly the kind of quiet
-    -- misreport rule 7 exists to forbid — and it sat next to the module
-    -- count that DID reveal the missing modules, lending it false weight.
-    --
-    -- _G.hyperBoundCount is the authoritative figure: hyperBind increments
-    -- it once per combo actually claimed, from every source — migrations,
-    -- modules, and your own hyperActions.
-    --
+    -- 🚨 6.66.4 — _G.hyperBoundCount IS THE AUTHORITATIVE FIGURE: hyperBind
+    -- increments it once per combo actually claimed, from every source
+    -- (the §0.4 migrations, modules, hyperActions). It replaced a count
+    -- of one source out of three on the one line printed at every login.
     -- ⚠️ FORWARDED KEYS ARE NOT SHORTCUTS and are deliberately excluded.
-    -- Every unclaimed letter re-sends ⌘⇧⌃⌥+itself so hyper keeps working
-    -- with Raycast and friends; counting those would report ~40 whatever
-    -- this config actually binds.
     _G.hyperShortcutCount = _G.hyperBoundCount - forwarded
     _G.hyperMigrationCount = #_G.hyperMigrations
     _G.hyperForwardCount  = forwarded
@@ -2235,25 +2074,13 @@ if hyperEnabled then
         { "property", "--set", HYPER_REMAP_ON })
     _G.hyperRemapTask:start()
 
-    -- 🚨 6.65.1 — GIVE CAPS LOCK BACK WHEN HAMMERSPOON GOES AWAY.
-    --
-    -- A hidutil remap is a SYSTEM-WIDE HID mapping. It is not owned by
-    -- this process and it does not die with it: quit Hammerspoon, force
-    -- quit it, or let it crash, and Caps Lock is STILL sending F18 with
-    -- nothing left running to turn that into anything. The keyboard is
-    -- then quietly missing a key and the obvious remedy — "kill the app
-    -- that did this" — is the one thing that cannot help.
-    --
-    -- LL hit exactly that: "killing it does not free up the trackpad or
-    -- the keys you can use natively". The keys half is this line's
-    -- absence. hs.shutdownCallback runs on a clean quit and on a reload,
-    -- so the remap now lifts with the app that relies on it.
-    --
-    -- ⚠️ WHAT THIS STILL CANNOT COVER: a hard CRASH (SIGABRT) never runs
-    -- this, because nothing gets to run. The manual escape hatch is
-    -- therefore still the important one, and it is one line in Terminal:
+    -- 🚨 6.65.1 — GIVE CAPS LOCK BACK WHEN HAMMERSPOON GOES AWAY. A hidutil
+    -- remap is system-wide and does not die with this process: quit or
+    -- crash, and Caps Lock still sends F18 with nothing listening.
+    -- hs.shutdownCallback runs on a clean quit and on a reload, so the
+    -- remap lifts with the app. A hard CRASH never runs this; the manual
+    -- escape hatch is one line in Terminal (a reboot clears it too):
     --        hidutil property --set '{"UserKeyMapping":[]}'
-    -- A reboot clears it too.
     hs.shutdownCallback = function()
         -- Synchronous on purpose, unlike the async apply above. There is
         -- no "later" during shutdown — an hs.task started here would be
@@ -2324,11 +2151,6 @@ end -- do...end (§3.12 Hyper Key locals)
 -- one line each. Change the letter (or the mods) and reload; nothing
 -- else to touch. The Hotkey Sentry (§0.3) will warn at boot if an edit
 -- collides with another combo in this file or a known macOS default.
--- (⌃⌥⌘A and ⌃⌥⌘T moved to modules/task_creator.lua in 6.98.0; the dead
--- clipboardHistory row went with them — ⌃⌥⌘V has been bound by
--- modules/clipboard_history.lua since 6.55.0.)
--- (ocrSearch left this table in 6.105.0 with the rest of the engine —
---  modules/ocr_engine.lua claims ⇪O and ⇪⇧O itself.)
 local coreKeys = {
     activityTracker  = { {"cmd", "alt", "shift"}, "0" },  -- activity tracker picker
 }
@@ -2745,17 +2567,11 @@ _G.asanaSelect.pane = function()
     pcall(svc.call, "preview.open", _G.choosers.asana)
 end
 
--- 🗑 6.156.0 — SELECT SEVERAL, DELETE. LL: "Can we use the Asana hyper+L
--- to also select and delete tasks in bulk or one line?" The picker grows
--- the clipboard editor's select mode (6.97.0): a "☑️ Select several…"
--- row switches it on, ⏎ then TAGS rows (✓) and the picker re-opens with
--- the tags kept, and a "🗑 Delete N selected" row does the deed — after
--- a confirmation that names the tasks. One line: ⌥⏎ on any row deletes
--- just that task, same confirmation. The request is DELETE /tasks/{gid}
--- with the token in the header (never a process argument), one task at a
--- time; Asana keeps a deleted task in its trash ("Deleted Items") for 30
--- days, and the dialog says so. These hang off _G.asanaSelect instead of
--- being new locals: this file is near Lua's 200-local ceiling.
+-- 🗑 6.156.0 — SELECT SEVERAL, DELETE (LL's ask): "☑️ Select several…"
+-- tags rows, "🗑 Delete N selected" deletes after a confirmation naming
+-- them; ⌥⏎ deletes one. DELETE /tasks/{gid} with the token in the header
+-- (never a process argument), one task at a time; Asana keeps deleted
+-- tasks in its trash 30 days. Hangs off _G.asanaSelect, not new locals.
 _G.asanaSelect.rows = function(master)
     local sel = _G.asanaSelect
     if asanaDashboardMode ~= "open" then return master end
@@ -2910,33 +2726,19 @@ end -- do...end (⌃⌥⌘B team member picker locals)
 -- =====================================================================
 -- 7. BOOTSTRAP — portability report + ready alert
 -- =====================================================================
--- Console report: on a new Mac, this is the first thing to check —
--- it says exactly how the portability layer resolved this machine.
--- 6.15.4: prints the version so a pasted Console log always says
--- which file actually loaded — no more guessing "is this the old one?"
--- 6.19.0: wire the hyper keyspace. MUST be here, after every section has
--- registered its shortcut — step 3 of hyperFinalize can only work out
--- which keys are free to forward once all the real ones have claimed
--- theirs. Pure table work and hotkey registration: no I/O, no app
--- enumeration, nothing that could stall the main thread at boot.
+-- Console report: on a new Mac, this is the first thing to check — it
+-- says exactly how the portability layer resolved this machine, and
+-- prints the version so a pasted Console log always says which file
+-- loaded. The hyper keyspace is wired HERE, after every section has
+-- registered its shortcut: hyperFinalize can only work out which keys
+-- are free to forward once all the real ones have claimed theirs. Pure
+-- table work and hotkey registration — nothing that could stall boot.
 -- =====================================================================
 -- 1.4 SHARED TEXT & CSV HELPERS
 -- =====================================================================
--- 6.40.0 — these two lived inside §3.6 Activity Tracker, which has now
--- moved into a module. Other features (File Tracker, Update Tracker)
--- and the changelog writer at the bottom of
--- this file all borrow them, so leaving them inside a module would have
--- meant everything depending on that module loading first — the exact
--- coupling this migration exists to remove. They live here, and reach
--- modules through `core`.
---
--- ⚠️ THIS WAS CAUGHT BY A FAILING EXTRACTION, NOT BY REVIEW: removing
--- §3.6 silently deleted the only definitions of both, and Lua turns a
--- vanished local into a GLOBAL lookup — so the file still COMPILED and
--- would have crashed at boot the moment the changelog writer ran.
--- Wraps a text field for CSV: quotes it, doubles any internal quotes,
--- and collapses stray newlines to a space (window titles are normally
--- single-line, this is just defensive).
+-- Borrowed by File Tracker, Update Tracker and the changelog writer, so
+-- they live here and reach modules through `core` (6.40.0). Wraps a text
+-- field for CSV: quotes it, doubles internal quotes, collapses newlines.
 local function csvQuote(value)
     local s = tostring(value or "")
     s = s:gsub('[\r\n]+', ' ')
@@ -2988,26 +2790,12 @@ end
 -- 1.12 MODULE LOADER — sections live in their own files from here on
 -- =====================================================================
 -- A section that has been moved out lives in ~/.hammerspoon/modules/
--- <name>.lua and is named in a MACHINE PROFILE below. Everything not yet
--- moved still lives in this file and works exactly as before; the two
--- styles coexist deliberately, so the move happens a few sections at a
--- time rather than as one all-or-nothing rewrite.
---
--- WHY THIS MATTERS MORE THAN TIDINESS: Lua's limit of 200 locals is PER
--- CHUNK, and a file is a chunk. This file was measured at exactly 200
--- with ZERO headroom in 6.35.0 — the next top-level `local` added
--- anywhere would have been a compile error taking the WHOLE config down.
--- Every module file gets its own fresh 200.
---
--- ⚠️ MODULES LOAD FROM LOCAL DISK, NOT FROM ONEDRIVE — DELIBERATELY.
--- Loading them straight from the cloud folder would be one fewer copy
--- step, and it is the wrong trade: OneDrive's Files-On-Demand can leave
--- a file as an online-only placeholder, and READING one triggers a
--- synchronous download. In the boot path that is a main-thread stall at
--- every login on a slow network — the same failure shape as the ⌥Tab
--- freeze in 6.33.0, which is not a mistake worth making twice. The
--- master copies live in OneDrive for durability and for copying to
--- another Mac; the loader only ever reads local disk.
+-- <name>.lua and is named in a MACHINE PROFILE below. Lua's limit of
+-- 200 locals is PER CHUNK and this file was measured at exactly 200 in
+-- 6.35.0; every module file gets its own fresh 200.
+-- ⚠️ MODULES LOAD FROM LOCAL DISK, NOT FROM ONEDRIVE — DELIBERATELY:
+-- reading a Files-On-Demand placeholder is a synchronous download, and
+-- in the boot path that is a main-thread stall at every login.
 --
 -- ---------------------------------------------------------------------
 -- THE MODULE CONTRACT, in full:
@@ -3016,13 +2804,10 @@ end
 --     name   = "App Peek",           -- shown in the boot report
 --     order  = 7,                    -- LOAD order (and the A–Z tie-break)
 --     family = "windows",            -- 6.101.0: which band of the cheat
---                                    -- sheet it sits under. The ids are
---                                    -- listed in core/cheatsheet.lua →
---                                    -- cheatSheet.families. Declare it
---                                    -- HERE, never in a list over there:
---                                    -- a membership list somewhere else
---                                    -- drifts the moment a module is
---                                    -- added. No family = the visible
+--                                    -- sheet it sits under; the ids are in
+--                                    -- core/cheatsheet.lua → families.
+--                                    -- Declared HERE, never in a list over
+--                                    -- there. No family = the visible
 --                                    -- "NOT YET FILED" band, and a test
 --                                    -- fails until you pick one.
 --     cheatsheet = {                 -- travels WITH the module
@@ -3034,35 +2819,22 @@ end
 --     setup = function(core) ... end,-- REQUIRED: binds keys, cheap work
 --   }
 --
--- 🗂 TWO SPECIAL FAMILY CASES (6.101.0):
---   family = "auto"  — no keys, runs by itself. It collapses into the one
---     "⚙️ RUNS ITSELF" box as a single line, taken from `summary = "…"`.
---     Such a module is listed even with NO cheatsheet at all.
---   cheatsheet may be a LIST of groups, each with its own `family`, for a
---     module whose keys genuinely serve two bands — see numpad_layer.
---
+-- 🗂 TWO SPECIAL FAMILY CASES (6.101.0): family = "auto" (no keys) is one
+--   line in the "⚙️ RUNS ITSELF" box from `summary`, listed even with no
+--   cheatsheet; `cheatsheet` may be a LIST of groups each with its own
+--   family (numpad_layer serves two bands).
 -- setup() may also assign M.warm = function(core) ... end before it
--- returns. See the two-phase note below.
+-- returns.
 -- ---------------------------------------------------------------------
 --
--- ⏱ TWO PHASES: setup() THEN warm(). 6.40.0.
--- setup() runs during boot and must stay CHEAP — bind hotkeys, create
--- objects, nothing that touches a big file. Anything expensive goes in
--- warm(), which the loader runs a couple of seconds AFTER boot on a
--- stored timer. Autocorrect is the case that motivated it: parsing an
--- 11,000-row CSV was happening on the boot path, and a hotkey you cannot
--- press yet because the Mac is still starting is worth nothing. Now the
--- keys bind instantly and the dictionary arrives a moment later. The
--- Console and ⇪⇧D both show warm timings separately from setup timings,
--- so you can see exactly where the time goes.
---
--- FAILURE IS ISOLATED, which is the other half of the point. Every
--- module is loaded, executed, set up AND warmed inside its own pcall. A
--- syntax error in one module costs you that module — not your hotkeys,
--- not autocorrect, not the whole config. Before this, one bad line
--- anywhere meant NOTHING loaded. Failures are named in the Console,
--- counted in the boot report, listed in ⇪⇧D, and shown as a ⚠️ group at
--- the top of the cheat sheet so a missing feature is never a mystery.
+-- ⏱ TWO PHASES: setup() THEN warm() (6.40.0). setup() runs during boot
+-- and must stay CHEAP — bind hotkeys, create objects. Anything expensive
+-- goes in warm(), which the loader runs a couple of seconds AFTER boot
+-- on a stored timer; the Console and ⇪⇧D show the two timings apart.
+-- FAILURE IS ISOLATED: every module is loaded, executed, set up AND
+-- warmed inside its own pcall — one bad module costs that module, named
+-- in the Console, counted in the boot report, listed in ⇪⇧D and shown
+-- as a ⚠️ group at the top of the cheat sheet.
 _G.moduleDir         = hs.configdir .. "/modules"
 _G.moduleStatus      = {}    -- one record per module, for the report
 _G.moduleCheatsheets = {}    -- groups contributed by loaded modules
@@ -3071,27 +2843,16 @@ _G.moduleWarmTimers  = {}    -- HELD: an unreferenced hs.timer is collected
 -- =====================================================================
 -- ✏️ MACHINE PROFILES — WHICH MODULES RUN ON WHICH MAC
 -- =====================================================================
--- The same init.lua and the same modules/ folder go on every Mac you
--- own; this table is the only thing that differs between them, and it
--- lives in the file rather than in per-machine edits so the two Macs
--- can never drift apart silently.
---
--- Keyed by the machine's ComputerName, which §0.1 already resolved into
--- hostTag — the same name that tags your log files. An unknown machine
--- (a new Mac, or one whose name changed) falls back to `default` and
--- says so in the boot report rather than loading nothing.
---
+-- The same init.lua and modules/ go on every Mac; this table is the only
+-- thing that differs, kept in the file so the two Macs cannot drift
+-- silently. Keyed by ComputerName (hostTag, §0.1); an unknown machine
+-- falls back to `default` and says so in the boot report.
 -- `modules`  = which module files to load, in load order.
 -- `settings` = per-module overrides applied to that module's `config`
---              table after setup. Anything the module exposes there can
---              differ per machine without touching the module file.
--- 🚨 6.66.3 — ONE LIST, NOT THREE COPIES. Profiles used to hand-type
--- their own module lists; four releases of new modules were added only
--- to `default`, so LL's own Mac silently never loaded them — and the
--- boot report was green, because nothing was ASKED to load. Now BASE is
--- the list, a profile declares only its differences, and a module on
--- disk that no profile loads fails the build (test_integration reads
--- BASE straight out of this file). Full story: NEW IN 6.66.3.
+--              table after setup.
+-- 🚨 6.66.3 — ONE LIST, NOT THREE COPIES: BASE is the list, a profile
+-- declares only its differences, and a module on disk that no profile
+-- loads fails the build (test_integration reads BASE from this file).
 local BASE = {
     "ui_style",           -- 🎨 6.90.0 the shared look — FIRST: panels read it
     "daily_backup", "app_peek", "window_switcher", "window_arranger",
@@ -3413,18 +3174,9 @@ local function loadOneModule(name, settings)
     rec.module  = mod
     -- The cheat sheet group is registered only after setup SUCCEEDS, so
     -- the sheet can never advertise a shortcut that was never bound.
-    -- 🗂 6.101.0 — THREE THINGS CHANGED HERE, all so the sheet can group by
-    -- family without any list of who-belongs-where living outside the
-    -- modules themselves:
-    --   1. the group carries `family` (from the group, else the module);
-    --   2. a module may register SEVERAL groups — `cheatsheet` can be a
-    --      LIST — because numpad_layer's keys genuinely serve two families
-    --      (⇪pad captures, ⇪⇧pad moves windows) and filing all 24 rows
-    --      under either one is a lie about half of them;
-    --   3. a module with family = "auto" registers EVEN WITH NO CHEATSHEET,
-    --      so the "runs itself" box can list it by name. copy_on_select has
-    --      never had a cheat sheet group and would otherwise be the one
-    --      automatic tool the sheet never mentions.
+    -- 🗂 6.101.0 — the group carries `family`; a module may register
+    -- SEVERAL groups (`cheatsheet` as a LIST — numpad_layer serves two
+    -- families); family = "auto" registers EVEN WITH NO CHEATSHEET.
     local cs     = mod.cheatsheet
     local groups = nil
     if type(cs) == "table" then groups = cs.title and { cs } or cs end
@@ -3545,36 +3297,22 @@ end
 -- =====================================================================
 -- 🚑 SAFE MODE — 6.65.1
 -- =====================================================================
--- WHAT IT IS FOR. When Hammerspoon is crashing at launch, every way of
--- fixing it goes THROUGH Hammerspoon: the cheat sheet, ⇪⇧D, the reload
--- key, the Console. A crash loop takes all of those away at once, and
--- the only advice left is "move init.lua out of the way", which turns
--- the whole config off and tells you nothing about which part was at
--- fault.
---
--- So: create an empty file called SAFE next to init.lua and Hammerspoon
--- boots with the smallest module set that still leaves the machine
--- usable. Delete it to go back to normal.
+-- When Hammerspoon crashes at launch, every way of fixing it goes
+-- THROUGH Hammerspoon. So: create an empty file called SAFE next to
+-- init.lua and it boots with the smallest module set that still leaves
+-- the machine usable. Delete it to go back to normal.
 --
 --        touch ~/.hammerspoon/SAFE      # then reload Hammerspoon
 --        rm    ~/.hammerspoon/SAFE      # back to the full set
 --
--- ✏️ WHAT SURVIVES SAFE MODE, and why exactly these:
---   · the hyper key and the cheat sheet are NOT modules — they are in
---     this file and always load, so ⇪/ still works and you can still
---     read your way out.
---   · health_monitor, so ⇪⇧H can tell you what it sees.
---   · NOTHING that talks to another application, drives a private macOS
---     API, or runs on a timer. That is the whole point: those are the
---     three things that can take the app down or wedge the desktop, and
---     in safe mode none of them is running.
---
--- 🚨 SPECIFICALLY EXCLUDED, and named so this is not a mystery:
---   · everything AppleScript-adjacent (bulk_rename, universal_actions)
---     — see the 🚨 on writeFinderComment in modules/ocr_engine.lua,
---     which is where that crash story now lives.
---   · copy_on_select, menubar_items, app_watcher, file_tracker — all
---     Accessibility watchers or timers against other apps.
+-- ✏️ WHAT SURVIVES: the hyper key and the cheat sheet (not modules —
+--   always load, so ⇪/ still works) and health_monitor (⇪⇧H). NOTHING
+--   that talks to another application, drives a private macOS API, or
+--   runs on a timer — the three things that can take the app down.
+-- 🚨 SPECIFICALLY EXCLUDED: everything AppleScript-adjacent (bulk_rename,
+--   universal_actions — see writeFinderComment in modules/ocr_engine.lua)
+--   and copy_on_select, menubar_items, app_watcher, file_tracker (AX
+--   watchers or timers against other apps).
 local safeMode = false
 pcall(function()
     safeMode = hs.fs.attributes(hs.configdir .. "/SAFE") ~= nil
