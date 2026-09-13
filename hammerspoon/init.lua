@@ -1,0 +1,3535 @@
+-- =====================================================================
+-- * Working VERSION *
+-- =====================================================================
+-- =====================================================================
+-- 09-13-26 using Claude          ← EDITED date. Bumped with every release.
+-- =====================================================================
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.217.0
+-- =====================================================================
+
+-- NEW IN 6.217.0 — ✂️ INIT.LUA TRIMMED, AND A PLAIN-TEXT FEATURE LIST RIDES IN EVERY ZIP:
+--   LL: "Go ahead with the init.lua trim" (his ask (c)), and "a list of
+--      features and how to use them in a plain text file … 'Resolved
+--      Feature Requests'". NO BEHAVIOUR CHANGED — the gate is the proof:
+--      the same 8,992 checks went green on the trimmed file before a
+--      word of ceremony was written. Twenty comment blocks telling the
+--      story of releases 6.53 to 6.156 (EmmyLua's removal, the adoption
+--      rename, the 6.66.4 count, the hidutil give-back, the loader's
+--      history) were cut to the rule each one left behind, with a pointer
+--      at CHANGELOG.md where the story lives in full: 3,796 → 3,534
+--      lines, 266 under the 3,800 ceiling that had 4 to spare. Nothing
+--      newer than 6.15x was touched, and the NEW IN blocks stay.
+--      RESOLVED-FEATURE-REQUESTS.txt (tools/build-feature-list.lua) is
+--      GENERATED, so it cannot go stale: every module's own cheat sheet,
+--      grouped by family, the automatic tools one line each, the core
+--      keys, then a release index — one line per NEW IN header in
+--      CHANGELOG.md, newest first — so "did I ask for that, and was it
+--      done?" is a search of one file. test_diagnostics refuses a zip
+--      whose list names a different version than init.lua.
+--      8,992 -> 8,995 checks, seventy-seven stages.
+--
+-- NEW IN 6.216.0 — 📶 BLUETOOTH: CONNECT OR DISCONNECT ANY PAIRED DEVICE (⇪⇧7, modules/bluetooth.lua):
+--   LL: "Bluetooth: connect/disconnect AirPods or any device, reliably."
+--      ⇪⇧7 lists every device this Mac has paired, 🟢 or ⚪, and ⏎ flips
+--      it. macOS ships no command that connects a device, so the engine
+--      is blueutil (Homebrew), looked up at PRESS time — a brew install
+--      mid-session is seen on the next press. WITHOUT it (the work Mac):
+--      system_profiler, on every Mac, still lists the devices and their
+--      state, ⏎ opens System Settings › Bluetooth, the top row copies
+--      `brew install blueutil`, and the absence goes through the 6.215.0
+--      door once per ten minutes. Every command is a bounded hs.task with
+--      an argument array (the address is blueutil's own output, never
+--      typed), each in its own slot with its own killer timer; a failed
+--      connect names the exit code and blueutil's words; the exit code,
+--      not a hope, flips the row. The parsers are pure and the gate runs
+--      them on the real line shapes — "not connected" contains
+--      "connected", and the first parser read it as connected. Filed
+--      under This Mac beside ⇪6 and ⇪7. _G.bluetoothReport().
+--      Off: settings = { bluetooth = { on = false } }; pin the binary
+--      with settings = { bluetooth = { blueutil = "/path" } }.
+--      8,912 -> 8,992 checks, seventy-seven stages.
+--
+-- (6.215.0 and earlier: see CHANGELOG.md — the complete record, and the
+--  reason trimming this header is safe. 6.180.0 dropped the inline count
+--  from five entries to TWO: five had grown to 135 lines of release notes
+--  inside the orchestrator, and CHANGELOG.md carries every word of them.)
+-- =====================================================================
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.217.0
+-- =====================================================================
+-- The catalogue that used to sit here — every tool, its key and what it
+-- is for, in prose — moved to GUIDE.md ("What each tool does") in
+-- 6.180.0. It was 259 lines of documentation inside the orchestrator,
+-- and it had pushed this file to within two lines of its own 4,000-line
+-- budget. Nothing was lost: GUIDE.md is in the zip, in git, and is where
+-- a person looks for prose. The version stamp stays here because the
+-- release ceremony counts three of them in this file.
+-- =====================================================================
+-- 🗺 FILE MAP — the sections below, in the order they actually RUN
+-- =====================================================================
+-- Lua reads this file once, top to bottom: a definition must exist
+-- before its first use, and that execution order is the only order that
+-- matters to Hammerspoon. Section NUMBERS are historical names — moving
+-- code to make them tidy is how definitions get lost (NEW IN 6.40.0) —
+-- so navigate by this map, not by the numbering:
+--
+--   §0     core environment · dock icon
+--   §0.1   portability — every path and folder resolved, per Mac
+--   §0.2   credentials — secret.lua loader (no token lives here)
+--   §0.3   hotkey conflict sentry    §0.4   hyper migration map
+--   §1     global state              §1.5   popup positioning
+--   §1.6   cheat sheet (core/cheatsheet.lua) · safe canvas show ·
+--          draggable panels · shared arbitration (core/coexist.lua)
+--   §1.11  diagnostics (core/diagnostics.lua)
+--   §2     shared helpers (the OCR engine that was here moved to
+--          modules/ocr_engine.lua in 6.105.0)
+--   §3     background monitoring     §3.12  the hyper key itself
+--   (the Asana task creator that sat between §3.12 and §5 moved to
+--          modules/task_creator.lua in 6.98.0)
+--   §5     hotkey integrations — the core pickers still bound here
+--   §6     Asana dashboard           §7     bootstrap report
+--   §1.4   shared text/CSV helpers (late on purpose — everything
+--          CALLS them after load; nothing above needs them sooner)
+--   §1.12  module loader → BASE list → machine profiles → safe
+--          mode → boot report. The 46 modules/*.lua load HERE, last.
+-- =====================================================================
+
+-- =====================================================================
+-- 0. CORE ENVIRONMENT & DEPENDENCIES
+-- =====================================================================
+local function safeRequire(mod)
+    local s, r = pcall(require, mod)
+    if not s then print('⚠️ Architecture Fault - Missing Module: ' .. mod) return nil end
+    return r
+end
+
+safeRequire("hs.task"); safeRequire("hs.image"); safeRequire("hs.alert"); safeRequire("hs.http")
+safeRequire("hs.json"); safeRequire("hs.timer"); safeRequire("hs.pasteboard"); safeRequire("hs.eventtap")
+safeRequire("hs.screen"); safeRequire("hs.drawing"); safeRequire("hs.geometry"); safeRequire("hs.chooser")
+safeRequire("hs.application"); safeRequire("hs.hotkey"); safeRequire("hs.dialog"); safeRequire("hs.urlevent")
+safeRequire("hs.window"); safeRequire("hs.sound"); safeRequire("hs.notify"); safeRequire("hs.canvas")
+safeRequire("hs.fs"); safeRequire("hs.host"); safeRequire("hs.pathwatcher"); safeRequire("hs.osascript")
+safeRequire("hs.axuielement")
+safeRequire("hs.caffeinate")
+safeRequire("hs.dockicon")
+
+-- =====================================================================
+-- 🖥 THE DOCK ICON, AND WHY HIDING IT IS A FEATURE (6.66.2)
+-- =====================================================================
+-- 🚨 LOAD-BEARING: an hs.chooser can only open over a FULL-SCREEN app
+-- while Hammerspoon has NO Dock icon (documented hs.chooser behaviour —
+-- a Dock-less app is an ACCESSORY app whose panels float anywhere).
+-- Every picker in this config is an hs.chooser, so hiding the icon is
+-- what makes ⇪V/⇪O/⇪⇧/ work over full-screen Excel. The cost: no Dock
+-- icon, no ⌘Tab entry. The menu bar icon, Console and every hotkey
+-- remain. Full story: NEW IN 6.66.2.
+-- ✏️ SET false to keep the Dock icon (pickers then fail over
+-- full-screen apps). Deliberately overrides the Preferences checkbox on
+-- every load — the FILE is the configuration; a checkbox doesn't sync.
+local hideDockIcon = true
+
+if hideDockIcon then
+    local ok = pcall(function() hs.dockicon.hide() end)
+    if ok then
+        print("🖥 Dock icon hidden — pickers can now open over full-screen apps")
+    else
+        -- Not fatal, and worth saying rather than leaving you to wonder
+        -- why ⇪V still will not open over Excel in full screen.
+        print("⚠️ 🖥 Could not hide the Dock icon — hs.chooser pickers will")
+        print("   not appear over full-screen apps. Uncheck 'Show dock icon'")
+        print("   in Hammerspoon Preferences to get the same effect by hand.")
+    end
+end
+
+-- 🔇 6.44.10 — hs.hotkey logs every enable/disable at info level (the
+-- ⌥Tab switcher alone is 64 lines per use), which buries the lines that
+-- matter. Warnings and errors still print. Set "info" to debug a
+-- binding. Full story: NEW IN 6.44.10.
+pcall(function() hs.hotkey.setLogLevel("warning") end)
+
+-- DYNAMIC HOME DIRECTORY RESOLUTION
+local homeDir = os.getenv("HOME")
+
+-- The boot clock starts here, before any real work, so §1.11's
+-- report can say how long loading actually took.
+_G.configVersion = "6.217.0"
+_G.diagBootStart = hs.timer.secondsSinceEpoch();
+
+-- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
+-- story is NEW IN 6.64.0 in CHANGELOG.md) ----------------------------
+
+-- A NO-OP STAND-IN for the diagnostics API, replaced by the real one in
+-- §1.11. Sections earlier in the file log through _G.diag, so a partial
+-- load that never reached §1.11 must not throw on a logging call.
+-- 🚨 6.53.0 — err() RECORDS RATHER THAN DISCARDS, AND THE HANDLER IS
+-- INSTALLED HERE, NOT IN core/diagnostics.lua: a Lua error inside a
+-- timer, an HTTP reply or a watcher cannot be caught by a pcall in
+-- whatever scheduled it — hs.uncaughtErrorHandler is the only place it
+-- can be seen, so the earliest version is installed right here.
+-- core/diagnostics.lua replaces it later and preserves this table's
+-- `errors`, so anything caught during early boot still reaches ⇪⇧D.
+_G.diag = { verbose = false, trail = {}, errors = {}, marks = {},
+            say = function() end, warn = function() end,
+            mark = function() end,
+            err = function(e)
+                local t = _G.diag.errors
+                t[#t + 1] = os.date("%H:%M:%S ") .. tostring(e)
+                -- Bounded: an error in a repeating timer fires forever,
+                -- and an unbounded list would grow until the Mac hurts.
+                while #t > 50 do table.remove(t, 1) end
+            end }
+
+hs.uncaughtErrorHandler = function(err)
+    pcall(function() _G.diag.err(err) end)
+    print("💥 UNCAUGHT (early): " .. tostring(err))
+    -- Routed through the ledger once it exists, so a runtime error lands
+    -- in the same place as every other failure. Before that it still
+    -- reaches the Console and the screen — the point is that no window
+    -- of the boot is ever silent.
+    local told = false
+    pcall(function()
+        if _G.notices then
+            _G.notices.record("runtime", "uncaught", tostring(err))
+            told = _G.notices.tell("Hammerspoon hit an error",
+                       tostring(err):sub(1, 160) .. "\n⇪⇧D for the report",
+                       { key = "uncaught:" .. tostring(err):sub(1, 60),
+                         every = 300, seconds = 6 })
+        end
+    end)
+    if not told then
+        pcall(function()
+            hs.alert.show("💥 Hammerspoon error — ⇪⇧D for the report", 4)
+        end)
+    end
+end
+
+-- 🔔 THE NOTICE LEDGER, loaded as early as it can be.
+-- It has to exist BEFORE the module loader runs, because the failure it
+-- most needs to report is a module that would not load. Same shape as
+-- the other core files: pcall'd, so a broken copy costs you the
+-- reporting and not the Mac — and if it does fail, that fact is itself
+-- printed rather than swallowed, which would be a bleak little irony.
+local notOK, notErr = pcall(function()
+    local path = hs.configdir .. '/core/notices.lua'
+    local chunk, loadErr = loadfile(path)
+    if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
+    -- 6.58.0 — chunk()(core), matching every other core/ file. This one
+    -- loads before hostTag/logsDir exist as locals (§0.1 has not run
+    -- yet) — moving the load point later to hand them over would undo
+    -- the whole point of loading notices this early, which is to be
+    -- able to report a module-load failure. So it gets an empty table:
+    -- honest about having nothing to offer yet, and still the same
+    -- shape every other core/ file expects to be called in.
+    chunk()({})
+end)
+if not notOK then
+    print('⚠️ core/notices.lua failed to load — failures will still reach the '
+          .. 'Console and ⇪⇧D, but you will not be told about them on screen. '
+          .. tostring(notErr))
+    pcall(function()
+        hs.alert.show("⚠️ Hammerspoon: failure reporting is OFF\n"
+                      .. "core/notices.lua did not load", 8)
+    end)
+end
+
+-- 🖥 THE CONSOLE GATE (core/console.lua): ⛔/⚠️ banners + repeat limiter — _G.errorsReport()
+do
+    local ok, e = pcall(function()
+        local chunk, le = loadfile(hs.configdir .. '/core/console.lua')
+        if not chunk then error(le or 'cannot read core/console.lua', 0) end
+        chunk()({})
+    end)
+    if not ok then print('⚠️ core/console.lua failed to load — the Console is unfiltered: ' .. tostring(e)) end
+end
+
+-- ⏱ THE LAG PROBE (core/lag.lua) — _G.lagReport() · 6.131.0
+-- 🚨 LOADED HERE FOR ONE REASON: IT MUST BEAT THE FIRST EVENT TAP.
+-- It works by wrapping hs.eventtap.new, so every tap created AFTER this
+-- point is timed and every tap created before it is invisible. Nothing
+-- above this line makes one — core/hyper_key.lua, core/cheatsheet.lua
+-- and every module load later — and moving this load point down would
+-- quietly shrink what the report covers while the report still looked
+-- complete. If you ever add a tap earlier than this, move THIS instead.
+do
+    local ok, e = pcall(function()
+        local chunk, le = loadfile(hs.configdir .. '/core/lag.lua')
+        if not chunk then error(le or 'cannot read core/lag.lua', 0) end
+        chunk()({})
+    end)
+    if not ok then
+        print('⚠️ core/lag.lua failed to load — everything still works, but '
+              .. '_G.lagReport() is unavailable and slow keystroke handlers '
+              .. 'will go unmeasured: ' .. tostring(e))
+    end
+end
+
+-- 6.42.0 — THE SERVICE REGISTRY, stubbed here so it is never nil.
+-- When a section moved into a module, any code left in THIS file that
+-- called one of its functions became a call to a nil GLOBAL — which Lua
+-- does not complain about until the moment you press the key. That is
+-- how ⇪0 broke: `renderActivityChoices` went to a module and the hotkey
+-- handler here kept calling a name that no longer existed.
+-- Modules now PUBLISH what the rest of the config may call, and callers
+-- go through _G.service.call, which reports a missing provider instead
+-- of throwing. §1.12 replaces this stub with the real thing.
+_G.service = {
+    registry = {},
+    -- 🔌 6.114.0 — WHO ANSWERS THIS NAME. The registry has always been a
+    -- flat name → function table, which is all a CALLER needs and not
+    -- enough for anything that has to reason about the wiring. It cost
+    -- one real bug: modules/unified_search.lua's run map joined
+    -- "rename.undo" to the cheat-sheet row whose key cell says ⇪⇧R, which
+    -- is the POPUP NUDGE RESET — so ⏎ on a row about where popups appear
+    -- ran a bulk rename undo and moved files on disk. Both existing
+    -- checks passed: the service was real, the key matched a live row.
+    -- Nothing could ask the only question that mattered — does the row
+    -- belong to the module that answers? — because nothing recorded who
+    -- answers. Now something does, and a test in test_integration.lua
+    -- asks it of every entry in that map.
+    owner    = {},
+    provide  = function(name, fn)
+        _G.service.registry[name] = fn
+        -- _G.moduleLoading is set by the §1.12 loader around each setup()
+        -- and is nil for anything init.lua publishes directly, which is
+        -- the honest answer for those.
+        _G.service.owner[name] = _G.moduleLoading or "init.lua"
+    end,
+    has      = function(name) return _G.service.registry[name] ~= nil end,
+    call     = function(name, ...)
+        local fn = _G.service.registry[name]
+        if not fn then
+            print("🔌 No provider for '" .. tostring(name)
+                  .. "' — is its module loaded? (⇪⇧D lists module status)")
+            return nil
+        end
+        local ok, a, b, c = pcall(fn, ...)
+        if not ok then
+            print("🔌 Service '" .. tostring(name) .. "' failed — " .. tostring(a))
+            _G.diag.err("service " .. tostring(name) .. ": " .. tostring(a))
+            return nil
+        end
+        return a, b, c
+    end,
+}
+
+-- 6.144.0 — THE ECO REGISTRY, stubbed here so it is never nil.
+-- On battery, modules/battery_saver.lua slows this config's own pollers
+-- down and restores them the moment the cord is back. WHAT it may slow
+-- is declared HERE, by the code that owns each timer: a registration
+-- names a normal and a battery cadence and hands over an apply function
+-- that rebuilds its own timer at the given pace — or a hold function
+-- for work that should simply wait for AC. Nothing ever reaches into
+-- another module's timer from outside, and a timer that never registers
+-- is untouched — the same one-way contract as the service registry
+-- above, and for the same reason: the alternative is coupling that
+-- grows back. This is a stub exactly the way _G.service is: it only
+-- RECORDS. battery_saver drives it, and without that module loaded a
+-- registration costs one table entry and nothing else.
+_G.eco = {
+    registry = {},
+    active   = false,   -- true while the battery cadence is applied
+    register = function(name, spec)
+        _G.eco.registry[name] = spec
+        -- A module can load or warm AFTER the flip to battery already
+        -- happened — boot on battery does exactly that, since modules
+        -- load last and warm later still. Late arrivals get the current
+        -- mode applied at once, so registered always means in step.
+        if _G.eco.active and type(spec) == "table" then
+            if spec.apply and spec.saver then pcall(spec.apply, spec.saver)
+            elseif spec.hold then pcall(spec.hold, true) end
+        end
+    end,
+}
+
+-- =====================================================================
+-- 0.1 PORTABILITY LAYER — the same file runs on ANY Mac, zero edits
+-- =====================================================================
+-- Where does ALL data live? Resolved automatically, per Mac:
+--   1. If you set an override below, that wins (the "flexible" escape
+--      hatch for a locked-down machine with unusual folders).
+--   2. Otherwise ~/Library/CloudStorage is scanned for a OneDrive
+--      folder — "OneDrive-Personal" preferred, else any "OneDrive-…"
+--      (so the work Mac, which has BOTH a company OneDrive and your
+--      personal one, still lands on Personal). Everything data-like →
+--      <OneDrive>/Logs, backups → <OneDrive>/Backups/Hammerspoon.
+--   3. No OneDrive at all → everything goes to ~/.hammerspoon/logs
+--      (created automatically) and the daily backup quietly disables
+--      itself.
+-- The Hammerspoon Console prints a PORTABILITY report at boot saying
+-- exactly which of these happened — check there first on a new Mac.
+local forceLogsDir   = nil  -- e.g. homeDir .. "/Documents/HSLogs"  (nil = auto)
+local forceBackupDir = nil  -- e.g. homeDir .. "/Documents/HSBackup" (nil = auto)
+
+-- PER-MACHINE IDENTITY: your Personal OneDrive syncs to BOTH Macs, so
+-- if they shared file names, both would append to the same CSVs
+-- (OneDrive conflict copies) and both would rsync into the same backup
+-- folder (each Mac overwriting the other's histories). Instead every
+-- machine writes its own files tagged with its own name — e.g.
+-- activity_history-Lees-MacBook-Air.csv — and backs up to its own
+-- subfolder. The ONLY deliberately shared files are autocorrect.csv
+-- and custom_shortcuts.json (see §3.9 / §1.6): they change rarely and
+-- benefit both Macs. Existing untagged files are adopted automatically.
+local hostTag = "Mac"
+pcall(function()
+    hostTag = (hs.host.localizedName() or "Mac"):gsub("%s+", "-"):gsub("[^%w%-]", "")
+    if hostTag == "" then hostTag = "Mac" end
+end)
+
+local cloudDir = nil
+pcall(function()
+    local base = homeDir .. "/Library/CloudStorage"
+    local candidates = {}
+    for entry in hs.fs.dir(base) do
+        if entry:match("^OneDrive") and not entry:match("^OneDrive%-SharedLibraries") then
+            table.insert(candidates, entry)
+        end
+    end
+    table.sort(candidates)
+    for _, c in ipairs(candidates) do
+        if c == "OneDrive-Personal" then cloudDir = base .. "/" .. c end
+    end
+    if not cloudDir and #candidates > 0 then
+        cloudDir = base .. "/" .. candidates[1]
+    end
+end)
+
+local logsDir, backupDir
+if cloudDir then
+    logsDir   = cloudDir .. "/Logs"
+    backupDir = cloudDir .. "/Backups/Hammerspoon/" .. hostTag
+else
+    logsDir   = hs.configdir .. "/logs"
+    backupDir = nil  -- nowhere cloud-synced to back up to
+end
+
+-- =====================================================================
+-- 🏠 6.190.0 — THE STORES CAN LIVE ON THIS MAC INSTEAD OF IN ONEDRIVE
+-- =====================================================================
+-- LL: "Would it be better to save everything to my home folder? Then,
+-- every 30 minutes write a back up of all the files that have histories
+-- or modifications."
+--
+-- Mostly yes, and this is the switch. Every store lives in OneDrive/Logs
+-- so both Macs see the same histories, and that sharing is real — but it
+-- is also where a whole class of this project's bugs comes from: a
+-- OneDrive PLACEHOLDER file blocks the main thread when it is read, and
+-- that is the 6.152.x / 6.160.0 / 6.170.x beach ball. Local storage ends
+-- that class outright. What it costs is liveness: the other Mac sees
+-- this one's histories every 30 minutes rather than continuously.
+--
+-- 🚨 AND IT NEVER SWITCHES ONTO AN EMPTY FOLDER. Turning this on with
+-- nothing local yet would show LL every history blank — indistinguishable
+-- from total data loss. So the FIRST boot after switching keeps using
+-- OneDrive, says so, and copies the store down in the background; the
+-- NEXT boot finds the copy and uses it. There is no moment where
+-- anything is empty, and nothing is ever moved or deleted — the OneDrive
+-- copy stays exactly where it is and keeps being written by the 30-minute
+-- push, so switching back is this line again.
+--
+-- NOT an alias and NOT a symlink, deliberately: a Finder ALIAS is a
+-- Finder construct that io.open, rsync, grep and find do not follow, and
+-- OneDrive does not sync reliably through a symlink. Two real folders and
+-- an rsync is the boring answer that actually works.
+--
+-- The VAULT is deliberately NOT part of this and stays in OneDrive:
+-- Obsidian opens that exact folder on both Macs, which is the whole
+-- design (see modules/vault.lua).
+local localFirst    = false                            -- ← flip to true
+local localLogsDir  = homeDir .. "/Library/Application Support/Hammerspoon/Logs"
+_G.localFirstWanted = localFirst
+_G.localLogsDir     = localLogsDir
+_G.localFirstState  = "off"
+if localFirst then
+    -- "Has it been seeded?" is asked of the FOLDER, never of a file we
+    -- would have to read — a stat is safe, a read of a placeholder is the
+    -- stall this whole switch exists to avoid.
+    local seeded = false
+    pcall(function()
+        local n = 0
+        for entry in hs.fs.dir(localLogsDir) do
+            if entry ~= "." and entry ~= ".." then n = n + 1 end
+        end
+        seeded = n > 0
+    end)
+    if seeded then
+        logsDir            = localLogsDir
+        _G.localFirstState = "local"
+    elseif cloudDir then
+        -- Stay on OneDrive this session; the seed runs from daily_backup
+        -- on a held timer, well off the boot path.
+        _G.localFirstState = "seeding"
+    else
+        -- No OneDrive to seed FROM, so there is nothing to lose: go local
+        -- immediately rather than sitting in a seeding state forever.
+        logsDir            = localLogsDir
+        _G.localFirstState = "local"
+    end
+end
+
+if forceLogsDir   then logsDir   = forceLogsDir   end
+if forceBackupDir then backupDir = forceBackupDir end
+pcall(function() hs.fs.mkdir(logsDir) end)
+
+-- One-time adoption: if this machine's new-location file doesn't exist
+-- yet but the old one does, copy its contents in — so nothing already
+-- recorded is ever lost by a path change.
+-- 🚨 6.115.0 — THE ORIGINAL IS RENAMED to <name>.superseded, never
+-- deleted (three near-identical files with one live and nothing on disk
+-- saying which is how LL came to read a frozen snapshot as his live
+-- history). A .superseded file is STILL a valid adoption source: <Logs>
+-- is in OneDrive and shared by both Macs, so retiring on one must not
+-- pull the source out from under the other's first boot.
+local function adoptLegacyFile(newPath, legacyPath)
+    -- Nested rather than a sibling local ON PURPOSE: the main chunk is at
+    -- Lua's hard ceiling of 200 locals, and one more at this level fails
+    -- to compile outright. Same reason _G.hyperBindStub is a global.
+    local function retire(path)
+        local check = io.open(path, "r")
+        if not check then return end
+        check:close()
+        local retired = path .. ".superseded"
+        -- Never clobber an earlier retirement — that would destroy the one
+        -- copy of something, which is the opposite of the point.
+        local n = 0
+        while true do
+            local taken = io.open(retired, "r")
+            if not taken then break end
+            taken:close()                      -- close it: this loop can run
+            n = n + 1                          -- more than once
+            if n > 50 then return end          -- give up quietly, keep both
+            retired = path .. ".superseded-" .. n
+        end
+        if os.rename(path, retired) then
+            print("📦 Retired superseded " .. path .. " → " .. retired
+                  .. "  (live file: " .. newPath .. ")")
+        else
+            print("⚠️ Could not rename superseded " .. path
+                  .. " — it is NOT the live file; the live one is " .. newPath)
+        end
+    end
+
+    local nf = io.open(newPath, "r")
+    if nf then
+        nf:close()
+        -- THE PATH THAT FIXES MACHINES THAT ALREADY ADOPTED. Adoption
+        -- happened releases ago on both of LL's Macs, so a fix that only
+        -- ran on a fresh adoption would have fixed nobody. Every boot from
+        -- here on retires whatever stale twin is still lying around, and
+        -- once it is renamed this is a single failed io.open forever after.
+        retire(legacyPath)
+        return
+    end
+
+    local source = legacyPath
+    local lf = io.open(source, "r")
+    if not lf then
+        source = legacyPath .. ".superseded"   -- retired by the other Mac
+        lf = io.open(source, "r")
+        if not lf then return end
+    end
+    local content = lf:read("*a"); lf:close()
+
+    local out = io.open(newPath, "w")
+    if not out then
+        print("⚠️ Could not adopt legacy " .. source .. " → " .. newPath
+              .. " (is the OneDrive Logs folder available?)")
+        return
+    end
+    out:write(content); out:close()
+
+    -- 🚨 VERIFY BEFORE RETIRING, and in this order. io.write returning
+    -- without error is not proof the bytes landed — a full disk or an
+    -- online-only OneDrive folder can take the write and lose it. Renaming
+    -- the original on that assumption would leave the only good copy under
+    -- a name nothing reads. Read the new file back and compare it to what
+    -- we meant to write; retire only on a match.
+    local back = io.open(newPath, "r")
+    local written = back and back:read("*a") or nil
+    if back then back:close() end
+    if written ~= content then
+        print("⚠️ Adopted " .. source .. " → " .. newPath
+              .. " but it did not read back intact — keeping the original")
+        return
+    end
+
+    print("📦 Adopted legacy " .. source .. " → " .. newPath)
+    if source == legacyPath then retire(legacyPath) end
+end
+
+-- WRITE-FAILURE WARNINGS: every data file now lives in the OneDrive
+-- Logs folder, and CloudStorage paths depend on OneDrive running.
+-- If OneDrive is quit — or the Logs folder is set to online-only —
+-- writes fail. Before 6.10.0 that was SILENT data loss; now the first
+-- failure per file shows an on-screen alert (once, not a nag-storm).
+-- Fix: keep the Logs folder "Always keep on this device" in OneDrive.
+local writeWarned = {}
+local function warnWriteFailed(label)
+    -- 💾 6.116.0 — COUNTED BEFORE THE ONCE-ONLY GATE, not after. The alert
+    -- is deliberately shown once per label, because six identical alerts
+    -- for one offline OneDrive is worse than one. But the COUNT is the
+    -- answer to "how do I know my logs are saving" — a label that failed
+    -- forty times and a label that failed once are very different
+    -- situations, and the old code could not tell them apart because it
+    -- returned before recording anything. _G.saved() prints this.
+    _G.writeFailures = _G.writeFailures or {}
+    _G.writeFailures[label] = (_G.writeFailures[label] or 0) + 1
+    if writeWarned[label] then return end
+    writeWarned[label] = true
+    hs.alert.show("⚠️ Can't write " .. label .. " — is the OneDrive Logs folder available?", 6)
+    print("🚨 Write failed: " .. label .. " (OneDrive quit, or Logs folder online-only?)")
+    if _G.notices then
+        pcall(_G.notices.record, "runtime", "write failed", label)
+    end
+end
+
+-- 🔔 6.215.0 — THE DEGRADE DOOR (core/notices.lua): `return core.degrade(tool,
+-- why)` alerts, prints a ⚠️ line, records, and returns false, why. If
+-- notices did not load, this fallback still shows it — a break is seen,
+-- never only logged.
+local function degrade(tool, why, opts)
+    if _G.notices and _G.notices.degrade then return _G.notices.degrade(tool, why, opts) end
+    why = tostring(why or "no reason given")
+    print("⚠️ " .. tostring(tool or "?") .. ": " .. why)
+    pcall(function() hs.alert.show("⚠️ " .. tostring(tool or "?") .. " — " .. why, 6) end)
+    return false, why
+end
+
+-- =====================================================================
+-- 0.2 CREDENTIALS — live in secret.lua, NEVER in this file
+-- =====================================================================
+-- This file contains no secrets, so it can be copied between Macs,
+-- shared, or backed up freely. Each Mac gets its own one-time file at
+-- ~/.hammerspoon/secret.lua containing exactly this (with your real
+-- token from https://app.asana.com/0/my-apps):
+--
+--     return {
+--         asanaToken = "PASTE_TOKEN_HERE",
+--     }
+--
+-- (Optionally add asanaWorkspaceId = "..." / asanaProjectId = "..."
+-- lines to override the defaults below — they're IDs, not secrets.)
+-- No secret.lua on a machine? Everything else works; the Asana
+-- features politely say they're off when you press their keys.
+-- secret.lua deliberately STAYS in ~/.hammerspoon (not OneDrive) and
+-- is excluded from the nightly backup — the token never leaves the Mac.
+local secrets = {}
+local secretsStatus = "missing"   -- "missing" | "loaded" | "broken: <why>"
+do
+    local path = hs.configdir .. "/secret.lua"
+    local f = io.open(path, "r")
+    if f then
+        f:close()
+        local ok, s = pcall(dofile, path)
+        if ok and type(s) == "table" then
+            secrets = s
+            secretsStatus = "loaded"
+        elseif ok then
+            secretsStatus = "broken: file doesn't return a table — first word must be 'return'"
+        else
+            secretsStatus = "broken: " .. tostring(s)
+        end
+    end
+end
+-- Trim stray whitespace/newlines around the token — a trailing space
+-- from a copy/paste is invisible but produces a 401 from Asana, which
+-- looks identical to a revoked token. Trimming removes that whole
+-- class of confusion.
+local asanaToken       = (secrets.asanaToken or ""):match("^%s*(.-)%s*$")
+local asanaWorkspaceId = secrets.asanaWorkspaceId or "182448385076670"
+local asanaProjectId   = secrets.asanaProjectId or "745948257030523"
+local asanaEnabled     = (asanaToken ~= "")
+
+-- Shape check: Asana personal access tokens look like
+-- 2/<digits>/<digits>:<hex>. A token that doesn't match is very likely
+-- mangled (smart quotes, truncated paste) — warn at boot rather than
+-- letting it fail mysteriously later.
+if asanaEnabled and not asanaToken:match("^%d+/%d+/%d+:%w+$") then
+    print("⚠️ Asana token in secret.lua doesn't look like a normal token "
+        .. "(expected 2/<digits>/<digits>:<hex>) — check for smart quotes or a truncated paste")
+end
+
+-- Gate for every Asana hotkey: true if usable, otherwise explains why
+local function requireAsana()
+    if asanaEnabled then return true end
+    hs.alert.show("🔒 Asana is off on this Mac — create ~/.hammerspoon/secret.lua (see init.lua §0.2)", 4)
+    return false
+end
+
+-- 6.10.0: task history & clipboard history moved to the OneDrive Logs
+-- folder, machine-tagged (both Macs write these constantly — sharing
+-- one file would mean OneDrive conflict copies). 6.98.0: the task
+-- history file (and the 💬 auto-comment knob, now a profile-overridable
+-- config) went to modules/task_creator.lua with the rest of the creator.
+
+-- 🔍 THE OCR LOG AND ITS SHORTCUT NAME MOVED OUT in 6.105.0, to
+-- modules/ocr_engine.lua — the CSV path, the "HS OCR" Apple Shortcut, the
+-- per-machine adoption, the two pickers and the Finder tagging travel
+-- together. Only the clipboard watcher stayed (§3), because it is shared
+-- with clipboard history; it calls the module through the registry.
+
+-- =====================================================================
+-- 0.3 HOTKEY CONFLICT SENTRY — warns in the Console at boot
+-- =====================================================================
+-- Every hs.hotkey.bind in this file passes through this wrapper, which
+-- keeps a registry of registered combos and prints a Console warning:
+--   • INTERNAL conflict — the same combo bound twice inside this
+--     config. Nasty failure mode: the LATER binding silently wins and
+--     the earlier feature's key just stops working. Now it announces
+--     itself instead.
+--   • KNOWN macOS default — the combo matches a stock system shortcut
+--     (Spotlight, Spaces, screenshots…). The system usually wins;
+--     the warning names it so a dead key isn't a mystery.
+-- HONEST LIMIT: other APPS' shortcuts aren't detectable — macOS has
+-- no public API to enumerate them — so a clash with, say, a menu-bar
+-- app can only be found by noticing the key misbehaves. The boot
+-- report says how many combos were checked.
+local hotkeyRegistry = {}
+_G.hotkeyBoundCount, _G.hotkeyConflictCount = 0, 0
+
+-- 6.77.0 — the handlers themselves, kept a second time so that a Mac
+-- whose Carbon hotkey layer is dead can still run them from the event
+-- tap. See core/hyper_key.lua. Only STANDALONE binds land here: migrated
+-- ones return above this point, and modal bindings never come through
+-- hs.hotkey.bind at all — which is what keeps a bare ⇪-modal letter out
+-- of a table that is consulted when ⇪ is NOT held.
+_G.globalDispatch = {}
+
+local knownSystemCombos = {
+    ["cmd+space"]        = "Spotlight search",
+    ["alt+cmd+space"]    = "Finder search window",
+    ["ctrl+space"]       = "input source switching (if enabled)",
+    ["alt+ctrl+space"]   = "input source switching (if enabled)",
+    ["cmd+tab"]          = "app switcher (macOS reserves this)",
+    ["cmd+shift+3"]      = "screenshot (full screen)",
+    ["cmd+shift+4"]      = "screenshot (selection)",
+    ["cmd+shift+5"]      = "screenshot & recording menu",
+    ["ctrl+up"]          = "Mission Control",
+    ["ctrl+down"]        = "App windows (App Exposé)",
+    ["ctrl+left"]        = "previous Space",
+    ["ctrl+right"]       = "next Space",
+    ["cmd+shift+q"]      = "log out",
+    ["ctrl+cmd+q"]       = "lock screen",
+    ["ctrl+cmd+space"]   = "emoji & symbols picker",
+}
+
+local function normalizeCombo(mods, key)
+    local m = {}
+    for _, x in ipairs(mods or {}) do table.insert(m, tostring(x):lower()) end
+    table.sort(m)
+    return table.concat(m, "+") .. "+" .. tostring(key):lower()
+end
+-- The fallback dispatcher files a live keystroke under the same name.
+_G.globalCombo = normalizeCombo
+
+-- =====================================================================
+-- 0.4 HYPER MIGRATION MAP (6.19.0) — every shortcut moves to Caps Lock
+-- =====================================================================
+-- 6.19.0 moved EVERY shortcut in this config onto the hyper key. Rather
+-- than editing 33 scattered hs.hotkey.bind call sites (33 chances to
+-- typo something), each old combo is listed here once with its new hyper
+-- home, and the wrapper below re-routes it. One table = the whole
+-- keymap, which is also what makes the boot-time self-checks possible.
+--
+-- TWO TIERS, so nothing collides. Flattening all 33 onto bare letters
+-- was impossible: V, C and O each had three different meanings, and
+-- F/←/→ had two apiece.
+--   ⇪ + key       → the 25 primary tools
+--   ⇪ + ⇧ + key   → secondary/"edit" variants + popup nudging
+--
+-- KEY = the OLD combo, normalized (mods sorted alphabetically, lower
+-- case). VALUE = { new modifiers, new key } held WITH Caps Lock.
+-- Both halves are verified at boot: a key listed here that never gets
+-- claimed prints a warning (means the map has a typo and the old global
+-- shortcut silently survived), and two entries landing on the same hyper
+-- combo print a conflict.
+_G.hyperKeyMap = {
+    -- ---- Asana (⇪ tier 1) ----
+    ["alt+cmd+ctrl+a"]       = { {},        "a"     },  -- format Asana URL
+    ["alt+cmd+ctrl+b"]       = { {},        "b"     },  -- browse teams
+    ["alt+cmd+ctrl+c"]       = { {},        "c"     },  -- comment on task
+    ["alt+cmd+ctrl+t"]       = { {},        "t"     },  -- create task (6.86.0: the labeled form)
+    ["alt+cmd+ctrl+l"]       = { {},        "l"     },  -- list tasks
+    -- ---- Clipboard / OCR / Activity ----
+    -- 6.57.0 — the two clipboard entries were REMOVED here. They existed
+    -- to redirect ⌃⌥⌘V / ⌃⌥⌘⇧V onto ⇪V / ⇪⇧V, and 6.55.0 moved clipboard
+    -- history into its own module which claims those hyper keys DIRECTLY.
+    -- Leaving the map entries behind meant two claims on one key for the
+    -- SAME feature — a HYPER CONFLICT warning about a conflict that was
+    -- not real, which is its own kind of harm: it teaches you to ignore
+    -- the warnings that are.
+    -- 6.105.0 — THE TWO OCR ENTRIES WERE REMOVED HERE, for exactly the
+    -- reason the clipboard pair above was removed in 6.57.0. The engine
+    -- is modules/ocr_engine.lua now and claims ⇪O and ⇪⇧O directly.
+    -- Leaving the map entries behind would mean two claims on one key for
+    -- the SAME feature — a HYPER CONFLICT warning about a conflict that
+    -- is not real, which teaches you to ignore the warnings that are.
+    ["alt+cmd+ctrl+shift+c"] = { {"shift"}, "c"     },  -- copy-on-select toggle
+    ["alt+cmd+shift+0"]      = { {},        "0"     },  -- activity tracker
+    -- ---- Trackers ----
+    ["alt+ctrl+shift+f"]     = { {},        "f"     },  -- file tracker
+    ["alt+ctrl+shift+u"]     = { {},        "u"     },  -- update tracker
+    -- ---- Autocorrect ----
+    ["alt+cmd+ctrl+s"]       = { {},        "s"     },  -- toggle
+    ["alt+cmd+ctrl+z"]       = { {},        "z"     },  -- undo & learn
+    -- ---- Window arranger ----
+    -- Arrows become spatial: ←/→ halves, ↑ fill, ↓ put it back. That
+    -- reads better than the old ⌃⌥F/⌃⌥M letters and frees F for Files.
+    ["alt+ctrl+left"]        = { {},        "left"  },  -- left half
+    ["alt+ctrl+right"]       = { {},        "right" },  -- right half
+    ["alt+ctrl+f"]           = { {},        "up"    },  -- fill screen
+    ["alt+ctrl+m"]           = { {},        "down"  },  -- restore prior frame
+    ["alt+ctrl+v"]           = { {},        "\\"    },  -- split two windows
+    -- 6.31.0: swapped back — bare ⇪W is the app summon (the one reached
+    -- for constantly), and the documents list moved to ⇪⇧W. (That list
+    -- belonged to document_watcher until 6.104.0 and now belongs to
+    -- activity_tracker; the KEY never moved, which is what matters here.)
+    ["alt+ctrl+w"]           = { {},        "w"     },  -- summon-an-app picker
+    ["alt+cmd+ctrl+["]       = { {},        "["     },  -- monitor left
+    ["alt+cmd+ctrl+]"]       = { {},        "]"     },  -- monitor right
+    -- ---- Cheat sheet & custom entries ----
+    ["alt+cmd+ctrl+/"]       = { {},        "/"     },  -- toggle cheat sheet
+    ["alt+cmd+ctrl+="]       = { {},        "="     },  -- add entry
+    ["alt+cmd+ctrl+-"]       = { {},        "-"     },  -- remove entry
+    ["alt+cmd+ctrl+e"]       = { {},        "e"     },  -- edit entry
+    -- ---- Diagnostics (⇪⇧ tier 2) ----
+    ["alt+cmd+ctrl+shift+d"] = { {"shift"}, "d"     },  -- diagnostic report
+    -- ---- App peek ----
+    ["alt+cmd+ctrl+p"]       = { {},        "p"     },  -- hide/show front app
+    -- ---- Popup nudging (⇪⇧ tier 2 — rarely used, keeps tier 1 free) ----
+    ["alt+cmd+ctrl+r"]       = { {"shift"}, "r"     },  -- reset nudge offset
+    ["alt+cmd+ctrl+up"]      = { {"shift"}, "up"    },
+    ["alt+cmd+ctrl+down"]    = { {"shift"}, "down"  },
+    ["alt+cmd+ctrl+left"]    = { {"shift"}, "left"  },
+    ["alt+cmd+ctrl+right"]   = { {"shift"}, "right" },
+}
+
+-- Queue, not immediate binding: the modal doesn't exist until §3.12, and
+-- several features bind before that point. Everything is collected here
+-- and flushed in one deterministic pass at the very end of the file.
+_G.hyperMigrations     = {}   -- ordered list of queued bindings
+_G.hyperMigrationsSeen = {}   -- which map entries actually matched
+
+-- Migrated call sites get this back instead of a real hs.hotkey object.
+-- Nothing in this file uses the return value, but returning a bare nil
+-- would turn any future `local hk = hs.hotkey.bind(...)  hk:disable()`
+-- into a crash — so hand back something harmless that answers the usual
+-- hotkey methods.
+-- _G. rather than a local: the main chunk is at Lua's hard ceiling of
+-- 200 locals, and one more here fails to compile outright.
+_G.hyperBindStub = function()
+    local s = {}
+    function s:enable()  return self end
+    function s:disable() return self end
+    function s:delete()  return self end
+    return s
+end
+
+local hsHotkeyBindOriginal = hs.hotkey.bind
+hs.hotkey.bind = function(mods, key, fn, releasedFn, repeatFn)
+    local ok, combo = pcall(normalizeCombo, mods, key)
+    local target = ok and _G.hyperKeyMap[combo] or nil
+    if target then
+        _G.hyperMigrationsSeen[combo] = true
+        table.insert(_G.hyperMigrations, {
+            from = combo, mods = target[1], key = target[2],
+            fn = fn, releasedFn = releasedFn, repeatFn = repeatFn,
+        })
+        return _G.hyperBindStub()
+    end
+    if ok then
+        _G.hotkeyBoundCount = _G.hotkeyBoundCount + 1
+        if hotkeyRegistry[combo] then
+            _G.hotkeyConflictCount = _G.hotkeyConflictCount + 1
+            print("⚠️ HOTKEY CONFLICT inside init.lua: " .. combo
+                .. " is bound TWICE — the later binding wins, the earlier feature's key is now dead")
+        end
+        hotkeyRegistry[combo] = true
+        if knownSystemCombos[combo] then
+            print("⚠️ HOTKEY may clash with macOS: " .. combo .. " = "
+                .. knownSystemCombos[combo]
+                .. " — the system usually wins (System Settings → Keyboard → Keyboard Shortcuts)")
+        end
+    end
+    -- 🚨 6.53.0 — A BAD KEY NAME MUST COST ONE SHORTCUT, NOT THE CONFIG.
+    -- hs.hotkey.bind THROWS on a key macOS has no code for, and init.lua's
+    -- own binds run BEFORE the loader's pcall; the throw is caught, named,
+    -- and answered with the same inert stub the migration path returns.
+    local bound, err = nil, nil
+    local okBind = pcall(function()
+        bound = hsHotkeyBindOriginal(mods, key, fn, releasedFn, repeatFn)
+    end)
+    if okBind and bound then
+        -- Recorded only when the combo normalized cleanly, because that
+        -- string is the key the tap will look it up under.
+        if ok then
+            _G.globalDispatch[combo] = { pressed = fn, released = releasedFn,
+                                         repeated = repeatFn }
+        end
+        return bound
+    end
+    err = tostring(key)
+    _G.hotkeyRejectedCount = (_G.hotkeyRejectedCount or 0) + 1
+    _G.hotkeyRejected = _G.hotkeyRejected or {}
+    table.insert(_G.hotkeyRejected, tostring(ok and combo or err))
+    print("⚠️ HOTKEY REJECTED: " .. tostring(ok and combo or err)
+          .. " — macOS has no such key, so THAT shortcut is off. Everything "
+          .. "else still loaded. Check the key name where it is bound.")
+    pcall(function() _G.diag.err("hotkey rejected: " .. tostring(ok and combo or err)) end)
+    return _G.hyperBindStub()
+end
+
+-- =====================================================================
+-- 1. GLOBAL STATE INITIALIZATION
+-- =====================================================================
+_G.choosers = {}
+
+_G.asanaTaskHistory = {}  -- populated from disk by modules/task_creator.lua; stubbed so ⇪space search never sees nil
+
+-- =====================================================================
+-- 1.5 POPUP POSITIONING — EDIT YOUR HOTKEYS HERE
+-- =====================================================================
+-- Every popup chooser (Clipboard, Task Creator, OCR, App Tracker, Asana
+-- Dashboard) is positioned automatically — no manual monitor picking.
+-- Screen is resolved in this order, every time a popup opens or moves:
+--   1. the FRONTMOST APPLICATION's window
+--   2. otherwise, whatever window currently has keyboard focus
+--   3. otherwise, the main screen
+-- On top of that, you can nudge the exact spot with the keyboard
+-- (hs.chooser has no title bar, so it can't be dragged like a normal
+-- window):
+--   • mods + arrow keys     → nudge popup position by nudgeStep pixels
+--   • mods + reset          → clear the nudge offset
+--
+-- If any key conflicts with another app, just change it in this table.
+-- If a chooser is already open when you press a nudge/reset key, it
+-- jumps to the new position immediately.
+local popupScreenKeys = {
+    mods       = {"ctrl", "alt", "cmd"},   -- modifier combo for all keys below
+    reset      = "R",                       -- clear nudge offset
+    nudgeUp    = "Up",                      -- nudge popup up
+    nudgeDown  = "Down",                    -- nudge popup down
+    nudgeLeft  = "Left",                    -- nudge popup left
+    nudgeRight = "Right",                   -- nudge popup right
+}
+local popupNudgeStep = 50  -- pixels moved per arrow-key tap; edit freely.
+                            -- Hold the key down to walk it further.
+
+-- ✏️ PANEL TRANSLUCENCY (6.10.3) — one number for the canvas panels:
+-- the dashboard legend strip (§6) and the Task Creator draft mirror
+-- (§4). 6.32.0: the CHEAT SHEET no longer uses this — it is the one
+-- panel you read long-form, so it has its own, more see-through
+-- setting (cheatSheet.alpha, top of §1.6) over a darker background.
+-- 1.0 = solid, lower = more
+-- see-through; below ~0.65 the white text gets hard to read over
+-- bright windows. (The picker LISTS are native macOS panels with no
+-- opacity API — this can't affect them; see the 6.10.3 note above.)
+local panelAlpha = 0.90
+
+_G.popupOffset = { x = 0, y = 0 }  -- pixel offset from nudging, stacks on
+                                    -- top of wherever the popup would
+                                    -- otherwise appear
+
+-- Which screen should a popup use as its BASE position (before nudging)?
+--   1. the monitor holding the FRONTMOST APPLICATION's window
+--   2. otherwise, whatever window currently has keyboard focus
+--   3. otherwise, the main screen
+-- Checking the frontmost app directly (rather than only focusedWindow)
+-- matters when the two diverge — e.g. a background window somehow holds
+-- keyboard focus while a different app is what's actually frontmost.
+-- 6.27.1: an explicit screen wins over everything below.
+-- App Lock needs this. Hiding a locked app makes macOS fall back to
+-- whatever app was in front BEFORE — often on another monitor — so by
+-- the time the PIN prompt opens, "the frontmost app" is the wrong app on
+-- the wrong screen and the prompt appears back where you came from.
+-- App Lock captures the locked app's screen BEFORE hiding it and parks
+-- it here. Always nil unless something is mid-flight.
+_G.popupScreenOverride = nil
+
+local function resolveBaseScreen()
+    if _G.popupScreenOverride then return _G.popupScreenOverride end
+    local ok, frontApp = pcall(hs.application.frontmostApplication)
+    if ok and frontApp then
+        local win = frontApp:focusedWindow() or frontApp:mainWindow()
+        if win then
+            local ok2, scr = pcall(function() return win:screen() end)
+            if ok2 and scr then return scr end
+        end
+    end
+
+    local ok3, focused = pcall(hs.window.focusedWindow)
+    if ok3 and focused then
+        local ok4, scr = pcall(function() return focused:screen() end)
+        if ok4 and scr then return scr end
+    end
+
+    return hs.screen.mainScreen()
+end
+
+-- hs.chooser:show() accepts an optional top-left point, which is what
+-- lets us place the popup on the resolved screen — and, combined with
+-- popupOffset, what lets arrow-key nudging move it anywhere from there.
+local function chooserTopLeft(chooser, screen)
+    local f = screen:frame()
+    local pct = 40  -- hs.chooser default width is 40% of the screen
+    local ok, w = pcall(function() return chooser:width() end)
+    if ok and type(w) == "number" and w > 0 and w <= 100 then pct = w end
+    local width = f.w * (pct / 100)
+    local x = f.x + (f.w - width) / 2 + _G.popupOffset.x
+    local y = f.y + (f.h * 0.2)        + _G.popupOffset.y
+    return hs.geometry.point(x, y)
+end
+
+-- Use this instead of chooser:show() everywhere below. The resolved
+-- screen & point are recorded in _G.lastPopupPlacement so companion
+-- drawings position themselves from the SAME placement.
+-- 🚨 THE RECORD NAMES THE CHOOSER IT BELONGS TO (6.127.0): window_move
+-- COMPUTES its grab box from this record (hs.chooser has no frame
+-- getter), and a record that does not match the open picker reads as
+-- NO record. atPoint is for panels that place themselves deliberately;
+-- they still get a record.
+local function showPopup(chooser, atPoint)
+    local screen = resolveBaseScreen()
+    local pt = atPoint
+    if not pt and screen then pt = chooserTopLeft(chooser, screen) end
+    -- 🚨 6.160.1 — A PICKER IS NEVER PLACED OFF ITS SCREEN. LL's ⇪Y
+    -- opened at x=2733 on a 2560-wide screen: the nudge/drag offset had
+    -- run away (every ⌘-drop ADDS land-minus-base, and once a drop lands
+    -- past the edge macOS keeps the chooser on screen while the record
+    -- keeps the number, so the next drag compounds the lie). The preview
+    -- pane then laid itself out beside a picker that was not there — on
+    -- top of the one that was. So: the point is clamped to the screen's
+    -- frame using the picker's own width and rows, the CLAMPED point is
+    -- what is shown AND recorded (the record is a promise to window_move
+    -- and the pane), and an automatic placement folds the difference back
+    -- into _G.popupOffset so the offset stops lying too. A caller's own
+    -- point (atPoint) is clamped but never rewrites the offset. No `math`
+    -- here on purpose: test_integration executes this block in a bare env.
+    if pt and screen then
+        local f
+        pcall(function() f = screen:frame() end)
+        if type(f) == "table" and f.w then
+            local pct, rows = 40, 10
+            pcall(function()
+                local w = chooser:width()
+                if type(w) == "number" and w > 0 and w <= 100 then pct = w end
+            end)
+            pcall(function()
+                local r = chooser:rows()
+                if type(r) == "number" and r > 0 then rows = r end
+            end)
+            local w, h = f.w * pct / 100, 56 + rows * 44
+            local x, y = pt.x, pt.y
+            if x + w > f.x + f.w then x = f.x + f.w - w end
+            if x < f.x then x = f.x end
+            if y + h > f.y + f.h then y = f.y + f.h - h end
+            if y < f.y then y = f.y end
+            if x ~= pt.x or y ~= pt.y then
+                if not atPoint and type(_G.popupOffset) == "table" then
+                    _G.popupOffset.x = _G.popupOffset.x + (x - pt.x)
+                    _G.popupOffset.y = _G.popupOffset.y + (y - pt.y)
+                end
+                _G.popupClamped = (_G.popupClamped or 0) + 1
+                pcall(function()
+                    _G.diag.say("popup", "placement was off the screen ("
+                        .. pt.x .. "," .. pt.y .. ") — clamped to " .. x .. "," .. y
+                        .. (atPoint and "" or "; the nudge offset is now "
+                            .. _G.popupOffset.x .. "," .. _G.popupOffset.y))
+                end)
+                pt = { x = x, y = y }
+            end
+        end
+    end
+    if pt then
+        _G.lastPopupPlacement = { screen = screen, point = pt,
+                                  chooser = chooser }
+        chooser:show(pt)
+    else
+        _G.lastPopupPlacement = nil
+        chooser:show()
+    end
+end
+
+-- Repositions any currently-visible popup at its (possibly new) spot.
+-- Returns true if it found something to move, so callers (like nudge)
+-- can tell whether their change had anything visible to apply to.
+local function repositionVisiblePopups()
+    local movedAny = false
+    for _, c in pairs(_G.choosers) do
+        if c.isVisible and c:isVisible() then
+            c:hide()
+            showPopup(c)
+            movedAny = true
+        end
+    end
+    -- The Asana dashboard's color legend strip (section 6) and the
+    -- Task Creator's draft mirror (section 4) ride along with their
+    -- pickers when nudged
+    if movedAny and _G.asanaLegendSync then pcall(_G.asanaLegendSync) end
+    if movedAny and _G.taskMirrorSync then pcall(_G.taskMirrorSync) end
+    return movedAny
+end
+
+-- Nudge: shift the popup position by popupNudgeStep pixels. If a popup
+-- is currently open it snaps to the new spot immediately; if nothing is
+-- open, the offset is saved silently for the next popup you open — an
+-- alert confirms the running offset so it's not invisible when nothing
+-- is on screen to show it moving.
+local function nudgePopup(dx, dy)
+    _G.popupOffset.x = _G.popupOffset.x + dx
+    _G.popupOffset.y = _G.popupOffset.y + dy
+    local moved = repositionVisiblePopups()
+    if not moved then
+        hs.alert.show(string.format("↕ Popup offset: %d, %d — open a popup to see it",
+            _G.popupOffset.x, _G.popupOffset.y))
+    end
+end
+
+-- bindNudge wires the SAME function as both pressedfn and repeatfn, so
+-- a quick tap nudges once, and holding the key auto-repeats the nudge
+-- at the OS's key-repeat rate (System Settings → Keyboard → Key Repeat)
+-- for as long as it's held — no need to tap repeatedly.
+local function bindNudge(key, dx, dy)
+    local function fn() nudgePopup(dx, dy) end
+    hs.hotkey.bind(popupScreenKeys.mods, key, fn, nil, fn)
+end
+
+bindNudge(popupScreenKeys.nudgeUp,    0, -popupNudgeStep)
+bindNudge(popupScreenKeys.nudgeDown,  0,  popupNudgeStep)
+bindNudge(popupScreenKeys.nudgeLeft, -popupNudgeStep, 0)
+bindNudge(popupScreenKeys.nudgeRight, popupNudgeStep, 0)
+
+-- Reset: clears the nudge offset — back to pure automatic placement
+hs.hotkey.bind(popupScreenKeys.mods, popupScreenKeys.reset, function()
+    _G.popupOffset = { x = 0, y = 0 }
+    hs.alert.show("🖥 Popup offset reset — following frontmost app")
+    repositionVisiblePopups()
+end)
+
+-- =====================================================================
+-- 1.6 SHORTCUT CHEAT SHEET — ⇪/ to toggle · ⇪= to add entries
+-- =====================================================================
+-- The 721 lines that were here now live in core/cheatsheet.lua, and run
+-- at exactly this point, so the boot order is unchanged.
+--
+-- Not a modules/ file: every module registers its cheat sheet group while
+-- the §1.12 loader runs, so _G.__cheatSheet must already exist when the
+-- loader starts. A loader-managed module could not promise that.
+--
+-- If it fails, ⇪/ and the custom-shortcut editor are off for the session
+-- and everything else still boots. Modules call the registration helper
+-- defensively, so a missing cheat sheet costs you the panel, not the keys.
+-- =====================================================================
+-- 🚨 SHOWING A CANVAS CAN THROW, AND IT IS NOT OUR BUG — 6.56.0
+-- =====================================================================
+-- Ordering a window on screen notifies every AppKit observer, including
+-- another app's popup mid-transition, whose assertion throws into OUR
+-- canvas:show(). So: catch it, retry once next run-loop turn, and if it
+-- still refuses, say so and let the caller clean up. Story: NEW IN 6.56.0.
+_G.canvasShowTimers = _G.canvasShowTimers or {}
+function _G.showCanvasSafely(canvas, label)
+    if not canvas then return false end
+    local ok = pcall(function() canvas:show() end)
+    if ok then return true end
+    -- One retry, a run loop turn later.
+    local t = hs.timer.doAfter(0.05, function()
+        local ok2 = pcall(function() canvas:show() end)
+        if ok2 then return end
+        print("⚠️ " .. tostring(label or "canvas") .. ": macOS refused to show "
+              .. "it twice — usually another app's popup (Safari's URL "
+              .. "completion, Spotlight) was mid-transition. Press the key "
+              .. "again.")
+        if _G.notices then
+            _G.notices.record("runtime", tostring(label or "canvas"),
+                              "AppKit refused to order the window on screen")
+            _G.notices.tell("A panel would not open",
+                            tostring(label or "canvas") .. " — press the key again",
+                            { key = "canvas:" .. tostring(label), every = 300 })
+        end
+    end)
+    -- HELD: an unreferenced timer is collected and never fires.
+    _G.canvasShowTimers[#_G.canvasShowTimers + 1] = t
+    while #_G.canvasShowTimers > 8 do table.remove(_G.canvasShowTimers, 1) end
+    return false
+end
+
+-- 6.88.0 — hs.alert draws with hs.canvas underneath, so ITS show hits
+-- the same throw. Wrapped ONCE, here: every alert everywhere survives.
+-- 🚨 6.100.1 — THE PHANTOM PILL: the throw lands MID-draw and leaves an
+-- empty black pill that never fades, so the catch cleans up and retries
+-- one run-loop turn later. ⚖️ hs.alert.closeAll also closes a healthy
+-- alert sharing the screen at that instant — alerts live two seconds,
+-- phantoms live forever.
+_G.rawAlertShow = _G.rawAlertShow or (hs.alert and hs.alert.show)
+
+-- The sweep, also yours to run by hand: _G.phantom() in the Console
+-- clears a stuck pill any time one survives the automatic path.
+-- closeAll(0) reaches a wreck hs.alert managed to register before the
+-- throw; the double collectgarbage reaches one it did NOT — a canvas
+-- nobody references is torn down by its __gc, which is usually the
+-- gotcha that makes panels vanish and here is the cleanup crew. Still
+-- there after both? Reload Config resets the Lua state, which clears
+-- it for certain.
+function _G.phantom(quiet)
+    pcall(function() hs.alert.closeAll(0) end)
+    collectgarbage("collect"); collectgarbage("collect")
+    if not quiet then
+        hs.alert.show("🧹 swept — tracked alerts closed, stranded canvases"
+                      .. " collected. Still on screen? Menu bar hammer →"
+                      .. " Reload Config.")
+    end
+end
+
+if _G.rawAlertShow then hs.alert.show = function(...)
+    local okA, r = pcall(_G.rawAlertShow, ...)
+    if okA then return r end
+    print("⚠️ an alert could not draw — another app's popup was"
+          .. " mid-transition. Sweeping the half-drawn frame and retrying…")
+    local args = table.pack(...)
+    -- pcall'd: in a world where even hs.timer is broken, this wrapper
+    -- still must never throw into whoever asked for an alert.
+    pcall(function()
+        local t = hs.timer.doAfter(0.05, function()
+            _G.phantom(true)
+            local ok2 = pcall(_G.rawAlertShow, table.unpack(args, 1, args.n))
+            if not ok2 then
+                print("⚠️ …the retry failed too. If an empty pill is stuck"
+                      .. " on screen: _G.phantom() — and Reload Config if"
+                      .. " it survives that.")
+            end
+        end)
+        -- HELD, same shelf and same reason as the canvas retries above.
+        _G.canvasShowTimers[#_G.canvasShowTimers + 1] = t
+        while #_G.canvasShowTimers > 8 do table.remove(_G.canvasShowTimers, 1) end
+    end)
+end end -- alert wrap (6.88.0, sweep-and-retry 6.100.1)
+
+-- =====================================================================
+-- 🖐 DRAGGABLE CANVAS PANELS (6.67.0)
+-- =====================================================================
+-- An hs.canvas has no title bar, so dragging is built once for every
+-- panel: the press is caught on the canvas and the DRAG is followed by a
+-- global eventtap (a canvas only reports movement while the pointer is
+-- inside it, and a fast drag leaves it).
+-- ⚠️ AN EVENTTAP IS THE MOST DANGEROUS OBJECT IN THIS CONFIG, so:
+--   · it starts on mouseDown and stops on mouseUp;
+--   · a WATCHDOG stops it after dragMaxSecs no matter what, because a
+--     mouseUp delivered to another process is a mouseUp we never see;
+--   · it returns false — it observes the drag, it does not swallow it;
+--   · only ONE drag can be live at a time.
+-- ⚖️ THE COST: a panel that can be grabbed CAPTURES CLICKS; the cheat
+-- sheet no longer lets clicks fall through. Asked for, and accepted.
+_G.dragMaxSecs = 20
+_G.dragTap, _G.dragGuard, _G.dragging = nil, nil, nil
+
+local function dragStop(why)
+    if _G.dragTap   then pcall(function() _G.dragTap:stop()   end) end
+    if _G.dragGuard then pcall(function() _G.dragGuard:stop() end) end
+    _G.dragTap, _G.dragGuard, _G.dragging = nil, nil, nil
+    if why and _G.diag then _G.diag.say("drag", "ended (" .. why .. ")") end
+end
+_G.dragStop = dragStop
+
+-- onDrop(frame) is called when the drag finishes, so a caller can
+-- REMEMBER where you put the panel. Without it a dragged panel snaps
+-- back to its computed position the next time it is drawn — and the cheat
+-- sheet redraws on every keystroke you type into it.
+function _G.makeCanvasDraggable(canvas, label, onDrop)
+    if not canvas then return false end
+    local okEv = pcall(function() canvas:canvasMouseEvents(true, true, false, false) end)
+    if not okEv then return false end
+    local okCb = pcall(function()
+        canvas:mouseCallback(function(cv, ev)
+            if ev ~= "mouseDown" then
+                if ev == "mouseUp" then dragStop("mouseUp on the panel") end
+                return
+            end
+            dragStop(nil)                       -- never two at once
+            local okM, m0 = pcall(hs.mouse.absolutePosition)
+            local okF, f0 = pcall(function() return cv:frame() end)
+            if not (okM and m0 and okF and f0) then return end
+            _G.dragging = { canvas = cv, m0 = m0, f0 = f0, label = label }
+
+            -- 🚨 WATCHDOG FIRST, THEN THE TAP — the same ordering the
+            -- Mouse Grid and the pomodoro use. Armed before the thing it
+            -- protects exists, so a throw in between cannot leave a
+            -- global mouse tap running with nothing scheduled to stop it.
+            _G.dragGuard = hs.timer.doAfter(_G.dragMaxSecs, function()
+                dragStop("watchdog — no mouseUp arrived")
+            end)
+
+            local okTap, tap = pcall(hs.eventtap.new, {
+                hs.eventtap.event.types.leftMouseDragged,
+                hs.eventtap.event.types.leftMouseUp,
+            }, function(e)
+                local d = _G.dragging
+                if not d then return false end
+                local t = e:getType()
+                if t == hs.eventtap.event.types.leftMouseUp then
+                    local f
+                    pcall(function() f = d.canvas:frame() end)
+                    dragStop("mouseUp")
+                    if f and onDrop then pcall(onDrop, f) end
+                    return false
+                end
+                local okNow, m = pcall(hs.mouse.absolutePosition)
+                if not (okNow and m) then return false end
+                pcall(function()
+                    d.canvas:topLeft({ x = d.f0.x + (m.x - d.m0.x),
+                                       y = d.f0.y + (m.y - d.m0.y) })
+                end)
+                return false        -- observe, never swallow
+            end)
+            if not (okTap and tap) then
+                dragStop("could not create the drag tap")
+                return
+            end
+            _G.dragTap = tap
+            pcall(function() tap:start() end)
+        end)
+    end)
+    return okCb
+end
+
+-- Keep a panel on a real screen. A dragged position is remembered, and a
+-- remembered position outlives the display it was set on: unplug the
+-- monitor it was dragged to and the panel would otherwise be restored to
+-- coordinates that no longer exist, i.e. invisibly off-screen with no
+-- way to get it back.
+function _G.clampToScreen(pt, w, h)
+    if not pt then return nil end
+    local best
+    pcall(function()
+        for _, scr in ipairs(hs.screen.allScreens() or {}) do
+            local f = scr:fullFrame()
+            if pt.x + (w or 0) > f.x and pt.x < f.x + f.w
+               and pt.y + (h or 0) > f.y and pt.y < f.y + f.h then
+                best = f; break
+            end
+        end
+        if not best and hs.screen.mainScreen() then
+            best = hs.screen.mainScreen():fullFrame()
+        end
+    end)
+    if not best then return pt end
+    return {
+        x = math.max(best.x, math.min(pt.x, best.x + best.w - (w or 0))),
+        y = math.max(best.y, math.min(pt.y, best.y + best.h - (h or 0))),
+    }
+end
+
+-- =====================================================================
+-- 🤝 SHARED ARBITRATION (§0.5) — core/coexist.lua
+-- =====================================================================
+-- Panel stacking, who gets Esc, the typing-injection guard and clipboard
+-- borrowing (lifted out in 6.69.0). LOADED HERE, BEFORE EVERYTHING THAT
+-- USES IT; every caller checks the global exists first, so a broken copy
+-- costs the arbitration and not the Mac.
+local coOK, coErr = pcall(function()
+    local path = hs.configdir .. '/core/coexist.lua'
+    local chunk, loadErr = loadfile(path)
+    if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
+    chunk()({})
+end)
+if not coOK then
+    print('⚠️ core/coexist.lua failed to load — panels fall back to one shared '
+          .. 'level, Esc goes to whichever binding was enabled last, and the '
+          .. 'two typing watchers stop standing down for each other. '
+          .. tostring(coErr))
+    if _G.notices then
+        _G.notices.record('boot', 'core/coexist.lua', tostring(coErr))
+    end
+end
+
+
+local csOK, csErr = pcall(function()
+    local path = hs.configdir .. '/core/cheatsheet.lua'
+    local chunk, loadErr = loadfile(path)
+    if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
+    -- 6.65.0 — THE RETURNED TABLE IS NOW PUBLISHED. It used to be dropped
+    -- on the floor here (the file returns it so tests can drive the real
+    -- namespace). Unified Search's 🔧 tools source (⇪⇧/, the Tool Picker's
+    -- old key) searches the SAME assembled groups this sheet draws, which
+    -- is the only way the two can never disagree about what exists — and it
+    -- cannot reach them without this line.
+    -- Assigned, not merged: nothing else owns this name.
+    _G.cheatSheet = chunk()({
+        logsDir           = logsDir,
+        panelAlpha        = panelAlpha,
+        popupScreenKeys   = popupScreenKeys,
+        resolveBaseScreen = resolveBaseScreen,
+        showPopup         = showPopup,
+        warnWriteFailed   = warnWriteFailed,
+        adoptLegacyFile   = adoptLegacyFile,
+    })
+end)
+if not csOK then
+    print('⚠️ core/cheatsheet.lua failed to load — ⇪/ and the shortcut editor '
+          .. 'are OFF for this session. Every shortcut itself still works. '
+          .. tostring(csErr))
+end
+
+-- =====================================================================
+-- 1.11 DIAGNOSTICS — ⇪⇧D writes the report I need to debug anything
+-- =====================================================================
+-- The 287 lines that were here now live in core/diagnostics.lua. They
+-- run at exactly this point, so the boot order is unchanged.
+--
+-- Not a modules/ file: the module loader in §1.12 runs last and logs
+-- through _G.diag itself, so diagnostics cannot be loader-managed
+-- without the loader depending on something it has not loaded yet.
+--
+-- FAILURE IS SURVIVABLE ON PURPOSE. Every section of this config calls
+-- _G.diag.say/warn/err. If this file is missing or raises, the NO-OP
+-- stand-in installed earlier stays in place and the config still boots;
+-- you lose ⇪⇧D and the trail, not the Mac.
+local diagOK, diagErr = pcall(function()
+    local path = hs.configdir .. '/core/diagnostics.lua'
+    local chunk, loadErr = loadfile(path)
+    if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
+    chunk()({ logsDir = logsDir, hostTag = hostTag, asanaEnabled = asanaEnabled,
+              backupDir = backupDir })
+end)
+if not diagOK then
+    print('⚠️ core/diagnostics.lua failed to load — ⇪⇧D and the diagnostic '
+          .. 'trail are OFF for this session. Everything else still works. '
+          .. tostring(diagErr))
+end
+
+
+-- =====================================================================
+-- 2. UTILITY
+-- =====================================================================
+local function formatDuration(seconds)
+    if seconds < 60 then return seconds .. "s" end
+    local mins = math.floor(seconds / 60)
+    local secs = seconds % 60
+    if mins < 60 then return mins .. "m " .. secs .. "s" end
+    local hrs = math.floor(mins / 60)
+    return hrs .. "h " .. (mins % 60) .. "m"
+end
+
+-- 📋 CLIPBOARD HISTORY MOVED OUT in 6.55.0 — loading, saving, the
+-- corrupt-file backup and the verify-before-write guard all now live in
+-- modules/clipboard_history.lua. They used to run here, before the
+-- module loader, where an error took the whole config down instead of
+-- costing one feature.
+
+-- 🔍 THE OCR ENGINE lives in modules/ocr_engine.lua (moved out 6.105.0:
+-- the Apple Shortcut check, the file-tagging route, the pickers). What
+-- stayed is the clipboard watcher in §3 — one timer, one changeCount —
+-- which reaches ocr.clipboardFiles / ocr.tagFiles / ocr.image through
+-- the service registry.
+
+-- =====================================================================
+-- 3. BACKGROUND MONITORING
+-- =====================================================================
+-- ✏️ Clipboard history size — how many copied texts to keep. Each new
+-- copy is checked against the whole list: an item you've copied before
+-- moves to the front (fresh timestamp) instead of occupying two slots.
+-- Items over ~1 MB are left out of history (they'd bloat the JSON file
+-- that gets rewritten on every copy) — a console line notes the skip.
+
+local lastChangeCount = hs.pasteboard.changeCount()
+-- 🔋 6.144.0 — the poll body is a NAMED function now, because on battery
+-- the eco registry rebuilds this timer at a slower pace and needs the
+-- same body to hand to the new one. Behaviour is unchanged at 0.5s.
+-- 🛑 6.170.2 — THE THRASH BREAKER. Twice a Mac locked up while the
+-- pasteboard changed on EVERY tick (something rewrote it 0.5 s after
+-- 0.5 s); each change made this poll decode the pasteboard on the main
+-- thread. Now a change on `_G.clipboardThrashTicks` ticks IN A ROW rests
+-- the poll for `_G.clipboardThrashRest` seconds (the counter still
+-- advances, so nothing is filed twice), prints ONE line, and counts it.
+-- `_G.clipboardPollReport()` shows the counters.
+_G.clipboardThrashTicks = 6      -- 3 s of nonstop pasteboard changes
+_G.clipboardThrashRest  = 60     -- s the poll sleeps after that
+local thrashRun, thrashUntil = 0, 0
+_G.clipboardPollStats = { changes = 0, rests = 0, lastRestAt = 0, longestRun = 0 }
+function _G.clipboardPollReport()
+    local st = _G.clipboardPollStats
+    local left = thrashUntil - hs.timer.secondsSinceEpoch()
+    print(string.format("📋 clipboard poll — changes %d · thrash rests %d · longest run %d ticks · breaker %d ticks / %ds%s (6.170.2)",
+        st.changes, st.rests, st.longestRun, _G.clipboardThrashTicks, _G.clipboardThrashRest,
+        left > 0 and string.format(" · RESTING for another %ds", math.ceil(left)) or ""))
+    return st
+end
+local function clipboardPoll()
+    local currentChangeCount = hs.pasteboard.changeCount()
+    if currentChangeCount ~= lastChangeCount then
+        lastChangeCount = currentChangeCount
+        local st = _G.clipboardPollStats
+        st.changes = st.changes + 1
+        thrashRun = thrashRun + 1
+        if thrashRun > st.longestRun then st.longestRun = thrashRun end
+        local nowT = hs.timer.secondsSinceEpoch()
+        if nowT < thrashUntil then return end
+        if thrashRun >= _G.clipboardThrashTicks then
+            thrashUntil = nowT + _G.clipboardThrashRest
+            st.rests = st.rests + 1
+            st.lastRestAt = nowT
+            print(string.format("⚠️ clipboard: the pasteboard changed on %d ticks in a row — "
+                .. "some app or Shortcut is rewriting it nonstop; the clipboard poll rests %ds "
+                .. "(`_G.clipboardPollReport()`)", thrashRun, _G.clipboardThrashRest))
+            return
+        end
+
+        -- 📋 6.69.0 — SOMEONE BORROWED THE CLIPBOARD. The text expander
+        -- pastes multi-line snippets and puts your clipboard straight
+        -- back; both changes land inside one 0.5s poll, so what we would
+        -- see here is your ORIGINAL entry arriving as if freshly copied.
+        -- Filing it again reorders the history you were about to use.
+        -- The counter is still advanced above, so the NEXT real copy is
+        -- seen normally.
+        if hs.timer.secondsSinceEpoch() < (_G.pasteboardSuppressUntil or 0) then
+            return
+        end
+
+        -- Copied image FILES take priority (6.11.0): OCR + tag each
+        -- one, and skip the image/text handling for this clipboard
+        -- change (a Finder file-copy would otherwise just deposit the
+        -- file's pathname into text history).
+        -- 6.105.0 — through the registry, because the engine is a module
+        -- now. has() before call() on the FIRST of the three: if the
+        -- module did not load there is nothing to ask about copied image
+        -- files, and the text path below must still run. A clipboard that
+        -- stops remembering what you copied because an OCR module failed
+        -- would be a bad trade.
+        local copiedImageFiles = {}
+        if _G.service.has("ocr.clipboardFiles") then
+            copiedImageFiles = _G.service.call("ocr.clipboardFiles") or {}
+        end
+        if #copiedImageFiles > 0 then
+            print("🏷 OCR tag: " .. #copiedImageFiles .. " copied image file(s) detected — running OCR on each")
+            _G.service.call("ocr.tagFiles", copiedImageFiles)
+        else
+        -- 6.170.2 — ask what TYPES are on the pasteboard before decoding
+        -- pixels: readImage() is a main-thread decode of whatever sits
+        -- there, and it only ever mattered when an image was present.
+        -- 6.170.3 — and asks the OCR engine whether it WANTS pixels
+        -- (`ocr.imageWanted`: off, busy or resting = no) before decoding:
+        -- 6.170.2 still decoded a 4K screenshot only to throw it away.
+        local types = {}
+        pcall(function() types = hs.pasteboard.typesAvailable() or {} end)
+        local wanted = types.image and _G.service.has("ocr.image")
+            and (not _G.service.has("ocr.imageWanted") or _G.service.call("ocr.imageWanted"))
+        local img = wanted and hs.pasteboard.readImage() or nil
+        if img then
+            if _G.service.has("ocr.image") then
+                _G.service.call("ocr.image", img)
+            end
+        else
+            local text = hs.pasteboard.readString()
+            if text and #text > 0 then
+                -- 6.55.0 — the history itself now lives in
+                -- modules/clipboard_history.lua. THIS WATCHER STAYED
+                -- BEHIND on purpose: it is shared with image OCR, one
+                -- timer reading one changeCount and choosing between
+                -- copied image files, a raw image, and text. Two timers
+                -- polling the same counter would race over which handled
+                -- a change first. A missing provider prints once and
+                -- OCR carries on.
+                _G.service.call("clipboard.add", text)
+            end
+        end
+        end  -- closes the copied-image-files branch (6.11.0)
+    else
+        thrashRun = 0            -- a quiet tick ends the run (6.170.2)
+    end
+end
+_G.clipboardTimer = hs.timer.doEvery(0.5, clipboardPoll)
+
+-- 🔋 6.144.0 — ON BATTERY THIS POLL IS THE BIGGEST CONSTANT COST in the
+-- whole config: 7,200 wake-ups an hour, around the clock, for a counter
+-- that almost never changed. At 2s it is a quarter of that, and the
+-- worst case is a copy taking two seconds to appear in ⇪V's history.
+-- The rebuild PRESERVES the running state on purpose: if something has
+-- deliberately stopped this timer, a cadence change must not be the
+-- thing that quietly switches it back on.
+_G.eco.register("clipboard poll", {
+    normal = 0.5, saver = 2,
+    apply = function(secs)
+        local was, running = _G.clipboardTimer, true
+        pcall(function() running = was:running() end)
+        if was then pcall(function() was:stop() end) end
+        _G.clipboardTimer = hs.timer.doEvery(secs, clipboardPoll)
+        if not running then pcall(function() _G.clipboardTimer:stop() end) end
+    end,
+})
+
+-- =====================================================================
+-- 3.12 HYPER KEY — Caps Lock IS ⌘⇧⌃⌥ (replaces Karabiner)
+-- =====================================================================
+-- Caps Lock stops toggling capitals and becomes the four-modifier chord:
+-- holding it and pressing K sends exactly ⌘⇧⌃⌥K to the front app, so
+-- hyper works with ANY app that can be taught a ⌘⇧⌃⌥ shortcut (6.18.0).
+-- HOW, WITHOUT KARABINER: /usr/bin/hidutil remaps Caps Lock to F18 at
+-- the HID layer — a key in the spec that is on no Mac keyboard — and
+-- Hammerspoon treats F18 as the hyper trigger. The remap is wiped by a
+-- reboot and re-applied at every launch (no LaunchAgent, no admin).
+-- ⚠️ HONEST LIMIT: on some Sonoma+ configurations hidutil needs elevated
+-- rights; then the 🎹 boot line says so and everything else still works.
+-- CAPS LOCK IS GONE while this is on. To get it back: hyperEnabled =
+-- false and reload, or in Terminal:
+--   hidutil property --set '{"UserKeyMapping":[]}'
+--
+-- ✏️ EDIT THESE — your hyper shortcuts:
+do
+
+local hyperEnabled = true   -- false = leave Caps Lock completely alone
+
+-- OPTIONAL EXTRAS — empty by default (6.19.0).
+--
+-- hyper + key  →  run this function. Nothing ships here: the config's
+-- own 33 shortcuts are mapped in §0.4, and every key they don't claim
+-- forwards the raw ⌘⇧⌃⌥ chord. Add an entry only if you want a brand
+-- new hyper shortcut of your own, e.g.
+--     local hyperActions = {
+--         g = function() hs.application.launchOrFocus("Google Chrome") end,
+--     }
+-- Anything listed here TAKES that key away from chord forwarding, and
+-- the boot report's Hyper line will show the count shift.
+local hyperActions = {}
+
+-- ---- implementation ---------------------------------------------------
+-- Caps Lock = HID usage 0x700000039, F18 = 0x70000006D. Both are
+-- standard Apple HID keyboard usage codes, not invented values.
+local HYPER_REMAP_ON  =
+    '{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x700000039,'
+    .. '"HIDKeyboardModifierMappingDst":0x70000006D}]}'
+
+_G.hyperModal = hs.hotkey.modal.new({}, nil)
+
+-- F18 held = hyper active. Pressed enters the modal, released exits it,
+-- so bindings only fire while Caps Lock is actually held down.
+_G.hyperActive = false
+
+-- 🚨 6.76.0 — TWO INDEPENDENT WAYS IN, BECAUSE ON LL'S WORK MAC THE ONLY
+-- ONE IT HAD SILENTLY STOPPED WORKING. hs.hotkey is Carbon's
+-- RegisterEventHotKey; hs.eventtap is a CGEventTap that sees the key
+-- BEFORE Carbon does. A managed Mac can lose the first and keep the
+-- second. The tap, the Carbon-free dispatcher and the self-test that
+-- decides between them all live in core/hyper_key.lua — including the
+-- full account of what that Mac did and what was ruled out.
+--
+-- 🔦 _G.hyperActive IS PUBLISHED (6.71.0) because ⇪ IS INVISIBLE FROM THE
+-- OUTSIDE. Caps Lock is remapped to F18 at the HID level and turned into
+-- a modal here, so anything watching the keyboard sees either a bare F18
+-- or — for an unclaimed key — a synthetic ⌘⇧⌃⌥ chord. Neither of those
+-- is what you pressed. The Key Caster would have drawn "⌘⇧⌃⌥X" for a key
+-- you experienced as "⇪X", which is technically accurate and useless. One
+-- boolean, set in the handlers that already know, beats every consumer
+-- guessing.
+--
+-- The counters exist so the self-test can tell the two paths apart AFTER
+-- the fact. Without them the only thing that could honestly be said about
+-- the hyper key is how many shortcuts REGISTERED — which is precisely the
+-- number that read "80" on a Mac where none of them worked.
+_G.hyperCarbonPresses = 0    -- F18 arrived via hs.hotkey (Carbon)
+_G.hyperTapPresses    = 0    -- F18 arrived via the event tap
+_G.hyperDispatchEngaged = false   -- true once the dispatcher takes over
+
+-- 🚨 6.162.1 — A LOST F18 keyUp MUST NOT LATCH ⇪ FOR THE SESSION. LL:
+-- "everything I would type or click went haywire. I lost control of my
+-- MacBook." Until now the ONLY ways out of the modal were the Carbon
+-- released callback and the tap's F18 keyUp — and a main-thread stall is
+-- exactly when both can miss the release (macOS pulls the tap; the
+-- keyUp that arrived meanwhile is gone). With ⇪ latched, every letter
+-- runs a shortcut or is re-sent as ⌘⇧⌃⌥+key, pickers grab the clicks,
+-- and nothing types — until Hammerspoon is killed. So: the hold is TIMED.
+-- Every F18 keyDown (autorepeats included) and every key the tap sees
+-- while ⇪ is down stamps _G.hyperHeldAt; a held timer looks after
+-- _G.hyperLatchSecs of SILENCE and lets go, with a Console line. A real
+-- hold keeps stamping (F18 autorepeats), so it never expires under a
+-- finger; only a phantom one does. The next real ⇪ press works as ever.
+_G.hyperLatchSecs     = 8
+_G.hyperHeldAt        = 0
+-- 6.214.1 — THE STORM GUARD'S FACTS (modules/hyper_storm.lua reads them):
+-- when this hold BEGAN (hyperHeldAt moves with every key, so it cannot
+-- say), and when Caps Lock last AUTOREPEATED — a real finger repeats,
+-- a phantom hold never does. The watchdog above cannot end a latch
+-- while keys keep arriving, and a person fighting a dead keyboard
+-- keeps pressing keys; the storm guard reads these two instead.
+_G.hyperEnteredAt     = nil
+_G.hyperRepeatAt      = nil
+_G.hyperRepeats       = 0
+_G.hyperLatchReleases = 0
+_G.hyperLatchTimer    = nil     -- HELD: an unreferenced timer is collected
+
+local hyperExit  -- forward: the watchdog calls it
+
+local function hyperWatchLatch(delay)
+    if _G.hyperLatchTimer then return end
+    _G.hyperLatchTimer = hs.timer.doAfter(delay, function()
+        _G.hyperLatchTimer = nil
+        if not _G.hyperActive then return end
+        local quiet = hs.timer.secondsSinceEpoch() - (_G.hyperHeldAt or 0)
+        if quiet < _G.hyperLatchSecs - 0.05 then
+            -- keys were still arriving under a real hold: look again
+            hyperWatchLatch(_G.hyperLatchSecs - quiet)
+            return
+        end
+        _G.hyperLatchReleases = _G.hyperLatchReleases + 1
+        print(string.format("⌨️ ⇪ released by the watchdog — held %.0fs with no "
+              .. "key event and no F18 keyUp (release #%d)%s. Press Caps Lock "
+              .. "again as normal.", quiet, _G.hyperLatchReleases,
+              _G.hyperReleaseExpected
+                  and (" — " .. _G.hyperReleaseExpected .. " had taken the keyboard") or ""))
+        _G.hyperReleaseExpected = nil
+        hyperExit()
+    end)
+end
+
+-- Any key the tap sees while ⇪ is down proves the hold is real.
+_G.hyperTouch = function()
+    if _G.hyperActive then _G.hyperHeldAt = hs.timer.secondsSinceEpoch() end
+end
+
+-- 6.165.1 — A TEXT PANEL JUST TOOK THE KEYBOARD. LL's first ⇪1 session
+-- ended in "⇪ released by the watchdog — held 8s": the F18 keyUp was
+-- lost as the pad opened and for eight seconds every letter typed into
+-- it went to a hyper shortcut instead. A shortcut that opens a text
+-- field is one nobody holds ⇪ through, so the panel says so and the
+-- deadline drops to `secs` of silence; a real key under ⇪ (hyperTouch)
+-- still pushes it out. Only the DEADLINE changes — never the way in.
+_G.hyperExpectRelease = function(secs, who)
+    if not _G.hyperActive then return false end
+    secs = tonumber(secs) or 1.5
+    _G.hyperHeldAt = hs.timer.secondsSinceEpoch() - math.max(0, _G.hyperLatchSecs - secs)
+    _G.hyperReleaseExpected = who or "a text panel"
+    if _G.hyperLatchTimer then _G.hyperLatchTimer:stop(); _G.hyperLatchTimer = nil end
+    hyperWatchLatch(secs)
+    return true
+end
+-- A panel's page saw the F18 keyUp itself (WebKit gets the keyup even
+-- when the Carbon release never fires): that is the release, take it.
+_G.hyperReleaseSeen = function(who)
+    if not _G.hyperActive then return false end
+    print("⌨️ ⇪ keyUp seen by " .. tostring(who or "a panel") .. " — released there "
+          .. "(the F18 release never reached the hotkey).")
+    _G.hyperLatchReleases = _G.hyperLatchReleases + 1
+    hyperExit()
+    return true
+end
+
+local function hyperEnter(via)
+    if via == "carbon" then
+        _G.hyperCarbonPresses = _G.hyperCarbonPresses + 1
+    else
+        _G.hyperTapPresses = _G.hyperTapPresses + 1
+    end
+    if _G.hyperActive then
+        -- the tap path sees F18 autorepeats as keyDowns: a repeat, not a new hold
+        _G.hyperRepeatAt = hs.timer.secondsSinceEpoch()
+        _G.hyperRepeats  = (_G.hyperRepeats or 0) + 1
+    else
+        _G.hyperEnteredAt = hs.timer.secondsSinceEpoch()
+        _G.hyperRepeatAt  = nil
+    end
+    _G.hyperActive = true
+    _G.hyperHeldAt = hs.timer.secondsSinceEpoch()
+    hyperWatchLatch(_G.hyperLatchSecs)
+    -- When the tap is doing the dispatching, the modal is deliberately
+    -- NOT entered: its bindings have been proven dead, and entering it
+    -- would only re-register hotkeys that cannot fire.
+    if not _G.hyperDispatchEngaged then _G.hyperModal:enter() end
+end
+
+hyperExit = function()
+    _G.hyperActive = false
+    _G.hyperEnteredAt = nil
+    _G.hyperReleaseExpected = nil
+    if _G.hyperLatchTimer then _G.hyperLatchTimer:stop(); _G.hyperLatchTimer = nil end
+    if not _G.hyperDispatchEngaged then _G.hyperModal:exit() end
+end
+
+-- 6.214.1 — the storm guard's way out: a latched hold it has judged a
+-- phantom is released here, counted with the watchdog's, and said.
+_G.hyperForceRelease = function(who)
+    if not _G.hyperActive then return false end
+    _G.hyperLatchReleases = _G.hyperLatchReleases + 1
+    print("⌨️ ⇪ released by " .. tostring(who or "a guard") .. " (release #"
+          .. _G.hyperLatchReleases .. ") — the F18 keyUp never arrived. Press Caps Lock again as normal.")
+    hyperExit()
+    return true
+end
+
+hs.hotkey.bind({}, "F18",
+    function() hyperEnter("carbon") end,
+    function() hyperExit() end,
+    -- 6.214.1 — a real finger on Caps Lock AUTOREPEATS; the storm guard
+    -- reads this stamp to tell a held key from a phantom hold.
+    function()
+        _G.hyperRepeatAt = hs.timer.secondsSinceEpoch()
+        _G.hyperRepeats  = (_G.hyperRepeats or 0) + 1
+        _G.hyperHeldAt   = _G.hyperRepeatAt
+    end)
+
+-- ---- path two: the event tap ------------------------------------------
+-- Built in core/hyper_key.lua, along with the Carbon-free dispatcher and
+-- the self-test that decides whether it is needed. Loaded at the very END
+-- of this file: the dispatcher needs the complete shortcut table, and that
+-- does not exist until _G.hyperFinalize() has run. These two travel as
+-- globals because the main chunk is at Lua's 200-local ceiling.
+_G.hyperEnter, _G.hyperExit = hyperEnter, hyperExit
+
+-- ---- binding helper + conflict sentry for the hyper namespace --------
+-- The §0.3 sentry only sees hs.hotkey.bind, so once shortcuts moved into
+-- the modal they'd have become invisible to it — and a silently-dead
+-- shortcut is exactly the failure this config exists to prevent. This is
+-- the same guard, for the hyper keyspace.
+_G.hyperBound = {}   -- normalized combo -> what claimed it
+_G.hyperDispatch = {}   -- normalized combo -> the functions themselves
+_G.hyperBoundCount, _G.hyperConflictCount = 0, 0
+
+local function hyperCombo(mods, key)
+    local m = {}
+    for _, x in ipairs(mods or {}) do table.insert(m, tostring(x):lower()) end
+    table.sort(m)
+    if #m == 0 then return tostring(key):lower() end
+    return table.concat(m, "+") .. "+" .. tostring(key):lower()
+end
+
+-- ⏸ 6.152.0 — THE PAUSE SWITCH, honoured HERE so no shortcut can forget
+-- it. power_tools binds ⇪⇧1 to flip _G.hsPaused; while it is up, every
+-- hyper shortcut EXCEPT the pause key itself does nothing — wrapped once
+-- at bind time, which covers migrations, modules and hyperActions alike.
+-- A pressed shortcut while paused says so (throttled to one alert per
+-- few seconds), because a silently dead keyboard reads as a broken one.
+local hsPausedSaidAt = 0
+-- `record` is true for the PRESSED handler of a real shortcut only.
+-- 6.179.0 review: this wrap is applied to pressed, released AND repeat,
+-- and to the forwarded chords — recording all of them meant that while
+-- paused, one held key wrote a trail row per autorepeat (~15 a second)
+-- and evicted every row that led up to the incident. The ⏸ alert above
+-- has been throttled since 6.152.0 for the same reason.
+local function hyperPauseWrap(combo, fn, record)
+    if not fn then return nil end
+    return function(...)
+        if _G.hsPaused and combo ~= _G.hsPauseCombo then
+            -- 6.179.0 — a press that did nothing because of the pause is
+            -- the single most confusing thing this config can do. It goes
+            -- in the trail, marked, so the report explains the dead
+            -- keyboard instead of showing a gap.
+            if record and _G.keyTrailRecord then
+                -- named by the module that OWNS the key, not by the pause:
+                -- "⇪1 · scratch pad · ⏸ paused" is the row that explains
+                -- itself. hyperBind filed that owner under the combo.
+                pcall(_G.keyTrailRecord, combo,
+                      (_G.hyperBound and _G.hyperBound[combo]) or "paused", 0, "paused")
+            end
+            local now = hs.timer.secondsSinceEpoch()
+            if now - hsPausedSaidAt > 3 then
+                hsPausedSaidAt = now
+                pcall(function()
+                    hs.alert.show("⏸ Hammerspoon is paused — "
+                        .. (_G.hsPauseHint or "⇪⇧1") .. " resumes", 2.5)
+                end)
+            end
+            return
+        end
+        return fn(...)
+    end
+end
+
+local function hyperBind(mods, key, pressedFn, releasedFn, repeatFn, source)
+    local combo = hyperCombo(mods, key)
+    if _G.hyperBound[combo] then
+        _G.hyperConflictCount = _G.hyperConflictCount + 1
+        print("⚠️ HYPER CONFLICT: ⇪" .. combo .. " is claimed twice ("
+            .. tostring(_G.hyperBound[combo]) .. " vs " .. tostring(source)
+            .. ") — the later one wins, the earlier is dead")
+    end
+    _G.hyperBound[combo] = source or "?"
+    _G.hyperBoundCount = _G.hyperBoundCount + 1
+    -- 6.163.0 — after the shortcut has run, the hint card (modules/
+    -- shortcut_hints.lua) names the group's other keys. Wrapped HERE, the
+    -- one place every hyper shortcut passes, so both dispatch paths get
+    -- it; INSIDE the pause wrap, so a paused press never hints; never for
+    -- the forwarded chords. Nil-guarded and pcall'd: the module is
+    -- optional and this block runs bare in test_hyper_key's sandbox.
+    -- 6.179.0 — and the KEY TRAIL is timed around the same call: how
+    -- long the shortcut took, and whether it threw. core/key_trail.lua
+    -- keeps the last two dozen in memory (combos only, never text).
+    -- Nil-guarded and pcall'd like the hint above, for the same reason.
+    if pressedFn and source ~= "chord" then
+        local ranFn = pressedFn
+        pressedFn = function(...)
+            local t0 = hs.timer.secondsSinceEpoch()
+            -- xpcall + debug.traceback, not a bare pcall: pcall unwinds
+            -- the stack before the re-raise, so the Console would have
+            -- shown a traceback that stopped at THIS wrapper and lost the
+            -- module frames between the key and the throw — the exact
+            -- forensic detail this release is about (6.179.0 review).
+            local ok, r
+            if type(debug) == "table" and type(debug.traceback) == "function" then
+                ok, r = xpcall(ranFn, debug.traceback, ...)
+            else
+                ok, r = pcall(ranFn, ...)
+            end
+            local ms = (hs.timer.secondsSinceEpoch() - t0) * 1000
+            if _G.keyTrailRecord then
+                pcall(_G.keyTrailRecord, combo, source, ms, (not ok) and "threw" or nil)
+            end
+            -- 6.214.1 — the storm guard counts DIFFERENT shortcuts fired
+            -- inside one hold; nil-guarded and pcall'd like the two above.
+            if _G.hyperStormNote then pcall(_G.hyperStormNote, combo, source) end
+            -- A shortcut that throws must still SAY so, exactly as it did
+            -- when it was unwrapped: the pcall here is for the timing, not
+            -- a place to swallow a fault. And it must not gain a hint card
+            -- it never had — before 6.179.0 the error left this function
+            -- BEFORE the hint line, so a failed shortcut showed none.
+            if not ok then error(r, 0) end
+            if _G.shortcutHint then pcall(_G.shortcutHint, combo, source) end
+            return r
+        end
+    end
+    pressedFn  = hyperPauseWrap(combo, pressedFn, source ~= "chord")
+    releasedFn = hyperPauseWrap(combo, releasedFn)
+    repeatFn   = hyperPauseWrap(combo, repeatFn)
+    _G.hyperModal:bind(mods, key, pressedFn, releasedFn, repeatFn)
+    -- 6.76.0 — the same three functions, kept a second time in a plain
+    -- table. This costs one table entry per shortcut and it is what makes
+    -- the Carbon-free fallback possible at all: every hyper shortcut in
+    -- the config already goes through this one function, so recording
+    -- them here cannot miss one the way a second registration list would.
+    _G.hyperDispatch[combo] = {
+        pressed = pressedFn, released = releasedFn, repeated = repeatFn,
+        source = source or "?",
+    }
+end
+
+-- Published for the Carbon-free dispatcher, which normalizes a live
+-- keystroke into the string hyperBind filed the shortcut under. One
+-- function, so the two can never disagree about what "⇪⇧D" is called.
+_G.hyperCombo = hyperCombo
+
+-- ---- the chord itself -------------------------------------------------
+-- Every remaining key forwards ⌘⇧⌃⌥+key. hs.hotkey.modal has no
+-- "catch-all" binding, so the keys are enumerated explicitly — this is
+-- the documented way to do it and it is exhaustive over anything you can
+-- realistically bind a shortcut to.
+--
+-- NOTE: the modal is deliberately NOT exited here. You keep holding Caps
+-- Lock, so you can fire several chords in one hold; releasing Caps Lock
+-- exits the modal via the F18 released-handler above.
+_G.hyperMods = { "cmd", "shift", "ctrl", "alt" }
+
+-- Delay between synthesised keydown and keyup, in microseconds.
+-- 0 = as fast as possible. If some app ever misses a hyper keystroke,
+-- raise this to 1000 or 10000 — that is the documented fix, and it is
+-- the only knob worth turning here.
+local HYPER_KEYSTROKE_DELAY = 0
+
+local hyperForwardKeys = {}
+for c in ("abcdefghijklmnopqrstuvwxyz"):gmatch(".") do
+    table.insert(hyperForwardKeys, c)
+end
+for d = 0, 9 do
+    table.insert(hyperForwardKeys, tostring(d))
+end
+-- ⚠️ FUNCTION KEYS ARE OFF BY DEFAULT — this is deliberate, see 6.18.1.
+-- Each forwarded key is registered as a BARE hotkey (no modifiers), and
+-- macOS reserves several bare function keys system-wide (F11 = Show
+-- Desktop is the usual one). Registering those fails with
+--   RegisterEventHotKey failed: -9878 ... already registered
+-- which the modal re-logs on EVERY Caps Lock press, because entering the
+-- modal re-enables every binding. The hyper key still works — the noise
+-- is just noise — but it never stops, so we don't register them.
+--
+-- Set this to true if you actually want hyper+F-keys and can live with
+-- the Console errors for whichever ones your Mac has reserved.
+local hyperForwardFKeys = false
+if hyperForwardFKeys then
+    for n = 1, 12 do
+        table.insert(hyperForwardKeys, "f" .. n)
+    end
+end
+for _, k in ipairs({
+    "left", "right", "up", "down",
+    "home", "end", "pageup", "pagedown",
+    "return", "space", "tab", "escape", "delete", "forwarddelete",
+    "-", "=", "[", "]", "\\", ";", "'", ",", ".", "/", "`",
+}) do
+    table.insert(hyperForwardKeys, k)
+end
+
+-- ---- registering a BRAND NEW hyper shortcut --------------------------
+-- §0.4's map is only for shortcuts that already existed and moved. A new
+-- feature calls this instead, any time before the end of the file. It
+-- goes through the same conflict sentry, so a new shortcut landing on a
+-- taken key is reported rather than silently stealing it.
+--   _G.hyperAddShortcut({}, "h", myFunction, "command history")
+_G.hyperPending = {}
+function _G.hyperAddShortcut(mods, key, fn, source, releasedFn, repeatFn)
+    table.insert(_G.hyperPending, {
+        mods = mods or {}, key = key, fn = fn,
+        releasedFn = releasedFn, repeatFn = repeatFn,
+        source = source or "custom",
+    })
+end
+
+-- ---- finalize: run ONCE at the very end of this file -----------------
+-- Order matters and is the whole reason this is deferred rather than
+-- done inline: real shortcuts must claim their keys BEFORE we decide
+-- which keys are left over to forward as a raw chord. Features bind
+-- themselves all the way down to §6, so this cannot run at §3.12.
+function _G.hyperFinalize()
+    -- 1. Every migrated shortcut, in the order it was declared.
+    for _, m in ipairs(_G.hyperMigrations) do
+        hyperBind(m.mods, m.key, m.fn, m.releasedFn, m.repeatFn, m.from)
+    end
+
+    -- 2. Shortcuts registered by features via _G.hyperAddShortcut.
+    for _, p in ipairs(_G.hyperPending) do
+        hyperBind(p.mods, p.key, p.fn, p.releasedFn, p.repeatFn, p.source)
+    end
+
+    -- 3. Anything you added yourself in hyperActions (empty by default).
+    for key, fn in pairs(hyperActions) do
+        hyperBind({}, key, function()
+            _G.hyperModal:exit()      -- don't stay latched after acting
+            pcall(fn)
+        end, nil, nil, "hyperActions:" .. tostring(key))
+    end
+
+    -- 4. Whatever bare keys are still unclaimed forward the raw chord,
+    --    so hyper keeps working with apps that know nothing about
+    --    Hammerspoon (Raycast, Rectangle, browser extensions…).
+    local forwarded = 0
+    for _, key in ipairs(hyperForwardKeys) do
+        if _G.hyperBound[tostring(key):lower()] == nil then
+            -- 🔁 core/hyper_key.lua STAMPS the chord before sending it:
+            -- it returns through the fallback tap a millisecond later, and
+            -- if ⇪ were released in that gap it would look like a genuine
+            -- ⌘⇧⌃⌥ hotkey press. Falls back to a plain send if that file
+            -- did not load, so forwarding never depends on it.
+            local send = function()
+                if _G.hyperForwardChord then return _G.hyperForwardChord(key) end
+                hs.eventtap.keyStroke(_G.hyperMods, key, HYPER_KEYSTROKE_DELAY)
+            end
+            -- pressed, released (nil), repeated — the repeat handler is
+            -- what makes a held hyper+arrow behave like a held arrow.
+            hyperBind({}, key, send, nil, send, "chord")
+            forwarded = forwarded + 1
+        end
+    end
+
+    -- 5. Self-check: any map entry that never matched a real bind call
+    --    means the combo in §0.4 is wrong, and that feature is SILENTLY
+    --    still on its old global shortcut. Without this you'd only find
+    --    out by pressing the key and getting nothing.
+    local orphans = {}
+    for combo in pairs(_G.hyperKeyMap) do
+        if not _G.hyperMigrationsSeen[combo] then
+            table.insert(orphans, combo)
+        end
+    end
+    table.sort(orphans)
+    if #orphans > 0 then
+        print("⚠️ HYPER MAP: " .. #orphans .. " entr" ..
+            (#orphans == 1 and "y" or "ies") ..
+            " in §0.4 never matched a real shortcut — those features are"
+            .. " still on their OLD keys:")
+        for _, c in ipairs(orphans) do print("     " .. c) end
+    end
+
+    -- 🚨 6.66.4 — _G.hyperBoundCount IS THE AUTHORITATIVE FIGURE: hyperBind
+    -- increments it once per combo actually claimed, from every source
+    -- (the §0.4 migrations, modules, hyperActions). It replaced a count
+    -- of one source out of three on the one line printed at every login.
+    -- ⚠️ FORWARDED KEYS ARE NOT SHORTCUTS and are deliberately excluded.
+    _G.hyperShortcutCount = _G.hyperBoundCount - forwarded
+    _G.hyperMigrationCount = #_G.hyperMigrations
+    _G.hyperForwardCount  = forwarded
+end
+
+-- Apply the remap ASYNCHRONOUSLY. Deliberately hs.task and not a
+-- blocking call: §3.7's 11-second beachball was caused by slow work on
+-- the main thread at boot, and this must never become the next one.
+if hyperEnabled then
+    -- Read by the boot summary so its one healthy line can say that ⇪ has
+    -- not been proven YET rather than let "All green" imply it has.
+    _G.hyperSelfTestPending = true
+    _G.hyperRemapTask = hs.task.new("/usr/bin/hidutil",
+        function(exitCode, stdOut, stdErr)
+            -- RECORDED, not just printed. This is THE most machine-dependent
+            -- thing in the config — it is the difference between the work Mac
+            -- having 34 shortcuts and having none — and it is decided
+            -- asynchronously, well after the boot report has gone by. Writing
+            -- the answer down is what lets _G.capabilities() and ⇪⇧D report
+            -- it later instead of me asking you to scroll back for a line.
+            _G.hyperRemapOK = (exitCode == 0)
+            if exitCode == 0 then
+                _G.hyperRemapWhy = nil
+                _G.diag.say("hyper", "hidutil accepted the Caps Lock remap")
+                print("🎹 Hyper key ON — Caps Lock is the hyper modifier (it no longer toggles capitals)")
+            else
+                _G.hyperRemapWhy = "exit " .. tostring(exitCode)
+                    .. (stdErr and stdErr ~= "" and (" — " .. tostring(stdErr):gsub("%s+$", "")) or "")
+                _G.diag.warn("hyper", "hidutil REFUSED the remap: " .. _G.hyperRemapWhy)
+                print("⚠️ 🎹 Hyper key OFF — hidutil could not remap Caps Lock (exit " .. tostring(exitCode) .. ")")
+                print("   " .. tostring(stdErr or ""):gsub("%s+$", ""))
+                print("   This is the documented macOS Sonoma+ restriction. Everything else still works;")
+                print("   this Mac just won't have the hyper key. Caps Lock behaves normally.")
+            end
+        end,
+        { "property", "--set", HYPER_REMAP_ON })
+    _G.hyperRemapTask:start()
+
+    -- 🚨 6.65.1 — GIVE CAPS LOCK BACK WHEN HAMMERSPOON GOES AWAY. A hidutil
+    -- remap is system-wide and does not die with this process: quit or
+    -- crash, and Caps Lock still sends F18 with nothing listening.
+    -- hs.shutdownCallback runs on a clean quit and on a reload, so the
+    -- remap lifts with the app. A hard CRASH never runs this; the manual
+    -- escape hatch is one line in Terminal (a reboot clears it too):
+    --        hidutil property --set '{"UserKeyMapping":[]}'
+    hs.shutdownCallback = function()
+        -- Synchronous on purpose, unlike the async apply above. There is
+        -- no "later" during shutdown — an hs.task started here would be
+        -- reaped with the process before it ever ran, which is precisely
+        -- how this kind of cleanup ends up looking implemented and doing
+        -- nothing.
+        -- hs-lint: allow blocking-main-thread — synchronous is the ONLY
+        -- correct choice during shutdown. There is no "later": an hs.task
+        -- started here is reaped with the process before it ever runs,
+        -- which is how this kind of cleanup ends up looking implemented
+        -- and doing nothing.
+        pcall(function()
+            hs.execute("/usr/bin/hidutil property --set '{\"UserKeyMapping\":[]}'")
+        end)
+    end
+else
+    print("🎹 Hyper key disabled in config (hyperEnabled = false) — Caps Lock untouched")
+end
+
+-- Loaded HERE, not next to core/diagnostics.lua where it belongs
+-- logically: capabilities reports on hyperEnabled, and a Lua local is
+-- invisible to anything written above its declaration. Placed above,
+-- it captured nil and reported the hyper key as disabled on BOTH
+-- Macs. Nothing calls it before this point — ⇪⇧D runs on a keypress.
+-- ---------------------------------------------------------------------
+-- CAPABILITIES — the one answer to "does this work on THIS Mac?"
+-- ---------------------------------------------------------------------
+-- One init.lua, two very different Macs. About a dozen things genuinely
+-- differ between them, every one of them already handled, and every one
+-- printing its own line somewhere at boot. Twelve scattered lines is not
+-- an answer to "what works here" — it is twelve things to hunt for.
+-- _G.capabilities() collects them, with the REASON and, more usefully,
+-- what each one COSTS you when it is off. Loaded right after diagnostics
+-- because §1.11's report calls it.
+local capOK, capErr = pcall(function()
+    local path = hs.configdir .. '/core/capabilities.lua'
+    local chunk, loadErr = loadfile(path)
+    if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
+    chunk()({ cloudDir = cloudDir, logsDir = logsDir, backupDir = backupDir,
+              hostTag = hostTag, asanaEnabled = asanaEnabled,
+              secretsStatus = secretsStatus, hyperEnabled = hyperEnabled })
+end)
+if not capOK then
+    print('⚠️ core/capabilities.lua failed to load — _G.capabilities() is '
+          .. 'unavailable and ⇪⇧D loses its capability block. Nothing else '
+          .. 'is affected. ' .. tostring(capErr))
+end
+
+end -- do...end (§3.12 Hyper Key locals)
+
+-- (The OCR chooser was here until 6.105.0. It is built by
+--  modules/ocr_engine.lua now, under the same _G.choosers.ocr name, so
+--  anything that reaches for it still finds it.)
+
+-- Clipboard chooser — searches the FULL text of every saved item, not
+-- just the 100 characters a row displays. Matches are newest first,
+-- capped at 250 rows for snappy typing (narrow the search for more).
+
+-- 📌 THE TASK CREATOR MOVED OUT in 6.98.0, to modules/task_creator.lua —
+-- the 30-day history, the attachment upload, the pipe parser, the draft
+-- mirror, the shared submit path (_G.asanaSubmitTask) and its three keys
+-- (⌃⌥⌘T · ⌃⌥⌘A; ⇪⇧S until 6.161.0) travel together. The dashboard (§6) stayed here.
+
+-- =====================================================================
+-- 5. HOTKEY INTEGRATIONS
+-- =====================================================================
+-- ✏️ EDIT YOUR KEYS HERE — the core pickers still bound in THIS file,
+-- one line each. Change the letter (or the mods) and reload; nothing
+-- else to touch. The Hotkey Sentry (§0.3) will warn at boot if an edit
+-- collides with another combo in this file or a known macOS default.
+local coreKeys = {
+    activityTracker  = { {"cmd", "alt", "shift"}, "0" },  -- activity tracker picker
+}
+
+-- 📋 THE CLIPBOARD EDIT PICKER MOVED OUT in 6.55.0, to
+-- modules/clipboard_history.lua — including the snapshot+index pattern
+-- that makes it work at all (hs.chooser rebuilds every choice through
+-- its Objective-C bridge, so table identity cannot survive the trip and
+-- only a NUMBER comes back intact).
+
+-- App tracker (today's activity; type 'week'/'month'/search once open)
+hs.hotkey.bind(coreKeys.activityTracker[1], coreKeys.activityTracker[2], function()
+    _G.service.call("activity.renderChoices", "")
+    showPopup(_G.choosers.appTracker)
+    -- 👁 6.157.0 — the preview pane (clipboard_history's service) shows
+    -- a row's whole "app — title" and url beside the list
+    if _G.service.has and _G.service.has("preview.open") then
+        if not _G.appTrackerPaneWired then
+            _G.appTrackerPaneWired = true
+            pcall(function()
+                _G.choosers.appTracker:hideCallback(function()
+                    pcall(_G.service.call, "preview.suspend")
+                end)
+            end)
+        end
+        pcall(_G.service.call, "preview.open", _G.choosers.appTracker)
+    end
+end)
+
+-- (⇪⇧O's EDIT/DELETE picker was here until 6.105.0 — the CSV snapshot,
+--  select mode, and the empty-the-box-to-delete dialog all moved to
+--  modules/ocr_engine.lua with the rest of the engine. It is still built
+--  as _G.choosers.ocrEdit, and tests/test_select_mode.lua still drives
+--  that exact chooser.)
+
+-- =====================================================================
+-- 6. ASANA TASK DASHBOARD — ⌃⌥⌘L open · ⌃⌥⌘C comment
+-- =====================================================================
+-- Shows up to 100 tasks across five categories, in this order:
+--   🔴 Overdue        max 40 — newest due first
+--   🟡 Due today      max 10
+--   🔵 Due this week  max 30 — soonest first
+--   🟠 Due later      max 10 — soonest first
+--   🟣 No due date    max 10 — newest created first
+-- (Category names capitalize the first word only, per spec.)
+-- Caps are the config table below — edit freely; the fetch itself
+-- asks Asana for up to 100 incomplete tasks, then each category is
+-- trimmed to its cap for display. The list is searchable; Enter opens
+-- the task in the browser (⌃⌥⌘L mode) or prompts for a comment that
+-- posts to Asana (⌃⌥⌘C mode).
+local asanaCaps = {
+    overdue = 40,   -- 🔴 Overdue
+    today   = 10,   -- 🟡 Due today
+    week    = 30,   -- 🔵 Due this week
+    later   = 10,   -- 🟠 Due later
+    undated = 10,   -- 🟣 No due date
+}
+
+local isAsanaFetching     = false
+local asanaDashboardMode  = "open"   -- "open" or "comment"
+-- 🗑 6.156.0 — the picker's select mode (see _G.asanaSelect.rows below);
+-- a global rather than a local because this file is near the 200-local
+-- ceiling. on/tagged = the state, master = the last fetched list.
+_G.asanaSelect = { on = false, tagged = {}, master = nil }
+
+-- ---- COLOR LEGEND STRIP — pills above the task list ------------------
+-- hs.chooser can't draw a footer inside its own window, so the legend
+-- is a slim hs.canvas strip (same tech as the cheat sheet). It sits
+-- just ABOVE the picker's search field: the picker's top-left is a
+-- position we set ourselves, so the strip's placement is exact — it
+-- can never overlap the task list. (The first version sat below the
+-- list, which required estimating the picker's height; the estimate
+-- ran short and the strip overlaid the bottom rows.)
+-- Appears when the dashboard opens; disappears when the picker
+-- resolves (pick a task, Esc, or click away).
+local asanaLegendDefs = {
+    { key = "overdue", label = "Overdue",       color = { red = 0.92, green = 0.25, blue = 0.20 }, darkText = false },
+    { key = "today",   label = "Due today",     color = { red = 1.00, green = 0.80, blue = 0.00 }, darkText = true  },
+    { key = "week",    label = "Due this week", color = { red = 0.04, green = 0.52, blue = 1.00 }, darkText = false },
+    { key = "later",   label = "Due later",     color = { red = 1.00, green = 0.58, blue = 0.00 }, darkText = false },
+    { key = "undated", label = "No due date",   color = { red = 0.69, green = 0.32, blue = 0.87 }, darkText = false },
+}
+
+_G.asanaLegendCanvas = nil
+local asanaLegendCounts = nil   -- set on each fetch; nil = nothing to show
+
+local function asanaLegendHide()
+    if _G.asanaLegendCanvas then
+        pcall(function() _G.asanaLegendCanvas:delete() end)
+        _G.asanaLegendCanvas = nil
+    end
+end
+
+local function asanaLegendShow()
+    asanaLegendHide()
+    if not asanaLegendCounts then return end
+    local chooser = _G.choosers.asana
+    if not chooser then return end
+
+    -- Reuse the EXACT placement showPopup just used for the picker —
+    -- resolving the screen again here could disagree (focus shifts as
+    -- the popup opens) and draw the legend on a different monitor.
+    local place = _G.lastPopupPlacement
+    local screen  = (place and place.screen) or resolveBaseScreen()
+    local sf = screen:frame()
+    local topLeft = (place and place.point)
+    if not topLeft then
+        topLeft = chooserTopLeft(chooser, screen)
+    end
+    local pct = 40
+    local okW, w = pcall(function() return chooser:width() end)
+    if okW and type(w) == "number" and w > 0 and w <= 100 then pct = w end
+    local chooserW = sf.w * (pct / 100)
+
+    local stripH, pad, gap, pillH, textSize = 44, 12, 10, 30, 16
+
+    -- Just above the picker's top edge — exact, no height estimation.
+    -- Clamped so a picker nudged to the very top of the screen can't
+    -- push the strip off-screen.
+    local stripY = math.max(sf.y + 4, topLeft.y - stripH - 8)
+
+    -- Lay pills left→right; width estimated from label length
+    local pills, x = {}, pad
+    for _, def in ipairs(asanaLegendDefs) do
+        local n = asanaLegendCounts[def.key] or 0
+        if n > 0 then
+            local label = def.label .. "  " .. n
+            local pillW = 20 + math.floor(#label * 9.0)
+            table.insert(pills, { label = label, color = def.color, darkText = def.darkText, x = x, w = pillW })
+            x = x + pillW + gap
+        end
+    end
+    if #pills == 0 then return end
+
+    local stripW = x - gap + pad
+    -- Center under the picker, then clamp fully on-screen
+    local stripX = topLeft.x + math.max(0, (chooserW - stripW) / 2)
+    if stripX + stripW > sf.x + sf.w then stripX = sf.x + sf.w - stripW - 4 end
+    if stripX < sf.x then stripX = sf.x + 4 end
+
+    local canvas = hs.canvas.new({ x = stripX, y = stripY, w = stripW, h = stripH })
+    if not canvas then return end
+
+    local sty = _G.uiStyle or {}   -- 🎨 6.90.0 shared card look
+    local els = {}
+    table.insert(els, {
+        type = "rectangle", action = "fill",
+        fillColor = (sty.bgWith and sty.bgWith(panelAlpha))
+                    or { red = 0.11, green = 0.11, blue = 0.13, alpha = panelAlpha },
+        roundedRectRadii = { xRadius = 12, yRadius = 12 },
+    })
+    for _, p in ipairs(pills) do
+        table.insert(els, {
+            type = "rectangle", action = "fill",
+            fillColor = { red = p.color.red, green = p.color.green, blue = p.color.blue, alpha = 1.0 },
+            roundedRectRadii = { xRadius = pillH / 2, yRadius = pillH / 2 },
+            frame = { x = p.x, y = (stripH - pillH) / 2, w = p.w, h = pillH },
+        })
+        table.insert(els, {
+            type = "text", text = p.label, textSize = textSize,
+            textColor = p.darkText and { white = 0.05 } or { white = 1.0 },
+            textAlignment = "center",
+            frame = { x = p.x, y = (stripH - pillH) / 2 + 4, w = p.w, h = pillH },
+        })
+    end
+
+    canvas:appendElements(els)
+    pcall(function() canvas:level(hs.canvas.windowLevels.overlay) end)
+    -- CRITICAL for Spaces/full-screen: a canvas belongs only to the
+    -- Space it was created on unless told otherwise — and a native
+    -- full-screen app is its own private Space, so the legend simply
+    -- never appeared there. canJoinAllSpaces = visible on every Space;
+    -- fullScreenAuxiliary = allowed to overlay full-screen Spaces.
+    -- (hs.chooser's panel declares these internally, which is why the
+    -- picker never had this problem.)
+    pcall(function() canvas:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" }) end)
+    _G.showCanvasSafely(canvas, "popup panel")
+    _G.asanaLegendCanvas = canvas
+    -- Console diagnostic (harmless; invaluable if placement misbehaves)
+    local scrName = "?"
+    pcall(function() scrName = screen:name() or "?" end)
+    print(string.format("🎨 Legend on '%s' at x=%d y=%d w=%d h=%d",
+        scrName, math.floor(stripX), math.floor(stripY), math.floor(stripW), stripH))
+end
+
+-- Nudging (⌃⌥⌘ arrows) repositions the picker — this lets section 1.5
+-- drag the legend along with it.
+_G.asanaLegendSync = function()
+    if _G.asanaLegendCanvas then asanaLegendShow() end
+end
+
+-- Helper: parse Asana date strings safely into unix timestamps
+local function parseAsanaDate(dateStr)
+    -- Guard against JSON null arriving as userdata
+    if type(dateStr) ~= "string" or dateStr == "" then return nil end
+    local y, m, d = dateStr:match("^(%d%d%d%d)-(%d%d)-(%d%d)")
+    if y and m and d then
+        return os.time({ year = tonumber(y), month = tonumber(m), day = tonumber(d), hour = 12, min = 0, sec = 0 })
+    end
+    return nil
+end
+
+-- Append up to `cap` entries from src into dst (the per-category limit)
+local function appendCapped(dst, src, cap)
+    for i = 1, math.min(#src, cap) do
+        table.insert(dst, src[i])
+    end
+end
+
+local function fetchAsanaDashboard(mode)
+    if not requireAsana() then return end
+    asanaDashboardMode = mode or "open"
+    _G.asanaSelect.on, _G.asanaSelect.tagged = false, {}   -- a fresh list, no stale ✓
+    asanaLegendHide()   -- clear any stale strip from a previous open
+
+    if isAsanaFetching then
+        hs.alert.show("⚠️ Request pending. Please wait.")
+        return
+    end
+
+    isAsanaFetching = true
+    hs.alert.show("🔄 Syncing Asana Tasks...")
+
+    local fullUrl = "https://app.asana.com/api/1.0/tasks"
+        .. "?assignee=me&completed_since=now&workspace=" .. asanaWorkspaceId
+        .. "&opt_fields=name,due_on,due_at,created_at,permalink_url&limit=100"
+
+    local headers = {
+        ["Authorization"] = "Bearer " .. asanaToken,
+        ["Accept"]        = "application/json"
+    }
+
+    hs.http.asyncGet(fullUrl, headers, function(status, body, resHeaders)
+        isAsanaFetching = false
+
+        if status ~= 200 then
+            if status == 401 then
+                hs.alert.show("🔒 Asana rejected the token — it's revoked or mistyped. Create a new one at app.asana.com/0/my-apps and update ~/.hammerspoon/secret.lua", 8)
+                print("🚨 ASANA 401 — the token in secret.lua is not valid (revoked, expired, or mistyped)")
+            else
+                hs.alert.show("❌ Asana Sync Failed (Status: " .. tostring(status) .. ")")
+                print("🚨 ASANA API ERROR: " .. tostring(body))
+            end
+            return
+        end
+
+        local response = _G.safeJson(body, "asana/list")
+        if not response or not response.data then
+            hs.alert.show("❌ Error reading data from Asana")
+            return
+        end
+
+        local now     = os.time()
+        local current = os.date("*t", now)
+        local todayStart = os.time({ year = current.year, month = current.month, day = current.day, hour = 0,  min = 0,  sec = 0  })
+        local todayEnd   = os.time({ year = current.year, month = current.month, day = current.day, hour = 23, min = 59, sec = 59 })
+        local weekEnd    = todayEnd + (7 * 86400)
+
+        local overdueTasks = {}   -- 🔴 Overdue
+        local todayTasks   = {}   -- 🟡 Due today
+        local weekTasks    = {}   -- 🔵 Due this week
+        local laterTasks   = {}   -- 🟠 Due later
+        local undatedTasks = {}   -- 🟣 No due date
+
+        for _, task in ipairs(response.data) do
+            local dueStr  = task.due_on or task.due_at
+            local dueTime = parseAsanaDate(dueStr)
+
+            if dueTime then
+                local cleanDateStr = string.sub(dueStr, 1, 10)
+                if dueTime < todayStart then
+                    table.insert(overdueTasks, { text = task.name, subText = "🔴 Overdue — due: " .. cleanDateStr, url = task.permalink_url, gid = task.gid, dueTime = dueTime })
+                elseif dueTime >= todayStart and dueTime <= todayEnd then
+                    table.insert(todayTasks,   { text = task.name, subText = "🟡 Due today — due: " .. cleanDateStr, url = task.permalink_url, gid = task.gid, dueTime = dueTime })
+                elseif dueTime > todayEnd and dueTime <= weekEnd then
+                    table.insert(weekTasks,    { text = task.name, subText = "🔵 Due this week — due: " .. cleanDateStr, url = task.permalink_url, gid = task.gid, dueTime = dueTime })
+                else
+                    table.insert(laterTasks,   { text = task.name, subText = "🟠 Due later — due: " .. cleanDateStr, url = task.permalink_url, gid = task.gid, dueTime = dueTime })
+                end
+            else
+                -- No due date: typically the newest tasks. created_at is
+                -- ISO-8601, which sorts correctly as a plain string.
+                local created = (type(task.created_at) == "string") and task.created_at or ""
+                table.insert(undatedTasks, {
+                    text    = task.name,
+                    subText = "🟣 No due date — created: " .. (created ~= "" and created:sub(1, 10) or "unknown"),
+                    url     = task.permalink_url,
+                    gid     = task.gid,
+                    created = created,
+                })
+            end
+        end
+
+        -- Per-category sorting (before caps, so the cap keeps the most
+        -- relevant entries of each category):
+        table.sort(overdueTasks, function(a, b) return a.dueTime > b.dueTime end)  -- newest due first
+        table.sort(weekTasks,    function(a, b) return a.dueTime < b.dueTime end)  -- soonest first
+        table.sort(laterTasks,   function(a, b) return a.dueTime < b.dueTime end)  -- soonest first
+        table.sort(undatedTasks, function(a, b) return a.created > b.created end)  -- newest created first
+
+        -- Assemble in display order, each category trimmed to its cap:
+        -- 40 + 10 + 30 + 10 + 10 = 100 tasks maximum
+        local masterChoicesList = {}
+        appendCapped(masterChoicesList, overdueTasks, asanaCaps.overdue)
+        appendCapped(masterChoicesList, todayTasks,   asanaCaps.today)
+        appendCapped(masterChoicesList, weekTasks,    asanaCaps.week)
+        appendCapped(masterChoicesList, laterTasks,   asanaCaps.later)
+        appendCapped(masterChoicesList, undatedTasks, asanaCaps.undated)
+
+        if #masterChoicesList == 0 then
+            hs.alert.show("✨ Clean slate! No urgent tasks found.")
+            return
+        end
+
+        -- Legend pill counts = rows each category actually contributed
+        asanaLegendCounts = {
+            overdue = math.min(#overdueTasks, asanaCaps.overdue),
+            today   = math.min(#todayTasks,   asanaCaps.today),
+            week    = math.min(#weekTasks,    asanaCaps.week),
+            later   = math.min(#laterTasks,   asanaCaps.later),
+            undated = math.min(#undatedTasks, asanaCaps.undated),
+        }
+
+        -- Registered in _G.choosers so it participates in popup screen routing
+        if not _G.choosers.asana then
+            _G.choosers.asana = hs.chooser.new(function(choice)
+                asanaLegendHide()   -- picker resolved (pick / Esc / click away)
+                if not choice then return end
+
+                if asanaDashboardMode == "comment" then
+                    -- 💬 COMMENT MODE: prompt for text, post it as a comment
+                    if choice.gid then
+                        local button, text = hs.dialog.textPrompt(
+                            "💬 Comment on: " .. (choice.text or "task"),
+                            "Your comment will post to Asana exactly like the 'Add a comment' box.",
+                            "", "Post", "Cancel")
+                        if button == "Post" and text and #text > 0 then
+                            _G.service.call("asana.addComment", choice.gid, text)
+                        end
+                    else
+                        hs.alert.show("⚠️ No task ID found for this row")
+                    end
+                else
+                    -- 🗑 6.156.0 — SELECT MODE and the delete verbs, before
+                    -- the open. The rows are the ones _G.asanaSelect.rows
+                    -- built; every branch that keeps the picker up calls
+                    -- reshow(), which re-opens it with the ✓ marks kept.
+                    local sel = _G.asanaSelect
+                    if choice.selectStart then
+                        sel.on, sel.tagged = true, {}
+                        sel.reshow(); return
+                    elseif choice.selectStop then
+                        sel.on, sel.tagged = false, {}
+                        sel.reshow(); return
+                    elseif choice.deleteTagged then
+                        local list = {}
+                        for _, c in ipairs(sel.master or {}) do
+                            if sel.tagged[c.gid] then table.insert(list, c) end
+                        end
+                        sel.delete(list); return
+                    end
+                    if sel.on and choice.gid then
+                        if sel.tagged[choice.gid] then sel.tagged[choice.gid] = nil
+                        else sel.tagged[choice.gid] = true end
+                        sel.reshow(); return
+                    end
+                    -- ⌥⏎ on one row: delete just that task (asks first)
+                    local mods = {}
+                    pcall(function() mods = hs.eventtap.checkKeyboardModifiers() or {} end)
+                    if mods.alt and choice.gid then
+                        sel.delete({ choice }); return
+                    end
+                    -- 🚀 OPEN MODE: open the task in the browser
+                    if choice.url then
+                        hs.urlevent.openURL(choice.url)
+                        hs.alert.show("🚀 Opening task in Asana...")
+                    end
+                end
+            end)
+        end
+
+        local placeholder = (asanaDashboardMode == "comment")
+            and "💬 Pick a task to comment on…"
+            or  "Filter your current priority tasks… (⌥⏎ deletes one)"
+
+        -- 👁 6.157.0 — the preview pane: the whole task name, its due
+        -- line and its link, beside the picker
+        for _, c in ipairs(masterChoicesList) do
+            c.rawText = tostring(c.text or "") .. "\n" .. tostring(c.subText or "")
+                        .. (c.url and ("\n" .. c.url) or "")
+        end
+        _G.asanaSelect.master = masterChoicesList
+        local rows = _G.asanaSelect.rows(masterChoicesList)
+        _G.choosers.asana:choices(rows)
+        _G.choosers.asana:placeholderText(placeholder)
+        _G.choosers.asana:rows(math.min(#rows, 10))
+        showPopup(_G.choosers.asana)
+        asanaLegendShow()
+        _G.asanaSelect.pane()
+    end)
+end
+
+-- 👁 6.157.0 — the pane, through the registry (clipboard_history provides
+-- it); the hideCallback is set once, the first time the picker opens.
+_G.asanaSelect.pane = function()
+    local svc = _G.service
+    if not (svc and svc.has and svc.has("preview.open") and _G.choosers.asana) then return end
+    if not _G.asanaSelect.paneWired then
+        _G.asanaSelect.paneWired = true
+        pcall(function()
+            _G.choosers.asana:hideCallback(function() pcall(svc.call, "preview.suspend") end)
+        end)
+    end
+    pcall(svc.call, "preview.open", _G.choosers.asana)
+end
+
+-- 🗑 6.156.0 — SELECT SEVERAL, DELETE (LL's ask): "☑️ Select several…"
+-- tags rows, "🗑 Delete N selected" deletes after a confirmation naming
+-- them; ⌥⏎ deletes one. DELETE /tasks/{gid} with the token in the header
+-- (never a process argument), one task at a time; Asana keeps deleted
+-- tasks in its trash 30 days. Hangs off _G.asanaSelect, not new locals.
+_G.asanaSelect.rows = function(master)
+    local sel = _G.asanaSelect
+    if asanaDashboardMode ~= "open" then return master end
+    local n = 0
+    for _ in pairs(sel.tagged) do n = n + 1 end
+    local rows = {}
+    if sel.on then
+        if n > 0 then
+            table.insert(rows, {
+                text    = ("🗑 Delete %d selected task%s"):format(n, n == 1 and "" or "s"),
+                subText = "asks first · they go to Asana's trash, restorable for 30 days",
+                deleteTagged = true })
+        end
+        table.insert(rows, { text = "✕ Leave select mode",
+                             subText = "keeps everything as it is", selectStop = true })
+        for _, c in ipairs(master) do
+            table.insert(rows, { text = (sel.tagged[c.gid] and "✓ " or "") .. tostring(c.text),
+                                 subText = c.subText, url = c.url, gid = c.gid })
+        end
+    else
+        table.insert(rows, { text = "☑️ Select several to delete…",
+                             subText = "⏎ tags rows, then 🗑 · ⌥⏎ on any row deletes just that one",
+                             selectStart = true })
+        for _, c in ipairs(master) do table.insert(rows, c) end
+    end
+    return rows
+end
+
+_G.asanaSelect.reshow = function()
+    local sel = _G.asanaSelect
+    if not (_G.choosers.asana and sel.master) then return end
+    local rows = sel.rows(sel.master)
+    _G.choosers.asana:choices(rows)
+    pcall(function() _G.choosers.asana:rows(math.min(#rows, 10)) end)
+    showPopup(_G.choosers.asana)
+    asanaLegendShow()
+    sel.pane()
+end
+
+_G.asanaSelect.delete = function(list)
+    if #list == 0 then
+        hs.alert.show("Nothing picked — press Enter on the rows you want first")
+        return
+    end
+    local names = {}
+    for i = 1, math.min(#list, 8) do
+        names[#names + 1] = "• " .. (tostring(list[i].text):gsub("^✓ ", ""))
+    end
+    if #list > 8 then names[#names + 1] = ("… and %d more"):format(#list - 8) end
+    local button = nil
+    pcall(function()
+        button = hs.dialog.blockAlert(
+            ("Delete %d task%s from Asana?"):format(#list, #list == 1 and "" or "s"),
+            table.concat(names, "\n")
+            .. "\n\nThey go to Asana's trash — restorable from Deleted Items for 30 days.",
+            "Delete", "Cancel")
+    end)
+    if button ~= "Delete" then hs.alert.show("🗑 Nothing deleted") return end
+    local done, failed, i = 0, 0, 0
+    local headers = { ["Authorization"] = "Bearer " .. asanaToken,
+                      ["Accept"] = "application/json" }
+    local function step()
+        i = i + 1
+        local t = list[i]
+        if not t then
+            hs.alert.show(("🗑 Deleted %d task%s%s"):format(done, done == 1 and "" or "s",
+                failed > 0 and (" · %d failed — see the Console"):format(failed) or ""), 4)
+            _G.asanaSelect.on, _G.asanaSelect.tagged = false, {}
+            if done > 0 then fetchAsanaDashboard("open") end
+            return
+        end
+        hs.http.asyncRequest("https://app.asana.com/api/1.0/tasks/" .. tostring(t.gid),
+            "DELETE", nil, headers, function(status, body)
+                if status == 200 then
+                    done = done + 1
+                else
+                    failed = failed + 1
+                    print("🚨 ASANA delete failed for " .. tostring(t.text) .. " — status "
+                          .. tostring(status) .. ": " .. tostring(body):sub(1, 200))
+                end
+                step()
+            end)
+    end
+    step()
+end
+
+-- Dashboard: open task in browser
+-- 6.16.12: standardized every Asana hotkey onto the same ⌃⌥⌘ chord
+-- (was ⌃⇧⌥ for this one and the two below) — ⌃⌥⌘L, "List tasks".
+hs.hotkey.bind({"cmd", "ctrl", "alt"}, "L", function()
+    fetchAsanaDashboard("open")
+end)
+
+-- Dashboard: add a comment to a task — 6.16.12: ⌃⇧⌥C -> ⌃⌥⌘C
+hs.hotkey.bind({"cmd", "ctrl", "alt"}, "C", function()
+    fetchAsanaDashboard("comment")
+end)
+
+-- ⌃⌥⌘B — browse your Asana project's team; Enter copies the exact name
+-- so pasting it into the Task Creator's Assignee field always resolves
+-- (see resolveAssignee in §5). 6.16.12: ⌃⇧⌥M -> ⌃⌥⌘B, standardized onto
+-- the same chord as the rest of the Asana hotkeys. Wrapped in do...end:
+-- this file is near Lua's 200-local ceiling and nothing outside this
+-- needs these locals.
+do
+
+_G.choosers.asanaTeam = hs.chooser.new(function(choice)
+    if not choice or not choice.name then return end
+    hs.pasteboard.setContents(choice.name)
+    hs.alert.show("📋 Copied " .. choice.name .. " — paste into the Assignee field")
+end)
+_G.choosers.asanaTeam:placeholderText("Search your Asana team — Enter copies the name")
+-- Team name is folded into subText below (e.g. "someone@x.com  ·  SAC
+-- Library Core Projects") — searchSubText makes hs.chooser's own
+-- filtering match against it too, so typing "core" narrows to just that
+-- team. Pure display/search change — doesn't touch the native ⌘+number
+-- row-shortcut badges the chooser already shows, those aren't ours.
+pcall(function() _G.choosers.asanaTeam:searchSubText(true) end)
+
+local function showTeamPicker()
+    local choices = {}
+    for _, m in ipairs(_G.asanaTeamMembers) do
+        local teamLabel = (m.teams and #m.teams > 0) and table.concat(m.teams, " + ") or ""
+        local sub = m.email or ""
+        if teamLabel ~= "" then
+            sub = (sub ~= "" and (sub .. "  ·  ") or "") .. teamLabel
+        end
+        table.insert(choices, { text = m.name, subText = sub, name = m.name })
+    end
+    _G.choosers.asanaTeam:choices(choices)
+    showPopup(_G.choosers.asanaTeam)
+end
+
+hs.hotkey.bind({"cmd", "ctrl", "alt"}, "B", function()
+    if not requireAsana() then return end
+    if #_G.asanaTeamMembers > 0 then
+        showTeamPicker()
+        return
+    end
+    hs.alert.show("🔄 Fetching team members…")
+    _G.fetchAsanaTeamMembers(function()
+        if #_G.asanaTeamMembers == 0 then
+            hs.alert.show("⚠️ Couldn't load team members — check Console")
+        else
+            showTeamPicker()
+        end
+    end)
+end)
+
+end -- do...end (⌃⌥⌘B team member picker locals)
+
+-- =====================================================================
+-- 7. BOOTSTRAP — portability report + ready alert
+-- =====================================================================
+-- Console report: on a new Mac, this is the first thing to check — it
+-- says exactly how the portability layer resolved this machine, and
+-- prints the version so a pasted Console log always says which file
+-- loaded. The hyper keyspace is wired HERE, after every section has
+-- registered its shortcut: hyperFinalize can only work out which keys
+-- are free to forward once all the real ones have claimed theirs. Pure
+-- table work and hotkey registration — nothing that could stall boot.
+-- =====================================================================
+-- 1.4 SHARED TEXT & CSV HELPERS
+-- =====================================================================
+-- Borrowed by File Tracker, Update Tracker and the changelog writer, so
+-- they live here and reach modules through `core` (6.40.0). Wraps a text
+-- field for CSV: quotes it, doubles internal quotes, collapses newlines.
+local function csvQuote(value)
+    local s = tostring(value or "")
+    s = s:gsub('[\r\n]+', ' ')
+    s = s:gsub('"', '""')
+    return '"' .. s .. '"'
+end
+
+-- Splits one CSV line into fields, honoring double-quoted fields with
+-- "" as an escaped quote inside them — needed because app/window
+-- titles routinely contain commas (e.g. a browser tab title).
+local function splitCSVLine(line)
+    local fields, i, n = {}, 1, #line
+    while i <= n do
+        if line:sub(i, i) == '"' then
+            local j, buf = i + 1, {}
+            while j <= n do
+                local c = line:sub(j, j)
+                if c == '"' then
+                    if line:sub(j + 1, j + 1) == '"' then
+                        table.insert(buf, '"')
+                        j = j + 2
+                    else
+                        j = j + 1
+                        break
+                    end
+                else
+                    table.insert(buf, c)
+                    j = j + 1
+                end
+            end
+            table.insert(fields, table.concat(buf))
+            if line:sub(j, j) == ',' then j = j + 1 end
+            i = j
+        else
+            local commaPos = line:find(',', i, true)
+            if commaPos then
+                table.insert(fields, line:sub(i, commaPos - 1))
+                i = commaPos + 1
+            else
+                table.insert(fields, line:sub(i))
+                i = n + 1
+            end
+        end
+    end
+    return fields
+end
+
+-- =====================================================================
+-- 1.12 MODULE LOADER — sections live in their own files from here on
+-- =====================================================================
+-- A section that has been moved out lives in ~/.hammerspoon/modules/
+-- <name>.lua and is named in a MACHINE PROFILE below. Lua's limit of
+-- 200 locals is PER CHUNK and this file was measured at exactly 200 in
+-- 6.35.0; every module file gets its own fresh 200.
+-- ⚠️ MODULES LOAD FROM LOCAL DISK, NOT FROM ONEDRIVE — DELIBERATELY:
+-- reading a Files-On-Demand placeholder is a synchronous download, and
+-- in the boot path that is a main-thread stall at every login.
+--
+-- ---------------------------------------------------------------------
+-- THE MODULE CONTRACT, in full:
+--
+--   return {
+--     name   = "App Peek",           -- shown in the boot report
+--     order  = 7,                    -- LOAD order (and the A–Z tie-break)
+--     family = "windows",            -- 6.101.0: which band of the cheat
+--                                    -- sheet it sits under; the ids are in
+--                                    -- core/cheatsheet.lua → families.
+--                                    -- Declared HERE, never in a list over
+--                                    -- there. No family = the visible
+--                                    -- "NOT YET FILED" band, and a test
+--                                    -- fails until you pick one.
+--     cheatsheet = {                 -- travels WITH the module
+--       title = "👀 APP PEEK",
+--       entries = { { "⇪P", "Hide the frontmost app" } },
+--     },
+--     config = someTable,            -- OPTIONAL: settings a machine
+--                                    -- profile may override
+--     setup = function(core) ... end,-- REQUIRED: binds keys, cheap work
+--   }
+--
+-- 🗂 TWO SPECIAL FAMILY CASES (6.101.0): family = "auto" (no keys) is one
+--   line in the "⚙️ RUNS ITSELF" box from `summary`, listed even with no
+--   cheatsheet; `cheatsheet` may be a LIST of groups each with its own
+--   family (numpad_layer serves two bands).
+-- setup() may also assign M.warm = function(core) ... end before it
+-- returns.
+-- ---------------------------------------------------------------------
+--
+-- ⏱ TWO PHASES: setup() THEN warm() (6.40.0). setup() runs during boot
+-- and must stay CHEAP — bind hotkeys, create objects. Anything expensive
+-- goes in warm(), which the loader runs a couple of seconds AFTER boot
+-- on a stored timer; the Console and ⇪⇧D show the two timings apart.
+-- FAILURE IS ISOLATED: every module is loaded, executed, set up AND
+-- warmed inside its own pcall — one bad module costs that module, named
+-- in the Console, counted in the boot report, listed in ⇪⇧D and shown
+-- as a ⚠️ group at the top of the cheat sheet.
+_G.moduleDir         = hs.configdir .. "/modules"
+_G.moduleStatus      = {}    -- one record per module, for the report
+_G.moduleCheatsheets = {}    -- groups contributed by loaded modules
+_G.moduleWarmTimers  = {}    -- HELD: an unreferenced hs.timer is collected
+
+-- =====================================================================
+-- ✏️ MACHINE PROFILES — WHICH MODULES RUN ON WHICH MAC
+-- =====================================================================
+-- The same init.lua and modules/ go on every Mac; this table is the only
+-- thing that differs, kept in the file so the two Macs cannot drift
+-- silently. Keyed by ComputerName (hostTag, §0.1); an unknown machine
+-- falls back to `default` and says so in the boot report.
+-- `modules`  = which module files to load, in load order.
+-- `settings` = per-module overrides applied to that module's `config`
+--              table after setup.
+-- 🚨 6.66.3 — ONE LIST, NOT THREE COPIES: BASE is the list, a profile
+-- declares only its differences, and a module on disk that no profile
+-- loads fails the build (test_integration reads BASE from this file).
+local BASE = {
+    "ui_style",           -- 🎨 6.90.0 the shared look — FIRST: panels read it
+    "daily_backup", "app_peek", "window_switcher", "window_arranger",
+    "copy_on_select", "command_history", "app_watcher", "file_tracker",
+    "autocorrect", "activity_tracker", "update_tracker",
+    "doc_memory", "master_log",   -- 6.169.0: open documents remembered; every store in one log
+    -- 6.104.0 retired document_watcher from this list — ⇪⇧W and ⇪⇧E moved
+    -- into activity_tracker, which derives the same documents from the
+    -- sessions it already records instead of polling for them again.
+    -- 🚨 NO QUOTED MODULE NAMES IN THIS BLOCK'S COMMENTS: the test suites
+    -- read BASE by matching every quoted word between its braces, so a
+    -- name mentioned in passing reads as a module that must exist on disk.
+    "asana_comments",
+    -- 6.44.0
+    "screen_veil", "mini_calendar", "quick_append", "capture_pad",
+    "numpad_layer",
+    -- 6.45.0
+    "mouse_grid",
+    -- 6.46.0
+    "url_cleaner", "health_monitor",
+    -- 6.47.0
+    "menubar_items",
+    -- 6.48.0
+    "focus_mode", "bulk_rename",
+    -- 6.55.0
+    "clipboard_history",
+    -- 6.65.0 (tool_picker was retired from here in 6.104.0 — ⇪⇧/ now opens
+    --  unified search on the tool tag, one source in the one search box)
+    "universal_actions",  -- ⇪⇧A  act on the Finder selection
+    "pomodoro",           -- ⇪⇧P  25 on, 5 off
+    -- (the Outlook diagnostic left this list in 6.105.0 and the repo in
+    --  6.117.0 — deleted, not moved. Outlook automation is shelved: the
+    --  tenant policy blocks the only route that worked. Do not re-add it
+    --  without a new answer from IT, or you are writing 6.65.0 again.)
+    -- 6.68.0
+    "text_expander",      -- ⇪⇧S  Alfred snippets, typed anywhere (⇪⇧T until 6.161.0)
+    -- 6.71.0
+    "key_caster",         -- ⇪⇧K  show the shortcuts as you press them
+    -- 6.86.0
+    "screenshots",        -- ⇪4   capture → OneDrive + clipboard · ⇪⇧4 panel
+    "task_form",          -- ⇪T   labeled Asana task entry (pipe picker: ⇪T's fallback)
+    -- 6.87.0
+    "screenshot_editor",  -- 🖌   blur boxes on a screenshot (via ⇪⇧4, no key)
+    "window_move",        -- 🪟   6.89.0 ⌘-drag any panel or picker (no key)
+    "unified_search",     -- ⇪space  one search over every store
+    "app_launcher",       -- 6.91.0 ⇪D  launch any installed app, both Macs
+    "chrome_history",     -- 6.92.0 ⇪Y  90 days of Chrome, saved + searched
+    "recent_docs",        -- 6.93.0 ⇪I  the 9 last-opened, then every type you use
+    "begone",             -- type `begone` (AFTER text_expander: registers there)
+    "search_index", "doc_keywords",  -- 6.96.0 🗂 files behind ⇪D · 🏷 docx tags
+    -- 6.98.0
+    "task_creator",       -- ⌃⌥⌘T create · ⌃⌥⌘A format URL (⇪⇧S given up in 6.161.0)
+    -- 6.99.0 (rebuilt 6.100.0 as the combined Quick Append Pad)
+    "note_pad",           -- ⇪pad2 one box: * idea + log ! task ? note
+                          -- (AFTER quick_append AND capture_pad: it files
+                          --  through both of their services)
+    -- 6.103.0
+    "window_return",      -- 🔁 dock back in, windows go back (no key)
+    -- 6.104.0 win_pin (⇪⇧U) lived here until 6.166.0 — LL: "remove the
+    -- Window Pin since we have this tool now" (the ⇪1 scratch pad's 📌).
+    -- 6.105.0
+    "ocr_engine",         -- 🔍 ⇪O search · ⇪⇧O edit (was §2 of this file)
+    "daily_rollup",       -- 📊 16:01 card over the tracker and the pad
+                          -- (AFTER both: it reads their services, no key)
+    -- 6.116.0
+    "write_ledger",       -- 💾 _G.saved() — proof the logs are saving (no key)
+    "right_click",        -- 🖱 ⇪⇧F a real right-click at the pointer
+    "mouse_follows",      -- 🖱 ⇪⇧3 the pointer goes where focus goes (opt-in, 6.160.2)
+    -- 6.119.0 — THE PUNCTUATION TIER. Every ⇪ letter and every ⇪⇧ letter
+    -- was already claimed (⇪⇧T came free again in 6.161.0, ⇪⇧U in 6.166.0
+    -- when win_pin left; _G.freeKeys() lists both), so these
+    -- four land on punctuation instead. That is not a workaround: ⇪, sits
+    -- exactly where ⌘, does in every other Mac app, and the rest are one
+    -- reach from the home row. All four are also runnable from ⇪⇧/ with
+    -- no key at all, the way the rollup is.
+    "menu_search",        -- 🔎 ⇪.  the front app's menus, flattened
+    "settings_panes",     -- ⚙️ ⇪,  System Settings, by name
+    "app_kill",           -- 💀 ⇪⇧; end a process, politely then not · macOS's own 🔒
+    "power_tools",        -- 🧰 ⇪;  type the clipboard · count · grayscale · free keys
+    "shortcut_hints",     -- 💡 after a ⇪ key, a card of the group's other keys (no key)
+    "scratch_pad",        -- 📝 ⇪N tabs (⇪1 until 6.182.0), saved as you type, history under the text, 4 PM task
+    "vault",              -- 🕸 ⇪3 linked Markdown notes in OneDrive, backlinks, graph (6.172.0)
+    "anchors",            -- 🔗 6.180.0 ⇪⇧U links the front document or tab to a vault note
+    "stall_guard",        -- 🧊 6.208.0 a second process relaunches a beach-balled Hammerspoon (no key)
+    "hyper_storm",        -- 🌩 6.214.1 a latched ⇪ running your typing as shortcuts releases itself and writes a report (no key)
+    "bluetooth",          -- 📶 6.216.0 ⇪⇧7 connect / disconnect any paired device (blueutil; lists without it)
+    -- 6.132.0 — no key of its own. It owns the six case transforms, and
+    -- ⇪; and ⇪R both ask it for them through core.call at the moment you
+    -- press the key. Order here is therefore irrelevant; it sits beside
+    -- power_tools only because that is where a reader will look.
+    "text_case",          -- 🔠 UPPER · lower · Title · camel · kebab · snake
+    -- 6.133.0 — AFTER power_tools, though only for readability: it reaches
+    -- that module's guarded read-selection and replace-selection through
+    -- core.call at keypress time, so the order is not load-bearing.
+    "define",             -- 📖 ⇪8  meaning and synonyms, in one list
+    -- 6.120.0 — the rest of LL's twelve. tab_search LAST of these three
+    -- because it is the only one that talks to other applications over
+    -- Apple Events, and a module that can be refused a permission is
+    -- better loaded after the ones that cannot.
+    "net_tools",          -- 🌐 ⇪6  flush · ping · nslookup · traceroute
+    "mac_panel",          -- 🖥 ⇪7  About This Mac, as a card
+    "tab_search",         -- 🗂 ⇪⇧' every open tab in every running browser
+    -- 6.147.0 — LL: list any application communicating with some
+    -- service, say what it is, what it is doing, and resolve where it
+    -- pulls its data from. One lsof snapshot per press, no polling.
+    "net_watch",          -- 🌐 ⇪⇧6 who's talking — apps with live
+                          --    connections, remote ends resolved + explained
+    -- 6.143.0 — LL, with a screenshot of Finder's "already exists —
+    -- Replace?" box: "Can we capture this kind of window and make it
+    -- appear in the same place, on my primary monitor?"
+    "dialog_home",        -- 🎯 dialogs land at one spot on the primary
+                          --    monitor; drag one to move the spot (no key)
+    -- 6.146.0 — LL: set a default application for a specific file type,
+    -- and verify the assignment took. Reads and writes LaunchServices
+    -- through osascript; the verdict comes from reading the registry
+    -- back, never from the write's return code. No key — reached from
+    -- the tool search, the way the rollup is.
+    "default_apps",       -- 📎 a file type opens in the app YOU chose,
+                          --    with the change read back and proven
+    -- 6.144.0 — LL: on battery power only, lower the battery consumption.
+    -- Late in this list ON PURPOSE: by the time it loads, every eco
+    -- registration made during setup is already in the registry, so a
+    -- boot on battery lands with the slow cadences applied in one pass.
+    -- Warm-phase registrations arriving later are caught by the registry
+    -- itself.
+    "battery_saver",      -- 🔋 on battery the config slows its own pollers
+                          --    and NAMES the apps draining you (no key)
+    "editor_picker",      -- 🗂 ⌃⌃ (or ⇪space) every editor at once, by
+                          -- what is open and what has something in it.
+                          -- LAST on purpose: it only READS the registry the
+                          -- editors above fill, so loading it after all of
+                          -- them means its own boot never sees a half-built
+                          -- roster. It is order-independent by construction
+                          -- either way — the registry is created with `or`.
+}
+
+-- BASE minus `without`, plus `plus`. The list is COPIED, never shared: a
+-- profile that referenced BASE and then dropped an entry would drop it
+-- for every other profile too.
+local function profileFrom(opts)
+    opts = opts or {}
+    local drop = {}
+    for _, n in ipairs(opts.without or {}) do drop[n] = true end
+    local mods = {}
+    for _, n in ipairs(BASE) do
+        if not drop[n] then mods[#mods + 1] = n end
+    end
+    for _, n in ipairs(opts.plus or {}) do mods[#mods + 1] = n end
+    return { modules = mods, settings = opts.settings }
+end
+
+-- ✏️ EACH PROFILE NOW SAYS ONLY WHAT MAKES IT DIFFERENT.
+--      without = { "pomodoro" }      -- do not load this one here
+--      plus    = { "something" }    -- load an extra one here
+--      settings = { … }             -- per-machine config overrides
+_G.moduleProfiles = {
+    -- ---- personal Mac: everything on ----
+    -- 6.170.0: the LG runs 2560×1440@2x ("looks like 1440") — outcome (b)
+    -- of 6.167.0: the screen was NOT why the card read small, so pin it.
+    ["Lees-MacBook-Air"] = profileFrom{ settings = {
+        shortcut_hints = { scale = 1.5 },
+        -- 6.213.2, LL: "solid when I go over, about 30% when I move off".
+        -- The hover poll (6.152.0) already switches between the two.
+        pomodoro = { alphaIdle = 0.30, alphaAlert = 1 },
+    } },
+
+    -- ---- work Mac ----
+    -- ✏️ PUT YOUR WORK MACHINE'S NAME HERE. Find it by running
+    --      scutil --get ComputerName
+    -- on that Mac, or read the 🧭 line at the top of its Console.
+    ["Lees-Work-MacBook"] = profileFrom({
+        settings = {
+            pomodoro = { alphaIdle = 0.30, alphaAlert = 1 },   -- 6.213.2, as on the Air
+            -- Examples — delete or edit freely. These are exactly the
+            -- knobs a work Mac tends to want different:
+            window_switcher = {
+                -- A work Mac with a lot of corporate agents running can
+                -- make the cross-Space sweep slower; lower the cap or
+                -- turn Spaces off here rather than editing the module.
+                maxWindows = 24,
+            },
+            -- ☁️ 6.140.1 — NO daily_backup OVERRIDE HERE, ON PURPOSE.
+            -- 6.139.0 shipped docs = false for this profile on the
+            -- guess that work Documents belonged only in the company's
+            -- OneDrive. LL overruled it the next day: "For my work
+            -- computer, all documents are safe to backup." So the work
+            -- Mac now runs the module's default — Documents and
+            -- Desktop in the kit on BOTH Macs. The docs knob still
+            -- exists in modules/daily_backup.lua for any future Mac
+            -- that needs it.
+        },
+    }),
+
+    -- ---- any other Mac ----
+    default = profileFrom(),
+}
+
+_G.moduleWarmDelay = 2.0   -- seconds after boot before warm() runs
+
+-- The shared surface. This is the ONLY thing modules may depend on, and
+-- keeping it explicit is what stops the coupling growing back: anything
+-- not listed here is private to this file.
+local core = {
+    version     = _G.configVersion,
+    -- paths (§0.1 portability layer)
+    homeDir     = homeDir,     cloudDir  = cloudDir,
+    logsDir     = logsDir,     backupDir = backupDir,
+    hostTag     = hostTag,     configDir = hs.configdir,
+    -- file helpers (§0.1 / §3.6)
+    warnWriteFailed = warnWriteFailed,
+    degrade         = degrade,        -- 6.215.0: the one door a degraded state goes through
+    adoptLegacyFile = adoptLegacyFile,
+    csvQuote        = csvQuote,
+    splitCSVLine    = splitCSVLine,
+    formatDuration  = formatDuration,
+    -- popups & screens (§1.5)
+    popupKeys        = popupScreenKeys,
+    popupMods        = popupScreenKeys.mods,
+    showPopup        = showPopup,
+    resolveBaseScreen = resolveBaseScreen,
+    chooserTopLeft   = chooserTopLeft,   -- 6.98.0: the draft mirror places by it
+    panelAlpha       = panelAlpha,
+    -- hyper keyspace (§3.12) — the supported way for a module to claim a
+    -- ⇪ shortcut. Wrapped rather than captured, so it resolves at call
+    -- time and this table stays honest if §3.12 ever moves.
+    hyperAddShortcut = function(...) return _G.hyperAddShortcut(...) end,
+    -- credentials (§0.2) — nil when secret.lua is absent, by design
+    asanaEnabled     = asanaEnabled,
+    -- the press-time gate every Asana hotkey uses: true, or an alert
+    -- explaining that this Mac has no secret.lua (6.98.0, for modules)
+    requireAsana     = requireAsana,
+    asanaToken       = asanaToken,
+    asanaWorkspaceId = asanaWorkspaceId,
+    -- 6.44.0: the Capture Pad files its 4 PM tasks into this project.
+    -- Same value the Task Creator (§4) already uses, so both land in the
+    -- same place and there is one thing to change, not two.
+    asanaProjectId   = asanaProjectId,
+    -- service registry (see the stub at the top of this file). A module
+    -- publishes with core.provide("name", fn); anything else calls it
+    -- with _G.service.call("name", ...) and gets a warning rather than a
+    -- crash if the module is missing.
+    provide  = function(name, fn) _G.service.provide(name, fn) end,
+    call     = function(name, ...) return _G.service.call(name, ...) end,
+    -- diagnostics (§1.11)
+    diag     = _G.diag,
+    safeJson = _G.safeJson,
+}
+_G.core = core   -- so a module author can inspect it from the Console
+
+-- Load one module. Returns a status record; never throws, whatever the
+-- module does.
+local function loadOneModule(name, settings)
+    local path = _G.moduleDir .. "/" .. name .. ".lua"
+    local rec  = { name = name, path = path, ok = false, ms = 0 }
+    local t0   = hs.timer.secondsSinceEpoch()
+
+    -- loadfile REPORTS a syntax error rather than raising it, so this
+    -- distinguishes "file missing" from "file broken" — two very
+    -- different things to see in a boot report.
+    local chunk, loadErr = loadfile(path)
+    if not chunk then
+        rec.err = (hs.fs.attributes(path) == nil)
+                  and "not found at " .. path
+                  or  ("syntax error — " .. tostring(loadErr))
+        rec.ms  = (hs.timer.secondsSinceEpoch() - t0) * 1000
+        return rec
+    end
+
+    local okRun, mod = pcall(chunk)
+    if not okRun then
+        rec.err = "failed while loading — " .. tostring(mod)
+        rec.ms  = (hs.timer.secondsSinceEpoch() - t0) * 1000
+        return rec
+    end
+    -- Validate the contract before trusting it: a module that returns
+    -- nothing (a forgotten `return M`) would otherwise fail later, in a
+    -- place with no obvious connection to the real mistake. This check
+    -- has already earned its keep once — it caught a do...end block
+    -- split across the new function boundary in 6.37.0.
+    if type(mod) ~= "table" or type(mod.setup) ~= "function" then
+        rec.err = "does not return a table with a setup() function"
+        rec.ms  = (hs.timer.secondsSinceEpoch() - t0) * 1000
+        return rec
+    end
+
+    -- 🔌 6.114.0 — NAME THE MODULE WHILE IT IS PUBLISHING. _G.service.provide
+    -- reads this to record an owner per service. A global rather than a
+    -- per-module `core` table on purpose: `core` is built ONCE and shared by
+    -- every module, and cloning it per module to carry one string would
+    -- copy a large table thirty times at boot for a field only the registry
+    -- reads. Cleared straight after, so anything publishing outside a
+    -- setup() is honestly recorded as init.lua rather than blamed on
+    -- whichever module happened to load last.
+    _G.moduleLoading = mod.name or name
+    local okSetup, setupErr = pcall(mod.setup, core)
+    _G.moduleLoading = nil
+    rec.ms = (hs.timer.secondsSinceEpoch() - t0) * 1000
+    if not okSetup then
+        rec.err = "setup() failed — " .. tostring(setupErr)
+        return rec
+    end
+
+    -- Machine-profile overrides, applied AFTER setup so the module's own
+    -- defaults exist to be overridden.
+    if settings and type(mod.config) == "table" then
+        local applied = {}
+        for k, v in pairs(settings) do
+            mod.config[k] = v
+            table.insert(applied, k)
+        end
+        if #applied > 0 then
+            rec.overrides = table.concat(applied, ", ")
+            _G.diag.say("module", name .. " profile overrides: " .. rec.overrides)
+        end
+    end
+
+    rec.ok      = true
+    rec.title   = mod.name or name
+    rec.module  = mod
+    -- The cheat sheet group is registered only after setup SUCCEEDS, so
+    -- the sheet can never advertise a shortcut that was never bound.
+    -- 🗂 6.101.0 — the group carries `family`; a module may register
+    -- SEVERAL groups (`cheatsheet` as a LIST — numpad_layer serves two
+    -- families); family = "auto" registers EVEN WITH NO CHEATSHEET.
+    local cs     = mod.cheatsheet
+    local groups = nil
+    if type(cs) == "table" then groups = cs.title and { cs } or cs end
+    if (not groups or #groups == 0) and mod.family == "auto" then
+        groups = { { title = mod.name or name, entries = {} } }
+    end
+    for gi, g in ipairs(groups or {}) do
+        if type(g) == "table" and g.title then
+            table.insert(_G.moduleCheatsheets, {
+                title   = g.title,
+                entries = g.entries or {},
+                -- ⚠️ A SLOT PER GROUP, NOT PER MODULE. Two groups sharing
+                -- one order number is a real bug and not a cosmetic one:
+                -- Lua's table.sort is not stable, so they would swap
+                -- places at random between reloads and the sheet would
+                -- never look the same twice. The thousandth keeps a
+                -- multi-group module inside its own slot.
+                order   = (mod.order or 500) + (gi - 1) / 1000,
+                family  = g.family  or mod.family,
+                summary = g.summary or mod.summary,
+                source  = mod.name  or name,
+            })
+        end
+    end
+    return rec
+end
+
+-- Phase two. Scheduled, never inline: the whole point is that this work
+-- is NOT on the boot path.
+local function scheduleWarm(rec)
+    local mod = rec.module
+    if not (mod and type(mod.warm) == "function") then return end
+    local delay = mod.warmAfter or _G.moduleWarmDelay
+    local timer = hs.timer.doAfter(delay, function()
+        local t0 = hs.timer.secondsSinceEpoch()
+        local ok, err = pcall(mod.warm, core)
+        rec.warmMs = (hs.timer.secondsSinceEpoch() - t0) * 1000
+        if ok then
+            rec.warmed = true
+            _G.diag.say("module", string.format("%s warmed in %.0fms", rec.name, rec.warmMs))
+        else
+            rec.warmed = false
+            rec.warmErr = tostring(err)
+            print("🧩 MODULE WARM-UP FAILED — " .. rec.name .. ": " .. rec.warmErr)
+            _G.diag.warn("module", rec.name .. " warm() — " .. rec.warmErr)
+            -- 🚨 6.73.0 — AND IT REACHES THE LEDGER AND THE SCREEN.
+            -- This was print-and-diag only, and that is precisely how
+            -- 6.69.0 shipped with NOT ONE SNIPPET LOADED: text_expander's
+            -- warm() threw, the Console said so once, and nothing else
+            -- did. Worse, the boot line had ALREADY printed "All green" —
+            -- it runs before this phase exists, so it was reporting on a
+            -- phase that had not happened yet.
+            -- A module that fails to warm is a DEAD FEATURE. It has no
+            -- data, no dictionary, no snippets — and every key it bound
+            -- still answers, doing nothing. That is the exact shape rule
+            -- 7 exists to forbid.
+            if _G.notices then
+                pcall(_G.notices.record, "module", rec.name .. " warm() failed",
+                      rec.warmErr)
+                pcall(_G.notices.tell, "🧩 " .. rec.name .. " did not finish loading",
+                      "Its data never loaded — see the Console",
+                      { key = "warm:" .. rec.name, every = 900 })
+            end
+        end
+    end)
+    -- HELD. An unreferenced hs.timer is garbage-collected and silently
+    -- never fires — that is exactly how 6.33.0 lost its warm-up.
+    table.insert(_G.moduleWarmTimers, timer)
+    rec.warmPending = true
+end
+
+-- Load every module in the given order. Order is EXPLICIT rather than a
+-- directory scan: boot behaviour should not depend on how the filesystem
+-- happens to sort names, and a stray file dropped in the folder must
+-- never execute itself.
+function _G.loadModules(list, settingsByModule)
+    local loaded, failed = 0, 0
+    for _, name in ipairs(list) do
+        local rec = loadOneModule(name, settingsByModule and settingsByModule[name])
+        table.insert(_G.moduleStatus, rec)
+        if rec.ok then
+            loaded = loaded + 1
+            _G.diag.say("module", string.format("%s loaded in %.0fms", rec.name, rec.ms))
+            scheduleWarm(rec)
+        else
+            failed = failed + 1
+            print("🧩 MODULE FAILED — " .. rec.name .. ": " .. tostring(rec.err))
+            _G.diag.warn("module", rec.name .. " — " .. tostring(rec.err))
+        end
+    end
+    _G.diag.mark("§1.12 modules loaded")
+    _G.moduleLoaded, _G.moduleFailed = loaded, failed
+
+    -- 🚨 6.73.0 — THE BOOT LINE SAYS "All green" BEFORE THIS PHASE EXISTS.
+    -- It prints at the end of setup; warm() runs seconds later, so the
+    -- summary you read has no way to know whether the second half worked.
+    -- 6.69.0 proved that the hard way: "31 modules · All green", and then
+    -- the expander's warm() threw and all 2,006 snippets were missing.
+    -- So the warm phase reports its OWN result, once, after the last
+    -- module has had its turn. Silent when everything worked — a second
+    -- "all green" nobody needs is how people learn to skim the first one.
+    _G.warmSummaryTimer = hs.timer.doAfter(
+        (_G.moduleWarmDelay or 2.0) + 1.5, function()
+        local bad = {}
+        for _, r in ipairs(_G.moduleStatus or {}) do
+            if r.warmPending and r.warmed == false then bad[#bad + 1] = r.name end
+        end
+        if #bad == 0 then return end
+        table.sort(bad)
+        print(("🧩 WARM-UP: %d module(s) loaded but never finished starting — %s."
+               .. " Their keys still answer and do nothing. The boot line above"
+               .. " could not know: it prints before this phase runs.")
+              :format(#bad, table.concat(bad, ", ")))
+    end)
+    return loaded, failed
+end
+
+-- =====================================================================
+-- 🚑 SAFE MODE — 6.65.1
+-- =====================================================================
+-- When Hammerspoon crashes at launch, every way of fixing it goes
+-- THROUGH Hammerspoon. So: create an empty file called SAFE next to
+-- init.lua and it boots with the smallest module set that still leaves
+-- the machine usable. Delete it to go back to normal.
+--
+--        touch ~/.hammerspoon/SAFE      # then reload Hammerspoon
+--        rm    ~/.hammerspoon/SAFE      # back to the full set
+--
+-- ✏️ WHAT SURVIVES: the hyper key and the cheat sheet (not modules —
+--   always load, so ⇪/ still works) and health_monitor (⇪⇧H). NOTHING
+--   that talks to another application, drives a private macOS API, or
+--   runs on a timer — the three things that can take the app down.
+-- 🚨 SPECIFICALLY EXCLUDED: everything AppleScript-adjacent (bulk_rename,
+--   universal_actions — see writeFinderComment in modules/ocr_engine.lua)
+--   and copy_on_select, menubar_items, app_watcher, file_tracker (AX
+--   watchers or timers against other apps).
+local safeMode = false
+pcall(function()
+    safeMode = hs.fs.attributes(hs.configdir .. "/SAFE") ~= nil
+end)
+
+_G.moduleProfileName = _G.moduleProfiles[hostTag] and hostTag or "default"
+if safeMode then _G.moduleProfileName = "SAFE" end
+do
+    local profile = _G.moduleProfiles[_G.moduleProfileName]
+    if safeMode then
+        profile = { modules = { "health_monitor", "mini_calendar",
+                                "window_arranger", "numpad_layer" } }
+        print("🚑 SAFE MODE — " .. #profile.modules .. " modules only. "
+              .. "Delete ~/.hammerspoon/SAFE and reload for the full set.")
+        -- Said on screen as well as the console, because the whole reason
+        -- you are here is that you could not see the console.
+        -- HELD, like every other timer in this file: an unreferenced
+        -- hs.timer can be collected before it fires, which turns a
+        -- reliable message into one that shows up most of the time.
+        _G.safeModeTimer = hs.timer.doAfter(1.0, function()
+            pcall(function()
+                hs.alert.show("🚑 Hammerspoon is in SAFE MODE\n"
+                    .. "Most tools are off. rm ~/.hammerspoon/SAFE to restore.", 6)
+            end)
+        end)
+    end
+    _G.loadModules(profile.modules, profile.settings)
+end
+
+-- 🔔 THE ONE THING YOU SEE AT LOGIN.
+-- Clean boot: a brief flash, then nothing. A module that did not load:
+-- an alert naming it. You are never asked to go and check anything —
+-- silence means it worked, which is the only arrangement that survives
+-- not having the Console open.
+--
+-- ⏱ ON A TIMER, NOT INLINE. hs.alert during the boot chunk can land
+-- before the screen is ready at login and simply not be seen — which
+-- would make the whole mechanism a lie on the one boot you most care
+-- about. A second's delay costs nothing and is reliably visible.
+pcall(function()
+    if not _G.notices then return end
+    local names = {}
+    for _, st in ipairs(_G.moduleStatus or {}) do
+        if not st.ok then
+            names[#names + 1] = tostring(st.name)
+            _G.notices.record("load", tostring(st.name), tostring(st.err or "failed"))
+        end
+    end
+    -- HELD in _G: an unreferenced hs.timer is collected, and a collected
+    -- timer never fires — which would silently remove the one signal
+    -- this whole mechanism exists to give.
+    _G.noticesBootTimer = hs.timer.doAfter(1.0, function()
+        pcall(_G.notices.bootFinished, _G.moduleLoaded, _G.moduleFailed, names)
+    end)
+end)
+
+if _G.hyperFinalize then _G.hyperFinalize() end
+if _G.diag then _G.diag.mark("§3.12 hyper wired") end
+
+-- 🔬 THE SECOND WAY INTO ⇪, AND THE PROOF THAT ONE OF THEM WORKS. Loaded
+-- HERE and nowhere earlier: the Carbon-free dispatcher inside it reads
+-- _G.hyperDispatch, which _G.hyperFinalize() above has only just finished
+-- filling. See core/hyper_key.lua for what LL's work Mac did and why a
+-- registered shortcut is not a working one.
+local hkOK, hkErr = pcall(function()
+    local path = hs.configdir .. '/core/hyper_key.lua'
+    local chunk, loadErr = loadfile(path)
+    if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
+    chunk()({ enter = _G.hyperEnter, exit = _G.hyperExit,
+              combo = _G.hyperCombo })
+end)
+if not hkOK then
+    _G.hyperSelfTestPending = false
+    print('⚠️ 🎹 core/hyper_key.lua failed to load — ⇪ has only its Carbon '
+          .. 'hotkey, and nothing will check that it works. Everything else '
+          .. 'is unaffected. ' .. tostring(hkErr))
+    pcall(function() _G.diag.warn('hyper', 'hyper_key.lua: ' .. tostring(hkErr)) end)
+end
+
+print("📌 init.lua ARCHITECTURE VERSION: " .. _G.configVersion)
+
+-- ---- CHANGELOG CSV --------------------------------------------------
+-- An Excel-ready copy of the release notes in your OneDrive Logs folder,
+-- appended once per version. Lifted into core/changelog_csv.lua in
+-- 6.77.0: it is a feature, not orchestration, and init.lua is the
+-- orchestrator. See that file for why it was stale for thirteen releases.
+local clOK, clErr = pcall(function()
+    local path = hs.configdir .. '/core/changelog_csv.lua'
+    local chunk, loadErr = loadfile(path)
+    if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
+    chunk()({ logsDir = logsDir, csvQuote = csvQuote })
+end)
+if not clOK then
+    print('⚠️ core/changelog_csv.lua failed — no changelog row this version. '
+          .. 'Nothing else is affected. ' .. tostring(clErr))
+end
+
+-- Seed earlier versions into the changelog if it was just created (so
+-- the CSV has a meaningful history even for someone installing fresh).
+-- (Structured as nested ifs, not goto, to keep locals scoped inside
+-- the do-block — goto forces Lua to hold the scope open and that
+-- pushed us past the 200-local ceiling.)
+;(function()
+    local changelogFile = logsDir .. "/changelog.csv"
+    local f = io.open(changelogFile, "r")
+    if not f then return end
+    local content = f:read("*a"); f:close()
+    local lineCount = 0
+    for _ in content:gmatch("[^\n]+") do lineCount = lineCount + 1 end
+    if lineCount > 3 then return end
+    local out = io.open(changelogFile, "a")
+    if not out then return end
+    local seed = {
+        { "07-18-26", "6.10.0", "ONE DATA HOME: all log/note/history files consolidated into OneDrive Logs folder; per-machine tagging; autocorrect.csv + custom_shortcuts.json shared between Macs; secret.lua excluded from nightly backup; write-failure warnings added" },
+        { "07-18-26", "6.10.1", "Task Creator draft persistence: typed text survives popup dismissal; restored on reopen" },
+        { "07-18-26", "6.10.2", "Task Creator wider (60%) + live word-wrapped draft mirror panel above the picker" },
+        { "07-18-26", "6.10.3", "Canvas panels translucent (panelAlpha=0.80); hs.chooser pickers have no opacity API" },
+        { "07-19-26", "6.11.0", "OCR file tagging: copy image files in Finder -> OCR -> Finder comment (Spotlight-indexed)" },
+        { "07-19-26", "6.11.1", "OCR detection rebuilt on hs.pasteboard.readAllData; console narration added" },
+        { "07-19-26", "6.11.2", "OCR detection: NUL/control byte stripping; file://localhost handling; per-candidate rejection diagnostics" },
+        { "08-01-26", "6.11.3", "Beachball fix: File Tracker + Activity Tracker history loaded in background chunks (4000 rows/tick); 50000-row cap" },
+        { "08-02-26", "6.30.0", "App Lock: manager moved to hyper+shift+H; cover-only mode (no hiding/bouncing); cover level fixed (was burying PIN prompt at overlay 102 > popUpMenu 101, now floating 3); live-state guards prevent redundant lock/unlock; own popups no longer trigger relock-on-leave" },
+    }
+    for _, row in ipairs(seed) do
+        if not content:find(row[2], 1, true) then
+            out:write(csvQuote(row[1]) .. "," .. csvQuote(row[2]) .. ","
+                .. csvQuote(row[3]) .. "\n")
+        end
+    end
+    out:close()
+    print("📝 Changelog: seeded " .. #seed .. " earlier versions")
+end)()
+
+-- =====================================================================
+-- BOOT REPORT — quiet when healthy, loud when not (6.44.11)
+-- =====================================================================
+-- Lives in core/boot_report.lua so a test can RUN it rather than grep
+-- for the strings it prints. Accessibility is read here, not there, so
+-- the report can carry it as a row instead of trailing it underneath.
+local axOK = false
+pcall(function() axOK = hs.accessibilityState() end)
+local brOK, brErr = pcall(function()
+    local path = hs.configdir .. '/core/boot_report.lua'
+    local chunk, loadErr = loadfile(path)
+    if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
+    chunk()({ hostTag = hostTag, cloudDir = cloudDir, logsDir = logsDir,
+              backupDir = backupDir, asanaEnabled = asanaEnabled,
+              secretsStatus = secretsStatus, axOK = axOK })
+end)
+-- =====================================================================
+-- KEY TRAIL — what did I just press? (6.179.0)
+-- =====================================================================
+-- A ring buffer of the last two dozen ⇪ shortcuts and how long each one
+-- took, so a stall can be described instead of remembered. Combos only,
+-- never typed text; memory only, never a file. hyperBind above calls
+-- _G.keyTrailRecord if this loaded, and carries on if it did not.
+local ktOK, ktErr = pcall(function()
+    local path = hs.configdir .. '/core/key_trail.lua'
+    local chunk, loadErr = loadfile(path)
+    if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
+    chunk()({})
+end)
+if not ktOK then
+    print('⚠️ core/key_trail.lua failed — no key trail this session. ' .. tostring(ktErr))
+end
+
+-- =====================================================================
+-- BOOT COST — where the load time went (6.178.0)
+-- =====================================================================
+-- LL: "have we reviewed the code for size?" Nobody had measured it. The
+-- per-module timings already existed (rec.ms / rec.warmMs above); this
+-- ranks them. It reads _G.moduleStatus AFTER the fact and changes
+-- nothing about what loads — and it prints only when the boot was slow.
+local bcOK, bcErr = pcall(function()
+    local path = hs.configdir .. '/core/boot_cost.lua'
+    local chunk, loadErr = loadfile(path)
+    if not chunk then error(loadErr or ('cannot read ' .. path), 0) end
+    chunk()({ moduleDir = _G.moduleDir, logsDir = logsDir, hostTag = hostTag })
+end)
+if not bcOK then
+    -- A measuring tool failing must cost nothing but the measurement.
+    print('⚠️ core/boot_cost.lua failed — no boot-cost line this session. '
+          .. tostring(bcErr))
+end
+
+if not brOK then
+    -- The report failing must not cost you the boot, but it must not be
+    -- silent either: a missing report looks exactly like a healthy one.
+    print('⚠️ core/boot_report.lua failed — no boot summary this session. '
+          .. tostring(brErr))
+end
+
+if secretsStatus:match("^broken") then
+    -- 6.16.18: held in _G. — an unstored doAfter return value is a real
+    -- Hammerspoon gotcha, its GC can silently cancel the timer before
+    -- it fires (see the App Monitor fix above for the full story).
+    _G.bootBrokenSecretTimer = hs.timer.doAfter(2, function()
+        hs.alert.show("⚠️ secret.lua exists but couldn't load — see Console for the exact error", 6)
+    end)
+end
+
+-- Accessibility: without it, hotkeys/popups/Asana/tracking all still
+-- work, but the Window Arranger, App Peek, and app summon can't touch
+-- other apps' windows. On a managed work Mac IT may block granting it.
+-- (axOK is read above, so the boot report can carry it as a row rather
+-- than trailing it underneath as a fifteenth line.)
+if not axOK then
+    _G.bootAccessibilityTimer = hs.timer.doAfter(3, function()
+        hs.alert.show("♿️ Grant Hammerspoon Accessibility to enable window features (System Settings → Privacy & Security)", 6)
+    end)
+end
+
+_G.bootReadyAlertTimer = hs.timer.doAfter(1.5, function()
+    local notes = {}
+    if not asanaEnabled then table.insert(notes, "Asana OFF") end
+    if not cloudDir then table.insert(notes, "local logs") end
+    local suffix = (#notes > 0) and ("  ·  " .. table.concat(notes, " · ")) or ""
+    hs.alert.show("🚀 System Fully Synchronized" .. suffix, 3)
+end)
+print("⚡ Core Systems Booted. All pipelines active.")

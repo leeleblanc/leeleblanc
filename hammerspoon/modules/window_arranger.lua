@@ -1,0 +1,397 @@
+-- =====================================================================
+-- MODULE: WINDOW ARRANGER (was §1.9) — halves, fill, split, monitor jumps, app summon
+-- =====================================================================
+-- ✏️ EDIT YOUR KEYS HERE — every binding below reads from this table.
+-- Note the spec assigned ⌃⌥F to BOTH "50% halves" and "fill screen";
+-- resolved as F = fill, arrow keys = halves. Swap any of these freely.
+
+
+-- Moved out of init.lua in 6.37.0. The code is unchanged apart from
+-- taking its shared services from `core` instead of init.lua's locals.
+local M = {
+    name  = "Window Arranger",
+    order = 6,
+    family = "windows",
+    cheatsheet = {
+        title = "🪟 WINDOW ARRANGER",
+        entries = {
+            { "⇪← / ⇪→", "Left / right half of screen" },
+            { "⇪↑", "Fill screen (not full-screen mode)" },
+            { "⇪\\", "Split two most recent windows side-by-side" },
+            { "⇪W", "Summon an app to this monitor (picker)" },
+            { "⇪↓", "Return window to prior spot (toggles)" },
+            { "⇪[ / ⇪]", "Move window left / right a monitor" }
+        },
+    },
+}
+
+function M.setup(core)
+    local windowKeys = {
+        halfMods     = {"ctrl", "alt"},        -- modifiers for the five keys below
+        halfLeft     = "Left",                 -- ⌃⌥←  left half of screen
+        halfRight    = "Right",                -- ⌃⌥→  right half of screen
+        maximize     = "F",                    -- ⌃⌥F  fill screen (NOT native full screen)
+        split        = "V",                    -- ⌃⌥V  two most recent windows side-by-side
+        appJump      = "W",                    -- ⌃⌥W  summon-an-app picker
+        restore      = "M",                    -- ⌃⌥M  return window to prior position/monitor (toggles)
+        monitorMods  = {"ctrl", "alt", "cmd"}, -- modifiers for the two keys below
+        monitorLeft  = "[",                    -- ⌃⌥⌘[  move window one monitor LEFT (wraps) — [ sits left of ] on the keyboard
+        monitorRight = "]",                    -- ⌃⌥⌘]  move window one monitor RIGHT (wraps)
+    }
+
+    hs.window.animationDuration = 0  -- window moves snap instantly, no slide
+
+    local function focusedStandardWindow()
+        local ok, win = pcall(hs.window.focusedWindow)
+        if not ok or not win then return nil end
+        return win
+    end
+
+    -- Native macOS full-screen windows live on their own Space and can't
+    -- be resized/moved by frame-setting — every action below guards for
+    -- that and tells you instead of silently doing nothing.
+    local function guardNotFullScreen(win)
+        local fs = false
+        pcall(function() fs = win:isFullScreen() end)
+        if fs then
+            hs.alert.show("🪟 Exit full screen first (green button / ⌃⌘F)")
+            return false
+        end
+        return true
+    end
+
+    -- PRIOR-POSITION MEMORY: every arrangement action below saves the
+    -- window's frame (position + size + monitor, since frames are absolute
+    -- screen coordinates) BEFORE moving it. ⇪↓ restores it — and saves
+    -- where the window is now, so pressing ⇪↓ again toggles back. One
+    -- memory slot per window, in-memory only (cleared on config reload).
+    --
+    -- 🔗 6.114.0 — THIS IS NOW THE CONFIG'S ONE "PUT IT BACK" MEMORY, and
+    -- until this release it was one of two. numpad_layer kept its own
+    -- private table, so placing a window with ⇪⇧pad7 and then pressing ⇪↓
+    -- answered "No prior position remembered for this window" — the
+    -- window HAD been moved, by a key on the next keyboard over, and the
+    -- restore key could not see it. Two memories for one idea. The pad
+    -- layer writes through windows.rememberFrame now and both keys read
+    -- the same table.
+    --
+    -- 🚨 AND IT IS BOUNDED, which it was not. Windows come and go all day
+    -- and every arrangement added an entry that nothing ever removed — a
+    -- slow leak of exactly the kind numpad_layer's own comment warns
+    -- about while this table, four times busier, had no cap at all.
+    _G.windowPriorFrames = {}
+    _G.windowPriorOrder  = {}
+    _G.windowPriorMax    = 60
+
+    local function rememberFrame(win)
+        local id, f = nil, nil
+        pcall(function() id = win:id() end)
+        pcall(function() f = win:frame() end)
+        if not (id and f) then return false end
+        if _G.windowPriorFrames[id] == nil then
+            table.insert(_G.windowPriorOrder, id)
+            if #_G.windowPriorOrder > (_G.windowPriorMax or 60) then
+                local oldest = table.remove(_G.windowPriorOrder, 1)
+                _G.windowPriorFrames[oldest] = nil
+            end
+        end
+        _G.windowPriorFrames[id] = f
+        return true
+    end
+
+    -- ⌃⌥M — return the focused window to its remembered prior position
+    local function restorePriorFrame()
+        local win = focusedStandardWindow()
+        if not win then hs.alert.show("🪟 No window in focus") return end
+        if not guardNotFullScreen(win) then return end
+
+        local id = nil
+        pcall(function() id = win:id() end)
+        local prior = id and _G.windowPriorFrames[id]
+        if not prior then
+            hs.alert.show("🪟 No prior position remembered for this window")
+            return
+        end
+
+        -- If the prior position was on a monitor that's since been
+        -- unplugged, restoring would strand the window off-screen — check
+        -- the frame still overlaps some connected screen first.
+        local visible = false
+        for _, s in ipairs(hs.screen.allScreens()) do
+            local ok, inter = pcall(function() return prior:intersect(s:frame()) end)
+            if ok and inter and inter.w > 0 and inter.h > 0 then
+                visible = true
+                break
+            end
+        end
+        if not visible then
+            hs.alert.show("🪟 Prior position was on a monitor that's no longer connected")
+            return
+        end
+
+        -- Swap: remember where it is NOW, so ⌃⌥M toggles back and forth
+        local current = nil
+        pcall(function() current = win:frame() end)
+        win:setFrame(prior)
+        if current then _G.windowPriorFrames[id] = current end
+        win:focus()
+        hs.alert.show("🪟 Returned to prior position — ⌃⌥M again toggles back")
+    end
+
+    -- 🎬 6.123.0 — THE MOVE IS NOT FINISHED WHEN THE CALL RETURNS, and for
+    -- one class of app it never was. Every arrangement below COMPUTES a
+    -- rectangle and asks for it. An app is free to answer with a different
+    -- one, and some do: VLC's video window is aspect-locked with a minimum
+    -- size, so asked to become the proportional version of itself on
+    -- another monitor it keeps the width it wants — and accepts the origin
+    -- it was handed. The result is a window hanging off the edge with its
+    -- playlist sidebar sliced away, which is what LL was looking at.
+    -- moveToScreen's own ensureInScreenBounds does not catch this: that
+    -- clamps the rectangle being REQUESTED, and the app resizes afterwards.
+    --
+    -- So: ask, then LOOK. Read the frame the window actually ended up with
+    -- and, if it is not inside the monitor, push it in with setTopLeft —
+    -- which moves without resizing, because resizing is the argument this
+    -- window just won. Trying to resize it again only restarts the fight.
+    --
+    -- ORDER MATTERS AND IS THE WHOLE DESIGN. Right and bottom are clamped
+    -- first, left and top second, so left/top wins. For a window WIDER THAN
+    -- THE SCREEN that decides what gets sacrificed: the far edge, never the
+    -- title bar and never the left sidebar. The controls stay reachable.
+    --
+    -- ⚠️ HONEST LIMIT: nothing here forces a window to fit. One too big for
+    -- the monitor is still too big afterwards, merely anchored where you
+    -- can grab it. Returning false rather than pretending is what lets the
+    -- caller say so out loud instead of showing a success alert over a
+    -- half-visible window.
+    local FIT_SLOP = 1   -- px; frames can carry a fractional pixel and a
+                          -- hair of overhang is not a failure worth naming
+    local function settleIntoScreen(win, target)
+        if not (win and target) then return false end
+        local f, s
+        pcall(function() f = win:frame() end)
+        pcall(function() s = target:frame() end)
+        if not (f and s) then return false end
+
+        local x, y = f.x, f.y
+        if x + f.w > s.x + s.w then x = s.x + s.w - f.w end
+        if y + f.h > s.y + s.h then y = s.y + s.h - f.h end
+        if x < s.x then x = s.x end
+        if y < s.y then y = s.y end
+
+        if x ~= f.x or y ~= f.y then
+            pcall(function() win:setTopLeft({ x = x, y = y }) end)
+        end
+
+        -- Re-read rather than assume the nudge took — that assumption is
+        -- exactly the one that put us here.
+        local after
+        pcall(function() after = win:frame() end)
+        if not after then return false end
+        return after.x + FIT_SLOP >= s.x
+           and after.y + FIT_SLOP >= s.y
+           and after.x + after.w <= s.x + s.w + FIT_SLOP
+           and after.y + after.h <= s.y + s.h + FIT_SLOP
+    end
+    core.provide("windows.settle", settleIntoScreen)
+
+    -- ⌃⌥← / ⌃⌥→ — snap the focused window to the left/right half
+    local function setHalf(side)
+        local win = focusedStandardWindow()
+        if not win then hs.alert.show("🪟 No window in focus") return end
+        if not guardNotFullScreen(win) then return end
+        rememberFrame(win)
+        local scr = win:screen()
+        local f = scr:frame()
+        if side == "left" then
+            win:setFrame({ x = f.x, y = f.y, w = f.w / 2, h = f.h })
+        else
+            win:setFrame({ x = f.x + f.w / 2, y = f.y, w = f.w / 2, h = f.h })
+        end
+        settleIntoScreen(win, scr)
+    end
+
+    -- ⌃⌥F — fill the screen's usable area (menu bar & Dock stay visible;
+    -- this is NOT the green-button full-screen mode)
+    local function maximizeFocused()
+        local win = focusedStandardWindow()
+        if not win then hs.alert.show("🪟 No window in focus") return end
+        if not guardNotFullScreen(win) then return end
+        rememberFrame(win)
+        win:maximize()
+    end
+
+    -- ⌃⌥V — split the two most recently used windows side-by-side on the
+    -- focused window's screen: current window LEFT half, previous RIGHT.
+    local function splitTopTwo()
+        local wins = {}
+        for _, w in ipairs(hs.window.orderedWindows()) do
+            local ok, std = pcall(function() return w:isStandard() end)
+            if ok and std then table.insert(wins, w) end
+            if #wins == 2 then break end
+        end
+        if #wins < 2 then
+            hs.alert.show("🪟 Need two visible windows to split")
+            return
+        end
+        if not guardNotFullScreen(wins[1]) or not guardNotFullScreen(wins[2]) then return end
+        rememberFrame(wins[1])
+        rememberFrame(wins[2])
+
+        local scr = wins[1]:screen()
+        local f = scr:frame()
+        if wins[2]:screen() ~= scr then
+            pcall(function() wins[2]:moveToScreen(scr, false, true) end)
+        end
+        wins[1]:setFrame({ x = f.x,           y = f.y, w = f.w / 2, h = f.h })
+        wins[2]:setFrame({ x = f.x + f.w / 2, y = f.y, w = f.w / 2, h = f.h })
+        -- 6.123.0: the right-hand window is the one that overhangs when an
+        -- app refuses to be half-width — its origin is already halfway
+        -- across. Both are settled; a window that complied never moves.
+        settleIntoScreen(wins[1], scr)
+        settleIntoScreen(wins[2], scr)
+        wins[1]:focus()
+
+        local n1, n2 = "window", "window"
+        pcall(function() n1 = wins[1]:application():name() or n1 end)
+        pcall(function() n2 = wins[2]:application():name() or n2 end)
+        hs.alert.show("🪟 " .. n1 .. "  ⇤⇥  " .. n2)
+    end
+
+    -- ⌃⌥⌘[ / ⌃⌥⌘] — throw the focused window to the next monitor right/
+    -- left. Wraps around: past the rightmost monitor lands on the leftmost,
+    -- and vice versa, so it cycles among ALL monitors.
+    local function moveFocusedToMonitor(direction)
+        local win = focusedStandardWindow()
+        if not win then hs.alert.show("🪟 No window in focus") return end
+        if #hs.screen.allScreens() < 2 then
+            hs.alert.show("🪟 Only one monitor connected")
+            return
+        end
+        if not guardNotFullScreen(win) then return end
+        rememberFrame(win)
+
+        local scr = win:screen()
+        local target = (direction == "east") and scr:toEast() or scr:toWest()
+        if not target then
+            -- wrap around the edge
+            local screens = hs.screen.allScreens()
+            table.sort(screens, function(a, b) return a:frame().x < b:frame().x end)
+            target = (direction == "east") and screens[1] or screens[#screens]
+        end
+        if target == scr then return end
+
+        pcall(function() win:moveToScreen(target, false, true) end)
+        win:focus()
+        local name = "monitor"
+        pcall(function() name = target:name() or name end)
+
+        -- 🎬 6.123.0 — DID IT ACTUALLY GO? A window that refused the move
+        -- must not be congratulated for it. The old alert said "→ monitor"
+        -- unconditionally, so the one case worth knowing about — the move
+        -- didn't take — looked exactly like success.
+        local landed
+        pcall(function() landed = win:screen() end)
+        if landed and landed ~= target then
+            hs.alert.show("🪟 " .. name .. " — this window would not move there", target)
+            return
+        end
+
+        if settleIntoScreen(win, target) then
+            hs.alert.show("🪟 → " .. name, target)
+        else
+            hs.alert.show("🪟 → " .. name .. " · bigger than that monitor — corner anchored, far edge overhangs", target)
+        end
+    end
+
+    -- ⌃⌥W — summon picker: type an app's name, select it, and its window
+    -- jumps to the ACTIVE monitor (captured at the moment you press the
+    -- hotkey) in front of other apps. If the app is in native full screen
+    -- it can't be moved across monitors, so it's focused where it lives.
+    _G.appJumpTargetScreen = nil
+
+    _G.choosers.appJump = hs.chooser.new(function(choice)
+        if not (choice and choice.pid) then return end
+        local app = hs.application.applicationForPID(choice.pid)
+        if not app then
+            hs.alert.show("❌ " .. (choice.text or "App") .. " is no longer running")
+            return
+        end
+
+        local target = _G.appJumpTargetScreen or core.resolveBaseScreen()
+        local win = nil
+        pcall(function() win = app:mainWindow() or app:focusedWindow() end)
+
+        if win then
+            local fs = false
+            pcall(function() fs = win:isFullScreen() end)
+            if fs then
+                app:activate(true)
+                hs.alert.show("🪟 " .. choice.text .. " is full screen — switched to it")
+                return
+            end
+            pcall(function()
+                rememberFrame(win)
+                win:moveToScreen(target, false, true)
+                win:raise()
+            end)
+            settleIntoScreen(win, target)   -- 6.123.0, same reason as ⇪[ / ⇪]
+        end
+        app:activate(true)
+        hs.alert.show("🪟 Summoned " .. choice.text)
+    end)
+    _G.choosers.appJump:placeholderText("Summon an app to this monitor…")
+
+    hs.hotkey.bind(windowKeys.halfMods, windowKeys.appJump, function()
+        -- Capture the target BEFORE the picker opens, so "active monitor"
+        -- means the one you were working on, not wherever the picker lands
+        _G.appJumpTargetScreen = core.resolveBaseScreen()
+
+        local choices = {}
+        for _, app in ipairs(hs.application.runningApplications()) do
+            local okK, kind = pcall(function() return app:kind() end)
+            if okK and kind == 1 then  -- regular Dock apps only
+                local okN, name = pcall(function() return app:name() end)
+                if okN and name and name ~= "" and name ~= "Hammerspoon" then
+                    table.insert(choices, {
+                        text    = name,
+                        subText = "Jump to this monitor, in front of other apps",
+                        pid     = app:pid(),
+                    })
+                end
+            end
+        end
+        table.sort(choices, function(a, b) return a.text:lower() < b.text:lower() end)
+        _G.choosers.appJump:choices(choices)
+        core.showPopup(_G.choosers.appJump)
+    end)
+
+    hs.hotkey.bind(windowKeys.halfMods, windowKeys.halfLeft,  function() setHalf("left")  end)
+    hs.hotkey.bind(windowKeys.halfMods, windowKeys.halfRight, function() setHalf("right") end)
+    hs.hotkey.bind(windowKeys.halfMods, windowKeys.maximize,  maximizeFocused)
+    hs.hotkey.bind(windowKeys.halfMods, windowKeys.split,     splitTopTwo)
+    hs.hotkey.bind(windowKeys.halfMods, windowKeys.restore,   restorePriorFrame)
+    hs.hotkey.bind(windowKeys.monitorMods, windowKeys.monitorRight, function() moveFocusedToMonitor("east") end)
+    hs.hotkey.bind(windowKeys.monitorMods, windowKeys.monitorLeft,  function() moveFocusedToMonitor("west") end)
+
+    -- 6.99.0 — published so the numpad layer can put the split on ⇪pad4.
+    -- LL asked after ⇪\ (the backslash/pipe key, awkward to reach): the
+    -- key STAYS bound, this just gives the same move a second, easier
+    -- address by service name.
+    core.provide("windows.splitTwo", function() splitTopTwo() return true end)
+
+    -- 🔗 6.114.0 — published so the numpad and laptop layers write into the
+    -- SAME "put it back" memory ⇪↓ reads. They used to keep their own, and
+    -- a window placed with ⇪⇧pad7 then answered "No prior position
+    -- remembered" to the one key whose whole job is remembering. Going
+    -- through a service rather than reaching into _G.windowPriorFrames
+    -- keeps the LRU cap in the one file that owns the table — a second
+    -- writer with its own idea of the cap is how a bounded table quietly
+    -- stops being bounded.
+    core.provide("windows.rememberFrame", function(win)
+        if not win then return false end
+        return rememberFrame(win)
+    end)
+end
+
+return M

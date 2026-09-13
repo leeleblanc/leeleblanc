@@ -1,0 +1,1118 @@
+-- =====================================================================
+-- test_clipboard.lua — the feature whose worst failure LOSES YOUR HISTORY
+-- =====================================================================
+--     lua5.4 test_clipboard.lua [/path/to/hammerspoon]
+--
+-- Clipboard history was in init.lua until 6.55.0, spread over four
+-- places, with no way to drive it — so it was only ever audited from
+-- SOURCE. Now it is a module and the real functions can be run. The
+-- properties:
+--
+--   P1  A BAD WRITE NEVER DESTROYS THE FILE. It is rewritten on every
+--       copy, so this is not a one-off risk — it is a thousand chances
+--       a day. An encode that will not read back must leave the
+--       existing file ALONE, and an unreadable file must be BACKED UP
+--       before anything starts fresh over the top of it.
+--   P2  EDITING AN ENTRY COPIES IT, AND DOES NOT DUPLICATE IT. Setting
+--       the pasteboard wakes the watcher; the dedupe is what turns that
+--       into a lift-to-front instead of a second row. Deleting copies
+--       nothing.
+--   P3  THE PICKER SURVIVES hs.chooser's BRIDGE. Choices round-trip
+--       through Objective-C and come back as REBUILT tables, so table
+--       identity cannot be used to find the entry — only a number
+--       survives. This is why applyEdit takes an index.
+--   P4  A COPY MADE DURING BOOT IS NOT LOST when the file finishes
+--       loading a couple of seconds later and replaces the cache.
+
+local HS = (arg and arg[1]) or os.getenv("HAMMERSPOON_DIR")
+           or ((os.getenv("HOME") or ".") .. "/.hammerspoon")
+
+local pass, fail, failures = 0, 0, {}
+local function check(label, cond, extra)
+    if cond then pass = pass + 1
+    else fail = fail + 1
+         failures[#failures + 1] = label .. (extra and ("  [" .. tostring(extra) .. "]") or "") end
+end
+local function out(s) io.write(s) end
+
+-- ---- a filesystem and a Mac, in tables --------------------------------
+local FILES, ALERTS, PASTEBOARD, printed = {}, {}, nil, {}
+local ENCODE_BREAKS, DECODE_BREAKS, WRITE_FAILS = false, false, false
+print = function(...)
+    local p = {}
+    for i = 1, select("#", ...) do p[#p + 1] = tostring((select(i, ...))) end
+    printed[#printed + 1] = table.concat(p, " ")
+end
+
+local realIoOpen = io.open
+io.open = function(path, mode)
+    if (mode or "r"):find("w") then
+        if WRITE_FAILS then return nil end
+        local buf = {}
+        return { write = function(_, s) buf[#buf + 1] = s end,
+                 close = function() FILES[path] = table.concat(buf) end }
+    end
+    if FILES[path] == nil then return nil end
+    local content, done = FILES[path], false
+    return { read = function() if done then return nil end done = true return content end,
+             close = function() end }
+end
+
+-- A JSON stand-in that can be told to misbehave, so P1 can be exercised.
+local function enc(t)
+    if ENCODE_BREAKS then return "<<not json>>" end
+    local parts = {}
+    for _, it in ipairs(t) do
+        parts[#parts + 1] = (it.date or "") .. "\1" .. (it.text or "")
+    end
+    return table.concat(parts, "\2")
+end
+local function dec(s)
+    if DECODE_BREAKS then error("bad json") end
+    if tostring(s):find("<<not json>>", 1, true) then error("bad json") end
+    -- ⚠️ THE STUB HAS TO THROW LIKE THE REAL ONE. hs.json.decode RAISES on
+    -- malformed input; the first version of this stub quietly returned an
+    -- empty table instead, so the module's "unreadable file" branch was
+    -- never reached and the backup guard looked untested when it was
+    -- merely unexercised.
+    if s ~= "" and not tostring(s):find("\1", 1, true) then error("bad json") end
+    local o = {}
+    for chunk in tostring(s):gmatch("[^\2]+") do
+        local d, t = chunk:match("^(.-)\1(.*)$")
+        if d then o[#o + 1] = { date = d, text = t } end
+    end
+    return o
+end
+
+local HYPER, PROVIDED = {}, {}
+-- 👁 6.154.0 — the preview pane's world: canvases, a poll timer, the
+-- mouse, and a chooser that answers selectedRow / isVisible / hideCallback
+local CANVASES, TIMERS = {}, {}
+local SEL, VIS, MOUSE = 1, true, { x = 0, y = 0 }
+-- 🖱 6.202.0 — THE STUB CHOOSER FOLLOWS THE POINTER, AS macOS DOES.
+-- HSChooserTableView.m installs a tracking area and its mouseMoved:
+-- selects the row under the pointer (rowAtPoint → selectRowIndexes →
+-- scrollRowToVisible); libchooser.m's selectedRow() reads that same
+-- selection; and every arrow is selectChoice, which scrolls its row into
+-- view. So each look scrolls a CHANGED SEL into view, then — if MOUSE has
+-- MOVED since the chooser last looked and sits on a row — SEL becomes
+-- that row. On MOVEMENT only: a parked pointer fires no mouseMoved, which
+-- is the whole of 6.160.4's scenario; a pointer past the last row selects
+-- nothing (rowAtPoint is -1 there); a wheel scroll is CH.top set by hand.
+-- The geometry is the CHOOSER's, read off HSChooserWindow.xib: content
+-- 178 tall with the table's scroll view 84 tall at y=5 → 89 pt above the
+-- first row; rowHeight 40 + intercellSpacing 2 → 42 a row. It is
+-- deliberately NOT the module's pv.headH / pv.rowH: a stub built from the
+-- constants under test could never catch them being wrong, which is how
+-- 6.154.0's 56/44 ran green for forty-eight releases.
+local CH_HEAD, CH_ROW, CH_VIS, CH_W = 89, 42, 10, 576      -- 576 = 40% of 1440
+local CH = { top = 1, seen = nil, lastSel = nil }
+local function chooserLook(c)
+    if SEL ~= CH.lastSel then                    -- an arrow: scrolled into view
+        if SEL < CH.top then CH.top = SEL
+        elseif SEL > CH.top + CH_VIS - 1 then CH.top = SEL - CH_VIS + 1 end
+        CH.lastSel = SEL
+    end
+    local pt = _G.lastPopupPlacement and _G.lastPopupPlacement.point
+    local m = MOUSE
+    if not (pt and type(m) == "table") then return SEL end
+    if not CH.seen then CH.seen = { x = m.x, y = m.y } ; return SEL end   -- parked: no mouseMoved
+    if CH.seen.x == m.x and CH.seen.y == m.y then return SEL end
+    CH.seen = { x = m.x, y = m.y }
+    local n = type(c.rows) == "table" and #c.rows or 0
+    if m.x >= pt.x and m.x <= pt.x + CH_W
+       and m.y >= pt.y + CH_HEAD and m.y < pt.y + CH_HEAD + CH_VIS * CH_ROW then
+        local r = CH.top + math.floor((m.y - pt.y - CH_HEAD) / CH_ROW)
+        if r >= 1 and r <= n then SEL, CH.lastSel = r, r end
+    end
+    return SEL
+end
+hs = {
+    json = { encode = enc, decode = dec },
+    alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
+    pasteboard = { setContents = function(t) PASTEBOARD = t ; return true end,
+                   getContents = function() return PASTEBOARD end },
+    chooser = { new = function(fn)
+        local c = { fn = fn }
+        for _, m in ipairs({ "placeholderText", "show", "searchSubText" }) do
+            c[m] = function(self) return self end
+        end
+        function c:choices(x) self.rows = x ; return self end
+        function c:queryChangedCallback(f) self.qcb = f ; return self end
+        -- the getters the preview pane asks (window_move asks the same two)
+        function c:width(x) if x then return self end return 40 end
+        function c:rows(x) if x then return self end return 10 end
+        function c:selectedRow() return chooserLook(self) end
+        -- 6.157.0: the r-th row AS SHOWN (the chooser's own filter included)
+        function c:selectedRowContents(r) return (self.rows or {})[r or SEL] end
+        function c:isVisible() return VIS end
+        function c:hideCallback(f) self.hideCb = f ; return self end
+        function c:query(q)                      -- setter AND getter, as the real one
+            if q ~= nil then self.q = q ; return self end
+            return self.q or ""
+        end
+        return c end },
+    canvas = {
+        windowLevels = { mainMenu = 24, popUpMenu = 101, overlay = 25 },
+        new = function(rect)
+            local c = { rect = rect, elements = {}, shown = false, deleted = false }
+            function c:replaceElements(e)
+                if type(e) ~= "table" or #e == 0 then error("bad elements") end
+                self.elements = e ; return self
+            end
+            function c:show()   self.shown = true  ; return self end
+            function c:hide()   self.shown = false ; return self end
+            function c:delete() self.deleted = true ; self.shown = false ; return self end
+            function c:frame(r) if r then self.rect = r end return self.rect end
+            function c:level(l) self.lvl = l ; return self end
+            function c:behaviorAsLabels() return self end
+            function c:canvasMouseEvents() return self end
+            CANVASES[#CANVASES + 1] = c
+            return c
+        end,
+    },
+    mouse = { absolutePosition = function() return MOUSE end },
+    dialog = { textPrompt = function() return "Cancel", "" end },
+    timer = {
+        secondsSinceEpoch = function() return 1000 end,
+        doEvery = function(secs, fn)
+            local t = { secs = secs, fn = fn, stopped = false }
+            function t:stop() self.stopped = true end
+            TIMERS[#TIMERS + 1] = t
+            return t
+        end,
+    },
+    configdir = "/cfg",
+}
+_G.diag = { say = function() end, warn = function() end,
+            err = function() end, mark = function() end }
+
+local CORE = {
+    hostTag = "Test-Mac", logsDir = "/logs",
+    warnWriteFailed = function() ALERTS[#ALERTS + 1] = "writeFailed" end,
+    adoptLegacyFile = function() end,
+    showPopup = function(c) c.shown = true end,
+    hyperAddShortcut = function(mods, key, fn)
+        local ms = {} ; for _, x in ipairs(mods or {}) do ms[#ms + 1] = x end
+        table.sort(ms) ; HYPER[table.concat(ms, "+") .. "|" .. key] = fn end,
+    provide = function(n, f) PROVIDED[n] = f end,
+}
+
+local M, C
+local function boot()
+    ALERTS, PASTEBOARD, printed, HYPER, PROVIDED = {}, nil, {}, {}, {}
+    ENCODE_BREAKS, DECODE_BREAKS, WRITE_FAILS = false, false, false
+    _G.clipboardCache = nil
+    M = dofile(HS .. "/modules/clipboard_history.lua")
+    M.setup(CORE)
+    C = _G.clipboardHistory
+    return C
+end
+
+-- =====================================================================
+out("\n=== 1. Contract ===\n")
+-- =====================================================================
+boot()
+check("the module returns name, order and a cheatsheet",
+      M.name == "Clipboard History" and type(M.order) == "number"
+      and type(M.cheatsheet) == "table")
+check("it claims ⇪V and ⇪⇧V", HYPER["|v"] ~= nil and HYPER["shift|v"] ~= nil)
+check("its order collides with none of focus_mode/bulk_rename/workspaces",
+      M.order ~= 14.0 and M.order ~= 14.1 and M.order ~= 14.2)
+-- 🗂 6.113.0, on request: filed under CAPTURE, not TEXT. Asserted rather
+-- than left to the file, because a family is one word in a table that a
+-- later edit can revert without anything noticing until the sheet is open.
+check("filed under the capture family — it takes something IN and keeps it",
+      M.family == "capture", M.family)
+check("the watcher in init.lua can reach it by service",
+      PROVIDED["clipboard.add"] ~= nil)
+check("the file is read in warm(), not on the boot path",
+      type(M.warm) == "function")
+check("its file is tagged per machine, so two Macs sharing one OneDrive "
+      .. "never overwrite each other",
+      C.file:find("Test%-Mac") ~= nil, C.file)
+
+-- =====================================================================
+out("\n=== 2. Adding, dedupe, caps ===\n")
+-- =====================================================================
+boot()
+C.loaded = true
+check("a copy is stored", C.add("hello") == true and #_G.clipboardCache == 1)
+check("the same text copied again is NOT stored twice",
+      C.add("hello") == false and #_G.clipboardCache == 1)
+C.add("world")
+C.add("hello")
+check("🚨 copying an OLD item moves it to the FRONT rather than making a "
+      .. "second row", #_G.clipboardCache == 2
+      and _G.clipboardCache[1].text == "hello")
+check("empty and non-string copies are ignored",
+      C.add("") == false and C.add(nil) == false and C.add(42) == false)
+
+boot() ; C.loaded = true
+check("an item over the size cap is skipped, so the file stays quick to "
+      .. "write", C.add(string.rep("x", C.maxItemSize + 1)) == false)
+check("...and it says so rather than silently dropping it", (function()
+    for _, l in ipairs(printed) do
+        if l:find("over 1 MB", 1, true) then return true end
+    end
+end)())
+
+boot() ; C.loaded = true ; C.max = 5
+for i = 1, 12 do C.add("item " .. i) end
+check("the history is capped", #_G.clipboardCache == 5, #_G.clipboardCache)
+check("...keeping the NEWEST", _G.clipboardCache[1].text == "item 12")
+
+-- =====================================================================
+out("\n=== 3. P1 — a bad write must never destroy the file ===\n")
+-- =====================================================================
+boot() ; C.loaded = true
+FILES = {}
+C.add("keep me")
+local saved = FILES[C.file]
+check("a normal save writes the file", saved ~= nil)
+
+ENCODE_BREAKS = true
+C.add("this will not encode")
+check("🚨 P1: AN ENCODE THAT WILL NOT READ BACK LEAVES THE EXISTING FILE "
+      .. "ALONE — writing it is what corrupted the file originally, and it "
+      .. "was only noticed at the next reload as 'history wiped'",
+      FILES[C.file] == saved, "file changed")
+check("...and you are told, rather than it failing quietly", (function()
+    for _, a in ipairs(ALERTS) do
+        if a:find("NOT saved", 1, true) then return true end
+    end
+end)(), ALERTS[#ALERTS])
+ENCODE_BREAKS = false
+
+-- An unreadable file on load.
+boot()
+FILES = { [C.file] = "this is not parseable at all" }
+C.load()
+check("🚨 P1: AN UNREADABLE FILE IS BACKED UP BEFORE STARTING FRESH — it "
+      .. "used to fall back to {} silently, and the very next copy "
+      .. "overwrote the broken file with that empty list",
+      (function()
+    for path, body in pairs(FILES) do
+        if path:find("%.corrupt%-") and body == "this is not parseable at all" then
+            return true
+        end
+    end
+end)())
+check("...and the cache is empty rather than half-parsed",
+      #_G.clipboardCache == 0)
+check("...and it is announced", (function()
+    for _, a in ipairs(ALERTS) do
+        if a:find("unreadable", 1, true) then return true end
+    end
+end)())
+
+boot() ; C.loaded = true
+WRITE_FAILS = true
+C.add("nowhere to go")
+check("a write that cannot open the file warns instead of pretending",
+      (function()
+    for _, a in ipairs(ALERTS) do if a == "writeFailed" then return true end end
+end)())
+
+-- =====================================================================
+out("\n=== 4. P2 — editing copies, deleting does not ===\n")
+-- =====================================================================
+boot() ; C.loaded = true
+C.add("third") ; C.add("second") ; C.add("first")
+C.renderEdit("")                      -- builds the snapshot the picker uses
+PASTEBOARD = nil
+local res = C.applyEdit(2, "second, corrected")
+check("editing reports success", res == "updated", res)
+check("🚨 P2: THE EDITED TEXT IS PUT ON THE CLIPBOARD — you edited it in "
+      .. "order to paste it", PASTEBOARD == "second, corrected", tostring(PASTEBOARD))
+check("...and the stored entry changed", (function()
+    for _, e in ipairs(_G.clipboardCache) do
+        if e.text == "second, corrected" then return true end
+    end
+end)())
+
+-- 🚨 The duplicate question, driven the way the real watcher would.
+local before = #_G.clipboardCache
+C.add(PASTEBOARD)                     -- the watcher waking on our own write
+check("🚨 P2: THE WATCHER SEEING OUR OWN WRITE DOES NOT ADD A SECOND ROW — "
+      .. "the dedupe lifts the edited entry instead of copying it",
+      #_G.clipboardCache == before, before .. " -> " .. #_G.clipboardCache)
+
+boot() ; C.loaded = true
+C.add("doomed")
+C.renderEdit("")
+PASTEBOARD = nil
+res = C.applyEdit(1, "")
+check("saving an entry EMPTY deletes it", res == "deleted"
+      and #_G.clipboardCache == 0)
+check("🚨 ...and deleting copies NOTHING — 'unless I delete it' was the "
+      .. "asked-for split", PASTEBOARD == nil, tostring(PASTEBOARD))
+
+-- =====================================================================
+out("\n=== 5. P3 — surviving hs.chooser's bridge ===\n")
+-- =====================================================================
+boot() ; C.loaded = true
+C.add("c") ; C.add("b") ; C.add("a")
+C.renderEdit("")
+-- A copy arrives while the picker is open, shifting every index by one.
+C.add("brand new")
+res = C.applyEdit(2, "b, edited")
+check("🚨 P3: THE RIGHT ENTRY IS EDITED EVEN AFTER A NEW COPY SHIFTED "
+      .. "EVERY INDEX — the snapshot holds the real object and its CURRENT "
+      .. "position is re-found before writing", res == "updated")
+check("...and it really was 'b' that changed", (function()
+    for _, e in ipairs(_G.clipboardCache) do
+        if e.text == "b, edited" then return true end
+    end
+end)())
+check("...and nothing else was harmed", (function()
+    local seen = {}
+    for _, e in ipairs(_G.clipboardCache) do seen[e.text] = true end
+    return seen["a"] and seen["c"] and seen["brand new"]
+end)())
+
+boot() ; C.loaded = true
+C.add("only")
+C.renderEdit("")
+_G.clipboardCache = {}                -- the entry vanishes entirely
+check("an entry that is gone reports 'gone' rather than editing the wrong "
+      .. "row", C.applyEdit(1, "x") == "gone")
+
+-- =====================================================================
+out("\n=== 6. P4 — a copy made during boot is not lost ===\n")
+-- =====================================================================
+boot()
+FILES = { [C.file] = "Aug 01\1old one\2Aug 01\1older" }
+-- A copy lands BEFORE warm() has read the file, which is the two-second
+-- window between setup() and the deferred load.
+C.add("copied during boot")
+check("it is held while the file has not loaded", #C.preload == 1)
+M.warm()
+check("🚨 P4: THE BOOT-TIME COPY SURVIVES THE LOAD that replaced the whole "
+      .. "cache", _G.clipboardCache[1].text == "copied during boot",
+      tostring((_G.clipboardCache[1] or {}).text))
+check("...and the file's own history is there underneath it",
+      #_G.clipboardCache == 3, #_G.clipboardCache)
+check("...and the holding list is cleared afterwards", #C.preload == 0)
+
+-- =====================================================================
+out("\n=== 7. Mutation — are these load-bearing? ===\n")
+-- =====================================================================
+do
+    -- Mutation 1: save without verifying the encode round-trips.
+    boot() ; C.loaded = true
+    FILES = {} ; C.add("precious")
+    local good = FILES[C.file]
+    local realSave = C.save
+    C.save = function()
+        local body = hs.json.encode(_G.clipboardCache)   -- no verify
+        local f = io.open(C.file, "w")
+        if f then f:write(body); f:close() end
+        return true
+    end
+    ENCODE_BREAKS = true
+    C.add("breaks the encode")
+    local clobbered = (FILES[C.file] ~= good)
+    ENCODE_BREAKS = false ; C.save = realSave
+    check("MUTATION: skipping the round-trip check overwrites a good file "
+          .. "with unreadable JSON — P1 catches it", clobbered)
+
+    -- Mutation 2: edit without copying to the clipboard.
+    boot() ; C.loaded = true
+    C.add("x") ; C.renderEdit("") ; PASTEBOARD = nil
+    local realApply = C.applyEdit
+    C.applyEdit = function(i, t)
+        _G.clipboardCache[1].text = t ; return "updated"
+    end
+    C.applyEdit(1, "edited")
+    local copied = (PASTEBOARD ~= nil)
+    C.applyEdit = realApply
+    check("MUTATION: an edit that does not touch the pasteboard leaves you "
+          .. "to copy it again — P2 catches it", copied == false)
+
+    -- Mutation 3: match the entry by table identity, as the original did.
+    boot() ; C.loaded = true
+    C.add("one") ; C.renderEdit("")
+    local handedBack = { text = "one" }   -- what the bridge really returns
+    local foundByIdentity = false
+    for _, v in ipairs(_G.clipboardCache) do
+        if v == handedBack then foundByIdentity = true end
+    end
+    check("MUTATION: comparing the REBUILT table hs.chooser hands back by "
+          .. "identity never matches — which is why every edit used to "
+          .. "answer 'that entry is gone'", foundByIdentity == false)
+end
+
+-- =====================================================================
+out("\n=== 8. ☑️ Select mode — pick several rows, act on them ONCE ===\n")
+-- =====================================================================
+-- 6.97.0. hs.chooser has no shift-click multi-select, so Enter TAGS
+-- rows and an action row applies to all of them — the same pattern the
+-- Document Watcher list proved. Tags key on the ENTRY TABLE, so a copy
+-- arriving mid-pick shifts every index and loses nothing.
+boot() ; C.loaded = true
+C.add("third") ; C.add("second") ; C.add("first")
+C.renderEdit("")
+local rows = C.editChooser.rows
+check("the normal edit list leads with ONE action row: ☑️ Select several…",
+      rows[1] and rows[1].action == "selecton"
+      and rows[1].text:find("Select several", 1, true) ~= nil)
+check("...and entry rows still carry their index for one-at-a-time edits",
+      rows[2] and rows[2].idx == 1, tostring(rows[2] and rows[2].idx))
+
+C.editChooser.fn({ action = "selecton" })
+rows = C.editChooser.rows
+check("entering select mode re-renders with delete / copy / never-mind rows",
+      rows[1] and rows[1].action == "deletetagged"
+      and rows[2] and rows[2].action == "copytagged"
+      and rows[3] and rows[3].action == "selectoff")
+check("...saying honestly that nothing is picked yet",
+      rows[1].text:find("Nothing picked yet", 1, true) ~= nil)
+check("...and the picker was reopened for the next pick",
+      C.editChooser.shown == true)
+
+C.editChooser.fn({ idx = rows[4].idx })          -- pick "first"
+rows = C.editChooser.rows
+check("Enter on a row PICKS it — the row wears a ✓",
+      rows[4].text:find("✓ first", 1, true) == 1 and C.taggedCount() == 1,
+      rows[4].text)
+C.editChooser.fn({ idx = rows[4].idx })          -- unpick it again
+check("Enter on a picked row UNPICKS it", C.taggedCount() == 0)
+
+C.editChooser.fn({ idx = C.editChooser.rows[4].idx })   -- first
+C.editChooser.fn({ idx = C.editChooser.rows[6].idx })   -- third
+check("two picked, and the action row counts them",
+      C.taggedCount() == 2
+      and C.editChooser.rows[1].text:find("Delete the 2", 1, true) ~= nil,
+      C.editChooser.rows[1].text)
+
+FILES = {}
+C.editChooser.fn({ action = "deletetagged" })
+check("🗑 deleting the picked rows removes exactly those",
+      #_G.clipboardCache == 1 and _G.clipboardCache[1].text == "second",
+      #_G.clipboardCache)
+check("...saves the file", FILES[C.file] ~= nil)
+check("...announces the count", (function()
+    for _, a in ipairs(ALERTS) do
+        if a:find("Deleted 2", 1, true) then return true end
+    end
+end)(), ALERTS[#ALERTS])
+check("...and ends select mode — the job it existed for is done",
+      C.selectMode == false and C.taggedCount() == 0)
+
+-- Copy-as-one.
+boot() ; C.loaded = true
+C.add("gamma") ; C.add("beta") ; C.add("alpha")
+C.renderEdit("")
+C.editChooser.fn({ action = "selecton" })
+C.editChooser.fn({ idx = C.editChooser.rows[4].idx })   -- alpha
+C.editChooser.fn({ idx = C.editChooser.rows[6].idx })   -- gamma
+PASTEBOARD = nil
+C.editChooser.fn({ action = "copytagged" })
+check("📋 the picked rows are copied as ONE text, joined with line breaks, "
+      .. "in history order", PASTEBOARD == "alpha\ngamma", tostring(PASTEBOARD))
+check("...announced with the count", (function()
+    for _, a in ipairs(ALERTS) do
+        if a:find("Copied 2", 1, true) then return true end
+    end
+end)())
+check("...and select mode ends here too", C.selectMode == false)
+
+-- The empty-handed and reset paths.
+boot() ; C.loaded = true
+C.add("only")
+C.renderEdit("")
+C.editChooser.fn({ action = "selecton" })
+C.editChooser.fn({ action = "deletetagged" })
+check("deleting with NOTHING picked deletes nothing and says so",
+      #_G.clipboardCache == 1 and (function()
+    for _, a in ipairs(ALERTS) do
+        if a:find("Nothing picked", 1, true) then return true end
+    end
+end)())
+C.renderEdit("")
+C.editChooser.fn({ action = "selecton" })
+C.editChooser.fn({ idx = C.editChooser.rows[4].idx })
+C.editChooser.fn({ action = "selectoff" })
+check("✖️ never mind forgets the picks and returns to one-at-a-time",
+      C.selectMode == false and C.taggedCount() == 0
+      and C.editChooser.rows[1].action == "selecton")
+C.editChooser.fn({ action = "selecton" })
+C.editChooser.fn({ idx = C.editChooser.rows[4].idx })
+HYPER["shift|v"]()
+check("🚨 a fresh ⇪⇧V always starts UNPICKED — reopening into week-old "
+      .. "✓ marks is how the wrong rows get deleted",
+      C.selectMode == false and C.taggedCount() == 0)
+
+boot() ; C.loaded = true
+C.renderEdit("")
+check("an empty history offers no action rows — nothing to pick",
+      C.editChooser.rows[1]
+      and C.editChooser.rows[1].action == nil
+      and C.editChooser.rows[1].text:find("empty", 1, true) ~= nil)
+
+-- =====================================================================
+out("\n💾 the CSV supplier (6.130.0)\n")
+-- =====================================================================
+-- LL: "Can these write into one file, .csv perhaps?"
+--
+-- 🚨 THE WHOLE HISTORY, NOT THE NEWEST ITEM. This store also answers
+-- `text`, which is the ⌥⏎ answer and is deliberately just the top of the
+-- stack. If the export fell back to that, a thousand-item clipboard would
+-- write ONE row and the spreadsheet would look finished.
+do
+    local row
+    for _, e in ipairs(_G.editors or {}) do
+        if type(e) == "table" and e.name == "Clipboard" then row = e end
+    end
+    check("💾 the Clipboard registration supplies a csv function",
+          row ~= nil and type(row.csv) == "function")
+    -- 🔑 6.132.0 — LL: "Shouldn't this be in the edit picker? ⇪⇧V." It
+    -- was, and had been since 6.97.0 — but the row's key cell said ⇪V
+    -- alone, so the picker read as though ⇪V were the only way in and the
+    -- edit view had no key at all. Both keys are bound (see §1); the row
+    -- must NAME both, or the picker is the place the config lies about
+    -- itself.
+    check("🔑 the Clipboard row names the edit view's key too",
+          row ~= nil and row.key == "⇪V / ⇪⇧V", row and row.key)
+    _G.clipboardCache = {
+        { date = "Aug 21 14:23", text = "newest" },
+        { date = "Aug 21 09:01", text = "middle" },
+        { date = "Aug 20 17:44", text = "oldest" },
+    }
+    local items = row and row.csv() or {}
+    check("🚨 …carrying EVERY item, not just the one ⌥⏎ would copy",
+          #items == 3, #items)
+    check("💾 …newest first, the order the cache is already kept in",
+          items[1] and items[1].text == "newest", items[1] and items[1].text)
+    check("💾 …each with the date it was copied",
+          items[1] and items[1].when == "Aug 21 14:23", items[1] and items[1].when)
+    -- 🛡 The cache is loaded off disk and can be anything after a bad
+    -- write; a malformed row must cost itself and not the export.
+    _G.clipboardCache = { { text = "good" }, { date = "x" }, "junk", 7 }
+    check("🛡 …and a malformed cache row is dropped, not exported",
+          #row.csv() == 1, #row.csv())
+    _G.clipboardCache = {}
+    check("🛡 …an empty history exports no rows rather than one blank",
+          #row.csv() == 0, #row.csv())
+end
+
+-- =====================================================================
+out("\n=== 9. 👁 6.154.0 — the preview pane beside the picker ===\n")
+-- =====================================================================
+-- LL: "Can the full contents of the clipboard item in ⌘V be shown as I
+-- arrow up/down, or put my mouse cursor on an item? The view should
+-- show to the right of the window and be able to scroll or
+-- automatically expand to show that entry."
+-- hs.chooser has no selection callback, so a poll reads selectedRow() —
+-- which the chooser itself moves under the pointer (6.202.0; 6.154.0
+-- believed it did not, see the stub) — and the pane is a canvas beside
+-- the picker, sized to the text.
+do
+    boot() ; C.loaded = true
+    local LONG = {}
+    for i = 1, 200 do LONG[i] = "line " .. i .. " of a long clipboard entry" end
+    C.add("third")
+    C.add(table.concat(LONG, "\n"))
+    C.add("first is short")                 -- newest → row 1
+    local SCREEN = { frame = function() return { x = 0, y = 0, w = 1440, h = 900 } end }
+    _G.lastPopupPlacement = { screen = SCREEN, point = { x = 300, y = 180 },
+                              chooser = C.chooser }
+    SEL, VIS, MOUSE = 1, true, { x = 0, y = 0 }
+    CH.seen, CH.top, CH.lastSel = nil, 1, nil
+    CANVASES, TIMERS = {}, {}
+    local function pane() return C.pv.canvas end
+    local function bodyText()
+        local c = pane()
+        if not c then return "" end
+        for _, e in ipairs(c.elements) do
+            if e.type == "text" and e.textFont == "Menlo" then return e.text end
+        end
+        return ""
+    end
+    local function footer()
+        local c = pane()
+        if not c then return "" end
+        local last = c.elements[#c.elements]
+        return (last and last.type == "text") and last.text or ""
+    end
+
+    HYPER["|v"]()
+    check("opening ⇪V starts a poll at clip.previewPoll — and only then",
+          TIMERS[1] ~= nil and TIMERS[1].secs == C.previewPoll, TIMERS[1] and TIMERS[1].secs)
+    check("…HELD on the module, not left to the collector", C.pv.poll == TIMERS[1])
+    check("a pane is drawn the moment the picker opens", pane() ~= nil and pane().shown)
+    local box = C.previewBox(C.chooser)
+    check("…to the RIGHT of the picker's computed box",
+          box and pane() and pane().rect.x >= box.x + box.w, pane() and pane().rect.x)
+    check("…showing the WHOLE entry for the selected row", bodyText() == "first is short",
+          bodyText())
+    -- 6.186.0's rule: a throw here deletes every check below it while the
+    -- run still says "0 failed". The pane is asserted above; read it
+    -- defensively anyway so a regression REPORTS instead of aborting.
+    check("…with the date and the size in its header", (function()
+        for _, e in ipairs((pane() or {}).elements or {}) do
+            if e.type == "text" and e.text:find("14 chars", 1, true) then return true end
+        end
+    end)())
+    check("…click-through and on the rung above the chooser",
+          pane().lvl ~= nil, pane().lvl)
+
+    SEL = 2 ; TIMERS[1].fn()
+    check("↓ onto the long entry: the pane FOLLOWS THE KEYBOARD, and shows the "
+          .. "full text, not the 100-character row",
+          bodyText():find("line 1 of a long", 1, true) ~= nil
+          and bodyText():find("line 30 of", 1, true) ~= nil, bodyText():sub(1, 60))
+    check("…auto-expanded down to the screen's bottom edge and no further",
+          pane().rect.y + pane().rect.h <= 900 and pane().rect.h > 400,
+          pane().rect.h)
+    check("…and what will not fit is ADMITTED in a footer, never clipped "
+          .. "mid-word", footer():find("more line", 1, true) ~= nil, footer())
+
+    -- 🖱 6.202.0 — every pointer position below is the TRUE centre of a
+    -- chooser row (the stub's 89/42), never the module's idea of one: a
+    -- pointer derived from pv.headH / pv.rowH could not tell them wrong.
+    local function rowY(b, r) return b.y + CH_HEAD + (r - 1) * CH_ROW + CH_ROW // 2 end
+    MOUSE = { x = box.x + 20, y = rowY(box, 3) }
+    TIMERS[1].fn()
+    check("🖱 the pointer moving onto row 3 — the chooser highlights it, as macOS "
+          .. "does — and the pane shows 'third'", bodyText() == "third", bodyText())
+    check("…and the pane says the pointer has it",
+          C.pv.shown and C.pv.shown.how == "mouse" and C.pv.shown.row == 3)
+    MOUSE = { x = box.x + 20, y = rowY(box, 1) } ; TIMERS[1].fn()
+    check("🔑 6.202.0 — the pointer moving onto row 1 shows ROW 1: the pane shows "
+          .. "the HIGHLIGHT, never a row of its own arithmetic (56/44 read the true "
+          .. "centre of row 1 as row 2 — LL's 'one entry beneath')",
+          bodyText() == "first is short" and C.pv.shown.row == 1 and SEL == 1, bodyText())
+    MOUSE = { x = 0, y = 0 } ; TIMERS[1].fn()
+    check("the pointer leaving the picker moves no highlight: the pane stays on row 1 "
+          .. "and only the tag goes back to the keyboard",
+          bodyText() == "first is short" and C.pv.shown.how == "keys", C.pv.shown.how)
+    local drawsBefore = #CANVASES
+    TIMERS[1].fn() ; TIMERS[1].fn()
+    check("the same row twice costs no redraw — the poll is cheap when "
+          .. "nothing changed", #CANVASES == drawsBefore)
+
+    -- near the right edge the pane goes LEFT
+    _G.lastPopupPlacement.point = { x = 1000, y = 180 }
+    SEL = 1 ; C.pv.lastKey = nil ; TIMERS[1].fn()
+    check("with no room on the right the pane sits on the LEFT",
+          pane().rect.x + pane().rect.w <= 1000, pane().rect.x)
+    _G.lastPopupPlacement.point = { x = 300, y = 180 }
+
+    -- typing re-renders the list: row 1 is a different entry now
+    C.chooser.qcb("third") ; TIMERS[1].fn()
+    check("after a search the pane re-keys on the NEW list — row 1 is the match",
+          bodyText() == "third", bodyText())
+
+    -- 🧲 6.155.0 — LL: "I can't move it. Should I be able to?" A ⇪⇧-arrow
+    -- nudge is hide() + show(point); the pane must wait that out.
+    local NOW = 1000
+    local realClock = hs.timer.secondsSinceEpoch
+    hs.timer.secondsSinceEpoch = function() return NOW end
+    C.chooser.hideCb()
+    check("the picker's hideCallback takes the pane down at once", C.pv.canvas == nil)
+    check("…but the poll stays for clip.previewGrace — a nudged picker is "
+          .. "about to come back", C.pv.poll == TIMERS[1] and not TIMERS[1].stopped)
+    VIS = false ; TIMERS[1].fn()
+    check("…a hidden picker inside the grace draws nothing and keeps polling",
+          C.pv.canvas == nil and C.pv.poll ~= nil)
+    VIS = true ; SEL = 1
+    _G.lastPopupPlacement.point = { x = 340, y = 200 } ; TIMERS[1].fn()
+    local box2 = C.previewBox(C.chooser)
+    check("the picker back at a NEW spot gets its pane back THERE",
+          pane() ~= nil and box2 and box2.x == 340
+          and pane().rect.x >= box2.x + box2.w, pane() and pane().rect.x)
+    check("…showing the selected row again", bodyText() == "third", bodyText())
+    C.chooser.hideCb() ; VIS = false
+    NOW = NOW + C.previewGrace ; TIMERS[1].fn()
+    check("gone for the whole grace: the pane closes and the poll stops",
+          C.pv.canvas == nil and C.pv.poll == nil and TIMERS[1].stopped == true)
+    VIS = true
+    _G.lastPopupPlacement.point = { x = 300, y = 180 }
+
+    HYPER["|v"]() ; VIS = false ; C.pv.poll.fn()
+    check("a picker that is simply GONE keeps the pane down while the grace runs",
+          C.pv.canvas == nil and C.pv.poll ~= nil)
+    NOW = NOW + C.previewGrace ; C.pv.poll.fn()
+    check("…and closes the poll once it has run", C.pv.poll == nil)
+    VIS = true
+    hs.timer.secondsSinceEpoch = realClock
+
+    _G.lastPopupPlacement = nil
+    local okNo = pcall(function() HYPER["|v"]() end)
+    check("no placement on record: no pane, and no throw",
+          okNo and C.pv.canvas == nil)
+    C.previewClose()
+
+    -- ⇪⇧V: an action row previews nothing; an entry row previews its text
+    _G.lastPopupPlacement = { screen = SCREEN, point = { x = 300, y = 180 },
+                              chooser = C.editChooser }
+    SEL = 1 ; HYPER["shift|v"]()
+    check("⇪⇧V's '☑️ Select several…' row previews nothing", C.pv.canvas == nil)
+    SEL = 2 ; C.pv.poll.fn()
+    check("…and an entry row previews its full text", bodyText() == "first is short",
+          bodyText())
+    C.previewClose()
+
+    C.previewOn = false
+    HYPER["|v"]()
+    check("clip.previewOn = false: no poll, no pane — the list alone, as before",
+          C.pv.poll == nil and C.pv.canvas == nil)
+    C.previewOn = true
+    C.previewClose()
+
+    -- 👁 6.156.0 — the pane is a SERVICE other pickers use (⇪⇧T's rows
+    -- bring their own head line)
+    check("preview.open / suspend / close are published",
+          type(PROVIDED["preview.open"]) == "function"
+          and type(PROVIDED["preview.suspend"]) == "function"
+          and type(PROVIDED["preview.close"]) == "function")
+    _G.lastPopupPlacement = { screen = SCREEN, point = { x = 300, y = 180 },
+                              chooser = C.chooser }
+    local foreign = { { text = "sig", rawText = "Kind regards,\nLee",
+                        head = "✂️ sig  ·  textpanders  ·  17 chars" } }
+    SEL = 1 ; VIS = true
+    PROVIDED["preview.open"](C.chooser, function() return foreign end)
+    check("a row's own head line replaces the clipboard header", (function()
+        for _, e in ipairs(pane().elements) do
+            if e.type == "text" and e.text == foreign[1].head then return true end
+        end
+    end)())
+    check("...and its whole text is the body", bodyText() == "Kind regards,\nLee", bodyText())
+    PROVIDED["preview.close"]()
+    check("preview.close takes it down", C.pv.canvas == nil and C.pv.poll == nil)
+
+    -- 👁 6.157.0 — LL: "I need a preview window for the relevant pickers
+    -- like hyper+o. Can we correct all the picker tools that don't have
+    -- one?" A picker that hands over NO rows function is asked directly:
+    -- hs.chooser:selectedRowContents(r) is the r-th row as shown.
+    local other = hs.chooser.new(function() end)
+    other.rows = { { text = "a", rawText = "first entry, whole" },
+                   { text = "b", rawText = "second entry, whole" } }
+    _G.lastPopupPlacement = { screen = SCREEN, point = { x = 300, y = 180 }, chooser = other }
+    SEL = 2 ; MOUSE = { x = 0, y = 0 }
+    PROVIDED["preview.open"](other)              -- no rows function at all
+    check("a picker with no rows function still gets a pane — the row comes "
+          .. "from selectedRowContents", bodyText() == "second entry, whole", bodyText())
+    check("...headed by the text's size alone when the row has no `when` and no head",
+          (function()
+              for _, e in ipairs(pane().elements) do
+                  if e.type == "text" and e.text:find("^%d+ chars") then return true end
+              end
+          end)())
+    local box3 = C.previewBox(other)
+    MOUSE = { x = box3.x + 20, y = rowY(box3, 1) }
+    C.pv.poll.fn()
+    check("the pointer moving onto row 1 there too: the chooser highlights it and the "
+          .. "pane follows", bodyText() == "first entry, whole", bodyText())
+    MOUSE = { x = box3.x + 20, y = rowY(box3, 8) }
+    C.pv.poll.fn()
+    check("the pointer past the END of a two-row list selects nothing (rowAtPoint is -1 "
+          .. "there): the pane stays on the highlight, row 1",
+          bodyText() == "first entry, whole" and C.pv.shown.row == 1, bodyText())
+    MOUSE = { x = 0, y = 0 }
+    PROVIDED["preview.close"]()
+    _G.lastPopupPlacement = { screen = SCREEN, point = { x = 300, y = 180 }, chooser = C.chooser }
+
+    -- 🖱 6.160.4 — THE LAST HAND THAT MOVED. LL: "In my Chrome history
+    -- list, the entry in the picker will say it's a particular line
+    -- while the pop-up to the right will list something different."
+    -- Mouse Follows Focus (6.160.0) parks the pointer at the centre of
+    -- the focused window — inside the picker that opens around it — and
+    -- 6.154.0's "the mouse wins while it is inside" let a RESTING pointer
+    -- overrule the highlight. Only a hand that MOVED has the pane now.
+    local function headText()
+        local c = pane()
+        if not c then return "" end
+        for _, e in ipairs(c.elements) do
+            if e.type == "text" and e.textFont ~= "Menlo" then return e.text end
+        end
+        return ""
+    end
+    local box4 = C.previewBox(C.chooser)
+    CH.seen, CH.top, CH.lastSel = nil, 1, nil    -- the window opens under a parked pointer
+    SEL = 1 ; MOUSE = { x = box4.x + 20, y = rowY(box4, 3) }   -- resting on row 3 already
+    HYPER["|v"]()
+    check("🖱 6.160.4 — a pointer already RESTING on row 3 when ⇪V opens does not "
+          .. "take the pane: it shows row 1, the highlighted row (a parked pointer "
+          .. "fires no mouseMoved, so the chooser leaves the highlight alone too)",
+          bodyText() == "first is short" and C.pv.shown and C.pv.shown.how == "keys",
+          bodyText())
+    C.pv.poll.fn() ; C.pv.poll.fn()
+    check("…nor after more polls — a still pointer never overrules the highlight",
+          bodyText() == "first is short" and C.pv.shown.how == "keys", bodyText())
+    SEL = 2 ; C.pv.poll.fn()
+    check("↓ with the pointer still resting on row 3: the pane follows the ARROW to row 2",
+          bodyText():find("line 1 of a long", 1, true) ~= nil and C.pv.shown.how == "keys",
+          bodyText():sub(1, 40))
+    MOUSE = { x = box4.x + 21, y = rowY(box4, 3) } ; C.pv.poll.fn()
+    check("a twitch under clip.previewMousePx does not earn the pointer the TAG — the "
+          .. "highlight is macOS's to move, and the pane shows wherever it is",
+          C.pv.shown.how == "keys" and C.pv.shown.row == SEL, C.pv.shown.how)
+    MOUSE = { x = box4.x + 40, y = rowY(box4, 3) } ; C.pv.poll.fn()
+    check("the pointer MOVING onto row 3: the chooser highlights it, the pane shows "
+          .. "'third' and the tag is the pointer's",
+          bodyText() == "third" and C.pv.shown.how == "mouse", bodyText())
+    check("…and the header SAYS the pointer has it",
+          headText():find("under the pointer", 1, true) ~= nil, headText())
+    C.pv.poll.fn()
+    check("…and keeps it while the pointer rests there",
+          C.pv.shown.how == "mouse" and C.pv.shown.row == 3)
+    SEL = 1 ; C.pv.poll.fn()
+    check("an arrow moves the highlight to row 1 and takes the TAG back from a resting "
+          .. "pointer", bodyText() == "first is short" and C.pv.shown.how == "keys", bodyText())
+    check("…and the header drops the mouse tag",
+          headText():find("under the pointer", 1, true) == nil, headText())
+    -- 🔤 6.161.0 — TYPING IS A HAND TOO. A query rebuilds the list with
+    -- the highlight on row 1, where it usually already was, so the
+    -- selection never "changed" and a resting pointer kept the tag. The
+    -- pointer moves onto row 1 — the highlight ITSELF — on purpose: the
+    -- selection must not change here, or selChanged does the work and
+    -- the query rule could be deleted unnoticed (the first cut of these
+    -- rows forced SEL = 1 by hand and proved exactly nothing).
+    MOUSE = { x = box4.x + 25, y = rowY(box4, 1) } ; C.pv.poll.fn()   -- moved onto row 1, the highlight
+    check("(the mouse has row 1)", C.pv.shown.how == "mouse" and C.pv.shown.row == 1)
+    C.chooser:query("ab") ; C.pv.poll.fn()      -- a letter; the highlight is where it already was
+    check("🔤 6.161.0 — typing a query hands the TAG back to the keyboard even though "
+          .. "the selection never moved off row 1 — the case only the query text can catch",
+          C.pv.shown.how == "keys" and C.pv.shown.row == 1 and bodyText() == "first is short",
+          bodyText())
+    C.pv.poll.fn()
+    check("…and the pointer still resting there does not take it back",
+          C.pv.shown.how == "keys" and C.pv.shown.row == 1)
+    MOUSE = { x = box4.x + 20, y = box4.y + box4.h } ; C.pv.poll.fn()
+    check("the picker's bottom edge pixel is no row: the tag stays with the keyboard",
+          C.pv.shown.how == "keys" and C.pv.shown.row == 1)
+    MOUSE = { x = box4.x + 20, y = box4.y + 79 } ; C.pv.poll.fn()   -- moved into the QUERY FIELD
+    check("🔑 6.202.0 — a pointer moving across the QUERY FIELD earns no tag: macOS selects "
+          .. "nothing there, and the band is the chooser's 89/42, not window_move's 56/44 "
+          .. "(at 56 this pointer read as 'over the rows')",
+          C.pv.shown.how == "keys" and C.pv.shown.row == 1, C.pv.shown.how)
+    MOUSE = { x = 0, y = 0 } ; C.previewClose()
+
+    -- 🔑 6.202.0 — ASSERTED AGAINST THE SOURCE, because a stub chooser
+    -- that answers the mouse would also make a geometric guess look right
+    -- whenever its constants happened to agree: the row comes from the
+    -- chooser, and nothing in previewRow turns a pointer into a row.
+    local fh = realIoOpen(HS .. "/modules/clipboard_history.lua")
+    local src = fh and fh:read("a") or "" ; if fh then fh:close() end
+    local rowFn = src:match("function clip%.previewRow%(.-\n    end\n") or ""
+    check("🔑 6.202.0 — previewRow never turns the pointer into a ROW: no pv.rowH, no "
+          .. "pv.top, no math.floor in its body (put 6.154.0's guess back and this fails)",
+          #rowFn > 400 and not rowFn:find("pv.rowH", 1, true)
+          and not rowFn:find("pv.top", 1, true) and not rowFn:find("math.floor", 1, true),
+          #rowFn)
+    check("…and it still asks the chooser — selectedRow() is the row",
+          rowFn:find("chooser:selectedRow()", 1, true) ~= nil)
+    check("…and previewTick takes no third 'keyboard fallback' value from it — there is "
+          .. "no second opinion left to fall back to",
+          #rowFn > 400 and not src:find("r, how, alt", 1, true)
+          and not src:find("pv.top", 1, true))
+
+    -- 🖱 6.202.0 — A SCROLLED LIST NEEDS NO MODEL HERE. 6.160.4 estimated
+    -- the first visible row from the arrows so its geometry could survive
+    -- a scrolled list, and named a wheel scroll as the blind spot. The
+    -- chooser's rowAtPoint knows its own scroll offset, so the row it
+    -- highlights under the pointer is right in a list the arrows
+    -- scrolled, in one the wheel scrolled, and in one that just got
+    -- narrower — and the pane only ever shows the highlight.
+    local many = {}
+    for i = 1, 23 do many[i] = { text = "row " .. i, rawText = "row " .. i .. ", whole" } end
+    local shown = many
+    local tall = hs.chooser.new(function() end)         -- 10 visible rows (the stub)
+    tall.rows = many                                    -- the stub's rowAtPoint needs a count
+    _G.lastPopupPlacement = { screen = SCREEN, point = { x = 300, y = 180 }, chooser = tall }
+    SEL = 1 ; MOUSE = { x = 0, y = 0 } ; CH.seen, CH.top, CH.lastSel = nil, 1, nil
+    PROVIDED["preview.open"](tall, function() return shown end)
+    local box5 = C.previewBox(tall)
+    SEL = 12 ; C.pv.poll.fn()
+    check("↓ to row 12 of 23 in a ten-row picker: the pane follows",
+          bodyText() == "row 12, whole", bodyText())
+    MOUSE = { x = box5.x + 20, y = rowY(box5, 1) } ; C.pv.poll.fn()
+    check("the pointer on the TOP visible row of a list the arrows scrolled: the chooser "
+          .. "highlights row 3 (rowAtPoint knows the offset) and the pane shows row 3",
+          C.pv.shown.how == "mouse" and C.pv.shown.row == 3
+          and bodyText() == "row 3, whole", bodyText())
+    CH.top = 6                        -- a WHEEL scroll: three rows on, invisible to the module
+    MOUSE = { x = box5.x + 40, y = rowY(box5, 2) } ; C.pv.poll.fn()
+    check("🔑 6.202.0 — after a WHEEL scroll the pane is still right: the pointer on the "
+          .. "second visible row shows row 7 — 6.160.4's one honest limit went with the "
+          .. "arithmetic that had it",
+          C.pv.shown.row == 7 and bodyText() == "row 7, whole", bodyText())
+    local fewer = {}
+    for i = 1, 11 do fewer[i] = many[i] end
+    shown = fewer ; tall.rows = fewer ; SEL = 1 ; CH.top = 1 ; C.pv.poll.fn()   -- narrowed: a reload, highlight on 1
+    MOUSE = { x = box5.x + 20, y = rowY(box5, 1) } ; C.pv.poll.fn()
+    check("a narrowed list: the pointer on its first row shows row 1",
+          C.pv.shown.row == 1 and bodyText() == "row 1, whole", bodyText())
+    -- 6.161.0: for a picker that filters for itself the row COUNT is the
+    -- typing signal (its query is its own business)
+    MOUSE = { x = box5.x + 30, y = rowY(box5, 1) } ; C.pv.poll.fn()   -- moves ON row 1, the highlight itself
+    check("(the mouse has the narrowed list's first row)",
+          C.pv.shown.how == "mouse" and C.pv.shown.row == 1, C.pv.shown.how)
+    shown = many ; tall.rows = many ; C.pv.poll.fn()   -- the box emptied: 23 rows again, the highlight never moved
+    check("a list that changed size under a resting pointer is the keyboard's again — the "
+          .. "row COUNT is the only signal a self-filtering picker gives",
+          C.pv.shown.how == "keys" and C.pv.shown.row == 1, C.pv.shown.how)
+    MOUSE = { x = 0, y = 0 }
+    PROVIDED["preview.close"]()
+    check("closing forgets the hand and the pointer",
+          C.pv.hand == "keys" and C.pv.lastMouse == nil)
+    _G.lastPopupPlacement = { screen = SCREEN, point = { x = 300, y = 180 }, chooser = C.chooser }
+
+    -- the wrap is arithmetic, and it keeps indentation
+    local w = C.previewWrap("    indented code line that is fairly long indeed", 24)
+    check("the wrap keeps leading indentation and breaks at words",
+          w[1] == "    indented code line" and w[2] == "that is fairly long", w[1] .. "|" .. tostring(w[2]))
+    check("a word longer than a line is cut rather than lost",
+          #C.previewWrap(string.rep("x", 50), 20) == 3)
+    _G.lastPopupPlacement = nil
+end
+
+io.open = realIoOpen
+out("\n")
+-- =====================================================================
+out("\n=== ⇪V opens the ⇪space panel (6.190.0) ===\n")
+-- =====================================================================
+-- LL: "make the histories match unified search." ⇪space already renders
+-- this exact store as its @clip source, so ⇪V opens THERE rather than
+-- keeping a second renderer in step with the first. THE ROLLBACK IS ONE
+-- SETTING, and the old chooser is still here and still tested above.
+do
+    boot()
+    local asked, calls = {}, 0
+    _G.service = {
+        has  = function(n) return n == "unified.show" end,
+        -- ⚠️ RETURNS TRUE, because that is what uni.show really returns
+        -- when it opens. Until 6.193.0 this stub returned NOTHING and the
+        -- suite was green — which is exactly the shape that made ⇪V dead
+        -- on LL's Mac. A stub that is more forgiving than the real thing
+        -- is not a test, it is a blind spot.
+        call = function(n, arg) calls = calls + 1 ; asked[#asked + 1] = arg
+                                return true end,
+    }
+    C.chooser.shown = false
+    HYPER["|v"]()
+    check("⇪V opens the panel, not the chooser",
+          calls == 1 and C.chooser.shown ~= true, calls)
+    check("...prefilled on this store's own source",
+          asked[1] == "@clip ", asked[1])
+
+    -- 🚨 THE DEGRADE. unified_search can fail to load, and a ⇪V that goes
+    -- nowhere would be worse than the chooser it replaced. Asked at PRESS
+    -- time, never cached at setup — a cached answer would strand the key
+    -- for the whole session.
+    _G.service = { has = function() return false end, call = function() end }
+    C.chooser.shown = false
+    HYPER["|v"]()
+    check("🚨 with the panel unavailable ⇪V falls back to the chooser",
+          C.chooser.shown == true)
+    check("...and SAYS why rather than failing silently",
+          tostring(C.panelWhy or ""):find("not loaded", 1, true) ~= nil,
+          C.panelWhy)
+
+    -- 🚨 6.193.0, THE ONE THAT BIT: a provider that returns NOTHING.
+    -- uni.show returns nil when unified search is switched off, and the
+    -- old guard only caught an explicit false — so the panel did not
+    -- open, the chooser did not open, and ⇪V did nothing at all. A key
+    -- that silently does nothing is the worst of the three outcomes.
+    _G.service = { has = function() return true end, call = function() end }
+    C.chooser.shown = false
+    HYPER["|v"]()
+    check("🚨 a provider that returns NOTHING falls back to the chooser — "
+          .. "⇪V must never be a key that does nothing",
+          C.chooser.shown == true)
+
+    -- a panel that refuses to open (no web view on this Hammerspoon) is
+    -- the same story, and must not swallow the press either
+    _G.service = { has = function() return true end,
+                   call = function() return false end }
+    C.chooser.shown = false
+    HYPER["|v"]()
+    check("a panel that REFUSES to open also falls back",
+          C.chooser.shown == true and C.panelWhy ~= nil, C.panelWhy)
+
+    -- and a service that THROWS must not take the keystroke down with it
+    _G.service = { has = function() return true end,
+                   call = function() error("boom") end }
+    C.chooser.shown = false
+    local okPress = pcall(function() HYPER["|v"]() end)
+    check("🚨 a panel that THROWS still lands on the chooser",
+          okPress and C.chooser.shown == true)
+
+    -- the rollback LL asked for
+    _G.service = { has = function() return true end, call = function() calls = calls + 1 end }
+    C.panel = false
+    C.chooser.shown, calls = false, 0
+    HYPER["|v"]()
+    check("settings { clipboard_history = { panel = false } } restores the "
+          .. "chooser outright", C.chooser.shown == true and calls == 0)
+    C.panel = true
+
+    -- ⇪⇧V is the EDIT side and stays a chooser: it deletes rows, and the
+    -- panel is a reader. Stated, not accidental.
+    _G.service = { has = function() return true end, call = function() calls = calls + 1 end }
+    C.editChooser.shown, calls = false, 0
+    HYPER["shift|v"]()
+    check("⇪⇧V (edit) is untouched — it deletes rows, the panel reads",
+          C.editChooser.shown == true and calls == 0)
+    _G.service = nil
+end
+
+-- =====================================================================
+out("\n=== ✍️ 6.213.5 — the edit box is the OCR module's WINDOW, via editor.open ===\n")
+-- =====================================================================
+-- LL: "This window does not come to the front when I edit the clipboard.
+-- Also, the edit field is very small, can we make this a bigger edit box
+-- or use another type of window?" — the two complaints 6.115.0 answered
+-- for ⇪⇧O. The clipboard asks the service at PRESS time and keeps the
+-- prompt as the degrade. Mutation: drop the service ask and the first
+-- row fails; wire onSave to nothing and the second does.
+do
+    local OPENED, PROMPTS = nil, 0
+    hs.dialog.textPrompt = function() PROMPTS = PROMPTS + 1 ; return "Cancel", "" end
+    boot() ; C.loaded = true
+    C.add("copied text") ; C.renderEdit("")
+    _G.service = { has = function(n) return n == "editor.open" end,
+                   call = function(n, o) OPENED = o ; return true end }
+    C.editChooser.fn({ idx = 1 })
+    check("🚨 Enter on a row opens the editor WINDOW with the entry's text, not the prompt",
+          OPENED ~= nil and OPENED.text == "copied text"
+          and (OPENED.title or ""):find("clipboard", 1, true) ~= nil
+          and type(OPENED.onSave) == "function" and type(OPENED.onDelete) == "function"
+          and PROMPTS == 0, OPENED and OPENED.text)
+    ALERTS = {} ; PASTEBOARD = nil
+    if OPENED then OPENED.onSave("copied text, edited") end   -- guarded: a mutation must fail a row, not the suite
+    check("🚨 ⌘⏎ in the window edits the entry AND copies it (P2), through clip.applyEdit",
+          _G.clipboardCache[1] and _G.clipboardCache[1].text == "copied text, edited"
+          and PASTEBOARD == "copied text, edited"
+          and (ALERTS[#ALERTS] or ""):find("updated", 1, true) ~= nil,
+          tostring(_G.clipboardCache[1] and _G.clipboardCache[1].text))
+    C.renderEdit("") ; OPENED = nil
+    C.editChooser.fn({ idx = 1 })
+    if OPENED then OPENED.onDelete() end
+    check("Delete in the window deletes the entry",
+          #_G.clipboardCache == 0 and (ALERTS[#ALERTS] or ""):find("deleted", 1, true) ~= nil)
+    check("the ask is made at PRESS time, inside the chooser's callback", (function()
+        local src = io.open(HS .. "/modules/clipboard_history.lua"):read("a")
+        local body = src:match("clip%.editChooser = hs%.chooser%.new%(function%(choice%)(.-)\n        end%)")
+        return body and body:find('_G.service.has("editor.open")', 1, true) ~= nil
+    end)())
+    -- the degrade: no service, or a service that refuses → the prompt
+    C.add("again") ; C.renderEdit("")
+    _G.service = { has = function() return false end, call = function() return nil end }
+    C.editChooser.fn({ idx = 1 })
+    _G.service = { has = function() return true end, call = function() return false, "no webview" end }
+    C.editChooser.fn({ idx = 1 })
+    check("🚨 no service, or a service that refuses → the small prompt still edits (the work Mac)",
+          PROMPTS == 2, PROMPTS)
+    _G.service = nil
+end
+
+if fail > 0 then
+    out("FAILURES:\n")
+    for _, f in ipairs(failures) do out("   ❌ " .. f .. "\n") end
+end
+out(("\n%d passed, %d failed\n\n"):format(pass, fail))
+os.exit(fail == 0 and 0 or 1)

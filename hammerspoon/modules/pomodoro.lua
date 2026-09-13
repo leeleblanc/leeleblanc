@@ -1,0 +1,1111 @@
+-- =====================================================================
+-- MODULE: POMODORO (⇪⇧P) — launch it and forget it
+-- =====================================================================
+-- 25 minutes of work, then 5 minutes to stand up. One key starts it, the
+-- same key puts it away, and in between you are not asked to do anything.
+--
+-- A small panel sits just under the clock in the top-right corner and
+-- counts down. At zero it FLASHES — amber for the break, so the change is
+-- visible from the corner of your eye without a sound and without a
+-- notification landing on whatever you are doing. Then it counts the five
+-- minutes and stops.
+--
+--        ⇪⇧P        start · and press it again to put it away
+--
+-- 🚨 IT WAS ⇪pad+ IN 6.65.0, AND THAT KEY WAS DEAD. It was assigned,
+-- documented, listed on the cheat sheet and covered by a test — and on
+-- LL's Mac hs.keycodes.map["pad+"] returns nil, so the numpad layer
+-- correctly SKIPPED it rather than binding nil, and the key did nothing.
+-- Every layer of the process agreed it worked; the keyboard disagreed.
+-- A letter key cannot fail that way, so the timer lives on one now.
+-- Run _G.padProbe() to see which pad keys this Mac can actually send.
+--        ⏎          reset and go again          ┐ only while it is
+--        esc        stop and close it           ┘ asking (see below)
+--
+-- =====================================================================
+-- 🚨 THE ONE REAL HAZARD, AND WHY ⏎ AND esc WORK THE WAY THEY DO
+-- =====================================================================
+-- The obvious implementation of "press Enter to reset" is a modal that
+-- captures Enter for as long as the timer is on screen. That would be
+-- TWENTY-FIVE MINUTES during which Enter does not send an email, does not
+-- submit a form and does not put a newline in a document — and nothing
+-- on screen would explain why. This config has already shipped one
+-- keyboard-holding bug (the pre-6.47.0 menu bar scan) and the lesson is
+-- not one worth learning twice.
+--
+-- So the keys are captured ONLY while the timer is ASKING YOU SOMETHING:
+-- the moment a phase ends, for pom.answerSecs seconds. That is the only
+-- window in which "Enter means reset" is what you would expect it to
+-- mean. Outside it, ⇪pad+ toggles the timer and Enter is Enter.
+--
+-- A WATCHDOG RELEASES THE KEYS unconditionally when that window expires,
+-- and it is armed BEFORE the modal is entered, not after — so a throw
+-- between the two cannot leave the keyboard captured. Same contract as
+-- the Mouse Grid: state, then screen, then keyboard, and any failure
+-- undoes all three.
+--
+-- ⚠️ IT DOES NOT SURVIVE A RELOAD. ⇪R rebuilds every module, so a running
+-- timer stops. Deliberate: persisting it would mean a countdown that
+-- resumes hours later claiming you are mid-session, which is worse than
+-- starting again.
+
+local M = {
+    name  = "Pomodoro",
+    order = 13.65,
+    family = "time",
+    cheatsheet = {
+        title = "🍅 POMODORO (⇪⇧P — 25 on, 5 off)",
+        entries = {
+            { "⇪⇧P",     "Start it · press again to put it away" },
+            { "auto",    "25:00 work, then it FLASHES and counts 5:00 break" },
+            { "⏎",       "Reset and go again — only while it is flashing" },
+            { "esc",     "Stop and close — only while it is flashing" },
+            { "where",   "Top-right, just under the clock" },
+            { "below",   "Time · date · hours left in your 7:30–4:30 workday · 🍅 done today" },
+            { "90%",     "The card is 90% opaque throughout (6.209.0; alphaIdle / alphaAlert)" },
+            { "ink",     "The box and the digits are translucent too (cardAlpha / inkAlpha)" },
+            { "sound",   "Last 30 s of focus: Submarine every 3 s, soft → loud (toneOn / toneSecs)" },
+            { "calendar", "With the mini calendar (⇪⇧0) up, the card sits beside it and comes back after" },
+            { "log",     "Every start & completion → pomodoro_log-<Mac>.csv (Logs)" },
+            { "4:30",    "Day's tally at workday end · Friday adds the week's" },
+            { "note",    "Enter/esc are NOT captured during the countdown" },
+            { "check",   "_G.pomodoroReport() — today, this week, and the file" },
+        },
+    },
+}
+
+function M.setup(core)
+    local pom = {}
+
+    -- ✏️ EDIT HERE ---------------------------------------------------------
+    pom.enabled    = true
+    pom.key        = "p"         -- ⇪⇧P. A LETTER, deliberately: see the 🚨
+                                 -- in the header for why it is not a pad key.
+    pom.workMins   = 25          -- the session
+    pom.breakMins  = 5           -- stand up, stretch
+    -- 📏 6.152.0 — LL: "make the pomodoro at least 20% bigger". One
+    -- knob, applied to the card AND everything drawn on it (text sizes,
+    -- line positions), so the layout scales as a whole instead of big
+    -- box / small type.
+    pom.scale      = 1.2
+    pom.width      = math.floor(170 * pom.scale + 0.5)
+    pom.height     = math.floor(150 * pom.scale + 0.5)  -- was 99 — 6.94.0
+                                 -- added two lines below the countdown;
+                                 -- 132 until 6.209.0 added the 🍅 tally
+    pom.marginX    = 12          -- gap from the right edge of the screen
+    pom.marginY    = 6           -- gap below the menu bar (under the clock)
+    -- 👻 6.152.0 — THE CARD IS FAINT UNTIL IT MATTERS. LL: "go from 30%
+    -- to 90% ... as the time counts down to the last five minutes" and
+    -- "if I move the mouse pointer on to it, bring it immediately to
+    -- 90%, and off of it, back to 30%". Whole-window alpha via
+    -- canvas:alpha() — the colours never change, only the card's own
+    -- opacity, so this cannot fight the shared style table.
+    -- 👻 6.209.0 — LL: "Can you make the pomodoro timer go 90% opaque?"
+    -- Both levels are 0.90 now, so the card reads the same whether the
+    -- countdown is at 24:00 or 2:00 and whether the mouse is on it. The
+    -- 6.181.1 lesson (six passes on the vault's alpha): what LL judges
+    -- is how much of the app BEHIND shows, so if 0.90 is still wrong in
+    -- either direction it is a settings line, never another release —
+    -- `settings = { pomodoro = { alphaIdle = 1, alphaAlert = 1 } }`, and
+    -- cardAlpha / inkAlpha below for the box and the digits themselves.
+    pom.alphaIdle  = 0.90        -- most of the countdown (0.30 until 6.209.0)
+    -- 👻 6.154.0 — LL: "Can you fade both the Pomodoro focus box and the
+    -- time instead of being solid white also? Both need to be more
+    -- translucent." Three knobs, because "solid" had three causes: the
+    -- whole card rose to 90% for the last five minutes (now 75%, never
+    -- solid), the card's own fill was the shared 92% background (now
+    -- cardAlpha of that — a COPY, the shared table untouched), and the
+    -- digits were 97% white (now inkAlpha of that). The FLASH keeps its
+    -- full colours: an alert nobody can see is no alert.
+    pom.alphaAlert = 0.90        -- last alertMins · hover · flash · asking (0.75 until 6.209.0)
+    pom.cardAlpha  = 0.78        -- the box: this × the shared bg alpha
+    pom.inkAlpha   = 0.80        -- FOCUS/BREAK label + the countdown digits
+    pom.alertMins  = 5           -- solid for the final stretch (any phase —
+                                 -- the 5-minute break is therefore always
+                                 -- solid, which is what a break should be)
+    pom.hoverSecs  = 0.15        -- hover poll while the card is up. A poll,
+                                 -- NOT a canvas mouse callback: window_move's
+                                 -- drag owns mouseCallback (one per canvas),
+                                 -- and "immediately" at 0.15s is immediate
+                                 -- to a human. Runs ONLY while the card is
+                                 -- on screen; stop() kills it.
+    -- 🕰 6.94.0 — THE WORKDAY, for the "hours left" line under the clock.
+    -- LL: "display the regular time and date and how many hours are left
+    -- in the day if I'm working from 7:30 to 4:30 ... I don't take lunch."
+    -- 24-hour "H:MM". No lunch is subtracted, exactly as specified — the
+    -- countdown is simply 4:30 PM minus now.
+    pom.workdayStart = "7:30"
+    pom.workdayEnd   = "16:30"   -- 4:30 PM
+    -- Sat/Sun show "no workday today" instead of counting a day that is
+    -- not one. Set false to count every day against the hours above.
+    pom.weekendsOff  = true
+    -- 🚨 How long ⏎ / esc are captured after a phase ends. Every second
+    -- here is a second Enter does not work in the app you are typing in,
+    -- so it is deliberately short. It is not a comfort setting.
+    pom.answerSecs = 20
+    -- 🔊 6.210.0 — LL: "an increasing signal tone announcement that
+    -- starts soft then increases so I 'see' but really hear that my
+    -- time is up." Submarine is LL's pick (6.198.0), growing over the
+    -- last toneSecs of the FOCUS phase: one play every toneEvery
+    -- seconds, volume rising from toneFrom to toneTo (hs.sound's own
+    -- volume — relative to the Mac's output level, never touching it).
+    -- Resolved once, on the ⇪⇧P keypress; a Mac without the sound says
+    -- so on the report and the flash still happens. The break's end
+    -- stays silent — the flash is enough for "stand up is over".
+    pom.toneOn    = true
+    pom.toneName  = "Submarine"                        -- hs.sound.getByName
+    pom.toneFile  = "/System/Library/Sounds/Submarine.aiff"   -- the degrade
+    pom.toneSecs  = 30           -- from 24:30
+    pom.toneEvery = 3            -- seconds between plays
+    pom.toneFrom  = 0.15         -- first play
+    pom.toneTo    = 1.0          -- the last one
+    pom.toneBreak = false        -- true = the break's last 30 s too
+    -- 🗓 6.211.0 — LL: "⌘+⇧+0 mini-calendar include the pomodoro
+    -- temporarily in the mini-calendar? Then come back to its own window
+    -- when the mini-calendar closes?" Both panels live top-right under
+    -- the clock, so the calendar (1024 wide) covered the card. While the
+    -- calendar is up the card DOCKS beside it — snug against its left
+    -- edge, top-aligned, dockGap apart — and goes back to exactly where
+    -- it was when the calendar closes. Drawn INSIDE the calendar was
+    -- judged and not built: its footer is 120 pt tall and the card is
+    -- 180, so that is a calendar layout decision, not a pomodoro one.
+    pom.dockGap = 8
+    pom.flashCount = 6           -- how many times the panel blinks
+    pom.flashSecs  = 0.45        -- per blink
+    -- 🧟 How long the panel may sit on screen with nothing driving it
+    -- before it decides that is a bug and closes itself. See the note at
+    -- isAlive(). Generous, because a legitimate pause between phases must
+    -- never trip it — this is a safety net, not a policy.
+    pom.zombieSecs = 60
+    -- 📒 6.152.0 — THE LOG. LL: "All the pomodoro completions need to go
+    -- into a log file" with a date/time stamp column and "an entry for
+    -- each time it is launched and completed". CSV in the Logs folder,
+    -- machine-tagged like every other store (both Macs write constantly;
+    -- one shared file would mean OneDrive conflict copies). Columns:
+    -- date,time,event,detail — `started` on every ⇪⇧P launch (and every
+    -- ⏎ re-launch), `completed` when the 25-minute work phase finishes,
+    -- which is when a pomodoro counts.
+    pom.logFile = (core.logsDir or ".") .. "/pomodoro_log-"
+                  .. tostring(core.hostTag or "Mac") .. ".csv"
+    -- ----------------------------------------------------------------------
+
+    -- Colours. Work is calm, break is amber and loud enough to catch the
+    -- eye at the edge of vision, which is the entire point of the flash.
+    -- 🎨 6.90.0 — this card is the REFERENCE for modules/ui_style.lua,
+    -- and it reads the shared table like everyone else, so an edit
+    -- there moves this panel too. The literals are the same numbers,
+    -- kept as fallbacks for a boot where the style module failed.
+    local st = _G.uiStyle or {}
+    pom.bgWork   = st.bg     or { red = 0.09, green = 0.10, blue = 0.13, alpha = 0.92 }
+    pom.bgBreak  = { red = 0.55, green = 0.38, blue = 0.02, alpha = 0.94 }
+    pom.bgFlash  = st.accent or { red = 1.00, green = 0.84, blue = 0.00, alpha = 0.96 }
+    pom.fgWork   = st.fg     or { white = 1.0, alpha = 0.97 }
+    pom.fgFlash  = { red = 0.10, green = 0.08, blue = 0.00, alpha = 1.0 }
+
+    local function say(m)  if _G.diag then _G.diag.say("pomodoro", m)  end end
+    local function warn(m) if _G.diag then _G.diag.warn("pomodoro", m) end end
+
+    -- state: nil when off. Otherwise { phase, endsAt, canvas, ticker, … }
+    pom.pos   = nil       -- where you dragged it to, this session
+    pom.state = nil
+    pom.modal = nil       -- HELD across presses; built once, never rebuilt
+    pom.guard = nil       -- the watchdog that releases the keyboard
+
+    -- ---- geometry --------------------------------------------------------
+    -- Under the CLOCK, which means the top-right of the screen holding the
+    -- frontmost app — not always the main display. resolveBaseScreen is the
+    -- same helper every other panel in this config uses, so the timer opens
+    -- on the monitor you are working on.
+    local function panelFrame()
+        local scr
+        pcall(function() scr = core.resolveBaseScreen and core.resolveBaseScreen() end)
+        if not scr then pcall(function() scr = hs.screen.mainScreen() end) end
+        if not scr then return nil end
+        local f
+        pcall(function() f = scr:frame() end)          -- excludes the menu bar
+        if not f then return nil end
+        -- 🖐 6.67.0 — A REMEMBERED POSITION WINS. Drag the panel and it
+        -- stays where you put it for the rest of the session; ⇪R (reload)
+        -- clears it, as does pom.pos = nil. Clamped to a real screen, so
+        -- unplugging the display you dragged it to cannot restore it to
+        -- coordinates that no longer exist.
+        if pom.pos then
+            local p2 = _G.clampToScreen and _G.clampToScreen(pom.pos, pom.width, pom.height)
+                       or pom.pos
+            return { x = p2.x, y = p2.y, w = pom.width, h = pom.height }
+        end
+        return {
+            x = f.x + f.w - pom.width - pom.marginX,
+            y = f.y + pom.marginY,
+            w = pom.width, h = pom.height,
+        }
+    end
+
+    -- 🚨 6.70.0 — GUARDED AGAINST INFINITY, AND THAT IS NOT HYPOTHETICAL.
+    -- tick() sets s.endsAt = math.huge to make phaseEnded fire exactly
+    -- once. If anything then reaches this function with that value —
+    -- which is exactly what happened once the answer window expired —
+    -- string.format("%02d", math.huge) raises "number has no integer
+    -- representation". paint() pcalls its caller, so the throw was
+    -- swallowed and the panel simply stopped updating: once a second,
+    -- forever, an error nobody ever saw. A silent throw on a repeating
+    -- timer is the quietest bug this config can have.
+    local function mmss(secs)
+        if type(secs) ~= "number" or secs ~= secs        -- NaN
+           or secs == math.huge or secs == -math.huge then
+            return "--:--"
+        end
+        secs = math.max(0, math.floor(secs + 0.5))
+        if secs > 359999 then secs = 359999 end          -- 99:59:59 of minutes
+        return string.format("%02d:%02d", math.floor(secs / 60), secs % 60)
+    end
+
+    -- ---- the wall clock and the workday (6.94.0) -------------------------
+    -- ⚠️ EVERY EPOCH IS FLOORED AT THE DOOR. hs.timer.secondsSinceEpoch()
+    -- returns a FRACTIONAL float on a real Mac, and os.date refuses one
+    -- with "number has no integer representation" — the exact throw the
+    -- recent-docs module hit twice in 6.93.0. On the once-a-second paint
+    -- below, that throw would be swallowed by paint()'s pcall and the
+    -- panel would quietly stop updating, which is the quietest bug this
+    -- module can have (see the mmss() note above).
+    -- "H:MM" → minutes past midnight; the fallback covers a mis-edit.
+    local function dayMins(s, fallback)
+        local h, m = tostring(s or ""):match("^%s*(%d+):(%d+)%s*$")
+        if not h then return fallback end
+        return tonumber(h) * 60 + tonumber(m)
+    end
+
+    -- "2:47 PM · Sat Aug 16" — built by hand rather than with %I/%p,
+    -- because %p is locale-dependent and can be EMPTY, which would leave
+    -- a 12-hour number with nothing saying which half of the day it is.
+    function pom.clockLine(now)
+        now = math.floor(now or hs.timer.secondsSinceEpoch())
+        local t = os.date("*t", now)
+        local h12 = t.hour % 12
+        if h12 == 0 then h12 = 12 end
+        return string.format("%d:%02d %s · %s", h12, t.min,
+                             t.hour < 12 and "AM" or "PM",
+                             (os.date("%a %b %d", now):gsub(" 0(%d)$", " %1")))
+    end
+
+    -- Seconds until workdayEnd: positive mid-day, 0 or negative once it
+    -- is over, nil on a weekend (when weekendsOff). os.date("*t") is
+    -- LOCAL time, deliberately — the workday is a local-clock fact.
+    function pom.workLeft(now)
+        now = math.floor(now or hs.timer.secondsSinceEpoch())
+        local t = os.date("*t", now)
+        if pom.weekendsOff and (t.wday == 1 or t.wday == 7) then return nil end
+        local endM = dayMins(pom.workdayEnd, 16 * 60 + 30)
+        return (endM - (t.hour * 60 + t.min)) * 60 - t.sec
+    end
+
+    function pom.workLine(now)
+        now = math.floor(now or hs.timer.secondsSinceEpoch())
+        local left = pom.workLeft(now)
+        if left == nil then return "no workday today" end
+        if left <= 0 then return "workday: done ✅" end
+        local t = os.date("*t", now)
+        if (t.hour * 60 + t.min) < dayMins(pom.workdayStart, 7 * 60 + 30) then
+            -- Before 7:30 the honest answer is a constant 9h 00m, which
+            -- reads like a stuck countdown. Say when it begins instead.
+            return "workday starts " .. tostring(pom.workdayStart)
+        end
+        -- CEILING on the minutes, so 4:29:30 says "1m left", never a
+        -- premature "0m left" that contradicts the not-done line above.
+        local m = math.ceil(left / 60)
+        local h = math.floor(m / 60)
+        m = m - h * 60
+        if h > 0 then return string.format("workday: %dh %02dm left", h, m) end
+        return string.format("workday: %dm left", m)
+    end
+
+    -- ---- drawing ---------------------------------------------------------
+    -- 📏 Every drawn number goes through S() so pom.scale resizes the
+    -- whole card, type included, from one knob (6.152.0).
+    local function S(n) return math.floor(n * pom.scale + 0.5) end
+
+    -- A copy of a colour at a scaled alpha. Copied, not mutated: bg and
+    -- fg are shared with (or ARE) _G.uiStyle's tables, and writing an
+    -- alpha into those would fade every panel that reads the style.
+    local function faded(c, frac)
+        return { red = c.red, green = c.green, blue = c.blue,
+                 white = c.white, alpha = (c.alpha or 1) * frac }
+    end
+
+    local function elements(label, clock, bg, fg)
+        -- 👻 6.154.0 — the card's fill and its ink are translucent
+        -- copies (pom.cardAlpha / pom.inkAlpha) — EXCEPT during the
+        -- flash, which is the one moment the card is meant to shout.
+        local loud = (bg == pom.bgFlash)
+        local fill = loud and bg or faded(bg, pom.cardAlpha or 1)
+        local ink  = loud and fg or faded(fg, pom.inkAlpha or 1)
+        -- The two small lines are dimmed below the ink so the countdown
+        -- stays the thing the corner of your eye reads first.
+        local dim = faded(ink, 0.78)
+        local small = S((st.font and st.font.label) or 12)
+        return {
+            { type = "rectangle", action = "fill", fillColor = fill,
+              roundedRectRadii = { xRadius = st.radius or 12,
+                                   yRadius = st.radius or 12 },
+              frame = { x = 0, y = 0, w = pom.width, h = pom.height } },
+            { type = "text", text = label,
+              textSize = small,
+              textColor = ink, textAlignment = "center",
+              frame = { x = 0, y = S(10), w = pom.width, h = S(18) } },
+            { type = "text", text = clock,
+              textSize = S((st.font and st.font.big) or 40),
+              textColor = ink, textAlignment = "center",
+              frame = { x = 0, y = S(30), w = pom.width, h = S(52) } },
+            -- 🕰 6.94.0 — under the countdown: the real time and date, and
+            -- what is left of the 7:30–4:30 workday. Rebuilt on every
+            -- paint, and the ticker paints once a second, so the wall
+            -- clock ticks along with the countdown.
+            { type = "text", text = pom.clockLine(),
+              textSize = small, textColor = dim, textAlignment = "center",
+              frame = { x = 0, y = S(86), w = pom.width, h = S(16) } },
+            { type = "text", text = pom.workLine(),
+              textSize = small, textColor = dim, textAlignment = "center",
+              frame = { x = 0, y = S(104), w = pom.width, h = S(16) } },
+            -- 🍅 6.209.0 — today's completed count, from memory (see
+            -- pom.today): the ticker paints this line every second and
+            -- never reads the log for it.
+            { type = "text", text = pom.todayLine(),
+              textSize = small, textColor = dim, textAlignment = "center",
+              frame = { x = 0, y = S(122), w = pom.width, h = S(16) } },
+        }
+    end
+
+    -- 👻 What should the card's opacity be RIGHT NOW? One answer for
+    -- every path (tick, hover poll, flash, ask), so no path can disagree:
+    -- solid when you are looking at it (hover), when it is talking to you
+    -- (flash / question), or in the final stretch; faint otherwise.
+    function pom.targetAlpha()
+        local s = pom.state
+        if not s then return pom.alphaIdle end
+        if s.hovered or s.flasher or s.asking then return pom.alphaAlert end
+        local e = s.endsAt
+        if type(e) == "number" and e ~= math.huge then
+            local left = e - hs.timer.secondsSinceEpoch()
+            if left <= pom.alertMins * 60 then return pom.alphaAlert end
+        end
+        return pom.alphaIdle
+    end
+
+    local function applyAlpha()
+        local s = pom.state
+        if not (s and s.canvas) then return end
+        local a = pom.targetAlpha()
+        if s.alphaNow ~= a then
+            s.alphaNow = a
+            pcall(function() s.canvas:alpha(a) end)
+        end
+    end
+    pom.applyAlpha = applyAlpha
+    pom.elements   = elements     -- exposed for the test harness (6.154.0)
+
+    -- ---- 🗓 docking beside the mini calendar (6.211.0) ---------------------
+    -- rect = the calendar's frame. Returns ok, why — never throws; a card
+    -- that is not running has nothing to move. The pre-dock position is
+    -- remembered on the STATE (s.undockPos), never in pom.pos, so a
+    -- dragged-and-remembered position is untouched by a dock.
+    function pom.dock(rect)
+        local s = pom.state
+        if not (s and s.canvas) then return false, "no pomodoro running" end
+        if type(rect) ~= "table" or type(rect.x) ~= "number" or type(rect.y) ~= "number" then
+            return false, "no calendar frame"
+        end
+        if not s.docked then
+            local tl
+            pcall(function() tl = s.canvas:topLeft() end)
+            s.undockPos = (tl and tl.x and tl.y) and { x = tl.x, y = tl.y } or nil
+        end
+        local pos = { x = rect.x - pom.width - pom.dockGap, y = rect.y }
+        if _G.clampToScreen then
+            local okC, c = pcall(_G.clampToScreen, pos, pom.width, pom.height)
+            if okC and c then pos = c end
+        end
+        local okMove = pcall(function() s.canvas:topLeft(pos) end)
+        if not okMove then return false, "could not move the card" end
+        s.docked = true
+        pom.dockCount = (pom.dockCount or 0) + 1
+        pom.dockLast = pos
+        return true
+    end
+
+    function pom.undock()
+        local s = pom.state
+        if not (s and s.canvas and s.docked) then return false, "not docked" end
+        s.docked = false
+        local back = s.undockPos
+        s.undockPos = nil
+        if back then
+            local okMove = pcall(function() s.canvas:topLeft(back) end)
+            if not okMove then return false, "could not move the card back" end
+        end
+        return true
+    end
+
+    -- ---- 🔊 the tone (6.210.0) ---------------------------------------------
+    -- PURE: the volume for `left` seconds remaining — toneFrom at
+    -- toneSecs, toneTo at 0, clamped either side.
+    function pom.toneVolume(left)
+        local secs = pom.toneSecs or 0
+        if secs <= 0 then return pom.toneTo end
+        local frac = 1 - (left / secs)
+        if frac < 0 then frac = 0 elseif frac > 1 then frac = 1 end
+        return pom.toneFrom + (pom.toneTo - pom.toneFrom) * frac
+    end
+
+    -- Resolved ONCE per session: getByName goes out to the system and
+    -- this is asked from a one-second timer. `false` = tried and failed
+    -- (never nil again), and pom.toneWhy says why for the report.
+    function pom.resolveTone()
+        if pom.toneSound ~= nil then return pom.toneSound end
+        local snd
+        pcall(function() snd = hs.sound and hs.sound.getByName and hs.sound.getByName(pom.toneName) end)
+        if not snd then
+            pcall(function() snd = hs.sound and hs.sound.getByFile and hs.sound.getByFile(pom.toneFile) end)
+        end
+        if snd then
+            pom.toneSound, pom.toneWhy = snd, nil
+        else
+            pom.toneSound = false
+            pom.toneWhy = "no sound named " .. tostring(pom.toneName)
+                          .. " and nothing at " .. tostring(pom.toneFile)
+        end
+        return pom.toneSound
+    end
+
+    -- Called by the ticker with the seconds left. Plays at most once per
+    -- toneEvery, only inside the last toneSecs of the focus phase (the
+    -- break too if toneBreak), and never throws into the tick.
+    function pom.toneTick(s, left, now)
+        if not pom.toneOn or not s then return false end
+        if s.phase ~= "work" and not pom.toneBreak then return false end
+        if left > pom.toneSecs or left <= 0 then return false end
+        if s.toneNext and now < s.toneNext then return false end
+        local snd = pom.resolveTone()
+        if not snd then return false end
+        local vol = pom.toneVolume(left)
+        local ok = pcall(function()
+            pcall(function() snd:stop() end)     -- a play still sounding restarts
+            snd:volume(vol)
+            snd:play()
+        end)
+        s.toneNext  = now + pom.toneEvery
+        s.tonePlays = (s.tonePlays or 0) + 1
+        pom.toneLast = { at = now, vol = vol, left = left, ok = ok }
+        return ok
+    end
+
+    local function paint(label, clock, bg, fg)
+        local s = pom.state
+        if not (s and s.canvas) then return end
+        pcall(function()
+            s.canvas:replaceElements(elements(label, clock, bg, fg))
+        end)
+        applyAlpha()
+    end
+
+    -- ---- the hover poll (6.152.0) ----------------------------------------
+    -- Runs at pom.hoverSecs ONLY while the card is on screen; stop()
+    -- kills it with everything else. A poll rather than a canvas mouse
+    -- callback because window_move's drag layer owns mouseCallback (a
+    -- canvas has exactly one), and 0.15s reads as "immediately".
+    local function checkHover()
+        local s = pom.state
+        if not (s and s.canvas) then return end
+        local inside = false
+        pcall(function()
+            local m = hs.mouse.absolutePosition()
+            local f = s.canvas:frame()
+            inside = m and f
+                     and m.x >= f.x and m.x <= f.x + f.w
+                     and m.y >= f.y and m.y <= f.y + f.h
+        end)
+        if s.hovered ~= inside then
+            s.hovered = inside
+            applyAlpha()
+        end
+    end
+
+    -- ---- the log and its reports (6.152.0) -------------------------------
+    local function csvField(v)
+        v = tostring(v or "")
+        if v:find('[",\n]') then v = '"' .. v:gsub('"', '""') .. '"' end
+        return v
+    end
+
+    function pom.logEvent(event, detail)
+        local ok = pcall(function()
+            local f = io.open(pom.logFile, "a")
+            if not f then error("unwritable") end
+            if f:seek("end") == 0 then f:write("date,time,event,detail\n") end
+            f:write(os.date("%Y-%m-%d"), ",", os.date("%H:%M:%S"), ",",
+                    csvField(event), ",", csvField(detail), "\n")
+            f:close()
+        end)
+        if not ok then
+            warn("could not append to " .. pom.logFile)
+            if core.warnWriteFailed then core.warnWriteFailed("pomodoro log") end
+        end
+    end
+
+    -- 🍅 6.209.0 — LL: "give the number of pomos accomplished in a day".
+    -- A line on the card. The log lives in the Logs folder (OneDrive on
+    -- LL's Macs), so it is READ ONCE — at start(), a keypress — and
+    -- kept in memory: phaseEnded adds one as it writes the row, and a
+    -- new date re-reads once. The ticker paints every second and must
+    -- never open that file (a placeholder read on the main thread is
+    -- the 6.152.x stall class). `pom.today` is the state; the report
+    -- says when it was read.
+    pom.today = { key = nil, completed = 0, readAt = nil }
+
+    function pom.todayCount(now)
+        now = now or hs.timer.secondsSinceEpoch()
+        local key = os.date("%Y-%m-%d", math.floor(now))
+        if pom.today.key ~= key then
+            local c = pom.dayCounts(key)
+            pom.today = { key = key, completed = c.completed, readAt = now }
+        end
+        return pom.today.completed
+    end
+
+    function pom.todayLine(now)
+        local n = pom.todayCount(now)
+        if n <= 0 then return "🍅 none yet today" end
+        return string.format("🍅 %d done today", n)
+    end
+
+    -- date "YYYY-MM-DD" → { started = n, completed = n }. Reads the file
+    -- fresh each time: the counts are asked for a few times a DAY, and a
+    -- year of pomodoros is a few thousand short lines.
+    function pom.dayCounts(dateStr)
+        local c = { started = 0, completed = 0 }
+        pcall(function()
+            local f = io.open(pom.logFile, "r")
+            if not f then return end
+            for line in f:lines() do
+                local d, ev = line:match("^([%d%-]+),[%d:]+,([^,]+)")
+                if d == dateStr then
+                    if ev == "started" then c.started = c.started + 1
+                    elseif ev == "completed" then c.completed = c.completed + 1 end
+                end
+            end
+            f:close()
+        end)
+        return c
+    end
+
+    -- Monday→today of the CURRENT week, one line per day. os.date("*t")
+    -- has wday 1 = Sunday, so Monday is found by walking back (wday+5)%7
+    -- days — floored epochs throughout (the 6.93.0 lesson above).
+    function pom.weekLines(now)
+        now = math.floor(now or hs.timer.secondsSinceEpoch())
+        local t = os.date("*t", now)
+        local monday = now - (((t.wday + 5) % 7) * 86400)
+        local lines, total = {}, 0
+        for d = 0, 6 do
+            local day = monday + d * 86400
+            if day > now then break end
+            local ds = os.date("%Y-%m-%d", day)
+            local c = pom.dayCounts(ds)
+            total = total + c.completed
+            lines[#lines + 1] = string.format("   %s  %s   %d completed (%d started)",
+                                              os.date("%a", day), ds,
+                                              c.completed, c.started)
+        end
+        lines[#lines + 1] = string.format("   week total: %d completed", total)
+        return lines
+    end
+
+    -- 🍅 4:30's tally. LL: "a log of the pomodoros I've completed at the
+    -- end of the day" and "a report at the end of the week" — one timer,
+    -- firing at workdayEnd: every workday it shows the day's count, and
+    -- on Friday the week's table rides along.
+    function pom.endOfDay()
+        local now = math.floor(hs.timer.secondsSinceEpoch())
+        local t = os.date("*t", now)
+        if pom.weekendsOff and (t.wday == 1 or t.wday == 7) then return end
+        local c = pom.dayCounts(os.date("%Y-%m-%d", now))
+        local msg = string.format("🍅 Today: %d pomodoro%s completed (%d started)",
+                                  c.completed, c.completed == 1 and "" or "s",
+                                  c.started)
+        if t.wday == 6 then    -- Friday: the week rides along
+            msg = msg .. "\n\nThis week:\n" .. table.concat(pom.weekLines(now), "\n")
+        end
+        pcall(function() hs.alert.show(msg, 8) end)
+        print(msg:gsub("\n\n", "\n"))
+        return msg
+    end
+
+    function _G.pomodoroReport()
+        local now = math.floor(hs.timer.secondsSinceEpoch())
+        local c = pom.dayCounts(os.date("%Y-%m-%d", now))
+        local L = { "🍅 POMODORO" }
+        L[#L + 1] = string.format("   today: %d completed, %d started",
+                                  c.completed, c.started)
+        L[#L + 1] = string.format("   card : shows %d for %s — read from the log at %s, then counted in memory",
+                                  pom.today.completed, tostring(pom.today.key or "no day yet"),
+                                  pom.today.readAt and os.date("%H:%M:%S", math.floor(pom.today.readAt)) or "never")
+        L[#L + 1] = "   this week:"
+        for _, l in ipairs(pom.weekLines(now)) do L[#L + 1] = l end
+        if not pom.toneOn then
+            L[#L + 1] = "   tone : off — settings = { pomodoro = { toneOn = true } } to hear it"
+        elseif pom.toneSound == false then
+            L[#L + 1] = "   tone : ⚠️ SILENT — " .. tostring(pom.toneWhy) .. " (the flash still shows)"
+        else
+            local s = pom.state
+            local last = pom.toneLast
+                and string.format(" · last %.2f with %d s left", pom.toneLast.vol, math.floor(pom.toneLast.left))
+                or ""
+            L[#L + 1] = string.format("   tone : %s every %d s over the last %d s of focus, %.2f → %.2f · %d played this phase%s%s",
+                                      tostring(pom.toneName), pom.toneEvery, pom.toneSecs, pom.toneFrom, pom.toneTo,
+                                      (s and s.tonePlays) or 0, last,
+                                      pom.toneSound == nil and " · not resolved yet (start a pomodoro)" or "")
+        end
+        do
+            local st = pom.state
+            if st and st.docked and pom.dockLast then
+                L[#L + 1] = string.format("   dock : beside the mini calendar now at %d,%d · goes back to %s when it closes",
+                                          math.floor(pom.dockLast.x), math.floor(pom.dockLast.y),
+                                          st.undockPos and (math.floor(st.undockPos.x) .. "," .. math.floor(st.undockPos.y)) or "its default spot")
+            else
+                L[#L + 1] = string.format("   dock : in its own spot · docked beside the calendar %d time(s) this session",
+                                          pom.dockCount or 0)
+            end
+        end
+        L[#L + 1] = "   log: " .. pom.logFile
+        L[#L + 1] = "   daily tally fires at " .. tostring(pom.workdayEnd)
+                    .. (pom.weekendsOff and " (weekdays)" or "")
+        local s = table.concat(L, "\n")
+        print(s)
+        return s
+    end
+
+    -- ---- the keyboard, held for as short a time as possible --------------
+    local function releaseKeys(why)
+        if pom.guard then pcall(function() pom.guard:stop() end); pom.guard = nil end
+        if pom.modal then pcall(function() pom.modal:exit() end) end
+        if pom.state then pom.state.asking = false end
+        if why then say("keys released (" .. why .. ")") end
+    end
+
+    -- 🚨 WATCHDOG FIRST, THEN THE MODAL. Armed before the keyboard is
+    -- taken so that a throw in between cannot leave ⏎ and esc captured
+    -- with nothing scheduled to give them back.
+    -- onExpire: what to do if you never answer. THIS PARAMETER IS THE BUG
+    -- FIX. It used to be nothing — the watchdog called releaseKeys() and
+    -- stopped there, which exits the modal and clears `asking` and leaves
+    -- the PANEL ON SCREEN. For the work→break case that was fine, because
+    -- the flash's completion starts the break regardless. For the final
+    -- "DONE ⏎ / esc" it was not: twenty seconds after the timer finished,
+    -- ⏎ and esc were released and the panel became furniture. Nothing was
+    -- bound to it, Esc did nothing, and the only way out was ⇪⇧P or the
+    -- Console. LL: "is stuck on screen or I'm not hitting the escape key
+    -- right." They were hitting it right.
+    local function askForAnswer(onExpire)
+        local s = pom.state
+        if not s then return end
+        -- 🚨 EACH ASK CARRIES ITS OWN TICKET, and a watchdog that is no
+        -- longer the current one does NOTHING. There are two asks per
+        -- cycle (work→break and break→DONE) and each arms a watchdog on
+        -- the same field. Without a ticket, a stale one arriving late
+        -- calls releaseKeys(), which stops pom.guard — by then the NEWER
+        -- watchdog — and the current question is left with no watchdog at
+        -- all. That is a keyboard held with nothing scheduled to give it
+        -- back, which is the one failure this whole design exists to
+        -- prevent. Found by a test firing both watchdogs in one go.
+        pom.askSeq = (pom.askSeq or 0) + 1
+        local ticket = pom.askSeq
+        pom.guard = hs.timer.doAfter(pom.answerSecs, function()
+            if pom.askSeq ~= ticket then return end     -- a later ask owns it now
+            releaseKeys("nobody answered")
+            if onExpire then pcall(onExpire) end
+        end)
+        if not pcall(function() pom.modal:enter() end) then
+            releaseKeys("could not take the keyboard")
+            warn("modal:enter() failed — ⏎/esc unavailable this round")
+            -- 🚨 AND IF THE KEYBOARD COULD NOT BE TAKEN, DO NOT SIT THERE
+            -- ASKING A QUESTION NOBODY CAN ANSWER. The panel is showing
+            -- "⏎ ⁄ esc" over keys that are not bound.
+            if onExpire then pcall(onExpire) end
+            return
+        end
+        s.asking = true
+    end
+
+    -- ---- flashing --------------------------------------------------------
+    -- A blink is two paints on a repeating timer, counted down and then
+    -- stopped. It leaves the panel in the phase's own colours whichever
+    -- half of the blink it stops on, so it can never freeze mid-flash.
+    local function flash(label, bgA, fgA, bgB, fgB, done)
+        local s = pom.state
+        if not s then return end
+        local left, on = pom.flashCount * 2, true
+        if s.flasher then pcall(function() s.flasher:stop() end) end
+        s.flasher = hs.timer.doEvery(pom.flashSecs, function()
+            if not pom.state then return end
+            paint(label, on and "— • —" or mmss(0), on and bgB or bgA,
+                  on and fgB or fgA)
+            on = not on
+            left = left - 1
+            if left <= 0 then
+                pcall(function() s.flasher:stop() end)
+                s.flasher = nil
+                if done then pcall(done) end
+            end
+        end)
+    end
+
+    -- ---- phases ----------------------------------------------------------
+    local function startPhase(phase)
+        local s = pom.state
+        if not s then return end
+        s.phase  = phase
+        s.endsAt = hs.timer.secondsSinceEpoch()
+                   + (phase == "work" and pom.workMins or pom.breakMins) * 60
+        s.toneNext, s.tonePlays = nil, 0      -- 🔊 a fresh run of the tone
+        paint(phase == "work" and "FOCUS" or "BREAK",
+              mmss(s.endsAt - hs.timer.secondsSinceEpoch()),
+              phase == "work" and pom.bgWork or pom.bgBreak, pom.fgWork)
+        say(phase .. " phase started")
+    end
+
+    local function phaseEnded()
+        local s = pom.state
+        if not s then return end
+        if s.phase == "work" then
+            -- 📒 6.152.0 — the 25 minutes are DONE: this is the moment a
+            -- pomodoro counts, so this is the moment it is written down.
+            pom.logEvent("completed", pom.workMins .. "m of focus")
+            -- 🍅 6.209.0 — the card's tally: the row just written, added
+            -- in memory (todayCount first, so a date that rolled over
+            -- mid-pomodoro is re-read before the one is added to it).
+            pom.todayCount()
+            pom.today.completed = pom.today.completed + 1
+            -- The flash IS the notification. No sound, no hs.notify: this
+            -- fires while you are mid-sentence in something, and the whole
+            -- design goal is "tells you without taking over".
+            flash("STAND UP", pom.bgBreak, pom.fgWork, pom.bgFlash, pom.fgFlash,
+                  function() startPhase("break") end)
+            -- Nothing to do on expiry: the flash's own completion starts
+            -- the break whether you answered or not, so the panel keeps
+            -- counting and stays alive.
+            askForAnswer(nil)
+        else
+            flash("DONE", pom.bgWork, pom.fgWork, pom.bgFlash, pom.fgFlash,
+                  function()
+                      paint("DONE", "⏎ ⁄ esc", pom.bgWork, pom.fgWork)
+                  end)
+            -- 🚨 THE CYCLE IS OVER. If you do not say "go again" within
+            -- answerSecs, it closes itself. There is nothing left for this
+            -- panel to count and no keys left bound to it — leaving it up
+            -- is leaving a dead window on your screen.
+            askForAnswer(function() pom.stop("nobody answered — cycle over") end)
+        end
+    end
+
+    -- 🧟 6.70.0 — THE ZOMBIE CHECK, AND WHY IT IS A CLASS FIX.
+    -- The bug LL hit was ONE path that left the panel on screen with
+    -- nothing driving it. Fixing that path is necessary and it is not
+    -- sufficient: the panel is a window this module opens and only this
+    -- module can close, so EVERY future path that forgets to close it has
+    -- the same symptom — a dead rectangle over your work with no
+    -- keystroke bound to it. So instead of trusting the paths, the ticker
+    -- asks once a second whether the panel is still ALIVE:
+    --
+    --      alive = counting down  OR  mid-flash  OR  waiting on an answer
+    --
+    -- Anything else for zombieSecs is a bug, whether or not I have thought
+    -- of it, and it closes itself and SAYS SO rather than sitting there.
+    -- The report is the point: a panel that quietly tidies itself away
+    -- teaches nobody anything.
+    local function isAlive(s)
+        if s.asking then return true end
+        if s.flasher then return true end
+        local e = s.endsAt
+        if type(e) == "number" and e ~= math.huge and e > hs.timer.secondsSinceEpoch() then
+            return true
+        end
+        return false
+    end
+
+    local function tick()
+        local s = pom.state
+        if not s then return end
+        if s.flasher then s.zombieSince = nil return end   -- mid-flash: leave it alone
+        local left = s.endsAt - hs.timer.secondsSinceEpoch()
+        if left <= 0 then
+            s.endsAt = math.huge              -- fire phaseEnded exactly once
+            phaseEnded()
+            return
+        end
+        -- 🔊 6.210.0 — the last toneSecs of focus, soft to loud. Its own
+        -- pcall: a sound that throws must not stop the countdown.
+        pcall(pom.toneTick, s, left, hs.timer.secondsSinceEpoch())
+        if isAlive(s) then
+            s.zombieSince = nil
+        else
+            s.zombieSince = s.zombieSince or hs.timer.secondsSinceEpoch()
+            if hs.timer.secondsSinceEpoch() - s.zombieSince > pom.zombieSecs then
+                local phase = tostring(s.phase)
+                -- 🚨 CLOSE FIRST, REPORT SECOND, AND THAT ORDER IS THE
+                -- WHOLE POINT. The first version of this block reported
+                -- and then closed — and the test caught it immediately,
+                -- because _G.notices.tell threw and pom.stop() was never
+                -- reached. The panel printed "so it closed itself" and
+                -- then sat there, which is worse than the bug it was
+                -- reporting: now the Console is lying to you.
+                -- A REPORTING CALL MUST NEVER BE ABLE TO PREVENT THE
+                -- REPAIR IT IS REPORTING. Everything below is pcall'd for
+                -- the same reason.
+                pom.stop("stranded panel")
+                pcall(function()
+                    print(string.format(
+                        "🍅 Pomodoro: the panel was on screen for %.0fs with "
+                        .. "nothing driving it — no countdown, no flash, no "
+                        .. "question — so it closed itself. That is a bug in "
+                        .. "this module, not in what you pressed. Phase was "
+                        .. "'%s'.", pom.zombieSecs, phase))
+                end)
+                pcall(function()
+                    if not _G.notices then return end
+                    if _G.notices.record then
+                        _G.notices.record("pomodoro", "stranded panel",
+                            "on screen with nothing driving it; phase " .. phase)
+                    end
+                    if _G.notices.tell then
+                        _G.notices.tell("🍅 The timer panel was stuck",
+                                        "It closed itself — see the Console",
+                                        { key = "pomodoro:zombie", every = 600 })
+                    end
+                end)
+                return
+            end
+        end
+        paint(s.phase == "work" and "FOCUS" or "BREAK", mmss(left),
+              s.phase == "work" and pom.bgWork or pom.bgBreak, pom.fgWork)
+    end
+
+    -- ---- start / stop ----------------------------------------------------
+    function pom.stop(why)
+        releaseKeys(nil)
+        local s = pom.state
+        pom.state = nil                        -- cleared FIRST: every timer
+                                               -- callback above bails on nil,
+                                               -- so nothing can repaint a
+                                               -- canvas that is being deleted
+        if s then
+            if s.ticker  then pcall(function() s.ticker:stop()  end) end
+            if s.flasher then pcall(function() s.flasher:stop() end) end
+            if s.hoverer then pcall(function() s.hoverer:stop() end) end
+            if s.canvas  then pcall(function() s.canvas:delete() end) end
+        end
+        if why then say("stopped (" .. why .. ")") end
+        return true
+    end
+
+    function pom.start()
+        pom.stop(nil)                          -- idempotent restart
+        local frame = panelFrame()
+        if not frame then
+            hs.alert.show("🍅 Pomodoro: no screen to draw on")
+            warn("could not resolve a screen")
+            return false
+        end
+        local okNew, c = pcall(hs.canvas.new, frame)
+        if not (okNew and c) then
+            hs.alert.show("🍅 Pomodoro could not open — see the Console")
+            warn("hs.canvas.new failed")
+            return false
+        end
+        pom.state = { phase = "work", endsAt = 0, canvas = c }
+        pom.todayCount()                       -- 🍅 the one log read, on the keypress
+        if pom.toneOn then pom.resolveTone() end   -- 🔊 named now, not in the last 30 s
+        pom.state.startedDocked = false
+        local okShow = pcall(function()
+            -- 🚨 6.66.1 — fullScreenAuxiliary, NOT "stationary".
+            -- "stationary" means "do not move me when Spaces change". It
+            -- says NOTHING about full screen, and without
+            -- fullScreenAuxiliary a canvas cannot draw over a full-screen
+            -- app at all — the timer simply was not there, which reads as
+            -- "the shortcut did nothing" rather than as a drawing bug.
+            -- Every other panel in this config already had this; the two
+            -- that did not were the two written most recently.
+            -- 🪟 6.68.0 — ABOVE THE CHEAT SHEET. Both panels used to be at
+            -- `overlay`, and two windows at one level are stacked by
+            -- whichever was shown last: the timer appeared in front or
+            -- behind depending on the order you happened to press the
+            -- keys. _G.panelLevel makes that a decision instead of an
+            -- accident — see the stacking table in init.lua.
+            c:level((_G.panelLevel and _G.panelLevel("pomodoro"))
+                    or (hs.canvas.windowLevels or {}).overlay)
+            c:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" })
+            -- 🖐 6.67.0 — DRAGGABLE, which means it no longer clicks
+            -- through. That was the old behaviour and the reasoning was
+            -- sound (a panel that swallows clicks for 25 minutes is an
+            -- obstacle) — but you cannot grab something that is not there
+            -- to be grabbed, and being able to move it was the ask. It is
+            -- 170x99 in a screen corner; move it if it is in your way.
+            -- makeCanvasDraggable sets the mouse events it needs.
+            c:replaceElements(elements("FOCUS", mmss(pom.workMins * 60),
+                                       pom.bgWork, pom.fgWork))
+        end)
+        if _G.makeCanvasDraggable then
+            _G.makeCanvasDraggable(c, "pomodoro", function(f)
+                pom.pos = { x = f.x, y = f.y }
+                say("moved to " .. math.floor(f.x) .. "," .. math.floor(f.y))
+            end)
+        end
+        if okShow then
+            -- 🚨 6.66.3 — THROUGH showCanvasSafely, NOT A BARE :show().
+            -- From LL's Console, on a hotkey press while Safari's URL-completion
+            -- popup was on screen:
+            --   NSInternalInconsistencyException: '<NSRemoteView …
+            --   SPCompletionListServiceViewController> notified of <HSCanvasWindow>
+            --   but expected (null)' in -[NSRemoteView containingWindowWillOrderOnScreen:]
+            -- AppKit asserts when our window is ordered on screen while ANOTHER
+            -- process's remote view is mid-transition. It is a timing collision, not
+            -- a permanent state, which is why the shared helper retries once a run
+            -- loop turn later and only then reports. A bare :show() throws, abandons
+            -- the rest of the open sequence, and leaves a half-ordered ghost.
+            okShow = (_G.showCanvasSafely
+                      and _G.showCanvasSafely(c, "pomodoro"))
+                     or pcall(function() c:show() end)
+        end
+        if not okShow then
+            pom.stop("draw failed")
+            hs.alert.show("🍅 Pomodoro could not draw — see the Console")
+            return false
+        end
+        startPhase("work")
+        -- 📒 6.152.0 — every launch is a row: ⇪⇧P and the ⏎ "go again"
+        -- both land here, which is exactly LL's "each time it is
+        -- launched". The completion row is written by phaseEnded.
+        pom.logEvent("started", pom.workMins .. "m work + "
+                     .. pom.breakMins .. "m break")
+        -- 👻 the hover poll — held in the state so stop() can kill it,
+        -- and applyAlpha() has already painted the card faint.
+        pcall(function()
+            pom.state.hoverer = hs.timer.doEvery(pom.hoverSecs, function()
+                pcall(checkHover)
+            end)
+        end)
+        -- 🚨 THE TICK IS PCALL'D, AND A SWALLOWED THROW IS REPORTED.
+        -- It has to be pcall'd — an error on a repeating timer that
+        -- reaches the uncaught handler once a second is its own disaster
+        -- — but the bare pcall() that was here is how mmss(math.huge)
+        -- threw sixty times a minute without anyone ever seeing it. Said
+        -- ONCE per run, because the whole failure mode is repetition.
+        pom.tickErrorSaid = false
+        pom.state.ticker = hs.timer.doEvery(1, function()
+            local ok, err = pcall(tick)
+            if not ok and not pom.tickErrorSaid then
+                pom.tickErrorSaid = true
+                print("🍅 Pomodoro: the once-a-second update threw and was "
+                      .. "caught — the panel will stop updating. " .. tostring(err))
+                if _G.notices then
+                    _G.notices.record("pomodoro", "tick failed", tostring(err))
+                end
+            end
+        end)
+        -- 🗓 6.211.0 — opened WHILE the calendar is up: dock at once, so the
+        -- calendar never covers a card that started under it.
+        pcall(function()
+            if _G.service and _G.service.has and _G.service.has("calendar.frame") then
+                local f = _G.service.call("calendar.frame")
+                if f then pom.state.startedDocked = pom.dock(f) end
+            end
+        end)
+        say("started")
+        return true
+    end
+
+    function pom.toggle()
+        if not pom.enabled then return false end
+        if pom.state then return pom.stop("toggled off") end
+        return pom.start()
+    end
+
+    -- ---- wiring ----------------------------------------------------------
+    -- The modal is built ONCE and reused. Rebuilding it per press is how a
+    -- config ends up with two modals bound to the same key, one of which
+    -- nothing holds a reference to and nothing can ever exit — the exact
+    -- trap section 2 of the Mouse Grid suite exists to catch.
+    local okModal, modal = pcall(hs.hotkey.modal.new)
+    if okModal and modal then
+        pom.modal = modal
+        pcall(function()
+            modal:bind({}, "return",   function() releaseKeys("⏎");  pom.start() end)
+            modal:bind({}, "padenter", function() releaseKeys("⏎");  pom.start() end)
+            modal:bind({}, "escape",   function() releaseKeys("esc"); pom.stop("esc") end)
+        end)
+    else
+        warn("no modal — ⏎/esc will not answer the timer, ⇪⇧P still toggles it")
+    end
+
+    -- ⎋ 6.68.0 — CLAIM Esc WHILE THE TIMER IS ASKING. The modal above is
+    -- enough on its own ONLY when nothing else holds a bare Esc. The cheat
+    -- sheet does, for as long as it is open, and hs.hotkey gives the key
+    -- to whichever binding was enabled most recently — so opening the
+    -- sheet during the flash took Esc away from the timer, and you had to
+    -- close the sheet first to reach it. That is the bug LL reported.
+    --
+    -- Priority 100 against the sheet's 10: for the ~20 seconds a phase
+    -- ending is waiting on an answer, the timer wins. The rest of the
+    -- time active() returns false and Esc closes the sheet exactly as
+    -- before — this takes nothing away, it only breaks a tie.
+    if _G.claimEscape then
+        _G.claimEscape("pomodoro", 100,
+            function() return (pom.state and pom.state.asking) == true end,
+            function() releaseKeys("esc"); pom.stop("esc") end)
+    end
+
+    if pom.enabled then
+        core.hyperAddShortcut({ "shift" }, pom.key, function() pom.toggle() end,
+                              "pomodoro")
+    end
+
+    -- 🍅 6.152.0 — the 4:30 tally, armed once per session and HELD (an
+    -- unreferenced hs.timer is collected before it ever fires — the
+    -- 6.16.18 lesson). doAt repeats daily; endOfDay itself skips
+    -- weekends, so the timer needs no calendar sense of its own.
+    pcall(function()
+        pom.dailyTimer = hs.timer.doAt(pom.workdayEnd, "1d", function()
+            pcall(pom.endOfDay)
+        end)
+    end)
+
+    pom.checkHover = checkHover   -- exposed for the test harness
+
+    core.provide("pomodoro.toggle", function() return pom.toggle() end)
+    core.provide("pomodoro.start",  function() return pom.start()  end)
+    core.provide("pomodoro.stop",   function() return pom.stop("service") end)
+    core.provide("pomodoro.report", function() return _G.pomodoroReport() end)
+    -- 🗓 6.211.0 — the mini calendar calls these as it opens and closes
+    core.provide("pomodoro.dock",   function(rect) return pom.dock(rect) end)
+    core.provide("pomodoro.undock", function() return pom.undock() end)
+
+    -- 6.89.0 — listed for Window Move with plain = true: the timer card is
+    -- pure display, so a bare click-hold drags it. ⌘-drag works too.
+    _G.movablePanels = _G.movablePanels or {}
+    table.insert(_G.movablePanels, {
+        name  = "pomodoro",
+        plain = true,
+        frame = function()
+            return pom.state and pom.state.canvas and pom.state.canvas:frame()
+        end,
+        move  = function(x, y)
+            if pom.state and pom.state.canvas then
+                pom.state.canvas:topLeft({ x = x, y = y })
+            end
+        end,
+    })
+
+    _G.pomodoro = pom
+    M.pom    = pom
+    M.config = pom
+end
+
+return M

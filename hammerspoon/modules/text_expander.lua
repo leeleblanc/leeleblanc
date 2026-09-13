@@ -1,0 +1,1962 @@
+-- =====================================================================
+-- MODULE: TEXT EXPANDER (⇪⇧S) — Alfred snippets, typed anywhere
+-- =====================================================================
+-- 🔑 6.161.0 — THE PANEL LIVES ON ⇪⇧S NOW ("S for Snippets"). It was ⇪⇧T
+-- from 6.68.0, and ⇪⇧S opened the Asana past-task picker — LL kept
+-- pressing S for snippets and getting Asana ("that shouldn't be taken
+-- nor launch that tool"). The picker lost its key (task_creator.lua);
+-- ⇪⇧T is FREE — the first free ⇪⇧ letter since 6.104.0, and
+-- _G.freeKeys() lists it.
+-- =====================================================================
+-- LL: "Snippets attached. Some have a trigger convention and some are
+-- just three letter combos like gg1 … Not all my snippets require a
+-- prefix. Ghostty does. Textapanders doesn't it's three letters instead."
+--
+-- Type a trigger, get the text. `;bd` becomes "Brew doctor"; `gg1`
+-- becomes whatever you set it to. Both conventions work at once, which
+-- is the entire point — the prefix is a property of the COLLECTION the
+-- snippet came from, not a rule the expander imposes.
+--
+-- ---- WHERE SNIPPETS COME FROM ---------------------------------------
+-- Alfred's .alfredsnippets file is a ZIP. Inside it, one JSON per
+-- snippet plus an info.plist:
+--
+--     Brew doctor [C3603EB7-…].json
+--        { "alfredsnippet": { "snippet": "Brew doctor",
+--                             "keyword": ";bd", "name": "Brew doctor" } }
+--     info.plist
+--        <key>snippetkeywordprefix</key><string></string>
+--        <key>snippetkeywordsuffix</key><string></string>
+--
+-- The plist prefix/suffix are the COLLECTION-WIDE convention, and they
+-- are what makes the two styles coexist: a collection exported with
+-- prefix ";" has bare keywords in its JSON and gets the ";" added here,
+-- while LL's own export has an EMPTY prefix because the ";" is already
+-- baked into each keyword. Read both, apply the plist, and `;bd` and
+-- `gg1` come out the far end as equals. Nothing is hard-coded.
+--
+--     ⇪⇧S                    search and insert a snippet by name
+--     _G.snippetsImport()    find and import every .alfredsnippets file
+--                            in ~/Downloads, ~/Desktop or ~
+--     _G.snippetsImport(p)   import one by path
+--     _G.snippetAdd(t, txt)  write one by hand
+--     _G.snippetsList()      print every trigger loaded, and every one
+--                            that did NOT load, with the reason
+--
+-- ---- 🚨 THIS MODULE WATCHES EVERY KEYSTROKE YOU TYPE -----------------
+-- There is no other way to build an expander, and it is the reason for
+-- every rule below:
+--   · NOTHING IS EVER LOGGED. Not the buffer, not to the console, not to
+--     the ledger, not in a diagnostic. The only thing that leaves this
+--     module is the NAME of a snippet that fired.
+--   · The buffer holds expander.bufferMax characters and no more.
+--   · macOS "secure input" switches event taps off inside password
+--     fields, so those are structurally unreachable from here — that is
+--     the OS protecting you, not a promise this file makes.
+--   · expander.excludedApps is exact-name, and terminal apps that
+--     already have their own expansion belong in it.
+--   · The tap is revived when macOS disables it, on the same 30s
+--     watchdog autocorrect uses, because a silently dead expander is
+--     rule #7's exact failure mode.
+--   · expander.enabled = false, or the ⏸ row in ⇪⇧S, stops it dead
+--     while leaving the tap running — the flag is checked per keystroke.
+--
+-- ---- 🧨 WHY A BARE `gg1` DOES NOT FIRE INSIDE A WORD -----------------
+-- Suffix matching alone means a trigger fires the moment the last of its
+-- characters is typed, WHEREVER it lands. With three-letter triggers
+-- that is a live hazard: `abc` would expand in the middle of "fabcd".
+-- So a trigger that STARTS with a letter or digit also needs a word
+-- boundary in front of it (start of buffer, whitespace, or punctuation).
+-- A trigger that starts with punctuation — `;bd`, `:sig`, `\\eml` — is
+-- exempt, because that leading character IS the boundary and requiring
+-- another one would break the very convention it exists to serve.
+-- expander.wordStartOnly = false restores plain Alfred behaviour.
+
+local M = {
+    name  = "Text Expander",
+    order = 13.58,
+    family = "text",         -- beside the tool picker; autocorrect shares its machinery
+    cheatsheet = {
+        title = "✂️ TEXT EXPANDER (Alfred snippets)",
+        entries = {
+            { "⇪⇧S",   "Search your snippets and insert one" },
+            { "sections", "That list is grouped by collection — yours at the top" },
+            { "icons", "An emoji or symbol shows as itself; ✂️ yours · 📄 shipped · ⚙️ built in · ⚡ action" },
+            { "type",  "A trigger expands as you type it — ;bd or gg1, both work" },
+            { "add",   "_G.snippetAdd(\"gg1\", \"text\") in the Console" },
+            { "import", "_G.snippetsImport() — finds .alfredsnippets in ~/Downloads" },
+            { "list",  "_G.snippetsList() — every trigger, in the Console" },
+            { "{cursor}", "In a snippet: where the caret lands afterwards" },
+            { "{clipboard}", "In a snippet: whatever is on the clipboard" },
+            { "{date} {time}", "In a snippet: today, and now" },
+            { "{date:…}", "In a snippet: {date:DD/MM/YYYY} — D, M and Y, any form" },
+            { "off",   "expander.enabled = false, or the ⏸ row in ⇪⇧S" },
+            { "never", "Nothing you type is ever logged — see the module header" },
+        },
+    },
+}
+
+function M.setup(core)
+    local exp = {}
+
+    -- ✏️ EDIT HERE ---------------------------------------------------------
+    exp.enabled       = true
+    exp.key           = "s"       -- ⇪⇧S — the snippet chooser (6.161.0; was T)
+    -- 🖼 6.161.0 — ICONS ON THE ROWS, the Alfred look LL asked for: an
+    -- emoji or a compose sequence is drawn as ITSELF beside its name, a
+    -- text snippet wears the mark of where it came from (exp.iconFor).
+    -- Each distinct glyph is rendered ONCE (an hs.canvas text element →
+    -- imageFromCanvas) and cached for the session; the cache is filled
+    -- in warm(), in slices of exp.iconBudget seconds with a held
+    -- continuation between them, so the 1,349 emoji never stall a
+    -- keystroke. An open pays at most exp.iconShowBudget for glyphs the
+    -- pre-render has not reached; a row past that opens without one and
+    -- gets it next time. Memory: ~2,000 small images, a few tens of MB —
+    -- exp.icons = false is the plain 6.160.x look.
+    exp.icons          = true
+    exp.iconSize       = 32       -- points; the chooser's image cell is 36 wide
+    exp.iconGlyphMax   = 8        -- a snippet whose whole text is this many
+                                  -- characters or fewer, with no whitespace
+                                  -- and not plain ASCII, is drawn as itself
+    exp.iconBudget     = 0.04     -- seconds of main thread per pre-render slice
+    exp.iconShowBudget = 0.05     -- seconds an open may spend on unrendered glyphs
+    exp.iconFor = {               -- the marks for rows that are not a picture
+        own       = "✂️",         -- yours: Mine, an import, a hand-written one
+        shipped   = "📄",         -- a shipped text snippet
+        builtin   = "⚙️",         -- exp.builtin (;d/ ;d- ;mp3)
+        action    = "⚡",         -- a module that borrowed a trigger
+        heading   = "🗂",         -- a section heading
+        toggleOn  = "⏸",         -- the pause row while expansion is on
+        toggleOff = "▶️",         -- …and while it is off
+        back      = "↩️",         -- "◂ All snippets"
+    }
+    exp.dir           = core.logsDir .. "/snippets"
+    -- 📦 SHIPPED SNIPPETS. The zip carries LL's five collections into
+    -- ~/.hammerspoon/snippets, so unzipping IS the install — no import
+    -- step, no .alfredsnippets files to keep track of. Since 6.105.0 they
+    -- arrive as ONE generated bundled.lua rather than 2,006 .json files;
+    -- see the 📦 block at loadBundledTable for why, and for the several
+    -- ways that can fail back to reading the files.
+    --
+    -- Either way this folder is used IN ADDITION to exp.dir above, rather
+    -- than copied into it: a copy needs an "have I done this already"
+    -- flag, and that flag is a thing that can be wrong. Two places, no
+    -- state.
+    --
+    -- exp.dir still wins on a collision, so anything you import or write
+    -- later overrides what shipped, and re-unzipping never clobbers your
+    -- own edits.
+    -- Guarded: hs.configdir is a value, not a call, and a build or a
+    -- harness without it must degrade to "no bundled snippets" rather
+    -- than throw inside setup() — which took the whole module down.
+    exp.bundledDir    = hs.configdir and (hs.configdir .. "/snippets") or nil
+    -- 🗂 6.118.0 — ⇪⇧S IS SECTIONED BY COLLECTION, YOURS AT THE TOP.
+    -- LL: "Can you separate the snippets into sections with my textpanders
+    -- first?" One flat A–Z list of 2,006 rows put your own 80 snippets
+    -- among 1,349 emoji and 548 compose-key sequences — alphabetical is a
+    -- fine order for a list you can see the whole of, and this is not one.
+    -- Each collection now gets a heading row and the sections come in the
+    -- order below.
+    --
+    -- ⚠️ SECTIONS ARE THE RESTING ORDER, NOT A SEARCH ORDER, and that is
+    -- hs.chooser's doing rather than a choice made here: the moment you
+    -- type, it scores every row against what you typed and reorders the
+    -- panel itself. Nothing in Lua can hold a section together through
+    -- that. What survives is the pack name, now printed on every row's
+    -- second line, so a match still says where it came from.
+    exp.sections      = true      -- false = one flat A–Z list, as before
+    -- ✏️ SECTIONS PINNED ABOVE THE REST, in the order listed here. Names
+    -- are the collection's folder name, matched exactly — the same string
+    -- _G.snippetsList() prints in brackets.
+    -- 🚨 THIS IS NOT THE SAME IDEA AS "MINE", which is why it is a list
+    -- and not a flag. Anything in exp.dir is yours BY CONSTRUCTION — you
+    -- imported or wrote it, and it already wins a collision — so it needs
+    -- no naming. textpanders is the awkward case: your own export, but
+    -- SHIPPED, sitting on disk beside four packs you downloaded and
+    -- indistinguishable from them by any structural test. Only you can
+    -- say it is yours, so you say it here.
+    exp.sectionOrder  = { "textpanders" }
+    exp.bufferMax     = 64        -- characters of typing kept in memory
+    exp.maxChars      = 2000      -- a snippet longer than this is REFUSED
+    exp.wordStartOnly = true      -- see the 🧨 note in the header
+    exp.injectDelay   = 0.01      -- let the app settle before we retype
+    -- Snippets longer than this, and ANY snippet containing a newline,
+    -- are pasted rather than typed. See the 📋 note at pasteText.
+    exp.pasteOver     = 80
+    exp.restoreAfter  = 0.25      -- seconds before your clipboard comes back
+    -- How long a trigger that is a PREFIX of a longer trigger waits to see
+    -- whether you are still typing. Only affects those few — !!del and
+    -- !!tab in LL's Mac symbols pack. Everything else fires immediately.
+    exp.ambiguityWait = 0.35
+    exp.slowLoadSecs  = 2.0       -- past this, the scan reports itself
+    exp.excludedApps  = {         -- exact names; expansion never runs here
+        "Terminal",
+    }
+    -- 📌 6.159.0 — BUILT-IN SNIPPETS. LL: "create all three in this
+    -- build." So they are in the code, not in a Console line: a fresh
+    -- install has them with no packs and no typing — the two date forms
+    -- 6.158.0 taught {date:…}, and the yt-dlp command with the copied
+    -- link quoted in. They are the LOWEST tier: a snippet of yours (Mine,
+    -- an import, a shipped pack) with the same trigger wins, and the load
+    -- says which built-in stood aside. The triggers are spelled to stay
+    -- out of the packs' way — ;d/ and ;d- read as "date, slashes" and
+    -- "date, dashes"; ;mp3 is what you want out of the link. Add a row,
+    -- or empty the table, and reload. { trigger, text, name }.
+    exp.builtin = {
+        { ";d/",  "{date:DD/MM/YYYY}", "Today · DD/MM/YYYY" },
+        { ";d-",  "{date:DD-MM-YYYY}", "Today · DD-MM-YYYY" },
+        { ";mp3", 'yt-dlp -x --audio-format mp3 "{clipboard}"',
+                  "yt-dlp · audio from the copied link" },
+    }
+    exp.builtinSource = "built in"   -- the ⇪⇧S heading they sit under
+    -- ----------------------------------------------------------------------
+
+    local function say(m)  if _G.diag then _G.diag.say("expander", m)  end end
+    local function warn(m) if _G.diag then _G.diag.warn("expander", m) end end
+
+    exp.snippets   = {}    -- trigger -> { text, name, source }
+    exp.count      = 0
+    exp.longest    = 0     -- characters in the longest trigger
+    exp.status     = "off"
+    exp.lastFired  = nil   -- { name, trigger, at } — for ⇪⇧D, never the buffer
+
+    -- ---- reading the files ----------------------------------------------
+    -- utf8-aware length: triggers are ASCII in practice but the delete
+    -- count is a CHARACTER count, and one wrong assumption there deletes
+    -- somebody's sentence.
+    local function clen(s)
+        local n = utf8 and utf8.len(s)
+        return n or #s
+    end
+
+    local function readFile(path)
+        local f = io.open(path, "r")
+        if not f then return nil end
+        local c = f:read("*a")
+        f:close()
+        return c
+    end
+
+    -- The collection-wide convention. Both keys are optional and BOTH ARE
+    -- ROUTINELY EMPTY — LL's own export has empty strings for each, which
+    -- is not a parse failure, it is the file saying "the prefix is
+    -- already in the keywords". An absent key and an empty key mean the
+    -- same thing here, so both come back as "".
+    local function readPlist(dir)
+        local c = readFile(dir .. "/info.plist")
+        if not c then return "", "" end
+        local function val(key)
+            local v = c:match("<key>" .. key .. "</key>%s*<string>(.-)</string>")
+            return v or ""
+        end
+        return val("snippetkeywordprefix"), val("snippetkeywordsuffix")
+    end
+
+    -- One Alfred JSON file. Always four values, in one shape:
+    --     trigger, text, name, reason
+    -- A loadable snippet returns a trigger; a snippet Alfred saved with NO
+    -- keyword returns nil for the trigger but still returns its text, so
+    -- it is insertable from ⇪⇧S even though nothing can type it (that is a
+    -- legitimate Alfred snippet, not a fault); anything broken returns a
+    -- reason and nothing else.
+    --
+    -- 🚨 THE SHAPE IS UNIFORM ON PURPOSE. The first draft of this returned
+    -- the reason in slot 2 for one case and the text in slot 2 for the
+    -- other, which made the caller file every keyword-less snippet under
+    -- its own error message. A function whose return positions change
+    -- meaning is a function that will be misread — including by me.
+    local function readSnippet(path, prefix, suffix)
+        local raw = readFile(path)
+        if not raw then return nil, nil, nil, "unreadable" end
+        local ok, obj = pcall(hs.json.decode, raw)
+        if not (ok and type(obj) == "table") then
+            return nil, nil, nil, "not valid JSON"
+        end
+        local s = obj.alfredsnippet
+        if type(s) ~= "table" then return nil, nil, nil, "no alfredsnippet key" end
+        local text = s.snippet
+        if type(text) ~= "string" or text == "" then
+            return nil, nil, nil, "empty snippet"
+        end
+        -- 🚨 CRLF IS NORMALISED AT LOAD. Alfred stores what was on the
+        -- clipboard when the snippet was made, and two of LL's — kn1
+        -- ("Kindly,\r\nLL") and ll1 — carry Windows line endings. A lone
+        -- CR is a Return to macOS: pasted into a chat box, "Kindly," would
+        -- send on its own and "LL" would become a second message. One
+        -- gsub here is worth more than any amount of care later.
+        text = text:gsub("\r\n", "\n"):gsub("\r", "\n")
+        if clen(text) > exp.maxChars then
+            return nil, nil, nil, string.format("%d characters — over the %d limit",
+                                                clen(text), exp.maxChars)
+        end
+        local name = s.name
+        if type(name) ~= "string" or name == "" then name = nil end
+        local kw = s.keyword
+        if type(kw) ~= "string" or kw == "" then
+            return nil, text, name, nil          -- chooser only
+        end
+        return prefix .. kw .. suffix, text, name or kw, nil
+    end
+
+    -- Scan one directory of .json files. Collections are subdirectories
+    -- (that is how an import lands); loose .json in the top level works
+    -- too, with no prefix, so a single file can just be dropped in.
+    -- 🚨 hs.fs.dir RETURNS **TWO** VALUES: the iterator function AND the
+    -- directory object it walks. The iterator is a C function that reads
+    -- the directory out of that second value on every call — so capturing
+    -- only the first and writing `for entry in iter do` hands it a nil
+    -- state and it raises:
+    --      bad argument #1 to 'for iterator' (directory metatable
+    --      expected, got nil)
+    -- That is precisely what happened on LL's Mac in 6.69.0: warm() threw
+    -- on the first directory it touched and NOT ONE SNIPPET LOADED.
+    --
+    -- ⚠️ AND MY TEST DID NOT CATCH IT, WHICH IS THE REAL LESSON. The stub
+    -- returned a self-contained Lua closure that needed no state, so the
+    -- broken call worked perfectly against it. A stub that is more
+    -- forgiving than the API it stands in for is a stub that confirms my
+    -- idea of the API instead of checking the code against it — the same
+    -- mistake as reading a module list from the file that had it wrong.
+    -- The stub now demands the state, so this line cannot regress.
+    -- (capture_pad.lua has always had this right; I did not look.)
+    -- `own` marks everything found under exp.dir — the snippets YOU
+    -- imported or wrote, as opposed to the ones that shipped. It travels
+    -- down the recursion because a collection is a subdirectory, and a
+    -- subdirectory of yours is still yours. Used only by the ⇪⇧S sections
+    -- (6.118.0); matching, expansion and collision order are untouched.
+    local function scanDir(dir, label, into, problems, chooserOnly, own)
+        local okIter, iter, dirObj = pcall(hs.fs.dir, dir)
+        if not okIter or not iter then return 0, 0 end
+        local prefix, suffix = readPlist(dir)
+        local loaded, subdirs = 0, {}
+        for entry in iter, dirObj do
+            if entry ~= "." and entry ~= ".." then
+                local full = dir .. "/" .. entry
+                local attrs = hs.fs.attributes(full) or {}
+                if attrs.mode == "directory" then
+                    subdirs[#subdirs + 1] = { full, entry }
+                elseif entry:sub(-5) == ".json" then
+                    local trigger, text, name, reason = readSnippet(full, prefix, suffix)
+                    if trigger then
+                        if into[trigger] then
+                            problems[#problems + 1] = string.format(
+                                "%s: trigger %s already used by %s — the later one wins",
+                                label, trigger, tostring(into[trigger].name))
+                        end
+                        into[trigger] = { text = text, name = name, source = label,
+                                          own = own or nil }
+                        loaded = loaded + 1
+                    elseif text then
+                        -- keyword-less: usable from the chooser only
+                        chooserOnly[#chooserOnly + 1] =
+                            { text = text, name = name or entry:gsub("%.json$", ""),
+                              source = label, own = own or nil }
+                    else
+                        problems[#problems + 1] = label .. "/" .. entry
+                                                  .. ": " .. tostring(reason)
+                    end
+                end
+            end
+        end
+        local subLoaded = 0
+        for _, d in ipairs(subdirs) do
+            local n = scanDir(d[1], d[2], into, problems, chooserOnly, own)
+            subLoaded = subLoaded + n
+        end
+        return loaded + subLoaded
+    end
+
+    -- 📦 THE BUNDLED PACKS, AS ONE TABLE (6.105.0) ------------------------
+    -- The shipped collections are 2,006 files of roughly 150 bytes each.
+    -- Opening two thousand files to read 130 KB is the slowest way to do
+    -- it, and in a zip those filenames cost more than their contents —
+    -- 797 KB of a 2.1 MB download. tools/build-snippets.lua folds them
+    -- into snippets/bundled.lua, which is 128 KB and ONE read here.
+    --
+    -- 📦 6.117.0 STOPPED SHIPPING THE PACKS AT ALL. The table wins below
+    -- whenever it loads, so those 797 KB were files this function was
+    -- already refusing to open. The zip now carries bundled.lua only.
+    -- The scan is still here, still correct, and still the thing that
+    -- reads YOUR imports out of exp.dir — which is a different folder.
+    --
+    -- 🚨 IT IS A PREFERENCE, NOT A REQUIREMENT. Every failure below falls
+    -- through to the directory scan and says why. A build with the packs
+    -- and no table works; a build with the table and no packs works; a
+    -- build with a table that is corrupt, truncated, from a future
+    -- version, or somehow not a table at all, works — slowly, and with a
+    -- line in the console. The one thing that must never happen is a Mac
+    -- where nothing expands and the reason is a file format.
+    --
+    -- 🚨 AND IF THE TABLE LOADS, THE PACKS ARE NOT SCANNED. Unzipping
+    -- 6.105.0 over an older install leaves the old .json files sitting
+    -- there — scanning both would re-read every trigger, hand every one
+    -- of them a "already used by … the later one wins" line, and turn a
+    -- clean console into 2,006 warnings about a conflict with itself.
+    -- Stale packs are simply ignored; _G.snippetsList() says so.
+    -- 🚨 RESOLVED AT LOAD TIME, NOT HERE. exp.bundledDir is a tunable, and
+    -- anything that reads it must read it when it runs — a path computed
+    -- once in setup() goes on pointing at the old directory after someone
+    -- (a test, a second Mac, a line in secret.lua) moves it, and then the
+    -- table and the packs come from two different places.
+    exp.bundledName = "bundled.lua"
+    exp.bundledFrom = nil          -- "table" | "packs" | nil, for ⇪⇧S and doctor
+    exp.bundledPath = nil          -- the file actually read, once one is
+
+    local function bundledFilePath()
+        if not exp.bundledDir then return nil end
+        return exp.bundledDir .. "/" .. exp.bundledName
+    end
+
+    local function loadBundledTable(into, problems, chooserOnly)
+        local path = bundledFilePath()
+        if not path then return nil end
+        if not hs.fs.attributes(path) then return nil end
+
+        local function give(reason)
+            problems[#problems + 1] = "bundled.lua: " .. reason
+                                      .. " — reading the packs instead"
+            return nil
+        end
+
+        -- Loaded with an EMPTY environment. The file is data that happens
+        -- to be written in Lua, so it has no business reaching hs, io, or
+        -- os, and this way it cannot — a generated file that grew a
+        -- surprise stays a bad table rather than becoming a program.
+        local okLoad, chunk, why = pcall(loadfile, path, "t", {})
+        if not okLoad then return give("could not be read (" .. tostring(chunk) .. ")") end
+        if not chunk  then return give(tostring(why)) end
+
+        local okRun, t = pcall(chunk)
+        if not okRun then return give("errored while loading: " .. tostring(t)) end
+        if type(t) ~= "table" then return give("did not return a table") end
+        if t.version ~= 1 then
+            return give("is version " .. tostring(t.version) .. ", this expects 1")
+        end
+        if type(t.triggers) ~= "table" then return give("has no triggers table") end
+
+        -- Pack names are stored once and referenced by index, so a broken
+        -- index must not become the string "nil" in the chooser's source
+        -- column. Unknown index → the honest generic label.
+        local packs = {}
+        for i, p in ipairs(type(t.packs) == "table" and t.packs or {}) do
+            packs[i] = type(p) == "table" and type(p[1]) == "string" and p[1] or nil
+        end
+        local function srcOf(i) return packs[i] or "bundled" end
+
+        local loaded = 0
+        for trigger, v in pairs(t.triggers) do
+            if type(trigger) == "string" and type(v) == "table"
+               and type(v[1]) == "string" and v[1] ~= "" then
+                into[trigger] = { text = v[1],
+                                  name = type(v[2]) == "string" and v[2] or trigger,
+                                  source = srcOf(v[3]) }
+                loaded = loaded + 1
+            end
+        end
+        for _, c in ipairs(type(t.chooserOnly) == "table" and t.chooserOnly or {}) do
+            if type(c) == "table" and type(c[1]) == "string" and c[1] ~= "" then
+                chooserOnly[#chooserOnly + 1] =
+                    { text = c[1],
+                      name = type(c[2]) == "string" and c[2] or "(unnamed)",
+                      source = srcOf(c[3]) }
+            end
+        end
+
+        -- The build already found these; they are reported here because a
+        -- snippet that did not load is a trigger you will type and watch
+        -- do nothing, and that stays true when the loading happened on my
+        -- machine instead of yours.
+        for _, p in ipairs(type(t.problems) == "table" and t.problems or {}) do
+            if type(p) == "string" then problems[#problems + 1] = p end
+        end
+        for _, c in ipairs(type(t.collisions) == "table" and t.collisions or {}) do
+            if type(c) == "string" then problems[#problems + 1] = c end
+        end
+
+        if loaded == 0 then return give("contained no usable triggers") end
+        exp.bundledPath = path
+        return loaded
+    end
+
+    -- 🚨 EVERY PROBLEM IS REPORTED. A snippet that did not load is a
+    -- trigger you will type and watch do nothing, and "it just didn't
+    -- work" is the single least debuggable sentence in this config.
+    function exp.load()
+        local t0 = hs.timer.secondsSinceEpoch()
+        local into, problems, chooserOnly = {}, {}, {}
+        local attrs = hs.fs.attributes(exp.dir)
+        if not attrs then
+            local okMk = hs.fs.mkdir(exp.dir)
+            if not okMk then
+                exp.status = "OFF (cannot create " .. exp.dir .. ")"
+                warn("could not create the snippets folder: " .. exp.dir)
+                if _G.notices then
+                    _G.notices.record("expander", "snippets folder",
+                                      "could not create " .. exp.dir)
+                end
+                return false
+            end
+            say("created the snippets folder: " .. exp.dir)
+        end
+
+        -- Bundled FIRST so that a trigger you import or write yourself
+        -- into exp.dir overwrites the shipped one rather than the other
+        -- way round.
+        exp.bundledFrom, exp.bundledPath = nil, nil
+        local fromTable = loadBundledTable(into, problems, chooserOnly)
+        if fromTable then
+            exp.bundledFrom  = "table"
+            exp.bundledCount = fromTable
+        elseif exp.bundledDir and hs.fs.attributes(exp.bundledDir) then
+            exp.bundledFrom  = "packs"
+            exp.bundledCount = scanDir(exp.bundledDir, "bundled", into,
+                                       problems, chooserOnly)
+        end
+        scanDir(exp.dir, "snippets", into, problems, chooserOnly, true)
+
+        -- 📌 Built-ins go in LAST and only where nothing else is: the
+        -- packs and everything on disk have had their say, so any trigger
+        -- of yours wins by construction. A shadowed built-in is one
+        -- Console line, not a problem — you meant it.
+        exp.builtinCount, exp.builtinShadowed = 0, {}
+        for _, b in ipairs(exp.builtin or {}) do
+            local trigger, text, name = b[1], b[2], b[3]
+            if type(trigger) == "string" and trigger ~= ""
+               and type(text) == "string" and text ~= "" then
+                if into[trigger] then
+                    exp.builtinShadowed[#exp.builtinShadowed + 1] = trigger
+                    print(string.format("✂️ Text expander: built-in %s stands "
+                        .. "aside — yours (%s) has that trigger", trigger,
+                        tostring(into[trigger].name)))
+                else
+                    into[trigger] = { text = text, name = name or trigger,
+                                      source = exp.builtinSource }
+                    exp.builtinCount = exp.builtinCount + 1
+                end
+            else
+                problems[#problems + 1] = "built in: a row without both a "
+                    .. "trigger and a text was skipped (exp.builtin)"
+            end
+        end
+
+        exp.snippets    = into
+        exp.chooserOnly = chooserOnly
+        -- ⚡ Action triggers survive every rescan. exp.snippets was just
+        -- rebuilt from disk, and actions do not live on disk — without
+        -- this merge, one _G.snippetsImport() would silently kill them.
+        for trigger, act in pairs(exp.actions or {}) do
+            exp.snippets[trigger] = act
+        end
+        exp.count, exp.longest, exp.longestBytes = 0, 0, 0
+        for trigger in pairs(into) do
+            exp.count = exp.count + 1
+            local n = clen(trigger)
+            if n > exp.longest then exp.longest = n end
+            if #trigger > exp.longestBytes then exp.longestBytes = #trigger end
+        end
+        exp.buildIndex()
+        exp.problems = problems
+        if #problems > 0 then
+            table.sort(problems)
+            for _, p in ipairs(problems) do
+                print("✂️ Text expander: " .. p)
+            end
+            if _G.notices then
+                _G.notices.record("expander", "snippets that did not load",
+                                  table.concat(problems, " · "))
+            end
+        end
+        exp.loadSecs = hs.timer.secondsSinceEpoch() - t0
+        say(string.format("loaded %d triggers in %.0fms (longest %d chars, %d "
+                          .. "trie nodes, %d waiting), %d chooser-only, %d "
+                          .. "problems, bundled from %s",
+                          exp.count, exp.loadSecs * 1000, exp.longest,
+                          exp.indexNodes or 0, exp.ambiguousCount or 0,
+                          #chooserOnly, #problems, exp.bundledFrom or "nothing"))
+        -- 🖼 6.161.0: the pictures follow the words, sliced (see warmIcons)
+        if exp.icons then pcall(exp.warmIcons) end
+        -- 🚨 A SLOW SCAN IS REPORTED WITH ITS NUMBER, not left to be felt.
+        -- The snippets live in the OneDrive Logs folder, shared with the
+        -- other Mac like autocorrect.csv — and two thousand tiny files in
+        -- a synced folder is exactly the shape that OneDrive Files
+        -- On-Demand turns into two thousand downloads. This runs in warm()
+        -- so it is off the boot path either way, but a scan that has gone
+        -- from a quarter of a second to twenty is a fact worth having
+        -- rather than a Mac that feels wrong after login.
+        if exp.loadSecs > exp.slowLoadSecs then
+            print(string.format(
+                "✂️ Text expander: reading %d snippets took %.1fs from %s. "
+                .. "If that folder is on OneDrive, its files may be cloud-only "
+                .. "placeholders — mark it \"Always keep on this device\", or "
+                .. "set expander.dir to a local path.",
+                exp.count, exp.loadSecs, exp.dir))
+            if _G.notices then
+                _G.notices.record("expander", "slow snippet scan",
+                    string.format("%.1fs for %d files in %s",
+                                  exp.loadSecs, exp.count, exp.dir))
+            end
+        end
+        return true
+    end
+
+    -- ---- placeholders ----------------------------------------------------
+    -- Alfred's dynamic tokens. The cheap and unambiguous ones are
+    -- supported; anything else in braces is LEFT EXACTLY AS TYPED and
+    -- reported, rather than silently deleted — a snippet that quietly
+    -- loses "{cursor:2}" is worse than one that visibly contains it.
+    -- {cursor} is handled by the caller (it needs arrow keys, not text).
+    --
+    -- 📅 6.158.0 — {date:PATTERN}. LL: "Date in this formats: DD/MM/YYYY
+    -- and DD-MM-YYYY." The pattern is spelled the way people spell dates,
+    -- not the way strftime does: D, M and Y are the date letters (case
+    -- does not matter — dd/MM/yyyy is how Alfred writes it), the LENGTH
+    -- of a run picks the form, and every other character is kept as
+    -- typed:
+    --
+    --     D  3      DD  03      DDD  Thu     DDDD  Thursday
+    --     M  9      MM  09      MMM  Sep     MMMM  September
+    --     YY 26     YYYY 2026   (YYY reads as YYYY rather than refusing)
+    --
+    -- So {date:DD/MM/YYYY} → 03/09/2026 and {date:DD-MM-YYYY} →
+    -- 03-09-2026. {date} on its own stays 2026-09-03 (ISO, sortable), so
+    -- every snippet written before 6.158.0 expands exactly as it did.
+    -- Time stays {time}: a minutes letter would collide with M, and that
+    -- is the one ambiguity this table is built not to have. An empty
+    -- {date:} is an unknown like any other — kept, and reported once.
+    local DATE_FORMS = {
+        D = { "%d", "%d", "%a", "%A" },
+        M = { "%m", "%m", "%b", "%B" },
+    }
+    function exp.formatDate(pattern, when)
+        pattern = tostring(pattern)
+        when = when or os.time()
+        local upper = pattern:upper()      -- byte for byte, so indexes agree
+        local out, i, n = {}, 1, #upper
+        while i <= n do
+            local c = upper:sub(i, i)
+            if c == "D" or c == "M" or c == "Y" then
+                local j = i
+                while j < n and upper:sub(j + 1, j + 1) == c do j = j + 1 end
+                local len = j - i + 1
+                if c == "Y" then
+                    out[#out + 1] = os.date(len <= 2 and "%y" or "%Y", when)
+                elseif len == 1 then
+                    -- the unpadded day or month: "3", not "03"
+                    out[#out + 1] = tostring(tonumber(os.date(DATE_FORMS[c][1], when)))
+                else
+                    out[#out + 1] = os.date(DATE_FORMS[c][math.min(len, 4)], when)
+                end
+                i = j + 1
+            else
+                out[#out + 1] = pattern:sub(i, i)
+                i = i + 1
+            end
+        end
+        return table.concat(out)
+    end
+
+    function exp.substitute(text, seenUnknown)
+        local out = text
+        out = out:gsub("{clipboard}", function()
+            local ok, c = pcall(hs.pasteboard.getContents)
+            return (ok and c) or ""
+        end)
+        out = out:gsub("{date:([^}]+)}", function(pattern)
+            return exp.formatDate(pattern)
+        end)
+        out = out:gsub("{date}", os.date("%Y-%m-%d"))
+        out = out:gsub("{time}", os.date("%H:%M"))
+        for token in out:gmatch("{(%a[%w:%-%. ]*)}") do
+            if token ~= "cursor" and seenUnknown and not seenUnknown[token] then
+                seenUnknown[token] = true
+                print("✂️ Text expander: {" .. token .. "} is not a placeholder this "
+                      .. "config knows — it was inserted literally. Supported: "
+                      .. "{cursor} {clipboard} {date} {date:DD/MM/YYYY} {time}")
+            end
+        end
+        return out
+    end
+
+    -- ---- typing it out ---------------------------------------------------
+    exp.injecting = false
+    _G.expanderTimers = {}          -- HELD: an unreferenced timer never fires
+    exp.unknownSeen = {}
+
+    local function hold(t)
+        table.insert(_G.expanderTimers, t)
+        while #_G.expanderTimers > 8 do table.remove(_G.expanderTimers, 1) end
+        return t
+    end
+
+    -- deleteCount is the number of characters ALREADY IN THE DOCUMENT, so
+    -- it is the trigger minus its final character: that keystroke was
+    -- consumed by the tap and never reached the app.
+    -- 📋 WHY SOME SNIPPETS ARE PASTED INSTEAD OF TYPED.
+    -- hs.eventtap.keyStrokes sends text as synthetic key events. For a
+    -- word or an emoji that is exactly right — fast, and it leaves your
+    -- clipboard alone. For anything with a NEWLINE in it it is dangerous:
+    -- a synthetic Return inside a chat box, a Teams message or an Asana
+    -- comment SENDS the thing instead of breaking the line. LL has eight
+    -- such snippets — the out-of-office, the book-recommendation reply,
+    -- the Asana and OCLC blocks — and they are precisely the ones where
+    -- firing early would be most embarrassing.
+    --
+    -- So: multi-line or long → the clipboard, ⌘V, and put the old
+    -- contents straight back. Everything else is typed.
+    --
+    -- ⚠️ THE RESTORE IS NOT OPTIONAL AND NOT BEST-EFFORT. Borrowing
+    -- someone's clipboard and forgetting to give it back is worse than
+    -- not having the feature. It restores on the failure path too.
+    local function shouldPaste(text)
+        return text:find("\n", 1, true) ~= nil or clen(text) > exp.pasteOver
+    end
+
+    local function pasteText(text)
+        local okRead, prior = pcall(hs.pasteboard.getContents)
+        if _G.pasteboardSuppress then _G.pasteboardSuppress(exp.restoreAfter + 1.0) end
+        local okSet = pcall(function() hs.pasteboard.setContents(text) end)
+        if not okSet then return false, "could not put the snippet on the clipboard" end
+        local okPaste = pcall(function() hs.eventtap.keyStroke({ "cmd" }, "v", 0) end)
+        -- The restore is DELAYED, not immediate: ⌘V is asynchronous from
+        -- here — the paste is a synthetic event the app has not processed
+        -- yet — and putting the old text back in the same breath is a race
+        -- the app loses, pasting whatever was there before.
+        hold(hs.timer.doAfter(exp.restoreAfter, function()
+            pcall(function()
+                hs.pasteboard.setContents((okRead and prior) or "")
+            end)
+        end))
+        if not okPaste then return false, "⌘V was refused" end
+        return true
+    end
+
+    -- 📣 6.116.0 — ONE PLACE THAT SAYS "A SNIPPET JUST FIRED", because
+    -- there are two paths through inject() — an action and an expansion —
+    -- and there were two copies of this assignment. The Key Caster hook
+    -- would have gone into one of them and been missing from the other,
+    -- which is the quietest kind of half-built feature.
+    --
+    -- 🚨 THE CASTER CANNOT SEE THIS FOR ITSELF, AND MUST NOT. A snippet is
+    -- a burst of synthetic keystrokes, and the caster stands down for the
+    -- shared injection guard the whole time they arrive — correctly, since
+    -- they are not keys anybody pressed. So the module that performed the
+    -- expansion is the only thing that can honestly report it.
+    --
+    -- Guarded on the global rather than on a service, so this file needs
+    -- to know nothing about whether the caster is loaded, enabled or
+    -- switched on: all three are checked on its side, and it is OFF by
+    -- default.
+    local function fired(trigger, snip)
+        exp.lastFired = { name = snip.name, trigger = trigger,
+                          at = os.date("%H:%M:%S") }
+        if _G.keyCastExpansion then
+            pcall(_G.keyCastExpansion, trigger, snip.text, snip.name)
+        end
+    end
+
+    -- tail: characters that were typed AFTER the trigger and consumed by
+    -- us, which have to reappear after the snippet. Only the deferred
+    -- path uses it — see the ⏳ note in the tap.
+    function exp.inject(trigger, snip, deleteCount, tail)
+        -- ⚡ ACTION TRIGGER: the payload is a function, not text. Same
+        -- contract as an expansion — what was typed is removed and any
+        -- tail is retyped — but nothing is inserted; the function runs
+        -- once the keystrokes are settled. It runs even if the deletes
+        -- were refused: leaving the word on screen is cosmetic, skipping
+        -- the action the word exists for is not.
+        if snip.fn then
+            exp.injecting = true
+            local okDel = (_G.withInjection or pcall)(function()
+                for _ = 1, deleteCount do
+                    hs.eventtap.keyStroke({}, "delete", 0)
+                end
+                if tail then hs.eventtap.keyStrokes(tail) end
+            end)
+            hold(hs.timer.doAfter(0.08, function() exp.injecting = false end))
+            if not okDel then exp.injecting = false end
+            fired(trigger, snip)
+            if _G.autocorrectResetBuffer then pcall(_G.autocorrectResetBuffer) end
+            local okRun, err = pcall(snip.fn)
+            if okRun then
+                say("ran " .. tostring(snip.name))
+            else
+                print("✂️ Text expander: action '" .. tostring(snip.name)
+                      .. "' failed — " .. tostring(err))
+                if _G.notices then
+                    _G.notices.record("expander", "action failed",
+                                      tostring(snip.name) .. ": " .. tostring(err))
+                end
+            end
+            return okRun
+        end
+        exp.injecting = true
+        local body = exp.substitute(snip.text, exp.unknownSeen)
+        local before, after = body, nil
+        local cut = body:find("{cursor}", 1, true)
+        if cut then
+            before = body:sub(1, cut - 1)
+            after  = body:sub(cut + #"{cursor}")
+        end
+        local whole = before .. (after or "") .. (tail or "")
+        local pasteErr
+        -- 🚨 THROUGH THE SHARED GUARD (6.69.0), not just our own flag.
+        -- exp.injecting stops OUR tap re-reading what we type; it says
+        -- nothing to autocorrect's tap, which is watching the same
+        -- keystrokes. Without this, expanding `hte` into "the" fed a word
+        -- nobody typed into the spelling corrector. See _G.withInjection.
+        local ok, err = (_G.withInjection or pcall)(function()
+            for _ = 1, deleteCount do
+                hs.eventtap.keyStroke({}, "delete", 0)
+            end
+            if shouldPaste(whole) then
+                local okP, why = pasteText(whole)
+                if not okP then pasteErr = why; error(why) end
+                snip.viaPaste = true
+            else
+                hs.eventtap.keyStrokes(whole)
+            end
+            -- {cursor} walks back over everything that follows it, which
+            -- includes any tail we re-typed — the caret belongs where the
+            -- snippet said, not before the character you happened to end on.
+            local back = clen(after or "") + clen(tail or "")
+            if after and back > 0 then
+                for _ = 1, back do
+                    hs.eventtap.keyStroke({}, "left", 0)
+                end
+            end
+        end)
+        err = pasteErr or err
+        if ok then
+            fired(trigger, snip)
+            -- Autocorrect watched us eat the trigger's last character and
+            -- is now holding the front of a word that no longer exists on
+            -- screen. Tell it to let go — see the 🚨 above its tap.
+            if _G.autocorrectResetBuffer then
+                pcall(_G.autocorrectResetBuffer)
+            end
+            say("expanded " .. snip.name)
+            -- 🚨 ASYNC EVENT DRAIN. hs.eventtap.keyStrokes delivers
+            -- characters as system events that arrive at the tap AFTER
+            -- this function returns — after injecting has been cleared.
+            -- If the expansion text contains a trigger, those in-flight
+            -- events re-match and fire a second expansion. Hold injecting
+            -- true until the queue settles; 80ms is ample in practice.
+            hold(hs.timer.doAfter(0.08, function()
+                exp.injecting = false
+            end))
+            return true
+        end
+        -- Injection failed: clear the guard NOW so the owed character
+        -- we type back is not blocked by our own injecting flag.
+        exp.injecting = false
+        -- 🚨 THE KEYSTROKES ARE NOT LOST. Whatever we consumed on the
+        -- promise that this would replace it gets typed back — the final
+        -- character of the trigger on the immediate path, the tail on the
+        -- deferred one. An injection that fails AND eats a character is
+        -- two bugs instead of one.
+        local owed = tail or trigger:sub(-1)
+        pcall(function() hs.eventtap.keyStrokes(owed) end)
+        print("✂️ Text expander: could not insert '" .. tostring(snip.name)
+              .. "' — " .. tostring(err))
+        if _G.notices then
+            _G.notices.record("expander", "insertion failed",
+                              tostring(snip.name) .. ": " .. tostring(err))
+        end
+        return false
+    end
+
+    -- ---- matching --------------------------------------------------------
+    -- 🚨 THIS RUNS ON EVERY KEYSTROKE YOU MAKE, ON THE MAIN THREAD, WHICH
+    -- IS THE ONLY THREAD HAMMERSPOON HAS. LL's five Alfred collections
+    -- come to 2,006 triggers. The first version of this function walked
+    -- every one of them per character typed — 2,006 string comparisons
+    -- between pressing a key and the letter appearing. That is fine for
+    -- the six snippets it was written against and it is not fine for the
+    -- corpus it was written FOR, and "correct but too slow to type
+    -- through" is a bug like any other.
+    --
+    -- So: a REVERSE TRIE, keyed on bytes. Each trigger is inserted
+    -- backwards; matching walks the buffer backwards from the end and
+    -- stops the moment there is no child. Cost is bounded by the LONGEST
+    -- TRIGGER (33 bytes here), not by how many there are — the same 33
+    -- steps whether you have six snippets or six thousand.
+    --
+    -- Bytes rather than characters on purpose: a UTF-8 string compares
+    -- and slices by byte in Lua, the buffer is bytes, and every multi-byte
+    -- character has a unique byte sequence — so byte-wise matching gives
+    -- exactly the same answers as character-wise matching, without
+    -- decoding anything on the hot path. It is the character COUNT that
+    -- has to be right, and that is computed once at load.
+    exp.index = { children = {} }
+
+    -- 🚨 ONE FUNCTION REBUILDS **EVERYTHING** DERIVED FROM exp.snippets.
+    -- There are two derived structures — the trie and the ambiguity map —
+    -- and while they were built in different places, adding a trigger
+    -- rebuilt one and left the other stale. A snippet that exists, matches,
+    -- and then takes the wrong path is worse than one that does not load.
+    -- If you add a third derived thing, it goes in here.
+    function exp.buildIndex()
+        local root, nodes, list = { children = {} }, 1, {}
+        for trigger, snip in pairs(exp.snippets) do
+            list[#list + 1] = trigger
+            local node = root
+            for i = #trigger, 1, -1 do
+                local b = trigger:sub(i, i)
+                local nxt = node.children[b]
+                if not nxt then
+                    nxt = { children = {} }
+                    node.children[b] = nxt
+                    nodes = nodes + 1
+                end
+                node = nxt
+            end
+            node.trigger, node.snip = trigger, snip
+        end
+        exp.index = root
+        exp.indexNodes = nodes
+
+        -- ⏳ WHICH TRIGGERS ARE PREFIXES OF OTHER TRIGGERS.
+        -- !!del is one, because !!delf exists; those wait before expanding
+        -- (see the ⏳ note in the tap) so both stay reachable.
+        --
+        -- 🚨 SORTED-ADJACENCY, NOT EVERY PAIR. The obvious double loop is
+        -- O(n²) — 4,024,036 comparisons on LL's 2,006 triggers, on the
+        -- main thread, every reload. Sorted lexicographically, every
+        -- string beginning with A lands immediately after A, so scanning
+        -- forward while the prefix still holds finds all of them and stops.
+        -- O(n log n) plus the number of matches, which here is three.
+        table.sort(list)
+        exp.ambiguous, exp.ambiguousCount = {}, 0
+        for i = 1, #list do
+            local a = list[i]
+            local j = i + 1
+            while list[j] and #list[j] > #a and list[j]:sub(1, #a) == a do
+                if not exp.ambiguous[a] then
+                    exp.ambiguous[a] = {}
+                    exp.ambiguousCount = exp.ambiguousCount + 1
+                end
+                exp.ambiguous[a][#exp.ambiguous[a] + 1] = list[j]
+                j = j + 1
+            end
+        end
+        return nodes
+    end
+
+    -- ---- ⚡ action triggers (6.92.0) --------------------------------------
+    -- A snippet whose payload is a FUNCTION: type the trigger, the typed
+    -- characters are removed, and the function runs — nothing is inserted.
+    -- This is how `begone` closes your notification banners. Registered by
+    -- other modules through core.provide("expander.addAction"); kept in
+    -- their own table because exp.load() rebuilds exp.snippets from disk
+    -- (see the merge there).
+    exp.actions = {}
+    function exp.addAction(trigger, fn, name)
+        if type(trigger) ~= "string" or trigger == ""
+           or type(fn) ~= "function" then return false end
+        local fresh = exp.snippets[trigger] == nil
+        exp.actions[trigger]  = { fn = fn, name = name or trigger,
+                                  source = "action" }
+        exp.snippets[trigger] = exp.actions[trigger]
+        if fresh then exp.count = exp.count + 1 end
+        local n = clen(trigger)
+        if n > exp.longest then exp.longest = n end
+        if #trigger > exp.longestBytes then exp.longestBytes = #trigger end
+        exp.buildIndex()
+        return true
+    end
+
+    -- boundaryOK: see the 🧨 note in the header. Only triggers that begin
+    -- with a letter or digit are asked for one — 77 of LL's 2,006, which
+    -- is exactly the `gg1` family the rule exists for.
+    --
+    -- ⚠️ THE PRECEDING CHARACTER IS TESTED BY ITS LAST BYTE. If what comes
+    -- before the trigger is multi-byte (§, an emoji, an accented letter),
+    -- `at` lands on a UTF-8 continuation byte, which never matches %w — so
+    -- it reads as a boundary. That is the right answer for the right
+    -- reason: Lua's %w is ASCII-only, so a non-ASCII letter would not
+    -- match even if we decoded it properly. Written down because it looks
+    -- like an accident and is not one.
+    function exp.boundaryOK(buffer, trigger)
+        if not exp.wordStartOnly then return true end
+        if not trigger:sub(1, 1):match("[%w]") then return true end
+        local at = #buffer - #trigger
+        if at <= 0 then return true end            -- start of the buffer
+        return buffer:sub(at, at):match("[%w]") == nil
+    end
+
+    -- Walks back from the end of the buffer. The DEEPEST node carrying a
+    -- trigger wins, which is longest-match: `;bd` beats `bd` when both end
+    -- on the same keystroke. A trigger whose word boundary fails is
+    -- skipped but the walk CONTINUES — a longer trigger further back may
+    -- still be legitimate.
+    function exp.match(buffer)
+        local node, best = exp.index, nil
+        local n = #buffer
+        local limit = math.min(n, exp.longestBytes or n)
+        for i = 0, limit - 1 do
+            local b = buffer:sub(n - i, n - i)
+            node = node.children[b]
+            if not node then break end
+            if node.trigger and exp.boundaryOK(buffer, node.trigger) then
+                best = { trigger = node.trigger, snip = node.snip }
+            end
+        end
+        return best
+    end
+
+    -- Forward-declared: armPending's timer needs it, and the definition
+    -- lives with the rest of the tap below where it reads in context.
+    local excluded
+
+    -- ---- the deferred expansion, armed and disarmed ----------------------
+    -- Held in exp.pending so ⇪⇧D can see one waiting, and so the cancel
+    -- paths below have one thing to clear rather than three.
+    exp.pending, exp.pendingTimer = nil, nil
+
+    function exp.cancelPending(why)
+        if exp.pendingTimer then
+            pcall(function() exp.pendingTimer:stop() end)
+        end
+        if why and exp.pending then
+            say("stopped waiting on " .. exp.pending.trigger .. " (" .. why .. ")")
+        end
+        exp.pending, exp.pendingTimer = nil, nil
+    end
+
+    function exp.armPending(p)
+        if exp.pendingTimer then pcall(function() exp.pendingTimer:stop() end) end
+        exp.pending = p
+        exp.pendingTimer = hs.timer.doAfter(exp.ambiguityWait, function()
+            local q = exp.pending
+            exp.pending, exp.pendingTimer = nil, nil
+            if not q then return end
+            if not exp.enabled then return end
+            if excluded() then return end
+            -- You stopped typing. Nothing was consumed, so the trigger AND
+            -- everything typed since it are both on screen and ours to
+            -- remove; `since` is re-typed after the snippet.
+            exp.inject(q.trigger, q.snip,
+                       clen(q.trigger) + clen(q.since), q.since ~= "" and q.since or nil)
+        end)
+        hold(exp.pendingTimer)
+    end
+
+    -- ---- the typing watcher ---------------------------------------------
+    -- Deliberately close to autocorrect's, because that one has been right
+    -- for a long time. The differences are the ones the job requires:
+    --   · digits and punctuation EXTEND the buffer instead of clearing it,
+    --     because `gg1` and `;bd` are both triggers and clearing on either
+    --     would make them unmatchable;
+    --   · there is no boundary key — a trigger fires on its own last
+    --     character, the way Alfred does it;
+    --   · the buffer is a rolling window, not a word.
+    local buffer = ""
+
+    -- 🚨 6.72.0 — AUTOCORRECT CHANGES THE DOCUMENT UNDER US, and until now
+    -- nothing told this module about it. The reset was one-directional:
+    -- an expansion told autocorrect to drop its word, and a CORRECTION
+    -- told this module nothing.
+    --
+    -- Walk it through. You type "teh" then space:
+    --   1. Autocorrect decides teh→the, CONSUMES the space, and injects
+    --      "the " under the shared guard.
+    --   2. Whichever order the two taps run in, this buffer ends up
+    --      holding "teh" or "teh " — and the document now reads "the ".
+    --      The injected text is correctly ignored here (it is not you
+    --      typing), which is exactly what leaves the two out of step.
+    --   3. Every later keystroke extends a buffer that no longer
+    --      describes what is on screen.
+    -- The damage is not cosmetic. A trigger matched against a stale tail
+    -- fires an expansion whose delete count assumes those characters are
+    -- in front of the caret. They are not, so it eats real text.
+    --
+    -- One line, called from the one place that knows a correction
+    -- happened. It cannot be inferred from here: an injection is
+    -- invisible to us by design.
+    function _G.expanderResetBuffer()
+        buffer = ""
+        exp.cancelPending("the document changed underneath us")
+    end
+
+    local clearCodes = {
+        [53]  = true,                                       -- esc
+        [123] = true, [124] = true, [125] = true, [126] = true, -- arrows
+        [115] = true, [119] = true, [116] = true, [121] = true, -- home/end/pg
+        [117] = true,                                       -- forward delete
+        [36]  = true, [76]  = true, [48] = true,            -- return, enter, tab
+    }
+
+    function excluded()
+        local ok, app = pcall(hs.application.frontmostApplication)
+        if not ok or not app then return false end
+        local okN, name = pcall(function() return app:name() end)
+        if not okN or not name then return false end
+        for _, ex in ipairs(exp.excludedApps) do
+            if name == ex then return true end
+        end
+        return false
+    end
+
+    -- 🛟 6.72.0 — THE CALLBACK BODY IS GUARDED. Same reasoning as
+    -- autocorrect's: everything below reaches into an event object and
+    -- does utf8 arithmetic on a rolling buffer, and an error in any of it
+    -- escapes into Hammerspoon's event machinery on EVERY KEYSTROKE. The
+    -- key caster was built with this from the start; the two older taps
+    -- were not, which a three-tap integration test found by handing all
+    -- of them one hostile event.
+    exp.failures = 0
+    exp.maxFailures = 5
+    local function expOnEvent(ev)
+            -- ⏸ 6.152.0 — the pause switch (⇪⇧1, power_tools): triggers
+            -- stop firing while it is up; every keystroke passes through.
+            if _G.hsPaused then return false end
+            -- 🚨 ASYNC DRAIN WINDOW: navigation keys (ESC, arrows, etc.)
+            -- cancel the drain window so that a user action always resets
+            -- state, and so that test-harness reset() + press(53) works.
+            -- pcall guards mouse events whose mocks don't have getKeyCode.
+            do
+                local ok, c = pcall(function() return ev:getKeyCode() end)
+                if ok and clearCodes[c] and exp.injecting then
+                    exp.injecting = false
+                end
+            end
+            if exp.injecting then return false end
+            -- 🚨 6.72.0 — AND THE **SHARED** GUARD, WHICH WAS MISSING.
+            -- exp.injecting only knows about OUR OWN typing. Autocorrect
+            -- types too, and every character of a correction was arriving
+            -- here as though you had pressed it:
+            --   · its corrected word joined this buffer, so the buffer
+            --     described text nobody typed;
+            --   · and if a corrected word happened to END in a trigger,
+            --     THE SNIPPET FIRED. A spelling fix expanding into an
+            --     email signature, from a module whose header already
+            --     claimed it stood down for exactly this.
+            -- The reset autocorrect calls afterwards cannot help: the
+            -- expansion has already gone off by then. This check is the
+            -- part that has to come first.
+            if _G.typingInjection and _G.typingInjection() then return false end
+
+            -- 🚨 EVERY PATH THAT ABANDONS THE BUFFER MUST ALSO ABANDON A
+            -- PENDING EXPANSION, and this is the sharpest edge in the whole
+            -- module. A deferred expansion deletes N characters BACKWARDS
+            -- FROM THE CARET on the assumption the trigger is still sitting
+            -- there. Click somewhere else, press an arrow, hit Return — the
+            -- caret is now somewhere else entirely and those deletes would
+            -- eat a sentence you did not type. Cancelling is always safe
+            -- (nothing was consumed, so nothing is owed); firing into a
+            -- moved caret never is.
+            local t = ev:getType()
+            if t ~= hs.eventtap.event.types.keyDown then
+                buffer = ""              -- the cursor moved; nothing carries over
+                exp.cancelPending("mouse click")
+                return false
+            end
+
+            local flags = ev:getFlags()
+            if flags.cmd or flags.ctrl then
+                buffer = ""
+                exp.cancelPending("a ⌘/⌃ chord")
+                return false
+            end
+
+            local code = ev:getKeyCode()
+            if code == 51 then                                  -- delete
+                if #buffer > 0 then
+                    local n = clen(buffer)
+                    buffer = (utf8 and utf8.offset and n > 0)
+                             and buffer:sub(1, (utf8.offset(buffer, n) or #buffer) - 1)
+                             or  buffer:sub(1, -2)
+                end
+                -- Backspace means you are UNDOING the trigger, which is the
+                -- clearest possible "no" a pending expansion can receive.
+                exp.cancelPending("backspace")
+                return false
+            end
+            if clearCodes[code] then
+                buffer = ""
+                exp.cancelPending("the caret moved")
+                return false
+            end
+
+            local ch = ev:getCharacters()
+            if not ch or ch == "" or clen(ch) ~= 1 then
+                buffer = ""                                     -- function keys, IME
+                exp.cancelPending("a key we cannot account for")
+                return false
+            end
+
+            buffer = buffer .. ch
+            if clen(buffer) > exp.bufferMax then
+                -- Trim from the FRONT: the tail is what matches.
+                local drop = clen(buffer) - exp.bufferMax
+                local off = utf8 and utf8.offset and utf8.offset(buffer, drop + 1)
+                buffer = off and buffer:sub(off) or buffer:sub(-exp.bufferMax)
+            end
+
+            if not (exp.enabled and exp.count > 0) then return false end
+            local hit = exp.match(buffer)
+
+            -- ⏳ ---- THE DEFERRED PATH: TRIGGERS THAT ARE PREFIXES OF OTHERS
+            -- !!del is a trigger and so is !!delf. Fire on the "l" and
+            -- !!delf is unreachable forever and you are left holding a
+            -- stray "f". So !!del WAITS to see whether you are still
+            -- typing. Three of LL's Mac symbols depend on this; nothing
+            -- else in 2,006 triggers pays a millisecond for it.
+            --
+            -- 🚨 WHILE WAITING WE CONSUME NOTHING. The characters reach
+            -- the document exactly as typed, so if the wait is abandoned
+            -- there is nothing to give back and nothing to undo. That is
+            -- the whole reason this is safe: the ONLY thing a pending
+            -- expansion ever does is delete text it can see is there.
+            if exp.pending then
+                local p = exp.pending
+                -- Did this keystroke keep us on the road to a longer one?
+                local grown = p.trigger .. p.since .. ch
+                local stillPossible = false
+                for _, longer in ipairs(exp.ambiguous[p.trigger] or {}) do
+                    if #longer >= #grown and longer:sub(1, #grown) == grown then
+                        stillPossible = true break
+                    end
+                end
+                if hit and #hit.trigger > #p.trigger then
+                    -- The longer one completed. The wait did its job.
+                    exp.cancelPending("a longer trigger completed")
+                    -- fall through to the immediate path below
+                elseif stillPossible then
+                    p.since = p.since .. ch
+                    exp.armPending(p)          -- restart the clock
+                    return false
+                else
+                    -- 🚨 THIS KEYSTROKE SETTLES IT: no longer trigger can
+                    -- follow, so the short one was right after all. Consume
+                    -- this character and re-type it AFTER the snippet — the
+                    -- same move autocorrect makes with its boundary key.
+                    -- Deleting the whole trigger, not len-1: none of it was
+                    -- consumed on the way in.
+                    local tail = p.since .. ch
+                    exp.cancelPending(nil)
+                    buffer = ""
+                    if excluded() then return false end
+                    hold(hs.timer.doAfter(exp.injectDelay, function()
+                        exp.inject(p.trigger, p.snip, clen(p.trigger) + clen(tail), tail)
+                    end))
+                    return true
+                end
+            end
+
+            if not hit then return false end
+            if excluded() then return false end
+
+            local trigger, snip = hit.trigger, hit.snip
+
+            if exp.ambiguous[trigger] then
+                exp.armPending({ trigger = trigger, snip = snip, since = "" })
+                return false             -- let the character through
+            end
+
+            buffer = ""
+            -- The last character is consumed here and re-typed as part of
+            -- the replacement, so only the preceding characters need
+            -- deleting. Injecting on a short timer rather than inline for
+            -- the same reason autocorrect does: our synthetic events must
+            -- arrive after the app has finished with the real ones.
+            local deletes = clen(trigger) - 1
+            hold(hs.timer.doAfter(exp.injectDelay, function()
+                exp.inject(trigger, snip, deletes)
+            end))
+            return true                  -- consume; the replacement covers it
+    end
+
+    _G.expanderTap = hs.eventtap.new(
+        { hs.eventtap.event.types.keyDown,
+          hs.eventtap.event.types.leftMouseDown,
+          hs.eventtap.event.types.rightMouseDown },
+        function(ev)
+            local ok, ret = pcall(expOnEvent, ev)
+            if ok then exp.failures = 0; return ret end
+            exp.failures = exp.failures + 1
+            -- A throw mid-match can leave a deferred expansion armed, and
+            -- that one deletes text. Disarm it before anything else.
+            pcall(exp.cancelPending, "the tap threw")
+            if exp.failures >= exp.maxFailures then
+                pcall(function() _G.expanderTap:stop() end)
+                exp.status = "OFF (failed " .. exp.failures .. " times in a row)"
+                print("✂️ Text expander: switched itself OFF after " .. exp.failures
+                      .. " consecutive failures — your keyboard and every other "
+                      .. "tool are unaffected. Last error: " .. tostring(ret))
+                if _G.notices then
+                    _G.notices.record("expander", "disabled itself", tostring(ret))
+                end
+            end
+            -- 🚨 false, ALWAYS. An expander that eats a keystroke when it
+            -- fails has taken a character away and given nothing back.
+            return false
+        end
+    )
+
+    -- ---- importing -------------------------------------------------------
+    -- .alfredsnippets is a ZIP. unzip is in every macOS install, so there
+    -- is nothing to install and nothing to vendor.
+    function exp.import(path)
+        path = tostring(path or ""):gsub("^~", os.getenv("HOME") or "~")
+        local attrs = hs.fs.attributes(path)
+        if not attrs then
+            print("✂️ Text expander: no such file — " .. path)
+            return false
+        end
+        local base = path:match("([^/]+)%.alfredsnippets$")
+                     or path:match("([^/]+)%.zip$")
+                     or path:match("([^/]+)$")
+        local dest = exp.dir .. "/" .. base
+        hs.fs.mkdir(exp.dir)
+        hs.fs.mkdir(dest)
+        -- Single-quoted with the '\'' escape: %q would escape a newline as
+        -- backslash-newline, which is correct Lua and a line continuation
+        -- to the shell. This config has been bitten by that before.
+        local function shq(s) return "'" .. tostring(s):gsub("'", "'\\''") .. "'" end
+        local out, ok, _, rc = hs.execute("/usr/bin/unzip -o "
+                                          .. shq(path) .. " -d " .. shq(dest) .. " 2>&1")
+        if not ok then
+            print("✂️ Text expander: unzip failed (" .. tostring(rc) .. ") — "
+                  .. tostring(out))
+            if _G.notices then
+                _G.notices.record("expander", "import failed",
+                                  base .. ": unzip returned " .. tostring(rc))
+            end
+            return false
+        end
+        exp.load()
+        local msg = string.format("imported %s — %d triggers loaded in total", base, exp.count)
+        print("✂️ " .. msg)
+        hs.alert.show("✂️ " .. msg)
+        return true
+    end
+
+    -- _G.snippetsImport() with NO argument: find the .alfredsnippets files
+    -- you have already downloaded and import all of them. Typing an exact
+    -- path with a UUID in it is the kind of small friction that stops a
+    -- feature being used at all.
+    --
+    -- ⚠️ IT SCANS, IT DOES NOT WATCH. Nothing here imports on its own — a
+    -- config that quietly ingested files out of ~/Downloads would be doing
+    -- something you did not ask for with files you did not choose.
+    exp.searchDirs = { "/Downloads", "/Desktop", "" }
+    function exp.importFound()
+        local home = os.getenv("HOME") or "~"
+        local found = {}
+        for _, d in ipairs(exp.searchDirs) do
+            -- Same two-value contract as scanDir above. This site had the
+            -- identical bug and would have failed the moment the first one
+            -- was fixed.
+            local okIter, iter, dirObj = pcall(hs.fs.dir, home .. d)
+            if okIter and iter then
+                for entry in iter, dirObj do
+                    if entry:sub(-15) == ".alfredsnippets" then
+                        found[#found + 1] = home .. d .. "/" .. entry
+                    end
+                end
+            end
+        end
+        if #found == 0 then
+            print("✂️ No .alfredsnippets files in ~/Downloads, ~/Desktop or ~. "
+                  .. "Pass a path: _G.snippetsImport(\"/full/path/x.alfredsnippets\")")
+            hs.alert.show("✂️ No .alfredsnippets files found")
+            return false
+        end
+        table.sort(found)
+        local ok = 0
+        for _, f in ipairs(found) do
+            if exp.import(f) then ok = ok + 1 end
+        end
+        print(string.format("✂️ Imported %d of %d collections found", ok, #found))
+        return ok > 0
+    end
+
+    -- Hand-written snippets go in their own collection so an Alfred
+    -- re-import can never overwrite them.
+    function exp.add(trigger, text, name)
+        if type(trigger) ~= "string" or trigger == ""
+           or type(text) ~= "string" or text == "" then
+            print("✂️ Usage: _G.snippetAdd(\"gg1\", \"the text\", \"optional name\")")
+            return false
+        end
+        local dest = exp.dir .. "/Mine"
+        hs.fs.mkdir(exp.dir)
+        hs.fs.mkdir(dest)
+        local safe = trigger:gsub("[^%w]", "_")
+        local file = dest .. "/" .. safe .. ".json"
+        local body = hs.json.encode({
+            alfredsnippet = { keyword = trigger, snippet = text,
+                              name = name or trigger, uid = safe },
+        })
+        local f = io.open(file, "w")
+        if not f then
+            print("✂️ Text expander: could not write " .. file)
+            if core.warnWriteFailed then core.warnWriteFailed("snippets/Mine") end
+            return false
+        end
+        f:write(body); f:close()
+        exp.load()
+        print("✂️ Added " .. trigger .. " → " .. file)
+        hs.alert.show("✂️ Snippet " .. trigger .. " added")
+        return true
+    end
+
+    function exp.list()
+        local rows = {}
+        for trigger, s in pairs(exp.snippets) do
+            rows[#rows + 1] = string.format("  %-12s  %s  (%s)", trigger,
+                                            (s.name or ""):sub(1, 40), s.source)
+        end
+        table.sort(rows)
+        print("✂️ " .. #rows .. " snippet triggers in " .. exp.dir .. ":")
+        -- Which door the shipped packs came through. Worth one line: it is
+        -- the difference between "the table loaded" and "the table did not
+        -- and you are reading two thousand files every reload".
+        if exp.bundledFrom == "table" then
+            print(string.format("  📦 %d of them from %s (the packs on disk, "
+                                .. "if any, are ignored)",
+                                exp.bundledCount or 0,
+                                exp.bundledPath or exp.bundledName))
+        elseif exp.bundledFrom == "packs" then
+            print(string.format("  📂 %d of them scanned file-by-file from %s",
+                                exp.bundledCount or 0, exp.bundledDir))
+        end
+        if #rows == 0 then
+            print("  (none — run _G.snippetsImport() to find your "
+                  .. ".alfredsnippets files, or _G.snippetAdd(\"gg1\", \"text\"))")
+        end
+        for _, r in ipairs(rows) do print(r) end
+        for _, p in ipairs(exp.problems or {}) do print("  ⚠️ " .. p) end
+        return #rows
+    end
+
+    -- ---- 🖼 the icons (6.161.0) ------------------------------------------
+    -- A "glyph" snippet is one whose whole text is a small picture: an
+    -- emoji, a compose sequence's § or →, a 🇨🇦 — no whitespace, not
+    -- plain ASCII (a "--" is text), no ASCII letter in it (a "café" is a
+    -- word, not a picture; a keycap 1️⃣ has only a digit and passes), at
+    -- most exp.iconGlyphMax characters (a flag is two code points, a
+    -- family emoji seven; a nine-character shruggie is text).
+    function exp.glyphOf(s)
+        if type(s) ~= "table" or s.fn then return nil end
+        local t = s.text
+        if type(t) ~= "string" or t == "" then return nil end
+        if t:find("%s") or t:find("%a") then return nil end
+        if not t:find("[\128-\255]") then return nil end
+        if clen(t) > (exp.iconGlyphMax or 8) then return nil end
+        return t
+    end
+
+    -- The mark for a row that is not a picture.
+    function exp.markOf(s)
+        local f = exp.iconFor or {}
+        if type(s) ~= "table" then return f.shipped end
+        if s.fn then return f.action end
+        if s.own then return f.own end
+        if s.source == exp.builtinSource then return f.builtin end
+        return f.shipped
+    end
+
+    local function epoch()
+        local ok, t = pcall(function() return hs.timer.secondsSinceEpoch() end)
+        return (ok and type(t) == "number") and t or os.time()
+    end
+
+    exp.iconCache = {}                   -- glyph -> hs.image, or false (would not render)
+    exp.iconStats = { rendered = 0, failed = 0, slices = 0, secs = 0 }
+    exp.iconPending = 0                  -- glyphs the pre-render has not reached
+    exp.iconTimer   = nil                -- HELD: the pre-render continuation
+    exp.iconCanvas  = nil                -- ONE offscreen canvas, never shown, reused
+
+    -- Draw one glyph into an image. Every hs call is pcall'd: a Mac (or a
+    -- test) without hs.canvas simply has rows without pictures.
+    function exp.renderIcon(glyph)
+        local cached = exp.iconCache[glyph]
+        if cached ~= nil then return cached or nil end
+        local img
+        local ok = pcall(function()
+            local sz = exp.iconSize or 32
+            if not exp.iconCanvas then
+                -- 🎨 hs.canvas draws text WHITE unless told otherwise, and
+                -- hs.chooser follows the system appearance — a § or a ⌘
+                -- (Apple Color Emoji ignores the colour, text glyphs do
+                -- not) would vanish on a Light-mode picker. Ink follows the
+                -- appearance at first draw; the cache is per session.
+                local dark = false
+                pcall(function() dark = hs.host.interfaceStyle() == "Dark" end)
+                local c = hs.canvas.new({ x = 0, y = 0, w = sz, h = sz })
+                c:appendElements({
+                    type = "text", text = glyph, textSize = sz * 0.72,
+                    textAlignment = "center",
+                    textColor = dark and { white = 0.92 } or { white = 0.12 },
+                    frame = { x = 0, y = sz * 0.02, w = sz, h = sz },
+                })
+                exp.iconCanvas = c
+            else
+                exp.iconCanvas:elementAttribute(1, "text", glyph)
+            end
+            img = exp.iconCanvas:imageFromCanvas()
+        end)
+        if ok and img then
+            exp.iconCache[glyph] = img
+            exp.iconStats.rendered = exp.iconStats.rendered + 1
+            return img
+        end
+        exp.iconCache[glyph] = false
+        exp.iconStats.failed = exp.iconStats.failed + 1
+        return nil
+    end
+
+    -- The cached image, or a fresh render while `stop` (an epoch) is
+    -- still ahead. Past the deadline: no icon this time, not a wait.
+    function exp.icon(glyph, stop)
+        if not (exp.icons and glyph) then return nil end
+        local c = exp.iconCache[glyph]
+        if c ~= nil then return c or nil end
+        if stop and epoch() > stop then return nil end
+        return exp.renderIcon(glyph)
+    end
+
+    -- Pre-render every distinct glyph, sliced. Called at the tail of
+    -- exp.load(), so every path that loads — warm(), expander.reload, an
+    -- import, _G.snippetAdd — draws its new pictures right after.
+    function exp.warmIcons()
+        if not exp.icons then return false end
+        -- The ink was chosen for the appearance at the first draw; if the
+        -- Mac has switched Light/Dark since, every text glyph is in the
+        -- wrong ink — start over (emoji are unaffected but come along).
+        local style
+        pcall(function() style = hs.host.interfaceStyle() end)
+        style = style or "Light"
+        if exp.iconInk and exp.iconInk ~= style then
+            exp.iconCache, exp.iconCanvas = {}, nil
+            say("appearance changed to " .. style .. " — redrawing the icons")
+        end
+        exp.iconInk = style
+        local glyphs, seen = {}, {}
+        local function want(g)
+            if g and not seen[g] and exp.iconCache[g] == nil then
+                seen[g] = true; glyphs[#glyphs + 1] = g
+            end
+        end
+        for _, g in pairs(exp.iconFor or {}) do want(g) end
+        for _, s in pairs(exp.snippets) do want(exp.glyphOf(s)) end
+        for _, s in ipairs(exp.chooserOnly or {}) do want(exp.glyphOf(s)) end
+        table.sort(glyphs)
+        if exp.iconTimer then pcall(function() exp.iconTimer:stop() end); exp.iconTimer = nil end
+        exp.iconPending = #glyphs
+        if #glyphs == 0 then return true end
+        local i, t0 = 0, epoch()
+        local function turn()
+            local deadline = epoch() + (exp.iconBudget or 0.04)
+            exp.iconStats.slices = exp.iconStats.slices + 1
+            while i < #glyphs do
+                i = i + 1
+                exp.renderIcon(glyphs[i])
+                if epoch() >= deadline then break end
+            end
+            exp.iconPending = #glyphs - i
+            if i < #glyphs then
+                local ok, t = pcall(hs.timer.doAfter, 0, turn)
+                if ok and t then exp.iconTimer = t; return end  -- held
+                return turn()          -- no timers to park on: finish inline
+            end
+            exp.iconTimer = nil
+            exp.iconStats.secs = epoch() - t0
+            say(string.format("icons: %d glyphs drawn in %d slice%s (%.2fs)%s",
+                exp.iconStats.rendered, exp.iconStats.slices,
+                exp.iconStats.slices == 1 and "" or "s", exp.iconStats.secs,
+                exp.iconStats.failed > 0 and (" · " .. exp.iconStats.failed .. " would not draw") or ""))
+        end
+        turn()
+        return true
+    end
+
+    -- ---- ⇪⇧S, the chooser ------------------------------------------------
+    -- Same reasoning as the tool picker: hs.chooser is a native panel
+    -- built to be typed into. Insert-by-search covers the snippet you know
+    -- you have and cannot remember the trigger for, which is most of them
+    -- until the trigger is in your fingers.
+    -- ⚠️ 6.109.0 — WHY THE PAYLOAD STAYS IN LUA:
+    -- A chooser row crosses into Objective-C, so every value in it has to
+    -- survive the bridge. A function does not, and neither does a nested
+    -- table. Putting the snippet itself in the row made LuaSkin reject the
+    -- key, then the row, then the WHOLE list —
+    --     LuaSkin: dictionary key (fn) cannot be converted into a proper NSObject
+    --     LuaSkin: hs.chooser:choices() table could not be parsed correctly.
+    -- — and ⇪⇧S opened an empty panel. The errors land in the Console, the
+    -- pcall around :choices() never sees them (LuaSkin logs, it does not
+    -- throw), so the failure is silent from the keyboard.
+    -- The row now carries a plain integer into a table that stays here.
+    -- Strings are fine, which is why .trigger can stay as it was.
+    -- 🗂 WHICH SECTION A SNIPPET BELONGS TO, and where that section sits.
+    -- The four ranks are the whole answer to "whose snippet is this?":
+    --   1..n    a collection named in exp.sectionOrder, in the order named
+    --   OWN     yours by construction — anything found under exp.dir
+    --   SHIPPED the rest of the packs, A–Z among themselves
+    --   ACTION  ⚡ actions, which are not snippets at all: a module
+    --           borrowing a trigger (`begone` closes your banners). They
+    --           go last rather than salted through your own writing.
+    -- The constants are far apart so exp.sectionOrder would have to be ten
+    -- thousand entries long before a pin could collide with a rank.
+    exp.rankOwn, exp.rankShipped, exp.rankAction = 10000, 20000, 30000
+    function exp.sectionOf(s)
+        if type(s) ~= "table" then return "bundled", exp.rankShipped end
+        if s.fn then return "⚡ actions", exp.rankAction end
+        local src = tostring(s.source or "bundled")
+        for i, p in ipairs(exp.sectionOrder or {}) do
+            if src == p then return src, i end
+        end
+        return src, s.own and exp.rankOwn or exp.rankShipped
+    end
+
+    -- The heading row. It says what the section is as well as what it is
+    -- called, because "textpanders" and "ComposeKey" are both just folder
+    -- names until something tells you which one you wrote.
+    -- 🚨 A HEADING IS INERT: it carries no `pick`, and the callback returns
+    -- on `header` before it ever looks one up. Picking one closes the
+    -- panel and does nothing else — hs.chooser dismisses on any selection
+    -- and there is no way to refuse it from here.
+    -- 👁 6.156.0 — WHAT IS IN IT, BESIDE IT. LL: "To the right of the
+    -- snippets panel can you show what is in the snippet collection? If I
+    -- select one, nothing seems to happen. I can't remember what is in
+    -- the collection if I can't see it." Two answers:
+    --   · the ⇪V preview pane (clipboard_history's, published as the
+    --     preview.* services) follows this picker too: a snippet row shows
+    --     its WHOLE text, a collection heading lists every snippet in it
+    --     (trigger and name), the on/off row shows nothing;
+    --   · ⏎ on a heading is no longer inert: the picker re-opens showing
+    --     ONLY that collection, with a "◂ All snippets" row to come back.
+    -- For the pane to follow, the rows on screen must be rows this module
+    -- knows about, so the FILTERING is done here now (the chooser's own
+    -- search is bypassed): every word typed must appear in the name, the
+    -- trigger, the collection or the snippet's text — name and trigger
+    -- hits first. The body being searchable is new too.
+    local function sectionHeader(name, rank, n, members)
+        local what
+        if rank <= #(exp.sectionOrder or {}) then what = "yours — pinned first"
+        elseif rank == exp.rankOwn      then what = "yours — imported or written by you"
+        elseif rank == exp.rankAction   then what = "modules that borrowed a trigger"
+        else                                 what = "shipped with the config"
+        end
+        return { text    = "▸  " .. tostring(name):upper(),
+                 subText = string.format("%d  ·  %s  ·  ⏎ shows only these", n, what),
+                 header  = true, sect = name,
+                 image   = exp.icon((exp.iconFor or {}).heading),
+                 rawText = table.concat(members or {}, "\n"),
+                 head    = string.format("🗂 %s  ·  %d snippet%s  ·  ⏎ shows only these",
+                                         tostring(name):upper(), n, n == 1 and "" or "s") }
+    end
+
+    exp.lastChoices = nil        -- the rows on screen, for the pane
+    exp.filterMax   = 400        -- rows a keystroke may return
+    function exp.filter(choices, query)
+        local words = {}
+        for w in tostring(query or ""):lower():gmatch("%S+") do words[#words + 1] = w end
+        if #words == 0 then return choices end
+        local strong, weak = {}, {}
+        for _, r in ipairs(choices) do
+            if not (r.header or r.toggle or r.back) then
+                local name = tostring(r.text or ""):lower()
+                local trig = tostring(r.trigger or ""):lower()
+                local sect = tostring(r.sect or ""):lower()
+                local body = tostring(r.rawText or ""):lower()
+                local all, strongHit = true, false
+                for _, w in ipairs(words) do
+                    if name:find(w, 1, true) or trig:find(w, 1, true) then
+                        strongHit = true
+                    elseif not (sect:find(w, 1, true) or body:find(w, 1, true)) then
+                        all = false
+                        break
+                    end
+                end
+                if all and #strong + #weak < exp.filterMax then
+                    local bucket = strongHit and strong or weak
+                    bucket[#bucket + 1] = r
+                end
+            end
+        end
+        for _, r in ipairs(weak) do strong[#strong + 1] = r end
+        return strong
+    end
+
+    -- A heading was picked: the picker is mid-dismiss inside its own
+    -- callback, so the narrowed one opens a beat later (HELD timer).
+    function exp.reopen(section)
+        local okT, t = pcall(hs.timer.doAfter, 0.05, function()
+            exp.reopenTimer = nil
+            exp.show(section)
+        end)
+        if okT and t then exp.reopenTimer = t else exp.show(section) end
+    end
+
+    function exp.show(section)
+        local picks   = {}      -- [n] = { trigger = ..., snip = ... }, Lua-side
+        local rows, counts, members = {}, {}, {}
+        local iconStop = epoch() + (exp.iconShowBudget or 0.05)
+        local function add(s, trigger)
+            picks[#picks + 1] = { trigger = trigger, snip = s }
+            local sect, rank = exp.sectionOf(s)
+            counts[sect] = (counts[sect] or 0) + 1
+            local body = s.fn
+                and ("⚡ " .. tostring(s.name or trigger)
+                     .. "\n\nAn action, not text: picking it runs it.")
+                or  tostring(s.text or "")
+            -- 🖼 6.161.0: a picture snippet is drawn as itself, and the
+            -- same picture is dropped from the front of its name ("💯
+            -- :100:" reads ":100:" beside a 💯) — once is enough. Only
+            -- when the picture IS there: a row that opens without its
+            -- icon (past the show budget, no hs.canvas) keeps the glyph
+            -- in its name, or the row would show nothing at all.
+            local name  = tostring(s.name or trigger)
+            local glyph = exp.icons and exp.glyphOf(s) or nil
+            local image = exp.icon(glyph or exp.markOf(s), iconStop)
+            if glyph and image and name ~= glyph and name:sub(1, #glyph) == glyph then
+                local rest = name:sub(#glyph + 1):gsub("^%s+", "")
+                if rest ~= "" then name = rest end
+            end
+            rows[#rows + 1] = {
+                image   = image,
+                text    = name,
+                -- the name as written, glyph and all: what the rows SORT by
+                -- and what a heading's pane lists — neither may depend on
+                -- whether this open managed to draw the icon
+                fullName = tostring(s.name or trigger),
+                -- 🗂 THE PACK NAME IS ON EVERY ROW, not only in the
+                -- heading, and that is what makes a SEARCH still answer
+                -- "where did this come from" — see the ⚠️ at
+                -- exp.sections: typing reorders the panel and the
+                -- headings go with it.
+                subText = (trigger ~= "" and trigger or "(no trigger)")
+                          .. "   ·   " .. sect .. "   ·   "
+                          .. (s.fn and "⚡ an action — picking it runs it"
+                              or  s.text:gsub("%s+", " "):sub(1, 60)),
+                trigger = trigger, pick = #picks,
+                sect    = sect, rank = rank,
+                rawText = body,
+                head    = string.format("✂️ %s  ·  %s  ·  %d char%s",
+                                        trigger ~= "" and trigger or "no trigger",
+                                        sect, #body, #body == 1 and "" or "s"),
+            }
+        end
+        for trigger, s in pairs(exp.snippets) do add(s, trigger) end
+        for _, s in ipairs(exp.chooserOnly or {}) do add(s, "") end
+
+        -- Rank, then section name, then the row's own text. The last two
+        -- keys are what make this a TOTAL order: two rows in one section
+        -- can share a name (an emoji and its alias), and a comparator that
+        -- called them equal would let table.sort shuffle them between
+        -- openings for no reason anyone could see.
+        table.sort(rows, function(a, b)
+            if a.rank ~= b.rank then return a.rank < b.rank end
+            if a.sect ~= b.sect then return a.sect < b.sect end
+            if a.fullName ~= b.fullName then return a.fullName < b.fullName end
+            return tostring(a.trigger) < tostring(b.trigger)
+        end)
+        -- what each heading's pane lists: the section's rows, in this
+        -- order, names as written (the pane has no icons — the 💯 must
+        -- stay in the line)
+        for _, r in ipairs(rows) do
+            local m = members[r.sect] or {}
+            members[r.sect] = m
+            m[#m + 1] = string.format("%-14s %s",
+                                      r.trigger ~= "" and r.trigger or "—", r.fullName)
+        end
+
+        -- The ON/OFF row stays FIRST, above every section: it is the one
+        -- row here that is not a snippet, and it is the one you need when
+        -- the expander is misbehaving. In a narrowed view its place is
+        -- taken by the way back.
+        local choices = {}
+        -- (the mark moves into the icon cell when there is one — once is
+        -- enough, the same rule as the snippet rows)
+        local marks = exp.iconFor or {}
+        if section then
+            local img = exp.icon(marks.back)
+            choices[1] = { text = (img and "" or "◂  ") .. "All snippets",
+                           subText = "back to every collection", back = true,
+                           image = img }
+        else
+            local img = exp.icon(exp.enabled and marks.toggleOn or marks.toggleOff)
+            choices[1] = {
+                text    = (img and "" or (exp.enabled and "⏸  " or "▶️  "))
+                          .. (exp.enabled and "Turn expansion OFF" or "Turn expansion ON"),
+                subText = exp.enabled
+                          and "Triggers stop firing; ⇪⇧S still inserts by hand"
+                          or  "Start expanding triggers as you type again",
+                toggle  = true,
+                image   = img,
+            }
+        end
+        local cur
+        for _, r in ipairs(rows) do
+            if section == nil or r.sect == section then
+                if exp.sections and r.sect ~= cur then
+                    cur = r.sect
+                    choices[#choices + 1] = sectionHeader(r.sect, r.rank,
+                                                          counts[r.sect], members[r.sect])
+                end
+                choices[#choices + 1] = r
+            end
+        end
+
+        local okC, chooser = pcall(hs.chooser.new, function(choice)
+            if not choice then return end
+            if choice.toggle then
+                exp.enabled = not exp.enabled
+                hs.alert.show(exp.enabled and "✂️ Expansion ON" or "✂️ Expansion OFF")
+                return
+            end
+            if choice.back then exp.reopen(nil) return end
+            -- 🗂 A SECTION HEADING re-opens the picker on that collection
+            -- alone. Checked explicitly rather than left to fall through
+            -- the `picks[nil]` lookup below: a heading must never insert.
+            if choice.header then exp.reopen(choice.sect) return end
+            -- The bridge hands the number back as a float; Lua normalises
+            -- picks[3.0] to picks[3], but tonumber costs nothing and covers
+            -- the case where it arrives as a string.
+            local row = picks[tonumber(choice.pick) or 0]
+            if not (row and row.snip) then return end
+            -- Nothing to delete: this is an insert, not a replacement.
+            exp.inject(row.trigger or "", row.snip, 0)
+        end)
+        if not (okC and chooser) then
+            warn("could not open the snippet chooser")
+            hs.alert.show("✂️ Snippet chooser failed — see the Console")
+            return false
+        end
+        -- ⎋ 6.93.0: filed in _G.choosers so Esc closes it before the cheat sheet
+        _G.choosers = _G.choosers or {}
+        _G.choosers.snippets = chooser
+        exp.lastChoices = choices
+        pcall(function()
+            chooser:choices(choices)
+            chooser:rows(12)
+            chooser:width(45)
+            chooser:placeholderText(exp.count > 0
+                and ((section and ("search " .. tostring(section):upper() .. " — ")
+                      or "search ") .. exp.count .. " snippets")
+                or  "no snippets yet — run _G.snippetsImport() in the Console")
+        end)
+        -- our own filter, so the rows on screen are the rows the pane reads
+        pcall(function()
+            chooser:queryChangedCallback(function(q)
+                pcall(function()
+                    exp.lastChoices = exp.filter(choices, q)
+                    chooser:choices(exp.lastChoices)
+                end)
+            end)
+        end)
+        -- the pane goes down with the picker — and waits out a nudge
+        pcall(function()
+            chooser:hideCallback(function()
+                if core.call then pcall(core.call, "preview.suspend") end
+            end)
+        end)
+        pcall(function()
+            -- 🚨 core.showPopup, NOT :show() — an unplaced picker leaves the
+            -- LAST picker's coordinates standing in _G.lastPopupPlacement,
+            -- and window_move computes its grab box from that record. It
+            -- could not be dragged at all until 6.127.0.
+            if core.showPopup then core.showPopup(chooser)
+            else chooser:show() end
+        end)
+        if core.call then
+            pcall(core.call, "preview.open", chooser, function() return exp.lastChoices end)
+        end
+        return true
+    end
+
+    -- ---- wiring ----------------------------------------------------------
+    if exp.enabled then
+        core.hyperAddShortcut({ "shift" }, exp.key, function() exp.show() end,
+                              "text expander")
+    end
+
+    core.provide("expander.show",   function() return exp.show() end)
+    core.provide("expander.reload", function() return exp.load() end)
+    core.provide("expander.addAction",
+                 function(t, f, n) return exp.addAction(t, f, n) end)
+    core.provide("expander.toggle", function()
+        exp.enabled = not exp.enabled
+        return exp.enabled
+    end)
+
+    _G.snippetsImport = function(p)
+        if p == nil or p == "" then return exp.importFound() end
+        return exp.import(p)
+    end
+    _G.snippetAdd     = function(t, x, n) return exp.add(t, x, n) end
+    _G.snippetsList   = function() return exp.list() end
+    _G.textExpander   = exp
+    M.exp    = exp
+    M.config = exp
+
+    -- ---- boot ------------------------------------------------------------
+    -- Same shape as autocorrect: the tap starts NOW so nothing is missed
+    -- structurally, and the files are read in warm() a couple of seconds
+    -- later. Between the two, triggers do not fire — which is the same as
+    -- the expander being off, not a broken state.
+    local axOK = false
+    pcall(function() axOK = hs.accessibilityState() end)
+    if not axOK then
+        exp.status = "OFF (needs Accessibility)"
+        return
+    end
+    local started = false
+    pcall(function() _G.expanderTap:start(); started = true end)
+    if not started then
+        exp.status = "OFF (event tap failed to start)"
+        warn("event tap would not start — no expansion this session")
+        if _G.notices then
+            _G.notices.record("expander", "event tap", "would not start")
+        end
+        return
+    end
+    exp.status = "ON (snippets loading…)"
+
+    function M.warm()
+        exp.load()               -- 6.161.0: …and the pictures, sliced, after the words
+        exp.status = exp.count > 0
+            and string.format("ON (%d triggers, ⇪⇧S to search)", exp.count)
+            or  "ON (no snippets yet — run _G.snippetsImport() in the Console)"
+    end
+
+    -- macOS switches event taps off when it feels like it. A dead expander
+    -- is indistinguishable from a wrong trigger from where you are sitting,
+    -- so it is revived and the revival is announced.
+    local function expanderRevive()
+        pcall(function()
+            if _G.expanderTap and not _G.expanderTap:isEnabled() then
+                _G.expanderTap:start()
+                print("✂️ Text expander tap was disabled by macOS — revived")
+            end
+        end)
+    end
+    _G.expanderWatchdog = hs.timer.doEvery(30, expanderRevive)
+
+    -- 🔋 6.144.0 — on battery the revive check runs every two minutes
+    -- instead of every thirty seconds; a tap macOS kills on battery can
+    -- stay dead up to two minutes before revival, which is the expander
+    -- being off, not broken. Running state is preserved across the
+    -- rebuild so the lag probe's held-down watchdog stays held down —
+    -- core/lag.lua stops and restarts these BY NAME, and the new object
+    -- sits under the old name.
+    if _G.eco then
+        _G.eco.register("expander watchdog", {
+            normal = 30, saver = 120,
+            apply = function(secs)
+                local was, running = _G.expanderWatchdog, true
+                pcall(function() running = was:running() end)
+                if was then pcall(function() was:stop() end) end
+                _G.expanderWatchdog = hs.timer.doEvery(secs, expanderRevive)
+                if not running then
+                    pcall(function() _G.expanderWatchdog:stop() end)
+                end
+            end,
+        })
+    end
+end
+
+return M

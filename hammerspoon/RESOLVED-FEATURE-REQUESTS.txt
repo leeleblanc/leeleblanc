@@ -1,0 +1,1029 @@
+========================================================================
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.217.0
+Every feature and how to use it. Generated from the modules' own
+cheat sheets (the rows ⇪/ draws), so it is never out of date.
+⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
+In the Console, _G.<tool>Report() prints any tool's own report.
+========================================================================
+
+🪟 WINDOWS & POINTER — where things sit on screen
+------------------------------------------------------------------------
+
+🪟 WINDOW ARRANGER   [modules/window_arranger.lua]
+  ⇪← / ⇪→ Left / right half of screen
+  ⇪↑    Fill screen (not full-screen mode)
+  ⇪\      Split two most recent windows side-by-side
+  ⇪W      Summon an app to this monitor (picker)
+  ⇪↓    Return window to prior spot (toggles)
+  ⇪[ / ⇪] Move window left / right a monitor
+
+🧲 PANEL MOVE (⇪⇧-arrows nudge a picker · MY panels, NOT your apps')   [modules/window_move.lua]
+  ⇪⇧ ↑↓←→ MOVE AN OPEN PICKER — 50 px a tap, hold the arrow to walk it
+  ⇪⇧R   Put a nudged picker back to automatic placement
+  ⌘ drag  Hold ⌘, click-hold ANYWHERE — on a panel or picker, or off it
+  band      A PICKER also drags by its search band — bare click-hold, no ⌘
+  not rows  NEVER drag a picker by its ROWS — a bare click there RUNS one
+  drag      Display-only panels (pomodoro, key caster) need no ⌘ — just grab
+  sticks    A dragged PICKER position is kept for the next picker you open
+  headers   The pad / editor / search bars drag with a bare click-hold too
+  check     _G.windowMoveReport() — why a panel refused to be grabbed
+
+🔁 WINDOW RETURN (automatic — dock back in, windows go back)   [modules/window_return.lua]
+  auto      Remembers where windows sit for EACH monitor setup (every 30s)
+  auto      When a setup returns — dock back in — scattered windows snap back
+  scope     The visible Space only; macOS Spaces are never touched
+  match     By window id, then exact app+title — an unmatched window is left alone
+  _G.windowsBack() Console: put them back right now, by hand
+  off       wr.enabled = false in modules/window_return.lua's EDIT HERE
+
+🎯 DIALOG HOME (automatic — dialogs land at your spot)   [modules/dialog_home.lua]
+  auto      Dialogs (Replace? Save? Delete?) open at ONE spot on the PRIMARY monitor
+  capture   Drag any dialog somewhere better — that spot becomes the new home
+  default   Centred, a little high, on the primary screen — until you drag one
+  scope     Frontmost app; a background app's dialog is placed when you switch to it
+  sheets    Panels glued to a window's title bar are never touched
+  _G.dialogs() Console: the spot, the last dialog seen, and who refused
+  reset     _G.dialogHome.reset() forgets the captured spot
+  off       dh.enabled = false in modules/dialog_home.lua's EDIT HERE
+
+👀 APP PEEK   [modules/app_peek.lua]
+  ⇪P      Hide frontmost app — press again to bring back
+
+🖱 RIGHT CLICK (⇪⇧F)   [modules/right_click.lua]
+  ⇪⇧F   Right-click wherever the pointer is — any app
+  waits     For ⇧ to come up first, so you get the normal menu
+  says      If it gave up waiting, it tells you — that menu was
+            the modified one, not the usual one
+  vs ⇪X   The grid is the other way: aim first, ⇧space clicks
+  check     _G.rightClickReport() — how many fired, and where
+
+🖱 MOUSE FOLLOWS FOCUS (⇪1)   [modules/mouse_follows.lua]
+  focus     Pointer jumps to the centre of the window that took focus
+  moves     …and follows the focused window when something warps it
+  not       While a mouse button is down — your drag is yours
+  hand      Not after your click, not while your hand moves the mouse (6.168.0)
+  ⇪1      On / off — remembered across reloads (6.161.0)
+  safe      Every window read has a timeout; a slow app never hangs you
+  rests     Two slow jumps in a minute: it rests 5 min, then returns by itself
+  check     _G.mouseFollowsReport() — last jump, why it stood still
+
+🔄 WINDOW SWITCHER (⌥Tab — Windows-style)   [modules/window_switcher.lua]
+  ⌥Tab    Hold ⌥, tap Tab to turn the ROLODEX of windows, release to switch
+  ⌥⇧Tab Turn it backwards
+  console   The Hammerspoon Console is a card too, whenever it is open
+  ← →   Keep ⌥ down: one card, wrapping like Tab
+  ↑ ↓   Keep ⌥ down: turn the wheel FIVE cards at a time
+  Home / End First card / last card
+  Return    Switch to the front card without waiting for ⌥ release
+  cards     One thumbnail per WINDOW — the front card large, neighbours
+            receding either side; EVERY window is on the wheel
+  grid      altTab.layout = "grid" brings the tile wall back
+  Esc       Cancels — no switch
+  shows     Every window: all monitors, minimised too, other desktops
+  memory    Another desktop's windows are REMEMBERED from the last press
+            that saw them — one ⌥Tab on a desktop teaches it (per reload)
+  also      Running apps with no open window — selecting one activates it
+  tuning    altTab.includeOtherSpaces / includeApps / maxWindows (module file)
+  no perms  altTab.useSnapshots = false — icons not thumbnails, and macOS
+            is never asked for Screen Recording (nothing else here needs it)
+  ⌘Tab    Untouched — macOS reserves it, and it switches apps not windows
+
+🌗 SCREEN VEIL (⇪G — dim every display)   [modules/screen_veil.lua]
+  ⇪G      Toggle the veil on/off over ALL connected monitors
+  ⇪⇧G   Cycle strength: Movie 20% · Reading 40% · Dim 60% · Deep 75% · Max 90%
+  ⇪⇧=   5% stronger
+  ⇪⇧-   5% weaker
+  ⌃⌥⌘⇧G PANIC — remove the veil no matter what
+  ⇪9      Grayscale on/off — relays ⌥⌘F5, the macOS switch
+  3× Touch ID Grayscale natively — triple-press Touch ID, macOS's own shortcut
+  ⇪⇧9   Invert the screen colours — relays ⌃⌥⌘8, no setup
+  note      A veil dims and mutes; it cannot desaturate. True B&W
+            is Color Filters — set up once, by hand: tick it ALONE
+            under Accessibility → Shortcut. ⇪; lists the rows
+            Click-through: the veil never eats a click or takes focus
+
+🆓 NUMPAD — ⇪⇧ pad, CLEARED 6.152.0 (future shortcut options)   [modules/numpad_layer.lua]
+  ⇪⇧ pad0–9 Key available for use
+  ⇪⇧ pad. + - Key available for use
+  ⇪⇧ pad/ * Key available for use
+  ⇪⇧ padenter Key available for use (padclear too)
+  was       The 3×3 window map — cleared on request, like the
+            ⇪⇧ number row in 6.142.0
+  zones?    Halves ⇪← ⇪→ · maximise ⇪↑ · put back ⇪↓ · monitors ⇪[ ⇪]
+  claim     numpad.shiftActions in numpad_layer.lua — a zone name
+            (pad7 = "topLeft" revives that key), service, or function
+  the list  _G.freeKeys() — every free key, from the LIVE registry
+
+🆓 THE ⇪⇧ NUMBER ROW — cleared 6.142.0, future shortcut options   [modules/numpad_layer.lua]
+  cleared   ⇪⇧5 7 8 · ⇪⇧, ⇪⇧. ⇪⇧⏎ — all unbound now
+  why       LL: shortcuts "cleaned, cleared and the keys listed
+            as future possible options for keyboard shortcuts"
+  except    ⇪⇧9 = Invert colours — LL's 6.141.0 pick, unblocked
+  and       ⇪⇧1 = ⏸ Pause Hammerspoon (6.152.0) — the first spend
+            ⇪⇧2 = ⌨️ Type the clipboard (6.158.0) — the second
+            ⇪⇧3 = 🖱 Mouse follows focus (6.160.0) — the third
+  taken     ⇪⇧0 mini calendar · ⇪⇧1-⇪⇧5 Screenshots stay where they are
+  the list  _G.freeKeys() — every free key, from the LIVE registry
+  zones?    On the PAD (⇪⇧pad) · halves ⇪← ⇪→ · maximise ⇪↑ ·
+            put back ⇪↓ · monitors ⇪[ ⇪] — no row keys needed
+
+🎯 MOUSE GRID (⇪X — type 3 letters, the pointer goes there)   [modules/mouse_grid.lua]
+  ⇪X      Overlay the labelled grid on every display
+  ⇪⇧X   Same, but click the moment you finish typing
+  asdfghjkl Type a cell's 3 letters — the pointer jumps there
+  snap      A button under the cell? The pointer lands ON it — including one WIDER than the cell (6.181.0), which is most of them
+  ⌫       Undo one letter while typing
+  ⎋       Cancel — the pointer does not move
+  -- after it lands -- 
+  space     Left click · ⇧space right click · 2 double click
+  ↑↓←→ Tap nudges 8pt; HOLD and it jumps 32pt at once (four taps' worth) and climbs to 64pt · with ⇧ nudge 1pt for a tight target
+  ⌥↑↓←→ Halve the box you landed in, toward that side — press again and it halves again, so a big cell narrows onto a small button in two or three presses instead of a lot of arrowing · press it while the grid is still up and it says to type the letters first
+  ⎋       Done — leave the pointer where it is
+  ⇪⇧L   Find the pointer — three white rings pulse out from it, again and again, for 5 s
+            Sized to the screen (×1.5 on a 4K at full points); grid.locateRadius / locateSecs / locateScale to taste
+  ⌃⌥⌘⇧X PANIC — tear the overlay down whatever state it is in
+  check it  _G.mouseGridReport() — cell size on THIS Mac
+
+🗒 CAPTURE & TASKS — anything that takes something in
+------------------------------------------------------------------------
+
+🗒 CAPTURE PAD (via ⇪N — collect now, Asana at 4 PM)   [modules/capture_pad.lua]
+  in ⇪N   The "+ 🗒 Capture" row in SCRATCH NOTES opens a Capture tab (⇪N was this pad's own key until 6.182.0; the brain and the queue never moved)
+  ⌘⏎    File the note you are typing
+  ⌘⇧V   Attach the clipboard image to the note you are typing
+  ✕       On a pinned thumbnail — removes just that image before you file
+  drag      The header bar moves the pad — it has no native title bar
+  ⇪⇧N   Send now — files whatever is in the box, then sends the queue
+  parked    Buttons to retry a failed note, or Discard it (asks first)
+  16:00     Automatic: every queued note becomes a task in your project
+  title     "Verb + rest" if it asks for an action, else "Note :: rest"
+            10 words max — the rest, and every image, go in the description
+  ! / ?     Start a note with ! to force a task, ? to force a note
+  Esc       Close the pad (the queue is kept on disk)
+
+📝 QUICK APPEND (⇪J / ⇪pad1 — clipboard into a file, no editor)   [modules/quick_append.lua]
+  ⇪J      Append the clipboard to log.txt — a Log note, instantly
+  ⇪⇧J   Pick Logs or Ideas — or type a line instead of pasting
+  on a pad  ⇪pad1 does ⇪J · ⇪pad3 does ⇪⇧J — see the numpad group
+  adds      A timestamp line, then your text, then a blank line
+  shows     The file, the line count, and the first words it wrote
+  files     Live in <logs>/notes/ — edit quickAppend.targets to change
+  csv       Every append is one notes.csv row — Date · Note Type · Note entry
+  safe      Append mode: never truncates, never holds the file open
+
+🗒 QUICK APPEND PAD (via ⇪N or ⇪J — one box, four destinations)   [modules/note_pad.lua]
+  in ⇪N   The "+ ➕ Append" row in SCRATCH NOTES opens an Append tab — type entries, one per line (⇪2 was this pad's key until 6.182.0; it is the sequential copy now)
+  * …     The line is an IDEA → ideas.txt + the CSV
+  + …     The line is a LOG → log.txt + the CSV
+  ! …     The line is an Asana TASK → the Capture Pad queue
+  ? …     The line is an Asana note → the same queue
+  plain     No prefix = a Log. A line without a prefix continues the entry above
+  close     ⌘⏎ or Esc — CLOSING FILES EVERYTHING; failures stay in the box
+  ⌘⇧V   Insert the clipboard into the box
+  16:01     The pad opens with today's notes — one click turns one into a task
+  pre-typed ⇪pad* opens it with * (an Idea) · ⇪pad- with + (a Log)
+  no pad?   ⇪2 opens it · ⇪space finds both pre-typed doors too
+
+📝 SCRATCH NOTES (⇪N — type, it saves; close as fast as you opened it)   [modules/scratch_pad.lua]
+  ⇪N      Open the pad — inside the ⇪3 Hamsidian window, on your SCRATCH NOTES (again closes). ⇪1 no longer opens it and is free
+  ⌘T · ⌘W New tab · close tab (its text goes to the history)
+  ⌘1…⌘9 Switch tab · ⌃Tab / ⌃⇧Tab cycle round them
+  history   Right pane (in the vault): every closed tab, click to reopen
+  📌      Pin: stays up beside the app; Esc only hands the keys back
+  + 🗒 · + ➕ New Capture / Append tabs are rows in the section now, not their own keys; ⌘W still files each where it always went
+  ⇪2      SEQUENTIAL COPY: select text, press it, select more, press again — the grabs join into ONE block on the clipboard, so ⌘V pastes the lot. Copying anything else starts a new sequence. Nothing is filed into the pad
+  16:00     One Asana task of the day: every tab, 07:30 → 16:00, you
+  search    ⇪space finds everything in the pad — tabs and history
+  own window settings = { scratch_pad = { viaVault = false } } brings the old window back
+  ⌘⇧S   Export every tab to <Vault>/Scratch as .md — Obsidian opens them
+  Console   _G.scratchPadReport() · _G.scratchPadSend() · _G.scorpPadExport()
+
+🕸 HAMSIDIAN (⇪3 / ⇪1 — Markdown notes that link to each other, in OneDrive; the Scorp Pad's tabs too)   [modules/vault.lua]
+  ⇪3 · ⇪N Open / close the window — ⇪3 on your last note, ⇪N on your scratch tabs
+  📝 SCRATCH NOTES Top of the list: every scratch tab, plain or 🗒 Capture or ➕ Append · ⌘T new · the + rows make the other two · ⌘W close · ⌘1–9 · ⌃Tab · history on the right
+  🕸 NOTES Under the scratch tabs: every .md note in the vault · the + new note row and ⌘N both name it in the window · typing a name and ⏎ creates it too
+  [[        Type [[ and pick a note — [[Name]] links to Name.md, creating it on follow
+  ⌘⏎    Follow the link under the caret (a note, or a file link opens the file)
+  ⌘N · ⌘D New note · today's daily note (Daily/YYYY-MM-DD.md, from Templates/Daily.md when it exists) · ⌘⇧[ ⌘⇧] the day before / after
+  ⌘G      Graph: every note a dot, every link a line; click a dot, drag to untangle
+  ⌘K      Link a file from anywhere in OneDrive (a relative Markdown link)
+  ⌘⇧N · ⌘⇧T New note FROM a template · insert a template at the caret — Templates/*.md with {{title}} {{date}} {{time}} {{date:FMT}} {{cursor}}
+  #tag      Type #word anywhere (or tags: a, b up top): 🏷 TAGS counts them, click one to filter, # in the box lists them all; chips on the right
+  ⌘⇧F   Search INSIDE every note — words, "a phrase", tag:x, path:x; rows are note · line · text, ⏎ opens at that line, Esc back
+  ⌘⇧K · ⌘L Every open - [ ] task in the vault (⏎ opens it there) · tick / untick the task on this line; ⏎ continues a list
+  OUTLINE · ≈ Right pane: the note's headings (click to jump) · ≈ notes that mention this name without linking it
+  ```dataview A live list: LIST or TABLE, FROM #tag / [[note]] / "Folder", WHERE status != "done", SORT, LIMIT — drawn in 🔎 QUERY, never written into the note. "/" writes the block for you
+  ⌘⇧B   🗂 Board: your notes as Kanban columns, grouped by a front-matter field (```kanban BY status). DRAGGING A CARD REWRITES that note's status: line — the one view here that writes
+  ⌘⇧E · ⌘⇧R Extract the selection into a new note, leaving [[Name]] behind · open a random note
+  ⌘⇧S   Export the Scorp Pad's tabs into <Vault>/Scratch as .md notes
+  ⌘F · ⌘O · ↑↓ ⏎ Filter the list · walk it (⌥↑/⌥↓ ⌥⏎ from inside the text)
+  📌      Pin: the window stays up beside the app; Esc only hands the keys back
+  Obsidian  Open the same folder as a vault in Obsidian — plug-ins and all
+  Console   _G.vaultReport() · _G.vaultRescan()
+
+🔢 NUMPAD — ⇪ pad, THE CAPTURE ROW (⌘⇧ pad is all free)   [modules/numpad_layer.lua]
+  ⇪pad1   Clipboard → log.txt as a Log note, instantly
+  ⇪pad2   The Quick Append Pad — * idea · + log · ! task · ? note
+  ⇪pad3   Clipboard → pick Logs or Ideas (the ⇪⇧J picker)
+  ⇪pad4   Split the two most recent windows (same as ⇪\)
+  ⇪pad*   The pad, pre-typed with * — an Idea
+  ⇪pad-   The pad, pre-typed with + — a Log
+  no pad?   ⇪2 opens the pad · every row here runs from ⇪space
+  ⇪ pad rest 🆓 free — pad0 5 6 7 8 9 . / enter clear, yours to assign
+  ⌘⇧ pad ALL 🆓 all free — a REAL modifier, works outside ⇪ too
+  how       Add padN = "some.service" in numpad_layer.lua —
+            numpad.actions (⇪) or numpad.cmdShiftActions (⌘⇧)
+  first     _G.padProbe() — which pad keys this Mac can send
+  ⇪ vs ⌘⇧ ⇪ is ours (Caps Lock remapped). ⌘⇧ is real macOS —
+            so a ⌘⇧pad shortcut also works in Raycast, KM, etc.
+  if dead   Accessibility → Pointer Control → Mouse Keys steals the pad
+
+🔗 ANCHORS (⇪⇧U — link what is in front of you to a note)   [modules/anchors.lua]
+
+📋 CLIPBOARD HISTORY (⇪V — every copy, searchable)   [modules/clipboard_history.lua]
+  ⇪V      Search clipboard history — matches the FULL text
+  👁 pane Beside the list: the WHOLE entry of the row the arrows or the
+            mouse are on — grows to the screen edge, then '… N more lines'
+  ⇪⇧V   Edit or delete an entry · an edit is re-copied
+  ☑️ row Pick several rows, then delete or copy them as ONE
+  keeps     The last 1,000 copies, newest first
+  skips     Anything over ~1 MB, so the file stays quick to write
+  dedupe    Copying something again moves it up, not a second row
+
+✅ TASK FORM (⇪T — labeled Asana task entry)   [modules/task_form.lua]
+  ⇪T      Open the form: Title · Description · Assignee · Attachment
+  dates     Start/End date & time — all optional (a start needs an end)
+  fields    The PROJECT'S dropdowns — Priority, Progress… fetched live
+  chips     A multi-pick field (SAC Values) is CHECKBOXES — tick any
+  drag      The title bar moves the window (⌘-drag anywhere works too)
+  ⏎       send the task (from any field)
+  ⇥       next field · ⇧⇥ previous
+  ⌥⏎    newline inside the Description box
+  📸      button (or ⌘L): newest screenshot into Attachment
+  esc       close — the draft is kept for next time
+  past      search PAST tasks from ⇪space (@asana) — the old pipe picker has no key since 6.161.0
+
+🔎 FIND & OPEN — search anything, open anything
+------------------------------------------------------------------------
+
+🚀 APP LAUNCHER (⇪space — every installed app, by name)   [modules/app_launcher.lua]
+  ⇪space  Type an app's name, ⏎ launches it (focuses if running)
+  scope     /Applications · ~/Applications · /System/Applications
+            …each one folder deep: Utilities, vendor folders
+  files     3+ letters: indexed FILES list under the apps — ⏎ opens
+  work      Same key both Macs — user-dir installs included
+  vs ⇪W   Summons an already-RUNNING app instead — Window Arranger's key
+
+🗂 MASTER LOG   [modules/master_log.lua]
+  file      master_log-<Mac>.csv in Logs — every store, one layout, newest first
+  when      Rebuilt every 15 min in slices; _G.masterLogBuild() does it now
+  index     SQLite FTS5 in ~/Library/Application Support — _G.masterLogSearch("words")
+  never     Reads the stores, never writes them; the .db never lives in OneDrive
+  check     _G.masterLogReport() — rows per source, last build, index state
+
+⌨️ COMMAND HISTORY   [modules/command_history.lua]
+  ⇪H      Search your shell history — Enter copies the command
+  type: anything Matches anywhere in the command
+  note      Read from command_history.log, written by your shell
+
+🕘 CHROME HISTORY (⇪Y — 180 days, every profile)   [modules/chrome_history.lua]
+  ⇪Y      Fuzzy-search 180 days of Chrome history — ⏎ reopens the page
+  archive   Chrome forgets at 90 days — the CSV keeps pages to 180 (chrome.days)
+  type      Words in any order, title or URL · char sequences too — gml finds gmail
+  ⌘⏎    COPY the page's URL to the clipboard instead of opening it
+  ⌥⏎    Open in the OTHER browser (Safari · chrome.altBrowser)
+  ⇪⇧Y   Re-read Chrome now and re-save the CSV, with a count
+  file      chrome_history-<Mac>.csv in the Logs folder — Excel opens it
+  @web      The same pages inside ⇪space — there ⏎ copies the URL
+  not working? _G.chromeHistoryReport() — ends in ✅ or a numbered
+            list of what to fix · also copies itself to the clipboard
+
+📊 MENU BAR ITEMS (⇪M — status icons by name, from the keyboard)   [modules/menubar_items.lua]
+  ⇪M      List every menu bar icon — type to filter, ⏎ opens it
+  ⇪⇧M   Inventory: what is up there, and which app owns each
+  why       Beats aiming at a 22px glyph you cannot always identify
+  NOT       This does NOT hide icons. macOS has no API for that —
+            Bartender covers the bar and screenshots it. For real
+            hiding use Ice (free): github.com/jordanbaird/Ice
+  needs     Accessibility. Without it, it says so and does nothing.
+
+🔎 MENU SEARCH (⇪. — the front app's menus, by typing)   [modules/menu_search.lua]
+  ⇪.      Every menu item of the front app — type to filter, ⏎ picks it
+  finds     The path too: “pdf” matches File ▸ Export As ▸ PDF…
+  shows     The keyboard shortcut for each item, where one exists
+  greyed    Unavailable items still listed, marked, and refuse to run
+  needs     Accessibility. Without it, it says so and does nothing.
+  check     _G.menuSearchReport() — last scan, its app, and how long
+
+🗂 TAB SEARCH (⇪⇧' — every open tab, from anywhere)   [modules/tab_search.lua]
+  ⇪⇧'   Every tab in every running browser — ⏎ jumps to it
+  where     From ANY app: Finder, Word, the desktop, a terminal
+  which     Each row names its browser — two copies stay two rows
+  search    Titles AND URLs, so “github” finds it either way
+  needs     Automation permission, once per browser (⇪, “automation”)
+  check     _G.tabReport() — which browsers answered, and how many
+
+🔎 UNIFIED SEARCH (⇪D — everything, one search)   [modules/unified_search.lua]
+  ⇪D      Search EVERY store: clipboard · commands · screenshots · notes · Asana · OCR · docs · file moves · pad · Chrome · every TOOL
+  ⇪⇧space Same panel opened as the BIG-thumbnail screenshot browser (@shots)
+  ⇪⇧/   Same panel opened on the TOOLS (@tool) — every shortcut, searchable
+  type      Every word must match · a @tag word pins one source — each section header shows its tag
+  @images   🖼 Find a PICTURE by the words inside it — every image the OCR log has read, thumbnail and all. ⏎ copies the image, ⌥⏎ opens it, ⌘⏎ copies its path
+  ⏎       COPY the row — text its full text, a screenshot the image, a Chrome page its URL (⇪Y reopens)
+  ⏎ on 🔧 RUNS the tool instead — the one row kind that acts (else copies its key)
+  ⌘⏎    Copy the file PATH instead (rows that have one)
+  ↑↓ · hover Move the highlight — the pointer moves it too, as a chooser's does · click picks (19px rows, 84px thumbnails)
+  pane      The right-hand pane shows the FULL entry of the highlighted row (first 12,000 characters; ⏎ copies all of it) — settings = { unified_search = { pane = false } } hides it
+  drag      The header bar moves it (⌘-drag anywhere) — and it REOPENS where you left it, across reloads too
+  re-centre _G.unifiedCenter() puts it back in the middle
+  Esc       Close (the cheat sheet always closes after it)
+
+📁 FILES & DOCUMENTS
+------------------------------------------------------------------------
+
+🗂 FILE INDEX (feeds ⇪space — your files behind the apps)   [modules/search_index.lua]
+  in ⇪space Type 3+ letters there: matching FILES list under the apps
+  scope     OneDrive (all of it) · your home folder · extraRoots
+  file      <OneDrive>/Logs/search_index-<Mac>.txt — one path per line
+  auto      Rebuilt off-thread at idle priority, twice a day
+  now       _G.indexNow() rebuilds · _G.fileIndexReport() explains
+
+📄 OPEN DOCUMENTS (app quit → get them back)   [modules/doc_memory.lua]
+  what      Remembers which documents Word / Excel / PowerPoint / Preview … have open
+  quit      The App Monitor's quit panel offers 📂 Spawn with N documents + 📄 Reopen rows
+  how       Timed Accessibility reads, only for the front app, only apps in dm.apps
+  files     open_documents-<Mac>.json (memory) + .csv (opened/closed/quit, for the master log)
+  check     _G.docMemoryReport() — what each app has open, the last sample, any rest
+
+📁 FILE TRACKER   [modules/file_tracker.lua]
+  ⇪F      Rename / move / copy history (searchable)
+  Enter     Copy row  ·  90-day history
+
+📂 RECENT DOCUMENTS (⇪I)   [modules/recent_docs.lua]
+  ⇪I      The 9 last-opened documents, then every type you work in
+  ⌘1–⌘9 Open a numbered recent directly
+  type      Search name · folder · date · extension — @tag pins a type · old names still match (⇪F renames)
+  ⏎       OPEN the document (⌘⏎ reveal in Finder · ⌥⏎ copy path)
+  ⇪⇧I   Re-scan now + what's been learned
+  drag      Header moves it — and it REOPENS where you left it
+  Esc       Close (the cheat sheet always closes after it)
+
+✏️ BULK RENAME (⇪R — Finder selection, 2 files or 1,000)   [modules/bulk_rename.lua]
+  ⇪R      Rename the Finder selection — pick rule, preview, ⏎
+  undo      First row of ⇪R undoes the last batch — survives a restart
+  tv        Normalise S01E01 naming across a whole season
+  junk      Strip [tags], 1080p, WEBRip, release groups
+  find      Find and replace · regex · sequential numbering
+  case      UPPER · lower · Title · camel · kebab · snake — the
+            same six ⇪; runs over selected text (text_case.lua)
+  safe      Subtitles move WITH their video — always, by design
+            Any collision aborts the whole batch. Nothing partial.
+
+✂️ TEXT & CLIPBOARD — what happens to text as it moves
+------------------------------------------------------------------------
+
+🔍 OCR ENGINE (copy an image — the words in it become searchable)   [modules/ocr_engine.lua]
+  ⇪O      Search everything ever OCR'd · Enter copies the text
+  ⇪⇧O   Edit an entry in a real window — ⌘⏎ saves, Esc cancels
+  empty it  Clear the box (or press Delete entry) to remove it
+  ☑️ row Delete several at once — Enter picks, one row deletes
+  automatic Every copied image is read and indexed, silently
+  🏷 files ⌘C image files in Finder → text into Finder comments
+  never     An existing Finder comment is never overwritten
+  needs     The "HS OCR" Apple Shortcut · Automation → Finder
+
+✏️ AUTOCORRECT   [modules/autocorrect.lua]
+  ⇪S      Toggle on/off
+  ⇪Z      Undo last fix & learn the exception — reversible
+  auto      Fixes typos & TWo-caps as you type (autocorrect.csv)
+  see       _G.autocorrectReport() — what ⇪Z has learned, and how to unlearn it (_G.autocorrectForget "HOw")
+  add       _G.autocorrectAdd("intsead", "instead") — a permanent fix row in autocorrect.csv, live at once, on both Macs
+
+🗂 EDITOR PICKER (⌃⌃ — every editor at once)   [modules/editor_picker.lua]
+  ⌃⌃    Tap it twice, touching nothing else — the picker opens
+  🗂      The same picker with no key — ⇪space, then "editor"
+  ⏎       Open it — or bring it forward if it is already up
+  ⌥⏎    Copy that editor's text and leave everything closed
+  lists     Capture Pad · Note Pad · OCR text · clipboard · pins · shots
+  sorted    Open windows first, then whatever has something in it
+  never     ⌘C then ⌘V does NOT open it — see the header
+  either ⌃ Both Control keys fire it — ep.tapSide narrows it
+  safe      ⌃-click and ⌃-scroll do NOT open it — they cancel it
+  💾      The LAST row writes every editor to one CSV in your Logs
+  snapshot  That CSV is REWRITTEN each export, not appended to
+  check     _G.editorPickerReport() — the roster and the tap's health
+
+✂️ TEXT EXPANDER (Alfred snippets)   [modules/text_expander.lua]
+  ⇪⇧S   Search your snippets and insert one
+  sections  That list is grouped by collection — yours at the top
+  icons     An emoji or symbol shows as itself; ✂️ yours · 📄 shipped · ⚙️ built in · ⚡ action
+  type      A trigger expands as you type it — ;bd or gg1, both work
+  add       _G.snippetAdd("gg1", "text") in the Console
+  import    _G.snippetsImport() — finds .alfredsnippets in ~/Downloads
+  list      _G.snippetsList() — every trigger, in the Console
+  {cursor}  In a snippet: where the caret lands afterwards
+  {clipboard} In a snippet: whatever is on the clipboard
+  {date} {time} In a snippet: today, and now
+  {date:…} In a snippet: {date:DD/MM/YYYY} — D, M and Y, any form
+  off       expander.enabled = false, or the ⏸ row in ⇪⇧S
+  never     Nothing you type is ever logged — see the module header
+
+🔕 BEGONE (type it — banners vanish)   [modules/begone.lua]
+  begone    Type it anywhere — every notification banner closes
+  typed     The word deletes itself; nothing lands in your document
+  history   Open Notification Center (click the clock) first and it empties that too
+  via ⇪⇧S It is in the snippet chooser too — pick it to run it
+  console   _G.begone() runs it · _G.begoneProbe() maps the banner window
+  needs     Accessibility — the same permission the window tools use
+
+🔗 URL CLEANER (⇪K — the real link, no marketing cruft)   [modules/url_cleaner.lua]
+  ⇪K      Clean the URL on the clipboard, in place
+  ⇪⇧K   Undo — put the original link back
+  removes   utm_*, fbclid, gclid, mc_eid, igshid and ~40 more
+  unwraps   Outlook Safe Links · Proofpoint · Google /url · Facebook
+  won't     expand bit.ly & co — that needs a request that REGISTERS
+            the click and sends the link off this Mac. It says so.
+  keeps     every parameter it does not recognise — never breaks a link
+  text ok   works on a whole paragraph, cleaning every link in it
+
+⚡ UNIVERSAL ACTIONS (⇪⇧A — act on the selection)   [modules/universal_actions.lua]
+  ⇪⇧A   Act on the Finder selection, or the clipboard
+  ⏎       Run the highlighted action
+  auto      The action you used last is at the top next time
+  auto      Actions that cannot apply right now are hidden
+  last row  Reset the running order back to the default
+
+🧰 POWER TOOLS (⇪; — the small ones, in one list)   [modules/power_tools.lua]
+  ⇪;      The list — type to filter, ⏎ runs it
+  ⇪⇧T   Types the clipboard key by key — for fields that
+            refuse ⌘V, like “confirm your email address” (⌨️ row too)
+  🔢 count Words · characters · ~sentences in the selection
+  📋 count The same, and both counts onto the clipboard
+  🔠 case UPPER · lower · Title · camel · kebab · snake —
+            each row previews YOUR text, then ⏎ types it back
+  📖 define Meaning + synonyms together — ⏎ swaps the word
+  📋 plain Strips every bit of formatting off the clipboard
+  ℹ️ meta Every mdls attribute of the Finder selection, ⏎ copies
+  ⇪'      ⏸ Pause all audio and video — media key + every
+            scriptable player that is already running
+  ⇪⇧Esc ⏸ PAUSE HAMMERSPOON — ⇪ shortcuts and typing helpers
+            off until pressed again · ⏸ HS in the menu bar meanwhile
+  ⌃⌥⌘⇧Esc 🚨 PANIC — lets go of everything: the ⇪ hold, the vault
+            window, the pad, the grid, the veil, any picker, then
+            pauses HS. A plain chord, so it works when ⇪ does not
+            (_G.hsPanic() from the Console does the same)
+  ⇪`      👻 Ghostty at the front Finder window's folder
+  ⇪⇧`   📂 Finder at the front Ghostty window's folder
+  ⇪⇧8   🔳 Read a QR code off the screen — needs zbar
+  🆓 free _G.freeKeys() — every unclaimed key, from the live registry
+  📎 open in Default app for a file type — set it, proof read back
+  check     _G.powerReport() — what ran, and what refused
+
+🔠 TEXT CASE (no key — it answers for ⇪; and ⇪R)   [modules/text_case.lua]
+  in ⇪;   Change the case of the selection — previews all six
+  via ⇪R  The same six as bulk-rename rules, for file names
+  keeps     UPPER · lower · Title keep every space and comma
+  makes     camel · kebab · snake rebuild the text from its words
+  check     _G.caseReport() — the six, run against a sample
+
+📖 DEFINE (⇪8 — meaning and synonyms, together)   [modules/define.lua]
+  ⇪8      Define the selection — senses, and the words that
+            share each one. ⏎ on a synonym swaps your word
+  type      Nothing selected? Type a word in the box, ⏎ looks it up
+  📕      Last row always opens it in Dictionary.app instead
+  needs     brew install wordnet — offline, and the only source on
+            by default. Without it ⇪8 hands off to Dictionary.app
+  check     _G.defineReport() — which sources this Mac has
+
+📸 SCREEN CAPTURE
+------------------------------------------------------------------------
+
+📸 SCREENSHOTS (⇪4 area · every tool on its own key)   [modules/screenshots.lua]
+  ⇪4      Area capture: crosshair · SPACE = window · Esc = cancel
+            saves to OneDrive/2026 Screenshots + copies to clipboard
+  ⇪⇧1   🖌 Blur / edit the newest screenshot
+  ⇪⇧2   🪟 Capture the active window — no clicking
+  ⇪⇧3   ⏲ Delayed capture, full screen after the countdown
+  ⇪⇧4   🔤 Recognize text / QR — the words go to the clipboard
+  ⇪5      🧻 Scrolling capture (experimental) — best in browsers · the result is saved AND on the clipboard
+  check     _G.screenshotsReport() — the folder, the watcher, and the last scrolling run slice by slice
+  ⇪⇧5   Panel: 9 actions (⌘1–⌘9) + history below · ⌘8 = BIG thumbnails
+  🏷 names Every capture — ⇪4's AND other tools' SCR- files — gets
+            ITS OWN words in the name as it lands · ⌘9 sweeps the backlog
+  type      searches the WHOLE folder — not just the newest 30 —
+            by name, by date, and by the TEXT INSIDE the image
+  ⏎       history row: image on clipboard · ⌘⏎ its file PATH
+  ⌥⏎    history row: open in the editor (blur/text/arrows)
+  ⌃⏎    history row: compress to “… (compressed).jpg” + clipboard
+  ⌃⌃    “Screenshots” in the editor picker — ⏎ OPENS THE FOLDER
+
+🖌 SCREENSHOT EDITOR (blur · text · arrows — ⇪⇧1)   [modules/screenshot_editor.lua]
+  open      ⇪⇧1 opens the newest shot · ⇪⇧5 menu captures too · ⌥⏎ on a history row
+  B T A     tools: Blur box · Text box · Arrow (buttons too)
+  L O H C   6.212.0: Line · Oval · Highlighter (translucent yellow box) · Counter (①②③ — a numbered badge per click, ⌘Z takes the last back)
+  S M       6.213.0: Spotlight (darkens everything but the box) · Magnifier (a 2× circle; drag its right-hand dot to size it)
+  ⌘V ⌘A 6.213.0: paste the clipboard's IMAGE onto the shot · Add capture — drag an area of the screen and it lands on the shot (move the editor first if it is in the way)
+  text      click, type, ⏎ — white text, white outline box · click an EXISTING box (Text tool) to edit its words, or ⏎ on a selected one
+  move      drag text/arrows around · arrow ENDS stretch + rotate · a selected text box has a corner dot — drag it to make the text bigger or smaller (⌘Z undoes it)
+  ⌫       delete the selected note · double-click text re-edits
+  ⌘Z      undo anything: blur, add, move, edit, delete
+  ⌘⏎    save “… (edited).png” + clipboard · ⌘⇧⏎ small JPEG
+  esc       close without saving — the original is never touched, and the blurs, text and arrows are kept: reopen the SAME shot and they are back
+
+⏱ TIME & ATTENTION — the day, and what interrupts it
+------------------------------------------------------------------------
+
+📊 ACTIVITY TRACKER   [modules/activity_tracker.lua]
+  ⇪0      Open — today's totals
+  type: week This week's totals
+  type: month Top apps & documents this month
+  type: anything Search all history — app, window title AND URL
+  Enter     Copy row to clipboard
+  url column Chrome's page, per row, in activity_history.csv
+  empty column? _G.urlReport() — ends in ✅ or what to fix
+  ⇪⇧W   DOCUMENTS you worked in — name · time · day, searchable
+  ☑️ row Copy several: pick rows with Enter, then copy together
+  ⇪⇧E   Edit or delete a document entry (clear the name = delete)
+  auto 4:00 PM Daily report pops up
+  auto Mon 7:30 AM Weekly recap pops up
+
+🗓 MINI CALENDAR (⇪⇧0 — three months)   [modules/mini_calendar.lua]
+  ⇪⇧0   Open / close the three-month panel
+  menu bar  The date next to the clock opens the same panel
+  ← →   A day at a time
+  ↑ ↓   A week at a time
+  [ ]       A month at a time (⇧← ⇧→ do the same)
+  T / Home  Back to today
+  click     A date COPIES it as 08-07-26 · ‹ › change month · Today
+  C         Copy the highlighted date without reaching for the mouse
+  R         Copy a “Date report:” — every format at once, time included
+  clock     The panel shows the time NOW, live to the second
+  range     ±1 year from today, then it stops and tells you
+  Esc       Close
+
+🍅 POMODORO (⇪⇧P — 25 on, 5 off)   [modules/pomodoro.lua]
+  ⇪⇧P   Start it · press again to put it away
+  auto      25:00 work, then it FLASHES and counts 5:00 break
+  ⏎       Reset and go again — only while it is flashing
+  esc       Stop and close — only while it is flashing
+  where     Top-right, just under the clock
+  below     Time · date · hours left in your 7:30–4:30 workday · 🍅 done today
+  90%       The card is 90% opaque throughout (6.209.0; alphaIdle / alphaAlert)
+  ink       The box and the digits are translucent too (cardAlpha / inkAlpha)
+  sound     Last 30 s of focus: Submarine every 3 s, soft → loud (toneOn / toneSecs)
+  calendar  With the mini calendar (⇪⇧0) up, the card sits beside it and comes back after
+  log       Every start & completion → pomodoro_log-<Mac>.csv (Logs)
+  4:30      Day's tally at workday end · Friday adds the week's
+  note      Enter/esc are NOT captured during the countdown
+  check     _G.pomodoroReport() — today, this week, and the file
+
+📊 DAILY ROLLUP (one card at 16:01 — no key, no store)   [modules/daily_rollup.lua]
+  16:01     A card in the corner: time, documents, notes
+  📊      Show today's card now — ⇪space, then @tool
+  fades     Goes by itself after 25s · click it to dismiss
+  quiet     Takes no keyboard focus · silent on an empty day
+  console   _G.rollup() any time · _G.rollup(true) also prints
+  derived   Reads the tracker and the pad — stores nothing itself
+  was       Replaces the 16:00 activity popup, which is now off
+
+🎯 FOCUS MODE (⇪Q — Quiet: the Mac steps back when you join)   [modules/focus_mode.lua]
+  ⇪Q      Toggle focus by hand (Q = Quiet) — always disengages
+  ⇪⇧Q   What it detected, what it changed, what it will restore
+  auto      Engages on a Zoom/Teams meeting window, or an Outlook
+            reminder carrying a join link
+  does      Mutes mic · camera off IF provably on · Focus on · dims
+            everything that is not the meeting — pop-ups included
+  safe      Restores ONLY what it changed. Watchdog disengages if
+            detection dies, so the mic never stays muted.
+  can't     Cannot revoke camera access — no macOS API. It drives
+            the meeting app's own control, and only when readable.
+
+🩺 THE CONFIG ITSELF
+------------------------------------------------------------------------
+
+🎨 UI STYLE (no key — the shared panel look)   [modules/ui_style.lua]
+  what      One table of colors/corners that 11 panels read
+  edit      modules/ui_style.lua ✏️ table — ⇪R applies it
+  ref       The pomodoro FOCUS card is the reference look
+
+💾 WRITE LEDGER (is it actually saving?)   [modules/write_ledger.lua]
+  _G.saved() Every log file: size, rows, when last written
+  in ⇪⇧D The same block, inside the diagnostic report
+  grown     How much each file has grown since this boot
+  probe     Writes and re-reads a test file — proves the folder takes writes
+  twins     Warns when two files look like the same log (one is frozen)
+  shrunk    An append-only log that shrank is called out; a store
+            rewritten whole (⇪I cache, .json) may shrink — that is normal
+  quiet     Checks itself every 30 min and says NOTHING unless wrong
+
+⌨️ KEY CASTER (⇪⇧B — show the keys you press)   [modules/key_caster.lua]
+  ⇪⇧B   Turn the panel on / off (it starts OFF)
+  shows     Shortcuts only — ⌘⌃⌥fn⇪ combos, ⎋ ⇥ ⏎ arrows, F-keys
+  app       The frontmost app's name sits above the keys
+  expands   A text-expander snippet shows as ⌨ trigger → what it did
+  hides     Plain typing, and ⇧+letter (that is a capital)
+  all keys  _G.keyCastTyping(true) — show typing too, for a demo
+  where     Right edge, vertically centred — it GROWS as keys arrive
+  drag      Move it anywhere; it stays there for the session
+  stays     Up while you keep pressing, fades after you stop
+  never     Nothing you type is logged anywhere — see the header
+
+🩺 HEALTH MONITOR (watches the other tools, tells you when one dies)   [modules/health_monitor.lua]
+  automatic Checks every 15 min that each tool is still WRITING
+  notifies  A persistent macOS notification when one goes quiet
+  ⇪⇧H   Health report right now — every tool, state and why
+  console   _G.healthReport() · _G.healthCheckNow() to force one
+  no alarms Sleep does not count · quiet hours do not count ·
+            one notice per tool per day · grace period after boot
+  why       Boot report = what LOADED. This = what still WORKS.
+
+⚙️ SETTINGS SEARCH (⇪, — panes AND the settings inside them)   [modules/settings_panes.lua]
+  ⇪,      Type any setting — “night shift”, “hot corners”, “vpn”
+  ⏎       Opens the pane that holds it, and says where to look
+  last row  🔎 hands your words to System Settings' OWN search —
+            Apple's index, so it knows what this one does not
+  privacy   Accessibility · Screen Recording · Automation · Input
+            Monitoring · Full Disk Access — each one direct, no scrolling
+  note      Apple renames these identifiers between releases —
+            _G.settingsProbe() opens each in turn so you can see
+  check     _G.settingsReport() — panes, terms, and where from
+
+💀 APP KILL (⇪⇧; — end a process by name)   [modules/app_kill.lua]
+  ⇪⇧;   Every running process — type to filter, ⏎ asks it to quit
+  🖥 ⚙️ Yours to end: apps, helpers, shells, scripts — what you put here
+  🔁      Finder · Dock · menu-bar agents — end freely, they relaunch
+  🔒      macOS's own, or another user's — listed, never ended
+  ⌥⏎    Force it: SIGKILL, no save prompt, no negotiation
+  again     Picking a process that ignored the quit forces it too
+  search    Subtitles carry the full command line — “renderer” works
+  check     _G.killReport() — what was ended this session, and how
+
+🌐 NETWORK TOOLS (⇪6 — report · refresh · ping · dig · race · …)   [modules/net_tools.lua]
+  ⇪6      Twelve tools, each row saying what it tells you — ⏎ runs one
+  🩺 report IP · router · internet · DNS speed · Wi-Fi · VPN · portal → a VERDICT
+            naming the first broken link; saved to Logs/net_report-<Mac>.txt
+  🧹 refresh Flush DNS then the report — nothing disabled, killed or reconfigured
+  🏁 race Which resolver answers fastest from here (you change it, by hand)
+  host      Type it in the second box; the clipboard prefills it
+  output    One row per line, searchable — ⏎ copies that line,
+            and the whole output is on the clipboard already
+  flush     Runs both halves and says which one worked — the
+            mDNSResponder half needs admin and cannot on the work Mac
+  🚀 speed speedtest-cli if Homebrew has it; the row says how to install it
+  check     _G.netReport() — what ran, how long, and what failed
+
+🖥 MAC PANEL (⇪7 — About This Mac, as a card)   [modules/mac_panel.lua]
+  ⇪7      Open the card — press it again to put it away
+  shows     Model · chip · memory · macOS · serial, as Apple's does
+  plus      Uptime · free disk · battery health · this Mac's IP
+  drag      It moves, and stays where you drop it for the session
+  check     _G.macReport() — the same figures as text, and copied
+
+🌐 NET WATCH (⇪⇧6 — who's talking, and why)   [modules/net_watch.lua]
+  ⇪⇧6   Every app of yours with a live connection — one row per app
+  ⏎       Copy that app's report: what · why · each resolved path
+  ⌘1      Copy the FULL report — every app, every connection
+  names     Remote IPs reverse-resolved · known services explained
+  honest    An unknown service says “unrecognized”, never a guess
+  check     _G.netWatchReport() — the same full report, in the Console
+
+📶 BLUETOOTH (⇪⇧7 — connect · disconnect AirPods or any paired device)   [modules/bluetooth.lua]
+  ⇪⇧7   Every paired device, 🟢 connected or ⚪ not — ⏎ flips it
+  engine    blueutil (brew) connects and disconnects; without it the list still
+            works and ⏎ opens System Settings › Bluetooth — the top row copies the install
+  verdict   a connect that fails says the exit code and blueutil's own words
+  check     _G.bluetoothReport() — the engine, the devices, the last action
+  off       settings = { bluetooth = { on = false } }
+
+💡 SHORTCUT HINTS (automatic — after a ⇪ key, its group's other keys)   [modules/shortcut_hints.lua]
+  any ⇪ key A card top-right lists the group's other keys — Asana after ⇪T, and so on
+            Sized to the screen: 540 wide / 20 pt on a 1440-pt-tall screen, ×1.5 on a 4K at full points; settings shortcut_hints.scale pins it
+  10 s      It fades by itself; any key or click makes it vanish at once (Esc included, and Esc still reaches the picker)
+  settings  settings = { shortcut_hints = { enabled = false } } turns it off; hint.groups reshapes a group
+  Console   _G.shortcutHintsReport() — what the last press resolved to
+
+📎 DEFAULT APPS (which app opens a file type)   [modules/default_apps.lua]
+  📎      Pick a file type, then the app that opens it — ⇪space, then @tool
+  list      Only apps that CLAIM the type are offered; ⭐ marks today's default
+  proof     LaunchServices is read back before the change is believed, twice
+  check     _G.defaultAppsReport() — every change this session, with verdicts
+
+⚙️ RUNS ITSELF — nothing to press, listed so you know it is there
+------------------------------------------------------------------------
+  App Watcher            Notices apps starting and quitting, for the trackers
+  Battery Saver          On battery the config's own pollers slow down; battery hogs get named
+  Copy-on-Select         Selecting text copies it — off by default (⇪⇧C)
+  Daily Backup           The rebuild kit: config, dotfiles, app manifest → OneDrive daily
+  Doc Keywords           Word files get Spotlight keywords as you save them
+  Hyper Storm Guard      A latched ⇪ that is running your typing as shortcuts is released after 5 s and written up
+  Stall Guard            A second process watches Hammerspoon's pulse and relaunches it when the main thread hangs
+  App Update Tracker     Checks Homebrew for app updates (⌃⌥⇧U to see them)
+
+🔑 CORE KEYS — bound by init.lua itself
+------------------------------------------------------------------------
+  ⇪-      Remove a custom cheat sheet entry
+  ⇪/      Toggle the cheat sheet
+  ⇪=      Add your own entry to the cheat sheet
+  ⇪A      Format Asana URL from clipboard
+  ⇪B      Browse Asana Teams — Enter copies a name for Assignee
+  ⇪C      Comment on a task
+  ⇪E      Edit a custom cheat sheet entry
+  ⇪L      List tasks — Today / Week / Overdue
+  ⇪P      Hide / show the front app
+  ⇪⇧C   Toggle copy-on-select
+  ⇪⇧D   Diagnostic report — Console + clipboard + Logs file
+  ⇪⇧R   Reset the panel nudge offset
+  ⇪⇧← Nudge it left
+  ⇪⇧↑ Nudge the open picker up
+  ⇪⇧→ Nudge it right
+  ⇪⇧↓ Nudge it down
+
+📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
+------------------------------------------------------------------------
+  6.217.0  ✂️ INIT.LUA TRIMMED, AND A PLAIN-TEXT FEATURE LIST RIDES IN EVERY ZIP
+  6.216.0  📶 BLUETOOTH: CONNECT OR DISCONNECT ANY PAIRED DEVICE (⇪⇧7, modules/bluetooth.lua)
+  6.215.0  🔔 THE DEGRADE DOOR: A BREAK IS SEEN, NEVER ONLY LOGGED (core/notices.lua)
+  6.214.2  🌩 THE STORM GUARD COUNTS THE KEYS A TOOL EATS, AND A MISSING FOLDER IS NOT A WARNING
+  6.214.1  🌩 A STUCK ⇪ CATCHES ITSELF: THE HYPER STORM GUARD (modules/hyper_storm.lua)
+  6.214.0  🕸 HAMSIDIAN — THE ⇪3 NOTES ARE CALLED WHAT LL CALLS THEM
+  6.213.5  ✍️ ⇪⇧V EDITS IN A REAL WINDOW — THE OCR EDITOR, SHARED
+  6.213.4  ✏️ statrs → starts: TWO TIERS, THE KIND OF EDIT ORDERS THE SECOND
+  6.213.3  🧻 ⇪5's SLICES LEAVE THE ONEDRIVE FOLDER (THE CAUSE, NAMED)
+  6.213.2  ✏️ AN INFLECTED ANSWER MUST CARRY THE ENDING YOU TYPED
+  6.213.1  🛡 STABILITY PASS: THE STALL GUARD WAITS LONGER
+  6.213.0  🔦 SPOTLIGHT · MAGNIFIER · PASTE IMAGE · ADD CAPTURE
+  6.212.0  🖌 LINE · OVAL · HIGHLIGHTER · COUNTER IN THE EDITOR
+  6.211.0  🗓 THE POMODORO SITS BESIDE THE MINI CALENDAR
+  6.210.0  🔊 THE LAST THIRTY SECONDS, SOFT TO LOUD
+  6.209.0  🍅 THE POMODORO IS 90% OPAQUE AND COUNTS THE DAY
+  6.208.0  🧊 A BEACH BALL NO LONGER COSTS YOU THE KEYBOARD
+  6.207.0  🅣 AN EXISTING TEXT BOX CAN BE EDITED AGAIN
+  6.206.0  🧻 ⇪5 SCROLLING CAPTURE KEEPS ITS RECEIPTS
+  6.205.0  🚨 AUTOCORRECT: AN INFLECTION OF A WORD IS A WORD
+  6.204.0  👁 ⇪D TAKES THE MOUSE, AND A PANE SHOWS THE FULL ENTRY
+  6.203.0  🚨 ⌘N IN THE VAULT NEVER USED THE NAME YOU TYPED
+  6.202.0  👁 THE PREVIEW PANE SHOWS THE ROW YOU ARE ON, NOT THE ONE BELOW
+  6.201.1  🚨 AND THE COLLECT TAB HAS BEEN IN THE 4 PM TASK ALL ALONG
+  6.201.0  📎 ⇪2 PUTS YOUR GRABS ON THE CLIPBOARD, AND ONLY THOSE
+  6.200.0  📖 THE REAL DICTIONARY, NOT ANOTHER LIST TO KEEP
+  6.199.0  ✏️ WHAT ⇪Z LEARNS IS VISIBLE AND REVERSIBLE
+  6.198.1  🗂 A STORE IS A FILE, AND A FILE CAN BE ANY SHAPE
+  6.198.0  📋 THE BORROWED CLIPBOARD NEVER LANDS ON YOURS
+  6.197.2  🔎 A BUDGET IS A STATE, NOT A FOOTNOTE
+  6.197.1  🔒 A FILTER THAT FAILS OPEN IS NOT A FILTER
+  6.197.0  🚨 THE CRASH REPORT WAS BACKED UP NOWHERE
+  6.196.1  🚨 THE PROBE THAT CRASHED THE APP IT WAS WATCHING
+  6.196.0  🔒 WHEN SOMETHING ELSE HAS YOUR KEYBOARD, THIS SAYS SO
+  6.195.0  ➕ A PLUS FOR A NEW NOTE, AND THE ARROWS COVER GROUND
+  6.194.0  📸 EVERY SCREENSHOT TOOL GETS ITS OWN KEY
+  6.193.0  🔧 ⇪V WORKS AGAIN, AND ⇪space STOPS STICKING
+  6.192.0  ✂️ ⇪X: BREAK THE BOX YOU LANDED IN, IN HALF
+  6.191.0  🔠 THE PAD IS READABLE, AND THE TOOL TIP IS NOT UNDER
+  6.190.0  🖼 THE HISTORIES LOOK LIKE ⇪space, AND THE STORES CAN
+  6.189.0  🖌 NOTHING IS LOST TO AN ACCIDENTAL ESC
+  6.188.0  ✋ THE TEXT BOXES ARE GRABBABLE (⇪⇧4 editor)
+  6.187.0  🖼 @images: FIND THE PICTURE BY THE WORDS INSIDE IT
+  6.186.0  🗂 A KANBAN BOARD YOU CAN DRAG CARDS ON (⇪3, ⌘⇧B)
+  6.185.0  🔎 WHERE: A QUERY CAN ASK ABOUT YOUR FRONT MATTER
+  6.184.0  🎯 THE HOME ROW IS THE GRID AGAIN
+  6.183.0  🔎 THE VAULT ANSWERS A QUESTION YOU WRITE DOWN
+  6.182.0  📝 ONE SECTION, ONE DOOR, AND ⇪2 COLLECTS AS YOU READ
+  6.181.1  THE PAD WINDOW: 3% TRANSLUCENT, NOT 10%
+  6.181.0  📐 WHAT LL ACTUALLY SEES: THE SHEET, THE PAD, THE GRID
+  6.180.0  🔗 ANCHORS (⇪⇧U) · AND init.lua GETS ITS BUDGET BACK
+  6.179.2  TAKE THE DRIFT CALL BACK OFF THE BOOT PATH
+  6.179.1  THE REPORTS SURVIVE THE CONSOLE GATE, AND THREE TESTS THAT LIED
+  6.179.0  ⌨️ WHAT DID I JUST PRESS · IS IT GETTING SLOWER · EMMYLUA GONE
+  6.178.0  ⏱ BOOT COST: WHERE THE LOAD TIME ACTUALLY GOES
+  6.177.0  📤 THE SCORP PAD'S WAY OUT: EVERY TAB AS AN OBSIDIAN NOTE
+  6.176.0  ⇪X MOUSE GRID: SMALLER CELLS, SAME THREE KEYSTROKES
+  6.175.2  THE PAD/VAULT WINDOW IS SOLID
+  6.175.1  THE PAD/VAULT WINDOW IS MORE SOLID AGAIN
+  6.175.0  THE VAULT TEACHES YOU MARKDOWN AS YOU TYPE
+  6.174.0  HAMMER-SIDIAN: TAGS, TEMPLATES, BODY SEARCH — AND A PANIC CHORD
+  6.173.2  THE VAULT WINDOW: SLIGHTLY SEE-THROUGH
+  6.173.1  ⇪4 / ⇪⇧4 OCR TEXT REACHES THE ⇪O LOG (FOR REAL THIS TIME)
+  6.173.0  ONE WINDOW: THE SCORP PAD'S TABS LIVE IN THE VAULT (⇪1 = ⇪3)
+  6.172.1  ⇪X ARROWS SPEED UP WHEN HELD; ⇪4's OCR REACHES ⇪O; THE PAD IS SOLID
+  6.172.0  THE VAULT: LINKED MARKDOWN NOTES IN ONEDRIVE, WITH A GRAPH (⇪3)
+  6.171.2  THE SCORP PAD: NEARLY SOLID, 16 PT TEXT
+  6.171.1  THE SCORP PAD STANDS UP: 768×1024, LESS SEE-THROUGH
+  6.171.0  THE SCRATCH PAD IS THE SCORP PAD, BIGGER AND SEE-THROUGH
+  6.170.3  ⇪4 LET GO OF THE KEYBOARD AND THE COPY LEFT THE MAIN THREAD
+  6.170.2  RAW CLIPBOARD IMAGE OCR GOES OFF; THE POLL GETS A BREAKER
+  6.170.1  THE "ZERO-DIMENSIONED IMAGE" NOTIFICATION LOOP
+  6.170.0  ARROW THROUGH THE ROWS IN EVERY PAD; THE AIR PINS ITS HINT CARD
+  6.169.0  ONE MASTER LOG FROM EVERY STORE, AND THE DOCUMENTS A QUIT APP HAD OPEN
+  6.168.0  MOUSE FOLLOWS FOCUS LEARNS ABOUT YOUR HAND
+  6.167.0  THE HINT CARD AND THE POINTER RING ARE SIZED BY THE SCREEN; THE RING STAYS 6 S
+  6.166.0  ⌃TAB, A 20 PT HINT CARD, WIN_PIN RETIRED, A WIFI RING, A QUIET BOOT
+  6.165.1  THE PAD'S FIRST SESSION: A LOST F18 keyUp, TAB NAMES, A LOUD SAVE
+  6.165.0  ⇪N AND ⇪2 OPEN AS TABS IN THE SCRATCH PAD
+  6.164.0  ⇪1 SCRATCH PAD: TABS, SAVED AS YOU TYPE, A HISTORY UNDER IT
+  6.163.0  AFTER A ⇪ KEY, A CARD OF ITS GROUP'S OTHER KEYS
+  6.162.1  A LOST F18 keyUp CAN NO LONGER LATCH ⇪ FOR THE SESSION
+  6.162.0  THE PUBLIC PACKS LIVE IN GIT; THE PRIVATE ONE IN ONEDRIVE
+  6.161.0  ⇪⇧S IS THE SNIPPETS PANEL, WITH ICONS; ⇪⇧3 REMEMBERS
+  6.160.4  THE PANE FOLLOWS THE LAST HAND THAT MOVED
+  6.160.3  ⌥TAB STOPS PAYING FOR THE CONSOLE TWICE
+  6.160.2  MOUSE FOLLOWS FOCUS CAN NO LONGER HANG THE MAC
+  6.160.1  A PICKER IS NEVER PLACED OFF ITS SCREEN
+  6.160.0  THE POINTER GOES WHERE FOCUS GOES (⇪⇧3)
+  6.159.0  THE THREE SNIPPETS SHIP · ⇪⇧; KNOWS WHAT IT MAY END
+  6.158.0  DATES YOUR WAY IN A SNIPPET · ⇪⇧2 TYPES THE CLIPBOARD
+  6.157.0  THE PREVIEW PANE, ON EVERY PICKER THAT HOLDS TEXT
+  6.156.1  THE CHEAT SHEET, 20% LESS SEE-THROUGH
+  6.156.0  ⇪Y WITHOUT THE LOGINS · ⇪⇧T SHOWS WHAT IS IN IT · ⇪L
+  6.155.0  WORDS ON EVERY SCREENSHOT · THE PANE RIDES A MOVED
+  6.154.0  SEVEN ASKS: ⇪V SHOWS THE WHOLE ENTRY · ⇪X LANDS ON THE
+  6.153.0  ⌥TAB'S HIDDEN 1.5 SECONDS · THE ⇪T WINDOW GROWS UP ·
+  6.152.1  THE BEACHBALL 6.152.0 SHIPPED, DEAD THE SAME DAY
+  6.152.0  NINE ASKS IN ONE PASS: ⌥TAB'S MEMORY AND SPEED · THE
+  6.151.0  ⌥TAB: THE OTHER CHROME WINDOWS, FOUND AT LAST
+  6.150.0  THE APP MONITOR ALARM: ONLY ESC DISMISSES IT
+  6.149.0  THE ⇪Q DIM: DARKER, AND A SHIELD THAT STAYS TRUE
+  6.148.0  EVERY TOOL POPS IN FRONT OF THE CHEAT SHEET
+  6.147.0  SIX ANSWERS: WHO'S TALKING · NAMES · CLOCK · CONSOLE
+  6.146.0  DEFAULT APPS: A FILE TYPE OPENS IN THE APP YOU CHOSE
+  6.145.2  THE BACKUP LINE THAT ALWAYS SAID "not configured"
+  6.145.1  THE ECHO ROW: EVERY doEvery TIMER, COUNTED ONCE
+  6.145.0  THE SETUP DOOR RETIRES; THE SHEET NAMES TRIPLE-PRESS
+  6.144.1  THE SETTINGS DOOR THAT NEVER OPENED
+  6.144.0  BATTERY SAVER: ON BATTERY, THE CONFIG SLOWS ITSELF
+  6.143.0  DIALOG HOME: DIALOGS LAND AT YOUR SPOT
+  6.142.0  THE NUMBER-ROW LAYER COMES OUT; FREE KEYS GET A LEDGER
+  6.141.0  GRAYSCALE GETS ITS KEY: ⇪9 TOGGLES
+  6.140.1  THE WORK MAC BACKS UP DOCUMENTS TOO
+  6.140.0  GRAYSCALE, AT LAST: PRESS THE KEY macOS OWNS
+  6.139.0  THE REBUILD KIT: A CLEAN INSTALL IN ONE FOLDER
+  6.138.0  THE WHEEL FOLLOWS THE DRAG
+  6.137.0  THE LAG, FOUND AND KILLED. IT WAS NEVER A TAP
+  6.136.0  THE PROBE WAS THE PRIME SUSPECT, SO IT IS NOW OFF
+  6.135.0  THE STRONGER DOSE, AND A TEST THAT COULD HAVE LIED
+  6.134.0  THE SWITCH, NOT JUST THE GAUGE
+  6.133.0  WHAT IT MEANS, AND WHAT ELSE YOU COULD SAY
+  6.132.0  THE CASE OF THE THING
+  6.131.0  WHICH TAP IS EATING THE KEYSTROKE
+  6.130.0  EVERY EDITOR INTO ONE SPREADSHEET
+  6.129.0  THE KEYS THAT ALWAYS MOVED IT
+  6.128.0  AND IT STILL DID NOT MOVE
+  6.127.0  THE PICKERS THAT COULD NOT BE MOVED
+  6.126.0  ⇪' NOW ACTUALLY PAUSES VLC
+  6.125.0  ⇪⇧Z IS YOURS AGAIN, AND THE PICKER GOES KEYLESS
+  6.124.0  THE PICKER MOVES TO ⌃⌃, AND THE MOUSE GETS A VOTE
+  6.123.0  THE COLUMN THAT WAS PROMISED, AND THE WINDOW THAT ONLY
+  6.122.0  TWO SEARCHES THAT WERE ONLY LOOKING AT HALF THE ROOM
+  6.121.0  THE LEFT ⌘ GOES BACK TO ALFRED
+  6.120.0  THE OTHER EIGHT, AND THE KEY THAT WAS ALREADY TAKEN
+  6.119.0  TWELVE TOOLS ASKED FOR, THE FIRST FOUR OF THEM, AND
+  6.118.0  TWO LISTS THAT LOSE YOUR PLACE, AND NO LONGER DO
+  6.117.0  TWO DELETIONS. NOTHING GAINED A FEATURE
+  6.116.0  FIVE THINGS LL ASKED FOR, IN THE ORDER HE ASKED FOR
+  6.115.0  FOUR THINGS LL ASKED FOR, AND THE FILE THAT WAS LYING
+  6.114.0  EVERY SHORTCUT WORKS WITH NO EXTERNAL KEYBOARD, AND
+  6.113.0  A PINNED NOTE CAN MOVE TO ANOTHER WINDOW
+  6.112.0  ⇪⇧U GETS A REAL BOX, AND ITS NOTES STOP VANISHING
+  6.111.0  ⇪/ REOPENS WHERE YOU WERE READING
+  6.110.0  DOC KEYWORDS STOPS SHOUTING
+  6.109.0  ⇪⇧T GETS ITS ROWS BACK
+  6.108.0  BEGONE IS FILED UNDER TEXT
+  6.107.0  ⇪space STAYS WHERE YOU PUT IT TOO
+  6.106.0  THE SHEET STAYS WHERE YOU PUT IT, AND ⇪Y CAN BE ASKED
+  6.105.0  700 KB OFF THE DOWNLOAD, THE ROOT FILE SHRINKS,
+  6.104.0  TWO TOOLS RETIRED, ONE ADDED, 46 → 45 MODULES
+  6.103.0  DOCK BACK IN, WINDOWS GO BACK
+  6.102.0  PICKERS DRAG BY THEIR SEARCH BAND
+  6.101.0  THE CHEAT SHEET BECOMES A MAP
+  6.100.2  THE CHEAT SHEET STOPS SHOUTING
+  6.100.1  THE PHANTOM PILL GETS SWEPT
+  6.100.0  ONE BOX, FOUR DESTINATIONS · BEGONE READS DESCRIPTIONS
+  6.99.0   THE NUMBER PAD CAPTURES · THE NOTE PAD · BEGONE ON 26
+  6.98.0   OCR SEES id= FILES · THE TASK CREATOR MOVES OUT
+  6.97.0   ☑️ PICK SEVERAL · A QUIETER OCR · THE FILE MAP
+  6.96.0   NONBREAKING ERRORS · THE ⇪D FILE INDEX · DOC KEYWORDS
+  6.95.0   THE CONSOLE GETS AN ⛔ ERRORS SECTION + A REPEAT LIMITER
+  6.94.0   THE SHEET SCALES TO THE MONITOR + THE TIMER TELLS TIME
+  6.93.0   RECENT DOCUMENTS (⇪I) + THE SHEET CLOSES LAST
+  6.92.0   CHROME HISTORY (⇪Y) + BEGONE (typed) + ⇪space TAGS
+  6.91.0   APP LAUNCHER (⇪D)
+  6.90.1   MENU BAR PICKER DEDUPE (⇪M)
+  6.90.0   ONE SHARED LOOK (modules/ui_style.lua)
+  6.89.0   EVERY WINDOW MOVABLE + UNIFIED SEARCH (⇪space)
+  6.88.0   EDITOR TOOLS + PANEL SEARCH + COMPRESS
+  6.87.0   SCREENSHOT PANEL + BLUR EDITOR
+  6.86.0   TASK FORM + SCREENSHOTS
+  6.85.0   KEY CASTER TEXT LABELS + RIGHT-SIDE VERTICAL PANEL
+  6.84.0   KEY CASTER HORIZONTAL LAYOUT
+  6.83.2   KEY CASTER FIXED SIZE
+  6.83.1   KEY CASTER 20PT + EXPANDER DOUBLE-POST FIX
+  6.83.0   WORKSPACES REMOVED
+  6.82.0   GRAYSCALE REMOVED
+  6.80.0   VOLUME MODULE REMOVED
+  6.79.2   THE SHORTCUTS PANEL TRULY CLOSES LAST
+  6.79.1   A CORRECTION: PER-APP MIXING NO LONGER NEEDS A DRIVER
+  6.79.0   I MISDIAGNOSED YOUR MAC, AND PER-APP VOLUME
+  6.78.0   THE CHEAT SHEET CLOSES LAST
+  6.77.0   FIX IT ALL: THE REST OF THE KEYBOARD, AND A RECORD THAT WENT STALE
+  6.76.0   THE HYPER KEY HAD ONE WAY IN, AND ON THE WORK MAC IT DIED
+  6.75.0   NOTHING LEFT THAT CAN BEACHBALL YOUR MAC
+  6.74.0   THE SNIPPETS SHIP IN THE ZIP
+  6.73.0   READ BACKWARDS: THE BOOT LINE CANNOT SEE THE WARM PHASE
+  6.72.0   A FULL DEBUG PASS, AND TWO REAL BUGS IN THE KEYBOARD
+  6.71.0   SHOW THE KEYS, AND THE BUG THAT ATE THE SNIPPETS
+  6.70.0   THE TIMER PANEL THAT WOULD NOT GO AWAY
+  6.69.0   YOUR ACTUAL 2,006 SNIPPETS, AND WHAT THEY BROKE
+  6.68.0   SNIPPETS, AND THREE THINGS THAT WERE LEFT TO CHANCE
+  6.67.0   GRAB THE PANELS AND MOVE THEM
+  6.66.5   SEVENTEEN WARNINGS IN TWO SECONDS, AND THEY WERE MINE
+  6.66.4   THE BOOT LINE COUNTED ONE SOURCE OUT OF THREE
+  6.66.3   FOUR MODULES HAD NEVER LOADED ON LL'S MAC
+  6.66.2   "SOME WINDOWS DON'T COME FORWARD BUT SOME DO"
+  6.66.1   "MY SHORTCUTS DON'T WORK OVER FULL SCREEN APPS"
+  6.66.0   THE SEARCH BOX, AND A KEY THAT WAS NEVER BOUND
+  6.65.2   A LINTER, INSTEAD OF FIXING ONE MORE OF THESE BY HAND
+  6.65.1   THE CRASH, AND THE pcall THAT WAS NEVER PROTECTION
+  6.65.0   A SEARCH BOX, A PINNED SHEET, AND FOUR NEW TOOLS
+  6.64.0   EDITOR AUTOCOMPLETE FOR THE hs.* API
+  6.63.0   FOCUS MODE WAS MUTING YOUR MIC BECAUSE TEAMS WAS OPEN
+  6.62.0   TWO BUGS OFF LL's OWN CONSOLE, AND THE STUB THAT HID ONE
+  6.61.0   THE LAST SILENT FAILURE IN APP MONITOR IS CLOSED
+  6.60.0   THE APP MONITOR PING BECOMES A SEQUENCE, AND GETS TESTED
+  6.59.0   TWO SMALL THINGS, BOTH OF THEM "IT WAS LYING TO YOU"
+  6.58.0   THE INSTALLER CAUGHT WHAT THE TEST SUITE MISSED
+  6.57.0   THREE SHORTCUTS THAT WERE DYING SILENTLY, AND A LARGER PANEL
+  6.56.0   THE PHANTOM PANEL, AND WHY IT WAS NOT OUR CRASH
+  6.55.0   CLIPBOARD HISTORY BECOMES A MODULE
+  6.54.0   NOTHING FAILS SILENTLY: THE NOTICE LEDGER (7g/7d/7e/6)
+  6.53.0   THE CRITICAL-STOP PASS: TWO WAYS THE WHOLE CONFIG DIED
+  6.52.0   TWO FIXES FOUND BY AUDITING init.lua
+  6.51.0   WORKSPACES (⇪W): NAME A SET OF APPS, BIND IT TO A SPACE
+  6.50.0   THE PAD SWAPS LAYERS, AND A POINTER RING
+  6.49.0   THE NUMBER PAD, SWITCHED ON, WITH TWO LAYERS
+  6.48.0   FOCUS MODE (⇪F) AND BULK RENAME (⇪R)
+  6.47.1   THE EXPLORER TURNED ON THE THREE NEWEST TOOLS
+  6.47.0   MENU BAR ITEMS (⇪M), AND WHY IT IS NOT BARTENDER
+  6.46.1   init.lua GOES BACK TO BEING AN ORCHESTRATOR
+  6.46.0   A LINK CLEANER, A TOOL-HEALTH WATCHDOG, AND ⇪M → ⇪X
+  6.45.2   DOES THE NEW MODULE BREAK THE OLD CONFIG?
+  6.45.1   THE MOUSE GRID, AUDITED AGAINST HAMMERSPOON'S OWN SOURCE
+  6.45.0   MOUSE GRID (⇪M): TYPE THREE LETTERS, THE POINTER GOES THERE
+  6.44.13  "DOES IT WORK ON THIS MAC?", ANSWERED IN ONE CALL
+  6.44.12  PROVING THIS IS SAFE ON A MANAGED WORK MAC
+  6.44.11  init.lua IS 44% SMALLER, AND THE CONSOLE IS TWO LINES
+  6.44.10  THE DUPLICATE "PARKED" ROW, AND A READABLE CONSOLE
+  6.44.9   SEND NOW SENDS THE NOTE YOU ARE LOOKING AT, AND THE PAD
+  6.44.8   A STALE PARKED NOTE CAN NOW BE READ AND CLEARED
+  6.44.7   ATTACHING AN IMAGE NO LONGER WIPES WHAT YOU TYPED
+  6.44.6   ⇪N NO LONGER DRAGS THE CONSOLE FORWARD
+  6.44.5   A PARKED NOTE NOW EXPLAINS ITSELF
+  6.44.4   TEN AUDIT PASSES, AND THE ONE REAL BOTTLENECK
+  6.44.3   PARKED NUMPAD, CLICK-TO-COPY DATES, PERMISSION SWITCH
+  6.44.2   CAPTURE PAD: DRAGGABLE, RELIABLE, AND CAPTIONED
+  6.44.1   CAPTURE PAD: THE IMAGE ATTACHMENT BUG, AND THE FONT
+  6.44.0   FIVE NEW FEATURES, AND ARROWS IN THE SWITCHER
+  6.43.1   PROVING 6.43.0 IS SAFE ON THE OTHER MAC
+  6.43.0   HOMEBREW ON A MAC WITHOUT ADMIN RIGHTS
+  6.42.0   DANGLING CALLS FIXED + A GUARD SO THEY CANNOT RETURN
+  6.41.0   ⌥TAB: A DEADLINE, A CACHE, AND A NAMED CULPRIT
+  6.40.0   FEATURES ALL MODULAR · MACHINE PROFILES · WARM-UP
+  6.39.0   ⌥TAB NOW SEES EVERY DESKTOP, NOT JUST THIS ONE
+  6.38.0   THREE MORE OUT (nine modules, init.lua −27%)
+  6.37.0   THREE MORE SECTIONS MOVED OUT
+  6.36.0   MODULES: SECTIONS NOW LIVE IN THEIR OWN FILES
+  6.35.0   APP LOCK REMOVED · DIAGNOSTICS ADDED · AUDIT FIXES
+  6.34.0   ⌥TAB SWITCHER REBUILT (6.33.0 FROZE THE MAC)
+  6.33.0   ⌥TAB WINDOW SWITCHER (§1.10)
+  6.32.0   CHEAT SHEET IS ONE SCROLLING COLUMN
+  6.31.0   CHEAT SHEET LEGIBILITY + HYPER W SWAP
+  6.30.0   APP LOCK: NEW KEY, OVERLAY-ONLY, NO REDUNDANT UNLOCK
+  6.29.1   APP LOCK: the cover was destroying itself
+  6.29.0   APP LOCK: COVER INSTEAD OF HIDE (kills the bounce)
+  6.28.2   APP LOCK: the monitor bounce, actually fixed
+  6.28.1   DOCUMENT WATCHER: say it in plain English
+  6.28.0   DOCUMENT WATCHER (EXPERIMENTAL SECTION)
+  6.27.1   APP LOCK: the PIN prompt stops bouncing monitors
+  6.27.0   APP LOCK: only real apps, and a reachable exit
+  6.26.0   APP LOCK: the reason it kept "working once"
+  6.25.1   APP LOCK: kill the flash when you click the Dock icon
+  6.25.0   APP LOCK: ESC NO LONGER HANDS YOU THE APP
+  6.24.1   APP LOCK: FIX "works once, then it's unreliable"
+  6.24.0   APP LOCK: FIX THE STROBE AND THE 5-SECOND BEACHBALL
+  6.23.0   APP LOCK: PIN PROMPT IS A REAL WINDOW, AND ENTER
+  6.22.0   APP LOCK: NO TIMER, AND LOCKING ACTUALLY LOCKS
+  6.21.1   FIX: "Set a PIN" did nothing at all
+  6.21.0   APP LOCK (§6.6, ⇪⇧L)
+  6.20.0   COMMAND HISTORY PICKER (§6.5, ⇪H)
+  6.19.0   EVERY SHORTCUT NOW LIVES ON CAPS LOCK (⇪)
+  6.18.1   FIX: endless Console errors on every Caps Lock press
+  6.18.0   HYPER KEY IS NOW A REAL ⌘⇧⌃⌥ CHORD (§3.12)
+  6.17.0   HYPER KEY, NO KARABINER (§3.12)
+  6.16.0   GLOBAL COPY-ON-SELECT (§3.11, ⌘⌃⌥⇧C, off by default)
+  6.14.0   EDIT / DELETE CLIPBOARD & OCR HISTORY ENTRIES
+  6.13.0   APP UPDATE TRACKER ACTUALLY INSTALLS (§3.10.1)
+  6.12.0   APP UPDATE TRACKER (§3.10, ⌃⌥⇧U)
+  6.11.3   ACTIVITY TRACKER: REAL APPS ONLY, NO SLEEP INFLATION
+  6.11.2   DIAGNOSING "FILE URL(S) BUT NO IMAGE FILES MATCHED"
+  6.11.0   OCR TAGS THE FILE ITSELF
+  6.10.0   ONE DATA HOME (everything syncs, work-Mac ready)
+  6.1.0    TWO MACS, ONE ONEDRIVE, NO COLLISIONS
+  6.0.0    PORTABLE ARCHITECTURE (work + personal Mac, one file)
