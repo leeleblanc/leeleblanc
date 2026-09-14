@@ -808,6 +808,16 @@ function M.setup(core)
     });
     window.addEventListener('mousemove', function(e){
       if (!drag) return;
+      // The button is not down any more, so the release landed somewhere
+      // this page never hears about — another window, another Space, off
+      // the screen. End the drag HERE, at this point, exactly as a
+      // mouseup would: a shape that is too small is still discarded, a
+      // real one is still undoable. `buttons` is a bitmask and 0 is the
+      // only value that means "nothing held" (a `which`-style check
+      // would read a bare move as button 1 and end every drag at once).
+      if (typeof e.buttons === 'number' && e.buttons === 0){
+        finishDrag(e); return;
+      }
       if (drag.mode === 'band'){
         var r = cv.getBoundingClientRect();
         // the band is drawn in SCREEN space, anchor to pointer
@@ -859,7 +869,15 @@ function M.setup(core)
       }
       redraw();
     });
-    window.addEventListener('mouseup', function(e){
+    // 🚨 6.222.0 — ONE PLACE ENDS A DRAG, and more than one thing calls
+    // it. LL: "if I miss a drag selection… the entire image looks
+    // selected by some overlay pop-up and no matter I can't deflect
+    // unless I escape and re-open." A mouseup that happens OUTSIDE this
+    // window is never delivered to the page, so `drag` stayed set: every
+    // later mousemove went on resizing the shape he had started —
+    // a spotlight's veil growing to cover the whole picture, following
+    // the pointer, with no button held and no way to put it down.
+    function finishDrag(e){
       if (!drag) return;
       var d = drag; drag = null;
       if (d.mode === 'band'){
@@ -887,7 +905,8 @@ function M.setup(core)
         if (d.clickEdit && !d.moved && !changed){ redraw(); startText(n); return; }
       }
       redraw();
-    });
+    }
+    window.addEventListener('mouseup', finishDrag);
     surface.addEventListener('dblclick', function(e){
       e.preventDefault();
       var hit = hitAt(toCanvas(e));

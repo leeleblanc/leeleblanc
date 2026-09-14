@@ -5,6 +5,44 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.222.0 — 🧊 A DRAG WHOSE RELEASE HAPPENED SOMEWHERE ELSE (modules/screenshot_editor.lua):
+  LL: "Can you double check that image editor for screenshots is working
+     correctly? I'm not sure. I feel like if I miss a drag selection, as
+     in I don't get it exactly right, the entire image looks selected by
+     some overlay pop-up and no matter I can't deflect unless I escape
+     and re-open."
+  IT WAS NOT THE MISS. The page listens for mouseup on `window`, which is
+     the right object and still not enough: a mouseup that happens
+     outside this window — over another app, on another Space, past the
+     screen edge, or after the window lost key — is never delivered to
+     the page at all. `drag` therefore stayed set, and the mousemove
+     handler goes on resizing `drag.note` for as long as it is. With the
+     Spotlight or Highlight tool that shape is a box with a veil behind
+     it, so the veil grew to cover the whole picture and then FOLLOWED
+     THE POINTER with no button held — "the entire image looks selected
+     by some overlay pop-up", and nothing could put it down because the
+     code that discards a too-small shape and pushes an undo row only
+     runs when the drag ENDS. Esc and reopen, exactly as he says.
+  THE FIX IS ONE EXIT: the whole body of the mouseup handler became
+     `finishDrag(e)`, and a mousemove that arrives with `e.buttons === 0`
+     calls it — the button is not down, so the release already happened
+     where this page could not hear it; end the drag at this point,
+     exactly as a mouseup would. Everything downstream is unchanged: a
+     shape under the minimum is still discarded, a real one still pushes
+     its undo row, a click-not-drag on a text box still opens its words.
+  📐 `buttons` IS A BITMASK AND 0 IS THE ONLY VALUE THAT MEANS "NOTHING
+     HELD" — which is why the check is written on `buttons` and not on
+     `which` or `button`. Those two report WHICH button an event concerns
+     and read 0 for "left" on a plain move, so the same idea written with
+     either would end every drag on its first mousemove. The guard is
+     also skipped entirely where `buttons` is not a number, so a
+     Hammerspoon whose WebKit does not send it keeps the old behaviour
+     rather than losing the drag.
+  Seven new page checks; one mutation (delete the guard) fails five of
+     them, including the one that matters: after the release elsewhere,
+     the pointer wandering no longer resizes the shape. 9,067 -> 9,074
+     checks.
+
 NEW IN 6.221.0 — ⌘ IS THE EDIT TOOL IN THE SCREENSHOT EDITOR (modules/screenshot_editor.lua):
   LL, with a screenshot marked up in the editor itself: "After I add a
      text box or any other item I am having trouble editing the added

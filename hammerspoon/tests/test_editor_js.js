@@ -979,6 +979,62 @@ const cmdMouse = (x, y) => Object.assign(mouse(x, y), { metaKey: true });
         env.call("notes[0].x") + " / " + env.tin.style.display);
 }
 
+// =====================================================================
+// 11. 6.222.0 — a drag whose RELEASE happened somewhere else
+// =====================================================================
+// LL: "if I miss a drag selection, as in I don't get it exactly right,
+// the entire image looks selected by some overlay pop-up and no matter I
+// can't deflect unless I escape and re-open." A mouseup outside this
+// window never reaches the page, so `drag` stayed set and every later
+// mousemove went on resizing the shape — a Spotlight's veil growing to
+// cover the whole picture, following a pointer with no button held.
+const held = (x, y) => Object.assign(mouse(x, y), { buttons: 1 });
+const free = (x, y) => Object.assign(mouse(x, y), { buttons: 0 });
+{
+  const env = load(undefined, { w: 400, h: 300 });
+  env.call("setTool('spot')");
+  env.listeners.ov.mousedown(mouse(40, 40));
+  env.listeners.window.mousemove(held(140, 120));
+  check("(fixture) a spotlight is being dragged out", env.call("notes.length") === 1
+        && env.call("notes[0].kind") === "spot" && env.call("!!drag"));
+
+  // the release lands in another window: the page only ever sees a move
+  // with no button held
+  env.listeners.window.mousemove(free(150, 130));
+  check("🚨 a move with NO BUTTON HELD ends the drag — this is the stuck"
+        + " overlay he could only escape by reopening",
+        env.call("!drag"), env.call("drag && drag.mode"));
+  const w = env.call("notes[0].w");
+  env.listeners.window.mousemove(free(390, 290));
+  env.listeners.window.mousemove(free(10, 10));
+  check("…and the pointer wandering afterwards no longer resizes it",
+        env.call("notes[0].w") === w, env.call("notes[0].w") + " vs " + w);
+  check("…the shape it had reached is KEPT, not thrown away",
+        env.call("notes.length") === 1 && w > 4, w);
+  env.listeners.window.keydown(key({ metaKey: true, key: "z" }));
+  check("…and ⌘Z still takes it back, so the end was a real finish",
+        env.call("notes.length") === 0, env.call("notes.length"));
+
+  // the same escape, on a drag too small to keep: nothing is left behind
+  env.call("setTool('spot')");
+  env.listeners.ov.mousedown(mouse(40, 40));
+  env.listeners.window.mousemove(held(41, 41));
+  env.listeners.window.mousemove(free(41, 41));
+  check("a TINY drag that ends elsewhere leaves no veil at all",
+        env.call("notes.length") === 0 && env.call("!drag"),
+        env.call("notes.length"));
+
+  // and a plain mouseup still ends a drag, on a Mac whose events carry
+  // no `buttons` at all
+  env.call("setTool('oval')");
+  env.listeners.ov.mousedown(mouse(40, 40));
+  env.listeners.window.mousemove(mouse(140, 120));
+  env.listeners.window.mouseup(mouse(140, 120));
+  check("a normal mouseup still finishes the drag and keeps the shape",
+        env.call("!drag") && env.call("notes.length") === 1
+        && env.call("notes[0].kind") === "oval");
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 for (const f of failures) console.log("    ❌ " + f);
 process.exit(fail === 0 ? 0 : 1);

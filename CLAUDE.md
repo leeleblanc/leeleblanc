@@ -114,6 +114,24 @@ work Mac.
   with two dictionary rows that answer each other (aaaa ⇄ bbbb) now.
   RULE: when a test uses one bug to demonstrate another, fixing the
   first silently retires the second — re-arm it in the same release.
+- 🧊 A DRAG ENDS WHEN THE BUTTON COMES UP, WHEREVER THAT HAPPENS
+  (6.222.0, modules/screenshot_editor.lua — LL: "if I miss a drag
+  selection… the entire image looks selected by some overlay pop-up and
+  no matter I can't deflect unless I escape and re-open"). A mouseup
+  OUTSIDE the window is never delivered to the page — `window` is the
+  right object to listen on and still not enough — so `drag` stayed set
+  and every later mousemove went on resizing the shape: a Spotlight's
+  veil grew to cover the whole picture and FOLLOWED the pointer with no
+  button held, and the code that discards a too-small shape and pushes
+  the undo row only runs when a drag ENDS. One `finishDrag(e)` is the
+  only exit now, and a mousemove arriving with `e.buttons === 0` calls
+  it. 📐 `buttons` IS A BITMASK; 0 is the only value meaning "nothing
+  held" — `which`/`button` say WHICH button an event concerns and read 0
+  for "left" on a plain move, so the same idea written with either ends
+  every drag on its first move. Skipped where `buttons` is not a number,
+  so a WebKit that does not send it keeps the old behaviour. RULE for any
+  page in this config that drags: listen for the release, and ALSO treat
+  "moving with nothing held" as the release.
 - ⌘ A PANEL'S PAGE AND THE ⌘-DRAG PANEL MOVER BOTH WANT ⌘ (6.221.0,
   modules/screenshot_editor.lua + modules/window_move.lua). LL asked for
   ⌘-click to edit a mark in the ⇪⇧1 editor; ⌘ WAS ALREADY SPENT INSIDE
@@ -1347,9 +1365,10 @@ as the fix when a loss lands.
 | 6.219.0 | ✏️ an apostrophe inside a word is not a word ending: the word list is not asked on a ' (doesn't, wouldn't, mightn't, oughtn't) | pending |
 | 6.220.0 | 📐 the ⇪T task form fits: project fields two-up, a 760-pt ceiling, and the blue Create button pinned in a footer outside the scroller | pending — his screenshot shows it rendering: two columns, the Create button visible. Not scored |
 | 6.221.0 | ⌘ in the ⇪⇧1 editor edits any mark whatever tool is armed (and a ⌘-click that misses creates nothing); the window's ⌘-drag narrows to its title bar | pending |
+| 6.222.0 | 🧊 a drag whose release happened outside the editor window no longer sticks (the overlay that covered the whole image) | pending |
 
-Running total: 14 wins · 5 losses · 6 pending (6.215.0, 6.217.0, 6.218.0,
-6.219.0, 6.220.0, 6.221.0).
+Running total: 14 wins · 5 losses · 7 pending (6.215.0, 6.217.0, 6.218.0,
+6.219.0, 6.220.0, 6.221.0, 6.222.0).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on

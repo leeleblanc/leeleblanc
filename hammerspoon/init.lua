@@ -4,9 +4,31 @@
 -- =====================================================================
 -- 09-14-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.221.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.222.0
 -- =====================================================================
 
+-- NEW IN 6.222.0 — 🧊 A DRAG WHOSE RELEASE HAPPENED SOMEWHERE ELSE (modules/screenshot_editor.lua):
+--   LL: "I feel like if I miss a drag selection, as in I don't get it
+--      exactly right, the entire image looks selected by some overlay
+--      pop-up and no matter I can't deflect unless I escape and
+--      re-open." A mouseup OUTSIDE this window is never delivered to the
+--      page — another window, another Space, off the screen edge — so
+--      `drag` stayed set and every later mousemove went on resizing the
+--      shape he had started: a Spotlight's veil growing to cover the
+--      whole picture, following a pointer with no button held, with no
+--      shape small enough to be discarded because the drag never ended.
+--      Esc and reopen was the only way out, exactly as he says.
+--   THE FIX: one `finishDrag(e)` now ends a drag, and a mousemove that
+--      arrives with `e.buttons === 0` calls it — the release landed
+--      somewhere this page cannot hear, so the drag ends HERE, at that
+--      point, exactly as a mouseup would (too small is still discarded,
+--      a real shape is still undoable). `buttons` is a bitmask and 0 is
+--      the only value meaning "nothing held"; a `which`-style check
+--      would read a bare move as button 1 and end every drag at once. A
+--      normal mouseup still works, and so does a Mac whose events carry
+--      no `buttons` at all. One mutation, five failing rows.
+--      9,067 -> 9,074 checks.
+--
 -- NEW IN 6.221.0 — ⌘ IS THE EDIT TOOL IN THE SCREENSHOT EDITOR (modules/screenshot_editor.lua):
 --   LL: "After I add a text box or any other item I am having trouble
 --      editing the added items like the text box. Can you make it so
@@ -33,32 +55,12 @@
 --      anyway, so counting notes after the release proved nothing. It
 --      asserts at the MOUSEDOWN now. 9,046 -> 9,067 checks.
 --
--- NEW IN 6.220.0 — 📐 THE ⇪T TASK FORM FITS ON THE SCREEN (modules/task_form.lua):
---   LL, with a screenshot of the form running off the bottom: "Can you
---      put the contents of this window hyper+t, so that the items do not
---      run down one long list and we can see the blue create task
---      button?" His Asana project publishes a dozen custom fields; each
---      added a 44-pt row and the ONLY clamp was the screen itself, so
---      the window came out taller than his display with the Create
---      button below its bottom edge — unreachable, and no way to send
---      the task from the mouse. Three changes, one shape: the page is a
---      header / SCROLLER / footer sandwich (#wrap is the only thing that
---      scrolls); the blue Create button lives in the FOOTER, outside
---      that scroller, so no number of fields can push it away; and the
---      project fields are laid TWO TO A ROW with each label ABOVE its
---      control — an Asana field name ("| 🎯 ACD Strategic Principle |:")
---      wrapped over four lines in the 104-pt right-hand gutter. The
---      geometry is PURE (`form.sizeFor` → width, height, columns) and
---      `form.maxHeight` (760) is the ceiling the old code never had.
---      Nothing about submission, the draft, the schedule or the field
---      values changed. New `_G.taskFormReport()`. 9,027 -> 9,046 checks.
---
--- (6.219.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.220.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.221.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.222.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -155,7 +157,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.221.0"
+_G.configVersion = "6.222.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
