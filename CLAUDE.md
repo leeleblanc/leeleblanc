@@ -1388,6 +1388,37 @@ mirrors draw order: "closes last" IS "drawn under".
    gate now fails on a wrong header (test_diagnostics 11b) and on a
    GUIDE total it did not count (run-tests.sh's 📏 line).
 
+## 🪜 ROLLBACK — any release can be rebuilt, and a late-surfacing bug
+## is stepped back through them
+
+LL, 2026-09-14, agreeing to back-to-back releases in one zip: "ensure
+though, you're ready to troubleshoot the most current issue and then
+also think about stepping back through the other zip releases if we
+encounter a problem. Because … they didn't present itself until we were
+several releases higher." He is right and it has happened twice —
+6.216.0's "banshee" was an autocorrect loop live since 6.10.0, and
+6.206.0's stitch failure had been broken since 6.87.0.
+
+THE METHOD, when something breaks after a stacked zip:
+1. ASK WHICH SYMPTOM, then read the scoreboard DOWNWARDS from the
+   installed version. Each row names one change; the first row that
+   touches the symptom's module is the first suspect, NOT the newest row.
+2. A symptom that no row touches is an OLD bug the new release merely
+   exposed — say so and diagnose it on its own, never by reverting.
+3. REBUILD ANY VERSION from its commit (the recipe is in repo-root
+   .gitignore): `git checkout <sha>` → build snippets → copy → zip. The
+   zips are gitignored build artifacts; the COMMITS are the archive.
+   6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
+   · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
+   86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9.
+   Keep this list current: one line per release, appended at ceremony
+   time.
+4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
+   per step. The artefact first (6.201.0), the scoreboard second, a
+   rebuilt older zip only when both fail to name it.
+5. EVERY RELEASE IN A STACK KEEPS ITS OWN VERIFY BLOCK below, so a
+   failure can be attributed by which test fails, without reinstalling.
+
 ## Known-stale docs — deliberate, do not "fix"
 
 - run-tests.sh's "forty-one suites" comment.
