@@ -5,6 +5,33 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.223.0 — 📐 THE ⇪T FORM IS DRAWN WHOLE (modules/task_form.lua):
+  LL, on 6.220.0, with the form photographed again: "There are options
+     here so the canvas needs to be bigger so I don't have to scroll.
+     Sorry. That was what I tried to say before." He had nothing to be
+     sorry for — 6.220.0 read "we can see the blue create task button" as
+     the whole ask and answered it exactly, pinning the button in a
+     footer outside the scroller. That IS fixed and stays fixed. What it
+     missed is that he did not want a scroller at all.
+  THE NUMBER WAS THE PROBLEM AND IT WAS MINE: `form.maxHeight` shipped at
+     760 because that is a sensible ceiling on a laptop display, and his
+     project's eleven fields want about 1,090 pt even two to a row. So
+     the form was clamped to 760 on a screen with room for all of it, and
+     the fields he had just been given in two columns went behind a
+     scroll bar. maxHeight is 1400 now and `form.screenGap` — the margin
+     the window keeps from the screen's own height — is 80 rather than
+     120. On his display the form is drawn whole.
+  BOTH ARE STILL NUMBERS, deliberately, not "as tall as the screen": the
+     footer and the scroller stay exactly as 6.220.0 built them, because
+     a smaller display or a bigger project still needs them, and a window
+     that silently becomes full-screen is 6.203.0's complaint again.
+     `settings = { task_form = { maxHeight = 900 } }` is the knob and
+     needs no release — the 6.181.1 rule.
+  Two new checks in the same PURE `sizeFor`: eleven fields on a tall
+     screen come out at full height, and the ceiling is still under the
+     display. The mutation is the old 760 and it fails the first of them.
+     9,074 -> 9,076 checks.
+
 NEW IN 6.222.0 — 🧊 A DRAG WHOSE RELEASE HAPPENED SOMEWHERE ELSE (modules/screenshot_editor.lua):
   LL: "Can you double check that image editor for screenshots is working
      correctly? I'm not sure. I feel like if I miss a drag selection, as

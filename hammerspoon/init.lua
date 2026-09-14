@@ -4,9 +4,25 @@
 -- =====================================================================
 -- 09-14-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.222.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.223.0
 -- =====================================================================
 
+-- NEW IN 6.223.0 — 📐 THE ⇪T FORM IS DRAWN WHOLE (modules/task_form.lua):
+--   LL, on 6.220.0: "There are options here so the canvas needs to be
+--      bigger so I don't have to scroll. Sorry. That was what I tried to
+--      say before." 6.220.0 answered the half he could see — the blue
+--      Create button is pinned and can never be pushed off — and left
+--      the half he meant: its 760-pt ceiling was lower than his form
+--      (~1,090 pt with eleven project fields), so the fields still sat
+--      behind a scroller on a display with room for all of them. The
+--      ceiling is `form.maxHeight` = 1400 now and the margin from the
+--      screen `form.screenGap` = 80 (was 120). Both are still NUMBERS
+--      rather than "as tall as the display", and the footer and the
+--      scroller are untouched — they are what the small screen, or the
+--      bigger project, still needs. `settings = { task_form =
+--      { maxHeight = 900 } }` is the knob, no release.
+--      9,074 -> 9,076 checks.
+--
 -- NEW IN 6.222.0 — 🧊 A DRAG WHOSE RELEASE HAPPENED SOMEWHERE ELSE (modules/screenshot_editor.lua):
 --   LL: "I feel like if I miss a drag selection, as in I don't get it
 --      exactly right, the entire image looks selected by some overlay
@@ -29,38 +45,12 @@
 --      no `buttons` at all. One mutation, five failing rows.
 --      9,067 -> 9,074 checks.
 --
--- NEW IN 6.221.0 — ⌘ IS THE EDIT TOOL IN THE SCREENSHOT EDITOR (modules/screenshot_editor.lua):
---   LL: "After I add a text box or any other item I am having trouble
---      editing the added items like the text box. Can you make it so
---      that if I hold down command while in the edit, allow me to edit
---      text boxes or any other tool addition." Holding ⌘ now reaches a
---      mark whatever tool is armed: ⌘-click a TEXT box and its words
---      open at once — no tool swap, no double-click; ⌘-click any other
---      mark and it is selected, ready for ⌫ or a drag. And the half
---      that stops the mess: A ⌘-CLICK THAT MISSES CREATES NOTHING —
---      aiming at a box and landing a pixel outside it was how a stray
---      arrow appeared every time.
---   🚨 ⌘ WAS NOT FREE INSIDE THAT WINDOW AND NOTHING SAID SO: window_move's
---      tap begins a window drag on a bare-⌘ mouse-down anywhere inside a
---      panel listed in _G.movablePanels, and CONSUMES the click — so a
---      ⌘-click would have moved the editor, not edited his text box. The
---      editor now lists only its TITLE BAR (`ed.stripOf`, PURE and
---      clamped; `ed.dragStripH` = 54, the same number the page's own CSS
---      measures #stage from, with a sentry that fails if the two drift).
---      The window is no less movable — its header has been the drag
---      handle since 6.89.0. RULE: a panel whose PAGE wants ⌘ narrows the
---      frame it lists to the strip it is happy to be dragged by.
---   🧪 And the first check on "a ⌘-click creates nothing" PASSED with the
---      guard deleted: a fresh zero-length arrow is discarded on mouseup
---      anyway, so counting notes after the release proved nothing. It
---      asserts at the MOUSEDOWN now. 9,046 -> 9,067 checks.
---
--- (6.220.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.221.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.222.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.223.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -157,7 +147,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.222.0"
+_G.configVersion = "6.223.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

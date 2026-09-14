@@ -435,10 +435,20 @@ ck("twelve project fields: TWO columns", cN == 2, cN)
 ck("…and the wider window to carry them", wN == F.wideWidth, wN)
 ck("🚨 THE HEIGHT NEVER PASSES form.maxHeight — the whole bug",
    hN <= F.maxHeight, hN)
-ck("…and never comes within 120 pt of the screen's own height",
-   hN <= SCREEN.h - 120, hN)
+ck("…and never comes within form.screenGap of the screen's own height",
+   hN <= SCREEN.h - F.screenGap, hN)
 local _, hShort = F.sizeFor(enums(12), { x = 0, y = 0, w = 1440, h = 700 })
-ck("…on a SHORT screen the screen wins over maxHeight", hShort <= 580, hShort)
+ck("…on a SHORT screen the screen wins over maxHeight",
+   hShort <= 700 - F.screenGap, hShort)
+-- 6.223.0 — LL, on 6.220.0: "the canvas needs to be bigger so I don't
+-- have to scroll". His eleven fields want ~1,090 pt; the old 760-pt
+-- ceiling drew them behind a scroller on a screen with room to spare.
+local _, hTall = F.sizeFor(enums(11), { x = 0, y = 0, w = 1800, h = 1440 })
+ck("🚨 on a TALL screen eleven project fields are drawn WHOLE — the "
+   .. "ceiling no longer cuts a form the display could hold",
+   hTall >= F.height + 100 + math.ceil(11 / 2) * F.fieldH, hTall)
+ck("…and the ceiling is still a number, not the whole display",
+   hTall <= F.maxHeight and F.maxHeight < 1440, hTall)
 
 -- the grid arithmetic, with the cap lifted out of the way: four fields
 -- are TWO rows, not four. A mutation that lays them one per row makes
@@ -528,7 +538,7 @@ ck("_G.taskFormReport() names the window it drew and the pinned button",
    and rep:find("pinned in a footer", 1, true) ~= nil, rep)
 msg("close", {})
 
-check("§9 ran every one of its checks", mine == 18, mine)
+check("§9 ran every one of its checks", mine == 20, mine)
 
 -- =====================================================================
 out(("\n%d passed, %d failed\n"):format(pass, fail))

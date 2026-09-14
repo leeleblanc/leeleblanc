@@ -100,7 +100,16 @@ function M.setup(core)
     form.width       = 560      -- no project fields: one column, as before
     form.wideWidth   = 820      -- 6.220.0 — two columns of project fields
     form.height      = 480
-    form.maxHeight   = 760      -- 6.220.0 — the window NEVER grows past this
+    -- 6.223.0 — LL, on 6.220.0: "There are options here so the canvas
+    -- needs to be bigger so I don't have to scroll." 6.220.0's ceiling
+    -- was 760 and his form wanted ~1,090: the button was safe but the
+    -- fields still scrolled. The ceiling is the SCREEN now — tall enough
+    -- that the form is drawn whole wherever there is room for it, and
+    -- still a number rather than "as tall as the display" (the footer
+    -- and the scroller stay exactly as they are, for the Mac or the
+    -- project where there is not room).
+    form.maxHeight   = 1400     -- the window NEVER grows past this
+    form.screenGap   = 80       -- …nor within this much of the screen
     form.fieldH      = 62       -- a project field: its label ABOVE its control
     form.focusOnOpen = true
     form.nonActivating = true  -- 6.153.0 — take the keyboard the moment the
@@ -509,9 +518,12 @@ function M.setup(core)
     -- and a given screen. The three rules it carries:
     --   · project fields → TWO columns, so twelve rows are six.
     --   · the height NEVER passes form.maxHeight, and never comes within
-    --     120 pt of the screen's own height. Before this the window grew
-    --     with every field and clamped only at sf.h - 40 — taller than
-    --     LL's screen with the Create button below its bottom edge.
+    --     form.screenGap of the screen's own height. Before 6.220.0 the
+    --     window grew with every field and clamped only at sf.h - 40 —
+    --     taller than LL's screen with the Create button below its
+    --     bottom edge. 6.223.0 raised the ceiling to 1400 and the gap to
+    --     80: on his screen the whole form is drawn without scrolling,
+    --     which is what he asked for twice.
     --   · the page scrolls inside that height; the footer holding the
     --     button is outside the scroller, so it is always on screen.
     function form.sizeFor(fields, sf)
@@ -534,7 +546,8 @@ function M.setup(core)
         local extra = 100 + math.ceil(rows / cols) * form.fieldH + wide
         local w = math.min(cols == 2 and form.wideWidth or form.width,
                            sf.w - 40)
-        local h = math.min(form.height + extra, form.maxHeight, sf.h - 120)
+        local h = math.min(form.height + extra, form.maxHeight,
+                           sf.h - (tonumber(form.screenGap) or 80))
         return w, h, cols
     end
 

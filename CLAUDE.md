@@ -167,9 +167,17 @@ work Mac.
   the third closes the class: the project fields are a TWO-COLUMN grid
   with each label ABOVE its control (the 104-pt right gutter wrapped
   "| 🎯 ACD Strategic Principle |:" over four lines); `form.maxHeight`
-  (760) is a ceiling between the content and the screen; and the page
-  is header / `#wrap` scroller / `<footer>`, with the button in the
-  footer — no field count on any screen can push it away. `form.sizeFor
+  (760 → 1400 in 6.223.0) is a ceiling between the content and the
+  screen; and the page is header / `#wrap` scroller / `<footer>`, with
+  the button in the footer — no field count on any screen can push it
+  away. 📐 6.223.0 RAISED THAT CEILING (maxHeight 760 → 1400, screenGap
+  120 → 80) on LL's second telling — "the canvas needs to be bigger so I
+  don't have to scroll. Sorry. That was what I tried to say before."
+  6.220.0 read "we can see the blue create task button" as the whole ask;
+  he did not want a scroller at all, and 760 was lower than his own form
+  (~1,090 pt). RULE: when a fix answers the sentence and the complaint
+  comes back, the NUMBER was the ask — and it is still a number, never
+  "as tall as the display" (settings = { task_form = { maxHeight = 900 } }). `form.sizeFor
   (fields, screen)` is PURE (width, height, columns) and the gate proves
   all of it with no Mac; three mutations bite. `_G.taskFormReport()`.
   🧪 RULE, and it generalises: AN ASSERTION ABOUT NESTING WRITTEN AS AN
@@ -1366,9 +1374,10 @@ as the fix when a loss lands.
 | 6.220.0 | 📐 the ⇪T task form fits: project fields two-up, a 760-pt ceiling, and the blue Create button pinned in a footer outside the scroller | pending — his screenshot shows it rendering: two columns, the Create button visible. Not scored |
 | 6.221.0 | ⌘ in the ⇪⇧1 editor edits any mark whatever tool is armed (and a ⌘-click that misses creates nothing); the window's ⌘-drag narrows to its title bar | pending |
 | 6.222.0 | 🧊 a drag whose release happened outside the editor window no longer sticks (the overlay that covered the whole image) | pending |
+| 6.223.0 | 📐 the ⇪T form is drawn whole — the ceiling raised from 760 to 1400 pt so his eleven project fields need no scrolling | pending |
 
-Running total: 14 wins · 5 losses · 7 pending (6.215.0, 6.217.0, 6.218.0,
-6.219.0, 6.220.0, 6.221.0, 6.222.0).
+Running total: 14 wins · 5 losses · 8 pending (6.215.0, 6.217.0, 6.218.0,
+6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
