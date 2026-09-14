@@ -5,6 +5,56 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.226.0 — 🔤 THE OCR JUNK FILTER, TIER 1 (modules/ocr_engine.lua):
+  LL, 2026-09-13, with a page of his own OCR log marked up: "just remove
+     single characters; anything two or more characters together is
+     retained." And the bound he set in the same message: if the method
+     can introduce errors, singles only. His 🤔 rows — lUE, ido, dic,
+     "characters1" → "character 1" — are TIER 2 (a dictionary vote per
+     line, digit/letter splitting) and are NOT built. This release does
+     the certain half and nothing else.
+  THE RULE: a token of one CHARACTER goes; a punctuation-only token goes
+     at any length ("|", "---", "...", "•••"); a line left with nothing
+     is dropped whole and the lines around it close up; everything of two
+     characters or more is kept EXACTLY as OCR read it, misspelt or not.
+     It never repairs a word and never joins two.
+  📐 PURE (`ocr.isJunkToken`, `ocr.cleanText`), so the gate proves every
+     row with no Mac and the same function can clean the log he already
+     has. Three decisions worth their comments:
+     · TOKENS SPLIT ON SPACES ONLY. A newline is a line break and must
+       survive, or a 40-line reading becomes one paragraph.
+     · A LONE DIGIT IS KEPT. "7" in a screenshot is a page number, a
+       quantity, a room — data. His rule names characters, not letters,
+       and what OCR invents is punctuation and stray marks. "I" and "a"
+       are kept for the same reason.
+     · 🚨 "PUNCTUATION" CANNOT MEAN "not ASCII alphanumeric". Lua's %w is
+       ASCII, so a Cyrillic, Greek or CJK word is nothing but punctuation
+       to it and a filter written that way would delete every word of
+       every non-Latin reading. But a bullet and an em dash are not ASCII
+       either. So the two UTF-8 lead bytes that carry ONLY punctuation
+       and symbols are stripped before the question is asked — 0xC2
+       (U+0080–U+00BF: · « » ° §) and 0xE2 (U+2000–U+2FFF: – — “ ” … •
+       → ✓ ■) — and anything still above ASCII is a letter in somebody's
+       alphabet. "one character" is utf8.len and not #, because é is two
+       bytes and one character; with a byte count it would be kept.
+       Both halves have their own mutation.
+  IT SITS AT `appendRow`, the ONE door every OCR result in this config
+     goes through — the file's own rule (6.187.0) applied to its content.
+     A reading the filter EMPTIES is not written at all, ocr.record
+     returns false rather than pretending it filed something, and it is
+     COUNTED: a silent drop is a reading he could never account for.
+  🧹 `_G.ocrCleanHistory()` cleans the log he ALREADY HAS, and it is a
+     COMMAND, never automatic: called bare it says what it would do and
+     changes nothing; `_G.ocrCleanHistory(true)` does it. It goes through
+     the same rewriter ⇪⇧O edits with, so the quoting holds and the IMAGE
+     PATH rides through on every row — a two-column rewriter would strip
+     it off every row it touched. Rows the filter empties are REMOVED and
+     the count is printed; this is his text and a silent deletion is not
+     on offer.
+  Off switch `settings = { ocr_engine = { junkFilter = false } }`; report
+     line "junk :" with the clean command named under it. Twenty-five new
+     checks, four mutations. 9,103 -> 9,129 checks.
+
 NEW IN 6.225.0 — 🎯 THE EDIT BOX TAKES THE CARET (modules/ocr_engine.lua):
   LL, 2026-09-13, on the window 6.213.5 built for exactly this complaint:
      it "opens front but the caret is not in the box". Both ⇪⇧V (a

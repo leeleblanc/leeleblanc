@@ -4,9 +4,36 @@
 -- =====================================================================
 -- 09-14-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.225.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.226.0
 -- =====================================================================
 
+-- NEW IN 6.226.0 — 🔤 THE OCR JUNK FILTER, TIER 1 (modules/ocr_engine.lua):
+--   LL, with a page of his own OCR log: "just remove single characters;
+--      anything two or more characters together is retained" — and the
+--      bound he set himself, that if a method can introduce errors it is
+--      singles only. So: a token of one CHARACTER goes, a
+--      punctuation-only token goes at any length, a line left with
+--      nothing goes, and everything of two characters or more is kept
+--      EXACTLY as OCR read it. lUE, ido and dic are his TIER 2 and this
+--      release does not touch them. It never repairs a word.
+--   `ocr.cleanText` and `ocr.isJunkToken` are PURE. Newlines survive
+--      (tokens split on SPACES only — a 40-line reading must not become
+--      one paragraph); a lone DIGIT is kept (a page number is data), and
+--      so are I and a. 🚨 "PUNCTUATION" CANNOT MEAN "not ASCII
+--      alphanumeric": Lua's %w is ASCII, so a Cyrillic or CJK word is
+--      nothing but punctuation to it. The two UTF-8 lead bytes that
+--      carry only punctuation and symbols are removed first — 0xC2
+--      (· « » ° §) and 0xE2 (– — “ ” … • → ✓) — and anything still above
+--      ASCII is a letter in somebody's alphabet. And "one character" is
+--      utf8.len, not #: é is two bytes and one character.
+--   The filter sits at `appendRow`, the ONE door every OCR result in this
+--      config goes through. A reading the filter EMPTIES is not written
+--      and is COUNTED. `_G.ocrCleanHistory()` cleans the log he already
+--      has — a DRY RUN that changes nothing unless called with `true`,
+--      through the same rewriter ⇪⇧O uses, so the image path rides
+--      through (6.187.0). Off switch: `settings = { ocr_engine =
+--      { junkFilter = false } }`. Report line "junk :". 9,103 -> 9,129.
+--
 -- NEW IN 6.225.0 — 🎯 THE EDIT BOX TAKES THE CARET (modules/ocr_engine.lua):
 --   LL, on the 6.213.5 window (⇪⇧V and ⇪⇧O both use it): it "opens front
 --      but the caret is not in the box". THREE things have to be true and
@@ -31,35 +58,12 @@
 --      a fake window manager that can play a window macOS REFUSES to
 --      make key, which is LL's Mac. Three mutations. 9,091 -> 9,103.
 --
--- NEW IN 6.224.0 — 📋 _G.clipboardReport() (modules/clipboard_history.lua + §3.11):
---   LL: "I'm not sure my copy and history is working. I don't see items
---      that i just copied." The artefact he sent —
---      `_G.clipboardPollReport()` — cleared the thrash breaker (0 rests,
---      longest run 1 tick) and left "changes 3", a number nobody could
---      read: a poll five minutes old and a poll five hours old print the
---      same line, and three copies eaten by the borrow guard print
---      nothing at all. 6.202.0 queued this report; here it is.
---   IT ANSWERS THE QUESTION IN ONE READ: the NEWEST item and when it
---      landed, how many are stored, how many copies were FILED, and —
---      the part that was silent for the whole life of this module —
---      every REFUSAL, split by reason (already newest · over 1 MB · not
---      text) with the last one named and timed, plus saves ok / FAILED
---      with the last failure named. tellFailure alerts once per ten
---      minutes; an hour later nothing else remembered it happened.
---   AND THE POLL'S OWN FACTS GAINED THE TWO THAT WERE MISSING: a CLOCK
---      (changes N in M minutes) and `suppressed`, the copies dropped by
---      `_G.pasteboardSuppressUntil` — the borrowed-clipboard guard —
---      each of which is a copy he would look for in ⇪V and not find.
---      A watcher that is not running says so and can never read as "0
---      changes" (6.196.1's rule), and a history file not yet read reads
---      differently from an empty one. 9,076 -> 9,091 checks.
---
--- (6.223.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.224.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.225.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.226.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -156,7 +160,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.225.0"
+_G.configVersion = "6.226.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

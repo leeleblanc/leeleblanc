@@ -114,6 +114,27 @@ work Mac.
   with two dictionary rows that answer each other (aaaa ⇄ bbbb) now.
   RULE: when a test uses one bug to demonstrate another, fixing the
   first silently retires the second — re-arm it in the same release.
+- 🔤 "PUNCTUATION" CANNOT MEAN "NOT ASCII ALPHANUMERIC" (6.226.0,
+  modules/ocr_engine.lua — the OCR junk filter, LL: "just remove single
+  characters; anything two or more characters together is retained").
+  Lua's `%w` is ASCII, so a Cyrillic, Greek or CJK word is nothing but
+  punctuation to it and a filter written that way deletes every word of
+  every non-Latin reading — while a bullet and an em dash are not ASCII
+  either. `ocr.hasWordChar` strips the two UTF-8 lead bytes that carry
+  ONLY punctuation and symbols — 0xC2 (U+0080–U+00BF · « » ° §) and 0xE2
+  (U+2000–U+2FFF – — “ ” … • → ✓) — and calls anything still above ASCII
+  a letter. And "one character" is `utf8.len`, never `#`: é is two bytes
+  and one character. Both halves have their own mutation. OTHER RULES
+  HERE: tokens split on SPACES ONLY (a newline is a line break — split on
+  whitespace and a 40-line reading becomes one paragraph); a lone DIGIT
+  is kept (a page number is data; the rule is about what OCR INVENTS);
+  the filter sits at `appendRow`, the ONE door; a reading it empties is
+  not written, ocr.record returns false, and it is COUNTED.
+  `_G.ocrCleanHistory()` is a DRY RUN unless called with `true` and goes
+  through the same rewriter ⇪⇧O uses so the image path rides through
+  (6.187.0). TIER 2 (lUE, ido, dic — a dictionary vote, digit/letter
+  splitting) is NOT built, on his own bound: if the method can introduce
+  errors, singles only.
 - 🎯 UP, IN FRONT, AND KEY ARE THREE DIFFERENT STATES (6.225.0,
   modules/ocr_engine.lua — LL on the 6.213.5 edit window: it "opens front
   but the caret is not in the box"). `bringToFront` RAISES a window; it
@@ -1416,9 +1437,10 @@ as the fix when a loss lands.
 | 6.223.0 | 📐 the ⇪T form is drawn whole — the ceiling raised from 760 to 1400 pt so his eleven project fields need no scrolling | pending |
 | 6.224.0 | 📋 `_G.clipboardReport()` — the newest item, every refusal by reason, saves ok/FAILED, and the poll with a clock and a suppressed count | pending |
 | 6.225.0 | 🎯 the ⇪⇧V / ⇪⇧O edit window takes the caret — Lua focuses the hswindow a turn after bringToFront, bounded and reported | pending |
+| 6.226.0 | 🔤 the OCR junk filter, tier 1: single characters and punctuation-only tokens dropped at the one door, plus `_G.ocrCleanHistory()` for the log he already has | pending |
 
-Running total: 14 wins · 5 losses · 10 pending (6.215.0, 6.217.0, 6.218.0,
-6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0).
+Running total: 14 wins · 5 losses · 11 pending (6.215.0, 6.217.0, 6.218.0,
+6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
@@ -1541,17 +1563,11 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
 - ✅ EDIT OCR ENTRY HAS NO CARET — SHIPPED AS 6.225.0 (LL, 2026-09-13).
   Diagnosed exactly as read: bringToFront ≠ key. See the durable rule
   above. Unscored until he says.
-- 🔤 OCR JUNK RULE (LL, 2026-09-13, from his example log): "just
-  remove single characters; anything two or more characters together
-  is retained" — TIER 1, certain: drop 1-character tokens and
-  punctuation-only tokens, drop a line left empty, keep everything
-  ≥ 2 chars. His 🤔 rows (lUE, ido, dic, characters1 → character 1)
-  are TIER 2 — a dictionary vote per line and digit/letter splitting —
-  OFF by default with the report saying what it WOULD have dropped,
-  because he said: if the method can introduce errors, singles only.
-  Applies at ocr.record time (the log) AND as a one-shot clean of the
-  existing history through the same rewriter ⇪⇧O uses — quote-aware,
-  path column kept (6.187.0's rule).
+- ✅ OCR JUNK RULE — TIER 1 SHIPPED AS 6.226.0. See the durable rule
+  above. STILL OPEN, and only on his word: TIER 2 (his 🤔 rows — lUE,
+  ido, dic, "characters1" → "character 1") is a dictionary vote per
+  line plus digit/letter splitting, NOT built, because he said if the
+  method can introduce errors then singles only. Ask before building.
 - 🟥 DOUBLE WORD FLAGGED (LL, 2026-09-14: "See that double 'edit edit',
   can you add to my autocorrect flagging down any double words with a
   pink squiggle line beneath."). NOT built — NEXT after the clipboard
@@ -1603,6 +1619,18 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   the pieces a ' handed to the dictionary alone, and the "spelling :"
   block must no longer list `Doesn → Doesnt`. KNOWN AND ACCEPTED: a
   typo right before an apostrophe (somethign's) is not corrected now.
+- 6.226.0 verify with LL — 🔤 THE JUNK FILTER: install. Take a
+  screenshot of a page with bullets and rules in it (⇪⇧4 or ⇪4), then
+  ⇪O and look at the newest reading: the single letters and the
+  bullets are gone, every word of two characters or more is exactly as
+  it was. Console: `_G.ocrReport()` — the new "junk :" line counts
+  what was dropped. THEN the log you already have, in two steps:
+  `_G.ocrCleanHistory()` — it changes NOTHING and tells you how many
+  rows hold junk and how many would be removed entirely. If the
+  numbers look right, `_G.ocrCleanHistory(true)` does it. Check ⇪O
+  afterwards: the image thumbnails and paths must still be there. If a
+  reading you wanted is gone, `settings = { ocr_engine = { junkFilter
+  = false } }` turns it off with no release.
 - 6.225.0 verify with LL — 🎯 THE CARET: install. ⇪⇧V, ⏎ on a row —
   the window comes to the front AND the caret is already blinking in
   the box, at the END of the text. Type at once, no click. ⌘⏎ saves.

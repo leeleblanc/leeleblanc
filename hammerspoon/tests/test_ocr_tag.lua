@@ -967,5 +967,143 @@ do
     _G.service = nil
 end
 
+-- =====================================================================
+out("\n=== T8. 🔤 6.226.0 — the junk filter: singles out, everything else kept ===\n")
+-- =====================================================================
+-- LL, with a page of his own OCR log: "just remove single characters;
+-- anything two or more characters together is retained." And the bound
+-- he set himself: if a method can introduce errors, singles only. So
+-- this is TIER 1 alone — no dictionary vote, no digit/letter splitting,
+-- nothing that can turn a real word into a different one.
+do
+    local mine = 0
+    local function ck(label, cond, extra) mine = mine + 1; check(label, cond, extra) end
+
+    local DIR8 = (os.getenv("TMPDIR") or "/tmp"):gsub("/$", "")
+                 .. "/hs-junk-" .. tostring(os.time()) .. "-" .. tostring(math.random(9999))
+    os.execute("mkdir -p '" .. DIR8 .. "'")
+    local CSV8 = DIR8 .. "/image_text-Test.csv"
+    local function put8(body) local h = io.open(CSV8, "w"); if h then h:write(body); h:close() end end
+    local function get8() local h = io.open(CSV8, "r"); if not h then return nil end
+        local t = h:read("*a"); h:close(); return t end
+
+    hs.webview = nil
+    _G.movablePanels, _G.choosers = {}, {}
+    local PROV8 = {}
+    local M8 = dofile(HS .. "/modules/ocr_engine.lua")
+    M8.setup({
+        logsDir = DIR8, hostTag = "Test", csvQuote = csvQuote, splitCSVLine = splitCSVLine,
+        adoptLegacyFile = function() end, warnWriteFailed = function() end,
+        showPopup = function() end, hyperAddShortcut = function() end,
+        provide = function(n, f) PROV8[n] = f end,
+    })
+    local E8 = _G.ocrEngine
+
+    -- ---- the PURE rule -------------------------------------------------
+    ck("a one-character token goes", E8.isJunkToken("l") and E8.isJunkToken("x"))
+    ck("🚨 …but a DIGIT stays — a lone 7 is a page number, and his rule "
+       .. "names characters, not noise",
+       E8.isJunkToken("7") == false)
+    ck("…and so do I and a, which are real English words",
+       E8.isJunkToken("I") == false and E8.isJunkToken("a") == false)
+    ck("a punctuation-only token goes AT ANY LENGTH — |, ---, ..., •••",
+       E8.isJunkToken("|") and E8.isJunkToken("---")
+       and E8.isJunkToken("...") and E8.isJunkToken("•••"))
+    ck("🚨 two characters or more is KEPT EXACTLY, misspelt or not — lUE, "
+       .. "ido and dic are his TIER 2 and this release does not touch them",
+       E8.isJunkToken("lUE") == false and E8.isJunkToken("ido") == false
+       and E8.isJunkToken("dic") == false and E8.isJunkToken("of") == false)
+    ck("🚨 one CHARACTER, not one byte: é is TWO BYTES and one character, "
+       .. "so it is a single and goes",
+       E8.isJunkToken("\xC3\xA9") == true)
+    ck("…and a two-character accented word survives — été, día, señor",
+       E8.isJunkToken("\xC3\xA9t") == false
+       and E8.isJunkToken("d\xC3\xADa") == false)
+    ck("…an em dash and an ellipsis are punctuation even though they are "
+       .. "not ASCII — U+2000–U+2FFF and U+0080–U+00BF are removed before "
+       .. "the question is asked",
+       E8.isJunkToken("\xE2\x80\x94") == true      -- —
+       and E8.isJunkToken("\xE2\x80\xA6") == true  -- …
+       and E8.isJunkToken("\xC2\xB7") == true)      -- ·
+    ck("🚨 A NON-LATIN WORD IS A WORD, not punctuation: Lua's %w is ASCII "
+       .. "only, so without the high-byte clause this filter would delete "
+       .. "every word of every Cyrillic, Greek or CJK reading",
+       E8.isJunkToken("\xD0\xB4\xD0\xB0") == false
+       and E8.isJunkToken("\xE6\x97\xA5\xE6\x9C\xAC") == false)
+
+    -- ---- whole readings -------------------------------------------------
+    local cleaned, dropped = E8.cleanText("All l Snippets | of\nthe x list")
+    ck("🚨 NEWLINES SURVIVE — a 40-line reading must not become one "
+       .. "paragraph (tokens split on SPACES only)",
+       cleaned == "All Snippets of\nthe list", cleaned:gsub("\n", "⏎"))
+    ck("…and the dropped tokens are counted", dropped == 3, dropped)
+    ck("a line left with nothing is dropped whole, and the lines around it "
+       .. "close up",
+       (E8.cleanText("real words\n| x |\nmore words")) == "real words\nmore words",
+       (E8.cleanText("real words\n| x |\nmore words")):gsub("\n", "⏎"))
+    ck("a reading that is ALL junk comes back empty",
+       (E8.cleanText("| x - •")) == "")
+    ck("a clean reading is returned untouched, with nothing dropped",
+       (E8.cleanText("two or more words here")) == "two or more words here"
+       and select(2, E8.cleanText("two or more words here")) == 0)
+
+    -- ---- the ONE door ----------------------------------------------------
+    put8("")
+    ck("ocr.record files the CLEANED text, not what OCR read",
+       PROV8["ocr.record"]("Hello l there | world") == true
+       and (get8() or ""):find(',"Hello there world"\n$') ~= nil, get8())
+    ck("🚨 a reading that is nothing but junk is NOT written at all, and "
+       .. "the call says false rather than pretending it filed something",
+       PROV8["ocr.record"]("| x - •") == false
+       and select(2, (get8() or ""):gsub("\n", "")) == 1, get8())
+    ck("…and it is COUNTED — a silent drop is a reading he could never "
+       .. "account for",
+       E8.junkStats.emptied == 1 and E8.junkStats.tokens >= 2,
+       E8.junkStats.emptied .. "/" .. E8.junkStats.tokens)
+    E8.junkFilter = false
+    ck("the off switch really is off — the row lands as OCR read it",
+       PROV8["ocr.record"]("raw l row") == true
+       and (get8() or ""):find(',"raw l row"\n$') ~= nil, get8())
+    E8.junkFilter = true
+
+    -- ---- the one-shot clean ----------------------------------------------
+    put8('2026-09-01 09:00:00,"Good l line","/shots/a.png"\n'
+         .. '2026-09-01 09:01:00,"| x •"\n'
+         .. '2026-09-01 09:02:00,"already clean"\n')
+    printed = {}
+    local dry = _G.ocrCleanHistory()
+    ck("🚨 the clean is a DRY RUN unless told otherwise — it says what it "
+       .. "would do and changes NOTHING (this is his text)",
+       dry.rows == 2 and dry.emptied == 1
+       and (get8() or ""):find("Good l line", 1, true) ~= nil, get8())
+    ck("…and it says so out loud, in one print",
+       #printed == 1 and (printed[1] or ""):find("nothing was changed", 1, true) ~= nil,
+       printed[1])
+    printed = {}
+    _G.ocrCleanHistory(true)
+    local after = get8() or ""
+    ck("the real run rewrites the log: the junk token is gone",
+       after:find('"Good line"', 1, true) ~= nil
+       and after:find("Good l line", 1, true) == nil, after)
+    ck("🚨 …and the IMAGE PATH rides through the rewriter — a two-column "
+       .. "rewriter would strip it off every row it touched (6.187.0)",
+       after:find('"/shots/a.png"', 1, true) ~= nil, after)
+    ck("…the all-junk row is removed, the clean row untouched",
+       after:find("already clean", 1, true) ~= nil
+       and after:find("09:01:00", 1, true) == nil, after)
+    ck("…and the run says what it did", #printed == 1
+       and (printed[1] or ""):find("rewritten", 1, true) ~= nil, printed[1])
+
+    printed = {}
+    _G.ocrReport()
+    ck("_G.ocrReport() carries the junk line and the clean command, still "
+       .. "in ONE print", #printed == 1
+       and (printed[1] or ""):find("junk", 1, true) ~= nil
+       and (printed[1] or ""):find("ocrCleanHistory", 1, true) ~= nil, printed[1])
+
+    os.execute("rm -rf '" .. DIR8 .. "'")
+    check("T8 ran every one of its checks", mine == 25, mine)
+end
+
 out(("\n── test_ocr_tag: %d passed, %d failed\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

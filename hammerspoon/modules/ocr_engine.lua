@@ -202,7 +202,109 @@ function M.setup(core)
         return ts, text, path
     end
 
+    -- 🔤 6.226.0 — THE JUNK FILTER, TIER 1 ONLY. LL, with a page of his
+    -- own OCR log in front of him: "just remove single characters;
+    -- anything two or more characters together is retained." That is the
+    -- whole rule and it is deliberately the ONLY one: he also said that
+    -- if a method can introduce errors, singles only. So a token of one
+    -- character goes, a token made entirely of punctuation goes, a line
+    -- left with nothing goes — and everything of two characters or more
+    -- is kept EXACTLY as OCR read it, misspelt or not. It never repairs
+    -- a word and never joins two.
+    --
+    -- 📐 PURE, so the gate proves every row of it with no Mac, and so the
+    -- same function can clean the log he already has.
+    --   · tokens are split on SPACES ONLY — a newline is a line break and
+    --     must survive, or a 40-line OCR becomes one paragraph.
+    --   · "one character" is one UTF-8 CHARACTER, not one byte: "é" is
+    --     two bytes and is still a single, "→" is three. utf8.len is the
+    --     measure, with a byte count as the degrade on a string that is
+    --     not valid UTF-8 (Tesseract does produce those).
+    --   · DIGITS ARE KEPT. A lone "7" in a screenshot is a page number, a
+    --     quantity, a room — it is data, and his rule names characters,
+    --     not letters. "I" and "a" are real English words and are kept
+    --     for the same reason: the rule is about what OCR INVENTS, and
+    --     what it invents is punctuation and stray marks.
+    local function tokenLen(tok)
+        local okL, n = pcall(function() return utf8.len(tok) end)
+        if okL and type(n) == "number" then return n end
+        return #tok
+    end
+    function ocr.hasWordChar(tok)
+        if type(tok) ~= "string" then return false end
+        if tok:find("%w") then return true end
+        local rest = tok:gsub("\226[\128-\191][\128-\191]", "")
+                        :gsub("\194[\128-\191]", "")
+        return rest:find("[\128-\255]") ~= nil
+    end
+
+    function ocr.isJunkToken(tok)
+        if type(tok) ~= "string" or tok == "" then return true end
+        -- 1. punctuation-only, at any length: "|", "---", "...", "•••".
+        --    🚨 "PUNCTUATION" CANNOT MEAN "not ASCII alphanumeric". Lua's
+        --    %w is ASCII, so a Cyrillic or CJK word is nothing but
+        --    punctuation to it, and a filter written that way deletes
+        --    every word of every non-Latin reading. But a bullet and an
+        --    em dash are not ASCII either. So the two UTF-8 lead bytes
+        --    that carry ONLY punctuation and symbols are removed first —
+        --    0xC2 (U+0080–U+00BF: · « » ° ¶ §) and 0xE2 (U+2000–U+2FFF:
+        --    – — “ ” … • ‣ → ✓ ■) — and anything still above ASCII is a
+        --    letter in somebody's alphabet.
+        if not ocr.hasWordChar(tok) then return true end
+        -- 2. his rule: one CHARACTER goes. utf8.len, not #, because "é"
+        --    is two bytes and one character — and now that a high byte
+        --    reads as a letter, a byte count would keep it.
+        if tokenLen(tok) <= 1 then
+            -- kept: digits (a lone 7 is a page number) and the one-letter
+            -- English words
+            if tok:match("^%d$") then return false end
+            if tok == "I" or tok == "a" or tok == "A" then return false end
+            return true
+        end
+        return false
+    end
+
+    function ocr.cleanText(text)
+        if type(text) ~= "string" then return "", 0 end
+        local dropped = 0
+        local out = {}
+        for line in (text .. "\n"):gmatch("([^\n]*)\n") do
+            local kept = {}
+            for tok in line:gmatch("%S+") do
+                if ocr.isJunkToken(tok) then dropped = dropped + 1
+                else kept[#kept + 1] = tok end
+            end
+            -- a line left with nothing is dropped whole; a line that had
+            -- nothing to begin with is dropped too (it carried no words)
+            if #kept > 0 then out[#out + 1] = table.concat(kept, " ") end
+        end
+        return table.concat(out, "\n"), dropped
+    end
+
+    ocr.junkFilter = true            -- settings = { ocr_engine = { junkFilter = false } }
+    ocr.junkStats  = { rows = 0, tokens = 0, emptied = 0, cleaned = 0 }
+
     local function appendRow(text, path)
+        -- ONE DOOR: every OCR result in this config is written here, so
+        -- the filter lives here and nowhere else (6.187.0's rule about
+        -- this file, applied to its content).
+        if ocr.junkFilter then
+            local cleaned, dropped = ocr.cleanText(text)
+            if dropped > 0 then
+                ocr.junkStats.rows   = ocr.junkStats.rows + 1
+                ocr.junkStats.tokens = ocr.junkStats.tokens + dropped
+                ocr.junkStats.cleaned = ocr.junkStats.cleaned + 1
+                text = cleaned
+            end
+            -- 🚨 A ROW THAT THE FILTER EMPTIES IS NOT WRITTEN, and it is
+            -- COUNTED — a screenshot of nothing but rules and bullets is
+            -- exactly what he is tired of scrolling past, but a silent
+            -- drop is a reading he can never account for.
+            if text == "" then
+                ocr.junkStats.emptied = ocr.junkStats.emptied + 1
+                return false
+            end
+        end
         local f = io.open(ocr.csvFile, "a")
         if f then
             f:write(os.date("%Y-%m-%d %H:%M:%S") .. "," .. csvField(text)
@@ -359,7 +461,17 @@ function M.setup(core)
             -- 🎯 6.225.0 — the caret. Three states that must not read
             -- alike: never opened, placed (and on which try), gave up.
             .. "\n   edit box : " .. tostring(ocr.editorFocusState)
-            .. (ocr.editorView and " · open now" or ""))
+            .. (ocr.editorView and " · open now" or "")
+            -- 🔤 6.226.0 — what the junk filter has turned away
+            .. "\n   junk     : " .. (ocr.junkFilter
+                and ((ocr.junkStats.tokens == 0 and ocr.junkStats.emptied == 0)
+                     and "on — nothing dropped yet this session"
+                     or ("on — " .. ocr.junkStats.tokens
+                         .. " single/punctuation token(s) from "
+                         .. ocr.junkStats.rows .. " reading(s) · "
+                         .. ocr.junkStats.emptied .. " reading(s) were nothing but junk"))
+                or "OFF (settings = { ocr_engine = { junkFilter = false } })")
+            .. "\n   ↳ clean  : _G.ocrCleanHistory() says what it would do to the log you already have")
         return st
     end
 
@@ -707,6 +819,46 @@ function M.setup(core)
                     .. ((e.path and e.path ~= "") and ("," .. core.csvQuote(e.path)) or "") .. "\n")
         end
         f:close()
+    end
+
+    -- 🧹 6.226.0 — THE ONE-SHOT CLEAN of the log he already has, through
+    -- the SAME rewriter ⇪⇧O edits with: quote-aware, and the image path
+    -- written back on every row (6.187.0 — a rewriter that knew only two
+    -- columns would strip the image off every row it touched). It is a
+    -- COMMAND, never automatic: `_G.ocrCleanHistory()` says what it
+    -- WOULD do and changes nothing; `_G.ocrCleanHistory(true)` does it.
+    -- A row the filter empties is REMOVED, and the count is printed —
+    -- this is his text and a silent deletion is not on offer.
+    _G.ocrCleanHistory = function(reallyDoIt)
+        local items = loadOCRHistoryRaw()
+        local rows, tokens, emptied = 0, 0, 0
+        local out = {}
+        for _, e in ipairs(items) do
+            local cleaned, dropped = ocr.cleanText(e.text)
+            if dropped > 0 then rows = rows + 1; tokens = tokens + dropped end
+            if cleaned == "" then
+                emptied = emptied + 1
+            else
+                out[#out + 1] = { timestamp = e.timestamp, text = cleaned,
+                                  path = e.path }
+            end
+        end
+        local L = { ("🧹 OCR history — %d row(s) read"):format(#items) }
+        L[#L + 1] = ("   %d row(s) hold junk · %d single/punctuation token(s) "
+                     .. "· %d row(s) would be left EMPTY and removed")
+                    :format(rows, tokens, emptied)
+        if reallyDoIt ~= true then
+            L[#L + 1] = "   nothing was changed — run _G.ocrCleanHistory(true) to do it"
+        elseif rows == 0 and emptied == 0 then
+            L[#L + 1] = "   nothing to do — the log is already clean"
+        else
+            saveOCRHistoryRaw(out)
+            L[#L + 1] = ("   ✅ rewritten — %d row(s) kept, %d removed")
+                        :format(#out, #items - #out)
+        end
+        print(table.concat(L, "\n"))
+        return { rows = rows, tokens = tokens, emptied = emptied,
+                 read = #items, kept = #out }
     end
 
     -- ---- ⇪O, the search --------------------------------------------------
