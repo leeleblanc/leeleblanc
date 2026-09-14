@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.217.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.218.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -740,6 +740,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.218.0  🌩 AUTOCORRECT NO LONGER READS ITS OWN RETYPE (modules/autocorrect.lua)
   6.217.0  ✂️ INIT.LUA TRIMMED, AND A PLAIN-TEXT FEATURE LIST RIDES IN EVERY ZIP
   6.216.0  📶 BLUETOOTH: CONNECT OR DISCONNECT ANY PAIRED DEVICE (⇪⇧7, modules/bluetooth.lua)
   6.215.0  🔔 THE DEGRADE DOOR: A BREAK IS SEEN, NEVER ONLY LOGGED (core/notices.lua)

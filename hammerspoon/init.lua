@@ -4,9 +4,32 @@
 -- =====================================================================
 -- 09-13-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.217.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.218.0
 -- =====================================================================
 
+-- NEW IN 6.218.0 — 🌩 AUTOCORRECT NO LONGER READS ITS OWN RETYPE (modules/autocorrect.lua):
+--   LL, on 6.216.0: "locked the keyboard & took off like a banshee …
+--      wouldn't stop creating tabs" and a field full of "dododod…doesnt".
+--      His report named it: 24× "doesn → doesnt". hs.eventtap.keyStrokes
+--      POSTS its keys — they reach the tap after the call returns — and
+--      acInjecting was cleared on the very next line, so every word this
+--      module retyped came back through its own tap as typing. Harmless
+--      until a retype held a boundary: fix,doesnt,doesn't retypes an
+--      apostrophe, "doesn" is not a word and "doesnt" is (Webster's
+--      Second), so the spelling rule retyped doesnt', the row retyped
+--      doesn't, for ever — and each "t" that missed the field was
+--      Vimium's new tab. Not new in 6.216.0: the same loop ran on
+--      6.215.0 when he typed "doesnt " on purpose. NOW the guard stays
+--      up until the retype has DRAINED: the tap counts our own keyDowns
+--      off as they come back and releases on the last one (his next
+--      key is examined, not skipped); a held 0.3 s timer
+--      (`injectHold`) is the belt for a key macOS never delivered. ⇪Z's
+--      restore shares the same door — before this the restored word was
+--      corrected again as it came back. The suite plays macOS now:
+--      every injection is delivered back into the tap, and three
+--      mutations (clear at once · no count · no timer) each fail.
+--      Report line "retype guard". 8,995 -> 9,012 checks.
+--
 -- NEW IN 6.217.0 — ✂️ INIT.LUA TRIMMED, AND A PLAIN-TEXT FEATURE LIST RIDES IN EVERY ZIP:
 --   LL: "Go ahead with the init.lua trim" (his ask (c)), and "a list of
 --      features and how to use them in a plain text file … 'Resolved
@@ -28,33 +51,12 @@
 --      whose list names a different version than init.lua.
 --      8,992 -> 8,995 checks, seventy-seven stages.
 --
--- NEW IN 6.216.0 — 📶 BLUETOOTH: CONNECT OR DISCONNECT ANY PAIRED DEVICE (⇪⇧7, modules/bluetooth.lua):
---   LL: "Bluetooth: connect/disconnect AirPods or any device, reliably."
---      ⇪⇧7 lists every device this Mac has paired, 🟢 or ⚪, and ⏎ flips
---      it. macOS ships no command that connects a device, so the engine
---      is blueutil (Homebrew), looked up at PRESS time — a brew install
---      mid-session is seen on the next press. WITHOUT it (the work Mac):
---      system_profiler, on every Mac, still lists the devices and their
---      state, ⏎ opens System Settings › Bluetooth, the top row copies
---      `brew install blueutil`, and the absence goes through the 6.215.0
---      door once per ten minutes. Every command is a bounded hs.task with
---      an argument array (the address is blueutil's own output, never
---      typed), each in its own slot with its own killer timer; a failed
---      connect names the exit code and blueutil's words; the exit code,
---      not a hope, flips the row. The parsers are pure and the gate runs
---      them on the real line shapes — "not connected" contains
---      "connected", and the first parser read it as connected. Filed
---      under This Mac beside ⇪6 and ⇪7. _G.bluetoothReport().
---      Off: settings = { bluetooth = { on = false } }; pin the binary
---      with settings = { bluetooth = { blueutil = "/path" } }.
---      8,912 -> 8,992 checks, seventy-seven stages.
---
--- (6.215.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.216.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.217.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.218.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -151,7 +153,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.217.0"
+_G.configVersion = "6.218.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

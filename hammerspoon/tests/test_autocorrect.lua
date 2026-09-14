@@ -132,25 +132,47 @@ end
 
 -- Type a string through the real tap. Returns the text it typed back, or
 -- nil if it left the word alone.
-local function typeWord(s)
-  KEYSTROKES, DELETES, TIMERS = {}, 0, {}
-  for ch in s:gmatch(".") do
-    TAP.fn({
-      getType = function() return hs.eventtap.event.types.keyDown end,
-      getFlags = function() return {} end,
-      getKeyCode = function() return 0 end,
-      getCharacters = function() return ch end,
-    })
-  end
-  -- The fix is injected on a short timer, the same as the expander's.
-  for _, t in ipairs(TIMERS) do if t.running then t.fn() end end
-  return KEYSTROKES[1]
-end
 local function press(code)
   TAP.fn({ getType = function() return hs.eventtap.event.types.keyDown end,
            getFlags = function() return {} end,
            getKeyCode = function() return code end,
            getCharacters = function() return "" end })
+end
+local function keyIn(ch)
+  TAP.fn({ getType = function() return hs.eventtap.event.types.keyDown end,
+           getFlags = function() return {} end,
+           getKeyCode = function() return 0 end,
+           getCharacters = function() return ch end })
+end
+local function runShortTimers()
+  for _, t in ipairs(TIMERS) do
+    if t.running and (t.delay or 0) < 0.1 then t.fn() end
+  end
+end
+-- 🚨 6.218.0 — THIS HARNESS PLAYS macOS. hs.eventtap.keyStrokes POSTS
+-- its keys: they reach the tap AFTER the call returns, looking exactly
+-- like typing. So after the injection timer runs, every delete and
+-- every retyped character is delivered BACK INTO THE TAP, the way LL's
+-- Mac delivered them on 6.216.0 — a stub that swallowed them could not
+-- see the doesnt ⇄ doesn storm (6.193.0's rule, fourth costume). The
+-- guard's own 0.3 s hold timer is never run here: the count must let go.
+-- `hold` = true skips the delivery, for §9's dropped-key row.
+local function deliver(nDel, text)
+  for _ = 1, nDel do press(51) end
+  for ch in text:gmatch(".") do keyIn(ch) end
+end
+local function typeWord(s, hold)
+  KEYSTROKES, DELETES, TIMERS = {}, 0, {}
+  for ch in s:gmatch(".") do keyIn(ch) end
+  -- The fix is injected on a short timer, the same as the expander's.
+  runShortTimers()
+  if not hold and KEYSTROKES[1] then
+    local nDel, text = DELETES, KEYSTROKES[1]
+    TIMERS = {}
+    deliver(nDel, text)
+    runShortTimers()     -- a second injection, if the retype was read back
+  end
+  return KEYSTROKES[1]
 end
 
 -- =====================================================================
@@ -880,6 +902,104 @@ do
      tostring(_G.acSpellCorrection("startss", known, 5)))
 
   check("§8b ran every one of its checks", mine == 17, mine)
+end
+
+
+-- =====================================================================
+out("\n=== 9. 6.218.0 — THE RETYPE IS NOT READ BACK (LL's doesnt ⇄ doesn storm) ===\n")
+-- The harness delivers every injection back into the tap (see typeWord).
+-- On 6.216.0 LL's Mac did the same: fix,doesnt,doesn't retyped an
+-- apostrophe, the spelling rule read "doesn" → "doesnt", and the two
+-- corrected each other for ever (24 rows of "doesn → doesnt" in his
+-- report; every stray "t" a Vimium new tab).
+do
+  local mine = 0
+  local function ck(label, cond, extra)
+    mine = mine + 1 ; check(label, cond, extra)
+  end
+  FRONTAPP = "TextEdit"
+  local WORDS = TMP .. "/words"
+  do
+    local f = io.open(WORDS, "w")
+    for _, w in ipairs({ "does", "doesnt", "the", "something" }) do f:write(w .. "\n") end
+    f:close()
+    mod.config.wordsFile = WORDS
+    mod.warm(core)
+  end
+  local okA = _G.autocorrectAdd("doesnt", "doesn't")
+  ck("fixture: the row LL has (line 3235 of his CSV) and a word list that"
+     .. " holds doesnt, as Webster's Second does", okA == true, tostring(okA))
+  -- 🚨 The trap is real in this fixture: "doesn" alone → the spelling rule
+  -- answers doesnt. With the retype read back, that is the loop.
+  ck("the trap: doesn' → doesnt' (the spelling rule answers on the apostrophe)",
+     typeWord("doesn'") == "doesnt'", tostring(typeWord("doesn'")))
+
+  -- ---- the storm, and its end ------------------------------------------
+  local typed = typeWord("doesnt ")
+  ck("doesnt␣ → doesn't␣ (the dictionary row)", typed == "doesn't ", tostring(typed))
+  ck("🚨 THE RETYPE IS NOT READ BACK: one injection, not two — the storm"
+     .. " cannot start", #KEYSTROKES == 1, #KEYSTROKES .. " · " .. tostring(KEYSTROKES[2]))
+  ck("…and the count released the guard on the last key: the hold timer is"
+     .. " stopped and let go", _G.acInjectHold == nil
+     and (function() local n = 0 for _, t in ipairs(TIMERS) do if t.running then n = n + 1 end end return n end)() == 0,
+     tostring(_G.acInjectHold))
+  -- 🚨 MUTATION ROW: a guard released by TIME alone would still be up
+  -- here. LL's very next key must be examined, not skipped.
+  ck("🚨 LL's next word, typed at once, is still corrected (the guard is"
+     .. " DOWN — released by the count, not a clock)",
+     typeWord("teh ") == "the ", tostring(typeWord("teh ")))
+
+  -- ---- the belt: a key macOS never delivered ---------------------------
+  typed = typeWord("teh ", true)          -- posted, nothing delivered yet
+  ck("teh␣ → the␣, and the hold timer is armed in _G.acInjectHold at 0.3 s"
+     .. " (settings = { autocorrect = { injectHold = … } })",
+     typed == "the " and _G.acInjectHold ~= nil and _G.acInjectHold.delay == 0.3
+     and mod.config.injectHold == 0.3, tostring(_G.acInjectHold and _G.acInjectHold.delay))
+  local hold = _G.acInjectHold
+  deliver(3, "the")                       -- one key short: the space never arrives
+  log = {}
+  _G.autocorrectReport()
+  local rep = table.concat(log, "\n")
+  ck("one key short, the guard is still UP and the report says so",
+     _G.acInjectHold == hold and rep:find("UP NOW, 1 key(s) still to drain", 1, true) ~= nil,
+     rep:match("retype guard[^\n]*"))
+  hold.fn()                               -- the hold timer fires
+  ck("…the hold timer releases it (let go, counted): teh␣ corrects again",
+     _G.acInjectHold == nil and typeWord("teh ") == "the ", tostring(_G.acInjectHold))
+
+  -- ---- ⇪Z's restore was the same shape ---------------------------------
+  typed = typeWord("teh ")
+  ck("teh␣ → the␣, then ⇪Z…", typed == "the ")
+  KEYSTROKES, DELETES, TIMERS = {}, 0, {}
+  BOUND["ctrl+alt+cmd+Z"]()
+  ck("…restores teh␣ (4 deletes, the word retyped)",
+     KEYSTROKES[1] == "teh " and DELETES == 4, tostring(KEYSTROKES[1]) .. " " .. DELETES)
+  deliver(4, "teh ")
+  runShortTimers()
+  ck("🚨 THE RESTORED WORD IS NOT CORRECTED AGAIN as it comes back through"
+     .. " the tap (it was, before 6.218.0)", #KEYSTROKES == 1, #KEYSTROKES)
+
+  -- ---- the report names it ---------------------------------------------
+  log = {}
+  _G.autocorrectReport()
+  rep = table.concat(log, "\n")
+  ck("the report's \"retype guard\" line counts retypes and both releases",
+     rep:find("retype guard : %d+ retype%(s%) · released by count %d+ · by timer 1") ~= nil,
+     rep:match("retype guard[^\n]*"))
+  ck("…and it never reads UP NOW once the keys have drained",
+     not rep:find("UP NOW", 1, true))
+
+  -- ---- against the source: one door, one release -----------------------
+  local f = io.open(HS .. "/modules/autocorrect.lua", "r")
+  local src = f:read("*a"); f:close()
+  local _, clears = src:gsub("acInjecting = false", "")
+  ck("🔒 the guard is cleared in ONE place (acInjectRelease) — never on the"
+     .. " line after keyStrokes again", clears == 2, clears)   -- the declaration + the release
+  local _, strokes = src:gsub("hs%.eventtap%.keyStrokes%(", "")
+  ck("🔒 and there is ONE keyStrokes call — acType — so ⇪Z and the fix"
+     .. " share the drain", strokes == 1, strokes)
+
+  check("§9 ran every one of its checks", mine == 16, mine)
 end
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))

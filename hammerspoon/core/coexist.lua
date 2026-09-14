@@ -142,12 +142,17 @@ _G.injectStartedAt = nil
 -- ⏳ AND A SECOND SHAPE OF THE SAME IDEA (6.76.0): AN INJECTION THAT
 -- OUTLIVES THE CALL THAT STARTED IT.
 --
--- withInjection() below is scoped to a function call, which is right for
--- hs.eventtap.keyStrokes — that call has typed the characters by the time
--- it returns. It is WRONG for hs.eventtap.event:post(), which only queues
--- the event: the post returns immediately, the counter drops back to
--- zero, and the synthetic keystroke reaches the taps milliseconds later
--- looking exactly like a real one.
+-- withInjection() below is scoped to a function call. 🚨 6.218.0: that
+-- is NOT enough for hs.eventtap.keyStrokes either — this comment said
+-- "that call has typed the characters by the time it returns" for 142
+-- releases and it was the one wrong line: keyStrokes POSTS, the post
+-- returns immediately, the counter drops back to zero, and the
+-- synthetic keystrokes reach the taps milliseconds later looking
+-- exactly like real ones. That is how autocorrect corrected its own
+-- retype for ever (LL's 6.216.0 "banshee"). Each tap that posts keys
+-- must hold its OWN guard until the keys have drained — autocorrect
+-- counts them off (acType), the expander holds a timer. The same was
+-- always true of hs.eventtap.event:post():
 --
 -- §3.12's hyper self-test posts four synthetic keys to find out whether
 -- the hyper key actually fires. Without this, the Key Caster would draw

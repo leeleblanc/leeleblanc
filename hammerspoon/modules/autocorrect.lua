@@ -99,6 +99,11 @@ function M.setup(core)
         minLen    = 5,
         slice     = 20000,      -- words folded into the set per turn
         keep      = 12,         -- corrections remembered for the report
+        -- 🌩 6.218.0 — how long the tap ignores keys after a retype, at
+        -- most: the count below releases it the moment our own keys
+        -- have all come back through, this is only the belt for a key
+        -- macOS never delivered. settings = { autocorrect = { injectHold = 0.5 } }
+        injectHold = 0.3,
         -- 🚨 Where a word list is wrong far more often than right. LL
         -- chose exactly these plus password fields; anywhere else gets
         -- added from EVIDENCE — the report names every word it changed —
@@ -618,8 +623,51 @@ function M.setup(core)
         return true
     end
 
-    local function acInject(word, fixed, boundary, wasRule)
+    -- 🌩 6.218.0 — THE GUARD STAYS UP UNTIL THE RETYPE HAS DRAINED.
+    -- hs.eventtap.keyStrokes POSTS its events: the call returns before
+    -- a single one of them has reached this tap. Until now acInjecting
+    -- was cleared on the line after it, so every word this module ever
+    -- retyped came straight back through its own tap as if LL had
+    -- typed it. That was harmless while the retype held no boundary —
+    -- and it took LL's 6.216.0 install to type one that did: "doesnt "
+    -- → the dictionary row fix,doesnt,doesn't → the retyped apostrophe
+    -- is a boundary → the word before it, "doesn", is not on the word
+    -- list and "doesnt" IS (Webster's Second has it) → the spelling
+    -- rule retyped "doesnt'" → the dictionary retyped "doesn't" → for
+    -- ever. Every "t" that landed on a Chrome page instead of a field
+    -- was Vimium's new-tab key: his "took off like a banshee", the
+    -- endless New Tabs and "dododod…doesnt" in one mechanism, and
+    -- `_G.autocorrectReport()` showed it (24× "doesn → doesnt").
+    -- The undo path (⇪Z) had the same shape and a quieter cost: the
+    -- restored word came back through the tap and was corrected again.
+    --
+    -- THE FIX COUNTS, WITH A TIMER AS THE BELT. We know exactly how
+    -- many keyDowns we posted (one per delete, one per character), so
+    -- the tap counts them off as they arrive and releases the guard on
+    -- the last one — LL's next real key is examined, not skipped. A
+    -- held timer (`acSpell.injectHold`) releases it anyway in case a key
+    -- was never delivered, so nothing can leave the guard up for good.
+    -- Both ways are counted for the report's "retype guard" line.
+    local acInjectPending = 0
+    local acDrain = { retypes = 0, byCount = 0, byTimer = 0 }
+    _G.acInjectHold = nil
+    local function acInjectRelease(how)
+        if not acInjecting then return end
+        acInjecting = false
+        acInjectPending = 0
+        if how == "count" then acDrain.byCount = acDrain.byCount + 1
+        elseif how == "timer" then acDrain.byTimer = acDrain.byTimer + 1 end
+        if _G.acInjectHold then
+            pcall(function() _G.acInjectHold:stop() end)
+            _G.acInjectHold = nil
+        end
+    end
+    -- Delete nDeletes characters and type text, with this tap standing
+    -- down until every one of those keys has come back through it.
+    local function acType(nDeletes, text)
         acInjecting = true
+        acDrain.retypes = acDrain.retypes + 1
+        acInjectPending = nDeletes + (utf8.len(text) or #text)
         -- 🚨 6.69.0 — THROUGH THE SHARED GUARD. acInjecting only ever told
         -- THIS tap to stand down. The text expander has its own tap on the
         -- same keystrokes, and without a shared flag a correction that
@@ -627,13 +675,27 @@ function M.setup(core)
         -- spelling fix that expands into an email signature. See
         -- _G.withInjection in init.lua. The local flag stays because it is
         -- what protects this module when the shared one is unavailable.
-        local ok = (_G.withInjection or pcall)(function()
-            for _ = 1, #word do
+        local ok, err = (_G.withInjection or pcall)(function()
+            for _ = 1, nDeletes do
                 hs.eventtap.keyStroke({}, "delete", 0)
             end
-            hs.eventtap.keyStrokes(fixed .. boundary)
+            hs.eventtap.keyStrokes(text)
         end)
-        acInjecting = false
+        if _G.acInjectHold then pcall(function() _G.acInjectHold:stop() end) end
+        local okT, t = pcall(hs.timer.doAfter, acSpell.injectHold or 0.3,
+                             function() acInjectRelease("timer") end)
+        if okT and t then
+            _G.acInjectHold = t
+        else
+            -- No timer means no belt: a dropped key would hold the guard
+            -- up for good, so this Mac gets the old behaviour instead.
+            acInjectRelease("no timer")
+        end
+        return ok, err
+    end
+
+    local function acInject(word, fixed, boundary, wasRule)
+        local ok = acType(#word, fixed .. boundary)
         -- 🚨 TELL THE EXPANDER THE DOCUMENT MOVED (6.72.0). We just
         -- deleted a word and typed a different one, and its rolling
         -- buffer has no way to know — our injection is invisible to it by
@@ -688,7 +750,15 @@ function M.setup(core)
             -- Either flag standing means "this keystroke is not a person
             -- typing". The local one covers our own injection; the shared
             -- one covers the text expander's (6.69.0).
-            if acInjecting then return false end
+            if acInjecting then
+                -- 6.218.0 — our own keys, counted off as they come back
+                if acInjectPending > 0
+                   and ev:getType() == hs.eventtap.event.types.keyDown then
+                    acInjectPending = acInjectPending - 1
+                    if acInjectPending == 0 then acInjectRelease("count") end
+                end
+                return false
+            end
             if _G.typingInjection and _G.typingInjection() then return false end
 
             local t = ev:getType()
@@ -847,16 +917,10 @@ function M.setup(core)
 
         -- Rewind the text if nothing has happened since the fix
         if last.undoSafe then
-            acInjecting = true
-            -- Same shared guard as acInject: an undo types too, and the
-            -- expander must not read the restored word as a trigger.
-            ;(_G.withInjection or pcall)(function()
-                for _ = 1, #last.fixed + #last.boundary do
-                    hs.eventtap.keyStroke({}, "delete", 0)
-                end
-                hs.eventtap.keyStrokes(last.word .. last.boundary)
-            end)
-            acInjecting = false
+            -- Same drained guard as acInject (6.218.0): the restored
+            -- word must not come back through this tap and be corrected
+            -- again, and the expander must not read it as a trigger.
+            acType(#last.fixed + #last.boundary, last.word .. last.boundary)
             -- An undo rewrites the document too — same reasoning as the
             -- injection above.
             if _G.expanderResetBuffer then pcall(_G.expanderResetBuffer) end
@@ -1070,6 +1134,12 @@ function M.setup(core)
             L[#L + 1] = "      ↳ any of these wrong? ⇪Z right after it, or"
             L[#L + 1] = "        _G.autocorrectForget(\"<the word>\") later."
         end
+        L[#L + 1] = "   retype guard : "
+                    .. (acDrain.retypes == 0 and "no retype yet this session"
+                        or (acDrain.retypes .. " retype(s) · released by count "
+                            .. acDrain.byCount .. " · by timer " .. acDrain.byTimer))
+                    .. (acInjecting and ("  · UP NOW, " .. acInjectPending
+                                         .. " key(s) still to drain") or "")
         L[#L + 1] = "   not asked in : " .. table.concat(acSpell.offIn or {}, ", ")
         L[#L + 1] = "                  (and any password field)"
         local s = table.concat(L, "\n")

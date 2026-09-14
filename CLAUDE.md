@@ -96,6 +96,22 @@ work Mac.
   his call, so 6.215.0 shipped on the home ✓ alone; the work Mac
   installs 6.215.0 (it carries 6.214.2) and its `_G.stormReport()`
   is still owed.
+- 🔁 A RETYPE COMES BACK THROUGH THE TAP (6.218.0, modules/
+  autocorrect.lua — LL's 6.216.0 "banshee"): hs.eventtap.keyStrokes
+  and keyStroke POST their events; they reach every tap AFTER the call
+  returns, as typing. A guard cleared on the line after the post
+  guards nothing — core/coexist.lua's 6.76.0 comment claiming
+  keyStrokes "has typed the characters by the time it returns" was
+  the one wrong line, and `_G.withInjection` is still call-scoped.
+  autocorrect's guard now drains BY COUNT (one keyDown per delete and
+  per character, released on the last) with a held `injectHold`
+  (0.3 s) timer as the belt; `acType` is the ONE place it posts keys
+  (⇪Z too) and the source sentry holds it there. The text expander
+  holds its own 0.08 s timer. ANY NEW TAP that posts keys does one of
+  these, and its suite DELIVERS the posted keys back into the tap
+  (test_autocorrect's typeWord is the shape) — a stub that swallows
+  them passed this bug for 208 releases. The storm reached Chrome as
+  Vimium keys: a stray "t" is a new tab, "o" the omnibar.
 
 ## Module contract
 
@@ -1260,10 +1276,11 @@ as the fix when a loss lands.
 | 6.214.1 | 🌩 hyper storm guard: a latched ⇪ releases itself after 5 s and writes ~/.hammerspoon/.storm/storm-<epoch>.txt | LOSS — the test itself worked (released, file, report), but the report carried a stale ⚠️ and LL's bad test recipe (mine) exposed the count stalling behind a key-eating tool → 6.214.2 |
 | 6.214.2 | 🌩 the storm guard counts keys from the ⇪ tap too (a tool that eats keys no longer hides them); a missing folder is no warning | WIN on the home Mac (LL: "6.214.2 home ✓", 184 autorepeats measured, no ⚠️) — the work Mac still owed; LL said "Go ahead" |
 | 6.215.0 | 🔔 the degrade door: `core.degrade(tool, why)` → alert + ⚠️ line + ledger + `_G.degradeReport()`; the storm guard takes it first | pending |
-| 6.216.0 | 📶 Bluetooth ⇪⇧7: paired devices, ⏎ connects/disconnects via blueutil; without it system_profiler lists and ⏎ opens System Settings | pending — his `brew list` (2026-09-13) has NO blueutil on the Air, so the first press alerts the install row; that is the degrade, not a loss |
-| 6.217.0 | ✂️ init.lua trimmed 3,796 → 3,534 (no behaviour change) + RESOLVED-FEATURE-REQUESTS.txt generated into every zip | pending |
+| 6.216.0 | 📶 Bluetooth ⇪⇧7: paired devices, ⏎ connects/disconnects via blueutil; without it system_profiler lists and ⏎ opens System Settings | LOSS — LL: "locked the keyboard & took off like a banshee … wouldn't stop creating tabs", a field of "dododod…doesnt". NOT bluetooth: the autocorrect retype loop (doesnt ⇄ doesn), live since 6.10.0, reproduced on 6.215.0 by typing "doesnt " → fix 6.218.0. ⇪⇧7 itself is unscored |
+| 6.217.0 | ✂️ init.lua trimmed 3,796 → 3,534 (no behaviour change) + RESOLVED-FEATURE-REQUESTS.txt generated into every zip | pending — never installed; 6.218.0 carries it |
+| 6.218.0 | 🌩 autocorrect no longer reads its own retype: the guard drains by count, a 0.3 s held timer as the belt; ⇪Z shares the door; the suite plays macOS | pending |
 
-Running total: 14 wins · 4 losses · 3 pending (6.215.0, 6.216.0, 6.217.0).
+Running total: 14 wins · 5 losses · 3 pending (6.215.0, 6.217.0, 6.218.0).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
@@ -1277,11 +1294,17 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   sequence you determine" — his seven asks, my order, one per
   release, each scored by him before the next ships): 6.216.0 (d)
   Bluetooth ✔ built; 6.217.0 (c) the trim ✔ built (+ the feature
-  list). REVISED 2026-09-13 with his second batch: NEXT (a) ⌥Tab shows
-  the Hammerspoon Console again ("missing again" — twice asked; the
-  dock icon is HIDDEN now, so `me:allWindows()` in
-  altTab.consoleWindow may return nothing for an accessory app — read
-  that first; hs.console.hswindow stays banned); then ✏️ the Edit OCR
+  list). REVISED 2026-09-13 with his second batch: (a) ⌥Tab — RESOLVED
+  WITHOUT CODE (LL, 6.215.0 rollback: "Alt+tab Success. Shows
+  Hammerspoon now."; if it goes missing again, the dock icon being
+  HIDDEN is the first suspect — `me:allWindows()` on an accessory app;
+  hs.console.hswindow stays banned). NEXT: ✏️ "doesn't" BY HAND —
+  "doesn" + apostrophe still reaches the word list once (doesnt is
+  in Webster's Second) and types doesnt't; an apostrophe INSIDE a word
+  must not hand the piece before it to the spelling rule (dictionary
+  rows and TWo-caps unchanged; measure against web2 first — can't,
+  won't, isn't, wasn't, hasn't are all under minLen, doesn/couldn/
+  wouldn/shouldn are the live ones). Then ✏️ the Edit OCR
   entry window does not take the caret (the page calls t.focus() but
   the webview window is not key — after bringToFront, focus the
   hswindow on a held timer and re-run t.focus()); then the OCR junk
@@ -1348,9 +1371,19 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   expansion (in the packs / Mine — check which before answering him
   further); a snippet copied from the picker goes to the clipboard as
   the NEWEST clipboard-history item and pastes at the caret.
-- 🧊 Ice.app (ANSWERED, no code): Ice menu → Settings → Menu Bar
-  Layout: drag icons into the Hidden section (or ⌘-drag them in the
-  menu bar to the left of Ice's chevron); the chevron toggles them.
+- 🧊 Ice.app (NOT ours, unresolved): LL: Settings "flash so fast no
+  way to change", then "Settings don't open"; ⌘-drag moves icons but
+  "none seem to hide". Asked and unanswered: does Settings open with
+  Hammerspoon QUIT (if yes, a window tool of ours closes it — the
+  window auto-position / app_watcher paths are the suspects). If it
+  fails with Hammerspoon quit too: `brew reinstall --cask
+  jordanbaird-ice`, and Ice needs Accessibility. No code until the
+  quit test answers.
+- 💾 The "TWO FILES LOOK LIKE THE SAME LOG" line (autocorrect-Lees-
+  MacBook-Air.csv beside autocorrect.csv): nothing in the config
+  writes the per-Mac name — a leftover. It was GONE by 18:38 on
+  2026-09-13 (write ledger: "was here at boot and is GONE now");
+  the line does not return. Closed.
 - 6.217.0 verify with LL — THE TRIM + THE LIST: install (carries
   6.216.0). Boot line reads 6.217.0, All green, 71 modules; every ⇪
   key works as before (nothing but comments changed). At the zip root:

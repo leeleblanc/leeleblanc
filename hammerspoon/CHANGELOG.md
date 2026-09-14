@@ -5,6 +5,69 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.218.0 — 🌩 AUTOCORRECT NO LONGER READS ITS OWN RETYPE (modules/autocorrect.lua):
+  LL, on installing 6.216.0: "locked the keyboard & took off like a
+     banshee. Hammerspoon wouldn't stop creating tabs & this string
+     below. Anytime I typed more & more went wrong." Two screenshots: a
+     Chrome field holding "dododododod…dodododdodoesntdodododdododododo
+     doesntes" and a tab strip of New Tabs. Only bluetooth.lua was new
+     in 6.216.0 and it is inert until ⇪⇧7, so the class was older.
+  THE ARTEFACT, NOT THE THEORY (6.201.0's rule): pgrep showed ONE
+     Hammerspoon (the two-process theory died there); his dictionary
+     held line 3235, fix,doesnt,doesn't; and asked to type "doesnt " on
+     6.215.0 he got the same storm — with `_G.autocorrectReport()`
+     showing "spelling : 24 word(s) corrected … doesn → doesnt" twelve
+     times. That line IS the mechanism.
+  THE MECHANISM. hs.eventtap.keyStrokes POSTS its events; the call
+     returns before one of them has reached a tap. acInject set
+     acInjecting = true, posted the deletes and the fixed word, and
+     cleared the flag on the next line — so since 6.10.0 every word this
+     module retyped has come straight back through its own tap as if LL
+     had typed it. Harmless while the retype had no boundary in it: the
+     word buffer refilled with the fixed word, a space ended it, the
+     fixed word was already right. "doesn't" holds a boundary. The
+     apostrophe ended "doesn"; "doesn" is not on the word list and
+     "doesnt" IS (Webster's Second lists it, line 56586 of web2), one
+     letter away and alone — so the 6.200.0 spelling rule retyped
+     "doesnt'"; that came back, "doesnt" met the dictionary row, the row
+     retyped "doesn't"; for ever. Every "t" that landed on a Chrome PAGE
+     instead of a field was Vimium's new-tab key, every "o" its omnibar
+     — the tabs and the "dododo" are the same loop seen from Chrome.
+     core/coexist.lua's own 6.76.0 comment had said keyStrokes "has
+     typed the characters by the time it returns" — and that was the
+     one line that was wrong.
+  THE FIX COUNTS, WITH A TIMER AS THE BELT. `acType(nDeletes, text)` is
+     now the ONE place that posts keys: it sets the guard, counts what
+     it posted (one keyDown per delete, one per character), and the tap
+     counts them off as they come back, releasing on the last one — so
+     LL's next real key is examined, never skipped. A HELD timer
+     (`acSpell.injectHold`, 0.3 s; settings = { autocorrect =
+     { injectHold = … } }) releases it anyway for a key macOS never
+     delivered, so nothing can leave the guard up for good; no timer
+     available → the old behaviour, said in the report. ⇪Z's restore
+     goes through the same door — before this the restored word came
+     back through the tap and was corrected AGAIN, which is why undoing
+     a dictionary fix never held. `_G.autocorrectReport()` gained
+     "retype guard : N retype(s) · released by count N · by timer N",
+     with "UP NOW, N key(s) still to drain" while one is open.
+  THE SUITE PLAYS macOS NOW. test_autocorrect's typeWord delivers every
+     delete and every retyped character BACK INTO THE TAP after the
+     injection timer runs — a stub that swallowed them could not see
+     this storm through 6.10.0 → 6.217.0 (6.193.0's rule, fourth
+     costume). §9 builds LL's exact trap (the row + a word list holding
+     doesnt), types "doesnt ", and wants ONE injection; then a key
+     short, the timer; then ⇪Z; then the source: one clear, one
+     keyStrokes. Three mutations — clear at once, no count, no timer —
+     each fail it. 8,995 -> 9,012 checks, seventy-seven stages.
+  NOT IN THIS RELEASE, named: typing "doesn't" BY HAND still meets the
+     same trap once — "doesn" + apostrophe → the spelling rule → doesnt'
+     + his t = "doesnt't". One bug, one release: an apostrophe inside a
+     word must not hand the piece before it to the word list. Next.
+     And the text expander's own tap still reads autocorrect's retype
+     (the shared guard is call-scoped too); its buffer is reset before
+     the retype arrives, so a trigger equal to the END of a fixed word
+     is the only exposure. Its own release, if it ever bites.
+
 NEW IN 6.217.0 — ✂️ INIT.LUA TRIMMED, AND A PLAIN-TEXT FEATURE LIST RIDES IN EVERY ZIP:
   LL: "Go ahead with the init.lua trim" — his ask (c) from the 6.214.0
      report: "drop version-note comments older than 6.15x that are not
