@@ -31,6 +31,24 @@
 -- (⇪⇧T was the plan, but the Text Expander has held it since 6.68.0.)
 --
 -- ---------------------------------------------------------------------
+-- 📐 6.220.0 — IT FITS ON THE SCREEN
+-- ---------------------------------------------------------------------
+-- LL, with a screenshot: "Can you put the contents of this window
+-- hyper+t, so that the items do not run down one long list and we can
+-- see the blue create task button?" His Asana project publishes a dozen
+-- custom fields; each one added a 44-pt row and the only clamp was the
+-- screen, so the window was taller than his display and the Create
+-- button sat below its bottom edge, unreachable.
+--
+-- Three changes, one shape: the page is a header / SCROLLER / footer
+-- sandwich, the Create button lives in the footer (outside the
+-- scroller, so nothing can push it off), and the project fields are laid
+-- two to a row with each label ABOVE its control — an Asana field name
+-- ("| 🎯 ACD Strategic Principle |:") wrapped over four lines in a
+-- 104-pt right-hand gutter. `form.sizeFor` is PURE and decides the
+-- three numbers; `form.maxHeight` is the ceiling the screen never had.
+--
+-- ---------------------------------------------------------------------
 -- WHAT THIS MODULE DELIBERATELY DOES NOT OWN
 -- ---------------------------------------------------------------------
 -- Submission. Validating the title, resolving "sarah" to an Asana GID,
@@ -79,8 +97,11 @@ function M.setup(core)
 
     -- ✏️ EDIT HERE ---------------------------------------------------------
     form.enabled     = true
-    form.width       = 560
+    form.width       = 560      -- no project fields: one column, as before
+    form.wideWidth   = 820      -- 6.220.0 — two columns of project fields
     form.height      = 480
+    form.maxHeight   = 760      -- 6.220.0 — the window NEVER grows past this
+    form.fieldH      = 62       -- a project field: its label ABOVE its control
     form.focusOnOpen = true
     form.nonActivating = true  -- 6.153.0 — take the keyboard the moment the
                                -- form opens, without a click and without
@@ -137,8 +158,11 @@ function M.setup(core)
         local cfRows = {}
         for _, f in ipairs(_G.asanaCustomFields or {}) do
             local cur = d.custom and d.custom[f.gid]
-            local label = '<div class="row"><label>' .. escapeHtml(f.name)
-                          .. ':</label>'
+            -- 6.220.0 — a project row is a GRID CELL now (label above
+            -- the control); a chips field spans both columns.
+            local wide = (f.subtype == "multi_enum") and " wide" or ""
+            local label = '<div class="row cf-row' .. wide .. '"><label>'
+                          .. escapeHtml(f.name) .. ':</label>'
             if f.subtype == "enum" then
                 local sel = {}
                 if cur then sel[tostring(cur)] = true end
@@ -190,11 +214,19 @@ function M.setup(core)
                     .. '"></div>'
             end
         end
+        -- 6.220.0 — TWO COLUMNS. LL: "so that the items do not run down
+        -- one long list and we can see the blue create task button."
+        -- Twelve project fields down one column made the window taller
+        -- than the screen, and the Create button was below its bottom
+        -- edge. The grid halves the rows; the footer below pins the
+        -- button; #wrap scrolls whatever is left over.
         local cfHtml = table.concat(cfRows)
         if cfHtml == "" then
             cfHtml = '<div class="row"><label></label><span class="hint">'
                 .. 'project fields load shortly after boot — reopen ⇪T '
                 .. 'if this stays empty</span></div>'
+        else
+            cfHtml = '<div class="cols">' .. cfHtml .. '</div>'
         end
         local detailsHtml = [[
   <div class="sect">Schedule — optional (a start needs an end)</div>
@@ -204,22 +236,29 @@ function M.setup(core)
   <div class="row"><label for="ed">End:</label>
     <input id="ed" type="date" value="]] .. escapeHtml(d.dueDate) .. [[">
     <input id="et" type="time" value="]] .. escapeHtml(d.dueTime) .. [["></div>
-  <div class="sect">Project fields — optional</div>
+  <div class="sect full">Project fields — optional</div>
 ]] .. cfHtml
 
         return [[
 <meta charset="utf-8">
 <style>
   :root { color-scheme: dark; }
+  /* 6.220.0 — THREE BANDS: a header that stays, a middle that
+     SCROLLS, and a footer that holds the Create button. The button can
+     no longer be pushed off the bottom by a project with a dozen
+     fields — which is exactly what LL was looking at. */
+  html, body { height:100%; }
   body { margin:0; font-family:-apple-system,BlinkMacSystemFont,sans-serif;
-         font-size:15px; line-height:1.5; background:#141418; color:#e8e8ec; }
-  header { padding:14px 18px 8px; display:flex; justify-content:space-between;
+         font-size:15px; line-height:1.5; background:#141418; color:#e8e8ec;
+         display:flex; flex-direction:column; overflow:hidden; }
+  header { flex:none; padding:14px 18px 8px; display:flex;
+           justify-content:space-between;
            align-items:baseline; border-bottom:1px solid #2a2a32;
            user-select:none; -webkit-user-select:none; cursor:grab; }
   header.dragging { cursor:grabbing; }
   h1 { font-size:16px; margin:0; font-weight:600; }
   .hint { color:#8a8a96; font-size:13px; }
-  #wrap { padding:14px 18px; }
+  #wrap { flex:1 1 auto; min-height:0; overflow-y:auto; padding:14px 18px; }
   .row { display:flex; gap:12px; align-items:flex-start; margin-bottom:12px; }
   /* THE LABELS ARE THE FEATURE — a fixed column that never goes away,
      which is the entire reason this form exists. */
@@ -241,11 +280,24 @@ function M.setup(core)
   button.go { background:#3566cc; border-color:#4a7fe0; font-size:14px;
               padding:7px 14px; }
   button:hover { filter:brightness(1.18); }
-  .bar { margin-top:6px; display:flex; gap:10px; align-items:center; }
+  footer.bar { flex:none; display:flex; gap:10px; align-items:center;
+          padding:10px 18px; border-top:1px solid #2a2a32;
+          background:#141418; }
   .bar .hint { margin-left:auto; }
   .sect { color:#8a8a96; font-size:11px; letter-spacing:.5px;
           text-transform:uppercase; margin:12px 0 8px 116px;
           user-select:none; -webkit-user-select:none; }
+  .sect.full { margin-left:0; }
+  /* 🗂 6.220.0 — the project fields, two to a row, each label ABOVE its
+     control: an Asana field name is long ("| 🎯 ACD Strategic Principle
+     |:") and a 104-px right-hand gutter wrapped it over four lines. */
+  .cols { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr));
+          gap:2px 18px; }
+  .cols .row { display:block; margin-bottom:10px; }
+  .cols label { display:block; width:auto; text-align:left; padding:0 0 4px;
+                font-size:12px; line-height:1.3; }
+  .cols input, .cols select, .cols .chips { width:100%; }
+  .cols .wide { grid-column:1 / -1; }
   select { flex:1; box-sizing:border-box; background:#1d1d24; color:#f2f2f6;
            border:1px solid #33333e; border-radius:8px; padding:7px 10px;
            font-size:14px; }
@@ -283,11 +335,11 @@ function M.setup(core)
     <span class="after"><button type="button" onclick="say({a:'latest'})"
       title="Newest file from the ⇪4 screenshots folder (⌘L)">📸 newest</button></span></div>
 ]] .. detailsHtml .. [[
-  <div class="bar">
-    <button class="go" onclick="submitIt()">Create task&nbsp;&nbsp;⏎</button>
-    <span class="hint">only Title is required</span>
-  </div>
 </div>
+<footer class="bar">
+  <button class="go" onclick="submitIt()">Create task&nbsp;&nbsp;⏎</button>
+  <span class="hint">only Title is required</span>
+</footer>
 <script>
   // Every message carries every field — the Capture Pad's 6.44.7 lesson,
   // applied from day one: values collected in ONE place, so no button or
@@ -452,6 +504,40 @@ function M.setup(core)
         pcall(function() form.webview:html(form.buildHtml()) end)
     end
 
+    -- 📐 6.220.0 — THE GEOMETRY IS PURE, so the gate can prove it with no
+    -- Mac: how wide, how tall, how many columns, for a given field list
+    -- and a given screen. The three rules it carries:
+    --   · project fields → TWO columns, so twelve rows are six.
+    --   · the height NEVER passes form.maxHeight, and never comes within
+    --     120 pt of the screen's own height. Before this the window grew
+    --     with every field and clamped only at sf.h - 40 — taller than
+    --     LL's screen with the Create button below its bottom edge.
+    --   · the page scrolls inside that height; the footer holding the
+    --     button is outside the scroller, so it is always on screen.
+    function form.sizeFor(fields, sf)
+        fields = fields or {}
+        sf = sf or { x = 0, y = 0, w = 1440, h = 900 }
+        local rows, wide, n = 0, 0, 0
+        for _, f in ipairs(fields) do
+            if f.subtype == "multi_enum" then
+                -- chips wrap and span both columns
+                wide = wide + 30
+                     + math.ceil(math.max(1, #(f.options or {})) / 3) * 32
+                n = n + 1
+            elseif f.subtype == "enum" or f.subtype == "people"
+                or f.subtype == "number" or f.subtype == "text" then
+                rows = rows + 1
+                n = n + 1
+            end
+        end
+        local cols  = (n > 0) and 2 or 1
+        local extra = 100 + math.ceil(rows / cols) * form.fieldH + wide
+        local w = math.min(cols == 2 and form.wideWidth or form.width,
+                           sf.w - 40)
+        local h = math.min(form.height + extra, form.maxHeight, sf.h - 120)
+        return w, h, cols
+    end
+
     function form.hide()
         if form.webview then
             pcall(function() form.webview:delete() end)
@@ -474,22 +560,9 @@ function M.setup(core)
                        or (hs.screen and hs.screen.mainScreen and hs.screen.mainScreen())
         local sf = { x = 0, y = 0, w = 1440, h = 900 }
         pcall(function() if screen then sf = screen:frame() end end)
-        -- 6.152.0 — the window grows with the Details section: two
-        -- schedule rows plus one row per supported project field (a
-        -- multi-select is taller), clamped to the screen as before.
-        local extra = 100
-        for _, f in ipairs(_G.asanaCustomFields or {}) do
-            if f.subtype == "multi_enum" then
-                -- chips wrap: roughly three fit a row at this width
-                extra = extra + 24
-                       + math.ceil(math.max(1, #(f.options or {})) / 3) * 32
-            elseif f.subtype == "enum" or f.subtype == "people"
-                or f.subtype == "number" or f.subtype == "text" then
-                extra = extra + 44
-            end
-        end
-        local w = math.min(form.width,  sf.w - 40)
-        local h = math.min(form.height + extra, sf.h - 40)
+        local w, h, cols = form.sizeFor(_G.asanaCustomFields, sf)
+        form.lastSize = { w = w, h = h, cols = cols,
+                          fields = #(_G.asanaCustomFields or {}) }
         local rect = { x = sf.x + (sf.w - w) / 2, y = sf.y + (sf.h - h) / 3,
                        w = w, h = h }
 
@@ -582,6 +655,30 @@ function M.setup(core)
         _G.claimEscape("taskform", nil,
             function() return form.webview ~= nil end,
             function() form.hide() end)
+    end
+
+    -- 📋 6.220.0 — the one tool here with no report, and the geometry is
+    -- exactly the thing that needed reading: how big the window came out
+    -- and why.
+    _G.taskFormReport = function()
+        local L = { "✅ TASK FORM (⇪T) — " .. (form.enabled and "on" or "off") }
+        local n = #(_G.asanaCustomFields or {})
+        L[#L + 1] = "   project fields: " .. (n == 0
+            and "none yet — they arrive from Asana shortly after boot"
+            or (n .. " from the project · two columns"))
+        local s = form.lastSize
+        L[#L + 1] = "   window        : " .. (s and
+            (math.floor(s.w) .. " × " .. math.floor(s.h) .. " pt · "
+             .. s.cols .. " column(s) · never taller than "
+             .. form.maxHeight .. " pt")
+            or "not opened this session")
+        L[#L + 1] = "   create button : pinned in a footer below the scroll"
+        L[#L + 1] = "   draft         : " .. ((form.draft
+            and form.draft.title ~= "" and ('"' .. form.draft.title .. '"'))
+            or "empty")
+        L[#L + 1] = "   open now      : "
+                    .. (form.webview and "yes" or "no")
+        print(table.concat(L, "\n"))
     end
 
     _G.taskForm = form

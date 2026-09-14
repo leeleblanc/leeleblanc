@@ -4,9 +4,29 @@
 -- =====================================================================
 -- 09-14-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.219.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.220.0
 -- =====================================================================
 
+-- NEW IN 6.220.0 — 📐 THE ⇪T TASK FORM FITS ON THE SCREEN (modules/task_form.lua):
+--   LL, with a screenshot of the form running off the bottom: "Can you
+--      put the contents of this window hyper+t, so that the items do not
+--      run down one long list and we can see the blue create task
+--      button?" His Asana project publishes a dozen custom fields; each
+--      added a 44-pt row and the ONLY clamp was the screen itself, so
+--      the window came out taller than his display with the Create
+--      button below its bottom edge — unreachable, and no way to send
+--      the task from the mouse. Three changes, one shape: the page is a
+--      header / SCROLLER / footer sandwich (#wrap is the only thing that
+--      scrolls); the blue Create button lives in the FOOTER, outside
+--      that scroller, so no number of fields can push it away; and the
+--      project fields are laid TWO TO A ROW with each label ABOVE its
+--      control — an Asana field name ("| 🎯 ACD Strategic Principle |:")
+--      wrapped over four lines in the 104-pt right-hand gutter. The
+--      geometry is PURE (`form.sizeFor` → width, height, columns) and
+--      `form.maxHeight` (760) is the ceiling the old code never had.
+--      Nothing about submission, the draft, the schedule or the field
+--      values changed. New `_G.taskFormReport()`. 9,027 -> 9,046 checks.
+--
 -- NEW IN 6.219.0 — ✏️ AN APOSTROPHE INSIDE A WORD IS NOT A WORD ENDING (modules/autocorrect.lua):
 --   LL, on 6.218.0: "Doesnt't kinda works as you can see." The storm was
 --      gone; this was left. An apostrophe is a boundary character, so
@@ -26,35 +46,12 @@
 --      contractions that were not. Report line "apostrophe".
 --      9,012 -> 9,027 checks.
 --
--- NEW IN 6.218.0 — 🌩 AUTOCORRECT NO LONGER READS ITS OWN RETYPE (modules/autocorrect.lua):
---   LL, on 6.216.0: "locked the keyboard & took off like a banshee …
---      wouldn't stop creating tabs" and a field full of "dododod…doesnt".
---      His report named it: 24× "doesn → doesnt". hs.eventtap.keyStrokes
---      POSTS its keys — they reach the tap after the call returns — and
---      acInjecting was cleared on the very next line, so every word this
---      module retyped came back through its own tap as typing. Harmless
---      until a retype held a boundary: fix,doesnt,doesn't retypes an
---      apostrophe, "doesn" is not a word and "doesnt" is (Webster's
---      Second), so the spelling rule retyped doesnt', the row retyped
---      doesn't, for ever — and each "t" that missed the field was
---      Vimium's new tab. Not new in 6.216.0: the same loop ran on
---      6.215.0 when he typed "doesnt " on purpose. NOW the guard stays
---      up until the retype has DRAINED: the tap counts our own keyDowns
---      off as they come back and releases on the last one (his next
---      key is examined, not skipped); a held 0.3 s timer
---      (`injectHold`) is the belt for a key macOS never delivered. ⇪Z's
---      restore shares the same door — before this the restored word was
---      corrected again as it came back. The suite plays macOS now:
---      every injection is delivered back into the tap, and three
---      mutations (clear at once · no count · no timer) each fail.
---      Report line "retype guard". 8,995 -> 9,012 checks.
---
--- (6.217.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.218.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.219.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.220.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -151,7 +148,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.219.0"
+_G.configVersion = "6.220.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

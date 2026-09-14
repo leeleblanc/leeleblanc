@@ -114,6 +114,27 @@ work Mac.
   with two dictionary rows that answer each other (aaaa ⇄ bbbb) now.
   RULE: when a test uses one bug to demonstrate another, fixing the
   first silently retires the second — re-arm it in the same release.
+- 📐 A PANEL'S ACTION BUTTON LIVES OUTSIDE ITS SCROLLER (6.220.0,
+  modules/task_form.lua — LL: "so that the items do not run down one
+  long list and we can see the blue create task button"). ⇪T grew
+  480 + 100 + 44 pt per Asana project field and clamped only at
+  `sf.h - 40`, so eleven fields made a window taller than his screen
+  with the blue Create button below its bottom edge. THREE PARTS, and
+  the third closes the class: the project fields are a TWO-COLUMN grid
+  with each label ABOVE its control (the 104-pt right gutter wrapped
+  "| 🎯 ACD Strategic Principle |:" over four lines); `form.maxHeight`
+  (760) is a ceiling between the content and the screen; and the page
+  is header / `#wrap` scroller / `<footer>`, with the button in the
+  footer — no field count on any screen can push it away. `form.sizeFor
+  (fields, screen)` is PURE (width, height, columns) and the gate proves
+  all of it with no Mac; three mutations bite. `_G.taskFormReport()`.
+  🧪 RULE, and it generalises: AN ASSERTION ABOUT NESTING WRITTEN AS AN
+  ASSERTION ABOUT ORDER PASSES THE MUTATION IT EXISTS TO CATCH — "the
+  footer comes after #wrap opens" was green with the button put straight
+  back inside the scroller. Outside is a COUNTING question: the <div>
+  and </div> between #wrap's opening tag and the footer must balance.
+  RULE for any new panel: the send/save/confirm control is never inside
+  the part that scrolls.
 - 🔁 A RETYPE COMES BACK THROUGH THE TAP (6.218.0, modules/
   autocorrect.lua — LL's 6.216.0 "banshee"): hs.eventtap.keyStrokes
   and keyStroke POST their events; they reach every tap AFTER the call
@@ -1298,9 +1319,10 @@ as the fix when a loss lands.
 | 6.217.0 | ✂️ init.lua trimmed 3,796 → 3,534 (no behaviour change) + RESOLVED-FEATURE-REQUESTS.txt generated into every zip | pending — never installed; 6.218.0 carries it |
 | 6.218.0 | 🌩 autocorrect no longer reads its own retype: the guard drains by count, a 0.3 s held timer as the belt; ⇪Z shares the door; the suite plays macOS | pending — the storm IS gone (LL's report: "retype guard : 3 retype(s) · released by count 3 · by timer 0", teh → the, no tabs), but his words were "Doesnt't kinda works", which is the half 6.218.0 named and did not fix → 6.219.0. Asked him for the clean yes/no |
 | 6.219.0 | ✏️ an apostrophe inside a word is not a word ending: the word list is not asked on a ' (doesn't, wouldn't, mightn't, oughtn't) | pending |
+| 6.220.0 | 📐 the ⇪T task form fits: project fields two-up, a 760-pt ceiling, and the blue Create button pinned in a footer outside the scroller | pending |
 
-Running total: 14 wins · 5 losses · 4 pending (6.215.0, 6.217.0, 6.218.0,
-6.219.0).
+Running total: 14 wins · 5 losses · 5 pending (6.215.0, 6.217.0, 6.218.0,
+6.219.0, 6.220.0).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
@@ -1319,8 +1341,10 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   Hammerspoon now."; if it goes missing again, the dock icon being
   HIDDEN is the first suspect — `me:allWindows()` on an accessory app;
   hs.console.hswindow stays banned). ✏️ "doesn't" BY HAND ✔ shipped as 6.219.0 (measured: four
-  contractions, not four hundred). NEXT: 📋 THE CLIPBOARD, artefact
-  first (see below). Then ✏️ the Edit OCR
+  contractions, not four hundred). 📋 THE CLIPBOARD's first artefact is in
+  and ruled the breaker out (see below). 📐 The ⇪T form's layout
+  jumped the queue on LL's own ask, shipped as 6.220.0. NEXT:
+  📋 `_G.clipboardReport()`. Then ✏️ the Edit OCR
   entry window does not take the caret (the page calls t.focus() but
   the webview window is not key — after bringToFront, focus the
   hswindow on a held timer and re-run t.focus()); then the OCR junk
@@ -1346,8 +1370,23 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
 - 📋 COPY / HISTORY NOT SHOWING RECENT COPIES (LL, 2026-09-13: "I'm
   not sure my copy and history is working. I don't see items that i
   just copied."). NOT diagnosed, NO code — the artefact comes first
-  (6.201.0's rule). Asked: `_G.clipboardPollReport()`. Read, not
-  proven, in order of suspicion: (1) init.lua's THRASH BREAKER
+  (6.201.0's rule). 🔎 HIS ARTEFACT CAME BACK (2026-09-14, on 6.219.0):
+  "📋 clipboard poll — changes 3 · thrash rests 0 · longest run 1
+  ticks · breaker 6 ticks / 60s". THAT CLEARS SUSPECT #1 OUTRIGHT —
+  the breaker never rested the poll, not once, and the longest run of
+  changed ticks all session was ONE. The poll IS running and IS seeing
+  changes; it saw exactly three. So the question moved: three changes
+  is either a poll that started late in the session (the report does
+  not say WHEN it started, and should), or copies that moved the
+  pasteboard and were not FILED (suspect #2, or clip.save refusing —
+  suspect #4), or a session in which he genuinely copied three times.
+  A change COUNT cannot tell those apart, and that is the gap: the next
+  artefact is `_G.clipboardReport()` (6.202.0's queued report) — newest
+  item, its time, how many are stored, the last refusal — and that IS
+  the next release. Ask alongside it: copy three distinct strings, then
+  run both reports, so "changes" and "stored" are compared on known
+  input. Read, not proven: (1) ❌ RULED OUT BY HIS REPORT — the
+  THRASH BREAKER
   (6.170.2) rests the poll `_G.clipboardThrashRest` (60 s) after
   `_G.clipboardThrashTicks` (6) changed ticks in a row and prints ONE
   ⚠️ line — every copy inside that window is never filed; the report's
@@ -1426,6 +1465,17 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   the pieces a ' handed to the dictionary alone, and the "spelling :"
   block must no longer list `Doesn → Doesnt`. KNOWN AND ACCEPTED: a
   typo right before an apostrophe (somethign's) is not corrected now.
+- 6.220.0 verify with LL — ⇪T FITS: install (carries 6.219.0). ⇪T —
+  the window is wider (820) and no taller than 760 pt, and the blue
+  "Create task ⏎" button is visible at the BOTTOM from the first
+  second and stays there while the middle of the form scrolls. The
+  project fields are TWO TO A ROW with their names above them; SAC
+  Values still runs the full width. Everything still works: pick a
+  Priority, tick two SAC Values, type a Title, ⏎ — the task is created
+  with those values; Esc still keeps the draft. Console:
+  `_G.taskFormReport()` — "window : 820 × NNN pt · 2 column(s)". If it
+  is still too tall or now too small, NO release: `settings =
+  { task_form = { maxHeight = 640, wideWidth = 900 } }`.
 - 6.217.0 verify with LL — THE TRIM + THE LIST: install (carries
   6.216.0). Boot line reads 6.217.0, All green, 71 modules; every ⇪
   key works as before (nothing but comments changed). At the zip root:

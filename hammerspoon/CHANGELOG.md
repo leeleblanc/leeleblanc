@@ -5,6 +5,76 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.220.0 — 📐 THE ⇪T TASK FORM FITS ON THE SCREEN (modules/task_form.lua):
+  LL, with two screenshots of the form and one question: "Can you put
+     the contents of this window hyper+t, so that the items do not run
+     down one long list and we can see the blue create task button?"
+     The screenshots are the whole bug: Title, Description, Assignee,
+     Attachment, the schedule, then ELEVEN project fields one under the
+     other — Task Priority, Progress, Action by, Supervisor, Link/URL,
+     Attachment, Subtask, Xref, Rx, Dashboard — and the blue Create task
+     button at the bottom of a window that is taller than his display.
+  THE ARITHMETIC THAT DID IT (6.152.0, and correct until his project
+     grew): the window's height was 480 plus 100 plus 44 pt per project
+     field plus a wrapping chips row, clamped ONLY at `sf.h - 40`. Eleven
+     fields is ~1,090 pt of window on a screen that will show 860. A
+     clamp against the screen does not help — it makes the window exactly
+     as tall as the screen and leaves the content that did not fit below
+     the bottom edge, with the page's only scroll being the whole body,
+     button and all.
+  THREE CHANGES, ONE SHAPE — and the third is the one that closes the
+     class:
+     · TWO COLUMNS. The project fields are a CSS grid, two to a row, each
+       label ABOVE its control rather than in the 104-pt right-aligned
+       gutter the top four fields use. That gutter is what turned
+       "| 🎯 ACD Strategic Principle |:" into four wrapped lines in his
+       screenshot; above the control it has the whole cell. A chips field
+       (SAC Values) spans both columns, because its checkboxes already
+       wrap. Eleven rows become six.
+     · A CEILING. `form.maxHeight` (760) sits between the content and the
+       screen, and the screen clamp tightened from `sf.h - 40` to
+       `sf.h - 120`. The window is now a size somebody chose.
+     · THE BUTTON IS OUTSIDE THE SCROLLER. The page is three bands —
+       header, `#wrap` (flex:1, min-height:0, overflow-y:auto), and a
+       `<footer>` holding Create task. Whatever does not fit scrolls in
+       the middle band; the button cannot be pushed off the bottom by any
+       number of fields, on any screen, ever again. That is the answer to
+       his question, and it is the half that does not depend on counting
+       rows correctly.
+  📐 THE GEOMETRY IS PURE: `form.sizeFor(fields, screen)` returns width,
+     height and column count and reads nothing else, so the gate proves
+     all of it with no Mac — twelve fields fit under maxHeight, a short
+     screen wins over maxHeight, four fields cost exactly ONE row more
+     than two (the halving), an odd count rounds up, an unsupported
+     subtype costs nothing. Three mutations, each failing its own row:
+     the old `sf.h - 40` clamp, one column instead of two, and the footer
+     moved back inside the scroller.
+  🧪 AND THE FOOTER CHECK HAD TO BE STRUCTURAL, not an ordering test.
+     Written first as "the footer comes after #wrap opens", it passed
+     with the button put straight back inside the scroller — the bug it
+     exists to catch. "Outside" is a COUNTING question: the <div> and
+     </div> tags between #wrap's opening tag and the footer must balance,
+     which they do only if #wrap has closed. RULE, and it generalises to
+     every layout check in this config: an assertion about NESTING that
+     is written as an assertion about ORDER passes the mutation it was
+     written for.
+  Nothing about submission, the draft, the schedule, the field values or
+     the ⇪T binding changed — this release is the page's layout and the
+     numbers that size its window. New `_G.taskFormReport()`: the field
+     count, the window it last drew, the column count, the ceiling, the
+     draft, and that the button is pinned. This module was the last panel
+     here with no report, and the geometry was exactly the thing that
+     needed reading. 9,027 -> 9,046 checks.
+  NOT IN THIS RELEASE, deliberately: the 🎵 mini music player and the
+     rest of the held queue — one change per release, and LL still owes
+     three answers on the player (which audio formats he actually has,
+     whether ⇪⇧numpad. exists on BOTH Macs, and what he wants for volume
+     and seek). The clipboard is UNDIAGNOSED and still artefact-first:
+     his `_G.clipboardPollReport()` came back "changes 3 · thrash rests 0
+     · longest run 1 ticks", which CLEARS suspect #1 — the thrash breaker
+     never fired — and leaves the poll seeing only three pasteboard
+     changes in a session, which is the next thing to measure.
+
 NEW IN 6.219.0 — ✏️ AN APOSTROPHE INSIDE A WORD IS NOT A WORD ENDING (modules/autocorrect.lua):
   LL, on installing 6.218.0: "Spelling / Doesnt't kinda works as you can
      see. / teh turn into the." The storm was gone — his report proved

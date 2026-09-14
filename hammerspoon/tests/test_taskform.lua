@@ -406,6 +406,131 @@ check("no webview → falls back to the pipe chooser, so a stripped build "
 hs.webview = savedWebview
 
 -- =====================================================================
+out("9. 6.220.0 — the form FITS: two columns, and a pinned Create button\n")
+-- =====================================================================
+-- LL, with a screenshot of a form running off the bottom of his screen:
+-- "Can you put the contents of this window hyper+t, so that the items
+-- do not run down one long list and we can see the blue create task
+-- button?" His project has a dozen custom fields; each one added 44 pt
+-- to the window and the clamp was the SCREEN, so the button sat below
+-- the bottom edge with no way to reach it.
+local mine = 0
+local function ck(label, cond, extra) mine = mine + 1; check(label, cond, extra) end
+
+local SCREEN = { x = 0, y = 0, w = 1440, h = 900 }
+local function enums(n)
+    local t = {}
+    for i = 1, n do
+        t[#t + 1] = { gid = "E" .. i, name = "Field " .. i, subtype = "enum",
+                      options = { { gid = "o", name = "one" } } }
+    end
+    return t
+end
+
+local w0, h0, c0 = F.sizeFor({}, SCREEN)
+ck("no project fields: one column, the old 560 width", c0 == 1 and w0 == 560, w0)
+
+local wN, hN, cN = F.sizeFor(enums(12), SCREEN)
+ck("twelve project fields: TWO columns", cN == 2, cN)
+ck("…and the wider window to carry them", wN == F.wideWidth, wN)
+ck("🚨 THE HEIGHT NEVER PASSES form.maxHeight — the whole bug",
+   hN <= F.maxHeight, hN)
+ck("…and never comes within 120 pt of the screen's own height",
+   hN <= SCREEN.h - 120, hN)
+local _, hShort = F.sizeFor(enums(12), { x = 0, y = 0, w = 1440, h = 700 })
+ck("…on a SHORT screen the screen wins over maxHeight", hShort <= 580, hShort)
+
+-- the grid arithmetic, with the cap lifted out of the way: four fields
+-- are TWO rows, not four. A mutation that lays them one per row makes
+-- the two heights differ by 2 x fieldH and this fails.
+local savedMax = F.maxHeight
+F.maxHeight = 100000
+local tall = { x = 0, y = 0, w = 1440, h = 100000 }
+local _, h2 = F.sizeFor(enums(2), tall)
+local _, h4 = F.sizeFor(enums(4), tall)
+local _, h5 = F.sizeFor(enums(5), tall)
+ck("two columns HALVE the rows: 4 fields cost exactly one row more than 2",
+   h4 - h2 == F.fieldH, h4 - h2)
+ck("…an odd count rounds up, never down (5 fields = 3 rows)",
+   h5 - h4 == F.fieldH, h5 - h4)
+local _, hSkip = F.sizeFor({ { gid = "X", name = "Formula",
+                              subtype = "formula", options = {} } }, tall)
+local _, hNone = F.sizeFor({}, tall)
+ck("an unsupported subtype costs no height — it is not drawn",
+   hSkip == hNone, hSkip .. " vs " .. hNone)
+F.maxHeight = savedMax
+
+-- the window actually opens at that size
+_G.asanaCustomFields = enums(12)
+_G.taskFormShow()
+local wantW, wantH = F.sizeFor(_G.asanaCustomFields, SCREEN)
+ck("the window opens at exactly the size sizeFor decided",
+   VIEW.rect.w == wantW and VIEW.rect.h == wantH,
+   VIEW.rect.w .. "x" .. VIEW.rect.h)
+
+-- the page: three bands
+local wrapCss = LAST_HTML:find("#wrap { flex:1 1 auto; min%-height:0; overflow%-y:auto")
+ck("#wrap is the SCROLLER (flex:1, min-height:0, overflow-y:auto)",
+   wrapCss ~= nil)
+local footAt = LAST_HTML:find('<footer class="bar">', 1, true)
+local btnAt  = LAST_HTML:find("Create task", 1, true)
+local wrapAt = LAST_HTML:find('<div id="wrap">', 1, true)
+-- OUTSIDE means the <div id="wrap"> is CLOSED before the footer opens,
+-- which is a counting question, not an ordering one: a footer moved
+-- back inside the scroller still comes after the wrap's opening tag.
+local opens, closes = 0, 0
+if footAt and wrapAt then
+    local slice = LAST_HTML:sub(wrapAt, footAt)
+    for _ in slice:gmatch("<div") do opens = opens + 1 end
+    for _ in slice:gmatch("</div>") do closes = closes + 1 end
+end
+ck("🚨 THE CREATE BUTTON IS OUTSIDE THE SCROLLER — #wrap is closed "
+   .. "before the footer opens, so a project with a dozen fields can "
+   .. "never push the button off the bottom (LL's screenshot)",
+   footAt ~= nil and btnAt ~= nil and wrapAt ~= nil
+   and btnAt > footAt and opens == closes and opens > 0,
+   opens .. " <div vs " .. closes .. " </div>")
+ck("…and the footer is flex:none, so the scroller yields to it, not it "
+   .. "to the scroller",
+   LAST_HTML:find("footer.bar { flex:none", 1, true) ~= nil)
+ck("the project fields sit in a two-column grid",
+   LAST_HTML:find('<div class="cols">', 1, true) ~= nil
+   and LAST_HTML:find("grid%-template%-columns:repeat%(2") ~= nil)
+ck("…each cell puts its label ABOVE its control (an Asana field name is "
+   .. "long and a 104-pt right gutter wrapped it over four lines)",
+   LAST_HTML:find(".cols label { display:block; width:auto", 1, true) ~= nil)
+
+_G.asanaCustomFields = {
+    { gid = "M", name = "SAC Values", subtype = "multi_enum",
+      options = { { gid = "a", name = "One" }, { gid = "b", name = "Two" } } },
+    { gid = "E", name = "Priority", subtype = "enum",
+      options = { { gid = "o", name = "High" } } },
+}
+msg("close", {})
+_G.taskFormShow()
+ck("a chips field SPANS both columns; an ordinary field does not",
+   LAST_HTML:find('class="row cf%-row wide"') ~= nil
+   and LAST_HTML:find('class="row cf%-row"') ~= nil)
+
+msg("close", {})
+_G.asanaCustomFields = {}
+_G.taskFormShow()
+ck("with no project fields there is no grid at all — the hint row stays",
+   LAST_HTML:find('<div class="cols">', 1, true) == nil
+   and LAST_HTML:find("project fields load shortly after boot", 1, true) ~= nil)
+
+printed = {}
+_G.taskFormReport()
+local rep = table.concat(printed, "\n")
+ck("_G.taskFormReport() names the window it drew and the pinned button",
+   rep:find("TASK FORM", 1, true) ~= nil
+   and rep:find("column", 1, true) ~= nil
+   and rep:find("pinned in a footer", 1, true) ~= nil, rep)
+msg("close", {})
+
+check("§9 ran every one of its checks", mine == 18, mine)
+
+-- =====================================================================
 out(("\n%d passed, %d failed\n"):format(pass, fail))
 for _, f in ipairs(failures) do out("    ❌ " .. f .. "\n") end
 out("\n")
