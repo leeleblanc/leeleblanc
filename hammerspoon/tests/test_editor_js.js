@@ -894,6 +894,91 @@ console.log("── Screenshot Editor: page JavaScript, executed ──");
         vm.runInContext("JSON.stringify(notes)", ctx));
 }
 
+// =====================================================================
+// 10. 6.221.0 — ⌘ IS THE EDIT TOOL, whatever tool is armed
+// =====================================================================
+// LL: "After I add a text box or any other item I am having trouble
+// editing the added items like the text box. Can you make it so that if
+// I hold down command while in the edit, allow me to edit text boxes or
+// any other tool addition." Two promises, both driven here: a ⌘-click on
+// a mark reaches it whatever tool is armed (and a TEXT box opens its
+// words at once), and a ⌘-click that MISSES creates nothing — which is
+// the half that stops a stray arrow every time he aims and lands a pixel
+// outside the box.
+const cmdMouse = (x, y) => Object.assign(mouse(x, y), { metaKey: true });
+{
+  // a 400x300 canvas, like the 6.212.0 section: grab radii are IMAGE
+  // pixels, and on a 40-px canvas every point is "inside" the one note
+  const env = load(undefined, { w: 400, h: 300 });
+  env.call("setTool('text')");
+  env.listeners.ov.mousedown(mouse(60, 60));
+  env.tin.value = "Hello";
+  env.listeners.tin.keydown(key({ key: "Enter" }));
+  env.call("setTool('arrow')");
+  check("(fixture) one text note, and the ARROW tool is armed",
+        env.call("notes.length") === 1 && env.call("tool") === "arrow");
+
+  // ⌘-click ON the box, with the Arrow tool armed
+  env.listeners.ov.mousedown(cmdMouse(61, 58));
+  env.listeners.window.mouseup(cmdMouse(61, 58));
+  check("🚨 ⌘-click on a text box opens ITS words with the ARROW tool armed"
+        + " — no tool swap, no double-click",
+        env.tin.style.display === "block" && env.tin.value === "Hello"
+        && env.call("notes.length") === 1,
+        env.tin.style.display + " / " + env.tin.value + " / " + env.call("notes.length"));
+  env.tin.value = "Edited";
+  env.listeners.tin.keydown(key({ key: "Enter" }));
+  check("…and the edit lands on THAT note, no new one",
+        env.call("notes[0].text") === "Edited" && env.call("notes.length") === 1);
+
+  // 🚨 the half that matters most: a ⌘-click that misses makes NOTHING.
+  // Asserted AT THE MOUSEDOWN, because a fresh zero-length arrow is
+  // discarded on mouseup anyway — a check that only counts notes after
+  // the release passes with this guard deleted (it did).
+  const before = env.call("notes.length");
+  env.listeners.ov.mousedown(cmdMouse(300, 240));
+  check("🚨 a ⌘-click on EMPTY canvas with the Arrow tool armed starts no"
+        + " drag and adds no note — the stray arrow is the bug he reported",
+        env.call("notes.length") === before && env.call("!drag"),
+        env.call("notes.length") + " / " + env.call("drag && drag.mode"));
+  check("…and it clears the selection rather than leaving a stale one",
+        env.call("sel === null"));
+  env.listeners.window.mousemove(cmdMouse(320, 250));
+  env.listeners.window.mouseup(cmdMouse(320, 250));
+  check("…and dragging on from there still leaves nothing behind",
+        env.call("notes.length") === before, env.call("notes.length"));
+
+  // without ⌘ the same empty spot still draws, so the tools are untouched
+  env.listeners.ov.mousedown(mouse(300, 240));
+  check("a BARE press on empty canvas still starts an arrow — ⌘ narrows"
+        + " nothing when it is not held",
+        env.call("notes.length") === before + 1
+        && env.call("notes[notes.length-1].kind") === "arrow",
+        env.call("notes.length") + " / " + env.call("notes[notes.length-1].kind"));
+  env.listeners.window.mousemove(mouse(340, 260));
+  env.listeners.window.mouseup(mouse(340, 260));
+
+  // ⌘-click reaches a NON-text mark too: it selects, ready for ⌫ or a drag
+  env.call("setTool('oval')");
+  env.listeners.ov.mousedown(cmdMouse(300, 240));
+  env.listeners.window.mouseup(cmdMouse(300, 240));
+  check("⌘-click on an arrow END selects that arrow with the Oval tool armed",
+        env.call("sel === notes[notes.length-1]") && env.tin.style.display === "none",
+        env.call("JSON.stringify(sel)"));
+  env.listeners.window.keydown(key({ key: "Backspace" }));
+  check("…so ⌫ deletes the mark he just clicked",
+        env.call("notes.length") === before, env.call("notes.length"));
+
+  // a ⌘-DRAG on a mark still moves it — ⌘ adds a door, it does not take one
+  env.call("setTool('blur')");
+  env.listeners.ov.mousedown(cmdMouse(61, 58));
+  env.listeners.window.mousemove(cmdMouse(73, 67));
+  env.listeners.window.mouseup(cmdMouse(73, 67));
+  check("a ⌘-drag on the text box MOVES it and opens no input",
+        env.call("notes[0].x") === 72 && env.tin.style.display === "none",
+        env.call("notes[0].x") + " / " + env.tin.style.display);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 for (const f of failures) console.log("    ❌ " + f);
 process.exit(fail === 0 ? 0 : 1);

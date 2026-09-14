@@ -5,6 +5,73 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.221.0 — ⌘ IS THE EDIT TOOL IN THE SCREENSHOT EDITOR (modules/screenshot_editor.lua):
+  LL, with a screenshot marked up in the editor itself: "After I add a
+     text box or any other item I am having trouble editing the added
+     items like the text box. Can you make it so that if I hold down
+     command while in the edit, allow me to edit text boxes or any other
+     tool addition." His own annotation carried the evidence — a text box
+     reading "NOW IS HTETTIME", a typo he could not get back into.
+  WHAT HOLDING ⌘ DOES NOW, whatever tool is armed: ⌘-click a TEXT box and
+     its words open at once, pre-filled (6.207.0 gave that to the Text
+     tool only, and a double-click to everything else — both mean
+     stopping to think about which tool is armed); ⌘-click any other mark
+     — arrow, line, oval, highlight, counter, magnifier — and it is
+     selected, ready for ⌫ or a drag. A ⌘-drag on a mark still moves it:
+     ⌘ adds a door, it takes none away, and a bare click still draws.
+  🚨 AND THE HALF THAT STOPS THE MESS: A ⌘-CLICK THAT MISSES CREATES
+     NOTHING. With a tool armed, aiming at a mark and landing a pixel
+     outside it draws a new one — which is most of what "having trouble
+     editing the added items" actually is. Under ⌘ a miss clears the
+     selection and stops: no note, no rubber band.
+  🚨 ⌘ WAS NOT FREE INSIDE THAT WINDOW, AND NOTHING WOULD HAVE SAID SO.
+     window_move's tap (6.89.0) begins a window drag on a bare-⌘ left
+     mouse-down anywhere inside a panel listed in _G.movablePanels and
+     CONSUMES the click, so the page could never have seen a ⌘-click:
+     LL's ⌘-click would have picked the editor up and moved it, and the
+     page's new code would have looked simply broken. Found by reading
+     window_move before promising the key — the same habit the hyper
+     collision auditor enforces for ⇪ combos, applied to a mouse
+     modifier, where there is no auditor at all.
+  📐 THE FIX IS THE LISTED FRAME: `ed.stripOf(frame, h)` is PURE — the
+     top strip of a window, clamped to it, nil for no frame and nil for a
+     zero or negative height (never a rectangle at 0,0, never the whole
+     window by accident) — and the editor lists `ed.dragStrip()`, its
+     title bar. `ed.dragStripH` is 54, the number the page's own CSS
+     measures #stage from, and a sentry in the suite fails if those two
+     ever drift apart. The window is not less movable: its header has
+     been the drag handle since 6.89.0 and ⌘-drag still works there.
+     GENERAL RULE: `frame` in _G.movablePanels answers "where does
+     ⌘-drag grab this panel", not "where is this window" — a panel whose
+     PAGE wants ⌘ narrows it to the strip it is happy to be dragged by.
+  🧪 THE FIRST VERSION OF THE CHECK PASSED WITH THE GUARD DELETED, and
+     the reason is worth keeping: a fresh zero-length arrow is discarded
+     on mouseup anyway, so counting notes AFTER the release proved
+     nothing at all. It asserts at the MOUSEDOWN now — no drag started,
+     no note added — and the mutation fails it. Same family as 6.220.0's
+     ordering-vs-nesting lesson: the check has to be made where the thing
+     it forbids would actually happen.
+  Ten new page checks (node) and eleven new Lua checks; four mutations,
+     each failing its own row: the empty-canvas guard, ⌘'s half of
+     clickEdit, the whole window listed for ⌘-drag again, and an
+     unclamped strip. The editor's webview stub had no :frame() at all
+     until now — the real one answers it, so the strip could not have
+     been read wrong OR right. 9,046 -> 9,067 checks.
+  NOT IN THIS RELEASE: the PINK SQUIGGLE under a doubled word ("See that
+     double 'edit edit'"). It is next, and it is not a squiggle: nothing
+     can draw under text inside Chrome's or Asana's own text field —
+     macOS gives no way to paint into another app's editing surface, and
+     this config has never touched LL's text without being asked. What
+     CAN be done is described in CLAUDE.md and will be built on his
+     word: autocorrect already watches word boundaries, so the doubled
+     word is detectable at the moment the second one is typed, and the
+     flag can be a pink underline drawn ON TOP of the words when the app
+     answers AX for the caret's rectangle, with a brief pink alert
+     naming the word as the degrade everywhere else. Also not built: the
+     🎵 mini music player, now fully answered (mp3 and m4a only, a full
+     Apple keyboard with a numpad on BOTH Macs, native volume keys) —
+     one change per release.
+
 NEW IN 6.220.0 — 📐 THE ⇪T TASK FORM FITS ON THE SCREEN (modules/task_form.lua):
   LL, with two screenshots of the form and one question: "Can you put
      the contents of this window hyper+t, so that the items do not run

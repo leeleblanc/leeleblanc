@@ -80,6 +80,9 @@ hs = {
             function v:behaviorAsLabels() return self end
             function v:bringToFront() return self end
             function v:evaluateJavaScript(js) JS[#JS + 1] = js; return self end
+            -- 6.221.0 — the REAL webview answers :frame() and takes one;
+            -- a stub without it hid a ⌘-drag strip that could not be read
+            function v:frame(f) if f then self.rect = f end return self.rect end
             VIEW = v
             return v
         end,
@@ -405,6 +408,65 @@ do
           and LAST_HTML:find("var VEIL = 0.55;", 1, true) ~= nil)
     E.close()
 end
+
+-- =====================================================================
+out("\n10. 6.221.0 — ⌘ belongs to the PAGE below the title bar\n")
+-- =====================================================================
+-- window_move's tap takes a bare-⌘ left-mouse-down anywhere inside a
+-- listed panel's frame and begins a window drag, consuming the click. So
+-- for LL's ⌘-click to reach a mark at all, this module must list only
+-- the strip it is happy to be dragged by — its header.
+local mine = 0
+local function ck(label, cond, extra) mine = mine + 1; check(label, cond, extra) end
+
+local F = { x = 100, y = 50, w = 900, h = 700 }
+local strip = E.stripOf(F, 54)
+ck("stripOf keeps the panel's x, y and WIDTH", strip and strip.x == 100
+   and strip.y == 50 and strip.w == 900)
+ck("🚨 …and only the header's height, so ⌘ below it reaches the canvas",
+   strip and strip.h == 54, strip and strip.h)
+ck("a strip taller than the window is CLAMPED to the window",
+   (E.stripOf({ x = 0, y = 0, w = 10, h = 20 }, 54) or {}).h == 20)
+ck("no frame → no strip (never a rectangle at 0,0)", E.stripOf(nil, 54) == nil
+   and E.stripOf({ x = 1 }, 54) == nil)
+ck("a zero or negative height → no strip, never the whole window",
+   E.stripOf(F, 0) == nil and E.stripOf(F, -10) == nil)
+
+local entry
+for _, e in ipairs(_G.movablePanels or {}) do
+    if e.name == "screenshot editor" then entry = e end
+end
+ck("the editor is still listed for Window Move", entry ~= nil)
+E.open(SRC)
+local listed = entry and entry.frame()
+local win = E.webview and E.webview:frame()
+ck("🚨 THE LISTED FRAME IS THE HEADER, NOT THE WINDOW — ⌘ inside the "
+   .. "drawing area is the page's now, which is the whole of this fix",
+   listed and win and listed.h == 54 and win.h > 54
+   and listed.w == win.w and listed.y == win.y,
+   listed and (listed.w .. "x" .. listed.h) or "nil")
+ck("…and it still MOVES the whole window, not the strip",
+   (function()
+        entry.move(win.x + 40, win.y + 30)
+        local f = E.webview:frame()
+        return f.x == win.x + 40 and f.y == win.y + 30
+               and f.w == win.w and f.h == win.h
+    end)())
+E.close()
+ck("with the editor closed the strip is nil — nothing to ⌘-drag",
+   entry.frame() == nil)
+
+-- 🔒 the strip height and the page's own header height are ONE number.
+-- If the header's CSS grows and this does not, ⌘-drag grabs part of the
+-- canvas again — silently, and only on his Mac.
+E.open(SRC)
+ck("the page's #stage height is measured from the SAME header height the "
+   .. "⌘-drag strip uses — the two cannot drift apart",
+   LAST_HTML:find("height:calc(100vh - " .. E.dragStripH .. "px)", 1, true) ~= nil,
+   E.dragStripH)
+E.close()
+
+check("§10 ran every one of its checks", mine == 10, mine)
 
 out(("\n%d passed, %d failed\n"):format(pass, fail))
 for _, f in ipairs(failures) do out("    ❌ " .. f .. "\n") end

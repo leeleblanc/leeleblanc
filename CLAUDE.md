@@ -114,6 +114,32 @@ work Mac.
   with two dictionary rows that answer each other (aaaa ⇄ bbbb) now.
   RULE: when a test uses one bug to demonstrate another, fixing the
   first silently retires the second — re-arm it in the same release.
+- ⌘ A PANEL'S PAGE AND THE ⌘-DRAG PANEL MOVER BOTH WANT ⌘ (6.221.0,
+  modules/screenshot_editor.lua + modules/window_move.lua). LL asked for
+  ⌘-click to edit a mark in the ⇪⇧1 editor; ⌘ WAS ALREADY SPENT INSIDE
+  THAT WINDOW and nothing would have said so — window_move's tap begins a
+  window drag on a bare-⌘ left mouse-down anywhere inside a panel listed
+  in `_G.movablePanels` and CONSUMES the click, so the page could never
+  have seen it and the new code would have looked simply broken. THE FIX
+  IS THE LISTED FRAME: `frame` in _G.movablePanels answers "where does
+  ⌘-drag GRAB this panel", not "where is this window" — a panel whose
+  page wants ⌘ narrows it to the strip it is happy to be dragged by
+  (`ed.stripOf`, PURE and clamped; `ed.dragStripH` = 54, the same number
+  the page's CSS measures #stage from, with a sentry that fails on
+  drift). The editor is no less movable: its header has been the drag
+  handle since 6.89.0. 🔎 RULE: there is no collision auditor for MOUSE
+  modifiers the way there is for ⇪ combos — read window_move (and any
+  other global tap) before promising LL a click.
+  🖱 WHAT ⌘ DOES IN THE EDITOR: reaches a mark whatever tool is armed —
+  a TEXT box opens its words at once, any other mark is selected — and
+  A ⌘-CLICK THAT MISSES CREATES NOTHING, which is most of what "trouble
+  editing the added items" actually was (aim at a box, land a pixel
+  outside, draw a new arrow).
+  🧪 And the check on that guard PASSED with the guard deleted: a fresh
+  zero-length arrow is discarded on mouseup anyway, so counting notes
+  after the RELEASE proved nothing. Assert at the mousedown. Same family
+  as 6.220.0's ordering-vs-nesting: put the check where the forbidden
+  thing would actually happen.
 - 📐 A PANEL'S ACTION BUTTON LIVES OUTSIDE ITS SCROLLER (6.220.0,
   modules/task_form.lua — LL: "so that the items do not run down one
   long list and we can see the blue create task button"). ⇪T grew
@@ -1319,10 +1345,11 @@ as the fix when a loss lands.
 | 6.217.0 | ✂️ init.lua trimmed 3,796 → 3,534 (no behaviour change) + RESOLVED-FEATURE-REQUESTS.txt generated into every zip | pending — never installed; 6.218.0 carries it |
 | 6.218.0 | 🌩 autocorrect no longer reads its own retype: the guard drains by count, a 0.3 s held timer as the belt; ⇪Z shares the door; the suite plays macOS | pending — the storm IS gone (LL's report: "retype guard : 3 retype(s) · released by count 3 · by timer 0", teh → the, no tabs), but his words were "Doesnt't kinda works", which is the half 6.218.0 named and did not fix → 6.219.0. Asked him for the clean yes/no |
 | 6.219.0 | ✏️ an apostrophe inside a word is not a word ending: the word list is not asked on a ' (doesn't, wouldn't, mightn't, oughtn't) | pending |
-| 6.220.0 | 📐 the ⇪T task form fits: project fields two-up, a 760-pt ceiling, and the blue Create button pinned in a footer outside the scroller | pending |
+| 6.220.0 | 📐 the ⇪T task form fits: project fields two-up, a 760-pt ceiling, and the blue Create button pinned in a footer outside the scroller | pending — his screenshot shows it rendering: two columns, the Create button visible. Not scored |
+| 6.221.0 | ⌘ in the ⇪⇧1 editor edits any mark whatever tool is armed (and a ⌘-click that misses creates nothing); the window's ⌘-drag narrows to its title bar | pending |
 
-Running total: 14 wins · 5 losses · 5 pending (6.215.0, 6.217.0, 6.218.0,
-6.219.0, 6.220.0).
+Running total: 14 wins · 5 losses · 6 pending (6.215.0, 6.217.0, 6.218.0,
+6.219.0, 6.220.0, 6.221.0).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
@@ -1343,8 +1370,11 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   hs.console.hswindow stays banned). ✏️ "doesn't" BY HAND ✔ shipped as 6.219.0 (measured: four
   contractions, not four hundred). 📋 THE CLIPBOARD's first artefact is in
   and ruled the breaker out (see below). 📐 The ⇪T form's layout
-  jumped the queue on LL's own ask, shipped as 6.220.0. NEXT:
-  📋 `_G.clipboardReport()`. Then ✏️ the Edit OCR
+  jumped the queue on LL's own ask, shipped as 6.220.0; ⌘ editing a
+  mark in the ⇪⇧1 editor did the same, shipped as 6.221.0. NEXT:
+  📋 `_G.clipboardReport()`, then 🟥 the doubled word (see below),
+  then 🎵 the music player — its three questions are ANSWERED now
+  (mp3/m4a, a numpad on both Macs, native volume keys). Then ✏️ the Edit OCR
   entry window does not take the caret (the page calls t.focus() but
   the webview window is not key — after bringToFront, focus the
   hswindow on a held timer and re-run t.focus()); then the OCR junk
@@ -1416,9 +1446,15 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   ⌘1–9. Engine: hs.sound (NSSound) plays mp3/m4a/aac/wav/aiff
   natively — no binary, works on the work Mac; FLAC/ogg do NOT play
   through it (say so per file, never throw). Drag-and-drop needs a
-  webview (canvas has no drop target). ASKED: which formats he
-  actually has; whether ⇪⇧numpad. is on a keyboard with a numpad on
-  BOTH Macs (the Air has none → a fallback key); volume/seek keys.
+  webview (canvas has no drop target). ✅ ALL THREE ANSWERED (LL,
+  2026-09-14): "just mp3, m4a" — so hs.sound covers his whole library
+  and the FLAC/ogg degrade is a message he will never see; "Both macs,
+  home/work/ use a full Apple Keyboard and Magic pad" — a NUMPAD EXISTS
+  ON BOTH, so ⇪⇧numpad. needs no fallback key (check hint.groups before
+  binding); "Native volume keys work" — NO volume keys in the player,
+  and seek was not asked for, so v1 ships without either and they are
+  his call afterwards. NOTHING ELSE IS BLOCKING IT — it is a build when
+  its turn comes.
 - ✏️ EDIT OCR ENTRY HAS NO CARET (LL, 2026-09-13): the 6.213.5
   `editor.open` window opens front but the caret is not in the box.
   Read: the page calls t.focus() at load; the webview window is not
@@ -1436,6 +1472,28 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   Applies at ocr.record time (the log) AND as a one-shot clean of the
   existing history through the same rewriter ⇪⇧O uses — quote-aware,
   path column kept (6.187.0's rule).
+- 🟥 DOUBLE WORD FLAGGED (LL, 2026-09-14: "See that double 'edit edit',
+  can you add to my autocorrect flagging down any double words with a
+  pink squiggle line beneath."). NOT built — NEXT after the clipboard
+  report, and the shape is decided but the last step needs his word.
+  🚨 A SQUIGGLE UNDER THE TEXT IS NOT POSSIBLE and saying otherwise
+  would be a promise this config cannot keep: macOS gives no way to
+  paint inside another app's editing surface, so nothing can draw
+  beneath a word in Chrome's or Asana's text field. What IS possible,
+  in three parts: (1) DETECTION is free — autocorrect's tap already
+  ends a word on a boundary, so "the piece just typed equals the piece
+  before it, case-insensitively" is one comparison in a place that
+  already runs (the ⇪Z exception list and the pause switch govern it
+  like every other rule); (2) THE MARK is a pink underline drawn ON TOP
+  of the words as its own mouse-transparent canvas, positioned from the
+  caret's rectangle — `AXTextMarker`/`AXBoundsForRange` on the focused
+  element, which Chrome and native apps answer and Electron apps mostly
+  do not; (3) THE DEGRADE, where no rectangle comes back, is a brief
+  pink alert naming the doubled word (notices, never a keystroke). It
+  NEVER edits his text — a doubled word is sometimes right ("had had")
+  and 6.200.0's rule is that this config does not guess. Report line
+  and a settings switch. ASK HIM: is the alert enough where the
+  underline cannot be drawn, or should it stay silent there?
 - 📅 DATE EXPANSION + SNIPPET PASTE (LL, 2026-09-13): typing
   09-13-26 → 09-13-2026 (and 09/13/26 → 09/13/2026) — an autocorrect
   rule, fires on the space after a date shaped MM-DD-YY only (a
@@ -1465,6 +1523,17 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   the pieces a ' handed to the dictionary alone, and the "spelling :"
   block must no longer list `Doesn → Doesnt`. KNOWN AND ACCEPTED: a
   typo right before an apostrophe (somethign's) is not corrected now.
+- 6.221.0 verify with LL — ⌘ EDITS A MARK: install (carries 6.220.0).
+  ⇪⇧1 on any shot. Text tool, click, type a word, ⏎. Now press A (the
+  Arrow tool) and HOLD ⌘ and click that text box — its words open,
+  pre-filled, with the Arrow tool still armed; change them, ⏎. Then
+  hold ⌘ and click EMPTY canvas with the Arrow tool armed: nothing is
+  created (that is the fix — before, it drew an arrow). Then hold ⌘
+  and click an arrow: it is selected, ⌫ deletes it. A bare click still
+  draws, as ever. And the window still moves: drag its 🖌 Edit title
+  bar, or ⌘-drag that same strip — ⌘-drag on the picture itself no
+  longer moves the window, deliberately, because ⌘ down there is now
+  his edit key.
 - 6.220.0 verify with LL — ⇪T FITS: install (carries 6.219.0). ⇪T —
   the window is wider (820) and no taller than 760 pt, and the blue
   "Create task ⏎" button is visible at the BOTTOM from the first

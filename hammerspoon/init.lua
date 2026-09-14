@@ -4,9 +4,35 @@
 -- =====================================================================
 -- 09-14-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.220.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.221.0
 -- =====================================================================
 
+-- NEW IN 6.221.0 — ⌘ IS THE EDIT TOOL IN THE SCREENSHOT EDITOR (modules/screenshot_editor.lua):
+--   LL: "After I add a text box or any other item I am having trouble
+--      editing the added items like the text box. Can you make it so
+--      that if I hold down command while in the edit, allow me to edit
+--      text boxes or any other tool addition." Holding ⌘ now reaches a
+--      mark whatever tool is armed: ⌘-click a TEXT box and its words
+--      open at once — no tool swap, no double-click; ⌘-click any other
+--      mark and it is selected, ready for ⌫ or a drag. And the half
+--      that stops the mess: A ⌘-CLICK THAT MISSES CREATES NOTHING —
+--      aiming at a box and landing a pixel outside it was how a stray
+--      arrow appeared every time.
+--   🚨 ⌘ WAS NOT FREE INSIDE THAT WINDOW AND NOTHING SAID SO: window_move's
+--      tap begins a window drag on a bare-⌘ mouse-down anywhere inside a
+--      panel listed in _G.movablePanels, and CONSUMES the click — so a
+--      ⌘-click would have moved the editor, not edited his text box. The
+--      editor now lists only its TITLE BAR (`ed.stripOf`, PURE and
+--      clamped; `ed.dragStripH` = 54, the same number the page's own CSS
+--      measures #stage from, with a sentry that fails if the two drift).
+--      The window is no less movable — its header has been the drag
+--      handle since 6.89.0. RULE: a panel whose PAGE wants ⌘ narrows the
+--      frame it lists to the strip it is happy to be dragged by.
+--   🧪 And the first check on "a ⌘-click creates nothing" PASSED with the
+--      guard deleted: a fresh zero-length arrow is discarded on mouseup
+--      anyway, so counting notes after the release proved nothing. It
+--      asserts at the MOUSEDOWN now. 9,046 -> 9,067 checks.
+--
 -- NEW IN 6.220.0 — 📐 THE ⇪T TASK FORM FITS ON THE SCREEN (modules/task_form.lua):
 --   LL, with a screenshot of the form running off the bottom: "Can you
 --      put the contents of this window hyper+t, so that the items do not
@@ -27,31 +53,12 @@
 --      Nothing about submission, the draft, the schedule or the field
 --      values changed. New `_G.taskFormReport()`. 9,027 -> 9,046 checks.
 --
--- NEW IN 6.219.0 — ✏️ AN APOSTROPHE INSIDE A WORD IS NOT A WORD ENDING (modules/autocorrect.lua):
---   LL, on 6.218.0: "Doesnt't kinda works as you can see." The storm was
---      gone; this was left. An apostrophe is a boundary character, so
---      typing "Doesn't" hands the piece before it — "Doesn" — to the
---      rules, and macOS's /usr/share/dict/words is Webster's Second,
---      which HOLDS the apostrophe-less contractions. Measured against
---      the real list (web2, 234,454 words), not a fixture: doesn →
---      doesnt, wouldn → wouldnt, mightn → mightnt, oughtn → oughtnt.
---      Four words nobody can type. couldn, shouldn, mustn, needn, weren
---      and haven are silent (one is a word; the rest have no single
---      answer), and can't, won't, isn't, didn't are under minLen — which
---      is why only "doesn't" ever reached him. THE FIX: the WORD LIST is
---      not asked when the boundary is an apostrophe. The dictionary rows
---      and the TWo-caps rule still are, so teh' still corrects to the'
---      and THe' to The'. COST, STATED: a real typo immediately before an
---      apostrophe (somethign's) is now silent — the trade for four
---      contractions that were not. Report line "apostrophe".
---      9,012 -> 9,027 checks.
---
--- (6.218.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.219.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.220.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.221.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -148,7 +155,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.220.0"
+_G.configVersion = "6.221.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

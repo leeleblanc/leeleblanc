@@ -61,6 +61,7 @@ local M = {
             { "⌘V ⌘A", "6.213.0: paste the clipboard's IMAGE onto the shot · Add capture — drag an area of the screen and it lands on the shot (move the editor first if it is in the way)" },
             { "text",  "click, type, ⏎ — white text, white outline box · click an EXISTING box (Text tool) to edit its words, or ⏎ on a selected one" },
             { "move",  "drag text/arrows around · arrow ENDS stretch + rotate · a selected text box has a corner dot — drag it to make the text bigger or smaller (⌘Z undoes it)" },
+            { "⌘-click", "6.221.0: hold ⌘ and click ANY mark to select it — a text box opens its words at once, whatever tool is armed; a ⌘-click that misses creates nothing" },
             { "⌫",     "delete the selected note · double-click text re-edits" },
             { "⌘Z",    "undo anything: blur, add, move, edit, delete" },
             { "⌘⏎",   "save “… (edited).png” + clipboard · ⌘⇧⏎ small JPEG" },
@@ -74,6 +75,10 @@ function M.setup(core)
 
     -- ✏️ EDIT HERE ---------------------------------------------------------
     ed.enabled    = true
+    -- 6.221.0 — how much of the window ⌘-drag may grab: the header, whose
+    -- CSS is 54 pt tall. Everything below it belongs to the page, which
+    -- reads ⌘ as "edit this mark".
+    ed.dragStripH = 54
     ed.blurRadius = 12     -- box-blur radius in image pixels (Retina = 2x)
     ed.blurPasses = 3      -- 3 box passes ≈ gaussian
     ed.maxUndo    = 20
@@ -214,7 +219,7 @@ function M.setup(core)
   <button class="go" onclick="saveIt('png')" title="⌘⏎">Save &amp; copy&nbsp;&nbsp;⌘⏎</button>
   <button onclick="saveIt('jpg')" title="⌘⇧⏎">Small JPEG</button>
   <button onclick="stashAndCancel()" title="esc">Cancel</button>
-  <span class="hint">saved as “… (edited)” next to the original · ⌫ deletes a note</span>
+  <span class="hint">hold ⌘ and click a mark to edit it · ⌫ deletes a note · saved as “… (edited)” next to the original</span>
 </header>
 <div id="stage">
   <div id="wrap">
@@ -733,6 +738,15 @@ function M.setup(core)
       e.preventDefault();
       if (textOpen()){ commitText(); return; }   // click-away commits
       var p = toCanvas(e);
+      // ⌘ 6.221.0 — HOLDING ⌘ IS THE EDIT TOOL, whatever tool is armed.
+      // LL: "After I add a text box or any other item I am having trouble
+      // editing the added items… if I hold down command while in the edit,
+      // allow me to edit text boxes or any other tool addition." Two
+      // things make it work: a ⌘-click on a TEXT box opens its words at
+      // once (no double-click, no swapping back to the Text tool), and a
+      // ⌘-click that MISSES creates nothing — the commonest way to make a
+      // stray arrow is aiming at a mark and landing a pixel outside it.
+      var editMode = !!e.metaKey;
       var hit = hitAt(p);
       if (hit){
         sel = hit.note;
@@ -746,11 +760,15 @@ function M.setup(core)
                  // still moves it. Decided on mouseup, where the two can be
                  // told apart. Screen coordinates, so a 4K shot in a small
                  // window does not turn a steady hand into a "drag".
-                 clickEdit: (tool === 'text' && hit.note.kind === 'text'),
+                 clickEdit: ((tool === 'text' || editMode)
+                             && hit.note.kind === 'text'),
                  cx: e.clientX, cy: e.clientY, moved: false };
         redraw();
         return;
       }
+      // ⌘ held and nothing under the pointer: drop the selection and STOP.
+      // Never a new note, never a rubber band — that is the promise.
+      if (editMode){ if (sel){ sel = null; redraw(); } return; }
       if (tool === 'text'){ sel = null; redraw(); startText(null, p); return; }
       if (tool === 'arrow' || tool === 'line'){
         var n = { kind: tool, x1: p.x, y1: p.y, x2: p.x, y2: p.y };
@@ -1158,16 +1176,47 @@ function M.setup(core)
         return true
     end
 
+    -- 📐 6.221.0 — PURE: the top strip of a frame, which is what ⌘-drag
+    -- may grab. Clamped to the window, so a frame shorter than the header
+    -- is all strip rather than a rectangle taller than its own window.
+    function ed.stripOf(f, h)
+        if type(f) ~= "table" or not (f.x and f.y and f.w and f.h) then
+            return nil
+        end
+        h = tonumber(h) or 0
+        if h <= 0 then return nil end
+        return { x = f.x, y = f.y, w = f.w, h = math.min(h, f.h) }
+    end
+
+    -- Never throws: window_move's tap calls this on every bare-⌘ click
+    -- anywhere on the Mac, and a Hammerspoon whose webview cannot answer
+    -- :frame() must cost the ⌘-drag, not the panel mover.
+    function ed.dragStrip()
+        if not ed.webview then return nil end
+        local ok, f = pcall(function() return ed.webview:frame() end)
+        if not ok then return nil end
+        return ed.stripOf(f, ed.dragStripH)
+    end
+
     -- ---- wiring ----------------------------------------------------------
     core.provide("screenshotEditor.open", function(p) return ed.open(p) end)
 
-    -- 6.89.0 — listed for Window Move: ⌘-drag anywhere on the editor moves
-    -- it (a bare drag would fight the drawing tools), and the title grip
-    -- above gives the bare-click drag where it is safe.
+    -- 6.89.0 — listed for Window Move: ⌘-drag moves the editor, and the
+    -- title grip above gives the bare-click drag where it is safe.
+    -- 🚨 6.221.0 — THAT ⌘-DRAG IS NOW THE TITLE BAR ONLY. window_move's
+    -- tap takes a bare-⌘ left-mouse-down ANYWHERE inside a listed panel's
+    -- frame and begins a window drag, consuming the click — so ⌘ inside
+    -- this window could never have reached the page, and LL's ⌘-click
+    -- would have moved the editor instead of editing his text box. The
+    -- window is not less movable: the header IS the drag handle (6.89.0's
+    -- grip, a bare drag), and ⌘-drag still works on that same strip.
+    -- GENERAL RULE: a panel whose PAGE wants ⌘ narrows the frame it lists
+    -- here to the strip it is happy to be dragged by — `frame` answers
+    -- "where does ⌘-drag grab this", not "where is this window".
     _G.movablePanels = _G.movablePanels or {}
     table.insert(_G.movablePanels, {
         name  = "screenshot editor",
-        frame = function() return ed.webview and ed.webview:frame() end,
+        frame = function() return ed.dragStrip() end,
         move  = function(x, y)
             local f = ed.webview and ed.webview:frame()
             if f then ed.webview:frame({ x = x, y = y, w = f.w, h = f.h }) end

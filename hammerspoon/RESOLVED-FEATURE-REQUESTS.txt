@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.220.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.221.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -525,6 +525,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
   ⌘V ⌘A 6.213.0: paste the clipboard's IMAGE onto the shot · Add capture — drag an area of the screen and it lands on the shot (move the editor first if it is in the way)
   text      click, type, ⏎ — white text, white outline box · click an EXISTING box (Text tool) to edit its words, or ⏎ on a selected one
   move      drag text/arrows around · arrow ENDS stretch + rotate · a selected text box has a corner dot — drag it to make the text bigger or smaller (⌘Z undoes it)
+  ⌘-click 6.221.0: hold ⌘ and click ANY mark to select it — a text box opens its words at once, whatever tool is armed; a ⌘-click that misses creates nothing
   ⌫       delete the selected note · double-click text re-edits
   ⌘Z      undo anything: blur, add, move, edit, delete
   ⌘⏎    save “… (edited).png” + clipboard · ⌘⇧⏎ small JPEG
@@ -740,6 +741,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.221.0  ⌘ IS THE EDIT TOOL IN THE SCREENSHOT EDITOR (modules/screenshot_editor.lua)
   6.220.0  📐 THE ⇪T TASK FORM FITS ON THE SCREEN (modules/task_form.lua)
   6.219.0  ✏️ AN APOSTROPHE INSIDE A WORD IS NOT A WORD ENDING (modules/autocorrect.lua)
   6.218.0  🌩 AUTOCORRECT NO LONGER READS ITS OWN RETYPE (modules/autocorrect.lua)
