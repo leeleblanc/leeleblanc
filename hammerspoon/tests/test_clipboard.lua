@@ -1110,6 +1110,105 @@ do
     _G.service = nil
 end
 
+-- =====================================================================
+out("\n=== 📋 6.224.0 — _G.clipboardReport(): what was stored, what was refused ===\n")
+-- =====================================================================
+-- LL: "I'm not sure my copy and history is working. I don't see items
+-- that i just copied." His `_G.clipboardPollReport()` cleared the thrash
+-- breaker and left "changes 3" — a number no one could read, because
+-- every refusal in clip.add was silent and a failed save left no trace.
+-- 6.202.0 queued this report; this is it.
+local mine = 0
+local function ck(label, cond, extra) mine = mine + 1; check(label, cond, extra) end
+
+boot()
+C.loaded = true
+_G.clipboardPollStats = { changes = 9, rests = 2, longestRun = 3,
+                          suppressed = 4, startedAt = 0 }
+_G.clipboardPollMins = function() return 12 end
+
+printed = {}
+_G.clipboardReport()
+local rep = table.concat(printed, "\n")
+ck("it prints as ONE string (6.179.1's rule — the console gate eats rows)",
+   #printed == 1, #printed)
+ck("an empty history says so in words, never a bare 0",
+   rep:find("nothing stored", 1, true) ~= nil, rep)
+
+C.add("the first thing I copied")
+C.add("the second thing I copied")
+C.add("the second thing I copied")          -- already newest → refused
+C.add(string.rep("x", C.maxItemSize + 1))   -- over 1 MB  → refused
+C.add(nil)                                  -- not text   → refused
+printed = {}
+_G.clipboardReport()
+rep = table.concat(printed, "\n")
+
+ck("🚨 it names the NEWEST item and when it landed — the one line that "
+   .. "answers “I don't see items that i just copied”",
+   rep:find("the second thing I copied", 1, true) ~= nil
+   and rep:find("newest", 1, true) ~= nil, rep)
+ck("…and how many are stored, against the ceiling",
+   rep:find("stored   : 2 of " .. C.max, 1, true) ~= nil, rep)
+ck("🚨 EVERY REFUSAL IS COUNTED AND SPLIT BY REASON — each of these "
+   .. "returned false in silence before",
+   rep:find("refused  : 3 — 1 already newest · 1 over 1 MB · 1 not text",
+            1, true) ~= nil, rep)
+ck("…and the last refusal is named, with its time",
+   rep:find("↳ last   : not text", 1, true) ~= nil, rep)
+ck("filed counts the copies that really landed", rep:find("filed    : 2 ", 1, true) ~= nil, rep)
+ck("saves are counted, ok and FAILED side by side",
+   rep:find("saves    : %d+ ok · %d+ FAILED") ~= nil, rep)
+
+-- 🚨 the poll's own facts, including the two 6.224.0 added: a CLOCK, so
+-- "changes 3" can be read at all, and the copies the borrow guard ate
+ck("🚨 the poll's changes are reported WITH THE MINUTES they took — a "
+   .. "count with no clock beside it is what left his question open",
+   rep:find("9 pasteboard change(s) in 12 min", 1, true) ~= nil, rep)
+ck("🚨 …and the copies SUPPRESSED by a borrowed clipboard are named — "
+   .. "every one is a copy he would look for in ⇪V and not find",
+   rep:find("4 suppressed by a borrowed clipboard", 1, true) ~= nil, rep)
+ck("…and the thrash rests, the suspect his own report ruled out",
+   rep:find("2 rest(s) on the thrash breaker", 1, true) ~= nil, rep)
+
+-- a FAILED save is the loudest line, and it SURVIVES to be read later —
+-- tellFailure alerts once per ten minutes, so an hour on there is nothing
+-- else anywhere that remembers it happened
+local failedBefore = C.stats.saveFailed
+WRITE_FAILS = true
+C.add("this one cannot be written")
+WRITE_FAILS = false
+printed = {}
+_G.clipboardReport()
+rep = table.concat(printed, "\n")
+ck("🚨 a save that failed is COUNTED and NAMED, not just alerted once",
+   C.stats.saveFailed == failedBefore + 1
+   and rep:find("↳ ⚠️ last: the file could not be opened", 1, true) ~= nil,
+   C.stats.saveFailed .. " / " .. rep)
+
+-- the file not yet read is a different state from an empty history
+boot()
+C.loaded = false
+printed = {}
+_G.clipboardReport()
+rep = table.concat(printed, "\n")
+ck("🚨 “not read yet” reads differently from “empty” (6.196.1's rule)",
+   rep:find("THE FILE HAS NOT BEEN READ YET", 1, true) ~= nil, rep)
+
+-- and a poll that is not running at all must not read as a quiet one
+boot()
+C.loaded = true
+_G.clipboardPollStats = nil
+printed = {}
+_G.clipboardReport()
+rep = table.concat(printed, "\n")
+ck("🚨 no pasteboard watcher at all says so — it can never read as "
+   .. "“0 changes”, which is the reassuring lie",
+   rep:find("is not", 1, true) ~= nil
+   and rep:find("nothing can reach the history", 1, true) ~= nil, rep)
+
+check("the 6.224.0 section ran every one of its checks", mine == 14, mine)
+
 if fail > 0 then
     out("FAILURES:\n")
     for _, f in ipairs(failures) do out("   ❌ " .. f .. "\n") end

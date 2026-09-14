@@ -126,6 +126,22 @@ function M.setup(core)
 
     _G.clipboardCache = _G.clipboardCache or {}
     clip.loaded  = false
+    -- 📋 6.224.0 — WHAT WAS STORED AND WHAT WAS REFUSED. 6.202.0 queued
+    -- this report and LL's "I'm not sure my copy and history is working.
+    -- I don't see items that i just copied" is what it is for: every
+    -- refusal in clip.add was silent, and clip.save's write failure told
+    -- core and returned false without leaving a trace anyone could read
+    -- an hour later.
+    clip.stats = { added = 0, sameAsTop = 0, tooBig = 0, notText = 0,
+                   heldAtBoot = 0, saved = 0, saveFailed = 0,
+                   lastAddAt = nil, lastAddText = nil,
+                   lastRefusal = nil, lastRefusalAt = nil,
+                   lastSaveFail = nil, lastSaveFailAt = nil }
+    local function nowHM() return os.date("%H:%M:%S") end
+    local function refused(why)
+        local st = clip.stats
+        st.lastRefusal, st.lastRefusalAt = why, nowHM()
+    end
     clip.preload = {}     -- copies made before the file finished loading
 
     local function say(m)  if _G.diag then _G.diag.say("clipboard", m)  end end
@@ -172,6 +188,9 @@ function M.setup(core)
             tellFailure("Clipboard history NOT saved",
                         "encode failed; the existing file was left untouched",
                         "clip:encode")
+            clip.stats.saveFailed = clip.stats.saveFailed + 1
+            clip.stats.lastSaveFail, clip.stats.lastSaveFailAt =
+                "encode failed", nowHM()
             return false
         end
         -- 🚨 VERIFY BEFORE COMMITTING. Writing an encode that will not read
@@ -182,14 +201,21 @@ function M.setup(core)
             tellFailure("Clipboard history NOT saved",
                         "the encoded JSON would not read back; file untouched",
                         "clip:roundtrip")
+            clip.stats.saveFailed = clip.stats.saveFailed + 1
+            clip.stats.lastSaveFail, clip.stats.lastSaveFailAt =
+                "the encoded JSON would not read back", nowHM()
             return false
         end
         local f = io.open(clip.file, "w")
         if not f then
+            clip.stats.saveFailed = clip.stats.saveFailed + 1
+            clip.stats.lastSaveFail, clip.stats.lastSaveFailAt =
+                "the file could not be opened for writing", nowHM()
             if core.warnWriteFailed then core.warnWriteFailed("clipboard history") end
             return false
         end
         f:write(body); f:close()
+        clip.stats.saved = clip.stats.saved + 1
         return true
     end
 
@@ -197,8 +223,15 @@ function M.setup(core)
     -- Called by init.lua's shared pasteboard watcher via the service
     -- registry. Returns true when something was actually stored.
     function clip.add(text)
-        if type(text) ~= "string" or text == "" then return false end
+        if type(text) ~= "string" or text == "" then
+            clip.stats.notText = clip.stats.notText + 1
+            refused(type(text) ~= "string" and "not text" or "an empty string")
+            return false
+        end
         if #text > clip.maxItemSize then
+            clip.stats.tooBig = clip.stats.tooBig + 1
+            refused(string.format("%.1f MB — over the %.1f MB limit",
+                                  #text / 1000000, clip.maxItemSize / 1000000))
             print("📋 Clipboard item not saved to history (over 1 MB)")
             return false
         end
@@ -207,7 +240,11 @@ function M.setup(core)
         -- clipboard-edit path filing a duplicate — the edited entry
         -- carries the arriving text, so the dedupe below lifts it rather
         -- than copying it.
-        if cache[1] and cache[1].text == text then return false end
+        if cache[1] and cache[1].text == text then
+            clip.stats.sameAsTop = clip.stats.sameAsTop + 1
+            refused("already the newest item — nothing to file")
+            return false
+        end
         for i = #cache, 1, -1 do
             if cache[i].text == text then table.remove(cache, i) end
         end
@@ -220,7 +257,11 @@ function M.setup(core)
         -- having destroyed everything. The copy is held instead and
         -- re-applied on top once the file is in, which is what
         -- clip.preload is for. Found by test_clipboard's P4.
+        clip.stats.added = clip.stats.added + 1
+        clip.stats.lastAddAt = nowHM()
+        clip.stats.lastAddText = text
         if not clip.loaded then
+            clip.stats.heldAtBoot = clip.stats.heldAtBoot + 1
             clip.preload[#clip.preload + 1] = text
             return true
         end
@@ -1055,6 +1096,69 @@ function M.setup(core)
                 return out
             end,
         })
+    end
+
+    -- 📋 6.224.0 — THE REPORT 6.202.0 QUEUED. One string (6.179.1), and it
+    -- answers "I don't see items that i just copied" in one read: what is
+    -- newest and when it landed, how many are stored, what was REFUSED and
+    -- why, whether a save failed, and whether the poll that feeds all of
+    -- this is running, resting or being suppressed by a borrowed
+    -- clipboard. Never a bare count — a count on its own is what left the
+    -- question open for two releases.
+    _G.clipboardReport = function()
+        local cache = _G.clipboardCache or {}
+        local st = clip.stats
+        local L = { "📋 CLIPBOARD HISTORY — ⇪V · ⇪⇧V edits" }
+        local top = cache[1]
+        L[#L + 1] = "   newest   : " .. (top and type(top.text) == "string"
+            and (('"%s"'):format(
+                    (top.text:gsub("%s+", " ")):sub(1, 60)
+                    .. (#top.text > 60 and "…" or ""))
+                 .. " · " .. tostring(top.date or "no date"))
+            or "nothing stored")
+        L[#L + 1] = "   stored   : " .. #cache .. " of " .. clip.max
+            .. (clip.loaded and " · file read at boot"
+                or " ⚠️ THE FILE HAS NOT BEEN READ YET — copies are being held")
+        L[#L + 1] = "   file     : " .. tostring(clip.file)
+        L[#L + 1] = "   filed    : " .. st.added .. " copy(ies) this session"
+            .. (st.lastAddAt and (" · last at " .. st.lastAddAt) or "")
+            .. (st.heldAtBoot > 0 and (" · " .. st.heldAtBoot
+                .. " held until the file was read") or "")
+        local ref = st.sameAsTop + st.tooBig + st.notText
+        L[#L + 1] = "   refused  : " .. (ref == 0 and "none" or
+            (ref .. " — " .. st.sameAsTop .. " already newest · "
+             .. st.tooBig .. " over 1 MB · " .. st.notText .. " not text"))
+        if st.lastRefusal then
+            L[#L + 1] = "   ↳ last   : " .. st.lastRefusal
+                        .. " at " .. tostring(st.lastRefusalAt)
+        end
+        L[#L + 1] = "   saves    : " .. st.saved .. " ok · "
+            .. st.saveFailed .. " FAILED"
+        if st.lastSaveFail then
+            L[#L + 1] = "   ↳ ⚠️ last: " .. st.lastSaveFail
+                        .. " at " .. tostring(st.lastSaveFailAt)
+        end
+        -- The poll is init.lua's, shared with the image path. Say what it
+        -- has seen, because a copy this module never hears about is the
+        -- one failure its own counters cannot show.
+        local ps = _G.clipboardPollStats
+        if type(ps) == "table" then
+            local mins = _G.clipboardPollMins and _G.clipboardPollMins() or 0
+            L[#L + 1] = ("   poll     : %d pasteboard change(s) in %.0f min · %d rest(s) on the thrash breaker · %d suppressed by a borrowed clipboard")
+                :format(ps.changes or 0, mins, ps.rests or 0, ps.suppressed or 0)
+            if (ps.changes or 0) > st.added + ref then
+                L[#L + 1] = "   ↳ the poll saw MORE changes than this module"
+                    .. " was offered — images and copied files are the"
+                    .. " innocent explanation (they go to OCR, not here)"
+            end
+        else
+            L[#L + 1] = "   poll     : ⚠️ init.lua's pasteboard watcher is not"
+                        .. " running — nothing can reach the history"
+        end
+        L[#L + 1] = "   pane     : " .. (clip.previewOpen and "available"
+                                         or "not loaded")
+        print(table.concat(L, "\n"))
+        return clip.stats
     end
 
     core.provide("clipboard.add",   function(t) return clip.add(t)   end)

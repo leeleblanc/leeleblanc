@@ -114,6 +114,27 @@ work Mac.
   with two dictionary rows that answer each other (aaaa ⇄ bbbb) now.
   RULE: when a test uses one bug to demonstrate another, fixing the
   first silently retires the second — re-arm it in the same release.
+- 📋 A COUNT WITH NO CLOCK AND NO REFUSALS BESIDE IT ANSWERS NOTHING
+  (6.224.0, modules/clipboard_history.lua + init.lua §3.11).
+  `_G.clipboardPollReport()` said "changes 3 · thrash rests 0" — which
+  cleared the thrash breaker and told nobody anything else, because a
+  poll five minutes old and one five hours old print the same line, and
+  every refusal inside clip.add returned false in SILENCE.
+  `_G.clipboardReport()` (queued by 6.202.0) now names the newest item
+  and its time, how many are stored, how many were filed, and every
+  refusal split by reason (already newest · over 1 MB · not text) with
+  the last named and timed, plus saves ok/FAILED with the last failure's
+  words — tellFailure alerts once per 600 s and nothing else remembered a
+  failed write an hour later. THE POLL GAINED `startedAt` (so a count is
+  printed with the minutes it took) and `suppressed` — the copies dropped
+  by `_G.pasteboardSuppressUntil`, each one a copy he would look for in
+  ⇪V and not find. THREE STATES THAT MUST NOT READ ALIKE, mutation-proven:
+  no watcher running ≠ "0 changes"; a file not yet read ≠ an empty
+  history; a poll that saw more changes than the module was offered says
+  so with the innocent explanation (images go to OCR). RULE: when a
+  diagnostic is asked for and its answer still does not decide anything,
+  the missing half is a CLOCK or a REFUSAL COUNT — add both before
+  theorising again.
 - 🧊 A DRAG ENDS WHEN THE BUTTON COMES UP, WHEREVER THAT HAPPENS
   (6.222.0, modules/screenshot_editor.lua — LL: "if I miss a drag
   selection… the entire image looks selected by some overlay pop-up and
@@ -1375,9 +1396,10 @@ as the fix when a loss lands.
 | 6.221.0 | ⌘ in the ⇪⇧1 editor edits any mark whatever tool is armed (and a ⌘-click that misses creates nothing); the window's ⌘-drag narrows to its title bar | pending |
 | 6.222.0 | 🧊 a drag whose release happened outside the editor window no longer sticks (the overlay that covered the whole image) | pending |
 | 6.223.0 | 📐 the ⇪T form is drawn whole — the ceiling raised from 760 to 1400 pt so his eleven project fields need no scrolling | pending |
+| 6.224.0 | 📋 `_G.clipboardReport()` — the newest item, every refusal by reason, saves ok/FAILED, and the poll with a clock and a suppressed count | pending |
 
-Running total: 14 wins · 5 losses · 8 pending (6.215.0, 6.217.0, 6.218.0,
-6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0).
+Running total: 14 wins · 5 losses · 9 pending (6.215.0, 6.217.0, 6.218.0,
+6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
@@ -1399,10 +1421,20 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   contractions, not four hundred). 📋 THE CLIPBOARD's first artefact is in
   and ruled the breaker out (see below). 📐 The ⇪T form's layout
   jumped the queue on LL's own ask, shipped as 6.220.0; ⌘ editing a
-  mark in the ⇪⇧1 editor did the same, shipped as 6.221.0. NEXT:
-  📋 `_G.clipboardReport()`, then 🟥 the doubled word (see below),
-  then 🎵 the music player — its three questions are ANSWERED now
-  (mp3/m4a, a numpad on both Macs, native volume keys). Then ✏️ the Edit OCR
+  mark in the ⇪⇧1 editor did the same, shipped as 6.221.0. 📋 `_G.clipboardReport()` shipped as 6.224.0,
+  🧊 the stuck editor overlay as 6.222.0 and the ⇪T height as 6.223.0.
+  🚨 LL ASKED FOR NINE AT ONCE (2026-09-14: "If you think we can handle
+  it, do all these in the next release: clipboard report → OCR edit
+  caret → OCR junk filter → ⌘Space launcher → ⌘⌘ clipboard picker →
+  date expansion → music player → click hints → draft keeper") — the
+  answer given, and the method now in use: one change per RELEASE, but
+  several releases back to back in one sitting, and he installs the
+  latest zip once. His own isolation rule is kept (a break names its
+  version) and he still gets the batch. NEXT, in his order:
+  ✏️ the Edit OCR caret, 🔤 the OCR junk filter, ⌘Space, ⌘⌘, 📅 date
+  expansion, 🎵 the music player (its three questions are ANSWERED —
+  mp3/m4a, a numpad on both Macs, native volume keys), 🖱 click hints,
+  💾 the draft keeper. Then 🟥 the doubled word (see below). Also ✏️ the Edit OCR
   entry window does not take the caret (the page calls t.focus() but
   the webview window is not key — after bringToFront, focus the
   hswindow on a held timer and re-run t.focus()); then the OCR junk
@@ -1438,10 +1470,14 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   not say WHEN it started, and should), or copies that moved the
   pasteboard and were not FILED (suspect #2, or clip.save refusing —
   suspect #4), or a session in which he genuinely copied three times.
-  A change COUNT cannot tell those apart, and that is the gap: the next
-  artefact is `_G.clipboardReport()` (6.202.0's queued report) — newest
-  item, its time, how many are stored, the last refusal — and that IS
-  the next release. Ask alongside it: copy three distinct strings, then
+  A change COUNT cannot tell those apart, and that is the gap.
+  ✅ THE INSTRUMENT SHIPPED AS 6.224.0: `_G.clipboardReport()` names the
+  newest item and its time, the stored count, every refusal by reason,
+  saves ok/FAILED — and the poll line now carries the MINUTES and the
+  count SUPPRESSED by the borrowed-clipboard guard. Nothing about
+  storing a copy changed; the next release is whatever the report names.
+  ASK HIM FOR IT: copy three distinct strings, then run
+  `_G.clipboardReport()` and paste the whole thing. Ask alongside it: copy three distinct strings, then
   run both reports, so "changes" and "stored" are compared on known
   input. Read, not proven: (1) ❌ RULED OUT BY HIS REPORT — the
   THRASH BREAKER
@@ -1551,6 +1587,31 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   the pieces a ' handed to the dictionary alone, and the "spelling :"
   block must no longer list `Doesn → Doesnt`. KNOWN AND ACCEPTED: a
   typo right before an apostrophe (somethign's) is not corrected now.
+- 6.224.0 verify with LL — 📋 THE CLIPBOARD REPORT (the instrument, not
+  a fix): install. Copy three distinct strings from three different
+  apps. Console: `_G.clipboardReport()` — PASTE THE WHOLE THING. Read
+  it in this order: "newest" must be the third string, "filed" must say
+  3, "refused" says what was turned away and why, "saves" must say
+  0 FAILED, and the "poll" line says how many pasteboard changes in how
+  many minutes and how many were SUPPRESSED by a borrowed clipboard. If
+  filed is 3 and ⇪V still does not show them, the store is fine and the
+  PICKER is the bug — a different release. If filed is 0 while the poll
+  counted changes, the copies never reached this module. If suppressed
+  is high, the 6.69.0 borrow guard is eating them. Each of those is its
+  own next release and the report says which.
+- 6.223.0 verify with LL — ⇪T DRAWN WHOLE: install. ⇪T — the form is
+  taller and the project fields are all on screen with NO scrolling;
+  the blue Create task button is still at the bottom. Console:
+  `_G.taskFormReport()` — "window : 820 × NNN pt". If it is now too
+  tall: `settings = { task_form = { maxHeight = 900 } }`, no release.
+- 6.222.0 verify with LL — THE STUCK OVERLAY: install. ⇪⇧1, press S
+  (Spotlight), start dragging a box and let go of the mouse OUTSIDE the
+  editor window (over another app, or off the screen edge). The veil
+  must STOP where you released — it must not follow the pointer, and
+  moving the mouse afterwards must not resize it. ⌘Z takes it back.
+  Then a tiny drag released outside: nothing is left behind at all.
+  That was the "entire image looks selected by some overlay" — the drag
+  never ended because the mouseup happened where the page cannot hear.
 - 6.221.0 verify with LL — ⌘ EDITS A MARK: install (carries 6.220.0).
   ⇪⇧1 on any shot. Text tool, click, type a word, ⏎. Now press A (the
   Arrow tool) and HOLD ⌘ and click that text box — its words open,

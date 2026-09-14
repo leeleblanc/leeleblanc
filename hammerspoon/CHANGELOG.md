@@ -5,6 +5,44 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.224.0 — 📋 _G.clipboardReport() (modules/clipboard_history.lua + init.lua §3.11):
+  LL, 2026-09-13: "I'm not sure my copy and history is working. I don't
+     see items that i just copied." The artefact first (6.201.0's rule),
+     and it came back on 6.219.0: "📋 clipboard poll — changes 3 · thrash
+     rests 0 · longest run 1 ticks". That CLEARED the first suspect
+     outright — the thrash breaker never rested the poll, not once — and
+     left a number nobody could read. A poll five minutes old and a poll
+     five hours old print the same "changes 3". Three copies swallowed by
+     the borrowed-clipboard guard print nothing at all. And every refusal
+     inside clip.add returned false in silence.
+  THE REPORT 6.202.0 QUEUED, and it answers him in one read: the NEWEST
+     item and the time it landed; how many are stored against the 1,000
+     ceiling; how many copies were FILED this session; and every REFUSAL
+     split by reason — already the newest item · over 1 MB · not text —
+     with the last one named and timed. Then saves: N ok · N FAILED, with
+     the last failure's own words. That last line matters because
+     tellFailure alerts once per ten minutes and nothing else anywhere
+     remembered a failed write an hour later.
+  🔎 AND THE POLL GAINED THE TWO FACTS THAT WERE MISSING. `startedAt`,
+     so the change count is printed WITH the minutes it took — a count
+     with no clock beside it is exactly what left his question open for
+     two releases. And `suppressed`: the copies dropped by
+     `_G.pasteboardSuppressUntil`, the 6.69.0 guard that stops a borrowed
+     clipboard being re-filed. Every one of those is a copy he would look
+     for in ⇪V and not find, and until now the guard ate them without
+     leaving a mark. THE REPORT SAYS BOTH NUMBERS SIDE BY SIDE.
+  THREE STATES THAT MUST NOT READ ALIKE, all mutation-proven: a pasteboard
+     watcher that is NOT RUNNING says so and can never print "0 changes"
+     (6.196.1's rule — the reassuring lie); a history file not yet read
+     reads differently from an empty history; and a poll that saw more
+     changes than this module was offered says so, with the innocent
+     explanation named (images and copied files go to OCR, not here).
+  Fourteen new checks. Two mutations: an uncounted duplicate refusal, and
+     the missing watcher printed as a zero. 9,076 -> 9,091 checks.
+  WHAT IT DOES NOT DO: fix anything. Nothing about how a copy is stored
+     changed in this release — this is the instrument, and the next
+     release is whatever it names.
+
 NEW IN 6.223.0 — 📐 THE ⇪T FORM IS DRAWN WHOLE (modules/task_form.lua):
   LL, on 6.220.0, with the form photographed again: "There are options
      here so the canvas needs to be bigger so I don't have to scroll.

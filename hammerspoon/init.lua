@@ -4,9 +4,32 @@
 -- =====================================================================
 -- 09-14-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.223.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.224.0
 -- =====================================================================
 
+-- NEW IN 6.224.0 — 📋 _G.clipboardReport() (modules/clipboard_history.lua + §3.11):
+--   LL: "I'm not sure my copy and history is working. I don't see items
+--      that i just copied." The artefact he sent —
+--      `_G.clipboardPollReport()` — cleared the thrash breaker (0 rests,
+--      longest run 1 tick) and left "changes 3", a number nobody could
+--      read: a poll five minutes old and a poll five hours old print the
+--      same line, and three copies eaten by the borrow guard print
+--      nothing at all. 6.202.0 queued this report; here it is.
+--   IT ANSWERS THE QUESTION IN ONE READ: the NEWEST item and when it
+--      landed, how many are stored, how many copies were FILED, and —
+--      the part that was silent for the whole life of this module —
+--      every REFUSAL, split by reason (already newest · over 1 MB · not
+--      text) with the last one named and timed, plus saves ok / FAILED
+--      with the last failure named. tellFailure alerts once per ten
+--      minutes; an hour later nothing else remembered it happened.
+--   AND THE POLL'S OWN FACTS GAINED THE TWO THAT WERE MISSING: a CLOCK
+--      (changes N in M minutes) and `suppressed`, the copies dropped by
+--      `_G.pasteboardSuppressUntil` — the borrowed-clipboard guard —
+--      each of which is a copy he would look for in ⇪V and not find.
+--      A watcher that is not running says so and can never read as "0
+--      changes" (6.196.1's rule), and a history file not yet read reads
+--      differently from an empty one. 9,076 -> 9,091 checks.
+--
 -- NEW IN 6.223.0 — 📐 THE ⇪T FORM IS DRAWN WHOLE (modules/task_form.lua):
 --   LL, on 6.220.0: "There are options here so the canvas needs to be
 --      bigger so I don't have to scroll. Sorry. That was what I tried to
@@ -23,34 +46,12 @@
 --      { maxHeight = 900 } }` is the knob, no release.
 --      9,074 -> 9,076 checks.
 --
--- NEW IN 6.222.0 — 🧊 A DRAG WHOSE RELEASE HAPPENED SOMEWHERE ELSE (modules/screenshot_editor.lua):
---   LL: "I feel like if I miss a drag selection, as in I don't get it
---      exactly right, the entire image looks selected by some overlay
---      pop-up and no matter I can't deflect unless I escape and
---      re-open." A mouseup OUTSIDE this window is never delivered to the
---      page — another window, another Space, off the screen edge — so
---      `drag` stayed set and every later mousemove went on resizing the
---      shape he had started: a Spotlight's veil growing to cover the
---      whole picture, following a pointer with no button held, with no
---      shape small enough to be discarded because the drag never ended.
---      Esc and reopen was the only way out, exactly as he says.
---   THE FIX: one `finishDrag(e)` now ends a drag, and a mousemove that
---      arrives with `e.buttons === 0` calls it — the release landed
---      somewhere this page cannot hear, so the drag ends HERE, at that
---      point, exactly as a mouseup would (too small is still discarded,
---      a real shape is still undoable). `buttons` is a bitmask and 0 is
---      the only value meaning "nothing held"; a `which`-style check
---      would read a bare move as button 1 and end every drag at once. A
---      normal mouseup still works, and so does a Mac whose events carry
---      no `buttons` at all. One mutation, five failing rows.
---      9,067 -> 9,074 checks.
---
--- (6.221.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.222.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.223.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.224.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -147,7 +148,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.223.0"
+_G.configVersion = "6.224.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
@@ -1438,12 +1439,27 @@ local lastChangeCount = hs.pasteboard.changeCount()
 _G.clipboardThrashTicks = 6      -- 3 s of nonstop pasteboard changes
 _G.clipboardThrashRest  = 60     -- s the poll sleeps after that
 local thrashRun, thrashUntil = 0, 0
-_G.clipboardPollStats = { changes = 0, rests = 0, lastRestAt = 0, longestRun = 0 }
+-- 🔎 6.224.0 — `startedAt` and `suppressed`, because "changes 3" could
+-- not be read without them. LL: "I'm not sure my copy and history is
+-- working. I don't see items that i just copied", and his report said
+-- changes 3 · thrash rests 0 — which cleared the breaker and left three
+-- readings that could mean a poll five minutes old, a poll five hours
+-- old, or three copies swallowed by the borrow guard below. A count with
+-- no clock beside it and no refusals beside it answers nothing.
+_G.clipboardPollStats = { changes = 0, rests = 0, lastRestAt = 0,
+                          longestRun = 0, suppressed = 0, lastSuppressAt = 0,
+                          startedAt = hs.timer.secondsSinceEpoch() }
+function _G.clipboardPollMins()
+    local st = _G.clipboardPollStats
+    return math.max(0, (hs.timer.secondsSinceEpoch() - (st.startedAt or 0)) / 60)
+end
 function _G.clipboardPollReport()
     local st = _G.clipboardPollStats
     local left = thrashUntil - hs.timer.secondsSinceEpoch()
-    print(string.format("📋 clipboard poll — changes %d · thrash rests %d · longest run %d ticks · breaker %d ticks / %ds%s (6.170.2)",
-        st.changes, st.rests, st.longestRun, _G.clipboardThrashTicks, _G.clipboardThrashRest,
+    local mins = _G.clipboardPollMins()
+    print(string.format("📋 clipboard poll — changes %d in %.0f min · suppressed %d (borrowed clipboard) · thrash rests %d · longest run %d ticks · breaker %d ticks / %ds%s (6.170.2)",
+        st.changes, mins, st.suppressed or 0, st.rests, st.longestRun,
+        _G.clipboardThrashTicks, _G.clipboardThrashRest,
         left > 0 and string.format(" · RESTING for another %ds", math.ceil(left)) or ""))
     return st
 end
@@ -1474,7 +1490,13 @@ local function clipboardPoll()
         -- Filing it again reorders the history you were about to use.
         -- The counter is still advanced above, so the NEXT real copy is
         -- seen normally.
+        -- 6.224.0 — COUNTED. A copy dropped here is a copy he will look
+        -- for in ⇪V and not find, and until now nothing anywhere said it
+        -- had happened.
         if hs.timer.secondsSinceEpoch() < (_G.pasteboardSuppressUntil or 0) then
+            local st = _G.clipboardPollStats
+            st.suppressed = (st.suppressed or 0) + 1
+            st.lastSuppressAt = hs.timer.secondsSinceEpoch()
             return
         end
 
