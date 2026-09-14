@@ -5,6 +5,68 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.219.0 — ✏️ AN APOSTROPHE INSIDE A WORD IS NOT A WORD ENDING (modules/autocorrect.lua):
+  LL, on installing 6.218.0: "Spelling / Doesnt't kinda works as you can
+     see. / teh turn into the." The storm was gone — his report proved
+     it, "retype guard : 3 retype(s) · released by count 3 · by timer 0",
+     the drain doing exactly its job and the belt never needed. What was
+     left was the half 6.218.0 had NAMED and not fixed, in the same
+     report: "spelling : 2 word(s) corrected … Doesn → Doesnt" twice.
+  THE MECHANISM, unchanged since 6.200.0 and only ever visible through
+     an apostrophe: the typing watcher treats space, return, tab and
+     PUNCTUATION as the end of a word, and an apostrophe is punctuation.
+     So typing "Doesn't" hands the watcher "Doesn" the moment the
+     apostrophe lands — a five-letter, letters-only piece, exactly what
+     the 6.200.0 spelling rule accepts. And macOS's /usr/share/dict/words
+     is Webster's Second, which HOLDS the apostrophe-less contractions,
+     so "doesnt" is a real word one edit away and alone. The rule fires,
+     types "doesnt'", and LL's own next keystroke completes "doesnt't".
+  MEASURED AGAINST THE REAL LIST, never the fixture (6.200.0's rule,
+     fourth time it has paid): web2, 234,454 words, every English
+     contraction stem run through the shipped acSpellCorrection. FOUR
+     are rewritten — doesn → doesnt, wouldn → wouldnt, mightn → mightnt,
+     oughtn → oughtnt. couldn, shouldn, mustn, needn and weren are
+     silent (no single answer), haven is itself a word, and can't, won't,
+     isn't, wasn't, didn't, hasn't are all under minLen 5. THAT is why
+     one contraction and only one ever reached him: the measurement
+     names the blast radius instead of guessing at it.
+  THE FIX, one line of decision: the WORD LIST is not asked when the
+     boundary that ended the word is an apostrophe. Nothing else moves.
+     The dictionary rows still answer there (teh' → the'), the TWo-caps
+     rule still does (THe' → The'), LL's own fix,doesnt,doesn't row is
+     untouched, and a space is still a word ending, so "doesn " alone is
+     still corrected — that last one is the mutation row, because
+     switching the word list off for EVERY boundary would pass every
+     "doesn't is left alone" check in the suite and quietly delete the
+     whole 6.200.0 feature.
+  COST, STATED RATHER THAN HIDDEN (6.201.1's rule: a consequence you
+     decide not to act on is one you are obliged to name): a genuine
+     typo immediately before an apostrophe — "somethign's" — is now
+     silent. That is the trade for four contractions that were not, and
+     it is the cheaper side: a typo before an apostrophe is rare and
+     visible, while "Doesnt't" happened every time he wrote the word.
+  🔒 ONE DOOR: acSpellHereOK — the function that decides whether the
+     word list may speak at all — is asked in exactly ONE place, and a
+     source sentry in the suite keeps it there, so a second caller
+     cannot reopen this by asking the list directly. Report line
+     "apostrophe" counts the pieces a ' handed to the dictionary alone.
+  🧪 THE SUITE: §10, thirteen checks, and §9's own trap had to be
+     rebuilt — it proved the 6.218.0 drain USING this bug (doesn' →
+     doesnt'), so closing the bug would have quietly disarmed the storm
+     test. §9 now proves the drain with two dictionary rows that answer
+     each other (aaaa ⇄ bbbb), which no future spelling change can
+     silence. Two mutations, each failing its own row: the word list put
+     back on for apostrophes, and the word list switched off for every
+     boundary. 9,012 -> 9,027 checks, seventy-seven stages.
+  NOT IN THIS RELEASE, named: LL's other two reports of the same
+     evening. "I'm not sure my copy and history is working. I don't see
+     items that i just copied" — no artefact yet, and the artefact comes
+     first: `_G.clipboardPollReport()` already exists and its thrash
+     breaker rests the poll 60 s after six changed ticks in a row, which
+     is the first thing to rule out. Ice.app's Settings still flash and
+     the quit test is still unanswered; it is not our code and no code
+     is written until it is.
+
 NEW IN 6.218.0 — 🌩 AUTOCORRECT NO LONGER READS ITS OWN RETYPE (modules/autocorrect.lua):
   LL, on installing 6.216.0: "locked the keyboard & took off like a
      banshee. Hammerspoon wouldn't stop creating tabs & this string

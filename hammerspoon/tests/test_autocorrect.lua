@@ -929,10 +929,20 @@ do
   local okA = _G.autocorrectAdd("doesnt", "doesn't")
   ck("fixture: the row LL has (line 3235 of his CSV) and a word list that"
      .. " holds doesnt, as Webster's Second does", okA == true, tostring(okA))
-  -- 🚨 The trap is real in this fixture: "doesn" alone → the spelling rule
-  -- answers doesnt. With the retype read back, that is the loop.
-  ck("the trap: doesn' → doesnt' (the spelling rule answers on the apostrophe)",
-     typeWord("doesn'") == "doesnt'", tostring(typeWord("doesn'")))
+  -- 🚨 THE LOOP, PROVEN WITHOUT THE SPELLING RULE. Until 6.219.0 this
+  -- section used LL's own trap (doesn' → doesnt', the spelling rule
+  -- answering on the apostrophe); 6.219.0 closed that half, so the
+  -- guard — which is what stops a retype being READ BACK AT ALL — is
+  -- proven here with two dictionary rows that answer each other. Take
+  -- the drain out and this ping-pongs for ever, exactly as LL's Mac did.
+  local okB = _G.autocorrectAdd("aaaa", "bbbb")
+  local okC = _G.autocorrectAdd("bbbb", "aaaa")
+  ck("fixture: two rows that answer each other — the loop in one line",
+     okB == true and okC == true, tostring(okB) .. " " .. tostring(okC))
+  local ping = typeWord("aaaa ")
+  ck("🚨 THE RETYPE IS NOT READ BACK: aaaa␣ → bbbb␣ and it STOPS THERE",
+     ping == "bbbb " and #KEYSTROKES == 1,
+     tostring(ping) .. " · " .. #KEYSTROKES)
 
   -- ---- the storm, and its end ------------------------------------------
   local typed = typeWord("doesnt ")
@@ -999,7 +1009,83 @@ do
   ck("🔒 and there is ONE keyStrokes call — acType — so ⇪Z and the fix"
      .. " share the drain", strokes == 1, strokes)
 
-  check("§9 ran every one of its checks", mine == 16, mine)
+  check("§9 ran every one of its checks", mine == 17, mine)
+end
+
+
+-- =====================================================================
+out("\n=== 10. 6.219.0 — AN APOSTROPHE INSIDE A WORD IS NOT A WORD ENDING ===\n")
+-- LL, on 6.218.0: "Doesnt't kinda works as you can see." The storm was
+-- gone; this was left. An apostrophe is a boundary character, so typing
+-- "Doesn't" hands "Doesn" to the rules, and Webster's Second HOLDS the
+-- apostrophe-less contractions — measured against the real list (web2,
+-- 234,454 words): doesn → doesnt, wouldn → wouldnt, mightn → mightnt,
+-- oughtn → oughtnt. The word list is not asked when the boundary is an
+-- apostrophe. The dictionary rows and the TWo-caps rule still are.
+do
+  local mine = 0
+  local function ck(label, cond, extra)
+    mine = mine + 1 ; check(label, cond, extra)
+  end
+  FRONTAPP = "TextEdit"
+  local WORDS = TMP .. "/words10"
+  do
+    local f = io.open(WORDS, "w")
+    -- the four Webster's Second entries that bit, plus ordinary words
+    for _, w in ipairs({ "does", "doesnt", "would", "wouldnt", "might",
+                         "mightnt", "the", "something" }) do f:write(w .. "\n") end
+    f:close()
+    mod.config.wordsFile = WORDS
+    mod.warm(core)
+  end
+  ck("fixture: the word list holds doesnt and wouldnt, as Webster's"
+     .. " Second does", _G.autocorrectReport() ~= nil)
+
+  -- ---- LL's complaint, gone --------------------------------------------
+  ck("🚨 Doesn't typed BY HAND is left alone (it became Doesnt't)",
+     typeWord("Doesn'") == nil, tostring(typeWord("Doesn'")))
+  ck("…and lower case doesn't too", typeWord("doesn'") == nil,
+     tostring(typeWord("doesn'")))
+  ck("…wouldn't as well (wouldn → wouldnt on the real list)",
+     typeWord("wouldn'") == nil, tostring(typeWord("wouldn'")))
+  ck("…and mightn't", typeWord("mightn'") == nil, tostring(typeWord("mightn'")))
+
+  -- 🚨 MUTATION ROW: switching the word list off for EVERY boundary would
+  -- pass every row above. A space must still spell-check.
+  ck("🚨 the word list is switched off for the apostrophe ONLY: doesn␣ is"
+     .. " still corrected (a space is a word ending)",
+     typeWord("doesn ") == "doesnt ", tostring(typeWord("doesn ")))
+
+  -- ---- what an apostrophe still gets ------------------------------------
+  local okA = _G.autocorrectAdd("teh", "the")
+  ck("fixture: a dictionary row", okA == true or okA == false)
+  ck("🚨 the DICTIONARY still answers on an apostrophe: teh' → the'",
+     typeWord("teh'") == "the'", tostring(typeWord("teh'")))
+  ck("🚨 and TWo-caps still does: THe' → The'",
+     typeWord("THe'") == "The'", tostring(typeWord("THe'")))
+  ck("LL's own row is untouched: doesnt␣ → doesn't␣",
+     typeWord("doesnt ") == "doesn't ", tostring(typeWord("doesnt ")))
+
+  -- ---- the report names it ----------------------------------------------
+  log = {}
+  _G.autocorrectReport()
+  local rep = table.concat(log, "\n")
+  ck("the report counts the pieces a ' handed to the dictionary alone",
+     rep:find("apostrophe   : %d+ piece%(s%) before a ' — dictionary"
+              .. " and TWo%-caps only, never the word list") ~= nil,
+     rep:match("apostrophe[^\n]*"))
+
+  -- ---- against the source: one door -------------------------------------
+  local f = io.open(HS .. "/modules/autocorrect.lua", "r")
+  local src = f:read("*a"); f:close()
+  local _, asks = src:gsub("acSpellHereOK", "")
+  ck("🔒 there is ONE place that asks whether the word list may speak"
+     .. " (the definition and a single call) — never a second door",
+     asks == 2, asks)
+  local _, quotes = src:gsub('ch == "\'"', "")
+  ck("🔒 and ONE apostrophe test in the tap", quotes == 1, quotes)
+
+  check("§10 ran every one of its checks", mine == 13, mine)
 end
 
 out(("\n%d passed, %d failed\n\n"):format(pass, fail))

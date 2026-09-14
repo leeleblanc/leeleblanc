@@ -96,6 +96,24 @@ work Mac.
   his call, so 6.215.0 shipped on the home ✓ alone; the work Mac
   installs 6.215.0 (it carries 6.214.2) and its `_G.stormReport()`
   is still owed.
+- ✏️ AN APOSTROPHE INSIDE A WORD IS NOT A WORD ENDING (6.219.0,
+  modules/autocorrect.lua — LL on 6.218.0: "Doesnt't kinda works").
+  The typing watcher ends a word on punctuation, and an apostrophe is
+  punctuation, so "Doesn't" hands "Doesn" to the rules — and Webster's
+  Second HOLDS the apostrophe-less contractions. Measured on web2:
+  doesn → doesnt, wouldn → wouldnt, mightn → mightnt, oughtn → oughtnt,
+  and nothing else (couldn/shouldn/mustn/needn/weren have no single
+  answer, haven is a word, can't/won't/isn't/didn't are under minLen 5)
+  — which is why exactly one contraction ever reached him. THE WORD
+  LIST IS NOT ASKED WHEN THE BOUNDARY IS AN APOSTROPHE; the dictionary
+  rows and TWo-caps still are. `acSpellHereOK` is asked in ONE place
+  and a source sentry keeps it there. COST, NAMED: a typo immediately
+  before an apostrophe (somethign's) is silent now. 🧪 And §9's storm
+  test had been built ON this bug (doesn' → doesnt'), so fixing it
+  would have disarmed the 6.218.0 drain check — §9 proves the drain
+  with two dictionary rows that answer each other (aaaa ⇄ bbbb) now.
+  RULE: when a test uses one bug to demonstrate another, fixing the
+  first silently retires the second — re-arm it in the same release.
 - 🔁 A RETYPE COMES BACK THROUGH THE TAP (6.218.0, modules/
   autocorrect.lua — LL's 6.216.0 "banshee"): hs.eventtap.keyStrokes
   and keyStroke POST their events; they reach every tap AFTER the call
@@ -1278,9 +1296,11 @@ as the fix when a loss lands.
 | 6.215.0 | 🔔 the degrade door: `core.degrade(tool, why)` → alert + ⚠️ line + ledger + `_G.degradeReport()`; the storm guard takes it first | pending |
 | 6.216.0 | 📶 Bluetooth ⇪⇧7: paired devices, ⏎ connects/disconnects via blueutil; without it system_profiler lists and ⏎ opens System Settings | LOSS — LL: "locked the keyboard & took off like a banshee … wouldn't stop creating tabs", a field of "dododod…doesnt". NOT bluetooth: the autocorrect retype loop (doesnt ⇄ doesn), live since 6.10.0, reproduced on 6.215.0 by typing "doesnt " → fix 6.218.0. ⇪⇧7 itself is unscored |
 | 6.217.0 | ✂️ init.lua trimmed 3,796 → 3,534 (no behaviour change) + RESOLVED-FEATURE-REQUESTS.txt generated into every zip | pending — never installed; 6.218.0 carries it |
-| 6.218.0 | 🌩 autocorrect no longer reads its own retype: the guard drains by count, a 0.3 s held timer as the belt; ⇪Z shares the door; the suite plays macOS | pending |
+| 6.218.0 | 🌩 autocorrect no longer reads its own retype: the guard drains by count, a 0.3 s held timer as the belt; ⇪Z shares the door; the suite plays macOS | pending — the storm IS gone (LL's report: "retype guard : 3 retype(s) · released by count 3 · by timer 0", teh → the, no tabs), but his words were "Doesnt't kinda works", which is the half 6.218.0 named and did not fix → 6.219.0. Asked him for the clean yes/no |
+| 6.219.0 | ✏️ an apostrophe inside a word is not a word ending: the word list is not asked on a ' (doesn't, wouldn't, mightn't, oughtn't) | pending |
 
-Running total: 14 wins · 5 losses · 3 pending (6.215.0, 6.217.0, 6.218.0).
+Running total: 14 wins · 5 losses · 4 pending (6.215.0, 6.217.0, 6.218.0,
+6.219.0).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
@@ -1298,13 +1318,9 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   WITHOUT CODE (LL, 6.215.0 rollback: "Alt+tab Success. Shows
   Hammerspoon now."; if it goes missing again, the dock icon being
   HIDDEN is the first suspect — `me:allWindows()` on an accessory app;
-  hs.console.hswindow stays banned). NEXT: ✏️ "doesn't" BY HAND —
-  "doesn" + apostrophe still reaches the word list once (doesnt is
-  in Webster's Second) and types doesnt't; an apostrophe INSIDE a word
-  must not hand the piece before it to the spelling rule (dictionary
-  rows and TWo-caps unchanged; measure against web2 first — can't,
-  won't, isn't, wasn't, hasn't are all under minLen, doesn/couldn/
-  wouldn/shouldn are the live ones). Then ✏️ the Edit OCR
+  hs.console.hswindow stays banned). ✏️ "doesn't" BY HAND ✔ shipped as 6.219.0 (measured: four
+  contractions, not four hundred). NEXT: 📋 THE CLIPBOARD, artefact
+  first (see below). Then ✏️ the Edit OCR
   entry window does not take the caret (the page calls t.focus() but
   the webview window is not key — after bringToFront, focus the
   hswindow on a held timer and re-run t.focus()); then the OCR junk
@@ -1327,6 +1343,23 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   his typing; (f) the public sanitised config waits on his strings
   list ("I will after you build"). After those: OCR gibberish, the
   4 PM review, bookmarks CSV, website, Claude door.
+- 📋 COPY / HISTORY NOT SHOWING RECENT COPIES (LL, 2026-09-13: "I'm
+  not sure my copy and history is working. I don't see items that i
+  just copied."). NOT diagnosed, NO code — the artefact comes first
+  (6.201.0's rule). Asked: `_G.clipboardPollReport()`. Read, not
+  proven, in order of suspicion: (1) init.lua's THRASH BREAKER
+  (6.170.2) rests the poll `_G.clipboardThrashRest` (60 s) after
+  `_G.clipboardThrashTicks` (6) changed ticks in a row and prints ONE
+  ⚠️ line — every copy inside that window is never filed; the report's
+  "thrash rests" count answers it outright. (2) `_G.pasteboardSuppress
+  Until` held in the future (screenshots sets it; core/coexist owns
+  it). (3) `_G.clipboardTimer` stopped, or the eco registry's saver
+  rebuild leaving it stopped. (4) clip.save() refused — a full disk or
+  a OneDrive-owned Logs folder; tellFailure alerts, so ask whether he
+  saw one. NOTE the gap this exposes: there is no `_G.clipboardReport()`
+  naming the newest item, its time and the last refusal — 6.202.0
+  queued exactly that and this is the report that would have answered
+  him in one line. Own release once the poll report names the cause.
 - 🐞 ⇪Y CHROME HISTORY BEACHBALL (2026-09-13, LL: "Searching Chrome
   history: caused a beachball"; the stall guard relaunched at 72 s).
   NOT diagnosed. The export copies each profile's History DB and
@@ -1384,6 +1417,15 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   writes the per-Mac name — a leftover. It was GONE by 18:38 on
   2026-09-13 (write ledger: "was here at boot and is GONE now");
   the line does not return. Closed.
+- 6.219.0 verify with LL — THE APOSTROPHE: install (carries
+  6.215.0–6.218.0). In Chrome type `doesn't ` — it stays `doesn't `,
+  and so do `wouldn't `, `mightn't `. Then `doesnt ` still becomes
+  `doesn't ` (his own row), and `teh ` still becomes `the `. Then
+  `somethingg ` → `something` — the word list is still alive on a
+  space. `_G.autocorrectReport()`: a new "apostrophe :" line counts
+  the pieces a ' handed to the dictionary alone, and the "spelling :"
+  block must no longer list `Doesn → Doesnt`. KNOWN AND ACCEPTED: a
+  typo right before an apostrophe (somethign's) is not corrected now.
 - 6.217.0 verify with LL — THE TRIM + THE LIST: install (carries
   6.216.0). Boot line reads 6.217.0, All green, 71 modules; every ⇪
   key works as before (nothing but comments changed). At the zip root:

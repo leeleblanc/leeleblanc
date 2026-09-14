@@ -126,6 +126,9 @@ function M.setup(core)
     local acSpellFixes   = {}         -- the last few, for the report
     local acSpellFixed   = 0
     local acSpellDown    = 0          -- times it stood down (app or password)
+    -- 6.219.0 — pieces handed to the dictionary alone because the
+    -- boundary that ended them was an apostrophe. See the tap below.
+    local acApostrophe   = 0
     _G.acSpellTimer      = nil        -- HELD: the slicing timer
 
     _G.autocorrectEnabled = true
@@ -807,7 +810,35 @@ function M.setup(core)
                 local word = acBuffer
                 acBuffer = ""
                 if _G.autocorrectEnabled and #word >= 2 then
-                    local fixed, source = autocorrectFor(word, acSpellHereOK())
+                    -- 🚨 6.219.0 — AN APOSTROPHE INSIDE A WORD IS NOT A
+                    -- WORD ENDING, and the piece before it is not a word.
+                    -- LL, on 6.218.0: "Doesnt't kinda works as you can
+                    -- see." The storm was gone; this was left. An
+                    -- apostrophe is a boundary character, so typing
+                    -- "Doesn't" hands "Doesn" to the rules — and
+                    -- /usr/share/dict/words is Webster's Second, which
+                    -- HOLDS the apostrophe-less contractions. Measured
+                    -- against the real list (web2, 234,454 words): doesn
+                    -- → doesnt, wouldn → wouldnt, mightn → mightnt,
+                    -- oughtn → oughtnt. Four words nobody can type.
+                    -- (couldn, shouldn, mustn, needn, weren, haven are
+                    -- silent — one is a word, the rest have no single
+                    -- answer; can't, won't, isn't, didn't are under
+                    -- minLen. That is why only "doesn't" ever reached
+                    -- him.) So the WORD LIST is not asked when the
+                    -- boundary is an apostrophe. The dictionary rows and
+                    -- the TWo-caps rule still are — "teh'" must still
+                    -- correct, and "THe'" must still become "The'".
+                    -- COST, stated: a real typo immediately before an
+                    -- apostrophe (somethign's) is now silent. That is
+                    -- the trade for four contractions that are not.
+                    local spellHere = false
+                    if ch == "'" then
+                        acApostrophe = acApostrophe + 1
+                    else
+                        spellHere = acSpellHereOK()
+                    end
+                    local fixed, source = autocorrectFor(word, spellHere)
                     if fixed and not acIsExcludedApp() then
                         -- A rule fix and a spelling fix are both undone AND
                         -- permanently refused by ⇪Z, because acSpellFor
@@ -1134,6 +1165,11 @@ function M.setup(core)
             L[#L + 1] = "      ↳ any of these wrong? ⇪Z right after it, or"
             L[#L + 1] = "        _G.autocorrectForget(\"<the word>\") later."
         end
+        L[#L + 1] = "   apostrophe   : "
+                    .. (acApostrophe == 0
+                        and "no word ended on a ' yet this session"
+                        or (acApostrophe .. " piece(s) before a ' — dictionary"
+                            .. " and TWo-caps only, never the word list"))
         L[#L + 1] = "   retype guard : "
                     .. (acDrain.retypes == 0 and "no retype yet this session"
                         or (acDrain.retypes .. " retype(s) · released by count "

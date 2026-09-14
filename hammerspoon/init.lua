@@ -2,11 +2,30 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-13-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-14-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.218.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.219.0
 -- =====================================================================
 
+-- NEW IN 6.219.0 — ✏️ AN APOSTROPHE INSIDE A WORD IS NOT A WORD ENDING (modules/autocorrect.lua):
+--   LL, on 6.218.0: "Doesnt't kinda works as you can see." The storm was
+--      gone; this was left. An apostrophe is a boundary character, so
+--      typing "Doesn't" hands the piece before it — "Doesn" — to the
+--      rules, and macOS's /usr/share/dict/words is Webster's Second,
+--      which HOLDS the apostrophe-less contractions. Measured against
+--      the real list (web2, 234,454 words), not a fixture: doesn →
+--      doesnt, wouldn → wouldnt, mightn → mightnt, oughtn → oughtnt.
+--      Four words nobody can type. couldn, shouldn, mustn, needn, weren
+--      and haven are silent (one is a word; the rest have no single
+--      answer), and can't, won't, isn't, didn't are under minLen — which
+--      is why only "doesn't" ever reached him. THE FIX: the WORD LIST is
+--      not asked when the boundary is an apostrophe. The dictionary rows
+--      and the TWo-caps rule still are, so teh' still corrects to the'
+--      and THe' to The'. COST, STATED: a real typo immediately before an
+--      apostrophe (somethign's) is now silent — the trade for four
+--      contractions that were not. Report line "apostrophe".
+--      9,012 -> 9,027 checks.
+--
 -- NEW IN 6.218.0 — 🌩 AUTOCORRECT NO LONGER READS ITS OWN RETYPE (modules/autocorrect.lua):
 --   LL, on 6.216.0: "locked the keyboard & took off like a banshee …
 --      wouldn't stop creating tabs" and a field full of "dododod…doesnt".
@@ -30,33 +49,12 @@
 --      mutations (clear at once · no count · no timer) each fail.
 --      Report line "retype guard". 8,995 -> 9,012 checks.
 --
--- NEW IN 6.217.0 — ✂️ INIT.LUA TRIMMED, AND A PLAIN-TEXT FEATURE LIST RIDES IN EVERY ZIP:
---   LL: "Go ahead with the init.lua trim" (his ask (c)), and "a list of
---      features and how to use them in a plain text file … 'Resolved
---      Feature Requests'". NO BEHAVIOUR CHANGED — the gate is the proof:
---      the same 8,992 checks went green on the trimmed file before a
---      word of ceremony was written. Twenty comment blocks telling the
---      story of releases 6.53 to 6.156 (EmmyLua's removal, the adoption
---      rename, the 6.66.4 count, the hidutil give-back, the loader's
---      history) were cut to the rule each one left behind, with a pointer
---      at CHANGELOG.md where the story lives in full: 3,796 → 3,534
---      lines, 266 under the 3,800 ceiling that had 4 to spare. Nothing
---      newer than 6.15x was touched, and the NEW IN blocks stay.
---      RESOLVED-FEATURE-REQUESTS.txt (tools/build-feature-list.lua) is
---      GENERATED, so it cannot go stale: every module's own cheat sheet,
---      grouped by family, the automatic tools one line each, the core
---      keys, then a release index — one line per NEW IN header in
---      CHANGELOG.md, newest first — so "did I ask for that, and was it
---      done?" is a search of one file. test_diagnostics refuses a zip
---      whose list names a different version than init.lua.
---      8,992 -> 8,995 checks, seventy-seven stages.
---
--- (6.216.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.217.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.218.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.219.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -153,7 +151,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.218.0"
+_G.configVersion = "6.219.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
