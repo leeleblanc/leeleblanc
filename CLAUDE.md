@@ -114,6 +114,24 @@ work Mac.
   with two dictionary rows that answer each other (aaaa ⇄ bbbb) now.
   RULE: when a test uses one bug to demonstrate another, fixing the
   first silently retires the second — re-arm it in the same release.
+- 🎯 UP, IN FRONT, AND KEY ARE THREE DIFFERENT STATES (6.225.0,
+  modules/ocr_engine.lua — LL on the 6.213.5 edit window: it "opens front
+  but the caret is not in the box"). `bringToFront` RAISES a window; it
+  does not make it key, and only key routes the keyboard — so the page's
+  own `t.focus()` at load lands in a window that draws no caret and takes
+  no typing until you click. THE THIRD STEP IS LUA'S:
+  `ocr.focusEditorSoon()` focuses the hswindow a turn later and re-asks
+  the page for the caret, in its OWN held timer slot (6.196.1), bounded
+  by `editorFocusTries` (4 × 0.08 s), stopping the moment the window IS
+  key; no hswindow → ask the page ONCE and stop (retrying cannot make key
+  a window that does not exist); closing the box stops the chase; no
+  hs.timer.doAfter → the box still opens and the state says "click the
+  box once". RULE for any new panel that must be typed into: show →
+  bringToFront → focus the hswindow off a held timer → ask the page
+  again, and report which of those four states this Mac reached.
+  🧪 The stub had no :hswindow(), no :evaluateJavaScript() and no
+  doAfter, so the first version THREW and the suite DIED rather than
+  failing a check. It plays a window macOS refuses to make key now.
 - 📋 A COUNT WITH NO CLOCK AND NO REFUSALS BESIDE IT ANSWERS NOTHING
   (6.224.0, modules/clipboard_history.lua + init.lua §3.11).
   `_G.clipboardPollReport()` said "changes 3 · thrash rests 0" — which
@@ -1397,9 +1415,10 @@ as the fix when a loss lands.
 | 6.222.0 | 🧊 a drag whose release happened outside the editor window no longer sticks (the overlay that covered the whole image) | pending |
 | 6.223.0 | 📐 the ⇪T form is drawn whole — the ceiling raised from 760 to 1400 pt so his eleven project fields need no scrolling | pending |
 | 6.224.0 | 📋 `_G.clipboardReport()` — the newest item, every refusal by reason, saves ok/FAILED, and the poll with a clock and a suppressed count | pending |
+| 6.225.0 | 🎯 the ⇪⇧V / ⇪⇧O edit window takes the caret — Lua focuses the hswindow a turn after bringToFront, bounded and reported | pending |
 
-Running total: 14 wins · 5 losses · 9 pending (6.215.0, 6.217.0, 6.218.0,
-6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0).
+Running total: 14 wins · 5 losses · 10 pending (6.215.0, 6.217.0, 6.218.0,
+6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
@@ -1519,12 +1538,9 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   and seek was not asked for, so v1 ships without either and they are
   his call afterwards. NOTHING ELSE IS BLOCKING IT — it is a build when
   its turn comes.
-- ✏️ EDIT OCR ENTRY HAS NO CARET (LL, 2026-09-13): the 6.213.5
-  `editor.open` window opens front but the caret is not in the box.
-  Read: the page calls t.focus() at load; the webview window is not
-  KEY when the script runs (bringToFront ≠ key). Fix shape: after
-  show, `view:hswindow():focus()` on a held 0.05 s timer, then
-  evaluateJavaScript("t.focus()") again; report line. Own release.
+- ✅ EDIT OCR ENTRY HAS NO CARET — SHIPPED AS 6.225.0 (LL, 2026-09-13).
+  Diagnosed exactly as read: bringToFront ≠ key. See the durable rule
+  above. Unscored until he says.
 - 🔤 OCR JUNK RULE (LL, 2026-09-13, from his example log): "just
   remove single characters; anything two or more characters together
   is retained" — TIER 1, certain: drop 1-character tokens and
@@ -1587,6 +1603,13 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   the pieces a ' handed to the dictionary alone, and the "spelling :"
   block must no longer list `Doesn → Doesnt`. KNOWN AND ACCEPTED: a
   typo right before an apostrophe (somethign's) is not corrected now.
+- 6.225.0 verify with LL — 🎯 THE CARET: install. ⇪⇧V, ⏎ on a row —
+  the window comes to the front AND the caret is already blinking in
+  the box, at the END of the text. Type at once, no click. ⌘⏎ saves.
+  Same for ⇪⇧O. Console: `_G.ocrReport()` — the new "edit box :" line
+  must read "caret placed on try 1". If it reads "gave up after 4
+  tries", that Mac will not make the window key and a click is still
+  needed — paste the line, it names the state.
 - 6.224.0 verify with LL — 📋 THE CLIPBOARD REPORT (the instrument, not
   a fix): install. Copy three distinct strings from three different
   apps. Console: `_G.clipboardReport()` — PASTE THE WHOLE THING. Read

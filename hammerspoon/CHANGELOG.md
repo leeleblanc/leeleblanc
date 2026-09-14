@@ -5,6 +5,45 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.225.0 — 🎯 THE EDIT BOX TAKES THE CARET (modules/ocr_engine.lua):
+  LL, 2026-09-13, on the window 6.213.5 built for exactly this complaint:
+     it "opens front but the caret is not in the box". Both ⇪⇧V (a
+     clipboard entry) and ⇪⇧O (an OCR entry) come through it.
+  THREE THINGS HAVE TO BE TRUE AND ONLY TWO WERE. The window is up
+     (show), it is in FRONT (bringToFront), and macOS has made it KEY.
+     Those are three different states and only the third routes the
+     keyboard: bringToFront RAISES a window, and the page's own
+     `t.focus()` — which runs as the HTML loads — puts the DOM focus
+     inside a window that is not key, where it draws no caret and takes
+     no typing. A click made the window key, which is why clicking
+     "fixed" it every time and hid what was missing.
+  THE THIRD STEP IS LUA'S, AND IT IS BOUNDED. `ocr.focusEditorSoon()`
+     runs a turn after bringToFront: it focuses the hswindow and asks the
+     page for the caret again (at the END of the text, as the page does).
+     It lives in its OWN held timer slot — 6.196.1's rule, never armed
+     into the slot whose callback is running — retries at most
+     `ocr.editorFocusTries` (4) times `ocr.editorFocusDelay` (0.08 s)
+     apart, and STOPS the moment the window is key. Four states, none of
+     which may read like another: placed (and on which try), gave up
+     after N tries (and why), no hswindow on this Mac (ask the page once
+     and stop — retrying cannot make key a window that does not exist),
+     and no hs.timer.doAfter at all (the box still opens; the state says
+     "click the box once"). Closing the box stops the chase.
+  `_G.ocrReport()` carries all of it on a new "edit box :" line — and it
+     is concatenated into the SAME print, because a second print() is
+     exactly 6.179.1's rule and the suite caught it on the first run.
+  🧪 THE STUB COULD NOT HAVE SEEN THIS EITHER WAY. The editor's fake
+     webview had no `:hswindow()`, no `:evaluateJavaScript()`, and the
+     section's hs.timer had no `doAfter` — so the very first version of
+     this code THREW inside openTextEditor and the suite died rather than
+     failing a check. The stub now answers all three, and carries a fake
+     window manager that can play a window macOS REFUSES to make key,
+     which is LL's Mac exactly. 6.193.0's rule, and the reason the
+     degrade path is real code rather than a hope.
+  Three mutations, each failing its own rows: no Lua focus at all, an
+     unbounded retry, and a close that leaves the chase running.
+     9,091 -> 9,103 checks.
+
 NEW IN 6.224.0 — 📋 _G.clipboardReport() (modules/clipboard_history.lua + init.lua §3.11):
   LL, 2026-09-13: "I'm not sure my copy and history is working. I don't
      see items that i just copied." The artefact first (6.201.0's rule),

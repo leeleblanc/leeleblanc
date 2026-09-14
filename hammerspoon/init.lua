@@ -4,9 +4,33 @@
 -- =====================================================================
 -- 09-14-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.224.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.225.0
 -- =====================================================================
 
+-- NEW IN 6.225.0 — 🎯 THE EDIT BOX TAKES THE CARET (modules/ocr_engine.lua):
+--   LL, on the 6.213.5 window (⇪⇧V and ⇪⇧O both use it): it "opens front
+--      but the caret is not in the box". THREE things have to be true and
+--      only two were — the window is up (show), it is in front
+--      (bringToFront), and macOS has made it KEY. bringToFront RAISES a
+--      window; it does not make it key, and the page's own t.focus() at
+--      load lands inside a window that is not key, so there is no caret
+--      and no typing until you click.
+--   THE THIRD STEP IS LUA'S: `ocr.focusEditorSoon()` focuses the
+--      hswindow a turn later and asks the page for the caret again, in
+--      its OWN held timer slot (6.196.1), BOUNDED by
+--      `ocr.editorFocusTries` (4 × 0.08 s), stopping the moment the
+--      window IS key. No hswindow at all → the page is asked ONCE and
+--      the chase stops, because retrying cannot make a window key that
+--      does not exist. Closing the box stops the chase. No
+--      hs.timer.doAfter → the box still opens, and the state says "click
+--      the box once". `_G.ocrReport()`'s new "edit box :" line has all
+--      four states and prints inside the SAME one string (6.179.1).
+--   🧪 The suite's webview stub had no :hswindow(), no
+--      :evaluateJavaScript() and no hs.timer.doAfter — so this could
+--      never have been proven right OR wrong. It has all three now, plus
+--      a fake window manager that can play a window macOS REFUSES to
+--      make key, which is LL's Mac. Three mutations. 9,091 -> 9,103.
+--
 -- NEW IN 6.224.0 — 📋 _G.clipboardReport() (modules/clipboard_history.lua + §3.11):
 --   LL: "I'm not sure my copy and history is working. I don't see items
 --      that i just copied." The artefact he sent —
@@ -30,28 +54,12 @@
 --      changes" (6.196.1's rule), and a history file not yet read reads
 --      differently from an empty one. 9,076 -> 9,091 checks.
 --
--- NEW IN 6.223.0 — 📐 THE ⇪T FORM IS DRAWN WHOLE (modules/task_form.lua):
---   LL, on 6.220.0: "There are options here so the canvas needs to be
---      bigger so I don't have to scroll. Sorry. That was what I tried to
---      say before." 6.220.0 answered the half he could see — the blue
---      Create button is pinned and can never be pushed off — and left
---      the half he meant: its 760-pt ceiling was lower than his form
---      (~1,090 pt with eleven project fields), so the fields still sat
---      behind a scroller on a display with room for all of them. The
---      ceiling is `form.maxHeight` = 1400 now and the margin from the
---      screen `form.screenGap` = 80 (was 120). Both are still NUMBERS
---      rather than "as tall as the display", and the footer and the
---      scroller are untouched — they are what the small screen, or the
---      bigger project, still needs. `settings = { task_form =
---      { maxHeight = 900 } }` is the knob, no release.
---      9,074 -> 9,076 checks.
---
--- (6.222.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.223.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.224.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.225.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -148,7 +156,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.224.0"
+_G.configVersion = "6.225.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

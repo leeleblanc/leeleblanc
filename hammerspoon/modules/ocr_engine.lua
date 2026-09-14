@@ -97,6 +97,15 @@ function M.setup(core)
     ocr.editorH          = 520
     ocr.editorFont       = 14      -- the BOX's size, not the stored text's
     ocr.editorRows       = 16
+    -- 🎯 6.225.0 — LL: the ⇪⇧V / OCR edit window "opens front but the
+    -- caret is not in the box". The page calls t.focus() as it loads, and
+    -- that is not enough: bringToFront RAISES a window, it does not make
+    -- it KEY, and a DOM focus inside a window macOS has not made key
+    -- leaves no caret and takes no typing. So the window is focused from
+    -- LUA a turn later and the caret is asked for again.
+    ocr.editorFocusDelay = 0.08    -- s between tries (a turn, not a wait)
+    ocr.editorFocusTries = 4       -- bounded: never a timer that lives on
+    ocr.editorFocusState = "never asked"
     ocr.tagMaxFilesPerCopy = 15    -- safety cap per ⌘C (floods ignored)
     ocr.imageExtensions  = { png = true, jpg = true, jpeg = true, gif = true,
         tif = true, tiff = true, heic = true, heif = true, webp = true, bmp = true }
@@ -340,11 +349,17 @@ function M.setup(core)
     function _G.ocrReport()
         local st = ocr.imageStats
         local hold = (ocr.imageHoldUntil or 0) - nowS()
+        -- 🔒 ONE print, one string (6.179.1) — the console gate eats rows
+        -- from a report printed line by line.
         print(string.format("🔤 OCR (image) — %s · ran %d · busy %d · held %d · empty %d · repeat %d · failed %d · off %d · last: %s%s (6.170.2)",
             ocr.autoImage and "ON" or "OFF (settings = { ocr_engine = { autoImage = true } } turns it on)",
             st.ran, st.busy, st.held, st.empty, st["repeat"], st.failed, st.off or 0,
             st.lastWhy ~= "" and st.lastWhy or "nothing yet",
-            hold > 0 and string.format(" · quiet for another %ds", math.ceil(hold)) or ""))
+            hold > 0 and string.format(" · quiet for another %ds", math.ceil(hold)) or "")
+            -- 🎯 6.225.0 — the caret. Three states that must not read
+            -- alike: never opened, placed (and on which try), gave up.
+            .. "\n   edit box : " .. tostring(ocr.editorFocusState)
+            .. (ocr.editorView and " · open now" or ""))
         return st
     end
 
@@ -963,6 +978,11 @@ function M.setup(core)
 
     function ocr.closeEditor()
         ocr.endDrag()
+        -- the caret chase never outlives the window it was chasing
+        if ocr.editorFocusTimer then
+            pcall(function() ocr.editorFocusTimer:stop() end)
+            ocr.editorFocusTimer = nil
+        end
         if ocr.editorView then
             pcall(function() ocr.editorView:delete() end)
         end
@@ -1086,6 +1106,94 @@ function M.setup(core)
         -- the app loses focus. This box has no such rule and one job —
         -- being typed into — so it comes to the front and takes the caret.
         pcall(function() view:bringToFront(true) end)
+        ocr.focusEditorSoon()
+        return true
+    end
+
+    -- 🎯 6.225.0 — THE CARET, ASKED FOR FROM LUA. Three things have to be
+    -- true and only the first two were: the window is up (show), it is in
+    -- front (bringToFront), and macOS has made it KEY. The third is the
+    -- one the page cannot arrange for itself.
+    --   · its own timer slot (`ocr.editorFocusTimer`), HELD — 6.196.1's
+    --     rule: never arm a timer into the slot whose callback is running,
+    --     and never let the only reference be a local.
+    --   · BOUNDED (`editorFocusTries`), and it stops the moment the window
+    --     IS key — a retry that never ends is a timer nobody can see.
+    --   · the state is remembered in words, so the report can say which of
+    --     the three steps did not happen on that Mac.
+    function ocr.editorIsKey()
+        local view = ocr.editorView
+        if not view then return false, "no window" end
+        local okW, win = pcall(function() return view:hswindow() end)
+        if not (okW and win) then return false, "no hswindow" end
+        local okF, front = pcall(function() return hs.window.focusedWindow() end)
+        if not (okF and front) then return false, "cannot read the focus" end
+        local okI, same = pcall(function() return front:id() == win:id() end)
+        if not okI then return false, "cannot compare windows" end
+        return same == true, same and "key" or "another window is key"
+    end
+
+    function ocr.focusEditorNow()
+        local view = ocr.editorView
+        if not view then return false, "the window closed" end
+        local okW, win = pcall(function() return view:hswindow() end)
+        if okW and win then pcall(function() win:focus() end) end
+        -- Ask the page for the caret again whatever happened above: on a
+        -- Mac where hswindow() answers nothing, the focus may still land.
+        pcall(function()
+            view:evaluateJavaScript([==[
+                try { var b = document.getElementById('t');
+                      if (b) { b.focus();
+                               b.setSelectionRange(b.value.length, b.value.length); } }
+                catch (e) {}
+            ]==])
+        end)
+        return true, (okW and win) and "window focused" or "no hswindow — caret asked anyway"
+    end
+
+    function ocr.focusEditorSoon(n)
+        n = tonumber(n) or 1
+        if ocr.editorFocusTimer then
+            pcall(function() ocr.editorFocusTimer:stop() end)
+            ocr.editorFocusTimer = nil
+        end
+        if n > (tonumber(ocr.editorFocusTries) or 4) then
+            local _, why = ocr.editorIsKey()
+            ocr.editorFocusState = ("gave up after %d tries — %s")
+                :format(ocr.editorFocusTries, tostring(why))
+            return false, ocr.editorFocusState
+        end
+        -- A Hammerspoon without hs.timer.doAfter costs the CARET, never
+        -- the window: the box still opens and a click still types in it.
+        local okT, t = pcall(function()
+            return hs.timer.doAfter(tonumber(ocr.editorFocusDelay) or 0.08,
+                function()
+                    ocr.editorFocusTimer = nil
+                    if not ocr.editorView then
+                        ocr.editorFocusState =
+                            "the window closed before the caret landed"
+                        return
+                    end
+                    local ok, how = ocr.focusEditorNow()
+                    if ocr.editorIsKey() then
+                        ocr.editorFocusState = ("caret placed on try %d — %s")
+                            :format(n, tostring(how))
+                    elseif not ok or how == "no hswindow — caret asked anyway" then
+                        -- Retrying cannot help: there is no window object
+                        -- to make key. Ask the page once, say so, stop.
+                        ocr.editorFocusState = tostring(how)
+                    else
+                        ocr.focusEditorSoon(n + 1)
+                    end
+                end)
+        end)
+        if not (okT and t) then
+            ocr.editorFocusState = "no hs.timer.doAfter — click the box once"
+            return false, ocr.editorFocusState
+        end
+        ocr.editorFocusTimer = t
+        ocr.editorFocusState = ("asking for the caret (try %d of %d)")
+            :format(n, ocr.editorFocusTries)
         return true
     end
 

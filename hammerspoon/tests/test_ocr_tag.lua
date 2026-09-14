@@ -332,6 +332,23 @@ do
 
     -- ---- a Mac WITH a webview ----------------------------------------
     local VIEWS, ALERTS2, PROMPTED = {}, {}, {}
+    -- the fake window manager: which hs.window each view answers with,
+    -- which one macOS currently calls KEY, and every :focus() asked for
+    local WINDOW_FOR, FOCUSED, FOCUS_CALLS = setmetatable({}, { __mode = "k" }), nil, {}
+    local nextWinId = 0
+    local function mkWindow(becomesKey)
+        nextWinId = nextWinId + 1
+        local w = { wid = nextWinId }
+        function w:id() return self.wid end
+        -- A window macOS REFUSES to make key still answers :focus() —
+        -- that is the shape of LL's bug, so the stub can play it.
+        function w:focus()
+            FOCUS_CALLS[#FOCUS_CALLS + 1] = self.wid
+            if becomesKey ~= false then FOCUSED = self end
+            return true
+        end
+        return w
+    end
     local function mkView(rect)
         local v = { shown = false, front = false, textEntry = nil, html = nil,
                     deleted = false,
@@ -349,6 +366,13 @@ do
         function v:bringToFront() self.front = true; return self end
         function v:frame(f) if f then self.rect = f end return self.rect end
         function v:delete() self.deleted = true; return self end
+        -- 🎯 6.225.0 — THE REAL WEBVIEW ANSWERS THESE, so the stub does
+        -- too (6.193.0's rule, and it bit here: the stub had no
+        -- hs.timer.doAfter either, which is how the caret chase could
+        -- never have been proven right OR wrong).
+        v.js = {}
+        function v:evaluateJavaScript(code) self.js[#self.js + 1] = code; return self end
+        function v:hswindow() return WINDOW_FOR[self] end
         VIEWS[#VIEWS + 1] = v
         return v
     end
@@ -363,7 +387,24 @@ do
     hs.screen  = { mainScreen = function()
         return { frame = function() return { x = 0, y = 0, w = 1800, h = 1000 } end }
     end }
-    hs.timer   = { doEvery = function() return { stop = function() end } end }
+    -- a timer that FIRES when the suite says so, never on its own
+    local PENDING = {}
+    hs.timer   = { doEvery = function() return { stop = function() end } end,
+                   doAfter = function(secs, fn)
+                       local t = { secs = secs, fn = fn, stopped = false }
+                       function t:stop() self.stopped = true; return self end
+                       PENDING[#PENDING + 1] = t
+                       return t
+                   end }
+    local function runTimers(times)
+        for _ = 1, (times or 1) do
+            local due = PENDING[#PENDING]
+            if not due or due.stopped then return end
+            PENDING[#PENDING] = nil
+            due.fn()
+        end
+    end
+    hs.window  = { focusedWindow = function() return FOCUSED end }
     hs.alert   = { show = function(m) ALERTS2[#ALERTS2 + 1] = tostring(m) end }
     hs.dialog  = { textPrompt = function(title, msg, deflt)
         PROMPTED[#PROMPTED + 1] = { title = title, msg = msg, deflt = deflt }
@@ -579,6 +620,106 @@ do
         E.handleEditorMessage({ a = "save", text = "t" })
         return bv.deleted == true and E.editorView == nil
     end)())
+
+    -- ---- 🎯 6.225.0: THE CARET ----------------------------------------
+    -- LL: the edit window "opens front but the caret is not in the box".
+    -- bringToFront RAISES a window; it does not make it KEY, and a DOM
+    -- focus() inside a window macOS has not made key leaves no caret.
+    do
+        local mine = 0
+        local function ck(label, cond, extra)
+            mine = mine + 1; check(label, cond, extra)
+        end
+
+        -- 1. the ordinary Mac: the window takes key on the first try
+        FOCUS_CALLS, FOCUSED, PENDING = {}, nil, {}
+        E.openTextEditor({ text = "hello" })
+        local v = VIEWS[#VIEWS]
+        WINDOW_FOR[v] = mkWindow(true)
+        ck("the box comes up front, and the caret is NOT claimed yet — a "
+           .. "page focus() inside a window that is not key is the bug",
+           v.front == true and #FOCUS_CALLS == 0
+           and E.editorFocusState:find("asking for the caret") ~= nil,
+           E.editorFocusState)
+        runTimers(1)
+        ck("🚨 a turn later LUA focuses the WINDOW — the step the page "
+           .. "cannot take for itself",
+           #FOCUS_CALLS == 1 and FOCUS_CALLS[1] == WINDOW_FOR[v]:id(),
+           #FOCUS_CALLS)
+        ck("…and asks the page for the caret again, at the END of the text",
+           #v.js == 1 and v.js[1]:find("setSelectionRange", 1, true) ~= nil,
+           #v.js)
+        ck("…and STOPS once the window is key — no timer left running",
+           E.editorFocusState:find("caret placed on try 1") ~= nil
+           and #PENDING == 0, E.editorFocusState)
+        E.closeEditor()
+
+        -- 2. a window macOS will not make key: bounded, and it SAYS so
+        FOCUS_CALLS, FOCUSED, PENDING = {}, nil, {}
+        E.openTextEditor({ text = "stubborn" })
+        local v2 = VIEWS[#VIEWS]
+        WINDOW_FOR[v2] = mkWindow(false)
+        runTimers(E.editorFocusTries + 2)
+        ck("🚨 a window that never becomes key is tried editorFocusTries "
+           .. "times and then GIVES UP — never a timer that lives on",
+           #FOCUS_CALLS == E.editorFocusTries and #PENDING == 0,
+           #FOCUS_CALLS .. " tries · " .. #PENDING .. " pending")
+        ck("…and the state says so in words, not in silence",
+           E.editorFocusState:find("gave up after", 1, true) ~= nil,
+           E.editorFocusState)
+        E.closeEditor()
+
+        -- 3. no hswindow at all — the caret is still asked for
+        FOCUS_CALLS, FOCUSED, PENDING = {}, nil, {}
+        E.openTextEditor({ text = "no window object" })
+        local v3 = VIEWS[#VIEWS]
+        WINDOW_FOR[v3] = nil
+        runTimers(1)
+        ck("🚨 with no hswindow the page is asked ONCE and the chase stops "
+           .. "— retrying cannot make a window key that does not exist, "
+           .. "and the state names the degrade instead of claiming success",
+           #v3.js == 1 and #PENDING == 0
+           and E.editorFocusState:find("no hswindow", 1, true) ~= nil,
+           E.editorFocusState .. " · pending " .. #PENDING)
+        E.closeEditor()
+
+        -- 4. the chase never outlives the window it was chasing
+        FOCUS_CALLS, FOCUSED, PENDING = {}, nil, {}
+        E.openTextEditor({ text = "closed at once" })
+        WINDOW_FOR[VIEWS[#VIEWS]] = mkWindow(false)
+        local armed = PENDING[#PENDING]
+        E.closeEditor()
+        ck("🚨 closing the box STOPS the caret chase — a timer chasing a "
+           .. "window that is gone is the 6.196.1 shape",
+           armed ~= nil and armed.stopped == true)
+        runTimers(1)
+        ck("…and even if it fired, it touches nothing and says why",
+           #FOCUS_CALLS == 0, #FOCUS_CALLS)
+
+        -- 5. the page still does its own half at load
+        FOCUS_CALLS, FOCUSED, PENDING = {}, nil, {}
+        E.openTextEditor({ text = "page half" })
+        ck("the PAGE still focuses on load — Lua's turn is a second ask, "
+           .. "never a replacement",
+           (VIEWS[#VIEWS].html or ""):find("t.focus()", 1, true) ~= nil)
+        E.closeEditor()
+
+        -- 6. the report says which of the three states this Mac is in
+        printed = {}
+        E.openTextEditor({ text = "for the report" })
+        WINDOW_FOR[VIEWS[#VIEWS]] = mkWindow(true)
+        runTimers(1)
+        printed = {}
+        _G.ocrReport()
+        ck("_G.ocrReport() carries the caret's state, in ONE print",
+           #printed == 1 and (printed[1] or ""):find("edit box", 1, true) ~= nil
+           and (printed[1] or ""):find("caret placed", 1, true) ~= nil,
+           printed[1])
+        E.closeEditor()
+
+        check("the 6.225.0 caret section ran every one of its checks",
+              mine == 11, mine)
+    end
 
     -- ---- a Mac WITHOUT a webview (the managed work Mac) --------------
     hs.webview = nil
