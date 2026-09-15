@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.227.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.228.0
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -358,6 +358,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 📁 FILE TRACKER   [modules/file_tracker.lua]
   ⇪F      Rename / move / copy history (searchable)
   Enter     Copy row  ·  90-day history
+  check     _G.fileTrackerReport() — what it watches, and what it costs your mouse
 
 📂 RECENT DOCUMENTS (⇪I)   [modules/recent_docs.lua]
   ⇪I      The 9 last-opened documents, then every type you work in
@@ -741,6 +742,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.228.0  🕵️ THE FILE TRACKER IS TIMED, AND IT CAN BE TURNED OFF (modules/file_tracker.lua)
   6.227.0  🔖 ⇪⇧V KEEPS ITS PLACE, AND HOME/END JUMP (modules/clipboard_history.lua)
   6.226.0  🔤 THE OCR JUNK FILTER, TIER 1 (modules/ocr_engine.lua)
   6.225.0  🎯 THE EDIT BOX TAKES THE CARET (modules/ocr_engine.lua)

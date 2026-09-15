@@ -418,6 +418,283 @@ do
           src:find('"preview.open"', 1, true) ~= nil)
 end
 
+-- =====================================================================
+out("\n=== 🕵️ 6.228.0 — the clock, the door and the switch ===\n")
+-- =====================================================================
+-- LL, 2026-09-14: "I can't move files in drag and drop again." Proven to
+-- be this module by stopping its watchers in the Console. What was NOT
+-- proven is WHICH half costs the time — the FSEvents wake-up, or the
+-- synchronous CSV write into OneDrive — and those are two different
+-- repairs. So this release measures them APART, and this section's job is
+-- to make sure they can never quietly become one number.
+
+-- A controllable clock. ft.nowMs prefers hs.timer.absoluteTime, so the
+-- suite can hand it any duration it likes and prove the slow path without
+-- a Mac, without a real file event and without waiting 120 ms.
+local FAKE_NS = 0
+hs.timer.absoluteTime = function() return FAKE_NS end
+local function advance(ms) FAKE_NS = FAKE_NS + ms * 1e6 end
+
+local D8   = DIR .. "/s8"
+local H8   = D8 .. "/home"          -- what is watched
+local L8   = D8 .. "/logs"          -- where the CSV goes
+local CSV8 = L8 .. "/file_changes-Test-Mac.csv"
+-- 🚨 THEY MUST BE DIFFERENT FOLDERS. fileTrackerExcludedPath drops the whole
+-- logs folder, so its own CSV can never wake it — which also means a fixture
+-- whose home IS its logs folder records nothing and every counter reads 0
+-- while looking like a broken feature. (Worth keeping: it says the tracker
+-- does NOT feed itself.)
+local function wipe8()
+    os.execute("rm -rf '" .. D8 .. "' && mkdir -p '" .. H8 .. "' '" .. L8 .. "'")
+end
+
+local DEGRADES = {}
+local function boot228(extra)
+    local M = dofile(HS .. "/modules/file_tracker.lua")
+    local c = {
+        homeDir = H8, cloudDir = nil, logsDir = L8, hostTag = "Test-Mac",
+        configDir = D8,
+        csvQuote = csvQuote, splitCSVLine = splitCSVLine,
+        warnWriteFailed = function(l) print("WRITEFAIL " .. tostring(l)) end,
+        adoptLegacyFile = function() end,
+        showPopup = function() end,
+        degrade = function(tool, why)
+            DEGRADES[#DEGRADES + 1] = tostring(tool) .. " :: " .. tostring(why)
+            return false, why
+        end,
+    }
+    for k, v in pairs(extra or {}) do c[k] = v end
+    M.setup(c)
+    return M, c
+end
+
+-- A move of one file, as macOS reports it: two halves of a rename, the
+-- old path gone and the new one present.
+local function moveEvent(M, oldPath, newPath)
+    local w = _G.fileTrackerWatchers[1]
+    if not w then return false end
+    w.fn({ oldPath }, { { itemIsFile = true, itemRenamed = true } })
+    w.fn({ newPath }, { { itemIsFile = true, itemRenamed = true } })
+    return true
+end
+
+wipe8()
+local M8 = boot228()
+check("🚨 setup() alone starts NO watcher — the profile's settings are "
+      .. "applied after setup returns, so a watcher started there could "
+      .. "never be switched off",
+      #(_G.fileTrackerWatchers or {}) == 0, #(_G.fileTrackerWatchers or {}))
+check("...and the module offers a config table for that override to land on",
+      type(M8.config) == "table" and M8.config.enabled == true)
+check("...with warm() as the thing that actually starts it",
+      type(M8.warm) == "function")
+
+if type(M8.warm) == "function" then pcall(M8.warm) end
+check("warm() starts the watcher", #_G.fileTrackerWatchers == 1,
+      #_G.fileTrackerWatchers)
+check("...and the state says so in words",
+      tostring(M8.config.state):find("watching", 1, true) ~= nil,
+      M8.config.state)
+
+-- 🔒 THE SWITCH. This is the check LL's Mac depends on tonight: with the
+-- override applied the way init.lua applies it, nothing may be watched.
+wipe8()
+local M9 = boot228()
+M9.config.enabled = false            -- exactly what init.lua's settings block does
+if type(M9.warm) == "function" then pcall(M9.warm) end
+check("🔒 enabled = false means NOT ONE folder is watched",
+      #_G.fileTrackerWatchers == 0, #_G.fileTrackerWatchers)
+check("...and the report's state names the settings line that did it",
+      tostring(M9.config.state):find("enabled = false", 1, true) ~= nil,
+      M9.config.state)
+
+-- ---- the two clocks, kept apart --------------------------------------
+wipe8()
+printed = {}
+DEGRADES = {}
+local M10 = boot228()
+if type(M10.warm) == "function" then pcall(M10.warm) end
+local st = M10.config.stats
+check("nothing is timed before macOS wakes it", st.callbacks == 0 and st.writes == 0)
+
+FAKE_NS = 0
+moveEvent(M10, H8 .. "/a.txt", H8 .. "/b.txt")
+check("a move wakes the module twice and both wake-ups are counted",
+      st.callbacks == 2, st.callbacks)
+check("...and the paths it was handed are counted too", st.paths == 2, st.paths)
+check("...and the row reached the CSV", st.rows == 1, st.rows)
+check("🚨 the WRITE has its own counter — one write, not two, and not "
+      .. "folded into the wake-ups", st.writes == 1, st.writes)
+
+-- 🚨 THE MUTATION THIS SECTION EXISTS FOR: a build that adds both
+-- durations into one total reads as "the file tracker is slow", which
+-- names a module and not a cause. Narrowing the watched folders and
+-- moving the write off the main thread are different repairs.
+wipe8()
+FAKE_NS = 0
+DEGRADES = {}
+local M11 = boot228()
+if type(M11.warm) == "function" then pcall(M11.warm) end
+local s11 = M11.config.stats
+-- Drive one event whose WRITE is expensive and whose classification is not:
+-- the clock is read either side of io.open, so advancing it during the
+-- write shows up on the write's total and nowhere else.
+local realOpen = io.open
+io.open = function(path, mode)
+    if mode == "a" then advance(300) end
+    return realOpen(path, mode)
+end
+moveEvent(M11, H8 .. "/c.txt", H8 .. "/d.txt")
+io.open = realOpen
+check("🚨 a slow WRITE is charged to the write, not to the wake-up",
+      s11.writeWorstMs >= 300, s11.writeWorstMs)
+check("...and the wake-up's own total still contains it (it is inside), "
+      .. "so the two are reported side by side rather than one of them",
+      s11.cbWorstMs >= 300, s11.cbWorstMs)
+check("...the slow WRITE is counted as a slow write", s11.slowWrite == 1,
+      s11.slowWrite)
+check("🔔 ...and it took the degrade door, naming the tool",
+      #DEGRADES > 0 and DEGRADES[1]:find("File tracker", 1, true) == 1,
+      DEGRADES[1])
+check("🔔 ...and the door's words say what it costs, in LL's terms",
+      (DEGRADES[1] or ""):find("drag and drop", 1, true) ~= nil, DEGRADES[1])
+-- 🧪 AND THIS ROW EXISTS BECAUSE THE TWO ABOVE PASSED WITH THE WRITE'S OWN
+-- ALERT DELETED. A slow write is INSIDE the wake-up it happens in, so the
+-- wake-up crosses the threshold on the same event and alerts too — and both
+-- of those alerts carry the tool name and the words "drag and drop". A check
+-- that only looks for the tool is not a check on the write. Same family as
+-- 6.212.0's line-that-counted-any-stroke: assert the thing that is unique to
+-- the branch you meant.
+local function degradeSaying(needle)
+    for _, d in ipairs(DEGRADES) do
+        if d:find(needle, 1, true) then return true end
+    end
+    return false
+end
+check("🔔 ...and one of them names the CSV WRITE by itself — the half to fix",
+      degradeSaying("a CSV write"), table.concat(DEGRADES, " | "))
+check("🔔 ...while the wake-up it happened inside is named separately",
+      degradeSaying("an FSEvents wake-up"), table.concat(DEGRADES, " | "))
+
+-- A fast event must alert NOBODY. A door that opens on every file move is
+-- a door LL turns off within a day.
+wipe8()
+FAKE_NS = 0
+DEGRADES = {}
+local M12 = boot228()
+if type(M12.warm) == "function" then pcall(M12.warm) end
+moveEvent(M12, H8 .. "/e.txt", H8 .. "/f.txt")
+check("🤫 a fast event alerts nothing at all", #DEGRADES == 0, #DEGRADES)
+check("...and is counted as not slow",
+      M12.config.stats.slowCb == 0 and M12.config.stats.slowWrite == 0)
+
+-- ---- the report ------------------------------------------------------
+wipe8()
+printed = {}
+local M13 = boot228()
+if type(M13.warm) == "function" then pcall(M13.warm) end
+_G.fileTrackerReport()
+check("🚨 the report prints as ONE string (6.179.1 — the console gate eats "
+      .. "rows otherwise)", #printed == 1, #printed)
+local rep = printed[1] or ""
+check("...it says macOS has not woken it, which is NOT the same as 0 ms",
+      rep:find("has not woken this module once", 1, true) ~= nil, rep)
+check("...it names the whole home folder as what it watches",
+      rep:find("YOUR WHOLE HOME FOLDER", 1, true) ~= nil, rep)
+check("...and it hands over the off switch",
+      rep:find("settings = { file_tracker = { enabled = false } }", 1, true) ~= nil)
+
+printed = {}
+FAKE_NS = 0
+moveEvent(M13, H8 .. "/g.txt", H8 .. "/h.txt")
+_G.fileTrackerReport()
+rep = printed[1] or ""
+check("🚨 once woken, the report stops saying 'not woken' — a module that "
+      .. "has been measured and is fast must not read like one that was "
+      .. "never asked", rep:find("has not woken", 1, true) == nil, rep)
+check("...wake-ups and writes get their own lines, with their own worsts",
+      rep:find("wake%-ups :") ~= nil and rep:find("writes   :") ~= nil, rep)
+check("...and a quiet session says so rather than printing a ⚠️ nobody needs",
+      rep:find("none over", 1, true) ~= nil, rep)
+check("...the report names the clock that actually answered, so 'never "
+      .. "measured' and 'measured and fast' cannot read alike (6.196.1)",
+      rep:find("clock    : hs.timer.absoluteTime", 1, true) ~= nil, rep)
+
+-- The OneDrive line is the honest half of the diagnosis, and it must only
+-- appear when the CSV really is in a cloud folder — on a Mac with no
+-- OneDrive it would be a lie.
+check("no cloud folder, no OneDrive warning",
+      rep:find("INSIDE OneDrive", 1, true) == nil, rep)
+wipe8()
+printed = {}
+local M14 = boot228({ cloudDir = L8 })
+M14.warm()
+_G.fileTrackerReport()
+check("🚨 a CSV that IS inside the cloud folder says so — that write is the "
+      .. "prime suspect and the report must not bury it",
+      (printed[1] or ""):find("INSIDE OneDrive", 1, true) ~= nil, printed[1])
+
+-- A Mac whose Hammerspoon has no absoluteTime still counts, less precisely,
+-- and the report SAYS which clock answered rather than quietly implying the
+-- good one (6.196.1: a state you did not read must not read like one you did).
+wipe8()
+printed = {}
+local savedAbs = hs.timer.absoluteTime
+hs.timer.absoluteTime = nil
+local M14b = boot228()
+if type(M14b.warm) == "function" then pcall(M14b.warm) end
+moveEvent(M14b, H8 .. "/i.txt", H8 .. "/j.txt")
+_G.fileTrackerReport()
+hs.timer.absoluteTime = savedAbs
+check("🚨 no absoluteTime: it still times, and the report NAMES the weaker "
+      .. "clock instead of claiming the good one",
+      (printed[1] or ""):find("os.clock", 1, true) ~= nil, printed[1])
+check("...and the counting is unaffected", M14b.config.stats.callbacks == 2,
+      M14b.config.stats.callbacks)
+
+-- ---- the hand switch --------------------------------------------------
+wipe8()
+local M15 = boot228()
+if type(M15.warm) == "function" then pcall(M15.warm) end
+check("stopWatching() lets LL stop it without a reload",
+      M15.config.stopWatching() and #_G.fileTrackerWatchers == 0)
+M15.config.startWatching()
+check("...and startWatching() puts it back", #_G.fileTrackerWatchers == 1)
+M15.config.startWatching()
+check("...starting twice does not double the watchers",
+      #_G.fileTrackerWatchers == 1, #_G.fileTrackerWatchers)
+
+-- A throw inside the classifier must cost this module, never the tap, and
+-- must STILL be timed — or the one event that hurts is the one not counted.
+wipe8()
+printed = {}
+local M16 = boot228()
+if type(M16.warm) == "function" then pcall(M16.warm) end
+local w16 = _G.fileTrackerWatchers[1]
+local okThrow = pcall(function() w16.fn(nil, nil) end)
+check("a callback handed nothing does not throw out into the pathwatcher",
+      okThrow)
+check("...and it was still counted", M16.config.stats.callbacks == 1,
+      M16.config.stats.callbacks)
+
+-- 🚨 AND A REAL THROW, because "handed nothing" never reached the code that
+-- can fail: the classifier returns early on an empty list, so the pcall
+-- around it had no check that could fail it. The one event that hurts must
+-- not be the one event nobody counts.
+local realAttrs = hs.fs.attributes
+hs.fs.attributes = function() error("AX went away mid-event") end
+printed = {}
+local okBoom = pcall(function()
+    w16.fn({ H8 .. "/boom.txt" }, { { itemIsFile = true, itemRenamed = true } })
+end)
+hs.fs.attributes = realAttrs
+check("🚨 a throw inside the classifier costs this module, never the "
+      .. "pathwatcher macOS calls", okBoom)
+check("...it is still TIMED and COUNTED — the slow event is exactly the one "
+      .. "likely to throw", M16.config.stats.callbacks == 2,
+      M16.config.stats.callbacks)
+check("...and it is SAID, not swallowed", logged("File tracker callback error"))
+
 os.execute("rm -rf '" .. DIR .. "'")
 
 realPrint(table.concat(printed, "\n"))

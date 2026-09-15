@@ -114,6 +114,45 @@ work Mac.
   with two dictionary rows that answer each other (aaaa ⇄ bbbb) now.
   RULE: when a test uses one bug to demonstrate another, fixing the
   first silently retires the second — re-arm it in the same release.
+- 🖱 A MAIN THREAD THIS CONFIG IS BUSY ON IS A MOUSE THIS MAC HAS LOST
+  (6.228.0, modules/file_tracker.lua — LL: "I can't move files in drag
+  and drop again … caps lock stays on and Hammerspoon seems locked up").
+  Every hs.eventtap on the Mac is queued behind the main thread, so work
+  done there does not merely make Hammerspoon slow: it DELAYS other
+  apps' input. A mouse-down delayed past Finder's drag threshold is a
+  drag that never starts — the symptom lands in FINDER, with no error,
+  no throw and no beach ball long enough for the 60 s stall guard.
+  🔎 FOUR REPORTS NAMED NOTHING AND ALL FOUR WERE TRUE: boot 480 ms vs a
+  usual 467; 0 storms and ⇪ not held; the stall guard watching and
+  beating; window_move with all twelve panels closed and "no click at
+  all". THE MISSING REPORT WAS THE ANSWER — file_tracker had none, so
+  the one module woken by the exact action he was complaining about was
+  the one module that could not be asked. 6.196.1's rule, and it cost
+  the same thing twice.
+  📋 IT WAS MEASURED, NOT REPAIRED, ON PURPOSE: "the file tracker is
+  slow" names a MODULE, not a cause. The FSEvents WAKE-UP (it watches
+  the whole HOME FOLDER) and the synchronous CSV WRITE (into OneDrive)
+  are two different repairs with two different costs, so they are timed
+  APART and printed side by side with their own worst cases. 6.224.0's
+  rule, second time it has decided a release: when a diagnostic still
+  decides nothing, the missing half is a CLOCK. Past `ft.slowMs`
+  (120 ms) it takes the 🔔 door naming which half.
+  🔌 A SWITCH IS ONLY REAL IF THE THING IT GOVERNS STARTS AFTER setup:
+  init.lua applies a profile's `settings` AFTER setup returns, so
+  anything a module STARTS inside setup can never be stopped by an
+  override — the flag is written and nobody reads it again. The
+  watchers moved to `M.warm`. window_move's `wm.enabled` has exactly
+  that shape today and is decorative because of it; fix it when that
+  module is next opened. `settings = { file_tracker = { enabled =
+  false } }`, `_G.fileTracker.stopWatching()`, `_G.fileTrackerReport()`.
+  🧪 THE DOOR'S FIRST TWO CHECKS PASSED WITH THE WRITE'S OWN ALERT
+  DELETED — a slow write is INSIDE the wake-up containing it, so the
+  wake-up alerts on the same event with the same tool name and the same
+  words. 6.212.0's stroke-counting row and 6.220.0's ordering check are
+  the same family: assert what is UNIQUE to the branch. And the fixture
+  could not make a row at all until its home folder stopped being its
+  logs folder — the module excludes the whole Logs folder, so it never
+  feeds itself.
 - 🔖 hs.chooser DROPS THE SELECTION ON EVERY :choices() (6.227.0,
   modules/clipboard_history.lua — LL on ⇪⇧V: "I'm returned to the top
   after a selection multiple times … until I get out of the search box, I
@@ -1434,7 +1473,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a.
+   6.227.0 14e953a · 6.228.0 28bd388.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -1494,9 +1533,11 @@ as the fix when a loss lands.
 | 6.225.0 | 🎯 the ⇪⇧V / ⇪⇧O edit window takes the caret — Lua focuses the hswindow a turn after bringToFront, bounded and reported | pending |
 | 6.226.0 | 🔤 the OCR junk filter, tier 1: single characters and punctuation-only tokens dropped at the one door, plus `_G.ocrCleanHistory()` for the log he already has | pending |
 | 6.227.0 | 🔖 ⇪⇧V keeps its query and its highlighted row across a rebuild; Home/End jump to first/last while the picker is up | pending |
+| 6.228.0 | 🕵️ the file tracker is timed (wake-up vs write, apart), alerts past 120 ms, and can be switched off | pending |
 
-Running total: 14 wins · 5 losses · 12 pending (6.215.0, 6.217.0, 6.218.0,
-6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0, 6.227.0).
+Running total: 14 wins · 5 losses · 13 pending (6.215.0, 6.217.0, 6.218.0,
+6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
+6.227.0, 6.228.0).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
@@ -1590,6 +1631,22 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   naming the newest item, its time and the last refusal — 6.202.0
   queued exactly that and this is the report that would have answered
   him in one line. Own release once the poll report names the cause.
+- 🖱 DRAG AND DROP DIES WHILE HAMMERSPOON RUNS (LL, 2026-09-14: "I
+  can't move files in drag and drop again … caps lock stays on and
+  Hammerspoon seems locked up"). ✅ MODULE NAMED: file_tracker. Proven
+  live, not theorised — `_G.windowMove.tap:stop()` changed nothing, and
+  `for _, w in ipairs(_G.fileTrackerWatchers) do w:stop() end` brought
+  the drag straight back with every other tap still running ("Stable
+  now"). ❌ HALF NOT NAMED: the FSEvents wake-up over the whole home
+  folder, or the synchronous OneDrive CSV write. 6.228.0 is the
+  instrument that separates them — his report decides 6.229.0. THE TWO
+  CANDIDATE FIXES, so the choice is ready: (a) the write leaves the main
+  thread (batch the rows, flush from a HELD timer through an hs.task —
+  the 6.170.3 shape) and/or leaves OneDrive (`localFirst` already
+  exists and does exactly this for every store); (b) the watch narrows
+  off `core.homeDir` to the folders he actually wants a paper trail of
+  — HIS CALL, because that is the feature's reach. Do not do both in
+  one release, and do not start either before the report.
 - 🐞 ⇪Y CHROME HISTORY BEACHBALL (2026-09-13, LL: "Searching Chrome
   history: caused a beachball"; the stall guard relaunched at 72 s).
   NOT diagnosed. The export copies each profile's History DB and
@@ -1683,6 +1740,28 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   the pieces a ' handed to the dictionary alone, and the "spelling :"
   block must no longer list `Doesn → Doesnt`. KNOWN AND ACCEPTED: a
   typo right before an apostrophe (somethign's) is not corrected now.
+- 6.228.0 verify with LL — 🕵️ THE FILE TRACKER, MEASURED: install
+  (carries 6.227.0). FIRST, because it is why this release exists: move
+  six or seven large files in Finder, the way you did with the TV
+  episodes — drag them from one folder to another. Then Console:
+  `_G.fileTrackerReport()` — PASTE THE WHOLE THING. Read it in this
+  order: "wake-ups" and "writes" each have a WORST number; whichever is
+  larger is the half to fix, and that is 6.229.0. "⚠️ SLOW" counts what
+  crossed 120 ms; if it is 0 while the drag still fails, this module is
+  not the cost and the report says so honestly. If an alert fires
+  mid-drag — "⚠️ File tracker — a CSV write took N ms …" — that is the
+  🔔 door working, and the alert itself is the evidence.
+  THE OFF SWITCH, and it survives a reload now (the Console line did
+  not): `settings = { file_tracker = { enabled = false } }` in the
+  machine profile. Then `_G.fileTrackerReport()` must read "OFF —
+  settings = …" and "macOS has not woken this module once". Nothing
+  else changes: ⌃⌥⇧F still opens the history, the CSV is untouched,
+  the 90 days are all still there — only NEW rows stop.
+  Right this second, with no reload: `_G.fileTracker.stopWatching()`,
+  and `_G.fileTracker.startWatching()` puts it back.
+  🚨 KNOWN AND NOT FIXED IN THIS RELEASE: it still watches your whole
+  home folder and still writes into OneDrive on the main thread. This
+  release exists so the next one is aimed rather than guessed.
 - 6.227.0 verify with LL — 🔖 ⇪⇧V KEEPS ITS PLACE: install. THE
   SCENARIO HE ASKED FOR, and it only fails after an ACTION:
   1. Copy six things: "alpha one" … "alpha six". Then "beta one",

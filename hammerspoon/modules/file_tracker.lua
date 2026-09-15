@@ -85,12 +85,96 @@ local M = {
         title = "📁 FILE TRACKER",
         entries = {
             { "⇪F", "Rename / move / copy history (searchable)" },
-            { "Enter", "Copy row  ·  90-day history" }
+            { "Enter", "Copy row  ·  90-day history" },
+            { "check", "_G.fileTrackerReport() — what it watches, and what it costs your mouse" }
         },
     },
 }
 
 function M.setup(core)
+    -- ✏️ EDIT HERE ---------------------------------------------------------
+    -- 🕵️ 6.228.0 — THE TRACKER IS TIMED, AND IT CAN BE TURNED OFF.
+    local ft = {}
+    ft.enabled = true    -- false: no folder is watched at all. The picker,
+                         -- the CSV and the 90-day history still work — only
+                         -- new events stop being recorded.
+    ft.slowMs  = 120     -- a callback or a CSV write slower than this is a
+                         -- BREAK and takes the 🔔 door, so LL sees it happen
+    -- ----------------------------------------------------------------------
+
+    ft.state     = "not started yet"
+    ft.clockName = "nothing timed yet"
+    ft.stats = { callbacks = 0, paths = 0, rows = 0,
+                 cbMs = 0, cbWorstMs = 0, cbWorstAt = nil, slowCb = 0,
+                 writes = 0, writeMs = 0, writeWorstMs = 0,
+                 writeWorstAt = nil, slowWrite = 0, writeFails = 0,
+                 startedAt = nil }
+
+    -- A monotonic millisecond, with a degrade: a Hammerspoon without
+    -- absoluteTime still counts, less precisely, rather than reporting 0 for
+    -- everything — 6.196.1's rule, that "never measured" must not read the
+    -- same as "measured and fast". The report names which clock answered.
+    function ft.nowMs()
+        if hs.timer and hs.timer.absoluteTime then
+            local ok, v = pcall(hs.timer.absoluteTime)
+            if ok and tonumber(v) then
+                ft.clockName = "hs.timer.absoluteTime"
+                return tonumber(v) / 1e6
+            end
+        end
+        ft.clockName = "os.clock — hs.timer.absoluteTime is missing"
+        return os.clock() * 1000
+    end
+
+    -- 🔔 6.228.0 — THE BREAK IS SEEN. LL, 2026-09-14: "I can't move files in
+    -- drag and drop again … caps lock stays on and Hammerspoon seems locked
+    -- up." macOS wakes this module for EVERY file event under the home
+    -- folder, and the work it then does — path checks, and a synchronous
+    -- append into the OneDrive-synced CSV — happens ON THE MAIN THREAD.
+    -- While that runs every hs.eventtap on the Mac is queued behind it, and
+    -- a mouse-down delayed past Finder's drag threshold is a drag that never
+    -- starts. Nothing crashed, the boot was fast, no report said a word, and
+    -- his mouse was simply gone. It alerts now.
+    local function tooSlow(what, ms)
+        local why = ("%s took %d ms on the main thread — every click on this "
+                     .. "Mac waits behind it, so drag and drop stops working")
+                    :format(what, math.floor(ms + 0.5))
+        if type(core.degrade) == "function" then
+            return core.degrade("File tracker", why)
+        end
+        print("⚠️ File tracker: " .. why)
+        return false, why
+    end
+
+    -- The two counters are kept APART on purpose. "The file tracker is slow"
+    -- names a module, not a cause: the wake-up and the write are two
+    -- different repairs (narrow the watched folders / move the write off the
+    -- main thread), and only the bigger of these two numbers says which.
+    function ft.noteCallback(ms, paths)
+        local s = ft.stats
+        s.callbacks = s.callbacks + 1
+        s.paths = s.paths + (tonumber(paths) or 0)
+        ms = tonumber(ms) or 0
+        s.cbMs = s.cbMs + ms
+        if ms > s.cbWorstMs then s.cbWorstMs, s.cbWorstAt = ms, os.date("%H:%M:%S") end
+        if ms > (tonumber(ft.slowMs) or 120) then
+            s.slowCb = s.slowCb + 1
+            tooSlow("an FSEvents wake-up", ms)
+        end
+    end
+
+    function ft.noteWrite(ms)
+        local s = ft.stats
+        s.writes = s.writes + 1
+        ms = tonumber(ms) or 0
+        s.writeMs = s.writeMs + ms
+        if ms > s.writeWorstMs then s.writeWorstMs, s.writeWorstAt = ms, os.date("%H:%M:%S") end
+        if ms > (tonumber(ft.slowMs) or 120) then
+            s.slowWrite = s.slowWrite + 1
+            tooSlow("a CSV write", ms)
+        end
+    end
+
     local fileTrackerFolders = { core.homeDir }
     if core.cloudDir then table.insert(fileTrackerFolders, core.cloudDir) end
     local fileTrackerMods          = {"ctrl", "alt", "shift"}
@@ -352,13 +436,17 @@ function M.setup(core)
     end
 
     local function fileTrackerAppendRow(e)
+        local t0 = ft.nowMs()
         local f = io.open(fileTrackerFile, "a")
         if f then
             f:write(fileTrackerRow(e))
             f:close()
+            ft.stats.rows = ft.stats.rows + 1
         else
+            ft.stats.writeFails = ft.stats.writeFails + 1
             core.warnWriteFailed("file tracker CSV")
         end
+        ft.noteWrite(ft.nowMs() - t0)
     end
 
     local function fileTrackerRecord(event, fileName, newName, presentLoc, movedLoc)
@@ -433,7 +521,7 @@ function M.setup(core)
         end
     end
 
-    local function fileTrackerCallback(paths, flagTables)
+    local function fileTrackerCallbackInner(paths, flagTables)
         for i, path in ipairs(paths or {}) do
             local flags = (flagTables or {})[i] or {}
             if flags.itemIsFile and not fileTrackerIgnored(path)
@@ -477,16 +565,60 @@ function M.setup(core)
         end
     end
 
-    _G.fileTrackerWatchers = {}
-    for _, folder in ipairs(fileTrackerFolders) do
-        local ok, w = pcall(hs.pathwatcher.new, folder, fileTrackerCallback)
-        if ok and w then
-            pcall(function() w:start() end)
-            table.insert(_G.fileTrackerWatchers, w)
-        else
-            print("⚠️ File tracker couldn't watch " .. folder)
+    -- ⏱ macOS wakes this module here and nowhere else, so the clock goes
+    -- here and nowhere else. The pcall is part of the same rule: a throw
+    -- inside the classifier must still be timed, must still be counted, and
+    -- must cost this module rather than the pathwatcher.
+    local function fileTrackerCallback(paths, flagTables)
+        local t0 = ft.nowMs()
+        local ok, err = pcall(fileTrackerCallbackInner, paths, flagTables)
+        ft.noteCallback(ft.nowMs() - t0, #(paths or {}))
+        if not ok then
+            print("🚨 File tracker callback error: " .. tostring(err))
         end
     end
+
+    -- 🔌 THE WATCHERS START IN warm(), NOT HERE, and that is what makes the
+    -- switch real: init.lua applies a profile's `settings` AFTER setup
+    -- returns, so a watcher started in setup could never be stopped by
+    -- `settings = { file_tracker = { enabled = false } }` — the override
+    -- would land on a flag nobody reads again. warm() runs after that block.
+    -- It also takes the slowest module at boot (190 ms on LL's Air, 4x the
+    -- next one) off the boot path entirely.
+    _G.fileTrackerWatchers = {}
+
+    function ft.startWatching()
+        if not ft.enabled then
+            ft.state = "OFF — settings = { file_tracker = { enabled = false } }"
+            return false, "off"
+        end
+        if #_G.fileTrackerWatchers > 0 then return true end
+        for _, folder in ipairs(fileTrackerFolders) do
+            local ok, w = pcall(hs.pathwatcher.new, folder, fileTrackerCallback)
+            if ok and w then
+                pcall(function() w:start() end)
+                table.insert(_G.fileTrackerWatchers, w)
+            else
+                print("⚠️ File tracker couldn't watch " .. folder)
+            end
+        end
+        ft.stats.startedAt = os.time()
+        ft.state = (#_G.fileTrackerWatchers > 0)
+            and ("watching " .. #_G.fileTrackerWatchers .. " folder(s)")
+            or  "⚠️ NOTHING IS WATCHED — every pathwatcher refused"
+        return #_G.fileTrackerWatchers > 0
+    end
+
+    function ft.stopWatching()
+        for _, w in ipairs(_G.fileTrackerWatchers) do
+            pcall(function() w:stop() end)
+        end
+        _G.fileTrackerWatchers = {}
+        ft.state = "stopped by hand — _G.fileTracker.startWatching() puts it back"
+        return true
+    end
+
+    M.warm = function() return ft.startWatching() end
 
     -- (6.10.0: the daily 5 PM copy-to-OneDrive timer is gone — the live
     --  CSV above already IS in OneDrive, machine-tagged.)
@@ -574,6 +706,69 @@ function M.setup(core)
         core.showPopup(_G.choosers.fileTracker)
         if core.call then pcall(core.call, "preview.open", _G.choosers.fileTracker) end
     end)
+
+    -- ---- the report -------------------------------------------------------
+    -- 📋 6.224.0's rule, applied to the module that earned it: when a
+    -- diagnostic is asked for and its answer still does not decide anything,
+    -- the missing half is a CLOCK. This module had no report at all, so
+    -- "Hammerspoon takes my mouse when I move files" had nowhere to be
+    -- answered — the boot was fast, the storm guard was quiet, the stall
+    -- guard was healthy, and every one of those was true.
+    function _G.fileTrackerReport()
+        local s, L = ft.stats, { "📁 FILE TRACKER — ⌃⌥⇧F" }
+        local function line(t) L[#L + 1] = t end
+        local slowMs = math.floor(tonumber(ft.slowMs) or 120)
+
+        line("   state    : " .. tostring(ft.state))
+        for _, f in ipairs(fileTrackerFolders) do
+            line("      watches " .. f
+                 .. ((f == core.homeDir) and "   ← YOUR WHOLE HOME FOLDER" or ""))
+        end
+        line("   csv      : " .. tostring(fileTrackerFile))
+        if core.cloudDir and tostring(fileTrackerFile):sub(1, #core.cloudDir)
+                             == core.cloudDir then
+            line("   ↳ ⚠️ that is INSIDE OneDrive — every row is a synchronous")
+            line("        write to a cloud-synced folder, on the main thread")
+        end
+        line("   rows     : " .. #(_G.fileTrackerLog or {}) .. " in memory · kept "
+             .. tostring(fileTrackerRetentionDays) .. " days")
+        line("   clock    : " .. tostring(ft.clockName))
+
+        if s.callbacks == 0 then
+            line("   events   : macOS has not woken this module once"
+                 .. (ft.enabled and " — nothing has moved yet"
+                                 or " — it is OFF, so it never will"))
+        else
+            line(("   events   : %d wake-up(s) · %d path(s) seen · %d row(s) written")
+                 :format(s.callbacks, s.paths, s.rows))
+            line(("   wake-ups : %.0f ms total · worst %.0f ms at %s")
+                 :format(s.cbMs, s.cbWorstMs, tostring(s.cbWorstAt)))
+            line(("   writes   : %d · %.0f ms total · worst %.0f ms at %s · %d FAILED")
+                 :format(s.writes, s.writeMs, s.writeWorstMs,
+                         tostring(s.writeWorstAt), s.writeFails))
+            if (s.slowCb + s.slowWrite) > 0 then
+                line(("   ⚠️ SLOW   : %d over %d ms — %d wake-up(s) · %d write(s)")
+                     :format(s.slowCb + s.slowWrite, slowMs, s.slowCb, s.slowWrite))
+                line("   ↳ THAT is what stops drag and drop. Whichever of those")
+                line("     two counts is larger names the half to fix.")
+            else
+                line("   ⚠️ slow   : none over " .. slowMs
+                     .. " ms — nothing here has held your mouse this session")
+            end
+        end
+        line("   off      : settings = { file_tracker = { enabled = false } }")
+        line("   ↳ now    : _G.fileTracker.stopWatching()  ·  put it back with"
+             .. " _G.fileTracker.startWatching()")
+        print(table.concat(L, "\n"))
+        return ft.stats
+    end
+
+    if core.provide then
+        core.provide("fileTracker.report", function() return _G.fileTrackerReport() end)
+    end
+    _G.fileTracker = ft
+    M.ft     = ft
+    M.config = ft
 end
 
 return M

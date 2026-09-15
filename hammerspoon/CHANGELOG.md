@@ -5,6 +5,85 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.228.0 — 🕵️ THE FILE TRACKER IS TIMED, AND IT CAN BE TURNED OFF (modules/file_tracker.lua):
+  LL, 2026-09-14: "Ok, we have a problem we solved already. I can't move
+     files in drag and drop again. Checked again by a re-launch of
+     Hammerspoon. Bug comes back. After a re-launch, caps lock stays on
+     and Hammerspoon seems locked up."
+  🔎 FOUR REPORTS NAMED NOTHING, AND ALL FOUR WERE TELLING THE TRUTH.
+     `_G.bootCostReport()` said 480 ms against a usual 467 — a fast boot.
+     `_G.stormReport()` said 0 storms, 0 Caps Lock autorepeats, ⇪ not
+     held. `_G.stallGuardReport()` said watching, beating, with its last
+     two relaunches three and one days old. `_G.windowMoveReport()` said
+     all twelve panels closed and "no click at all". Every one of those
+     is a healthy Mac, and his mouse was still gone. THE MISSING REPORT
+     WAS THE ANSWER: this module had none. That is 6.196.1's rule
+     (⇪space had no report, which is why "2372 items — does this seem
+     right?" had nowhere to be answered) and it cost the same thing here.
+  🖱 WHAT IT WAS, named by stopping the watchers in the Console and
+     watching the drag come straight back with every other tap running:
+     macOS wakes this module for EVERY file event under the HOME FOLDER —
+     that is the whole of it, plus OneDrive — and the work it then does
+     (path checks, and a synchronous append into the OneDrive-synced CSV)
+     happens ON THE MAIN THREAD. While that runs every hs.eventtap on the
+     Mac is queued behind it, and a mouse-down delayed past Finder's drag
+     threshold is a drag that never starts. Moving ten 720p .mkv files is
+     precisely its trigger, and it gets worse the more you drag.
+  🚨 NOTHING CRASHES, WHICH IS WHY IT SURVIVED THIS LONG. There is no
+     error, no throw, no beach ball long enough for the 60 s stall guard,
+     and the symptom lands in Finder rather than in Hammerspoon. LL has
+     been describing it as a solved bug coming back since long before
+     this stack — the module is from §3.8 and nothing in 6.220.0-6.227.0
+     touches the mouse, the ⇪ hold or the boot (five files changed:
+     clipboard_history, ocr_engine, screenshot_editor, task_form, and
+     init.lua's stamps). 6.199.0's ladder rule, applied: a symptom no row
+     touches is an OLD bug the new release merely exposed.
+  📋 THIS RELEASE DOES NOT REPAIR IT — IT MEASURES IT, and that is
+     deliberate. "The file tracker is slow" names a MODULE, not a cause:
+     narrowing the watched folders and moving the write off the main
+     thread are two different repairs, with two different costs to him,
+     and only the bigger of two numbers says which. So the WAKE-UP and
+     the WRITE are timed apart and printed side by side, each with its
+     own worst case and the clock time it happened. 6.224.0's rule, and
+     the second time it has decided a release: when a diagnostic still
+     does not decide anything, the missing half is a CLOCK.
+  🔔 AND IT ALERTS NOW. Anything past `ft.slowMs` (120 ms) takes the
+     6.215.0 degrade door — alert, ⚠️ Console line, ledger row — naming
+     which half it was and what it costs in his words: drag and drop
+     stops working. A fast event alerts nobody; a door that opens on
+     every file move is a door he turns off within a day.
+  🔌 THE SWITCH IS REAL BECAUSE THE WATCHERS START IN warm(), NOT setup.
+     init.lua applies a profile's `settings` AFTER setup returns, so a
+     watcher started in setup could never be stopped by an override — it
+     would land on a flag nobody reads again. (window_move has exactly
+     that shape today and its `enabled` knob is decorative because of
+     it.) `settings = { file_tracker = { enabled = false } }` stops it
+     permanently across reloads; `_G.fileTracker.stopWatching()` stops it
+     this second and `startWatching()` puts it back. Starting twice does
+     not double the watchers. It also takes the slowest module at boot
+     (190 ms on the Air, four times the next one) off the boot path.
+  🤫 WHAT IT DOES NOT DO: the CSV is unchanged, the 90-day history is
+     unchanged, the ⌃⌥⇧F picker is unchanged, and switching it off costs
+     only NEW rows — everything already recorded still opens and
+     searches. The tracker does NOT feed itself: the whole Logs folder is
+     already excluded from the watch, so its own write can never wake it.
+  🧪 THE DOOR'S FIRST TWO CHECKS PASSED WITH THE WRITE'S OWN ALERT
+     DELETED. A slow write happens INSIDE the wake-up that contains it,
+     so the wake-up crosses the same threshold on the same event and
+     alerts too — with the same tool name and the same "drag and drop"
+     words the checks were looking for. Same family as 6.212.0's line
+     whose "no arrowhead" row counted any stroke, and 6.220.0's ordering
+     check that passed with the button back inside the scroller: assert
+     what is UNIQUE to the branch you meant. Both halves are named by
+     name now, and each has its own mutation.
+  🧪 AND THE FIXTURE COULD NOT PRODUCE A ROW AT FIRST, for a reason worth
+     keeping: the suite's home folder WAS its logs folder, and the module
+     excludes the whole logs folder, so every counter read 0 and it
+     looked like a broken feature rather than a correct exclusion.
+  ✅ Gate: test_file_tracker 38 -> 79. Seven mutations, each with a row
+     that fails it. 71 modules. 9,147 -> 9,188 checks, seventy-seven
+     stages.
+
 NEW IN 6.227.0 — 🔖 ⇪⇧V KEEPS ITS PLACE, AND HOME/END JUMP (modules/clipboard_history.lua):
   LL, on ⇪⇧V: "while selections work, I'm returned to the top after a
      selection multiple times ... but I can't figure out exactly what.
