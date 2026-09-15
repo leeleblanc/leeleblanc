@@ -1647,6 +1647,28 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   off `core.homeDir` to the folders he actually wants a paper trail of
   — HIS CALL, because that is the feature's reach. Do not do both in
   one release, and do not start either before the report.
+  📋 HIS FIRST 6.228.0 REPORT NAMED NEITHER HALF (2026-09-14 20:50):
+  162 wake-up(s) · 1131 path(s) seen · 0 row(s) written · wake-ups 53 ms
+  total, worst 3 ms · writes 0 · "⚠️ slow : none over 120 ms". That is
+  the third state the release deliberately built in and it must NOT be
+  spun as a confirmation. TWO THINGS IT PROVES AND ONE IT DOES NOT:
+  the watch IS the whole home folder and the CSV IS inside OneDrive
+  (both ⚠️ lines fired); and 0 ROWS OVER 1,131 PATHS means the write
+  half was never exercised, so that session probably holds no file move
+  at all — ask whether he moved the files before running it BEFORE
+  reading anything else into it.
+  🔬 THE UNTIMED THIRD CANDIDATE, found by reading: `ft.nowMs()` starts
+  AFTER Hammerspoon has marshalled every path and flag table into Lua.
+  A whole-home FSEvents storm during a Finder move costs that
+  marshalling on the main thread and the clock cannot see it — which
+  fits every fact (Lua body cheap, write never reached, stopping the
+  watchers fixed the drag instantly). `paths seen` is the only proxy
+  for it, so the cheap next test is the SAME report before and after a
+  move: if paths jumps by thousands while ms stays small, the wake-up
+  volume is the cost and the fix is (b), narrowing the watch.
+  🕳 AND THE REPORT HAS NO REFUSAL COUNTS — 6.224.0's own rule, unpaid
+  here: 1,131 paths and 0 rows cannot say whether they were ignored,
+  excluded, non-file, or burst-limited. Add them with whatever ships.
 - 🐞 ⇪Y CHROME HISTORY BEACHBALL (2026-09-13, LL: "Searching Chrome
   history: caused a beachball"; the stall guard relaunched at 72 s).
   NOT diagnosed. The export copies each profile's History DB and
