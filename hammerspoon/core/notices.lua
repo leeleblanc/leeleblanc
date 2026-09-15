@@ -1,0 +1,382 @@
+-- hs-lint: allow service-call-unchecked — the only call in this file is
+-- service.call("focus.engaged"), and nil is a MEANINGFUL answer there:
+-- no focus module loaded means nothing is holding notices back, which is
+-- exactly the conclusion we want. No outcome is reported to the user that
+-- could be wrong, so has() would add a branch and change no behaviour.
+-- =====================================================================
+-- CORE: NOTICES — nothing fails silently, and you are not made to watch
+-- =====================================================================
+-- One ledger every failure records into, and a small set of surfaces
+-- that read from it. The requirement this exists for, in your words:
+--
+--   "All configurations and additions must not fail silently. Please
+--    develop a way to let me know. I will not always have the console
+--    open. I need to go there only when we fail."
+--
+-- ---------------------------------------------------------------------
+-- WHY A LEDGER RATHER THAN AN ALERT AT EACH SITE
+-- ---------------------------------------------------------------------
+-- Every module could call hs.notify itself. Twenty-five modules doing
+-- that gives twenty-five slightly different behaviours, twenty-five
+-- chances to forget, and no single place that knows whether you have
+-- already been told. The ledger inverts it: modules RECORD, and this
+-- file decides whether, how and when to show anything. Add a surface
+-- later and every existing failure flows into it for free.
+--
+-- ---------------------------------------------------------------------
+-- 🚨 A NOTICE SYSTEM THAT CAN CRASH IS WORSE THAN NONE
+-- ---------------------------------------------------------------------
+-- This runs on the boot path, before the modules, and it is the thing
+-- that reports other failures. If it throws it takes the config with it
+-- AND removes the mechanism that would have told you why. So: no
+-- module-level work beyond building tables, every macOS call is pcall'd,
+-- the queue is bounded, and every public function tolerates nil.
+--
+-- ---------------------------------------------------------------------
+-- ⚠️ DO NOT DISTURB, AND WHAT CAN HONESTLY BE KNOWN ABOUT IT
+-- ---------------------------------------------------------------------
+-- macOS gives no public API for "is Focus on right now". So this does
+-- not pretend to know in general. It knows TWO things reliably:
+--   1. Whether THIS config turned Focus on — Focus Mode publishes
+--      focus.engaged, which is exact, because we did it.
+--   2. Whether the Do Not Disturb assertions file says so — present on
+--      Monterey and later. Read defensively; absence proves nothing.
+-- When neither is conclusive it assumes NOT suppressed and shows the
+-- notice. That direction is deliberate: a notice shown during Focus is
+-- a mild annoyance, a notice silently swallowed is the bug this file
+-- exists to prevent.
+--
+-- The reason this matters at all is uncomfortable: Focus Mode turns Do
+-- Not Disturb ON during meetings, and macOS then swallows notifications
+-- WITHOUT REFUSING THEM — so a hs.notify that "succeeded" can still have
+-- shown you nothing. A failure during a meeting could vanish entirely.
+--
+-- 6.58.0 — WRAPPED TO MATCH THE OTHER FOUR core/ FILES. Every one of
+-- them is `return function(core) ... end`, called as chunk()(coreTable)
+-- by init.lua. This file was written as a bare `return notices` table
+-- instead, called as a bare chunk() with no argument — it happened to
+-- work at runtime (nothing here reads `core`), but it broke the one
+-- invariant tools/hs-install.sh actually verifies: that every core/
+-- file IS an initialiser in the shape init.lua expects to call. The
+-- installer refused the install and rolled back rather than leave a
+-- half-matching file in place — exactly what it exists to do.
+return function(core)
+    local notices = {}
+
+    -- ✏️ EDIT HERE -----------------------------------------------------------
+    notices.maxLedger    = 200    -- entries kept; oldest dropped
+    notices.maxQueue     = 20     -- notices held while Focus is on
+    notices.holdRecheck  = 30     -- seconds between "has Focus ended yet?"
+    notices.bootSignal   = true   -- 🆗 brief "config loaded" flash on a clean boot
+    notices.bootAlert    = true   -- 🚨 alert at boot if a module failed to load
+    notices.signalSecs   = 0.9    -- how long the clean-boot flash stays
+    -- ------------------------------------------------------------------------
+
+    notices.ledger  = {}     -- every recorded event, newest last
+    notices.queue   = {}     -- notices waiting for Focus to end
+    notices.timer   = nil    -- HELD: an unreferenced hs.timer is collected
+    notices.shown   = {}     -- de-dupe: key -> last shown time
+
+    local function now()
+        local ok, t = pcall(hs.timer.secondsSinceEpoch)
+        return ok and t or os.time()
+    end
+
+    -- ---- the ledger --------------------------------------------------------
+    -- kind:   "load" | "runtime" | "hook" | "task" | "info"
+    -- source: which module or file
+    -- msg:    what went wrong, in a sentence
+    function notices.record(kind, source, msg)
+        local e = {
+            at     = now(),
+            clock  = os.date("%H:%M:%S"),
+            kind   = tostring(kind or "runtime"),
+            source = tostring(source or "?"),
+            msg    = tostring(msg or ""),
+        }
+        local L = notices.ledger
+        L[#L + 1] = e
+        while #L > notices.maxLedger do table.remove(L, 1) end
+        -- Mirrored into the diagnostics trail so ⇪⇧D shows it too, rather
+        -- than being a second place you have to know to look.
+        pcall(function()
+            if _G.diag and _G.diag.err and e.kind ~= "info" then
+                _G.diag.err(e.source .. ": " .. e.msg)
+            end
+        end)
+        return e
+    end
+
+    function notices.count(kind)
+        local n = 0
+        for _, e in ipairs(notices.ledger) do
+            if not kind or e.kind == kind then n = n + 1 end
+        end
+        return n
+    end
+
+    -- ---- is a notification going to be swallowed? --------------------------
+    function notices.focusIsOn()
+        -- 1. Our own Focus Mode. Exact, because this config set it.
+        local ok, engaged = pcall(function()
+            return _G.service and _G.service.call("focus.engaged")
+        end)
+        if ok and engaged == true then return true, "this config's Focus Mode" end
+
+        -- 2. The DND assertions file. Present since Monterey; its ABSENCE
+        -- proves nothing, so absence is never read as "Focus is off".
+        local okFile, on = pcall(function()
+            local p = (os.getenv("HOME") or "")
+                      .. "/Library/DoNotDisturb/DB/Assertions.json"
+            local f = io.open(p, "r")
+            if not f then return nil end
+            local body = f:read("*a") or ""
+            f:close()
+            if body:find("storeAssertionRecords", 1, true)
+               and body:find("assertionDetails", 1, true) then
+                return true
+            end
+            return false
+        end)
+        if okFile and on == true then return true, "macOS Do Not Disturb" end
+
+        return false, nil
+    end
+
+    -- ---- showing something -------------------------------------------------
+    -- 🚨 hs.alert IS THE FALLBACK, AND IT IS NOT OPTIONAL. hs.notify goes to
+    -- Notification Centre, which Focus silences and which can also be turned
+    -- off for Hammerspoon entirely in System Settings without telling us.
+    -- hs.alert draws straight onto the screen and obeys neither, so it is
+    -- what guarantees the message is seen.
+    local function present(title, text, seconds)
+        local sent = false
+        pcall(function()
+            local n = hs.notify.new({
+                title = title, informativeText = text, withdrawAfter = 0,
+            })
+            if n then n:send() ; sent = true end
+        end)
+        pcall(function()
+            hs.alert.show("⚠️ " .. title .. "\n" .. text, seconds or 5)
+        end)
+        return sent
+    end
+
+    -- Public: tell the user, honouring Focus.
+    -- key is optional; when given, the same key is not repeated within
+    -- `every` seconds. A module failing in a repeating timer would otherwise
+    -- paint the screen.
+    function notices.tell(title, text, opts)
+        opts = opts or {}
+        local key = opts.key
+        if key then
+            local last = notices.shown[key]
+            if last and (now() - last) < (opts.every or 3600) then return false end
+        end
+
+        local suppressed, why = notices.focusIsOn()
+        if suppressed and not opts.force then
+            local q = notices.queue
+            -- Bounded, and the OLDEST is dropped rather than the newest: if
+            -- twenty things broke during a meeting, the recent ones are the
+            -- ones still true when it ends.
+            q[#q + 1] = { title = title, text = text, key = key, at = now() }
+            while #q > notices.maxQueue do table.remove(q, 1) end
+            print("🔕 Held until Focus ends (" .. tostring(why) .. "): " .. title)
+            notices.startHoldTimer()
+            return false
+        end
+
+        if key then notices.shown[key] = now() end
+        present(title, text, opts.seconds)
+        return true
+    end
+
+    -- ---- 7d: hold while Focus is on, deliver when it ends -------------------
+    function notices.startHoldTimer()
+        if notices.timer then return end
+        local okT, t = pcall(hs.timer.doEvery, notices.holdRecheck, function()
+            if #notices.queue == 0 then
+                pcall(function() notices.timer:stop() end)
+                notices.timer = nil
+                return
+            end
+            local stillOn = notices.focusIsOn()
+            if stillOn then return end
+            notices.flush()
+        end)
+        if okT and t then notices.timer = t end
+    end
+
+    function notices.flush()
+        local q = notices.queue
+        if #q == 0 then return 0 end
+        local n = #q
+        -- One combined notice rather than n separate ones. Coming out of a
+        -- meeting to twelve stacked alerts is its own kind of failure.
+        local first = q[1]
+        local text = first.title .. " — " .. first.text
+        if n > 1 then text = text .. "\n(+" .. (n - 1) .. " more, ⇪⇧D for all)" end
+        notices.queue = {}
+        for _, item in ipairs(q) do
+            if item.key then notices.shown[item.key] = now() end
+        end
+        present("While you were in Focus", text, 8)
+        pcall(function()
+            if notices.timer then notices.timer:stop() end
+        end)
+        notices.timer = nil
+        return n
+    end
+
+    -- ---- 7e + 6: the one thing you see at login ----------------------------
+    -- A clean boot gets a brief flash and nothing else. A boot with a failed
+    -- module gets an alert naming it. You are never asked to check anything;
+    -- silence means it worked.
+    function notices.bootFinished(loaded, failed, failures)
+        failed = tonumber(failed) or 0
+        if failed > 0 then
+            local names = {}
+            for _, f in ipairs(failures or {}) do
+                names[#names + 1] = tostring(f)
+                notices.record("load", tostring(f), "failed to load at boot")
+            end
+            if notices.bootAlert then
+                local list = #names > 0 and table.concat(names, ", ") or "see ⇪⇧D"
+                -- force = true: this one is shown even during Focus. A tool
+                -- that did not load is wrong for the whole session, and
+                -- holding it for a meeting to end is holding it too long.
+                notices.tell("Hammerspoon: " .. failed .. " module"
+                             .. (failed == 1 and "" or "s") .. " did not load",
+                             list .. "\n⇪⇧D for the report",
+                             { seconds = 8, force = true })
+            end
+            return false
+        end
+
+        if notices.bootSignal then
+            -- The FadeLogo idea, natively and without a Spoon: a short,
+            -- unmissable-but-brief "it loaded" so a silent Mac is not
+            -- ambiguous between "fine" and "did not start".
+            pcall(function()
+                hs.alert.show("🔨 Hammerspoon ready · " .. tostring(loaded or 0)
+                              .. " tools", notices.signalSecs)
+            end)
+        end
+        return true
+    end
+
+    -- ---- 6.215.0 — 🔔 THE DEGRADE DOOR ---------------------------------------
+    -- LL, 6.214.0: "I also must have anything here that breaks to throw an
+    -- error so I see it, know about it, and can fix it with you." IT
+    -- DEGRADES, IT NEVER BREAKS (6.177.0) says a missing folder, binary
+    -- or module costs one feature and never the config — this says WHERE
+    -- that degraded state goes. Before this door it went to a `return
+    -- false, why` and, on a good day, a print — a line he finds a week
+    -- later, if he opens the Console at all. One call now does all three
+    -- at the moment it happens: an hs.alert naming the TOOL and the CAUSE
+    -- (hs.alert draws on the screen whatever Focus says — this is the one
+    -- surface here that deliberately does not go through tell()), a ⚠️
+    -- Console line, and a row in the ledger so ⇪⇧D, _G.noticesReport()
+    -- and _G.degradeReport() all list it. It returns `false, why`, so a
+    -- function that already ends in `return false, why` takes the door
+    -- by writing `return core.degrade("Tool", why)` and nothing else
+    -- changes. P2 still holds: the same tool + cause alerts once per
+    -- `degradeEvery`, and every call still counts and still prints, so
+    -- a degrade inside a repeating timer is seen once and counted forty
+    -- times, never painted forty times. P4 too: nil-tolerant, every
+    -- macOS call pcall'd, the tool table bounded.
+    notices.degradeEvery = 600   -- the same tool + cause alerts again after this many seconds
+    notices.degradeMax   = 60    -- tools remembered; the oldest is dropped past it
+    notices.degradeCauses = 8    -- causes remembered per tool for the alert gate
+    notices.degrades     = {}    -- tool -> { n, first, last, why, clock, alerts, seen = { cause -> at } }
+    notices.degradeOrder = {}    -- tools, oldest first
+    notices.degradeTotal = 0
+
+    function notices.degrade(tool, why, opts)
+        opts = type(opts) == "table" and opts or {}
+        tool = tostring(tool or "?")
+        why  = tostring(why or "no reason given")
+        local t = now()
+        local d = notices.degrades[tool]
+        if not d then
+            d = { n = 0, first = t, alerts = 0, seen = {}, seenOrder = {} }
+            notices.degrades[tool] = d
+            local O = notices.degradeOrder
+            O[#O + 1] = tool
+            while #O > notices.degradeMax do
+                local old = table.remove(O, 1)
+                notices.degrades[old] = nil
+            end
+        end
+        d.n, d.last, d.why, d.clock = d.n + 1, t, why, os.date("%H:%M:%S")
+        notices.degradeTotal = notices.degradeTotal + 1
+        -- 1. the ledger — ⇪⇧D, _G.noticesReport(), the storm report's notices section
+        notices.record("degrade", tool, why)
+        -- 2. the Console line, every time
+        pcall(print, "⚠️ " .. tool .. ": " .. why)
+        -- 3. the alert, at the moment — once per tool + cause per degradeEvery
+        local last = d.seen[why]
+        if opts.alert ~= false and (not last or (t - last) >= notices.degradeEvery) then
+            if not last then
+                local S = d.seenOrder
+                S[#S + 1] = why
+                while #S > notices.degradeCauses do d.seen[table.remove(S, 1)] = nil end
+            end
+            d.seen[why] = t
+            local shown = pcall(function()
+                hs.alert.show("⚠️ " .. tool .. " — " .. why, opts.seconds or 6)
+            end)
+            if shown then d.alerts = d.alerts + 1 end
+        end
+        return false, why
+    end
+    _G.degrade = notices.degrade
+    if type(core) == "table" then core.degrade = notices.degrade end
+
+    function _G.degradeReport()
+        local tools = #notices.degradeOrder
+        local L = { string.format("🔔 DEGRADED — %d time(s) across %d tool(s) this session · "
+                                  .. "the same cause alerts once per %d min",
+                                  notices.degradeTotal, tools, math.floor(notices.degradeEvery / 60)) }
+        if tools == 0 then
+            L[#L + 1] = "   nothing has degraded this session — every tool that took the door had what it needed."
+        else
+            for _, tool in ipairs(notices.degradeOrder) do
+                local d = notices.degrades[tool]
+                if d then
+                    L[#L + 1] = string.format("   %s  %-22s ×%-4d %s%s", d.clock or "--:--:--", tool, d.n, d.why,
+                                              d.alerts == 0 and "  (⚠️ never alerted — hs.alert refused)" or "")
+                end
+            end
+        end
+        L[#L + 1] = "   the door : core.degrade(tool, why) → alert · ⚠️ Console line · this list · ⇪⇧D"
+        local s = table.concat(L, "\n")
+        print(s)
+        return s
+    end
+
+    -- ---- the report --------------------------------------------------------
+    function _G.noticesReport()
+        local L = { string.format("🔔 NOTICES — %d recorded", #notices.ledger) }
+        local focusOn, why = notices.focusIsOn()
+        L[#L + 1] = "   Focus right now : " .. (focusOn and ("ON (" .. tostring(why) .. ")")
+                                                or "off")
+        L[#L + 1] = "   held for later  : " .. #notices.queue
+        if #notices.ledger == 0 then
+            L[#L + 1] = "   nothing has failed this session."
+        else
+            for _, e in ipairs(notices.ledger) do
+                L[#L + 1] = string.format("   %s  %-8s %-18s %s",
+                            e.clock, e.kind, e.source, e.msg)
+            end
+        end
+        local s = table.concat(L, "\n")
+        print(s)
+        return s
+    end
+
+    _G.notices = notices
+    return notices
+end

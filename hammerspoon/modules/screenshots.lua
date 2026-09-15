@@ -1,0 +1,2067 @@
+-- =====================================================================
+-- MODULE: SCREENSHOTS (⇪4) — every capture saved to OneDrive AND copied
+-- =====================================================================
+-- ⇪4 starts the native crosshair capture (the same one ⌘⇧4 gives you;
+-- press SPACE mid-selection to switch to window capture, Esc to bail).
+-- The image lands in BOTH places at once:
+--
+--   1. A timestamped PNG in OneDrive's "2026 Screenshots" folder, so it
+--      syncs and survives.
+--   2. The macOS clipboard, so ⌘V pastes it immediately.
+--
+-- macOS itself makes you choose — ⌘⇧4 saves a file, ⌘⌃⇧4 copies to the
+-- clipboard, never both. This module runs `screencapture -i` to a file
+-- and then reads that file back onto the clipboard, which is the whole
+-- trick.
+--
+-- ⇪⇧4 opens the SCREENSHOT PANEL (6.87.0): eight action rows on top
+-- (⌘1–⌘8 jump straight to one), your history below — newest first,
+-- each row with a thumbnail. TYPING SEARCHES (6.88.0): the moment the
+-- query is non-empty the action rows step aside and every matching
+-- screenshot is listed — filename, date and size all match, so "aug 13"
+-- or "edited" or "1.2 MB" each work. Backspace to empty brings the
+-- actions back.
+--
+-- ---------------------------------------------------------------------
+-- 🔎 6.122.0 — TYPING SEARCHES THE WHOLE FOLDER, AND THE TEXT INSIDE
+-- ---------------------------------------------------------------------
+-- LL: "How do I search and bring up an image that is stored in the
+-- screenshots folder?"
+--
+-- You could, and it was two things short of an answer.
+--
+--   1. IT ONLY EVER SAW THIRTY FILES. shots.maxList caps the list, for a
+--      good reason — every row decodes a whole PNG to draw a 72px
+--      thumbnail — but the SEARCH was filtering that same capped list.
+--      Anything older than your last thirty captures was unfindable, and
+--      nothing said so. The cap now applies to the idle view only: the
+--      moment you type, the query runs over every file in the folder.
+--
+--   2. A SCREENSHOT'S NAME IS A TIMESTAMP, which is the one thing you
+--      never remember about it. You remember what was ON it.
+--
+-- So the search now asks Spotlight as well, with mdfind, restricted to
+-- this folder. That reaches two things a filename never could:
+--
+--   · THE TEXT THIS CONFIG ALREADY WROTE. ⇪O's OCR tagger has been
+--     putting recognised text into each screenshot's Finder comment
+--     since 6.98.0, and Spotlight indexes Finder comments. Every image
+--     you have ever run through it is searchable by its own words, and
+--     has been all along — nothing was reading it back.
+--   · WHATEVER macOS INDEXED ITSELF, which on recent builds includes
+--     text found in images without anybody asking.
+--
+-- Rows say WHICH of the two found them, because "matched the name" and
+-- "matched the text inside it" are different claims and a row that
+-- blurred them would be guessing on your behalf.
+--
+-- ⏳ THE SPOTLIGHT HALF IS ASYNCHRONOUS AND DEBOUNCED. mdfind is a
+-- separate process; spawning one per keystroke would leave a queue of
+-- them racing to answer a question you have already finished typing. The
+-- name matches appear instantly, the Spotlight ones fold in a moment
+-- later, and a result whose query is no longer what is in the box is
+-- DISCARDED rather than shown.
+--
+-- ☁️ AND IT CAN LEGITIMATELY FIND NOTHING. This folder lives in
+-- OneDrive; a file evicted to cloud-only may not be indexed, and
+-- Spotlight can be switched off for a volume entirely. The name search
+-- always runs, so the panel is never worse than it was — but "no text
+-- matches" is not proof that no screenshot contains those words.
+--
+-- ---------------------------------------------------------------------
+-- On a history row: ⏎ puts the image back on the
+-- clipboard, ⌘⏎ copies its file PATH (which is exactly what the Task
+-- Form's 📎 field wants), ⌥⏎ opens it in the EDITOR
+-- (modules/screenshot_editor.lua), and ⌃⏎ COMPRESSES it — sips (the
+-- macOS image tool) writes a "… (compressed).jpg" next to the original
+-- and puts THAT on the clipboard; the PNG stays untouched.
+--
+--   1 · Capture area          native crosshair, like ⇪4
+--   2 · Scrolling capture     EXPERIMENTAL — see the honest note below
+--   3 · Recognize text / QR   text via your HS OCR Shortcut; QR via
+--                             zbar when installed (brew install zbar)
+--   4 · Blur / edit newest    the newest screenshot, straight into the editor
+--   5 · Repeat last area      re-shoot the exact same rectangle
+--   6 · Capture active window frontmost window, no clicking
+--   7 · Delayed (10s)         full screen, ten seconds from now
+--
+-- Captures started FROM THE PANEL open the editor when they finish
+-- (shots.editAfterMenu below turns that off); ⇪4 stays the instant
+-- no-window path.
+--
+-- ---------------------------------------------------------------------
+-- 🧻 SCROLLING CAPTURE — EXPERIMENTAL, AND WHY THAT WORD IS THERE
+-- ---------------------------------------------------------------------
+-- Real scrolling capture (CleanShot, Shottr) stitches by IMAGE
+-- ALIGNMENT — it finds where two frames overlap. Hammerspoon has no
+-- image-diff machinery, so this one works by trust instead: it sends
+-- pixel-exact scroll events (scroll down exactly as many pixels as the
+-- captured area is tall), shoots a slice after each, and stacks the
+-- slices. Browsers and most editors honor pixel scrolls exactly →
+-- seamless. Apps that snap scrolling to lines or rubber-band → visible
+-- seams. Sticky headers repeat in every slice; shots.scroll.cropTop
+-- crops that many points off the top of every slice after the first.
+-- The pointer is parked in the selected area first, because macOS
+-- routes scroll events to whatever is under the pointer.
+--
+-- ---------------------------------------------------------------------
+-- 🚫 WHAT IT DELIBERATELY DOES NOT DO: WATCH THE CLIPBOARD
+-- ---------------------------------------------------------------------
+-- The other way to get "copied images end up in a folder" is a
+-- pasteboard watcher that saves every image that ever crosses the
+-- clipboard. That fires on every image copied out of a browser, a PDF,
+-- a Slack thread — and quietly fills the folder with junk that was
+-- never a screenshot. A deliberate keystroke saves exactly what you
+-- meant to keep, and nothing else.
+--
+-- ---------------------------------------------------------------------
+-- ☁️ ONEDRIVE, TWO HONEST CAVEATS
+-- ---------------------------------------------------------------------
+--   · WRITES are safe: the folder is inside ~/Library/CloudStorage, so
+--     the file is written locally and OneDrive uploads it in its own
+--     time. No capture ever waits on the network.
+--   · READS can stall: Files-On-Demand may have evicted an OLD
+--     screenshot to cloud-only. Picking one of those in the history
+--     forces a download first — a beat of delay on ancient rows, never
+--     on fresh ones. The picker's thumbnails read the files too, which
+--     is why the list is capped (shots.maxList) instead of thumbnailing
+--     the whole folder.
+-- =====================================================================
+
+local M = {
+    name  = "Screenshots",
+    order = 23,
+    family = "screen",
+    cheatsheet = {
+        title = "📸 SCREENSHOTS (⇪4 area · every tool on its own key)",
+        entries = {
+            { "⇪4",   "Area capture: crosshair · SPACE = window · Esc = cancel" },
+            { "",     "saves to OneDrive/2026 Screenshots + copies to clipboard" },
+            { "⇪⇧1",  "🖌 Blur / edit the newest screenshot" },
+            { "⇪⇧2",  "🪟 Capture the active window — no clicking" },
+            { "⇪⇧3",  "⏲ Delayed capture, full screen after the countdown" },
+            { "⇪⇧4",  "🔤 Recognize text / QR — the words go to the clipboard" },
+            { "⇪5",   "🧻 Scrolling capture (experimental) — best in browsers · the result is saved AND on the clipboard" },
+            { "check", "_G.screenshotsReport() — the folder, the watcher, and the last scrolling run slice by slice" },
+            { "⇪⇧5",  "Panel: 9 actions (⌘1–⌘9) + history below · ⌘8 = BIG thumbnails" },
+            { "🏷 names", "Every capture — ⇪4's AND other tools' SCR- files — gets" },
+            { "",       "ITS OWN words in the name as it lands · ⌘9 sweeps the backlog" },
+            { "type",  "searches the WHOLE folder — not just the newest 30 —" },
+            { "",      "by name, by date, and by the TEXT INSIDE the image" },
+            { "⏎",    "history row: image on clipboard · ⌘⏎ its file PATH" },
+            { "⌥⏎",   "history row: open in the editor (blur/text/arrows)" },
+            { "⌃⏎",   "history row: compress to “… (compressed).jpg” + clipboard" },
+            { "⌃⌃",   "“Screenshots” in the editor picker — ⏎ OPENS THE FOLDER" },
+        },
+    },
+}
+
+function M.setup(core)
+    local shots = {}
+
+    -- ✏️ EDIT HERE ---------------------------------------------------------
+    shots.enabled   = true
+    shots.copySuppressSecs = 10  -- 6.170.3: the poll sits out our own copy this long at most
+    shots.key       = "4"     -- ⇪4 area capture (mnemonic: ⌘⇧4). UNCHANGED.
+    -- 📸 6.194.0 — LL'S OWN MAP, in his words: "Blur/Edit: this would be
+    -- the screenshot editor brought up by hyper+shift+1 · Screenshot
+    -- Active window: hyper+shift+2 · Delay screenshot: hyper+shift+3 ·
+    -- Area screenshot would be hyper+4 · Text capture would be
+    -- hyper+shift+4 · Scrolling capture would be hyper+5."
+    -- Every one of these already existed as a ROW in the ⌘1–⌘9 panel and
+    -- ran through shots.runAction; giving them keys costs one table, not
+    -- one new code path each. That is why the acts are named here rather
+    -- than re-implemented — a key and its row are the SAME action, so
+    -- they cannot drift.
+    -- The PANEL moved off ⇪⇧4 to make room for text capture (LL's call);
+    -- it now sits at ⇪⇧5, beside ⇪5 scrolling, so the whole screenshot
+    -- family lives in the 1-5 block.
+    shots.panelKey  = "5"     -- ⇪⇧5 the ⌘1–⌘9 panel (was ⇪⇧4 until 6.194.0)
+    shots.toolKeys  = {
+        -- combo (mods, key)          the act shots.runAction already knows
+        { { "shift" }, "1", "editNewest", "screenshot editor"      },
+        { { "shift" }, "2", "window",     "capture active window"  },
+        { { "shift" }, "3", "delayed",    "delayed screenshot"     },
+        { { "shift" }, "4", "recognize",  "text capture (OCR)"     },
+        { {},          "5", "scroll",     "scrolling capture"      },
+    }
+    shots.dir       = (core.homeDir or os.getenv("HOME") or "")
+                      .. "/Library/CloudStorage/OneDrive-Personal/2026 Screenshots"
+    -- 🧻 6.213.3 — THE SLICES NEVER GO INTO THE SCREENSHOTS FOLDER. LL's
+    -- first ⇪5 on 6.206.0 said it in screencapture's own words: "slice 1
+    -- of 4: screencapture exit 0 — screencapture: cannot write file to
+    -- intended destination, /Users/…/OneDrive-Personal/2026 Screenshots/…".
+    -- The slice was a DOT-FILE (.scroll-slice-01.png, since 6.87.0, so the
+    -- panel would never list a half-done run) inside a folder OneDrive's
+    -- File Provider owns, and screencapture would not write it there —
+    -- while every plain-named capture into the same folder lands fine
+    -- (LL's ⇪4 at 22:26:17 the same evening). So ⇪5 had never once worked
+    -- with the folder in OneDrive. The slices now go to a LOCAL folder no
+    -- cloud provider owns, with a plain name (the panel reads shots.dir
+    -- only, so the dot bought nothing there). Fallback: the system's
+    -- temporary folder; if that fails too the run stops before its first
+    -- slice and says so. Flat knob — `settings = { screenshots =
+    -- { sliceDir = "…" } }` moves it.
+    shots.sliceDir  = (core.homeDir or os.getenv("HOME") or "")
+                      .. "/Library/Application Support/Hammerspoon/scroll-slices"
+    shots.sliceHome = nil     -- { dir, how } once a run has asked
+    shots.maxList   = 30      -- newest N shown when the box is EMPTY. Not a
+                              -- search limit — see shots.searchMax
+    -- 🔎 6.122.0 — the search half. searchMax is a DRAWING limit, not a
+    -- matching one: every file in the folder is compared, and this many
+    -- of the best are given thumbnails. Raise it and the panel gets
+    -- slower, because a thumbnail decodes a whole PNG.
+    shots.searchMax  = 60
+    shots.findDelay  = 0.25   -- quiet time before mdfind is spawned
+    shots.findTimeout = 6.0   -- and how long it is given to answer
+    shots.MDFIND     = "/usr/bin/mdfind"
+    shots.historyRows = 8     -- history rows VISIBLE below the action rows
+    shots.thumbH    = 72      -- thumbnail height in panel rows, pixels
+    shots.alertSecs = 2.0
+    shots.jpegQuality = 70    -- ⌃⏎ compress: sips jpeg formatOptions 0–100
+    -- captures started from the ⇪⇧4 panel open the blur editor when done;
+    -- ⇪4 never does (it is the fast path)
+    shots.editAfterMenu = true
+    shots.delaySecs     = 10          -- the "Delayed" action's countdown
+    shots.ocrShortcut   = "HS OCR"    -- same Shortcut ⇪O's OCR index uses
+    -- 🧻 scrolling capture (EXPERIMENTAL — see header)
+    shots.scroll = {
+        height    = 2000,   -- total pixels of page to capture, top slice included
+        settle    = 0.4,    -- seconds to let the app finish scrolling per step
+        cropTop   = 0,      -- points to crop off slices 2+ (sticky headers)
+        maxSlices = 12,     -- hard cap, whatever `height` asks for
+    }
+    -- 🏷 6.147.0 — CONTENT NAMES. LL: "Can we apply better naming
+    -- conventions to the screenshot files than SCR- so the OCR text is
+    -- applied and searchable?" Two halves:
+    --   · every ⇪4-family capture is OCR'd in the background and its
+    --     name gains the shot's own words a few seconds later:
+    --     "Screenshot 2026-09-01 at 04.48.37 — worked and verified.png"
+    --   · ⌘9 in the panel sweeps the backlog: SCR-YYYYMMDD-xxxx files
+    --     (another capture tool's naming) are folded into this module's
+    --     convention, word-less "Screenshot …" files gain theirs.
+    -- A name that already carries " — " is finished and never touched;
+    -- so is any name a person chose (neither SCR- nor "Screenshot …").
+    shots.nameByContent = true   -- rename own captures automatically
+    shots.slugWords     = 7      -- at most this many words in the name
+    shots.slugChars     = 48     -- and at most this many characters
+    shots.sweepCap      = 40     -- files OCR'd per ⌘9 sweep, one at a time
+    -- 👀 6.155.0 — ARRIVALS FROM OTHER TOOLS ARE NAMED TOO. LL, looking at
+    -- the panel: "some of the screenshots have OCR'd thumbnails and others
+    -- don't have words in the title … Is there a better way we can put
+    -- words in the title along with the other information?" The word-less
+    -- rows were not ours: SCR-20260902-rkdn.png is another capture tool's
+    -- name, and nothing named those until ⌘9 was pressed. The folder is
+    -- WATCHED now: every mechanical, word-less arrival — an SCR- file, or
+    -- a "Screenshot …" from the other Mac via OneDrive — is queued for the
+    -- same OCR a ⇪4 capture gets, once it has sat still for watchSettle.
+    -- One shortcuts process at a time, as ⌘9 does; beyond watchCap they
+    -- wait for ⌘9 rather than piling up behind a OneDrive re-sync.
+    shots.watchFolder = true
+    shots.watchSettle = 2.5      -- seconds a new file must be still before OCR
+    shots.watchCap    = 20       -- arrivals queued at once; the rest wait for ⌘9
+    -- ----------------------------------------------------------------------
+
+    local function say(m)  if _G.diag then _G.diag.say("screenshots", m)  end end
+    local function warn(m) if _G.diag then _G.diag.warn("screenshots", m) end end
+
+    -- ---- folder ----------------------------------------------------------
+    -- Checked at CAPTURE time, not at boot: setup() must stay cheap, and
+    -- on the hostile Mac (no OneDrive, hs.fs answering nil) the module
+    -- should degrade to a clear alert, not a boot error.
+    function shots.ensureDir()
+        local mode
+        pcall(function() mode = hs.fs.attributes(shots.dir, "mode") end)
+        if mode == "directory" then
+            shots.startWatch()      -- idempotent; a folder that exists is watched
+            return shots.dir
+        end
+        local made = false
+        pcall(function() made = hs.fs.mkdir(shots.dir) end)
+        if made then
+            say("created " .. shots.dir)
+            shots.startWatch()
+            return shots.dir
+        end
+        -- mkdir cannot create parents; if OneDrive-Personal itself is
+        -- missing (not signed in, different account name) say WHERE it
+        -- looked rather than failing into the Console.
+        pcall(function()
+            hs.alert.show("📸 Screenshots folder unavailable:\n" .. shots.dir, 4)
+        end)
+        warn("folder unavailable: " .. shots.dir)
+        return nil
+    end
+
+    -- ---- filenames -------------------------------------------------------
+    -- Same shape macOS uses ("Screenshot 2026-08-15 at 14.23.05.png") so
+    -- the folder sorts naturally in Finder. Dots in the time, not colons:
+    -- HFS+/APFS display colons as slashes and some sync targets refuse
+    -- them outright.
+    function shots.filenameAt(t)
+        return os.date("Screenshot %Y-%m-%d at %H.%M.%S", t) .. ".png"
+    end
+
+    -- 👀 6.155.0 — every path THIS module writes is registered, so the
+    -- folder watcher can tell its own captures (finish() names those, or
+    -- the editor holds them) from another tool's arrivals.
+    shots.own = {}
+    local function freshPath()
+        local base = shots.dir .. "/" .. shots.filenameAt()
+        local exists
+        pcall(function() exists = hs.fs.attributes(base, "size") end)
+        if not exists then shots.own[base] = true ; return base end
+        -- two captures inside one second — number the second one rather
+        -- than letting screencapture overwrite the first
+        for n = 2, 99 do
+            local p = base:gsub("%.png$", (" (%d).png"):format(n))
+            local e
+            pcall(function() e = hs.fs.attributes(p, "size") end)
+            if not e then shots.own[p] = true ; return p end
+        end
+        shots.own[base] = true
+        return base
+    end
+
+    -- ---- capture (⇪4 and the panel's variants) ---------------------------
+    function shots.finish(path, thenEdit)
+        -- Esc during selection: screencapture exits WITHOUT writing the
+        -- file. That is a cancel, not an error — stay silent.
+        local size
+        pcall(function() size = hs.fs.attributes(path, "size") end)
+        if not size or size == 0 then
+            say("capture cancelled")
+            return false
+        end
+        shots.copyToPasteboard(path, function(copied) shots.afterCopy(path, thenEdit, copied) end)
+        return true
+    end
+
+    function shots.afterCopy(path, thenEdit, copied)
+        if thenEdit then
+            -- panel-initiated capture: straight into the blur editor.
+            -- The file + clipboard above already happened, so a missing
+            -- editor module costs only the window, never the capture.
+            local opened = core.call("screenshotEditor.open", path)
+            if not opened then
+                pcall(function()
+                    hs.alert.show("📸 Saved · copied — editor unavailable", shots.alertSecs)
+                end)
+            end
+        elseif copied then
+            pcall(function()
+                hs.alert.show("📸 Saved to 2026 Screenshots · on the clipboard",
+                              shots.alertSecs)
+            end)
+        else
+            -- The file is the half that must never be lost; say so
+            -- plainly instead of pretending the copy worked.
+            pcall(function()
+                hs.alert.show("📸 Saved to 2026 Screenshots — clipboard copy failed",
+                              shots.alertSecs)
+            end)
+        end
+        say("captured " .. (path:match("[^/]+$") or path)
+            .. (copied and " (copied)" or " (copy FAILED)"))
+        -- 🏷 6.147.0 — the name gains the shot's own words, a few
+        -- seconds behind the capture. NOT when the blur editor is about
+        -- to open on this exact path: a rename under the editor would
+        -- orphan its save. (The clipboard holds pixels, not the path,
+        -- so the rename never breaks a paste.)
+        if shots.nameByContent and not thenEdit then
+            shots.nameByText(path)
+        end
+        return true
+    end
+    core.provide("screenshots.copyToPasteboard", function(p, cb)
+        return shots.copyToPasteboard(p, cb or function() end)
+    end)
+
+    -- One task-runner for every screencapture variant: same holding
+    -- pattern, same failure alerts, different argument lists.
+    function shots.runCapture(args, path, thenEdit, onDone)
+        local t
+        local ok = pcall(function()
+            t = hs.task.new("/usr/sbin/screencapture", function(exitCode, sout, serr)
+                -- 🚨 6.206.0 — the finished task stays REFERENCED until the
+                -- next capture replaces it. Dropping the last reference to
+                -- a task from inside its own callback is 6.196.1's
+                -- use-after-free, and the scrolling run allocates heavily
+                -- (twelve decodes, a canvas) inside this very callback.
+                shots.lastCaptureTask = t
+                shots.captureTask = nil    -- release only when done
+                shots.lastExit = { code = exitCode, err = tostring(serr or "") }
+                if onDone then
+                    onDone(path, exitCode, serr)
+                else
+                    shots.finish(path, thenEdit)
+                end
+            end, args)
+        end)
+        if not (ok and t) then
+            pcall(function() hs.alert.show("📸 screencapture unavailable", 3) end)
+            warn("hs.task.new failed for screencapture")
+            return false
+        end
+        shots.captureTask = t   -- HELD: an unreferenced hs.task is collected
+        local started = false
+        pcall(function() started = t:start() end)
+        if not started then
+            shots.captureTask = nil
+            pcall(function() hs.alert.show("📸 could not start screencapture", 3) end)
+            return false
+        end
+        -- 🚨 6.170.3 — `screencapture -i` TAKES THE KEYBOARD. LL's Console
+        -- after ⇪4: "⇪ released by the watchdog — held 29s with no key
+        -- event and no F18 keyUp". The crosshair grabs every event, the
+        -- Caps Lock keyUp never reaches Hammerspoon, and until the
+        -- watchdog lets go every key LL types runs a hyper shortcut —
+        -- the "dead keyboard". Same cure as the scratch pad (6.165.1):
+        -- nobody holds ⇪ through a crosshair, so the deadline drops to
+        -- 1.5 s of silence. Only the DEADLINE changes, never the way in.
+        if args[1] == "-i" then shots.expectHyperRelease() end
+        return true
+    end
+
+    function shots.expectHyperRelease()
+        if _G.hyperExpectRelease then
+            pcall(_G.hyperExpectRelease, 1.5, "the screenshot tool")
+        end
+    end
+
+    -- 🚨 6.170.3 — THE CLIPBOARD COPY LEAVES THE MAIN THREAD. Until now
+    -- finish() decoded the whole screenshot (a 5120×2880 PNG on the 4K)
+    -- with hs.image.imageFromPath and pushed the pixels through
+    -- hs.pasteboard.writeObjects — a second full encode — on the main
+    -- thread, and the clipboard poll then decoded the pasteboard AGAIN
+    -- half a second later. Three passes over 15 million pixels while
+    -- ⇪ was latched (see runCapture) is the beach ball LL saw. Now
+    -- /usr/bin/osascript reads the PNG straight onto the pasteboard in
+    -- an hs.task (HELD), and the poll is asked to sit out the change
+    -- (`_G.pasteboardSuppressUntil`): the file's OCR already runs from
+    -- the file. writeObjects stays only as the fallback when no task
+    -- can be made.
+    function shots.copyToPasteboard(path, done)
+        local script = ('set the clipboard to (read (POSIX file "%s") as «class PNGf»)')
+                       :format(path:gsub('"', '\\"'))
+        local t
+        local okNew = pcall(function()
+            t = hs.task.new("/usr/bin/osascript", function(exitCode)
+                shots.copyTask = nil
+                local now = 0
+                pcall(function() now = hs.timer.secondsSinceEpoch() end)
+                _G.pasteboardSuppressUntil = now + 1
+                done(exitCode == 0)
+            end, { "-e", script })
+        end)
+        local started = false
+        if okNew and t then
+            shots.copyTask = t   -- HELD
+            pcall(function() started = t:start() end)
+        end
+        if started then
+            local now = 0
+            pcall(function() now = hs.timer.secondsSinceEpoch() end)
+            _G.pasteboardSuppressUntil = now + shots.copySuppressSecs
+            return true
+        end
+        shots.copyTask = nil
+        local copied = false
+        pcall(function()
+            local img = hs.image.imageFromPath(path)
+            if img then copied = hs.pasteboard.writeObjects(img) and true end
+        end)
+        done(copied)
+        return false
+    end
+
+    function shots.capture(thenEdit)
+        if not shots.ensureDir() then return end
+        local path = freshPath()
+        shots.runCapture({ "-i", path }, path, thenEdit)
+    end
+
+    -- Panel action 5 — the exact same rectangle again. The rect comes
+    -- from our own selector (native -i cannot report where you dragged),
+    -- is remembered for the session, and -R re-shoots it on demand.
+    function shots.captureRect(rect, thenEdit)
+        if not shots.ensureDir() then return end
+        local path = freshPath()
+        shots.lastRect = rect
+        shots.runCapture({
+            "-x",
+            ("-R%d,%d,%d,%d"):format(rect.x, rect.y, rect.w, rect.h),
+            path,
+        }, path, thenEdit)
+    end
+
+    -- 🖌 6.213.0 — the editor's "Add capture" (⌘A): OUR selector, a -x -R
+    -- shot of that rectangle, and the PATH handed to the caller — no
+    -- clipboard, no editor open, no panel. cb(path) on success, cb(nil,
+    -- why) on anything else, and never both.
+    function shots.captureAreaTo(cb)
+        if type(cb) ~= "function" then return false, "no callback" end
+        if not shots.ensureDir() then cb(nil, "no screenshots folder") return false end
+        local picked = false
+        shots.selectArea(function(rect)
+            picked = true
+            local path = freshPath()
+            shots.lastRect = rect
+            local started = shots.runCapture({
+                "-x",
+                ("-R%d,%d,%d,%d"):format(rect.x, rect.y, rect.w, rect.h),
+                path,
+            }, path, false, function(p, exitCode, serr)
+                local size
+                pcall(function() size = hs.fs.attributes(p, "size") end)
+                if exitCode == 0 and size and size > 0 then
+                    cb(p)
+                else
+                    local why = "screencapture exit " .. tostring(exitCode)
+                    local first = tostring(serr or ""):match("[^\n]+")
+                    if first and first ~= "" then why = why .. " — " .. first end
+                    if not size or size == 0 then why = why .. " — no file was written" end
+                    cb(nil, why)
+                end
+            end)
+            if not started then cb(nil, "screencapture could not be started") end
+        end)
+        return true
+    end
+
+    function shots.repeatArea(thenEdit)
+        if shots.lastRect then
+            shots.captureRect(shots.lastRect, thenEdit)
+        else
+            shots.selectArea(function(rect) shots.captureRect(rect, thenEdit) end)
+        end
+    end
+
+    -- Panel action 6 — the frontmost window, no clicking. -l takes the
+    -- window's CGWindowID, which hs.window already knows.
+    function shots.captureWindow(thenEdit)
+        local id
+        pcall(function()
+            local w = hs.window.frontmostWindow()
+            id = w and w:id()
+        end)
+        if not id then
+            pcall(function() hs.alert.show("📸 No frontmost window to capture", 3) end)
+            return
+        end
+        if not shots.ensureDir() then return end
+        local path = freshPath()
+        shots.runCapture({ "-x", "-l", tostring(id), path }, path, thenEdit)
+    end
+
+    -- Panel action 7 — screencapture's own -T does the countdown, so the
+    -- panel can close and the Mac can be arranged in peace.
+    function shots.captureDelayed(thenEdit)
+        if not shots.ensureDir() then return end
+        local path = freshPath()
+        pcall(function()
+            hs.alert.show(("📸 Full screen in %d seconds — set it up…")
+                          :format(shots.delaySecs), 2.5)
+        end)
+        shots.runCapture({ "-x", "-T", tostring(shots.delaySecs), path },
+                         path, thenEdit)
+    end
+
+    -- ---- our own area selector -------------------------------------------
+    -- Needed because native `screencapture -i` never reports WHERE you
+    -- dragged — and both "repeat this area" and the scrolling capture
+    -- need the rectangle as numbers. A full-screen dimmed canvas, a
+    -- dashed band that follows the drag, Esc bails out.
+    function shots.cancelSelect()
+        if shots.selTap then
+            pcall(function() shots.selTap:stop() end)
+            shots.selTap = nil
+        end
+        if shots.selCanvas then
+            pcall(function() shots.selCanvas:delete() end)
+            shots.selCanvas = nil
+        end
+    end
+
+    function shots.selectArea(cb)
+        shots.cancelSelect()
+        local scr
+        pcall(function() scr = hs.mouse.getCurrentScreen() end)
+        if not scr then
+            pcall(function()
+                scr = core.resolveBaseScreen and core.resolveBaseScreen()
+                      or hs.screen.mainScreen()
+            end)
+        end
+        if not scr then return end
+        local sf
+        pcall(function() sf = scr:frame() end)
+        if not sf then return end
+
+        local canvas
+        pcall(function() canvas = hs.canvas.new(sf) end)
+        if not canvas then return end
+        canvas:appendElements(
+            { type = "rectangle", action = "fill",
+              fillColor = { black = 1, alpha = 0.18 } },
+            { type = "rectangle", action = "stroke",
+              strokeColor = { red = 0.29, green = 0.5, blue = 0.88, alpha = 0.95 },
+              strokeWidth = 2, strokeDashPattern = { 6, 4 },
+              frame = { x = 0, y = 0, w = 0, h = 0 } })
+        pcall(function() canvas:level(hs.canvas.windowLevels.overlay) end)
+        pcall(function()
+            canvas:behaviorAsLabels({ "canJoinAllSpaces", "fullScreenAuxiliary" })
+        end)
+        pcall(function() canvas:canvasMouseEvents(true, true, false, true) end)
+        shots.expectHyperRelease()   -- 6.170.3: the selector takes the keyboard like -i does
+
+        local startPt = nil
+        pcall(function()
+            canvas:mouseCallback(function(_, msg, _, mx, my)
+                -- mouseCallback runs per event — same rule as an eventtap:
+                -- an error here repeats forever, so the body is guarded
+                local ok = pcall(function()
+                    if msg == "mouseDown" then
+                        startPt = { x = mx, y = my }
+                    elseif msg == "mouseMove" and startPt then
+                        canvas[2].frame = {
+                            x = math.min(startPt.x, mx), y = math.min(startPt.y, my),
+                            w = math.abs(mx - startPt.x), h = math.abs(my - startPt.y),
+                        }
+                    elseif msg == "mouseUp" and startPt then
+                        local rect = {
+                            x = math.floor(sf.x + math.min(startPt.x, mx)),
+                            y = math.floor(sf.y + math.min(startPt.y, my)),
+                            w = math.floor(math.abs(mx - startPt.x)),
+                            h = math.floor(math.abs(my - startPt.y)),
+                        }
+                        shots.cancelSelect()
+                        if rect.w >= 8 and rect.h >= 8 then cb(rect) end
+                    end
+                end)
+                if not ok then shots.cancelSelect() end
+            end)
+        end)
+        -- showCanvasSafely, not canvas:show(): show() THROWS when another
+        -- process's remote view is mid-transition (the Safari/Spotlight
+        -- bug every canvas popup in this config guards against)
+        if _G.showCanvasSafely then
+            _G.showCanvasSafely(canvas, "area selector")
+        end
+        shots.selCanvas = canvas   -- HELD
+
+        -- Esc = never mind. keyDown 53 is Escape; the callback is
+        -- pcall'd and answers true (swallow) only for that one key.
+        -- the handler is NAMED and invoked through pcall — the guarded
+        -- tap shape every keyDown watcher in this config uses: an error
+        -- in here would otherwise raise once per keystroke until macOS
+        -- switches the tap off
+        function shots.selEscape(ev)
+            -- another module's synthetic typing is not the user
+            -- pressing Esc (core/coexist.lua rule)
+            if _G.typingInjection and _G.typingInjection() then
+                return false
+            end
+            if ev:getKeyCode() == 53 then
+                shots.cancelSelect()
+                return true
+            end
+            return false
+        end
+        pcall(function()
+            shots.selTap = hs.eventtap.new({ hs.eventtap.event.types.keyDown },
+                function(ev)
+                    local ok, swallow = pcall(shots.selEscape, ev)
+                    return ok and swallow or false
+                end)
+            shots.selTap:start()
+        end)
+        pcall(function() hs.alert.show("🖱 Drag an area · Esc cancels", 1.2) end)
+    end
+
+    -- ---- scrolling capture (EXPERIMENTAL — see header) -------------------
+    -- The PLAN is pure and tested: slice 1 is the selection as-is, every
+    -- later slice scrolls by (height - cropTop) and crops cropTop off its
+    -- top, until `target` pixels are covered or the cap says stop.
+    function shots.scrollPlan(rectH, target, cropTop)
+        rectH   = math.floor(tonumber(rectH) or 0)
+        target  = math.floor(tonumber(target) or 0)
+        cropTop = math.max(0, math.floor(tonumber(cropTop) or 0))
+        if rectH <= 0 then return {}, 0 end
+        if cropTop >= rectH then cropTop = 0 end
+        local plan = { { scroll = 0, crop = 0 } }
+        local covered, step = rectH, rectH - cropTop
+        while covered < target and #plan < shots.scroll.maxSlices do
+            plan[#plan + 1] = { scroll = step, crop = cropTop }
+            covered = covered + step
+        end
+        return plan, covered
+    end
+
+    -- 🧻 6.206.0 — THE RUN KEEPS ITS RECEIPTS. LL's ⇪5: "Stitch failed —
+    -- slices discarded (screenshots.lua:664: no slices decoded)". That
+    -- line said every slice failed to decode and NOTHING about why: the
+    -- slice capture ignored screencapture's exit code and its stderr,
+    -- appended the path whether or not a file had been written, and the
+    -- stitch deleted the slices before anyone could look. 6.201.0's rule
+    -- — ask for the artefact before theorising about the mechanism — so
+    -- the run now records, per slice, the exit code, the first line of
+    -- stderr and whether the file exists and how big it is; stops at the
+    -- FIRST slice that fails, naming it; keeps the slices on disk when
+    -- it fails (in the local slice folder, 6.213.3); and
+    -- `_G.screenshotsReport()`'s "scroll :" line repeats all of it.
+    shots.scrollLast = nil    -- { at, planned, shot, decoded, outcome, why, slices }
+    local function firstLine(sv)
+        sv = tostring(sv or ""):match("^%s*(.-)%s*$") or ""
+        return sv:match("^[^\r\n]*") or sv
+    end
+    local function sizeOf(path)
+        local size
+        pcall(function() size = hs.fs.attributes(path, "size") end)
+        return size
+    end
+    local function scrollFail(run, why, files)
+        run.outcome, run.why = "failed", why
+        -- 🚨 KEPT, NOT DISCARDED. A slice that would not stitch is the
+        -- only evidence of what screencapture actually wrote.
+        run.kept = files
+        local keptNote = (files and #files > 0)
+            and (" · %d slice(s) kept at %s/scroll-slice-NN.png"):format(
+                    #files, tostring(run.sliceDir or shots.sliceDir))
+            or ""
+        pcall(function()
+            hs.alert.show("🧻 Scrolling capture stopped — " .. why
+                          .. "\n_G.screenshotsReport() has the details", 5)
+        end)
+        warn("scrolling capture: " .. why .. keptNote)
+        if _G.notices and _G.notices.record then
+            pcall(function()
+                _G.notices.record("screenshots", "scrolling capture failed", why)
+            end)
+        end
+    end
+
+    -- 6.213.3 — where the slices go. → dir | nil, why. A folder that
+    -- exists is used; one that does not is created (one level — the
+    -- Hammerspoon support folder exists on any Mac running this); a FILE
+    -- in the way is a refusal, never overwritten; the temporary folder is
+    -- the degrade and the report names it.
+    function shots.sliceFolder()
+        local function usable(d)
+            if type(d) ~= "string" or d == "" then return false end
+            local mode
+            pcall(function() mode = hs.fs.attributes(d, "mode") end)
+            if mode == "directory" then return true end
+            if mode ~= nil then return false end
+            local made
+            pcall(function() made = hs.fs.mkdir(d) end)
+            return made == true
+        end
+        if usable(shots.sliceDir) then
+            shots.sliceHome = { dir = shots.sliceDir, how = "local, never synced" }
+            return shots.sliceDir
+        end
+        local tmp
+        pcall(function() tmp = hs.fs.temporaryDirectory() end)
+        if type(tmp) == "string" then tmp = tmp:gsub("/+$", "") end
+        if usable(tmp) then
+            shots.sliceHome = { dir = tmp, how = ("temporary — %s could not be created")
+                                                 :format(tostring(shots.sliceDir)) }
+            return tmp
+        end
+        shots.sliceHome = { dir = nil, how = ("neither %s nor the temporary folder"
+                                              .. " could be created"):format(tostring(shots.sliceDir)) }
+        return nil, shots.sliceHome.how
+    end
+
+    -- Decode one slice, or say exactly which of the three ways it failed.
+    -- → img, sizePx | nil, why
+    function shots.decodeSlice(path)
+        local size = sizeOf(path)
+        if not size then return nil, "no file was written" end
+        if size == 0 then return nil, "the file is empty (0 bytes)" end
+        local img
+        pcall(function() img = hs.image.imageFromPath(path) end)
+        if not img then
+            return nil, ("the file exists (%d bytes) but did not decode as an image"):format(size)
+        end
+        local sz
+        pcall(function() sz = img:size() end)
+        if not (sz and sz.w and sz.w > 0 and sz.h and sz.h > 0) then
+            return nil, ("the file exists (%d bytes) but has no size"):format(size)
+        end
+        return img, sz
+    end
+
+    function shots.stitch(files, rect, plan, thenEdit, run)
+        run = run or shots.scrollLast or {}
+        local outPath
+        local ok, err = pcall(function()
+            local imgs, heights, w, totalH = {}, {}, 0, 0
+            for i, f in ipairs(files) do
+                local img, sz = shots.decodeSlice(f)
+                if not img then
+                    error(("slice %d of %d: %s"):format(i, #files, tostring(sz)), 0)
+                end
+                -- the FILE is in pixels, the SELECTION is in points;
+                -- Retina makes them differ by 2x, so the crop scales
+                local scale = sz.w / rect.w
+                local cropPx = math.floor(((plan[i] or {}).crop or 0) * scale)
+                if cropPx > 0 and img.croppedCopy then
+                    img = img:croppedCopy({ x = 0, y = cropPx,
+                                            w = sz.w, h = sz.h - cropPx })
+                    sz = img:size()
+                end
+                imgs[#imgs + 1] = img
+                heights[#heights + 1] = sz.h
+                w = math.max(w, sz.w)
+                totalH = totalH + sz.h
+                run.decoded = (run.decoded or 0) + 1
+            end
+            assert(#imgs > 0 and totalH > 0, "no slices decoded")
+            local canvas = hs.canvas.new({ x = 0, y = 0, w = w, h = totalH })
+            local y = 0
+            for i, img in ipairs(imgs) do
+                canvas:appendElements({
+                    type = "image", image = img, imageScaling = "none",
+                    frame = { x = 0, y = y, w = w, h = heights[i] },
+                })
+                y = y + heights[i]
+            end
+            local outImg = canvas:imageFromCanvas()
+            canvas:delete()
+            assert(outImg, "canvas would not render")
+            outPath = shots.dir .. "/"
+                      .. shots.filenameAt():gsub("%.png$", " (scrolling).png")
+            shots.own[outPath] = true
+            assert(outImg:saveToFile(outPath), "could not write " .. outPath)
+        end)
+        if not ok then
+            scrollFail(run, "stitch: " .. tostring(err), files)
+            return
+        end
+        for _, f in ipairs(files) do pcall(os.remove, f) end
+        run.outcome, run.why, run.out = "ok", nil, outPath
+        run.kept = nil
+        -- finish() copies the result to the clipboard (off the main
+        -- thread, 6.170.3) and says so, exactly as ⇪4 does
+        shots.finish(outPath, thenEdit)
+    end
+
+    function shots.scrollingCapture(thenEdit)
+        if not shots.ensureDir() then return end
+        shots.selectArea(function(rect)
+            local plan = shots.scrollPlan(rect.h, shots.scroll.height,
+                                          shots.scroll.cropTop)
+            if #plan == 0 then return end
+            local run = { at = os.time(), planned = #plan, shot = 0, decoded = 0,
+                          outcome = "running", rect = rect, slices = {} }
+            shots.scrollLast = run
+            -- 6.213.3 — the slices' folder, decided ONCE per run, before
+            -- the first slice: no folder means no capture, said plainly.
+            local sliceDir, sliceWhy = shots.sliceFolder()
+            if not sliceDir then
+                scrollFail(run, "no folder for the slices — " .. tostring(sliceWhy), {})
+                return
+            end
+            run.sliceDir = sliceDir
+            -- scroll events go to whatever is UNDER THE POINTER — park it
+            pcall(function()
+                hs.mouse.absolutePosition({ x = rect.x + rect.w / 2,
+                                            y = rect.y + rect.h / 2 })
+            end)
+            local files, i = {}, 0
+            local function step()
+                i = i + 1
+                if i > #plan then
+                    -- 🚨 OFF THE TASK CALLBACK FIRST (6.196.1): the last
+                    -- slice's callback is the frame this runs in, and
+                    -- the stitch allocates a canvas and a dozen images.
+                    shots.stitchTimer = hs.timer.doAfter(0, function()
+                        shots.stitch(files, rect, plan, thenEdit, run)
+                    end)
+                    return
+                end
+                local function shoot()
+                    -- 6.213.3: a plain name in the LOCAL slice folder —
+                    -- never the screenshots folder (see sliceDir's note)
+                    local slice = sliceDir .. ("/scroll-slice-%02d.png"):format(i)
+                    local okRun = shots.runCapture({
+                        "-x",
+                        ("-R%d,%d,%d,%d"):format(rect.x, rect.y, rect.w, rect.h),
+                        slice,
+                    }, slice, false, function(_, exitCode, serr)
+                        local size = sizeOf(slice)
+                        run.slices[#run.slices + 1] = {
+                            n = i, code = exitCode, err = firstLine(serr), size = size,
+                        }
+                        if (exitCode ~= nil and exitCode ~= 0) or not size or size == 0 then
+                            local why = ("slice %d of %d: screencapture exit %s"):format(
+                                i, #plan, tostring(exitCode))
+                            local e = firstLine(serr)
+                            if e ~= "" then why = why .. " — " .. e end
+                            why = why .. (not size and " — no file was written"
+                                          or (size == 0 and " — the file is empty" or ""))
+                            if e:lower():find("image") or e:lower():find("display")
+                               or e:lower():find("permission") then
+                                why = why .. " (if macOS is refusing the capture: System"
+                                      .. " Settings → Privacy & Security → Screen"
+                                      .. " Recording → Hammerspoon, then quit and relaunch)"
+                            end
+                            scrollFail(run, why, files)
+                            return
+                        end
+                        run.shot = run.shot + 1
+                        files[#files + 1] = slice
+                        step()
+                    end)
+                    if not okRun then
+                        scrollFail(run, ("slice %d of %d: screencapture could not be started")
+                                        :format(i, #plan), files)
+                    end
+                end
+                if plan[i].scroll > 0 then
+                    pcall(function()
+                        hs.eventtap.event.newScrollEvent(
+                            { 0, -plan[i].scroll }, {}, "pixel"):post()
+                    end)
+                    shots.scrollTimer = hs.timer.doAfter(shots.scroll.settle, shoot)
+                else
+                    shoot()
+                end
+            end
+            pcall(function()
+                hs.alert.show(("🧻 Scrolling: %d slices…"):format(#plan), 1.5)
+            end)
+            step()
+        end)
+    end
+
+    -- 🔎 6.206.0 — THE REPORT this module never had. The folder, the
+    -- watcher, the last capture's exit, and the last scrolling run with
+    -- every slice's receipt — "no slices decoded" is a question this
+    -- answers now instead of a sentence in an alert.
+    function _G.screenshotsReport()
+        local L = { "📸 SCREENSHOTS" }
+        L[#L + 1] = "   folder  : " .. tostring(shots.dir)
+        L[#L + 1] = "   watcher : " .. (shots.watcher and "watching for arrivals"
+                    or (shots.watchFolder and "not started (first capture starts it)"
+                        or "off (shots.watchFolder = false)"))
+                    .. " · named on arrival " .. tostring(shots.namedOnArrival)
+                    .. " · left for ⌘9 " .. tostring(shots.leftForSweep)
+        if shots.lastExit then
+            L[#L + 1] = "   last screencapture exit : " .. tostring(shots.lastExit.code)
+                        .. (shots.lastExit.err ~= "" and (" — " .. firstLine(shots.lastExit.err)) or "")
+        else
+            L[#L + 1] = "   last screencapture exit : none this session"
+        end
+        local sh = shots.sliceHome
+        L[#L + 1] = "   slices  : " .. (sh and (sh.dir and (sh.dir .. " · " .. sh.how)
+                                                or ("⚠️ NONE — " .. tostring(sh.how)))
+                                       or ("not yet asked · will use " .. tostring(shots.sliceDir)
+                                           .. " (local, never OneDrive)"))
+        local r = shots.scrollLast
+        if not r then
+            L[#L + 1] = "   scroll  : never run this session (⇪5)"
+        else
+            L[#L + 1] = ("   scroll  : %s · %d planned · %d shot · %d decoded · %s")
+                        :format(os.date("%H:%M:%S", r.at), r.planned or 0, r.shot or 0,
+                                r.decoded or 0, tostring(r.outcome))
+            if r.why then L[#L + 1] = "             ↳ " .. tostring(r.why) end
+            if r.out then L[#L + 1] = "             ↳ " .. tostring(r.out) end
+            for _, sl in ipairs(r.slices or {}) do
+                L[#L + 1] = ("             slice %02d: exit %s · %s%s"):format(
+                    sl.n, tostring(sl.code),
+                    sl.size and (tostring(sl.size) .. " bytes") or "no file",
+                    (sl.err and sl.err ~= "") and (" · " .. sl.err) or "")
+            end
+            if r.kept and #r.kept > 0 then
+                L[#L + 1] = "             ↳ the slices were KEPT for a look: "
+                            .. tostring(r.sliceDir or shots.sliceDir) .. "/scroll-slice-NN.png"
+            end
+        end
+        local s = table.concat(L, "\n")
+        print(s)
+        return s
+    end
+
+    -- ---- recognize text / QR ---------------------------------------------
+    -- Text rides the SAME Apple Shortcut ⇪O's OCR index uses. QR needs a
+    -- decoder macOS does not ship — zbar's zbarimg, when brew installed
+    -- it. QR is tried first (exact payloads beat OCR's guess at one).
+    function shots.zbarPath()
+        if shots._zbar ~= nil then
+            return shots._zbar or nil
+        end
+        local home = core.homeDir or os.getenv("HOME") or ""
+        for _, p in ipairs({
+            "/opt/homebrew/bin/zbarimg", "/usr/local/bin/zbarimg",
+            home .. "/homebrew/bin/zbarimg", home .. "/.homebrew/bin/zbarimg",
+            home .. "/.local/homebrew/bin/zbarimg",
+        }) do
+            local sz
+            pcall(function() sz = hs.fs.attributes(p, "size") end)
+            if sz then shots._zbar = p return p end
+        end
+        shots._zbar = false
+        return nil
+    end
+
+    -- 6.173.1 — LL: "OCR Logs do not have what hyper+v or the system
+    -- clipboard has after an OCR event using hyper+4 or hyper+shift+4."
+    -- 6.172.1 wired only the name-on-arrival path; the RECOGNIZE path
+    -- (⇪4's text-to-clipboard, the panel's OCR row) put words on the
+    -- pasteboard and nowhere else. Every text this module puts on the
+    -- clipboard now goes through here — the one door into ⇪O's log.
+    -- 6.187.0 — and WHICH IMAGE it came from. Every caller here has the
+    -- file in hand; passing it is what lets ⇪space's @images show you the
+    -- picture instead of only the words. A caller without one passes
+    -- nothing and the row is the two-column row it always was.
+    function shots.recordText(text, path)
+        if _G.service and _G.service.has and _G.service.has("ocr.record") then
+            pcall(function() _G.service.call("ocr.record", text, path) end)
+        end
+    end
+
+    function shots.recognizeFile(path)
+        local function ocr()
+            if _G.ocrShortcutAvailable == false then
+                pcall(function()
+                    hs.alert.show("📝 Needs the “" .. shots.ocrShortcut
+                                  .. "” Shortcut (same one ⇪O uses)", 4)
+                end)
+                return
+            end
+            local t
+            pcall(function()
+                t = hs.task.new("/usr/bin/shortcuts", function(code, sout)
+                    shots.ocrTask = nil
+                    local text = tostring(sout or ""):match("^%s*(.-)%s*$") or ""
+                    if code == 0 and text ~= "" then
+                        pcall(function() hs.pasteboard.setContents(text) end)
+                        shots.recordText(text, path)
+                        pcall(function()
+                            hs.alert.show("📝 Text copied: "
+                                          .. text:gsub("%s+", " "):sub(1, 60), 3)
+                        end)
+                    else
+                        pcall(function() hs.alert.show("📝 No text found", 2.5) end)
+                    end
+                end, { "run", shots.ocrShortcut, "-i", path })
+                t:start()
+            end)
+            shots.ocrTask = t   -- HELD
+        end
+
+        local zbar = shots.zbarPath()
+        if not zbar then ocr() return end
+        local t
+        pcall(function()
+            t = hs.task.new(zbar, function(code, sout)
+                shots.qrTask = nil
+                local payload = tostring(sout or ""):match("^%s*(.-)%s*$") or ""
+                if code == 0 and payload ~= "" then
+                    pcall(function() hs.pasteboard.setContents(payload) end)
+                    shots.recordText(payload, path)
+                    pcall(function()
+                        hs.alert.show("🔳 Code copied: " .. payload:sub(1, 60), 3)
+                    end)
+                else
+                    ocr()   -- no code in the image — fall through to text
+                end
+            end, { "--raw", "-q", path })
+            t:start()
+        end)
+        if t then shots.qrTask = t else ocr() end
+    end
+
+    function shots.recognize()
+        if not shots.ensureDir() then return end
+        local path = freshPath()
+        shots.runCapture({ "-i", path }, path, false, function()
+            local size
+            pcall(function() size = hs.fs.attributes(path, "size") end)
+            if not size or size == 0 then return end   -- Esc = cancel
+            shots.recognizeFile(path)
+        end)
+    end
+
+    -- ---- content names (6.147.0) -----------------------------------------
+    -- The words OF the shot become the NAME of the shot, so Finder,
+    -- Spotlight, ⇪⇧4 and ⇪⇧space all find it by what was on the screen
+    -- — with no index in the way, because the index IS the filename.
+
+    -- OCR text → the filename's word part. Words under three characters
+    -- are noise ("of", "at", UI chrome) unless they carry a digit, which
+    -- is usually the part you remember ("403", "M5").
+    function shots.slugFrom(text)
+        local words = {}
+        for w in tostring(text or ""):gmatch("[%w][%w'%-]*") do
+            if #w >= 3 or w:match("%d") then
+                words[#words + 1] = w
+                if #words >= shots.slugWords then break end
+            end
+        end
+        local slug = table.concat(words, " ")
+        if #slug > shots.slugChars then
+            slug = slug:sub(1, shots.slugChars):gsub("%s+%S*$", "")
+        end
+        slug = slug:gsub("^%s+", ""):gsub("%s+$", "")
+        if slug == "" then return nil end
+        return slug
+    end
+
+    -- What a file should be called once its words are known. nil means
+    -- "leave it alone": it already carries words (an " — " in the name),
+    -- or its name was chosen by a person — only the two mechanical
+    -- conventions (SCR-… and this module's own) are ever rewritten.
+    function shots.contentName(basename, slug, mtime)
+        if not slug then return nil end
+        if basename:find(" — ", 1, true) then return nil end
+        local stem, ext = basename:match("^(.+)%.(%w+)$")
+        if not stem then return nil end
+        if stem:match("^SCR%-%d%d%d%d%d%d%d%d%-") then
+            -- another tool's random suffix: fold into this module's own
+            -- shape, keeping the file's real moment (its mtime)
+            stem = os.date("Screenshot %Y-%m-%d at %H.%M.%S", mtime or os.time())
+        elseif not stem:match("^Screenshot ") then
+            return nil
+        end
+        return stem .. " — " .. slug .. "." .. ext
+    end
+
+    -- The names this module is allowed to rewrite: an image with one of
+    -- the two MECHANICAL names (another tool's SCR-…, or our own
+    -- timestamp) and no words yet. One definition, used by ⌘9's sweep and
+    -- the folder watcher alike — two copies of this rule would drift.
+    function shots.wantsName(name)
+        local ext = tostring(name or ""):match("%.(%w+)$")
+        if not ext then return false end
+        ext = ext:lower()
+        if ext ~= "png" and ext ~= "jpg" and ext ~= "jpeg" then return false end
+        if name:find(" — ", 1, true) then return false end
+        return name:match("^SCR%-%d%d%d%d%d%d%d%d%-") ~= nil
+            or name:match("^Screenshot ") ~= nil
+    end
+
+    function shots.renameTo(path, newBase)
+        local dir = path:match("^(.*)/[^/]+$") or shots.dir
+        local target = dir .. "/" .. newBase
+        local exists
+        pcall(function() exists = hs.fs.attributes(target, "size") end)
+        if exists then
+            local stem, ext = newBase:match("^(.+)%.(%w+)$")
+            for n = 2, 99 do
+                target = dir .. "/" .. stem .. " " .. n .. "." .. ext
+                local e2 = nil
+                pcall(function() e2 = hs.fs.attributes(target, "size") end)
+                if not e2 then break end
+            end
+        end
+        local ok = os.rename(path, target)
+        if not ok then
+            warn("rename failed: " .. (path:match("[^/]+$") or path))
+            return nil
+        end
+        say("named by content: " .. (target:match("[^/]+$") or target))
+        return target
+    end
+
+    -- OCR one file, rename it from its words, and hand the words to the
+    -- OCR engine for the Finder comment (its never-overwrite rule
+    -- applies there, not here). Failure costs the new name only — the
+    -- file itself is never at risk, rename is the ONLY write.
+    shots.nameTasks = {}
+    function shots.nameByText(path, onDone)
+        if _G.ocrShortcutAvailable == false then
+            if onDone then onDone(nil) end
+            return false
+        end
+        local t
+        local okNew = pcall(function()
+            t = hs.task.new("/usr/bin/shortcuts", function(code, sout)
+                shots.nameTask = nil
+                shots.nameTasks[t] = nil
+                local newPath
+                local text = tostring(sout or ""):match("^%s*(.-)%s*$") or ""
+                if code == 0 and text ~= "" then
+                    local base = path:match("[^/]+$") or path
+                    local mtime
+                    pcall(function()
+                        mtime = hs.fs.attributes(path, "modification")
+                    end)
+                    local newBase = shots.contentName(base, shots.slugFrom(text), mtime)
+                    if newBase then newPath = shots.renameTo(path, newBase) end
+                    if newPath and _G.service and _G.service.has
+                       and _G.service.has("ocr.comment") then
+                        pcall(function()
+                            _G.service.call("ocr.comment", newPath, text)
+                        end)
+                    end
+                    -- 6.172.1 — the words also go into the OCR log ⇪O
+                    -- reads (they never did: only the Finder comment).
+                    -- 6.187.0 — with the file they were read from, and it
+                    -- must be the NEW name: this path renames the shot to
+                    -- match its contents, so recording the old name would
+                    -- file every arrival against a file that is already gone.
+                    shots.recordText(text, newPath or path)
+                end
+                if onDone then onDone(newPath) end
+            end, { "run", shots.ocrShortcut, "-i", path })
+            t:start()
+        end)
+        if not (okNew and t) then
+            if onDone then onDone(nil) end
+            return false
+        end
+        -- HELD — as a SET (6.155.0). One slot held only the newest task;
+        -- a ⇪4 capture OCR'd while an arrival was being named dropped the
+        -- earlier task to the collector, whose callback then never came,
+        -- and a queue waiting on that callback would have waited forever.
+        shots.nameTask = t
+        shots.nameTasks[t] = true
+        return true
+    end
+
+    -- ⌘9 — the backlog. Serial ON PURPOSE: one `shortcuts` process at a
+    -- time, so forty queued OCRs cost a quiet minute, not forty
+    -- simultaneous processes.
+    shots.nameBusy = false
+    function shots.renameSweep()
+        if not shots.ensureDir() then return end
+        if shots.nameBusy then
+            pcall(function()
+                hs.alert.show("🏷 A naming sweep is already running", 2.5)
+            end)
+            return
+        end
+        local todo = {}
+        pcall(function()
+            for f in hs.fs.dir(shots.dir) do
+                if #todo >= shots.sweepCap then break end
+                if shots.wantsName(f) then
+                    todo[#todo + 1] = shots.dir .. "/" .. f
+                end
+            end
+        end)
+        if #todo == 0 then
+            pcall(function()
+                hs.alert.show("🏷 Nothing to name — every screenshot here "
+                              .. "already carries its words", 3)
+            end)
+            return
+        end
+        shots.nameBusy = true
+        local renamed, silent, i = 0, 0, 0
+        local function step()
+            i = i + 1
+            local path = todo[i]
+            if not path then
+                shots.nameBusy = false
+                pcall(function()
+                    hs.alert.show(("🏷 Named %d of %d — %d had no readable text")
+                                  :format(renamed, #todo, silent), 4)
+                end)
+                say(("sweep: %d/%d renamed, %d text-free"):format(renamed, #todo, silent))
+                shots.drainQueue()      -- arrivals that waited for the sweep
+                return
+            end
+            local started = shots.nameByText(path, function(newPath)
+                if newPath then renamed = renamed + 1 else silent = silent + 1 end
+                step()
+            end)
+            if not started then
+                shots.nameBusy = false
+                pcall(function()
+                    hs.alert.show("🏷 OCR unavailable — needs the “"
+                                  .. shots.ocrShortcut .. "” Shortcut", 4)
+                end)
+            end
+        end
+        pcall(function()
+            hs.alert.show("🏷 Naming " .. #todo
+                          .. " screenshots by their text…", 2.5)
+        end)
+        step()
+    end
+
+    -- ---- 👀 the folder watcher (6.155.0) ---------------------------------
+    -- Another tool's capture, or a screenshot the other Mac took, lands
+    -- in this folder with a mechanical name and no words. The watcher
+    -- queues it for the same OCR a ⇪4 capture gets — after it has sat
+    -- still for watchSettle (a file still being written OCRs as
+    -- nothing), one shortcuts process at a time (the ⌘9 discipline,
+    -- sharing its nameBusy flag), and never a file this module wrote
+    -- itself (finish() names those) or one the blur editor has open (a
+    -- rename under the editor would orphan its save).
+    shots.watcher = nil    -- HELD: an unreferenced pathwatcher is collected
+    shots.pending = {}     -- path -> settle timer (HELD, same reason)
+    shots.queue   = {}     -- paths waiting for the one-at-a-time OCR
+    shots.namedOnArrival = 0
+    shots.leftForSweep   = 0
+
+    local function editorHolds(path)
+        local ed = _G.screenshotEditor
+        return type(ed) == "table" and ed.currentPath == path
+    end
+
+    function shots.queueArrival(path)
+        local size
+        pcall(function() size = hs.fs.attributes(path, "size") end)
+        if not size or size == 0 then return false end   -- gone, or empty
+        local name = path:match("[^/]+$") or path
+        if not shots.wantsName(name) then return false end   -- renamed meanwhile
+        if shots.own[path] or editorHolds(path) then return false end
+        for _, q in ipairs(shots.queue) do if q == path then return false end end
+        if #shots.queue >= shots.watchCap then
+            shots.leftForSweep = shots.leftForSweep + 1
+            if shots.leftForSweep == 1 then
+                say(("%d arrivals already waiting — the rest are left for ⌘9")
+                    :format(shots.watchCap))
+            end
+            return false
+        end
+        shots.queue[#shots.queue + 1] = path
+        shots.drainQueue()
+        return true
+    end
+
+    function shots.drainQueue()
+        if shots.nameBusy then return end
+        if #shots.queue == 0 then return end
+        if _G.ocrShortcutAvailable == false then
+            -- no OCR on this Mac: nothing to wait for, and ⌘9 will say so
+            -- out loud when pressed — this path stays quiet after one line
+            shots.leftForSweep = shots.leftForSweep + #shots.queue
+            shots.queue = {}
+            if not shots.saidNoOcr then
+                shots.saidNoOcr = true
+                say("arrivals not named — the “" .. shots.ocrShortcut
+                    .. "” Shortcut is unavailable here")
+            end
+            return
+        end
+        local path = table.remove(shots.queue, 1)
+        shots.nameBusy = true
+        local started = shots.nameByText(path, function(newPath)
+            shots.nameBusy = false
+            if newPath then
+                shots.namedOnArrival = shots.namedOnArrival + 1
+                say("named on arrival: " .. (newPath:match("[^/]+$") or newPath))
+            end
+            shots.drainQueue()
+        end)
+        if not started then
+            shots.nameBusy = false
+            shots.leftForSweep = shots.leftForSweep + #shots.queue
+            shots.queue = {}
+        end
+    end
+
+    function shots.onFolderEvent(paths)
+        if not shots.watchFolder then return end
+        for _, p in ipairs(type(paths) == "table" and paths or {}) do
+            if type(p) == "string" and p:match("^(.*)/[^/]+$") == shots.dir then
+                local name = p:match("[^/]+$") or ""
+                if shots.wantsName(name) and not shots.own[p] then
+                    -- "still" means no event for watchSettle: every write
+                    -- restarts the clock
+                    local old = shots.pending[p]
+                    if old then pcall(function() old:stop() end) end
+                    local okT, t = pcall(hs.timer.doAfter, shots.watchSettle, function()
+                        shots.pending[p] = nil
+                        pcall(shots.queueArrival, p)
+                    end)
+                    shots.pending[p] = (okT and t) or nil
+                end
+            end
+        end
+    end
+
+    function shots.startWatch()
+        if not shots.watchFolder then return false end
+        if shots.watcher then return true end
+        if not (hs.pathwatcher and hs.pathwatcher.new) then return false end
+        local ok, w = pcall(hs.pathwatcher.new, shots.dir, function(paths)
+            pcall(shots.onFolderEvent, paths)
+        end)
+        if not (ok and w) then
+            warn("could not watch the folder — arrivals wait for ⌘9")
+            return false
+        end
+        local okS = pcall(function() w:start() end)
+        if not okS then
+            warn("the folder watcher would not start — arrivals wait for ⌘9")
+            return false
+        end
+        shots.watcher = w
+        say("watching the folder — other tools' captures get their words as they land")
+        return true
+    end
+
+    -- ---- listing ---------------------------------------------------------
+    local IMAGE_EXT = { png = true, jpg = true, jpeg = true, gif = true,
+                        tiff = true, heic = true, webp = true }
+
+    function shots.list()
+        local out = {}
+        pcall(function()
+            for f in hs.fs.dir(shots.dir) do
+                local ext = f:match("%.(%w+)$")
+                if f:sub(1, 1) ~= "." and ext and IMAGE_EXT[ext:lower()] then
+                    local p = shots.dir .. "/" .. f
+                    local mt, sz
+                    pcall(function()
+                        mt = hs.fs.attributes(p, "modification")
+                        sz = hs.fs.attributes(p, "size")
+                    end)
+                    out[#out + 1] = { name = f, path = p,
+                                      mtime = tonumber(mt) or 0,
+                                      size  = tonumber(sz) or 0 }
+                end
+            end
+        end)
+        table.sort(out, function(a, b)
+            if a.mtime ~= b.mtime then return a.mtime > b.mtime end
+            return a.name > b.name   -- same second: the "(2)" copy first
+        end)
+        return out
+    end
+
+    function shots.latest()
+        local l = shots.list()
+        return l[1] and l[1].path or nil
+    end
+
+    -- ---- 🗂 the folder itself (6.130.0) -----------------------------------
+    -- LL: "I feel like any screenshots should be captured here, by a line
+    -- entry that sends me to that screenshot's folder"
+    --
+    -- 🚨 hs.task, NEVER hs.execute. hs.execute is SYNCHRONOUS and blocks
+    -- the only thread Hammerspoon has — and this folder lives inside
+    -- ~/Library/CloudStorage, where `open` on a directory OneDrive has not
+    -- finished materialising can sit there for seconds. A Mac frozen
+    -- keyboard-and-all is a far worse answer than a slow Finder window.
+    -- Same rule, same reason, as the sync-osascript rule in hs-lint.
+    function shots.revealFolder()
+        local dir = shots.ensureDir()
+        if not dir then return false end   -- ensureDir has already alerted
+        local t
+        local ok = pcall(function()
+            t = hs.task.new("/usr/bin/open",
+                            function() shots.openTask = nil end, { dir })
+        end)
+        if not (ok and t) then
+            pcall(function() hs.alert.show("📸 Could not open the folder", 3) end)
+            warn("hs.task.new failed for /usr/bin/open")
+            return false
+        end
+        shots.openTask = t   -- HELD: an unreferenced hs.task is collected
+        local started = false
+        pcall(function() started = t:start() end)
+        if not started then
+            shots.openTask = nil
+            pcall(function() hs.alert.show("📸 Could not open the folder", 3) end)
+            warn("/usr/bin/open would not start")
+            return false
+        end
+        say("opened " .. dir .. " in Finder")
+        return true
+    end
+
+    -- ---- history picker (⇪⇧4) --------------------------------------------
+    -- Thumbnails are the expensive part: hs.image.imageFromPath decodes
+    -- the WHOLE png just to draw a 72px row. Two defences: the list cap,
+    -- and this cache — keyed by path + mtime so an edited file re-reads
+    -- but an unchanged one never decodes twice in a session.
+    shots.thumbCache = {}
+
+    local function thumbFor(entry)
+        local c = shots.thumbCache[entry.path]
+        if c and c.mtime == entry.mtime then return c.img end
+        local img
+        pcall(function()
+            local full = hs.image.imageFromPath(entry.path)
+            if full then
+                img = full:setSize({ w = shots.thumbH * 1.6, h = shots.thumbH })
+            end
+        end)
+        if img then
+            shots.thumbCache[entry.path] = { mtime = entry.mtime, img = img }
+        end
+        return img
+    end
+
+    local function prettySize(bytes)
+        if bytes >= 1024 * 1024 then
+            return string.format("%.1f MB", bytes / (1024 * 1024))
+        end
+        return string.format("%d KB", math.max(1, math.floor(bytes / 1024)))
+    end
+
+    -- ---- ⌃⏎ compress (6.88.0) --------------------------------------------
+    -- LL: "Can you give me an option to compress an image file if I want
+    -- to?" — sips ships with macOS and re-encodes a PNG screenshot as a
+    -- JPEG at a fraction of the size (screenshots compress spectacularly:
+    -- flat color, hard edges). The original is NEVER touched; the small
+    -- copy lands next to it and on the clipboard, ready to paste where a
+    -- 3 MB PNG would be rude.
+    function shots.compressedPathFor(path)
+        local stem = path:gsub("%.%w+$", "")
+        local candidate = stem .. " (compressed).jpg"
+        local exists
+        pcall(function() exists = hs.fs.attributes(candidate, "size") end)
+        if not exists then return candidate end
+        for n = 2, 99 do
+            local p = stem .. (" (compressed %d).jpg"):format(n)
+            local e
+            pcall(function() e = hs.fs.attributes(p, "size") end)
+            if not e then return p end
+        end
+        return candidate
+    end
+
+    function shots.compressFile(path)
+        local origSz = 0
+        pcall(function() origSz = hs.fs.attributes(path, "size") or 0 end)
+        local outPath = shots.compressedPathFor(path)
+        local t
+        local ok = pcall(function()
+            t = hs.task.new("/usr/bin/sips", function(code)
+                shots.sipsTask = nil
+                local newSz
+                pcall(function() newSz = hs.fs.attributes(outPath, "size") end)
+                if code == 0 and newSz and newSz > 0 then
+                    local copied = false
+                    pcall(function()
+                        local img = hs.image.imageFromPath(outPath)
+                        if img then
+                            copied = hs.pasteboard.writeObjects(img) and true
+                        end
+                    end)
+                    pcall(function()
+                        hs.alert.show(("🗜 %s → %s%s"):format(
+                            prettySize(origSz), prettySize(newSz),
+                            copied and " · on the clipboard" or ""), 3)
+                    end)
+                    say(("compressed %s → %s"):format(prettySize(origSz),
+                                                      prettySize(newSz)))
+                else
+                    pcall(function()
+                        hs.alert.show("🗜 Compression failed — could not re-encode "
+                                      .. (path:match("[^/]+$") or path), 4)
+                    end)
+                    warn("sips failed on " .. path)
+                end
+            end, { "-s", "format", "jpeg",
+                   "-s", "formatOptions", tostring(shots.jpegQuality),
+                   path, "--out", outPath })
+            t:start()
+        end)
+        if ok and t then
+            shots.sipsTask = t   -- HELD: an unreferenced hs.task is collected
+        else
+            pcall(function() hs.alert.show("🗜 sips unavailable", 3) end)
+        end
+    end
+
+    -- ---- the ⇪⇧4 panel: eight actions, then history -----------------------
+    -- hs.chooser numbers its first rows ⌘1–⌘9 natively, which is why the
+    -- actions sit on top: ⌘3 IS "recognize text", no arrowing needed.
+    function shots.actionRows(list)
+        local qr = shots.zbarPath()
+        -- 6.155.0 — the ⌘9 row says how many are WAITING, when the list
+        -- is to hand: "nothing waiting" is the honest state most days now
+        -- that arrivals are named as they land.
+        local waiting = nil
+        if type(list) == "table" then
+            waiting = 0
+            for _, e in ipairs(list) do
+                if type(e) == "table" and shots.wantsName(e.name or "") then
+                    waiting = waiting + 1
+                end
+            end
+        end
+        local nameSub
+        if waiting == 0 then
+            nameSub = "nothing waiting — every screenshot here carries its words"
+        elseif waiting then
+            nameSub = ("%d waiting — SCR-/word-less files get their text in the "
+                       .. "name (%d per run, one at a time)"):format(waiting, shots.sweepCap)
+        else
+            nameSub = ("SCR-/word-less files get their text in the name "
+                       .. "(%d per run, one at a time)"):format(shots.sweepCap)
+        end
+        return {
+            { text = "📐 Capture area", act = "area",
+              subText = "crosshair select — saved + copied, then the editor" },
+            { text = "🧻 Scrolling capture (experimental)", act = "scroll",
+              subText = ("drag an area — captures ~%dpx tall · best in browsers")
+                        :format(shots.scroll.height) },
+            { text = "🔤 Recognize text / QR", act = "recognize",
+              subText = qr and "text via HS OCR · QR/barcodes via zbar"
+                        or "text via HS OCR · QR needs `brew install zbar`" },
+            { text = "🖌 Blur / edit newest screenshot", act = "editNewest",
+              subText = "open the newest capture in the blur editor" },
+            { text = "🔁 Repeat last area", act = "repeat",
+              subText = shots.lastRect
+                        and ("re-shoot %d×%d at %d,%d")
+                            :format(shots.lastRect.w, shots.lastRect.h,
+                                    shots.lastRect.x, shots.lastRect.y)
+                        or "no area yet — you will drag one first" },
+            { text = "🪟 Capture active window", act = "window",
+              subText = "the frontmost window, no clicking" },
+            { text = ("⏲ Delayed capture (%ds)"):format(shots.delaySecs),
+              act = "delayed",
+              subText = "full screen, after the countdown" },
+            -- 6.89.0 — LL: "Thumbnails … must be 50% larger, I can't read
+            -- them." A chooser row's height is fixed inside Hammerspoon
+            -- itself, so the fix is one keystroke away instead: Unified
+            -- Search draws the same folder at 84px. (⇪⇧space from anywhere.)
+            { text = "🔎 BIG thumbnails — browse in Unified Search",
+              act = "bigBrowse",
+              subText = "same screenshots, 2× the thumbnail, searchable (⇪⇧space)" },
+            -- 6.147.0 — ⌘9, the backlog namer. The ninth and last slot
+            -- the chooser numbers natively.
+            { text = "🏷 Name them by what's ON them", act = "nameSweep",
+              subText = nameSub },
+        }
+    end
+
+    function shots.runAction(act)
+        local edit = shots.editAfterMenu
+        if     act == "area"       then shots.capture(edit)
+        elseif act == "scroll"     then shots.scrollingCapture(edit)
+        elseif act == "recognize"  then shots.recognize()
+        elseif act == "editNewest" then
+            local p = shots.latest()
+            if p then
+                if not core.call("screenshotEditor.open", p) then
+                    pcall(function() hs.alert.show("🖌 Editor unavailable", 3) end)
+                end
+            else
+                pcall(function() hs.alert.show("📸 No screenshots yet — ⇪4 takes one", 3) end)
+            end
+        elseif act == "repeat"     then shots.repeatArea(edit)
+        elseif act == "window"     then shots.captureWindow(edit)
+        elseif act == "delayed"    then shots.captureDelayed(edit)
+        elseif act == "bigBrowse"  then
+            if not core.call("unified.show", "@shots ") then
+                pcall(function()
+                    hs.alert.show("🔎 Unified Search is not loaded", 3)
+                end)
+            end
+        elseif act == "nameSweep"  then shots.renameSweep()
+        end
+    end
+
+    function shots.choicesFrom(list)
+        local choices = {}
+        for _, a in ipairs(shots.actionRows(list)) do choices[#choices + 1] = a end
+        for i, e in ipairs(list) do
+            if i > shots.maxList then break end
+            choices[#choices + 1] = {
+                text    = e.name,
+                subText = os.date("%b %d %Y  %H:%M", e.mtime)
+                          .. "  ·  " .. prettySize(e.size)
+                          .. "  ·  ⏎ image · ⌘⏎ path · ⌥⏎ edit · ⌃⏎ jpg",
+                path    = e.path,
+            }
+        end
+        if #list == 0 then
+            choices[#choices + 1] = {
+                text    = "No screenshots yet",
+                subText = "⇪4 takes one — it lands in " .. shots.dir,
+            }
+        end
+        return choices
+    end
+
+    function shots.onPick(choice)
+        if not choice then return end
+        if choice.act then
+            shots.runAction(choice.act)
+            return
+        end
+        if not choice.path then return end
+        -- hs.chooser reports nothing about modifiers, but the keyboard
+        -- state at selection time is readable — same trick the window
+        -- switcher uses. ⌘⏎ = the PATH, ⌥⏎ = the editor, ⌃⏎ = compress.
+        local mods = {}
+        pcall(function() mods = hs.eventtap.checkKeyboardModifiers() or {} end)
+        if mods.ctrl then
+            shots.compressFile(choice.path)
+            return
+        end
+        if mods.cmd then
+            local ok = false
+            pcall(function() ok = hs.pasteboard.setContents(choice.path) end)
+            pcall(function()
+                hs.alert.show(ok and "📎 Path copied" or "⚠️ Could not copy path",
+                              shots.alertSecs)
+            end)
+            return
+        end
+        if mods.alt then
+            if not core.call("screenshotEditor.open", choice.path) then
+                pcall(function() hs.alert.show("🖌 Editor unavailable", 3) end)
+            end
+            return
+        end
+        -- ☁️ this read is the one that can stall on a cloud-evicted file —
+        -- see the OneDrive note in the header.
+        local img
+        pcall(function() img = hs.image.imageFromPath(choice.path) end)
+        local copied = false
+        if img then
+            pcall(function() copied = hs.pasteboard.writeObjects(img) and true end)
+        end
+        pcall(function()
+            hs.alert.show(copied and "📋 Screenshot on the clipboard"
+                                  or "⚠️ Could not read that screenshot",
+                          shots.alertSecs)
+        end)
+    end
+
+    -- ---- 🔎 the search (6.88.0, and the whole folder since 6.122.0) ------
+    -- One row per matching file, built from the FULL listing rather than
+    -- the capped view. See the 🔎 block in the header for why that
+    -- distinction is the fix rather than a detail.
+    function shots.searchRow(e, why)
+        return {
+            text    = e.name,
+            subText = os.date("%b %d %Y  %H:%M", e.mtime)
+                      .. "  ·  " .. prettySize(e.size)
+                      .. "  ·  " .. why
+                      .. "  ·  ⏎ image · ⌘⏎ path · ⌥⏎ edit · ⌃⏎ jpg",
+            path    = e.path,
+        }
+    end
+
+    -- The name half. Every word must appear somewhere in the row, so
+    -- "aug 13" and "13 aug" both work and neither matches everything.
+    function shots.nameMatches(query, list)
+        local words = {}
+        for w in tostring(query or ""):lower():gmatch("%S+") do
+            words[#words + 1] = w
+        end
+        local out = {}
+        if #words == 0 then return out end
+        for _, e in ipairs(list or {}) do
+            local hay = (tostring(e.name or "") .. " "
+                         .. os.date("%b %d %Y  %H:%M", e.mtime) .. " "
+                         .. prettySize(e.size)):lower()
+            local all = true
+            for _, w in ipairs(words) do
+                if not hay:find(w, 1, true) then all = false break end
+            end
+            if all then out[#out + 1] = e end
+        end
+        return out
+    end
+
+    -- 🚨 THE MERGE IS ORDERED, AND THE ORDER IS THE POINT. A file that
+    -- matched its NAME is a file you half-remembered correctly; a file
+    -- that matched only its indexed text is a guess that paid off. The
+    -- first kind goes on top, and each row says which it was, because
+    -- "matched the name" and "matched the text inside it" are different
+    -- claims and blurring them would be guessing on your behalf.
+    function shots.mergeResults(named, spotlight, list)
+        local out, seen = {}, {}
+        for _, e in ipairs(named or {}) do
+            if not seen[e.path] then
+                seen[e.path] = true
+                out[#out + 1] = shots.searchRow(e, "name")
+            end
+        end
+        local byPath = {}
+        for _, e in ipairs(list or {}) do byPath[e.path] = e end
+        for _, p in ipairs(spotlight or {}) do
+            local e = byPath[p]
+            -- ⚠️ A SPOTLIGHT HIT THAT IS NOT IN THE LISTING IS DROPPED.
+            -- mdfind answers about the folder as the INDEX last saw it;
+            -- a file deleted since would otherwise be offered as a row
+            -- that opens nothing.
+            if e and not seen[p] then
+                seen[p] = true
+                out[#out + 1] = shots.searchRow(e, "text inside it")
+            end
+        end
+        return out
+    end
+
+    -- Thumbnails for what will actually be drawn, and no further: each one
+    -- decodes a whole PNG. This is why searchMax exists.
+    function shots.withThumbs(rows, list)
+        local byPath = {}
+        for _, e in ipairs(list or {}) do byPath[e.path] = e end
+        local out = {}
+        for i, r in ipairs(rows) do
+            if i > shots.searchMax then break end
+            if r.path and byPath[r.path] then r.image = thumbFor(byPath[r.path]) end
+            out[#out + 1] = r
+        end
+        return out
+    end
+
+    function shots.noMatchRow(query, spotlightRan)
+        return {
+            text    = "No screenshots match “" .. query .. "”",
+            -- ☁️ Honest about what was actually asked. "Nothing matched"
+            -- and "nothing matched and Spotlight never answered" are not
+            -- the same result, and this folder is in OneDrive where the
+            -- second is a real possibility.
+            subText = spotlightRan
+                      and "Names, dates and indexed text all searched · ⌫ clears it"
+                      or  "Names and dates searched — Spotlight had no answer · ⌫ clears it",
+        }
+    end
+
+    -- The synchronous half: runs on every keystroke, never spawns
+    -- anything, and is what you actually see while you are still typing.
+    function shots.filterChoices(query)
+        query = tostring(query or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+        if query == "" then return shots.allChoices or {} end
+        local list = shots.fullList or {}
+        local rows = shots.mergeResults(shots.nameMatches(query, list),
+                                        shots.spotlightFor(query), list)
+        if #rows == 0 then
+            return { shots.noMatchRow(query, shots.spotlightQuery == query) }
+        end
+        return shots.withThumbs(rows, list)
+    end
+
+    -- ---- the Spotlight half ---------------------------------------------
+    -- Cached per query so the synchronous filter above can read the last
+    -- answer without waiting, and so a re-render on the same query does
+    -- not spawn a second mdfind.
+    shots.spotlightQuery   = nil
+    shots.spotlightResults = nil
+    shots.findTask  = nil   -- HELD: an unreferenced hs.task is collected
+    shots.findTimer = nil   -- HELD: ditto an hs.timer
+
+    function shots.spotlightFor(query)
+        if shots.spotlightQuery == query then return shots.spotlightResults end
+        return nil
+    end
+
+    function shots.parseMdfind(out)
+        local paths = {}
+        for line in tostring(out or ""):gmatch("[^\n]+") do
+            local p = line:gsub("^%s+", ""):gsub("%s+$", "")
+            if p ~= "" and p:sub(1, 1) == "/" then paths[#paths + 1] = p end
+        end
+        return paths
+    end
+
+    function shots.stopFind()
+        if shots.findTimer then pcall(function() shots.findTimer:stop() end) end
+        shots.findTimer = nil
+        if shots.findTask then pcall(function() shots.findTask:terminate() end) end
+        shots.findTask = nil
+    end
+
+    -- Debounced: the timer is re-armed on every keystroke, so mdfind is
+    -- spawned once you stop typing rather than once per character.
+    function shots.startFind(query, onDone)
+        shots.stopFind()
+        if query == "" then return false end
+        local ok = pcall(function()
+            shots.findTimer = hs.timer.doAfter(shots.findDelay, function()
+                shots.findTimer = nil
+                local started = pcall(function()
+                    shots.findTask = hs.task.new(shots.MDFIND, function(_, sout)
+                        shots.findTask = nil
+                        -- 🚨 AN ANSWER TO A QUESTION YOU HAVE FINISHED
+                        -- ASKING IS NOT AN ANSWER. Two keystrokes land
+                        -- while mdfind is running; showing its result
+                        -- would replace the list under the query you are
+                        -- now typing.
+                        if shots.liveQuery ~= query then return end
+                        shots.spotlightQuery   = query
+                        shots.spotlightResults = shots.parseMdfind(sout)
+                        if onDone then pcall(onDone, query) end
+                    end, { "-onlyin", shots.dir, query })
+                    if shots.findTask then shots.findTask:start() end
+                end)
+                if not started then
+                    shots.findTask = nil
+                    -- Spotlight being unavailable costs the text half and
+                    -- nothing else — the name search already answered.
+                    say("mdfind unavailable — searching names only")
+                end
+            end)
+        end)
+        return ok and shots.findTimer ~= nil
+    end
+
+    -- Every keystroke: draw the name matches NOW, and ask Spotlight for
+    -- the rest. The redraw when mdfind answers goes through the same
+    -- filterChoices, so there is one place that decides what a row says.
+    function shots.onQuery(q)
+        local query = tostring(q or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+        shots.liveQuery = query
+        if query == "" then
+            shots.stopFind()
+            pcall(function() shots.chooser:choices(shots.allChoices or {}) end)
+            return
+        end
+        pcall(function() shots.chooser:choices(shots.filterChoices(query)) end)
+        shots.startFind(query, function(answered)
+            -- Checked again here as well as inside the task callback: the
+            -- redraw is the thing with a visible cost, and two guards on
+            -- the same race is cheaper than one race that gets through.
+            if shots.liveQuery ~= answered then return end
+            pcall(function() shots.chooser:choices(shots.filterChoices(answered)) end)
+        end)
+    end
+
+    function shots.show()
+        if not shots.chooser then
+            local ok = pcall(function()
+                shots.chooser = hs.chooser.new(function(choice)
+                    shots.onPick(choice)
+                end)
+            end)
+            if not (ok and shots.chooser) then
+                shots.chooser = nil
+                pcall(function() hs.alert.show("📸 panel unavailable", 3) end)
+                return
+            end
+            -- ⎋ 6.93.0: filed in _G.choosers so Esc closes it before the cheat sheet
+            _G.choosers = _G.choosers or {}
+            _G.choosers.screenshots = shots.chooser
+            pcall(function()
+                shots.chooser:placeholderText(
+                    "Type to search screenshots · ⌘1–⌘9 actions")
+            end)
+            pcall(function()
+                shots.chooser:queryChangedCallback(function(q)
+                    -- per-keystroke callback: guarded like an eventtap —
+                    -- an error in here would repeat on every character
+                    pcall(function() shots.onQuery(q) end)
+                end)
+            end)
+        end
+        shots.liveQuery = ""
+        shots.stopFind()
+        local list = shots.list()
+        shots.fullList = list          -- what the SEARCH works over: all of it
+        local choices = shots.choicesFrom(list)
+        -- attach thumbnails AFTER choicesFrom so the pure list logic
+        -- stays testable without hs.image
+        for _, c in ipairs(choices) do
+            if c.path then
+                local mt
+                for _, e in ipairs(list) do
+                    if e.path == c.path then mt = e; break end
+                end
+                if mt then c.image = thumbFor(mt) end
+            end
+        end
+        shots.allChoices = choices   -- the IDLE view: actions + the newest few
+        -- 6.88.0 — LL: "I don't see the image history." The default
+        -- chooser height is 10 rows and the 7 actions ate 7 of them; the
+        -- history was there but below the fold. Tall enough now that the
+        -- actions AND a screenful of history are visible at once.
+        pcall(function()
+            local hist = math.max(1, math.min(#list, shots.historyRows))
+            shots.chooser:rows(#shots.actionRows() + hist)
+        end)
+        pcall(function() shots.chooser:choices(choices) end)
+        if core.showPopup then
+            core.showPopup(shots.chooser)
+        else
+            pcall(function() shots.chooser:show() end)
+        end
+    end
+
+    -- ---- keys & services -------------------------------------------------
+    -- 👀 The watcher starts at boot ONLY if the folder is already there —
+    -- one stat, no mkdir, no alert; ensureDir() starts it on first use
+    -- otherwise. (The hostile Mac with no OneDrive boots without it.)
+    if shots.enabled and shots.watchFolder then
+        local mode
+        pcall(function() mode = hs.fs.attributes(shots.dir, "mode") end)
+        if mode == "directory" then shots.startWatch() end
+    end
+    if shots.enabled then
+        core.hyperAddShortcut({}, shots.key, function() shots.capture() end,
+                              "screenshot — save + copy")
+        -- 📸 6.194.0 — one bind per row of shots.toolKeys. A row whose act
+        -- runAction does not know would be a key that does nothing, so the
+        -- gate joins this table against runAction's own branches and fails
+        -- on either side — the 6.114.0 ⇪⇧R lesson, applied to keys.
+        for _, t in ipairs(shots.toolKeys or {}) do
+            local mods, key, act, label = t[1], t[2], t[3], t[4]
+            core.hyperAddShortcut(mods, key, function()
+                shots.runAction(act)
+            end, label)
+        end
+        core.hyperAddShortcut({ "shift" }, shots.panelKey, function() shots.show() end,
+                              "screenshot panel")
+    end
+
+    -- screenshots.latest is what the Task Form's 📸 button calls — one
+    -- keystroke from "capture" to "attached to a task".
+    -- 6.120.0 — WHERE zbarimg IS, published rather than copied. ⇪⇧` reads
+    -- QR codes off the screen and needs the same decoder this module
+    -- already hunts for. A second copy of the five candidate paths in
+    -- another file is a list that drifts: Homebrew moves, a new
+    -- no-admin install location gets added here, and the other copy goes
+    -- on looking in the old places and reporting "no decoder installed"
+    -- on a Mac that has one. One list, one owner, asked for by name.
+    core.provide("shots.zbarPath",      function() return shots.zbarPath() end)
+    core.provide("screenshots.latest",  function() return shots.latest() end)
+    core.provide("screenshots.capture", function() return shots.capture() end)
+    core.provide("screenshots.captureAreaTo", function(cb) return shots.captureAreaTo(cb) end)
+    core.provide("screenshots.show",    function() return shots.show() end)
+    core.provide("screenshots.folder",  function() return shots.revealFolder() end)
+
+    -- 🗂 6.130.0 — IN THE EDITOR PICKER (⌃⌃), and it is the odd row there
+    -- on purpose. Every other entry on that roster opens a TEXT surface;
+    -- this one opens a FOLDER, because that is the ask — one line that
+    -- puts you where the captures are, from the same list you already
+    -- reach for when you want something you saved earlier.
+    --
+    -- ⏱ size() SCANS THE DIRECTORY, which is a real cost on a OneDrive
+    -- folder with hundreds of files in it. Accepted for exactly the reason
+    -- the OCR entry accepts its disk read: the picker only ever opens on a
+    -- deliberate gesture, never on a timer and never at boot.
+    --
+    -- No `view` (there is no window of ours to raise), and no `text` — a
+    -- folder has nothing for ⌥⏎ to copy, and saying so by omission is what
+    -- makes the picker print "has no text to copy" instead of putting an
+    -- empty string on the clipboard over something you wanted.
+    _G.editors = _G.editors or {}
+    table.insert(_G.editors, {
+        name  = "Screenshots",
+        key   = "⇪4 / ⇪⇧4",
+        what  = "⏎ opens the folder in Finder",
+        order = 70,
+        unit  = "captures",
+        size  = function() return #shots.list() end,
+        show  = function() shots.revealFolder() end,
+        -- 💾 6.130.0 — and it is IN the one-file CSV export too. A row in
+        -- the picker that contributes no column to the spreadsheet is a
+        -- hole exactly where somebody would go looking. The text cell is
+        -- the full path, so it can be pasted straight into Go-to-Folder.
+        csv   = function()
+            local out = {}
+            for _, f in ipairs(shots.list()) do
+                out[#out + 1] = {
+                    when  = os.date("%Y-%m-%d %H:%M:%S", f.mtime),
+                    label = string.format("%.0f KB", (f.size or 0) / 1024),
+                    text  = f.path,
+                }
+            end
+            return out
+        end,
+    })
+
+    _G.screenshots = shots
+    M.shots  = shots
+    M.config = shots
+end
+
+return M
