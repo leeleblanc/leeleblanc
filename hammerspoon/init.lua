@@ -4,9 +4,40 @@
 -- =====================================================================
 -- 09-14-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.226.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.227.0
 -- =====================================================================
 
+-- NEW IN 6.227.0 — 🔖 ⇪⇧V KEEPS ITS PLACE, AND HOME/END JUMP (modules/clipboard_history.lua):
+--   LL: "while selections work, I'm returned to the top after a selection
+--      multiple times … It seems that until I get out of the search box,
+--      I can't select items … Home/End keys do not work. All I can use is
+--      the arrows. Home/End work in cheat sheets."
+--   THE FIRST TWO ARE ONE FUNCTION. Every tag, every select-mode toggle
+--      and every action row came back through `reopenEdit`, which threw
+--      away BOTH halves of where he was: it re-rendered with "" (wiping
+--      the search, so the whole history came back under his hands) and
+--      hs.chooser DROPS THE SELECTION whenever :choices() is handed a new
+--      list. Tag the second row of a search and the next keypress is
+--      aimed at the first row of everything — and nothing looks selected
+--      until an arrow is pressed, which is his third sentence exactly.
+--      The query is read back and re-applied now, and the row is put back
+--      after the new choices are in: `clip.rowAfterRebuild` is PURE and
+--      clamps into the list, so a row past the end lands on the LAST one
+--      (a delete shortens the list and the eye expects the neighbour).
+--   ⤒⤓ HOME AND END are a plain hs.hotkey pair ENABLED ONLY WHILE THE
+--      PICKER IS ON SCREEN — hs.chooser is an NSTableView with no key
+--      handler Hammerspoon exposes, and a global Home/End bind would
+--      steal the key from every app. They call the same
+--      `chooser:selectedRow(n)` the place-keeping does. Both pickers get
+--      them. A Mac without hs.hotkey keeps the arrows and the report says
+--      so. New report lines "home/end :" and "place :".
+--   🧪 TWO STUB HOLES, BOTH THE SAME RULE: selectedRow was a getter only,
+--      so every "put the highlight back" call succeeded while moving
+--      nothing, and :choices() did NOT drop the selection the way the
+--      real chooser does — so the bug LL reported could not be
+--      reproduced in the suite at all. Fixed both, then the mutations
+--      bit. 9,129 -> 9,147 checks.
+--
 -- NEW IN 6.226.0 — 🔤 THE OCR JUNK FILTER, TIER 1 (modules/ocr_engine.lua):
 --   LL, with a page of his own OCR log: "just remove single characters;
 --      anything two or more characters together is retained" — and the
@@ -34,36 +65,12 @@
 --      through (6.187.0). Off switch: `settings = { ocr_engine =
 --      { junkFilter = false } }`. Report line "junk :". 9,103 -> 9,129.
 --
--- NEW IN 6.225.0 — 🎯 THE EDIT BOX TAKES THE CARET (modules/ocr_engine.lua):
---   LL, on the 6.213.5 window (⇪⇧V and ⇪⇧O both use it): it "opens front
---      but the caret is not in the box". THREE things have to be true and
---      only two were — the window is up (show), it is in front
---      (bringToFront), and macOS has made it KEY. bringToFront RAISES a
---      window; it does not make it key, and the page's own t.focus() at
---      load lands inside a window that is not key, so there is no caret
---      and no typing until you click.
---   THE THIRD STEP IS LUA'S: `ocr.focusEditorSoon()` focuses the
---      hswindow a turn later and asks the page for the caret again, in
---      its OWN held timer slot (6.196.1), BOUNDED by
---      `ocr.editorFocusTries` (4 × 0.08 s), stopping the moment the
---      window IS key. No hswindow at all → the page is asked ONCE and
---      the chase stops, because retrying cannot make a window key that
---      does not exist. Closing the box stops the chase. No
---      hs.timer.doAfter → the box still opens, and the state says "click
---      the box once". `_G.ocrReport()`'s new "edit box :" line has all
---      four states and prints inside the SAME one string (6.179.1).
---   🧪 The suite's webview stub had no :hswindow(), no
---      :evaluateJavaScript() and no hs.timer.doAfter — so this could
---      never have been proven right OR wrong. It has all three now, plus
---      a fake window manager that can play a window macOS REFUSES to
---      make key, which is LL's Mac. Three mutations. 9,091 -> 9,103.
---
--- (6.224.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.225.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.226.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.227.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -160,7 +167,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.226.0"
+_G.configVersion = "6.227.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

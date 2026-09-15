@@ -37,6 +37,7 @@ local function out(s) io.write(s) end
 
 -- ---- a filesystem and a Mac, in tables --------------------------------
 local FILES, ALERTS, PASTEBOARD, printed = {}, {}, nil, {}
+local HOTKEYS, HOTKEYS_ON = {}, {}
 local ENCODE_BREAKS, DECODE_BREAKS, WRITE_FAILS = false, false, false
 print = function(...)
     local p = {}
@@ -130,6 +131,15 @@ end
 hs = {
     json = { encode = enc, decode = dec },
     alert = { show = function(m) ALERTS[#ALERTS + 1] = tostring(m) end },
+    -- 6.227.0 — the real hs.hotkey: new() hands back an object that can be
+    -- enabled and disabled, and the suite records both
+    hotkey = { new = function(mods, key, fn)
+        local h = { mods = mods, key = key, fn = fn, on = false }
+        function h:enable()  self.on = true  ; HOTKEYS_ON[self.key] = true  ; return self end
+        function h:disable() self.on = false ; HOTKEYS_ON[self.key] = false ; return self end
+        HOTKEYS[#HOTKEYS + 1] = h
+        return h
+    end },
     pasteboard = { setContents = function(t) PASTEBOARD = t ; return true end,
                    getContents = function() return PASTEBOARD end },
     chooser = { new = function(fn)
@@ -137,12 +147,23 @@ hs = {
         for _, m in ipairs({ "placeholderText", "show", "searchSubText" }) do
             c[m] = function(self) return self end
         end
-        function c:choices(x) self.rows = x ; return self end
+        -- 🚨 6.227.0 — THE REAL hs.chooser RESETS THE HIGHLIGHT when it is
+        -- handed a new list. A stub that kept it made "put the row back"
+        -- pass with the code deleted — the whole bug LL reported.
+        function c:choices(x) self.rows = x ; self.sel = nil ; return self end
         function c:queryChangedCallback(f) self.qcb = f ; return self end
         -- the getters the preview pane asks (window_move asks the same two)
         function c:width(x) if x then return self end return 40 end
         function c:rows(x) if x then return self end return 10 end
-        function c:selectedRow() return chooserLook(self) end
+        -- 🚨 6.227.0 — selectedRow is a SETTER as well as a getter in the
+        -- real hs.chooser, and a getter-only stub let every "put the
+        -- highlight back" call succeed while moving nothing.
+        function c:selectedRow(n)
+            if n ~= nil then self.sel = n ; return self end
+            if self.sel ~= nil then return self.sel end
+            return chooserLook(self)
+        end
+        function c:showCallback(f) self.showCb = f ; return self end
         -- 6.157.0: the r-th row AS SHOWN (the chooser's own filter included)
         function c:selectedRowContents(r) return (self.rows or {})[r or SEL] end
         function c:isVisible() return VIS end
@@ -201,6 +222,7 @@ local CORE = {
 local M, C
 local function boot()
     ALERTS, PASTEBOARD, printed, HYPER, PROVIDED = {}, nil, {}, {}, {}
+    HOTKEYS, HOTKEYS_ON = {}, {}
     ENCODE_BREAKS, DECODE_BREAKS, WRITE_FAILS = false, false, false
     _G.clipboardCache = nil
     M = dofile(HS .. "/modules/clipboard_history.lua")
@@ -1208,6 +1230,115 @@ ck("🚨 no pasteboard watcher at all says so — it can never read as "
    and rep:find("nothing can reach the history", 1, true) ~= nil, rep)
 
 check("the 6.224.0 section ran every one of its checks", mine == 14, mine)
+
+-- =====================================================================
+out("\n=== 🔖 6.227.0 — ⇪⇧V keeps its place, and Home/End jump ===\n")
+-- =====================================================================
+-- LL, on ⇪⇧V: "while selections work, I'm returned to the top after a
+-- selection multiple times … Home/End keys do not work. All I can use is
+-- the arrows. Home/End work in cheat sheets … It seems that until I get
+-- out of the search box, I can't select items."
+local mine2 = 0
+local function ck2(label, cond, extra) mine2 = mine2 + 1; check(label, cond, extra) end
+
+boot()
+C.loaded = true
+
+-- ---- the PURE rule ---------------------------------------------------
+ck2("an empty list has no row to land on", C.rowAfterRebuild(3, 0) == nil)
+ck2("a row inside the list is kept exactly", C.rowAfterRebuild(4, 9) == 4)
+ck2("🚨 a row PAST THE END lands on the last one — a delete shortens the "
+    .. "list and the eye expects the neighbour, not the top",
+    C.rowAfterRebuild(12, 9) == 9, C.rowAfterRebuild(12, 9))
+ck2("0 or nil is the top, the way a fresh picker starts",
+    C.rowAfterRebuild(0, 9) == 1 and C.rowAfterRebuild(nil, 9) == 1)
+
+-- ---- the picker keeps BOTH halves ------------------------------------
+for i = 1, 6 do C.add("alpha " .. i) end
+for i = 1, 3 do C.add("beta " .. i) end
+local ec = C.editChooser
+ec:query("beta")             -- he has typed a search
+C.renderEdit("beta")
+local narrowed = #(C.lastEditChoices or {})
+ck2("(fixture) the search really narrows the list",
+    narrowed > 0 and narrowed < 9, narrowed)
+ec:selectedRow(2)            -- …and walked down to the second row
+
+-- Enter on the "select mode" row comes back through reopenEdit
+ec.fn({ action = "selecton" })
+local rendered = 0
+for _, row in ipairs(C.lastEditChoices or {}) do
+    if tostring(row.text or ""):find("alpha", 1, true) then rendered = rendered + 1 end
+end
+ck2("🚨 THE TYPED SEARCH SURVIVES THE REBUILD — it was re-rendered with "
+    .. "\"\" before, so the whole history came back under his hands. "
+    .. "Proven by WHAT WAS DRAWN, not by the query field",
+    rendered == 0 and ec:query() == "beta",
+    rendered .. " alpha row(s) · query " .. ec:query())
+ck2("🚨 AND THE HIGHLIGHT SURVIVES — hs.chooser drops the selection on "
+    .. "every :choices(), which is why nothing looked selected until he "
+    .. "pressed an arrow",
+    ec:selectedRow() == 2, tostring(ec:selectedRow()))
+
+-- a tag toggle takes the same road
+ec:selectedRow(3)
+ec.fn({ idx = 1 })
+ck2("a tag toggle keeps the place too — it is the same one door",
+    ec:selectedRow() == 3 and ec:query() == "beta",
+    tostring(ec:selectedRow()) .. " / " .. ec:query())
+C.selectMode, C.tagged = false, {}
+
+-- ---- Home and End ----------------------------------------------------
+ck2("Home and End are BOUND (a plain hs.hotkey — hs.chooser exposes no "
+    .. "key handler at all)",
+    #HOTKEYS >= 2 and C.jumpState:find("bound", 1, true) ~= nil,
+    #HOTKEYS .. " / " .. C.jumpState)
+local homeKey, endKey
+for _, h in ipairs(HOTKEYS) do
+    if h.key == "home" then homeKey = h elseif h.key == "end" then endKey = h end
+end
+ck2("…one for each, with NO modifiers", homeKey ~= nil and endKey ~= nil
+    and next(homeKey.mods or {}) == nil)
+ck2("🚨 and they are DISABLED until the picker is on screen — a global "
+    .. "Home/End bind would steal the key from every app",
+    homeKey.on == false and endKey.on == false)
+if ec.showCb then ec.showCb() end
+ck2("…the picker showing enables them", homeKey.on == true and endKey.on == true)
+
+C.renderEdit("")
+local total = #(C.lastEditChoices or {})
+ec:selectedRow(3)
+endKey.fn()
+ck2("🚨 End jumps to the LAST row of the list as shown",
+    ec:selectedRow() == total and total > 1, ec:selectedRow() .. "/" .. total)
+homeKey.fn()
+ck2("…and Home to the first", ec:selectedRow() == 1, ec:selectedRow())
+if ec.hideCb then ec.hideCb() end
+ck2("🚨 the picker closing disables them again — they live exactly as long "
+    .. "as the window does",
+    homeKey.on == false and endKey.on == false)
+
+-- ---- it degrades -----------------------------------------------------
+local savedHotkey = hs.hotkey
+hs.hotkey = nil
+boot()
+ck2("🚨 a Mac with no hs.hotkey keeps the arrows and SAYS so — the picker "
+    .. "is never lost to a missing binder",
+    C.editChooser ~= nil and C.jumpState:find("no hs.hotkey", 1, true) ~= nil,
+    C.jumpState)
+hs.hotkey = savedHotkey
+boot()
+C.loaded = true
+
+printed = {}
+_G.clipboardReport()
+local rep2 = table.concat(printed, "\n")
+ck2("_G.clipboardReport() names the Home/End state and where the picker "
+    .. "last put itself back",
+    rep2:find("home/end", 1, true) ~= nil and rep2:find("place", 1, true) ~= nil,
+    rep2)
+
+check("the 6.227.0 section ran every one of its checks", mine2 == 17, mine2)
 
 if fail > 0 then
     out("FAILURES:\n")

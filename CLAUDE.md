@@ -114,6 +114,29 @@ work Mac.
   with two dictionary rows that answer each other (aaaa ⇄ bbbb) now.
   RULE: when a test uses one bug to demonstrate another, fixing the
   first silently retires the second — re-arm it in the same release.
+- 🔖 hs.chooser DROPS THE SELECTION ON EVERY :choices() (6.227.0,
+  modules/clipboard_history.lua — LL on ⇪⇧V: "I'm returned to the top
+  after a selection multiple times … until I get out of the search box, I
+  can't select items"). Those are ONE bug: `reopenEdit` re-rendered with
+  "" (wiping his search) and the new list dropped the highlight, so after
+  any tag or action the next keypress aimed at the first row of
+  everything, and NOTHING was selected until he pressed an arrow. ANY
+  picker in this config that rebuilds its own list under the user must
+  read the QUERY back and put the ROW back. `clip.rowAfterRebuild` is
+  PURE and clamps into the list; a row PAST THE END lands on the LAST one
+  (a delete shortens the list and the eye expects the neighbour, never
+  the top); `clip.restoreRow` never throws.
+  ⤒⤓ HOME/END ARE A PLAIN hs.hotkey PAIR, ENABLED ONLY WHILE THE PICKER
+  IS UP. They work in the cheat sheet because that is a webview;
+  hs.chooser is an NSTableView with no key handler Hammerspoon exposes.
+  Bound globally they would steal the key from every app, so they are
+  enabled in showCallback and disabled in hideCallback, and they call
+  `chooser:selectedRow(n)` against the list AS SHOWN.
+  🧪 TWO STUB HOLES, THE SAME RULE TWICE (6.193.0): `selectedRow` was a
+  GETTER ONLY so every restore call succeeded while moving nothing, and
+  the stub's `:choices()` KEPT the selection the real one drops — so the
+  reported bug could not be reproduced in the suite at all. A stub that
+  forgets a side effect of the real provider hides the whole class.
 - 🔤 "PUNCTUATION" CANNOT MEAN "NOT ASCII ALPHANUMERIC" (6.226.0,
   modules/ocr_engine.lua — the OCR junk filter, LL: "just remove single
   characters; anything two or more characters together is retained").
@@ -1410,7 +1433,8 @@ THE METHOD, when something breaks after a stacked zip:
    zips are gitignored build artifacts; the COMMITS are the archive.
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
-   86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9.
+   86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
+   6.227.0 14e953a.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -1469,9 +1493,10 @@ as the fix when a loss lands.
 | 6.224.0 | 📋 `_G.clipboardReport()` — the newest item, every refusal by reason, saves ok/FAILED, and the poll with a clock and a suppressed count | pending |
 | 6.225.0 | 🎯 the ⇪⇧V / ⇪⇧O edit window takes the caret — Lua focuses the hswindow a turn after bringToFront, bounded and reported | pending |
 | 6.226.0 | 🔤 the OCR junk filter, tier 1: single characters and punctuation-only tokens dropped at the one door, plus `_G.ocrCleanHistory()` for the log he already has | pending |
+| 6.227.0 | 🔖 ⇪⇧V keeps its query and its highlighted row across a rebuild; Home/End jump to first/last while the picker is up | pending |
 
-Running total: 14 wins · 5 losses · 11 pending (6.215.0, 6.217.0, 6.218.0,
-6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0).
+Running total: 14 wins · 5 losses · 12 pending (6.215.0, 6.217.0, 6.218.0,
+6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0, 6.227.0).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
@@ -1591,6 +1616,14 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   and seek was not asked for, so v1 ships without either and they are
   his call afterwards. NOTHING ELSE IS BLOCKING IT — it is a build when
   its turn comes.
+- ✅ 6.225.0 + 6.226.0 FIELD REPORT (LL, 2026-09-14): "OCR seems to be
+  working." `edit box : caret placed on try 1 — window focused` — the
+  caret chase lands on the FIRST try on his Mac. And the junk filter on
+  his real log: 1,088 rows read, 656 held junk, 6,200 single/punctuation
+  tokens, 12 rows were nothing but junk; the dry run said it and
+  `_G.ocrCleanHistory(true)` rewrote it — "1076 row(s) kept, 12 removed".
+  Both worked on the first install. NOT SCORED — "seems to be working" is
+  not his win sentence and only he scores.
 - ✅ EDIT OCR ENTRY HAS NO CARET — SHIPPED AS 6.225.0 (LL, 2026-09-13).
   Diagnosed exactly as read: bringToFront ≠ key. See the durable rule
   above. Unscored until he says.
@@ -1650,6 +1683,24 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   the pieces a ' handed to the dictionary alone, and the "spelling :"
   block must no longer list `Doesn → Doesnt`. KNOWN AND ACCEPTED: a
   typo right before an apostrophe (somethign's) is not corrected now.
+- 6.227.0 verify with LL — 🔖 ⇪⇧V KEEPS ITS PLACE: install. THE
+  SCENARIO HE ASKED FOR, and it only fails after an ACTION:
+  1. Copy six things: "alpha one" … "alpha six". Then "beta one",
+     "beta two", "beta three".
+  2. ⇪⇧V. Type `beta` — three rows.
+  3. ↓ ↓ to the SECOND beta row.
+  4. ⏎ on the "☑️ Select mode" row at the top.
+  BEFORE 6.227.0: the search box empties, all nine rows come back, and
+  the highlight is gone until you press an arrow. NOW: `beta` is still
+  typed, three rows, and the highlight is still on the second one.
+  5. ⏎ tags a row — same thing: the place is kept.
+  6. Home → the first row. End → the last row. Both, in the picker.
+  7. Esc, then press Home in Chrome — it must still go to the top of the
+     page. The binding lives only while the picker is up.
+  Console: `_G.clipboardReport()` — "home/end :" says bound, "place :"
+  names the row it last landed on. If Home/End do nothing, paste that
+  line; `settings = { clipboard_history = { jumpKeysOn = false } }` is
+  the off switch.
 - 6.226.0 verify with LL — 🔤 THE JUNK FILTER: install. Take a
   screenshot of a page with bullets and rules in it (⇪⇧4 or ⇪4), then
   ⇪O and look at the newest reading: the single letters and the

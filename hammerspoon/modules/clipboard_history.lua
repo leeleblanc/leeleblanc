@@ -717,6 +717,86 @@ function M.setup(core)
         return true
     end
 
+    -- 📐 6.227.0 — PURE: which row a picker should land on after its list
+    -- was rebuilt. Clamped into the list, and 0/nil means "the top" the
+    -- way a fresh picker starts. A row past the end lands on the LAST row
+    -- (a delete shortens the list and the eye expects the neighbour), and
+    -- an empty list has no row at all.
+    function clip.rowAfterRebuild(want, total)
+        total = tonumber(total) or 0
+        if total <= 0 then return nil end
+        want = tonumber(want) or 0
+        if want < 1 then return 1 end
+        if want > total then return total end
+        return want
+    end
+
+    -- Never throws: a chooser that cannot be asked costs the PLACE, not
+    -- the picker.
+    function clip.restoreRow(chooser, want, total)
+        local row = clip.rowAfterRebuild(want, total)
+        clip.lastRestoredRow = row
+        if not (chooser and row) then return false end
+        local ok = pcall(function() chooser:selectedRow(row) end)
+        return ok
+    end
+
+    -- ⤒⤓ 6.227.0 — HOME AND END. LL: "Home/End keys do not work. All I can
+    -- use is the arrows. Home/End work in cheat sheets." They do, because
+    -- the cheat sheet is a WEB VIEW and the browser handles them;
+    -- hs.chooser is an NSTableView in a search field and Hammerspoon
+    -- exposes no key handler for it at all. The one honest route is a
+    -- plain hs.hotkey that is ENABLED ONLY while the picker is on screen
+    -- and disabled the moment it goes — it can never steal Home or End
+    -- from any app, because it is not bound while any app has the
+    -- keyboard. `chooser:selectedRow(n)` is what actually moves the
+    -- highlight, the same call the place-keeping above makes.
+    clip.jumpKeysOn = true
+    clip.jumpState  = "never asked"
+    function clip.makeJumpKeys(chooser, countFn)
+        if not clip.jumpKeysOn then
+            clip.jumpState = "off (settings = { clipboard_history = { jumpKeysOn = true } })"
+            return nil
+        end
+        if not (hs.hotkey and hs.hotkey.new) then
+            clip.jumpState = "⚠️ no hs.hotkey on this Mac — Home/End cannot be bound"
+            return nil
+        end
+        local function jump(toEnd)
+            return function()
+                local total = 0
+                pcall(function() total = tonumber(countFn()) or 0 end)
+                clip.restoreRow(chooser, toEnd and total or 1, total)
+                clip.jumpState = ("bound · last jump %s to row %s")
+                    :format(toEnd and "End" or "Home",
+                            tostring(clip.lastRestoredRow))
+            end
+        end
+        local keys = {}
+        for _, row in ipairs({ { "home", false }, { "end", true } }) do
+            local ok, hk = pcall(function()
+                return hs.hotkey.new({}, row[1], jump(row[2]))
+            end)
+            if ok and hk then keys[#keys + 1] = hk end
+        end
+        if #keys == 0 then
+            clip.jumpState = "⚠️ Home/End refused to bind"
+            return nil
+        end
+        clip.jumpState = "bound — enabled only while the picker is up"
+        return keys
+    end
+
+    -- Enabled on show, disabled on hide. Never throws: a Mac that cannot
+    -- bind them keeps the arrows.
+    function clip.setJumpKeys(keys, on)
+        if type(keys) ~= "table" then return false end
+        for _, hk in ipairs(keys) do
+            pcall(function() if on then hk:enable() else hk:disable() end end)
+        end
+        return true
+    end
+
     local function openEdit()
         if core.showPopup then core.showPopup(clip.editChooser)
         else clip.editChooser:show() end
@@ -915,8 +995,18 @@ function M.setup(core)
         end)
         -- 👁 the pane goes down with the picker — Esc, a pick, a click away
         -- — and waits out a nudge (6.155.0, see previewSuspend)
+        clip.jumpKeys = clip.makeJumpKeys(clip.chooser,
+            function() return #(clip.lastChoices or {}) end)
         pcall(function()
-            clip.chooser:hideCallback(function() clip.previewSuspend() end)
+            clip.chooser:showCallback(function()
+                clip.setJumpKeys(clip.jumpKeys, true)
+            end)
+        end)
+        pcall(function()
+            clip.chooser:hideCallback(function()
+                clip.setJumpKeys(clip.jumpKeys, false)
+                clip.previewSuspend()
+            end)
         end)
         clip.chooser:queryChangedCallback(function(query)
             local ok, err = pcall(clip.render, query)
@@ -927,10 +1017,34 @@ function M.setup(core)
             end
         end)
 
-        local function reopenEdit()
-            clip.renderEdit("")
-            pcall(function() clip.editChooser:query("") end)
+        -- 🔖 6.227.0 — THE PICKER KEEPS ITS PLACE. LL, on ⇪⇧V: "while
+        -- selections work, I'm returned to the top after a selection
+        -- multiple times … It seems that until I get out of the search
+        -- box, I can't select items."
+        --
+        -- Both are this function. Every tag, every select-mode toggle and
+        -- every action row came back through it, and it threw away BOTH
+        -- halves of where he was: it re-rendered with "" (wiping whatever
+        -- he had typed, so the list became the whole history again) and
+        -- hs.chooser resets the highlight to row 1 whenever :choices() is
+        -- handed a new list. Tag the fourth row of a search and the next
+        -- keypress is aimed at the first row of everything — which is
+        -- also why nothing looked selected until he pressed an arrow.
+        --
+        -- Now the QUERY is read back and re-applied, and the ROW is put
+        -- back after the new choices are in (clamped to the list, because
+        -- a delete makes it shorter — landing on the row that took its
+        -- place is what a list should do).
+        local function reopenEdit(wantRow)
+            local q = ""
+            pcall(function() q = clip.editChooser:query() or "" end)
+            if wantRow == nil then
+                pcall(function() wantRow = clip.editChooser:selectedRow() end)
+            end
+            clip.renderEdit(q)
             openEdit()
+            clip.restoreRow(clip.editChooser, wantRow,
+                            #(clip.lastEditChoices or {}))
         end
 
         clip.editChooser = hs.chooser.new(function(choice)
@@ -1014,8 +1128,19 @@ function M.setup(core)
             clip.editChooser:placeholderText(
                 "Search clipboard history to edit or delete — Enter opens a row")
         end)
+        -- ⤒⤓ 6.227.0 — Home/End live exactly as long as the picker does
+        clip.editJumpKeys = clip.makeJumpKeys(clip.editChooser,
+            function() return #(clip.lastEditChoices or {}) end)
         pcall(function()
-            clip.editChooser:hideCallback(function() clip.previewSuspend() end)
+            clip.editChooser:showCallback(function()
+                clip.setJumpKeys(clip.editJumpKeys, true)
+            end)
+        end)
+        pcall(function()
+            clip.editChooser:hideCallback(function()
+                clip.setJumpKeys(clip.editJumpKeys, false)
+                clip.previewSuspend()
+            end)
         end)
         clip.editChooser:queryChangedCallback(function(query)
             local ok, err = pcall(clip.renderEdit, query)
@@ -1157,6 +1282,12 @@ function M.setup(core)
         end
         L[#L + 1] = "   pane     : " .. (clip.previewOpen and "available"
                                          or "not loaded")
+        -- ⤒⤓ 6.227.0 — Home/End, and where the picker last put itself back
+        L[#L + 1] = "   home/end : " .. tostring(clip.jumpState)
+        L[#L + 1] = "   place    : " .. (clip.lastRestoredRow
+            and ("the picker last landed on row " .. clip.lastRestoredRow
+                 .. " after a rebuild")
+            or "the list has not been rebuilt under a selection this session")
         print(table.concat(L, "\n"))
         return clip.stats
     end

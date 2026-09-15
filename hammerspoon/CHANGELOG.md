@@ -5,6 +5,52 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.227.0 — 🔖 ⇪⇧V KEEPS ITS PLACE, AND HOME/END JUMP (modules/clipboard_history.lua):
+  LL, on ⇪⇧V: "while selections work, I'm returned to the top after a
+     selection multiple times ... but I can't figure out exactly what.
+     Give me a text scenario to test. / Home/End keys do not work. All I
+     can use is the arrows. Home/End work in cheat sheets. / It seems
+     that until I get out of the search box, I can't select items."
+  HIS FIRST AND THIRD SENTENCES ARE ONE FUNCTION, and he could not pin it
+     down because it only happens after an action: every tag, every
+     select-mode toggle and every action row came back through
+     `reopenEdit`, which threw away BOTH halves of where he was. It
+     re-rendered with "" — wiping whatever he had typed, so the whole
+     history came back under his hands — and hs.chooser DROPS THE
+     SELECTION whenever :choices() is handed a new list. Tag the second
+     row of a search and the next keypress is aimed at the first row of
+     everything; and between the rebuild and his next arrow NOTHING is
+     selected at all, which is "until I get out of the search box, I
+     can't select items" word for word.
+  THE QUERY IS READ BACK and re-applied, and the ROW is put back after
+     the new choices are in. `clip.rowAfterRebuild(want, total)` is PURE:
+     clamped into the list, 0/nil is the top the way a fresh picker
+     starts, and a row PAST THE END lands on the LAST row — a delete
+     shortens the list and the eye expects the neighbour, never the top.
+     `clip.restoreRow` never throws: a chooser that cannot be asked costs
+     the place, not the picker.
+  ⤒⤓ HOME AND END. They work in the cheat sheet because that is a WEB
+     VIEW and the browser handles them; hs.chooser is an NSTableView in a
+     search field and Hammerspoon exposes no key handler for it at all.
+     The one honest route is a plain hs.hotkey pair that is ENABLED ONLY
+     WHILE THE PICKER IS ON SCREEN and disabled the moment it goes — it
+     can never steal Home or End from another app, because it is not
+     bound while another app has the keyboard. They call the same
+     `chooser:selectedRow(n)` the place-keeping calls, against the list
+     AS SHOWN. Both pickers get them; a Mac without hs.hotkey keeps the
+     arrows and the report says so; `settings = { clipboard_history =
+     { jumpKeysOn = false } }` turns them off.
+  🧪 TWO STUB HOLES, THE SAME RULE TWICE (6.193.0). `selectedRow` was a
+     GETTER ONLY, so every "put the highlight back" call succeeded while
+     moving nothing — and `:choices()` did NOT drop the selection the way
+     the real chooser does, so the bug LL reported could not be
+     reproduced in the suite at all. Both fixed, and only then did the
+     mutations bite: the old query-wiping reopen, and the row restore
+     deleted. The query check is asserted on WHAT WAS DRAWN, not on the
+     query field, because the field is not what was wrong.
+  New report lines "home/end :" and "place :". Eighteen new checks, three
+     mutations. 9,129 -> 9,147 checks.
+
 NEW IN 6.226.0 — 🔤 THE OCR JUNK FILTER, TIER 1 (modules/ocr_engine.lua):
   LL, 2026-09-13, with a page of his own OCR log marked up: "just remove
      single characters; anything two or more characters together is
