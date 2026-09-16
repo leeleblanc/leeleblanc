@@ -137,6 +137,7 @@ local hint = {
         -- Time & focus
         q = "Time & focus", ["shift+q"] = "Time & focus", ["shift+p"] = "Time & focus",
         ["shift+0"] = "Time & focus", ["0"] = "Time & focus",
+        ["shift+pad."] = "Time & focus",   -- 6.231.0 the music player
         ["shift+w"] = "Time & focus", ["shift+e"] = "Time & focus",
         -- This Mac
         ["6"] = "This Mac", ["shift+6"] = "This Mac", ["7"] = "This Mac",

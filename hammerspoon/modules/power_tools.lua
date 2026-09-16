@@ -1661,6 +1661,17 @@ end tell]]
             sp.hide()
             return true
         end },
+        -- 6.231.0 — the music card takes the keyboard while it is up
+        -- (↑↓, space, ⌘1–9), so it belongs here. It puts the CARD away and
+        -- deliberately does not stop the music: panic is about getting the
+        -- keyboard back, and silencing a track nobody complained about
+        -- would be a second, unasked-for thing to undo.
+        { id = "music", what = "music player card closed", run = function()
+            local m = _G.musicPlayer
+            if not (m and m.webview) then return nil end
+            m.hide()
+            return true
+        end },
         -- The two canvas overlays that already own panic keys of their
         -- own. Calling them here does not replace those — it means LL
         -- only has to remember one chord.

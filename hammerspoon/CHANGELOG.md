@@ -5,6 +5,117 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.231.0 — 🎵 A MINI MUSIC PLAYER YOU DROP FILES ON (⇪⇧pad., modules/music_player.lua):
+  LL, 2026-09-13: "⇪⇧numpad. opens a lightweight player in the top-right
+  corner like the 3-month calendar. Repeat one / repeat all; history
+  (click an item → plays); elapsed time; drag-and-drop N files → the
+  first plays, the rest form a playlist under it, picked by click, ↑↓, or
+  ⌘1–9."
+
+  THREE QUESTIONS WERE ASKED BEFORE A LINE WAS WRITTEN, and his answers
+  (2026-09-14) are what decided the scope rather than a preference of
+  mine:
+
+     "just mp3, m4a"          → hs.sound (NSSound) covers his whole
+                                library. No binary, nothing to brew, so
+                                it behaves identically on the work Mac.
+     "Both macs use a full    → ⇪⇧pad. needs no fallback key. Checked
+      Apple Keyboard"           against hint.groups before promising it,
+                                and the gate's collision auditor agrees.
+     "Native volume keys      → NO volume control in the player, and no
+      work"                     seek, because he did not ask for one.
+                                Both are his to add afterwards, and that
+                                is a decision stated rather than a gap.
+
+  📼 WHY A WEBVIEW AND NOT A CANVAS: hs.canvas has no drop target. A
+  canvas cannot be dragged onto at all, and drag-and-drop was the FIRST
+  thing he described. So the card is a webview on the Scorp Pad recipe —
+  no eventtap, no AX or window reads, every timer held.
+
+  🚚 AND A DROPPED FILE'S PATH DOES NOT COME FROM dataTransfer.files.
+  WebKit does not expose a File's path to a page — the same rule that
+  stops a website reading your disk — so `files[0].name` is a NAME and
+  nothing this module can open. The path comes from the drag's
+  text/uri-list, which Finder fills with file:// URLs, with the
+  percent-escapes undone: a track called "Ain't It Fun.mp3" arrives as
+  Ain%27t%20It%20Fun.mp3 and must still open. That has its own mutation,
+  because a player that silently ignores every track with a space in its
+  name is a player that works on nobody's real music folder.
+
+  A drop that carries no uri-list is NOT silently ignored. The names are
+  listed with "macOS did not hand over the path" beside them. A card that
+  swallowed the drop would read as broken, and 6.196.1's rule applies:
+  "it did not work" and "nothing happened" must not look the same.
+
+  🔁 REPEAT GOVERNS AN ENDING, NOT AN ASK. `mp.nextIndex` is PURE and
+  takes `manual`: a track that ENDS under repeat-one plays again, which
+  is the whole point of the mode — but pressing ⏭ under repeat-one moves
+  ON, because a person asking for the next track is asking for the next
+  track. A mode says what the player does on ITS OWN; it never refuses an
+  instruction. One rule, two callers, its own mutation — and the mutation
+  that removes the `manual` half fails three rows.
+
+  🔔 AND THE END-OF-TRACK CALLBACK HAS A BELT. hs.sound's callback is the
+  documented way to hear a track finish, and a callback this module
+  cannot PROVE fires is a playlist that stops after one song with no
+  error anywhere to see — the exact shape of every silent failure this
+  config has paid for. The held tick is running regardless, to draw the
+  elapsed time, so it also asks whether the sound stopped while we still
+  think it is playing. Whichever arrives first wins.
+
+  THE TWO ARE COUNTED SEPARATELY and printed side by side on
+  `_G.musicReport()`'s "advances" line, for one reason: if "callback"
+  stays 0 while "belt" climbs, hs.sound's callback does not arrive on
+  this Mac and the tick is carrying the playlist — which is worth knowing
+  before someone deletes the belt for looking redundant. GENERAL: when a
+  belt and its primary do the same job, count them apart, or the belt
+  becomes invisible and then looks like dead code.
+
+  🚨 AND THE BELT MUST NOT FIRE EARLY, which is the harder half: a PAUSED
+  track has also stopped. So "ended" is stopped AND at (or within a
+  second of) its duration. Its own row: a track paused four seconds into
+  two hundred must not skip.
+
+  📁 THE STORE IS LOCAL, DELIBERATELY: ~/Library/Application Support/
+  Hammerspoon/music/player.json, never OneDrive. A half-played queue is
+  not cross-Mac data, and 6.229.0 taught this config exactly what a file
+  written into a watched cloud folder costs — a main-thread wake-up, for
+  nothing. Its own mutation, which moves the store into OneDrive and
+  fails a row.
+
+  🗂 The loader shape-checks every row (6.198.1): "it is a table" is not
+  "it is MY table", and the REPORT walks the same structure the feature
+  does, so a bad store would otherwise also take out the diagnostic that
+  names it. A store it cannot decode starts EMPTY and says so.
+
+  DEGRADES, each its own row: no hs.webview at all and a Mac that has the
+  API but will not open the window say DIFFERENT things; a file that has
+  gone between the drop and the play is a STAT, never a read (reading to
+  find out would download an evicted cloud file on the main thread); a
+  file macOS refuses to decode marks its own row and the rest of the
+  queue plays on — one failed item, never the batch; .flac and .ogg are
+  refused BY NAME with the way out ("convert it to m4a") rather than
+  vanishing from the drop.
+
+  The card claims Esc at 32, beside the calendar, so the cheat sheet
+  still closes last; it does the ⇪ handshake (6.165.1) because it holds
+  the keyboard; and it adds a row to pt.panicSteps, which puts the CARD
+  away and deliberately does NOT stop the music — panic is about getting
+  the keyboard back, and silencing a track nobody complained about would
+  be a second unasked-for thing to undo.
+
+  🧪 THE SUITE'S OWN LESSON, caught by its own mutations: the first
+  version of test_music_player DIED rather than failing a check under the
+  mutation that stops the first dropped track playing — `SOUNDS[#SOUNDS]`
+  was nil and the run ended at line 433 with "0 failed" nowhere in sight.
+  6.186.0's rule, in a new place: the helpers answer falsely now rather
+  than indexing a nil. Fifteen mutations, fifteen bites, none of them
+  fatal to the run.
+
+  SCOPE: 71 → 72 modules, 9,239 → 9,332 checks over 78 stages. NOT built,
+  and each its own release: volume, seek, a folder-watch, and anything
+  that reads tags out of a file.
+
 NEW IN 6.230.0 — 🔗 TWO NAMES FOR ONE TREE IS ONE WATCHER (modules/file_tracker.lua):
   LL installed 6.229.0 and ran the report at once, forty-seven seconds
   into the session, with the note: "it's not hours later, I wanted you to

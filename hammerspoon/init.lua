@@ -4,9 +4,45 @@
 -- =====================================================================
 -- 09-16-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.230.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.231.0
 -- =====================================================================
 
+-- NEW IN 6.231.0 — 🎵 A MINI MUSIC PLAYER YOU DROP FILES ON (⇪⇧pad., modules/music_player.lua):
+--   LL asked for it on 2026-09-13 and answered its three questions the
+--      next day, which is what decided the scope: "just mp3, m4a" (so the
+--      engine is hs.sound — macOS's own, no binary, identical on the work
+--      Mac where nothing can be brewed); "Both macs use a full Apple
+--      Keyboard" (so ⇪⇧pad. needs no fallback key); and "Native volume
+--      keys work" (so there is NO volume slider here, and no seek, because
+--      he did not ask for one — both are his to add afterwards).
+--   WHAT IT IS: a card in the top-right corner, like the 3-month calendar
+--      he compared it to. Drop files on it and the first plays with the
+--      rest queued underneath; ↑↓ walks, ⏎ plays, ⌘1–9 jumps, space
+--      pauses, ⌫ removes. Repeat off / all / one. Elapsed time with a
+--      progress line. A history of what has played, click to play again.
+--   🚚 A DROPPED FILE'S PATH DOES NOT COME FROM dataTransfer.files —
+--      WebKit does not hand a page a file's path, so `files[0].name` is a
+--      NAME and nothing this can open. The path comes from the drag's
+--      text/uri-list, percent-escapes undone (a track called "Ain't It
+--      Fun.mp3" arrives as Ain%27t%20It%20Fun.mp3). A drop that carries no
+--      uri-list is NOT silently ignored: the names are listed with what is
+--      missing beside them, because a card that swallowed the drop would
+--      read as broken.
+--   🔁 REPEAT GOVERNS AN ENDING, NOT AN ASK. A track that ENDS under
+--      repeat-one plays again; pressing ⏭ under repeat-one moves ON. A
+--      mode says what the player does on its own — it never refuses an
+--      instruction. `mp.nextIndex` is PURE and carries both.
+--   🔔 AND THE END-OF-TRACK CALLBACK HAS A BELT: a callback this module
+--      cannot prove fires is a playlist that stops after one song with no
+--      error anywhere to see, so the tick that draws the clock also asks
+--      whether the sound stopped. Both are COUNTED separately, so the
+--      report can say which half this Mac is using.
+--   📁 The queue and history are stored LOCALLY, never in OneDrive — a
+--      half-played queue is not cross-Mac data, and 6.229.0 taught this
+--      config what a write into a watched cloud folder costs.
+--   `_G.musicReport()` · `settings = { music_player = { enabled = false } }`
+--      · 71 -> 72 modules · 9,239 -> 9,332 checks.
+--
 -- NEW IN 6.230.0 — 🔗 TWO NAMES FOR ONE TREE IS ONE WATCHER (modules/file_tracker.lua):
 --   LL's first report on 6.229.0 listed both of these as watched:
 --         /Users/leeleblanc/OneDrive
@@ -38,43 +74,12 @@
 --      which is `max(rows, 1)` — a division that did not happen, dressed as
 --      a measurement. No rows is its own answer now. 9,212 -> 9,237 checks.
 --
--- NEW IN 6.229.0 — 🎯 THE FILE TRACKER WATCHES YOUR FOLDERS, NOT YOUR WHOLE HOME (modules/file_tracker.lua):
---   LL, after a day on 6.228.0: "Can I get a paper trail of
---      /Users/leeleblanc or is that too broad?" His own report answered
---      him: 60,115 wake-up(s) · 204,662 path(s) seen · 49 row(s) written,
---      and 16,597 ms of main thread to keep those 49. Four thousand paths
---      woke this module for every row that survived, and every wake-up
---      queues behind it whatever click the Mac was about to deliver —
---      which is his drag and drop.
---   🔎 NOT ONE CROSSED 120 ms, so 6.228.0's alert never fired and was
---      right not to. THE INSTRUMENT MEASURED THE WRONG DIMENSION: slowMs
---      guards one expensive event, and the damage here is FREQUENCY. A
---      worst case of 58 ms says nothing about a module that pays 58 ms
---      sixty thousand times. When a cost is paid per wake-up, count the
---      wake-ups.
---   🚨 THE FILTERING WAS IN THE WRONG PLACE: ~/Library was already being
---      thrown away — in LUA, after macOS had woken the main thread and
---      built the path array. The work was always wasted; only the wake-up
---      was not. It moves to where it costs nothing: those folders are
---      never watched, so FSEvents never wakes us for them at all.
---   💡 AND IT LOSES HIM NOTHING, provable from his own numbers rather than
---      promised: the rows that stop arriving are the rows the exclusions
---      were already discarding. 204,662 paths seen, 49 rows kept. The 49
---      stay. OneDrive lives inside ~/Library and is added back BY NAME;
---      ~/.hammerspoon survives the hidden rule because the exclusions keep
---      it on purpose; a cloud folder already inside a watched one is not
---      watched twice, which would be two wake-ups per event.
---   📏 THE COST, NAMED: a loose file at the top of ~ is not watched now,
---      and a new folder there is picked up at the next reload. The report
---      says both. `settings = { file_tracker = { folders = {...} } }`
---      names the list by hand. 9,188 -> 9,212 checks.
---
--- (6.228.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.229.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.230.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.231.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -171,7 +176,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.230.0"
+_G.configVersion = "6.231.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
@@ -2924,6 +2929,8 @@ local BASE = {
     --  unified search on the tool tag, one source in the one search box)
     "universal_actions",  -- ⇪⇧A  act on the Finder selection
     "pomodoro",           -- ⇪⇧P  25 on, 5 off
+    -- 6.231.0
+    "music_player",       -- ⇪⇧pad.  a card in the corner, files dropped on it
     -- (the Outlook diagnostic left this list in 6.105.0 and the repo in
     --  6.117.0 — deleted, not moved. Outlook automation is shelved: the
     --  tenant policy blocks the only route that worked. Do not re-add it

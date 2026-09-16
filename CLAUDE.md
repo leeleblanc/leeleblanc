@@ -225,6 +225,43 @@ work Mac.
   could not make a row at all until its home folder stopped being its
   logs folder — the module excludes the whole Logs folder, so it never
   feeds itself.
+- 🎵 A MODE SAYS WHAT A TOOL DOES ON ITS OWN — IT NEVER REFUSES AN
+  INSTRUCTION (6.231.0, modules/music_player.lua, LL's ⇪⇧pad. player).
+  `mp.nextIndex(i, n, mode, manual)` is PURE and carries the whole rule: a
+  track that ENDS under repeat-one plays again, and pressing ⏭ under
+  repeat-one moves ON. Two callers, one function, its own mutation (which
+  fails three rows). Generalises to any toggle that governs automatic
+  behaviour — shuffle, auto-advance, a re-try — where a person's explicit
+  ask must still win.
+  🔔 AND A CALLBACK YOU CANNOT PROVE FIRES GETS A BELT THAT READS THE
+  STATE. hs.sound's end-of-track callback is the documented way to hear a
+  track finish; if it does not arrive the playlist stops after one song
+  with no error anywhere to see. The held tick is running regardless (it
+  draws the clock), so it also asks whether the sound stopped. COUNT THE
+  TWO APART (`mp.advances.callback` / `.belt`, printed side by side): if
+  the callback stays 0 while the belt climbs, the belt is carrying the
+  feature — which is what stops someone deleting it for looking
+  redundant. 🚨 And the belt must not fire EARLY: a PAUSED track has also
+  stopped, so "ended" is stopped AND at its duration. Its own row.
+  🚚 A DROPPED FILE'S PATH DOES NOT COME FROM `dataTransfer.files` —
+  WebKit never hands a page a File's path, so `.name` is a name and
+  nothing openable. It comes from the drag's `text/uri-list` (Finder
+  fills it with file:// URLs), percent-escapes UNDONE or every track with
+  a space or an apostrophe in its name is silently unopenable. A drop
+  with no uri-list is NAMED, never swallowed. And hs.canvas has NO drop
+  target at all — anything droppable in this config must be a webview.
+  📁 Its store is LOCAL (~/Library/Application Support/Hammerspoon/music),
+  never OneDrive: a half-played queue is not cross-Mac data and 6.229.0
+  priced a write into a watched cloud folder. Mutation-proven.
+  🔌 SCOPE SET BY HIS ANSWERS, NOT BY TASTE: "just mp3, m4a" → hs.sound,
+  no binary, identical on the work Mac; "a full Apple Keyboard" on both →
+  ⇪⇧pad. needs no fallback; "native volume keys work" → NO volume and NO
+  seek in the player, stated as a decision rather than left as a gap.
+  🧪 THE SUITE DIED INSTEAD OF FAILING under one of its own mutations —
+  `SOUNDS[#SOUNDS]` was nil and the run ended mid-file with "0 failed"
+  never printed. 6.186.0's rule in a new place: a test HELPER answers
+  falsely rather than indexing a nil, so a mutation fails a check instead
+  of killing the run. Fifteen mutations, fifteen bites.
 - 🔖 hs.chooser DROPS THE SELECTION ON EVERY :choices() (6.227.0,
   modules/clipboard_history.lua — LL on ⇪⇧V: "I'm returned to the top
   after a selection multiple times … until I get out of the search box, I
@@ -1545,7 +1582,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 PENDING.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -1608,10 +1645,11 @@ as the fix when a loss lands.
 | 6.228.0 | 🕵️ the file tracker is timed (wake-up vs write, apart), alerts past 120 ms, and can be switched off | pending |
 | 6.229.0 | 🎯 the file tracker watches the folders inside his home folder, one watcher each — ~/Library is not one of them (60,115 wake-ups a day to keep 49 rows) | pending |
 | 6.230.0 | 🔗 a symlink is not a second folder: ~/OneDrive and the CloudStorage folder are one tree and one watcher (his 6.229.0 report named it in 47 seconds) | pending |
+| 6.231.0 | 🎵 the mini music player, ⇪⇧pad. — drop files on a corner card, ↑↓ / ⌘1–9 / space, repeat one or all, elapsed time, history | pending |
 
-Running total: 14 wins · 5 losses · 15 pending (6.215.0, 6.217.0, 6.218.0,
+Running total: 14 wins · 5 losses · 16 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
-6.227.0, 6.228.0, 6.229.0, 6.230.0).
+6.227.0, 6.228.0, 6.229.0, 6.230.0, 6.231.0).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
@@ -1643,10 +1681,9 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   several releases back to back in one sitting, and he installs the
   latest zip once. His own isolation rule is kept (a break names its
   version) and he still gets the batch. NEXT, in his order:
-  ✏️ the Edit OCR caret, 🔤 the OCR junk filter, ⌘Space, ⌘⌘, 📅 date
-  expansion, 🎵 the music player (its three questions are ANSWERED —
-  mp3/m4a, a numpad on both Macs, native volume keys), 🖱 click hints,
-  💾 the draft keeper. Then 🟥 the doubled word (see below). Also ✏️ the Edit OCR
+  ✏️ the Edit OCR caret ✔ 6.225.0, 🔤 the OCR junk filter ✔ 6.226.0,
+  🎵 the music player ✔ 6.231.0 — REMAINING, in his order: ⌘Space, ⌘⌘ (+
+  ⌥⌥), 📅 date expansion, 🖱 click hints, 💾 the draft keeper. Then 🟥 the doubled word (see below). Also ✏️ the Edit OCR
   entry window does not take the caret (the page calls t.focus() but
   the webview window is not key — after bringToFront, focus the
   hswindow on a held timer and re-run t.focus()); then the OCR junk
@@ -1786,7 +1823,11 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   ⌘1–9. Engine: hs.sound (NSSound) plays mp3/m4a/aac/wav/aiff
   natively — no binary, works on the work Mac; FLAC/ogg do NOT play
   through it (say so per file, never throw). Drag-and-drop needs a
-  webview (canvas has no drop target). ✅ ALL THREE ANSWERED (LL,
+  webview (canvas has no drop target).
+  ✅ BUILT AS 6.231.0 — see the durable rule above. v1 ships without
+  volume and without seek, on his own answers. NOT built and each its own
+  release when he asks: volume, seek, a watched music FOLDER, and reading
+  tags (artist/album) out of a file. ✅ ALL THREE ANSWERED (LL,
   2026-09-14): "just mp3, m4a" — so hs.sound covers his whole library
   and the FLAC/ogg degrade is a message he will never see; "Both macs,
   home/work/ use a full Apple Keyboard and Magic pad" — a NUMPAD EXISTS
@@ -1890,6 +1931,33 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.231.0 verify with LL — 🎵 THE MUSIC PLAYER: install (carries 6.230.0).
+  Press ⇪⇧pad. (the numpad's decimal point). A small dark card appears in
+  the TOP-RIGHT corner. Press it again — it closes.
+  THE DROP, which is the whole feature: open Finder on a music folder,
+  select five or six mp3/m4a files, and DRAG THEM ONTO THE CARD. The
+  first one starts playing, the rest are listed under it, and the elapsed
+  time counts up with a blue line under the title.
+  THEN: ↑↓ moves the highlight · ⏎ plays it · ⌘3 plays the third ·
+  space pauses and resumes · ⌫ takes a track out · ⏭ and ⏮ step · the
+  ➜ button cycles repeat off → all → one. Let a track run to its END
+  with repeat off: the next one must start by itself. That is the one
+  thing only a real Mac can prove.
+  🕘 HISTORY: at the bottom of the card, everything played this session.
+  Click one and it plays again.
+  🚨 KNOWN AND ON YOUR OWN WORD: NO volume and NO seek — you said the
+  native volume keys work, so the player has none. Say if you want them;
+  that is its own release. .flac and .ogg will NOT play (macOS's own
+  audio cannot), and each such file is named in the card with the reason
+  rather than disappearing.
+  Console: `_G.musicReport()` — the queue, what is playing, the history
+  count, and the "advances" line. If that line ever reads "0 by callback"
+  while "by the belt" climbs, macOS is not telling us when a track ends
+  and the fallback is carrying the playlist: paste it, it is the evidence.
+  If a drop does nothing and the card says "macOS did not hand over the
+  path", paste that line — it means the drag arrived without file URLs.
+  `settings = { music_player = { enabled = false } }` turns it off.
+
 - 6.230.0 verify with LL — 🔗 ONE TREE, ONE WATCHER: install (carries
   6.229.0). Console: `_G.fileTrackerReport()`. The "watching :" line must
   now read TEN folders, not eleven, and `/Users/leeleblanc/OneDrive` must

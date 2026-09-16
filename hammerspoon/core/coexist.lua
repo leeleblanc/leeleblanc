@@ -308,6 +308,9 @@ _G.escapeClaims = {}
 _G.escapePriorities = {
     cheatsheet =   0,   -- THE FLOOR. Deliberately. It closes last.
     calendar   =  30,
+    musicplayer = 32,  -- 6.231.0 — a corner card like the calendar, so it
+                       -- sits beside it: Esc takes the player first, the
+                       -- calendar next, and the cheat sheet still last.
     switcher   =  40,
     -- ⎋ 6.93.0 — LL, again: "Above any other hammerspoon window of any
     -- type, the cheat sheet should close last." The 6.78.0 rule was
