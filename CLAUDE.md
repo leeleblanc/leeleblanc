@@ -175,6 +175,44 @@ work Mac.
   nil falls back to the whole home folder and takes the 🔔 door. COST
   NAMED: a loose file at the top of ~ is unwatched, a new folder there
   waits for a reload; `settings = { file_tracker = { folders = {...} } }`.
+  🔗 6.230.0 — AND A SYMLINK WALKS STRAIGHT PAST ALL OF IT. LL's first
+  report on 6.229.0 listed BOTH `/Users/leeleblanc/OneDrive` and
+  `/Users/leeleblanc/Library/CloudStorage/OneDrive-Personal` as watched;
+  `hs.fs.symlinkAttributes(p, "mode")` → `link` (his Console, asked for
+  before theorising). ONE tree, two watchers, two wake-ups for every file
+  event in the busiest folder on the Mac — inside the release whose whole
+  purpose was to cut wake-ups. `ft.covers` could not catch it because it
+  compares TEXT and neither path is a prefix of the other; `ft.homeDirs`
+  could not see it because `hs.fs.attributes` FOLLOWS a link and answered
+  "directory". GENERAL RULE: a check that identifies a thing by its PATH
+  is not a check about the thing — resolve before you compare, and ask
+  symlinkAttributes when the question is "what IS this", because
+  attributes answers about the DESTINATION. THE FIX IS RESOLVE THEN
+  DE-DUPLICATE, never "skip every symlink" — a link to a folder he really
+  does keep elsewhere is a folder he wants watched; what is wrong is
+  watching one tree twice. `ft.realOf` (realpath → symlinkAttributes as
+  the belt → the path itself as the floor; a RELATIVE answer is refused;
+  it degrades, never throws) and `ft.dedupeRoots` (PURE given a resolver).
+  👁 THE REAL PATH WINS THE SLOT, never whichever name the listing
+  returned first — `hs.fs.dir` gives filesystem order and on his Mac the
+  link comes first, so "first wins" would watch the tree under its link
+  name and report the REAL path as redundant, contradicting the watching
+  list two lines above. The dropped root is NAMED in a "linked :" line: a
+  root that vanishes with no explanation is indistinguishable from a
+  folder that stopped being watched, and those are opposite facts.
+  🚨 AND THE YIELD LINE DIVIDED BY A ROW THAT WAS NOT THERE — `max(rows,
+  1)` printed "65 path(s) for every row kept" over a session that kept
+  none. A division that did not happen, dressed as a measurement, in the
+  line 6.229.0 added to stop exactly that.
+  🧪 THE STUB ANSWERED nil FOR A SYMLINK instead of following it, so the
+  bug was untestable (6.193.0, again). And the belt's check passed with
+  the belt deleted, because over a ONE-HOP link realpath and
+  symlinkAttributes agree — a CHAIN (A → B → C: realpath says C, the belt
+  says B) is the only thing that tells the two halves apart. 6.221.0's
+  rule in a new costume. 🐛 `abs = abs or default` cannot be switched off
+  by a caller passing false — `false or default` IS the default — so the
+  gate could not exercise the halves independently; nil means "work it
+  out", anything else is taken at its word.
   🐛 `local names, ok = {}, pcall(function() … names … end)` is NOT what it
   looks like — Lua evaluates the whole right-hand side before the locals
   exist, so the closure took a nil GLOBAL `names`, threw, and reported a
@@ -1507,7 +1545,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 PENDING.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -1569,10 +1607,11 @@ as the fix when a loss lands.
 | 6.227.0 | 🔖 ⇪⇧V keeps its query and its highlighted row across a rebuild; Home/End jump to first/last while the picker is up | pending |
 | 6.228.0 | 🕵️ the file tracker is timed (wake-up vs write, apart), alerts past 120 ms, and can be switched off | pending |
 | 6.229.0 | 🎯 the file tracker watches the folders inside his home folder, one watcher each — ~/Library is not one of them (60,115 wake-ups a day to keep 49 rows) | pending |
+| 6.230.0 | 🔗 a symlink is not a second folder: ~/OneDrive and the CloudStorage folder are one tree and one watcher (his 6.229.0 report named it in 47 seconds) | pending |
 
-Running total: 14 wins · 5 losses · 14 pending (6.215.0, 6.217.0, 6.218.0,
+Running total: 14 wins · 5 losses · 15 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
-6.227.0, 6.228.0, 6.229.0).
+6.227.0, 6.228.0, 6.229.0, 6.230.0).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
@@ -1716,6 +1755,20 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   refusal counts above. DO NOT SCORE 6.229.0 from this side; if his drag
   is still slow on it, the next artefact is the same report, and the
   wake-up count is the number to compare.
+  🔗 HIS FIRST 6.229.0 REPORT (2026-09-15 20:51, 47 s into the session)
+  PROVED THE NARROWING AND FOUND THE NEXT BUG: 11 folders one watcher
+  each, Library refused by name, 14 names in "not :" — and TWO rows for
+  one tree (~/OneDrive is a symlink into CloudStorage; he confirmed it
+  with symlinkAttributes). SHIPPED AS 6.230.0, see the durable rule above.
+  The session was too young to measure anything else (61 wake-ups, 65
+  paths, 0 rows — a boot, not a day), so the hours-later report is STILL
+  THE TEST and still owed.
+  🔬 AND ONE MORE, NAMED NOT FIXED: the CSV, and every other store, lives
+  in OneDrive-Personal, which is now a watched folder — so this config's
+  own writes wake this module, and are then excluded in LUA, after the
+  wake-up. The same wrong-place-filtering class as 6.229.0, one level
+  down. `localFirst` (6.190.0) already moves the stores out of OneDrive
+  and is the candidate fix; it is fix (a)'s other half and waits its turn.
 - 🐞 ⇪Y CHROME HISTORY BEACHBALL (2026-09-13, LL: "Searching Chrome
   history: caused a beachball"; the stall guard relaunched at 72 s).
   NOT diagnosed. The export copies each profile's History DB and
@@ -1837,6 +1890,25 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.230.0 verify with LL — 🔗 ONE TREE, ONE WATCHER: install (carries
+  6.229.0). Console: `_G.fileTrackerReport()`. The "watching :" line must
+  now read TEN folders, not eleven, and `/Users/leeleblanc/OneDrive` must
+  NOT be one of them — `/Users/leeleblanc/Library/CloudStorage/
+  OneDrive-Personal` is, and it is the same folder. A new "linked :" line
+  names the one that was dropped and says why ("a link, not a second
+  tree"). If ~/OneDrive is still listed as watched, paste the line.
+  THEN THE MEASUREMENT THAT WAS ALWAYS THE TEST, now that it is not being
+  double-counted: use the Mac for a few hours and run it again. Compare
+  "events" against 6.228.0's day — 60,115 wake-up(s) · 204,662 path(s) ·
+  49 row(s) — and expect the wake-ups to be a small fraction with the ROW
+  count about the same. The "yield :" line says it in one number, and now
+  says "NO rows kept yet" instead of dividing by a row that is not there.
+  AND THE FEATURE MUST STILL WORK: move a file in Finder, then ⌃⌥⇧F.
+  🖱 If drag and drop is still slow, same report, same number to compare.
+  📏 KNOWN AND NOT FIXED HERE: the CSV is still written synchronously into
+  OneDrive, and OneDrive is a folder this module watches, so its own
+  writes still wake it. Named so it is not a surprise; its own release.
+
 - 6.228.0 verify with LL — 🕵️ THE FILE TRACKER, MEASURED: install
   (carries 6.227.0). FIRST, because it is why this release exists: move
   six or seven large files in Finder, the way you did with the TV

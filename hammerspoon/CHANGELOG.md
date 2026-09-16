@@ -5,6 +5,124 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.230.0 — 🔗 TWO NAMES FOR ONE TREE IS ONE WATCHER (modules/file_tracker.lua):
+  LL installed 6.229.0 and ran the report at once, forty-seven seconds
+  into the session, with the note: "it's not hours later, I wanted you to
+  see console messages now in case it tells you anything."
+
+  It did. The narrowing had landed — eleven folders, one watcher each,
+  Library refused by name with fourteen names in the "not :" line. And
+  two of the eleven rows were this:
+
+     /Users/leeleblanc/OneDrive
+     /Users/leeleblanc/Library/CloudStorage/OneDrive-Personal
+
+  ASKED, NOT ASSUMED. The artefact rule (6.201.0) says get the evidence
+  before theorising about the mechanism, and the evidence here is one
+  line in his Console:
+
+     hs.fs.symlinkAttributes("/Users/leeleblanc/OneDrive", "mode")
+     link
+
+  So ONE tree, two watchers. macOS leaves that symlink behind when
+  OneDrive moves into CloudStorage, and it points at the folder already
+  on the list. Every file event in the busiest folder on his Mac woke
+  this module TWICE — inside the release whose entire purpose was to cut
+  the number of wake-ups, and hiding an unknown fraction of the saving
+  6.229.0 was about to be measured on.
+
+  🚨 WHY NEITHER GUARD CAUGHT IT, and this is the durable half:
+
+  ft.covers compares TEXT. "/Users/leeleblanc/OneDrive" is not a prefix
+  of "/Users/leeleblanc/Library/CloudStorage/OneDrive-Personal" and never
+  will be, so 6.229.0's brand-new duplicate guard — written for exactly
+  this failure, with its own mutation — had nothing to catch. It was not
+  wrong. It was asking about names in a release that needed to ask about
+  trees.
+
+  And ft.homeDirs could not see it either, because hs.fs.attributes
+  FOLLOWS a symlink: the mode came back "directory" and the link read as
+  an ordinary folder. The one call that can tell them apart is
+  symlinkAttributes, which answers about the link itself.
+
+  GENERAL RULE: a check that identifies a thing by its PATH is not a
+  check about the thing. Resolve before you compare — and when the
+  question is "what IS this", ask symlinkAttributes, because attributes
+  answers about the destination.
+
+  💡 RESOLVE, THEN DE-DUPLICATE — never "skip every symlink". A link to a
+  folder he really does keep somewhere else (an external disk, a project
+  tree) is a folder he wants a paper trail of. What is wrong is watching
+  one tree twice, not reaching a tree by a link. So:
+
+     ft.realOf(path)      — realpath() first (it resolves every link in
+                            the whole path, in one call), symlinkAttributes
+                            as the belt, the path itself as the floor. A
+                            relative answer is REFUSED — it is not
+                            something hs.pathwatcher can be given. It
+                            degrades, it never throws.
+     ft.dedupeRoots(...)  — PURE given a resolver, so the gate proves the
+                            whole rule with a table of fake links and no
+                            Mac. One watcher per real tree, and a tree
+                            inside a watched tree is dropped too — 6.229.0's
+                            rule, applied to real paths instead of to the
+                            names they were reached by.
+
+  👁 THE REAL PATH WINS THE SLOT, never whichever name the listing
+  happened to return first. hs.fs.dir returns filesystem order and on his
+  Mac the link comes first, so "first wins" would have watched the tree
+  under its link name and then reported the REAL path as the redundant
+  one — directly contradicting the watching list two lines above it. The
+  survivor is the name FSEvents itself reports. That has its own mutation.
+
+  AND THE DROPPED ROOT IS NAMED, in a new "linked :" line:
+
+     linked   : 1 folder(s) reached by another name —
+        /Users/leeleblanc/OneDrive
+        ↳ the same folder as /Users/.../OneDrive-Personal — a link, not a
+          second tree
+     ↳ still watched, once.
+
+  A root that vanishes from the watching list with no explanation is
+  indistinguishable from a folder that stopped being watched, and those
+  are opposite facts. 6.229.0's own rule about the "not :" line, paid
+  again one release later.
+
+  🚨 AND THE YIELD LINE DIVIDED BY A ROW THAT WAS NOT THERE. His report
+  read "yield : 65 path(s) woke this module for every row kept" over a
+  session that kept NO rows — because the code said max(rows, 1). That is
+  a division that did not happen, dressed as a measurement, in the one
+  line 6.229.0 added specifically to stop a number being read as more
+  than it is. No rows is its own answer now and says so in words.
+
+  🧪 TWO THINGS THE SUITE COULD NOT HAVE SEEN, and both are stub rules:
+
+  The fs stub answered nil for anything not in FAKE_DIRS, so a symlink
+  was simply absent rather than being followed. It plays macOS now —
+  attributes follows the link, symlinkAttributes answers about it, and
+  pathToAbsolutePath resolves a chain and always answers ABSOLUTELY.
+  6.193.0's rule, and the only place it can be kept.
+
+  And the belt's check passed with the belt deleted, because over a
+  ONE-HOP link realpath and symlinkAttributes agree — so the check was
+  not measuring the branch it was written for (6.221.0's rule, in a new
+  costume). A chain tells them apart and nothing else does: A → B → C is
+  C through realpath and B through the belt, and the two halves are
+  asserted separately on it.
+
+  🐛 FOUND WHILE BUILDING: `abs = abs or default` cannot be switched off
+  by a caller passing false, because `false or default` IS the default —
+  so the gate could never exercise the halves independently, and the
+  mutation that proved it was a testability mutation, not a behaviour
+  one. nil means "work it out"; anything else is taken at its word.
+
+  SCOPE, STATED: ten mutations, ten bites. 82 -> 128 checks in this
+  module's suite. NOT touched, and each still its own release when its
+  turn comes: the CSV write is still synchronous and still inside
+  OneDrive, and the report still has no refusal counts (6.224.0's rule,
+  unpaid here — 204,662 paths and 49 rows cannot say whether the rest
+  were ignored, excluded, non-file or burst-limited).
+
 NEW IN 6.229.0 — 🎯 THE FILE TRACKER WATCHES YOUR FOLDERS, NOT YOUR WHOLE HOME (modules/file_tracker.lua):
   LL, 2026-09-15, after a day on 6.228.0: "Can I get a paper trail of
      /Users/leeleblanc or is that too broad?"

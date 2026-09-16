@@ -236,6 +236,7 @@ function M.setup(core)
     ft.keepHidden = { ".hammerspoon" }
 
     ft.skipped  = {}
+    ft.dropped  = {}
     ft.watchWhy = "not worked out yet"
 
     -- Does `root` already cover `path`? Two pathwatchers over the same tree
@@ -245,6 +246,127 @@ function M.setup(core)
         if type(root) ~= "string" or type(path) ~= "string" then return false end
         if root == "" or path == "" then return false end
         return path == root or path:sub(1, #root + 1) == (root .. "/")
+    end
+
+    -- 🔗 6.230.0 — AND A SYMLINK WALKS STRAIGHT PAST ft.covers, BECAUSE
+    -- ft.covers COMPARES TEXT. LL's Mac, on the first 6.229.0 report:
+    --     /Users/leeleblanc/OneDrive
+    --     /Users/leeleblanc/Library/CloudStorage/OneDrive-Personal
+    -- Two rows, ONE tree. `~/OneDrive` is a symlink macOS leaves behind when
+    -- OneDrive moves into CloudStorage (`hs.fs.symlinkAttributes(p, "mode")`
+    -- → "link", his Console, not a theory). Neither string is a prefix of
+    -- the other, so the duplicate guard 6.229.0 added had nothing to catch,
+    -- and the busiest tree on the Mac was watched twice: TWO WAKE-UPS FOR
+    -- EVERY FILE EVENT IN ONEDRIVE — the exact cost that release existed to
+    -- cut, paid in duplicate, in the release that cut it.
+    --
+    -- 🚨 AND ft.homeDirs COULD NOT SEE IT EITHER: hs.fs.attributes FOLLOWS a
+    -- link, so the mode came back "directory" and the link read as an
+    -- ordinary folder. RULE, general: a check that identifies a thing by its
+    -- PATH is not a check about the thing — resolve before you compare, and
+    -- ask symlinkAttributes when the question is "what is this", because
+    -- attributes answers about the destination.
+    --
+    -- 💡 RESOLVE, THEN DE-DUPLICATE — never "skip every symlink". A link to
+    -- a folder he really does keep elsewhere is a folder he wants watched;
+    -- what is wrong is watching one tree twice, not reaching it by a link.
+    -- So a root becomes its real path, and a real path already in the list
+    -- (or already inside another kept root) is dropped and NAMED.
+    function ft.realOf(path, abs, link)
+        if type(path) ~= "string" or path == "" then return path end
+        -- 🚨 `abs or default` is NOT how you take an optional dependency you
+        -- also want the gate to be able to switch OFF: `false or default` is
+        -- the default, so the belt below could never be tested alone. nil
+        -- means "work it out", anything else is taken at its word.
+        if abs  == nil then abs  = hs.fs and hs.fs.pathToAbsolutePath end
+        if link == nil then link = hs.fs and hs.fs.symlinkAttributes end
+        -- realpath() first: it resolves every link in the whole path, not
+        -- just a final one, and answers in one call. Its answer is only
+        -- usable if it is ABSOLUTE — a relative one is not a path we can
+        -- hand to hs.pathwatcher, so it falls through to the belt.
+        if type(abs) == "function" then
+            local ok, r = pcall(abs, path)
+            if ok and type(r) == "string" and r:sub(1, 1) == "/" and r ~= path then
+                return (r:gsub("/+$", ""))
+            end
+        end
+        -- The belt: a Hammerspoon without pathToAbsolutePath, or one that
+        -- hands the path straight back, still gets the one hop that matters.
+        if type(link) == "function" then
+            local ok, t = pcall(link, path, "target")
+            if ok and type(t) == "string" and t ~= "" then
+                if t:sub(1, 1) ~= "/" then
+                    t = (path:match("^(.*)/[^/]*$") or "") .. "/" .. t
+                end
+                return (t:gsub("/+$", ""))
+            end
+        end
+        return (path:gsub("/+$", ""))
+    end
+
+    -- PURE given `realOf`, so the gate proves the whole rule with a table of
+    -- fake links and no Mac. Returns the roots actually worth a watcher, and
+    -- every root dropped WITH THE REASON — a watcher that quietly disappears
+    -- from the report is how a narrowing becomes a loss nobody can see.
+    function ft.dedupeRoots(roots, realOf)
+        realOf = realOf or ft.realOf
+        local kept, dropped, seen, first = {}, {}, {}, {}
+
+        local rows = {}
+        for _, p in ipairs(roots or {}) do
+            if type(p) == "string" and p ~= "" then
+                local r = realOf(p)
+                if type(r) ~= "string" or r == "" then r = p end
+                rows[#rows + 1] = { given = (p:gsub("/+$", "")), real = (r:gsub("/+$", "")) }
+            end
+        end
+
+        -- One tree under two names is one watcher — and THE REAL PATH WINS
+        -- THE SLOT, never whichever name came first in the listing. On LL's
+        -- Mac the link is listed before the folder it points at (hs.fs.dir
+        -- returns filesystem order), so "first wins" would have watched the
+        -- tree under its link name and then reported the REAL path as the
+        -- redundant one. That reads backwards against the watching list
+        -- directly above it, and a report that contradicts itself is worse
+        -- than one that says less.
+        for _, e in ipairs(rows) do
+            local best = seen[e.real]
+            if best == nil then
+                seen[e.real] = e
+                first[#first + 1] = e
+            elseif best.given ~= best.real and e.given == e.real then
+                -- the real path has turned up after its link: swap them, so
+                -- the survivor is always the name FSEvents itself reports
+                dropped[#dropped + 1] = { path = best.given, real = best.real,
+                    why = "the same folder as " .. e.real
+                          .. " — a link, not a second tree" }
+                for i, f in ipairs(first) do if f == best then first[i] = e ; break end end
+                seen[e.real] = e
+            else
+                dropped[#dropped + 1] = { path = e.given, real = e.real,
+                    why = "the same folder as " .. best.real
+                          .. " — a link, not a second tree" }
+            end
+        end
+
+        -- And a tree INSIDE a tree already watched is one watcher too — the
+        -- same rule 6.229.0 wrote for the cloud folder, applied now to real
+        -- paths rather than to the names they were reached by.
+        for i, e in ipairs(first) do
+            local inside = nil
+            for j, o in ipairs(first) do
+                if i ~= j and o.real ~= e.real and ft.covers(o.real, e.real) then
+                    inside = o.real ; break
+                end
+            end
+            if inside then
+                dropped[#dropped + 1] = { path = e.given, real = e.real,
+                    why = "inside " .. inside .. " — already watched" }
+            else
+                kept[#kept + 1] = e.real
+            end
+        end
+        return kept, dropped
     end
 
     -- PURE, and that is the point: every rule about WHAT IS WATCHED is
@@ -328,7 +450,11 @@ function M.setup(core)
                 if type(f) == "string" and f ~= "" then list[#list + 1] = f end
             end
             if #list > 0 then
-                return list, {}, "settings = { file_tracker = { folders = ... } }"
+                -- Deduped too: his list is honoured verbatim in REACH, but a
+                -- folder named twice (or named once by a link and once by its
+                -- real path) is still one tree and still one watcher.
+                local one, gone = ft.dedupeRoots(list)
+                return one, {}, "settings = { file_tracker = { folders = ... } }", gone
             end
         end
         local names = ft.homeDirs(core.homeDir)
@@ -345,10 +471,12 @@ function M.setup(core)
             if core.cloudDir and not ft.covers(core.homeDir, core.cloudDir) then
                 wide[#wide + 1] = core.cloudDir
             end
-            return wide, {}, "⚠️ " .. why
+            local wideOne, wideGone = ft.dedupeRoots(wide)
+            return wideOne, {}, "⚠️ " .. why, wideGone
         end
         local kept, skipped = ft.watchRoots(core.homeDir, core.cloudDir, names)
-        return kept, skipped, "your folders, one watcher each — ~/Library is not one of them"
+        local one, gone = ft.dedupeRoots(kept)
+        return one, skipped, "your folders, one watcher each — ~/Library is not one of them", gone
     end
 
     local fileTrackerFolders = { core.homeDir }
@@ -773,7 +901,7 @@ function M.setup(core)
         -- `settings` block (applied after setup returns) is read before a
         -- single watcher exists — 6.228.0's rule, that a switch is only real
         -- if the thing it governs starts after setup.
-        fileTrackerFolders, ft.skipped, ft.watchWhy = ft.resolveFolders()
+        fileTrackerFolders, ft.skipped, ft.watchWhy, ft.dropped = ft.resolveFolders()
         for _, folder in ipairs(fileTrackerFolders) do
             local ok, w = pcall(hs.pathwatcher.new, folder, fileTrackerCallback)
             if ok and w then
@@ -914,6 +1042,19 @@ function M.setup(core)
             line("   ↳ macOS never wakes this module for those, and THAT is the")
             line("     saving — every path in them was discarded anyway")
         end
+        -- 🔗 6.230.0 — a folder REACHED but not watched twice. It is printed
+        -- rather than left out, because a root that vanishes from this list
+        -- with no explanation is indistinguishable from a folder that stopped
+        -- being watched, and those are opposite facts.
+        if #(ft.dropped or {}) > 0 then
+            line("   linked   : " .. #ft.dropped .. " folder(s) reached by another name —")
+            for _, d in ipairs(ft.dropped) do
+                line("      " .. tostring(d.path))
+                line("      ↳ " .. tostring(d.why))
+            end
+            line("   ↳ still watched, once. Two watchers over one tree is two")
+            line("     wake-ups for every file event in it.")
+        end
         line("   ↳ a loose file at the top of ~ is not watched now, and a NEW")
         line("     folder there is picked up at the next reload")
         line("   csv      : " .. tostring(fileTrackerFile))
@@ -941,9 +1082,16 @@ function M.setup(core)
             -- 🎯 6.229.0: the number that decided this release. A worst case
             -- says nothing about a cost paid sixty thousand times, so the
             -- report prints what the wake-ups BOUGHT beside what they cost.
-            if s.paths > 0 then
+            -- 🚨 6.230.0 — AND NOT OVER ZERO ROWS. `s.paths / max(rows, 1)`
+            -- printed "65 path(s) ... for every row kept" on a session that
+            -- kept NO rows, which is a division that did not happen dressed
+            -- as a measurement. No rows is its own answer and says so.
+            if s.paths > 0 and s.rows > 0 then
                 line(("   yield    : %d path(s) woke this module for every row kept")
-                     :format(math.floor(s.paths / math.max(s.rows, 1))))
+                     :format(math.floor(s.paths / s.rows)))
+            elseif s.paths > 0 then
+                line(("   yield    : %d path(s) seen and NO rows kept yet — "
+                      .. "nothing worth logging has moved"):format(s.paths))
             end
             if (s.slowCb + s.slowWrite) > 0 then
                 line(("   ⚠️ SLOW   : %d over %d ms — %d wake-up(s) · %d write(s)")

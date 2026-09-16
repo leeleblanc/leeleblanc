@@ -66,11 +66,50 @@ hs = {
     -- table rather than the disk so the gate stays hermetic — and
     -- `attributes` still returns nil for the one-argument call the rename
     -- pairing makes, which is a different question (does this file exist).
+    --
+    -- 🔗 6.230.0 — AND THE STUB FOLLOWS LINKS, BECAUSE macOS DOES. That is
+    -- the hole this release closes: hs.fs.attributes answers about the
+    -- DESTINATION, so a symlink to a folder reports mode "directory" and
+    -- reads as an ordinary folder. A stub that answered nil for a link would
+    -- have made the bug untestable — 6.193.0's rule, and the stub is the
+    -- only place it can be kept.
     fs = { attributes = function(path, what)
+               local target = _G.FAKE_LINKS and _G.FAKE_LINKS[path]
+               if target then path = target end       -- attributes FOLLOWS
                if what == "mode" and _G.FAKE_DIRS and _G.FAKE_DIRS[path] then
                    return "directory"
                end
                return nil
+           end,
+           -- ...while symlinkAttributes answers about the LINK ITSELF, which
+           -- is the one call that can tell the two apart.
+           symlinkAttributes = function(path, what)
+               local target = _G.FAKE_LINKS and _G.FAKE_LINKS[path]
+               if not target then
+                   if what == "mode" and _G.FAKE_DIRS and _G.FAKE_DIRS[path] then
+                       return "directory"
+                   end
+                   return nil
+               end
+               if what == "mode"   then return "link" end
+               if what == "target" then return target end
+               return { mode = "link", target = target }
+           end,
+           -- realpath(): every link in the path, resolved in one call.
+           pathToAbsolutePath = function(path)
+               local seen = 0
+               while _G.FAKE_LINKS and _G.FAKE_LINKS[path] and seen < 8 do
+                   local t = _G.FAKE_LINKS[path]
+                   -- realpath() always answers with an ABSOLUTE path, so a
+                   -- relative link target is joined here rather than handed
+                   -- back raw. A stub that returned "Documents" would be
+                   -- gentler than macOS in the one place this release cares.
+                   if t:sub(1, 1) ~= "/" then
+                       t = (path:match("^(.*)/[^/]*$") or "") .. "/" .. t
+                   end
+                   path = t ; seen = seen + 1
+               end
+               return path
            end,
            dir = function(path)
                local names, i = (_G.FAKE_TREE or {})[path], 0
@@ -894,6 +933,219 @@ end
 check("🚨 ...and it asserted every check it was written to make (a throw "
       .. "deletes the rest while the run still says 0 failed)",
       (pass + fail) - before229 >= 20, (pass + fail) - before229)
+
+-- ======================================================================
+-- 🔗 6.230.0 — TWO NAMES FOR ONE TREE IS ONE WATCHER
+-- ======================================================================
+-- LL's first 6.229.0 report listed both of these as watched folders:
+--     /Users/leeleblanc/OneDrive
+--     /Users/leeleblanc/Library/CloudStorage/OneDrive-Personal
+-- and `hs.fs.symlinkAttributes(p, "mode")` answered "link" for the first.
+-- ONE tree, two watchers, two wake-ups for every file event in the busiest
+-- folder on the Mac — inside the release that existed to cut wake-ups.
+--
+-- ft.covers could not catch it because ft.covers compares TEXT and neither
+-- string is a prefix of the other; ft.homeDirs could not see it because
+-- hs.fs.attributes FOLLOWS a link and answered "directory". The stub above
+-- now plays both of those exactly, which is what makes this provable.
+--
+-- 🚨 THE SECTION WRAPS ITSELF AND COUNTS ITS OWN CHECKS (6.186.0).
+out("\n=== 🔗 6.230.0 — two names for one tree is one watcher ===\n")
+local before230 = pass + fail
+local ok230, err230 = pcall(function()
+
+local ML = boot228()
+local ftl = ML.config
+local H    = "/Users/lee"
+local CLOUD = H .. "/Library/CloudStorage/OneDrive-Personal"
+
+local function has(list, want)
+    for _, v in ipairs(list) do if v == want then return true end end
+    return false
+end
+local function droppedFor(list, want)
+    for _, d in ipairs(list) do if d.path == want then return d end end
+    return nil
+end
+
+-- ---- LL's exact pair -------------------------------------------------
+_G.FAKE_LINKS = { [H .. "/OneDrive"] = CLOUD }
+local keptL, goneL = ftl.dedupeRoots({ H .. "/OneDrive", H .. "/Documents", CLOUD })
+
+check("🔗 LL's pair collapses — ~/OneDrive and the CloudStorage folder are "
+      .. "ONE watcher, not two", #keptL == 2, table.concat(keptL, " "))
+check("...and the survivor is the REAL path, which is what FSEvents reports",
+      has(keptL, CLOUD) and not has(keptL, H .. "/OneDrive"),
+      table.concat(keptL, " "))
+check("...and the other is NAMED as a link, never silently dropped — a root "
+      .. "that vanishes with no reason reads as a folder gone unwatched",
+      (function()
+           local d = droppedFor(goneL, H .. "/OneDrive")
+           return d ~= nil and d.why:find("link", 1, true) ~= nil
+       end)(), (function()
+           local d = droppedFor(goneL, H .. "/OneDrive")
+           return d and d.why or "not dropped at all"
+       end)())
+
+-- 🚨 THE MUTATION THIS EXISTS FOR: a dedupe that compares the paths it was
+-- GIVEN, instead of resolving them first, is one line shorter and catches
+-- exactly nothing here — which is 6.229.0's ft.covers, and is the bug.
+local keptRaw = ftl.dedupeRoots({ H .. "/OneDrive", H .. "/Documents", CLOUD },
+                                function(x) return x end)
+check("🚨 ...and WITHOUT resolving, both survive — so the row above is "
+      .. "measuring the resolution, not the existence of a dedupe",
+      #keptRaw == 3, table.concat(keptRaw, " "))
+
+-- 💡 NEVER "SKIP EVERY SYMLINK". A link to a folder he really does keep
+-- somewhere else is a folder he wants a paper trail of; what is wrong is
+-- watching one tree twice, not reaching a tree by a link.
+_G.FAKE_LINKS = { [H .. "/Code"] = "/Volumes/Work/Code" }
+local keptK = ftl.dedupeRoots({ H .. "/Documents", H .. "/Code" })
+check("💡 a link to a folder nothing else covers is KEPT — resolved, not "
+      .. "skipped", #keptK == 2 and has(keptK, "/Volumes/Work/Code"),
+      table.concat(keptK, " "))
+
+-- The same rule 6.229.0 wrote for the cloud folder, applied to REAL paths
+-- rather than to the names they were reached by.
+_G.FAKE_LINKS = { [H .. "/Shortcut"] = H .. "/Documents/Projects" }
+local keptI, goneI = ftl.dedupeRoots({ H .. "/Documents", H .. "/Shortcut" })
+check("🚨 a link INTO a folder already watched is not a second watcher",
+      #keptI == 1 and keptI[1] == H .. "/Documents", table.concat(keptI, " "))
+check("...and that one says 'inside', not 'link' — two different reasons "
+      .. "for two different facts",
+      (function()
+           local d = droppedFor(goneI, H .. "/Shortcut")
+           return d ~= nil and d.why:find("inside", 1, true) ~= nil
+       end)())
+
+_G.FAKE_LINKS = nil
+local keptD = ftl.dedupeRoots({ H .. "/Documents", H .. "/Documents/",
+                                H .. "/Documents" })
+check("the same path written three ways is still one watcher (a trailing "
+      .. "slash is not a second folder)", #keptD == 1, table.concat(keptD, " "))
+
+-- ---- ft.realOf, the thin IO half -------------------------------------
+_G.FAKE_LINKS = { [H .. "/OneDrive"] = CLOUD }
+check("🔗 ft.realOf resolves through realpath", ftl.realOf(H .. "/OneDrive") == CLOUD,
+      ftl.realOf(H .. "/OneDrive"))
+-- 🚨 THE TWO HALVES ARE ASSERTED APART, AND A CHAIN IS WHAT MAKES THAT
+-- POSSIBLE. realpath() resolves EVERY link in the path; symlinkAttributes
+-- follows exactly ONE. Over a one-hop link the two agree, so a check
+-- written on one-hop links passes with either half deleted — which is
+-- 6.221.0's rule (assert what is UNIQUE to the branch) in a new costume.
+-- A → B → C tells them apart and nothing else does.
+_G.FAKE_LINKS = { [H .. "/A"] = H .. "/B", [H .. "/B"] = H .. "/C" }
+check("🔗 realpath resolves the WHOLE chain — A → B → C is C",
+      ftl.realOf(H .. "/A", hs.fs.pathToAbsolutePath, false) == H .. "/C",
+      ftl.realOf(H .. "/A", hs.fs.pathToAbsolutePath, false))
+check("...and the BELT alone is ONE hop — A → B, which is what a "
+      .. "Hammerspoon with no pathToAbsolutePath gets, and proves the belt "
+      .. "really ran rather than the default answering for it",
+      ftl.realOf(H .. "/A", false, hs.fs.symlinkAttributes) == H .. "/B",
+      ftl.realOf(H .. "/A", false, hs.fs.symlinkAttributes))
+check("🚨 ...and a RELATIVE answer from realpath is refused, never handed to "
+      .. "hs.pathwatcher as a watch root",
+      ftl.realOf(H .. "/A", function() return "Documents" end,
+                 hs.fs.symlinkAttributes) == H .. "/B",
+      ftl.realOf(H .. "/A", function() return "Documents" end,
+                 hs.fs.symlinkAttributes))
+_G.FAKE_LINKS = { [H .. "/OneDrive"] = CLOUD }
+check("...and the belt gets LL's own link right on its own",
+      ftl.realOf(H .. "/OneDrive", false, hs.fs.symlinkAttributes) == CLOUD,
+      ftl.realOf(H .. "/OneDrive", false, hs.fs.symlinkAttributes))
+check("...a RELATIVE link target is joined onto the link's own folder, never "
+      .. "onto the working directory",
+      (function()
+           _G.FAKE_LINKS = { [H .. "/Docs"] = "Documents" }
+           return ftl.realOf(H .. "/Docs", false, hs.fs.symlinkAttributes)
+                  == H .. "/Documents"
+       end)(), ftl.realOf(H .. "/Docs", false, hs.fs.symlinkAttributes))
+check("🚨 ...and with NEITHER available it hands the path back unchanged — "
+      .. "it degrades, it never throws",
+      ftl.realOf(H .. "/OneDrive", false, false) == H .. "/OneDrive")
+check("...nor when the resolver itself throws",
+      ftl.realOf(H .. "/OneDrive", function() error("nope") end, false)
+      == H .. "/OneDrive")
+check("...and a non-string is not an error either",
+      ftl.realOf(nil) == nil and ftl.realOf(42) == 42)
+
+-- ---- end to end, through warm() --------------------------------------
+-- The whole point, in the shape LL's Mac actually has: OneDrive inside
+-- ~/Library, and a link to it at the top of the home folder.
+wipe8()
+DEGRADES = {}
+_G.FAKE_TREE  = { [H8] = { ".", "..", "Documents", "OneDrive", "Library" } }
+_G.FAKE_DIRS  = { [H8 .. "/Documents"] = true, [H8 .. "/Library"] = true,
+                  [H8 .. "/Library/CloudStorage/OneDrive-Personal"] = true }
+_G.FAKE_LINKS = { [H8 .. "/OneDrive"] = H8 .. "/Library/CloudStorage/OneDrive-Personal" }
+local M20 = boot228({ cloudDir = H8 .. "/Library/CloudStorage/OneDrive-Personal" })
+if type(M20.warm) == "function" then pcall(M20.warm) end
+local nWatch = #_G.fileTrackerWatchers
+check("🎯 end to end: the linked OneDrive is watched ONCE — the home folder "
+      .. "has three entries and two of them are the same tree",
+      nWatch == 2, nWatch)
+check("...and nothing degraded doing it — this is the normal path on his Mac",
+      #DEGRADES == 0, table.concat(DEGRADES, " | "))
+printed = {}
+_G.fileTrackerReport()
+local rep20 = table.concat(printed, "\n")
+check("🔗 ...and the report NAMES the folder it reached by another name, "
+      .. "rather than leaving a root out with no explanation",
+      rep20:find("linked", 1, true) ~= nil
+      and rep20:find(H8 .. "/OneDrive", 1, true) ~= nil, rep20)
+local head20 = rep20:match("^(.-)\n   linked") or "no linked block"
+check("🚨 ...and the WATCHED list above it names the REAL path, not the link "
+      .. "— a report that contradicts itself two lines apart is worse than "
+      .. "one that says less",
+      head20:find(H8 .. "/Library/CloudStorage/OneDrive-Personal", 1, true) ~= nil
+      and head20:find(H8 .. "/OneDrive\n", 1, true) == nil, head20)
+
+-- ---- the yield line, which divided by a row that was not there --------
+-- LL's own 6.229.0 report read "65 path(s) ... for every row kept" over a
+-- session that kept NO rows. `max(rows, 1)` is a division that did not
+-- happen, dressed as a measurement.
+local st20 = M20.config.stats
+st20.callbacks = 61
+st20.paths     = 65
+st20.rows      = 0
+printed = {}
+_G.fileTrackerReport()
+local zeroYield = table.concat(printed, "\n")
+check("🚨 the yield line does not divide by a row that is not there",
+      zeroYield:find("NO rows kept yet", 1, true) ~= nil
+      and zeroYield:find("65 path(s) woke", 1, true) == nil,
+      zeroYield:match("yield[^\n]*") or "no yield line at all")
+
+st20.rows = 13
+printed = {}
+_G.fileTrackerReport()
+check("...and it still divides when there IS something to divide by",
+      (table.concat(printed, "\n")):find("5 path(s) woke", 1, true) ~= nil,
+      (table.concat(printed, "\n")):match("yield[^\n]*"))
+
+-- 🔌 his list is honoured verbatim in REACH — and a folder named twice in
+-- it is still one tree and still one watcher.
+wipe8()
+_G.FAKE_TREE  = { [H8] = { ".", "..", "Documents" } }
+_G.FAKE_DIRS  = { [H8 .. "/Documents"] = true }
+_G.FAKE_LINKS = { [H8 .. "/Alias"] = H8 .. "/Pictures" }
+local M21 = boot228()
+M21.config.folders = { H8 .. "/Pictures", H8 .. "/Alias", H8 .. "/Movies" }
+if type(M21.warm) == "function" then pcall(M21.warm) end
+check("🔌 the folders override is deduped too — his reach is unchanged, the "
+      .. "duplicate watcher is not", #_G.fileTrackerWatchers == 2,
+      #_G.fileTrackerWatchers)
+
+_G.FAKE_LINKS = nil
+
+end)
+if not ok230 then
+    check("🚨 the 6.230.0 section ran to the end without throwing", false,
+          tostring(err230))
+end
+check("🚨 ...and it asserted every check it was written to make (a throw "
+      .. "deletes the rest while the run still says 0 failed)",
+      (pass + fail) - before230 >= 21, (pass + fail) - before230)
 
 os.execute("rm -rf '" .. DIR .. "'")
 

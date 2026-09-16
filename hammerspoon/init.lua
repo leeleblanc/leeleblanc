@@ -4,9 +4,40 @@
 -- =====================================================================
 -- 09-16-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.229.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.230.0
 -- =====================================================================
 
+-- NEW IN 6.230.0 — 🔗 TWO NAMES FOR ONE TREE IS ONE WATCHER (modules/file_tracker.lua):
+--   LL's first report on 6.229.0 listed both of these as watched:
+--         /Users/leeleblanc/OneDrive
+--         /Users/leeleblanc/Library/CloudStorage/OneDrive-Personal
+--      and `hs.fs.symlinkAttributes(p, "mode")` answered "link" for the
+--      first. ONE tree, two watchers — two wake-ups for every file event in
+--      the busiest folder on the Mac, inside the release whose whole
+--      purpose was to cut wake-ups.
+--   🚨 WHY NEITHER GUARD SAW IT. ft.covers compares TEXT, and neither path
+--      is a prefix of the other, so 6.229.0's duplicate guard had nothing
+--      to catch. And hs.fs.attributes FOLLOWS a link, so the listing read
+--      the symlink as an ordinary folder. RULE: a check that identifies a
+--      thing by its PATH is not a check about the thing — resolve before
+--      you compare, and ask symlinkAttributes when the question is "what is
+--      this", because attributes answers about the destination.
+--   💡 RESOLVE, THEN DE-DUPLICATE — never "skip every symlink". A link to a
+--      folder he really does keep elsewhere is a folder he wants a trail
+--      of; what is wrong is watching one tree twice, not reaching it by a
+--      link. ft.realOf resolves (realpath, with symlinkAttributes as the
+--      belt and the path itself as the floor — it degrades, it never
+--      throws); ft.dedupeRoots is PURE and keeps one watcher per real tree.
+--   👁 THE REAL PATH WINS THE SLOT, never whichever name the listing
+--      returned first, because the survivor is the name FSEvents itself
+--      reports — and the report's new "linked :" line NAMES what was
+--      reached by another name. A root that vanishes with no explanation
+--      is indistinguishable from a folder that stopped being watched.
+--   🚨 AND THE YIELD LINE DIVIDED BY A ROW THAT WAS NOT THERE: over a
+--      session with no rows it printed "65 path(s) for every row kept",
+--      which is `max(rows, 1)` — a division that did not happen, dressed as
+--      a measurement. No rows is its own answer now. 9,212 -> 9,237 checks.
+--
 -- NEW IN 6.229.0 — 🎯 THE FILE TRACKER WATCHES YOUR FOLDERS, NOT YOUR WHOLE HOME (modules/file_tracker.lua):
 --   LL, after a day on 6.228.0: "Can I get a paper trail of
 --      /Users/leeleblanc or is that too broad?" His own report answered
@@ -38,49 +69,12 @@
 --      says both. `settings = { file_tracker = { folders = {...} } }`
 --      names the list by hand. 9,188 -> 9,212 checks.
 --
--- NEW IN 6.228.0 — 🕵️ THE FILE TRACKER IS TIMED, AND IT CAN BE TURNED OFF (modules/file_tracker.lua):
---   LL: "I can't move files in drag and drop again. Checked again by a
---      re-launch of Hammerspoon. Bug comes back. After a re-launch, caps
---      lock stays on and Hammerspoon seems locked up." Proven to be this
---      module in the Console, by stopping its watchers: the drag came
---      straight back with every other tap still running.
---   WHY IT TAKES THE MOUSE. macOS wakes this module for EVERY file event
---      under the HOME FOLDER, and the work it then does — path checks and
---      a synchronous append into the OneDrive-synced CSV — happens ON THE
---      MAIN THREAD. While that runs, every hs.eventtap on the Mac is
---      queued behind it, and a mouse-down delayed past Finder's drag
---      threshold is a drag that never starts. Nothing crashes. The boot
---      is fast, the storm guard is quiet, the stall guard is healthy, and
---      all of that is TRUE — which is why four reports named nothing.
---   THIS RELEASE DOES NOT REPAIR IT. It MEASURES it, because "the file
---      tracker is slow" names a module and not a cause: narrowing the
---      watched folders and moving the write off the main thread are two
---      different repairs, and only the bigger of two numbers says which.
---      So the wake-up and the write are timed SEPARATELY and reported
---      side by side, each with its own worst case and the time it
---      happened. `_G.fileTrackerReport()`.
---   🔔 AND IT ALERTS. Anything over `ft.slowMs` (120 ms) takes the
---      degrade door — alert, ⚠️ Console line, ledger row — naming which
---      half and what it costs, in his words: drag and drop stops working.
---   🔌 THE SWITCH IS REAL BECAUSE THE WATCHERS START IN warm(). init.lua
---      applies a profile's `settings` AFTER setup returns, so a watcher
---      started in setup could never be stopped by an override — it would
---      land on a flag nobody reads again. `settings = { file_tracker =
---      { enabled = false } }` now stops it, permanently, across reloads;
---      `_G.fileTracker.stopWatching()` does it this second. It also takes
---      the slowest module at boot (190 ms, 4x the next) off the boot path.
---   🧪 The door's first two checks PASSED with the write's own alert
---      deleted: a slow write is INSIDE the wake-up it happens in, so the
---      wake-up crosses the threshold on the same event and alerts too,
---      with the same tool name and the same words. Assert what is unique
---      to the branch. 9,147 -> 9,188 checks.
---
--- (6.227.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.228.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.229.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.230.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -177,7 +171,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.229.0"
+_G.configVersion = "6.230.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
