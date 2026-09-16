@@ -696,10 +696,36 @@ reset()
 check("🔌 the services are published for other modules",
       PROVIDED["music.show"] and PROVIDED["music.toggle"] and PROVIDED["music.hide"])
 
+-- ---- §14 a name the card cannot draw ----------------------------------
+-- 🔔 6.231.1. `rowsJson` used to answer "{}" when hs.json refused the
+-- queue. That drew an EMPTY CARD over a queue that was still playing and
+-- told nobody — 6.196.1's rule ("not yet" and "never" must not read
+-- alike), in the one function every redraw goes through.
+reset()
+FILES["/m/a.mp3"] = true
+mp.show()
+drop("file:///m/a.mp3")
+local goodEncode = hs.json.encode
+hs.json.encode = function() error("not text") end
+local payload = mp.rowsJson()
+hs.json.encode = goodEncode
+check("🔔 a queue that cannot be encoded takes the degrade door",
+      #DEGRADED > 0 and DEGRADED[#DEGRADED]:find("could not be turned into text",
+                                                 1, true) ~= nil,
+      table.concat(DEGRADED, " | "))
+check("🚨 ...and the answer is NOT a bare {} — an empty card over a "
+      .. "playing queue is a lie the page cannot tell from an empty queue",
+      payload ~= "{}" and payload:find("refused", 1, true) ~= nil, payload)
+check("...and what it does answer still carries the fields the page reads",
+      payload:find('"rows"', 1, true) and payload:find('"hist"', 1, true)
+      and payload:find('"mode"', 1, true), payload)
+check("...and the queue itself is untouched — the drawing failed, "
+      .. "not the music", #mp.queue == 1 and mp.playing == true)
+
 -- 🚨 The section asserts its own check count (6.186.0): a throw would
 -- delete every check after it while the run still said "0 failed".
 check("🚨 the suite asserted every check it was written to make",
-      (pass + fail) >= 90, pass + fail)
+      (pass + fail) >= 94, pass + fail)
 
 os.execute("true")
 realPrint(table.concat(PRINTED, "\n"))

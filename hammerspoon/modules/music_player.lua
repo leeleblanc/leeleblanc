@@ -481,11 +481,6 @@ function M.setup(core)
 
     -- ---- the page ---------------------------------------------------------
 
-    local function esc(s)
-        return (tostring(s or ""):gsub("&", "&amp;"):gsub("<", "&lt;")
-                                 :gsub(">", "&gt;"):gsub('"', "&quot;"))
-    end
-
     function mp.rowsJson()
         local rows = {}
         for i, t in ipairs(mp.queue) do
@@ -503,7 +498,16 @@ function M.setup(core)
                                     mode = mp.mode, playing = mp.playing,
                                     refused = mp.refused })
         end)
-        return (ok and raw) or "{}"
+        if ok and raw then return raw end
+        -- 🔔 A NAME THIS CANNOT ENCODE IS NOT AN EMPTY QUEUE. Returning
+        -- "{}" here drew a card with nothing in it over a queue that was
+        -- still playing, and said so to nobody.
+        degrade("a track name could not be turned into text the card can "
+                .. "draw — the queue is untouched and still playing")
+        return '{"rows":[],"hist":[],"sel":1,"mode":"' .. tostring(mp.mode)
+               .. '","playing":' .. tostring(mp.playing and true or false)
+               .. ',"refused":[{"path":"","why":"a track name could not be '
+               .. 'drawn — see the Console"}]}'
     end
 
     function mp.drawClock()
@@ -590,29 +594,41 @@ footer { padding:5px 10px; font-size:%dpx; color:#7d7f89;
 var S = { rows: [], hist: [], sel: 1, mode: 'off', playing: false, refused: [] };
 function say(m){ try { webkit.messageHandlers.musicPlayer.postMessage(m); } catch(e){} }
 function el(id){ return document.getElementById(id); }
+/* 🔤 A TRACK IS NAMED BY ITS FILE, AND A FILE MAY BE CALLED ANYTHING.
+   Every name below is written with innerHTML, so "AC/DC <Live> & More.mp3"
+   would lose half of itself. The name is NOT escaped on the Lua side: the
+   header writes the same string with textContent, where an entity shows. */
+function esc(s){
+  return String(s == null ? '' : s).replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 
 function draw(s){
-  S = s || S;
+  /* A payload that is missing a field must not stop the card drawing for
+     the rest of the session — every list below is read by length. */
+  if (s) S = { rows: s.rows || [], hist: s.hist || [], sel: s.sel || 1,
+               mode: s.mode || 'off', playing: !!s.playing,
+               refused: s.refused || [] };
   var L = [], r;
   for (var i = 0; i < S.rows.length; i++) {
     r = S.rows[i];
     L.push('<div class="row' + (r.i === S.sel ? ' sel' : '')
            + (r.cur ? ' cur' : '') + '" data-i="' + r.i + '">'
            + '<span class="num">' + r.i + '</span>'
-           + '<span class="nm">' + r.n + '</span>'
-           + (r.bad ? '<span class="bad">' + r.bad + '</span>' : '')
+           + '<span class="nm">' + esc(r.n) + '</span>'
+           + (r.bad ? '<span class="bad">' + esc(r.bad) + '</span>' : '')
            + '</div>');
   }
   if (!S.rows.length) L.push('<div class="sec">queue empty &#183; drop files on this card</div>');
   for (var k = 0; k < (S.refused || []).length; k++) {
     L.push('<div class="row"><span class="num">&#9888;</span><span class="bad">'
-           + S.refused[k].why + '</span></div>');
+           + esc(S.refused[k].why) + '</span></div>');
   }
   if ((S.hist || []).length) {
     L.push('<div class="sec">&#128336; history</div>');
     for (var h = 0; h < S.hist.length; h++) {
       L.push('<div class="row" data-h="' + h + '"><span class="num">&#183;</span>'
-             + '<span class="nm">' + S.hist[h].n + '</span></div>');
+             + '<span class="nm">' + esc(S.hist[h].n) + '</span></div>');
     }
   }
   el('list').innerHTML = L.join('');
@@ -796,6 +812,10 @@ draw(S);
     end
 
     -- ---- the window -------------------------------------------------------
+
+    -- 🧪 The gate DUMPS this page and runs its JavaScript for real
+    -- (tests/dump_music_html.lua → tests/test_music_js.js).
+    mp.buildHtml = buildHtml
 
     function mp.hide()
         mp.stopTick()

@@ -340,6 +340,38 @@ else
 fi
 echo ""
 
+# ------------------------------------------- 3e. music player page JS
+echo "3e. MUSIC PLAYER — PAGE JAVASCRIPT, EXECUTED"
+if [ -z "$LUA" ] || [ -z "$NODE" ]; then
+    echo "   ⚠️  skipped — needs both lua and node"
+    echo "      The drop, the drawing and ↑↓/⏎/space live in this page. If"
+    echo "      this is skipped, ⇪⇧pad.'s behaviour is UNTESTED this run."
+    SKIPPED="$SKIPPED music-js"
+elif [ ! -f "$HS/tests/dump_music_html.lua" ] || [ ! -f "$HS/tests/test_music_js.js" ]; then
+    echo "   ⚠️  skipped — harness files missing from tests/"
+    SKIPPED="$SKIPPED music-js"
+else
+    STAGES_RUN=$((STAGES_RUN + 1))
+    if "$LUA" "$HS/tests/dump_music_html.lua" "$HS/modules" "$WORK/music-rows.json" \
+            > "$WORK/music.html" 2>"$WORK/music.err"; then
+        out=$("$NODE" "$HS/tests/test_music_js.js" "$WORK/music.html" "$WORK/music-rows.json" 2>&1)
+        line=$(echo "$out" | grep -E '[0-9]+ passed, [0-9]+ failed' | tail -1)
+        if echo "$line" | grep -q ', 0 failed'; then
+            echo "   ✅ test_music_js — $line"
+            tally "$line"
+        else
+            echo "   ❌ test_music_js — ${line:-did not finish}"
+            echo "$out" | grep -E '^\s*(❌|FAIL)' | head -10 | sed 's/^/        /'
+            FAILED=$((FAILED + 1))
+        fi
+    else
+        echo "   ❌ the player page's HTML could not be generated:"
+        tail -5 "$WORK/music.err" | sed 's/^/        /'
+        FAILED=$((FAILED + 1))
+    fi
+fi
+echo ""
+
 # ---------------------------------------------------------------- the verdict
 echo "──"
 if [ -n "$SKIPPED" ]; then

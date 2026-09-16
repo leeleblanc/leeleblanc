@@ -5,6 +5,87 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.231.1 — 🔤 A TRACK IS NAMED BY ITS FILE, AND A FILE MAY BE CALLED
+                 ANYTHING (modules/music_player.lua, tests/test_music_js.js):
+  LL, on the 6.231.0 zip, before installing it: "Did you do a full
+  regression set of tests on the music player? I just like to detect any
+  potential issues now."
+
+  THE HONEST ANSWER WAS NO, AND THE GAP HAD A SHAPE. 6.231.0 shipped 93
+  Lua checks and fifteen mutations, and every one of them is real — they
+  prove what PLAYS: which files hs.sound can open, what comes next under
+  each repeat mode, what a Finder drag yielded, how long a track has run,
+  what the store does with a row written by an older build. But the
+  DRAWING, the DROP and ↑↓ / ⏎ / space / ⌘1–9 all live in the page's
+  JavaScript, and the Lua suite can only grep for those. Four other pages
+  in this config have their own executed suite — the Capture Pad, the
+  screenshot editor, unified search, the vault, stages 3, 3b, 3c and 3d.
+  This one simply did not, and the reason is worth writing down: the
+  module was new, the Lua side was the hard part, and the page felt like
+  markup rather than code. It is code. Writing the suite found a bug in
+  its first minute.
+
+  🔤 THE BUG. Every track name went into `innerHTML` unescaped:
+
+        + '<span class="nm">' + r.n + '</span>'
+
+  so a file called "Simon & Garfunkel - The Sound of <Silence>.mp3" lost
+  the half of itself the browser read as a tag, and a name is the ONE
+  string in this card that comes from outside — a file may be called
+  anything macOS lets a person type. A Lua `esc()` had been written for
+  exactly this and was NEVER CALLED: dead code with a comment on it,
+  which is this project's own name for the thing no test can fail.
+
+  📍 AND THE ESCAPING BELONGS IN THE PAGE, NOT IN LUA — not as a
+  preference, as arithmetic. The same string is drawn twice: the row
+  writes it with innerHTML, and the header writes it with textContent.
+  Escape it in Lua and the header reads out "Simon &amp; Garfunkel". One
+  source string, two destinations with opposite rules, so the escaping
+  goes where the markup is built.
+
+  🔔 A NAME THE CARD CANNOT ENCODE IS NOT AN EMPTY QUEUE. `rowsJson`
+  ended with `return (ok and raw) or "{}"`, so a queue hs.json refused
+  drew an EMPTY CARD over music that was still playing and said so to
+  nobody — 6.196.1's rule ("not yet" and "never" must not read alike) in
+  the one function every redraw passes through. Worse, the page then
+  threw on `S.rows.length` and never redrew again for the rest of the
+  session: the clock stopped, the queue vanished, the music played on.
+  Both halves are closed. The refusal takes the 🔔 door (6.215.0) and
+  answers a payload that still names what happened, and `draw()` reads
+  every list by length off a payload that may be missing anything.
+
+  🧪 WHAT THIS RELEASE REALLY IS: tests/dump_music_html.lua and
+  tests/test_music_js.js — stage 3e, 55 checks, TWELVE mutations and
+  twelve bites. It drives the real handlers: a drop with a uri-list, a
+  drop with only text/plain, a drop carrying neither (the names are
+  reported, which is what stops the card reading as broken), a
+  dataTransfer that refuses to be read at all, ⌘1–9, the arrows, ⏎ on the
+  row LUA said was highlighted, space, ⌫, Esc, the F18 keyup and only the
+  F18 keyup, every button, a click on a row and a click on nothing, and
+  the clock.
+
+  🚚 AND THE ROWS IT DRAWS ARE `mp.rowsJson()`'s OWN OUTPUT. 6.203.0's
+  rule — a harness that hand-builds the message the page receives cannot
+  see a bug in the sending — so the dump writes the real payload for a
+  queue of names a music folder is really allowed to hold (an ampersand,
+  a pair of angle brackets, a quote) and the JS suite draws that file.
+
+  🧪 ONE MORE, AND IT IS THE THIRD TIME IN TWO RELEASES: the first
+  mutation run KILLED the suite instead of failing it. Deleting the space
+  branch left `env.sent[4]` undefined and the file ended mid-run with "0
+  failed" never printed. Every message is read through `at(env, n)` now,
+  which answers falsely rather than indexing a nil (6.186.0).
+
+  📋 WHAT IS STILL NOT PROVEN, said plainly rather than left as a gap: a
+  real Mac. hs.sound actually decoding an m4a, WebKit actually filling
+  text/uri-list from a Finder drag, and ⇪⇧pad. actually arriving as a
+  numpad decimal point are the three things no gate on Linux can answer,
+  and they are exactly what the verify block asks LL to do.
+
+  9,332 -> 9,391 checks · 78 -> 79 stages.
+
+  RULE, general: a page this config draws is a page the gate runs.
+
 NEW IN 6.231.0 — 🎵 A MINI MUSIC PLAYER YOU DROP FILES ON (⇪⇧pad., modules/music_player.lua):
   LL, 2026-09-13: "⇪⇧numpad. opens a lightweight player in the top-right
   corner like the 3-month calendar. Repeat one / repeat all; history

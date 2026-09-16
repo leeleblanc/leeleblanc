@@ -4,9 +4,42 @@
 -- =====================================================================
 -- 09-16-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.231.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.231.1
 -- =====================================================================
 
+-- NEW IN 6.231.1 — 🔤 A TRACK IS NAMED BY ITS FILE, AND A FILE MAY BE
+--                  CALLED ANYTHING (modules/music_player.lua):
+--   6.231.0's card was never run. Its 93 Lua checks prove what PLAYS —
+--      what comes next, what a drop yielded, how long a track has run —
+--      and every one of them is honest, but the drawing, the drop and
+--      ↑↓/⏎/space live in the PAGE, and the page had no suite. Four other
+--      pages in this config have one (stages 3, 3b, 3c, 3d); this one was
+--      simply missing, and asking for it found a bug in the first minute.
+--   🔤 THE BUG: every track name went into innerHTML unescaped, so
+--      "Simon & Garfunkel - The Sound of <Silence>.mp3" lost the half of
+--      itself the browser read as a tag. A Lua `esc()` had been written
+--      for exactly this and was NEVER CALLED — dead code with a comment
+--      on it. The escaping belongs in the PAGE, not in Lua, and that is
+--      not a preference: the header writes the same string with
+--      textContent, where an entity would be read out literally. So the
+--      row escapes and the header does not, from one source string.
+--   🔔 AND A NAME THE CARD CANNOT ENCODE IS NOT AN EMPTY QUEUE. rowsJson
+--      answered "{}" when hs.json refused, which drew an empty card over
+--      a queue that was still playing and said so to nobody — and the
+--      page then THREW on `S.rows.length` and never redrew again for the
+--      rest of the session. Both halves are closed: the refusal takes the
+--      🔔 door and answers a payload that still names what happened, and
+--      draw() reads every list by length off a payload that may be
+--      missing anything.
+--   🧪 WHAT THIS RELEASE REALLY IS: tests/dump_music_html.lua +
+--      tests/test_music_js.js, stage 3e, 55 checks, TWELVE mutations and
+--      twelve bites — and the payload they draw is `mp.rowsJson()`'s own
+--      output over a queue of names a music folder is really allowed to
+--      hold, because a harness that hand-builds the message the page
+--      receives cannot see a bug in the sending (6.203.0).
+--      · 9,332 -> 9,391 checks · 78 -> 79 stages.
+--      RULE, general: a page this config draws is a page the gate runs.
+--
 -- NEW IN 6.231.0 — 🎵 A MINI MUSIC PLAYER YOU DROP FILES ON (⇪⇧pad., modules/music_player.lua):
 --   LL asked for it on 2026-09-13 and answered its three questions the
 --      next day, which is what decided the scope: "just mp3, m4a" (so the
@@ -43,43 +76,12 @@
 --   `_G.musicReport()` · `settings = { music_player = { enabled = false } }`
 --      · 71 -> 72 modules · 9,239 -> 9,332 checks.
 --
--- NEW IN 6.230.0 — 🔗 TWO NAMES FOR ONE TREE IS ONE WATCHER (modules/file_tracker.lua):
---   LL's first report on 6.229.0 listed both of these as watched:
---         /Users/leeleblanc/OneDrive
---         /Users/leeleblanc/Library/CloudStorage/OneDrive-Personal
---      and `hs.fs.symlinkAttributes(p, "mode")` answered "link" for the
---      first. ONE tree, two watchers — two wake-ups for every file event in
---      the busiest folder on the Mac, inside the release whose whole
---      purpose was to cut wake-ups.
---   🚨 WHY NEITHER GUARD SAW IT. ft.covers compares TEXT, and neither path
---      is a prefix of the other, so 6.229.0's duplicate guard had nothing
---      to catch. And hs.fs.attributes FOLLOWS a link, so the listing read
---      the symlink as an ordinary folder. RULE: a check that identifies a
---      thing by its PATH is not a check about the thing — resolve before
---      you compare, and ask symlinkAttributes when the question is "what is
---      this", because attributes answers about the destination.
---   💡 RESOLVE, THEN DE-DUPLICATE — never "skip every symlink". A link to a
---      folder he really does keep elsewhere is a folder he wants a trail
---      of; what is wrong is watching one tree twice, not reaching it by a
---      link. ft.realOf resolves (realpath, with symlinkAttributes as the
---      belt and the path itself as the floor — it degrades, it never
---      throws); ft.dedupeRoots is PURE and keeps one watcher per real tree.
---   👁 THE REAL PATH WINS THE SLOT, never whichever name the listing
---      returned first, because the survivor is the name FSEvents itself
---      reports — and the report's new "linked :" line NAMES what was
---      reached by another name. A root that vanishes with no explanation
---      is indistinguishable from a folder that stopped being watched.
---   🚨 AND THE YIELD LINE DIVIDED BY A ROW THAT WAS NOT THERE: over a
---      session with no rows it printed "65 path(s) for every row kept",
---      which is `max(rows, 1)` — a division that did not happen, dressed as
---      a measurement. No rows is its own answer now. 9,212 -> 9,237 checks.
---
--- (6.229.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.230.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.231.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.231.1
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -176,7 +178,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.231.0"
+_G.configVersion = "6.231.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

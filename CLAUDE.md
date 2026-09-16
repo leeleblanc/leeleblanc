@@ -257,6 +257,27 @@ work Mac.
   no binary, identical on the work Mac; "a full Apple Keyboard" on both →
   ⇪⇧pad. needs no fallback; "native volume keys work" → NO volume and NO
   seek in the player, stated as a decision rather than left as a gap.
+  🔤 A TRACK IS NAMED BY ITS FILE, AND A FILE MAY BE CALLED ANYTHING
+  (6.231.1). Every name went into `innerHTML` unescaped and a Lua `esc()`
+  written for exactly that was NEVER CALLED. THE ESCAPING BELONGS IN THE
+  PAGE, and that is arithmetic not taste: the row draws the name with
+  innerHTML and the header draws THE SAME STRING with textContent, where
+  an entity is read out literally — one source, two destinations, opposite
+  rules. 🔔 And a name the card cannot ENCODE is not an empty queue:
+  `rowsJson`'s `or "{}"` drew an empty card over music that was still
+  playing (6.196.1's rule, in the one function every redraw passes
+  through) and the page then threw on `S.rows.length` and never redrew
+  again. The refusal takes the door; `draw()` reads every list by length
+  off a payload that may be missing anything.
+  🧪 AND THE PAGE HAD NO SUITE AT ALL, which is why none of that was
+  known: 6.231.0's 93 Lua checks prove what PLAYS, and the drawing, the
+  drop and ↑↓/⏎/space live in the page. tests/dump_music_html.lua +
+  tests/test_music_js.js, stage 3e — and the rows it draws are
+  `mp.rowsJson()`'s OWN output over names a music folder really holds
+  (6.203.0: a harness that hand-builds the message cannot see a bug in
+  the sending). RULE, general: A PAGE THIS CONFIG DRAWS IS A PAGE THE
+  GATE RUNS — four pages had a suite and the fifth did not, and asking
+  for it found the bug in a minute.
   🧪 THE SUITE DIED INSTEAD OF FAILING under one of its own mutations —
   `SOUNDS[#SOUNDS]` was nil and the run ended mid-file with "0 failed"
   never printed. 6.186.0's rule in a new place: a test HELPER answers
@@ -1582,7 +1603,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 PENDING.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -1646,10 +1667,11 @@ as the fix when a loss lands.
 | 6.229.0 | 🎯 the file tracker watches the folders inside his home folder, one watcher each — ~/Library is not one of them (60,115 wake-ups a day to keep 49 rows) | pending |
 | 6.230.0 | 🔗 a symlink is not a second folder: ~/OneDrive and the CloudStorage folder are one tree and one watcher (his 6.229.0 report named it in 47 seconds) | pending |
 | 6.231.0 | 🎵 the mini music player, ⇪⇧pad. — drop files on a corner card, ↑↓ / ⌘1–9 / space, repeat one or all, elapsed time, history | pending |
+| 6.231.1 | 🔤 the player's page is RUN by the gate now (stage 3e, 55 checks, 12 mutations) — and it found a track name with an & or a < in it losing half of itself | pending |
 
-Running total: 14 wins · 5 losses · 16 pending (6.215.0, 6.217.0, 6.218.0,
+Running total: 14 wins · 5 losses · 17 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
-6.227.0, 6.228.0, 6.229.0, 6.230.0, 6.231.0).
+6.227.0, 6.228.0, 6.229.0, 6.230.0, 6.231.0, 6.231.1).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
@@ -1931,6 +1953,20 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   If the report ever says "⚠️ could not list …", that Mac refused to list
   its own home folder and the watch fell back to the old wide one — paste
   the line, it is the evidence.
+- 6.231.1 verify with LL — 🔤 A NAME WITH AN & OR A < IN IT: install
+  (carries 6.231.0, so run THAT block first — it is the whole feature).
+  Then the one thing this release changed that you can see: take a track
+  whose file name has an "&" in it (Simon & Garfunkel, AC/DC, anything
+  with an ampersand) and drop it on the card. The name in the list must
+  read exactly as the file does. On 6.231.0 an "&" could swallow the rest
+  of the word and a "<" swallowed everything after it.
+  🚨 NOTHING ELSE CHANGED. No key, no behaviour, no new switch. The rest
+  of this release is the gate: the card's page is executed by the test
+  suite now, 55 checks over the drop, the arrows, ⏎, space, ⌫, ⌘1–9 and
+  the buttons, where before only the Lua half was tested.
+  If a name is still wrong in the list, paste the FILE NAME exactly as
+  Finder shows it — the character is the evidence.
+
 - 6.231.0 verify with LL — 🎵 THE MUSIC PLAYER: install (carries 6.230.0).
   Press ⇪⇧pad. (the numpad's decimal point). A small dark card appears in
   the TOP-RIGHT corner. Press it again — it closes.
