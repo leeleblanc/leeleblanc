@@ -61,7 +61,25 @@ local NOW = 1787000000   -- a fixed "now" so retention maths is deterministic
 hs = {
     configdir = nil,   -- replaced once DIR exists; file_tracker reads it
                        -- directly for the ~/.hammerspoon exclusion rules
-    fs = { attributes = function() return nil end,
+    -- 🗂 6.229.0: the tracker LISTS the home folder now, to watch the
+    -- folders inside it instead of the whole thing. The stub answers from a
+    -- table rather than the disk so the gate stays hermetic — and
+    -- `attributes` still returns nil for the one-argument call the rename
+    -- pairing makes, which is a different question (does this file exist).
+    fs = { attributes = function(path, what)
+               if what == "mode" and _G.FAKE_DIRS and _G.FAKE_DIRS[path] then
+                   return "directory"
+               end
+               return nil
+           end,
+           dir = function(path)
+               local names, i = (_G.FAKE_TREE or {})[path], 0
+               if not names then error("no such directory: " .. tostring(path)) end
+               return function()
+                   i = i + 1
+                   return names[i]
+               end
+           end,
            mkdir = function() return true end },
     pathwatcher = { new = function(_, fn)
         local w = { fn = fn }
@@ -445,7 +463,12 @@ local CSV8 = L8 .. "/file_changes-Test-Mac.csv"
 -- while looking like a broken feature. (Worth keeping: it says the tracker
 -- does NOT feed itself.)
 local function wipe8()
-    os.execute("rm -rf '" .. D8 .. "' && mkdir -p '" .. H8 .. "' '" .. L8 .. "'")
+    os.execute("rm -rf '" .. D8 .. "' && mkdir -p '" .. H8 .. "/Documents' '" .. L8 .. "'")
+    -- 6.229.0: one folder inside the home folder, so the narrowed watch has
+    -- exactly one thing to watch and every 6.228.0 check below still counts
+    -- the same single watcher.
+    _G.FAKE_TREE = { [H8] = { ".", "..", "Documents" } }
+    _G.FAKE_DIRS = { [H8 .. "/Documents"] = true }
 end
 
 local DEGRADES = {}
@@ -599,8 +622,20 @@ check("🚨 the report prints as ONE string (6.179.1 — the console gate eats "
 local rep = printed[1] or ""
 check("...it says macOS has not woken it, which is NOT the same as 0 ms",
       rep:find("has not woken this module once", 1, true) ~= nil, rep)
-check("...it names the whole home folder as what it watches",
-      rep:find("YOUR WHOLE HOME FOLDER", 1, true) ~= nil, rep)
+-- 6.229.0 REPLACED THIS CHECK RATHER THAN DELETING IT. Until this release
+-- it read "it names the whole home folder as what it watches", and that was
+-- true and was the bug. What it must name now is the narrowed list AND what
+-- it stopped watching — a report that quietly said less would be the worst
+-- outcome of this change.
+check("...it names each folder it watches, by path",
+      rep:find(H8 .. "/Documents", 1, true) ~= nil, rep)
+check("🎯 ...and it says WHY that list, not the whole home folder",
+      rep:find("~/Library is not one of them", 1, true) ~= nil, rep)
+check("📏 ...and it names the cost it just took on — a loose file at the "
+      .. "top of ~ is not watched any more",
+      rep:find("loose file at the top of ~", 1, true) ~= nil, rep)
+check("...and it hands over the reach knob beside the off switch",
+      rep:find("folders = ", 1, true) ~= nil, rep)
 check("...and it hands over the off switch",
       rep:find("settings = { file_tracker = { enabled = false } }", 1, true) ~= nil)
 
@@ -694,6 +729,171 @@ check("...it is still TIMED and COUNTED — the slow event is exactly the one "
       .. "likely to throw", M16.config.stats.callbacks == 2,
       M16.config.stats.callbacks)
 check("...and it is SAID, not swallowed", logged("File tracker callback error"))
+
+-- =====================================================================
+-- 🎯 6.229.0 — WHAT IS WATCHED, decided off a list of names
+-- =====================================================================
+-- LL, 2026-09-15: "Can I get a paper trail of /Users/leeleblanc or is that
+-- too broad?" His own 6.228.0 report answered it — 60,115 wake-ups and
+-- 16,597 ms of main thread across a day, to keep 49 rows — so the folders
+-- are chosen now instead of taking the home folder whole. ft.watchRoots is
+-- PURE, which is what lets the whole rule be proven here with no Mac and no
+-- file system underneath it.
+--
+-- 🚨 THE SECTION WRAPS ITSELF AND COUNTS ITS OWN CHECKS (6.186.0): a throw
+-- in here would delete every check after it while the run still said
+-- "0 failed".
+out("\n=== 🎯 6.229.0 — the watch is narrowed at the watch ===\n")
+local before229 = pass + fail
+local ok229, err229 = pcall(function()
+
+local MW = boot228()
+local ftw = MW.config
+local HOME = "/Users/lee"
+
+-- The shape of a real home folder, as hs.fs.dir would hand it over.
+local REAL = { "Applications", "Desktop", "Documents", "Downloads",
+               "Library", "Movies", "Music", "Pictures",
+               ".hammerspoon", ".Trash", ".ssh" }
+
+local function has(list, want)
+    for _, v in ipairs(list) do if v == want then return true end end
+    return false
+end
+local function skippedHas(list, want)
+    for _, v in ipairs(list) do if v.name == want then return true end end
+    return false
+end
+
+local kept, skipped = ftw.watchRoots(HOME, nil, REAL)
+
+check("🎯 ~/Library is NOT watched — that is the whole release",
+      not has(kept, HOME .. "/Library"), table.concat(kept, " "))
+check("...and it is NAMED as skipped, never silently dropped",
+      skippedHas(skipped, "Library"))
+check("...while the folders his files are actually in ARE watched",
+      has(kept, HOME .. "/Documents") and has(kept, HOME .. "/Desktop")
+      and has(kept, HOME .. "/Downloads"), table.concat(kept, " "))
+
+-- 🚨 THE MUTATION THIS PAIR EXISTS FOR: "skip everything hidden" is one
+-- character shorter and silently retires a decision fileTrackerExcludedPath
+-- makes on purpose — ~/.hammerspoon IS tracked, because config edits and
+-- init.lua swaps are worth a paper trail. A rule that narrows a watch must
+-- not quietly un-decide something the exclusions already decided.
+check("🔒 .hammerspoon survives the hidden rule — the exclusions keep it "
+      .. "deliberately", has(kept, HOME .. "/.hammerspoon"),
+      table.concat(kept, " "))
+check("...but every OTHER hidden folder is skipped",
+      not has(kept, HOME .. "/.Trash") and not has(kept, HOME .. "/.ssh"),
+      table.concat(kept, " "))
+check("...and . and .. are never watch roots",
+      not has(kept, HOME .. "/.") and not has(kept, HOME .. "/.."))
+
+-- OneDrive lives INSIDE ~/Library on this Mac. Skipping Library would take
+-- it with it, and the tracker's whole cross-machine value with it.
+local CLOUD = HOME .. "/Library/CloudStorage/OneDrive-Personal"
+local kept2 = ftw.watchRoots(HOME, CLOUD, REAL)
+check("☁️ OneDrive is added back BY NAME even though it lives inside the "
+      .. "folder that was skipped", has(kept2, CLOUD), table.concat(kept2, " "))
+check("...and skipping Library still holds around it",
+      not has(kept2, HOME .. "/Library"), table.concat(kept2, " "))
+
+-- 🚨 AND THE OPPOSITE CASE, which costs double: a cloud folder that a kept
+-- folder already contains would be a SECOND pathwatcher over the same tree,
+-- so macOS wakes this module twice for one file event — the exact cost this
+-- release exists to cut, paid in duplicate.
+local INSIDE = HOME .. "/Documents/OneDrive"
+local kept3 = ftw.watchRoots(HOME, INSIDE, REAL)
+check("🚨 a cloud folder already inside a watched folder is NOT watched "
+      .. "twice", not has(kept3, INSIDE), table.concat(kept3, " "))
+check("...and ft.covers is the thing that knows",
+      ftw.covers(HOME .. "/Documents", INSIDE)
+      and not ftw.covers(HOME .. "/Documents", HOME .. "/DocumentsOld/x"))
+
+-- A home folder with nothing in it is not an error, and is not a reason to
+-- watch everything: it is simply nothing to watch.
+local kept4 = ftw.watchRoots(HOME, nil, {})
+check("an empty listing watches nothing, and says nothing was skipped",
+      #kept4 == 0)
+
+-- ---- the listing half ------------------------------------------------
+-- 🚨 A LOOSE FILE AT THE TOP OF ~ IS NOT A FOLDER and must never become a
+-- watch root — hs.pathwatcher wants a directory, and this is the one place
+-- that can tell them apart.
+_G.FAKE_TREE = { [HOME] = { ".", "..", "Documents", "notes.txt" } }
+_G.FAKE_DIRS = { [HOME .. "/Documents"] = true }
+local dirs = ftw.homeDirs(HOME)
+check("📁 the listing keeps DIRECTORIES only — a loose file is not a watch "
+      .. "root", dirs and #dirs == 1 and dirs[1] == "Documents",
+      dirs and table.concat(dirs, " "))
+
+-- 🔎 "COULD NOT LIST" AND "NOTHING THERE" MUST NOT READ THE SAME (6.196.1's
+-- rule, in the place that decides what gets watched at all): an empty answer
+-- would watch NOTHING and report it as normal — the feature gone, silently.
+check("🔎 a Mac that cannot list its home folder answers nil, not {}",
+      ftw.homeDirs(HOME, function() error("no") end,
+                   function() return "directory" end) == nil)
+check("...and a Hammerspoon with no hs.fs at all says the same",
+      ftw.homeDirs(HOME, nil, nil) == nil or type(hs.fs.dir) == "function")
+
+-- ---- end to end, through warm() --------------------------------------
+wipe8()
+DEGRADES = {}
+_G.FAKE_TREE = { [H8] = { ".", "..", "Documents", "Library", ".ssh" } }
+_G.FAKE_DIRS = { [H8 .. "/Documents"] = true, [H8 .. "/Library"] = true,
+                 [H8 .. "/.ssh"] = true }
+local M17 = boot228()
+if type(M17.warm) == "function" then pcall(M17.warm) end
+check("🎯 warm() starts ONE watcher for the one folder that earns it, not "
+      .. "one for the home folder", #_G.fileTrackerWatchers == 1,
+      #_G.fileTrackerWatchers)
+check("...and nothing degraded on the way — this is the normal path",
+      #DEGRADES == 0, table.concat(DEGRADES, " | "))
+
+-- 🔌 THE REACH IS HIS, and it is a settings line, not a release: the same
+-- rule as every other knob here, applied to the one thing 6.228.0 said was
+-- his call.
+wipe8()
+_G.FAKE_TREE = { [H8] = { ".", "..", "Documents", "Library" } }
+_G.FAKE_DIRS = { [H8 .. "/Documents"] = true, [H8 .. "/Library"] = true }
+local M18 = boot228()
+M18.config.folders = { H8 .. "/Downloads", H8 .. "/Pictures" }
+if type(M18.warm) == "function" then pcall(M18.warm) end
+check("🔌 settings = { file_tracker = { folders = ... } } is watched "
+      .. "VERBATIM — his list, not ours", #_G.fileTrackerWatchers == 2,
+      #_G.fileTrackerWatchers)
+
+-- 🚨 AND THE FALLBACK NEVER WATCHES NOTHING. A Mac that cannot answer about
+-- its own home folder loses the paper trail entirely if this returns an
+-- empty list — so it watches wide, the slow way, and SAYS SO through the 🔔
+-- door rather than degrading into silence.
+wipe8()
+DEGRADES = {}
+_G.FAKE_TREE = {}                       -- hs.fs.dir will throw on H8 now
+local M19 = boot228()
+if type(M19.warm) == "function" then pcall(M19.warm) end
+check("🚨 a Mac that cannot list its home folder still watches it — the "
+      .. "paper trail degrades, it never disappears",
+      #_G.fileTrackerWatchers >= 1, #_G.fileTrackerWatchers)
+check("🔔 ...and it takes the door, so LL is told rather than finding out "
+      .. "in a month", #DEGRADES == 1
+      and DEGRADES[1]:find("could not list", 1, true) ~= nil,
+      table.concat(DEGRADES, " | "))
+check("...and the report's watching line carries the same warning",
+      (function()
+           printed = {}
+           _G.fileTrackerReport()
+           return (printed[1] or ""):find("could not list", 1, true) ~= nil
+       end)(), printed[1])
+
+end)
+if not ok229 then
+    check("🚨 the 6.229.0 section ran to the end without throwing", false,
+          tostring(err229))
+end
+check("🚨 ...and it asserted every check it was written to make (a throw "
+      .. "deletes the rest while the run still says 0 failed)",
+      (pass + fail) - before229 >= 20, (pass + fail) - before229)
 
 os.execute("rm -rf '" .. DIR .. "'")
 

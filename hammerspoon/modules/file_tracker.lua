@@ -60,8 +60,12 @@
 -- locks, .tmp/.part/.crdownload) are ignored to keep the log humane.
 --
 -- ✏️ EDIT THESE — what to watch and the hotkey:
--- Watching your ENTIRE home folder + your OneDrive. To keep that sane:
---   • ~/Library is excluded (hundreds of cache/pref events per minute)
+-- Watching the FOLDERS INSIDE your home folder, one watcher each, plus your
+-- OneDrive. Until 6.229.0 it was the whole home folder in one watcher, and
+-- ~/Library came free with it: 60,115 wake-ups to keep 49 rows in a day.
+-- To keep that sane:
+--   • ~/Library is not WATCHED at all now (it used to be watched and then
+--     thrown away in Lua, which paid the whole cost and kept nothing)
 --     — EXCEPT OneDrive, which lives inside it and gets its own watcher
 --   • hidden folders/files anywhere (.git, .Trash, .hammerspoon…) excluded
 --   • our own telemetry (the OneDrive Logs folder + Backups/Hammerspoon)
@@ -173,6 +177,178 @@ function M.setup(core)
             s.slowWrite = s.slowWrite + 1
             tooSlow("a CSV write", ms)
         end
+    end
+
+    -- ===================================================================
+    -- 🎯 6.229.0 — THE WATCH IS THE COST, AND IT IS NARROWED AT THE WATCH
+    -- ===================================================================
+    -- LL, 2026-09-15, having installed 6.228.0 and run it for a day:
+    -- "Can I get a paper trail of /Users/leeleblanc or is that too broad?"
+    -- His own report answered him, and it is the whole reason this release
+    -- exists:
+    --
+    --     events : 60115 wake-up(s) · 204662 path(s) seen · 49 row(s) written
+    --     wake-ups : 16597 ms total · worst 58 ms
+    --
+    -- Sixty THOUSAND wake-ups and sixteen and a half SECONDS of main thread,
+    -- to keep forty-nine rows. Four thousand paths examined for every row
+    -- that survived. Every one of those wake-ups queues behind it whatever
+    -- click the Mac was about to deliver, which is his drag and drop.
+    --
+    -- 🔎 AND NOT ONE CROSSED 120 ms, so 6.228.0's alert never fired and was
+    -- right not to. THE INSTRUMENT MEASURED THE WRONG DIMENSION: ft.slowMs
+    -- guards a single expensive event, and the damage here is FREQUENCY —
+    -- sixty thousand cheap ones. A worst case of 58 ms says nothing about a
+    -- module that costs 58 ms sixty thousand times. RULE, and it generalises
+    -- past this file: a budget on the size of one event is not a budget on
+    -- the cost of the feature; when a cost is paid per wake-up, COUNT THE
+    -- WAKE-UPS.
+    --
+    -- 🚨 THE FILTERING WAS IN THE WRONG PLACE, AND THAT IS THE BUG.
+    -- fileTrackerExcludedPath already throws away everything under
+    -- ~/Library — but it throws it away in LUA, which is to say AFTER macOS
+    -- has woken the main thread, built the path array and handed it over.
+    -- The work was always wasted; only the wake-up was not. So the exclusion
+    -- moves to where it costs nothing: the folders are never watched, and
+    -- FSEvents never wakes us for them at all.
+    --
+    -- 💡 WHICH IS WHY THIS LOSES HIM NOTHING, and that is provable from his
+    -- own numbers rather than promised: the rows that stop arriving are the
+    -- rows the Lua exclusions were already discarding. 204,662 paths seen,
+    -- 49 rows kept. The 49 stay.
+    --
+    -- 📏 THE ONE COST, NAMED (a consequence you decide not to act on is one
+    -- you are obliged to name — 6.201.1): a LOOSE FILE sitting at the top of
+    -- ~ , in no folder at all, is no longer watched, and a NEW top-level
+    -- folder is picked up at the next reload rather than the moment it is
+    -- made. The report says both, and `folders` names the list by hand.
+    ft.folders = nil     -- nil: work it out from the home folder.
+                         -- A table of paths: watch exactly those, nothing else.
+    ft.skip    = { "Library" }   -- top-level names never watched. Library is
+                         -- macOS's folder, not his — caches, cookies,
+                         -- containers and the OneDrive sync engine, and every
+                         -- path in it was already being discarded in Lua.
+    -- Hidden folders are skipped, with ONE exception, because the path
+    -- exclusions go out of their way to KEEP it: ~/.hammerspoon is tracked
+    -- deliberately (config edits and init.lua swaps are worth a paper
+    -- trail). Narrowing the watch must not quietly retire a decision the
+    -- exclusions already made.
+    ft.keepHidden = { ".hammerspoon" }
+
+    ft.skipped  = {}
+    ft.watchWhy = "not worked out yet"
+
+    -- Does `root` already cover `path`? Two pathwatchers over the same tree
+    -- means macOS wakes us TWICE for one file event — the exact cost this
+    -- release exists to cut, paid in duplicate.
+    function ft.covers(root, path)
+        if type(root) ~= "string" or type(path) ~= "string" then return false end
+        if root == "" or path == "" then return false end
+        return path == root or path:sub(1, #root + 1) == (root .. "/")
+    end
+
+    -- PURE, and that is the point: every rule about WHAT IS WATCHED is
+    -- decided here, off a plain list of names, so the gate proves the whole
+    -- of it with no Mac and no file system. `names` is the top-level
+    -- DIRECTORY names in the home folder; the listing itself is ft.homeDirs.
+    function ft.watchRoots(home, cloud, names)
+        local kept, skipped = {}, {}
+        if type(home) ~= "string" or home == "" then return kept, skipped end
+        home = home:gsub("/+$", "")
+
+        local skip = {}
+        for _, n in ipairs(ft.skip or {}) do
+            if type(n) == "string" then skip[n:lower()] = true end
+        end
+        local keepHidden = {}
+        for _, n in ipairs(ft.keepHidden or {}) do
+            if type(n) == "string" then keepHidden[n:lower()] = true end
+        end
+
+        for _, n in ipairs(names or {}) do
+            if type(n) == "string" and n ~= "" and n ~= "." and n ~= ".." then
+                local low = n:lower()
+                if skip[low] then
+                    skipped[#skipped + 1] = { name = n, why = "noise — nothing here was ever logged" }
+                elseif n:sub(1, 1) == "." and not keepHidden[low] then
+                    skipped[#skipped + 1] = { name = n, why = "hidden" }
+                else
+                    kept[#kept + 1] = home .. "/" .. n
+                end
+            end
+        end
+
+        -- OneDrive lives INSIDE ~/Library on this Mac, so skipping Library
+        -- would take it with it. It is added back by name — unless a folder
+        -- already kept contains it, which would be two watchers over one
+        -- tree and two wake-ups for every file event in it.
+        if type(cloud) == "string" and cloud ~= "" then
+            cloud = cloud:gsub("/+$", "")
+            local already = false
+            for _, k in ipairs(kept) do
+                if ft.covers(k, cloud) then already = true ; break end
+            end
+            if not already then kept[#kept + 1] = cloud end
+        end
+        return kept, skipped
+    end
+
+    -- The thin IO half: the top-level DIRECTORIES of the home folder.
+    -- Returns nil when this Mac cannot answer, which is NOT the same as an
+    -- empty home folder — the caller falls back to the old whole-home watch
+    -- and says so, rather than silently watching nothing at all.
+    function ft.homeDirs(home, lister, statter)
+        lister  = lister  or (hs.fs and hs.fs.dir)
+        statter = statter or (hs.fs and hs.fs.attributes)
+        if type(lister) ~= "function" or type(statter) ~= "function" then return nil end
+        -- 🚨 `local names, ok = {}, pcall(...)` looks identical and is not:
+        -- Lua evaluates the whole right-hand side BEFORE the locals exist,
+        -- so the closure would close over a GLOBAL `names` that is nil, throw
+        -- on the first insert, and report this Mac as unable to list its own
+        -- home folder. Declared first, deliberately.
+        local names = {}
+        local ok = pcall(function()
+            for n in lister(home) do
+                if n ~= "." and n ~= ".." then
+                    local mode = statter(home .. "/" .. n, "mode")
+                    if mode == "directory" then names[#names + 1] = n end
+                end
+            end
+        end)
+        if not ok then return nil end
+        return names
+    end
+
+    -- Which folders will be watched, and why — one answer, so the report
+    -- and the watcher loop cannot disagree about it.
+    function ft.resolveFolders()
+        if type(ft.folders) == "table" and #ft.folders > 0 then
+            local list = {}
+            for _, f in ipairs(ft.folders) do
+                if type(f) == "string" and f ~= "" then list[#list + 1] = f end
+            end
+            if #list > 0 then
+                return list, {}, "settings = { file_tracker = { folders = ... } }"
+            end
+        end
+        local names = ft.homeDirs(core.homeDir)
+        if not names then
+            local why = "could not list " .. tostring(core.homeDir)
+                        .. " — watching the WHOLE home folder instead, which is"
+                        .. " the slow way round"
+            if type(core.degrade) == "function" then
+                pcall(core.degrade, "File tracker", why)
+            else
+                print("⚠️ File tracker: " .. why)
+            end
+            local wide = { core.homeDir }
+            if core.cloudDir and not ft.covers(core.homeDir, core.cloudDir) then
+                wide[#wide + 1] = core.cloudDir
+            end
+            return wide, {}, "⚠️ " .. why
+        end
+        local kept, skipped = ft.watchRoots(core.homeDir, core.cloudDir, names)
+        return kept, skipped, "your folders, one watcher each — ~/Library is not one of them"
     end
 
     local fileTrackerFolders = { core.homeDir }
@@ -593,6 +769,11 @@ function M.setup(core)
             return false, "off"
         end
         if #_G.fileTrackerWatchers > 0 then return true end
+        -- 🎯 6.229.0: worked out HERE, not at load, so a profile's
+        -- `settings` block (applied after setup returns) is read before a
+        -- single watcher exists — 6.228.0's rule, that a switch is only real
+        -- if the thing it governs starts after setup.
+        fileTrackerFolders, ft.skipped, ft.watchWhy = ft.resolveFolders()
         for _, folder in ipairs(fileTrackerFolders) do
             local ok, w = pcall(hs.pathwatcher.new, folder, fileTrackerCallback)
             if ok and w then
@@ -679,7 +860,7 @@ function M.setup(core)
         if #choices == 0 then
             table.insert(choices, {
                 text    = (q == "") and "No file changes recorded yet" or ("No matches for \"" .. q .. "\""),
-                subText = "Watching: home folder + OneDrive (edit list in init.lua §3.8)",
+                subText = "Watching " .. #fileTrackerFolders .. " folder(s) — _G.fileTrackerReport() names them",
             })
         end
         _G.choosers.fileTracker:choices(choices)
@@ -720,10 +901,21 @@ function M.setup(core)
         local slowMs = math.floor(tonumber(ft.slowMs) or 120)
 
         line("   state    : " .. tostring(ft.state))
+        line("   watching : " .. #fileTrackerFolders .. " folder(s) — "
+             .. tostring(ft.watchWhy))
         for _, f in ipairs(fileTrackerFolders) do
-            line("      watches " .. f
+            line("      " .. f
                  .. ((f == core.homeDir) and "   ← YOUR WHOLE HOME FOLDER" or ""))
         end
+        if #(ft.skipped or {}) > 0 then
+            local names = {}
+            for _, sk in ipairs(ft.skipped) do names[#names + 1] = sk.name end
+            line("   not      : " .. table.concat(names, ", "))
+            line("   ↳ macOS never wakes this module for those, and THAT is the")
+            line("     saving — every path in them was discarded anyway")
+        end
+        line("   ↳ a loose file at the top of ~ is not watched now, and a NEW")
+        line("     folder there is picked up at the next reload")
         line("   csv      : " .. tostring(fileTrackerFile))
         if core.cloudDir and tostring(fileTrackerFile):sub(1, #core.cloudDir)
                              == core.cloudDir then
@@ -746,6 +938,13 @@ function M.setup(core)
             line(("   writes   : %d · %.0f ms total · worst %.0f ms at %s · %d FAILED")
                  :format(s.writes, s.writeMs, s.writeWorstMs,
                          tostring(s.writeWorstAt), s.writeFails))
+            -- 🎯 6.229.0: the number that decided this release. A worst case
+            -- says nothing about a cost paid sixty thousand times, so the
+            -- report prints what the wake-ups BOUGHT beside what they cost.
+            if s.paths > 0 then
+                line(("   yield    : %d path(s) woke this module for every row kept")
+                     :format(math.floor(s.paths / math.max(s.rows, 1))))
+            end
             if (s.slowCb + s.slowWrite) > 0 then
                 line(("   ⚠️ SLOW   : %d over %d ms — %d wake-up(s) · %d write(s)")
                      :format(s.slowCb + s.slowWrite, slowMs, s.slowCb, s.slowWrite))
@@ -757,6 +956,8 @@ function M.setup(core)
             end
         end
         line("   off      : settings = { file_tracker = { enabled = false } }")
+        line("   reach    : settings = { file_tracker = { folders = "
+             .. "{ \"/Users/you/Documents\" } } }")
         line("   ↳ now    : _G.fileTracker.stopWatching()  ·  put it back with"
              .. " _G.fileTracker.startWatching()")
         print(table.concat(L, "\n"))

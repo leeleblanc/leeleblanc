@@ -5,6 +5,90 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.229.0 — 🎯 THE FILE TRACKER WATCHES YOUR FOLDERS, NOT YOUR WHOLE HOME (modules/file_tracker.lua):
+  LL, 2026-09-15, after a day on 6.228.0: "Can I get a paper trail of
+     /Users/leeleblanc or is that too broad?"
+
+  HIS OWN REPORT ANSWERED HIM, which is the whole reason this release
+  exists and the reason 6.228.0 was worth shipping as an instrument that
+  fixed nothing:
+
+     events   : 60115 wake-up(s) · 204662 path(s) seen · 49 row(s) written
+     wake-ups : 16597 ms total · worst 58 ms at 00:10:13
+     writes   : 49 · 42 ms total · worst 10 ms · 0 FAILED
+     ⚠️ slow   : none over 120 ms
+
+  Sixty thousand wake-ups and sixteen and a half SECONDS of main thread
+  across one day, to keep forty-nine rows. Four thousand paths examined
+  for every row that survived. Every one of those wake-ups queues behind
+  it whatever click the Mac was about to deliver — and a mouse-down
+  delayed past Finder's drag threshold is a drag that never starts.
+
+  🔎 AND NOT ONE OF THEM CROSSED 120 ms, so 6.228.0's alert never fired
+  and was right not to. THE INSTRUMENT MEASURED THE WRONG DIMENSION.
+  `ft.slowMs` guards a single expensive event; the damage here is
+  FREQUENCY — sixty thousand cheap ones. A worst case of 58 ms says
+  nothing whatever about a module that pays 58 ms sixty thousand times.
+  RULE, and it generalises past this file: a budget on the size of one
+  event is not a budget on the cost of a feature. When a cost is paid per
+  wake-up, COUNT THE WAKE-UPS.
+
+  🚨 THE FILTERING WAS IN THE WRONG PLACE, AND THAT IS THE BUG.
+  `fileTrackerExcludedPath` has always thrown away everything under
+  ~/Library — but it throws it away in LUA, which is to say AFTER macOS
+  has woken the main thread, built the path array and handed it over. The
+  work was always wasted; only the wake-up was not. So the exclusion moves
+  to where it costs nothing: those folders are never watched, and FSEvents
+  never wakes us for them at all. One pathwatcher per folder inside the
+  home folder, ~/Library not among them.
+
+  💡 WHICH IS WHY IT LOSES HIM NOTHING, and that is PROVABLE from his own
+  numbers rather than promised: the rows that stop arriving are precisely
+  the rows the Lua exclusions were already discarding. 204,662 paths seen,
+  49 rows kept. The 49 stay.
+
+  THREE RULES THE NARROWING HAD TO CARRY, each with its own mutation:
+    • OneDrive lives INSIDE ~/Library on this Mac, so skipping Library
+      would take it and the tracker's whole cross-machine value with it.
+      It is added back BY NAME.
+    • ~/.hammerspoon survives the hidden-folder rule, because
+      fileTrackerExcludedPath goes out of its way to KEEP it — config
+      edits and init.lua swaps are worth a paper trail. Narrowing a watch
+      must never quietly un-decide something the exclusions decided.
+    • A cloud folder that a kept folder already contains is NOT watched
+      twice: two pathwatchers over one tree means macOS wakes this module
+      twice for every file event in it — the exact cost this release cuts,
+      paid in duplicate. `ft.covers` is the thing that knows.
+
+  🔎 AND "COULD NOT LIST" IS NOT "NOTHING THERE" (6.196.1's rule, in the
+  place that decides what gets watched at all): `ft.homeDirs` returns nil,
+  never {}, when this Mac cannot answer — an empty answer would watch
+  NOTHING and report it as normal, the feature gone in silence. On nil the
+  watch falls back to the whole home folder, the slow way round, and takes
+  the 🔔 door so LL is told rather than finding out in a month.
+
+  📏 THE COST, NAMED, because a consequence you decide not to act on is
+  one you are obliged to name: a LOOSE FILE at the top of ~ , in no folder
+  at all, is not watched now, and a NEW top-level folder is picked up at
+  the next reload rather than the moment it is made. The report says both.
+  `settings = { file_tracker = { folders = { "..." } } }` names the list
+  by hand, and the reach stays his.
+
+  `ft.watchRoots` is PURE — every rule about what is watched is decided
+  off a plain list of names — so the gate proves all of it with no Mac and
+  no file system underneath it. Eight mutations bite. The report gained a
+  "watching :" line naming each folder and why, a "not :" line naming what
+  is no longer watched, and a "yield :" line — how many paths woke this
+  module for every row it kept, which is the number that decided this
+  release. 9,188 -> 9,212 checks.
+
+  🐛 FOUND WHILE BUILDING IT, and kept here because the shape recurs:
+  `local names, ok = {}, pcall(function() ... names ... end)` is not what
+  it looks like. Lua evaluates the whole right-hand side BEFORE the locals
+  exist, so the closure closed over a GLOBAL `names` that was nil, threw on
+  the first insert, and reported a perfectly healthy Mac as unable to list
+  its own home folder. The suite caught it on the first run.
+
 NEW IN 6.228.0 — 🕵️ THE FILE TRACKER IS TIMED, AND IT CAN BE TURNED OFF (modules/file_tracker.lua):
   LL, 2026-09-14: "Ok, we have a problem we solved already. I can't move
      files in drag and drop again. Checked again by a re-launch of

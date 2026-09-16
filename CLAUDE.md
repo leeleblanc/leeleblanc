@@ -145,6 +145,40 @@ work Mac.
   that shape today and is decorative because of it; fix it when that
   module is next opened. `settings = { file_tracker = { enabled =
   false } }`, `_G.fileTracker.stopWatching()`, `_G.fileTrackerReport()`.
+  🎯 6.229.0 — AND THE ANSWER WAS NEITHER HALF: it was HOW OFTEN. LL's
+  day-long report read 60,115 wake-up(s) · 204,662 path(s) seen · 49
+  row(s) written · 16,597 ms total · worst 58 ms · none over 120 ms. Four
+  thousand paths woke the module for every row that survived, and the
+  alert never fired because no single event was expensive. THE INSTRUMENT
+  MEASURED THE WRONG DIMENSION — `ft.slowMs` budgets ONE event and the
+  damage was FREQUENCY. RULE, general: a budget on the size of one event
+  is not a budget on the cost of a feature; when a cost is paid per
+  wake-up, COUNT THE WAKE-UPS, and print what they BOUGHT beside what they
+  cost (the report's "yield :" line).
+  🚨 THE FILTERING WAS IN THE WRONG PLACE. fileTrackerExcludedPath had
+  always discarded everything under ~/Library — in LUA, which is AFTER
+  macOS woke the main thread and built the path array. The work was always
+  wasted; only the wake-up was not. It moved to the WATCH: one
+  pathwatcher per folder inside the home folder, ~/Library not among them,
+  so FSEvents never wakes us for it. WHICH LOSES HIM NOTHING, provable
+  from his own numbers rather than promised — the rows that stop arriving
+  are the rows already being discarded. GENERAL: an exclusion that runs
+  after the expensive thing has happened is not a filter, it is a receipt.
+  `ft.watchRoots` is PURE and carries three rules with their own
+  mutations: OneDrive is added back BY NAME (it lives inside ~/Library);
+  ~/.hammerspoon survives the hidden rule because the exclusions keep it
+  on purpose (narrowing a watch must not quietly un-decide something the
+  exclusions decided); and a cloud folder a kept folder already contains
+  is never watched twice (`ft.covers`) — two watchers over one tree is two
+  wake-ups per event. `ft.homeDirs` returns nil, NEVER {}, when the Mac
+  cannot list: an empty answer would watch nothing and read as normal, so
+  nil falls back to the whole home folder and takes the 🔔 door. COST
+  NAMED: a loose file at the top of ~ is unwatched, a new folder there
+  waits for a reload; `settings = { file_tracker = { folders = {...} } }`.
+  🐛 `local names, ok = {}, pcall(function() … names … end)` is NOT what it
+  looks like — Lua evaluates the whole right-hand side before the locals
+  exist, so the closure took a nil GLOBAL `names`, threw, and reported a
+  healthy Mac as unable to list its own home folder. Declare first.
   🧪 THE DOOR'S FIRST TWO CHECKS PASSED WITH THE WRITE'S OWN ALERT
   DELETED — a slow write is INSIDE the wake-up containing it, so the
   wake-up alerts on the same event with the same tool name and the same
@@ -1534,10 +1568,11 @@ as the fix when a loss lands.
 | 6.226.0 | 🔤 the OCR junk filter, tier 1: single characters and punctuation-only tokens dropped at the one door, plus `_G.ocrCleanHistory()` for the log he already has | pending |
 | 6.227.0 | 🔖 ⇪⇧V keeps its query and its highlighted row across a rebuild; Home/End jump to first/last while the picker is up | pending |
 | 6.228.0 | 🕵️ the file tracker is timed (wake-up vs write, apart), alerts past 120 ms, and can be switched off | pending |
+| 6.229.0 | 🎯 the file tracker watches the folders inside his home folder, one watcher each — ~/Library is not one of them (60,115 wake-ups a day to keep 49 rows) | pending |
 
-Running total: 14 wins · 5 losses · 13 pending (6.215.0, 6.217.0, 6.218.0,
+Running total: 14 wins · 5 losses · 14 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
-6.227.0, 6.228.0).
+6.227.0, 6.228.0, 6.229.0).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
@@ -1669,6 +1704,18 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   🕳 AND THE REPORT HAS NO REFUSAL COUNTS — 6.224.0's own rule, unpaid
   here: 1,131 paths and 0 rows cannot say whether they were ignored,
   excluded, non-file, or burst-limited. Add them with whatever ships.
+  ✅ NAMED BY HIS SECOND REPORT (2026-09-15, a full day): 60,115 wake-ups ·
+  204,662 paths · 49 rows · 16,597 ms · worst 58 ms · none over 120 ms.
+  NEITHER of the two candidate halves — it is the NUMBER of wake-ups, and
+  the durable rule above carries what that cost and why the alert was
+  right to stay quiet. SHIPPED AS 6.229.0 (fix (b), narrowing the watch,
+  which was his call and which he made by asking). STILL NOT DONE, and
+  each is its own release when its turn comes: (a) the write off the main
+  thread / out of OneDrive is UNTOUCHED and still correct (49 writes and
+  42 ms is not his problem today, so it waits for evidence); and the
+  refusal counts above. DO NOT SCORE 6.229.0 from this side; if his drag
+  is still slow on it, the next artefact is the same report, and the
+  wake-up count is the number to compare.
 - 🐞 ⇪Y CHROME HISTORY BEACHBALL (2026-09-13, LL: "Searching Chrome
   history: caused a beachball"; the stall guard relaunched at 72 s).
   NOT diagnosed. The export copies each profile's History DB and
@@ -1762,6 +1809,34 @@ built. The work Mac's storm report is still owed, on 6.215.0 now.
   the pieces a ' handed to the dictionary alone, and the "spelling :"
   block must no longer list `Doesn → Doesnt`. KNOWN AND ACCEPTED: a
   typo right before an apostrophe (somethign's) is not corrected now.
+- 6.229.0 verify with LL — 🎯 THE WATCH IS NARROW NOW: install (carries
+  6.228.0). FIRST, before anything else, Console:
+  `_G.fileTrackerReport()`. The "watching :" line must name your folders
+  one by one — Desktop, Documents, Downloads, Movies, Music, Pictures,
+  .hammerspoon, and the OneDrive folder — and `/Users/leeleblanc` must NOT
+  be one of them. A "not :" line names Library.
+  THEN THE TEST THAT MATTERS: use the Mac normally for a few hours, then
+  run it again. "events" is the whole answer. On 6.228.0 it read 60,115
+  wake-up(s) · 204,662 path(s) · 49 row(s) over a day. It should now be a
+  small fraction of that for the same day's work, and the row count should
+  be about the SAME — that is the claim: you lose the noise, not the paper
+  trail. The new "yield :" line says it in one number (4,000 paths per row
+  before; a much smaller number now).
+  AND THE FEATURE ITSELF MUST STILL WORK: move a file in Finder, then
+  ⌃⌥⇧F — the move is in the list, as ever.
+  🖱 THE DRAG: if drag and drop is still slow on this build, that is the
+  answer to a different question and I want the same report — the wake-up
+  count is the number to compare, not the milliseconds.
+  📏 KNOWN AND ACCEPTED, so it is not a surprise later: a file sitting
+  LOOSE at the top of /Users/leeleblanc (in no folder at all) is no longer
+  watched, and a NEW folder you make there starts being watched at the
+  next reload. If you want a folder that is not on the list, no release:
+  `settings = { file_tracker = { folders = { "/Users/leeleblanc/Documents",
+  "/Users/leeleblanc/Desktop" } } }` — that list is watched verbatim and
+  nothing else is.
+  If the report ever says "⚠️ could not list …", that Mac refused to list
+  its own home folder and the watch fell back to the old wide one — paste
+  the line, it is the evidence.
 - 6.228.0 verify with LL — 🕵️ THE FILE TRACKER, MEASURED: install
   (carries 6.227.0). FIRST, because it is why this release exists: move
   six or seven large files in Finder, the way you did with the TV

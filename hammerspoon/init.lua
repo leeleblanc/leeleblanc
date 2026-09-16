@@ -2,11 +2,42 @@
 -- * Working VERSION *
 -- =====================================================================
 -- =====================================================================
--- 09-15-26 using Claude          ← EDITED date. Bumped with every release.
+-- 09-16-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.228.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.229.0
 -- =====================================================================
 
+-- NEW IN 6.229.0 — 🎯 THE FILE TRACKER WATCHES YOUR FOLDERS, NOT YOUR WHOLE HOME (modules/file_tracker.lua):
+--   LL, after a day on 6.228.0: "Can I get a paper trail of
+--      /Users/leeleblanc or is that too broad?" His own report answered
+--      him: 60,115 wake-up(s) · 204,662 path(s) seen · 49 row(s) written,
+--      and 16,597 ms of main thread to keep those 49. Four thousand paths
+--      woke this module for every row that survived, and every wake-up
+--      queues behind it whatever click the Mac was about to deliver —
+--      which is his drag and drop.
+--   🔎 NOT ONE CROSSED 120 ms, so 6.228.0's alert never fired and was
+--      right not to. THE INSTRUMENT MEASURED THE WRONG DIMENSION: slowMs
+--      guards one expensive event, and the damage here is FREQUENCY. A
+--      worst case of 58 ms says nothing about a module that pays 58 ms
+--      sixty thousand times. When a cost is paid per wake-up, count the
+--      wake-ups.
+--   🚨 THE FILTERING WAS IN THE WRONG PLACE: ~/Library was already being
+--      thrown away — in LUA, after macOS had woken the main thread and
+--      built the path array. The work was always wasted; only the wake-up
+--      was not. It moves to where it costs nothing: those folders are
+--      never watched, so FSEvents never wakes us for them at all.
+--   💡 AND IT LOSES HIM NOTHING, provable from his own numbers rather than
+--      promised: the rows that stop arriving are the rows the exclusions
+--      were already discarding. 204,662 paths seen, 49 rows kept. The 49
+--      stay. OneDrive lives inside ~/Library and is added back BY NAME;
+--      ~/.hammerspoon survives the hidden rule because the exclusions keep
+--      it on purpose; a cloud folder already inside a watched one is not
+--      watched twice, which would be two wake-ups per event.
+--   📏 THE COST, NAMED: a loose file at the top of ~ is not watched now,
+--      and a new folder there is picked up at the next reload. The report
+--      says both. `settings = { file_tracker = { folders = {...} } }`
+--      names the list by hand. 9,188 -> 9,212 checks.
+--
 -- NEW IN 6.228.0 — 🕵️ THE FILE TRACKER IS TIMED, AND IT CAN BE TURNED OFF (modules/file_tracker.lua):
 --   LL: "I can't move files in drag and drop again. Checked again by a
 --      re-launch of Hammerspoon. Bug comes back. After a re-launch, caps
@@ -44,43 +75,12 @@
 --      with the same tool name and the same words. Assert what is unique
 --      to the branch. 9,147 -> 9,188 checks.
 --
--- NEW IN 6.227.0 — 🔖 ⇪⇧V KEEPS ITS PLACE, AND HOME/END JUMP (modules/clipboard_history.lua):
---   LL: "while selections work, I'm returned to the top after a selection
---      multiple times … It seems that until I get out of the search box,
---      I can't select items … Home/End keys do not work. All I can use is
---      the arrows. Home/End work in cheat sheets."
---   THE FIRST TWO ARE ONE FUNCTION. Every tag, every select-mode toggle
---      and every action row came back through `reopenEdit`, which threw
---      away BOTH halves of where he was: it re-rendered with "" (wiping
---      the search, so the whole history came back under his hands) and
---      hs.chooser DROPS THE SELECTION whenever :choices() is handed a new
---      list. Tag the second row of a search and the next keypress is
---      aimed at the first row of everything — and nothing looks selected
---      until an arrow is pressed, which is his third sentence exactly.
---      The query is read back and re-applied now, and the row is put back
---      after the new choices are in: `clip.rowAfterRebuild` is PURE and
---      clamps into the list, so a row past the end lands on the LAST one
---      (a delete shortens the list and the eye expects the neighbour).
---   ⤒⤓ HOME AND END are a plain hs.hotkey pair ENABLED ONLY WHILE THE
---      PICKER IS ON SCREEN — hs.chooser is an NSTableView with no key
---      handler Hammerspoon exposes, and a global Home/End bind would
---      steal the key from every app. They call the same
---      `chooser:selectedRow(n)` the place-keeping does. Both pickers get
---      them. A Mac without hs.hotkey keeps the arrows and the report says
---      so. New report lines "home/end :" and "place :".
---   🧪 TWO STUB HOLES, BOTH THE SAME RULE: selectedRow was a getter only,
---      so every "put the highlight back" call succeeded while moving
---      nothing, and :choices() did NOT drop the selection the way the
---      real chooser does — so the bug LL reported could not be
---      reproduced in the suite at all. Fixed both, then the mutations
---      bit. 9,129 -> 9,147 checks.
---
--- (6.226.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.227.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.228.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.229.0
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -177,7 +177,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.228.0"
+_G.configVersion = "6.229.0"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the
