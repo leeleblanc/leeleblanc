@@ -1,5 +1,5 @@
 ========================================================================
-RESOLVED FEATURE REQUESTS — Hammerspoon config 6.236.0
+RESOLVED FEATURE REQUESTS — Hammerspoon config 6.236.1
 Every feature and how to use it. Generated from the modules' own
 cheat sheets (the rows ⇪/ draws), so it is never out of date.
 ⇪ = Caps Lock held (the hyper key). ⇪⇧X = Caps Lock + Shift + X.
@@ -756,6 +756,7 @@ In the Console, _G.<tool>Report() prints any tool's own report.
 
 📜 RELEASE INDEX — newest first, one line per release (the full story of each is in CHANGELOG.md)
 ------------------------------------------------------------------------
+  6.236.1  🚨 A READER'S ERROR MESSAGE IS NOT A FILE
   6.236.0  🖥 A PANEL OPENS WHERE YOU ARE LOOKING, AND `mainWindow`
   6.235.0  🔒 THE DROP THAT LIT UP BLUE AND DID NOTHING
   6.234.0  🕘 THIRTY DAYS OF HISTORY, ONE ROW PER FILE

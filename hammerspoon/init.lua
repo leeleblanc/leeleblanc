@@ -4,9 +4,28 @@
 -- =====================================================================
 -- 09-16-26 using Claude          ← EDITED date. Bumped with every release.
 -- =====================================================================
--- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.236.0
+-- .Hammerspoon ARCHITECTURE VERSION CONTROL: 6.236.1
 -- =====================================================================
 
+-- NEW IN 6.236.1 — 🚨 A READER'S ERROR MESSAGE IS NOT A FILE
+--                  (modules/music_player.lua):
+--   Caught by the gate, before LL ever ran it, and only because the gate
+--      runs a suite from an ABSOLUTE path. 6.235.0's readers were written
+--      `mp.joinLines(select(2, pcall(f)))` — and `select(2, pcall(f))` is
+--      the RESULT when f returns and the ERROR MESSAGE when it raises. A
+--      Lua error begins with its chunk name, so on a Mac it reads
+--      "/Users/…/music_player.lua:612: …", which starts with a slash,
+--      which `pathsFromURIList` accepts as a plain-text drag. A reader
+--      that FAILED handed its own traceback back as a track to play.
+--   🔒 That is CLAUDE.md's own 6.179.0 rule — read THREE values, because
+--      reading two makes a refusal look like success — broken in new code
+--      by the person who wrote the rule down. `ask()` reads ok first.
+--   🧪 And the check on it passed at first for the wrong reason: `error(msg)`
+--      PREPENDS "file:line:" unless it is raised at level 0, so the fake
+--      failure did not have the shape the real one has. It raises at level
+--      0 now and the message is exactly what the test asked for.
+--      · 9,500 -> 9,501 checks.
+--
 -- NEW IN 6.236.0 — 🖥 A PANEL OPENS WHERE YOU ARE LOOKING, AND
 --                  `mainWindow` LOSES ITS PLACE (init.lua §1.5):
 --   LL, for the second time: "the cheat sheet appears on the monitor that
@@ -35,38 +54,12 @@
 --      config had chosen or why.
 --      · eight mutations.
 --
--- NEW IN 6.235.0 — 🔒 THE DROP THAT LIT UP BLUE AND DID NOTHING
---                  (modules/music_player.lua):
---   LL on 6.234.0: "Turns highlighted blue so it seems to see the file but
---      drop doesn't work." The blue is evidence, and it clears half the
---      feature outright: the catcher IS being offered the drag, so the
---      canvas, its window level, its mouseCallback and its registration
---      are all right. Everything left is in the half AFTER the veil.
---   🧷 AND THAT HALF COULD THROW. `table.concat(u, "\n")` blows up on a
---      list holding anything that is not a string or a number, and
---      hs.pasteboard's readers answer with whatever LuaSkin made of the
---      objects on that pasteboard. The concat sat OUTSIDE the pcall that
---      wrapped the read, inside a dragging callback — where a throw is
---      invisible: the callback dies, the veil is already down, and
---      nothing is printed anywhere. `mp.joinLines` is PURE and takes a
---      string, a list of strings, numbers, or objects carrying a url;
---      anything it cannot read is skipped rather than fatal.
---   🔒 EVERY READER IS WRAPPED WHOLE now, and so is the receive itself —
---      a callback that throws does nothing and says nothing, which is
---      indistinguishable from a drop macOS never delivered.
---   🚚 A FOURTH READER: `public.file-url` asked for by name, which is the
---      type a Finder drag actually carries.
---   🔎 AND WHEN NOTHING READS, THE REPORT NAMES WHAT THE DRAG CARRIED
---      (hs.pasteboard.pasteboardTypes). Without it the next report can
---      only repeat "it did not work"; with it, one line names the cause.
---      · 9,470 -> 9,487 checks · six mutations.
---
--- (6.234.0 and earlier: see CHANGELOG.md — the complete record, and the
+-- (6.235.0 and earlier: see CHANGELOG.md — the complete record, and the
 --  reason trimming this header is safe. 6.180.0 dropped the inline count
 --  from five entries to TWO: five had grown to 135 lines of release notes
 --  inside the orchestrator, and CHANGELOG.md carries every word of them.)
 -- =====================================================================
--- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.236.0
+-- WHAT EACH TOOL DOES :: ARCHITECTURE VERSION CONTROL: 6.236.1
 -- =====================================================================
 -- The catalogue that used to sit here — every tool, its key and what it
 -- is for, in prose — moved to GUIDE.md ("What each tool does") in
@@ -163,7 +156,7 @@ local homeDir = os.getenv("HOME")
 
 -- The boot clock starts here, before any real work, so §1.11's
 -- report can say how long loading actually took.
-_G.configVersion = "6.236.0"
+_G.configVersion = "6.236.1"
 _G.diagBootStart = hs.timer.secondsSinceEpoch();
 
 -- ---- EmmyLua: REMOVED in 6.179.0 (never configured, no dependents; the

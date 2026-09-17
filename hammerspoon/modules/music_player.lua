@@ -960,24 +960,34 @@ draw(S);
         -- wins, and the report names WHICH — a drop that fails on one Mac
         -- and works on another is otherwise unanswerable.
         if pbName == false then pbName = nil end
+        -- 🚨 READ THREE VALUES, NOT TWO (6.179.0, and I broke it here).
+        -- `select(2, pcall(f))` is the RESULT when f returns and the ERROR
+        -- MESSAGE when it raises — and a Lua error message begins with the
+        -- chunk name, so on a Mac it reads "/Users/…/music_player.lua:612:
+        -- …". That starts with a slash, which `pathsFromURIList` accepts as
+        -- a plain-text drag, so a reader that FAILED would have handed its
+        -- own traceback back as a file to play. Caught by the gate only
+        -- because it runs the suite from an absolute path.
+        local function ask(fn, ...)
+            local args = table.pack(...)
+            local ok, v = pcall(function() return fn(table.unpack(args, 1, args.n)) end)
+            if not ok then return nil end
+            return mp.joinLines(v)
+        end
         local tries = {
             { "readURL", function()
-                return mp.joinLines(select(2, pcall(hs.pasteboard.readURL,
-                                                    pbName, true)))
+                return ask(hs.pasteboard.readURL, pbName, true)
             end },
             -- public.file-url is the type a Finder drag actually carries,
             -- asked for by name in case the object readers do not see it.
             { "file-url", function()
-                return mp.joinLines(select(2, pcall(hs.pasteboard.readDataForUTI,
-                                                    pbName, "public.file-url")))
+                return ask(hs.pasteboard.readDataForUTI, pbName, "public.file-url")
             end },
             { "readString", function()
-                return mp.joinLines(select(2, pcall(hs.pasteboard.readString,
-                                                    pbName, true)))
+                return ask(hs.pasteboard.readString, pbName, true)
             end },
             { "getContents", function()
-                return mp.joinLines(select(2, pcall(hs.pasteboard.getContents,
-                                                    pbName)))
+                return ask(hs.pasteboard.getContents, pbName)
             end },
         }
         for _, t in ipairs(tries) do
@@ -994,6 +1004,7 @@ draw(S);
         -- Without this the next report can only repeat "it did not work".
         local okT, types = pcall(hs.pasteboard.pasteboardTypes, pbName)
         local list = okT and mp.joinLines(types) or nil
+        if not okT then list = nil end
         return {}, "nothing readable" .. (list
                and (" — the drag carried: " .. list:gsub("\n", ", ")) or "")
     end

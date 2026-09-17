@@ -170,7 +170,13 @@ PB = { url = nil, str = nil, contents = nil, uti = nil, types = nil,
        throw = {} }
 hs.pasteboard = {
     readURL = function(name, all)
-        if PB.throw.url then error("readURL blew up") end
+        -- level 0: no "file:line:" prefix, so the message is EXACTLY what
+        -- the test asked for. macOS's own errors carry the chunk path in
+        -- front, which is the shape that made this bug look like a file.
+        if PB.throw.url then
+            if PB.throwMsg then error(PB.throwMsg, 0) end
+            error("readURL blew up")
+        end
         if PB.url == nil then return nil end
         return all and PB.url or PB.url[1]
     end,
@@ -290,7 +296,7 @@ local function reset()
     SCREENS = { { x = 0, y = 0, w = 1440, h = 900 } }
     CANVASES, NO_CANVAS, NO_DRAGCB = {}, false, false
     PB = { url = nil, str = nil, contents = nil, uti = nil, types = nil,
-           throw = {} }
+           throw = {}, throwMsg = nil }
     mp.catcher, mp.dropReader = nil, nil
     mp.dropWhy, mp.dragSeen = "not opened yet", "no drag yet this session"
 end
@@ -1269,6 +1275,27 @@ PB.str = { "file:///m/ok.mp3" }
 drag("receive")
 check("🔒 a reader that THROWS is stepped over, and the next one answers",
       #mp.queue == 1 and mp.dropReader == "readString", tostring(mp.dropReader))
+
+-- 🚨 AND A READER'S ERROR MESSAGE IS NOT A FILE. `select(2, pcall(f))` is
+-- the result when f returns and the ERROR when it raises; a Lua error
+-- begins with the chunk name, so from an absolute path it starts with a
+-- slash and `pathsFromURIList` takes it as a plain-text drag. The reader
+-- that FAILED would hand back its own traceback as a track to play — which
+-- is 6.179.0's read-THREE-values rule, broken in new code, and caught only
+-- because the gate runs this suite from an absolute path.
+reset() ; mp.show()
+PB.throw.url = true
+-- A real Lua error reads "/Users/…/music_player.lua:612: …" — it BEGINS
+-- with the chunk path. This says so outright rather than depending on how
+-- the suite happened to be invoked.
+PB.throwMsg = "/m/its-own-traceback.mp3:612: readURL blew up"
+FILES["/m/its-own-traceback.mp3"] = true
+drag("receive")
+check("🚨 a reader that raises hands back NOTHING — never its own error "
+      .. "message, which on a real Mac begins with a path and is taken "
+      .. "for one", #mp.queue == 0 and mp.dropReader ~= "readURL",
+      tostring(mp.dropReader) .. " / " .. #mp.queue)
+PB.throwMsg = nil
 
 -- the file-url reader, which is the type a Finder drag really carries
 reset() ; mp.show()

@@ -5,6 +5,35 @@ also kept inline at the top of the file (five until 6.180.0); everything
 older lives only here.
 
 ```text
+NEW IN 6.236.1 — 🚨 A READER'S ERROR MESSAGE IS NOT A FILE
+                 (modules/music_player.lua):
+  Caught by the gate before LL ever ran it, and only because the gate runs
+  each suite from an ABSOLUTE path. 6.235.0's readers were written:
+
+     mp.joinLines(select(2, pcall(hs.pasteboard.readURL, pbName, true)))
+
+  `select(2, pcall(f))` is the RESULT when f returns and the ERROR MESSAGE
+  when it raises. A Lua error begins with its chunk name, so on a Mac it
+  reads "/Users/lee/.hammerspoon/modules/music_player.lua:612: …" — which
+  starts with a slash, which `pathsFromURIList` accepts as a plain-text
+  drag. A reader that FAILED would hand its own traceback back as a file to
+  play, and the report would name that reader as the one that answered.
+
+  That is this project's own 6.179.0 rule — read THREE values, because
+  reading two makes a refusal look like success — broken in new code by the
+  person who had just written the rule down. `ask()` reads `ok` first.
+
+  🧪 AND THE CHECK ON IT PASSED FOR THE WRONG REASON at first. The stub
+  raised with `error(msg)`, which PREPENDS "file:line:" — so the fake
+  failure did not have the shape the real one has, and whether it was
+  caught depended on whether the suite happened to be invoked by a relative
+  or an absolute path. It raises at level 0 now, so the message is exactly
+  what the test asked for and the check no longer depends on how it was
+  run. A test that only bites under one invocation is a test that does not
+  bite.
+
+  9,500 -> 9,501 checks.
+
 NEW IN 6.236.0 — 🖥 A PANEL OPENS WHERE YOU ARE LOOKING, AND `mainWindow`
                  LOSES ITS PLACE (init.lua §1.5):
   LL, for the second time: "the cheat sheet appears on the monitor that was

@@ -291,6 +291,19 @@ work Mac.
   task — a throw is a silence, so the guard goes around the WHOLE body, and
   the check that proves it makes something throw that is not already
   guarded on its own.
+  🚨 AND `select(2, pcall(f))` IS THE ERROR MESSAGE WHEN f RAISES
+  (6.236.1) — the same value slot as the result. A Lua error begins with
+  its CHUNK NAME, so on a Mac it starts with "/Users/…", which
+  `pathsFromURIList` accepts as a plain-text drag: a reader that FAILED
+  handed its own traceback back as a file to play. 6.179.0's read-THREE-
+  values rule, broken in new code by the person who wrote it down, and
+  caught only because the gate runs suites from an ABSOLUTE path.
+  🧪 The check on it first passed for the wrong reason: `error(msg)`
+  PREPENDS "file:line:" unless raised at LEVEL 0, so the fake failure did
+  not have the shape the real one has and the check bit or not depending
+  on how the suite was invoked. RULE: a stub that fakes a failure raises
+  at level 0, and a check that only bites under one invocation does not
+  bite.
   🔎 AND WHEN NOTHING READS, NAME WHAT WAS THERE: `pasteboardTypes` rides
   into the report, because a second "it did not work" is not an artefact.
   🧪 AND THE MUTATION HARNESS LEFT A MUTATION IN THE TREE mid-release,
@@ -1713,7 +1726,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f · 6.233.0 2328c8c · 6.234.0 57f78d0 · 6.235.0 52e5b21 · 6.236.0 34cff8b · 6.236.1 PENDING.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
@@ -1781,13 +1794,14 @@ as the fix when a loss lands.
 | 6.232.0 | 🪟 the music card moves: ⌘-drag anywhere or a bare drag on its title strip, and it reopens where he left it (it was never in `_G.movablePanels`) | pending — LL: "Shortcuts fixed", which is not his win sentence and does not name the drag; ask |
 | 6.233.0 | 🚚 a dragged file lands on the card — a canvas catcher under it, because hs.webview cannot take a drop and hs.canvas can (the opposite of what 6.231.0 believed) | LOSS — LL: "Turns highlighted blue so it seems to see the file but drop doesn't work." The catcher was right; the read after it threw → fix 6.235.0 |
 | 6.234.0 | 🕘 thirty days of history, one row per file — the 60-row cap was the memory; days decide now, and the card shows 40 | pending |
+| 6.236.1 | 🚨 a reader's error message is not a file — `select(2, pcall(f))` is the error when it raises, and a Lua error begins with a path (caught by the gate, never reached him) | pending |
 | 6.236.0 | 🖥 a panel opens on the monitor you are looking at — the pointer outranks the front app's `mainWindow`, which is routinely the other display | pending |
 | 6.235.0 | 🔒 the drop lit up blue and did nothing: a `table.concat` on a list of objects threw inside the dragging callback, where a throw is a silence — plus a `public.file-url` reader and a report that names what the drag carried | pending |
 
-Running total: 14 wins · 7 losses · 20 pending (6.215.0, 6.217.0, 6.218.0,
+Running total: 14 wins · 7 losses · 21 pending (6.215.0, 6.217.0, 6.218.0,
 6.219.0, 6.220.0, 6.221.0, 6.222.0, 6.223.0, 6.224.0, 6.225.0, 6.226.0,
 6.227.0, 6.228.0, 6.229.0, 6.230.0, 6.231.1, 6.232.0, 6.233.0, 6.234.0,
-6.235.0, 6.236.0).
+6.235.0, 6.236.0, 6.236.1).
 6.208.0's stall guard was FIELD-PROVEN 2026-09-13: a ⇪Y Chrome-history
 search beachballed the Air 72 s, the guard killed and relaunched it, the
 next boot announced it (LL: "fortunately hammerspoon caught itself"). LL is on
