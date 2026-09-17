@@ -1627,7 +1627,7 @@ THE METHOD, when something breaks after a stacked zip:
    6.216.0 6f06071 · 6.217.0 a475bef · 6.218.0 41b002b · 6.219.0 862c177
    · 6.220.0 ac3975e · 6.221.0 ead07d9 · 6.222.0 1842ca7 · 6.223.0
    86ac82b · 6.224.0 67957ea · 6.225.0 98434fe · 6.226.0 304f1f9 ·
-   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 PENDING.
+   6.227.0 14e953a · 6.228.0 2aa3dfe · 6.229.0 a1318e1 · 6.230.0 0740c07 · 6.231.0 c1921af · 6.231.1 5a5c298 · 6.232.0 1ca3f6f.
    Keep this list current: one line per release, appended at ceremony
    time.
 4. A BISECT IS AN OPTION, NOT THE FIRST MOVE — it costs him an install
